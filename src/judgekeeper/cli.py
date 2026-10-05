@@ -367,6 +367,10 @@ def _parser() -> argparse.ArgumentParser:
     _normaliser_args(st)
     st.add_argument("--judge-model", metavar="NAME",
                     help="the judge's model, when the results do not record it")
+    st.add_argument("--port", type=int, default=8765,
+                    help="port on 127.0.0.1 for the labeling page (default 8765)")
+    st.add_argument("--no-browser", action="store_true",
+                    help="print the labeling page's link instead of opening a browser")
     st.add_argument("--yes", action="store_true",
                     help="without a terminal, answer yes/no questions with the default (it "
                          "never picks a tool or a judge)")
@@ -708,7 +712,7 @@ def cmd_start(args) -> int:
 
     return run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
                pass_if=args.pass_if, label_map=args.label_map, judge_model=args.judge_model,
-               yes=args.yes)
+               yes=args.yes, port=args.port, no_browser=args.no_browser)
 
 
 def cmd_export(args) -> int:

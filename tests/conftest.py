@@ -17,6 +17,15 @@ def pairwise_dir(tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def no_browser(monkeypatch):
+    """No test opens the browser of the machine it runs on. The links it would have opened
+    are kept, for a test that wants to see them."""
+    opened = []
+    monkeypatch.setattr("webbrowser.open", lambda url, *a, **k: opened.append(url) or True)
+    return opened
+
+
+@pytest.fixture(autouse=True)
 def fresh_key_registry(monkeypatch):
     """Variables named with --api-key-env are registered for the life of a process; give each
     test its own registry so one test cannot hide a leak in another."""

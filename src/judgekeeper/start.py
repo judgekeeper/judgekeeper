@@ -96,6 +96,7 @@ class Talk:
         if self.quiet or (not text and self._blank):
             return
         print(printable(scrub(text)))
+        sys.stdout.flush()  # piped or in the background, lines must not wait in a buffer
         self._blank = not text
 
     def choose(self, title: str, options: list[str], flag_hint: str) -> int:
@@ -667,8 +668,9 @@ INTRO = (
 def run(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
         experiment: str | None = None, pass_if: str | None = None,
         label_map: str | None = None, judge_model: str | None = None,
-        yes: bool = False) -> int:
-    """`judgekeeper start`: say what was found and the labeling plan. Returns the exit code."""
+        yes: bool = False, port: int = 8765, no_browser: bool = False) -> int:
+    """`judgekeeper start`: say what was found, then open the labeling page and make the
+    result. Returns the exit code."""
     talk = Talk(yes=yes)
     try:
         found = find_judge(path, tool=tool, metric=metric, experiment=experiment,
@@ -705,7 +707,14 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         talk.say()
         for line in INTRO:
             talk.say(line)
-        return EXIT_OK
+        talk.say()
+        if not talk.confirm("Open the labeling page now?", default=True, with_yes=True,
+                            hint="Open the labeling page? Run judgekeeper start --yes to open "
+                                 "it."):
+            return EXIT_OK
+        from judgekeeper.start_label import run_labeling
+
+        return run_labeling(found, port=port, open_browser=not no_browser, say=talk.say)
     except Stop as stop:
         return stop.code
 
