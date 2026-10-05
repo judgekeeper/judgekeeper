@@ -471,7 +471,7 @@ def test_idle_connection_does_not_freeze_the_server(tmp_path, serve, monkeypatch
         idle.close()
 
 
-# Stopping by itself once the result is served (the try page)
+# Stopping by itself once the result is served (the page `judgekeeper start` passes)
 
 def _serve_until_done(tmp_path, **kw):
     server = LabelServer(LabelSession(_items(tmp_path, n=3), tmp_path / "labels.csv"), port=0,
@@ -481,8 +481,9 @@ def _serve_until_done(tmp_path, **kw):
     return server, thread, Client(server)
 
 
-def _result(session):
-    return {"lines": [f"{session.summary()['n_labeled']} labeled"]}
+def _result(session, back):
+    assert back.startswith("/?token=")
+    return f"<!doctype html><p>{session.summary()['n_labeled']} labeled</p>"
 
 
 def test_with_a_result_it_stops_after_serving_it(tmp_path):
@@ -495,10 +496,23 @@ def test_with_a_result_it_stops_after_serving_it(tmp_path):
     thread.join(timeout=0.5)
     assert thread.is_alive(), "done, but the page has not fetched the result yet"
     resp, payload = client.request("GET", "/result")
-    assert resp.status == 200 and json.loads(payload) == {"lines": ["2 labeled"]}
+    assert resp.status == 200 and payload.decode() == "<!doctype html><p>2 labeled</p>"
+    assert resp.getheader("Content-Type") == "text/html; charset=utf-8"
     thread.join(timeout=5)
     assert not thread.is_alive()
     assert [r["human_label"] for r in _read(tmp_path / "labels.csv")] == ["pass", "", "fail"]
+
+
+def test_a_result_before_the_end_keeps_serving(tmp_path):
+    server, thread, client = _serve_until_done(tmp_path, result=_result)
+    client.label(id="it0", label="pass")
+    resp, payload = client.request("GET", "/result")
+    assert resp.status == 200 and b"1 labeled" in payload
+    assert "script-src" not in resp.getheader("Content-Security-Policy")
+    thread.join(timeout=0.5)
+    assert thread.is_alive()
+    server.stop()
+    thread.join(timeout=5)
 
 
 def test_with_a_result_it_stops_anyway_when_nobody_fetches_it(tmp_path, monkeypatch):
@@ -520,26 +534,12 @@ def test_plain_label_keeps_serving_when_done(tmp_path):
     thread.join(timeout=5)
 
 
-def test_run_with_an_intro_prints_it_before_the_link_and_returns_the_session(tmp_path,
-                                                                           monkeypatch):
-    printed = []
-    original = label_mod.LabelServer.serve
-
-    def serve(self, idle_timeout=None):
-        thread = threading.Thread(target=original, args=(self, idle_timeout), daemon=True)
-        thread.start()
-        client = Client(self)
-        for n in range(4):
-            client.label(id=f"it{n}", label="pass")
-        assert client.request("GET", "/result")[0].status == 200
+def test_plain_label_keeps_its_own_page_and_has_no_result(tmp_path):
+    server, thread, client = _serve_until_done(tmp_path)
+    try:
+        page = server.page()[0]
+        assert "Defer" in page and "Show judge" in page and "See my result" not in page
+        assert client.request("GET", "/result")[0].status == 404
+    finally:
+        server.stop()
         thread.join(timeout=5)
-        assert not thread.is_alive()
-
-    monkeypatch.setattr(label_mod.LabelServer, "serve", serve)
-    session = label_mod.run(_items(tmp_path), tmp_path / "labels.csv", port=0,
-                            open_browser=False, print_fn=printed.append, result=_result,
-                            intro="Press 1 or 2.")
-    assert printed[0] == "Press 1 or 2."
-    assert printed[1].startswith("open http://127.0.0.1:")
-    assert len(printed) == 2  # the caller says what happens next
-    assert [i["label"] for i in session.items] == ["pass"] * 4

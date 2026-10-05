@@ -28,8 +28,25 @@ from tests.start_projects import (
 )
 
 
-def run(capsys, *argv):
-    code = main(["start", *map(str, argv)])
+@pytest.fixture(autouse=True)
+def no_labeling(monkeypatch):
+    """These tests stop where labeling starts (tests/test_start_label.py covers the rest)."""
+    calls = []
+
+    def run_labeling(found, port, open_browser, say):
+        calls.append(found)
+        say("(labeling page)")
+        return 0
+
+    monkeypatch.setattr("judgekeeper.start_label.run_labeling", run_labeling)
+    return calls
+
+
+def run(capsys, *argv, yes=True):
+    """`judgekeeper start` without a terminal; with --yes unless `yes` is False, so the run
+    goes on to labeling (replaced here) where a person would say yes."""
+    argv = [*map(str, argv)] + (["--yes"] if yes and "--yes" not in argv else [])
+    code = main(["start", *argv])
     out, err = capsys.readouterr()
     return code, out, err
 
@@ -149,7 +166,7 @@ def test_mlflow_store(tmp_path, capsys):
     from tests.conftest import build_mlflow_store
 
     build_mlflow_store(tmp_path)
-    code, out, _ = run(capsys, tmp_path, "--metric", "correctness")
+    code, out, _ = run(capsys, tmp_path, "--metric", "correctness", yes=False)
     assert f"{ok()} Your eval tool: MLflow (mlflow.db, experiment qa-judge)" in out
     assert f"{ok()} Your judge: correctness with fake:/judge-model-1" in out
     assert f"{ok()} 8 answers with a verdict: the judge passed 4 and failed 4" in out
@@ -455,14 +472,14 @@ def test_results_from_another_project_ask_first(tmp_path, capsys, monkeypatch):
             'bot"). Continue? [y/N]') in out
     assert "answers with a verdict" not in out
 
-    answers = iter(["y"])
+    answers = iter(["y", ""])  # yes, then Enter to open the labeling page
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and "32 answers with a verdict" in out
 
 
 def test_another_project_without_a_terminal_stops(tmp_path, capsys):
     promptfoo_project(tmp_path, split(20, 12), description="billing bot")
-    code, out, _ = run(capsys, tmp_path)
+    code, out, _ = run(capsys, tmp_path, yes=False)
     assert code == 2
     assert "looks like it is from another project" in out
 

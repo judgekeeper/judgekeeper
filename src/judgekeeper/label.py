@@ -10,10 +10,10 @@ through textContent, and the data is embedded as JSON with <, > and & escaped. A
 that stays silent for CONNECTION_TIMEOUT seconds is dropped. The server stops on Ctrl-C and
 after IDLE_TIMEOUT seconds without a request.
 
-With a `result` function the server serves a simpler page (try_page.py) and a
-/result endpoint, which answers once every item is labeled or deferred. It stops right after
-serving that result, or RESULT_WAIT seconds after the last item if nobody fetches it. The page
-holds the result once fetched, so it keeps showing it with the server gone.
+`judgekeeper start` passes its own page (start_page.py) and a `result` function: then
+GET /result answers with the result page, a static HTML page that runs no script. Once every
+item is labeled or deferred, the server stops right after serving that page, or RESULT_WAIT
+seconds after the last item if nobody fetches it.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ IDLE_TIMEOUT = 2 * 60 * 60  # seconds
 # without this a connection that sends nothing (a browser's spare one) would block the rest.
 CONNECTION_TIMEOUT = 5
 MAX_BODY = 1_000_000
-# Seconds a try page may take to fetch its result after the last item before the server stops.
+# Seconds a page may take to fetch its result after the last item before the server stops.
 RESULT_WAIT = 60
 JUDGE_COLUMNS = ("judge_verdict", "verdict", "judge")
 REASON_COLUMNS = ("judge_reason", "reason", "rationale")
@@ -214,9 +214,12 @@ def _json_for_html(data) -> str:
 
 
 class LabelServer:
-    def __init__(self, session: LabelSession, port: int = DEFAULT_PORT, result=None):
+    def __init__(self, session: LabelSession, port: int = DEFAULT_PORT, result=None,
+                 page: str | None = None):
         self.session = session
-        self.result = result  # session -> JSON-able dict; selects try_page.py
+        # (session, link back to the labeling page) -> the result page (HTML), for GET /result
+        self.result = result
+        self.template = PAGE if page is None else page
         self.done_at: float | None = None
         self.token = secrets.token_urlsafe(32)
         self.httpd = HTTPServer((HOST, port), _handler(self))
@@ -244,11 +247,7 @@ class LabelServer:
     def page(self) -> tuple[str, str]:
         """The page and the nonce its script runs under."""
         nonce = secrets.token_urlsafe(16)
-        if self.result is None:
-            template = PAGE
-        else:
-            from judgekeeper.try_page import TRY_PAGE as template
-        return (template.replace("__NONCE__", nonce)
+        return (self.template.replace("__NONCE__", nonce)
                 .replace("__TOKEN__", self.token)
                 .replace("__DATA__", _json_for_html(self.session.state()))), nonce
 
@@ -302,11 +301,13 @@ def _handler(server: LabelServer):
             elif url.path == "/state":
                 self._json(200, server.session.state())
             elif url.path == "/result" and server.result is not None:
-                if not server.session.summary()["done"]:
-                    self._json(409, {"error": "not every item is answered yet"})
-                    return
-                self._json(200, server.result(server.session))
-                server.stop()  # the page holds the result now
+                page = server.result(server.session, f"/?token={server.token}")
+                csp = ("default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; "
+                       "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+                self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
+                           {"Content-Security-Policy": csp})
+                if server.session.summary()["done"]:
+                    server.stop()  # nothing left to label: the page holds the result
             else:
                 self._json(404, {"error": "not found"})
 
@@ -347,23 +348,24 @@ def _handler(server: LabelServer):
     return Handler
 
 
-def run(items: str | Path, out: str | Path, port: int = DEFAULT_PORT,
-        open_browser: bool = True, print_fn=print, intro: str | None = None,
-        result=None) -> LabelSession:
-    """Serve the labeling page until Ctrl-C, idle, or (with `result`) the result is served.
-
-    With `intro`, that line is printed before the link instead of the usual start-up and
-    closing lines: the caller says what happens next.
-    """
-    session = LabelSession(items, out)
+def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None,
+                page: str | None = None) -> LabelServer:
+    """A server for `session`, or a LabelError that says why there cannot be one."""
     # Labels are written on the first click: say now if they cannot be, not in the page.
     unwritable = unwritable_file(session.out)
     if unwritable:
         raise LabelError(unwritable)
     try:
-        server = LabelServer(session, port, result=result)
+        return LabelServer(session, port, result=result, page=page)
     except OSError as e:
         raise LabelError(f"cannot listen on {HOST}:{port} ({e.strerror}); try --port") from None
+
+
+def run(items: str | Path, out: str | Path, port: int = DEFAULT_PORT,
+        open_browser: bool = True, print_fn=print) -> LabelSession:
+    """Serve the labeling page until Ctrl-C or idle."""
+    session = LabelSession(items, out)
+    server = make_server(session, port)
 
     def say(line: str) -> None:
         # Flushed line by line: started in the background or piped to a log, stdout is not a
@@ -371,23 +373,17 @@ def run(items: str | Path, out: str | Path, port: int = DEFAULT_PORT,
         print_fn(line)
         sys.stdout.flush()
 
-    if intro is None:
-        noun = "item" if len(session.items) == 1 else "items"
-        say(f"labeling {len(session.items)} {session.kind} {noun} into {session.out} "
-            f"({session.summary()['progress']})")
-    else:
-        say(intro)
+    noun = "item" if len(session.items) == 1 else "items"
+    say(f"labeling {len(session.items)} {session.kind} {noun} into {session.out} "
+        f"({session.summary()['progress']})")
     say(f"open {server.url}")
-    if intro is None:
-        say("every label is saved at once; Ctrl-C to stop (it also stops after 2 hours idle)")
+    say("every label is saved at once; Ctrl-C to stop (it also stops after 2 hours idle)")
     if open_browser:
         webbrowser.open(server.url)
     try:
         server.serve()
     except KeyboardInterrupt:
         pass
-    if intro is not None:
-        return session
     summary = session.summary()
     if not summary["n_labeled"] and not session.out.is_file():
         say("stopped: nothing was labeled, so no file was written")

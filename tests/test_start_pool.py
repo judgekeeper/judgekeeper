@@ -25,8 +25,25 @@ from tests.start_projects import (
 )
 
 
-def run(capsys, *argv):
-    code = main(["start", *map(str, argv)])
+@pytest.fixture(autouse=True)
+def no_labeling(monkeypatch):
+    """These tests stop where labeling starts (tests/test_start_label.py covers the rest)."""
+    calls = []
+
+    def run_labeling(found, port, open_browser, say):
+        calls.append(found)
+        say("(labeling page)")
+        return 0
+
+    monkeypatch.setattr("judgekeeper.start_label.run_labeling", run_labeling)
+    return calls
+
+
+def run(capsys, *argv, yes=True):
+    """`judgekeeper start` without a terminal; with --yes unless `yes` is False, so the run
+    goes on to labeling (replaced here) where a person would say yes."""
+    argv = [*map(str, argv)] + (["--yes"] if yes and "--yes" not in argv else [])
+    code = main(["start", *argv])
     out, err = capsys.readouterr()
     return code, out, err
 
@@ -43,7 +60,7 @@ def terminal(monkeypatch):
 
     def fake_input(prompt=""):
         print(prompt)
-        return answers.pop(0)
+        return answers.pop(0) if answers else ""  # then Enter: the default answer
 
     monkeypatch.setattr(builtins, "input", fake_input)
     return answers
@@ -58,7 +75,7 @@ def _two_tools(root):
 
 def test_two_tools_found_without_a_terminal_asks_for_a_flag(tmp_path, capsys):
     _two_tools(tmp_path)
-    code, out, _ = run(capsys, tmp_path)
+    code, out, _ = run(capsys, tmp_path, yes=False)
     assert code == 2
     assert "Several tools found; choose one with --tool promptfoo or --tool table" in out
     assert "answers with a verdict" not in out
@@ -108,7 +125,7 @@ def _two_metrics(root):
 
 def test_several_judges_without_a_terminal_ask_for_a_flag(tmp_path, capsys):
     _two_metrics(tmp_path)
-    code, out, _ = run(capsys, tmp_path)
+    code, out, _ = run(capsys, tmp_path, yes=False)
     assert code == 2
     assert "Several judges found; choose one with --metric helpfulness or --metric tone" in out
 
@@ -391,7 +408,7 @@ def test_too_few_and_yes_at_the_question_goes_on(tmp_path, capsys, terminal):
 ])
 def test_too_few_prints_the_command_for_each_tool(tmp_path, capsys, make, command):
     make(tmp_path)
-    code, out, _ = run(capsys, tmp_path)
+    code, out, _ = run(capsys, tmp_path, yes=False)
     assert command in out
     assert code == 2  # no terminal to ask in
 
@@ -405,7 +422,7 @@ def test_too_few_deepeval_adds_the_results_folder_tip(tmp_path, capsys):
 
 def test_a_group_under_five_is_too_few_even_with_thirty(tmp_path, capsys):
     promptfoo_project(tmp_path, split(28, 4))
-    code, out, _ = run(capsys, tmp_path)
+    code, out, _ = run(capsys, tmp_path, yes=False)
     assert "32 answers with a verdict: the judge passed 28 and failed 4" in out
     assert TOO_FEW[0] in out
     assert code == 2
@@ -432,7 +449,7 @@ def test_a_pass_group_under_fifteen_warns_too(tmp_path, capsys):
 
 def test_without_a_terminal_too_few_stops_with_the_flag(tmp_path, capsys):
     promptfoo_project(tmp_path, split(20, 2))
-    code, out, _ = run(capsys, tmp_path)
+    code, out, _ = run(capsys, tmp_path, yes=False)
     assert code == 2
     assert "Label the 22 you have anyway? Run judgekeeper start --yes to say yes." in out
 
@@ -451,5 +468,5 @@ def test_without_a_terminal_nothing_is_asked(tmp_path, capsys, monkeypatch):
         raise AssertionError("asked without a terminal")
 
     monkeypatch.setattr(builtins, "input", no_input)
-    code, _, _ = run(capsys, tmp_path)
+    code, _, _ = run(capsys, tmp_path, yes=False)
     assert code == 2
