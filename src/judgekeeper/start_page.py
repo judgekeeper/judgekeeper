@@ -9,6 +9,12 @@ anything the judge said: the page data is only ids, text and the person's own la
 through textContent. The side panel shows the person's progress, the judge's rule (its words
 only, never a verdict) and the keys: 1 Correct, 2 Wrong, S Skip, U Undo.
 
+The review page has the labeling page's look. Step A ("Look again") shows answers one at a
+time with Correct, Wrong and Not sure, and nothing the judge said and no first label; step B
+("See what your judge said") shows each disagreement with both labels and the judge's verdict
+and reason, with The judge was wrong, I slipped and The rule is unclear. Text goes through
+textContent.
+
 The result page is static HTML that runs no script and loads nothing, so the copy saved as
 `.judgekeeper/result.html` opens with no server. Every string in it is escaped.
 """
@@ -203,6 +209,13 @@ h1 { font-size: 2.1rem; line-height: 1.2; margin: 0 0 6px; letter-spacing: -.02e
   gap: 10px; }
 .next-list li { border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .next-list b { display: block; margin-bottom: 4px; }
+.review { margin: 18px 0 0; padding: 14px 16px; border-radius: 12px;
+  border: 1px solid var(--line); border-left: 4px solid var(--edge); }
+.review h2 { margin: 0 0 8px; font-size: 0.78rem; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted); }
+.review p { margin: 0 0 6px; }
+.review .meta { margin-top: 10px; }
+.files { margin: 4px 0 0; padding-left: 20px; }
 @media (max-width: 760px) {
   header { padding: 0 16px; } .hdr-note { display: none; }
   main { padding: 16px 16px 32px; }
@@ -438,13 +451,8 @@ def label_page(description: str | None, rule: str | None, status: list) -> str:
         for key, name in (("c", "Correct"), ("w", "Wrong")))
     meters = (meters.replace("__AT__", f"{rough / reliable * 100:g}")
               .replace("__ROUGH__", str(rough)).replace("__RELIABLE__", str(reliable)))
-    card = "" if not rule else f"""<div class="card">
-    <h2>What are you checking?</h2>
-    <details><summary>Your judge's rule</summary>
-      <p>{_text(f'"{rule}"')}</p>
-      <small>Mark each answer by what you think is right. The judge's verdict stays
-        hidden.</small></details>
-  </div>"""
+    card = _rule_card(rule, """Mark each answer by what you think is right. The judge's verdict stays
+        hidden.""")
     body = (LABEL_BODY.replace("__METERS__", meters)
             .replace("__STATUS__", json.dumps(status).replace("<", "\\u003c"))
             .replace("__ROUGH__", str(rough)).replace("__RELIABLE__", str(reliable))
@@ -481,16 +489,31 @@ def _verdict(v: dict) -> str:
             f'<div><strong>{escape(v["text"])}</strong>{detail}</div></div>')
 
 
+def _step(s: dict, back: str | None) -> str:
+    """One "What next" step: a button while the server runs, else the command."""
+    if back and s["link"]:
+        href = f'{s["link"]}?{back.partition("?")[2]}'
+        do = f'<br><a class="btn" href="{escape(href)}">{escape(s["button"])}</a>'
+    else:
+        do = f' <code>{escape(s["command"])}</code>'
+    return f'<li><b>{escape(s["title"])}</b>{escape(s["text"])}{do}</li>'
+
+
+def _review(review: dict | None) -> str:
+    if not review:
+        return ""
+    files = "".join(f"<li><code>{escape(f)}</code></li>" for f in review["files"])
+    return (f'<div class="review"><h2>Your review of the disagreements</h2>'
+            f'{"".join(f"<p>{escape(line)}</p>" for line in review["lines"])}'
+            + (f'<p class="meta">Saved:</p><ul class="files">{files}</ul>' if files else "")
+            + "</div>")
+
+
 def result_page(content: dict, back: str | None = None) -> str:
     """The result as a page. `content` holds the text (see start_label.page_content); `back`
     is the link to the labeling page while the server runs, None for the saved copy, where
     each button is the command that does the same."""
-    command = f'<code>{escape(content["command"])}</code>'
-    keep = (f'<br><a class="btn" href="{escape(back)}">Keep labeling</a>' if back
-            else f" {command}")
-    steps = "".join(
-        f'<li><b>{escape(s["title"])}</b>{escape(s["text"])}'
-        f'{keep if s["keep"] else " " + command}</li>' for s in content["next"])
+    steps = "".join(_step(s, back) for s in content["next"])
     judge = content["judge"]
     quoted = f'"{judge["rule"]}"' if judge["rule"] else ""
     rule = f'<div class="rule">{escape(quoted)}</div>' if quoted else ""
@@ -509,6 +532,7 @@ def result_page(content: dict, back: str | None = None) -> str:
 {_verdict(content["verdict"])}
 <div class="tiles">{"".join(_tile(t) for t in content["tiles"])}</div>
 <div class="facts">{rate}<p>{escape(content["corrected"])}</p></div>
+{_review(content.get("review"))}
 </div>
 <aside class="panel">
   <div class="card">
@@ -529,3 +553,268 @@ def result_page(content: dict, back: str | None = None) -> str:
 </body>
 </html>
 """
+
+
+REVIEW_STYLE = """
+.task { height: auto; min-height: calc(100vh - 116px); }
+#question, #reason-wrap, .said { flex-shrink: 0; }
+.lead { margin: 0 0 4px; font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; }
+.sub { margin: 0 0 14px; color: var(--muted); font-size: 0.95rem; }
+.choices.three { grid-template-columns: repeat(3, 1fr); }
+#unsure, .pick { color: var(--text); border-color: var(--edge); }
+#unsure:hover, .pick:hover { background: var(--bg-soft); }
+.said { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 14px; }
+.said p { margin: 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); }
+.said b.pass { color: var(--pass); } .said b.fail { color: var(--fail); }
+#reason { flex: 0 1 auto; max-height: 22%; font-size: 15px; }
+.steps { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column;
+  gap: 6px; font-size: 0.95rem; color: var(--muted); }
+.steps li { display: flex; gap: 10px; align-items: center; }
+.steps span { width: 24px; height: 24px; border-radius: 999px; border: 2px solid var(--line);
+  display: inline-flex; align-items: center; justify-content: center; font-weight: 700;
+  font-size: 0.8rem; flex: none; }
+.steps li.now { color: var(--text); font-weight: 650; }
+.steps li.now span { border-color: var(--green); background: var(--green); color: #FFFFFF; }
+.steps li.done span { border-color: var(--green); color: var(--green); }
+.count { font-size: 1.6rem; font-weight: 750; margin: 4px 0 6px;
+  font-variant-numeric: tabular-nums; }
+.track.one span { background: var(--green); }
+@media (max-width: 760px) {
+  .choices.three { grid-template-columns: 1fr; gap: 8px; }
+  .choices.three .choice { min-height: 48px; }
+  .said { grid-template-columns: 1fr; }
+  #reason { max-height: none; overflow: visible; } }
+"""
+
+REVIEW_BODY = """<main>
+<div class="label-grid">
+<div class="task">
+  <section id="ask" aria-labelledby="lead">
+    <p class="lead" id="lead"></p>
+    <p class="sub" id="sub"></p>
+    <p class="where"><span id="where"></span><span id="about">__ABOUT__</span></p>
+    <div class="cap">The question</div>
+    <div class="box" id="question" tabindex="0"></div>
+    <div class="cap">The answer</div>
+    <div class="box" id="answer" tabindex="0"></div>
+    <div id="verdicts" hidden>
+      <div class="said"><p id="said"></p><p>Your judge said: <b id="judge"></b></p></div>
+      <div id="reason-wrap"><div class="cap">Your judge's reason</div>
+        <div class="box" id="reason" tabindex="0"></div></div>
+    </div>
+    <div class="choices three" id="look">
+      <button class="choice" id="correct" type="button" data-value="pass">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none"
+          stroke="currentColor" stroke-width="3" stroke-linecap="round"
+          stroke-linejoin="round"/></svg>
+        Correct <kbd>1</kbd></button>
+      <button class="choice" id="wrong" type="button" data-value="fail">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"
+          fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+        Wrong <kbd>2</kbd></button>
+      <button class="choice" id="unsure" type="button" data-value="unsure">
+        Not sure <kbd>3</kbd></button>
+    </div>
+    <div class="choices three" id="see" hidden>
+      <button class="choice pick" type="button" data-value="judge_wrong">
+        The judge was wrong <kbd>1</kbd></button>
+      <button class="choice pick" type="button" data-value="slipped">
+        I slipped <kbd>2</kbd></button>
+      <button class="choice pick" type="button" data-value="rule_unclear">
+        The rule is unclear <kbd>3</kbd></button>
+    </div>
+    <div class="small">
+      <button class="text-btn" id="undo" type="button">Undo <kbd>U</kbd></button>
+    </div>
+    <p id="status" role="status"></p>
+  </section>
+</div>
+<aside class="side" aria-label="Your review, your judge's rule and the keys">
+  <div class="card progress">
+    <h2>Your review</h2>
+    <ol class="steps">
+      <li id="step-a"><span>1</span>Look again</li>
+      <li id="step-b"><span>2</span>See what your judge said</li>
+    </ol>
+    <div class="count" id="count" aria-live="polite"></div>
+    <div class="track one" aria-hidden="true"><span id="bar"></span></div>
+    <p class="unsure" id="why"></p>
+  </div>
+  __RULE_CARD__
+  <div class="card keys-card">
+    <h2>Keys</h2>
+    <ul class="keys" id="keys-a"><li><span>Correct</span><kbd>1</kbd></li>
+      <li><span>Wrong</span><kbd>2</kbd></li><li><span>Not sure</span><kbd>3</kbd></li>
+      <li><span>Undo</span><kbd>U</kbd></li></ul>
+    <ul class="keys" id="keys-b" hidden><li><span>The judge was wrong</span><kbd>1</kbd></li>
+      <li><span>I slipped</span><kbd>2</kbd></li><li><span>The rule is unclear</span><kbd>3</kbd></li>
+      <li><span>Undo</span><kbd>U</kbd></li></ul>
+    <p class="saved">Every click is saved. Your labels stay as you gave them. Close the tab any
+      time; run <code>judgekeeper start --review</code> to continue.</p>
+  </div>
+</aside>
+</div>
+</main>
+<script type="application/json" id="data">__DATA__</script>
+<script nonce="__NONCE__">
+"use strict";
+(function () {
+  var TOKEN = "__TOKEN__";
+  var TEXT = {
+    a: {lead: "Look again at a few answers. Your judge's verdict is still hidden.",
+        sub: "Some are answers you and your judge agreed on, so being shown one does not " +
+             "mean you were wrong.",
+        why: "Mark each answer by what you think is right, as if for the first time."},
+    b: {lead: "See what your judge said",
+        sub: "Only the answers where you and your judge disagree. What you choose here " +
+             "changes no number.",
+        why: "Your choices go to judge-mistakes.csv and rule-unclear.csv, to improve your " +
+             "judge's rule with."}
+  };
+  var data = JSON.parse(document.getElementById("data").textContent);
+  var step = data.step, items = data.items, pos = data.start, busy = false, history = [];
+  var FIELD = step === "a" ? "second" : "choice";
+  var $ = function (id) { return document.getElementById(id); };
+  function setText(id, text) { $(id).textContent = text == null ? "" : String(text); }
+  function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
+  var buttons = Array.prototype.slice.call(
+    document.querySelectorAll(step === "a" ? "#look .choice" : "#see .choice"));
+
+  if (step === "done") { window.location.href = url("/result"); return; }
+  setText("lead", TEXT[step].lead); setText("sub", TEXT[step].sub); setText("why", TEXT[step].why);
+  $("look").hidden = step !== "a"; $("see").hidden = step !== "b";
+  $("keys-a").hidden = step !== "a"; $("keys-b").hidden = step !== "b";
+  $("verdicts").hidden = step !== "b";
+  $("step-a").className = step === "a" ? "now" : "done";
+  $("step-b").className = step === "b" ? "now" : "";
+
+  function showQuestion(value) {
+    var box = $("question");
+    box.textContent = "";
+    if (!Array.isArray(value)) { box.textContent = value == null ? "" : String(value); return; }
+    value.forEach(function (pair) {
+      var name = document.createElement("div"), text = document.createElement("div");
+      name.className = "field-name"; name.textContent = pair[0];
+      text.className = "field"; text.textContent = pair[1];
+      box.appendChild(name); box.appendChild(text);
+    });
+  }
+
+  function showSaid(parts) {
+    var p = $("said");
+    p.textContent = "";
+    parts.forEach(function (part) {
+      var node = part[1] ? document.createElement("b") : document.createTextNode(part[0]);
+      if (part[1]) {
+        node.textContent = part[0];
+        node.className = part[0] === "Correct" ? "pass" : "fail";
+      }
+      p.appendChild(node);
+    });
+  }
+
+  function answered() { return items.filter(function (it) { return it[FIELD]; }).length; }
+
+  function render() {
+    var it = items[pos], done = answered();
+    setText("where", "Answer " + (pos + 1) + " of " + items.length);
+    setText("count", (done === items.length ? done : done + 1) + " of " + items.length);
+    $("bar").style.width = done / items.length * 100 + "%";
+    showQuestion(it.input);
+    setText("answer", it.output);
+    if (step === "b") {
+      showSaid(it.said);
+      setText("judge", it.judge);
+      $("judge").className = it.judge === "Pass" ? "pass" : "fail";
+      setText("reason", it.reason);
+      $("reason-wrap").hidden = !it.reason;
+    }
+    $("question").scrollTop = 0; $("answer").scrollTop = 0;
+    busy = false;
+    buttons.forEach(function (b) { b.disabled = false; });
+  }
+
+  function next() {
+    for (var n = 1; n <= items.length; n++) {
+      var i = (pos + n) % items.length;
+      if (!items[i][FIELD]) { pos = i; render(); return; }
+    }
+    window.location.reload();
+  }
+
+  function send(value, then) {
+    if (busy) { return; }
+    busy = true;
+    buttons.forEach(function (b) { b.disabled = true; });
+    var change = {id: items[pos].id};
+    change[FIELD] = value;
+    fetch(url("/label"), {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(change)
+    }).then(function (r) {
+      return r.json().then(function (body) { return {ok: r.ok, body: body}; });
+    }).then(function (res) {
+      if (!res.ok) { setText("status", "Not saved: " + res.body.error); render(); return; }
+      setText("status", "");
+      if (res.body.summary.step === "done") { window.location.href = url("/result"); return; }
+      if (res.body.summary.step !== step) { window.location.reload(); return; }
+      then();
+    }).catch(function () {
+      setText("status", "Not saved: this page lost its link to judgekeeper. Is it still " +
+        "running in your terminal? Your earlier clicks are saved.");
+      render();
+    });
+  }
+
+  function choose(value) {
+    var it = items[pos];
+    send(value, function () { it[FIELD] = value; history.push(pos); next(); });
+  }
+
+  function undo() {
+    if (!history.length) { setText("status", "Nothing to undo."); return; }
+    pos = history.pop();
+    var it = items[pos];
+    render();
+    send(null, function () { it[FIELD] = null; render(); });
+  }
+
+  buttons.forEach(function (b) {
+    b.addEventListener("click", function () { choose(b.getAttribute("data-value")); });
+  });
+  $("undo").addEventListener("click", undo);
+  document.addEventListener("keydown", function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) { return; }
+    var k = e.key.toLowerCase();
+    if (k === "1" || k === "2" || k === "3") { choose(buttons[+k - 1].getAttribute("data-value")); }
+    else if (k === "u") { undo(); }
+    else { return; }
+    e.preventDefault();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
+"""
+
+
+def _rule_card(rule: str | None, line: str) -> str:
+    return "" if not rule else f"""<div class="card">
+    <h2>What are you checking?</h2>
+    <details><summary>Your judge's rule</summary>
+      <p>{_text(f'"{rule}"')}</p>
+      <small>{line}</small></details>
+  </div>"""
+
+
+def review_page(description: str | None, rule: str | None) -> str:
+    """The review page, both steps: the page data says which one to show. The server fills
+    in __DATA__, __TOKEN__ and __NONCE__."""
+    body = (REVIEW_BODY.replace("__RULE_CARD__", _rule_card(
+                rule, "Mark each answer by what you think is right."))
+            .replace("__ABOUT__", _text(description or "")))
+    return (_head("judgekeeper: review the disagreements", LABEL_STYLE + REVIEW_STYLE,
+                  "Review the answers where you and your judge disagree") + body)

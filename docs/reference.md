@@ -27,7 +27,7 @@ Every command, file format, flag, exit code and config key. The README has the s
 ```
 judgekeeper start [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
                   [--pass-if RULE] [--label-map MAP] [--judge-model NAME]
-                  [--yes] [--new] [--no-browser] [--port N]
+                  [--yes] [--new | --review | --label-more] [--no-browser] [--port N]
 ```
 
 Finds the results your eval tool already saved, names your eval tool and your judge, opens a local page where you mark answers Correct or Wrong without seeing the judge's verdict, and shows how often the judge agrees with you. It makes no AI calls, reads no API key, never reads `.env` files, and never runs your app, your eval or your code.
@@ -43,6 +43,8 @@ Finds the results your eval tool already saved, names your eval tool and your ju
 | `--judge-model NAME` | The judge's model, when the results do not record it. Saved with `"model_source": "given by you"`. A usage error when the results already name a model |
 | `--yes` | Without a terminal, answer every yes/no question with its default (open the page, continue, label anyway). It never picks between tools or judges |
 | `--new` | Start a new check: everything in `.judgekeeper/` except `baseline.json` moves to `.judgekeeper/previous-<date>/`. Nothing is deleted |
+| `--review` | After a result: review the answers where you and your judge disagree (below). Answers the menu |
+| `--label-more` | After a result: open the labeling page to label more. Answers the menu |
 | `--no-browser` | Print the labeling page's link instead of opening a browser |
 | `--port N` | Port on 127.0.0.1 for the labeling page (default 8765) |
 
@@ -74,6 +76,8 @@ From the newest results it builds the pool: every answer with a clear pass or fa
 | `result.json`, `result.html` | The result: every number, the label counts, the fingerprint and the date; the page opens without a server | With each result |
 | `history/` | Earlier results (`result-<date>.json`) and, before a re-check, the check it replaced (`check-<date>/`) | With each result |
 | `previous-<date>/` | Everything that was here before `--new`, or before you labeled new answers | On `--new` |
+| `review.json` | The review of the disagreements: the answers shown, the seed, your second looks and your choices | On every click of the review |
+| `judge-mistakes.csv`, `rule-unclear.csv` | The disagreements you marked "The judge was wrong" or "The rule is unclear": id, input, output, your label, your second-look label, the judge's verdict and reason | On every click after the judge is shown |
 
 **Running it again.**
 
@@ -81,8 +85,10 @@ From the newest results it builds the pool: every answer with a clear pass or fa
 |---|---|
 | Nothing | Everything above |
 | Labeling not finished | "Continue?": the page opens at the next answer |
-| A result, and the same results | "Label more?": a new result replaces the old one, which goes to `history/` |
+| A result, and the same results | A menu: review the disagreements, label more (a new result replaces the old one, which goes to `history/`), or nothing. `--review` and `--label-more` answer it |
 | A result, and new results from the same tool and judge | A re-check: your saved labels against the judge's new verdicts, shown next to the last result, after saying whether the judge's model, prompt or temperature changed. When fewer than 15 Correct or 15 Wrong of your labeled answers are in the new results unchanged, it offers to label the new results instead |
+
+**Reviewing the disagreements** (no AI call). First you look again at every answer where you and your judge disagree, mixed with as many answers you agreed on (at least 3), with the judge's verdict still hidden: Correct, Wrong or Not sure. Then you see what the judge said on each disagreement, with its reason, and mark it: the judge was wrong, I slipped, or the rule is unclear. Your labels in `labels.csv` never change and stay the main result; the result adds a few lines with the numbers your second-look labels would give and what you called after seeing the judge.
 
 **Without a terminal** (a script, CI, a coding agent) it never asks. It prints what it found and the flag that answers the question, and exits 2; `--yes` takes the defaults. Labeling needs a person: in CI, `start` can only find and report. Exit codes: 0 done (also when you stop early), 1 a runtime failure, 2 a usage error or a question that needs an answer.
 

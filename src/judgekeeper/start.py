@@ -99,16 +99,18 @@ class Talk:
         sys.stdout.flush()  # piped or in the background, lines must not wait in a buffer
         self._blank = not text
 
-    def choose(self, title: str, options: list[str], flag_hint: str) -> int:
+    def choose(self, title: str, options: list[str], flag_hint: str,
+               ask: str = "Which one?") -> int:
         """The index of the option the person picks. Without a terminal: the hint, exit 2."""
         if not _interactive():
-            self.say(flag_hint)
+            for line in flag_hint.splitlines():
+                self.say(line)
             raise Stop(EXIT_USAGE)
         self.say(title)
         for n, option in enumerate(options, 1):
             self.say(f"  {n}. {option}")
         while True:
-            answer = self._input(f"Which one? [1-{len(options)}] ")
+            answer = self._input(f"{ask} [1-{len(options)}]: ")
             if answer.isdigit() and 1 <= int(answer) <= len(options):
                 return int(answer) - 1
 
@@ -727,18 +729,19 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         experiment: str | None = None, pass_if: str | None = None,
         label_map: str | None = None, judge_model: str | None = None,
         yes: bool = False, port: int = 8765, no_browser: bool = False,
-        new: bool = False) -> int:
+        new: bool = False, review: bool = False, label_more: bool = False) -> int:
     """`judgekeeper start`: say what was found, then open the labeling page and make the
     result. What is already saved in `.judgekeeper/` decides where it starts (start_again).
-    Returns the exit code."""
+    `review` and `label_more` answer the menu shown after a result. Returns the exit code."""
     from judgekeeper import start_again
 
     talk = Talk(yes=yes)
     options = {"tool": tool, "metric": metric, "experiment": experiment, "pass_if": pass_if,
                "label_map": label_map, "judge_model": judge_model}
     try:
+        then = "review" if review else "label" if label_more else None
         return start_again.run(Path(path), talk, options, port=port,
-                               open_browser=not no_browser, new=new)
+                               open_browser=not no_browser, new=new, then=then)
     except Stop as stop:
         return stop.code
 

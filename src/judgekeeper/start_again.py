@@ -6,8 +6,9 @@ decides what happens.
 | nothing                             | the full flow                                          |
 | labeling not finished, no result    | asks to continue; yes reopens the page at the next     |
 |                                     | answer, from the saved pool (no search)                |
-| a result, and the judge's verdicts  | asks to label more; a new result replaces the old one, |
-| are the same as last time           | which goes to history/                                 |
+| a result, and the judge's verdicts  | the menu: review the disagreements, label more (a new  |
+| are the same as last time           | result replaces the old one, which goes to history/),  |
+|                                     | or nothing; --review and --label-more answer it        |
 | a result, and new verdicts from the | a re-check: the saved labels against the new verdicts, |
 | same tool and judge name            | with the new pool's group sizes, next to the last one  |
 | anything, with --new                | moves it all (except baseline.json) to                 |
@@ -18,6 +19,8 @@ fewer than 15 Correct or 15 Wrong of them came back, the answers changed (the ap
 different outputs now), so the old labels do not apply: start offers to label the latest
 results instead, moving the old check to previous-<date>/. Before a re-check replaces the
 saved pool, the old start.json, pool files and labels are copied to history/check-<date>/.
+After a re-check, at a terminal, the menu follows. `--review` reviews the saved result at once,
+without looking for new results.
 """
 
 from __future__ import annotations
@@ -84,17 +87,24 @@ def _project(path: Path) -> Path:
     return path.resolve().parent if path.is_file() else path.resolve()
 
 
-def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: bool) -> int:
-    from judgekeeper import start
+def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: bool,
+        then: str | None = None) -> int:
+    """`then` answers the menu after a result: "review" or "label"."""
+    from judgekeeper import start, start_review
 
     ws = Workspace(_project(path)) if path.exists() else None
+    if then == "review":
+        if ws is None or not ws.result_json.is_file() or not ws.start.is_file():
+            talk.say("There is no result to review yet. Run judgekeeper start to label first.")
+            return start.EXIT_USAGE
+        return start_review.run(ws, talk, port, open_browser)
     if ws is not None and new:
         move_to_previous(ws, talk.say)
     elif ws is not None and ws.start.is_file():
         if not ws.result_json.is_file():
             return _unfinished(ws, talk, port, open_browser)
         found = start.find_judge(path, talk=talk, **options)
-        return _again(ws, found, talk, port, open_browser)
+        return _again(ws, found, talk, port, open_browser, then)
     found = start.find_judge(path, talk=talk, **options)
     return start.label_found(talk, found, port, open_browser)
 
@@ -123,7 +133,41 @@ def _saved_verdicts(ws: Workspace) -> dict[str, str]:
     return {i: r["verdict"] for i, r in records.items()}
 
 
-def _again(ws: Workspace, found, talk, port: int, open_browser: bool) -> int:
+def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool) -> int:
+    """What next after a result: review the disagreements, label more, or nothing."""
+    from judgekeeper import start_review
+
+    last = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    labels = last.get("labels", {})
+    talk.say()
+    talk.say(f"Your last result ({last['made_at'][:10]}): {CHECKS[last['check']]} "
+             f"({labels.get('correct', 0)} Correct, {labels.get('wrong', 0)} Wrong).")
+    n = start_review.count(ws)
+    options = []  # (answer, text, note, flag)
+    if n:
+        text = (f"Review the {n} answer{'' if n == 1 else 's'} where you and your judge "
+                "disagree")
+        options.append(("review", text, "(free)", "--review"))
+    options += [("label", "Label more", "", "--label-more"),
+                ("nothing", "Nothing for now", "", None)]
+    if then is None:
+        width = max(len(text) for _, text, _, _ in options)
+        shown = [f"{text:<{width}}   {note}".rstrip() for _, text, note, _ in options]
+        flags = [o for o in options if o[3]]
+        hint = "\n".join(["What next? Run one of:"] + [
+            f"  judgekeeper start {flag:<14} {text}{' ' + note if note else ''}"
+            for _, text, note, flag in flags])
+        talk.say()
+        then = options[talk.choose("What next?", shown, hint, ask="Choose")][0]
+    if then == "review":
+        return start_review.run(ws, talk, port, open_browser)
+    if then == "label":
+        return _serve(ws, talk, port, open_browser)
+    return 0
+
+
+def _again(ws: Workspace, found, talk, port: int, open_browser: bool,
+           then: str | None = None) -> int:
     data = ws.data()
     last = json.loads(ws.result_json.read_text(encoding="utf-8"))
     if found.tool != data["tool"] or found.metric != data["metric"]:
@@ -134,15 +178,18 @@ def _again(ws: Workspace, found, talk, port: int, open_browser: bool) -> int:
         return 0
     same_judge = judge_change(data["fingerprint"], found.fingerprint) is None
     if same_judge and {a.id: a.verdict for a in found.pool.answers} == _saved_verdicts(ws):
-        more = ("Label more?" if last["check"] == "reliable"
-                else "Label more for a reliable result?")
-        question = f"Your last result ({last['made_at'][:10]}): {CHECKS[last['check']]}. {more}"
-        if not talk.confirm(question, default=True, with_yes=True,
-                            hint=f"{question} Run judgekeeper start --yes to open the labeling "
-                                 "page."):
-            return 0
-        return _serve(ws, talk, port, open_browser)
-    return _recheck(ws, found, last, talk, port, open_browser)
+        return _menu(ws, talk, then, port, open_browser)
+    code = _recheck(ws, found, last, talk, port, open_browser)
+    if code == 0 and ws.result_json.is_file() and ws.start.is_file() and (
+            then is not None or start_interactive()):
+        return _menu(ws, talk, then, port, open_browser)
+    return code
+
+
+def start_interactive() -> bool:
+    from judgekeeper import start
+
+    return start._interactive()
 
 
 def judge_change(old: dict, new: dict) -> str | None:

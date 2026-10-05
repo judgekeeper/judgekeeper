@@ -13,7 +13,9 @@ after IDLE_TIMEOUT seconds without a request.
 `judgekeeper start` passes its own page (start_page.py) and a `result` function: then
 GET /result answers with the result page, a static HTML page that runs no script. Once every
 item is labeled or deferred, the server stops right after serving that page, or RESULT_WAIT
-seconds after the last item if nobody fetches it.
+seconds after the last item if nobody fetches it. It may also pass `switches`: a GET of one of
+their paths swaps the session, the page and the result function (from labeling to the review
+of the disagreements) and sends the browser back to the page.
 """
 
 from __future__ import annotations
@@ -215,11 +217,13 @@ def _json_for_html(data) -> str:
 
 class LabelServer:
     def __init__(self, session: LabelSession, port: int = DEFAULT_PORT, result=None,
-                 page: str | None = None):
+                 page: str | None = None, switches: dict | None = None):
         self.session = session
         # (session, link back to the labeling page) -> the result page (HTML), for GET /result
         self.result = result
         self.template = PAGE if page is None else page
+        # path -> a function returning the (session, page, result) to switch to
+        self.switches = switches or {}
         self.done_at: float | None = None
         self.token = secrets.token_urlsafe(32)
         self.httpd = HTTPServer((HOST, port), _handler(self))
@@ -300,6 +304,11 @@ def _handler(server: LabelServer):
                            {"Content-Security-Policy": csp})
             elif url.path == "/state":
                 self._json(200, server.session.state())
+            elif url.path in server.switches:
+                server.session, server.template, server.result = server.switches[url.path]()
+                server.done_at = None
+                self._send(303, b"", "text/plain; charset=utf-8",
+                           {"Location": f"/?token={server.token}"})
             elif url.path == "/result" and server.result is not None:
                 page = server.result(server.session, f"/?token={server.token}")
                 csp = ("default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; "
@@ -349,14 +358,14 @@ def _handler(server: LabelServer):
 
 
 def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None,
-                page: str | None = None) -> LabelServer:
+                page: str | None = None, switches: dict | None = None) -> LabelServer:
     """A server for `session`, or a LabelError that says why there cannot be one."""
     # Labels are written on the first click: say now if they cannot be, not in the page.
     unwritable = unwritable_file(session.out)
     if unwritable:
         raise LabelError(unwritable)
     try:
-        return LabelServer(session, port, result=result, page=page)
+        return LabelServer(session, port, result=result, page=page, switches=switches)
     except OSError as e:
         raise LabelError(f"cannot listen on {HOST}:{port} ({e.strerror}); try --port") from None
 

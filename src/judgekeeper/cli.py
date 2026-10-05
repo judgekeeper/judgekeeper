@@ -371,9 +371,16 @@ def _parser() -> argparse.ArgumentParser:
                     help="port on 127.0.0.1 for the labeling page (default 8765)")
     st.add_argument("--no-browser", action="store_true",
                     help="print the labeling page's link instead of opening a browser")
-    st.add_argument("--new", action="store_true",
-                    help="start a new check: move what is saved in .judgekeeper/ (except "
-                         "baseline.json) to .judgekeeper/previous-<date>/; nothing is deleted")
+    then = st.add_mutually_exclusive_group()
+    then.add_argument("--new", action="store_true",
+                      help="start a new check: move what is saved in .judgekeeper/ (except "
+                           "baseline.json) to .judgekeeper/previous-<date>/; nothing is "
+                           "deleted")
+    then.add_argument("--review", action="store_true",
+                      help="after a result: review the answers where you and your judge "
+                           "disagree (no AI call)")
+    then.add_argument("--label-more", action="store_true",
+                      help="after a result: open the labeling page to label more")
     st.add_argument("--yes", action="store_true",
                     help="without a terminal, answer yes/no questions with the default (it "
                          "never picks a tool or a judge)")
@@ -715,7 +722,8 @@ def cmd_start(args) -> int:
 
     return run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
                pass_if=args.pass_if, label_map=args.label_map, judge_model=args.judge_model,
-               yes=args.yes, port=args.port, no_browser=args.no_browser, new=args.new)
+               yes=args.yes, port=args.port, no_browser=args.no_browser, new=args.new,
+               review=args.review, label_more=args.label_more)
 
 
 def cmd_export(args) -> int:

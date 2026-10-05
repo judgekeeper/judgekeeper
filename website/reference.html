@@ -62,7 +62,7 @@
 <h2 id="start-find-your-results-label-see-the-result">start: find your results, label, see the result</h2>
 <pre><code>judgekeeper start [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
                   [--pass-if RULE] [--label-map MAP] [--judge-model NAME]
-                  [--yes] [--new] [--no-browser] [--port N]</code></pre>
+                  [--yes] [--new | --review | --label-more] [--no-browser] [--port N]</code></pre>
 <p>Finds the results your eval tool already saved, names your eval tool and your judge, opens a local page where you mark answers Correct or Wrong without seeing the judge's verdict, and shows how often the judge agrees with you. It makes no AI calls, reads no API key, never reads <code>.env</code> files, and never runs your app, your eval or your code.</p>
 <table>
 <thead><tr><th>Flag</th><th>What it does</th></tr></thead>
@@ -76,6 +76,8 @@
 <tr><td><code>--judge-model NAME</code></td><td>The judge's model, when the results do not record it. Saved with <code>&quot;model_source&quot;: &quot;given by you&quot;</code>. A usage error when the results already name a model</td></tr>
 <tr><td><code>--yes</code></td><td>Without a terminal, answer every yes/no question with its default (open the page, continue, label anyway). It never picks between tools or judges</td></tr>
 <tr><td><code>--new</code></td><td>Start a new check: everything in <code>.judgekeeper/</code> except <code>baseline.json</code> moves to <code>.judgekeeper/previous-&lt;date&gt;/</code>. Nothing is deleted</td></tr>
+<tr><td><code>--review</code></td><td>After a result: review the answers where you and your judge disagree (below). Answers the menu</td></tr>
+<tr><td><code>--label-more</code></td><td>After a result: open the labeling page to label more. Answers the menu</td></tr>
 <tr><td><code>--no-browser</code></td><td>Print the labeling page's link instead of opening a browser</td></tr>
 <tr><td><code>--port N</code></td><td>Port on 127.0.0.1 for the labeling page (default 8765)</td></tr>
 </tbody>
@@ -106,6 +108,8 @@
 <tr><td><code>result.json</code>, <code>result.html</code></td><td>The result: every number, the label counts, the fingerprint and the date; the page opens without a server</td><td>With each result</td></tr>
 <tr><td><code>history/</code></td><td>Earlier results (<code>result-&lt;date&gt;.json</code>) and, before a re-check, the check it replaced (<code>check-&lt;date&gt;/</code>)</td><td>With each result</td></tr>
 <tr><td><code>previous-&lt;date&gt;/</code></td><td>Everything that was here before <code>--new</code>, or before you labeled new answers</td><td>On <code>--new</code></td></tr>
+<tr><td><code>review.json</code></td><td>The review of the disagreements: the answers shown, the seed, your second looks and your choices</td><td>On every click of the review</td></tr>
+<tr><td><code>judge-mistakes.csv</code>, <code>rule-unclear.csv</code></td><td>The disagreements you marked "The judge was wrong" or "The rule is unclear": id, input, output, your label, your second-look label, the judge's verdict and reason</td><td>On every click after the judge is shown</td></tr>
 </tbody>
 </table>
 <p><strong>Running it again.</strong></p>
@@ -114,10 +118,11 @@
 <tbody>
 <tr><td>Nothing</td><td>Everything above</td></tr>
 <tr><td>Labeling not finished</td><td>"Continue?": the page opens at the next answer</td></tr>
-<tr><td>A result, and the same results</td><td>"Label more?": a new result replaces the old one, which goes to <code>history/</code></td></tr>
+<tr><td>A result, and the same results</td><td>A menu: review the disagreements, label more (a new result replaces the old one, which goes to <code>history/</code>), or nothing. <code>--review</code> and <code>--label-more</code> answer it</td></tr>
 <tr><td>A result, and new results from the same tool and judge</td><td>A re-check: your saved labels against the judge's new verdicts, shown next to the last result, after saying whether the judge's model, prompt or temperature changed. When fewer than 15 Correct or 15 Wrong of your labeled answers are in the new results unchanged, it offers to label the new results instead</td></tr>
 </tbody>
 </table>
+<p><strong>Reviewing the disagreements</strong> (no AI call). First you look again at every answer where you and your judge disagree, mixed with as many answers you agreed on (at least 3), with the judge's verdict still hidden: Correct, Wrong or Not sure. Then you see what the judge said on each disagreement, with its reason, and mark it: the judge was wrong, I slipped, or the rule is unclear. Your labels in <code>labels.csv</code> never change and stay the main result; the result adds a few lines with the numbers your second-look labels would give and what you called after seeing the judge.</p>
 <p><strong>Without a terminal</strong> (a script, CI, a coding agent) it never asks. It prints what it found and the flag that answers the question, and exits 2; <code>--yes</code> takes the defaults. Labeling needs a person: in CI, <code>start</code> can only find and report. Exit codes: 0 done (also when you stop early), 1 a runtime failure, 2 a usage error or a question that needs an answer.</p>
 <h2 id="init-a-starter-rule-file">init: a starter rule file</h2>
 <pre><code>judgekeeper init [--out prompts/judge.md] [--pairwise] [--force]</code></pre>
