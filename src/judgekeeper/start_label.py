@@ -17,6 +17,8 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
 - anchors.jsonl and its manifest: the labeled answers as a frozen anchor set, so `judge`,
   `baseline` and `gate` work on them later. Written with each result.
 - result.json and result.html, with the earlier result moved to history/.
+- review.json, judge-mistakes.csv and rule-unclear.csv: the review of the disagreements
+  (start_review.py).
 Every string from a results file is scrubbed of credentials before it is written. Nothing is
 written anywhere else, and the user's .gitignore is never touched.
 """
@@ -87,6 +89,9 @@ class Workspace:
         self.result_json = self.dir / "result.json"
         self.result_html = self.dir / "result.html"
         self.history = self.dir / "history"
+        self.review = self.dir / "review.json"
+        self.judge_mistakes = self.dir / "judge-mistakes.csv"
+        self.rule_unclear = self.dir / "rule-unclear.csv"
 
     def data(self) -> dict:
         return json.loads(self.start.read_text(encoding="utf-8"))
@@ -335,10 +340,28 @@ def pass_rate_line(r: dict) -> str:
             f"({_pct(lo)}–{_pct(hi)}).")
 
 
+def to_review(r: dict) -> int:
+    """How many disagreements are left to review: none once the review is done."""
+    return 0 if (r.get("review") or {}).get("done") else r.get("disagreements") or 0
+
+
+def disagreements_words(n: int) -> str:
+    return f"the {n} disagreement{'' if n == 1 else 's'}"
+
+
 def _next(r: dict) -> list[tuple[str, str]]:
     steps = [] if r["check"] == "reliable" else [("Label more for a reliable result:",
                                                   "judgekeeper start")]
+    if to_review(r):
+        steps.append((f"Review {disagreements_words(to_review(r))}:",
+                      "judgekeeper start --review"))
     return steps + [("Check again after your next eval run:", "judgekeeper start")]
+
+
+def _review_lines(r: dict) -> list[str]:
+    from judgekeeper.start_review import review_lines
+
+    return review_lines(r["review"]) if r.get("review") else []
 
 
 def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
@@ -354,7 +377,10 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
                                     _number("kappa", r["kappa"], None)]))
     if pass_rate_line(r):
         lines.append(f"  {pass_rate_line(r)}")
-    lines += [f"  {CORRECTED}", "", "Next:"]
+    lines.append(f"  {CORRECTED}")
+    if r.get("review"):
+        lines += [""] + [f"  {line}" for line in _review_lines(r)]
+    lines += ["", "Next:"]
     lines += [f"  {text}  {command}" for text, command in _next(r)]
     lines.append(f"  Saved in {saved}/ (result.html is the page you just saw)")
     return lines
@@ -444,9 +470,20 @@ def page_content(r: dict) -> dict:
     steps = []
     needed = still_needed(labels)
     if needed:
-        steps.append({"title": "Make it a reliable result", "text": needed, "keep": True})
+        steps.append({"title": "Make it a reliable result", "text": needed,
+                      "command": "judgekeeper start", "link": "/", "button": "Keep labeling"})
+    if to_review(r):
+        steps.append({"title": f"Review {disagreements_words(to_review(r))}",
+                      "text": ("Each answer where you and your judge disagree, with its "
+                               "reason. Free."),
+                      "command": "judgekeeper start --review", "link": "/review",
+                      "button": "Review them"})
     steps.append({"title": "Check again later", "text": "After your next eval run:",
-                  "keep": False})
+                  "command": "judgekeeper start", "link": None, "button": None})
+    review = None
+    if r.get("review"):
+        review = {"lines": _review_lines(r),
+                  "files": [f"{FOLDER}/{name}" for name in r["review"].get("files", [])]}
     return {
         "kind": " · ".join(kind),
         "sentences": sentences(r),
@@ -463,8 +500,8 @@ def page_content(r: dict) -> dict:
                       "narrower is surer."),
         "judge": {"name": judge.get("metric") or judge.get("name"), "model": model,
                   "rule": judge.get("rule"), "source": source},
+        "review": review,
         "next": steps,
-        "command": "judgekeeper start",
         "folder": f"{FOLDER}/",
     }
 
@@ -484,14 +521,17 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     data = ws.data()
     groups = {q["id"]: q["group"] for q in data["queue"]}
     counted = {"pass": [0, 0], "fail": [0, 0]}  # labeled, Correct
+    disagreements = 0
     for item in session.items:
         if item["label"]:
             g = counted[groups[item["id"]]]
             g[0] += 1
             g[1] += item["label"] == "pass"
+            disagreements += item["label"] != groups[item["id"]]
     r = describe(weighted.corrected(data["pool"]["pass"], data["pool"]["fail"],
                                     *counted["pass"], *counted["fail"]))
-    r.update(skipped=session.counts()["skipped"], made_at=utc_now(),
+    r.update(skipped=session.counts()["skipped"], disagreements=disagreements,
+             made_at=utc_now(),
              judgekeeper_version=__version__, fingerprint=data["fingerprint"],
              judge={"name": data["judge"], "tool": data["tool"], "metric": data["metric"],
                     "rule": data.get("rule"), "description": data.get("description"),
@@ -550,10 +590,14 @@ def run_labeling(found, port: int, open_browser: bool, say) -> int:
 
 def serve_workspace(ws: Workspace, port: int, open_browser: bool, say) -> int:
     """Serve the labeling page until the last answer, Ctrl-C or 2 hours idle."""
+    from judgekeeper import start_review
+
     session = StartSession(ws)
     made: list[bool] = []
+    reviewed: list[bool] = []
     server = make_server(session, port, result=result_maker(ws, say, made),
-                         page=page_template(ws.data()))
+                         page=page_template(ws.data()),
+                         switches={"/review": start_review.switch(ws, say, reviewed)})
     print(f"Labeling page: {server.url}")  # not scrubbed: the token must stay whole
     say("Every click is saved. Press Ctrl-C here to stop; run judgekeeper start to continue.")
     sys.stdout.flush()
@@ -569,4 +613,6 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say) -> int:
     elif not summary["done"]:
         say("")
         say(f"Stopped. {summary['n_labeled']} labeled; run judgekeeper start to continue.")
+    if reviewed:
+        start_review.finish(ws, say)
     return 0

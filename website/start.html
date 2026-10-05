@@ -134,7 +134,7 @@ Open the labeling page now? [Y/n]</code></pre>
     <p>Your labels and results are saved in <code>.judgekeeper/</code> in your project folder. It holds your answers&#39; text, so commit it only if your data may live in your repository. Run <code>judgekeeper start</code> again and it carries on:</p>
     <ul>
       <li><strong>You stopped before the end</strong>: it asks <em>Continue?</em> and opens the page at the next answer.</li>
-      <li><strong>You have a result</strong>: it asks <em>Label more for a reliable result?</em></li>
+      <li><strong>You have a result</strong>: it asks what next: review the answers where you and your judge disagree (free), <em>Label more</em>, or nothing for now.</li>
       <li><strong>You ran your eval again</strong>: it does a re-check. It finds the answers you labeled in the new results, says whether your judge changed, and shows the result next to the last one. If your app now writes different answers, your old labels no longer fit, and it offers to label the new results.</li>
       <li><strong>You want to start over</strong>: <code>judgekeeper start --new</code> moves everything to <code>.judgekeeper/previous-&lt;date&gt;/</code>. Nothing is deleted.</li>
     </ul>
