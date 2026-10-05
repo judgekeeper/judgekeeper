@@ -520,7 +520,8 @@ def test_without_inspects_loader_the_key_must_be_in_the_shell(tmp_path, stubs, m
     lines = plan_lines(make_plan(ws, PY))
     assert any(x.startswith("  Your judge needs OPENAI_API_KEY. It is in .env in this folder, "
                             "but Inspect AI does not load .env files when judgekeeper runs it: "
-                            "set it in your shell (") and "OPENAI_API_KEY=" in x for x in lines)
+                            "set it in your shell (")
+               and keys.set_in_shell("OPENAI_API_KEY") in x for x in lines)
 
 
 def test_the_inspect_worker_reports_its_env_loader(tmp_path, stubs, monkeypatch):
