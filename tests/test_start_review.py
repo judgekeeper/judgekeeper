@@ -601,14 +601,15 @@ def run(capsys, *argv):
 def test_the_menu_after_a_result(tmp_path, capsys, served, terminal):
     ws, _ = _reviewable(tmp_path)
     made = json.loads(ws.result_json.read_text())["made_at"][:10]
-    terminal.append("3")
+    terminal.append("4")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and served == []
     assert f"Your last result ({made}): rough check (19 Correct, 17 Wrong)." in out
     assert "What next?" in out
     assert "  1. Review the 5 answers where you and your judge disagree   (free)" in out
-    assert "  2. Label more" in out and "  3. Nothing for now" in out
-    assert "Choose [1-3]:" in out
+    assert "  2. Ask your judge again about your 36 labeled answers       (72 calls, " in out
+    assert "  3. Label more" in out and "  4. Nothing for now" in out
+    assert "Choose [1-4]:" in out
 
 
 def test_menu_choice_one_opens_the_review(tmp_path, capsys, served, terminal):
@@ -618,9 +619,9 @@ def test_menu_choice_one_opens_the_review(tmp_path, capsys, served, terminal):
     assert code == 0 and served == [("review", ws.dir)]
 
 
-def test_menu_choice_two_opens_the_labeling_page(tmp_path, capsys, served, terminal):
+def test_menu_choice_three_opens_the_labeling_page(tmp_path, capsys, served, terminal):
     ws, _ = _reviewable(tmp_path)
-    terminal.append("2")
+    terminal.append("3")
     code, _, _ = run(capsys, tmp_path)
     assert code == 0 and served == [("label", ws.dir)]
 
@@ -638,6 +639,7 @@ def test_without_a_terminal_the_menu_is_printed_as_flags(tmp_path, capsys, serve
     code, out, _ = run(capsys, tmp_path)
     assert code == 2 and served == []
     assert "judgekeeper start --review" in out
+    assert "judgekeeper start --ask-again" in out
     assert "judgekeeper start --label-more" in out
     code, out, _ = run(capsys, tmp_path, "--yes")  # --yes never picks from the menu
     assert code == 2 and served == []
@@ -649,7 +651,8 @@ def test_with_no_disagreements_the_menu_has_no_review(tmp_path, capsys, served, 
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "Review the" not in out
-    assert "  1. Label more" in out and "Choose [1-2]:" in out
+    assert "  1. Ask your judge again" in out
+    assert "  2. Label more" in out and "Choose [1-3]:" in out
 
 
 def test_review_with_no_disagreements_says_so(tmp_path, capsys, served):

@@ -15,9 +15,10 @@ Traps handled here:
 - The GEval rubric is persisted only inside `verboseLogs` (deepeval/metrics/g_eval/g_eval.py):
   steps "Criteria:", "Evaluation Steps:", "Rubric:" and "Score: <x>" joined with " \\n \\n".
   The prompt hash covers the first three; the score differs per item and is left out.
-- `evaluationModel` is a bare model id; DeepEval stores no provider. The provider is filled
-  in only when the id leaves no doubt (`claude-...` is Anthropic, `gpt-...` is OpenAI) and is
-  unknown otherwise.
+- `evaluationModel` is the model's name as DeepEval's model class gives it: the provider is a
+  suffix (`claude-sonnet-4-6 (Anthropic)`, `my-deployment (Azure)`, `gemini-x (Gemini)`), and
+  a bare name is OpenAI's, since DeepEval builds an OpenAI model for any plain string. A
+  suffix judgekeeper does not know (`(Local Model)`, a custom class) leaves it unknown.
 """
 
 from __future__ import annotations
@@ -37,15 +38,21 @@ SEPARATOR = " \n \n"
 POSITIONAL_WARNING = ("DeepEval's default test case names (test_case_0, test_case_1, ...) are "
                       "positional, not ids: ids were derived from each case's input and actual "
                       "output instead. Set LLMTestCase(name=...) for stable ids.")
-# Model id prefixes that name their provider beyond doubt. Anything else stays unknown.
-PROVIDER_PREFIXES = (("claude-", "anthropic"), ("gpt-", "openai"))
+# The suffix DeepEval's model classes add to the name (deepeval/models/llms/*.py).
+SUFFIXES = {"anthropic": "anthropic", "azure": "azure", "gemini": "google",
+            "ollama": "ollama", "grok": "xai", "deepseek": "deepseek", "kimi": "moonshot"}
+SUFFIX = re.compile(r"\s*\(([^()]+)\)\s*\Z")
 
 
 def provider_of(model: str | None) -> str | None:
-    for prefix, provider in PROVIDER_PREFIXES:
-        if model and model.startswith(prefix):
-            return provider
-    return None
+    if not model:
+        return None
+    m = SUFFIX.search(model)
+    if m:
+        return SUFFIXES.get(m[1].strip().lower())
+    if model.startswith("claude-"):  # not DeepEval's own spelling, but leaves no doubt
+        return "anthropic"
+    return "openai"
 
 
 def rubric_from_verbose_logs(logs: str | None) -> str | None:
