@@ -10,6 +10,8 @@ Three things every command shares:
 - printing a command the user can paste: `quote_arg` and `open_command` write it for the
   shell in use, and `split_command` reads `--exec` the way that shell would. On Windows that
   is cmd.exe or PowerShell: double quotes, backslashes in paths, `start` instead of `open`.
+
+`tick()` is the mark in front of a line that says something was found or is ready.
 """
 
 from __future__ import annotations
@@ -26,6 +28,26 @@ SPREADSHEET_SUFFIXES = (".csv", ".tsv")
 
 def is_windows() -> bool:
     return sys.platform == "win32"
+
+
+TICK = "\u2713"  # a check mark from the Dingbats block, never an emoji
+
+
+def tick(stream=None) -> str:
+    """The check mark, or `OK` where it may not show.
+
+    It needs a stream encoding that has it, and on Windows a terminal that draws it (Windows
+    Terminal sets WT_SESSION; VS Code and others set TERM_PROGRAM); the old console host does
+    not. The words after it always say the same thing, so nothing depends on the symbol.
+    """
+    stream = sys.stdout if stream is None else stream
+    try:
+        TICK.encode(getattr(stream, "encoding", None) or "ascii")
+    except (LookupError, UnicodeEncodeError):
+        return "OK"
+    if is_windows() and not (os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM")):
+        return "OK"
+    return TICK
 
 
 def lenient_streams() -> None:

@@ -12,6 +12,9 @@ Everything printed as an error goes through redact.scrub. A failure with no bett
 traceback, also scrubbed. A path that cannot be written or read (no permission, a file where
 a folder should be) is a usage error: one line that names the path and what to do.
 
+`start` exits 0 when it is done (also when the person stops), 2 when it needs an answer it
+cannot ask for (no terminal) or finds nothing it can use.
+
 `judge` exits 1 when every judgment was an error (the judge program was not found, the judge
 function raised each time): the run files are written, but there is nothing to validate.
 
@@ -34,6 +37,7 @@ from judgekeeper import __version__
 from judgekeeper.anchors import AnchorError, AnchorHashMismatch, freeze, load_verified
 from judgekeeper.attribute import AttributionError
 from judgekeeper.custom import CallableError, CallLimitError
+from judgekeeper.find import TOOLS
 from judgekeeper.fingerprint import plaintext_warning
 from judgekeeper.gate import DEFAULT_BASELINE, DEFAULT_CONFIG, GateError
 from judgekeeper.judging import JudgeCallError
@@ -45,9 +49,10 @@ from judgekeeper.prompts import PromptError, unfilled_marker
 from judgekeeper.readers.langfuse_api import LangfuseError
 from judgekeeper.redact import printable, register_key_env, scrub
 from judgekeeper.report import ReportError
+from judgekeeper.start import StartError
 from judgekeeper.table import TableError
 from judgekeeper.templates import DEFAULT_OUT, ExistsError, next_steps, write_starter
-from judgekeeper.textio import describe_os_error, lenient_streams, quote_arg
+from judgekeeper.textio import describe_os_error, is_windows, lenient_streams, quote_arg, tick
 
 EXIT_OK = 0
 EXIT_FAILURE = 1
@@ -60,6 +65,7 @@ MESSAGE = "Check your LLM-as-a-judge."
 # The top-level help shows the commands in two groups. Every command is in exactly one
 # (tests/test_front_door.py compares these with the parser).
 START_HERE = (
+    ("start", "find your judge's saved results and check them against your own labels"),
     ("check", "a table of judge verdicts and human labels in, a verdict out"),
     ("label", "no human labels yet? label answers in a local page"),
 )
@@ -104,6 +110,33 @@ class _TopParser(_Parser):
         return "\n".join(lines) + "\n"
 
 
+def version_lines(stream=None) -> list[str]:
+    """What `--version` prints. In a terminal it is the install check: the install is ready,
+    and what to run next. Piped (a script, CI), exactly `judgekeeper <version>`, as always.
+
+    When the `judgekeeper` command is not on the PATH, the next step names the form that works.
+    """
+    stream = sys.stdout if stream is None else stream
+    try:
+        terminal = stream.isatty()
+    except (AttributeError, ValueError):  # no isatty, or a closed stream
+        terminal = False
+    if not terminal:
+        return [f"judgekeeper {__version__}"]
+    if shutil.which("judgekeeper"):
+        command = "judgekeeper start"
+    else:
+        command = f"{'py' if is_windows() else 'python3'} -m judgekeeper start"
+    return [f"{tick(stream)} judgekeeper {__version__} is ready",
+            f"Next: go to your project folder and run {command}"]
+
+
+class _Version(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        print("\n".join(version_lines()))
+        parser.exit()
+
+
 def _say(text: str, file=None, end: str = "\n") -> None:
     """Print text that may quote an input file: control characters are dropped."""
     print(printable(text), file=file, end=end)
@@ -115,7 +148,7 @@ def _error(message: str) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     p = _TopParser(prog="judgekeeper", description=MESSAGE)
-    p.add_argument("--version", action="version", version=f"judgekeeper {__version__}")
+    p.add_argument("--version", action=_Version, nargs=0)
     p.add_argument("--debug", action="store_true",
                    help="on an unexpected error, also print the traceback (credentials are "
                         "still scrubbed)")
@@ -319,6 +352,24 @@ def _parser() -> argparse.ArgumentParser:
     im.add_argument("--out", default="judgekeeper-report",
                     help="directory for the anchor set, runs and report (default "
                          "judgekeeper-report)")
+
+    st = sub.add_parser("start", parents=[common],
+                        help="find your judge's saved results and check them against your own "
+                             "labels")
+    st.add_argument("path", nargs="?", default=".", metavar="PATH",
+                    help="your project folder (default: this folder), or one results file")
+    st.add_argument("--tool", choices=TOOLS,
+                    help="which eval tool's results to use, when several are found")
+    st.add_argument("--metric", metavar="NAME",
+                    help="the judge metric or scorer to check, when the results hold several")
+    st.add_argument("--experiment", metavar="NAME_OR_ID",
+                    help="MLflow: the experiment to read, when several have judge results")
+    _normaliser_args(st)
+    st.add_argument("--judge-model", metavar="NAME",
+                    help="the judge's model, when the results do not record it")
+    st.add_argument("--yes", action="store_true",
+                    help="without a terminal, answer yes/no questions with the default (it "
+                         "never picks a tool or a judge)")
 
     ex = sub.add_parser("export", parents=[common],
                         help="write judgekeeper runs and labels in a format other tools read")
@@ -652,6 +703,14 @@ def cmd_import(args) -> int:
     return EXIT_OK
 
 
+def cmd_start(args) -> int:
+    from judgekeeper.start import run
+
+    return run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
+               pass_if=args.pass_if, label_map=args.label_map, judge_model=args.judge_model,
+               yes=args.yes)
+
+
 def cmd_export(args) -> int:
     from judgekeeper.records import export_records
 
@@ -795,7 +854,7 @@ COMMANDS = {"init": cmd_init, "freeze": cmd_freeze, "judge": cmd_judge, "validat
             "baseline": cmd_baseline, "gate": cmd_gate, "migrate": cmd_migrate,
             "attribute": cmd_attribute, "check": cmd_check,
             "template": cmd_template, "import-labels": cmd_import_labels, "label": cmd_label,
-            "import": cmd_import, "export": cmd_export}
+            "import": cmd_import, "export": cmd_export, "start": cmd_start}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -819,7 +878,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_HASH_MISMATCH
     except (UsageError, AnchorError, PromptError, JudgmentsError, GateError, MigrateError,
             AttributionError, NormaliseError, TableError, CallableError, CallLimitError,
-            LabelError) as e:
+            LabelError, StartError) as e:
         _error(str(e))
         return EXIT_USAGE
     except LangfuseError as e:
