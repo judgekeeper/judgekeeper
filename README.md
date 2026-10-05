@@ -20,10 +20,17 @@ On a Mac the command is `pip3`. Without installing: `uvx judgekeeper --version`.
 ## Use it on your own judge
 
 ```
-judgekeeper check results.csv --judge verdict --human label
+cd your-project
+judgekeeper start
 ```
 
-The table has one row per answer: what the judge said and what a person said. To write your own rule and check a judge against your own labels, see [Your own metric](https://www.judgekeeper.com/own-metric.html).
+It reads the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV with input, output and verdict columns), opens a page where you mark answers Correct or Wrong without seeing what the judge said, and shows how often your judge agrees with you. No AI calls, no API key, and it never runs your code. No judge yet, or want your own rule? See [Your own metric](https://www.judgekeeper.com/own-metric.html).
+
+Already have a table with one row per answer, the judge's verdict and your own label?
+
+```
+judgekeeper check results.csv --judge verdict --human label
+```
 
 ## What you get
 
@@ -41,7 +48,7 @@ First a plain sentence: of the answers people passed, how many the judge passed,
 
 ## Status
 
-Alpha (0.1.4): commands and report fields may still change. [Use it on your app](https://www.judgekeeper.com/start.html) has the four steps, [How it works](https://www.judgekeeper.com/learn.html) has the background, the [reference](https://www.judgekeeper.com/reference.html) has every command and flag, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed.
+Alpha (0.2.0): commands and report fields may still change. [Use it on your app](https://www.judgekeeper.com/start.html) explains `judgekeeper start`, [How it works](https://www.judgekeeper.com/learn.html) has the background, the [reference](https://www.judgekeeper.com/reference.html) has every command and flag, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed.
 
 ## Issues
 

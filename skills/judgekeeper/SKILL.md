@@ -21,6 +21,8 @@ write little code, so say what you are doing in plain words. Full flags:
 - Report TPR, TNR and kappa together. Never report raw agreement on its own.
 - Count judge calls before running: items x runs (x 2 for pairwise). Ask before spending.
 - Stop and ask whenever a step needs the human: labels, a key, money, what the rule means.
+- Labeling needs the person. Run `judgekeeper start --yes --no-browser` only to show what it
+  found; then tell the person to open the page or run `judgekeeper start` themselves.
 
 ## Install
 
@@ -125,7 +127,7 @@ change inside the noise band. Then pick one:
   `env`, never an input):
 
   ```
-  - uses: judgekeeper/judgekeeper@v0.1.4
+  - uses: judgekeeper/judgekeeper@v0.2.0
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     with:

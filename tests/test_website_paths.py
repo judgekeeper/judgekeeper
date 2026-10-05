@@ -122,7 +122,7 @@ def test_use_it_on_your_app_explains_each_term_in_one_line():
         assert len(lines[term].split(". ")) <= 2 and len(lines[term]) < 140, lines[term]
     main_text = _text_outside(_main("start.html"), {"pre"})
     first = JARGON.search(main_text).start()
-    assert main_text.index("Read the result") < first < main_text.index("When you need more")
+    assert main_text.index("The result") < first < main_text.index("When you need more")
 
 
 # Home
@@ -133,7 +133,7 @@ def test_the_home_page_stays_short():
 
 
 def test_the_home_page_has_its_parts_in_order():
-    """What judgekeeper is, then install, then where to go next. No demo and no examples."""
+    """What judgekeeper is, then install, then run it. No demo and no examples."""
     main_el = _main("index.html")
     boxes = [li for el in main_el.iter() if el.tag == "ol" and "flow" in el.classes()
              for li in el.children if isinstance(li, Element)]
@@ -144,9 +144,9 @@ def test_the_home_page_has_its_parts_in_order():
         assert needle in head, head
     ids = [el.attrs.get("id") for el in main_el.children
            if isinstance(el, Element) and el.tag == "section"]
-    assert ids == [None, "idea", "install", "next"]
-    assert commands(WEBSITE / "index.html") == []
-    assert _hrefs(_by_id("index.html", "next")) == ["own-metric.html", "start.html"]
+    assert ids == [None, "idea", "install", "run"]
+    assert commands(WEBSITE / "index.html") == [("judgekeeper start", ["start"])]
+    assert _hrefs(_by_id("index.html", "run")) == ["start.html", "own-metric.html"]
     text = (WEBSITE / "index.html").read_text(encoding="utf-8")
     for gone in ("demo", "examples.html", "See it work", "try-question", "Skip the"):
         assert gone not in text, gone
@@ -181,18 +181,6 @@ def _tab_labels(page: str) -> list[str]:
 
 def _flat(el: Element) -> str:
     return " ".join(el.text().split())
-
-
-def test_the_home_page_shows_the_short_install_in_two_tabs():
-    assert _tab_labels("index.html") == ["Mac", "Windows"]
-    for key, wanted in INSTALL.items():
-        assert _panel_commands("index.html", key) == wanted, key
-        panel = _flat(_by_id("index.html", f"panel-{key}"))
-        assert panel.count("What you see.") == len(wanted)
-        assert "Python 3.11 or a higher number" in panel and "Successfully installed" in panel
-    step = _by_id("index.html", "install-tabs").parent
-    assert "Linux follows the Mac tab" in step.text() and "refused" in step.text()
-    assert "start.html#install" in _hrefs(step)
 
 
 def test_the_full_install_guide_has_the_steps_and_a_fix_for_each_failure():
@@ -253,8 +241,8 @@ def test_the_python_version_on_the_site_is_the_one_the_package_needs():
     needs = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
         "requires-python"]
     assert needs == ">=3.11"
-    for page in ("index.html", "start.html"):
-        assert "Python 3.11 or a higher number" in _flat(_main(page)), page
+    assert "Python 3.11 or a higher number" in _flat(_main("start.html"))
+    assert "You need 3.11 or newer." in _flat(_main("index.html"))
     assert "`Python 3.11` or a higher number" in GUIDE.read_text(encoding="utf-8")
 
 
@@ -280,7 +268,7 @@ def test_the_guide_and_the_readme_show_the_same_install():
 # Use it on your app
 
 def test_use_it_on_your_app_has_four_steps_each_with_something_to_run_or_make():
-    (steps,) = [el for el in _by_id("start.html", "steps").iter()
+    (steps,) = [el for el in _by_id("start.html", "other").iter()
                 if el.tag == "ol" and "steps" in el.classes()]
     items = [li for li in steps.children if isinstance(li, Element)]
     heads = [next(h for h in li.iter() if h.tag == "h3").text() for li in items]

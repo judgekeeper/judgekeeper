@@ -39,6 +39,7 @@
 <h1 id="judgekeeper-reference">judgekeeper reference</h1>
 <p>Every command, file format, flag, exit code and config key. The README has the short version.</p>
 <ul>
+<li><a href="#start-find-your-results-label-see-the-result">start: find your results, label, see the result</a></li>
 <li><a href="#init-a-starter-rule-file">init: a starter rule file</a></li>
 <li><a href="#anchor-sets-judging-and-the-report">Anchor sets, judging and the report</a></li>
 <li><a href="#check-a-table-in-a-report-out">check: a table in, a report out</a></li>
@@ -58,6 +59,66 @@
 <li><a href="#exit-codes">Exit codes</a></li>
 <li><a href="#github-action">GitHub Action</a></li>
 </ul>
+<h2 id="start-find-your-results-label-see-the-result">start: find your results, label, see the result</h2>
+<pre><code>judgekeeper start [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
+                  [--pass-if RULE] [--label-map MAP] [--judge-model NAME]
+                  [--yes] [--new] [--no-browser] [--port N]</code></pre>
+<p>Finds the results your eval tool already saved, names your eval tool and your judge, opens a local page where you mark answers Correct or Wrong without seeing the judge's verdict, and shows how often the judge agrees with you. It makes no AI calls, reads no API key, never reads <code>.env</code> files, and never runs your app, your eval or your code.</p>
+<table>
+<thead><tr><th>Flag</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>PATH</code></td><td>Your project folder (default: this folder), or one results file, which skips the search</td></tr>
+<tr><td><code>--tool NAME</code></td><td>Which eval tool's results to use when several are found: <code>promptfoo</code>, <code>deepeval</code>, <code>inspect</code>, <code>mlflow</code> or <code>table</code></td></tr>
+<tr><td><code>--metric NAME</code></td><td>The judge (metric, assertion or scorer) to check when the results hold several, as in <code>import</code></td></tr>
+<tr><td><code>--experiment NAME_OR_ID</code></td><td>MLflow: the experiment to read when several have judge results</td></tr>
+<tr><td><code>--pass-if RULE</code></td><td>A rule for numeric verdicts, e.g. <code>score&gt;=0.5</code>, as in <code>import</code></td></tr>
+<tr><td><code>--label-map MAP</code></td><td>Extra verdict spellings, e.g. <code>good=pass,bad=fail</code>, as in <code>import</code></td></tr>
+<tr><td><code>--judge-model NAME</code></td><td>The judge's model, when the results do not record it. Saved with <code>&quot;model_source&quot;: &quot;given by you&quot;</code>. A usage error when the results already name a model</td></tr>
+<tr><td><code>--yes</code></td><td>Without a terminal, answer every yes/no question with its default (open the page, continue, label anyway). It never picks between tools or judges</td></tr>
+<tr><td><code>--new</code></td><td>Start a new check: everything in <code>.judgekeeper/</code> except <code>baseline.json</code> moves to <code>.judgekeeper/previous-&lt;date&gt;/</code>. Nothing is deleted</td></tr>
+<tr><td><code>--no-browser</code></td><td>Print the labeling page's link instead of opening a browser</td></tr>
+<tr><td><code>--port N</code></td><td>Port on 127.0.0.1 for the labeling page (default 8765)</td></tr>
+</tbody>
+</table>
+<p><strong>What it reads.</strong> It looks only inside the folder, to a depth of four folders, skipping <code>.git</code>, <code>node_modules</code>, virtual environments and hidden folders (except <code>.deepeval</code>). It stops after 5,000 files or 2 seconds and says so. It does not follow symbolic links, and results files over 200 MB are listed, not read.</p>
+<table>
+<thead><tr><th>Tool</th><th>How it is found</th><th>What is read</th></tr></thead>
+<tbody>
+<tr><td>promptfoo</td><td><code>promptfooconfig.yaml</code>, <code>.yml</code> or <code>.json</code></td><td>JSON results files (<code>promptfoo eval -o</code> or <code>promptfoo export eval</code>). With a config and no results file, it prints the <code>promptfoo export</code> commands and runs nothing</td></tr>
+<tr><td>DeepEval</td><td><code>.deepeval/</code>, or <code>deepeval</code> in <code>pyproject.toml</code> or <code>requirements*.txt</code></td><td><code>.deepeval/.latest_run_full.json</code>, <code>test_run_*.json</code>, and <code>DEEPEVAL_RESULTS_FOLDER</code> when it points inside the folder</td></tr>
+<tr><td>Inspect AI</td><td><code>logs/</code>, or <code>inspect-ai</code> in the dependencies</td><td><code>.json</code> logs; <code>.eval</code> logs need <code>pip install &quot;judgekeeper[inspect]&quot;</code>. Also <code>INSPECT_LOG_DIR</code> inside the folder</td></tr>
+<tr><td>MLflow</td><td><code>mlruns/</code> or <code>mlflow.db</code></td><td>The local store, opened read-only. Needs <code>pip install &quot;judgekeeper[mlflow]&quot;</code></td></tr>
+<tr><td>A plain table</td><td>A CSV, TSV or JSONL file at most two folders deep with <code>input</code>, <code>output</code> and <code>verdict</code> (or <code>judge_verdict</code>, <code>judge</code>) columns</td><td>That file; a <code>model</code> column names the judge's model</td></tr>
+</tbody>
+</table>
+<p>From the newest results it builds the pool: every answer with a clear pass or fail, counted once (the same input and output; the newest file wins, then the majority of its verdicts, a tie counting as fail). With fewer than 30 answers it adds older results from the same judge. Unclear verdicts are left out and counted. A/B comparisons are refused (exit 2). Human labels already in the results are not used. Under 30 answers, or under 5 in either group, it prints the command that makes more with your own tool and asks whether to label anyway.</p>
+<p><strong>The page.</strong> One answer at a time, half from the judge's passes and half from its fails, in blocks of 10 in a seeded order. Keys: <code>1</code> Correct, <code>2</code> Wrong, <code>S</code> skip, <code>U</code> undo. The judge's verdict, reason and score never reach the page. Every click is saved at once. "See my result" works at any time. When every answer is labeled or skipped, the result is shown.</p>
+<p><strong>The result.</strong> TPR, TNR and the real pass rate are corrected for showing far more of the judge's fails than the pool holds: worked out per group and weighted by the group's size. Each group's rate has a Wilson interval at 97.5%, so the two hold together at 95% or more. Kappa is Cohen's kappa on the weighted table. A rough check needs 15 Correct and 15 Wrong, a reliable result 25 of each; below the rough check there is no verdict.</p>
+<p>**Saved in <code>.judgekeeper/</code>.** Every string from a results file is scrubbed of credentials before it is written. Your <code>.gitignore</code> is never changed: the folder holds your answers' text, so commit it only if your data may live in your repository.</p>
+<table>
+<thead><tr><th>File</th><th>What</th><th>When it is written</th></tr></thead>
+<tbody>
+<tr><td><code>start.json</code></td><td>The tool, the results files used, the judge and its fingerprint, the pool counts, what was left out and why, the seed and the queue</td><td>When labeling starts</td></tr>
+<tr><td><code>pool-judge.jsonl</code></td><td>The judge's verdict on every pool answer, as a run file with the full fingerprint on every line</td><td>When labeling starts</td></tr>
+<tr><td><code>pool.jsonl</code></td><td>Each pool answer's id, input and output</td><td>When labeling starts</td></tr>
+<tr><td><code>labels.csv</code></td><td>Your labels, in the <code>template</code> shape (a skipped answer has the note <code>skipped</code>)</td><td>On every click</td></tr>
+<tr><td><code>anchors.jsonl</code> and <code>anchors.manifest.json</code></td><td>The answers you labeled, as a frozen anchor set for <code>judge</code>, <code>baseline</code> and <code>gate</code></td><td>With each result</td></tr>
+<tr><td><code>result.json</code>, <code>result.html</code></td><td>The result: every number, the label counts, the fingerprint and the date; the page opens without a server</td><td>With each result</td></tr>
+<tr><td><code>history/</code></td><td>Earlier results (<code>result-&lt;date&gt;.json</code>) and, before a re-check, the check it replaced (<code>check-&lt;date&gt;/</code>)</td><td>With each result</td></tr>
+<tr><td><code>previous-&lt;date&gt;/</code></td><td>Everything that was here before <code>--new</code>, or before you labeled new answers</td><td>On <code>--new</code></td></tr>
+</tbody>
+</table>
+<p><strong>Running it again.</strong></p>
+<table>
+<thead><tr><th>What is saved</th><th>What <code>start</code> does</th></tr></thead>
+<tbody>
+<tr><td>Nothing</td><td>Everything above</td></tr>
+<tr><td>Labeling not finished</td><td>"Continue?": the page opens at the next answer</td></tr>
+<tr><td>A result, and the same results</td><td>"Label more?": a new result replaces the old one, which goes to <code>history/</code></td></tr>
+<tr><td>A result, and new results from the same tool and judge</td><td>A re-check: your saved labels against the judge's new verdicts, shown next to the last result, after saying whether the judge's model, prompt or temperature changed. When fewer than 15 Correct or 15 Wrong of your labeled answers are in the new results unchanged, it offers to label the new results instead</td></tr>
+</tbody>
+</table>
+<p><strong>Without a terminal</strong> (a script, CI, a coding agent) it never asks. It prints what it found and the flag that answers the question, and exits 2; <code>--yes</code> takes the defaults. Labeling needs a person: in CI, <code>start</code> can only find and report. Exit codes: 0 done (also when you stop early), 1 a runtime failure, 2 a usage error or a question that needs an answer.</p>
 <h2 id="init-a-starter-rule-file">init: a starter rule file</h2>
 <pre><code>judgekeeper init [--out prompts/judge.md] [--pairwise] [--force]</code></pre>
 <p>Writes one rule file, the prompt your judge runs with, from a template that ships in the package (<code>src/judgekeeper/templates/single.md</code>, or <code>pairwise.md</code> with <code>--pairwise</code>). The file loads with the Anthropic and OpenAI runners as it is: frontmatter <code>rubric_version: my-metric-v1</code>, the placeholders <code>{{input}}</code> and <code>{{output}}</code> (pairwise: <code>{{output_a}}</code> and <code>{{output_b}}</code>) and the final <code>Verdict:</code> line. The parts you write are marked <code>[FILL IN: ...]</code>: the one thing being checked, what counts as pass, what counts as fail, two or three examples of each, and edge cases (pairwise: what makes one output better, and the tie rule). Parent folders are created; an existing file is not overwritten without <code>--force</code> (usage error, exit 2). It prints the next commands: label, <code>judge --prompt</code>, <code>validate</code>. No model is called and nothing else is written.</p>
@@ -365,7 +426,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: judgekeeper/judgekeeper@v0.1.4   # a release tag; a commit sha is stricter
+      - uses: judgekeeper/judgekeeper@v0.2.0   # a release tag; a commit sha is stricter
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:

@@ -192,7 +192,7 @@ def test_the_readme_is_one_screen_in_order():
     assert f"]({SITE}own-metric.html)" in use
     assert f"]({SITE}examples/llmbar-haiku/report.html)" in sections["What you get"]
     status = sections["Status"]
-    assert "alpha" in status.lower() and "0.1.4" in status
+    assert "alpha" in status.lower() and "0.2.0" in status
     for link in (f"]({SITE}learn.html)", f"]({SITE}reference.html)",
                  "](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md)"):
         assert link in status, link
@@ -281,7 +281,7 @@ def test_every_command_in_the_readme_parses():
 
 def test_the_guide_has_a_heading_per_layer_then_the_rest():
     heads = list(_sections(GUIDE))
-    assert heads == ["Why", "0. The core", "1. Labels", "2. Rule and judge",
+    assert heads == ["Start here", "Why", "0. The core", "1. Labels", "2. Rule and judge",
                      "3. Keep checking", "4. Your tools", "First results",
                      "Why this and not X", "The website"]
     text = GUIDE.read_text(encoding="utf-8")

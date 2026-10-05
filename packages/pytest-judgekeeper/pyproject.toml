@@ -3,7 +3,7 @@
 # Released with the same version as judgekeeper.
 [project]
 name = "pytest-judgekeeper"
-version = "0.1.4"
+version = "0.2.0"
 description = "pytest plugin that fails a test when an LLM judge stops agreeing with human labels (installs judgekeeper)."
 readme = "README.md"
 license = "MIT"
@@ -21,7 +21,7 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Topic :: Software Development :: Testing",
 ]
-dependencies = ["judgekeeper==0.1.4"]
+dependencies = ["judgekeeper==0.2.0"]
 
 [project.urls]
 Homepage = "https://www.judgekeeper.com"

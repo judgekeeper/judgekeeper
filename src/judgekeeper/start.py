@@ -665,58 +665,67 @@ INTRO = (
 )
 
 
+def label_found(talk: Talk, found: Found, port: int, open_browser: bool) -> int:
+    """Say the pool, check there are enough answers, then open the labeling page."""
+    _say_pool(talk, found)
+    pool = found.pool
+    n = len(pool.answers)
+    if not n:
+        raise StartError("no answer has a clear pass or fail from the judge, so there is "
+                         "nothing to label")
+    if n < MIN_POOL or min(pool.n_pass, pool.n_fail) < MIN_GROUP:
+        talk.say()
+        talk.say(f"That is too few for a result: a rough check needs {ROUGH} Correct and "
+                 f"{ROUGH} Wrong,")
+        talk.say(f"so judgekeeper needs at least {MIN_POOL} answers, with some the judge "
+                 "failed.")
+        talk.say()
+        talk.say("Make more answers with your own eval, then run judgekeeper start again:")
+        for line in more_answers(found):
+            talk.say(line)
+        talk.say()
+        question = f"Label the {n} you have anyway?"
+        if not talk.confirm(f"{question} The result will say how unsure it is.",
+                            default=False, with_yes=True,
+                            hint=f"{question} Run judgekeeper start --yes to say yes."):
+            return EXIT_OK
+    else:
+        for count, did, label in ((pool.n_pass, "passed", "Correct"),
+                                  (pool.n_fail, "failed", "Wrong")):
+            if count < ROUGH:
+                talk.say(f"Your judge {did} only {count} answers, so you may not reach "
+                         f"{ROUGH} {label}. The result will say how sure it is.")
+    talk.say()
+    for line in INTRO:
+        talk.say(line)
+    talk.say()
+    if not talk.confirm("Open the labeling page now?", default=True, with_yes=True,
+                        hint="Open the labeling page? Run judgekeeper start --yes to open it."):
+        return EXIT_OK
+    from judgekeeper import start_label
+
+    return start_label.run_labeling(found, port=port, open_browser=open_browser, say=talk.say)
+
+
 def run(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
         experiment: str | None = None, pass_if: str | None = None,
         label_map: str | None = None, judge_model: str | None = None,
-        yes: bool = False, port: int = 8765, no_browser: bool = False) -> int:
+        yes: bool = False, port: int = 8765, no_browser: bool = False,
+        new: bool = False) -> int:
     """`judgekeeper start`: say what was found, then open the labeling page and make the
-    result. Returns the exit code."""
-    talk = Talk(yes=yes)
-    try:
-        found = find_judge(path, tool=tool, metric=metric, experiment=experiment,
-                           pass_if=pass_if, label_map=label_map, judge_model=judge_model,
-                           talk=talk)
-        _say_pool(talk, found)
-        pool = found.pool
-        n = len(pool.answers)
-        if not n:
-            raise StartError("no answer has a clear pass or fail from the judge, so there is "
-                             "nothing to label")
-        if n < MIN_POOL or min(pool.n_pass, pool.n_fail) < MIN_GROUP:
-            talk.say()
-            talk.say(f"That is too few for a result: a rough check needs {ROUGH} Correct and "
-                     f"{ROUGH} Wrong,")
-            talk.say(f"so judgekeeper needs at least {MIN_POOL} answers, with some the judge "
-                     "failed.")
-            talk.say()
-            talk.say("Make more answers with your own eval, then run judgekeeper start again:")
-            for line in more_answers(found):
-                talk.say(line)
-            talk.say()
-            question = f"Label the {n} you have anyway?"
-            if not talk.confirm(f"{question} The result will say how unsure it is.",
-                                default=False, with_yes=True,
-                                hint=f"{question} Run judgekeeper start --yes to say yes."):
-                return EXIT_OK
-        else:
-            for count, did, label in ((pool.n_pass, "passed", "Correct"),
-                                      (pool.n_fail, "failed", "Wrong")):
-                if count < ROUGH:
-                    talk.say(f"Your judge {did} only {count} answers, so you may not reach "
-                             f"{ROUGH} {label}. The result will say how sure it is.")
-        talk.say()
-        for line in INTRO:
-            talk.say(line)
-        talk.say()
-        if not talk.confirm("Open the labeling page now?", default=True, with_yes=True,
-                            hint="Open the labeling page? Run judgekeeper start --yes to open "
-                                 "it."):
-            return EXIT_OK
-        from judgekeeper.start_label import run_labeling
+    result. What is already saved in `.judgekeeper/` decides where it starts (start_again).
+    Returns the exit code."""
+    from judgekeeper import start_again
 
-        return run_labeling(found, port=port, open_browser=not no_browser, say=talk.say)
+    talk = Talk(yes=yes)
+    options = {"tool": tool, "metric": metric, "experiment": experiment, "pass_if": pass_if,
+               "label_map": label_map, "judge_model": judge_model}
+    try:
+        return start_again.run(Path(path), talk, options, port=port,
+                               open_browser=not no_browser, new=new)
     except Stop as stop:
         return stop.code
 
 
-__all__ = ["Answer", "Found", "Pool", "StartError", "build_pool", "find_judge", "run"]
+__all__ = ["Answer", "Found", "Pool", "StartError", "build_pool", "find_judge",
+           "label_found", "run"]

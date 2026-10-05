@@ -94,45 +94,62 @@
   <div class="wrap narrow">
     <p class="kicker">Start here</p>
     <h2 id="install-title">Install</h2>
-    <p>A <strong>terminal</strong> is the window where you type commands. judgekeeper is a Python program, so first check that Python is there.</p>
+    <p>A <strong>terminal</strong> is the window where you type commands: the Terminal app on a Mac, PowerShell on Windows. judgekeeper is a Python program, so first check that Python is there.</p>
     <div class="tabs" id="install-tabs">
       <div role="tablist" aria-label="Your computer">
         <button role="tab" type="button" id="tab-mac" aria-controls="panel-mac" aria-selected="true">Mac</button>
         <button role="tab" type="button" id="tab-win" aria-controls="panel-win" aria-selected="false" tabindex="-1">Windows</button>
       </div>
       <div role="tabpanel" id="panel-mac" aria-labelledby="tab-mac">
-        <p>Open the Terminal app. Check that you have Python:</p>
+        <h3>Mac</h3>
+        <p><strong>Step 1. Check Python.</strong> Open the Terminal app and run:</p>
         <div class="code"><pre><code>python3 --version</code></pre></div>
-        <p><strong>What you see.</strong> <code>Python 3.11</code> or a higher number. If not, install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new terminal. Now install:</p>
-        <div class="code"><pre><code>pip3 install judgekeeper</code></pre></div>
-        <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>.</p>
+        <p>You need <code>3.11</code> or newer. No Python, or older? Install it from <a href="https://www.python.org/downloads/">python.org</a>, then come back.</p>
+        <p><strong>Step 2. Install judgekeeper.</strong></p>
+        <div class="code"><pre><code>python3 -m pip install -U judgekeeper &amp;&amp; python3 -m judgekeeper --version</code></pre></div>
+        <p class="note">If pip says <code>externally-managed-environment</code>, use a virtual environment: run <code>python3 -m venv .venv &amp;&amp; source .venv/bin/activate</code>, then install again.</p>
       </div>
       <div role="tabpanel" id="panel-win" aria-labelledby="tab-win">
-        <p>Open PowerShell. Check that you have Python:</p>
+        <h3>Windows</h3>
+        <p><strong>Step 1. Check Python.</strong> Open PowerShell and run:</p>
         <div class="code"><pre><code>py --version</code></pre></div>
-        <p><strong>What you see.</strong> <code>Python 3.11</code> or a higher number. If not, install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new PowerShell window. Now install:</p>
-        <div class="code"><pre><code>pip install judgekeeper</code></pre></div>
-        <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>.</p>
+        <p>You need <code>3.11</code> or newer. No Python, or older? Install it from <a href="https://www.python.org/downloads/">python.org</a>, then come back.</p>
+        <p><strong>Step 2. Install judgekeeper.</strong></p>
+        <div class="code"><pre><code>py -m pip install -U judgekeeper</code></pre></div>
+        <div class="code"><pre><code>py -m judgekeeper --version</code></pre></div>
       </div>
     </div>
-    <p class="note">Linux follows the Mac tab. A lower number, an install that was refused, or a command that is not found? The <a href="start.html#install">full install guide</a> has the fix for each.</p>
+    <p class="output-label">What you see when it is installed:</p>
+    <pre class="output" data-output="version"><code>&#x2713; judgekeeper 0.2.0 is ready
+Next: go to your project folder and run judgekeeper start</code></pre>
+    <p class="note">Linux follows the Mac tab. A command that is not found, or an install that was refused? The <a href="start.html#install">full install guide</a> has the fix for each.</p>
   </div>
 </section>
 
-<section class="alt" id="next" aria-labelledby="next-title">
-  <div class="wrap">
-    <p class="kicker">Next</p>
-    <h2 id="next-title">Check your own LLM-as-a-judge</h2>
-    <div class="grid two">
-      <article class="card">
-        <h3><a href="own-metric.html">Your own metric</a></h3>
-        <p>Write down what a good answer means for your app, label some real answers, and see how often your judge agrees with you.</p>
-      </article>
-      <article class="card">
-        <h3><a href="start.html">Use it on your app</a></h3>
-        <p>Four steps: collect answers from your app, label them, run your judge, read the result.</p>
-      </article>
-    </div>
+<section class="alt" id="run" aria-labelledby="run-title">
+  <div class="wrap narrow">
+    <p class="kicker">Step 3</p>
+    <h2 id="run-title">Run it</h2>
+    <p>Go to the folder of your AI app, where your eval tool saves its results, and run:</p>
+    <div class="code"><pre><code>cd your-project
+judgekeeper start</code></pre></div>
+    <p class="output-label">What you see, for a project with promptfoo results:</p>
+    <pre class="output" data-output="start"><code>Looking in /Users/me/support-bot ...
+
+&#x2713; Your eval tool: promptfoo (results.json, saved 2026-10-03 14:12)
+&#x2713; Your judge: llm-rubric "is polite and correct" with openai:gpt-4.1-mini
+&#x2713; 212 answers with a verdict: the judge passed 171 and failed 41
+
+You will label answers in your browser, one at a time: Correct or Wrong.
+You won't see what the judge said. judgekeeper picks half from the judge's
+passes and half from its fails, so you see enough of both.
+
+  A rough check needs 15 Correct and 15 Wrong.
+  A reliable result needs 25 Correct and 25 Wrong.
+  Most people need 10 to 20 minutes.
+
+Open the labeling page now? [Y/n]</code></pre>
+    <p>Press Enter: a page opens in your browser, you mark answers Correct or Wrong, and judgekeeper shows how often your judge agrees with you. <a href="start.html">Use it on your app</a> explains each step. No judge yet? Start with <a href="own-metric.html">your own metric</a>.</p>
   </div>
 </section>
 

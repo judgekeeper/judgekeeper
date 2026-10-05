@@ -10,7 +10,18 @@ Check your LLM-as-a-judge. See how often it agrees with human labels, in one com
 | [3. Keep checking](#3-keep-checking) | You want a warning when the judge changes | `baseline`, `gate`, `migrate`, `attribute` |
 | [4. Your tools](#4-your-tools) | You use an eval framework, pytest or CI | `import`, `export`, the pytest plugin, the GitHub Action |
 
-Also on this page: [Why](#why), [First results](#first-results), [Why this and not X](#why-this-and-not-x) and [The website](#the-website). Every command, flag, exit code and config key is in [`docs/reference.md`](reference.md).
+Also on this page: [Start here](#start-here), [Why](#why), [First results](#first-results), [Why this and not X](#why-this-and-not-x) and [The website](#the-website). Every command, flag, exit code and config key is in [`docs/reference.md`](reference.md).
+
+## Start here
+
+```
+cd your-project
+judgekeeper start
+```
+
+`judgekeeper start` finds the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV or JSONL file with `input`, `output` and a verdict column) and names your judge. It opens a page in your browser with one answer at a time, half from the judge's passes and half from its fails, without what the judge said; you mark each one Correct or Wrong. Then it shows how often your judge agrees with you, corrected for that picking. A rough check needs 15 Correct and 15 Wrong, a reliable result 25 of each. Everything is saved in `.judgekeeper/`, so you can stop, carry on, and check again after your next eval run. It makes no AI calls, needs no API key and never runs your code. Every flag and saved file: [`reference.md`](reference.md#start-find-your-results-label-see-the-result).
+
+The layers below are the other ways in: a table you made yourself, your own rule and judge, checks over time, and your tools.
 
 ## Why
 
