@@ -28,9 +28,10 @@ import random
 import secrets
 import sys
 import webbrowser
+from datetime import UTC, date, datetime
 from pathlib import Path
 
-from judgekeeper import __version__, weighted
+from judgekeeper import __version__, find, weighted
 from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import JudgeFingerprint, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
@@ -38,7 +39,7 @@ from judgekeeper.label import LabelSession, make_server
 from judgekeeper.redact import scrub, scrub_fingerprint
 from judgekeeper.report import KAPPA_GATE, RATE_CARE, RATE_GATE
 from judgekeeper.runners.base import Judgment
-from judgekeeper.start_page import START_PAGE, result_page
+from judgekeeper.start_page import label_page, result_page
 from judgekeeper.table import write_anchor_file
 
 FOLDER = ".judgekeeper"
@@ -49,6 +50,19 @@ RELIABLE = 25
 SAVED_NOTE = (f"Saved in {FOLDER}/. It holds your answers' text: commit it only if your data "
               "may live in your repo.")
 CORRECTED = "Corrected for picking half from the judge's passes and half from its fails."
+STATUS = [  # (the fewest of Correct and Wrong, the line under the meters, ready for a result)
+    (0, f"A rough check needs {ROUGH} of each.", False),
+    (ROUGH, f"Rough check ready. A reliable result needs {RELIABLE} of each.", True),
+    (RELIABLE, "Reliable result ready.", True),
+]
+LEVELS = {  # verdict level: (colour, icon, second line)
+    "gate": ("green", "tick", "Keep checking it after changes to its model or rule."),
+    "check": ("amber", "warn", "Close to good enough. Labeling more will make this surer."),
+    "not_gate": ("red", "cross", "Look at where it disagreed before relying on it."),
+    None: ("grey", None, None),
+}
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August",
+          "September", "October", "November", "December")
 VERDICTS = {
     "gate": "It agrees with you often enough to use as a gate.",
     "check": ("It agrees with you often, but check its fails and passes by hand before "
@@ -168,6 +182,8 @@ def prepare(found, say) -> Workspace:
         "results_date": f"{newest.date():%Y-%m-%d %H:%M}",
         "metric": found.metric,
         "judge": found.judge,
+        "rule": found.rule,
+        "description": found.description,
         "fingerprint": scrub_fingerprint(found.fingerprint),
         "pool": {"answers": len(p.answers), "pass": p.n_pass, "fail": p.n_fail},
         "pool_sha256": pool_sha,
@@ -196,6 +212,24 @@ def display(value) -> str:
         return "\n".join(f"{k}: {v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)}"
                          for k, v in value.items())
     return json.dumps(value, ensure_ascii=False, indent=2)
+
+
+def question_view(value):
+    """A question as the page shows it: text as written; of a set of named values (such as
+    promptfoo's vars), one value alone, or several as [[name, value as text], ...]."""
+    if isinstance(value, dict) and len(value) > 1:
+        return [[str(k), v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)]
+                for k, v in value.items()]
+    if isinstance(value, dict) and value:
+        value = next(iter(value.values()))
+    return display(value)
+
+
+def progress_status(correct: int, wrong: int) -> tuple[str, bool]:
+    """The line under the meters on the labeling page, and whether a result is ready."""
+    least = min(correct, wrong)
+    _, text, ready = [s for s in STATUS if least >= s[0]][-1]
+    return text, ready
 
 
 class StartSession(LabelSession):
@@ -231,7 +265,7 @@ class StartSession(LabelSession):
     def state(self) -> dict:
         start = next((n for n, i in enumerate(self.items)
                       if not i["label"] and not i["deferred"]), 0)
-        items = [{"id": i["id"], "input": display(self.raw[i["id"]].get("input")),
+        items = [{"id": i["id"], "input": question_view(self.raw[i["id"]].get("input")),
                   "output": display(self.raw[i["id"]].get("output")), "label": i["label"],
                   "skipped": i["deferred"]} for i in self.items]
         return {"items": items, "start": start, "counts": self.counts()}
@@ -326,40 +360,112 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
     return lines
 
 
+def in_words(day: str) -> str:
+    """"2026-10-05" as "5 October 2026"; anything else as it is."""
+    try:
+        d = date.fromisoformat(day)
+    except ValueError:
+        return day
+    return f"{d.day} {MONTHS[d.month - 1]} {d.year}"
+
+
+def _made_on(made_at: str | None) -> str | None:
+    """The local date a result was made (`made_at` is UTC), in words."""
+    try:
+        made = datetime.strptime(made_at or "", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    except ValueError:
+        return None
+    return in_words(f"{made.astimezone():%Y-%m-%d}")
+
+
+def _detail(r: dict) -> str | None:
+    """The verdict's second line: for a bad result, the weaker side first."""
+    detail = LEVELS[r["verdict_level"]][2]
+    tpr, tnr = r["tpr"], r["tnr"]
+    if r["verdict_level"] != "not_gate" or tpr is None or tnr is None or tpr == tnr:
+        return detail
+    side = ("It misses many answers you marked Wrong." if tnr < tpr
+            else "It fails many answers you marked Correct.")
+    return f"{side} {detail}"
+
+
+def still_needed(labels: dict) -> str | None:
+    """"6 more Correct and 4 more Wrong." for a reliable result, or None once reliable."""
+    parts = [f"{RELIABLE - labels[k]} more {name}"
+             for k, name in (("correct", "Correct"), ("wrong", "Wrong")) if labels[k] < RELIABLE]
+    return f"{' and '.join(parts)}." if parts else None
+
+
+def _pass_rate(r: dict) -> list[tuple[str, bool]] | None:
+    """The pass-rate line as (text, bold) parts."""
+    if r["judge_pass_rate"] is None:
+        return None
+    parts = [("Your judge passes ", False), (_pct(r["judge_pass_rate"]), True),
+             (" of your answers.", False)]
+    if r["real_pass_rate"] is None:
+        return parts + [(" How many should pass is unknown yet.", False)]
+    lo, hi = r["real_pass_rate_interval"]
+    return parts + [(" From your labels, about ", False), (_pct(r["real_pass_rate"]), True),
+                    (f" should pass ({_pct(lo)} to {_pct(hi)}).", False)]
+
+
 def page_content(r: dict) -> dict:
+    """The result page's text and numbers (start_page.result_page lays them out)."""
     labels = r["labels"]
     n = labels["correct"] + labels["wrong"]
-    skipped = r.get("skipped")
-    counted = f"{CHECKS[r['check']].capitalize()}: {labels['correct']} Correct, " \
-              f"{labels['wrong']} Wrong" + (f", {skipped} skipped." if skipped else ".")
+    kind = [CHECKS[r["check"]].capitalize(),
+            f"{labels['correct']} marked Correct, {labels['wrong']} marked Wrong"
+            + (f", {r['skipped']} skipped" if r.get("skipped") else "")]
+    if _made_on(r.get("made_at")):
+        kind.append(_made_on(r.get("made_at")))
 
-    def tile(name, value, interval, count):
-        shown = "unknown" if value is None else f"{value:.2f}"
-        span = ("" if interval is None or interval[0] is None
-                else f"{interval[0]:.2f} to {interval[1]:.2f}")
-        return {"name": name, "value": shown, "interval": span, "count": count}
+    def tile(name, plain, value, interval, count):
+        known = value is not None
+        span = known and interval is not None and interval[0] is not None
+        return {"name": name, "plain": plain,
+                "value": f"{value:.2f}" if known else "unknown",
+                "interval": (interval[0], interval[1]) if span else None,
+                "mark": value if known else None,
+                "line": f"{interval[0]:.2f} to {interval[1]:.2f} · {count}" if span else count}
 
+    colour, icon, _ = LEVELS[r["verdict_level"]]
     judge = r.get("judge") or {}
-    judge_lines = []
-    if judge.get("name"):
-        judge_lines.append(f"Your judge: {judge['name']}")
+    fingerprint = r.get("fingerprint") or {}
+    model = fingerprint.get("model") or "model not named in the results"
+    if fingerprint.get("model_source"):
+        model += " (as you told me)"
+    source = None
     if judge.get("results_files"):
-        files = f"Results: {', '.join(judge['results_files'])}"
-        judge_lines.append(f"{files}, saved {judge['results_date']}"
-                           if judge.get("results_date") else files)
+        tool = find.NAMES.get(judge.get("tool"), judge.get("tool"))
+        source = f"From {', '.join(judge['results_files'])}" + (f" ({tool})" if tool else "")
+        saved = judge.get("results_date")  # "2026-10-05 05:30"
+        if saved:
+            source += f", saved {in_words(saved[:10])}{saved[10:].replace(' ', ', ', 1)}"
+    steps = []
+    needed = still_needed(labels)
+    if needed:
+        steps.append({"title": "Make it a reliable result", "text": needed, "keep": True})
+    steps.append({"title": "Check again later", "text": "After your next eval run:",
+                  "keep": False})
     return {
-        "title": "Your result",
+        "kind": " · ".join(kind),
         "sentences": sentences(r),
-        "verdict": r["verdict"],
-        "tiles": [tile("TPR", r["tpr"], r["tpr_interval"],
-                       f"from {labels['correct']} marked Correct"),
-                  tile("TNR", r["tnr"], r["tnr_interval"],
-                       f"from {labels['wrong']} marked Wrong"),
-                  tile("kappa", r["kappa"], None, f"from {n} labels")],
-        "notes": [counted] + [x for x in (pass_rate_line(r), CORRECTED) if x],
-        "judge": judge_lines,
-        "next": _next(r),
-        "saved": f"Saved in {FOLDER}/ in your project folder; this page is result.html there.",
+        "verdict": {"colour": colour, "icon": icon, "text": r["verdict"], "detail": _detail(r)},
+        "tiles": [tile("TPR", "Good answers it passed", r["tpr"], r["tpr_interval"],
+                       f"from {labels['correct']} Correct"),
+                  tile("TNR", "Bad answers it failed", r["tnr"], r["tnr_interval"],
+                       f"from {labels['wrong']} Wrong"),
+                  tile("kappa", "Agreement beyond chance", r["kappa"], None,
+                       f"from {n} labels · {KAPPA_GATE:g} or more is good")],
+        "pass_rate": _pass_rate(r),
+        "corrected": ("Numbers are corrected for picking half from the judge's passes and half "
+                      "from its fails. The bar under each number shows how sure it is: "
+                      "narrower is surer."),
+        "judge": {"name": judge.get("metric") or judge.get("name"), "model": model,
+                  "rule": judge.get("rule"), "source": source},
+        "next": steps,
+        "command": "judgekeeper start",
+        "folder": f"{FOLDER}/",
     }
 
 
@@ -367,8 +473,11 @@ def result_html(r: dict, back: str | None = None) -> str:
     return result_page(page_content(r), back)
 
 
-def page_template() -> str:
-    return START_PAGE
+def page_template(about: dict | None = None) -> str:
+    """The labeling page for a check whose start.json is `about`: its description and its
+    judge's rule are shown; nothing else from it is."""
+    about = about or {}
+    return label_page(about.get("description"), about.get("rule"), STATUS)
 
 
 def compute(ws: Workspace, session: StartSession) -> dict:
@@ -385,6 +494,7 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     r.update(skipped=session.counts()["skipped"], made_at=utc_now(),
              judgekeeper_version=__version__, fingerprint=data["fingerprint"],
              judge={"name": data["judge"], "tool": data["tool"], "metric": data["metric"],
+                    "rule": data.get("rule"), "description": data.get("description"),
                     "results_files": data["results_files"],
                     "results_date": data.get("results_date")})
     return r
@@ -443,7 +553,7 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say) -> int:
     session = StartSession(ws)
     made: list[bool] = []
     server = make_server(session, port, result=result_maker(ws, say, made),
-                         page=page_template())
+                         page=page_template(ws.data()))
     print(f"Labeling page: {server.url}")  # not scrubbed: the token must stay whole
     say("Every click is saved. Press Ctrl-C here to stop; run judgekeeper start to continue.")
     sys.stdout.flush()

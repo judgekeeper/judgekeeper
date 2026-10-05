@@ -125,7 +125,7 @@ def test_the_page_shows_the_question_and_the_answer_as_written(workspace):
                        "prefers-color-scheme: dark", "A rough check needs 15 of each."):
             assert needed in page, needed
         data = _page_data(server)
-        assert data["items"][0]["input"].startswith("question: Question ")
+        assert re.fullmatch(r"Question \d+\?", data["items"][0]["input"])
         assert " src=" not in page and "https://" not in page
     finally:
         server.stop()
@@ -351,9 +351,9 @@ def test_a_result_writes_anchors_and_the_result_files(workspace):
     html = ws.result_html.read_text()
     assert html.startswith("<!doctype html>")
     date = json.loads(ws.start.read_text())["results_date"]
-    assert ("<li>Your judge: llm-rubric &quot;Is polite and correct.&quot; with "
-            "openai:gpt-4.1-mini</li>") in html
-    assert f"<li>Results: results.json, saved {date}</li>" in html
+    assert "<b>llm-rubric</b> · openai:gpt-4.1-mini" in html
+    when = f"{start_label.in_words(date[:10])}, {date[11:]}"
+    assert f"From results.json (promptfoo), saved {when}" in html
 
 
 def test_a_second_result_moves_the_first_to_history(workspace):
