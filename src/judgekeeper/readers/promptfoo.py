@@ -14,6 +14,11 @@ Traps handled here:
   vars only, so the repeats of one test share it even when their outputs differ.
 - With no `provider` on the assertion, the test or `defaultTest`, promptfoo used its built-in
   default grader and the file does not say which model that was.
+- promptfoo's PROMPTFOO_STRIP_RESPONSE_OUTPUT, PROMPTFOO_STRIP_TEST_VARS and
+  PROMPTFOO_STRIP_GRADING_RESULT settings remove the answers, the inputs or the grading from
+  every row, in `eval -o` and `export` files alike. When most rows lack one of them, the file
+  is not an empty result: a warning (answers, inputs) or an error (grading, so no verdicts)
+  names the setting.
 """
 
 from __future__ import annotations
@@ -43,6 +48,34 @@ MODEL_GRADED = frozenset({
 DEFAULT_GRADER = ("default grader model not recorded by promptfoo: {n} judgments had no grader "
                   "provider on the assertion, the test or defaultTest, so promptfoo used its "
                   "built-in default grader; its model is recorded as unknown.")
+
+
+STRIPPED = ("The {what} are missing from {file}. promptfoo leaves them out when {setting} is "
+            "on, in your environment or in the config's env: block. Turn it off and write the "
+            "file again.")
+STRIP_SETTINGS = {"output": ("answers", "PROMPTFOO_STRIP_RESPONSE_OUTPUT"),
+                  "vars": ("inputs", "PROMPTFOO_STRIP_TEST_VARS"),
+                  "grading": ("judge's verdicts", "PROMPTFOO_STRIP_GRADING_RESULT")}
+
+
+def _stripped(rows: list[dict]) -> list[str]:
+    """The parts (output, vars, grading) that most rows lack, as a strip setting leaves them."""
+    missing = {
+        "output": lambda r: (r.get("response") or {}).get("output") is None,
+        "vars": lambda r: r.get("vars") is None and (r.get("testCase") or {}).get("vars") is None,
+        "grading": lambda r: not r.get("gradingResult"),
+    }
+    return [part for part, lacks in missing.items()
+            if rows and sum(map(lacks, rows)) * 2 > len(rows)]
+
+
+def stripped_message(part: str, path: Path) -> str:
+    what, setting = STRIP_SETTINGS[part]
+    return STRIPPED.format(what=what, file=path.name, setting=setting)
+
+
+def is_stripped_warning(text: str) -> bool:
+    return any(setting in text for _, setting in STRIP_SETTINGS.values())
 
 
 def _load(path: Path) -> dict:
@@ -141,9 +174,13 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
     rows = [r for r in summary["results"] if isinstance(r, dict)]
     default_opts = _options((data.get("config") or {}).get("defaultTest"))
     created_at = summary.get("timestamp")
+    stripped = _stripped(rows)
+    if "grading" in stripped:
+        raise RecordsError(stripped_message("grading", path))
     ids, derived = _ids(rows, id_var, path)
 
-    records = RecordList(version=summary.get("version"), ids_derived=derived)
+    records = RecordList(version=summary.get("version"), ids_derived=derived,
+                         warnings=[stripped_message(part, path) for part in stripped])
     seen: Counter = Counter()
     n_default: Counter = Counter()  # judgments by the default grader, per metric name
     for r, item_id in zip(rows, ids):
