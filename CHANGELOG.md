@@ -13,6 +13,8 @@ to how often your judge agrees with you.
   judge agrees with you, corrected for that picking, in the terminal and on a page. Your
   labels and the result are saved in `.judgekeeper/` in your project, so you can stop, carry
   on, label more, and check again after your next eval run.
+- The labeling and result pages use the whole screen: a side panel with your progress, your
+  judge's rule and the keys; a result coloured by what it means.
 - `judgekeeper start` makes no AI calls, needs no API key, and never runs your app, your eval
   or your code. When there are too few answers, it prints the command that makes more with
   your own tool, and you run it.

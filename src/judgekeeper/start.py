@@ -340,6 +340,8 @@ class Found:
     fingerprint: dict
     judge: str  # the judge, as `Your judge:` names it
     signs: dict
+    rule: str | None = None  # the judge's whole rule, as its results file holds it
+    description: str | None = None  # promptfoo's `config.description` of the newest results
 
 
 def _or(items: list[str]) -> str:
@@ -425,18 +427,24 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     return root, kind, by_date[kind], found.signs
 
 
-def _check_description(talk: Talk, root: Path, result: find.Result) -> None:
-    """Ask before using promptfoo results whose description is not this project's."""
-    mine = _project_description(root)
+def results_description(result: find.Result) -> str | None:
+    """The `config.description` of a promptfoo results file, or None."""
     try:
         data = json.loads(result.path.read_text(encoding="utf-8", errors="replace"))
         theirs = (data.get("config") or {}).get("description")
     except (OSError, ValueError, AttributeError):
-        return
-    if not isinstance(theirs, str) or not theirs or mine is None or theirs.strip() == mine:
+        return None
+    return (theirs.strip() or None) if isinstance(theirs, str) else None
+
+
+def _check_description(talk: Talk, root: Path, theirs: str | None,
+                       result: find.Result) -> None:
+    """Ask before using promptfoo results whose description is not this project's."""
+    mine = _project_description(root)
+    if theirs is None or mine is None or theirs == mine:
         return
     question = (f'{result.rel} looks like it is from another project (its description is '
-                f'"{theirs.strip()}"). Continue?')
+                f'"{theirs}"). Continue?')
     if not talk.confirm(question, default=False, with_yes=False,
                         hint=f"{question} Run judgekeeper start in a terminal to answer, or "
                              "point me at the right results file."):
@@ -479,8 +487,8 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None) -> str:
         f"Several judges found; choose one with {_or([f'--metric {quote_arg(n)}' for n in names])}")]
 
 
-def rubric_line(prompt) -> str | None:
-    """The first line of the judge's rubric, cut to RUBRIC_WIDTH, or None.
+def rule_text(prompt) -> str | None:
+    """The judge's whole rule as text, or None.
 
     The prompt is as the reader keeps it: a promptfoo assertion value, DeepEval's
     "Criteria:" part, or Inspect's scorer options as JSON (instructions, else template).
@@ -500,15 +508,19 @@ def rubric_line(prompt) -> str | None:
         prompt = texts[0]
     elif data is not None:
         return None
-    for line in prompt.splitlines():
-        line = line.strip()
-        if line.startswith("Criteria:"):
-            line = line[len("Criteria:"):].strip()
-        if line:
-            if len(line) > RUBRIC_WIDTH:
-                line = line[:RUBRIC_WIDTH - 1] + "…"
-            return line
-    return None
+    text = prompt.strip()
+    if text.startswith("Criteria:"):
+        text = text[len("Criteria:"):].strip()
+    return text or None
+
+
+def rubric_line(prompt) -> str | None:
+    """The first line of the judge's rule, cut to RUBRIC_WIDTH, or None."""
+    text = rule_text(prompt)
+    if text is None:
+        return None
+    line = next(line.strip() for line in text.splitlines() if line.strip())
+    return line[:RUBRIC_WIDTH - 1] + "…" if len(line) > RUBRIC_WIDTH else line
 
 
 def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
@@ -539,6 +551,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     talk = talk or Talk(quiet=True)
     root, kind, results, signs = _locate(talk, Path(path), tool)
     newest = results[0]
+    description = None
     if kind == "mlflow":
         name, runs = _mlflow_runs(talk, newest, experiment)
         talk.say(f"{tick()} Your eval tool: MLflow ({newest.rel}, experiment {name})")
@@ -553,7 +566,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                 raise _needs_extra(talk, "inspect", _folder_of(newest))
             results, newest = json_logs, json_logs[0]
         if kind == "promptfoo":
-            _check_description(talk, root, newest)
+            description = results_description(newest)
+            _check_description(talk, root, description, newest)
         first = _read(newest)
         talk.say(f"{tick()} Your eval tool: {find.NAMES[kind]} ({_where(newest)})")
         read_older = (_read(r) for r in results[1:])
@@ -585,13 +599,15 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                              f"({', '.join(models)}): drop --judge-model")
         fingerprint.update(model=judge_model, model_source=GIVEN_BY_YOU)
         models = [judge_model]
-    rubric = rubric_line(next((r.evaluator.get("prompt") for r in records
-                               if r.evaluator.get("prompt")), None))
+    prompt = next((r.evaluator.get("prompt") for r in records if r.evaluator.get("prompt")),
+                  None)
+    rubric = rubric_line(prompt)
     judge = _judge_name(kind, metric, rubric, models, judge_model is not None,
                         Path(newest.rel).name)
     talk.say(f"{tick()} Your judge: {judge}")
     return Found(root=root, tool=kind, results=results, used=[x.label for x in used],
-                 metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs)
+                 metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs,
+                 rule=rule_text(prompt), description=description)
 
 
 # What `start` says after finding ---------------------------------------------------------
