@@ -20,7 +20,7 @@ yaml = pytest.importorskip("yaml")
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN_DIST = ROOT / "packages" / "pytest-judgekeeper"
 WORKFLOWS = ROOT / ".github" / "workflows"
-VERSION = "0.1.4"
+VERSION = "0.2.0"
 ALPHA = "Development Status :: 3 - Alpha"
 EXAMPLE = ROOT / "docs" / "examples" / "llmbar-haiku"
 

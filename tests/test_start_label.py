@@ -410,6 +410,14 @@ def test_preparing_again_keeps_the_queue_and_the_labels(tmp_path):
     assert start_label.StartSession(ws).items[0]["label"] == "fail"
 
 
+def test_new_verdicts_on_the_same_answers_make_a_new_queue(tmp_path):
+    ws = start_label.prepare(_found(tmp_path, 20, 12), say=lambda line: None)
+    promptfoo_project(tmp_path, split(12, 20))  # the same answers, judged the other way
+    ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
+    groups = [q["group"] for q in ws.data()["queue"]]
+    assert groups.count("pass") == 12 and groups.count("fail") == 20
+
+
 def test_nothing_is_written_outside_the_folder(tmp_path):
     found = _found(tmp_path)
     before = {p for p in tmp_path.rglob("*") if ".judgekeeper" not in p.parts}

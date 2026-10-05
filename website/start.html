@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Use it on your app | judgekeeper</title>
-<meta name="description" content="Check your own AI judge in four steps: collect answers from your app, label them, run your judge, read the result.">
+<meta name="description" content="Run judgekeeper start in your project folder: it finds your judge's saved results, you label answers in your browser, and it shows how often your judge agrees with you.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="Use it on your app | judgekeeper">
-<meta property="og:description" content="Check your own AI judge in four steps: collect answers from your app, label them, run your judge, read the result.">
+<meta property="og:description" content="Run judgekeeper start in your project folder: it finds your judge's saved results, you label answers in your browser, and it shows how often your judge agrees with you.">
 <meta property="og:url" content="https://www.judgekeeper.com/start.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
@@ -16,7 +16,7 @@
 <meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Use it on your app | judgekeeper">
-<meta name="twitter:description" content="Check your own AI judge in four steps: collect answers from your app, label them, run your judge, read the result.">
+<meta name="twitter:description" content="Run judgekeeper start in your project folder: it finds your judge's saved results, you label answers in your browser, and it shows how often your judge agrees with you.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/style.css">
@@ -50,69 +50,99 @@
 
 <main id="main">
 
-<section id="steps" aria-labelledby="steps-title">
+<section id="start" aria-labelledby="start-title">
   <div class="wrap narrow">
-    <h1 id="steps-title">Use it on your app</h1>
-    <p class="lead">Four steps, and no key. You need answers your app wrote, and some time to grade them yourself.</p>
-    <p>First <a href="#install">install judgekeeper</a>, if you have not yet.</p>
+    <h1 id="start-title">Use it on your app</h1>
+    <p class="lead">One command, in your project folder. It finds what your eval tool already saved, you mark answers Correct or Wrong in your browser, and it shows how often your judge agrees with you.</p>
+    <p>First <a href="#install">install judgekeeper</a>, if you have not yet. Then go to the folder of your AI app and run:</p>
+    <div class="code"><pre><code>cd your-project
+judgekeeper start</code></pre></div>
+    <p class="output-label">What you see, for a project with promptfoo results:</p>
+    <pre class="output" data-output="start"><code>Looking in /Users/me/support-bot ...
 
-    <h2 id="four-steps">The four steps</h2>
-    <ol class="steps">
-      <li>
-        <h3 id="step-collect">Collect answers from your app</h3>
-        <p>Save 30 to 60 real answers in one file named <code>items.csv</code>. Each row is one answer: an <code>id</code>, the <code>input</code> your app got and the <code>output</code> it wrote. Take ordinary cases and hard ones, good answers and bad ones. That many is enough for a first look. About 100 gives a firmer result.</p>
-        <p>This step has no command. You make the file in a spreadsheet. From Excel, save it as <strong>CSV UTF-8</strong>.</p>
-        <p class="output-label">What the file looks like:</p>
-        <pre class="output" data-file="tutorial/items.csv" data-rows="3"><code>id,input,output
-q1,What is the capital of France?,Paris is the capital of France.
-q2,What is the capital of Japan?,The capital of Japan is Tokyo.</code></pre>
-      </li>
-      <li>
-        <h3 id="step-label">Label them</h3>
-        <p>You read each answer and say <em>pass</em> or <em>fail</em>. That mark is a <strong>human label</strong>. It is the one part no AI model may do for you: the labels are what the judge is checked against.</p>
-        <div class="code"><pre><code>judgekeeper label items.csv --out labels.csv</code></pre></div>
-        <p><strong>What you see.</strong> A page opens in your browser. It runs on your own computer, and nothing leaves it. It shows one answer at a time. Press <kbd>1</kbd> for pass and <kbd>2</kbd> for fail. Every label is saved at once into <code>labels.csv</code>, so you can stop and come back. Press Ctrl-C in the terminal when you are done.</p>
-      </li>
-      <li>
-        <h3 id="step-judge">Run your judge, or bring its verdicts</h3>
-        <p>A <strong>verdict</strong> is the judge's pass or fail on one answer. judgekeeper needs the judge's verdicts on the same answers you labeled.</p>
-        <p>If your tools already saved the verdicts, put them next to your labels in one table. Open <code>labels.csv</code> in a spreadsheet, add a <code>verdict</code> column with what the judge said, rename <code>human_label</code> to <code>label</code> and save it as <code>results.csv</code>. Then run:</p>
-        <div class="code"><pre><code>judgekeeper check results.csv --judge verdict --human label</code></pre></div>
-        <p class="output-label">What you see. This is the result for the small table in the <a href="tutorial.html#step-check">tutorial</a>:</p>
-        <pre class="output" data-output="check"><code>Of the answers people passed, the judge passed 100%. Of the answers people failed, the judge failed 33%. It is not trustworthy as a gate.
-Not trustworthy as a gate: TPR 1.00, TNR 0.33, kappa 0.41 against human labels.
-  - TNR is 0.33 (below 0.80): not trustworthy as a gate.
-  - Kappa vs human labels is 0.41 (below 0.6): not trustworthy as a gate.
-  - judge identity incomplete: provider, model, snapshot, endpoint, prompt_hash, rubric_version, temperature
-  - Only 10 labeled items: error bars are wide; aim for about 100.
-wrote judgekeeper-report/report.json and judgekeeper-report/report.html</code></pre>
-        <details class="callout">
-          <summary><strong>No saved verdicts?</strong> judgekeeper can run your judge.</summary>
-          <p style="margin-top:12px">The first command freezes your labels so nobody can change them later. The second runs the judge three times. The third compares it with your labels and prints the same kind of result.</p>
-          <div class="code"><pre><code>judgekeeper import-labels labels.csv -o anchors.jsonl
-judgekeeper judge anchors.jsonl --callable my_judges:judge --runs 3 --out runs/mine
-judgekeeper validate anchors.jsonl runs/mine --out reports/mine</code></pre></div>
-          <p class="note">Here <code>my_judges:judge</code> is your own Python function. For other kinds of judge, see <a href="learn.html#works">Works with what you already use</a>. The <a href="tutorial.html#step-freeze">tutorial</a> shows each command with its output.</p>
-        </details>
-      </li>
-      <li>
-        <h3 id="step-read">Read the result</h3>
-        <p>The first line is the result in plain words: how often the judge passed the answers you passed, how often it failed the answers you failed, and one of three verdicts: <em>usable as a gate</em>, <em>usable with care</em> or <em>not trustworthy as a gate</em>. A <strong>gate</strong> is an automatic check that can stop a release.</p>
-        <p>The second line gives the same result as three numbers:</p>
-        <ul>
-          <li><strong>TPR</strong>: of the answers you passed, the share the judge also passed.</li>
-          <li><strong>TNR</strong>: of the answers you failed, the share the judge also failed.</li>
-          <li><strong>Kappa</strong>: how much the judge agrees with you beyond lucky guessing. 0 is no better than chance and 1 is perfect.</li>
-        </ul>
-        <p>The lines that start with a dash are <strong>flags</strong>: things to know before you rely on the judge. The last line names the full report. Open it in your browser:</p>
-        <div class="code"><pre><code>open judgekeeper-report/report.html</code></pre></div>
-        <p><strong>What you see.</strong> One page with the same verdict, and every answer you and the judge disagree on, with the judge's own reason. On Windows, use <code>start</code> in place of <code>open</code>. On Linux, use <code>xdg-open</code>. <a href="examples/llmbar-haiku/report.html">See a real report</a>.</p>
-      </li>
-    </ol>
+&#x2713; Your eval tool: promptfoo (results.json, saved 2026-10-03 14:12)
+&#x2713; Your judge: llm-rubric "is polite and correct" with openai:gpt-4.1-mini
+&#x2713; 212 answers with a verdict: the judge passed 171 and failed 41
+
+You will label answers in your browser, one at a time: Correct or Wrong.
+You won't see what the judge said. judgekeeper picks half from the judge's
+passes and half from its fails, so you see enough of both.
+
+  A rough check needs 15 Correct and 15 Wrong.
+  A reliable result needs 25 Correct and 25 Wrong.
+  Most people need 10 to 20 minutes.
+
+Open the labeling page now? [Y/n]</code></pre>
+    <p>Each line starts with what it found. Press Enter to open the labeling page.</p>
   </div>
 </section>
 
-<section class="alt" id="install" aria-labelledby="install-title">
+<section class="alt" id="reads" aria-labelledby="reads-title">
+  <div class="wrap narrow">
+    <h2 id="reads-title">What it reads</h2>
+    <p>The results your eval tool already saved in your project folder. It looks for:</p>
+    <ul>
+      <li><strong>promptfoo</strong>: the results file that <code>promptfoo eval -o</code> or <code>promptfoo export eval</code> writes.</li>
+      <li><strong>DeepEval</strong>: the test runs DeepEval saves, in <code>.deepeval/</code> or the folder <code>DEEPEVAL_RESULTS_FOLDER</code> names.</li>
+      <li><strong>Inspect AI</strong>: the logs in <code>logs/</code>.</li>
+      <li><strong>MLflow</strong>: the assessments in a local <code>mlruns/</code> folder or <code>mlflow.db</code>.</li>
+      <li><strong>A table you made</strong>: a CSV or JSONL file with an <code>input</code>, an <code>output</code> and a <code>verdict</code> column.</li>
+    </ul>
+    <p>It names your judge from the results: its name, the first line of its rubric and its model. Several tools or several judges? It asks which one. Too few answers? It says how many there are and prints the command that makes more with your own tool. You run that command, not judgekeeper.</p>
+  </div>
+</section>
+
+<section id="never" aria-labelledby="never-title">
+  <div class="wrap narrow">
+    <h2 id="never-title">What it never does</h2>
+    <ul>
+      <li>No AI calls, and no API key. Everything comes from files your tools already saved.</li>
+      <li>It never runs your app, your eval or your code.</li>
+      <li>It never reads <code>.env</code> files or your keys, and it never looks outside your project folder.</li>
+      <li>It never reads promptfoo&#39;s own database. If promptfoo kept the results there, judgekeeper prints the <code>promptfoo export</code> command that writes them to a file, and you run it.</li>
+      <li>It never changes your <code>.gitignore</code>.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="alt" id="page" aria-labelledby="page-title">
+  <div class="wrap narrow">
+    <h2 id="page-title">The labeling page</h2>
+    <p>The page runs on your own computer. It shows one answer at a time: the question your app got and the answer it wrote. You never see what the judge said, so it cannot sway you.</p>
+    <p>Press <kbd>1</kbd> for Correct (this answer should pass) and <kbd>2</kbd> for Wrong (it should fail). <kbd>S</kbd> skips an answer you cannot judge from the text, and <kbd>U</kbd> undoes the last one. Every click is saved at once, so you can stop at any time.</p>
+    <p>The counts at the top are your own: how many you marked Correct and how many Wrong. A rough check needs 15 of each, a reliable result 25 of each. judgekeeper shows half answers the judge passed and half it failed, so you see enough of both.</p>
+  </div>
+</section>
+
+<section id="result" aria-labelledby="result-title">
+  <div class="wrap narrow">
+    <h2 id="result-title">The result</h2>
+    <p>Press <strong>See my result</strong> at any time, or label every answer. The result shows in the page and in the terminal, and it is saved as <code>.judgekeeper/result.html</code>, which opens without judgekeeper running.</p>
+    <p>It starts with two plain sentences: of the answers you marked Correct, how many your judge passed, and of the answers you marked Wrong, how many it failed. Each comes with the range it is likely to lie in. Then one line says whether it agrees with you often enough to use as a gate. A <strong>gate</strong> is an automatic check that can stop a release.</p>
+    <ul>
+      <li><strong>TPR</strong>: of the answers you marked Correct, the share the judge passed.</li>
+      <li><strong>TNR</strong>: of the answers you marked Wrong, the share the judge failed.</li>
+      <li><strong>Kappa</strong>: how much the judge agrees with you beyond lucky guessing.</li>
+    </ul>
+    <p>Because the page showed far more of the judge&#39;s fails than your results hold, the numbers are corrected for that picking, so they describe all of your answers.</p>
+  </div>
+</section>
+
+<section class="alt" id="again" aria-labelledby="again-title">
+  <div class="wrap narrow">
+    <h2 id="again-title">Running it again</h2>
+    <p>Your labels and results are saved in <code>.judgekeeper/</code> in your project folder. It holds your answers&#39; text, so commit it only if your data may live in your repository. Run <code>judgekeeper start</code> again and it carries on:</p>
+    <ul>
+      <li><strong>You stopped before the end</strong>: it asks <em>Continue?</em> and opens the page at the next answer.</li>
+      <li><strong>You have a result</strong>: it asks <em>Label more for a reliable result?</em></li>
+      <li><strong>You ran your eval again</strong>: it does a re-check. It finds the answers you labeled in the new results, says whether your judge changed, and shows the result next to the last one. If your app now writes different answers, your old labels no longer fit, and it offers to label the new results.</li>
+      <li><strong>You want to start over</strong>: <code>judgekeeper start --new</code> moves everything to <code>.judgekeeper/previous-&lt;date&gt;/</code>. Nothing is deleted.</li>
+    </ul>
+    <p>In a script, CI or a coding assistant, it never asks: it prints the flag that answers the question. Labeling needs a person. Every flag is in the <a href="reference.html#start-find-your-results-label-see-the-result">reference</a>.</p>
+  </div>
+</section>
+
+<section id="install" aria-labelledby="install-title">
   <div class="wrap narrow">
     <h2 id="install-title">Install judgekeeper</h2>
     <p class="lead">Three steps. Pick your computer. Linux follows the Mac tab. Under the steps is a fix for each thing that can go wrong.</p>
@@ -208,6 +238,65 @@ judgekeeper validate anchors.jsonl runs/mine --out reports/mine</code></pre></di
       </div>
     </div>
     <p class="note" style="margin-top:16px">Already use <a href="https://docs.astral.sh/uv/">uv</a>? <code>uvx judgekeeper --version</code> runs it without installing. The package is <a href="https://pypi.org/project/judgekeeper/">judgekeeper on PyPI</a>, and the <a href="https://github.com/judgekeeper/judgekeeper">source code is on GitHub</a>.</p>
+  </div>
+</section>
+
+<section class="alt" id="other" aria-labelledby="other-title">
+  <div class="wrap narrow">
+    <h2 id="other-title">Other ways</h2>
+    <p>No saved results, or you would rather work from a spreadsheet? These four steps check a judge with a table you make yourself.</p>
+    <ol class="steps">
+      <li>
+        <h3 id="step-collect">Collect answers from your app</h3>
+        <p>Save 30 to 60 real answers in one file named <code>items.csv</code>. Each row is one answer: an <code>id</code>, the <code>input</code> your app got and the <code>output</code> it wrote. Take ordinary cases and hard ones, good answers and bad ones. That many is enough for a first look. About 100 gives a firmer result.</p>
+        <p>This step has no command. You make the file in a spreadsheet. From Excel, save it as <strong>CSV UTF-8</strong>.</p>
+        <p class="output-label">What the file looks like:</p>
+        <pre class="output" data-file="tutorial/items.csv" data-rows="3"><code>id,input,output
+q1,What is the capital of France?,Paris is the capital of France.
+q2,What is the capital of Japan?,The capital of Japan is Tokyo.</code></pre>
+      </li>
+      <li>
+        <h3 id="step-label">Label them</h3>
+        <p>You read each answer and say <em>pass</em> or <em>fail</em>. That mark is a <strong>human label</strong>. It is the one part no AI model may do for you: the labels are what the judge is checked against.</p>
+        <div class="code"><pre><code>judgekeeper label items.csv --out labels.csv</code></pre></div>
+        <p><strong>What you see.</strong> A page opens in your browser. It runs on your own computer, and nothing leaves it. It shows one answer at a time. Press <kbd>1</kbd> for pass and <kbd>2</kbd> for fail. Every label is saved at once into <code>labels.csv</code>, so you can stop and come back. Press Ctrl-C in the terminal when you are done.</p>
+      </li>
+      <li>
+        <h3 id="step-judge">Run your judge, or bring its verdicts</h3>
+        <p>A <strong>verdict</strong> is the judge's pass or fail on one answer. judgekeeper needs the judge's verdicts on the same answers you labeled.</p>
+        <p>If your tools already saved the verdicts, put them next to your labels in one table. Open <code>labels.csv</code> in a spreadsheet, add a <code>verdict</code> column with what the judge said, rename <code>human_label</code> to <code>label</code> and save it as <code>results.csv</code>. Then run:</p>
+        <div class="code"><pre><code>judgekeeper check results.csv --judge verdict --human label</code></pre></div>
+        <p class="output-label">What you see. This is the result for the small table in the <a href="tutorial.html#step-check">tutorial</a>:</p>
+        <pre class="output" data-output="check"><code>Of the answers people passed, the judge passed 100%. Of the answers people failed, the judge failed 33%. It is not trustworthy as a gate.
+Not trustworthy as a gate: TPR 1.00, TNR 0.33, kappa 0.41 against human labels.
+  - TNR is 0.33 (below 0.80): not trustworthy as a gate.
+  - Kappa vs human labels is 0.41 (below 0.6): not trustworthy as a gate.
+  - judge identity incomplete: provider, model, snapshot, endpoint, prompt_hash, rubric_version, temperature
+  - Only 10 labeled items: error bars are wide; aim for about 100.
+wrote judgekeeper-report/report.json and judgekeeper-report/report.html</code></pre>
+        <details class="callout">
+          <summary><strong>No saved verdicts?</strong> judgekeeper can run your judge.</summary>
+          <p style="margin-top:12px">The first command freezes your labels so nobody can change them later. The second runs the judge three times. The third compares it with your labels and prints the same kind of result.</p>
+          <div class="code"><pre><code>judgekeeper import-labels labels.csv -o anchors.jsonl
+judgekeeper judge anchors.jsonl --callable my_judges:judge --runs 3 --out runs/mine
+judgekeeper validate anchors.jsonl runs/mine --out reports/mine</code></pre></div>
+          <p class="note">Here <code>my_judges:judge</code> is your own Python function. For other kinds of judge, see <a href="learn.html#works">Works with what you already use</a>. The <a href="tutorial.html#step-freeze">tutorial</a> shows each command with its output.</p>
+        </details>
+      </li>
+      <li>
+        <h3 id="step-read">Read the result</h3>
+        <p>The first line is the result in plain words: how often the judge passed the answers you passed, how often it failed the answers you failed, and one of three verdicts: <em>usable as a gate</em>, <em>usable with care</em> or <em>not trustworthy as a gate</em>. A <strong>gate</strong> is an automatic check that can stop a release.</p>
+        <p>The second line gives the same result as three numbers:</p>
+        <ul>
+          <li><strong>TPR</strong>: of the answers you passed, the share the judge also passed.</li>
+          <li><strong>TNR</strong>: of the answers you failed, the share the judge also failed.</li>
+          <li><strong>Kappa</strong>: how much the judge agrees with you beyond lucky guessing. 0 is no better than chance and 1 is perfect.</li>
+        </ul>
+        <p>The lines that start with a dash are <strong>flags</strong>: things to know before you rely on the judge. The last line names the full report. Open it in your browser:</p>
+        <div class="code"><pre><code>open judgekeeper-report/report.html</code></pre></div>
+        <p><strong>What you see.</strong> One page with the same verdict, and every answer you and the judge disagree on, with the judge's own reason. On Windows, use <code>start</code> in place of <code>open</code>. On Linux, use <code>xdg-open</code>. <a href="examples/llmbar-haiku/report.html">See a real report</a>.</p>
+      </li>
+    </ol>
   </div>
 </section>
 

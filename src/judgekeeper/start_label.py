@@ -123,15 +123,16 @@ def build_queue(answers, seed: int) -> list[dict]:
 def prepare(found, say) -> Workspace:
     """Write start.json, pool.jsonl and pool-judge.jsonl for `found` (a start.Found).
 
-    When start.json already holds the same pool, its seed and queue are kept, so labeling
-    again carries on where it stopped.
+    When start.json already holds the same pool (the same answers with the same verdicts),
+    its seed and queue are kept, so labeling again carries on where it stopped.
     """
     from judgekeeper.start import StartError
 
     ws = Workspace(found.root)
     answers = {a.id: a for a in found.pool.answers}
     old = ws.data() if ws.start.is_file() else None
-    if old is not None and sorted(q["id"] for q in old["queue"]) == sorted(answers):
+    groups = {a.id: a.verdict for a in found.pool.answers}
+    if old is not None and {q["id"]: q["group"] for q in old["queue"]} == groups:
         seed, queue, started = old["seed"], old["queue"], old.get("started_at")
     else:
         if ws.labels.is_file():
@@ -433,8 +434,12 @@ def result_maker(ws: Workspace, say, made: list | None = None):
 
 
 def run_labeling(found, port: int, open_browser: bool, say) -> int:
+    """Save the pool of `found`, then serve the labeling page for it."""
+    return serve_workspace(prepare(found, say), port, open_browser, say)
+
+
+def serve_workspace(ws: Workspace, port: int, open_browser: bool, say) -> int:
     """Serve the labeling page until the last answer, Ctrl-C or 2 hours idle."""
-    ws = prepare(found, say)
     session = StartSession(ws)
     made: list[bool] = []
     server = make_server(session, port, result=result_maker(ws, say, made),

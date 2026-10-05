@@ -187,8 +187,18 @@
           select(tabs[(next + tabs.length) % tabs.length], true);
         });
       });
-      select(tabs[0]);
+      var windows = tabs.filter(function (t) {
+        return t.getAttribute("aria-controls") === "panel-win";
+      });
+      select(onWindows() && windows.length ? windows[0] : tabs[0]);
     });
+  }
+
+  // The Windows tab comes first when the browser says it runs on Windows.
+  function onWindows() {
+    var data = navigator.userAgentData;
+    var platform = (data && data.platform) || navigator.platform || navigator.userAgent || "";
+    return /Win/.test(platform);
   }
 
   // The real result: each bar's width is the number printed next to it.

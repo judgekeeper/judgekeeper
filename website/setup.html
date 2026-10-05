@@ -181,7 +181,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: judgekeeper/judgekeeper@v0.1.4  # a release tag; a commit sha is stricter
+      - uses: judgekeeper/judgekeeper@v0.2.0  # a release tag; a commit sha is stricter
         env:
           # Keys come from repository secrets, never from action inputs.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -208,7 +208,7 @@ jobs:
         with:
           python-version: "3.12"
       # the same tag as the action above; a commit sha is stricter
-      - run: pip install "judgekeeper @ git+https://github.com/judgekeeper/judgekeeper@v0.1.4"
+      - run: pip install "judgekeeper @ git+https://github.com/judgekeeper/judgekeeper@v0.2.0"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: judgekeeper-gate  # the gate action's artifact-name

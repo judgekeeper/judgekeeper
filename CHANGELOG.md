@@ -1,18 +1,36 @@
 # Changelog
 
-## 0.1.4 (unreleased)
+## 0.2.0 (unreleased)
 
-A shorter path to checking your own judge.
+`judgekeeper start`: one command, in your project folder, from your eval tool's saved results
+to how often your judge agrees with you.
 
+- New: `judgekeeper start`. It finds the results your eval tool already saved (promptfoo,
+  DeepEval, Inspect AI, MLflow, or a CSV or JSONL file with input, output and verdict
+  columns) and names your eval tool and your judge. It opens a page in your browser that
+  shows one answer at a time, half from the judge's passes and half from its fails, without
+  what the judge said, and you mark each one Correct or Wrong. Then it shows how often your
+  judge agrees with you, corrected for that picking, in the terminal and on a page. Your
+  labels and the result are saved in `.judgekeeper/` in your project, so you can stop, carry
+  on, label more, and check again after your next eval run.
+- `judgekeeper start` makes no AI calls, needs no API key, and never runs your app, your eval
+  or your code. When there are too few answers, it prints the command that makes more with
+  your own tool, and you run it.
+- `judgekeeper --version` in a terminal now says the install is ready and what to run next.
+  Piped or in a script it prints `judgekeeper <version>` as before.
+- `import promptfoo` warns when promptfoo's PROMPTFOO_STRIP_* settings removed the answers or
+  the inputs from a results file, and stops when they removed the judge's verdicts.
+- The website's home page shows the install for Mac and Windows, with a check for Python, and
+  then `judgekeeper start`. "Use it on your app" is about `judgekeeper start`; the earlier
+  paths are under "Other ways".
 - Removed: `judgekeeper demo`, with its bundled synthetic data. Running it now gives the usual
   "invalid choice" error. This includes `judgekeeper demo --try` (the five practice questions)
   and `judgekeeper demo support`, `coding` and `health` (the three worked examples).
 - Removed from the website: the "See it work" page and its menu entry, and the practice step
   with its screenshots. The home page now says what judgekeeper is, shows how to install it,
   and points to checking your own judge.
-- `judgekeeper --version` is the way to check that it is installed.
 - The project does not accept pull requests. Bug reports and ideas are welcome as issues.
-- No change to any other command, flag, metric, report field or printed result.
+- No change to any other command, flag, metric or report field.
 
 ## 0.1.3 (2026-10-04)
 

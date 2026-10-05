@@ -1,6 +1,6 @@
 """judgekeeper: validate, monitor and migrate your LLM-as-judge."""
 
-__version__ = "0.1.4"
+__version__ = "0.2.0"
 
 __all__ = ["check_judge", "check_table", "import_results"]
 

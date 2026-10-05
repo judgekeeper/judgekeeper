@@ -2,6 +2,7 @@
 
 Every command, file format, flag, exit code and config key. The README has the short version.
 
+- [start: find your results, label, see the result](#start-find-your-results-label-see-the-result)
 - [init: a starter rule file](#init-a-starter-rule-file)
 - [Anchor sets, judging and the report](#anchor-sets-judging-and-the-report)
 - [check: a table in, a report out](#check-a-table-in-a-report-out)
@@ -20,6 +21,70 @@ Every command, file format, flag, exit code and config key. The README has the s
 - [Attribute a score change](#attribute-a-score-change)
 - [Exit codes](#exit-codes)
 - [GitHub Action](#github-action)
+
+## start: find your results, label, see the result
+
+```
+judgekeeper start [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
+                  [--pass-if RULE] [--label-map MAP] [--judge-model NAME]
+                  [--yes] [--new] [--no-browser] [--port N]
+```
+
+Finds the results your eval tool already saved, names your eval tool and your judge, opens a local page where you mark answers Correct or Wrong without seeing the judge's verdict, and shows how often the judge agrees with you. It makes no AI calls, reads no API key, never reads `.env` files, and never runs your app, your eval or your code.
+
+| Flag | What it does |
+|---|---|
+| `PATH` | Your project folder (default: this folder), or one results file, which skips the search |
+| `--tool NAME` | Which eval tool's results to use when several are found: `promptfoo`, `deepeval`, `inspect`, `mlflow` or `table` |
+| `--metric NAME` | The judge (metric, assertion or scorer) to check when the results hold several, as in `import` |
+| `--experiment NAME_OR_ID` | MLflow: the experiment to read when several have judge results |
+| `--pass-if RULE` | A rule for numeric verdicts, e.g. `score>=0.5`, as in `import` |
+| `--label-map MAP` | Extra verdict spellings, e.g. `good=pass,bad=fail`, as in `import` |
+| `--judge-model NAME` | The judge's model, when the results do not record it. Saved with `"model_source": "given by you"`. A usage error when the results already name a model |
+| `--yes` | Without a terminal, answer every yes/no question with its default (open the page, continue, label anyway). It never picks between tools or judges |
+| `--new` | Start a new check: everything in `.judgekeeper/` except `baseline.json` moves to `.judgekeeper/previous-<date>/`. Nothing is deleted |
+| `--no-browser` | Print the labeling page's link instead of opening a browser |
+| `--port N` | Port on 127.0.0.1 for the labeling page (default 8765) |
+
+**What it reads.** It looks only inside the folder, to a depth of four folders, skipping `.git`, `node_modules`, virtual environments and hidden folders (except `.deepeval`). It stops after 5,000 files or 2 seconds and says so. It does not follow symbolic links, and results files over 200 MB are listed, not read.
+
+| Tool | How it is found | What is read |
+|---|---|---|
+| promptfoo | `promptfooconfig.yaml`, `.yml` or `.json` | JSON results files (`promptfoo eval -o` or `promptfoo export eval`). With a config and no results file, it prints the `promptfoo export` commands and runs nothing |
+| DeepEval | `.deepeval/`, or `deepeval` in `pyproject.toml` or `requirements*.txt` | `.deepeval/.latest_run_full.json`, `test_run_*.json`, and `DEEPEVAL_RESULTS_FOLDER` when it points inside the folder |
+| Inspect AI | `logs/`, or `inspect-ai` in the dependencies | `.json` logs; `.eval` logs need `pip install "judgekeeper[inspect]"`. Also `INSPECT_LOG_DIR` inside the folder |
+| MLflow | `mlruns/` or `mlflow.db` | The local store, opened read-only. Needs `pip install "judgekeeper[mlflow]"` |
+| A plain table | A CSV, TSV or JSONL file at most two folders deep with `input`, `output` and `verdict` (or `judge_verdict`, `judge`) columns | That file; a `model` column names the judge's model |
+
+From the newest results it builds the pool: every answer with a clear pass or fail, counted once (the same input and output; the newest file wins, then the majority of its verdicts, a tie counting as fail). With fewer than 30 answers it adds older results from the same judge. Unclear verdicts are left out and counted. A/B comparisons are refused (exit 2). Human labels already in the results are not used. Under 30 answers, or under 5 in either group, it prints the command that makes more with your own tool and asks whether to label anyway.
+
+**The page.** One answer at a time, half from the judge's passes and half from its fails, in blocks of 10 in a seeded order. Keys: `1` Correct, `2` Wrong, `S` skip, `U` undo. The judge's verdict, reason and score never reach the page. Every click is saved at once. "See my result" works at any time. When every answer is labeled or skipped, the result is shown.
+
+**The result.** TPR, TNR and the real pass rate are corrected for showing far more of the judge's fails than the pool holds: worked out per group and weighted by the group's size. Each group's rate has a Wilson interval at 97.5%, so the two hold together at 95% or more. Kappa is Cohen's kappa on the weighted table. A rough check needs 15 Correct and 15 Wrong, a reliable result 25 of each; below the rough check there is no verdict.
+
+**Saved in `.judgekeeper/`.** Every string from a results file is scrubbed of credentials before it is written. Your `.gitignore` is never changed: the folder holds your answers' text, so commit it only if your data may live in your repository.
+
+| File | What | When it is written |
+|---|---|---|
+| `start.json` | The tool, the results files used, the judge and its fingerprint, the pool counts, what was left out and why, the seed and the queue | When labeling starts |
+| `pool-judge.jsonl` | The judge's verdict on every pool answer, as a run file with the full fingerprint on every line | When labeling starts |
+| `pool.jsonl` | Each pool answer's id, input and output | When labeling starts |
+| `labels.csv` | Your labels, in the `template` shape (a skipped answer has the note `skipped`) | On every click |
+| `anchors.jsonl` and `anchors.manifest.json` | The answers you labeled, as a frozen anchor set for `judge`, `baseline` and `gate` | With each result |
+| `result.json`, `result.html` | The result: every number, the label counts, the fingerprint and the date; the page opens without a server | With each result |
+| `history/` | Earlier results (`result-<date>.json`) and, before a re-check, the check it replaced (`check-<date>/`) | With each result |
+| `previous-<date>/` | Everything that was here before `--new`, or before you labeled new answers | On `--new` |
+
+**Running it again.**
+
+| What is saved | What `start` does |
+|---|---|
+| Nothing | Everything above |
+| Labeling not finished | "Continue?": the page opens at the next answer |
+| A result, and the same results | "Label more?": a new result replaces the old one, which goes to `history/` |
+| A result, and new results from the same tool and judge | A re-check: your saved labels against the judge's new verdicts, shown next to the last result, after saying whether the judge's model, prompt or temperature changed. When fewer than 15 Correct or 15 Wrong of your labeled answers are in the new results unchanged, it offers to label the new results instead |
+
+**Without a terminal** (a script, CI, a coding agent) it never asks. It prints what it found and the flag that answers the question, and exits 2; `--yes` takes the defaults. Labeling needs a person: in CI, `start` can only find and report. Exit codes: 0 done (also when you stop early), 1 a runtime failure, 2 a usage error or a question that needs an answer.
 
 ## init: a starter rule file
 
@@ -459,7 +524,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: judgekeeper/judgekeeper@v0.1.4   # a release tag; a commit sha is stricter
+      - uses: judgekeeper/judgekeeper@v0.2.0   # a release tag; a commit sha is stricter
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:

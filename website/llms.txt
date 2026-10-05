@@ -4,8 +4,8 @@
 
 ## Pages
 
-- [Home](https://www.judgekeeper.com/): what judgekeeper is, how to install it, and where to go next to check your own LLM-as-a-judge
-- [Use it on your app](https://www.judgekeeper.com/start.html): four steps, from answers your app wrote to a result you can read
+- [Home](https://www.judgekeeper.com/): what judgekeeper is, how to install it on Mac or Windows, and `judgekeeper start` with what it prints
+- [Use it on your app](https://www.judgekeeper.com/start.html): `judgekeeper start`: what it reads, what it never does, the labeling page, the result and running it again; other ways (a table you make yourself) at the end
 - [With a coding assistant](https://www.judgekeeper.com/assistant.html): how to hand the job to Claude Code, Codex or Cursor
 - [How it works, in more depth](https://www.judgekeeper.com/learn.html): why a judge needs checking, what the numbers mean, how to keep checking, the tools it works with and a real result
 - [Setup and keys](https://www.judgekeeper.com/setup.html): how to give judgekeeper an API key safely

@@ -389,7 +389,7 @@ judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --prompt 
         <summary><span>GitHub Action<small>a check on every change</small></span></summary>
         <div class="recipe">
           <p>The action runs the judge, writes the report and gates on it. Keys come from repository secrets.</p>
-          <div class="code"><pre><code>- uses: judgekeeper/judgekeeper@v0.1.4   # a release tag
+          <div class="code"><pre><code>- uses: judgekeeper/judgekeeper@v0.2.0   # a release tag
   env:
     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   with:
