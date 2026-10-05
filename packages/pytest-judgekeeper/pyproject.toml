@@ -1,0 +1,39 @@
+# A name on the pytest plugin list and nothing else: the plugin lives in judgekeeper itself
+# (judgekeeper.pytest_plugin, registered through judgekeeper's pytest11 entry point).
+# Released with the same version as judgekeeper.
+[project]
+name = "pytest-judgekeeper"
+version = "0.1.4"
+description = "pytest plugin that fails a test when an LLM judge stops agreeing with human labels (installs judgekeeper)."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Sathvik Thota" }]
+keywords = ["pytest", "llm", "llm-as-a-judge", "llm-as-judge", "evaluation"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: Pytest",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Software Development :: Testing",
+]
+dependencies = ["judgekeeper==0.1.4"]
+
+[project.urls]
+Homepage = "https://www.judgekeeper.com"
+Source = "https://github.com/judgekeeper/judgekeeper"
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# No code of its own: an empty wheel whose only job is the dependency on judgekeeper.
+bypass-selection = true
+
+[tool.hatch.build.targets.sdist]
+include = ["/README.md", "/LICENSE", "/pyproject.toml"]

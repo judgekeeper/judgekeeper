@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" role="img" aria-label="judgekeeper logo">
+  <title>judgekeeper: a shield, half navy and half green, with a white check</title>
+  <!-- Left half: navy, the AI judge. Right half: green, the human. -->
+  <path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>
+  <path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>
+  <!-- The check runs across both halves: the judge and the human agree. -->
+  <path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,10 @@
+id,input,output,human_label,notes
+600f747450755301,What is 0 + 0?,0 + 0 = 0.,pass,
+1551dfda8d4081ff,What is 1 + 1?,1 + 1 = 2.,pass,
+e60ebf9b624c49d9,What is 2 + 2?,2 + 2 = 4.,pass,
+0e852affec297ce6,What is 3 + 3?,3 + 3 = 6.,pass,
+9a127c4d94d13014,What is 4 + 4?,4 + 4 = 8.,fail,
+256ccc52b81ae017,What is 5 + 5?,5 + 5 = 10.,fail,
+8bc0dfa90e070e9a,What is 6 + 6?,6 + 6 = 12.,fail,
+b4cbcf801472a432,What is 7 + 7?,7 + 7 = 14.,fail,
+not-in-any-run,What is 9 + 9?,18.,pass,

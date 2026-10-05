@@ -1,0 +1,20 @@
+# Run from this folder: see make.sh.
+description: judgekeeper real promptfoo fixture
+prompts:
+  - "Question: {{question}}"
+providers:
+  - id: "exec: python3 answerer.py"
+defaultTest:
+  options:
+    provider: "exec: python3 grader.py"
+  assert:
+    - type: llm-rubric
+      metric: helpfulness
+      value: "The answer is helpful."
+tests:
+  - vars: {qid: Q0, question: "Q0 What is 1 + 1?"}
+  - vars: {qid: Q1, question: "Q1 What is the capital of France?"}
+  - vars: {qid: Q2, question: "Q2 Who wrote Hamlet?"}
+  - vars: {qid: Q3, question: "Q3 What is 2 + 2?"}
+  - vars: {qid: Q4, question: "Q4 What colour is the sky?"}
+  - vars: {qid: Q5, question: "Q5 How many legs has a spider?"}

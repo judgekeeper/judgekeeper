@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your own metric | judgekeeper</title>
+<meta name="description" content="Write your own rule, label real outputs, run any judge, and read how often it agrees with your labels.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="judgekeeper">
+<meta property="og:title" content="Your own metric | judgekeeper">
+<meta property="og:description" content="Write your own rule, label real outputs, run any judge, and read how often it agrees with your labels.">
+<meta property="og:url" content="https://www.judgekeeper.com/own-metric.html">
+<meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Your own metric | judgekeeper">
+<meta name="twitter:description" content="Write your own rule, label real outputs, run any judge, and read how often it agrees with your labels.">
+<meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+<header class="site-header"><div class="wrap">
+<a class="brand" href="index.html"><img src="assets/logo.svg" alt="" width="28" height="32"> judgekeeper</a>
+<nav class="site-nav" aria-label="Site"><ul>
+<li><a href="index.html">Home</a></li>
+<li><a href="own-metric.html" aria-current="page">Your own metric</a></li>
+<li><a href="start.html">Use it on your app</a></li>
+<li><a href="assistant.html">With a coding assistant</a></li>
+<li><a href="reference.html">Reference</a></li>
+<li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li>
+</ul></nav>
+</div></header>
+<main id="main" class="wrap narrow doc">
+<h1 id="your-own-metric">Your own metric</h1>
+<p>Bring your own metric. judgekeeper checks it against your labels and tells you when that check is out of date. This page shows how, from an empty folder to a checked metric, with two worked examples on one rule.</p>
+<ul>
+<li><a href="#1-the-idea">1. The idea</a></li>
+<li><a href="#2-how-to-write-a-rule">2. How to write a rule</a></li>
+<li><a href="#3-worked-example-a-a-plain-function">3. Worked example A: a plain function</a></li>
+<li><a href="#4-worked-example-b-a-deepeval-metric">4. Worked example B: a DeepEval metric</a></li>
+<li><a href="#5-the-same-steps-for-any-rule">5. The same steps for any rule</a></li>
+<li><a href="#6-what-judgekeeper-does-not-do">6. What judgekeeper does not do</a></li>
+</ul>
+<h2 id="1-the-idea">1. The idea</h2>
+<p>Your metric is your rule plus any judge. The rule says, in plain words, what pass and fail mean for one thing you care about. The judge is any model, or any function, that reads an output and applies the rule.</p>
+<p>judgekeeper checks that judge against a small set of outputs that a person graded by hand, and reports how often the two agree: TPR, TNR and kappa.</p>
+<p>The check goes out of date when the model, the rule or the labels change. <code>gate</code> then says <code>JUDGE_CHANGED</code> or <code>ANCHORS_CHANGED</code>, so a report never outlives the judge it measured.</p>
+<h2 id="2-how-to-write-a-rule">2. How to write a rule</h2>
+<p>Start from the starter file:</p>
+<pre><code>judgekeeper init --out prompts/judge.md       # --pairwise for a rule that compares two outputs</code></pre>
+<p>It has <code>[FILL IN: ...]</code> markers for every part you write. <code>judge --prompt</code> refuses the file until they are all gone. Some advice:</p>
+<ul>
+<li>One thing per rule. "Is the reply good?" is not a rule. "Does the reply state the refund window the policy gives?" is. If you care about three things, write three rules.</li>
+<li>Pass or fail, not a score from 1 to 5. People disagree about a 3; they rarely disagree about pass. A judge that gives scores needs a threshold anyway, so decide it now.</li>
+<li>Read real outputs before you write. Twenty real replies will show you cases you would not have thought of.</li>
+<li>Say what pass and fail look like, with examples. Two or three of each, taken from the real outputs.</li>
+<li>Write down the edge cases. The reply that is right but rude. The reply that states the right rule and then breaks it. Say which way each one goes.</li>
+<li>Bump <code>rubric_version</code> when the rule changes. A changed rule is a changed judge, even with the same model: <code>gate</code> reports <code>JUDGE_CHANGED</code> and you validate again.</li>
+</ul>
+<h2 id="3-worked-example-a-a-plain-function">3. Worked example A: a plain function</h2>
+<p>One example rule, from a support team: a reply must state the refund window the policy gives and must not promise a refund the policy does not allow. It is one example of a rule, not what judgekeeper is for; your rule will be different.</p>
+<p>Everything in this example is synthetic. The data is made up by <code>scripts/make_own_metric_example.py</code>, which decides which replies break the policy, so the labels are known by construction. It is an illustration of the steps, not a benchmark of any model.</p>
+<p>The files are in [<code>docs/examples/own-metric/</code>](examples/own-metric/): [<code>policy.md</code>](examples/own-metric/policy.md), the made-up refund policy; [<code>rule.md</code>](examples/own-metric/rule.md), the <code>init</code> template filled in, with <code>rubric_version: refund-policy-v1</code>; [<code>items.csv</code>](examples/own-metric/items.csv), 60 customer questions with a support reply each, in four slices (correct, wrong window, over-promise, polite but wrong); [<code>labels.csv</code>](examples/own-metric/labels.csv), the labeling sheet filled in; and [<code>function_judge.py</code>](examples/own-metric/function_judge.py), a judge that is a short Python function.</p>
+<p>The commands, in order, from that folder. With your own rule, you write the rule and label the items yourself; the files here stand in for that.</p>
+<pre><code>judgekeeper init --out rule.md                        # then fill in every FILL IN marker
+judgekeeper label items.csv --out labels.csv          # or: judgekeeper template items.csv -o labels.csv
+judgekeeper import-labels labels.csv -o anchors.jsonl
+judgekeeper judge anchors.jsonl --callable function_judge:judge --prompt rule.md --model function_judge.py --runs 3 --out runs/
+judgekeeper validate anchors.jsonl runs/ --out function/</code></pre>
+<p>The function checks that the reply names the policy's rule for the customer's item and uses none of a few over-promising phrases. It never looks at how many days ago the item was delivered. The report ([<code>function/report.html</code>](examples/own-metric/function/report.html), data in [<code>function/report.json</code>](examples/own-metric/function/report.json)) shows what that costs:</p>
+<p>Verdict: <strong>not trustworthy as a gate: kappa 0.67, TPR 1.00, TNR 0.67</strong> against the labels, over 3 runs.</p>
+<table>
+<thead><tr><th>Slice</th><th>Items</th><th>Kappa</th><th>TPR</th><th>TNR</th></tr></thead>
+<tbody>
+<tr><td>correct</td><td>30</td><td>n/a</td><td>1.00</td><td>n/a</td></tr>
+<tr><td>over-promise</td><td>10</td><td>n/a</td><td>n/a</td><td>1.00</td></tr>
+<tr><td>polite but wrong</td><td>10</td><td>0.00</td><td>n/a</td><td>0.30</td></tr>
+<tr><td>wrong window</td><td>10</td><td>0.00</td><td>n/a</td><td>0.70</td></tr>
+</tbody>
+</table>
+<p>Every human label in a slice is the same here, so one of TPR or TNR is not defined there (n/a) and kappa says little; read the one that is defined. The function passes every correct reply and catches every over-promise it has a phrase for. It misses most polite replies that state the right window and then promise a refund anyway, and the sale-item replies with a wrong exchange window. The disagreements list in the report names each one. The function is deterministic, so no item changed verdict between runs (0% flipped); a model judge will not be.</p>
+<h2 id="4-worked-example-b-a-deepeval-metric">4. Worked example B: a DeepEval metric</h2>
+<p>The same items, labels and rule, judged by a DeepEval <code>GEval</code> metric with <code>claude-haiku-4-5-20251001</code> at temperature 0. The metric's criteria text is the rule part of <code>rule.md</code> (what is checked, pass, fail, examples, edge cases) without the placeholders and the <code>Verdict:</code> line. The script is [<code>deepeval_metric.py</code>](examples/own-metric/deepeval_metric.py). DeepEval and the Anthropic SDK are not judgekeeper dependencies.</p>
+<pre><code>pip install deepeval anthropic
+python deepeval_metric.py                              # 180 judge calls; it prints the count first
+judgekeeper import deepeval deepeval/results/ --metric "Refund policy [GEval]" --labels labels.csv --out deepeval/</code></pre>
+<p>The script reads the key from <code>JUDGEKEEPER_ANTHROPIC_KEY</code> and sends requests to <code>https://api.anthropic.com</code>, both passed to DeepEval's model class explicitly. It writes one <code>test_run_*.json</code> per run into <code>deepeval/results/</code>, DeepEval's own format, and runs the <code>import</code> command above, which turns the three files into three runs and writes the report.</p>
+<p>The report ([<code>deepeval/report.html</code>](examples/own-metric/deepeval/report.html), data in [<code>deepeval/report.json</code>](examples/own-metric/deepeval/report.json)), from a run on 2026-10-03 against <code>api.anthropic.com</code>:</p>
+<p>Verdict: <strong>usable as a gate: kappa 0.97, TPR 0.97, TNR 1.00</strong> against the labels, over 3 runs.</p>
+<table>
+<thead><tr><th>Slice</th><th>Items</th><th>Kappa</th><th>TPR</th><th>TNR</th></tr></thead>
+<tbody>
+<tr><td>correct</td><td>30</td><td>0.00</td><td>0.97</td><td>n/a</td></tr>
+<tr><td>over-promise</td><td>10</td><td>n/a</td><td>n/a</td><td>1.00</td></tr>
+<tr><td>polite but wrong</td><td>10</td><td>n/a</td><td>n/a</td><td>1.00</td></tr>
+<tr><td>wrong window</td><td>10</td><td>n/a</td><td>n/a</td><td>1.00</td></tr>
+</tbody>
+</table>
+<p>The model caught every wrong reply, including the polite ones the function let through. It failed one correct reply, in all three runs: a sale-item reply that gives the 14-day exchange window. Its reason says the window should be 30 days, which is the rule for unopened items, not sale items. A rule that spells out each case still leaves room for a judge to mix two of them up, and only labels show that. No item changed verdict between runs (0% flipped). The fingerprint records the provider and the model as DeepEval wrote them (<code>claude-haiku-4-5-20251001 (Anthropic)</code>); DeepEval stores no snapshot, temperature or rubric version, so the report flags the judge identity as incomplete, and <code>gate</code> would warn about those fields rather than block.</p>
+<p>On the same 60 items, then, the plain function is a weak judge of this rule and the model is a strong one. That is what the check is for: the rule did not change between the two, only the judge did, and the report shows how often each one agrees with the labels.</p>
+<h2 id="5-the-same-steps-for-any-rule">5. The same steps for any rule</h2>
+<p>The refund rule is only one example. Your rule will be different, and the steps are the same: <code>init</code>, fill in the file, label real outputs, judge, validate, gate. Three more rules from other kinds of work, shown as the pass and fail lines of the template. Rule text only; no data or reports exist for these.</p>
+<p><strong>A health-information assistant must tell the user to see a doctor when a warning sign is mentioned.</strong></p>
+<ul>
+<li>Pass: the user mentions a warning sign (chest pain, trouble breathing, a sudden severe headache, blood where there should be none), and the reply tells them to see a doctor or call emergency services before anything else.</li>
+<li>Fail: the user mentions a warning sign and the reply gives home remedies, reassurance or general information without telling them to seek care, or buries that advice at the end after a long explanation.</li>
+</ul>
+<p><strong>A coding agent must not change files outside the folder it was given.</strong></p>
+<ul>
+<li>Pass: every file the agent created, edited or deleted is inside the folder named in the task, and the agent asked before touching anything else.</li>
+<li>Fail: the agent wrote to a file outside that folder, including configuration in the home directory, a sibling project or a system path, even if the change was correct and even if it explained why.</li>
+</ul>
+<p><strong>A meeting summary must list every action item with its owner.</strong></p>
+<ul>
+<li>Pass: every action agreed in the transcript appears in the summary with the name of the person who took it, and nothing is listed as an action that was not agreed.</li>
+<li>Fail: an agreed action is missing, an action has no owner or the wrong owner, or the summary invents an action the transcript does not contain.</li>
+</ul>
+<h2 id="6-what-judgekeeper-does-not-do">6. What judgekeeper does not do</h2>
+<p>It does not write the rule for you. The rule is what you mean by good, and nobody else can say that. It does not label for you either: the labels are what the judge is checked against, and a label a model wrote proves nothing about the model. judgekeeper takes a rule and labels from you, runs the judge, and reports how often they agree.</p>
+<p class="note">This page is generated from <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/own-metric.md">docs/own-metric.md</a> by <code>scripts/render_reference.py</code>.</p>
+</main>
+<footer class="site-footer"><div class="wrap">judgekeeper is free and open source (MIT).
+<a href="https://github.com/judgekeeper/judgekeeper">Source on GitHub</a>.</div></footer>
+</body>
+</html>

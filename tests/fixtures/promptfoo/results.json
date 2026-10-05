@@ -1,0 +1,1781 @@
+{
+  "evalId": "eval-fixture-2026-09-30",
+  "results": {
+    "version": 3,
+    "timestamp": "2026-09-30T10:00:00.000Z",
+    "prompts": [
+      {
+        "raw": "Answer: {{question}}",
+        "label": "answer"
+      }
+    ],
+    "stats": {
+      "successes": 0,
+      "failures": 0
+    },
+    "results": [
+      {
+        "id": "row-1-0",
+        "testIdx": 0,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t0",
+          "vars": {
+            "qid": "Q0",
+            "question": "Question 0?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q0",
+          "question": "Question 0?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 0?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 0."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 1: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 0"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Manual result (overrides all other grading results)",
+              "comment": "reviewer on t0",
+              "assertion": {
+                "type": "human"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-1-1",
+        "testIdx": 3,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t1",
+          "vars": {
+            "qid": "Q1",
+            "question": "Question 1?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q1",
+          "question": "Question 1?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 1?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 1."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 1: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 1"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Manual result (overrides all other grading results)",
+              "comment": "reviewer on t1",
+              "assertion": {
+                "type": "human"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-1-2",
+        "testIdx": 6,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t2",
+          "vars": {
+            "qid": "Q2",
+            "question": "Question 2?"
+          },
+          "assert": [],
+          "options": {}
+        },
+        "vars": {
+          "qid": "Q2",
+          "question": "Question 2?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 2?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 2."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "repeat 1: not helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 2"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Manual result (overrides all other grading results)",
+              "comment": "reviewer on t2",
+              "assertion": {
+                "type": "human"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-1-3",
+        "testIdx": 9,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t3",
+          "vars": {
+            "qid": "Q3",
+            "question": "Question 3?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q3",
+          "question": "Question 3?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 3?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 3."
+        },
+        "success": false,
+        "score": 0,
+        "failureReason": 1,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "An assertion failed",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "repeat 1: not helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 3"
+              }
+            },
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "Manual result (overrides all other grading results)",
+              "comment": "reviewer on t3",
+              "assertion": {
+                "type": "human"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-1-4",
+        "testIdx": 12,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t4",
+          "vars": {
+            "qid": "Q4",
+            "question": "Question 4?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q4",
+          "question": "Question 4?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 4?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 4."
+        },
+        "success": false,
+        "score": 0,
+        "failureReason": 1,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "An assertion failed",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "repeat 1: not helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 4"
+              }
+            },
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "Manual result (overrides all other grading results)",
+              "comment": "reviewer on t4",
+              "assertion": {
+                "type": "human"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-1-5",
+        "testIdx": 15,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t5",
+          "vars": {
+            "qid": "Q5",
+            "question": "Question 5?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q5",
+          "question": "Question 5?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 5?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 5."
+        },
+        "success": false,
+        "score": 0,
+        "failureReason": 1,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "An assertion failed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 1: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 5"
+              }
+            },
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "Manual result (overrides all other grading results)",
+              "comment": "reviewer on t5",
+              "assertion": {
+                "type": "human"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-1-6",
+        "testIdx": 18,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t6",
+          "vars": {
+            "qid": "Q6",
+            "question": "Question 6?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q6",
+          "question": "Question 6?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 6?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 6."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 1: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 6"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-2-0",
+        "testIdx": 1,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t0",
+          "vars": {
+            "qid": "Q0",
+            "question": "Question 0?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q0",
+          "question": "Question 0?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 0?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 0."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 2: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 0"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-2-1",
+        "testIdx": 4,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t1",
+          "vars": {
+            "qid": "Q1",
+            "question": "Question 1?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q1",
+          "question": "Question 1?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 1?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 1."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 2: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 1"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-2-2",
+        "testIdx": 7,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t2",
+          "vars": {
+            "qid": "Q2",
+            "question": "Question 2?"
+          },
+          "assert": [],
+          "options": {}
+        },
+        "vars": {
+          "qid": "Q2",
+          "question": "Question 2?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 2?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 2."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 2: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 2"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-2-3",
+        "testIdx": 10,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t3",
+          "vars": {
+            "qid": "Q3",
+            "question": "Question 3?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q3",
+          "question": "Question 3?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 3?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 3."
+        },
+        "success": false,
+        "score": 0,
+        "failureReason": 1,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "An assertion failed",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "repeat 2: not helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 3"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-2-4",
+        "testIdx": 13,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t4",
+          "vars": {
+            "qid": "Q4",
+            "question": "Question 4?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q4",
+          "question": "Question 4?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 4?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 4."
+        },
+        "success": false,
+        "score": 0,
+        "failureReason": 1,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "An assertion failed",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "repeat 2: not helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 4"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-2-5",
+        "testIdx": 16,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t5",
+          "vars": {
+            "qid": "Q5",
+            "question": "Question 5?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q5",
+          "question": "Question 5?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 5?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 5."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 2: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 5"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-2-6",
+        "testIdx": 19,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t6",
+          "vars": {
+            "qid": "Q6",
+            "question": "Question 6?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q6",
+          "question": "Question 6?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 6?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 6."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 2: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 6"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-3-0",
+        "testIdx": 2,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t0",
+          "vars": {
+            "qid": "Q0",
+            "question": "Question 0?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q0",
+          "question": "Question 0?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 0?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 0."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 3: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 0"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-3-1",
+        "testIdx": 5,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t1",
+          "vars": {
+            "qid": "Q1",
+            "question": "Question 1?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q1",
+          "question": "Question 1?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 1?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 1."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 3: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 1"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-3-2",
+        "testIdx": 8,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t2",
+          "vars": {
+            "qid": "Q2",
+            "question": "Question 2?"
+          },
+          "assert": [],
+          "options": {}
+        },
+        "vars": {
+          "qid": "Q2",
+          "question": "Question 2?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 2?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 2."
+        },
+        "success": false,
+        "score": 0,
+        "failureReason": 1,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "An assertion failed",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "repeat 3: not helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 2"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-3-3",
+        "testIdx": 11,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t3",
+          "vars": {
+            "qid": "Q3",
+            "question": "Question 3?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q3",
+          "question": "Question 3?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 3?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 3."
+        },
+        "success": false,
+        "score": 0,
+        "failureReason": 1,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "An assertion failed",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "repeat 3: not helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 3"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-3-4",
+        "testIdx": 14,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t4",
+          "vars": {
+            "qid": "Q4",
+            "question": "Question 4?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q4",
+          "question": "Question 4?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 4?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 4."
+        },
+        "success": false,
+        "score": 0,
+        "failureReason": 1,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "An assertion failed",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "repeat 3: not helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 4"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-3-5",
+        "testIdx": 17,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t5",
+          "vars": {
+            "qid": "Q5",
+            "question": "Question 5?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q5",
+          "question": "Question 5?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 5?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 5."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 3: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 5"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "row-3-6",
+        "testIdx": 20,
+        "promptIdx": 0,
+        "promptId": "prompt-0",
+        "testCase": {
+          "description": "t6",
+          "vars": {
+            "qid": "Q6",
+            "question": "Question 6?"
+          },
+          "assert": [],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-mini",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q6",
+          "question": "Question 6?"
+        },
+        "provider": {
+          "id": "openai:gpt-4.1",
+          "label": ""
+        },
+        "prompt": {
+          "raw": "Answer: Question 6?",
+          "label": "answer"
+        },
+        "response": {
+          "output": "Answer to question 6."
+        },
+        "success": true,
+        "score": 1,
+        "failureReason": 0,
+        "latencyMs": 12,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Expected output to contain \"Answer\"",
+              "assertion": {
+                "type": "contains",
+                "value": "Answer"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "repeat 3: helpful",
+              "assertion": {
+                "type": "llm-rubric",
+                "value": "The answer is helpful and correct.",
+                "metric": "helpfulness"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "The submission agrees with the reference.",
+              "assertion": {
+                "type": "factuality",
+                "value": "reference 6"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "config": {
+    "description": "judgekeeper fixture",
+    "defaultTest": {
+      "options": {}
+    }
+  },
+  "shareableUrl": null
+}

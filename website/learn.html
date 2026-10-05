@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How it works, in more depth | judgekeeper</title>
+<meta name="description" content="Why an AI judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="judgekeeper">
+<meta property="og:title" content="How it works, in more depth | judgekeeper">
+<meta property="og:description" content="Why an AI judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
+<meta property="og:url" content="https://www.judgekeeper.com/learn.html">
+<meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="How it works, in more depth | judgekeeper">
+<meta name="twitter:description" content="Why an AI judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
+<meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/metrics.js" defer></script>
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">
+        <path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>
+        <path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>
+        <path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      judgekeeper
+    </a>
+    <nav class="site-nav" aria-label="Site">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="own-metric.html">Your own metric</a></li>
+        <li><a href="start.html">Use it on your app</a></li>
+        <li><a href="assistant.html">With a coding assistant</a></li>
+        <li><a href="reference.html">Reference</a></li>
+        <li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section id="top" aria-labelledby="top-title">
+  <div class="wrap narrow">
+    <p class="note">Part of <a href="start.html#more">Use it on your app</a>.</p>
+    <h1 id="top-title">How it works, in more depth</h1>
+    <p class="lead">You do not need this page to check a judge. Read it when you want to know why the check matters, what each number means, and what else judgekeeper can do.</p>
+    <ul class="toc">
+      <li><a href="#problem">Three ways a judge goes wrong</a></li>
+      <li><a href="#numbers">What the numbers mean</a></li>
+      <li><a href="#noise">Noise and position bias</a></li>
+      <li><a href="#keeps">Keep checking after the first check</a></li>
+      <li><a href="#works">Works with what you already use</a></li>
+      <li><a href="#result">A real result</a></li>
+      <li><a href="#keys">Your data and keys</a></li>
+      <li><a href="#faq">Questions</a></li>
+    </ul>
+  </div>
+</section>
+
+<section class="alt" id="problem" aria-labelledby="problem-title">
+  <div class="wrap">
+    <p class="kicker">Why check the judge</p>
+    <h2 id="problem-title">Nobody checks the judge</h2>
+    <p class="lead">Your AI product writes answers. To know whether they are good, you could read them all yourself, but that is slow. So teams ask another AI model to grade them: the judge. A judge is fast and cheap. It can also be wrong, in three ways.</p>
+    <div class="grid three">
+      <article class="card">
+        <svg class="anim" viewBox="0 0 300 150" role="img" aria-label="An answer says Saturn is the largest planet. The human marked it fail. The judge marked it pass.">
+          <rect class="frame" x="6" y="6" width="288" height="78" rx="10"/>
+          <text x="20" y="32">Question: Which planet is the largest?</text>
+          <text x="20" y="58" class="muted-text">Answer: Saturn is the largest planet.</text>
+          <rect class="fail-fill" x="20" y="102" width="118" height="34" rx="8"/>
+          <text class="chip-text" x="79" y="124" text-anchor="middle">HUMAN: FAIL</text>
+          <g class="stamp">
+            <rect class="pass-fill" x="162" y="102" width="118" height="34" rx="8"/>
+            <text class="chip-text" x="221" y="124" text-anchor="middle">JUDGE: PASS</text>
+          </g>
+        </svg>
+        <h3>It disagrees with people</h3>
+        <p>A judge can pass an answer a person would fail. A judge that passes everything makes every test look fine.</p>
+      </article>
+      <article class="card">
+        <svg class="anim" viewBox="0 0 300 150" role="img" aria-label="The same question judged three times. Runs 1 and 2 say pass. Run 3 says fail.">
+          <text x="20" y="30">The same question, judged three times</text>
+          <text x="20" y="64" class="muted-text">Run 1</text>
+          <rect class="pass-fill" x="80" y="46" width="90" height="28" rx="7"/>
+          <text class="chip-text" x="125" y="65" text-anchor="middle">PASS</text>
+          <text x="20" y="100" class="muted-text">Run 2</text>
+          <rect class="pass-fill" x="80" y="82" width="90" height="28" rx="7"/>
+          <text class="chip-text" x="125" y="101" text-anchor="middle">PASS</text>
+          <text x="20" y="136" class="muted-text">Run 3</text>
+          <rect class="flip-fill" x="80" y="118" width="90" height="28" rx="7"/>
+          <text class="chip-text flip-pass" x="125" y="137" text-anchor="middle">PASS</text>
+          <text class="chip-text flip-fail" x="125" y="137" text-anchor="middle">FAIL</text>
+          <text x="186" y="137" class="muted-text">changed its mind</text>
+        </svg>
+        <h3>It is inconsistent</h3>
+        <p>Ask a judge the same question three times and you can get two different answers.</p>
+      </article>
+      <article class="card">
+        <svg class="anim" viewBox="0 0 300 150" role="img" aria-label="A model update arrives and every score bar drops, although the product did not change.">
+          <text x="20" y="30">Scores for the same product</text>
+          <g class="update">
+            <rect x="186" y="12" width="104" height="26" rx="13" fill="#B45309"/>
+            <text x="238" y="30" text-anchor="middle" class="chip-text">model update</text>
+          </g>
+          <line x1="20" y1="140" x2="285" y2="140" stroke="currentColor" stroke-opacity="0.3"/>
+          <g class="drift" style="--shift:18px">
+            <rect class="pass-fill" x="40" y="60" width="40" height="80" rx="4"/>
+            <rect class="pass-fill" x="110" y="70" width="40" height="70" rx="4"/>
+            <rect class="pass-fill" x="180" y="56" width="40" height="84" rx="4"/>
+            <rect class="pass-fill" x="250" y="66" width="30" height="74" rx="4"/>
+          </g>
+        </svg>
+        <h3>It changes silently</h3>
+        <p>The company behind the judge model can update it. Then every score moves, although your product did not change.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="numbers" aria-labelledby="numbers-title">
+  <div class="wrap" data-illustration>
+    <p class="kicker">What the numbers mean</p>
+    <h2 id="numbers-title">Try it: how good is this judge?</h2>
+    <p class="tag-illustration">Illustration: you choose the numbers</p>
+    <p class="lead">Move the sliders. The table counts the four ways a judge and a person can line up. The numbers below it are the ones judgekeeper reports, computed the same way.</p>
+    <div class="matrix-wrap" id="matrix">
+      <div class="controls">
+        <label for="m-pos">Answers the people passed: <output id="m-pos-out" for="m-pos">20</output></label>
+        <input type="range" id="m-pos" min="0" max="40" value="20">
+        <label for="m-neg">Answers the people failed: <output id="m-neg-out" for="m-neg">20</output></label>
+        <input type="range" id="m-neg" min="0" max="40" value="20">
+        <label for="m-tp">Of the people's passes, the judge also passed: <output id="m-tp-out" for="m-tp">18</output></label>
+        <input type="range" id="m-tp" min="0" max="20" value="18">
+        <label for="m-tn">Of the people's fails, the judge also failed: <output id="m-tn-out" for="m-tn">17</output></label>
+        <input type="range" id="m-tn" min="0" max="20" value="17">
+        <div class="presets" role="group" aria-label="Example judges">
+          <button type="button" data-preset="20,20,19,19">A good judge</button>
+          <button type="button" data-preset="36,4,36,0">Passes everything</button>
+          <button type="button" data-preset="20,20,10,10">Coin flip</button>
+          <button type="button" data-preset="20,20,12,20">Too strict</button>
+        </div>
+      </div>
+      <div>
+        <table class="cm">
+          <caption class="note">Each answer lands in one box</caption>
+          <thead><tr><th scope="col"></th><th scope="col">Judge passed</th><th scope="col">Judge failed</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">People passed</th><td class="good" id="cm-tp">18<small>agree</small></td><td class="bad" id="cm-fn">2<small>judge too harsh</small></td></tr>
+            <tr><th scope="row">People failed</th><td class="bad" id="cm-fp">3<small>judge too lenient</small></td><td class="good" id="cm-tn">17<small>agree</small></td></tr>
+          </tbody>
+        </table>
+        <div class="stats" aria-live="polite">
+          <div class="stat"><div class="label">TPR (true positive rate)</div><div class="value" id="s-tpr">0.90</div><p class="why" id="s-tpr-why">Of the answers people passed, the judge passed 18 of 20.</p></div>
+          <div class="stat"><div class="label">TNR (true negative rate)</div><div class="value" id="s-tnr">0.85</div><p class="why" id="s-tnr-why">Of the answers people failed, the judge failed 17 of 20.</p></div>
+          <div class="stat"><div class="label">Kappa</div><div class="value" id="s-kappa">0.75</div><p class="why" id="s-kappa-why">Agreement after taking away what lucky guessing would give. 0 is no better than chance, 1 is perfect.</p></div>
+          <div class="stat muted"><div class="label">Raw agreement (for comparison only)</div><div class="value" id="s-acc">88%</div><p class="why">The share of all answers where judge and people agree. It can look high for a useless judge.</p></div>
+        </div>
+        <p class="verdict-line care" id="s-verdict">Usable with care: TNR is between 0.80 and 0.90.</p>
+        <p class="note" id="s-ci">Likely ranges with this few answers (95 percent Wilson intervals): TPR 0.70 to 0.97, TNR 0.64 to 0.95.</p>
+      </div>
+    </div>
+    <p class="note">The report's verdict uses these rules: <em>not trustworthy as a gate</em> if TPR or TNR is below <span data-const="judgekeeper.report:RATE_GATE" id="th-rate-gate">0.80</span> or kappa is below <span data-const="judgekeeper.report:KAPPA_GATE" data-format="1f" id="th-kappa-gate">0.6</span>; <em>usable with care</em> if TPR or TNR is below <span data-const="judgekeeper.report:RATE_CARE" id="th-rate-care">0.90</span>; otherwise <em>usable as a gate</em>. A <strong>gate</strong> is an automatic check that can stop a release.</p>
+  </div>
+</section>
+
+<section class="alt" id="noise" aria-labelledby="noise-title">
+  <div class="wrap">
+    <p class="kicker">Two more things it measures</p>
+    <h2 id="noise-title">Noise and position bias</h2>
+    <div class="grid two">
+      <article class="card" data-illustration>
+        <p class="tag-illustration">Illustration</p>
+        <h3>Noise: does the judge change its mind?</h3>
+        <div class="runs" role="img" aria-label="Five answers, each judged in three runs. Answer 3 is passed in runs 1 and 3 but failed in run 2.">
+          <span></span><span class="hdr">#1</span><span class="hdr">#2</span><span class="hdr">#3</span><span class="hdr">#4</span><span class="hdr">#5</span>
+          <span class="hdr">Run 1</span><span class="chip p">PASS</span><span class="chip f">FAIL</span><span class="chip p">PASS</span><span class="chip p">PASS</span><span class="chip f">FAIL</span>
+          <span class="hdr">Run 2</span><span class="chip p">PASS</span><span class="chip f">FAIL</span><span class="chip f flip">FAIL</span><span class="chip p">PASS</span><span class="chip f">FAIL</span>
+          <span class="hdr">Run 3</span><span class="chip p">PASS</span><span class="chip f">FAIL</span><span class="chip p">PASS</span><span class="chip p">PASS</span><span class="chip f">FAIL</span>
+        </div>
+        <p style="margin-top:14px">judgekeeper runs the judge several times on the same answers and counts how often a verdict changes. The report calls this the <strong>noise floor</strong>. Here, 1 of 5 answers flipped. With only one run the noise is reported as <em>unknown</em>, never as zero.</p>
+      </article>
+      <article class="card" data-illustration>
+        <p class="tag-illustration">Illustration</p>
+        <h3>Position bias: does order matter?</h3>
+        <svg class="anim" viewBox="0 0 300 150" role="img" aria-label="Shown answer A first, the judge picks A. Shown the same two answers with B first, the judge picks B.">
+          <text x="16" y="24" class="muted-text">Order A, then B</text>
+          <rect x="16" y="32" width="56" height="34" rx="6" fill="#1E293B"/><text class="chip-text" x="44" y="54" text-anchor="middle" style="fill:#FFFFFF">A</text>
+          <rect x="80" y="32" width="56" height="34" rx="6" fill="#10B981"/><text x="108" y="54" text-anchor="middle" style="fill:#052E1F;font-weight:700">B</text>
+          <rect class="pass-fill" x="156" y="35" width="128" height="28" rx="7"/><text class="chip-text" x="220" y="54" text-anchor="middle">judge: A is better</text>
+          <text x="16" y="96" class="muted-text">Order B, then A</text>
+          <rect x="16" y="104" width="56" height="34" rx="6" fill="#10B981"/><text x="44" y="126" text-anchor="middle" style="fill:#052E1F;font-weight:700">B</text>
+          <rect x="80" y="104" width="56" height="34" rx="6" fill="#1E293B"/><text class="chip-text" x="108" y="126" text-anchor="middle" style="fill:#FFFFFF">A</text>
+          <rect class="flip-fill" x="156" y="107" width="128" height="28" rx="7"/>
+          <text class="chip-text flip-pass" x="220" y="126" text-anchor="middle">judge: A is better</text>
+          <text class="chip-text flip-fail" x="220" y="126" text-anchor="middle">judge: B is better</text>
+        </svg>
+        <p>When a judge compares two answers, it can favour whichever it reads first. judgekeeper asks both ways, A then B and B then A. If the verdict changes with the order, that is <strong>position bias</strong>.</p>
+      </article>
+    </div>
+    <p class="note">In the real result below, <span data-report="noise_floor.items_flipped_fraction" data-format="pct1">3.6%</span> of items changed verdict in at least one of three runs, and <span data-report="position_bias.inconsistency_rate" data-format="pct1">9.9%</span> of verdicts changed when the two answers swapped places.</p>
+  </div>
+</section>
+
+<section id="keeps" aria-labelledby="keeps-title">
+  <div class="wrap">
+    <p class="kicker">After the first check</p>
+    <h2 id="keeps-title">It keeps checking</h2>
+    <p class="lead">A judge that is right today can drift tomorrow. Three commands keep watch.</p>
+    <div class="grid wide">
+      <article class="card" id="gate-panel">
+        <h3>Gate: stop a release when the judge slips</h3>
+        <p><strong>CI</strong> (continuous integration) is the set of automatic checks that run on every code change. <code>judgekeeper gate</code> reads a report and returns a status. Each status has an <strong>exit code</strong>, a number a program returns when it ends. Anything but 0 stops the build.</p>
+        <div class="code"><pre><code>judgekeeper gate reports/my-judge/report.json</code></pre></div>
+        <div class="toggle-row" role="group" aria-label="Pick a gate status to see it in CI">
+          <button type="button" class="btn secondary" data-gate="PASS" aria-pressed="true">PASS</button>
+          <button type="button" class="btn secondary" data-gate="FAIL" aria-pressed="false">FAIL</button>
+          <button type="button" class="btn secondary" data-gate="FLAKY" aria-pressed="false">FLAKY</button>
+        </div>
+        <div class="ci-check" aria-live="polite"><span class="ci-dot ok" id="ci-dot"></span><span id="ci-text">judge gate: PASS (exit 0)</span></div>
+        <table class="plain" style="margin-top:12px">
+          <thead><tr><th scope="col">Status</th><th scope="col">Means</th><th scope="col">Exit</th></tr></thead>
+          <tbody>
+            <tr><td><span class="status ok">PASS</span></td><td>The judge clears every check.</td><td data-exit="gate:PASS">0</td></tr>
+            <tr><td><span class="status no">FAIL</span></td><td>The judge fell below a threshold, or dropped by more than its own noise.</td><td data-exit="gate:FAIL">1</td></tr>
+            <tr><td><span class="status mid">ANCHORS_CHANGED</span></td><td>Someone edited the frozen examples.</td><td data-exit="gate:ANCHORS_CHANGED">3</td></tr>
+            <tr><td><span class="status mid">FLAKY</span></td><td>Too few runs, or the judge flips too often to tell.</td><td data-exit="gate:FLAKY">4</td></tr>
+            <tr><td><span class="status mid">JUDGE_CHANGED</span></td><td>A different model, prompt or setting: scores are not comparable.</td><td data-exit="gate:JUDGE_CHANGED">5</td></tr>
+          </tbody>
+        </table>
+        <p class="note">It never fails on a change smaller than the judge's own run-to-run noise.</p>
+      </article>
+      <article class="card" data-illustration>
+        <h3>Migrate: switch judge models safely</h3>
+        <p class="tag-illustration">Illustration</p>
+        <p>Moving to a new judge model? Run both on the same frozen examples. <code>migrate</code> compares them answer by answer.</p>
+        <div class="code"><pre><code>judgekeeper migrate anchors.jsonl runs/old/ runs/new/ --out reports/migration/</code></pre></div>
+        <table class="plain">
+          <thead><tr><th scope="col">Answer</th><th scope="col">People</th><th scope="col">Old judge</th><th scope="col">New judge</th></tr></thead>
+          <tbody>
+            <tr><td>#1</td><td>pass</td><td>pass</td><td>pass</td></tr>
+            <tr><td>#2</td><td>fail</td><td>pass</td><td><strong>fail</strong> (fixed)</td></tr>
+            <tr><td>#3</td><td>fail</td><td>fail</td><td>fail</td></tr>
+            <tr><td>#4</td><td>pass</td><td>pass</td><td><strong>fail</strong> (broken)</td></tr>
+          </tbody>
+        </table>
+        <div class="toggle-row" role="group" aria-label="Pick a migrate result to see what it means">
+          <button type="button" class="btn secondary" data-migrate="BETTER" aria-pressed="true">BETTER</button>
+          <button type="button" class="btn secondary" data-migrate="WORSE" aria-pressed="false">WORSE</button>
+          <button type="button" class="btn secondary" data-migrate="EQUIVALENT" aria-pressed="false">EQUIVALENT</button>
+          <button type="button" class="btn secondary" data-migrate="DIFFERENT" aria-pressed="false">DIFFERENT</button>
+        </div>
+        <p aria-live="polite" id="migrate-text"><strong>BETTER:</strong> the new judge agrees with people more, by more than the noise. Switch, and expect scores to move because the judge improved.</p>
+      </article>
+      <article class="card" id="attr-panel">
+        <h3>Attribute: was it your app or the judge?</h3>
+        <p>Your score dropped. judgekeeper grades the frozen examples again. Their answers never change, so if the judge's verdicts on them moved, the judge changed. If not, your app did.</p>
+        <div class="code"><pre><code>judgekeeper attribute reports/now/report.json --app-score-before 0.82 --app-score-after 0.74</code></pre></div>
+        <div class="toggle-row" role="group" aria-label="Pick what happened to the judge">
+          <button type="button" class="btn secondary" data-attr="SYSTEM_CHANGE" aria-pressed="true">Judge stayed the same</button>
+          <button type="button" class="btn secondary" data-attr="JUDGE_DRIFT" aria-pressed="false">Judge changed</button>
+        </div>
+        <p aria-live="polite" id="attr-text"><span class="status no">SYSTEM_CHANGE</span> The judge still grades the frozen examples the same way, so the drop comes from your app.</p>
+        <table class="plain">
+          <thead><tr><th scope="col">Status</th><th scope="col">Means</th><th scope="col">Exit</th></tr></thead>
+          <tbody>
+            <tr><td>STABLE</td><td>Nothing moved beyond the noise.</td><td data-exit="attribute:STABLE">0</td></tr>
+            <tr><td>JUDGE_DRIFT</td><td>The judge's verdicts on the frozen examples moved.</td><td data-exit="attribute:JUDGE_DRIFT">6</td></tr>
+            <tr><td>SYSTEM_CHANGE</td><td>The judge held still; your app's score moved.</td><td data-exit="attribute:SYSTEM_CHANGE">7</td></tr>
+          </tbody>
+        </table>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="works" aria-labelledby="works-title">
+  <div class="wrap">
+    <p class="kicker">Integrations</p>
+    <h2 id="works-title">Works with what you already use</h2>
+    <p class="lead">judgekeeper does not replace your tools. It reads what they already save. Open a tile for the exact command.</p>
+    <div class="tiles">
+      <details>
+        <summary><span>A spreadsheet<small>CSV or JSONL file</small></span></summary>
+        <div class="recipe">
+          <p>One row per verdict, with a column for the judge's verdict and one for the human label. Columns named <code>id</code>, <code>run</code>, <code>input</code>, <code>output</code> and <code>reason</code> are used when present.</p>
+          <div class="code"><pre><code>judgekeeper check results.csv --judge verdict --human label --out reports/my-judge/</code></pre></div>
+          <p class="note">Verdicts can be pass/fail, true/false, yes/no, correct/incorrect or 1/0. Scores need a rule such as <code>--pass-if "score&gt;=0.5"</code>. judgekeeper never guesses.</p>
+        </div>
+      </details>
+      <details>
+        <summary><span>Your own Python function<small>--callable</small></span></summary>
+        <div class="recipe">
+          <p>Write a function that takes one item (its id, input and output, never the human label) and returns a verdict:</p>
+          <div class="code"><pre><code># mypkg/judges.py
+def my_judge(item):
+    return call_my_model(item)   # "pass", "fail", True, False, a score, or {"verdict": ..., "reason": ...}</code></pre></div>
+          <div class="code"><pre><code>judgekeeper judge anchors.jsonl --callable mypkg.judges:my_judge --runs 3 --out runs/mine/</code></pre></div>
+        </div>
+      </details>
+      <details>
+        <summary><span>Any language<small>--exec</small></span></summary>
+        <div class="recipe">
+          <p>Any program works. judgekeeper sends one item as JSON on standard input; the program prints a verdict.</p>
+          <div class="code"><pre><code>judgekeeper judge anchors.jsonl --exec "node judge.js" --runs 3 --out runs/mine/</code></pre></div>
+        </div>
+      </details>
+      <details>
+        <summary><span>promptfoo<small>results.json</small></span></summary>
+        <div class="recipe">
+          <p>Run your eval three times, then point judgekeeper at the results file and your human labels.</p>
+          <div class="code"><pre><code>promptfoo eval -o results.json --repeat 3
+judgekeeper import promptfoo results.json --metric helpfulness --labels labels.csv --out reports/helpfulness/</code></pre></div>
+          <p class="note"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/promptfoo.md">Full promptfoo guide</a></p>
+        </div>
+      </details>
+      <details>
+        <summary><span>DeepEval<small>test run files</small></span></summary>
+        <div class="recipe">
+          <div class="code"><pre><code>export DEEPEVAL_RESULTS_FOLDER=deepeval-results   # then run your DeepEval tests 3 times
+judgekeeper import deepeval deepeval-results/ --metric "Correctness [GEval]" --labels labels.csv --out reports/correctness/</code></pre></div>
+          <p class="note"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/deepeval.md">Full DeepEval guide</a></p>
+        </div>
+      </details>
+      <details>
+        <summary><span>Inspect AI<small>eval logs</small></span></summary>
+        <div class="recipe">
+          <div class="code"><pre><code>inspect eval task.py --epochs 3 --log-format json
+judgekeeper import inspect logs/ --metric model_graded_qa --labels labels.csv --out reports/qa/</code></pre></div>
+          <p class="note"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/inspect.md">Full Inspect AI guide</a></p>
+        </div>
+      </details>
+      <details>
+        <summary><span>MLflow<small>assessments on traces</small></span></summary>
+        <div class="recipe">
+          <div class="code"><pre><code>pip install "judgekeeper[mlflow]"
+judgekeeper import mlflow --experiment my-app-eval --metric correctness --out reports/correctness/</code></pre></div>
+          <p class="note"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/mlflow.md">Full MLflow guide</a></p>
+        </div>
+      </details>
+      <details>
+        <summary><span>Langfuse<small>scores</small></span></summary>
+        <div class="recipe">
+          <p>Set <code>LANGFUSE_PUBLIC_KEY</code> and <code>LANGFUSE_SECRET_KEY</code> in your environment (see <a href="setup.html">Setup and keys</a>), then:</p>
+          <div class="code"><pre><code>judgekeeper import langfuse --judge-score helpfulness --human-score helpfulness_human --from 2026-09-01 --pass-if "score&gt;=0.5" --out reports/helpfulness/</code></pre></div>
+          <p class="note"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/langfuse.md">Full Langfuse guide</a></p>
+        </div>
+      </details>
+      <details>
+        <summary><span>Anthropic models<small>--runner anthropic</small></span></summary>
+        <div class="recipe">
+          <p>judgekeeper calls the model for you with your own key, read from the environment. The prompt file holds your grading instructions. <code>judgekeeper init</code> writes a starter one, <code>prompts/judge.md</code>, for you to fill in:</p>
+          <div class="code"><pre><code>pip install "judgekeeper[anthropic]"
+judgekeeper init
+judgekeeper judge anchors.jsonl --runner anthropic --model claude-haiku-4-5-20251001 --prompt prompts/judge.md --runs 3 --out runs/haiku/</code></pre></div>
+          <p class="note"><a href="setup.html">How to set the key safely</a></p>
+        </div>
+      </details>
+      <details>
+        <summary><span>OpenAI models<small>--runner openai</small></span></summary>
+        <div class="recipe">
+          <div class="code"><pre><code>pip install "judgekeeper[openai]"
+judgekeeper init
+judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --prompt prompts/judge.md --runs 3 --out runs/openai/</code></pre></div>
+          <p class="note"><code>$JUDGE_MODEL</code> is the model name you use. <code>judgekeeper init</code> writes the prompt file, <code>prompts/judge.md</code>, for you to fill in. <a href="setup.html">How to set the key safely</a></p>
+        </div>
+      </details>
+      <details>
+        <summary><span>Any OpenAI-compatible server<small>--base-url</small></span></summary>
+        <div class="recipe">
+          <p>Azure OpenAI, OpenRouter, Together, a LiteLLM gateway (for AWS Bedrock or Google Vertex), Ollama or vLLM. For a local Ollama, no key is needed:</p>
+          <div class="code"><pre><code>judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --base-url http://localhost:11434/v1 --prompt prompts/judge.md --runs 3 --out runs/local/</code></pre></div>
+          <p class="note">This uses the OpenAI runner, so install it first with <code>pip install "judgekeeper[openai]"</code>. <a href="setup.html#laptop">More endpoints on the setup page</a></p>
+        </div>
+      </details>
+      <details>
+        <summary><span>GitHub Action<small>a check on every change</small></span></summary>
+        <div class="recipe">
+          <p>The action runs the judge, writes the report and gates on it. Keys come from repository secrets.</p>
+          <div class="code"><pre><code>- uses: judgekeeper/judgekeeper@v0.1.4   # a release tag
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  with:
+    anchors: evals/anchors.jsonl
+    runner: anthropic
+    model: claude-haiku-4-5-20251001
+    prompt: prompts/judge.md
+    runs: 3</code></pre></div>
+          <p class="note"><a href="setup.html#actions">The full workflow</a></p>
+        </div>
+      </details>
+      <details>
+        <summary><span>pytest<small>pytest-judgekeeper</small></span></summary>
+        <div class="recipe">
+          <p>Gate a report your pipeline already wrote, from your test suite. It never calls a judge.</p>
+          <div class="code"><pre><code>pytest --judgekeeper-report reports/my-judge/report.json</code></pre></div>
+          <div class="code"><pre><code>def test_judge_still_agrees_with_humans(judgekeeper_gate):
+    judgekeeper_gate("reports/my-judge/report.json")</code></pre></div>
+        </div>
+      </details>
+      <details>
+        <summary><span>A coding agent<small>skill file</small></span></summary>
+        <div class="recipe">
+          <p>Coding agents such as Claude Code can set judgekeeper up for you. Give them <a href="https://github.com/judgekeeper/judgekeeper/blob/main/skills/judgekeeper/SKILL.md">skills/judgekeeper/SKILL.md</a>. It explains each step, and tells the agent never to invent human labels.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section id="result" aria-labelledby="result-title">
+  <div class="wrap">
+    <p class="kicker">A real result</p>
+    <h2 id="result-title">Claude Haiku 4.5 as a judge, on LLMBar</h2>
+    <p class="lead">LLMBar is a public set of questions, each with two answers, where people already marked the better one. We ran <code>claude-haiku-4-5-20251001</code> as the judge on <span data-report="anchors.n_items" data-format="int">419</span> of them, <span data-report="n_runs" data-format="int">3</span> times, in both answer orders.</p>
+    <div class="headline-stats">
+      <div class="stat"><div class="label">TPR</div><div class="value" data-report="headline.tpr_mean">0.95</div></div>
+      <div class="stat"><div class="label">TNR</div><div class="value" data-report="headline.tnr_mean">0.88</div></div>
+      <div class="stat"><div class="label">Kappa</div><div class="value" data-report="headline.kappa_mean">0.83</div></div>
+    </div>
+    <p><strong>Verdict: usable with care</strong>, because TNR is below <span data-const="judgekeeper.report:RATE_CARE">0.90</span>. And the average hides something. LLMBar groups its questions into <strong>slices</strong>: <em>Natural</em> questions are ordinary ones, and the <em>Adversarial</em> slices were built to be hard for judges. Kappa by slice:</p>
+    <div class="bars" role="list" aria-label="Kappa by slice">
+      <div class="bar-row" role="listitem"><span class="bar-label">Natural</span><span class="bar-track"><span class="bar-fill"></span></span><span class="num" data-report="slices[Natural].kappa_mean">0.94</span></div>
+      <div class="bar-row" role="listitem"><span class="bar-label">Adversarial/GPTInst</span><span class="bar-track"><span class="bar-fill"></span></span><span class="num" data-report="slices[Adversarial/GPTInst].kappa_mean">0.92</span></div>
+      <div class="bar-row" role="listitem"><span class="bar-label">Adversarial/Neighbor</span><span class="bar-track"><span class="bar-fill"></span></span><span class="num" data-report="slices[Adversarial/Neighbor].kappa_mean">0.84</span></div>
+      <div class="bar-row" role="listitem"><span class="bar-label">Adversarial/Manual</span><span class="bar-track"><span class="bar-fill weak"></span></span><span class="num" data-report="slices[Adversarial/Manual].kappa_mean">0.64</span></div>
+      <div class="bar-row" role="listitem"><span class="bar-label">Adversarial/GPTOut</span><span class="bar-track"><span class="bar-fill weak"></span></span><span class="num" data-report="slices[Adversarial/GPTOut].kappa_mean">0.56</span></div>
+    </div>
+    <p>Strong on ordinary questions (kappa <span data-report="slices[Natural].kappa_mean">0.94</span>), much weaker on the hardest adversarial ones (<span data-report="slices[Adversarial/GPTOut].kappa_mean">0.56</span> and <span data-report="slices[Adversarial/Manual].kappa_mean">0.64</span>). A judge that looks great on average can be weak exactly where it matters. The report shows it; an average hides it.</p>
+    <p><a class="btn primary" href="examples/llmbar-haiku/report.html">Open the full report</a></p>
+  </div>
+</section>
+
+<section class="alt" id="keys" aria-labelledby="keys-title">
+  <div class="wrap">
+    <p class="kicker">Privacy</p>
+    <h2 id="keys-title">Your data and keys stay with you</h2>
+    <p class="lead">An <strong>API key</strong> is the password your code uses to call a model provider. With judgekeeper, your key goes from your machine straight to your provider, and nowhere else.</p>
+    <svg class="diagram" viewBox="0 0 720 230" role="img" aria-label="Your machine runs judgekeeper with your data and your key. It talks directly to your model provider. There is no judgekeeper server in between.">
+      <rect class="box" x="10" y="30" width="260" height="170" rx="14"/>
+      <text x="30" y="62">Your computer or your CI</text>
+      <text x="30" y="96" class="small">judgekeeper</text>
+      <text x="30" y="122" class="small">your examples and labels</text>
+      <text x="30" y="148" class="small">your key, in an environment variable</text>
+      <text x="30" y="174" class="small">reports, written to your disk</text>
+      <rect class="box" x="450" y="30" width="260" height="80" rx="14"/>
+      <text x="470" y="64">Your model provider</text>
+      <text x="470" y="90" class="small">Anthropic, OpenAI or your own server</text>
+      <path class="wire" d="M270 70 H450"/>
+      <rect class="box" x="450" y="140" width="260" height="60" rx="14" stroke-dasharray="6 6"/>
+      <text x="470" y="176" class="small">a judgekeeper server: none exists</text>
+      <path class="cross" d="M300 150 L330 180 M330 150 L300 180"/>
+    </svg>
+    <ul>
+      <li><strong>No server.</strong> judgekeeper runs where you run it. Nothing is sent to its makers.</li>
+      <li><strong>No key flag.</strong> No option takes a key. <code>--api-key-env</code> takes the <em>name</em> of a variable, never the key.</li>
+      <li><strong>Keys come only from environment variables</strong>, settings your shell or CI passes to programs, such as <code>ANTHROPIC_API_KEY</code>.</li>
+      <li><strong>A test checks it.</strong> judgekeeper's own test suite checks that no key appears in any file or message it writes.</li>
+      <li><strong>Error messages are scrubbed.</strong> Anything that looks like a key is replaced with <code>[REDACTED]</code> before it is printed.</li>
+    </ul>
+    <p><a href="setup.html">Step-by-step key setup for your laptop, GitHub Actions and cloud sessions</a></p>
+  </div>
+</section>
+
+<section id="faq" aria-labelledby="faq-title">
+  <div class="wrap narrow faq">
+    <p class="kicker">Questions</p>
+    <h2 id="faq-title">Short, honest answers</h2>
+    <details>
+      <summary>How many human labels do I need?</summary>
+      <p>About 100, roughly half pass and half fail. With fewer than <span data-const="judgekeeper.report:MIN_LABELS" data-format="int">60</span> the report warns that the error bars are wide. It also warns when the split is more lopsided than <span data-const="judgekeeper.report:MAX_CLASS_SHARE" data-format="split">80/20</span>.</p>
+    </details>
+    <details>
+      <summary>Why TPR and TNR first, and not kappa?</summary>
+      <p>They are easier to act on. TNR in particular catches a judge that passes everything, which raw agreement hides. Kappa is in the report too, next to them.</p>
+    </details>
+    <details>
+      <summary>Does it cost anything?</summary>
+      <p>judgekeeper is free. The only cost is your judge's own API calls, which you pay to your model provider. <code>check</code> and the imports that read a file (promptfoo, DeepEval, Inspect AI) call no model and nothing on the network. The MLflow and Langfuse imports read your scores from your MLflow or Langfuse server, so they do call that platform; they call no model either.</p>
+    </details>
+    <details>
+      <summary>Does it replace my eval framework?</summary>
+      <p>No. It works alongside promptfoo, DeepEval, Inspect AI, MLflow, Langfuse or your own code, and reads the files they already save.</p>
+    </details>
+    <details>
+      <summary>Does my data leave my machine?</summary>
+      <p>No. judgekeeper has no server. The only network calls are the ones your judge makes to your model provider, and reads from a platform you import from.</p>
+    </details>
+    <details>
+      <summary>What if the judge model is updated?</summary>
+      <p>Every verdict records the judge's identity: provider, model, prompt and settings. The gate notices a different judge and says <code>JUDGE_CHANGED</code> instead of comparing scores that are not comparable. A weekly scheduled check also catches silent updates.</p>
+    </details>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>judgekeeper is free and open source under the MIT license. <a href="https://github.com/judgekeeper/judgekeeper">Source on GitHub</a> · <a href="setup.html">Setup and keys</a> · <a href="tutorial.html">Tutorial</a> · <a href="own-metric.html">Your own metric</a></p>
+  </div>
+</footer>
+</body>
+</html>

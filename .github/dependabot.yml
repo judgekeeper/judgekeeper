@@ -1,0 +1,12 @@
+# Weekly update PRs for the pinned GitHub Actions and the dev dependencies.
+# judgekeeper has no runtime dependencies; the pip updates cover the [dev] extras.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly

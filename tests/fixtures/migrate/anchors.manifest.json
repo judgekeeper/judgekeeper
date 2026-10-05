@@ -1,0 +1,13 @@
+{
+  "item_count": 10,
+  "kind": "pairwise",
+  "label_distribution": {
+    "A": 5,
+    "B": 5
+  },
+  "slice_counts": {
+    "easy": 6,
+    "hard": 4
+  },
+  "sha256": "2ab509cc1620279e7540816467794f6c4a11f68e05298414ab81c92c9e81b380"
+}

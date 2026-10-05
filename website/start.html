@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Use it on your app | judgekeeper</title>
+<meta name="description" content="Check your own AI judge in four steps: collect answers from your app, label them, run your judge, read the result.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="judgekeeper">
+<meta property="og:title" content="Use it on your app | judgekeeper">
+<meta property="og:description" content="Check your own AI judge in four steps: collect answers from your app, label them, run your judge, read the result.">
+<meta property="og:url" content="https://www.judgekeeper.com/start.html">
+<meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Use it on your app | judgekeeper">
+<meta name="twitter:description" content="Check your own AI judge in four steps: collect answers from your app, label them, run your judge, read the result.">
+<meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">
+        <path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>
+        <path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>
+        <path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      judgekeeper
+    </a>
+    <nav class="site-nav" aria-label="Site">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="own-metric.html">Your own metric</a></li>
+        <li><a href="start.html" aria-current="page">Use it on your app</a></li>
+        <li><a href="assistant.html">With a coding assistant</a></li>
+        <li><a href="reference.html">Reference</a></li>
+        <li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section id="steps" aria-labelledby="steps-title">
+  <div class="wrap narrow">
+    <h1 id="steps-title">Use it on your app</h1>
+    <p class="lead">Four steps, and no key. You need answers your app wrote, and some time to grade them yourself.</p>
+    <p>First <a href="#install">install judgekeeper</a>, if you have not yet.</p>
+
+    <h2 id="four-steps">The four steps</h2>
+    <ol class="steps">
+      <li>
+        <h3 id="step-collect">Collect answers from your app</h3>
+        <p>Save 30 to 60 real answers in one file named <code>items.csv</code>. Each row is one answer: an <code>id</code>, the <code>input</code> your app got and the <code>output</code> it wrote. Take ordinary cases and hard ones, good answers and bad ones. That many is enough for a first look. About 100 gives a firmer result.</p>
+        <p>This step has no command. You make the file in a spreadsheet. From Excel, save it as <strong>CSV UTF-8</strong>.</p>
+        <p class="output-label">What the file looks like:</p>
+        <pre class="output" data-file="tutorial/items.csv" data-rows="3"><code>id,input,output
+q1,What is the capital of France?,Paris is the capital of France.
+q2,What is the capital of Japan?,The capital of Japan is Tokyo.</code></pre>
+      </li>
+      <li>
+        <h3 id="step-label">Label them</h3>
+        <p>You read each answer and say <em>pass</em> or <em>fail</em>. That mark is a <strong>human label</strong>. It is the one part no AI model may do for you: the labels are what the judge is checked against.</p>
+        <div class="code"><pre><code>judgekeeper label items.csv --out labels.csv</code></pre></div>
+        <p><strong>What you see.</strong> A page opens in your browser. It runs on your own computer, and nothing leaves it. It shows one answer at a time. Press <kbd>1</kbd> for pass and <kbd>2</kbd> for fail. Every label is saved at once into <code>labels.csv</code>, so you can stop and come back. Press Ctrl-C in the terminal when you are done.</p>
+      </li>
+      <li>
+        <h3 id="step-judge">Run your judge, or bring its verdicts</h3>
+        <p>A <strong>verdict</strong> is the judge's pass or fail on one answer. judgekeeper needs the judge's verdicts on the same answers you labeled.</p>
+        <p>If your tools already saved the verdicts, put them next to your labels in one table. Open <code>labels.csv</code> in a spreadsheet, add a <code>verdict</code> column with what the judge said, rename <code>human_label</code> to <code>label</code> and save it as <code>results.csv</code>. Then run:</p>
+        <div class="code"><pre><code>judgekeeper check results.csv --judge verdict --human label</code></pre></div>
+        <p class="output-label">What you see. This is the result for the small table in the <a href="tutorial.html#step-check">tutorial</a>:</p>
+        <pre class="output" data-output="check"><code>Of the answers people passed, the judge passed 100%. Of the answers people failed, the judge failed 33%. It is not trustworthy as a gate.
+Not trustworthy as a gate: TPR 1.00, TNR 0.33, kappa 0.41 against human labels.
+  - TNR is 0.33 (below 0.80): not trustworthy as a gate.
+  - Kappa vs human labels is 0.41 (below 0.6): not trustworthy as a gate.
+  - judge identity incomplete: provider, model, snapshot, endpoint, prompt_hash, rubric_version, temperature
+  - Only 10 labeled items: error bars are wide; aim for about 100.
+wrote judgekeeper-report/report.json and judgekeeper-report/report.html</code></pre>
+        <details class="callout">
+          <summary><strong>No saved verdicts?</strong> judgekeeper can run your judge.</summary>
+          <p style="margin-top:12px">The first command freezes your labels so nobody can change them later. The second runs the judge three times. The third compares it with your labels and prints the same kind of result.</p>
+          <div class="code"><pre><code>judgekeeper import-labels labels.csv -o anchors.jsonl
+judgekeeper judge anchors.jsonl --callable my_judges:judge --runs 3 --out runs/mine
+judgekeeper validate anchors.jsonl runs/mine --out reports/mine</code></pre></div>
+          <p class="note">Here <code>my_judges:judge</code> is your own Python function. For other kinds of judge, see <a href="learn.html#works">Works with what you already use</a>. The <a href="tutorial.html#step-freeze">tutorial</a> shows each command with its output.</p>
+        </details>
+      </li>
+      <li>
+        <h3 id="step-read">Read the result</h3>
+        <p>The first line is the result in plain words: how often the judge passed the answers you passed, how often it failed the answers you failed, and one of three verdicts: <em>usable as a gate</em>, <em>usable with care</em> or <em>not trustworthy as a gate</em>. A <strong>gate</strong> is an automatic check that can stop a release.</p>
+        <p>The second line gives the same result as three numbers:</p>
+        <ul>
+          <li><strong>TPR</strong>: of the answers you passed, the share the judge also passed.</li>
+          <li><strong>TNR</strong>: of the answers you failed, the share the judge also failed.</li>
+          <li><strong>Kappa</strong>: how much the judge agrees with you beyond lucky guessing. 0 is no better than chance and 1 is perfect.</li>
+        </ul>
+        <p>The lines that start with a dash are <strong>flags</strong>: things to know before you rely on the judge. The last line names the full report. Open it in your browser:</p>
+        <div class="code"><pre><code>open judgekeeper-report/report.html</code></pre></div>
+        <p><strong>What you see.</strong> One page with the same verdict, and every answer you and the judge disagree on, with the judge's own reason. On Windows, use <code>start</code> in place of <code>open</code>. On Linux, use <code>xdg-open</code>. <a href="examples/llmbar-haiku/report.html">See a real report</a>.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="alt" id="install" aria-labelledby="install-title">
+  <div class="wrap narrow">
+    <h2 id="install-title">Install judgekeeper</h2>
+    <p class="lead">Three steps. Pick your computer. Linux follows the Mac tab. Under the steps is a fix for each thing that can go wrong.</p>
+    <div class="tabs" id="install-tabs">
+      <div role="tablist" aria-label="Your computer">
+        <button role="tab" type="button" id="tab-mac" aria-controls="panel-mac" aria-selected="true">Mac</button>
+        <button role="tab" type="button" id="tab-win" aria-controls="panel-win" aria-selected="false" tabindex="-1">Windows</button>
+      </div>
+      <div role="tabpanel" id="panel-mac" aria-labelledby="tab-mac">
+        <ol class="steps">
+          <li>
+            <h3>Check Python</h3>
+            <p>Open the Terminal app and run:</p>
+            <div class="code"><pre><code>python3 --version</code></pre></div>
+            <p><strong>What you see.</strong> <code>Python 3.11</code> or a higher number, such as <code>Python 3.13.2</code>. If you see <code>command not found</code> or a lower number, install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new terminal.</p>
+          </li>
+          <li>
+            <h3>Install judgekeeper</h3>
+            <div class="code"><pre><code>pip3 install judgekeeper</code></pre></div>
+            <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>. A notice about a newer pip may follow. You can ignore it.</p>
+          </li>
+          <li>
+            <h3>Check it runs</h3>
+            <div class="code"><pre><code>judgekeeper --version</code></pre></div>
+            <p><strong>What you see.</strong> One line: <code>judgekeeper</code> and the version number.</p>
+          </li>
+        </ol>
+        <div class="faq">
+          <details>
+            <summary>If step 2 was refused: <code>error: externally-managed-environment</code></summary>
+            <p>This Python is managed by Homebrew or by the system, and it refuses direct installs to protect itself. It is not about judgekeeper. The fix is a <strong>virtual environment</strong>: a folder that holds a Python program and what it needs, kept apart from the rest of your computer. Make one:</p>
+            <div class="code"><pre><code>python3 -m venv ~/judgekeeper-env</code></pre></div>
+            <p><strong>What you see.</strong> Nothing. It takes a few seconds. Now switch it on:</p>
+            <div class="code"><pre><code>source ~/judgekeeper-env/bin/activate</code></pre></div>
+            <p><strong>What you see.</strong> The start of the line now reads <code>(judgekeeper-env)</code>. Now install:</p>
+            <div class="code"><pre><code>pip install judgekeeper</code></pre></div>
+            <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>. Go on to step 3.</p>
+            <p>Each time you open a new terminal, run the <code>source</code> line again before you use judgekeeper.</p>
+          </details>
+          <details>
+            <summary><code>pip: command not found</code></summary>
+            <p>A Mac may print it as <code>zsh: command not found: pip</code>. On a Mac the command is named <code>pip3</code>. Use the line in step 2 as it is written.</p>
+          </details>
+          <details>
+            <summary>The judgekeeper command is not found</summary>
+            <p>Run <code>python3 -m judgekeeper --version</code>. It does the same thing as <code>judgekeeper --version</code>. Put <code>python3 -m</code> in front of every <code>judgekeeper</code> command.</p>
+          </details>
+        </div>
+      </div>
+      <div role="tabpanel" id="panel-win" aria-labelledby="tab-win">
+        <ol class="steps">
+          <li>
+            <h3>Check Python</h3>
+            <p>Open PowerShell and run:</p>
+            <div class="code"><pre><code>py --version</code></pre></div>
+            <p><strong>What you see.</strong> <code>Python 3.11</code> or a higher number, such as <code>Python 3.13.2</code>. When Python is on the PATH, <code>python --version</code> works too. If you see <code>'py' is not recognized</code> or a lower number, install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new PowerShell window.</p>
+          </li>
+          <li>
+            <h3>Install judgekeeper</h3>
+            <div class="code"><pre><code>pip install judgekeeper</code></pre></div>
+            <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>. A notice about a newer pip may follow. You can ignore it.</p>
+          </li>
+          <li>
+            <h3>Check it runs</h3>
+            <div class="code"><pre><code>judgekeeper --version</code></pre></div>
+            <p><strong>What you see.</strong> One line: <code>judgekeeper</code> and the version number.</p>
+          </li>
+        </ol>
+        <div class="faq">
+          <details>
+            <summary>If step 2 was refused: <code>error: externally-managed-environment</code></summary>
+            <p>This Python is managed by another program or by the system, and it refuses direct installs to protect itself. It is not about judgekeeper. The fix is a <strong>virtual environment</strong>: a folder that holds a Python program and what it needs, kept apart from the rest of your computer. Make one:</p>
+            <div class="code"><pre><code>py -m venv "$HOME\judgekeeper-env"</code></pre></div>
+            <p><strong>What you see.</strong> Nothing. It takes a few seconds. Now switch it on:</p>
+            <div class="code"><pre><code>&amp; "$HOME\judgekeeper-env\Scripts\Activate.ps1"</code></pre></div>
+            <p><strong>What you see.</strong> The start of the line now reads <code>(judgekeeper-env)</code>. Now install:</p>
+            <div class="code"><pre><code>pip install judgekeeper</code></pre></div>
+            <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>. Go on to step 3.</p>
+            <p>Each time you open a new PowerShell window, run the <code>Activate.ps1</code> line again before you use judgekeeper.</p>
+            <p class="note">In Command Prompt, the two lines are <code>py -m venv "%USERPROFILE%\judgekeeper-env"</code> and <code>"%USERPROFILE%\judgekeeper-env\Scripts\activate.bat"</code>. If PowerShell refuses to run the script, run <code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code> once and try again.</p>
+          </details>
+          <details>
+            <summary><code>'pip' is not recognized as an internal or external command</code></summary>
+            <p>PowerShell words it as <code>The term 'pip' is not recognized</code>. Python was installed without being added to the PATH, the list of places Windows looks for commands. The <code>py</code> command is installed either way, so use it:</p>
+            <div class="code"><pre><code>py -m pip install judgekeeper</code></pre></div>
+            <p><strong>What you see.</strong> The same as in step 2. Go on to step 3.</p>
+          </details>
+          <details>
+            <summary>The judgekeeper command is not found</summary>
+            <p>Run <code>py -m judgekeeper --version</code>. It does the same thing as <code>judgekeeper --version</code>. Put <code>py -m</code> in front of every <code>judgekeeper</code> command.</p>
+          </details>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:16px">Already use <a href="https://docs.astral.sh/uv/">uv</a>? <code>uvx judgekeeper --version</code> runs it without installing. The package is <a href="https://pypi.org/project/judgekeeper/">judgekeeper on PyPI</a>, and the <a href="https://github.com/judgekeeper/judgekeeper">source code is on GitHub</a>.</p>
+  </div>
+</section>
+
+<section id="more" aria-labelledby="more-title">
+  <div class="wrap">
+    <h2 id="more-title">When you need more</h2>
+    <div class="grid two">
+      <article class="card">
+        <h3><a href="setup.html">Setup and keys</a></h3>
+        <p>You want judgekeeper to call an AI model for you. This page shows how to set the key safely.</p>
+      </article>
+      <article class="card">
+        <h3><a href="tutorial.html">Tutorial</a></h3>
+        <p>The main commands on ten quiz questions, each with what it prints. About fifteen minutes, no key.</p>
+      </article>
+      <article class="card">
+        <h3><a href="own-metric.html">Your own metric</a></h3>
+        <p>You have no judge yet, or want your own rule. This page shows how to write one, with two worked examples.</p>
+      </article>
+      <article class="card">
+        <h3><a href="learn.html">How it works, in more depth</a></h3>
+        <p>Why a judge goes wrong, what the numbers mean, how to keep checking, the tools it works with, and a real result.</p>
+      </article>
+      <article class="card">
+        <h3><a href="reference.html">Reference</a></h3>
+        <p>Every command, file format, option and exit code.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>judgekeeper is free and open source under the MIT license. <a href="https://github.com/judgekeeper/judgekeeper">Source on GitHub</a> · <a href="setup.html">Setup and keys</a> · <a href="tutorial.html">Tutorial</a> · <a href="own-metric.html">Your own metric</a></p>
+  </div>
+</footer>
+</body>
+</html>

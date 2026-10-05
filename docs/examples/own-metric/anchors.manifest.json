@@ -1,0 +1,15 @@
+{
+  "item_count": 60,
+  "kind": "single",
+  "label_distribution": {
+    "fail": 30,
+    "pass": 30
+  },
+  "slice_counts": {
+    "correct": 30,
+    "over-promise": 10,
+    "polite but wrong": 10,
+    "wrong window": 10
+  },
+  "sha256": "72ad349e81d48b15289c93bb39f198922fa35e110f33d0d1039cb80f9cf7324e"
+}

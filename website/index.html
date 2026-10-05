@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check your LLM-as-a-judge. | judgekeeper</title>
+<meta name="description" content="Check your LLM-as-a-judge: see how often it agrees with human labels, in one command.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="judgekeeper">
+<meta property="og:title" content="Check your LLM-as-a-judge. | judgekeeper">
+<meta property="og:description" content="Check your LLM-as-a-judge: see how often it agrees with human labels, in one command.">
+<meta property="og:url" content="https://www.judgekeeper.com/">
+<meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Check your LLM-as-a-judge. | judgekeeper">
+<meta name="twitter:description" content="Check your LLM-as-a-judge: see how often it agrees with human labels, in one command.">
+<meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">
+        <path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>
+        <path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>
+        <path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      judgekeeper
+    </a>
+    <nav class="site-nav" aria-label="Site">
+      <ul>
+        <li><a href="index.html" aria-current="page">Home</a></li>
+        <li><a href="own-metric.html">Your own metric</a></li>
+        <li><a href="start.html">Use it on your app</a></li>
+        <li><a href="assistant.html">With a coding assistant</a></li>
+        <li><a href="reference.html">Reference</a></li>
+        <li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <svg class="logo-big" viewBox="0 0 64 72" role="img" aria-label="The judgekeeper logo: a shield, half navy and half green, with a white check across both halves">
+      <path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>
+      <path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>
+      <path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h1>Check your LLM-as-a-judge.</h1>
+    <p class="lead">See how often it agrees with human labels, in one command.</p>
+    <p>An <strong>LLM-as-a-judge</strong> is an AI model that grades the answers of another AI model. Teams use one because reading every answer by hand is slow.</p>
+    <div class="buttons">
+      <a class="btn primary" href="#install">Install</a>
+      <a class="btn secondary" href="own-metric.html">Check your own LLM-as-a-judge</a>
+    </div>
+    <p class="note" style="margin-top:16px">Free and open source (MIT license). It runs on your own computer. There is no account and no server.</p>
+  </div>
+</section>
+
+<section class="alt" id="idea" aria-labelledby="idea-title">
+  <div class="wrap">
+    <p class="kicker">The idea</p>
+    <h2 id="idea-title">Three boxes</h2>
+    <ol class="flow">
+      <li>
+        <h3>Your app answers</h3>
+        <p>Someone asks your AI app a question. The app writes an answer.</p>
+      </li>
+      <li>
+        <h3>An AI judge grades it</h3>
+        <p>A second AI model reads the answer and says <em>pass</em> or <em>fail</em>. It is fast and cheap. It can also be wrong.</p>
+      </li>
+      <li>
+        <h3>judgekeeper checks the judge against people</h3>
+        <p>A person grades a small set of the same answers. judgekeeper counts how often the judge agrees with that person.</p>
+      </li>
+    </ol>
+    <p>You see how often the judge agrees with people. Then you decide whether to rely on its grades.</p>
+  </div>
+</section>
+
+<section id="install" aria-labelledby="install-title">
+  <div class="wrap narrow">
+    <p class="kicker">Start here</p>
+    <h2 id="install-title">Install</h2>
+    <p>A <strong>terminal</strong> is the window where you type commands. judgekeeper is a Python program, so first check that Python is there.</p>
+    <div class="tabs" id="install-tabs">
+      <div role="tablist" aria-label="Your computer">
+        <button role="tab" type="button" id="tab-mac" aria-controls="panel-mac" aria-selected="true">Mac</button>
+        <button role="tab" type="button" id="tab-win" aria-controls="panel-win" aria-selected="false" tabindex="-1">Windows</button>
+      </div>
+      <div role="tabpanel" id="panel-mac" aria-labelledby="tab-mac">
+        <p>Open the Terminal app. Check that you have Python:</p>
+        <div class="code"><pre><code>python3 --version</code></pre></div>
+        <p><strong>What you see.</strong> <code>Python 3.11</code> or a higher number. If not, install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new terminal. Now install:</p>
+        <div class="code"><pre><code>pip3 install judgekeeper</code></pre></div>
+        <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>.</p>
+      </div>
+      <div role="tabpanel" id="panel-win" aria-labelledby="tab-win">
+        <p>Open PowerShell. Check that you have Python:</p>
+        <div class="code"><pre><code>py --version</code></pre></div>
+        <p><strong>What you see.</strong> <code>Python 3.11</code> or a higher number. If not, install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new PowerShell window. Now install:</p>
+        <div class="code"><pre><code>pip install judgekeeper</code></pre></div>
+        <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>.</p>
+      </div>
+    </div>
+    <p class="note">Linux follows the Mac tab. A lower number, an install that was refused, or a command that is not found? The <a href="start.html#install">full install guide</a> has the fix for each.</p>
+  </div>
+</section>
+
+<section class="alt" id="next" aria-labelledby="next-title">
+  <div class="wrap">
+    <p class="kicker">Next</p>
+    <h2 id="next-title">Check your own LLM-as-a-judge</h2>
+    <div class="grid two">
+      <article class="card">
+        <h3><a href="own-metric.html">Your own metric</a></h3>
+        <p>Write down what a good answer means for your app, label some real answers, and see how often your judge agrees with you.</p>
+      </article>
+      <article class="card">
+        <h3><a href="start.html">Use it on your app</a></h3>
+        <p>Four steps: collect answers from your app, label them, run your judge, read the result.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>judgekeeper is free and open source under the MIT license. <a href="https://github.com/judgekeeper/judgekeeper">Source on GitHub</a> · <a href="setup.html">Setup and keys</a> · <a href="tutorial.html">Tutorial</a> · <a href="own-metric.html">Your own metric</a></p>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,18 @@
+# judgekeeper
+
+> Check your LLM-as-a-judge. See how often it agrees with human labels, in one command. An LLM-as-a-judge is an AI model that grades the answers of another AI model. judgekeeper is a free, open-source command-line tool that runs on your own computer.
+
+## Pages
+
+- [Home](https://www.judgekeeper.com/): what judgekeeper is, how to install it, and where to go next to check your own LLM-as-a-judge
+- [Use it on your app](https://www.judgekeeper.com/start.html): four steps, from answers your app wrote to a result you can read
+- [With a coding assistant](https://www.judgekeeper.com/assistant.html): how to hand the job to Claude Code, Codex or Cursor
+- [How it works, in more depth](https://www.judgekeeper.com/learn.html): why a judge needs checking, what the numbers mean, how to keep checking, the tools it works with and a real result
+- [Setup and keys](https://www.judgekeeper.com/setup.html): how to give judgekeeper an API key safely
+- [Tutorial](https://www.judgekeeper.com/tutorial.html): the main commands with what each prints, on ten quiz questions
+- [Your own metric](https://www.judgekeeper.com/own-metric.html): how to write your own rule, with two worked examples
+- [Reference](https://www.judgekeeper.com/reference.html): every command, file format, option, exit code and config key
+
+## For coding assistants
+
+- [The prompt](https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assistant-prompt.md): the text a person pastes to have an assistant check their judge; it includes the rules about labels, keys and cost

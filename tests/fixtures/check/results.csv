@@ -1,0 +1,31 @@
+id,run,input,output,verdict,label,reason
+q1,1,question 1,answer 1,yes,pass,run 1 on q1
+q2,1,question 2,answer 2,true,pass,run 1 on q2
+q3,1,question 3,answer 3,1,pass,run 1 on q3
+q4,1,question 4,answer 4,Pass: looks right,pass,run 1 on q4
+q5,1,question 5,answer 5,PASS,pass,run 1 on q5
+q6,1,question 6,answer 6,no,pass,run 1 on q6
+q7,1,question 7,answer 7,FALSE,fail,run 1 on q7
+q8,1,question 8,answer 8,0,fail,run 1 on q8
+q9,1,question 9,answer 9,FAIL - wrong number,fail,run 1 on q9
+q10,1,question 10,answer 10,PASS,fail,run 1 on q10
+q1,2,question 1,answer 1,true,pass,run 2 on q1
+q2,2,question 2,answer 2,1,pass,run 2 on q2
+q3,2,question 3,answer 3,Pass: looks right,pass,run 2 on q3
+q4,2,question 4,answer 4,PASS,pass,run 2 on q4
+q5,2,question 5,answer 5,yes,pass,run 2 on q5
+q6,2,question 6,answer 6,true,pass,run 2 on q6
+q7,2,question 7,answer 7,0,fail,run 2 on q7
+q8,2,question 8,answer 8,FAIL - wrong number,fail,run 2 on q8
+q9,2,question 9,answer 9,fail,fail,run 2 on q9
+q10,2,question 10,answer 10,yes,fail,run 2 on q10
+q1,3,question 1,answer 1,1,pass,run 3 on q1
+q2,3,question 2,answer 2,Pass: looks right,pass,run 3 on q2
+q3,3,question 3,answer 3,PASS,pass,run 3 on q3
+q4,3,question 4,answer 4,yes,pass,run 3 on q4
+q5,3,question 5,answer 5,true,pass,run 3 on q5
+q6,3,question 6,answer 6,0,pass,run 3 on q6
+q7,3,question 7,answer 7,FAIL - wrong number,fail,run 3 on q7
+q8,3,question 8,answer 8,fail,fail,run 3 on q8
+q9,3,question 9,answer 9,no,fail,run 3 on q9
+q10,3,question 10,answer 10,true,fail,run 3 on q10

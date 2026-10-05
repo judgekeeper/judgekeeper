@@ -1,0 +1,1632 @@
+{
+  "schema_version": 2,
+  "judgekeeper_version": "0.1.1",
+  "generated_at": "2026-10-03T20:58:46Z",
+  "anchors": {
+    "file": "anchors.jsonl",
+    "sha256": "a5c4f247970d40967b2e81c2a9de4bab52f5ce27e27f396abc987a90adae2439",
+    "n_items": 60,
+    "kind": "single",
+    "label_distribution": {
+      "fail": 30,
+      "pass": 30
+    },
+    "slice_counts": {
+      "correct": 30,
+      "over-promise": 10,
+      "polite but wrong": 10,
+      "wrong window": 10
+    }
+  },
+  "fingerprint": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001 (Anthropic)",
+    "snapshot": null,
+    "prompt_hash": "e5d7ff4f57dcb5fc61d8502e7e3ef66ddedf1953617a1b2d6b6a1a7775367840",
+    "rubric_version": null,
+    "temperature": null,
+    "created_at": "2026-10-03T20:58:46Z",
+    "endpoint": "unknown"
+  },
+  "fingerprint_unknown": [
+    "snapshot",
+    "endpoint",
+    "rubric_version",
+    "temperature"
+  ],
+  "source": {
+    "kind": "deepeval",
+    "file": "test_run_20261003_205210.json",
+    "metric": "Refund policy [GEval]",
+    "version": null,
+    "ids_derived": false,
+    "n_records": 180,
+    "n_judged_unlabeled": 0,
+    "n_labeled_unjudged": 0,
+    "notes": [],
+    "warnings": [],
+    "threshold": 0.5
+  },
+  "normaliser": {
+    "kind": "single",
+    "pass_if": null,
+    "label_map": {
+      "pass": "pass",
+      "fail": "fail",
+      "true": "pass",
+      "false": "fail",
+      "yes": "pass",
+      "no": "fail",
+      "correct": "pass",
+      "incorrect": "fail",
+      "1": "pass",
+      "0": "fail"
+    }
+  },
+  "snapshots_seen": [],
+  "n_runs": 3,
+  "headline": {
+    "tpr_mean": 0.9666666666666667,
+    "tpr_ci": {
+      "lo": 0.8332924860304112,
+      "hi": 0.9940915620051425,
+      "n": 30
+    },
+    "tnr_mean": 1.0,
+    "tnr_ci": {
+      "lo": 0.8864829086095221,
+      "hi": 1.0,
+      "n": 30
+    },
+    "kappa_mean": 0.9666666666666665,
+    "kappa_min": 0.9666666666666666,
+    "kappa_max": 0.9666666666666666,
+    "accuracy_mean": 0.9833333333333333,
+    "positive_label": "pass",
+    "n_positive": 30,
+    "n_negative": 30
+  },
+  "verdict": {
+    "summary": "Usable as a gate: TPR 0.97, TNR 1.00, kappa 0.97 against human labels. Read the flags below before relying on it.",
+    "level": "usable",
+    "flags": [
+      {
+        "code": "identity_incomplete",
+        "message": "judge identity incomplete: snapshot, endpoint, rubric_version, temperature"
+      }
+    ]
+  },
+  "errors": {
+    "n": 0,
+    "n_judgments": 180,
+    "rate": 0.0,
+    "max_rate": 0.02,
+    "per_run": [
+      {
+        "run": 1,
+        "n": 0
+      },
+      {
+        "run": 2,
+        "n": 0
+      },
+      {
+        "run": 3,
+        "n": 0
+      }
+    ],
+    "items": []
+  },
+  "label_quality": {
+    "n_labeled": 60,
+    "largest_class": "fail",
+    "largest_class_share": 0.5
+  },
+  "notes": [],
+  "runs": [
+    {
+      "run": 1,
+      "file": "run-01.jsonl",
+      "n": 60,
+      "kappa": 0.9666666666666666,
+      "tpr": 0.9666666666666667,
+      "tnr": 1.0,
+      "accuracy": 0.9833333333333333,
+      "confusion": {
+        "tp": 29,
+        "fn": 1,
+        "fp": 0,
+        "tn": 30,
+        "invalid": 0
+      },
+      "n_invalid": 0,
+      "n_error": 0,
+      "disagreements": [
+        {
+          "id": "r35",
+          "human": "pass",
+          "verdict": "fail",
+          "rationale": "The response correctly identifies that the customer purchased a sale item and applies the exchange-only rule from the policy. However, the response states an incorrect timeframe of 14 days for the exchange window, when the policy specifies a 30-day window for unopened items (which would be the applicable standard refund/exchange period). The response does correctly deny the refund/exchange based on the 20-day timeframe exceeding the stated window, but the window itself appears to be wrong according to the evaluation criteria. The response fails to cite the correct applicable rule with the correct timeframe."
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "file": "run-02.jsonl",
+      "n": 60,
+      "kappa": 0.9666666666666666,
+      "tpr": 0.9666666666666667,
+      "tnr": 1.0,
+      "accuracy": 0.9833333333333333,
+      "confusion": {
+        "tp": 29,
+        "fn": 1,
+        "fp": 0,
+        "tn": 30,
+        "invalid": 0
+      },
+      "n_invalid": 0,
+      "n_error": 0,
+      "disagreements": [
+        {
+          "id": "r35",
+          "human": "pass",
+          "verdict": "fail",
+          "rationale": "The response correctly identifies that the customer purchased a sale item and applies the exchange-only rule from the policy. However, the response states an incorrect timeframe of 14 days for the exchange window, when the policy specifies a 30-day window for unopened items (which would be the applicable standard refund/exchange period). The response does correctly deny the refund/exchange based on the 20-day timeframe exceeding the stated window, but the window itself appears to be wrong according to the evaluation criteria. The response fails to cite the correct applicable rule with the correct timeframe."
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "file": "run-03.jsonl",
+      "n": 60,
+      "kappa": 0.9666666666666666,
+      "tpr": 0.9666666666666667,
+      "tnr": 1.0,
+      "accuracy": 0.9833333333333333,
+      "confusion": {
+        "tp": 29,
+        "fn": 1,
+        "fp": 0,
+        "tn": 30,
+        "invalid": 0
+      },
+      "n_invalid": 0,
+      "n_error": 0,
+      "disagreements": [
+        {
+          "id": "r35",
+          "human": "pass",
+          "verdict": "fail",
+          "rationale": "The response correctly identifies that the customer purchased a sale item and applies the exchange-only rule from the policy. However, the response states an incorrect timeframe of 14 days for the exchange window, when the policy specifies a 30-day window for unopened items (which would be the applicable standard refund/exchange period). The response does correctly deny the refund/exchange based on the 20-day timeframe exceeding the stated window, but the window itself appears to be wrong according to the evaluation criteria. The response fails to cite the correct applicable rule with the correct timeframe."
+        }
+      ]
+    }
+  ],
+  "noise_floor": {
+    "n_runs": 3,
+    "n_items": 60,
+    "items_flipped_fraction": 0.0,
+    "mean_item_flip_rate": 0.0,
+    "pairwise_kappa": [
+      {
+        "runs": [
+          1,
+          2
+        ],
+        "kappa": 1.0,
+        "agreement": 1.0
+      },
+      {
+        "runs": [
+          1,
+          3
+        ],
+        "kappa": 1.0,
+        "agreement": 1.0
+      },
+      {
+        "runs": [
+          2,
+          3
+        ],
+        "kappa": 1.0,
+        "agreement": 1.0
+      }
+    ],
+    "mean_pairwise_kappa": 1.0,
+    "test_retest_agreement": 1.0,
+    "n_ties": 0,
+    "per_item": [
+      {
+        "id": "r01",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r02",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r03",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r04",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r05",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r06",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r07",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r08",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r09",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r10",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r11",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r12",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r13",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r14",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r15",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r16",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r17",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r18",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r19",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r20",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r21",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r22",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r23",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r24",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r25",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r26",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r27",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r28",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r29",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r30",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r31",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r32",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r33",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r34",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r35",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r36",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r37",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r38",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r39",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r40",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r41",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r42",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r43",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r44",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r45",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r46",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r47",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r48",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r49",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r50",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r51",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r52",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r53",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r54",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r55",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r56",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r57",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r58",
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "majority": "pass",
+        "flip_rate": 0.0,
+        "human": "pass"
+      },
+      {
+        "id": "r59",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      },
+      {
+        "id": "r60",
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail"
+        ],
+        "majority": "fail",
+        "flip_rate": 0.0,
+        "human": "fail"
+      }
+    ],
+    "majority_vs_human": {
+      "n": 60,
+      "kappa": 0.9666666666666666,
+      "tpr": 0.9666666666666667,
+      "tnr": 1.0,
+      "accuracy": 0.9833333333333333,
+      "confusion": {
+        "tp": 29,
+        "fn": 1,
+        "fp": 0,
+        "tn": 30,
+        "invalid": 0
+      },
+      "n_invalid": 0,
+      "n_error": 0
+    },
+    "status": "measured"
+  },
+  "position_bias": null,
+  "slices": [
+    {
+      "slice": "correct",
+      "n": 30,
+      "kappa_mean": 0.0,
+      "tpr_mean": 0.9666666666666667,
+      "tnr_mean": null,
+      "accuracy_mean": 0.9666666666666667
+    },
+    {
+      "slice": "over-promise",
+      "n": 10,
+      "kappa_mean": null,
+      "tpr_mean": null,
+      "tnr_mean": 1.0,
+      "accuracy_mean": 1.0
+    },
+    {
+      "slice": "polite but wrong",
+      "n": 10,
+      "kappa_mean": null,
+      "tpr_mean": null,
+      "tnr_mean": 1.0,
+      "accuracy_mean": 1.0
+    },
+    {
+      "slice": "wrong window",
+      "n": 10,
+      "kappa_mean": null,
+      "tpr_mean": null,
+      "tnr_mean": 1.0,
+      "accuracy_mean": 1.0
+    }
+  ],
+  "disagreements": [
+    {
+      "id": "r35",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail",
+      "rationale": "The response correctly identifies that the customer purchased a sale item and applies the exchange-only rule from the policy. However, the response states an incorrect timeframe of 14 days for the exchange window, when the policy specifies a 30-day window for unopened items (which would be the applicable standard refund/exchange period). The response does correctly deny the refund/exchange based on the 20-day timeframe exceeding the stated window, but the window itself appears to be wrong according to the evaluation criteria. The response fails to cite the correct applicable rule with the correct timeframe.",
+      "rationale_run": 1
+    }
+  ],
+  "items": [
+    {
+      "id": "r01",
+      "slice": "wrong window",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r02",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r03",
+      "slice": "polite but wrong",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r04",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r05",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r06",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r07",
+      "slice": "wrong window",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r08",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r09",
+      "slice": "wrong window",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r10",
+      "slice": "over-promise",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r11",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r12",
+      "slice": "wrong window",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r13",
+      "slice": "polite but wrong",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r14",
+      "slice": "over-promise",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r15",
+      "slice": "polite but wrong",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r16",
+      "slice": "wrong window",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r17",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r18",
+      "slice": "polite but wrong",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r19",
+      "slice": "over-promise",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r20",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r21",
+      "slice": "over-promise",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r22",
+      "slice": "polite but wrong",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r23",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r24",
+      "slice": "wrong window",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r25",
+      "slice": "over-promise",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r26",
+      "slice": "wrong window",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r27",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r28",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r29",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r30",
+      "slice": "polite but wrong",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r31",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r32",
+      "slice": "wrong window",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r33",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r34",
+      "slice": "over-promise",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r35",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r36",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r37",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r38",
+      "slice": "polite but wrong",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r39",
+      "slice": "over-promise",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r40",
+      "slice": "polite but wrong",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r41",
+      "slice": "wrong window",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r42",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r43",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r44",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r45",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r46",
+      "slice": "wrong window",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r47",
+      "slice": "over-promise",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r48",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r49",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r50",
+      "slice": "polite but wrong",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r51",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r52",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r53",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r54",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r55",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r56",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r57",
+      "slice": "over-promise",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r58",
+      "slice": "correct",
+      "human": "pass",
+      "verdicts": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "majority": "pass"
+    },
+    {
+      "id": "r59",
+      "slice": "polite but wrong",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    },
+    {
+      "id": "r60",
+      "slice": "over-promise",
+      "human": "fail",
+      "verdicts": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "majority": "fail"
+    }
+  ]
+}

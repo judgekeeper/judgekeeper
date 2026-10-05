@@ -1,0 +1,70 @@
+{
+  "data": [
+    {
+      "id": "score-judge-6",
+      "projectId": "proj-fixture",
+      "name": "helpfulness",
+      "value": 0.7,
+      "dataType": "NUMERIC",
+      "source": "EVAL",
+      "timestamp": "2026-09-20T10:01:00.000Z",
+      "environment": "default",
+      "createdAt": "2026-09-20T10:01:00.000Z",
+      "updatedAt": "2026-09-20T10:01:00.000Z",
+      "comment": "The answer covers most of the question.",
+      "configId": null,
+      "metadata": {},
+      "authorUserId": null,
+      "queueId": null,
+      "subject": {
+        "kind": "trace",
+        "id": "trace-6"
+      }
+    },
+    {
+      "id": "score-human-6",
+      "projectId": "proj-fixture",
+      "name": "helpfulness_human",
+      "value": false,
+      "dataType": "BOOLEAN",
+      "source": "ANNOTATION",
+      "timestamp": "2026-09-20T10:05:00.000Z",
+      "environment": "default",
+      "createdAt": "2026-09-20T10:05:00.000Z",
+      "updatedAt": "2026-09-20T10:05:00.000Z",
+      "comment": "reviewed in queue",
+      "configId": null,
+      "metadata": {},
+      "authorUserId": "user-ann-1",
+      "queueId": "queue-1",
+      "subject": {
+        "kind": "trace",
+        "id": "trace-6"
+      }
+    },
+    {
+      "id": "score-judge-7",
+      "projectId": "proj-fixture",
+      "name": "helpfulness",
+      "value": 0.6,
+      "dataType": "NUMERIC",
+      "source": "EVAL",
+      "timestamp": "2026-09-21T10:01:00.000Z",
+      "environment": "default",
+      "createdAt": "2026-09-21T10:01:00.000Z",
+      "updatedAt": "2026-09-21T10:01:00.000Z",
+      "comment": "The answer covers most of the question.",
+      "configId": null,
+      "metadata": {},
+      "authorUserId": null,
+      "queueId": null,
+      "subject": {
+        "kind": "trace",
+        "id": "trace-7"
+      }
+    }
+  ],
+  "meta": {
+    "limit": 100
+  }
+}

@@ -1,0 +1,173 @@
+name: judgekeeper gate
+description: Fail CI when an LLM judge stops agreeing with a frozen human-labeled anchor set, without failing on noise.
+author: Sathvik Thota
+branding:
+  icon: check-circle
+  color: blue
+
+# API keys are never inputs: the calling workflow sets ANTHROPIC_API_KEY or OPENAI_API_KEY (or the
+# variable named in api-key-env) in `env`, from repository secrets.
+inputs:
+  anchors:
+    description: Frozen anchor set JSONL (its anchors.manifest.json must sit next to it).
+    required: true
+  runner:
+    description: Judge runner, one of anthropic, openai or replay.
+    required: true
+  model:
+    description: Judge model id (anthropic and openai runners).
+    required: false
+    default: ""
+  prompt:
+    description: Judge prompt markdown with rubric_version frontmatter (anthropic and openai runners).
+    required: false
+    default: ""
+  fixture:
+    description: Recorded judgments JSONL for the replay runner (tests and demos, no API key).
+    required: false
+    default: ""
+  base-url:
+    description: >-
+      Endpoint for the anthropic or openai runner instead of the provider default, e.g. an
+      OpenAI-compatible server or a gateway. Must not contain credentials.
+    required: false
+    default: ""
+  api-key-env:
+    description: >-
+      Name of the environment variable holding the API key (a variable name, never a key value).
+      Empty uses ANTHROPIC_API_KEY or OPENAI_API_KEY.
+    required: false
+    default: ""
+  runs:
+    description: Number of judge runs. The gate needs at least 3 to know the noise floor.
+    required: false
+    default: "3"
+  baseline:
+    description: Baseline report.json. Empty uses .judgekeeper/baseline.json if it exists.
+    required: false
+    default: ""
+  config:
+    description: Gate thresholds TOML. Empty uses judgekeeper.toml if it exists.
+    required: false
+    default: ""
+  flaky-as:
+    description: Exit code for a FLAKY gate, pass (0) or fail (1). Empty keeps exit code 4.
+    required: false
+    default: pass
+  out-dir:
+    description: Directory for runs, report and gate files.
+    required: false
+    default: judgekeeper-out
+  artifact-name:
+    description: Name of the uploaded artifact (report.html, report.json, gate.json).
+    required: false
+    default: judgekeeper-gate
+  python-version:
+    description: Python used to run judgekeeper.
+    required: false
+    default: "3.12"
+
+outputs:
+  status:
+    description: Gate status, one of PASS, FAIL, ANCHORS_CHANGED, FLAKY, JUDGE_CHANGED.
+    value: ${{ steps.gate.outputs.status }}
+  exit-code:
+    description: The gate's exit code, which is also the action's.
+    value: ${{ steps.gate.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install judgekeeper from this action's ref
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        RUNNER: ${{ inputs.runner }}
+      run: |
+        case "$RUNNER" in
+          anthropic) extra="[anthropic]" ;;
+          openai) extra="[openai]" ;;
+          *) extra="" ;;
+        esac
+        python -m pip install --quiet --disable-pip-version-check "${ACTION_PATH}${extra}"
+
+    - name: Judge the anchor set
+      shell: bash
+      env:
+        ANCHORS: ${{ inputs.anchors }}
+        RUNNER: ${{ inputs.runner }}
+        MODEL: ${{ inputs.model }}
+        PROMPT: ${{ inputs.prompt }}
+        FIXTURE: ${{ inputs.fixture }}
+        BASE_URL: ${{ inputs.base-url }}
+        API_KEY_ENV: ${{ inputs.api-key-env }}
+        RUNS: ${{ inputs.runs }}
+        OUT: ${{ inputs.out-dir }}
+      run: |
+        set -euo pipefail
+        rm -rf "$OUT/runs"
+        args=(judge "$ANCHORS" --runner "$RUNNER" --runs "$RUNS" --out "$OUT/runs")
+        if [ -n "$MODEL" ]; then args+=(--model "$MODEL"); fi
+        if [ -n "$PROMPT" ]; then args+=(--prompt "$PROMPT"); fi
+        if [ -n "$FIXTURE" ]; then args+=(--fixture "$FIXTURE"); fi
+        if [ -n "$BASE_URL" ]; then args+=(--base-url "$BASE_URL"); fi
+        if [ -n "$API_KEY_ENV" ]; then args+=(--api-key-env "$API_KEY_ENV"); fi
+        judgekeeper "${args[@]}"
+
+    - name: Validate against human labels
+      shell: bash
+      env:
+        ANCHORS: ${{ inputs.anchors }}
+        OUT: ${{ inputs.out-dir }}
+      run: judgekeeper validate "$ANCHORS" "$OUT/runs" --out "$OUT"
+
+    - name: Gate
+      id: gate
+      shell: bash
+      env:
+        OUT: ${{ inputs.out-dir }}
+        BASELINE: ${{ inputs.baseline }}
+        CONFIG: ${{ inputs.config }}
+        FLAKY_AS: ${{ inputs.flaky-as }}
+      run: |
+        args=(gate "$OUT/report.json")
+        if [ -n "$BASELINE" ]; then args+=(--baseline "$BASELINE"); fi
+        if [ -n "$CONFIG" ]; then args+=(--config "$CONFIG"); fi
+        if [ -n "$FLAKY_AS" ]; then args+=(--flaky-as "$FLAKY_AS"); fi
+        set +e
+        judgekeeper "${args[@]}"
+        code=$?
+        set -e
+        status=$(python -c 'import json, sys; print(json.load(open(sys.argv[1]))["status"])' \
+          "$OUT/gate.json" 2>/dev/null || echo ERROR)
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "status=$status" >> "$GITHUB_OUTPUT"
+
+    - name: Write the gate summary
+      if: always()
+      shell: bash
+      env:
+        OUT: ${{ inputs.out-dir }}
+      run: |
+        if [ -f "$OUT/gate.md" ]; then cat "$OUT/gate.md" >> "$GITHUB_STEP_SUMMARY"; fi
+
+    - name: Upload report and gate result
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          ${{ inputs.out-dir }}/report.html
+          ${{ inputs.out-dir }}/report.json
+          ${{ inputs.out-dir }}/gate.json
+        if-no-files-found: warn
+
+    - name: Exit with the gate's code
+      shell: bash
+      env:
+        CODE: ${{ steps.gate.outputs.exit-code }}
+      run: exit "${CODE:-2}"

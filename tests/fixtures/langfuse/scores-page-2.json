@@ -1,0 +1,113 @@
+{
+  "data": [
+    {
+      "id": "score-human-3",
+      "projectId": "proj-fixture",
+      "name": "helpfulness_human",
+      "value": true,
+      "dataType": "BOOLEAN",
+      "source": "ANNOTATION",
+      "timestamp": "2026-09-20T10:05:00.000Z",
+      "environment": "default",
+      "createdAt": "2026-09-20T10:05:00.000Z",
+      "updatedAt": "2026-09-20T10:05:00.000Z",
+      "comment": "reviewed in queue",
+      "configId": null,
+      "metadata": {},
+      "authorUserId": "user-ann-1",
+      "queueId": "queue-1",
+      "subject": {
+        "kind": "trace",
+        "id": "trace-3"
+      }
+    },
+    {
+      "id": "score-judge-4",
+      "projectId": "proj-fixture",
+      "name": "helpfulness",
+      "value": 0.2,
+      "dataType": "NUMERIC",
+      "source": "EVAL",
+      "timestamp": "2026-09-21T10:01:00.000Z",
+      "environment": "default",
+      "createdAt": "2026-09-21T10:01:00.000Z",
+      "updatedAt": "2026-09-21T10:01:00.000Z",
+      "comment": "The answer covers little of the question.",
+      "configId": null,
+      "metadata": {},
+      "authorUserId": null,
+      "queueId": null,
+      "subject": {
+        "kind": "trace",
+        "id": "trace-4"
+      }
+    },
+    {
+      "id": "score-human-4",
+      "projectId": "proj-fixture",
+      "name": "helpfulness_human",
+      "value": false,
+      "dataType": "BOOLEAN",
+      "source": "ANNOTATION",
+      "timestamp": "2026-09-21T10:05:00.000Z",
+      "environment": "default",
+      "createdAt": "2026-09-21T10:05:00.000Z",
+      "updatedAt": "2026-09-21T10:05:00.000Z",
+      "comment": "reviewed in queue",
+      "configId": null,
+      "metadata": {},
+      "authorUserId": "user-ann-1",
+      "queueId": "queue-1",
+      "subject": {
+        "kind": "trace",
+        "id": "trace-4"
+      }
+    },
+    {
+      "id": "score-judge-5",
+      "projectId": "proj-fixture",
+      "name": "helpfulness",
+      "value": 0.1,
+      "dataType": "NUMERIC",
+      "source": "EVAL",
+      "timestamp": "2026-09-22T10:01:00.000Z",
+      "environment": "default",
+      "createdAt": "2026-09-22T10:01:00.000Z",
+      "updatedAt": "2026-09-22T10:01:00.000Z",
+      "comment": "The answer covers little of the question.",
+      "configId": null,
+      "metadata": {},
+      "authorUserId": null,
+      "queueId": null,
+      "subject": {
+        "kind": "trace",
+        "id": "trace-5"
+      }
+    },
+    {
+      "id": "score-human-5",
+      "projectId": "proj-fixture",
+      "name": "helpfulness_human",
+      "value": false,
+      "dataType": "BOOLEAN",
+      "source": "API",
+      "timestamp": "2026-09-22T10:05:00.000Z",
+      "environment": "default",
+      "createdAt": "2026-09-22T10:05:00.000Z",
+      "updatedAt": "2026-09-22T10:05:00.000Z",
+      "comment": "reviewed in queue",
+      "configId": null,
+      "metadata": {},
+      "authorUserId": null,
+      "queueId": null,
+      "subject": {
+        "kind": "trace",
+        "id": "trace-5"
+      }
+    }
+  ],
+  "meta": {
+    "limit": 100,
+    "cursor": "eyJwYWdlIjozfQ"
+  }
+}

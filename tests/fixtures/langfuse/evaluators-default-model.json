@@ -1,0 +1,52 @@
+{
+  "data": [
+    {
+      "id": "eval-helpfulness",
+      "name": "helpfulness",
+      "description": null,
+      "createdBy": null,
+      "status": "active",
+      "pausedAt": null,
+      "pausedReason": null,
+      "pausedMessage": null,
+      "evaluationRuleAssignments": [
+        {
+          "evaluationRuleId": "rule-1"
+        }
+      ],
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "updatedAt": "2026-09-01T09:00:00.000Z",
+      "versionId": "evalv-3",
+      "version": 3,
+      "versionCreatedAt": "2026-09-01T09:00:00.000Z",
+      "versionCreatedBy": null,
+      "type": "llm_as_judge",
+      "prompt": [
+        {
+          "role": "system",
+          "content": "You grade answers for helpfulness."
+        },
+        {
+          "role": "user",
+          "content": "Input: {{input}}\nOutput: {{output}}\nReturn a score from 0 to 1 and your reasoning."
+        }
+      ],
+      "variables": [
+        "input",
+        "output"
+      ],
+      "variableMapping": null,
+      "modelConfig": null,
+      "outputDefinition": {
+        "dataType": "NUMERIC",
+        "score": {
+          "description": "0 to 1"
+        },
+        "reasoning": {
+          "description": "why"
+        }
+      }
+    }
+  ],
+  "meta": {}
+}

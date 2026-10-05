@@ -1,0 +1,2574 @@
+{
+  "evalId": "eval-VhJ-2026-10-01T14:32:29",
+  "results": {
+    "version": 3,
+    "timestamp": "2026-10-01T14:32:29.194Z",
+    "prompts": [
+      {
+        "id": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "raw": "Question: {{question}}",
+        "label": "Question: {{question}}",
+        "provider": "exec: python3 answerer.py",
+        "metrics": {
+          "score": 10,
+          "testPassCount": 10,
+          "testFailCount": 8,
+          "testErrorCount": 0,
+          "assertPassCount": 10,
+          "assertFailCount": 8,
+          "totalLatencyMs": 381,
+          "tokenUsage": {
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "total": 0,
+            "numRequests": 18,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 18,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "namedScores": {
+            "helpfulness": 10
+          },
+          "namedScoresCount": {
+            "helpfulness": 18
+          },
+          "namedScoreWeights": {
+            "helpfulness": 18
+          },
+          "cost": 0
+        }
+      }
+    ],
+    "results": [
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Q0 call 1: helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q0 What is 1 + 1?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "1581b9eb-3d97-42c5-808d-4f3a4eed29fd",
+        "latencyMs": 29,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "prompt": {
+          "raw": "Question: Q0 What is 1 + 1?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q0 What is 1 + 1?"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "vars": {
+            "qid": "Q0",
+            "question": "Q0 What is 1 + 1?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 0,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q0",
+          "question": "Q0 What is 1 + 1?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Q0 call 2: helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q0 What is 1 + 1?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "e7cfc64d-545d-4734-841a-9c7b2703acb3",
+        "latencyMs": 69,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "prompt": {
+          "raw": "Question: Q0 What is 1 + 1?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q0 What is 1 + 1?"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "vars": {
+            "qid": "Q0",
+            "question": "Q0 What is 1 + 1?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 1,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q0",
+          "question": "Q0 What is 1 + 1?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Q0 call 3: helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q0 What is 1 + 1?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "b0248f84-e6a9-4670-8232-fa5a70783c22",
+        "latencyMs": 18,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "prompt": {
+          "raw": "Question: Q0 What is 1 + 1?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q0 What is 1 + 1?"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "vars": {
+            "qid": "Q0",
+            "question": "Q0 What is 1 + 1?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 2,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q0",
+          "question": "Q0 What is 1 + 1?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Q1 call 1: helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q1 What is the capital of France?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "bc41f4f5-aa6f-4f5b-addb-6c263b9c26b9",
+        "latencyMs": 17,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "prompt": {
+          "raw": "Question: Q1 What is the capital of France?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q1 What is the capital of France?"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "vars": {
+            "qid": "Q1",
+            "question": "Q1 What is the capital of France?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 3,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q1",
+          "question": "Q1 What is the capital of France?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Q1 call 2: helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q1 What is the capital of France?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "aaa00001-522a-42af-a318-e049a736ca12",
+        "latencyMs": 18,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "prompt": {
+          "raw": "Question: Q1 What is the capital of France?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q1 What is the capital of France?"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "vars": {
+            "qid": "Q1",
+            "question": "Q1 What is the capital of France?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 4,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q1",
+          "question": "Q1 What is the capital of France?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Q1 call 3: helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q1 What is the capital of France?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "a0d95fcb-ecc8-436b-b2b3-8ad1303dc359",
+        "latencyMs": 33,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "prompt": {
+          "raw": "Question: Q1 What is the capital of France?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q1 What is the capital of France?"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "vars": {
+            "qid": "Q1",
+            "question": "Q1 What is the capital of France?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 5,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q1",
+          "question": "Q1 What is the capital of France?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "error": "Q2 call 1: not helpful",
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "Q2 call 1: not helpful",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Q2 call 1: not helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q2 Who wrote Hamlet?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "0c261f5e-800b-416d-ae01-f2ab7f836e54",
+        "latencyMs": 18,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "prompt": {
+          "raw": "Question: Q2 Who wrote Hamlet?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q2 Who wrote Hamlet?"
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "vars": {
+            "qid": "Q2",
+            "question": "Q2 Who wrote Hamlet?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 6,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q2",
+          "question": "Q2 Who wrote Hamlet?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Q2 call 2: helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q2 Who wrote Hamlet?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "0b29ad2b-37e6-4d22-845a-1e540701353d",
+        "latencyMs": 20,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "prompt": {
+          "raw": "Question: Q2 Who wrote Hamlet?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q2 Who wrote Hamlet?"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "vars": {
+            "qid": "Q2",
+            "question": "Q2 Who wrote Hamlet?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 7,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q2",
+          "question": "Q2 Who wrote Hamlet?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "error": "Q2 call 3: not helpful",
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "Q2 call 3: not helpful",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Q2 call 3: not helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q2 Who wrote Hamlet?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "76156e59-81f3-4af6-b6b1-98d46df05774",
+        "latencyMs": 18,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "prompt": {
+          "raw": "Question: Q2 Who wrote Hamlet?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q2 Who wrote Hamlet?"
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "vars": {
+            "qid": "Q2",
+            "question": "Q2 Who wrote Hamlet?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 8,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q2",
+          "question": "Q2 Who wrote Hamlet?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0,
+        "error": "Q3 call 1: not helpful",
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "Q3 call 1: not helpful",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Q3 call 1: not helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q3 What is 2 + 2?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "f7579984-98e0-4d09-a589-4817eb5f78c5",
+        "latencyMs": 17,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "prompt": {
+          "raw": "Question: Q3 What is 2 + 2?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q3 What is 2 + 2?"
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "vars": {
+            "qid": "Q3",
+            "question": "Q3 What is 2 + 2?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 9,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q3",
+          "question": "Q3 What is 2 + 2?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0,
+        "error": "Q3 call 2: not helpful",
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "Q3 call 2: not helpful",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Q3 call 2: not helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q3 What is 2 + 2?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "b4cacc78-798a-4649-87e8-8723db3babe9",
+        "latencyMs": 15,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "prompt": {
+          "raw": "Question: Q3 What is 2 + 2?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q3 What is 2 + 2?"
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "vars": {
+            "qid": "Q3",
+            "question": "Q3 What is 2 + 2?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 10,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q3",
+          "question": "Q3 What is 2 + 2?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0,
+        "error": "Q3 call 3: not helpful",
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "Q3 call 3: not helpful",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Q3 call 3: not helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q3 What is 2 + 2?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "8fa8cdc8-bee1-4902-9afd-1a3985d41fe3",
+        "latencyMs": 16,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "prompt": {
+          "raw": "Question: Q3 What is 2 + 2?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q3 What is 2 + 2?"
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "vars": {
+            "qid": "Q3",
+            "question": "Q3 What is 2 + 2?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 11,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q3",
+          "question": "Q3 What is 2 + 2?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0,
+        "error": "Q4 call 1: not helpful",
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "Q4 call 1: not helpful",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Q4 call 1: not helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q4 What colour is the sky?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "321a211a-71c7-4bd1-ae10-93901f8942c9",
+        "latencyMs": 17,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "prompt": {
+          "raw": "Question: Q4 What colour is the sky?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q4 What colour is the sky?"
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "vars": {
+            "qid": "Q4",
+            "question": "Q4 What colour is the sky?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 12,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q4",
+          "question": "Q4 What colour is the sky?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0,
+        "error": "Q4 call 2: not helpful",
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "Q4 call 2: not helpful",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Q4 call 2: not helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q4 What colour is the sky?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "f9417105-3a98-4561-b439-4c514b214455",
+        "latencyMs": 15,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "prompt": {
+          "raw": "Question: Q4 What colour is the sky?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q4 What colour is the sky?"
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "vars": {
+            "qid": "Q4",
+            "question": "Q4 What colour is the sky?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 13,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q4",
+          "question": "Q4 What colour is the sky?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0,
+        "error": "Q4 call 3: not helpful",
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "Q4 call 3: not helpful",
+          "namedScores": {
+            "helpfulness": 0
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Q4 call 3: not helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q4 What colour is the sky?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "bc5c836d-1fad-4899-b6bd-e140e02883d9",
+        "latencyMs": 15,
+        "namedScores": {
+          "helpfulness": 0
+        },
+        "prompt": {
+          "raw": "Question: Q4 What colour is the sky?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q4 What colour is the sky?"
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "vars": {
+            "qid": "Q4",
+            "question": "Q4 What colour is the sky?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 14,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q4",
+          "question": "Q4 What colour is the sky?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Q5 call 1: helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q5 How many legs has a spider?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "6c50e5ae-04df-4782-b127-d1648d84c3fc",
+        "latencyMs": 16,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "prompt": {
+          "raw": "Question: Q5 How many legs has a spider?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q5 How many legs has a spider?"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "vars": {
+            "qid": "Q5",
+            "question": "Q5 How many legs has a spider?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 15,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q5",
+          "question": "Q5 How many legs has a spider?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Q5 call 2: helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q5 How many legs has a spider?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "7f3c4ee2-be01-4235-92c4-dd15f90fdaf1",
+        "latencyMs": 15,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "prompt": {
+          "raw": "Question: Q5 How many legs has a spider?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q5 How many legs has a spider?"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "vars": {
+            "qid": "Q5",
+            "question": "Q5 How many legs has a spider?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 16,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q5",
+          "question": "Q5 How many legs has a spider?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "helpfulness": 1
+          },
+          "namedScoreWeights": {
+            "helpfulness": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "helpfulness",
+                "value": "The answer is helpful."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Q5 call 3: helpful",
+              "tokensUsed": {
+                "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "reasoning": 0,
+                  "acceptedPrediction": 0,
+                  "rejectedPrediction": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\nMy answer to: Q5 How many legs has a spider?\\n</Output>\\n<Rubric>\\nThe answer is helpful.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "94c3fd9f-a28d-40a7-a115-9fb44035271c",
+        "latencyMs": 15,
+        "namedScores": {
+          "helpfulness": 1
+        },
+        "prompt": {
+          "raw": "Question: Q5 How many legs has a spider?",
+          "label": "Question: {{question}}",
+          "config": {
+            "provider": "exec: python3 grader.py"
+          }
+        },
+        "promptId": "2b269d41e6536fd65e81cee8fc89ba097165a5d28f96fe9d989f77f452cb5d68",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: python3 answerer.py",
+          "label": ""
+        },
+        "response": {
+          "output": "My answer to: Q5 How many legs has a spider?"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "vars": {
+            "qid": "Q5",
+            "question": "Q5 How many legs has a spider?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "helpfulness",
+              "value": "The answer is helpful."
+            }
+          ],
+          "options": {
+            "provider": "exec: python3 grader.py"
+          },
+          "metadata": {}
+        },
+        "testIdx": 17,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "qid": "Q5",
+          "question": "Q5 How many legs has a spider?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      }
+    ],
+    "stats": {
+      "successes": 10,
+      "failures": 8,
+      "errors": 0,
+      "tokenUsage": {
+        "prompt": 0,
+        "completion": 0,
+        "cached": 0,
+        "total": 0,
+        "numRequests": 18,
+        "completionDetails": {
+          "reasoning": 0,
+          "acceptedPrediction": 0,
+          "rejectedPrediction": 0,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0
+        },
+        "assertions": {
+          "total": 0,
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "numRequests": 18,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          }
+        }
+      },
+      "durationMs": 1206,
+      "evaluationDurationMs": 1206
+    }
+  },
+  "config": {
+    "tags": {},
+    "description": "judgekeeper real promptfoo fixture",
+    "prompts": [
+      "Question: {{question}}"
+    ],
+    "providers": [
+      {
+        "id": "exec: python3 answerer.py"
+      }
+    ],
+    "tests": [
+      {
+        "vars": {
+          "qid": "Q0",
+          "question": "Q0 What is 1 + 1?"
+        }
+      },
+      {
+        "vars": {
+          "qid": "Q1",
+          "question": "Q1 What is the capital of France?"
+        }
+      },
+      {
+        "vars": {
+          "qid": "Q2",
+          "question": "Q2 Who wrote Hamlet?"
+        }
+      },
+      {
+        "vars": {
+          "qid": "Q3",
+          "question": "Q3 What is 2 + 2?"
+        }
+      },
+      {
+        "vars": {
+          "qid": "Q4",
+          "question": "Q4 What colour is the sky?"
+        }
+      },
+      {
+        "vars": {
+          "qid": "Q5",
+          "question": "Q5 How many legs has a spider?"
+        }
+      }
+    ],
+    "env": {},
+    "defaultTest": {
+      "options": {
+        "provider": "exec: python3 grader.py"
+      },
+      "assert": [
+        {
+          "type": "llm-rubric",
+          "metric": "helpfulness",
+          "value": "The answer is helpful."
+        }
+      ],
+      "vars": {},
+      "metadata": {}
+    },
+    "outputPath": [
+      "results.json"
+    ],
+    "extensions": [],
+    "metadata": {},
+    "evaluateOptions": {}
+  },
+  "shareableUrl": null,
+  "metadata": {
+    "promptfooVersion": "0.123.1",
+    "nodeVersion": "v22.22.0",
+    "platform": "linux",
+    "arch": "x64",
+    "exportedAt": "2026-10-01T14:32:30.426Z",
+    "evaluationCreatedAt": "2026-10-01T14:32:29.194Z"
+  },
+  "vars": [
+    "qid",
+    "question"
+  ],
+  "runtimeOptions": {
+    "eventSource": "cli",
+    "showProgressBar": true,
+    "repeat": 3,
+    "maxConcurrency": 1,
+    "cache": false
+  }
+}

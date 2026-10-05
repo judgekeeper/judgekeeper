@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        # The mlflow extra lets tests/test_import_mlflow.py build and read a real MLflow store.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,mlflow]"
+      - name: Test
+        run: pytest
+      - name: Lint
+        run: ruff check src tests
+
+  # Builds both distributions, installs the wheels into a fresh venv and runs them from there,
+  # so a packaging mistake (a missing template, a broken entry point) fails here rather than
+  # on release day. The same steps run in release.yml before publishing.
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Build both distributions
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build --outdir dist .
+          python -m build --outdir dist packages/pytest-judgekeeper
+          twine check --strict dist/*
+      - name: Install the wheel into a fresh venv
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install dist/judgekeeper-*.whl
+      - name: Run the installed judgekeeper outside the checkout
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -x
+          venv/bin/judgekeeper --version
+          venv/bin/judgekeeper --help
+          printf 'id,verdict,label\nq1,pass,pass\nq2,pass,pass\nq3,fail,fail\nq4,fail,fail\nq5,pass,fail\n' > verdicts.csv
+          venv/bin/judgekeeper check verdicts.csv --out checked
+          test -f checked/report.html -a -f checked/report.json
+          venv/bin/judgekeeper init --out starter/judge.md
+          venv/bin/judgekeeper init --out starter/pairwise.md --pairwise
+          grep -q "rubric_version: my-metric-v1" starter/judge.md
+          grep -q "output_b" starter/pairwise.md
+      - name: Run the test suite against the installed wheels
+        run: |
+          "$RUNNER_TEMP/venv/bin/pip" install --find-links dist dist/pytest_judgekeeper-*.whl \
+            "pytest>=8" "pyyaml>=6"
+          "$RUNNER_TEMP/venv/bin/python" -c 'import judgekeeper, sys; assert "site-packages" in judgekeeper.__file__, judgekeeper.__file__'
+          "$RUNNER_TEMP/venv/bin/python" -m pytest -p no:cacheprovider
+
+  # Runs action.yml from this checkout with the replay runner: no API key needed.
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Gate a judge that agrees with every human label (expect PASS)
+        id: agree
+        uses: ./
+        with:
+          anchors: tests/fixtures/pairwise/anchors.jsonl
+          runner: replay
+          fixture: tests/fixtures/pairwise/replay-agree.jsonl
+          baseline: tests/fixtures/pairwise/baseline.json
+          out-dir: gate-agree
+          artifact-name: judgekeeper-gate-agree
+
+      - name: Gate a judge with kappa 0.5 (expect FAIL and exit 1)
+        id: disagree
+        continue-on-error: true
+        uses: ./
+        with:
+          anchors: tests/fixtures/pairwise/anchors.jsonl
+          runner: replay
+          fixture: tests/fixtures/pairwise/runs/run-01.jsonl
+          baseline: tests/fixtures/pairwise/baseline.json
+          out-dir: gate-disagree
+          artifact-name: judgekeeper-gate-disagree
+
+      - name: Check the action's status and exit code
+        env:
+          AGREE_STATUS: ${{ steps.agree.outputs.status }}
+          AGREE_CODE: ${{ steps.agree.outputs.exit-code }}
+          DISAGREE_OUTCOME: ${{ steps.disagree.outcome }}
+          DISAGREE_STATUS: ${{ steps.disagree.outputs.status }}
+          DISAGREE_CODE: ${{ steps.disagree.outputs.exit-code }}
+        run: |
+          set -x
+          test "$AGREE_STATUS" = PASS
+          test "$AGREE_CODE" = 0
+          test "$DISAGREE_OUTCOME" = failure
+          test "$DISAGREE_STATUS" = FAIL
+          test "$DISAGREE_CODE" = 1
+          test -f gate-agree/report.html -a -f gate-agree/report.json -a -f gate-agree/gate.json

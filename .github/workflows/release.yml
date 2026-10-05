@@ -1,0 +1,97 @@
+# Publishes judgekeeper and pytest-judgekeeper to PyPI when a GitHub release is published.
+# Nothing else triggers it. PyPI Trusted Publishing (OIDC) authenticates the upload: there is
+# no API token anywhere. PyPI and the repository's environments are set up once, by hand.
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install build tools
+        run: python -m pip install --upgrade pip build twine
+      - name: Build both distributions
+        run: |
+          python -m build --outdir dist .
+          python -m build --outdir dist packages/pytest-judgekeeper
+      - name: Check the metadata PyPI will render
+        run: twine check --strict dist/*
+      - name: Check the tag matches the version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          test "$TAG" = "v$version"
+          ls dist/judgekeeper-"$version"-py3-none-any.whl dist/pytest_judgekeeper-"$version"-py3-none-any.whl
+      - name: Install the wheels into a clean venv
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --find-links dist dist/judgekeeper-*.whl \
+            dist/pytest_judgekeeper-*.whl "pytest>=8" "pyyaml>=6"
+      - name: Run the installed judgekeeper outside the checkout
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -x
+          venv/bin/judgekeeper --version
+          venv/bin/judgekeeper --help
+          printf 'id,verdict,label\nq1,pass,pass\nq2,pass,pass\nq3,fail,fail\nq4,fail,fail\nq5,pass,fail\n' > verdicts.csv
+          venv/bin/judgekeeper check verdicts.csv --out checked
+          test -f checked/report.html -a -f checked/report.json
+      - name: Run the test suite against the built wheel
+        run: |
+          # src/ is not on the path: every test imports the installed wheel.
+          "$RUNNER_TEMP/venv/bin/python" -c 'import judgekeeper, sys; assert "site-packages" in judgekeeper.__file__, judgekeeper.__file__'
+          "$RUNNER_TEMP/venv/bin/python" -m pytest -p no:cacheprovider
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  # One upload job per PyPI project, each behind its own environment (pypi, pypi-plugin):
+  # PyPI refuses two pending Trusted Publishers with the same repository, workflow and
+  # environment, and both projects are new.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/judgekeeper/
+    permissions:
+      id-token: write  # Trusted Publishing: PyPI exchanges this OIDC token for a short upload token
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: dist
+          path: dist/
+      - name: Keep only judgekeeper
+        run: rm dist/pytest_judgekeeper-*
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
+
+  # pytest-judgekeeper pins judgekeeper==<version>, so it goes up second.
+  publish-plugin:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi-plugin
+      url: https://pypi.org/project/pytest-judgekeeper/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: dist
+          path: dist/
+      - name: Keep only pytest-judgekeeper
+        run: rm dist/judgekeeper-*
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2

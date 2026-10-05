@@ -1,0 +1,289 @@
+{
+  "judgekeeper_version": "0.0.1",
+  "generated_at": "2026-10-01T01:00:00Z",
+  "anchors": {
+    "file": "anchors.jsonl",
+    "sha256": "15f797dea8f97d627121c0a5606ab305388d21f993f44ea7197d15a9a3531b4b",
+    "n_items": 8,
+    "kind": "pairwise",
+    "label_distribution": {
+      "A": 4,
+      "B": 4
+    },
+    "slice_counts": {
+      "easy": 4,
+      "hard": 4
+    }
+  },
+  "fingerprint": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "snapshot": "claude-haiku-4-5-20251001",
+    "prompt_hash": "0000000000000000000000000000000000000000000000000000000000000001",
+    "rubric_version": "pairwise-v1",
+    "temperature": 0.0,
+    "created_at": "2026-10-01T01:00:00Z"
+  },
+  "snapshots_seen": [
+    "claude-haiku-4-5-20251001"
+  ],
+  "n_runs": 3,
+  "headline": {
+    "kappa_mean": 1.0,
+    "kappa_min": 1.0,
+    "kappa_max": 1.0,
+    "tpr_mean": 1.0,
+    "tnr_mean": 1.0,
+    "accuracy_mean": 1.0,
+    "positive_label": "A"
+  },
+  "verdict": {
+    "summary": "Usable as a gate: kappa 1.00, TPR 1.00, TNR 1.00 against human labels.",
+    "flags": []
+  },
+  "runs": [
+    {
+      "run": 1,
+      "file": "run-01.jsonl",
+      "n": 8,
+      "kappa": 1.0,
+      "tpr": 1.0,
+      "tnr": 1.0,
+      "accuracy": 1.0,
+      "confusion": {
+        "tp": 4,
+        "fn": 0,
+        "fp": 0,
+        "tn": 4,
+        "invalid": 0
+      },
+      "n_invalid": 0,
+      "disagreements": []
+    },
+    {
+      "run": 2,
+      "file": "run-02.jsonl",
+      "n": 8,
+      "kappa": 1.0,
+      "tpr": 1.0,
+      "tnr": 1.0,
+      "accuracy": 1.0,
+      "confusion": {
+        "tp": 4,
+        "fn": 0,
+        "fp": 0,
+        "tn": 4,
+        "invalid": 0
+      },
+      "n_invalid": 0,
+      "disagreements": []
+    },
+    {
+      "run": 3,
+      "file": "run-03.jsonl",
+      "n": 8,
+      "kappa": 1.0,
+      "tpr": 1.0,
+      "tnr": 1.0,
+      "accuracy": 1.0,
+      "confusion": {
+        "tp": 4,
+        "fn": 0,
+        "fp": 0,
+        "tn": 4,
+        "invalid": 0
+      },
+      "n_invalid": 0,
+      "disagreements": []
+    }
+  ],
+  "noise_floor": {
+    "n_runs": 3,
+    "n_items": 8,
+    "items_flipped_fraction": 0.0,
+    "mean_item_flip_rate": 0.0,
+    "pairwise_kappa": [
+      {
+        "runs": [
+          1,
+          2
+        ],
+        "kappa": 1.0,
+        "agreement": 1.0
+      },
+      {
+        "runs": [
+          1,
+          3
+        ],
+        "kappa": 1.0,
+        "agreement": 1.0
+      },
+      {
+        "runs": [
+          2,
+          3
+        ],
+        "kappa": 1.0,
+        "agreement": 1.0
+      }
+    ],
+    "mean_pairwise_kappa": 1.0,
+    "test_retest_agreement": 1.0,
+    "n_ties": 0,
+    "per_item": [
+      {
+        "id": "i1",
+        "verdicts": [
+          "A",
+          "A",
+          "A"
+        ],
+        "majority": "A",
+        "flip_rate": 0.0,
+        "human": "A"
+      },
+      {
+        "id": "i2",
+        "verdicts": [
+          "A",
+          "A",
+          "A"
+        ],
+        "majority": "A",
+        "flip_rate": 0.0,
+        "human": "A"
+      },
+      {
+        "id": "i3",
+        "verdicts": [
+          "A",
+          "A",
+          "A"
+        ],
+        "majority": "A",
+        "flip_rate": 0.0,
+        "human": "A"
+      },
+      {
+        "id": "i4",
+        "verdicts": [
+          "A",
+          "A",
+          "A"
+        ],
+        "majority": "A",
+        "flip_rate": 0.0,
+        "human": "A"
+      },
+      {
+        "id": "i5",
+        "verdicts": [
+          "B",
+          "B",
+          "B"
+        ],
+        "majority": "B",
+        "flip_rate": 0.0,
+        "human": "B"
+      },
+      {
+        "id": "i6",
+        "verdicts": [
+          "B",
+          "B",
+          "B"
+        ],
+        "majority": "B",
+        "flip_rate": 0.0,
+        "human": "B"
+      },
+      {
+        "id": "i7",
+        "verdicts": [
+          "B",
+          "B",
+          "B"
+        ],
+        "majority": "B",
+        "flip_rate": 0.0,
+        "human": "B"
+      },
+      {
+        "id": "i8",
+        "verdicts": [
+          "B",
+          "B",
+          "B"
+        ],
+        "majority": "B",
+        "flip_rate": 0.0,
+        "human": "B"
+      }
+    ],
+    "majority_vs_human": {
+      "n": 8,
+      "kappa": 1.0,
+      "tpr": 1.0,
+      "tnr": 1.0,
+      "accuracy": 1.0,
+      "confusion": {
+        "tp": 4,
+        "fn": 0,
+        "fp": 0,
+        "tn": 4,
+        "invalid": 0
+      },
+      "n_invalid": 0
+    }
+  },
+  "position_bias": {
+    "n": 24,
+    "inconsistency_rate": 0.0,
+    "p_first": 0.5,
+    "first_position_bias": 0.0,
+    "kappa_ba_mean": 1.0,
+    "per_run": [
+      {
+        "run": 1,
+        "n": 8,
+        "inconsistency_rate": 0.0,
+        "p_first": 0.5,
+        "first_position_bias": 0.0
+      },
+      {
+        "run": 2,
+        "n": 8,
+        "inconsistency_rate": 0.0,
+        "p_first": 0.5,
+        "first_position_bias": 0.0
+      },
+      {
+        "run": 3,
+        "n": 8,
+        "inconsistency_rate": 0.0,
+        "p_first": 0.5,
+        "first_position_bias": 0.0
+      }
+    ]
+  },
+  "slices": [
+    {
+      "slice": "easy",
+      "n": 4,
+      "kappa_mean": 1.0,
+      "tpr_mean": 1.0,
+      "tnr_mean": 1.0,
+      "accuracy_mean": 1.0
+    },
+    {
+      "slice": "hard",
+      "n": 4,
+      "kappa_mean": 1.0,
+      "tpr_mean": 1.0,
+      "tnr_mean": 1.0,
+      "accuracy_mean": 1.0
+    }
+  ],
+  "disagreements": []
+}

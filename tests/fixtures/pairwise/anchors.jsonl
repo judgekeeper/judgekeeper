@@ -1,0 +1,8 @@
+{"id": "i1", "input": "instruction 1", "output_a": "a1", "output_b": "b1", "human_label": "A", "slice": "easy"}
+{"id": "i2", "input": "instruction 2", "output_a": "a2", "output_b": "b2", "human_label": "A", "slice": "easy"}
+{"id": "i3", "input": "instruction 3", "output_a": "a3", "output_b": "b3", "human_label": "A", "slice": "hard"}
+{"id": "i4", "input": "instruction 4", "output_a": "a4", "output_b": "b4", "human_label": "A", "slice": "hard"}
+{"id": "i5", "input": "instruction 5", "output_a": "a5", "output_b": "b5", "human_label": "B", "slice": "easy"}
+{"id": "i6", "input": "instruction 6", "output_a": "a6", "output_b": "b6", "human_label": "B", "slice": "easy"}
+{"id": "i7", "input": "instruction 7", "output_a": "a7", "output_b": "b7", "human_label": "B", "slice": "hard"}
+{"id": "i8", "input": "instruction 8", "output_a": "a8", "output_b": "b8", "human_label": "B", "slice": "hard"}

@@ -1,0 +1,70 @@
+{
+  "_note": "served snapshot changed: JUDGE_CHANGED",
+  "judgekeeper_version": "0.0.1",
+  "generated_at": "2026-10-01T00:00:00Z",
+  "anchors": {
+    "file": "anchors.jsonl",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "n_items": 100,
+    "kind": "pairwise"
+  },
+  "fingerprint": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "snapshot": "claude-haiku-4-5-20260101",
+    "prompt_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "rubric_version": "pairwise-v1",
+    "temperature": 0.0,
+    "created_at": "2026-10-01T00:00:00Z"
+  },
+  "n_runs": 3,
+  "headline": {
+    "kappa_mean": 0.8,
+    "kappa_min": 0.79,
+    "kappa_max": 0.81,
+    "tpr_mean": 0.91,
+    "tnr_mean": 0.89,
+    "positive_label": "A"
+  },
+  "runs": [
+    {
+      "run": 1,
+      "kappa": 0.79,
+      "tpr": 0.9,
+      "tnr": 0.88
+    },
+    {
+      "run": 2,
+      "kappa": 0.8,
+      "tpr": 0.91,
+      "tnr": 0.89
+    },
+    {
+      "run": 3,
+      "kappa": 0.81,
+      "tpr": 0.92,
+      "tnr": 0.9
+    }
+  ],
+  "noise_floor": {
+    "n_runs": 3,
+    "items_flipped_fraction": 0.04
+  },
+  "position_bias": {
+    "inconsistency_rate": 0.05,
+    "per_run": [
+      {
+        "run": 1,
+        "inconsistency_rate": 0.05
+      },
+      {
+        "run": 2,
+        "inconsistency_rate": 0.05
+      },
+      {
+        "run": 3,
+        "inconsistency_rate": 0.05
+      }
+    ]
+  }
+}

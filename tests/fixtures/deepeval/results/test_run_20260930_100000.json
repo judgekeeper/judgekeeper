@@ -1,0 +1,275 @@
+{
+  "testFile": "test_math.py",
+  "testCases": [
+    {
+      "name": "test_case_0",
+      "input": "What is 0 + 0?",
+      "actualOutput": "0 + 0 = 0.",
+      "expectedOutput": "0",
+      "success": true,
+      "order": 0,
+      "runDuration": 0.5,
+      "metricsData": [
+        {
+          "name": "Correctness [GEval]",
+          "threshold": 0.5,
+          "success": true,
+          "score": 0.9,
+          "reason": "run 1: correct",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Criteria:\nIs the actual output factually correct given the input? \n \nEvaluation Steps:\n[\n    \"Check each claim in the actual output.\",\n    \"Penalise any claim that is false.\"\n] \n \nRubric:\nNone \n \nScore: 0.9"
+        },
+        {
+          "name": "Answer Relevancy",
+          "threshold": 0.5,
+          "success": true,
+          "score": 1.0,
+          "reason": "relevant",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Statements:\n[] \n \nVerdicts:\n[]"
+        }
+      ]
+    },
+    {
+      "name": "test_case_1",
+      "input": "What is 1 + 1?",
+      "actualOutput": "1 + 1 = 2.",
+      "expectedOutput": "2",
+      "success": true,
+      "order": 1,
+      "runDuration": 0.5,
+      "metricsData": [
+        {
+          "name": "Correctness [GEval]",
+          "threshold": 0.5,
+          "success": true,
+          "score": 0.9,
+          "reason": "run 1: correct",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Criteria:\nIs the actual output factually correct given the input? \n \nEvaluation Steps:\n[\n    \"Check each claim in the actual output.\",\n    \"Penalise any claim that is false.\"\n] \n \nRubric:\nNone \n \nScore: 0.9"
+        },
+        {
+          "name": "Answer Relevancy",
+          "threshold": 0.5,
+          "success": true,
+          "score": 1.0,
+          "reason": "relevant",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Statements:\n[] \n \nVerdicts:\n[]"
+        }
+      ]
+    },
+    {
+      "name": "test_case_2",
+      "input": "What is 2 + 2?",
+      "actualOutput": "2 + 2 = 4.",
+      "expectedOutput": "4",
+      "success": true,
+      "order": 2,
+      "runDuration": 0.5,
+      "metricsData": [
+        {
+          "name": "Correctness [GEval]",
+          "threshold": 0.5,
+          "success": true,
+          "score": 0.9,
+          "reason": "run 1: correct",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Criteria:\nIs the actual output factually correct given the input? \n \nEvaluation Steps:\n[\n    \"Check each claim in the actual output.\",\n    \"Penalise any claim that is false.\"\n] \n \nRubric:\nNone \n \nScore: 0.9"
+        },
+        {
+          "name": "Answer Relevancy",
+          "threshold": 0.5,
+          "success": true,
+          "score": 1.0,
+          "reason": "relevant",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Statements:\n[] \n \nVerdicts:\n[]"
+        }
+      ]
+    },
+    {
+      "name": "test_case_3",
+      "input": "What is 3 + 3?",
+      "actualOutput": "3 + 3 = 6.",
+      "expectedOutput": "6",
+      "success": true,
+      "order": 3,
+      "runDuration": 0.5,
+      "metricsData": [
+        {
+          "name": "Correctness [GEval]",
+          "threshold": 0.5,
+          "success": true,
+          "score": 0.9,
+          "reason": "run 1: correct",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Criteria:\nIs the actual output factually correct given the input? \n \nEvaluation Steps:\n[\n    \"Check each claim in the actual output.\",\n    \"Penalise any claim that is false.\"\n] \n \nRubric:\nNone \n \nScore: 0.9"
+        },
+        {
+          "name": "Answer Relevancy",
+          "threshold": 0.5,
+          "success": true,
+          "score": 1.0,
+          "reason": "relevant",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Statements:\n[] \n \nVerdicts:\n[]"
+        }
+      ]
+    },
+    {
+      "name": "test_case_4",
+      "input": "What is 4 + 4?",
+      "actualOutput": "4 + 4 = 8.",
+      "expectedOutput": "8",
+      "success": true,
+      "order": 4,
+      "runDuration": 0.5,
+      "metricsData": [
+        {
+          "name": "Correctness [GEval]",
+          "threshold": 0.5,
+          "success": true,
+          "score": 0.9,
+          "reason": "run 1: correct",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Criteria:\nIs the actual output factually correct given the input? \n \nEvaluation Steps:\n[\n    \"Check each claim in the actual output.\",\n    \"Penalise any claim that is false.\"\n] \n \nRubric:\nNone \n \nScore: 0.9"
+        },
+        {
+          "name": "Answer Relevancy",
+          "threshold": 0.5,
+          "success": true,
+          "score": 1.0,
+          "reason": "relevant",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Statements:\n[] \n \nVerdicts:\n[]"
+        }
+      ]
+    },
+    {
+      "name": "test_case_5",
+      "input": "What is 5 + 5?",
+      "actualOutput": "5 + 5 = 10.",
+      "expectedOutput": "10",
+      "success": false,
+      "order": 5,
+      "runDuration": 0.5,
+      "metricsData": [
+        {
+          "name": "Correctness [GEval]",
+          "threshold": 0.5,
+          "success": false,
+          "score": 0.2,
+          "reason": "run 1: a claim is wrong",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Criteria:\nIs the actual output factually correct given the input? \n \nEvaluation Steps:\n[\n    \"Check each claim in the actual output.\",\n    \"Penalise any claim that is false.\"\n] \n \nRubric:\nNone \n \nScore: 0.2"
+        },
+        {
+          "name": "Answer Relevancy",
+          "threshold": 0.5,
+          "success": true,
+          "score": 1.0,
+          "reason": "relevant",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Statements:\n[] \n \nVerdicts:\n[]"
+        }
+      ]
+    },
+    {
+      "name": "test_case_6",
+      "input": "What is 6 + 6?",
+      "actualOutput": "6 + 6 = 12.",
+      "expectedOutput": "12",
+      "success": false,
+      "order": 6,
+      "runDuration": 0.5,
+      "metricsData": [
+        {
+          "name": "Correctness [GEval]",
+          "threshold": 0.5,
+          "success": false,
+          "score": 0.2,
+          "reason": "run 1: a claim is wrong",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Criteria:\nIs the actual output factually correct given the input? \n \nEvaluation Steps:\n[\n    \"Check each claim in the actual output.\",\n    \"Penalise any claim that is false.\"\n] \n \nRubric:\nNone \n \nScore: 0.2"
+        },
+        {
+          "name": "Answer Relevancy",
+          "threshold": 0.5,
+          "success": true,
+          "score": 1.0,
+          "reason": "relevant",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Statements:\n[] \n \nVerdicts:\n[]"
+        }
+      ]
+    },
+    {
+      "name": "test_case_7",
+      "input": "What is 7 + 7?",
+      "actualOutput": "7 + 7 = 14.",
+      "expectedOutput": "14",
+      "success": false,
+      "order": 7,
+      "runDuration": 0.5,
+      "metricsData": [
+        {
+          "name": "Correctness [GEval]",
+          "threshold": 0.5,
+          "success": false,
+          "score": 0.2,
+          "reason": "run 1: a claim is wrong",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Criteria:\nIs the actual output factually correct given the input? \n \nEvaluation Steps:\n[\n    \"Check each claim in the actual output.\",\n    \"Penalise any claim that is false.\"\n] \n \nRubric:\nNone \n \nScore: 0.2"
+        },
+        {
+          "name": "Answer Relevancy",
+          "threshold": 0.5,
+          "success": true,
+          "score": 1.0,
+          "reason": "relevant",
+          "strictMode": false,
+          "evaluationModel": "gpt-4.1",
+          "evaluationCost": 0.0001,
+          "verboseLogs": "Statements:\n[] \n \nVerdicts:\n[]"
+        }
+      ]
+    }
+  ],
+  "conversationalTestCases": [],
+  "metricsScores": [],
+  "testPassed": 5,
+  "testFailed": 3,
+  "runDuration": 4.0,
+  "evaluationCost": 0.0016
+}

@@ -1,0 +1,154 @@
+"""Inspect AI: `.eval` or `.json` logs.
+
+With the optional extra (`pip install "judgekeeper[inspect]"`) any log is read with
+`inspect_ai.log.read_eval_log`. Without it `.json` logs are read directly; a `.eval` log is a
+zip archive, so it needs the extra or `inspect log dump <file> > log.json` first.
+
+Shape (inspect_ai log/_log.py `EvalSpec`, `EvalSample`; scorer/_metric.py `Score`): `eval`
+with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, options}`);
+`samples[]` with `id`, `epoch`, `input`, `output` and `scores.<scorer>`: `value`,
+`explanation`, `metadata`, `history[]`.
+
+- Item id is `samples[].id`; run is `samples[].epoch`.
+- The prompt hash covers the scorer's `template` and `instructions` options, or Inspect's
+  default for that scorer when they are unset; never the per-sample `metadata.grading`.
+- Values `C`/`I` read as pass/fail; `P` (partial) and anything else need --label-map.
+- A human edit (`edit_score`, log/_score.py) appends to `history`: the first entry is the
+  original score (no provenance), later ones carry `provenance.author`. The original value is
+  the judge's verdict and the edited value is the human label.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+from pathlib import Path
+
+from judgekeeper.anchors import canonical_json
+from judgekeeper.records import HUMAN, LLM, RecordList, RecordsError, ScoreRecord
+from judgekeeper.textio import read_utf8
+
+DEFAULT_LABELS = {"C": "pass", "I": "fail"}
+# Stands in for a template or instructions the scorer leaves at Inspect's default.
+DEFAULT_PROMPT = "inspect_ai default for {name}"
+EVAL_NEEDS_EXTRA = ("{path}: reading .eval logs needs inspect_ai. Install the extra "
+                    "(pip install \"judgekeeper[inspect]\"), or run `inspect log dump {path} > "
+                    "log.json` first and import the .json.")
+
+
+def _load(path: Path) -> dict:
+    try:
+        from inspect_ai.log import read_eval_log
+    except ImportError:
+        read_eval_log = None
+    if read_eval_log is not None:
+        return read_eval_log(str(path)).model_dump(mode="json")
+    if path.suffix.lower() == ".eval":
+        raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path))
+    try:
+        return json.loads(read_utf8(path, RecordsError))
+    except json.JSONDecodeError as e:
+        raise RecordsError(f"{path}: not JSON ({e.msg})") from None
+
+
+def _model(config) -> tuple[str | None, float | None]:
+    if isinstance(config, list):
+        models = [c.get("model") for c in config if isinstance(c, dict)]
+        temps = {(c.get("config") or {}).get("temperature") for c in config
+                 if isinstance(c, dict)}
+        return "+".join(sorted(m for m in models if m)) or None, (
+            temps.pop() if len(temps) == 1 else None)
+    if isinstance(config, dict):
+        return config.get("model"), (config.get("config") or {}).get("temperature")
+    if isinstance(config, str):
+        return config, None
+    return None, None
+
+
+def _value(v) -> tuple[object, float | None]:
+    """(label, score) from a score value."""
+    if isinstance(v, bool):
+        return ("pass" if v else "fail"), None
+    if isinstance(v, int | float):
+        return None, None if math.isnan(v) else float(v)
+    if isinstance(v, str):
+        return v, None
+    return None, None  # dict or list values: no single verdict
+
+
+def scorer_prompt(name: str, options: dict) -> str:
+    """The grading prompt's identity: the scorer's template and instructions from
+    `eval.scorers[].options`, each standing in as Inspect's default for that scorer when unset.
+
+    Never the rendered prompt in `score.metadata.grading`: it holds each sample's text, so its
+    hash would differ per sample. With default instructions, `partial_credit` changes them.
+    """
+    default = DEFAULT_PROMPT.format(name=name)
+    parts = {"template": options.get("template") or default,
+             "instructions": options.get("instructions") or default}
+    if not options.get("instructions") and options.get("partial_credit"):
+        parts["partial_credit"] = True
+    return canonical_json(parts)
+
+
+def _human_edit(score: dict) -> tuple[dict, dict] | None:
+    """(original, last human edit) when the score was edited by a named author."""
+    history = [h for h in score.get("history") or [] if isinstance(h, dict)]
+    edits = [h for h in history if (h.get("provenance") or {}).get("author")]
+    if not history or not edits or history[0].get("provenance"):
+        return None
+    return history[0], edits[-1]
+
+
+def read_inspect(path: str | Path) -> RecordList:
+    """ScoreRecords from one Inspect AI log: one LLM record per scorer per sample and epoch."""
+    path = Path(path)
+    data = _load(path)
+    spec = data.get("eval") if isinstance(data, dict) else None
+    if not isinstance(spec, dict):
+        raise RecordsError(f"{path}: not an Inspect AI log (no eval)")
+    samples = data.get("samples")
+    if not samples:
+        raise RecordsError(f"{path}: the log has no samples (was it written with "
+                           "--no-log-samples?)")
+    created_at = spec.get("created")
+    grader_model, temperature = _model((spec.get("model_roles") or {}).get("grader"))
+    scorer_options = {s.get("name"): s.get("options") or {}
+                      for s in spec.get("scorers") or [] if isinstance(s, dict)}
+
+    records = RecordList(version=data.get("version"), label_map=DEFAULT_LABELS)
+    for sample in samples:
+        item_id = str(sample.get("id"))
+        epoch = sample.get("epoch")
+        output = (sample.get("output") or {}).get("completion")
+        content = {"input": sample.get("input"), "output": output}
+        for name, score in (sample.get("scores") or {}).items():
+            if not isinstance(score, dict):
+                continue
+            options = scorer_options.get(name) or {}
+            model, temp = grader_model, temperature
+            if model is None and options.get("model"):
+                model, temp = _model(options["model"])[0], None
+            evaluator = {}
+            if model:
+                evaluator["model"] = model
+                if "/" in model and "+" not in model:
+                    evaluator["provider"] = model.split("/", 1)[0]
+            if temp is not None:
+                evaluator["temperature"] = temp
+            evaluator["prompt"] = scorer_prompt(name, options)
+            edit = _human_edit(score)
+            judged = edit[0] if edit else score
+            label, value = _value(judged.get("value"))
+            records.append(ScoreRecord(
+                target_id=item_id, name=name, annotator_kind=LLM, label=label, score=value,
+                explanation=judged.get("explanation") or None, run=epoch, **content,
+                evaluator=evaluator, created_at=created_at))
+            if edit:
+                human_label, human_score = _value(score.get("value"))
+                provenance = edit[1]["provenance"]
+                records.append(ScoreRecord(
+                    target_id=item_id, name=name, annotator_kind=HUMAN, label=human_label,
+                    score=human_score, explanation=provenance.get("reason") or None, **content,
+                    created_at=provenance.get("timestamp")))
+    return records
