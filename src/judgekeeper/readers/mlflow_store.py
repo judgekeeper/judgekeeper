@@ -25,7 +25,8 @@ or `expectation`, `rationale`, `metadata`, `overrides`, `valid`.
   input (`table.derive_id`), unless `id_from` names a trace tag or request input key.
 - Fingerprint: model from `source.source_id` (`openai:/gpt-4.1-mini` gives provider
   `openai`); `mlflow.assessment.scorerName`/`scorerVersion` metadata as the rubric version.
-  The prompt lives in the scorer's own trace, which this reader does not fetch: prompt unknown.
+  The judge's prompt is not saved with the assessment, and scorer tracing is off by default,
+  so there is usually no trace of the judge's own call either: prompt unknown.
 """
 
 from __future__ import annotations
@@ -245,7 +246,7 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     if NO_RUN in judged:
         humans.notes.append("Some judge assessments carry no MLflow run id (logged outside "
                             "mlflow.genai.evaluate): they form one run, listed last.")
-    humans.notes.append("MLflow keeps the judge's prompt in the scorer's own trace, which "
-                        "this import does not read: prompt hash unknown.")
+    humans.notes.append("MLflow does not save the judge's prompt with its assessments: prompt "
+                        "hash unknown.")
     files.append(("human assessments", humans))
     return files

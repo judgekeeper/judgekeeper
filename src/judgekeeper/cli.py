@@ -146,6 +146,17 @@ def _error(message: str) -> None:
     _say(f"error: {scrub(message)}", file=sys.stderr)
 
 
+def _times(value: str) -> int:
+    """`start --times`: 1 to 5."""
+    try:
+        n = int(value)
+    except ValueError:
+        n = 0
+    if not 1 <= n <= 5:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a whole number from 1 to 5")
+    return n
+
+
 def _parser() -> argparse.ArgumentParser:
     p = _TopParser(prog="judgekeeper", description=MESSAGE)
     p.add_argument("--version", action=_Version, nargs=0)
@@ -379,8 +390,23 @@ def _parser() -> argparse.ArgumentParser:
     then.add_argument("--review", action="store_true",
                       help="after a result: review the answers where you and your judge "
                            "disagree (no AI call)")
+    then.add_argument("--ask-again", action="store_true",
+                      help="after a result: show the plan for asking your judge again about "
+                           "your labeled answers (calls, cost, key name); nothing is run yet")
     then.add_argument("--label-more", action="store_true",
                       help="after a result: open the labeling page to label more")
+    st.add_argument("--times", type=_times, default=2, metavar="N",
+                    help="asking again: how many times to ask about each answer, 1 to 5 "
+                         "(default 2)")
+    st.add_argument("--python", metavar="PATH",
+                    help="asking again: the Python you run your evals with (default: the "
+                         "active virtual environment, else the project's .venv or venv)")
+    st.add_argument("--fields", metavar="LIST",
+                    help="asking a DeepEval GEval judge again: the parts it reads, e.g. "
+                         "input,actual_output")
+    st.add_argument("--judge-command", metavar="CMD",
+                    help="asking again: your own judge as a command (one answer as JSON on "
+                         "stdin, the verdict on stdout, as --exec)")
     st.add_argument("--yes", action="store_true",
                     help="without a terminal, answer yes/no questions with the default (it "
                          "never picks a tool or a judge)")
@@ -723,7 +749,9 @@ def cmd_start(args) -> int:
     return run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
                pass_if=args.pass_if, label_map=args.label_map, judge_model=args.judge_model,
                yes=args.yes, port=args.port, no_browser=args.no_browser, new=args.new,
-               review=args.review, label_more=args.label_more)
+               review=args.review, label_more=args.label_more, ask_again=args.ask_again,
+               times=args.times, python=args.python, fields=args.fields,
+               judge_command=args.judge_command)
 
 
 def cmd_export(args) -> int:

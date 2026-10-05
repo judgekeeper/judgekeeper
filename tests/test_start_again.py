@@ -118,20 +118,21 @@ def test_the_same_results_offer_to_label_more(tmp_path, capsys, served, terminal
     ws = _checked(tmp_path, labeled=20)
     made = json.loads(ws.result_json.read_text())["made_at"][:10]
     queue = ws.data()["queue"]
-    terminal.append("1")
+    terminal.append("2")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "Your eval tool: promptfoo (results.json" in out
     labels = [q["group"] for q in queue[:20]]
     assert (f"Your last result ({made}): too few labels ({labels.count('pass')} Correct, "
             f"{labels.count('fail')} Wrong).") in out
-    assert "  1. Label more" in out
+    assert "  1. Ask your judge again about your 20 labeled answers" in out
+    assert "  2. Label more" in out
     assert len(served) == 1 and ws.data()["queue"] == queue
 
 
 def test_the_same_results_say_how_far_the_last_result_got(tmp_path, capsys, served, terminal):
     _checked(tmp_path, n_pass=20, n_fail=16)
-    terminal.append("2")
+    terminal.append("3")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "): rough check (20 Correct, 16 Wrong)." in out
@@ -139,10 +140,10 @@ def test_the_same_results_say_how_far_the_last_result_got(tmp_path, capsys, serv
 
 def test_nothing_for_now_stops(tmp_path, capsys, served, terminal):
     _checked(tmp_path)
-    terminal.append("2")
+    terminal.append("3")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and served == []
-    assert "  2. Nothing for now" in out
+    assert "  3. Nothing for now" in out
 
 
 # Re-check --------------------------------------------------------------------------------

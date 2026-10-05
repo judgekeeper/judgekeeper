@@ -34,7 +34,7 @@ judgekeeper import promptfoo results.json --metric helpfulness --labels labels.c
 
 - **A human rating overrides the row's `success` and `pass`.** judgekeeper never reads the judge verdict from them: it reads the model-graded component itself, and the human verdict from the `human` component.
 - **`--repeat` rows carry no repeat index.** promptfoo removes `__repeatIndex` before saving and gives every repeat its own `testIdx` (with the same `promptIdx` and identical vars), so `testIdx` does not identify a test. judgekeeper groups rows by item id and `promptIdx` and numbers the repeats in the order they appear in the file, always: the promptfoo reader does `--runs-by-order` by itself. A test's id is the same in every repeat (an id var, its description, or a hash of its vars). If your outputs differ between repeats (no provider cache), each item keeps the output of its first repeat, and the noise floor then includes the variation of your app as well as the judge's.
-- **The default grader is not recorded.** With no `provider` on the assertion, the test's `options` or `defaultTest.options`, promptfoo grades with its built-in default model and the results file does not say which. Those judgments get an unknown model and the report flags "default grader model not recorded by promptfoo". Set the grader explicitly:
+- **The default grader is not recorded.** With no `provider` on the assertion, the test's `options`, `defaultTest.options` or `defaultTest.provider` (the model under test, which promptfoo also uses as the judge when no grader is set), promptfoo grades with its built-in default model and the results file does not say which. Those judgments get an unknown model and the report flags "default grader model not recorded by promptfoo". Set the grader explicitly:
 
   ```yaml
   defaultTest:
@@ -46,5 +46,7 @@ judgekeeper import promptfoo results.json --metric helpfulness --labels labels.c
   ```
 
   The temperature is recorded only when the provider config carries it.
-- **The prompt hash** is the assertion's `value` (the rubric) plus `rubricPrompt` when set. A different rubric per test gives a different hash per judgment; the run header then records the prompt as unknown and says so.
+- **A grader set with `--grader`** is saved without its provider, only its model name. judgekeeper records that model, leaves the provider unknown and says so; it is not the default grader.
+- **The prompt hash** is the assertion's `value` (the rubric) plus `rubricPrompt` when set. For llm-rubric, promptfoo also saves the exact text it sent the grader (`renderedGradingPrompt`): with the answer and the test's vars put back as placeholders, that is the grading template, and when it is the same on every row its hash is the prompt hash, so a change in promptfoo's own grading prompt shows too. A different rubric per test gives a different hash per judgment; the run header then records the prompt as unknown and says so.
+- **Cached verdicts.** A verdict promptfoo replayed from its cache (`cachedResponse`) may be an old reply; the import says how many there are.
 - **Several output files** (`-o` from several evals) become separate runs, in the order given.

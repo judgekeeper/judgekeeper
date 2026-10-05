@@ -160,12 +160,19 @@ def test_conversational_test_cases_are_read_too(tmp_path):
     assert rec.explanation == "no refund offered"
 
 
-def test_provider_only_when_the_model_id_leaves_no_doubt():
+def test_the_provider_from_the_model_name():
     from judgekeeper.readers.deepeval import provider_of
 
     assert provider_of("claude-haiku-4-5-20251001") == "anthropic"
+    assert provider_of("claude-haiku-4-5 (Anthropic)") == "anthropic"
+    assert provider_of("my-deployment (Azure)") == "azure"
+    assert provider_of("gemini-2.5-flash (Gemini)") == "google"
+    assert provider_of("llama3.3 (Ollama)") == "ollama"
+    assert provider_of("grok-4.3 (Grok)") == "xai"
     assert provider_of("gpt-4.1") == "openai"
-    assert provider_of("gemini-2.5-flash") is None
+    # DeepEval builds an OpenAI model for any bare name
+    assert provider_of("gemini-2.5-flash") == "openai"
+    assert provider_of("my-model (Local Model)") is None
     assert provider_of(None) is None
 
 

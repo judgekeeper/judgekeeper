@@ -42,6 +42,7 @@ from judgekeeper import import_results
 from judgekeeper.anchors import canonical_json
 from judgekeeper.cli import main
 from judgekeeper.readers import read_inspect, read_promptfoo
+from judgekeeper.readers.promptfoo import grading_template
 from judgekeeper.records import derive_record_id
 from tests.conftest import FIXTURES
 
@@ -92,7 +93,15 @@ def test_real_promptfoo_repeats_become_runs(tmp_path, extra):
     fp = r["fingerprint"]
     assert fp["model"] == "exec: python3 grader.py"
     assert fp["provider"] == "exec"
-    assert fp["prompt_hash"] == sha("The answer is helpful.")
+    # the prompt hash is promptfoo's grading template (the saved grading prompt with the answer
+    # and vars put back as placeholders), the same on every row
+    row = json.loads((PF / "results.json").read_text())["results"]["results"][0]
+    (comp,) = [c for c in row["gradingResult"]["componentResults"]
+               if "renderedGradingPrompt" in (c.get("metadata") or {})]
+    template = grading_template(comp["metadata"]["renderedGradingPrompt"],
+                                row["response"]["output"], row["vars"])
+    assert "<Rubric>\\nThe answer is helpful.\\n</Rubric>" in template
+    assert fp["prompt_hash"] == sha(template)
 
 
 def test_real_promptfoo_derived_ids_hash_vars_only():

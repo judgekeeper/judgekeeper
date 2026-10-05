@@ -8,7 +8,8 @@ decides what happens.
 |                                     | answer, from the saved pool (no search)                |
 | a result, and the judge's verdicts  | the menu: review the disagreements, label more (a new  |
 | are the same as last time           | result replaces the old one, which goes to history/),  |
-|                                     | or nothing; --review and --label-more answer it        |
+|                                     | ask the judge again (the plan; not run yet), or        |
+|                                     | nothing; --review, --ask-again and --label-more answer |
 | a result, and new verdicts from the | a re-check: the saved labels against the new verdicts, |
 | same tool and judge name            | with the new pool's group sizes, next to the last one  |
 | anything, with --new                | moves it all (except baseline.json) to                 |
@@ -88,23 +89,30 @@ def _project(path: Path) -> Path:
 
 
 def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: bool,
-        then: str | None = None) -> int:
-    """`then` answers the menu after a result: "review" or "label"."""
+        then: str | None = None, again_options=None) -> int:
+    """`then` answers the menu after a result: "review", "ask" or "label"."""
     from judgekeeper import start, start_review
 
     ws = Workspace(_project(path)) if path.exists() else None
+    has_result = ws is not None and ws.result_json.is_file() and ws.start.is_file()
     if then == "review":
-        if ws is None or not ws.result_json.is_file() or not ws.start.is_file():
+        if not has_result:
             talk.say("There is no result to review yet. Run judgekeeper start to label first.")
             return start.EXIT_USAGE
         return start_review.run(ws, talk, port, open_browser)
+    if then == "ask":
+        if not has_result:
+            talk.say("There is no result to ask about yet. Run judgekeeper start to label "
+                     "first.")
+            return start.EXIT_USAGE
+        return _ask_again(ws, talk, again_options)
     if ws is not None and new:
         move_to_previous(ws, talk.say)
     elif ws is not None and ws.start.is_file():
         if not ws.result_json.is_file():
             return _unfinished(ws, talk, port, open_browser)
         found = start.find_judge(path, talk=talk, **options)
-        return _again(ws, found, talk, port, open_browser, then)
+        return _again(ws, found, talk, port, open_browser, then, again_options)
     found = start.find_judge(path, talk=talk, **options)
     return start.label_found(talk, found, port, open_browser)
 
@@ -133,9 +141,26 @@ def _saved_verdicts(ws: Workspace) -> dict[str, str]:
     return {i: r["verdict"] for i, r in records.items()}
 
 
-def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool) -> int:
-    """What next after a result: review the disagreements, label more, or nothing."""
-    from judgekeeper import start_review
+def _ask_again(ws: Workspace, talk, again_options) -> int:
+    """The plan for asking the judge again, with no call. Asking for real is not switched on
+    yet."""
+    from judgekeeper import again
+
+    plan = again.make_plan(ws, again_options, talk=talk, dry=True)
+    talk.say()
+    for line in again.plan_lines(plan):
+        talk.say(line)
+    if plan.status != again.CANT:
+        talk.say()
+        talk.say(again.NOT_YET)
+    return 0
+
+
+def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
+          again_options=None) -> int:
+    """What next after a result: review the disagreements, ask the judge again, label more,
+    or nothing."""
+    from judgekeeper import again, start_review
 
     last = json.loads(ws.result_json.read_text(encoding="utf-8"))
     labels = last.get("labels", {})
@@ -148,6 +173,9 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool) 
         text = (f"Review the {n} answer{'' if n == 1 else 's'} where you and your judge "
                 "disagree")
         options.append(("review", text, "(free)", "--review"))
+    if then is None:
+        plan = again.make_plan(ws, again_options, dry=False)
+        options.append(("ask", *again.menu_text(plan), "--ask-again"))
     options += [("label", "Label more", "", "--label-more"),
                 ("nothing", "Nothing for now", "", None)]
     if then is None:
@@ -161,13 +189,15 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool) 
         then = options[talk.choose("What next?", shown, hint, ask="Choose")][0]
     if then == "review":
         return start_review.run(ws, talk, port, open_browser)
+    if then == "ask":
+        return _ask_again(ws, talk, again_options)
     if then == "label":
         return _serve(ws, talk, port, open_browser)
     return 0
 
 
 def _again(ws: Workspace, found, talk, port: int, open_browser: bool,
-           then: str | None = None) -> int:
+           then: str | None = None, again_options=None) -> int:
     data = ws.data()
     last = json.loads(ws.result_json.read_text(encoding="utf-8"))
     if found.tool != data["tool"] or found.metric != data["metric"]:
@@ -178,11 +208,11 @@ def _again(ws: Workspace, found, talk, port: int, open_browser: bool,
         return 0
     same_judge = judge_change(data["fingerprint"], found.fingerprint) is None
     if same_judge and {a.id: a.verdict for a in found.pool.answers} == _saved_verdicts(ws):
-        return _menu(ws, talk, then, port, open_browser)
+        return _menu(ws, talk, then, port, open_browser, again_options)
     code = _recheck(ws, found, last, talk, port, open_browser)
     if code == 0 and ws.result_json.is_file() and ws.start.is_file() and (
             then is not None or start_interactive()):
-        return _menu(ws, talk, then, port, open_browser)
+        return _menu(ws, talk, then, port, open_browser, again_options)
     return code
 
 

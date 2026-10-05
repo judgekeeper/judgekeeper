@@ -62,8 +62,10 @@
 <h2 id="start-find-your-results-label-see-the-result">start: find your results, label, see the result</h2>
 <pre><code>judgekeeper start [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
                   [--pass-if RULE] [--label-map MAP] [--judge-model NAME]
-                  [--yes] [--new | --review | --label-more] [--no-browser] [--port N]</code></pre>
-<p>Finds the results your eval tool already saved, names your eval tool and your judge, opens a local page where you mark answers Correct or Wrong without seeing the judge's verdict, and shows how often the judge agrees with you. It makes no AI calls, reads no API key, never reads <code>.env</code> files, and never runs your app, your eval or your code.</p>
+                  [--yes] [--new | --review | --ask-again | --label-more] [--times N]
+                  [--python PATH] [--fields LIST] [--judge-command CMD]
+                  [--no-browser] [--port N]</code></pre>
+<p>Finds the results your eval tool already saved, names your eval tool and your judge, opens a local page where you mark answers Correct or Wrong without seeing the judge's verdict, and shows how often the judge agrees with you. It makes no AI calls and never reads an API key's value. It opens <code>.env</code> files only to show the plan for asking your judge again, and then keeps only the variable names. It never runs your app, your eval or your code.</p>
 <table>
 <thead><tr><th>Flag</th><th>What it does</th></tr></thead>
 <tbody>
@@ -77,7 +79,12 @@
 <tr><td><code>--yes</code></td><td>Without a terminal, answer every yes/no question with its default (open the page, continue, label anyway). It never picks between tools or judges</td></tr>
 <tr><td><code>--new</code></td><td>Start a new check: everything in <code>.judgekeeper/</code> except <code>baseline.json</code> moves to <code>.judgekeeper/previous-&lt;date&gt;/</code>. Nothing is deleted</td></tr>
 <tr><td><code>--review</code></td><td>After a result: review the answers where you and your judge disagree (below). Answers the menu</td></tr>
+<tr><td><code>--ask-again</code></td><td>After a result: show the plan for asking your judge again about your labeled answers (below). Answers the menu</td></tr>
 <tr><td><code>--label-more</code></td><td>After a result: open the labeling page to label more. Answers the menu</td></tr>
+<tr><td><code>--times N</code></td><td>Asking again: how many times each answer is asked about, 1 to 5 (default 2)</td></tr>
+<tr><td><code>--python PATH</code></td><td>Asking again: the Python you run your evals with, for DeepEval, Inspect AI and MLflow (default: the active virtual environment, else the project's <code>.venv</code> or <code>venv</code>, else the Python running judgekeeper)</td></tr>
+<tr><td><code>--fields LIST</code></td><td>Asking a DeepEval GEval judge again: the parts it reads, e.g. <code>input,actual_output</code> (DeepEval does not save them)</td></tr>
+<tr><td><code>--judge-command CMD</code></td><td>Asking again: your own judge as a command, with the <code>--exec</code> contract (one answer as JSON on stdin, the verdict on stdout). Also for a judge that can't be asked again otherwise</td></tr>
 <tr><td><code>--no-browser</code></td><td>Print the labeling page's link instead of opening a browser</td></tr>
 <tr><td><code>--port N</code></td><td>Port on 127.0.0.1 for the labeling page (default 8765)</td></tr>
 </tbody>
@@ -118,11 +125,13 @@
 <tbody>
 <tr><td>Nothing</td><td>Everything above</td></tr>
 <tr><td>Labeling not finished</td><td>"Continue?": the page opens at the next answer</td></tr>
-<tr><td>A result, and the same results</td><td>A menu: review the disagreements, label more (a new result replaces the old one, which goes to <code>history/</code>), or nothing. <code>--review</code> and <code>--label-more</code> answer it</td></tr>
+<tr><td>A result, and the same results</td><td>A menu: review the disagreements, ask your judge again, label more (a new result replaces the old one, which goes to <code>history/</code>), or nothing. <code>--review</code>, <code>--ask-again</code> and <code>--label-more</code> answer it</td></tr>
 <tr><td>A result, and new results from the same tool and judge</td><td>A re-check: your saved labels against the judge's new verdicts, shown next to the last result, after saying whether the judge's model, prompt or temperature changed. When fewer than 15 Correct or 15 Wrong of your labeled answers are in the new results unchanged, it offers to label the new results instead</td></tr>
 </tbody>
 </table>
 <p><strong>Reviewing the disagreements</strong> (no AI call). First you look again at every answer where you and your judge disagree, mixed with as many answers you agreed on (at least 3), with the judge's verdict still hidden: Correct, Wrong or Not sure. Then you see what the judge said on each disagreement, with its reason, and mark it: the judge was wrong, I slipped, or the rule is unclear. Your labels in <code>labels.csv</code> never change and stay the main result; the result adds a few lines with the numbers your second-look labels would give and what you called after seeing the judge.</p>
+<p><strong>Asking your judge again.</strong> judgekeeper can have your own eval tool grade the answers you labeled again, with your own judge; your app is not run. Before anything runs it shows a plan, with no API call: the judge, and whether it is exactly your judge, a close copy (and what differs) or can't be asked again (and why); which key your tool will read, by name only (judgekeeper reads the names in <code>.env</code> files, never their values); setting variables that change the judge (<code>OPENAI_TEMPERATURE</code>, <code>*_MAX_TOKENS</code>, <code>*_BASE_URL</code>, ...); the judge calls (labeled answers × times × calls per answer for that judge type); a cost range at prices dated in judgekeeper (<code>prices.py</code>; never fetched); and what the run touches. For DeepEval, Inspect AI and MLflow, a small script judgekeeper ships runs with your Python to build your judge and check it, with no call. In this version the plan is shown and nothing is run.</p>
+<p><strong>When promptfoo's results are only in its database</strong>, at a terminal <code>start</code> offers to run <code>promptfoo export eval latest</code> for you (no AI call; promptfoo's telemetry, update check and logs off). The file is checked against this project's promptfoo config (its description, else its prompts): a run from another project is deleted with a note on how to find yours; otherwise it is saved as <code>promptfoo-results.json</code> and <code>start</code> carries on.</p>
 <p><strong>Without a terminal</strong> (a script, CI, a coding agent) it never asks. It prints what it found and the flag that answers the question, and exits 2; <code>--yes</code> takes the defaults. Labeling needs a person: in CI, <code>start</code> can only find and report. Exit codes: 0 done (also when you stop early), 1 a runtime failure, 2 a usage error or a question that needs an answer.</p>
 <h2 id="init-a-starter-rule-file">init: a starter rule file</h2>
 <pre><code>judgekeeper init [--out prompts/judge.md] [--pairwise] [--force]</code></pre>

@@ -27,10 +27,12 @@ Every command, file format, flag, exit code and config key. The README has the s
 ```
 judgekeeper start [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
                   [--pass-if RULE] [--label-map MAP] [--judge-model NAME]
-                  [--yes] [--new | --review | --label-more] [--no-browser] [--port N]
+                  [--yes] [--new | --review | --ask-again | --label-more] [--times N]
+                  [--python PATH] [--fields LIST] [--judge-command CMD]
+                  [--no-browser] [--port N]
 ```
 
-Finds the results your eval tool already saved, names your eval tool and your judge, opens a local page where you mark answers Correct or Wrong without seeing the judge's verdict, and shows how often the judge agrees with you. It makes no AI calls, reads no API key, never reads `.env` files, and never runs your app, your eval or your code.
+Finds the results your eval tool already saved, names your eval tool and your judge, opens a local page where you mark answers Correct or Wrong without seeing the judge's verdict, and shows how often the judge agrees with you. It makes no AI calls and never reads an API key's value. It opens `.env` files only to show the plan for asking your judge again, and then keeps only the variable names. It never runs your app, your eval or your code.
 
 | Flag | What it does |
 |---|---|
@@ -44,7 +46,12 @@ Finds the results your eval tool already saved, names your eval tool and your ju
 | `--yes` | Without a terminal, answer every yes/no question with its default (open the page, continue, label anyway). It never picks between tools or judges |
 | `--new` | Start a new check: everything in `.judgekeeper/` except `baseline.json` moves to `.judgekeeper/previous-<date>/`. Nothing is deleted |
 | `--review` | After a result: review the answers where you and your judge disagree (below). Answers the menu |
+| `--ask-again` | After a result: show the plan for asking your judge again about your labeled answers (below). Answers the menu |
 | `--label-more` | After a result: open the labeling page to label more. Answers the menu |
+| `--times N` | Asking again: how many times each answer is asked about, 1 to 5 (default 2) |
+| `--python PATH` | Asking again: the Python you run your evals with, for DeepEval, Inspect AI and MLflow (default: the active virtual environment, else the project's `.venv` or `venv`, else the Python running judgekeeper) |
+| `--fields LIST` | Asking a DeepEval GEval judge again: the parts it reads, e.g. `input,actual_output` (DeepEval does not save them) |
+| `--judge-command CMD` | Asking again: your own judge as a command, with the `--exec` contract (one answer as JSON on stdin, the verdict on stdout). Also for a judge that can't be asked again otherwise |
 | `--no-browser` | Print the labeling page's link instead of opening a browser |
 | `--port N` | Port on 127.0.0.1 for the labeling page (default 8765) |
 
@@ -85,10 +92,14 @@ From the newest results it builds the pool: every answer with a clear pass or fa
 |---|---|
 | Nothing | Everything above |
 | Labeling not finished | "Continue?": the page opens at the next answer |
-| A result, and the same results | A menu: review the disagreements, label more (a new result replaces the old one, which goes to `history/`), or nothing. `--review` and `--label-more` answer it |
+| A result, and the same results | A menu: review the disagreements, ask your judge again, label more (a new result replaces the old one, which goes to `history/`), or nothing. `--review`, `--ask-again` and `--label-more` answer it |
 | A result, and new results from the same tool and judge | A re-check: your saved labels against the judge's new verdicts, shown next to the last result, after saying whether the judge's model, prompt or temperature changed. When fewer than 15 Correct or 15 Wrong of your labeled answers are in the new results unchanged, it offers to label the new results instead |
 
 **Reviewing the disagreements** (no AI call). First you look again at every answer where you and your judge disagree, mixed with as many answers you agreed on (at least 3), with the judge's verdict still hidden: Correct, Wrong or Not sure. Then you see what the judge said on each disagreement, with its reason, and mark it: the judge was wrong, I slipped, or the rule is unclear. Your labels in `labels.csv` never change and stay the main result; the result adds a few lines with the numbers your second-look labels would give and what you called after seeing the judge.
+
+**Asking your judge again.** judgekeeper can have your own eval tool grade the answers you labeled again, with your own judge; your app is not run. Before anything runs it shows a plan, with no API call: the judge, and whether it is exactly your judge, a close copy (and what differs) or can't be asked again (and why); which key your tool will read, by name only (judgekeeper reads the names in `.env` files, never their values); setting variables that change the judge (`OPENAI_TEMPERATURE`, `*_MAX_TOKENS`, `*_BASE_URL`, ...); the judge calls (labeled answers × times × calls per answer for that judge type); a cost range at prices dated in judgekeeper (`prices.py`; never fetched); and what the run touches. For DeepEval, Inspect AI and MLflow, a small script judgekeeper ships runs with your Python to build your judge and check it, with no call. In this version the plan is shown and nothing is run.
+
+**When promptfoo's results are only in its database**, at a terminal `start` offers to run `promptfoo export eval latest` for you (no AI call; promptfoo's telemetry, update check and logs off). The file is checked against this project's promptfoo config (its description, else its prompts): a run from another project is deleted with a note on how to find yours; otherwise it is saved as `promptfoo-results.json` and `start` carries on.
 
 **Without a terminal** (a script, CI, a coding agent) it never asks. It prints what it found and the flag that answers the question, and exits 2; `--yes` takes the defaults. Labeling needs a person: in CI, `start` can only find and report. Exit codes: 0 done (also when you stop early), 1 a runtime failure, 2 a usage error or a question that needs an answer.
 

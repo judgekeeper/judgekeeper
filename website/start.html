@@ -98,7 +98,7 @@ Open the labeling page now? [Y/n]</code></pre>
     <ul>
       <li>No AI calls, and no API key. Everything comes from files your tools already saved.</li>
       <li>It never runs your app, your eval or your code.</li>
-      <li>It never reads <code>.env</code> files or your keys, and it never looks outside your project folder.</li>
+      <li>It never reads your keys. Only to show the plan for asking your judge again does it look at the variable names in <code>.env</code> files, never their values. It never looks outside your project folder.</li>
       <li>It never reads promptfoo&#39;s own database. If promptfoo kept the results there, judgekeeper prints the <code>promptfoo export</code> command that writes them to a file, and you run it.</li>
       <li>It never changes your <code>.gitignore</code>.</li>
     </ul>

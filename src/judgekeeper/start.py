@@ -128,6 +128,18 @@ class Talk:
             if answer in ("y", "yes", "n", "no"):
                 return answer.startswith("y")
 
+    def ask(self, question: str, default: str) -> str | None:
+        """A short text answer at a terminal (Enter takes `default`); None without one."""
+        if not _interactive():
+            return None
+        return self._input(f"{question} [{default}] ") or default
+
+    def ask_yes(self, question: str) -> bool:
+        """A yes/no confirmation at a terminal, default yes; False without one."""
+        if not _interactive():
+            return False
+        return self.confirm(question, default=True, hint=question, with_yes=False)
+
     def _input(self, prompt: str) -> str:
         try:
             return input(printable(prompt)).strip()
@@ -360,11 +372,10 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     talk.say(POINT_ME)
 
 
-def _promptfoo_export(talk: Talk, config: str) -> None:
-    talk.say(f"{tick()} Your eval tool: promptfoo ({config})")
+def _promptfoo_export(talk: Talk) -> None:
+    """The commands that write promptfoo's last run to a file."""
     for line in (
-        "  No promptfoo results file in this folder. promptfoo keeps them in its own",
-        "  database. Write your last run to a file (this runs nothing and costs nothing):",
+        "  Write your last run to a file (this runs nothing and costs nothing):",
         "",
         "    promptfoo list evals -n 10",
         "    promptfoo export eval <eval id from that list> -o promptfoo-results.json",
@@ -376,6 +387,22 @@ def _promptfoo_export(talk: Talk, config: str) -> None:
         "  Then run judgekeeper start again.",
     ):
         talk.say(line)
+
+
+def _export(talk: Talk, path: Path, tool: str | None, root: Path, config: str):
+    """promptfoo results only in promptfoo's database: offer to export them (start_export),
+    then carry on with the file; else print the export commands and stop."""
+    from judgekeeper import start_export
+
+    talk.say(f"{tick()} Your eval tool: promptfoo ({config})")
+    talk.say("  No promptfoo results file in this folder. promptfoo keeps them in its own "
+             "database.")
+    outcome = start_export.offer(talk, root)
+    if outcome == "done":
+        return _locate(talk, path, tool)
+    if outcome == "commands":
+        _promptfoo_export(talk)
+    raise Stop(EXIT_OK)
 
 
 def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, dict]:
@@ -406,16 +433,14 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
             if any(r.tool == tool for r in found.too_big()):
                 raise Stop(EXIT_USAGE)
             if tool == "promptfoo" and "promptfoo" in found.signs:
-                _promptfoo_export(talk, found.signs["promptfoo"][0])
-                raise Stop(EXIT_OK)
+                return _export(talk, path, tool, root, found.signs["promptfoo"][0])
             raise StartError(f"No saved {find.NAMES[tool]} results found in {root}.")
         available = [tool]
     if not available:
         if found.too_big():  # said above, with how to read them anyway
             raise Stop(EXIT_USAGE)
         if "promptfoo" in found.signs:
-            _promptfoo_export(talk, found.signs["promptfoo"][0])
-            raise Stop(EXIT_OK)
+            return _export(talk, path, tool, root, found.signs["promptfoo"][0])
         _nothing_found(talk, root, found.signs)
         raise Stop(EXIT_USAGE)
     by_date = {t: sorted(found.readable(t), key=lambda r: r.date(), reverse=True)
@@ -729,19 +754,27 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         experiment: str | None = None, pass_if: str | None = None,
         label_map: str | None = None, judge_model: str | None = None,
         yes: bool = False, port: int = 8765, no_browser: bool = False,
-        new: bool = False, review: bool = False, label_more: bool = False) -> int:
+        new: bool = False, review: bool = False, label_more: bool = False,
+        ask_again: bool = False, times: int = 2, python: str | None = None,
+        fields: str | None = None, judge_command: str | None = None) -> int:
     """`judgekeeper start`: say what was found, then open the labeling page and make the
     result. What is already saved in `.judgekeeper/` decides where it starts (start_again).
-    `review` and `label_more` answer the menu shown after a result. Returns the exit code."""
+    `review`, `ask_again` and `label_more` answer the menu shown after a result; `times`,
+    `python`, `fields` and `judge_command` shape asking the judge again. Returns the exit
+    code."""
     from judgekeeper import start_again
+    from judgekeeper.again import AgainOptions
 
     talk = Talk(yes=yes)
+    again_options = AgainOptions(times=times, python=python, fields=fields,
+                                 judge_command=judge_command, judge_model=judge_model)
     options = {"tool": tool, "metric": metric, "experiment": experiment, "pass_if": pass_if,
                "label_map": label_map, "judge_model": judge_model}
     try:
-        then = "review" if review else "label" if label_more else None
+        then = "review" if review else "ask" if ask_again else "label" if label_more else None
         return start_again.run(Path(path), talk, options, port=port,
-                               open_browser=not no_browser, new=new, then=then)
+                               open_browser=not no_browser, new=new, then=then,
+                               again_options=again_options)
     except Stop as stop:
         return stop.code
 

@@ -12,8 +12,17 @@ Traps handled here:
   each repeat gets its own `testIdx`, with the same `promptIdx` and identical vars. Rows are
   grouped by item id and promptIdx and numbered in order of appearance; a derived id hashes
   vars only, so the repeats of one test share it even when their outputs differ.
-- With no `provider` on the assertion, the test or `defaultTest`, promptfoo used its built-in
-  default grader and the file does not say which model that was.
+- The grader is the assertion's `provider`, then the test's or `defaultTest`'s
+  `options.provider`, then `defaultTest.provider` (the model under test, which promptfoo
+  also uses as the judge when no grader is set). With none of them, promptfoo used its
+  built-in default grader and the file does not say which model that was.
+- A grader set with `--grader` is saved as an object with no `id`, only a `modelName`: its
+  model is known, its provider is not. It is not the default grader.
+- llm-rubric saves the exact text it sent (`metadata.renderedGradingPrompt`). With the answer
+  and the test's vars put back as placeholders it is the grading template, which also changes
+  when promptfoo changes its own grading prompt; when every judged row of a metric gives the
+  same template, its hash is the prompt hash. The rule shown to the person stays the rubric.
+- `metadata.cachedResponse` marks a verdict promptfoo replayed from its cache: a warning.
 - promptfoo's PROMPTFOO_STRIP_RESPONSE_OUTPUT, PROMPTFOO_STRIP_TEST_VARS and
   PROMPTFOO_STRIP_GRADING_RESULT settings remove the answers, the inputs or the grading from
   every row, in `eval -o` and `export` files alike. When most rows lack one of them, the file
@@ -23,6 +32,7 @@ Traps handled here:
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -48,6 +58,10 @@ MODEL_GRADED = frozenset({
 DEFAULT_GRADER = ("default grader model not recorded by promptfoo: {n} judgments had no grader "
                   "provider on the assertion, the test or defaultTest, so promptfoo used its "
                   "built-in default grader; its model is recorded as unknown.")
+SET_GRADER = ("{n} judgments were graded by a grader set with --grader (provider unknown): "
+              "promptfoo saves only its model name.")
+CACHED = ("{n} judgments in {file} came from promptfoo's cache: they may be old replies, not "
+          "fresh verdicts.")
 
 
 STRIPPED = ("The {what} are missing from {file}. promptfoo leaves them out when {setting} is "
@@ -116,19 +130,55 @@ def _options(obj) -> dict:
 
 
 def _provider(value) -> dict:
-    """{provider, model, temperature} from a promptfoo provider: an id or {id, config}."""
+    """{provider, model, temperature} from a promptfoo provider: an id or {id, config}; a
+    grader set with --grader ({modelName, config}, no id) gives its model alone."""
     if isinstance(value, dict) and "id" not in value and isinstance(value.get("text"), dict | str):
         value = value["text"]  # {text: ..., embedding: ...}
     if isinstance(value, str):
         pid, config = value, {}
     elif isinstance(value, dict) and isinstance(value.get("id"), str):
         pid, config = value["id"], value.get("config") or {}
+    elif is_set_grader(value):
+        ev = {"model": value["modelName"]}
+        config = value.get("config") or {}
+        if isinstance(config, dict) and config.get("temperature") is not None:
+            ev["temperature"] = config["temperature"]
+        return ev
     else:
         return {}
     ev = {"provider": pid.split(":", 1)[0], "model": pid}
     if isinstance(config, dict) and config.get("temperature") is not None:
         ev["temperature"] = config["temperature"]
     return ev
+
+
+def is_set_grader(value) -> bool:
+    """A grader set with `promptfoo eval --grader`: saved with a modelName and no id."""
+    return (isinstance(value, dict) and "id" not in value
+            and isinstance(value.get("modelName"), str) and bool(value["modelName"]))
+
+
+def grader_of(assertion: dict, test_options: dict, default_test: dict):
+    """The grader one model-graded assertion used, as the file holds it, or None for
+    promptfoo's default grader."""
+    return (assertion.get("provider") or test_options.get("provider")
+            or _options(default_test).get("provider") or default_test.get("provider")
+            or None)
+
+
+def grading_template(rendered: str, output, variables) -> str:
+    """A rendered grading prompt with the answer and the test's vars put back as placeholders.
+    The prompt is usually JSON (chat messages), so each value is also looked for as it reads
+    inside a JSON string. Longest values first, so a value inside another stays."""
+    values = [("output", output)] + list((variables or {}).items())
+    values = [(k, v if isinstance(v, str) else canonical_json(v)) for k, v in values
+              if v is not None]
+    for name, value in sorted(values, key=lambda kv: len(kv[1]), reverse=True):
+        if not value:
+            continue
+        for form in (json.dumps(value)[1:-1], value):
+            rendered = rendered.replace(form, f"{{{{{name}}}}}")
+    return rendered
 
 
 def _ids(rows: list[dict], id_var: str | None, path: Path) -> tuple[list[str], bool]:
@@ -172,7 +222,8 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
     data = _load(path)
     summary = data["results"]
     rows = [r for r in summary["results"] if isinstance(r, dict)]
-    default_opts = _options((data.get("config") or {}).get("defaultTest"))
+    default_test = (data.get("config") or {}).get("defaultTest") or {}
+    default_test = default_test if isinstance(default_test, dict) else {}
     created_at = summary.get("timestamp")
     stripped = _stripped(rows)
     if "grading" in stripped:
@@ -183,6 +234,9 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                          warnings=[stripped_message(part, path) for part in stripped])
     seen: Counter = Counter()
     n_default: Counter = Counter()  # judgments by the default grader, per metric name
+    n_set: Counter = Counter()  # judgments by a grader set with --grader, per metric name
+    templates: dict[str, list] = defaultdict(list)  # metric -> (record, template or None)
+    n_cached = 0
     for r, item_id in zip(rows, ids):
         seen[(item_id, r.get("promptIdx"))] += 1
         run = seen[(item_id, r.get("promptIdx"))]
@@ -209,21 +263,42 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
             if per_row[name] > 1:
                 raise RecordsError(f"{path}: test {r.get('testIdx')} has more than one {name!r} "
                                    "component; name them with metric: in each assertion")
-            evaluator = _provider(a.get("provider") or test_opts.get("provider")
-                                  or default_opts.get("provider"))
+            grader = grader_of(a, test_opts, default_test)
+            evaluator = _provider(grader)
             if not evaluator:
                 n_default[name] += 1
+            elif is_set_grader(grader):
+                n_set[name] += 1
+            metadata = c.get("metadata") if isinstance(c.get("metadata"), dict) else {}
+            n_cached += metadata.get("cachedResponse") is True
             rubric_prompt = (a.get("rubricPrompt") or test_opts.get("rubricPrompt")
-                             or default_opts.get("rubricPrompt"))
+                             or _options(default_test).get("rubricPrompt"))
             prompt = _text(a.get("value"))
             if rubric_prompt:
                 prompt = f"{prompt or ''}\n\n{_text(rubric_prompt)}"
             if prompt is not None:
                 evaluator["prompt"] = prompt
-            records.append(ScoreRecord(
+            record = ScoreRecord(
                 target_id=item_id, name=name, annotator_kind=LLM, label=label,
                 score=c.get("score"), explanation=c.get("reason") or None, run=run, **content,
-                evaluator=evaluator, created_at=created_at))
-    records.per_metric = {name: {"warnings": [DEFAULT_GRADER.format(n=n)]}
-                          for name, n in n_default.items()}
+                evaluator=evaluator, created_at=created_at)
+            records.append(record)
+            rendered = metadata.get("renderedGradingPrompt")
+            templates[name].append((record, grading_template(
+                rendered, (r.get("response") or {}).get("output"), r.get("vars"))
+                if isinstance(rendered, str) else None))
+    for judged in templates.values():
+        found = {t for _, t in judged}
+        if len(found) == 1 and None not in found:
+            digest = hashlib.sha256(found.pop().encode("utf-8")).hexdigest()
+            for record, _ in judged:
+                record.evaluator["prompt_hash"] = digest
+    if n_cached:
+        records.warnings.append(CACHED.format(n=n_cached, file=path.name))
+    per_metric: dict[str, dict] = defaultdict(lambda: {"warnings": []})
+    for name, n in n_default.items():
+        per_metric[name]["warnings"].append(DEFAULT_GRADER.format(n=n))
+    for name, n in n_set.items():
+        per_metric[name]["warnings"].append(SET_GRADER.format(n=n))
+    records.per_metric = dict(per_metric)
     return records
