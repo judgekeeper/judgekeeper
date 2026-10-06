@@ -24,8 +24,7 @@ PAGES = {  # source stem: (target page, title, description, who the page is for)
                    "when you have no judge yet, or want to write your own rule"),
     "assistant": ("assistant.html", "With a coding assistant",
                   "Hand the whole job to a coding assistant: install the skill or paste one prompt.",
-                  ("handing the whole job to a coding assistant, with the skill or the long "
-                   "prompt below, also when your judge has saved no results yet")),
+                  "handing the whole job to a coding assistant, with the skill or one prompt"),
 }
 NEW_HERE = ('<p class="newhere">New here? Start with the <a href="start.html">Guide</a>. '
             "This page is for {who}.</p>\n")

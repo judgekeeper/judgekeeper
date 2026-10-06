@@ -257,7 +257,7 @@ pre.output .em { color: #FFFFFF; font-weight: 600; }
 .stop h2 { font-size: 1.85rem; margin: 0; }
 .stop .why { color: var(--ink-2); margin: 4px 0 18px 54px; max-width: 40em; }
 .trio { margin-left: 54px; }
-.trio > p { max-width: 42em; }
+.trio > p:not(.boxlabel) { max-width: 42em; }
 .doors { margin-left: 54px; }
 .doors details, .detail { border: 1px solid var(--rule); border-radius: 12px; background: var(--sheet); margin-bottom: 8px; }
 .doors summary, .detail summary { cursor: pointer; padding: 14px 16px; font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
@@ -424,7 +424,7 @@ details.callout summary { cursor: pointer; }
 .doc th, .doc td { border: 1px solid var(--rule); padding: 6px 9px; text-align: left; vertical-align: top; }
 .doc pre { background: var(--code-bg); color: var(--code-ink); border-radius: 12px; padding: 14px 16px; overflow-x: auto; font: 0.88rem/1.6 var(--mono); }
 .doc pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
-.doc .code pre { padding-right: 76px; }
+.doc .code pre { padding: 42px 16px 14px; font-size: 0.84rem; }
 .doc h2 { margin-top: 1.6em; padding-top: 0.6em; border-top: 1px solid var(--rule); font-size: clamp(1.4rem, 3vw, 1.9rem); }
 main.wrap > h1:first-of-type, .doc > h1 { margin-top: 0.6em; }
 

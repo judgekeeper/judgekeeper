@@ -95,7 +95,9 @@ def test_the_prompt_carries_the_key_rule():
     assert "environment variables" in text
     assert "never write a key" in text
     assert "ANTHROPIC_API_KEY" in _read(PROMPT)
-    assert not re.search(r"sk-[A-Za-z0-9]", _read(PROMPT))
+    # A key starts a word ("sk-ant-..."); --ask-again holds the same letters mid-word.
+    assert not re.search(r"(?<![\w-])sk-[A-Za-z0-9]", _read(PROMPT))
+    assert re.search(r"(?<![\w-])sk-[A-Za-z0-9]", "export KEY=sk-ant-abc")
 
 
 def test_the_prompt_carries_the_call_count_rule():
@@ -108,7 +110,7 @@ def test_the_prompt_says_the_page_opens_only_with_the_token_link():
     """The link changes on every start and carries a token, so the human needs the exact one
     the command printed: from their own terminal, or handed over by the assistant."""
     step = _flat(_read(PROMPT))
-    step = step[step.index("4. open the labeling page"):step.index("5. freeze")]
+    step = step[step.index("4. open the labeling page"):step.index("5. tell me the result")]
     assert "prints a link that includes a token" in step
     assert "the page opens only with that full link" in step
     assert "the link changes each time the command starts" in step
@@ -121,7 +123,8 @@ def test_the_prompt_asks_what_pass_means_before_labeling():
     text = _flat(_read(PROMPT))
     assert "say in one sentence what pass means before i label" in text
     assert "not the judge's" in text
-    assert text.index("what pass means before i label") < text.index("`judgekeeper label ")
+    assert text.index("what pass means before i label") < text.index(
+        "`judgekeeper start --yes --no-browser`")
 
 
 def test_the_prompt_starts_with_the_install():
@@ -131,15 +134,28 @@ def test_the_prompt_starts_with_the_install():
     assert "judgekeeper demo" not in text
 
 
-def test_the_prompt_covers_every_step():
+def test_the_prompt_follows_todays_path():
+    """Install inside the project, start to see what it found, setup or record() when it finds
+    nothing, the person labels, then the result and what comes next."""
     text = _read(PROMPT)
     flat = _flat(text)
-    assert {"init", "label", "import-labels", "judge", "validate",
-            "check"} <= _subcommands(_commands(text))
-    assert "30 to 60" in flat
-    assert "--runs 3" in text
-    assert "there is none" in flat or "there is no judge" in flat  # then: offer init
+    found = _commands(text)
+    assert {"start", "setup", "record"} <= _subcommands(found)
+    starts = [argv for _, argv in found if argv[:1] == ["start"]]
+    for flags in (["--yes", "--no-browser"], ["--review"], ["--ask-again"],
+                  ["--try-new-judge"]):
+        assert ["start", *flags] in starts, flags
+    assert flat.index("`judgekeeper start`") < flat.index("`judgekeeper setup`") < flat.index(
+        "`judgekeeper start --yes --no-browser`")
+    assert "show me its questions instead of answering them for me" in flat
+    assert "there is no judge" in flat
     assert "stop and ask" in flat
+    assert "never pass `--allow-calls`" in flat and "i answer that question myself" in flat
+    # The older commands only as a short note at the end, never as steps.
+    advanced = flat[flat.index("advanced, only if i ask"):]
+    assert "tutorial.html" in advanced
+    for name in ("label", "judge", "validate"):
+        assert f"`judgekeeper {name} " not in text, name
 
 
 def test_the_prompt_reports_in_plain_words_and_never_agreement_alone():
@@ -153,7 +169,7 @@ def test_the_prompt_reports_in_plain_words_and_never_agreement_alone():
 
 def test_every_command_in_the_prompt_parses():
     found = _commands(_read(PROMPT))
-    assert len(found) >= 8
+    assert len(found) >= 7
     _check_parses(found, "docs/assistant-prompt.md")
 
 
