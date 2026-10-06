@@ -499,14 +499,23 @@ def file_warnings(name: str, records: list[ScoreRecord], n_big: int) -> list[str
     return out
 
 
-def read_records(path: str | Path, column_map: str | dict | None = None) -> RecordList:
+CUT_END = "the last line was cut short and was left out"
+
+
+def read_records(path: str | Path, column_map: str | dict | None = None,
+                 cut_end_ok: bool = False) -> RecordList:
     """ScoreRecords from a JSONL, CSV or TSV file. `column_map` renames source columns.
 
     A record judgekeeper cannot read stops with its line number (`import records --check`
     lists every problem). A newer version of the format, or a record over 1 MB, adds one
-    warning."""
+    warning. With `cut_end_ok`, a last line that is not whole JSON (the writing program
+    stopped in the middle of it) is left out, with CUT_END in the notes."""
     path = Path(path)
     rows, cells = source_rows(path)
+    cut = cut_end_ok and bool(rows) and isinstance(rows[-1][1], str) and \
+        rows[-1][1].startswith("not valid JSON")
+    if cut:
+        rows = rows[:-1]
     mapping = parse_map(column_map)
     check_map(mapping, rows, path)
     records = RecordList()
@@ -525,6 +534,8 @@ def read_records(path: str | Path, column_map: str | dict | None = None) -> Reco
         n_big += size > BIG
         records.append(rec)
     records.warnings += file_warnings(path.name, records, n_big)
+    if cut:
+        records.notes.append(CUT_END)
     return records
 
 

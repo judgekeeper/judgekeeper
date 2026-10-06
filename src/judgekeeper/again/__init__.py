@@ -232,6 +232,11 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
         elif data["tool"] in planners:
             plan = planners[data["tool"]](source, answers, opts, talk, dry,
                                           new=new is not None)
+        elif data["tool"] == "records":
+            plan = cant("records", data["judge"],
+                        "your judge's verdicts were saved by judgekeeper.record() in your own "
+                        "code, and judgekeeper can't run the judge that made them",
+                        short="your judge's verdicts were saved by judgekeeper.record()")
         else:
             plan = cant(data["tool"], data["judge"],
                         "your judge's verdicts are a table, and judgekeeper can't run the "

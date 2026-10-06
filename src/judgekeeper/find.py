@@ -8,7 +8,8 @@ inside the folder. It never opens a `.env` file.
 The rules:
 - Skip `.git`, `node_modules`, virtual environments, package folders, `__pycache__`,
   `.judgekeeper` and every other hidden folder except `.deepeval`. Never follow a symbolic
-  link, to a file or a folder.
+  link, to a file or a folder. The one place read inside `.judgekeeper` is `records/`, where
+  `judgekeeper.record()` writes the judge's verdicts (`*.jsonl`).
 - Look in the known places first (the folder itself, `.deepeval/`, `logs/`, the folders the
   variables name), then walk to a depth of four folders. Stop after MAX_FILES files or
   MAX_SECONDS seconds and say so.
@@ -31,9 +32,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-TOOLS = ("promptfoo", "deepeval", "inspect", "mlflow", "table")
-NAMES = {"promptfoo": "promptfoo", "deepeval": "DeepEval", "inspect": "Inspect AI",
-         "mlflow": "MLflow", "table": "a plain table"}
+TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
+NAMES = {"records": "judgekeeper.record()", "promptfoo": "promptfoo", "deepeval": "DeepEval",
+         "inspect": "Inspect AI", "mlflow": "MLflow", "table": "a plain table"}
 EXTRAS = {"inspect": "inspect", "mlflow": "mlflow"}
 
 MAX_FILES = 5000
@@ -47,6 +48,7 @@ TABLE_DEPTH = 2
 SKIP_DIRS = frozenset({".git", "node_modules", ".venv", "venv", "site-packages",
                        "dist-packages", "__pycache__", ".judgekeeper"})
 HIDDEN_KEPT = ".deepeval"
+RECORDS_DIR = Path(".judgekeeper") / "records"  # where judgekeeper.record() writes
 PROMPTFOO_CONFIGS = ("promptfooconfig.yaml", "promptfooconfig.yml", "promptfooconfig.json")
 DEEPEVAL_LATEST = ".latest_run_full.json"
 DEEPEVAL_RUN = re.compile(r"test_run_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.json")
@@ -154,6 +156,11 @@ def is_table(columns) -> bool:
     return "input" in columns and outputs and any(c in columns for c in VERDICT_COLUMNS)
 
 
+def is_records(columns) -> bool:
+    """A file of judgekeeper records, as judgekeeper.record() writes them."""
+    return "annotator_kind" in columns or "schema_version" in columns
+
+
 def classify_file(path: Path) -> str | None:
     """The tool whose results `path` is, or None. For a file named on the command line."""
     suffix = path.suffix.lower()
@@ -161,6 +168,8 @@ def classify_file(path: Path) -> str | None:
         return "inspect"
     if path.name == "mlflow.db":
         return "mlflow"
+    if suffix == ".jsonl" and is_records(table_columns(path)):
+        return "records"
     if suffix in TABLE_SUFFIXES:
         return "table" if is_table(table_columns(path)) else None
     if suffix == ".json":
@@ -352,7 +361,13 @@ def search(root: str | Path) -> Search:
             known.insert(0, folder)
             walk.sign(tool, var)
     store = _tracking_store(root, os.environ.get("MLFLOW_TRACKING_URI"))
+    records = root / RECORDS_DIR
     try:
+        if records.is_dir() and not records.is_symlink():
+            for entry in sorted(os.scandir(records), key=lambda e: e.name):
+                if (entry.name.endswith(".jsonl") and not entry.is_symlink()
+                        and entry.is_file(follow_symlinks=False)):
+                    walk.add("records", Path(entry.path), entry.stat().st_size)
         if store is not None and store.is_file():
             walk.add("mlflow", store, store.stat().st_size)
         elif store is not None and store.is_dir():

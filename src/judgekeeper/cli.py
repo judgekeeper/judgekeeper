@@ -75,7 +75,7 @@ MORE = (
     ("your own rule and judge", ("init", "judge", "validate", "template", "import-labels",
                                  "freeze")),
     ("keep checking", ("baseline", "gate", "migrate", "attribute")),
-    ("your tools", ("import", "export")),
+    ("your tools", ("import", "export", "record")),
 )
 
 _ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -435,8 +435,8 @@ def _parser() -> argparse.ArgumentParser:
     then = st.add_mutually_exclusive_group()
     then.add_argument("--new", action="store_true",
                       help="start a new check: move what is saved in .judgekeeper/ (except "
-                           "baseline.json) to .judgekeeper/previous-<date>/; nothing is "
-                           "deleted")
+                           "baseline.json and records/) to .judgekeeper/previous-<date>/; "
+                           "nothing is deleted")
     then.add_argument("--review", action="store_true",
                       help="after a result: review the answers where you and your judge "
                            "disagree (no AI call)")
@@ -481,6 +481,17 @@ def _parser() -> argparse.ArgumentParser:
                                    "report.json), or a runs directory")
     er.add_argument("-o", "--out", required=True, help="JSONL file to write")
     er.add_argument("--anchors", help="anchor set, when source is a bare runs directory")
+
+    rc = sub.add_parser("record", parents=[common],
+                        help="save your own judge's verdicts: the judgekeeper.record() line as "
+                             "a snippet, or a prompt for your coding agent that adds it")
+    show = rc.add_mutually_exclusive_group(required=True)
+    show.add_argument("--snippet", choices=["python", "typescript"],
+                      help="print a short snippet that writes the same records as "
+                           "judgekeeper.record(), with no import (Python) or for Node.js")
+    show.add_argument("--agent-prompt", action="store_true",
+                      help="print a prompt for your coding agent (Claude Code, Cursor or Codex) "
+                           "that adds one judgekeeper.record() call where your judge runs")
 
     a = sub.add_parser("attribute", parents=[common],
                        help="did scores move because the system or the judge changed?")
@@ -830,6 +841,13 @@ def cmd_start(args) -> int:
                judge_command=args.judge_command, allow_calls=args.allow_calls)
 
 
+def cmd_record(args) -> int:
+    from judgekeeper import recorder
+
+    print(recorder.AGENT_PROMPT if args.agent_prompt else recorder.SNIPPETS[args.snippet])
+    return EXIT_OK
+
+
 def cmd_export(args) -> int:
     from judgekeeper.records import export_records
 
@@ -973,7 +991,8 @@ COMMANDS = {"init": cmd_init, "freeze": cmd_freeze, "judge": cmd_judge, "validat
             "baseline": cmd_baseline, "gate": cmd_gate, "migrate": cmd_migrate,
             "attribute": cmd_attribute, "check": cmd_check,
             "template": cmd_template, "import-labels": cmd_import_labels, "label": cmd_label,
-            "import": cmd_import, "export": cmd_export, "start": cmd_start}
+            "import": cmd_import, "export": cmd_export, "start": cmd_start,
+            "record": cmd_record}
 
 
 def main(argv: list[str] | None = None) -> int:

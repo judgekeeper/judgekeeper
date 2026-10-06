@@ -34,6 +34,7 @@ from judgekeeper.readers import read_deepeval, read_inspect, read_mlflow, read_p
 from judgekeeper.readers.inspect_logs import DEFAULT_PROMPT
 from judgekeeper.readers.promptfoo import is_stripped_warning
 from judgekeeper.records import (
+    CUT_END,
     HUMAN,
     LLM,
     RecordList,
@@ -43,6 +44,7 @@ from judgekeeper.records import (
     _verdict_value,
     derive_record_id,
     fingerprint_known,
+    read_records,
 )
 from judgekeeper.redact import printable, scrub
 from judgekeeper.table import _blank, make_fingerprint, read_table
@@ -283,6 +285,28 @@ def _read(result: find.Result) -> Loaded:
     return Loaded(result.rel, records)
 
 
+def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
+    """The records files judgekeeper.record() wrote, newest first. A file that cannot be
+    read is left out, with how to see why; a last line cut short is left out too."""
+    loaded = []
+    for r in results:
+        try:
+            records = read_records(r.path, cut_end_ok=True)
+        except RecordsError as e:
+            text = str(e)
+            text = text[text.find("line "):] if "line " in text else text
+            talk.say(f"  {r.rel} could not be read ({text}), so it was left out. To see every "
+                     f"problem: judgekeeper import records {quote_arg(r.rel)} --check")
+            continue
+        if CUT_END in records.notes:
+            talk.say(f"  Note: the last line of {r.rel} was cut short (the program stopped while "
+                     "writing it) and was left out.")
+        for warning in records.warnings:
+            talk.say(f"  {warning}")
+        loaded.append(Loaded(r.rel, records))
+    return loaded
+
+
 def _where(result: find.Result) -> str:
     return f"{result.rel}, saved {result.date():%Y-%m-%d %H:%M}"
 
@@ -405,6 +429,9 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
         for line in own_format.AGENT_PROMPT.splitlines():
             talk.say(line)
         talk.say()
+        talk.say("Or save your judge's verdicts from now on with one judgekeeper.record() line "
+                 "where it runs: judgekeeper record --agent-prompt prints a prompt that asks "
+                 "your coding agent to add it.")
     talk.say("judgekeeper start reads the results that promptfoo, DeepEval, Inspect AI and "
              "MLflow save, or a CSV or JSONL file with input, output and verdict columns.")
     talk.say(POINT_ME)
@@ -617,6 +644,8 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
         return f"{metric}{quoted}{with_model}"
     if tool == "promptfoo":
         return "promptfoo's default grader (the results file does not say which model)"
+    if tool == "records":
+        return f"{metric}{quoted} (your records do not say which model: pass judge= to record())"
     return f"{metric}{quoted} (the results file does not say which model)"
 
 
@@ -650,11 +679,28 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         if kind == "promptfoo":
             description = results_description(newest)
             _check_description(talk, root, description, newest)
-        first = _read(newest)
-        talk.say(f"{tick()} Your eval tool: {find.NAMES[kind]} ({_where(newest)})")
-        read_older = (_read(r) for r in results[1:])
-    metric = _choose_metric(talk, first, metric, prefer)
-    metrics = sorted({r.name for r in first.records if r.annotator_kind == LLM})
+        if kind == "records":  # every file the newest judge wrote: one run can be many files
+            loaded = _read_records(talk, results)
+            if not loaded:
+                raise StartError("none of the records files could be read")
+            every = Loaded(_folder_of(newest), RecordList(r for x in loaded for r in x.records))
+            metric = _choose_metric(talk, every, metric, prefer)
+            loaded = [x for x in loaded
+                      if any(r.annotator_kind == LLM and r.name == metric for r in x.records)]
+            labels = [x.label for x in loaded]
+            results = sorted((r for r in results if r.rel in labels),
+                             key=lambda r: labels.index(r.rel))
+            newest = results[0]
+            first, read_older = loaded[0], iter(loaded[1:])
+        else:
+            first = _read(newest)
+            talk.say(f"{tick()} Your eval tool: {find.NAMES[kind]} ({_where(newest)})")
+            read_older = (_read(r) for r in results[1:])
+    if kind == "records":
+        metrics = sorted({r.name for r in every.records if r.annotator_kind == LLM})
+    else:
+        metric = _choose_metric(talk, first, metric, prefer)
+        metrics = sorted({r.name for r in first.records if r.annotator_kind == LLM})
 
     norm = Normaliser(pass_if=pass_if,
                       label_map={**first.records.label_map, **parse_label_map(label_map)})
@@ -662,12 +708,18 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     pool = build_pool([(x.label, x.records) for x in used], metric, norm)
     identity = _identity(first.records, metric)
     for older in read_older:
-        if len(pool.answers) >= MIN_POOL:
+        if len(pool.answers) >= MIN_POOL and kind != "records":
             break
         if _identity(older.records, metric) == identity:
             used.append(older)
             pool = build_pool([(x.label, x.records) for x in used], metric, norm)
-    if len(used) > 1:
+    if kind == "records":
+        n = sum(r.annotator_kind == LLM and r.name == metric for x in used for r in x.records)
+        where = _folder_of(newest)
+        where = f" in {where}" if where.endswith("/") else f": {where}"
+        talk.say(f"{tick()} Your judge's saved records: {n} from judgekeeper.record() "
+                 f"({_plural(len(used), 'file', 'files')}{where})")
+    elif len(used) > 1:
         talk.say(f"  Fewer than {MIN_POOL} answers in the newest results, so older results "
                  f"from the same judge were added: {', '.join(x.label for x in used[1:])}")
 
@@ -776,6 +828,9 @@ def more_answers(found: Found) -> list[str]:
         return [f"  inspect eval {_head_value(found, _TASK_FILE, 'your_task.py')} --limit 100"]
     if found.tool == "mlflow":
         return ["  Run your MLflow evaluation again on more data."]
+    if found.tool == "records":
+        return [("  Run your eval on more answers: each judgekeeper.record() call saves one "
+                 "more verdict.")]
     return [f"  Add more rows to {newest.rel}."]
 
 

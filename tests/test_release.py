@@ -481,3 +481,15 @@ def test_the_installed_wheel_gets_every_package_the_tests_need(workflow):
     text = (WORKFLOWS / workflow).read_text(encoding="utf-8")
     for dependency in needed:
         assert f'"{dependency}"' in text, dependency
+
+
+def test_ci_runs_the_typescript_snippet_with_node_22():
+    """The test job installs Node.js 22 (pinned by commit, like every action) and tells the
+    TypeScript snippet test it may not skip."""
+    steps = _workflow("ci.yml")["jobs"]["test"]["steps"]
+    (node,) = [s for s in steps if s.get("uses", "").startswith("actions/setup-node@")]
+    assert re.fullmatch(r"actions/setup-node@[0-9a-f]{40}", node["uses"])
+    assert str(node["with"]["node-version"]) == "22"
+    (test,) = [s for s in steps if s.get("name") == "Test"]
+    assert test["env"]["JUDGEKEEPER_NEEDS_NODE"] == "1"
+    assert test["run"].startswith("pytest")
