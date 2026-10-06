@@ -109,6 +109,8 @@ def test_the_version_line_on_the_home_page_is_real(monkeypatch):
             return True
 
     monkeypatch.setattr(sys, "platform", "darwin")
+    # Installed inside a project, as the page shows: a virtual environment is active.
+    monkeypatch.setenv("VIRTUAL_ENV", "/Users/me/support-bot/.venv")
     monkeypatch.setattr("shutil.which", lambda name: "/usr/local/bin/judgekeeper")
     (shown,) = _output("index.html", "version")
     assert shown == version_lines(Terminal())
@@ -118,9 +120,10 @@ def test_the_version_line_on_the_home_page_is_real(monkeypatch):
 # The home page ---------------------------------------------------------------------------
 
 HOME_INSTALL = {
-    "mac": ["python3 --version",
-            "python3 -m pip install -U judgekeeper && python3 -m judgekeeper --version"],
-    "win": ["py --version", "py -m pip install -U judgekeeper", "py -m judgekeeper --version"],
+    "mac": ["python3 --version", ("cd your-project\nsource .venv/bin/activate\n"
+                                  "pip install judgekeeper\njudgekeeper --version")],
+    "win": ["py --version", ("cd your-project\n.venv\\Scripts\\activate\n"
+                             "pip install judgekeeper\njudgekeeper --version")],
 }
 
 
@@ -148,15 +151,18 @@ def test_the_home_page_install_has_two_tabs_and_the_python_check():
                "come back." in flat
         assert "https://www.python.org/downloads/" in [a.attrs.get("href") for a in panel.iter()
                                                        if a.tag == "a"]
+        for needed in ("uv add --dev judgekeeper", "poetry add --group dev judgekeeper"):
+            assert needed in flat, (key, needed)
     mac = _flat(_by_id("index.html", "panel-mac"))
-    assert "externally-managed-environment" in mac
-    assert "python3 -m venv .venv && source .venv/bin/activate" in mac
+    assert "externally-managed-environment" in mac and "python3 -m venv .venv" in mac
+    assert "py -m venv .venv" in _flat(_by_id("index.html", "panel-win"))
+    assert "inside your project" in _flat(_by_id("index.html", "install"))
 
 
 def test_the_home_page_run_it_step():
     run = _by_id("index.html", "run")
     assert _codes(run) == ["cd your-project\njudgekeeper start"]
-    assert [argv for _, argv in commands(WEBSITE / "index.html")] == [["start"]]
+    assert [argv for _, argv in commands(WEBSITE / "index.html")][-1] == ["start"]
     assert "start.html" in [a.attrs.get("href") for a in run.iter() if a.tag == "a"]
 
 
@@ -172,17 +178,30 @@ def test_use_it_on_your_app_is_about_start_with_the_older_paths_at_the_end():
     main_el = next(el for el in _els("start.html") if el.tag == "main")
     ids = [el.attrs.get("id") for el in main_el.children
            if isinstance(el, Element) and el.tag == "section"]
-    assert ids == ["start", "reads", "never", "page", "result", "again", "install", "other",
-                   "more"]
+    assert ids == ["start", "reads", "never", "page", "result", "review", "ask-again",
+                   "new-judge", "again", "own-format", "install", "other", "more"]
     reads = _flat(_by_id("start.html", "reads"))
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow", "input", "output", "verdict"):
         assert tool in reads, tool
     never = _flat(_by_id("start.html", "never"))
-    for needed in ("No AI calls", "no API key", "never runs your app", ".env",
-                   "promptfoo export"):
+    for needed in ("No AI calls unless you say yes",
+                   "your own judge runs through your own tool",
+                   "never sees your key, it only checks its name", "never runs your app",
+                   ".env", "promptfoo export"):
         assert needed in never, needed
+    for section, needed in (("review", ("--review", "judge-mistakes.csv", "Not sure",
+                                        "first labels stay the main result")),
+                            ("ask-again", ("--ask-again", "Go ahead? [y/N]", "by name only",
+                                           "--judge-command", "Your app is not run")),
+                            ("new-judge", ("--try-new-judge", "10 Correct and 10 Wrong",
+                                           "look better on them", "--new",
+                                           "never your new outputs"))):
+        flat = _flat(_by_id("start.html", section))
+        for words in needed:
+            assert words in flat, (section, words)
     again = _flat(_by_id("start.html", "again"))
-    for needed in ("Continue?", "Label more", "re-check", "--new", "previous-"):
+    for needed in ("Continue?", "Label more", "ask your judge again", "re-check",
+                   "Your judge changed", "--new", "previous-"):
         assert needed in again, needed
     other = _by_id("start.html", "other")
     assert [h.attrs.get("id") for h in other.iter() if h.tag == "h3"][:4] == [
@@ -202,11 +221,19 @@ def test_the_reference_has_every_start_flag_and_the_saved_files():
              if s.startswith("--") and s != "--help" and a.help != "==SUPPRESS=="]
     assert set(flags) >= {"--tool", "--metric", "--experiment", "--pass-if", "--label-map",
                           "--judge-model", "--yes", "--new", "--no-browser", "--port"}
-    for flag in [*flags, "PATH"]:
+    for flag in [*flags, "PATH", "--try-new-judge", "--agent-prompt"]:
         assert f"`{flag}" in section, flag
     for name in ("start.json", "pool-judge.jsonl", "pool.jsonl", "labels.csv", "anchors.jsonl",
-                 "result.json", "result.html", "history/", "previous-"):
+                 "result.json", "result.html", "history/", "previous-", "again/<date>/",
+                 "review.json", "judge-mistakes.csv", "rule-unclear.csv", "new-judge-<date>/",
+                 "new-judge.json", "confirm/", "`judge_model`"):
         assert name in section, name
+    flat = " ".join(section.split())
+    for needed in ("Exactly your judge when", "A close copy when", "Can't be asked again when",
+                   "**Trying your new judge.**", "**No results it can read.**",
+                   "installed outside a project",
+                   "default 2 for `--ask-again`, 1 for `--try-new-judge`"):
+        assert needed in flat, needed
     text = REFERENCE.read_text(encoding="utf-8")
     assert text.index("## start:") < text.index("## init:")
 
@@ -252,5 +279,54 @@ def test_the_changelog_says_what_0_2_0_adds_and_what_it_does_not_do():
     assert "## 0.2.0 (unreleased)" in entry and "## 0.1.4" not in text
     unchanged = "No change to any other command, flag, metric or report field"
     for needed in ("`judgekeeper start`", "`judgekeeper --version`", "no AI calls",
-                   "no API key", "never runs your", unchanged, "Removed: `judgekeeper demo`"):
+                   "no API key", "never runs your", unchanged, "Removed: `judgekeeper demo`",
+                   "AI calls only after you say yes", "your own judge through your own tool",
+                   "key names only", "review the disagreements", "ask your judge again",
+                   "try your new judge", "`promptfoo export`", "Install inside your project",
+                   "--agent-prompt", "installed outside a project"):
         assert needed in entry, needed
+
+
+# Results in your own format, and after the first result ----------------------------------
+
+def test_the_own_format_section_shows_the_table_and_the_agent_prompt():
+    from judgekeeper.own_format import AGENT_PROMPT
+
+    section = _by_id("start.html", "own-format")
+    flat = _flat(section)
+    for needed in ("id", "input", "output", "verdict", "reason",
+                   "judge_model", "one CSV per judge or criterion", "the first 3 rows",
+                   "judgekeeper start --agent-prompt"):
+        assert needed in flat, needed
+    (prompt,) = [el for el in section.iter() if el.attrs.get("id") == "agent-prompt"]
+    assert prompt.tag == "code" and prompt.parent.tag == "pre"
+    assert "code" in prompt.parent.parent.classes()  # so it gets a copy button
+    assert prompt.text() == AGENT_PROMPT
+    assert "#own-format" in [a.attrs.get("href") for a in _by_id("start.html", "reads").iter()
+                             if a.tag == "a"]
+
+
+def test_the_reference_and_the_guide_explain_the_own_format():
+    reference = " ".join(REFERENCE.read_text(encoding="utf-8").split())
+    guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
+    for text in (reference, guide):
+        for needed in ("judge_model", "--agent-prompt", "first 3 rows"):
+            assert needed in text, needed
+    assert "calling a metric's `measure()` directly saves nothing" in reference
+
+
+def test_the_guide_says_what_comes_after_the_first_result():
+    text = GUIDE.read_text(encoding="utf-8")
+    section = text[text.index("### After your first result"):text.index("## Why")]
+    for needed in ("--review", "--ask-again", "--try-new-judge", "--label-more",
+                   "Go ahead? [y/N]", "by name only", "10 Correct and 10 Wrong"):
+        assert needed in section, needed
+
+
+def test_the_skill_never_spends_for_the_person():
+    text = " ".join(SKILL.read_text(encoding="utf-8").split())
+    for needed in ("Run `--review` only with them", "Never answer a spending question",
+                   "`--allow-calls`", "`--try-new-judge`",
+                   "the person answers `Go ahead? [y/N]` themselves",
+                   "into the project's own environment, never for the whole computer"):
+        assert needed in text, needed

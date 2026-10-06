@@ -134,7 +134,8 @@ def test_inspect_eval_logs_without_the_extra_say_how_to_read_them(tmp_path, caps
     (tmp_path / "logs" / "2026-10-02_support.eval").write_bytes(b"PK\x03\x04 not read")
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
-    assert ('Inspect AI found (logs/). To read it: pip install "judgekeeper[inspect]", then run '
+    assert ('Inspect AI found (logs/). To read it, add the extra in your project\'s environment: '
+            'pip install "judgekeeper[inspect]", then run '
             "judgekeeper start again.") in out
 
 
@@ -153,6 +154,36 @@ def test_a_plain_table_with_a_model_column_and_another_verdict_name(tmp_path, ca
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert f"{ok()} Your judge: judge_verdict in scores.csv with gpt-4.1-mini" in out
+
+
+def test_a_table_says_its_first_three_rows_so_a_wrong_conversion_shows(tmp_path, capsys):
+    table_project(tmp_path, split(16, 16))
+    _, out, _ = run(capsys, tmp_path)
+    lines = out.splitlines()
+    head = lines.index("  The first 3 rows, as judgekeeper read them:")
+    assert lines[head + 1:head + 4] == [
+        "    input: Question 0?   output: Answer 0.   verdict: pass",
+        "    input: Question 1?   output: Answer 1.   verdict: pass",
+        "    input: Question 2?   output: Answer 2.   verdict: pass"]
+
+
+def test_a_long_cell_is_shortened_in_the_first_rows(tmp_path, capsys):
+    table_project(tmp_path, split(16, 16), tag=" " + "word " * 30)
+    _, out, _ = run(capsys, tmp_path)
+    first = next(x for x in out.splitlines() if x.startswith("    input: Question 0?"))
+    assert "…" in first and len(first) < 140
+
+
+def test_other_tools_do_not_list_rows(tmp_path, capsys):
+    promptfoo_project(tmp_path, split(16, 16))
+    _, out, _ = run(capsys, tmp_path)
+    assert "The first 3 rows" not in out
+
+
+def test_a_judge_model_column_names_the_judge(tmp_path, capsys):
+    table_project(tmp_path, split(16, 16), extra={"judge_model": ["claude-opus-5"] * 32})
+    _, out, _ = run(capsys, tmp_path)
+    assert f"{ok()} Your judge: verdict in results.csv with claude-opus-5" in out
 
 
 def test_a_table_deeper_than_two_folders_is_not_a_table(tmp_path, capsys):
@@ -179,7 +210,8 @@ def test_mlflow_without_the_extra_says_how_to_read_it(tmp_path, capsys, monkeypa
     (tmp_path / "mlruns").mkdir()
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
-    assert ('MLflow found (mlruns/). To read it: pip install "judgekeeper[mlflow]", then run '
+    assert ('MLflow found (mlruns/). To read it, add the extra in your project\'s environment: '
+            'pip install "judgekeeper[mlflow]", then run '
             "judgekeeper start again.") in out
 
 

@@ -334,6 +334,17 @@ def test_steadiness_agreement_and_matches(fake, capsys):
     assert block["status"] == "exact" and block["times"] == 2
 
 
+def test_when_every_answer_agrees_the_ranges_keep_their_width(fake, capsys):
+    run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
+    for block in (json.loads(fake.ws.result_json.read_text())["again"],
+                  json.loads((_again_dir(fake.ws) / "again.json").read_text())):
+        today = block["today"]
+        for key in ("tpr", "tnr"):
+            lo, hi = today[f"{key}_interval"]
+            assert today[key] == 1.0 and lo < hi == 1.0
+        assert today["interval_methods"]["tpr"] == "wilson corners"
+
+
 def test_below_ninety_percent_asks_if_the_judge_changed(fake, capsys):
     ids = [a["id"] for a in again.labeled_answers(fake.ws)]
     fake.flips = {(i, r) for i in ids[:6] for r in (0, 1)}

@@ -52,7 +52,7 @@
   <p class="note" style="margin-top:24px">Part of <a href="start.html#more">Use it on your app</a>.</p>
   <h1>Setup and API keys</h1>
   <p class="lead">Most of judgekeeper needs no model key at all: <code>check</code> on a spreadsheet and the imports that read a file work offline. You need a key only when judgekeeper calls a model for you, with <code>--runner anthropic</code> or <code>--runner openai</code>.</p>
-  <p>Those two runners use the provider's own Python library, which plain <code>pip install judgekeeper</code> does not include. Add it once:</p>
+  <p>Those two runners use the provider's own Python library, which plain <code>pip install judgekeeper</code> does not include. Add it once, in your project&#39;s environment (switch it on first):</p>
   <div class="code"><pre><code>pip install "judgekeeper[anthropic]"</code></pre></div>
   <p>For OpenAI, and for any server that speaks the OpenAI format, the line is <code>pip install "judgekeeper[openai]"</code>. The double quotes matter: without them some terminals read the square brackets as something else.</p>
 

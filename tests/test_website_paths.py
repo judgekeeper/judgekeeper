@@ -145,27 +145,32 @@ def test_the_home_page_has_its_parts_in_order():
     ids = [el.attrs.get("id") for el in main_el.children
            if isinstance(el, Element) and el.tag == "section"]
     assert ids == [None, "idea", "install", "run"]
-    assert commands(WEBSITE / "index.html") == [("judgekeeper start", ["start"])]
+    assert [argv for _, argv in commands(WEBSITE / "index.html")] == [
+        ["--version"], ["--version"], ["start"]]
     assert _hrefs(_by_id("index.html", "run")) == ["start.html", "own-metric.html"]
     text = (WEBSITE / "index.html").read_text(encoding="utf-8")
     for gone in ("demo", "examples.html", "See it work", "try-question", "Skip the"):
         assert gone not in text, gone
 
 
-# Install: the plain install first, the virtual environment when it is refused
+# Install: inside the project, in the project's own environment
 
-INSTALL = {"mac": ["python3 --version", "pip3 install judgekeeper"],
-           "win": ["py --version", "pip install judgekeeper"]}
-VENV = {"mac": ["python3 -m venv ~/judgekeeper-env", "source ~/judgekeeper-env/bin/activate",
-                "pip install judgekeeper"],
-        "win": ['py -m venv "$HOME\\judgekeeper-env"',
-                '& "$HOME\\judgekeeper-env\\Scripts\\Activate.ps1"', "pip install judgekeeper"]}
-MODULE_FORM = {"mac": "python3 -m judgekeeper --version", "win": "py -m judgekeeper --version"}
+ACTIVATE = {"mac": "cd your-project\nsource .venv/bin/activate",
+            "win": "cd your-project\n.venv\\Scripts\\activate"}
+MAKE_VENV = {"mac": "python3 -m venv .venv", "win": "py -m venv .venv"}
+CHECK = {"mac": "python3 --version", "win": "py --version"}
+DEV_TOOLS = ["uv add --dev judgekeeper", "poetry add --group dev judgekeeper"]
+MODULE_FORM = "python -m judgekeeper --version"
 REFUSED = "error: externally-managed-environment"
 NO_PIP = "pip: command not found"
 NO_PIP_WINDOWS = "'pip' is not recognized as an internal or external command"
-PY_PIP = "py -m pip install judgekeeper"
+PY_PIP = ".venv\\Scripts\\python -m pip install judgekeeper"  # the project's own Python
 GUIDE = ROOT / "docs" / "guide.md"
+# An install that is not inside a project: the system Python, a shared environment in the
+# home folder, or a tool that installs for the whole computer.
+OUTSIDE = ("pip3 install judgekeeper", "judgekeeper-env", "uvx judgekeeper", "uv tool install",
+           "pipx", "python3 -m pip install -U judgekeeper", "pip install -U judgekeeper",
+           "pip install --user", "py -m pip install judgekeeper")
 
 
 def _panel_commands(page: str, key: str) -> list[str]:
@@ -183,47 +188,71 @@ def _flat(el: Element) -> str:
     return " ".join(el.text().split())
 
 
-def test_the_full_install_guide_has_the_steps_and_a_fix_for_each_failure():
+def _notes(key: str) -> dict[str, str]:
+    panel = _by_id("start.html", f"panel-{key}")
+    return {_flat(s): _flat(d) for d in panel.iter() if d.tag == "details"
+            for s in d.children if isinstance(s, Element) and s.tag == "summary"}
+
+
+def test_the_full_install_guide_installs_inside_the_project():
     section = _by_id("start.html", "install")
     assert _tab_labels("start.html") == ["Mac", "Windows"]
-    assert "Linux follows the Mac tab" in section.text()
-    for key, wanted in INSTALL.items():
+    flat = _flat(section)
+    assert "Linux follows the Mac tab" in flat
+    assert "like pytest" in flat and "inside your project" in flat
+    assert "not on your computer as a whole" in flat
+    for key in ("mac", "win"):
         panel = _by_id("start.html", f"panel-{key}")
-        assert _panel_commands("start.html", key) == [
-            *wanted, "judgekeeper --version", *VENV[key], *([PY_PIP] if key == "win" else [])], key
+        steps_only = _panel_commands("start.html", key)
+        expected = [CHECK[key], ACTIVATE[key], MAKE_VENV[key], "pip install judgekeeper",
+                    *DEV_TOOLS, "judgekeeper --version"]
+        assert steps_only[:len(expected)] == expected, key
         (steps,) = [el for el in panel.iter() if el.tag == "ol"]
         heads = [h.text() for h in steps.iter() if h.tag == "h3"]
-        assert [w in h for w, h in zip(("Python", "Install", "runs"), heads, strict=True)] == [True] * 3
-        assert _flat(steps).count("What you see.") == 3
+        for want, head in zip(("Python", "environment", "Install", "runs"), heads, strict=True):
+            assert want in head, (key, head)
+        assert _flat(steps).count("What you see.") == 4
+        assert "(.venv)" in _flat(steps)
         assert "https://www.python.org/downloads/" in _hrefs(steps)
         absent = "command not found" if key == "mac" else "'py' is not recognized"
         assert absent in _flat(steps) and "lower number" in _flat(steps)
-        notes = {_flat(s): _flat(d) for d in panel.iter() if d.tag == "details"
-                 for s in d.children if isinstance(s, Element) and s.tag == "summary"}
+        assert "installed outside a project" in _flat(steps)
+        notes = _notes(key)
         refused = next(text for head, text in notes.items() if REFUSED in head)
-        for needed in ("managed by", "It is not about judgekeeper", "virtual environment",
-                       "(judgekeeper-env)", "Each time you open a new", "step 3"):
+        for needed in ("not switched on", "It is not about judgekeeper", "step 2"):
             assert needed in refused, (key, needed)
-        assert refused.count("What you see.") == 3
         missing = next(text for head, text in notes.items() if "command is not found" in head)
-        assert MODULE_FORM[key] in missing
+        assert MODULE_FORM in missing and "uv run" in missing and "poetry run" in missing
         assert (NO_PIP in notes) == (key == "mac")
         assert (NO_PIP_WINDOWS in notes) == (key == "win")
-    assert "pip3" in notes_for_mac()[NO_PIP]
-    assert "Homebrew" in next(v for k, v in notes_for_mac().items() if REFUSED in k)
-    for needed in ("The term 'pip' is not recognized", "added to the PATH", PY_PIP):
-        assert needed in notes[NO_PIP_WINDOWS], needed  # `notes` is the Windows tab's here
+    assert "pip3" in _notes("mac")[NO_PIP]
+    assert "Homebrew" in next(v for k, v in _notes("mac").items() if REFUSED in k)
+    windows_pip = _notes("win")[NO_PIP_WINDOWS]
+    for needed in ("The term 'pip' is not recognized", "not switched on", PY_PIP):
+        assert needed in windows_pip, needed
     windows = _by_id("start.html", "panel-win").text()
-    assert "python --version" in windows
-    for needed in ('py -m venv "%USERPROFILE%\\judgekeeper-env"', "Scripts\\activate.bat",
+    for needed in ("python --version", "Scripts\\activate.bat",
                    "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser"):
         assert needed in windows, needed
 
 
-def notes_for_mac() -> dict[str, str]:
-    panel = _by_id("start.html", "panel-mac")
-    return {_flat(s): _flat(d) for d in panel.iter() if d.tag == "details"
-            for s in d.children if isinstance(s, Element) and s.tag == "summary"}
+def test_a_link_can_open_the_install_on_either_tab():
+    script = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
+    assert '"#install-mac": "panel-mac"' in script and '"#install-win": "panel-win"' in script
+    assert "scrollIntoView" in script
+
+
+def _install_sources() -> list:
+    docs = sorted((ROOT / "docs").rglob("*.md"))
+    return [*pages(), *docs, ROOT / "README.md", ROOT / "skills" / "judgekeeper" / "SKILL.md",
+            ROOT / "packages" / "pytest-judgekeeper" / "README.md", WEBSITE / "llms.txt"]
+
+
+def test_nothing_shows_an_install_outside_a_project():
+    for source in _install_sources():
+        text = source.read_text(encoding="utf-8")
+        for gone in OUTSIDE:
+            assert gone not in text, (source.relative_to(ROOT).as_posix(), gone)
 
 
 def test_the_site_names_no_installer_it_does_not_use_and_no_unsafe_flag():
@@ -249,19 +278,22 @@ def test_the_python_version_on_the_site_is_the_one_the_package_needs():
 def test_the_guide_and_the_readme_show_the_same_install():
     text = GUIDE.read_text(encoding="utf-8")
     section = text[text.index("### Install\n"):text.index("See a real report without installing")]
-    for key, lines in INSTALL.items():
-        for line in (*lines, MODULE_FORM[key]):
-            assert f"`{line}`" in section, line
-        assert "\n".join(VENV[key]) in section, key
-    assert section.index("pip3 install judgekeeper") < section.index(REFUSED) < section.index(
-        "python3 -m venv")
-    for needed in (f"`{REFUSED}`", f"`{NO_PIP}`", f"`{NO_PIP_WINDOWS}`", f"`{PY_PIP}`",
-                   "`python --version`", "https://www.python.org/downloads/",
-                   "virtual environment", "It is not about judgekeeper", "(judgekeeper-env)",
-                   "Each time you open a new terminal", "Scripts\\activate.bat"):
+    for line in (*CHECK.values(), *MAKE_VENV.values(), "pip install judgekeeper", *DEV_TOOLS,
+                 "judgekeeper --version", MODULE_FORM, PY_PIP):
+        assert f"`{line}`" in section, line
+    for key in ("mac", "win"):
+        assert f"```\n{ACTIVATE[key]}\n```" in section, key
+    for needed in (f"`{REFUSED}`", f"`{NO_PIP}`", f"`{NO_PIP_WINDOWS}`", "`python --version`",
+                   "https://www.python.org/downloads/", "like pytest", "never on your computer",
+                   "It is not about judgekeeper", "(.venv)", "installed outside a project",
+                   "Scripts\\activate.bat"):
         assert needed in section, needed
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "On a Mac the command is `pip3`." in readme
+    install = readme[readme.index("## Install"):readme.index("## Use it")]
+    assert "\nsource .venv/bin/activate\npip install judgekeeper\njudgekeeper --version\n" in install
+    for needed in ("in your project folder", "like pytest", ".venv\\Scripts\\activate",
+                   "python3 -m venv .venv", *DEV_TOOLS):
+        assert needed in install, needed
     assert "](https://www.judgekeeper.com/start.html#install)" in readme
 
 

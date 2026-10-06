@@ -29,7 +29,8 @@ def ask(ws, plan, talk, name: str, env: dict | None = None,
         drop: tuple = ()) -> tuple[Fresh, dict[str, dict[int, dict]], dict]:
     """Run the plan's worker in "run" mode. Returns the Fresh to fill, the worker's lines by
     answer id and time, and its last line."""
-    folder = new_folder(ws)
+    folder = plan.folder or new_folder(ws)
+    folder.mkdir(parents=True, exist_ok=True)
     out = folder / f"{plan.tool}.jsonl"
     job = {**plan.job, "mode": "run", "times": plan.times,
            "answers": [entry[1] for entry in plan.payload]}

@@ -37,8 +37,10 @@ Three rules, each with its reason:
 - Judge calls cost money. Tell me the number of judge calls (answers x runs, x 2 when the judge
   compares two answers) before you make any, and wait for my yes.
 
-1. Install it. Run `pip install judgekeeper` (or use this project's own package tool), then
-   `judgekeeper --version`, and tell me what it printed.
+1. Install it inside this project's own Python environment, never for the whole computer: with
+   the project's virtual environment active, run `pip install judgekeeper` (or
+   `uv add --dev judgekeeper`, or `poetry add --group dev judgekeeper`). Then run
+   `judgekeeper --version` and tell me what it printed.
 2. Find the judge: prompts that grade an answer, eval configs (promptfoo, DeepEval, Inspect AI,
    MLflow, Langfuse), code that scores, passes or fails an answer. A plain function that calls
    no model counts too. Tell me what you found. If there is none, say so and offer a rule file
@@ -85,7 +87,7 @@ The same text is in the file `docs/assistant-prompt.md`.
 
 ## What happens next
 
-1. The assistant installs judgekeeper and checks that it runs.
+1. The assistant installs judgekeeper in your project's environment and checks that it runs.
 2. It finds how your project grades answers today, and tells you what it found. If your project has no judge yet, it says so and offers to start one with you. If it has one, it asks you to say in one sentence what pass means, so your labels follow your own rule.
 3. It collects a sample of 30 to 60 real answers from your app.
 4. It starts the labeling page and gives you its link, or asks you to start it in your own terminal. The page runs on your own computer (127.0.0.1). You read each answer and press 1 for pass or 2 for fail.

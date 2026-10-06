@@ -3,7 +3,9 @@
 ## 0.2.0 (unreleased)
 
 `judgekeeper start`: one command, in your project folder, from your eval tool's saved results
-to how often your judge agrees with you.
+to how often your judge agrees with you. Then review where you and your judge disagree, ask
+your judge again, and try your new judge on the answers you already marked. AI calls only
+after you say yes, your own judge through your own tool, and key names only.
 
 - New: `judgekeeper start`. It finds the results your eval tool already saved (promptfoo,
   DeepEval, Inspect AI, MLflow, or a CSV or JSONL file with input, output and verdict
@@ -15,13 +17,60 @@ to how often your judge agrees with you.
   on, label more, and check again after your next eval run.
 - The labeling and result pages use the whole screen: a side panel with your progress, your
   judge's rule and the keys; a result coloured by what it means.
-- `judgekeeper start` makes no AI calls, needs no API key, and never runs your app, your eval
-  or your code. When there are too few answers, it prints the command that makes more with
-  your own tool, and you run it.
+- `judgekeeper start` never runs your app. Finding, labeling, the result and the review make
+  no AI calls and need no API key. When there are too few answers, it prints the command that
+  makes more with your own tool, and you run it.
+- After a result, `start` shows a short menu: review the disagreements, ask your judge again,
+  label more, or nothing. When your newest results hold a new version of your judge, it also
+  offers to try the new judge. `--review`, `--ask-again`, `--try-new-judge` and
+  `--label-more` answer the menu without asking.
+- New: review the disagreements (free, no AI call). First you look again at each answer where
+  you and your judge disagree, mixed with answers you agreed on, with the judge's verdict still
+  hidden. Then you see what the judge said, with its reason, and say whether the judge was
+  wrong, you slipped, or the rule is unclear. The judge's mistakes go to
+  `.judgekeeper/judge-mistakes.csv`, unclear cases to `rule-unclear.csv`. Your first labels
+  stay the main result.
+- New: ask your judge again. Your own eval tool grades the answers you labeled again, with
+  your own judge: promptfoo, DeepEval, Inspect AI, MLflow, or your own command
+  (`--judge-command`). Your app is not run. First a plan, with no AI call: whether this is
+  exactly your judge, a close copy (and what differs) or a judge that can't be asked again
+  (and why); which key it will use, by name only (judgekeeper reads the names in `.env`
+  files, never their values); how many calls, and a cost range at prices dated in
+  judgekeeper. AI calls only after you say yes: the question defaults to No, `--yes` never
+  answers it, and without a terminal only `--allow-calls N` does. Then it shows how often the
+  judge changes its verdict on the same answer and how well it agrees with you today. Saved
+  in `.judgekeeper/again/`.
+- New: try your new judge on your old marks. After you change your judge's rule or model and
+  run your eval once, the new judge grades the answers you already marked, shown side by side
+  with the old one, after the same plan and question. A judge fixed while looking at these
+  answers looks better on them, so it then offers a quick check: mark 10 Correct and 10 Wrong
+  new answers. The main result stays the old judge's until `judgekeeper start --new`. Saved
+  in `.judgekeeper/new-judge-<date>/`.
+- When promptfoo kept its results only in its own database, `start` offers, at a terminal, to
+  run `promptfoo export` for you. It asks first, and never runs it without a terminal.
+- When your judge saves results in a format of its own, `start` no longer tells you to run
+  your eval again when that would not help. It names a file that looks like your judge's
+  results, says how to turn it into a table, and prints a prompt for your coding agent that
+  writes the table (`judgekeeper start --agent-prompt` prints it alone). For DeepEval it says
+  that calling a metric's `measure()` directly saves nothing. A table may name the judge's
+  model in a `judge_model` column, and `start` prints its first 3 rows so a wrong table shows.
+- Install inside your project: the docs, the website, the README and the agent skill show
+  only an install into your project's own Python environment, like pytest
+  (`pip install judgekeeper` with the project's environment switched on, `uv add --dev
+  judgekeeper` or `poetry add --group dev judgekeeper`). In a terminal,
+  `judgekeeper --version` says when judgekeeper is installed outside a project, including
+  installs made with pipx or `uv tool install`.
 - `judgekeeper --version` in a terminal now says the install is ready and what to run next.
   Piped or in a script it prints `judgekeeper <version>` as before.
 - `import promptfoo` warns when promptfoo's PROMPTFOO_STRIP_* settings removed the answers or
   the inputs from a results file, and stops when they removed the judge's verdicts.
+- Reading results, in `start` and in `import`: a promptfoo grader set with `--grader` is no
+  longer taken for promptfoo's default grader; `defaultTest.provider` counts as the grader
+  when nothing else names one; the prompt hash of an llm-rubric judge comes from its grading
+  prompt when every answer shows the same one, so a baseline made from promptfoo results with
+  an earlier version can report `JUDGE_CHANGED` once; a warning when the saved verdicts came
+  from promptfoo's cache. DeepEval: the judge's provider is read from the end of its model
+  name, such as `(Anthropic)`.
 - The website's home page shows the install for Mac and Windows, with a check for Python, and
   then `judgekeeper start`. "Use it on your app" is about `judgekeeper start`; the earlier
   paths are under "Other ways".

@@ -54,7 +54,7 @@
   <div class="wrap narrow">
     <h1 id="start-title">Use it on your app</h1>
     <p class="lead">One command, in your project folder. It finds what your eval tool already saved, you mark answers Correct or Wrong in your browser, and it shows how often your judge agrees with you.</p>
-    <p>First <a href="#install">install judgekeeper</a>, if you have not yet. Then go to the folder of your AI app and run:</p>
+    <p>First <a href="#install">install judgekeeper inside your project</a>, if you have not yet. Then, in the folder of your AI app, run:</p>
     <div class="code"><pre><code>cd your-project
 judgekeeper start</code></pre></div>
     <p class="output-label">What you see, for a project with promptfoo results:</p>
@@ -88,7 +88,7 @@ Open the labeling page now? [Y/n]</code></pre>
       <li><strong>MLflow</strong>: the assessments in a local <code>mlruns/</code> folder or <code>mlflow.db</code>.</li>
       <li><strong>A table you made</strong>: a CSV or JSONL file with an <code>input</code>, an <code>output</code> and a <code>verdict</code> column.</li>
     </ul>
-    <p>It names your judge from the results: its name, the first line of its rubric and its model. Several tools or several judges? It asks which one. Too few answers? It says how many there are and prints the command that makes more with your own tool. You run that command, not judgekeeper.</p>
+    <p>It names your judge from the results: its name, the first line of its rubric and its model. Several tools or several judges? It asks which one. Too few answers? It says how many there are and prints the command that makes more with your own tool. You run that command, not judgekeeper. Your judge saves its results in a format of its own? See <a href="#own-format">below</a>.</p>
   </div>
 </section>
 
@@ -96,10 +96,10 @@ Open the labeling page now? [Y/n]</code></pre>
   <div class="wrap narrow">
     <h2 id="never-title">What it never does</h2>
     <ul>
-      <li>No AI calls, and no API key. Everything comes from files your tools already saved.</li>
-      <li>It never runs your app, your eval or your code.</li>
-      <li>It never reads your keys. Only to show the plan for asking your judge again does it look at the variable names in <code>.env</code> files, never their values. It never looks outside your project folder.</li>
-      <li>It never reads promptfoo&#39;s own database. If promptfoo kept the results there, judgekeeper prints the <code>promptfoo export</code> command that writes them to a file, and you run it.</li>
+      <li>No AI calls unless you say yes. Then your own judge runs through your own tool; judgekeeper never sees your key, it only checks its name.</li>
+      <li>It never runs your app. Only when you ask your judge again, and say yes, does it run your eval tool, to grade answers it already saved.</li>
+      <li>It never reads your keys. To tell you which key your judge will use, it looks at the names of the variables in <code>.env</code> files, never their values. It never looks outside your project folder.</li>
+      <li>It never reads promptfoo&#39;s own database. If promptfoo kept the results there, judgekeeper offers to run <code>promptfoo export</code> for you, which writes them to a file. It asks first.</li>
       <li>It never changes your <code>.gitignore</code>.</li>
     </ul>
   </div>
@@ -128,13 +128,48 @@ Open the labeling page now? [Y/n]</code></pre>
   </div>
 </section>
 
-<section class="alt" id="again" aria-labelledby="again-title">
+<section class="alt" id="review" aria-labelledby="review-title">
+  <div class="wrap narrow">
+    <h2 id="review-title">Review the disagreements</h2>
+    <p>Free, with no AI call. A <strong>disagreement</strong> is an answer where your label and your judge&#39;s verdict differ.</p>
+    <ol>
+      <li><strong>Look again.</strong> You see each disagreement again, mixed with as many answers you and the judge agreed on, and the judge&#39;s verdict is still hidden. Mark each one Correct, Wrong or Not sure.</li>
+      <li><strong>See what your judge said.</strong> For each disagreement you see the judge&#39;s verdict and its reason, and choose: <em>The judge was wrong</em>, <em>I slipped</em> or <em>The rule is unclear</em>.</li>
+    </ol>
+    <p>The judge&#39;s mistakes go to <code>.judgekeeper/judge-mistakes.csv</code>: the answers to improve your judge&#39;s rule with. Unclear cases go to <code>rule-unclear.csv</code>. Your first labels stay the main result.</p>
+    <div class="code"><pre><code>judgekeeper start --review</code></pre></div>
+  </div>
+</section>
+
+<section id="ask-again" aria-labelledby="ask-again-title">
+  <div class="wrap narrow">
+    <h2 id="ask-again-title">Ask your judge again</h2>
+    <p>judgekeeper has your own eval tool grade the answers you labeled again, with your own judge. Your app is not run. It works with promptfoo, DeepEval, Inspect AI and MLflow, or with your own judge as a command (<code>--judge-command</code>).</p>
+    <p>Before any call it shows a plan: your judge, and whether this is exactly your judge, a close copy (and what differs), or a judge it can&#39;t ask again (and why); which key your judge will use, by name only; how many judge calls, and a cost range at prices dated in judgekeeper; and what the run touches. Then it asks <code>Go ahead? [y/N]</code>. The answer is No unless you type y.</p>
+    <p>Then it shows how often your judge changed its verdict on the same answer, how well it agrees with you today next to your last result, and how often its new verdict matches the one it saved.</p>
+    <div class="code"><pre><code>judgekeeper start --ask-again</code></pre></div>
+  </div>
+</section>
+
+<section class="alt" id="new-judge" aria-labelledby="new-judge-title">
+  <div class="wrap narrow">
+    <h2 id="new-judge-title">Try your new judge</h2>
+    <p>You fixed your judge&#39;s rule or changed its model, and ran your eval once. <code>judgekeeper start</code> notices the new judge and offers to try it on the answers you already marked. You mark nothing new for this.</p>
+    <p>It rebuilds the new judge from your newest results and has it grade your marked answers, never your new outputs. It shows the same plan and asks the same question as asking again. Then it shows your old judge and your new judge side by side, against the same marks.</p>
+    <p>A judge changed after you saw its mistakes on these answers will look better on them. So judgekeeper then offers a quick check: you mark 10 Correct and 10 Wrong answers from your newest results that you never marked. Its result shows the wide ranges that come with so few answers.</p>
+    <p>Your main result stays your old judge&#39;s. To check the new judge from now on, run <code>judgekeeper start --new</code>: everything moves to <code>.judgekeeper/previous-&lt;date&gt;/</code>, and nothing is deleted.</p>
+    <div class="code"><pre><code>judgekeeper start --try-new-judge</code></pre></div>
+  </div>
+</section>
+
+<section id="again" aria-labelledby="again-title">
   <div class="wrap narrow">
     <h2 id="again-title">Running it again</h2>
     <p>Your labels and results are saved in <code>.judgekeeper/</code> in your project folder. It holds your answers&#39; text, so commit it only if your data may live in your repository. Run <code>judgekeeper start</code> again and it carries on:</p>
     <ul>
       <li><strong>You stopped before the end</strong>: it asks <em>Continue?</em> and opens the page at the next answer.</li>
-      <li><strong>You have a result</strong>: it asks what next: review the answers where you and your judge disagree (free), <em>Label more</em>, or nothing for now.</li>
+      <li><strong>You have a result</strong>: it asks what next: review the answers where you and your judge disagree (free), ask your judge again, <em>Label more</em>, or nothing for now.</li>
+      <li><strong>Your judge changed</strong>: when your newest results come from a new version of your judge, it also offers to try the new judge on the answers you already marked.</li>
       <li><strong>You ran your eval again</strong>: it does a re-check. It finds the answers you labeled in the new results, says whether your judge changed, and shows the result next to the last one. If your app now writes different answers, your old labels no longer fit, and it offers to label the new results.</li>
       <li><strong>You want to start over</strong>: <code>judgekeeper start --new</code> moves everything to <code>.judgekeeper/previous-&lt;date&gt;/</code>. Nothing is deleted.</li>
     </ul>
@@ -142,10 +177,35 @@ Open the labeling page now? [Y/n]</code></pre>
   </div>
 </section>
 
+<section class="alt" id="own-format" aria-labelledby="own-format-title">
+  <div class="wrap narrow">
+    <h2 id="own-format-title">Your judge saves results its own way</h2>
+    <p>Many judges are code you wrote, and they save their results in a format of their own. Then <code>judgekeeper start</code> finds nothing it can read. It looks for a recent file that seems to hold judge results, names it, and prints the prompt below.</p>
+    <p>To use those results, turn them into a table: a CSV with the columns <code>id</code>, <code>input</code>, <code>output</code>, <code>verdict</code> (pass or fail) and <code>reason</code>, plus <code>judge_model</code> when you know which model judged. Make one CSV per judge or criterion. Then run:</p>
+    <div class="code"><pre><code>judgekeeper start your-table.csv</code></pre></div>
+    <p>When it reads a table, it prints how many answers it found, how many the judge passed and failed, and the first 3 rows, so a wrong table shows at once.</p>
+    <p>Or let your coding agent (Claude Code, Cursor or Codex) write the table for you. Paste this prompt:</p>
+    <div class="code"><pre><code id="agent-prompt">In this project, my LLM judge saves its results in its own format. Please:
+
+1. Install judgekeeper into this project's own Python environment, as a dev tool: for
+   example `uv add --dev judgekeeper`, `poetry add --group dev judgekeeper`, or
+   `pip install judgekeeper` with the project's virtual environment active.
+2. Find where the judge's results are saved, and write a small script that turns them into
+   judgekeeper's table: a CSV with the columns id, input, output, verdict and reason, plus
+   judge_model when you can tell which model judged. The verdict is pass or fail.
+3. Write one CSV per judge or criterion. Leave out rows where the judge gave an error, and
+   scores made by a rule instead of an LLM.
+4. Keep everything on this computer: never send the data anywhere.
+5. Run `judgekeeper start &lt;the CSV file&gt;` and show me what it prints, so I can check the
+   counts and the example rows.</code></pre></div>
+    <p class="note"><code>judgekeeper start --agent-prompt</code> prints the same prompt in your terminal.</p>
+  </div>
+</section>
+
 <section id="install" aria-labelledby="install-title">
   <div class="wrap narrow">
     <h2 id="install-title">Install judgekeeper</h2>
-    <p class="lead">Three steps. Pick your computer. Linux follows the Mac tab. Under the steps is a fix for each thing that can go wrong.</p>
+    <p class="lead">judgekeeper is a tool for developers, like pytest. Install it inside your project, in the project&#39;s own Python environment, not on your computer as a whole. Pick your computer. Linux follows the Mac tab. Under the steps is a fix for each thing that can go wrong.</p>
     <div class="tabs" id="install-tabs">
       <div role="tablist" aria-label="Your computer">
         <button role="tab" type="button" id="tab-mac" aria-controls="panel-mac" aria-selected="true">Mac</button>
@@ -160,35 +220,40 @@ Open the labeling page now? [Y/n]</code></pre>
             <p><strong>What you see.</strong> <code>Python 3.11</code> or a higher number, such as <code>Python 3.13.2</code>. If you see <code>command not found</code> or a lower number, install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new terminal.</p>
           </li>
           <li>
+            <h3>Switch on your project&#39;s environment</h3>
+            <p>An <strong>environment</strong> (a virtual environment) is a folder in your project that holds its own Python and what the project needs. Go to your project and switch it on:</p>
+            <div class="code"><pre><code>cd your-project
+source .venv/bin/activate</code></pre></div>
+            <p><strong>What you see.</strong> The start of the line now reads <code>(.venv)</code>. If your project keeps its environment in another folder, such as <code>venv</code>, use that name.</p>
+            <p>No <code>.venv</code> folder in your project yet (<code>no such file or directory</code>)? Make one, then run the <code>source</code> line again:</p>
+            <div class="code"><pre><code>python3 -m venv .venv</code></pre></div>
+          </li>
+          <li>
             <h3>Install judgekeeper</h3>
-            <div class="code"><pre><code>pip3 install judgekeeper</code></pre></div>
+            <div class="code"><pre><code>pip install judgekeeper</code></pre></div>
             <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>. A notice about a newer pip may follow. You can ignore it.</p>
+            <p>Does your project use uv or Poetry? Add judgekeeper as a dev tool instead, with one of these:</p>
+            <div class="code"><pre><code>uv add --dev judgekeeper</code></pre></div>
+            <div class="code"><pre><code>poetry add --group dev judgekeeper</code></pre></div>
           </li>
           <li>
             <h3>Check it runs</h3>
             <div class="code"><pre><code>judgekeeper --version</code></pre></div>
-            <p><strong>What you see.</strong> One line: <code>judgekeeper</code> and the version number.</p>
+            <p><strong>What you see.</strong> A line that ends in <code>is ready</code>, then what to run next. If it also says <em>judgekeeper is installed outside a project</em>, your project&#39;s environment was not switched on: go back to step 2.</p>
           </li>
         </ol>
         <div class="faq">
           <details>
-            <summary>If step 2 was refused: <code>error: externally-managed-environment</code></summary>
-            <p>This Python is managed by Homebrew or by the system, and it refuses direct installs to protect itself. It is not about judgekeeper. The fix is a <strong>virtual environment</strong>: a folder that holds a Python program and what it needs, kept apart from the rest of your computer. Make one:</p>
-            <div class="code"><pre><code>python3 -m venv ~/judgekeeper-env</code></pre></div>
-            <p><strong>What you see.</strong> Nothing. It takes a few seconds. Now switch it on:</p>
-            <div class="code"><pre><code>source ~/judgekeeper-env/bin/activate</code></pre></div>
-            <p><strong>What you see.</strong> The start of the line now reads <code>(judgekeeper-env)</code>. Now install:</p>
-            <div class="code"><pre><code>pip install judgekeeper</code></pre></div>
-            <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>. Go on to step 3.</p>
-            <p>Each time you open a new terminal, run the <code>source</code> line again before you use judgekeeper.</p>
+            <summary>If step 3 was refused: <code>error: externally-managed-environment</code></summary>
+            <p>Your project&#39;s environment is not switched on, so pip tried to install into the Python of your whole computer, which Homebrew or the system protects. It is not about judgekeeper. Run step 2, check that the line starts with <code>(.venv)</code>, then install again.</p>
           </details>
           <details>
             <summary><code>pip: command not found</code></summary>
-            <p>A Mac may print it as <code>zsh: command not found: pip</code>. On a Mac the command is named <code>pip3</code>. Use the line in step 2 as it is written.</p>
+            <p>A Mac may print it as <code>zsh: command not found: pip</code>. Outside an environment, a Mac names the command <code>pip3</code>. Switch on your project&#39;s environment (step 2): inside it, <code>pip</code> works.</p>
           </details>
           <details>
             <summary>The judgekeeper command is not found</summary>
-            <p>Run <code>python3 -m judgekeeper --version</code>. It does the same thing as <code>judgekeeper --version</code>. Put <code>python3 -m</code> in front of every <code>judgekeeper</code> command.</p>
+            <p>With your project&#39;s environment switched on, run <code>python -m judgekeeper --version</code>. It does the same thing as <code>judgekeeper --version</code>. Put <code>python -m</code> in front of every <code>judgekeeper</code> command. With uv or Poetry, put <code>uv run</code> or <code>poetry run</code> in front instead.</p>
           </details>
         </div>
       </div>
@@ -201,43 +266,48 @@ Open the labeling page now? [Y/n]</code></pre>
             <p><strong>What you see.</strong> <code>Python 3.11</code> or a higher number, such as <code>Python 3.13.2</code>. When Python is on the PATH, <code>python --version</code> works too. If you see <code>'py' is not recognized</code> or a lower number, install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new PowerShell window.</p>
           </li>
           <li>
+            <h3>Switch on your project&#39;s environment</h3>
+            <p>An <strong>environment</strong> (a virtual environment) is a folder in your project that holds its own Python and what the project needs. Go to your project and switch it on:</p>
+            <div class="code"><pre><code>cd your-project
+.venv\Scripts\activate</code></pre></div>
+            <p><strong>What you see.</strong> The start of the line now reads <code>(.venv)</code>. If your project keeps its environment in another folder, such as <code>venv</code>, use that name.</p>
+            <p>No <code>.venv</code> folder in your project yet (<code>is not recognized</code> or <code>cannot find the path</code>)? Make one, then run the <code>activate</code> line again:</p>
+            <div class="code"><pre><code>py -m venv .venv</code></pre></div>
+            <p class="note">If PowerShell refuses to run the script, run <code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code> once and try again. In Command Prompt the line is <code>.venv\Scripts\activate.bat</code>.</p>
+          </li>
+          <li>
             <h3>Install judgekeeper</h3>
             <div class="code"><pre><code>pip install judgekeeper</code></pre></div>
             <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>. A notice about a newer pip may follow. You can ignore it.</p>
+            <p>Does your project use uv or Poetry? Add judgekeeper as a dev tool instead, with one of these:</p>
+            <div class="code"><pre><code>uv add --dev judgekeeper</code></pre></div>
+            <div class="code"><pre><code>poetry add --group dev judgekeeper</code></pre></div>
           </li>
           <li>
             <h3>Check it runs</h3>
             <div class="code"><pre><code>judgekeeper --version</code></pre></div>
-            <p><strong>What you see.</strong> One line: <code>judgekeeper</code> and the version number.</p>
+            <p><strong>What you see.</strong> A line that ends in <code>is ready</code>, then what to run next. If it also says <em>judgekeeper is installed outside a project</em>, your project&#39;s environment was not switched on: go back to step 2.</p>
           </li>
         </ol>
         <div class="faq">
           <details>
-            <summary>If step 2 was refused: <code>error: externally-managed-environment</code></summary>
-            <p>This Python is managed by another program or by the system, and it refuses direct installs to protect itself. It is not about judgekeeper. The fix is a <strong>virtual environment</strong>: a folder that holds a Python program and what it needs, kept apart from the rest of your computer. Make one:</p>
-            <div class="code"><pre><code>py -m venv "$HOME\judgekeeper-env"</code></pre></div>
-            <p><strong>What you see.</strong> Nothing. It takes a few seconds. Now switch it on:</p>
-            <div class="code"><pre><code>&amp; "$HOME\judgekeeper-env\Scripts\Activate.ps1"</code></pre></div>
-            <p><strong>What you see.</strong> The start of the line now reads <code>(judgekeeper-env)</code>. Now install:</p>
-            <div class="code"><pre><code>pip install judgekeeper</code></pre></div>
-            <p><strong>What you see.</strong> A few lines. One near the end starts with <code>Successfully installed</code>. Go on to step 3.</p>
-            <p>Each time you open a new PowerShell window, run the <code>Activate.ps1</code> line again before you use judgekeeper.</p>
-            <p class="note">In Command Prompt, the two lines are <code>py -m venv "%USERPROFILE%\judgekeeper-env"</code> and <code>"%USERPROFILE%\judgekeeper-env\Scripts\activate.bat"</code>. If PowerShell refuses to run the script, run <code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code> once and try again.</p>
+            <summary>If step 3 was refused: <code>error: externally-managed-environment</code></summary>
+            <p>Your project&#39;s environment is not switched on, so pip tried to install into the Python of your whole computer, which another program or the system protects. It is not about judgekeeper. Run step 2, check that the line starts with <code>(.venv)</code>, then install again.</p>
           </details>
           <details>
             <summary><code>'pip' is not recognized as an internal or external command</code></summary>
-            <p>PowerShell words it as <code>The term 'pip' is not recognized</code>. Python was installed without being added to the PATH, the list of places Windows looks for commands. The <code>py</code> command is installed either way, so use it:</p>
-            <div class="code"><pre><code>py -m pip install judgekeeper</code></pre></div>
-            <p><strong>What you see.</strong> The same as in step 2. Go on to step 3.</p>
+            <p>PowerShell words it as <code>The term 'pip' is not recognized</code>. Inside your project&#39;s environment <code>pip</code> is always found, so the environment is not switched on: run step 2 again. Or use the environment&#39;s own Python, which always installs into your project:</p>
+            <div class="code"><pre><code>.venv\Scripts\python -m pip install judgekeeper</code></pre></div>
+            <p><strong>What you see.</strong> The same as in step 3. Go on to step 4.</p>
           </details>
           <details>
             <summary>The judgekeeper command is not found</summary>
-            <p>Run <code>py -m judgekeeper --version</code>. It does the same thing as <code>judgekeeper --version</code>. Put <code>py -m</code> in front of every <code>judgekeeper</code> command.</p>
+            <p>With your project&#39;s environment switched on, run <code>python -m judgekeeper --version</code>. It does the same thing as <code>judgekeeper --version</code>. Put <code>python -m</code> in front of every <code>judgekeeper</code> command. With uv or Poetry, put <code>uv run</code> or <code>poetry run</code> in front instead.</p>
           </details>
         </div>
       </div>
     </div>
-    <p class="note" style="margin-top:16px">Already use <a href="https://docs.astral.sh/uv/">uv</a>? <code>uvx judgekeeper --version</code> runs it without installing. The package is <a href="https://pypi.org/project/judgekeeper/">judgekeeper on PyPI</a>, and the <a href="https://github.com/judgekeeper/judgekeeper">source code is on GitHub</a>.</p>
+    <p class="note" style="margin-top:16px">Add judgekeeper to your project&#39;s dev requirements, so everyone who works on the project gets it. The package is <a href="https://pypi.org/project/judgekeeper/">judgekeeper on PyPI</a>, and the <a href="https://github.com/judgekeeper/judgekeeper">source code is on GitHub</a>.</p>
   </div>
 </section>
 

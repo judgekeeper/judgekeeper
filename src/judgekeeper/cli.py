@@ -27,10 +27,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
 import traceback
+from itertools import pairwise
 from pathlib import Path
 
 from judgekeeper import __version__
@@ -127,8 +129,52 @@ def version_lines(stream=None) -> list[str]:
         command = "judgekeeper start"
     else:
         command = f"{'py' if is_windows() else 'python3'} -m judgekeeper start"
-    return [f"{tick(stream)} judgekeeper {__version__} is ready",
-            f"Next: go to your project folder and run {command}"]
+    lines = [f"{tick(stream)} judgekeeper {__version__} is ready",
+             f"Next: go to your project folder and run {command}"]
+    if not in_an_environment():
+        from judgekeeper.own_format import INSTALL_URL
+
+        lines.append("judgekeeper is installed outside a project. Install it inside your "
+                     f"project's environment instead (see {INSTALL_URL}).")
+    return lines
+
+
+def in_an_environment() -> bool:
+    """Whether this Python runs inside a project's environment (a virtual or conda
+    environment), not on the computer as a whole. Conda's own base environment is not one,
+    and neither is an install made with pipx or `uv tool install`: their virtual environments
+    are the tool's own, kept with the user's other tools (`tool_install`)."""
+    if tool_install(sys.prefix):
+        return False
+    if sys.prefix != getattr(sys, "base_prefix", sys.prefix) or os.environ.get("VIRTUAL_ENV"):
+        return True
+    return os.environ.get("CONDA_DEFAULT_ENV") not in (None, "", "base")
+
+
+def _parts(path: str) -> tuple[str, ...]:
+    """A path's parts, lower-cased for a Windows path (which ignores case)."""
+    from pathlib import PurePosixPath, PureWindowsPath
+
+    if "\\" in path or (len(path) > 1 and path[1] == ":"):
+        return tuple(x.lower() for x in PureWindowsPath(path).parts)
+    return PurePosixPath(path).parts
+
+
+def tool_install(prefix: str) -> bool:
+    """Whether `prefix` (sys.prefix) is a virtual environment made by pipx or `uv tool
+    install`: under PIPX_HOME/venvs or UV_TOOL_DIR when they are set, else under pipx's
+    `pipx/venvs/` or uv's `uv/.../tools/` folder, on Mac, Linux and Windows."""
+    parts = _parts(str(prefix))
+    for name, inside in (("PIPX_HOME", ("venvs",)), ("UV_TOOL_DIR", ())):
+        home = os.environ.get(name)
+        if home:
+            base = _parts(home) + inside
+            if parts[:len(base)] == base and len(parts) > len(base):
+                return True
+    folders = [x.lower() for x in parts[:-1]]
+    if any(a in ("pipx", ".pipx") and b == "venvs" for a, b in pairwise(folders)):
+        return True
+    return bool(folders) and folders[-1] == "tools" and "uv" in folders[:-1]
 
 
 class _Version(argparse.Action):
@@ -391,13 +437,18 @@ def _parser() -> argparse.ArgumentParser:
                       help="after a result: review the answers where you and your judge "
                            "disagree (no AI call)")
     then.add_argument("--ask-again", action="store_true",
-                      help="after a result: show the plan for asking your judge again about "
-                           "your labeled answers (calls, cost, key name); nothing is run yet")
+                      help="after a result: ask your judge again about your labeled answers, "
+                           "through your own eval tool; it shows the plan (calls, cost, key "
+                           "name) and asks before any call")
+    then.add_argument("--try-new-judge", action="store_true",
+                      help="after a result: try the new version of your judge (found in your "
+                           "newest results) on the answers you already marked; it asks before "
+                           "any call")
     then.add_argument("--label-more", action="store_true",
                       help="after a result: open the labeling page to label more")
-    st.add_argument("--times", type=_times, default=2, metavar="N",
+    st.add_argument("--times", type=_times, default=None, metavar="N",
                     help="asking again: how many times to ask about each answer, 1 to 5 "
-                         "(default 2)")
+                         "(default 2; 1 with --try-new-judge)")
     st.add_argument("--allow-calls", type=int, metavar="N",
                     help="asking again: approve up to N judge calls without the question "
                          "(needed without a terminal, and above 1,000 calls)")
@@ -413,6 +464,9 @@ def _parser() -> argparse.ArgumentParser:
     st.add_argument("--yes", action="store_true",
                     help="without a terminal, answer yes/no questions with the default (it "
                          "never picks a tool or a judge)")
+    st.add_argument("--agent-prompt", action="store_true",
+                    help="print a prompt for your coding agent that turns judge results saved "
+                         "in your own format into judgekeeper's table, then exit")
 
     ex = sub.add_parser("export", parents=[common],
                         help="write judgekeeper runs and labels in a format other tools read")
@@ -749,10 +803,16 @@ def cmd_import(args) -> int:
 def cmd_start(args) -> int:
     from judgekeeper.start import run
 
+    if args.agent_prompt:
+        from judgekeeper.own_format import AGENT_PROMPT
+
+        print(AGENT_PROMPT)
+        return 0
     return run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
                pass_if=args.pass_if, label_map=args.label_map, judge_model=args.judge_model,
                yes=args.yes, port=args.port, no_browser=args.no_browser, new=args.new,
                review=args.review, label_more=args.label_more, ask_again=args.ask_again,
+               try_new_judge=args.try_new_judge,
                times=args.times, python=args.python, fields=args.fields,
                judge_command=args.judge_command, allow_calls=args.allow_calls)
 

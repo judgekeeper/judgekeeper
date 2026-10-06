@@ -98,14 +98,15 @@ def run(job, out_path, version):
         for answer in job["answers"]:
             line = {"id": answer["id"], "time": time}
             try:
-                if answer["id"] not in traces:
-                    traces[answer["id"]] = client.get_trace(answer["trace"])
+                if answer["id"] not in traces:  # None: a new judge's answer, no trace kept
+                    traces[answer["id"]] = (client.get_trace(answer["trace"])
+                                            if answer.get("trace") else None)
                 trace = traces[answer["id"]]
                 if job["judge"].get("trace"):
                     result = call(judge, trace=trace)
                 else:
                     result = call(judge, inputs=answer["inputs"], outputs=answer["outputs"],
-                                  expectations=expectations(trace))
+                                  expectations=expectations(trace) if trace else None)
                 value, reason, error = feedback(result)
             except Exception as e:  # noqa: BLE001 - one failed call: say why, go on
                 value, reason, error = None, None, f"{type(e).__name__}: {e}"

@@ -345,6 +345,7 @@ judgekeeper import inspect logs/ --metric model_graded_qa --labels labels.csv --
       <details>
         <summary><span>MLflow<small>assessments on traces</small></span></summary>
         <div class="recipe">
+          <p>In your project&#39;s environment:</p>
           <div class="code"><pre><code>pip install "judgekeeper[mlflow]"
 judgekeeper import mlflow --experiment my-app-eval --metric correctness --out reports/correctness/</code></pre></div>
           <p class="note"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/mlflow.md">Full MLflow guide</a></p>
@@ -361,7 +362,7 @@ judgekeeper import mlflow --experiment my-app-eval --metric correctness --out re
       <details>
         <summary><span>Anthropic models<small>--runner anthropic</small></span></summary>
         <div class="recipe">
-          <p>judgekeeper calls the model for you with your own key, read from the environment. The prompt file holds your grading instructions. <code>judgekeeper init</code> writes a starter one, <code>prompts/judge.md</code>, for you to fill in:</p>
+          <p>judgekeeper calls the model for you with your own key, read from the environment. The prompt file holds your grading instructions. <code>judgekeeper init</code> writes a starter one, <code>prompts/judge.md</code>, for you to fill in. Run these in your project&#39;s environment:</p>
           <div class="code"><pre><code>pip install "judgekeeper[anthropic]"
 judgekeeper init
 judgekeeper judge anchors.jsonl --runner anthropic --model claude-haiku-4-5-20251001 --prompt prompts/judge.md --runs 3 --out runs/haiku/</code></pre></div>
@@ -371,6 +372,7 @@ judgekeeper judge anchors.jsonl --runner anthropic --model claude-haiku-4-5-2025
       <details>
         <summary><span>OpenAI models<small>--runner openai</small></span></summary>
         <div class="recipe">
+          <p>In your project&#39;s environment:</p>
           <div class="code"><pre><code>pip install "judgekeeper[openai]"
 judgekeeper init
 judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --prompt prompts/judge.md --runs 3 --out runs/openai/</code></pre></div>
@@ -382,7 +384,7 @@ judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --prompt 
         <div class="recipe">
           <p>Azure OpenAI, OpenRouter, Together, a LiteLLM gateway (for AWS Bedrock or Google Vertex), Ollama or vLLM. For a local Ollama, no key is needed:</p>
           <div class="code"><pre><code>judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --base-url http://localhost:11434/v1 --prompt prompts/judge.md --runs 3 --out runs/local/</code></pre></div>
-          <p class="note">This uses the OpenAI runner, so install it first with <code>pip install "judgekeeper[openai]"</code>. <a href="setup.html#laptop">More endpoints on the setup page</a></p>
+          <p class="note">This uses the OpenAI runner, so install it first, in your project&#39;s environment, with <code>pip install "judgekeeper[openai]"</code>. <a href="setup.html#laptop">More endpoints on the setup page</a></p>
         </div>
       </details>
       <details>

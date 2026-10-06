@@ -247,7 +247,7 @@ def read_results_table(path: Path) -> RecordList:
     for row in rows:
         content = {"target_id": derive_record_id(row.get("input"), row.get("output")),
                    "input": row.get("input"), "output": row.get("output")}
-        model = row.get("model")
+        model = row.get("model") if not _blank(row.get("model")) else row.get("judge_model")
         records.append(ScoreRecord(
             name=verdict, annotator_kind=LLM,
             label=None if _blank(row.get(verdict)) else row[verdict],
@@ -288,8 +288,9 @@ def _folder_of(result: find.Result) -> str:
 
 
 def _needs_extra(talk: Talk, tool: str, where: str) -> Stop:
-    talk.say(f'{find.NAMES[tool]} found ({where}). To read it: pip install '
-             f'"judgekeeper[{find.EXTRAS[tool]}]", then run judgekeeper start again.')
+    talk.say(f"{find.NAMES[tool]} found ({where}). To read it, add the extra in your "
+             f"project's environment: pip install \"judgekeeper[{find.EXTRAS[tool]}]\", then "
+             "run judgekeeper start again.")
     return Stop(EXIT_USAGE)
 
 
@@ -356,17 +357,47 @@ class Found:
     signs: dict
     rule: str | None = None  # the judge's whole rule, as its results file holds it
     description: str | None = None  # promptfoo's `config.description` of the newest results
+    metrics: list[str] = field(default_factory=list)  # every judge in the newest results
 
 
 def _or(items: list[str]) -> str:
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} or {items[-1]}"
 
 
+# Why a tool seen in the project has no results judgekeeper can read. "Run your eval" only
+# where the tool's normal run writes the files judgekeeper reads.
+NO_RESULTS = {
+    "deepeval": ("but DeepEval saves results only when your tests run through deepeval test "
+                 "run or evaluate(); calling a metric's measure() directly saves nothing."),
+    "inspect": ("but it has no saved logs in this folder yet. Run your eval (inspect eval saves "
+                "its logs in logs/), then run judgekeeper start again."),
+    "mlflow": "but it has no saved judge assessments in this folder yet.",
+}
+
+
 def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
+    from judgekeeper import own_format
+
     talk.say(f"No saved eval results found in {root}.")
     for tool, where in signs.items():
-        talk.say(f"{find.NAMES[tool]} is used here ({where[0]}), but it has no saved results "
-                 "in this folder yet. Run your eval, then run judgekeeper start again.")
+        talk.say(f"{find.NAMES[tool]} is used here ({where[0]}), "
+                 + NO_RESULTS.get(tool, "but it has no saved results in this folder yet."))
+    own = own_format.search(root)
+    how = (f"turn it into a table with input, output and verdict columns (see "
+           f"{own_format.OWN_FORMAT_URL}), or ask your coding agent with the prompt below.")
+    if own is not None:
+        talk.say(f"{own.rel} looks like saved judge results in your own format.")
+        talk.say(f"To use it: {how}")
+    elif "deepeval" in signs:
+        talk.say("If your judge saves its results in a format of its own: "
+                 + how.replace("turn it into", "turn them into"))
+    if own is not None or "deepeval" in signs:
+        talk.say()
+        talk.say("Paste this into your coding agent (Claude Code, Cursor or Codex):")
+        talk.say()
+        for line in own_format.AGENT_PROMPT.splitlines():
+            talk.say(line)
+        talk.say()
     talk.say("judgekeeper start reads the results that promptfoo, DeepEval, Inspect AI and "
              "MLflow save, or a CSV or JSONL file with input, output and verdict columns.")
     talk.say(POINT_ME)
@@ -496,11 +527,14 @@ def _project_description(root: Path) -> str | None:
     return None
 
 
-def _choose_metric(talk: Talk, newest: Loaded, metric: str | None) -> str:
+def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
+                   prefer: str | None = None) -> str:
     counts = Counter(r.name for r in newest.records if r.annotator_kind == LLM)
     names = sorted(counts)
     if not names:
         raise StartError(f"{newest.label} holds no verdicts from an LLM judge")
+    if metric is None and prefer in counts:
+        return prefer
     if metric is not None:
         if metric not in counts:
             raise StartError(f"no judge named {metric!r}; judges are: "
@@ -569,11 +603,12 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
 def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
                experiment: str | None = None, pass_if: str | None = None,
                label_map: str | dict | None = None, judge_model: str | None = None,
-               talk: Talk | None = None) -> Found:
+               talk: Talk | None = None, prefer: str | None = None) -> Found:
     """Find the results, choose what to use, make the pool and name the judge.
 
     `talk` says each step and asks the questions; the default says nothing and, with no one
-    to ask, stops (Stop) where a question would be needed.
+    to ask, stops (Stop) where a question would be needed. `prefer` (the judge of the last
+    check) is chosen without asking when the newest results hold it among several.
     """
     talk = talk or Talk(quiet=True)
     root, kind, results, signs = _locate(talk, Path(path), tool)
@@ -598,7 +633,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         first = _read(newest)
         talk.say(f"{tick()} Your eval tool: {find.NAMES[kind]} ({_where(newest)})")
         read_older = (_read(r) for r in results[1:])
-    metric = _choose_metric(talk, first, metric)
+    metric = _choose_metric(talk, first, metric, prefer)
+    metrics = sorted({r.name for r in first.records if r.annotator_kind == LLM})
 
     norm = Normaliser(pass_if=pass_if,
                       label_map={**first.records.label_map, **parse_label_map(label_map)})
@@ -634,7 +670,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     talk.say(f"{tick()} Your judge: {judge}")
     return Found(root=root, tool=kind, results=results, used=[x.label for x in used],
                  metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs,
-                 rule=rule_text(prompt), description=description)
+                 rule=rule_text(prompt), description=description, metrics=metrics)
 
 
 # What `start` says after finding ---------------------------------------------------------
@@ -643,10 +679,35 @@ def _plural(n: int, one: str, many: str) -> str:
     return f"{n} {one if n == 1 else many}"
 
 
+ROW_CELL = 40  # characters of a cell shown in a table's first rows
+
+
+def _cell(value) -> str:
+    text = " ".join(str("" if value is None else value).split())
+    return text[:ROW_CELL - 1] + "…" if len(text) > ROW_CELL else text
+
+
+def _first_rows(talk: Talk, found: Found) -> None:
+    """A plain table's first 3 rows as read, so a wrong conversion shows at once."""
+    try:
+        rows = read_table(found.results[0].path)[:3]
+    except (OSError, ValueError, RecordsError):
+        return
+    verdict = next((c for c in find.VERDICT_COLUMNS if rows and c in rows[0]), None)
+    if not rows or verdict is None:
+        return
+    talk.say(f"  The first {len(rows)} rows, as judgekeeper read them:")
+    for row in rows:
+        talk.say(f"    input: {_cell(row.get('input'))}   output: {_cell(row.get('output'))}   "
+                 f"{verdict}: {_cell(row.get(verdict))}")
+
+
 def _say_pool(talk: Talk, found: Found) -> None:
     pool = found.pool
     talk.say(f"{tick()} {_plural(len(pool.answers), 'answer', 'answers')} with a verdict: the "
              f"judge passed {pool.n_pass} and failed {pool.n_fail}")
+    if found.tool == "table":
+        _first_rows(talk, found)
     if pool.n_merged:
         talk.say("  " + (f"{pool.n_merged} repeats of the same answer were merged."
                          if pool.n_merged != 1 else
@@ -755,12 +816,14 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         label_map: str | None = None, judge_model: str | None = None,
         yes: bool = False, port: int = 8765, no_browser: bool = False,
         new: bool = False, review: bool = False, label_more: bool = False,
-        ask_again: bool = False, times: int = 2, python: str | None = None,
+        ask_again: bool = False, try_new_judge: bool = False, times: int | None = None,
+        python: str | None = None,
         fields: str | None = None, judge_command: str | None = None,
         allow_calls: int | None = None) -> int:
     """`judgekeeper start`: say what was found, then open the labeling page and make the
     result. What is already saved in `.judgekeeper/` decides where it starts (start_again).
-    `review`, `ask_again` and `label_more` answer the menu shown after a result; `times`,
+    `review`, `ask_again`, `try_new_judge` and `label_more` answer the menu shown after a
+    result; `times` (default 2, or 1 when trying a new judge),
     `python`, `fields`, `judge_command` and `allow_calls` shape asking the judge again.
     Returns the exit code."""
     from judgekeeper import start_again
@@ -773,7 +836,8 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
     options = {"tool": tool, "metric": metric, "experiment": experiment, "pass_if": pass_if,
                "label_map": label_map, "judge_model": judge_model}
     try:
-        then = "review" if review else "ask" if ask_again else "label" if label_more else None
+        then = ("review" if review else "ask" if ask_again else "try" if try_new_judge
+                else "label" if label_more else None)
         return start_again.run(Path(path), talk, options, port=port,
                                open_browser=not no_browser, new=new, then=then,
                                again_options=again_options)

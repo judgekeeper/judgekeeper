@@ -106,12 +106,16 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
                      "first.")
             return start.EXIT_USAGE
         return _ask_again(ws, talk, again_options)
+    if then == "try" and not has_result:
+        talk.say("There is no result yet to try a new judge on. Run judgekeeper start to label "
+                 "first.")
+        return start.EXIT_USAGE
     if ws is not None and new:
         move_to_previous(ws, talk.say)
     elif ws is not None and ws.start.is_file():
         if not ws.result_json.is_file():
             return _unfinished(ws, talk, port, open_browser)
-        found = start.find_judge(path, talk=talk, **options)
+        found = start.find_judge(path, talk=talk, prefer=ws.data()["metric"], **options)
         return _again(ws, found, talk, port, open_browser, then, again_options)
     found = start.find_judge(path, talk=talk, **options)
     return start.label_found(talk, found, port, open_browser)
@@ -147,11 +151,9 @@ ASKED_NOTHING = "Your judge was not called; nothing was spent."
 def _ask_again(ws: Workspace, talk, again_options) -> int:
     """The plan for asking the judge again; then, after a yes (or --allow-calls), the calls
     and the numbers."""
-    from judgekeeper import again, start
-    from judgekeeper.again import command, deepeval, fresh, inspect, mlflow, promptfoo
+    from judgekeeper import again
+    from judgekeeper.again import fresh
 
-    runs = {"promptfoo": promptfoo.run, "command": command.run, "deepeval": deepeval.run,
-            "inspect": inspect.run, "mlflow": mlflow.run}
     options = again_options or again.AgainOptions()
     plan = again.make_plan(ws, options, talk=talk, dry=True)
     talk.say()
@@ -166,21 +168,12 @@ def _ask_again(ws: Workspace, talk, again_options) -> int:
     if not again.approve(plan, talk, options.allow_calls):
         talk.say(ASKED_NOTHING)
         return 0
-    if plan.download:
-        version = plan.tool_version
-        if not start._interactive():
-            talk.say(f"promptfoo {version} is not installed here. Install it in this project "
-                     f"(npm install --save-dev promptfoo@{version}), or run judgekeeper start "
-                     "--ask-again in a terminal to let judgekeeper fetch it with npx.")
-            return start.EXIT_USAGE
-        if not talk.confirm(f"promptfoo {version} is not installed here. Download it with npx "
-                            f"--yes promptfoo@{version}?", default=False, with_yes=False,
-                            hint="Download promptfoo?"):
-            talk.say(ASKED_NOTHING)
-            return 0
+    stop = downloaded(plan, talk, "--ask-again")
+    if stop is not None:
+        return stop
     folder_before = set((ws.dir / "again").iterdir()) if (ws.dir / "again").is_dir() else set()
     try:
-        result = runs[plan.tool](ws, plan, talk)
+        result = again.run_tool(ws, plan, talk)
     except fresh.AgainError as e:
         talk.say(str(e))
         _drop_new_folders(ws, folder_before)
@@ -192,6 +185,27 @@ def _ask_again(ws: Workspace, talk, again_options) -> int:
         return 130
     fresh.finish(ws, plan, result, talk)
     return 0
+
+
+def downloaded(plan, talk, command: str) -> int | None:
+    """When the plan's tool must be downloaded first (npx), ask (default No). None to go on,
+    else the exit code."""
+    from judgekeeper import start
+
+    if not plan.download:
+        return None
+    version = plan.tool_version
+    if not start._interactive():
+        talk.say(f"promptfoo {version} is not installed here. Install it in this project "
+                 f"(npm install --save-dev promptfoo@{version}), or run judgekeeper start "
+                 f"{command} in a terminal to let judgekeeper fetch it with npx.")
+        return start.EXIT_USAGE
+    if not talk.confirm(f"promptfoo {version} is not installed here. Download it with npx "
+                        f"--yes promptfoo@{version}?", default=False, with_yes=False,
+                        hint="Download promptfoo?"):
+        talk.say(ASKED_NOTHING)
+        return 0
+    return None
 
 
 def _drop_new_folders(ws: Workspace, before: set, keep_files: bool = True) -> None:
@@ -215,10 +229,10 @@ def _drop_new_folders(ws: Workspace, before: set, keep_files: bool = True) -> No
 
 
 def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
-          again_options=None) -> int:
-    """What next after a result: review the disagreements, ask the judge again, label more,
-    or nothing."""
-    from judgekeeper import again, start_review
+          again_options=None, new=None) -> int:
+    """What next after a result: try the new judge (when `new`, a new_judge.NewJudge),
+    review the disagreements, ask the judge again, label more, or nothing."""
+    from judgekeeper import again, new_judge, start, start_review
 
     last = json.loads(ws.result_json.read_text(encoding="utf-8"))
     labels = last.get("labels", {})
@@ -227,6 +241,9 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
              f"({labels.get('correct', 0)} Correct, {labels.get('wrong', 0)} Wrong).")
     n = start_review.count(ws)
     options = []  # (answer, text, note, flag)
+    if new is not None and then is None:
+        options.append(("try", *new_judge.menu_text(ws, new, again_options),
+                        "--try-new-judge"))
     if n:
         text = (f"Review the {n} answer{'' if n == 1 else 's'} where you and your judge "
                 "disagree")
@@ -245,6 +262,11 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
             for _, text, note, flag in flags])
         talk.say()
         then = options[talk.choose("What next?", shown, hint, ask="Choose")][0]
+    if then == "try":
+        if new is None:
+            talk.say(new_judge.NO_NEW)
+            return start.EXIT_USAGE
+        return new_judge.run(ws, new, talk, again_options, port, open_browser)
     if then == "review":
         return start_review.run(ws, talk, port, open_browser)
     if then == "ask":
@@ -256,22 +278,55 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
 
 def _again(ws: Workspace, found, talk, port: int, open_browser: bool,
            then: str | None = None, again_options=None) -> int:
+    from judgekeeper import new_judge
+
     data = ws.data()
     last = json.loads(ws.result_json.read_text(encoding="utf-8"))
-    if found.tool != data["tool"] or found.metric != data["metric"]:
-        talk.say(f"Your last check was of the judge {data['judge']} ({data['tool']}). These "
-                 f"results are of {found.judge}.")
-        talk.say(f"To check these results instead, run judgekeeper start --new: your last "
-                 f"check moves to {FOLDER}/{PREVIOUS}<date>/ and nothing is deleted.")
-        return 0
-    same_judge = judge_change(data["fingerprint"], found.fingerprint) is None
-    if same_judge and {a.id: a.verdict for a in found.pool.answers} == _saved_verdicts(ws):
+    new = None
+    if found.tool != data["tool"] or (found.metric != data["metric"]
+                                      and data["metric"] in found.metrics):
+        return _another_judge(talk, data, found)
+    if found.metric != data["metric"]:  # the judge's name changed
+        if not _renamed(talk, data, found, then):
+            return _another_judge(talk, data, found)
+        new = new_judge.NewJudge(found, f"its name was {data['metric']}, now {found.metric}")
+    else:
+        change = judge_change(data["fingerprint"], found.fingerprint)
+        if change:
+            new = new_judge.NewJudge(found, change)
+    if new is not None:
+        talk.say()
+        talk.say(f"Your judge changed since your last check: {new.change}.")
+        return _menu(ws, talk, then, port, open_browser, again_options, new=new)
+    if then == "try":
+        talk.say(new_judge.NO_NEW)
+        return 2
+    if {a.id: a.verdict for a in found.pool.answers} == _saved_verdicts(ws):
         return _menu(ws, talk, then, port, open_browser, again_options)
     code = _recheck(ws, found, last, talk, port, open_browser)
     if code == 0 and ws.result_json.is_file() and ws.start.is_file() and (
             then is not None or start_interactive()):
         return _menu(ws, talk, then, port, open_browser, again_options)
     return code
+
+
+def _another_judge(talk, data: dict, found) -> int:
+    talk.say(f"Your last check was of the judge {data['judge']} ({data['tool']}). These "
+             f"results are of {found.judge}.")
+    talk.say(f"To check these results instead, run judgekeeper start --new: your last "
+             f"check moves to {FOLDER}/{PREVIOUS}<date>/ and nothing is deleted.")
+    return 0
+
+
+def _renamed(talk, data: dict, found, then: str | None) -> bool:
+    """Whether the judge in the newest results is the new version of the saved one, whose
+    name is not there any more. `--try-new-judge` says yes; else it is asked."""
+    if then == "try":
+        return True
+    question = f"Is {found.metric} the new version of your judge {data['metric']}?"
+    return talk.confirm(question, default=True, with_yes=True,
+                        hint=f"{question} Run judgekeeper start --try-new-judge to try it, or "
+                             "judgekeeper start --new to check it as a new judge.")
 
 
 def start_interactive() -> bool:

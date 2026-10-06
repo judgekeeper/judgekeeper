@@ -432,7 +432,7 @@ METER = """<div class="meter __KEY__"><div class="meter-top" aria-live="polite" 
       <div class="track" aria-hidden="true"><span id="b__KEY__"></span><i style="left: __AT__%"></i>
         <i class="reliable"></i></div>
       <div class="marks" aria-hidden="true"><em class="rough" style="left: __AT__%">__ROUGH__
-        rough</em><em class="reliable">__RELIABLE__ reliable</em></div></div>"""
+        __FIRST_MARK__</em><em class="reliable">__RELIABLE__ __SECOND_MARK__</em></div></div>"""
 
 
 def _text(value: str) -> str:
@@ -441,16 +441,19 @@ def _text(value: str) -> str:
     return escape(value).replace("_", "&#95;")
 
 
-def label_page(description: str | None, rule: str | None, status: list) -> str:
+def label_page(description: str | None, rule: str | None, status: list,
+               marks: tuple[str, str] = ("rough", "reliable")) -> str:
     """The labeling page. `status` is the table of lines under the meters: (the fewest of
-    Correct and Wrong, the line, ready for a result), the second and third rows the rough
-    check and the reliable result. The server fills in __DATA__, __TOKEN__ and __NONCE__."""
+    Correct and Wrong, the line, ready for a result), the second and third rows the two marks
+    on the meters (by default the rough check and the reliable result, named by `marks`). The
+    server fills in __DATA__, __TOKEN__ and __NONCE__."""
     rough, reliable = status[1][0], status[2][0]
     meters = "\n    ".join(
         METER.replace("__KEY__", key).replace("__NAME__", name)
         for key, name in (("c", "Correct"), ("w", "Wrong")))
     meters = (meters.replace("__AT__", f"{rough / reliable * 100:g}")
-              .replace("__ROUGH__", str(rough)).replace("__RELIABLE__", str(reliable)))
+              .replace("__ROUGH__", str(rough)).replace("__RELIABLE__", str(reliable))
+              .replace("__FIRST_MARK__", marks[0]).replace("__SECOND_MARK__", marks[1]))
     card = _rule_card(rule, """Mark each answer by what you think is right. The judge's verdict stays
         hidden.""")
     body = (LABEL_BODY.replace("__METERS__", meters)
@@ -535,6 +538,7 @@ def result_page(content: dict, back: str | None = None) -> str:
 <div class="facts">{rate}<p>{escape(content["corrected"])}</p></div>
 {_review(content.get("review"))}
 {_review(content.get("again"))}
+{_review(content.get("new_judge"))}
 </div>
 <aside class="panel">
   <div class="card">

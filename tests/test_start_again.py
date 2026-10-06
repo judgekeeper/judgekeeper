@@ -182,23 +182,25 @@ def test_a_recheck_keeps_the_old_check_and_carries_the_labels(tmp_path, capsys, 
     assert ws.data()["pool"] == {"answers": 36, "pass": 16, "fail": 20}
 
 
-def test_a_changed_judge_is_said_first(tmp_path, capsys, served):
+def test_a_changed_judge_is_said_first_then_offered_to_try(tmp_path, capsys, served):
     _checked(tmp_path, n_pass=20, n_fail=16)
     _rewrite(tmp_path, split(20, 16), model="openai:gpt-5.4-mini")
     code, out, _ = run(capsys, tmp_path)
-    assert code == 0
+    assert code == 2  # no terminal: the menu as flags
     line = ("Your judge changed since your last check: the model was openai:gpt-4.1-mini, now "
             "openai:gpt-5.4-mini.")
     assert line in out
-    assert out.index(line) < out.index("Of the answers you marked Correct")
+    assert out.index(line) < out.index("--try-new-judge")
+    assert "Of the answers you marked Correct" not in out  # no re-check with a changed judge
 
 
 def test_a_changed_prompt_is_said_too(tmp_path, capsys, served):
     _checked(tmp_path, n_pass=20, n_fail=16)
     _rewrite(tmp_path, split(20, 16), rubric="Is polite, correct and short.")
     code, out, _ = run(capsys, tmp_path)
-    assert code == 0
+    assert code == 2
     assert "Your judge changed since your last check: the prompt changed." in out
+    assert "Try your new judge on your 36 marked answers" in out
 
 
 def test_changed_answers_offer_to_label_the_latest_results(tmp_path, capsys, served, terminal):
@@ -225,13 +227,25 @@ def test_changed_answers_without_a_terminal_need_yes(tmp_path, capsys, served):
     assert "Label your latest results? Run judgekeeper start --yes to label them." in out
 
 
-def test_results_from_another_judge_point_to_new(tmp_path, capsys, served):
+def test_results_from_another_tool_point_to_new(tmp_path, capsys, served):
+    from tests.start_projects import table_project
+
     _checked(tmp_path, n_pass=20, n_fail=16)
-    _rewrite(tmp_path, split(20, 16), metric="tone")
+    (tmp_path / "results.json").unlink()
+    (tmp_path / "promptfooconfig.yaml").unlink()
+    table_project(tmp_path, split(20, 16))
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and served == []
     assert "Your last check was of the judge llm-rubric" in out
     assert "To check these results instead, run judgekeeper start --new" in out
+
+
+def test_a_renamed_judge_is_asked_about(tmp_path, capsys, served):
+    _checked(tmp_path, n_pass=20, n_fail=16)
+    _rewrite(tmp_path, split(20, 16), metric="tone")
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 2 and served == []
+    assert "Is tone the new version of your judge llm-rubric?" in out
 
 
 # --new -----------------------------------------------------------------------------------

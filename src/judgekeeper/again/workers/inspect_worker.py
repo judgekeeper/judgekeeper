@@ -9,7 +9,9 @@ function the `inspect` command calls), which asking again uses so the key can st
 The dry run does not call it. No model is called, and no log is read or written.
 
 Mode "run" calls that loader (when it is there), reads the log with `read_eval_log` (never
-writing it), keeps the job's samples and rebuilds the recorded scorer from Inspect's own
+writing it), keeps the job's samples (for a new judge, which never graded the person's
+marked answers: puts those answers into copies of the log's first sample) and rebuilds the
+recorded scorer from Inspect's own
 registry with its saved options. Then, once per time asked, `score_async(log, [scorer],
 action="append", copy=True)` re-scores a copy in memory, with every model role (and a grader
 given as a scorer option) rebuilt with its cache off, so each time is really asked. When a
@@ -20,6 +22,7 @@ per sample per time: the new score's value, explanation and grading prompt. `ins
 """
 
 import asyncio
+import copy
 import json
 import sys
 
@@ -74,6 +77,39 @@ def scorer_from_registry(registry_create, name, options):
     raise error
 
 
+def new_samples(log, answers):
+    """The marked answers as samples shaped like the newest log's first sample, for a new
+    judge that never graded them: their own input, answer and target; no scores."""
+    from inspect_ai.model import (
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageUser,
+        ModelOutput,
+    )
+
+    roles = {"user": ChatMessageUser, "system": ChatMessageSystem,
+             "assistant": ChatMessageAssistant}
+    template, samples, wanted = log.samples[0], [], {}
+    for n, answer in enumerate(answers):
+        sample = copy.deepcopy(template)
+        given = answer["input"]
+        if isinstance(given, list):
+            given = [roles.get(m.get("role"), ChatMessageUser)(content=m.get("content") or "")
+                     if isinstance(m, dict) else m for m in given]
+            messages = list(given)
+        else:
+            messages = [ChatMessageUser(content=str(given))]
+        sample.id, sample.epoch, sample.input = f"judgekeeper-{n}", 1, given
+        sample.target = answer.get("target") or ""
+        sample.output = ModelOutput.from_content(model=str(log.eval.model),
+                                                 content=answer["output"] or "")
+        sample.messages = messages + [ChatMessageAssistant(content=answer["output"] or "")]
+        sample.scores = {}
+        samples.append(sample)
+        wanted[(sample.id, 1)] = answer["id"]
+    return samples, wanted
+
+
 def run(job, out_path, version):
     try:
         from inspect_ai._util.dotenv import init_dotenv
@@ -87,8 +123,11 @@ def run(job, out_path, version):
     from inspect_ai.util import registry_create
 
     log = read_eval_log(job["log"])
-    wanted = {(str(a["sample"]), a["epoch"]): a["id"] for a in job["answers"]}
-    log.samples = [s for s in log.samples or [] if (str(s.id), s.epoch) in wanted]
+    if job.get("new"):
+        log.samples, wanted = new_samples(log, job["answers"])
+    else:
+        wanted = {(str(a["sample"]), a["epoch"]): a["id"] for a in job["answers"]}
+        log.samples = [s for s in log.samples or [] if (str(s.id), s.epoch) in wanted]
     before = {(str(s.id), s.epoch): set(s.scores or {}) for s in log.samples}
     spec = next(s for s in log.eval.scorers if s.name == job["scorer"])
     options = dict(spec.options or {})

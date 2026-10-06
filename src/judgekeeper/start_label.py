@@ -76,11 +76,12 @@ CHECKS = {"reliable": "reliable result", "rough": "rough check", "too_few": "too
 
 
 class Workspace:
-    """The `.judgekeeper/` folder of one project."""
+    """The `.judgekeeper/` folder of one project, or (`folder`) another folder holding a
+    check of its own, such as a new judge's confirmation check."""
 
-    def __init__(self, root: str | Path):
+    def __init__(self, root: str | Path, folder: str | Path | None = None):
         self.root = Path(root)
-        self.dir = self.root / FOLDER
+        self.dir = Path(folder) if folder is not None else self.root / FOLDER
         self.start = self.dir / "start.json"
         self.pool = self.dir / "pool.jsonl"
         self.pool_judge = self.dir / "pool-judge.jsonl"
@@ -139,15 +140,16 @@ def build_queue(answers, seed: int) -> list[dict]:
 
 # Starting to label -----------------------------------------------------------------------
 
-def prepare(found, say) -> Workspace:
-    """Write start.json, pool.jsonl and pool-judge.jsonl for `found` (a start.Found).
+def prepare(found, say, ws: Workspace | None = None) -> Workspace:
+    """Write start.json, pool.jsonl and pool-judge.jsonl for `found` (a start.Found), in `ws`
+    (default: the project's `.judgekeeper/`).
 
     When start.json already holds the same pool (the same answers with the same verdicts),
     its seed and queue are kept, so labeling again carries on where it stopped.
     """
     from judgekeeper.start import StartError
 
-    ws = Workspace(found.root)
+    ws = ws or Workspace(found.root)
     answers = {a.id: a for a in found.pool.answers}
     old = ws.data() if ws.start.is_file() else None
     groups = {a.id: a.verdict for a in found.pool.answers}
@@ -160,7 +162,7 @@ def prepare(found, say) -> Workspace:
         seed = secrets.randbelow(2**31)
         queue, started = build_queue(found.pool.answers, seed), None
     first = old is None
-    ws.dir.mkdir(exist_ok=True)
+    ws.dir.mkdir(parents=True, exist_ok=True)
 
     given = found.fingerprint.get("model_source") is not None
     pool, records = [], []
@@ -356,6 +358,8 @@ def _next(r: dict) -> list[tuple[str, str]]:
         steps.append((f"Review {disagreements_words(to_review(r))}:",
                       "judgekeeper start --review"))
     steps.append(("Ask your judge again:", "judgekeeper start --ask-again"))
+    if r.get("new_judge"):
+        steps.append(("Check your new judge from now on:", "judgekeeper start --new"))
     return steps + [("Check again after your next eval run:", "judgekeeper start")]
 
 
@@ -363,6 +367,12 @@ def _again_lines(r: dict) -> list[str]:
     from judgekeeper.again.fresh import again_lines
 
     return again_lines(r["again"]) if r.get("again") else []
+
+
+def _new_judge_lines(r: dict) -> list[str]:
+    from judgekeeper.new_judge import lines
+
+    return lines(r["new_judge"]) if r.get("new_judge") else []
 
 
 def _review_lines(r: dict) -> list[str]:
@@ -389,6 +399,8 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
         lines += [""] + [f"  {line}" for line in _review_lines(r)]
     if r.get("again"):
         lines += ["", "  Your judge, asked again:"] + [f"  {line}" for line in _again_lines(r)]
+    if r.get("new_judge"):
+        lines += ["", "  Your new judge:"] + [f"  {line}" for line in _new_judge_lines(r)]
     lines += ["", "Next:"]
     lines += [f"  {text}  {command}" for text, command in _next(r)]
     lines.append(f"  Saved in {saved}/ (result.html is the page you just saw)")
@@ -491,6 +503,11 @@ def page_content(r: dict) -> dict:
                   "text": ("How often it changes its mind, and how well it agrees with you "
                            "today. It asks before any call:"),
                   "command": "judgekeeper start --ask-again", "link": None, "button": None})
+    if r.get("new_judge"):
+        steps.append({"title": "Check your new judge from now on",
+                      "text": ("Your last check moves to .judgekeeper/previous-<date>/; nothing "
+                               "is deleted:"),
+                      "command": "judgekeeper start --new", "link": None, "button": None})
     steps.append({"title": "Check again later", "text": "After your next eval run:",
                   "command": "judgekeeper start", "link": None, "button": None})
     review = None
@@ -501,6 +518,11 @@ def page_content(r: dict) -> dict:
     if r.get("again"):
         asked_again = {"title": "Your judge, asked again", "lines": _again_lines(r),
                        "files": [r["again"]["folder"] + "/"]}
+    new_judge = None
+    if r.get("new_judge"):
+        files = [r["new_judge"]["folder"] + "/"]
+        new_judge = {"title": "Your new judge", "lines": [x for x in _new_judge_lines(r) if x],
+                     "files": files}
     return {
         "kind": " · ".join(kind),
         "sentences": sentences(r),
@@ -519,6 +541,7 @@ def page_content(r: dict) -> dict:
                   "rule": judge.get("rule"), "source": source},
         "review": review,
         "again": asked_again,
+        "new_judge": new_judge,
         "next": steps,
         "folder": f"{FOLDER}/",
     }

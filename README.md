@@ -11,11 +11,12 @@ An LLM-as-a-judge is an AI model that grades the answers of another AI model. Te
 ## Install
 
 ```
+source .venv/bin/activate
 pip install judgekeeper
 judgekeeper --version
 ```
 
-On a Mac the command is `pip3`. Without installing: `uvx judgekeeper --version`. If the install is refused, see [Install](https://www.judgekeeper.com/start.html#install).
+Run these in your project folder: judgekeeper is a tool for developers, like pytest, and goes inside your project's own Python environment. On Windows the first line is `.venv\Scripts\activate`. No `.venv` yet? Run `python3 -m venv .venv` first. With uv or Poetry: `uv add --dev judgekeeper` or `poetry add --group dev judgekeeper`. More help: [Install](https://www.judgekeeper.com/start.html#install).
 
 ## Use it on your own judge
 
@@ -24,7 +25,7 @@ cd your-project
 judgekeeper start
 ```
 
-It reads the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV with input, output and verdict columns), opens a page where you mark answers Correct or Wrong without seeing what the judge said, and shows how often your judge agrees with you. No AI calls, no API key, and it never runs your code. No judge yet, or want your own rule? See [Your own metric](https://www.judgekeeper.com/own-metric.html).
+It reads the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV with input, output and verdict columns), opens a page where you mark answers Correct or Wrong without seeing what the judge said, and shows how often your judge agrees with you. Then it can review the disagreements with you, ask your judge again, or try your new judge on the answers you already marked. No AI calls unless you say yes. Then your own judge runs through your own tool; judgekeeper never sees your key, it only checks its name. It never runs your app. No judge yet, or want your own rule? See [Your own metric](https://www.judgekeeper.com/own-metric.html).
 
 Already have a table with one row per answer, the judge's verdict and your own label?
 

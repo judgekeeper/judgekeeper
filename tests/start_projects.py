@@ -148,3 +148,30 @@ def table_project(root: Path, verdicts, name: str = "results.csv", model: str | 
 
 def split(n_pass: int, n_fail: int) -> list[bool]:
     return [True] * n_pass + [False] * n_fail
+
+
+def own_format_project(root: Path, runs: int = 2, cases: int = 3) -> Path:
+    """A made-up project shaped like one that calls a DeepEval metric's measure() itself and
+    keeps the scores in its own nested JSONL: runs, then cases, then two answers (A and B)
+    with a score per criterion. DeepEval is in the requirements; no DeepEval results file."""
+    (root / "requirements.txt").write_text("deepeval==4.2.8\nanthropic\n", encoding="utf-8")
+    (root / "evals").mkdir(parents=True, exist_ok=True)
+    (root / "evals" / "run_evals.py").write_text(
+        "from deepeval.metrics import GEval\n# metric.measure(case) for each answer\n",
+        encoding="utf-8")
+    lines = []
+    for r in range(runs):
+        rows = []
+        for c in range(cases):
+            rows.append({
+                "case_id": f"case-{c}", "prompt": question(c),
+                "responses": {"A": answer(c, " (A)"), "B": answer(c, " (B)")},
+                "scores": {k: {"safe_wording": {"score": 0.9 if c % 2 else 0.2,
+                                                "reason": f"reason {c}"}}
+                           for k in ("A", "B")}})
+        lines.append(json.dumps({"run_id": f"run-{r}", "judge": "claude-opus-5",
+                                 "cases": rows}))
+    path = root / "data" / "prompt_evals.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
