@@ -56,9 +56,10 @@ def _run(line: str, cwd: Path) -> subprocess.CompletedProcess:
             break
     # What a terminal shows: both streams, in the order they were written.
     env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"  # the page shows UTF-8 output; a Windows pipe is cp1252
     return subprocess.run([sys.executable, "-m", "judgekeeper.cli", *argv], cwd=cwd, env=env,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                          timeout=120, check=False)
+                          encoding="utf-8", timeout=120, check=False)
 
 
 @pytest.fixture(scope="module")

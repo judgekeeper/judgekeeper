@@ -145,7 +145,7 @@ def _run_key(value) -> tuple:
 def write_anchor_file(path: Path, items: list[dict]) -> dict:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(json.dumps(i, ensure_ascii=False) + "\n" for i in items),
-                    encoding="utf-8")
+                    encoding="utf-8", newline="\n")  # the same bytes on every system
     return freeze(path)
 
 

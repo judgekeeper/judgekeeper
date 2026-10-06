@@ -25,5 +25,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,mlflow]"
       - name: Test
-        # -rs lists every skipped test and why
-        run: pytest -rs
+        # -rfEs lists every failed, erroring and skipped test (and why)
+        run: pytest -rfEs

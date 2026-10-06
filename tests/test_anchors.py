@@ -113,3 +113,14 @@ def test_invalid_json_line_rejected(tmp_path):
     p.write_text('{"id": "x"\n', encoding="utf-8")
     with pytest.raises(AnchorError, match="line 1"):
         load_anchors(p)
+
+
+def test_an_anchor_set_and_its_manifest_have_the_same_bytes_on_every_system(tmp_path):
+    """\\n line endings, also on Windows, so a committed anchor set compares byte for byte."""
+    from judgekeeper.table import write_anchor_file
+
+    path = tmp_path / "anchors.jsonl"
+    write_anchor_file(path, [{"id": "a", "input": "q", "output": "x", "human_label": "pass"},
+                             {"id": "b", "input": "q", "output": "y", "human_label": "fail"}])
+    for written in (path, tmp_path / "anchors.manifest.json"):
+        assert b"\r" not in written.read_bytes()
