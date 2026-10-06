@@ -5,7 +5,9 @@ import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-pytest_plugins = ["pytester"]  # tests/test_pytest_plugin.py runs pytest inside pytest
+# pytester: tests/test_pytest_plugin.py runs pytest inside pytest. again_stubs: the stub
+# DeepEval, Inspect AI and MLflow packages (the `stubs` fixture) for the ask-again workers.
+pytest_plugins = ["pytester", "tests.again_stubs"]
 
 
 @pytest.fixture

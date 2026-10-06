@@ -9,15 +9,28 @@ DeepEval's telemetry off and without CONFIDENT_API_KEY or DEEPEVAL_RESULTS_FOLDE
   so no steps call is made and the scoring prompt is the one the original run used. Which
   fields the judge reads is not saved: `--fields`, or a question at a terminal that lists
   every field the saved answers have, with input and actual_output pre-selected. Exactly your
-  judge when the fields and the DeepEval version are confirmed and the model DeepEval's
-  settings pick now is the saved `evaluationModel`; otherwise a close copy, naming what was
-  not confirmed. A different model stops the plan.
+  judge when the fields and the DeepEval version are confirmed and the model DeepEval builds
+  is the saved `evaluationModel`; otherwise a close copy, naming what was not confirmed.
+- The model: the results do not say how the user's code chose it, so the worker first lets
+  DeepEval's own settings pick it. When that gives another model, the judge is built again
+  from the saved name (`by_name`): a bare name (OpenAI) as `model="<name>"`, a name with a
+  provider DeepEval writes after it ("claude-x (Anthropic)", "(Gemini)", "(Deepseek)",
+  "(Grok)", "(KIMI)") with that provider's model class. It is used only when DeepEval then
+  reports exactly the saved name. A judge that needs more than a name (Azure, a local or
+  Ollama server, a gateway, an AWS Bedrock id) stops the plan, as does a name DeepEval builds
+  as another model.
 - Built-in metrics: always a close copy (options the file does not save; prompts that change
   between DeepEval versions).
-- Can't: DAG metrics, custom metric classes, conversational metrics, no `evaluationModel`.
+- Can't: DAG metrics, custom metric classes, conversational metrics, no `evaluationModel`;
+  and Hallucination, Bias or Toxicity scores saved by a DeepEval on the other side of 4.2.0
+  from the user's (DeepEval turned these scores round in 4.2.0, so a pass means another
+  thing on each side).
 
 In dry mode the worker builds the metric and reports DeepEval's version and the model it
-would use, with no judge call.
+would use, with no judge call. In run mode (`run`, after the yes) it measures each answer
+`times` times; a verdict is DeepEval's own `success`, which applies the threshold the way the
+user's DeepEval version does. DeepEval's own `evaluation_cost`, when it reports one, is summed
+and shown as the real cost.
 """
 
 from __future__ import annotations
@@ -26,9 +39,17 @@ import json
 import re
 
 from judgekeeper import again, keys, prices
-from judgekeeper.again import CANT, CLOSE, EXACT, Plan, cant, left_out_line
-from judgekeeper.readers.deepeval import SEPARATOR, _load
+from judgekeeper.again import CANT, CLOSE, EXACT, Plan, cant, left_out_line, worker_run
+from judgekeeper.again.fresh import Fresh
+from judgekeeper.readers.deepeval import (
+    SEPARATOR,
+    SUFFIX,
+    _load,
+    provider_of,
+    rubric_from_verbose_logs,
+)
 from judgekeeper.records import derive_record_id
+from judgekeeper.table import make_fingerprint
 
 BUILTINS = {  # saved name: (class, judge calls per answer, None: retrieved chunks + 1)
     "Answer Relevancy": ("AnswerRelevancyMetric", 3),
@@ -48,10 +69,48 @@ SAVED_AS = {"input": "input", "actual_output": "actualOutput",
             "expected_tools": "expectedTools"}
 LISTED = ("input", "actual_output", "expected_output", "context", "retrieval_context")
 DEFAULT_FIELDS = ("input", "actual_output")
+TOOL_FIELDS = ("tools_called", "expected_tools")
+# Scored the other way round from DeepEval 4.2.0 on: a higher score passes, the threshold is
+# a minimum. Before, a lower score passed.
+TURNED = {"HallucinationMetric", "BiasMetric", "ToxicityMetric", "MisuseMetric"}
+TURNED_IN = (4, 2, 0)
+# DeepEval's model classes that need only a model name (the key comes from the environment),
+# by the provider label DeepEval writes after the name in `evaluationModel`.
+BY_NAME = {"Anthropic": "AnthropicModel", "Gemini": "GeminiModel", "Deepseek": "DeepSeekModel",
+           "Grok": "GrokModel", "KIMI": "KimiModel"}
+_BEDROCK = re.compile(r"[a-z][a-z0-9-]*\.[a-z]")  # "anthropic.claude-...", "us.amazon.nova-..."
 NOT_CONFIRMED = "which fields your judge reads was not confirmed"
 WORKER_ENV = {"DEEPEVAL_TELEMETRY_OPT_OUT": "1"}
 WORKER_DROP = ("CONFIDENT_API_KEY", "DEEPEVAL_RESULTS_FOLDER")
 _RUBRIC = re.compile(r"(\d+)(?:-(\d+))?: (.*)\Z")
+
+
+def _at_least(version: str | None, than: tuple) -> bool:
+    return tuple(int(x) for x in re.findall(r"\d+", version or "")[:3]) >= than
+
+
+def direction(md: dict) -> str | None:
+    """Which way a saved score passes: "low" (a lower score passes), "high", or None when the
+    saved score, threshold and verdict do not tell."""
+    score, ok, threshold = md.get("score"), md.get("success"), md.get("threshold")
+    if not isinstance(ok, bool) or not all(isinstance(x, int | float) and not isinstance(
+            x, bool) for x in (score, threshold)) or score == threshold:
+        return None
+    return "low" if ok == (score < threshold) else "high"
+
+
+def verdict_of(line: dict, job: dict, version: str | None) -> str | None:
+    """A fresh verdict: DeepEval's own `success`; without it, the score against the threshold
+    the way DeepEval `version` applies it."""
+    if isinstance(line.get("success"), bool):
+        return "pass" if line["success"] else "fail"
+    score = line.get("score")
+    if not isinstance(score, int | float) or isinstance(score, bool):
+        return None
+    threshold = job.get("threshold", 0.5)
+    if job.get("class") in TURNED and not _at_least(version, TURNED_IN):
+        return "pass" if score <= threshold else "fail"
+    return "pass" if score >= threshold else "fail"
 
 
 def classify(md: dict) -> str:
@@ -112,17 +171,46 @@ def parse_geval(logs: str | None) -> dict | None:
             "rubric": rubric}
 
 
-def metric_job(md: dict, fields) -> dict:
-    """The worker's description of the metric to build for one saved answer."""
+def by_name(model: str) -> tuple[dict | None, str]:
+    """How the worker can build the saved judge model from its name: ({"name"} for a bare,
+    OpenAI name, {"class", "name"} for a provider DeepEval writes after the name), or
+    (None, why not) for a judge that needs more than its name."""
+    m = SUFFIX.search(model)
+    if m:
+        label = m[1].strip()
+        if label in BY_NAME:
+            return {"class": BY_NAME[label], "name": model[:m.start()]}, ""
+        if label == "Azure":
+            return None, "an Azure judge needs its endpoint and deployment as well as its name"
+        article = "an" if label[:1].upper() in "AEIOU" else "a"
+        return None, f"{article} {label} judge needs more than its name"
+    if "/" in model or ":" in model or _BEDROCK.match(model):
+        return None, "this judge needs more than its name"
+    return {"name": model}, ""
+
+
+def metric_job(md: dict, fields, model: dict | None = None) -> dict:
+    """The worker's description of the metric to build for one saved answer. `model`, from
+    `by_name`, builds the judge model from its saved name instead of DeepEval's settings."""
     name = str(md["name"])
     threshold, strict = float(md.get("threshold", 0.5)), bool(md.get("strictMode", False))
     if classify(md) == "geval":
         g = parse_geval(md.get("verboseLogs"))
-        return {"kind": "geval", "class": "GEval", "name": name.removesuffix(" [GEval]"),
-                "suffix": name.endswith(" [GEval]"), **g, "fields": list(fields or ()),
-                "threshold": threshold, "strict": strict}
-    return {"kind": "builtin", "class": BUILTINS[name][0], "name": name,
-            "threshold": threshold, "strict": strict}
+        job = {"kind": "geval", "class": "GEval", "name": name.removesuffix(" [GEval]"),
+               "suffix": name.endswith(" [GEval]"), **g, "fields": list(fields or ()),
+               "threshold": threshold, "strict": strict}
+    else:
+        job = {"kind": "builtin", "class": BUILTINS[name][0], "name": name,
+               "threshold": threshold, "strict": strict}
+    return {**job, "model": model} if model else job
+
+
+def case_job(case: dict, fields) -> dict:
+    """The saved test case, as the worker passes it to LLMTestCase: every field it has (tool
+    calls only when the judge reads them)."""
+    return {f: case[SAVED_AS[f]] for f in FIELDS
+            if case.get(SAVED_AS[f]) not in (None, "", [])
+            and (f not in TOOL_FIELDS or f in (fields or ()))}
 
 
 def case_fields(case: dict) -> list[str]:
@@ -200,7 +288,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
         return cant("deepeval", judge, error, short="unknown fields")
 
     python = again.user_python(root, opts.python)
-    version, version_ok = None, False
+    version, version_ok, built, notes = None, False, None, []
     if dry:
         out = again.run_worker("deepeval", python, {"mode": "dry", "metric": metric_job(
             found[0][2], fields)}, root, env=WORKER_ENV, drop=WORKER_DROP)
@@ -212,10 +300,28 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
             return cant("deepeval", judge, f"DeepEval could not build your judge in {python}: "
                         f"{out.get('error')}", short="DeepEval could not build your judge")
         version = out["version"]
-        if out["evaluation_model"] != model:
-            return cant("deepeval", judge, f"your DeepEval settings pick "
-                        f"{out['evaluation_model']} now, but your saved verdicts came from "
-                        f"{model}", short="your DeepEval settings pick another model")
+        turned = _turned(found, version)
+        if turned:
+            return cant("deepeval", judge, turned, short="your saved scores point the other way")
+        picked = out["evaluation_model"]
+        if picked != model:
+            head = (f"your DeepEval settings pick {picked} now, but your saved verdicts came "
+                    f"from {model}")
+            short = "your DeepEval settings pick another model"
+            built, why_not = by_name(model)
+            if built is None:
+                return cant("deepeval", judge, f"{head}; {why_not}, so judgekeeper can't build "
+                            "it again", short=short)
+            out = again.run_worker("deepeval", python, {"mode": "dry", "metric": metric_job(
+                found[0][2], fields, built)}, root, env=WORKER_ENV, drop=WORKER_DROP)
+            if not out.get("ok"):
+                return cant("deepeval", judge, f"{head}; DeepEval could not build {model} by "
+                            f"name: {out.get('error')}", short=short)
+            if out["evaluation_model"] != model:
+                return cant("deepeval", judge, f"{head}; built with that name, DeepEval "
+                            f"reports {out['evaluation_model']}", short=short)
+            notes.append(f"Your DeepEval settings pick {picked}; judgekeeper builds your judge "
+                         f"with the model your results name, {model}, and DeepEval confirms it.")
         if talk is not None:
             version_ok = talk.ask_yes(f"Is DeepEval {version} the version you ran your eval "
                                       "with?")
@@ -259,14 +365,53 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
     if unreadable:
         left.append(left_out_line(unreadable, "its saved steps can't be read back exactly",
                                   "their saved steps can't be read back exactly"))
+    payload = [(a, {"id": a["id"], "case": case_job(case, fields),
+                    "metric": metric_job(md, fields, built)}) for a, case, md in found]
     return Plan(tool="deepeval", judge=f"{judge} (DeepEval {version})" if version else judge,
                 status=status, why=why, model=model, provider=check.provider,
-                key_lines=check.lines, calls_each=calls_each,
+                key_lines=check.lines, notes=notes, calls_each=calls_each,
                 calls_note="at least" if at_least else "", tokens=tokens, left_out=left,
-                settings=check.settings,
+                settings=check.settings, key_ok=check.ok, tool_version=version,
+                runner=[python], payload=payload,
                 side_effects=[(f"Your app is not run. DeepEval measures your metric directly "
                                f"in your Python ({python}); never deepeval.evaluate(), so "
                                "nothing is written to .deepeval/ or sent to Confident AI.")])
 
 
-__all__ = ["CANT", "classify", "metric_job", "parse_geval", "plan"]
+def _turned(found: list, version: str | None) -> str | None:
+    """Why a Hallucination, Bias or Toxicity judge can't be asked again: its saved scores point
+    the other way from the user's DeepEval version."""
+    md = found[0][2]
+    if classify(md) != "builtin" or BUILTINS[md["name"]][0] not in TURNED:
+        return None
+    want = "high" if _at_least(version, TURNED_IN) else "low"
+    seen = {direction(m) for _, _, m in found} - {None}
+    if not seen or seen == {want}:
+        return None
+    made = "a DeepEval before 4.2.0" if want == "high" else "DeepEval 4.2.0 or later"
+    return (f"your saved {md['name']} scores come from {made}, which scores {md['name']} the "
+            f"other way round from your DeepEval {version}")
+
+
+def run(ws, plan: Plan, talk) -> Fresh:
+    """Measure each labeled answer `plan.times` times with the user's own DeepEval."""
+    fresh, got, done = worker_run.ask(ws, plan, talk, "DeepEval", env=WORKER_ENV,
+                                      drop=WORKER_DROP)
+    version = done.get("version") or plan.tool_version
+    firsts = worker_run.count(fresh, plan, got, "DeepEval",
+                              lambda item, line: verdict_of(line, item["metric"], version))
+    evaluator = {"model": firsts[0].get("model") or plan.model}
+    if provider := provider_of(evaluator["model"]):
+        evaluator["provider"] = provider
+    if prompt := rubric_from_verbose_logs(firsts[0].get("logs")):
+        evaluator["prompt"] = prompt
+    fresh.fingerprint = make_fingerprint(evaluator).to_dict()
+    costs = [x["cost"] for runs in got.values() for x in runs.values()
+             if isinstance(x.get("cost"), int | float)]
+    if costs:
+        fresh.notes.append(f"DeepEval says these calls cost {prices.money(sum(costs))} in all.")
+    plan.tool_version = version
+    return fresh
+
+
+__all__ = ["CANT", "classify", "metric_job", "parse_geval", "plan", "run"]

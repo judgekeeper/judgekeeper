@@ -315,17 +315,6 @@ def test_the_menu_choice_asks_too(fake, capsys, terminal):
     assert "Your judge was not called; nothing was spent." in out
 
 
-def test_python_tools_still_say_not_switched_on(tmp_path, capsys, monkeypatch):
-    from tests.start_projects import deepeval_project
-
-    ws = _checked(tmp_path, maker=deepeval_project)
-    monkeypatch.setattr(again, "run_worker", lambda *a, **k: {"ok": True, "version": "4.2.8",
-                                                              "evaluation_model": "gpt-4.1"})
-    code, out, _ = run(capsys, ws.root, "--ask-again", "--allow-calls", "1000")
-    assert code == 0 and "Asking a DeepEval judge again is not switched on yet." in out
-    assert "Go ahead?" not in out
-
-
 # The numbers --------------------------------------------------------------------------------
 
 def test_steadiness_agreement_and_matches(fake, capsys):
@@ -373,14 +362,26 @@ def test_an_error_is_not_counted(fake, capsys):
     assert "1 answer was not counted: the judge gave no clear verdict." in out
 
 
-def test_a_close_copy_says_so_on_every_line(fake, capsys):
+def test_a_close_copy_says_why_once_and_so_on_every_line(fake, capsys):
     _edit(fake.ws.root, lambda d: d.pop("metadata"))  # no promptfoo version recorded
     fake.saved = FakePromptfoo(fake.ws).saved
     _, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    lines = [x for x in out.splitlines() if x.startswith(("Asked twice", "Of the answers you",
-                                                          "Its first new verdict"))]
-    tail = "(close copy of your judge: promptfoo version not recorded)"
-    assert len(lines) >= 4 and all(x.endswith(tail) for x in lines[-4:])
+    after = out.split("Asking your judge")[-1] if "Asking your judge" in out else \
+        out.split("Go ahead")[-1]
+    after = after[after.index("This was a close copy"):]
+    assert after.count("promptfoo version not recorded") == 1
+    assert after.startswith("This was a close copy of your judge: promptfoo version not "
+                            "recorded.\n")
+    lines = [x for x in after.splitlines() if x.startswith((
+        "Asked twice", "Of the answers you", "Its first new verdict"))]
+    assert len(lines) == 4 and all(x.endswith(" (close copy)") for x in lines)
+    page = fake.ws.result_html.read_text()
+    assert page.count("promptfoo version not recorded") == 1 and "(close copy)" in page
+
+
+def test_exactly_your_judge_has_no_close_copy_words(fake, capsys):
+    _, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
+    assert "close copy" not in out
 
 
 def test_one_time_says_steadiness_needs_two(fake, capsys):

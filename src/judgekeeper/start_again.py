@@ -146,11 +146,12 @@ ASKED_NOTHING = "Your judge was not called; nothing was spent."
 
 def _ask_again(ws: Workspace, talk, again_options) -> int:
     """The plan for asking the judge again; then, after a yes (or --allow-calls), the calls
-    and the numbers. Switched on for promptfoo and judge commands."""
-    from judgekeeper import again, keys, start
-    from judgekeeper.again import command, fresh, promptfoo
+    and the numbers."""
+    from judgekeeper import again, start
+    from judgekeeper.again import command, deepeval, fresh, inspect, mlflow, promptfoo
 
-    runs = {"promptfoo": promptfoo.run, "command": command.run}
+    runs = {"promptfoo": promptfoo.run, "command": command.run, "deepeval": deepeval.run,
+            "inspect": inspect.run, "mlflow": mlflow.run}
     options = again_options or again.AgainOptions()
     plan = again.make_plan(ws, options, talk=talk, dry=True)
     talk.say()
@@ -159,10 +160,6 @@ def _ask_again(ws: Workspace, talk, again_options) -> int:
     if plan.status == again.CANT:
         return 0
     talk.say()
-    if plan.tool not in runs:
-        talk.say(f"Asking a {keys.TOOLS.get(plan.tool, plan.tool)} judge again is not switched "
-                 "on yet.")
-        return 0
     if not plan.key_ok:
         talk.say("Set the key, then run judgekeeper start --ask-again again.")
         return 0

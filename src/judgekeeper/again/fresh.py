@@ -34,6 +34,7 @@ NOT_COUNTED = {  # key: (one answer, several answers)
         ("their grading prompts differ from the saved ones, so they were not the same judge "
          "input")),
     "no clear verdict": ("the judge gave no clear verdict", "the judge gave no clear verdict"),
+    "error": ("the judge's tool gave an error for it", "the judge's tool gave an error for them"),
     "missing": ("it is missing from the tool's output",
                 "they are missing from the tool's output"),
 }
@@ -149,10 +150,12 @@ def numbers(ws, plan, fresh: Fresh) -> dict:
 
 
 def again_lines(block: dict) -> list[str]:
-    """What is said after asking again: each number line says when this was a close copy."""
-    tail = f" (close copy of your judge: {block['why']})" if block["status"] == CLOSE else ""
+    """What is said after asking again. A close copy says why once, first, and each number
+    line ends "(close copy)"."""
+    close = block["status"] == CLOSE
+    tail = " (close copy)" if close else ""
     n, times = block["counted"], block["times"]
-    lines = []
+    lines = [f"This was a close copy of your judge: {block['why']}."] if close else []
     steady = block.get("steadiness")
     if times < 2 or steady is None:
         lines.append(f"Asked once more: ask at least twice to see whether it changes its "

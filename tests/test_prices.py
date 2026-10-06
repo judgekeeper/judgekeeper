@@ -24,6 +24,12 @@ def test_the_table_is_dated():
     ("mistral-large-latest", (0.50, 1.50)),
     ("grok-4.3", (1.25, 2.50)),
     ("groq:openai/gpt-oss-20b", (0.075, 0.30)),
+    ("gpt-4.1", (2.00, 8.00)),
+    ("gpt-4o-2024-08-06", (2.50, 10.00)),
+    ("gpt-4o-2024-05-13", (5.00, 15.00)),
+    ("claude-opus-5 (Anthropic)", (5.00, 25.00)),
+    ("gemini/gemini-2.5-pro", (1.25, 10.00)),
+    ("gemini-3.8-pro", None),  # not in LiteLLM's price file on the date read
     ("my-own-model", None),
     (None, None),
 ])
@@ -46,6 +52,23 @@ def test_the_cost_line():
 def test_a_tiny_cost():
     line = prices.cost_line("gpt-4.1-mini", "openai", [(100, 10)])
     assert line.startswith("Less than $0.01")
+
+
+def test_a_range_that_starts_below_a_cent():
+    line = prices.cost_line("gpt-4.1-mini", "openai", [(1000, 200)] * 10)  # $0.0036 to $0.018
+    assert line == "Up to $0.02 at OpenAI's prices from 2026-10-05; check your provider."
+
+
+def test_the_menu_words_for_a_cost():
+    from judgekeeper.again import Plan, cost_words
+
+    plan = Plan(tool="promptfoo", judge="j", status="exact", why="w", model="gpt-4.1-mini",
+                calls_each=[1] * 10, tokens=[(1000, 200)] * 10, times=1)
+    assert cost_words(plan) == "up to $0.02"
+    plan.tokens = [(100, 10)]
+    assert cost_words(plan) == "less than $0.01"
+    plan.tokens = [(1500, 200)] * 1000
+    assert cost_words(plan) == "about $0.46 to $2.30"
 
 
 def test_an_unknown_model_has_no_cost():

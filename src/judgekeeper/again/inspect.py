@@ -16,6 +16,14 @@ grader's cache off; the original log is never opened for writing.
 Inspect's Python API loads no `.env`, so the worker calls Inspect's own loader (the function
 the `inspect` command uses: the nearest `.env` from the project folder upward) when the user's
 Inspect has it; without it the key must be in the shell, and the plan says how to set it.
+
+In run mode (`run`, after the yes) the worker reads the log (never writing it), keeps only the
+labeled samples, and calls `score_async(..., action="append", copy=True)` once per time
+asked, with every model role rebuilt with its cache off. When a grader is set, the model
+under test is replaced by Inspect's `mockllm/model`, so it can't be called. An answer whose
+new grading prompt differs from the saved one (`metadata.grading`) is not counted; when every
+counted answer's prompt matched, a close copy made by another Inspect version is exactly the
+judge.
 """
 
 from __future__ import annotations
@@ -23,10 +31,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from judgekeeper import again, keys, prices
-from judgekeeper.again import CLOSE, EXACT, Plan, cant, left_out_line
+from judgekeeper.again import CLOSE, EXACT, Plan, cant, left_out_line, worker_run
+from judgekeeper.again.fresh import Fresh
 from judgekeeper.anchors import canonical_json
-from judgekeeper.readers.inspect_logs import _load
+from judgekeeper.normalise import Normaliser, UnmappedValue
+from judgekeeper.readers.inspect_logs import DEFAULT_LABELS, _load, _model, scorer_prompt
 from judgekeeper.records import derive_record_id
+from judgekeeper.table import make_fingerprint
 
 MODEL_GRADED = {"model_graded_qa", "model_graded_fact"}
 RULES = {"match", "includes", "exact", "pattern", "answer", "choice", "f1", "math"}
@@ -67,6 +78,22 @@ def _cache_on(log: dict) -> bool:
     configs += [(r or {}).get("config") or {} for r in (spec.get("model_roles") or {}).values()
                 if isinstance(r, dict)]
     return any(isinstance(c, dict) and c.get("cache") for c in configs)
+
+
+def _text(content) -> str | None:
+    """A grading message's text, as the log saves it."""
+    if isinstance(content, dict):
+        content = content.get("content")
+    if isinstance(content, list):
+        return "".join(str(p.get("text") or "") for p in content if isinstance(p, dict))
+    return content if isinstance(content, str) else None
+
+
+def saved_prompt(sample: dict, metric: str) -> str | None:
+    """The grading prompt the judge saw for this sample in the saved run, when saved."""
+    grading = (((sample.get("scores") or {}).get(metric) or {}).get("metadata") or {}).get(
+        "grading") or []
+    return _text(grading[0]) if grading else None
 
 
 def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
@@ -124,11 +151,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
     calls = max(1, len(graders))
     tokens = []
     for a, s in found:
-        grading = (((s.get("scores") or {}).get(metric) or {}).get("metadata") or {}).get(
-            "grading") or []
-        first = grading[0] if grading and isinstance(grading[0], dict) else {}
-        text = first.get("content") if isinstance(first.get("content"), str) else \
-            canonical_json([s.get("input"), (s.get("output") or {}).get("completion")])
+        text = saved_prompt(s, metric) or canonical_json(
+            [s.get("input"), (s.get("output") or {}).get("completion")])
         i, o = prices.tokens_from_text(text)
         tokens.append((i * calls, o * calls))
     model = graders[0] if graders else None
@@ -138,9 +162,59 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
         n = len(answers) - len(found)
         left.append(left_out_line(n, "it is not in your log any more",
                                   "they are not in your log any more"))
+    payload = [(a, {"id": a["id"], "sample": s.get("id"), "epoch": s.get("epoch")},
+                saved_prompt(s, metric)) for a, s in found]
     return Plan(tool="inspect", judge=judge, status=status, why=why, model=model,
                 provider=check.provider, key_lines=check.lines, notes=notes,
                 calls_each=[calls] * len(found), tokens=tokens, left_out=left,
-                settings=check.settings,
+                settings=check.settings, key_ok=check.ok, tool_version=installed or made_with,
+                runner=[python], payload=payload,
+                job={"log": str(root / data["results_files"][0]), "scorer": metric},
                 side_effects=[(f"Your app is not run. Inspect re-scores a copy of your log in "
                                f"your Python ({python}); your log is never changed.")])
+
+
+def _fingerprint(log: dict, metric: str) -> dict:
+    """The judge's fingerprint, as the Inspect reader makes it from the log."""
+    spec = log.get("eval") or {}
+    options = next((s.get("options") or {} for s in spec.get("scorers") or []
+                    if isinstance(s, dict) and s.get("name") == metric), {})
+    model, temperature = _model((spec.get("model_roles") or {}).get("grader"))
+    if model is None and options.get("model"):
+        model, temperature = _model(options["model"])[0], None
+    evaluator = {"prompt": scorer_prompt(metric, options)}
+    if model:
+        evaluator["model"] = model
+        if "/" in model and "+" not in model:
+            evaluator["provider"] = model.split("/", 1)[0]
+    if temperature is not None:
+        evaluator["temperature"] = temperature
+    return make_fingerprint(evaluator).to_dict()
+
+
+def run(ws, plan: Plan, talk) -> Fresh:
+    """Re-score the labeled samples `plan.times` times with the user's own Inspect AI."""
+    norm = Normaliser(label_map=DEFAULT_LABELS)
+
+    def verdict(item, line):
+        try:
+            return norm(line.get("value")).verdict
+        except UnmappedValue:
+            return None
+
+    def differs(entry, lines):
+        return entry[2] is not None and any(x.get("prompt") != entry[2] for x in lines)
+
+    fresh, got, done = worker_run.ask(ws, plan, talk, "Inspect AI")
+    worker_run.count(fresh, plan, got, "Inspect AI", verdict, differs)
+    log = _load(Path(plan.job["log"]))
+    made_with = ((log.get("eval") or {}).get("packages") or {}).get("inspect_ai")
+    version = done.get("version") or plan.tool_version
+    counted = [e for e in plan.payload if e[0]["id"] in fresh.verdicts]
+    if plan.status == CLOSE and counted and all(e[2] is not None for e in counted):
+        plan.status = EXACT
+        plan.why = (f"the grading prompts matched your saved ones on every answer (Inspect "
+                    f"{version} here; your log was made with {made_with})")
+    fresh.fingerprint = _fingerprint(log, ws.data()["metric"])
+    plan.tool_version = version
+    return fresh

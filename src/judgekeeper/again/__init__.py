@@ -21,9 +21,9 @@ menu's line uses a plan made without `dry`: it runs nothing.
 
 Every process goes through `run_process`, which tests replace. After the plan, `approve` asks
 before anything is spent (default No; `--yes` never answers it; without a terminal only
-`--allow-calls N` does). Asking for real is switched on for promptfoo and for the user's own
-judge command (`promptfoo.run`, `command.run`, then `fresh.finish`); for DeepEval, Inspect AI
-and MLflow the plan is shown and nothing runs yet.
+`--allow-calls N` does). Then each tool's `run` asks for real (`promptfoo.run`, `command.run`,
+and for the Python tools `deepeval.run`, `inspect.run` and `mlflow.run`, which run their worker
+in "run" mode through `worker_run`), and `fresh.finish` works out the numbers and saves them.
 """
 
 from __future__ import annotations
@@ -44,7 +44,6 @@ TIMES = 2
 MAX_TIMES = 5
 ALWAYS_ASK_ABOVE = 1000
 WORKER_TIMEOUT = 300
-NOT_YET = "Asking your judge again is not switched on yet."
 REFERENCE = "https://www.judgekeeper.com/reference.html#bring-your-own-judge"
 WRAP = ("To ask your judge again yourself, wrap it as a command: judgekeeper start --ask-again "
         f"--judge-command '...' (see {REFERENCE}).")
@@ -87,6 +86,7 @@ class Plan:
     runner: list[str] = field(default_factory=list)  # the command that runs the tool
     download: bool = False  # the runner downloads the tool first (npx)
     payload: list = field(default_factory=list)  # per asked answer, for the tool's run
+    job: dict = field(default_factory=dict)  # the rest of a worker's job for the run
 
     def payload_answers(self) -> list[dict]:
         """The asked answers ({id, input, output, label, verdict}), in order."""
@@ -144,26 +144,40 @@ def user_python(root: Path, given: str | None) -> str:
     return sys.executable
 
 
-def run_worker(tool: str, python: str, job: dict, cwd: Path, env: dict | None = None,
-               drop: tuple = ()) -> dict:
+def start_worker(tool: str, python: str, job: dict, cwd: Path, out_path: Path,
+                 env: dict | None = None, drop: tuple = (),
+                 timeout: float | None = WORKER_TIMEOUT):
     """Run `workers/<tool>_worker.py job.json out.jsonl` with `python`, in the project folder,
-    and return its last output line. The worker's environment is judgekeeper's, without the
-    names in `drop`, with `env` on top."""
+    writing to `out_path`. The worker's environment is judgekeeper's, without the names in
+    `drop`, with `env` on top. Returns the finished process."""
     worker = Path(__file__).parent / "workers" / f"{tool}_worker.py"
     environ = {k: v for k, v in os.environ.items() if k not in drop}
     environ.update(env or {})
     with tempfile.TemporaryDirectory(prefix="judgekeeper-") as tmp:
-        job_path, out_path = Path(tmp) / "job.json", Path(tmp) / "out.jsonl"
+        job_path = Path(tmp) / "job.json"
         job_path.write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
-        proc = run_process([python, str(worker), str(job_path), str(out_path)], cwd=cwd,
-                           env=environ, timeout=WORKER_TIMEOUT)
+        return run_process([python, str(worker), str(job_path), str(out_path)], cwd=cwd,
+                           env=environ, timeout=timeout)
+
+
+def last_error(proc) -> str:
+    """The last line a process wrote to stderr, scrubbed, or its exit code."""
+    tail = [x for x in (proc.stderr or "").strip().splitlines() if x.strip()]
+    return scrub(tail[-1]) if tail else f"exit code {proc.returncode}"
+
+
+def run_worker(tool: str, python: str, job: dict, cwd: Path, env: dict | None = None,
+               drop: tuple = ()) -> dict:
+    """Run a worker (`start_worker`) and return its last output line."""
+    with tempfile.TemporaryDirectory(prefix="judgekeeper-") as tmp:
+        out_path = Path(tmp) / "out.jsonl"
+        proc = start_worker(tool, python, job, cwd, out_path, env=env, drop=drop)
         lines = (out_path.read_text(encoding="utf-8").splitlines()
                  if out_path.is_file() else [])
     lines = [x for x in lines if x.strip()]
     if lines:
         return json.loads(lines[-1])
-    tail = [x for x in (proc.stderr or "").strip().splitlines() if x.strip()]
-    return {"ok": False, "error": scrub(tail[-1]) if tail else f"exit code {proc.returncode}"}
+    return {"ok": False, "error": last_error(proc)}
 
 
 # The answers -----------------------------------------------------------------------------------
@@ -241,9 +255,7 @@ def calls_line(p: Plan) -> str:
 def cost_words(p: Plan) -> str:
     if p.cost is None:
         return "cost unknown"
-    low, high = p.cost
-    return "less than $0.01" if high < 0.01 else \
-        f"about {prices.money(low)} to {prices.money(high)}"
+    return prices.amount(*p.cost)
 
 
 def plan_lines(p: Plan) -> list[str]:
@@ -298,7 +310,6 @@ def approve(p: Plan, talk, allow_calls: int | None) -> bool:
 
 
 __all__ = [
-    "NOT_YET",
     "AgainOptions",
     "Plan",
     "approve",
@@ -307,6 +318,7 @@ __all__ = [
     "plan_lines",
     "run_process",
     "run_worker",
+    "start_worker",
     "user_python",
     "which",
 ]

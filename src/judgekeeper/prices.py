@@ -15,9 +15,14 @@ import re
 
 PRICES_READ = "2026-10-05"
 PRICES = {
+    "gpt-4.1": (2.00, 8.00),
     "gpt-4.1-mini": (0.40, 1.60),
+    "gpt-4.1-nano": (0.10, 0.40),
+    "gpt-4o": (2.50, 10.00),
+    "gpt-4o-2024-05-13": (5.00, 15.00),  # the first gpt-4o snapshot costs more
     "gpt-4o-mini": (0.15, 0.60),
     "gpt-5.4-mini": (0.75, 4.50),
+    "gpt-5.4-nano": (0.20, 1.25),
     "gpt-5.4": (2.50, 15.00),
     "gpt-5.6-sol": (4.00, 20.00),
     "gpt-6-sol": (2.00, 10.00),
@@ -25,7 +30,15 @@ PRICES = {
     "claude-haiku-4-5": (1.00, 5.00),
     "claude-sonnet-4-6": (3.00, 15.00),
     "claude-sonnet-5": (2.00, 10.00),
+    "claude-sonnet-5-5": (2.00, 10.00),
+    "claude-opus-5": (5.00, 25.00),
+    "claude-opus-5-5": (4.00, 20.00),
+    "gemini-2.5-flash": (0.30, 2.50),
+    "gemini-2.5-pro": (1.25, 10.00),  # up to 200,000 input tokens
+    "gemini-3.1-pro-preview": (2.00, 12.00),
+    "gemini-3.5-flash": (1.50, 9.00),
     "gemini-3.6-flash": (0.75, 3.75),  # Google's page: 1.50 / 7.50 from 2027-01-01
+    "gemini-3.7-flash": (0.75, 3.75),
     "gemini-3.8-flash": (0.75, 3.75),
     "gemini-3.1-flash-lite": (0.25, 1.50),
     "mistral-small-latest": (0.15, 0.60),
@@ -79,6 +92,15 @@ def money(x: float) -> str:
     return "less than $0.01" if x < 0.01 else f"${x:,.2f}"
 
 
+def amount(low: float, high: float) -> str:
+    """A cost range in words: "less than $0.01", "up to $0.02" or "about $0.50 to $2.50"."""
+    if high < 0.01:
+        return "less than $0.01"
+    if low < 0.01:
+        return f"up to {money(high)}"
+    return f"about {money(low)} to {money(high)}"
+
+
 def cost_line(model: str | None, provider: str | None,
               tokens: list[tuple[int, int]]) -> str:
     from judgekeeper.keys import PROVIDERS
@@ -88,8 +110,5 @@ def cost_line(model: str | None, provider: str | None,
         return f"Cost unknown for this model ({model})."
     low, high = est
     who = f"{PROVIDERS[provider].label}'s" if provider in PROVIDERS else "list"
-    if high < 0.01:
-        amount = "Less than $0.01"
-    else:
-        amount = f"About {money(low)} to {money(high)}"
-    return f"{amount} at {who} prices from {PRICES_READ}; check your provider."
+    words = amount(low, high)
+    return f"{words[0].upper()}{words[1:]} at {who} prices from {PRICES_READ}; check your provider."
