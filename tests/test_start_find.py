@@ -16,8 +16,9 @@ from datetime import datetime
 
 import pytest
 
-from judgekeeper import find, textio
+from judgekeeper import find, start, textio
 from judgekeeper.cli import main
+from judgekeeper.textio import quote_arg
 from tests.start_projects import (
     deepeval_project,
     inspect_project,
@@ -33,7 +34,7 @@ def no_labeling(monkeypatch):
     """These tests stop where labeling starts (tests/test_start_label.py covers the rest)."""
     calls = []
 
-    def run_labeling(found, port, open_browser, say):
+    def run_labeling(found, port, open_browser, say, command="judgekeeper start"):
         calls.append(found)
         say("(labeling page)")
         return 0
@@ -79,8 +80,9 @@ def test_enough_answers_print_the_labeling_plan_and_write_nothing(tmp_path, caps
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "You will label answers in your browser, one at a time: Correct or Wrong." in out
-    assert "  A rough check needs 15 Correct and 15 Wrong." in out
-    assert "  A reliable result needs 25 Correct and 25 Wrong." in out
+    assert "  A rough check needs 15 you mark Correct and 15 you mark Wrong." in out
+    assert ("  A reliable result needs 25 you mark Correct and 25 you mark Wrong: that takes "
+            "50 answers, and you have 40.") in out
     assert "  Most people need 10 to 20 minutes." in out
     assert sorted(p.name for p in tmp_path.iterdir()) == before  # no .judgekeeper/ yet
 
@@ -137,7 +139,7 @@ def test_inspect_eval_logs_without_the_extra_say_how_to_read_them(tmp_path, caps
     assert code == 2
     assert ('Inspect AI found (logs/). To read it, add the extra in your project\'s environment: '
             'pip install "judgekeeper[inspect]", then run '
-            "judgekeeper start again.") in out
+            f"judgekeeper start {quote_arg(tmp_path)} again.") in out
 
 
 def test_a_plain_table(tmp_path, capsys):
@@ -203,7 +205,7 @@ def test_mlflow_store(tmp_path, capsys):
     assert f"{ok()} Your judge: correctness with fake:/judge-model-1" in out
     assert f"{ok()} 8 answers with a verdict: the judge passed 4 and failed 4" in out
     assert "Run your MLflow evaluation again on more data." in out
-    assert code == 2  # too few, and no terminal to ask in
+    assert code == start.EXIT_QUESTION  # too few, and no terminal to ask in
 
 
 def test_mlflow_without_the_extra_says_how_to_read_it(tmp_path, capsys, monkeypatch):
@@ -213,7 +215,7 @@ def test_mlflow_without_the_extra_says_how_to_read_it(tmp_path, capsys, monkeypa
     assert code == 2
     assert ('MLflow found (mlruns/). To read it, add the extra in your project\'s environment: '
             'pip install "judgekeeper[mlflow]", then run '
-            "judgekeeper start again.") in out
+            f"judgekeeper start {quote_arg(tmp_path)} again.") in out
 
 
 def test_a_results_file_as_the_path_skips_the_search(tmp_path, capsys):
@@ -513,7 +515,7 @@ def test_results_from_another_project_ask_first(tmp_path, capsys, monkeypatch):
 def test_another_project_without_a_terminal_stops(tmp_path, capsys):
     promptfoo_project(tmp_path, split(20, 12), description="billing bot")
     code, out, _ = run(capsys, tmp_path, yes=False)
-    assert code == 2
+    assert code == start.EXIT_QUESTION
     assert "looks like it is from another project" in out
 
 

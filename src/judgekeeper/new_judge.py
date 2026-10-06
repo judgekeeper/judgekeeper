@@ -154,7 +154,7 @@ def run(ws: Workspace, new: NewJudge, talk, opts, port: int, open_browser: bool)
         return 0
     talk.say()
     if not plan.key_ok:
-        talk.say(f"Set the key, then run judgekeeper start {COMMAND} again.")
+        talk.say(f"Set the key, then run {talk.command(COMMAND)} again.")
         return 0
     if not again.approve(plan, talk, opts.allow_calls, COMMAND):
         talk.say(ASKED_NOTHING)
@@ -284,14 +284,14 @@ def offer_confirmation(ws: Workspace, new: NewJudge, block: dict, talk, port: in
 
     if not start._interactive() and not talk.yes:
         talk.say(f"To confirm on new answers, mark {QUICK} Correct and {QUICK} Wrong: "
-                 f"judgekeeper start {COMMAND}")
+                 f"{talk.command(COMMAND)}")
         return 0
     if not talk.confirm(CONFIRM, default=True, with_yes=True, hint=CONFIRM):
         return 0
     cws = confirmation_workspace(ws, new, block, talk)
     if cws is None:
         return 0
-    return serve_confirmation(ws, cws, port, open_browser, talk.say)
+    return serve_confirmation(ws, cws, port, open_browser, talk.say, talk.command())
 
 
 def confirmation_workspace(ws: Workspace, new: NewJudge, block: dict, talk) -> Workspace | None:
@@ -328,8 +328,9 @@ def confirmation_page(cws: Workspace) -> str:
 
 
 def serve_confirmation(ws: Workspace, cws: Workspace, port: int, open_browser: bool,
-                       say) -> int:
-    """Serve the confirmation page until the last answer, Ctrl-C or 2 hours idle."""
+                       say, command: str = "judgekeeper start") -> int:
+    """Serve the confirmation page until the last answer, Ctrl-C or 2 hours idle. `command`
+    (start.Talk.command) is what the person runs to continue."""
     from judgekeeper.label import make_server
     from judgekeeper.start_label import StartSession, _scrubbed, result_html
 
@@ -344,8 +345,8 @@ def serve_confirmation(ws: Workspace, cws: Workspace, port: int, open_browser: b
 
     server = make_server(session, port, result=result, page=confirmation_page(cws))
     print(f"Labeling page: {server.url}")  # not scrubbed: the token must stay whole
-    say("Every click is saved. Press Ctrl-C here to stop; run judgekeeper start "
-        f"{COMMAND} to continue.")
+    say(f"Every click is saved. Press Ctrl-C here to stop; run {command} {COMMAND} to "
+        "continue.")
     sys.stdout.flush()
     if open_browser:
         webbrowser.open(server.url)

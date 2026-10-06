@@ -623,13 +623,16 @@ def result_maker(ws: Workspace, say, made: list | None = None):
     return make
 
 
-def run_labeling(found, port: int, open_browser: bool, say) -> int:
+def run_labeling(found, port: int, open_browser: bool, say,
+                 command: str = "judgekeeper start") -> int:
     """Save the pool of `found`, then serve the labeling page for it."""
-    return serve_workspace(prepare(found, say), port, open_browser, say)
+    return serve_workspace(prepare(found, say), port, open_browser, say, command)
 
 
-def serve_workspace(ws: Workspace, port: int, open_browser: bool, say) -> int:
-    """Serve the labeling page until the last answer, Ctrl-C or 2 hours idle."""
+def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
+                    command: str = "judgekeeper start") -> int:
+    """Serve the labeling page until the last answer, Ctrl-C or 2 hours idle. `command`
+    (start.Talk.command) is what the person runs to continue."""
     from judgekeeper import start_review
 
     session = StartSession(ws)
@@ -639,7 +642,7 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say) -> int:
                          page=page_template(ws.data()),
                          switches={"/review": start_review.switch(ws, say, reviewed)})
     print(f"Labeling page: {server.url}")  # not scrubbed: the token must stay whole
-    say("Every click is saved. Press Ctrl-C here to stop; run judgekeeper start to continue.")
+    say(f"Every click is saved. Press Ctrl-C here to stop; run {command} to continue.")
     sys.stdout.flush()
     if open_browser:
         webbrowser.open(server.url)
@@ -652,7 +655,7 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say) -> int:
         save_result(ws, session, say)  # nobody fetched the last result: make it here
     elif not summary["done"]:
         say("")
-        say(f"Stopped. {summary['n_labeled']} labeled; run judgekeeper start to continue.")
+        say(f"Stopped. {summary['n_labeled']} labeled; run {command} to continue.")
     if reviewed:
-        start_review.finish(ws, say)
+        start_review.finish(ws, say, command)
     return 0

@@ -387,12 +387,13 @@ def switch(ws: Workspace, say, opened: list):
     return go
 
 
-def finish(ws: Workspace, say) -> None:
-    """Say where the review stopped, or its lines and files once it is done."""
+def finish(ws: Workspace, say, command: str = "judgekeeper start") -> None:
+    """Say where the review stopped, or its lines and files once it is done. `command`
+    (start.Talk.command) is what the person runs to continue."""
     session = ReviewSession(ws)
     say("")
     if session.step() != "done":
-        say("Stopped. Every click is saved; run judgekeeper start --review to continue.")
+        say(f"Stopped. Every click is saved; run {command} --review to continue.")
         return
     for line in review_lines(session.block()):
         say(line)
@@ -400,12 +401,13 @@ def finish(ws: Workspace, say) -> None:
         say(line)
 
 
-def serve_review(ws: Workspace, port: int, open_browser: bool, say) -> int:
+def serve_review(ws: Workspace, port: int, open_browser: bool, say,
+                 command: str = "judgekeeper start") -> int:
     """Serve the review page until the review is done, Ctrl-C or 2 hours idle."""
     session = ReviewSession(ws)
     server = make_server(session, port, result=result_maker(ws, say), page=page_template(ws))
     print(f"Review page: {server.url}")  # not scrubbed: the token must stay whole
-    say("Every click is saved. Press Ctrl-C here to stop; run judgekeeper start --review to "
+    say(f"Every click is saved. Press Ctrl-C here to stop; run {command} --review to "
         "continue.")
     sys.stdout.flush()
     if open_browser:
@@ -414,7 +416,7 @@ def serve_review(ws: Workspace, port: int, open_browser: bool, say) -> int:
         server.serve()
     except KeyboardInterrupt:
         pass
-    finish(ws, say)
+    finish(ws, say, command)
     return 0
 
 
@@ -446,7 +448,7 @@ def run(ws: Workspace, talk, port: int, open_browser: bool) -> int:
     if session.step() == "b":
         talk.say(f"You looked again at all {len(session.items)} answers. Carrying on at step 2.")
     talk.say()
-    return serve_review(ws, port, open_browser, talk.say)
+    return serve_review(ws, port, open_browser, talk.say, talk.command())
 
 
 __all__ = ["ReviewSession", "count", "pick", "review_lines", "run", "serve_review", "switch"]

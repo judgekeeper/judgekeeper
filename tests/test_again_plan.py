@@ -14,6 +14,7 @@ from judgekeeper import again, keys, start, start_label
 from judgekeeper.again import AgainOptions, approve, make_plan, plan_lines
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, save_result
+from judgekeeper.textio import quote_arg
 from tests.start_projects import promptfoo_project, split, table_project
 
 
@@ -431,7 +432,7 @@ def test_yes_at_the_terminal(plan72, terminal):
 def test_yes_flag_never_approves_spending(plan72, capsys):
     with pytest.raises(start.Stop) as stop:
         approve(plan72, start.Talk(yes=True), allow_calls=None)
-    assert stop.value.code == 2
+    assert stop.value.code == start.EXIT_QUESTION
     assert "judgekeeper start --ask-again --allow-calls 72" in capsys.readouterr().out
 
 
@@ -478,10 +479,10 @@ def test_ask_again_without_a_terminal_shows_the_plan_and_the_flag(tmp_path, caps
     _local_promptfoo(tmp_path, no_processes)
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
     code, out, _ = run(capsys, tmp_path, "--ask-again")
-    assert code == 2
+    assert code == start.EXIT_QUESTION
     assert "Ask your judge again" in out and "36 labeled answers × 2 times" in out
-    assert out.rstrip().endswith("To go ahead without a terminal: judgekeeper start "
-                                 "--ask-again --allow-calls 72")
+    assert out.rstrip().endswith(f"To go ahead without a terminal: judgekeeper start "
+                                 f"{quote_arg(tmp_path)} --ask-again --allow-calls 72")
     assert "What next?" not in out
     assert all(argv[-1] == "--version" for argv in no_processes.calls)
 
@@ -491,7 +492,8 @@ def test_a_missing_key_stops_before_the_question(tmp_path, capsys, no_processes)
     _local_promptfoo(tmp_path, no_processes)
     code, out, _ = run(capsys, tmp_path, "--ask-again", "--allow-calls", "72")
     assert code == 0
-    assert out.rstrip().endswith("Set the key, then run judgekeeper start --ask-again again.")
+    assert out.rstrip().endswith(f"Set the key, then run judgekeeper start {quote_arg(tmp_path)} "
+                                 "--ask-again again.")
     assert all(argv[-1] == "--version" for argv in no_processes.calls)
 
 
@@ -521,7 +523,7 @@ def test_the_menu_says_why_a_judge_cant_be_asked(tmp_path, capsys, terminal):
 def test_ask_again_without_a_result(tmp_path, capsys):
     promptfoo_project(tmp_path, split(20, 16))
     code, out, _ = run(capsys, tmp_path, "--ask-again")
-    assert code == 2 and "There is no result to ask about yet." in out
+    assert code == 2 and "There is no result to ask about yet:" in out
 
 
 @pytest.mark.parametrize("times", ["0", "6", "x"])
@@ -541,5 +543,5 @@ def test_times_in_the_flags(tmp_path, capsys, no_processes):
 def test_judge_command_in_the_flags(tmp_path, capsys):
     _checked(tmp_path, maker=table_project)
     code, out, _ = run(capsys, tmp_path, "--ask-again", "--judge-command", "python judge.py")
-    assert code == 2 and "This runs `python judge.py` 72 times." in out
+    assert code == start.EXIT_QUESTION and "This runs `python judge.py` 72 times." in out
     assert "--allow-calls 72" in out

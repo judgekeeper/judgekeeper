@@ -24,6 +24,7 @@ from judgekeeper.again import promptfoo as pf
 from judgekeeper.cli import main
 from judgekeeper.judgments import read_run
 from judgekeeper.start_label import StartSession, save_result
+from judgekeeper.textio import quote_arg
 from tests.conftest import FIXTURES
 from tests.start_projects import promptfoo_project, split, table_project
 
@@ -276,7 +277,7 @@ def test_npx_needs_a_terminal(fake, capsys, monkeypatch):
     (fake.ws.root / "node_modules").rename(fake.ws.root / "node_modules-gone")
     monkeypatch.setattr(again, "which", lambda name: "/usr/bin/npx" if name == "npx" else None)
     code, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    assert code == 2
+    assert code == start.EXIT_QUESTION
     assert "npm install --save-dev promptfoo@0.123.1" in out
 
 
@@ -299,8 +300,9 @@ def test_yes_at_the_terminal_runs(fake, capsys, terminal):
 
 def test_without_a_terminal_allow_calls_is_needed(fake, capsys):
     code, out, _ = run(capsys, fake.ws.root, "--ask-again", "--yes")
-    assert code == 2
-    assert "To go ahead without a terminal: judgekeeper start --ask-again --allow-calls 72" in out
+    assert code == start.EXIT_QUESTION
+    assert (f"To go ahead without a terminal: judgekeeper start {quote_arg(fake.ws.root)} "
+            "--ask-again --allow-calls 72") in out
     assert not any("eval" in c.argv for c in fake.calls)
 
 

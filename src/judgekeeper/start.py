@@ -13,8 +13,9 @@ results file wins, and inside it the majority of its verdicts, a tie going to fa
 that are errors or cannot be mapped are left out and counted.
 
 Questions are asked only at a terminal (stdin). Without one, `start` prints the question as
-the flag that answers it and exits 2; `--yes` takes the default answer of a yes/no question,
-but never picks between tools or judges.
+the flag that answers it and exits 8 (EXIT_QUESTION: nothing went wrong); `--yes` takes the
+default answer of a yes/no question, but never picks between tools or judges. Every printed
+"run this next" command comes from `Talk.command`, so it repeats the flags the person gave.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import textwrap
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -52,9 +54,9 @@ from judgekeeper.textio import quote_arg, tick
 
 EXIT_OK = 0
 EXIT_USAGE = 2
+EXIT_QUESTION = 8  # stopped at a question it cannot ask (no terminal); nothing went wrong
 
 MIN_POOL = 30  # a rough check needs ROUGH of each
-MIN_GROUP = 5
 ROUGH = 15
 RELIABLE = 25
 RUBRIC_WIDTH = 60
@@ -65,7 +67,6 @@ PAIRWISE = ("These are A/B comparisons. judgekeeper start handles pass/fail answ
 HUMAN_COLUMNS = ("human_label", "label")
 FILE_READERS = {"promptfoo": read_promptfoo, "deepeval": read_deepeval, "inspect": read_inspect}
 _TEST_FILE = re.compile(rb'"testFile"\s*:\s*"([^"\\]{1,200})"')
-_TASK_FILE = re.compile(rb'"task_file"\s*:\s*"([^"\\]{1,200})"')
 _DESCRIPTION = re.compile(r"^description:\s*(.*?)\s*$", re.MULTILINE)
 
 
@@ -88,13 +89,47 @@ def _interactive() -> bool:
         return False
 
 
-class Talk:
-    """What `start` says, and the questions it asks when there is a person to answer."""
+# The flags a printed "run this next" command repeats, in this order: (run's parameter,
+# flag). --port and --no-browser follow them. Left out on purpose (NOT_REPEATED): the menu's
+# answers, --yes and --allow-calls, which each hint adds when it needs them.
+REPEATED = (("tool", "--tool"), ("metric", "--metric"), ("experiment", "--experiment"),
+            ("pass_if", "--pass-if"), ("label_map", "--label-map"),
+            ("judge_model", "--judge-model"), ("times", "--times"), ("python", "--python"),
+            ("fields", "--fields"), ("judge_command", "--judge-command"))
+NOT_REPEATED = frozenset({"new", "review", "ask_again", "try_new_judge", "label_more",
+                          "yes", "allow_calls", "agent_prompt"})
+DEFAULT_PORT = 8765
 
-    def __init__(self, yes: bool = False, quiet: bool = False):
+
+def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser: bool = False,
+                   **values) -> tuple[str, ...]:
+    """The words a printed command repeats: the path (unless this folder), each REPEATED flag
+    that was given, then --port (unless the default) and --no-browser."""
+    words = [] if str(path) == "." else [quote_arg(path)]
+    for name, flag in REPEATED:
+        if values.get(name) is not None:
+            words += [flag, quote_arg(str(values[name]))]
+    if port != DEFAULT_PORT:
+        words += ["--port", str(port)]
+    if no_browser:
+        words.append("--no-browser")
+    return tuple(words)
+
+
+class Talk:
+    """What `start` says, and the questions it asks when there is a person to answer.
+    `flags` (repeated_flags) are what every printed command repeats."""
+
+    def __init__(self, yes: bool = False, quiet: bool = False, flags: tuple[str, ...] = ()):
         self.yes = yes
         self.quiet = quiet
+        self.flags = flags
         self._blank = True  # the last line said was empty: never two in a row
+
+    def command(self, *extra: str) -> str:
+        """`judgekeeper start` with the person's flags, then `extra`: run as printed, it gets
+        past the question it answers."""
+        return " ".join(("judgekeeper start", *self.flags, *extra))
 
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):
@@ -105,11 +140,11 @@ class Talk:
 
     def choose(self, title: str, options: list[str], flag_hint: str,
                ask: str = "Which one?") -> int:
-        """The index of the option the person picks. Without a terminal: the hint, exit 2."""
+        """The index of the option the person picks. Without a terminal: the hint, exit 8."""
         if not _interactive():
             for line in flag_hint.splitlines():
                 self.say(line)
-            raise Stop(EXIT_USAGE)
+            raise Stop(EXIT_QUESTION)
         self.say(title)
         for n, option in enumerate(options, 1):
             self.say(f"  {n}. {option}")
@@ -119,12 +154,12 @@ class Talk:
                 return int(answer) - 1
 
     def confirm(self, question: str, default: bool, hint: str, with_yes: bool) -> bool:
-        """Yes or no. Without a terminal, `--yes` answers `with_yes`; else the hint, exit 2."""
+        """Yes or no. Without a terminal, `--yes` answers `with_yes`; else the hint, exit 8."""
         if not _interactive():
             if self.yes:
                 return with_yes
             self.say(hint)
-            raise Stop(EXIT_USAGE)
+            raise Stop(EXIT_QUESTION)
         while True:
             prompt = f"{question} {'[Y/n]' if default else '[y/N]'} ".lstrip()
             answer = self._input(prompt).lower()
@@ -149,7 +184,7 @@ class Talk:
         try:
             return input(printable(prompt)).strip()
         except EOFError:
-            raise Stop(EXIT_USAGE) from None
+            raise Stop(EXIT_QUESTION) from None
 
 
 # The pool --------------------------------------------------------------------------------
@@ -349,7 +384,7 @@ def _folder_of(result: find.Result) -> str:
 def _needs_extra(talk: Talk, tool: str, where: str) -> Stop:
     talk.say(f"{find.NAMES[tool]} found ({where}). To read it, add the extra in your "
              f"project's environment: pip install \"judgekeeper[{find.EXTRAS[tool]}]\", then "
-             "run judgekeeper start again.")
+             f"run {talk.command()} again.")
     return Stop(EXIT_USAGE)
 
 
@@ -398,6 +433,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                 "Several MLflow experiments have judge results:", names,
                 f"Several MLflow experiments have judge results; choose one with "
                 f"{_or([f'--experiment {quote_arg(n)}' for n in names])}")]]
+            _next_time(talk, "--experiment", found[0][0])
     name, runs = found[0]
     judged = [Loaded(label, recs) for label, recs in runs if label != "human assessments"]
     humans = [r for label, recs in runs if label == "human assessments" for r in recs
@@ -552,7 +588,27 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         kind = available[talk.choose(
             "Saved results from more than one eval tool:", options,
             f"Several tools found; choose one with {_or([f'--tool {t}' for t in available])}")]
+        _next_time(talk, "--tool", kind)
     return root, kind, by_date[kind], found.signs
+
+
+def known_tool(path: str | Path, tool: str | None = None) -> str | None:
+    """The tool `start` would read at `path` when that needs no question and no reading of
+    results: --tool, judgekeeper.toml's [start] table, a results file's kind, or the one tool
+    found. None when it cannot tell."""
+    path = Path(path)
+    if tool is not None:
+        return tool
+    if path.is_file():
+        return find.classify_file(path)
+    if not path.is_dir():
+        return None
+    saved = _saved(path)
+    if saved is not None:
+        return "mapped" if saved.source == "map" else saved.source
+    found = find.search(path.resolve())
+    tools = [t for t in find.TOOLS if found.readable(t)]
+    return tools[0] if len(tools) == 1 else None
 
 
 def results_description(result: find.Result) -> str | None:
@@ -613,9 +669,16 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
     if len(names) == 1:
         return names[0]
     options = [f"{n} ({counts[n]} answers)" for n in names]
-    return names[talk.choose(
+    name = names[talk.choose(
         "These results hold more than one judge:", options,
         f"Several judges found; choose one with {_or([f'--metric {quote_arg(n)}' for n in names])}")]
+    _next_time(talk, "--metric", name)
+    return name
+
+
+def _next_time(talk: Talk, flag: str, chosen: str) -> None:
+    """After the person picks at "Which one?": the flag that picks it without asking."""
+    talk.say(f"(Next time: {flag} {quote_arg(chosen)})")
 
 
 def rule_text(prompt) -> str | None:
@@ -664,7 +727,12 @@ def rubric_line(prompt) -> str | None:
     if text is None:
         return None
     line = next(line.strip() for line in text.splitlines() if line.strip())
-    return line[:RUBRIC_WIDTH - 1] + "…" if len(line) > RUBRIC_WIDTH else line
+    if len(line) <= RUBRIC_WIDTH:
+        return line
+    cut = line[:RUBRIC_WIDTH - 1]
+    if " " in cut[RUBRIC_WIDTH // 2:]:  # at a word, unless that leaves too little
+        cut = cut[:cut.rindex(" ")]
+    return cut.rstrip(" ,;:") + "…"
 
 
 def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
@@ -857,98 +925,174 @@ def _say_pool(talk: Talk, found: Found) -> None:
                  "judgekeeper start does not use them: you label the answers yourself.")
 
 
-def _head_value(found: Found, pattern: re.Pattern, default: str) -> str:
+def _head_value(found: Found, pattern: re.Pattern) -> str | None:
     try:
         m = pattern.search(find._head(found.results[0].path))
     except OSError:
         m = None
-    return quote_arg(m[1].decode("utf-8", errors="replace")) if m else default
+    return quote_arg(m[1].decode("utf-8", errors="replace")) if m else None
+
+
+COSTS = "  Running your eval again makes model calls, so it costs money."
+
+
+def _inspect_eval(found: Found) -> tuple[str, str] | None:
+    """(task file, the `inspect eval` command with the models and log folder of the newest
+    log), or None when the log does not name its task file."""
+    from judgekeeper.readers.inspect_logs import eval_header
+
+    newest = found.results[0].path
+    header = eval_header(newest)
+    task = header.get("task_file")
+    if not isinstance(task, str) or not task.strip():
+        return None
+    words = ["inspect eval", quote_arg(task)]
+    if isinstance(header.get("model"), str):
+        words += ["--model", quote_arg(header["model"])]
+    roles = header.get("model_roles")
+    for role, spec in (roles.items() if isinstance(roles, dict) else ()):
+        model = spec.get("model") if isinstance(spec, dict) else spec
+        if isinstance(model, str):
+            words += ["--model-role", quote_arg(f"{role}={model}")]
+    here, folder = Path.cwd().resolve(), newest.parent.resolve()
+    if folder != here / "logs":  # Inspect's own default
+        shown = folder.relative_to(here).as_posix() if folder.is_relative_to(here) else folder
+        words += ["--log-dir", quote_arg(shown)]
+    return task, " ".join(words)
 
 
 def more_answers(found: Found) -> list[str]:
-    """How to make more answers with the user's own tool. judgekeeper runs none of it."""
+    """How to make more answers with the user's own tool, naming the files judgekeeper read
+    (never a placeholder). judgekeeper runs none of it."""
     newest = found.results[0]
     if found.tool == "promptfoo":
         configs = [s for s in found.signs.get("promptfoo", [])
                    if Path(s).name in find.PROMPTFOO_CONFIGS]
-        config = configs[0] if configs else "promptfooconfig.yaml"
-        run = f"promptfoo eval -o {quote_arg(newest.rel)}"
-        return [f"  Add more tests to {config}, then run: {run}",
-                "  This one runs your eval again: new answers need it."]
+        config = configs[0] if configs else "your promptfoo config"
+        return [(f"  Add more tests to {config}, then run: promptfoo eval -o "
+                 f"{quote_arg(newest.rel)}"), COSTS]
     if found.tool == "deepeval":
-        test_file = _head_value(found, _TEST_FILE, "test_file.py")
-        return [f"  Add more test cases, then run: deepeval test run {test_file}",
-                ("  Tip: set DEEPEVAL_RESULTS_FOLDER so DeepEval keeps every run, not only "
-                 "the latest.")]
+        test_file = _head_value(found, _TEST_FILE)
+        add = (f"  Add more test cases to {test_file}, then run: deepeval test run {test_file}"
+               if test_file else "  Add more test cases, then run them with deepeval test run.")
+        return [add, COSTS, ("  Tip: set DEEPEVAL_RESULTS_FOLDER so DeepEval keeps every run, "
+                             "not only the latest.")]
     if found.tool == "inspect":
-        return [f"  inspect eval {_head_value(found, _TASK_FILE, 'your_task.py')} --limit 100"]
+        inspect_eval = _inspect_eval(found)
+        if inspect_eval is None:
+            return ["  Add more samples to your Inspect task's dataset, then run it again.",
+                    COSTS]
+        task, command = inspect_eval
+        return [f"  Add more samples to the dataset in {task}, then run: {command}", COSTS]
     if found.tool == "mlflow":
-        return ["  Run your MLflow evaluation again on more data."]
+        return ["  Run your MLflow evaluation again on more data.", COSTS]
     if found.tool == "records":
         return [("  Run your eval on more answers: each judgekeeper.record() call saves one "
-                 "more verdict.")]
+                 "more verdict."), COSTS]
     if found.tool == "mapped":
-        return [f"  Run your eval on more answers: it adds them to {newest.rel}."]
+        return [f"  Run your eval on more answers: it adds them to {newest.rel}.", COSTS]
     return [f"  Add more rows to {newest.rel}."]
 
 
-INTRO = (
-    "You will label answers in your browser, one at a time: Correct or Wrong.",
-    "You won't see what the judge said. judgekeeper picks half from the judge's",
-    "passes and half from its fails, so you see enough of both.",
-    "",
-    f"  A rough check needs {ROUGH} Correct and {ROUGH} Wrong.",
-    f"  A reliable result needs {RELIABLE} Correct and {RELIABLE} Wrong.",
-    "  Most people need 10 to 20 minutes.",
-)
+def picking_line(n_pass: int, n_fail: int) -> str:
+    """How the page picks answers, from the real counts (start_label.build_queue: blocks of
+    10, half from each group, the other group filling in once one runs out)."""
+    from judgekeeper.start_label import BLOCK
+
+    few, did, other = ((n_fail, "failed", "passed") if n_fail <= n_pass
+                       else (n_pass, "passed", "failed"))
+    if few >= ROUGH:
+        return ("judgekeeper picks half from the judge's passes and half from its fails, so "
+                "you see enough of both.")
+    if not few:
+        return f"You'll see only answers it {other}."
+    within = min(-(-few // (BLOCK // 2)) * BLOCK, n_pass + n_fail)
+    then = f", then answers it {other}" if n_pass + n_fail > within else ""
+    return (f"You'll see {'the one' if few == 1 else f'all {few}'} it {did} among the first "
+            f"{within}{then}.")
+
+
+def intro_lines(pool: Pool) -> list[str]:
+    """What labeling is, how answers are picked, and the targets: about the person's labels,
+    and said to be out of reach when there are too few answers for them."""
+    n = len(pool.answers)
+    lines = ["You will label answers in your browser, one at a time: Correct or Wrong.",
+             "You won't see what the judge said.",
+             *textwrap.wrap(picking_line(pool.n_pass, pool.n_fail), width=74), ""]
+    for target, need in (("A rough check", ROUGH), ("A reliable result", RELIABLE)):
+        line = f"  {target} needs {need} you mark Correct and {need} you mark Wrong"
+        lines.append(f"{line}." if n >= 2 * need
+                     else f"{line}: that takes {2 * need} answers, and you have {n}.")
+    return lines + ["  Most people need 10 to 20 minutes."]
+
+
+def _label_anyway(talk: Talk, found: Found) -> bool:
+    """Too few answers for a rough check: say so, and how to make more; then ask."""
+    n = len(found.pool.answers)
+    talk.say()
+    talk.say(f"You have {_plural(n, 'answer', 'answers')}; a rough check needs at least "
+             f"{MIN_POOL}.")
+    if talk.yes and not _interactive():
+        talk.say("Labeling anyway, as you asked (--yes).")
+        return True
+    talk.say()
+    talk.say(f"Make more answers with your own eval, then run {talk.command()} again:")
+    for line in more_answers(found):
+        talk.say(line)
+    talk.say()
+    question = f"Label the {n} you have anyway?"
+    return talk.confirm(f"{question} The result will say how unsure it is.",
+                        default=False, with_yes=True,
+                        hint=f"{question} Run {talk.command('--yes')} to say yes.")
+
+
+def _few_note(talk: Talk, pool: Pool) -> None:
+    """A judge that fails (or passes) few answers is the one most worth checking: go on."""
+    n = len(pool.answers)
+    for count, did, too in ((pool.n_fail, "failed", "passes too much"),
+                            (pool.n_pass, "passed", "fails too much")):
+        if count < ROUGH:
+            how = f"none of your {n}" if not count else f"only {count} of {n}"
+            talk.say(f"Your judge {did} {how} answers. That may mean it {too}: your labels "
+                     "will show it.")
 
 
 def label_found(talk: Talk, found: Found, port: int, open_browser: bool) -> int:
-    """Say the pool, check there are enough answers, then open the labeling page."""
+    """Say the pool and how labeling goes, then open the labeling page."""
     _say_pool(talk, found)
     pool = found.pool
-    n = len(pool.answers)
-    if not n:
+    if not pool.answers:
         raise StartError("no answer has a clear pass or fail from the judge, so there is "
                          "nothing to label")
-    if n < MIN_POOL or min(pool.n_pass, pool.n_fail) < MIN_GROUP:
-        talk.say()
-        talk.say(f"That is too few for a result: a rough check needs {ROUGH} Correct and "
-                 f"{ROUGH} Wrong,")
-        talk.say(f"so judgekeeper needs at least {MIN_POOL} answers, with some the judge "
-                 "failed.")
-        talk.say()
-        talk.say("Make more answers with your own eval, then run judgekeeper start again:")
-        for line in more_answers(found):
-            talk.say(line)
-        talk.say()
-        question = f"Label the {n} you have anyway?"
-        if not talk.confirm(f"{question} The result will say how unsure it is.",
-                            default=False, with_yes=True,
-                            hint=f"{question} Run judgekeeper start --yes to say yes."):
+    if len(pool.answers) < MIN_POOL:
+        if not _label_anyway(talk, found):
             return EXIT_OK
     else:
-        for count, did, label in ((pool.n_pass, "passed", "Correct"),
-                                  (pool.n_fail, "failed", "Wrong")):
-            if count < ROUGH:
-                talk.say(f"Your judge {did} only {count} answers, so you may not reach "
-                         f"{ROUGH} {label}. The result will say how sure it is.")
+        _few_note(talk, pool)
     talk.say()
-    for line in INTRO:
+    for line in intro_lines(pool):
         talk.say(line)
     talk.say()
-    if not talk.confirm("Open the labeling page now?", default=True, with_yes=True,
-                        hint="Open the labeling page? Run judgekeeper start --yes to open it."):
+    if open_browser:
+        asked = "Open the labeling page now?"
+        hint = f"Open the labeling page? Run {talk.command('--yes')} to open it."
+    else:
+        asked = "Start the labeling page? It will print a link."
+        hint = (f"Start the labeling page? Run {talk.command('--yes')} to start it (it prints "
+                "a link).")
+    if not talk.confirm(asked, default=True, with_yes=True, hint=hint):
+        talk.say(f"OK. Run {talk.command()} when you're ready to label.")
         return EXIT_OK
     from judgekeeper import start_label
 
-    return start_label.run_labeling(found, port=port, open_browser=open_browser, say=talk.say)
+    return start_label.run_labeling(found, port=port, open_browser=open_browser, say=talk.say,
+                                    command=talk.command())
 
 
 def run(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
         experiment: str | None = None, pass_if: str | None = None,
         label_map: str | None = None, judge_model: str | None = None,
-        yes: bool = False, port: int = 8765, no_browser: bool = False,
+        yes: bool = False, port: int = DEFAULT_PORT, no_browser: bool = False,
         new: bool = False, review: bool = False, label_more: bool = False,
         ask_again: bool = False, try_new_judge: bool = False, times: int | None = None,
         python: str | None = None,
@@ -963,7 +1107,10 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
     from judgekeeper import start_again
     from judgekeeper.again import AgainOptions
 
-    talk = Talk(yes=yes)
+    talk = Talk(yes=yes, flags=repeated_flags(
+        path, port=port, no_browser=no_browser, tool=tool, metric=metric,
+        experiment=experiment, pass_if=pass_if, label_map=label_map, judge_model=judge_model,
+        times=times, python=python, fields=fields, judge_command=judge_command))
     again_options = AgainOptions(times=times, python=python, fields=fields,
                                  judge_command=judge_command, judge_model=judge_model,
                                  allow_calls=allow_calls)
@@ -979,5 +1126,5 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         return stop.code
 
 
-__all__ = ["Answer", "Found", "Pool", "StartError", "build_pool", "find_judge",
-           "label_found", "run"]
+__all__ = ["Answer", "Found", "Pool", "StartError", "Talk", "build_pool", "find_judge",
+           "intro_lines", "label_found", "more_answers", "picking_line", "run"]

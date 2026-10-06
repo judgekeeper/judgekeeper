@@ -160,11 +160,12 @@ judgekeeper --version</code></pre></div>
 <span class="ok">&#x2713;</span> 212 answers with a verdict: the judge passed 171 and failed 41
 
 You will label answers in your browser, one at a time: Correct or Wrong.
-You won&#39;t see what the judge said. judgekeeper picks half from the judge&#39;s
-passes and half from its fails, so you see enough of both.
+You won&#39;t see what the judge said.
+judgekeeper picks half from the judge&#39;s passes and half from its fails, so
+you see enough of both.
 
-<span class="dim">  A rough check needs 15 Correct and 15 Wrong.
-  A reliable result needs 25 Correct and 25 Wrong.
+<span class="dim">  A rough check needs 15 you mark Correct and 15 you mark Wrong.
+  A reliable result needs 25 you mark Correct and 25 you mark Wrong.
   Most people need 10 to 20 minutes.</span>
 
 <span class="em">Open the labeling page now? [Y/n]</span></code></pre></div>
@@ -176,8 +177,8 @@ passes and half from its fails, so you see enough of both.
       <dd>It found no file it can read as your judge&#39;s results. Pick one of the three ways it lists: give it your file&#39;s path, add the <code>record()</code> line, or have your coding agent write a table (<a href="#own-format">all three</a>).</dd>
       <dt><code data-said-by="start">No promptfoo results file in this folder.</code></dt>
       <dd>promptfoo kept your results in its own database. judgekeeper offers to run <code>promptfoo export</code> for you, which writes them to a file. It asks first.</dd>
-      <dt><code data-said-by="start">That is too few for a result</code></dt>
-      <dd>Your judge graded fewer answers than a rough check needs. It prints the command that makes more with your own eval: run it, then <code>judgekeeper start</code> again. Or label the ones you have: the result says how unsure it is.</dd>
+      <dt>It says <code data-said-by="start">a rough check needs at least</code> 30 answers</dt>
+      <dd>Your judge graded fewer than 30 answers. It prints the command that makes more with your own eval, naming your config, test file or task: run it (it calls your models, so it costs money), then <code>judgekeeper start</code> again. Or label the ones you have: the result says how unsure it is. A judge that failed only a few answers is not a reason to stop: labeling goes on, because your labels decide what is Wrong.</dd>
       <dt><code data-said-by="start">Saved results from more than one eval tool:</code> or <code data-said-by="start">These results hold more than one judge:</code></dt>
       <dd>It lists them and asks which one. Pick the judge you want to check.</dd>
     </dl></details>

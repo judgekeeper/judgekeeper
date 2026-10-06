@@ -20,6 +20,7 @@ from judgekeeper.cli import main
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.judgments import read_run
 from judgekeeper.records import LLM, RecordList, ScoreRecord
+from judgekeeper.textio import quote_arg
 from tests.start_projects import promptfoo_project, split
 from tests.test_label_server import Client, _read
 
@@ -291,7 +292,11 @@ def test_the_word_trust_is_nowhere():
         r = _result(*counts)
         texts += start_label.result_lines(r, saved=".judgekeeper")
         texts.append(start_label.result_html(r))
-    texts += list(start.INTRO)
+    for n_pass, n_fail in ((171, 41), (58, 2), (20, 2), (40, 0)):
+        pool = start.Pool(answers=[start.Answer(str(i), "q", "a", "pass" if i < n_pass else "fail",
+                                                "", None, None, "x")
+                                   for i in range(n_pass + n_fail)])
+        texts += start.intro_lines(pool)
     assert not any("trust" in t.lower() for t in texts)
 
 
@@ -489,7 +494,8 @@ def test_ctrl_c_says_everything_is_saved(tmp_path, capsys, clicker):
     clicker["stop_after"] = 5
     code, out, _ = _run(capsys, tmp_path, "--yes", "--no-browser", "--port", "0")
     assert code == 0
-    assert "Stopped. 5 labeled; run judgekeeper start to continue." in out
+    assert (f"Stopped. 5 labeled; run judgekeeper start {quote_arg(tmp_path)} --port 0 "
+            "--no-browser to continue.") in out
     assert "Your result" not in out
 
 
@@ -498,7 +504,7 @@ def test_a_person_is_asked_before_the_page_opens(tmp_path, capsys, clicker, monk
     monkeypatch.setattr(start, "_interactive", lambda: True)
     answers = ["n"]
     monkeypatch.setattr(builtins, "input", lambda prompt="": print(prompt) or answers.pop(0))
-    code, out, _ = _run(capsys, tmp_path, "--no-browser", "--port", "0")
+    code, out, _ = _run(capsys, tmp_path, "--port", "0")
     assert code == 0
     assert "Open the labeling page now? [Y/n]" in out
     assert not (tmp_path / ".judgekeeper").exists()
@@ -507,8 +513,9 @@ def test_a_person_is_asked_before_the_page_opens(tmp_path, capsys, clicker, monk
 def test_without_a_terminal_the_page_needs_yes(tmp_path, capsys, clicker):
     promptfoo_project(tmp_path, split(20, 12))
     code, out, _ = _run(capsys, tmp_path)
-    assert code == 2
-    assert "Open the labeling page? Run judgekeeper start --yes to open it." in out
+    assert code == start.EXIT_QUESTION
+    assert (f"Open the labeling page? Run judgekeeper start {quote_arg(tmp_path)} --yes to open "
+            "it.") in out
     assert not (tmp_path / ".judgekeeper").exists()
 
 

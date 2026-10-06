@@ -23,7 +23,7 @@ from tests.start_projects import promptfoo_project, records_project, split
 def no_labeling(monkeypatch):
     calls = []
 
-    def run_labeling(found, port, open_browser, say):
+    def run_labeling(found, port, open_browser, say, command="judgekeeper start"):
         calls.append(found)
         say("(labeling page)")
         return 0
@@ -73,7 +73,7 @@ def test_several_judges_ask_which_and_metric_answers(tmp_path, capsys):
     records_project(tmp_path, split(20, 16), name="Safe wording", pid=1)
     records_project(tmp_path, split(18, 18), name="Plain language", pid=1, tag=" plain")
     code, out, _ = run(capsys, tmp_path)
-    assert code == 2
+    assert code == start.EXIT_QUESTION
     assert "--metric 'Plain language'" in out or '--metric "Plain language"' in out
     code, out, _ = run(capsys, tmp_path, "--metric", "Plain language")
     assert code == 0
@@ -131,7 +131,7 @@ def test_records_and_another_tool_ask_which(tmp_path, capsys):
     two_processes(tmp_path)
     promptfoo_project(tmp_path, split(20, 16))
     code, out, _ = run(capsys, tmp_path)
-    assert code == 2
+    assert code == start.EXIT_QUESTION
     assert "--tool records" in out
     code, out, _ = run(capsys, tmp_path, "--tool", "records")
     assert code == 0 and "Your judge's saved records: 36" in out
@@ -149,7 +149,8 @@ def test_more_answers_come_from_running_the_eval_again(tmp_path):
     found = start.find_judge(tmp_path)
     assert start.more_answers(found) == [
         ("  Run your eval on more answers: each judgekeeper.record() call saves one more "
-         "verdict.")]
+         "verdict."),
+        "  Running your eval again makes model calls, so it costs money."]
 
 
 def test_new_keeps_the_records(tmp_path, capsys):

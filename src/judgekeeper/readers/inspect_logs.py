@@ -65,6 +65,29 @@ def _load(path: Path) -> dict:
         raise RecordsError(f"{path}: not JSON ({e.msg})") from None
 
 
+def eval_header(path: str | Path) -> dict:
+    """The log's `eval` part (task_file, model, model_roles, ...), or {} when it cannot be
+    read. With inspect_ai, only the header is read; without it, a .json log as JSON."""
+    path = Path(path)
+    try:
+        from inspect_ai.log import read_eval_log
+    except ImportError:
+        read_eval_log = None
+    if read_eval_log is not None:
+        try:
+            spec = read_eval_log(str(path), header_only=True).eval.model_dump(mode="json")
+        except Exception:  # noqa: BLE001 - Inspect's own errors: the header only shapes advice
+            return {}
+    elif path.suffix.lower() == ".eval":
+        return {}
+    else:
+        try:
+            spec = json.loads(read_utf8(path, RecordsError)).get("eval")
+        except (OSError, ValueError, AttributeError, RecordsError):
+            return {}
+    return spec if isinstance(spec, dict) else {}
+
+
 def _model(config) -> tuple[str | None, float | None]:
     if isinstance(config, list):
         models = [c.get("model") for c in config if isinstance(c, dict)]
