@@ -17,15 +17,27 @@ saved results files again to rebuild that judge, and says:
 Answers are left out, and listed, when they are empty (promptfoo would call the provider
 instead), or when a prompt-using judge type (factuality, closedqa, g-eval, answer-relevance,
 context-*) would see template text (`{{`, `{%`, `{#`) that promptfoo fills in again.
+
+`run` writes two temporary files next to the user's promptfoo config (so relative `file://`
+and `exec:` paths work as in the original run): a config whose prompt is each answer's saved
+prompt and whose provider is promptfoo's echo, and a tests file (kept separate, so promptfoo
+does not fill `{{ env.X }}` into saved answers) with each labeled answer as `providerOutput`,
+its saved vars and only its model-graded assertions and grader, copied unchanged. promptfoo
+then runs with `--no-cache --no-write --no-share` and its telemetry, update check, sharing and
+logs off; `--grader` is never passed. Both files are removed afterwards, also after an error or
+Ctrl-C. Exit codes 0 and 100 (some test failed) both mean finished. An llm-rubric answer whose
+new grading prompt is not byte for byte the saved one is not counted.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from judgekeeper import again, find, keys, prices
 from judgekeeper.again import CLOSE, EXACT, Plan, cant, left_out_line
+from judgekeeper.again.fresh import AgainError, Fresh, new_folder
 from judgekeeper.anchors import canonical_json
 from judgekeeper.readers.promptfoo import (
     MODEL_GRADED,
@@ -34,8 +46,11 @@ from judgekeeper.readers.promptfoo import (
     _text,
     grader_of,
     is_set_grader,
+    read_promptfoo,
 )
-from judgekeeper.records import derive_record_id
+from judgekeeper.records import LLM, derive_record_id
+from judgekeeper.redact import scrub
+from judgekeeper.table import make_fingerprint
 
 CALLS = {"llm-rubric": 1, "factuality": 1, "model-graded-factuality": 1,
          "model-graded-closedqa": 1, "context-recall": 1, "context-relevance": 1,
@@ -46,6 +61,14 @@ PROMPT_TYPES = {"factuality", "model-graded-factuality", "model-graded-closedqa"
                 "context-relevance"}
 TEMPLATE_MARKS = ("{{", "{%", "{#")
 CODE_PREFIXES = ("exec:", "python:", "file://", "golang:", "ruby:", "javascript:")
+CONFIG = ".judgekeeper-regrade.promptfoo.json"
+TESTS = ".judgekeeper-regrade.tests.json"
+RUN_ENV = {"PROMPTFOO_CACHE_ENABLED": "false", "PROMPTFOO_DISABLE_TELEMETRY": "1",
+           "PROMPTFOO_DISABLE_UPDATE": "1", "PROMPTFOO_DISABLE_SHARING": "1",
+           "PROMPTFOO_DISABLE_DEBUG_LOG": "1", "PROMPTFOO_DISABLE_ERROR_LOG": "1"}
+FLAGS = ("--no-cache", "--no-write", "--no-share", "--no-table", "--no-progress-bar")
+# Test options that change the saved answer or prompt, which already hold their effect.
+DROPPED_OPTIONS = ("transform", "postprocess", "prefix", "suffix", "provider", "storeOutputAs")
 SIDE_EFFECT = "Your app is not run. Nothing is written to promptfoo's database or shared."
 EXACT_WHY = "promptfoo re-grades your saved answers with your own settings"
 
@@ -182,12 +205,16 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
         notes.append(f"Your answers were graded by {len(graders)} different graders; the "
                      "first is named here.")
     status, why = EXACT, EXACT_WHY
+    runner, download = [], False
     if not version:
         reasons.append("promptfoo version not recorded")
     if dry:
         installed = _installed(root)
+        runner = [installed[0]] if installed else []
         if version and (installed is None or installed[1] != version):
-            if again.which("npx"):
+            npx = again.which("npx")
+            if npx:
+                runner, download = [npx, "--yes", f"promptfoo@{version}"], True
                 notes.append(
                     (f"Your promptfoo is {installed[1]}; your results were made with promptfoo "
                      if installed else "promptfoo is not installed here; your results were "
@@ -254,6 +281,104 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
                 provider=provider, key_lines=check.lines, notes=notes,
                 calls_each=calls_each, calls_note="at least" if at_least else "",
                 extra_calls="plus 4 embedding calls per answer" if embeddings else "",
-                tokens=tokens, left_out=left, settings=check.settings,
+                tokens=tokens, left_out=left, settings=check.settings, key_ok=check.ok,
+                tool_version=version, runner=runner, download=download, payload=judged,
                 side_effects=[SIDE_EFFECT, (f"Two temporary files are written next to {where} "
                                             "and removed afterwards.")])
+
+
+# Asking again ---------------------------------------------------------------------------------
+
+def test_entry(answer: dict, row: dict, comps: list, test_opts: dict, default_test: dict) -> dict:
+    """One labeled answer as a promptfoo test: its saved answer and prompt, its vars, and only
+    its model-graded assertions and grader, copied unchanged."""
+    options = {k: v for k, v in test_opts.items() if k not in DROPPED_OPTIONS}
+    grader = grader_of(comps[0]["assertion"], test_opts, default_test)
+    if grader is not None:
+        options["provider"] = grader
+    rubric = test_opts.get("rubricPrompt") or _options(default_test).get("rubricPrompt")
+    if rubric and "rubricPrompt" not in options:
+        options["rubricPrompt"] = rubric
+    variables = dict(row.get("vars") or {})
+    variables["judgekeeper_prompt"] = (row.get("prompt") or {}).get("raw") or ""
+    return {"description": answer["id"], "vars": variables,
+            "providerOutput": (row.get("response") or {}).get("output"), "options": options,
+            "assert": [dict(c["assertion"]) for c in comps]}
+
+
+def regrade_config() -> dict:
+    return {"description": "judgekeeper re-check (temporary file)",
+            "prompts": ["{{judgekeeper_prompt}}"], "providers": ["echo"],
+            "evaluateOptions": {"cache": False}, "tests": f"file://{TESTS}"}
+
+
+def _rendered(comps) -> list:
+    return [(c.get("metadata") or {}).get("renderedGradingPrompt") for c in comps]
+
+
+def run(ws, plan: Plan, talk) -> Fresh:
+    """Have promptfoo grade the labeled answers again, `plan.times` times each."""
+    root, metric = ws.root, ws.data()["metric"]
+    config = _config(root)
+    folder = new_folder(ws)
+    out = folder / "promptfoo.json"
+    rel_out = out.relative_to(root).as_posix()
+    argv = [*plan.runner, "eval", "-c", CONFIG, "--repeat", str(plan.times), *FLAGS,
+            "-o", rel_out]
+    tests = [test_entry(*p) for p in plan.payload]
+    talk.say(f"Writing {CONFIG} and {TESTS} next to "
+             f"{config.name if config else 'your results'}; they are removed when promptfoo is "
+             "done.")
+    files = (root / CONFIG, root / TESTS)
+    try:
+        files[0].write_text(json.dumps(regrade_config(), indent=1), encoding="utf-8")
+        files[1].write_text(json.dumps(tests, indent=1, ensure_ascii=False), encoding="utf-8")
+        proc = again.run_process(argv, cwd=root, env={**os.environ, **RUN_ENV})
+    finally:
+        for path in files:
+            path.unlink(missing_ok=True)
+    if proc.returncode not in (0, 100) or not out.is_file():
+        tail = [x for x in (proc.stderr or proc.stdout or "").strip().splitlines() if x.strip()]
+        raise AgainError("promptfoo did not finish: "
+                         + (scrub(tail[-1]) if tail else f"exit code {proc.returncode}"))
+
+    text = out.read_text(encoding="utf-8")
+    out.write_text(scrub(text), encoding="utf-8")  # a key that leaked into a reason, scrubbed
+    new = json.loads(text)
+    prompts: dict[str, list] = {}
+    cached = 0
+    for row in (new.get("results") or {}).get("results") or []:
+        key = (row.get("testCase") or {}).get("description") or row.get("description")
+        comps = [c for c in _components(row.get("gradingResult"))
+                 if ((c.get("assertion") or {}).get("metric")
+                     or (c.get("assertion") or {}).get("type")) == metric]
+        prompts.setdefault(key, []).extend(_rendered(comps))
+        cached += sum(bool((c.get("metadata") or {}).get("cachedResponse")) for c in comps)
+    judged: dict[str, dict[int, object]] = {}
+    for r in read_promptfoo(out):
+        if r.annotator_kind == LLM and r.name == metric:
+            judged.setdefault(r.target_id, {})[r.run or 1] = r
+    fresh = Fresh(folder=folder, source={"kind": "promptfoo", "file": out.name})
+    if cached:
+        fresh.notes.append(f"{cached} new verdicts came from promptfoo's cache, although the "
+                           "cache was off.")
+    for answer, _, comps, _, _ in plan.payload:
+        item_id = answer["id"]
+        saved = [p for p in _rendered(comps) if isinstance(p, str)]
+        if saved and any(p not in saved for p in prompts.get(item_id, []) if p is not None):
+            fresh.not_counted[item_id] = "grading prompt differs"
+            continue
+        runs = judged.get(item_id, {})
+        records = [runs.get(t + 1) for t in range(plan.times)]
+        if any(r is None for r in records):
+            fresh.not_counted[item_id] = "missing"
+            continue
+        if any(r.label not in ("pass", "fail") for r in records):
+            fresh.not_counted[item_id] = "no clear verdict"
+            continue
+        fresh.verdicts[item_id] = [r.label for r in records]
+        fresh.scores[item_id] = [r.score for r in records]
+        fresh.reasons[item_id] = [r.explanation or "" for r in records]
+        if not fresh.fingerprint:
+            fresh.fingerprint = make_fingerprint(dict(records[0].evaluator)).to_dict()
+    return fresh

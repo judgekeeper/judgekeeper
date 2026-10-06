@@ -23,9 +23,21 @@ hold together at 95% or more. TPR and TNR rise with a and fall with b, the real 
 rises with both, so the interval ends go into the formulas. A group with no labels has an
 unknown rate (None), and so does every number that needs it; an undefined division is
 unknown too, never an error. Kappa has no interval.
+
+After asking the judge again (`general`, `steadiness`), the fresh verdicts may differ from the
+saved ones, but the groups stay the saved verdicts: that is how the answers were picked. So
+each labeled answer weighs N_group / n_group, TPR is the weighted share of the answers that
+should pass that the judge passed, TNR likewise, and kappa is Cohen's kappa on the weighted
+table. When the fresh verdicts equal the saved groups this is the form above. Its intervals
+come from a stratified bootstrap with a fixed seed (each group resampled on its own, 2,000
+times, percentile), so the same data always gives the same numbers. Steadiness, the share of
+answers whose fresh verdicts are not all the same, is weighted like the real pass rate,
+pi f_p + (1 - pi) f_f, with Wilson intervals at 97.5% for each group joined at the corners.
 """
 
 from __future__ import annotations
+
+import random
 
 from judgekeeper.metrics import wilson_interval
 
@@ -116,3 +128,85 @@ def _ends(f, pi: float, low: tuple, high: tuple) -> list:
     if lo is None or hi is None:
         return [None, None]
     return [lo, hi]
+
+
+BOOT_SEED = 20261005
+RESAMPLES = 2000
+
+
+def _table(items, weights) -> dict | None:
+    """TPR, TNR and kappa of (group, label, verdict) items, each weighing weights[group]."""
+    tp = fn = fp = tn = 0.0
+    for group, label, verdict in items:
+        w = weights[group]
+        if label == "pass":
+            tp, fn = (tp + w, fn) if verdict == "pass" else (tp, fn + w)
+        else:
+            fp, tn = (fp + w, tn) if verdict == "pass" else (fp, tn + w)
+    total = tp + fn + fp + tn
+    if total <= 0:
+        return {"tpr": None, "tnr": None, "kappa": None}
+    judge, people = (tp + fp) / total, (tp + fn) / total
+    chance = judge * people + (1 - judge) * (1 - people)
+    return {"tpr": _div(tp, tp + fn), "tnr": _div(tn, tn + fp),
+            "kappa": _div((tp + tn) / total - chance, 1 - chance)}
+
+
+def _percentile(values: list[float], q: float) -> float:
+    values = sorted(values)
+    k = (len(values) - 1) * q
+    low = int(k)
+    high = min(low + 1, len(values) - 1)
+    return values[low] + (values[high] - values[low]) * (k - low)
+
+
+def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: int,
+            seed: int = BOOT_SEED, resamples: int = RESAMPLES) -> dict:
+    """TPR, TNR and kappa of the person's labels against fresh verdicts, weighted by the saved
+    groups. `items` are (saved group, label, fresh verdict), each "pass" or "fail"."""
+    pool = {"pass": n_pool_pass, "fail": n_pool_fail}
+    by_group = {g: [x for x in items if x[0] == g] for g in pool}
+    weights = {g: _div(pool[g], len(xs)) or 0.0 for g, xs in by_group.items()}
+    out = _table(items, weights)
+    rng = random.Random(seed)
+    draws: dict[str, list[float]] = {k: [] for k in out}
+    for _ in range(resamples):
+        sample = [rng.choice(xs) for xs in by_group.values() for _ in xs]
+        for key, value in _table(sample, weights).items():
+            if value is not None:
+                draws[key].append(value)
+    for key in ("tpr", "tnr", "kappa"):
+        values = draws[key]
+        out[f"{key}_interval"] = ([_percentile(values, 0.025), _percentile(values, 0.975)]
+                                  if values and out[key] is not None else [None, None])
+    out.update(resamples=resamples, seed=seed,
+               groups={g: {"pool": pool[g], "labeled": len(by_group[g])} for g in pool})
+    return out
+
+
+def steadiness(groups: dict[str, tuple[int, int]], n_pool_pass: int,
+               n_pool_fail: int) -> dict:
+    """The share of answers whose fresh verdicts are not all the same, weighted by the pool's
+    groups. `groups` maps "pass" and "fail" (the saved verdicts) to (answers asked, of them
+    changed)."""
+    total = n_pool_pass + n_pool_fail
+    pi = _div(n_pool_pass, total)
+    rates, ends = {}, {}
+    for g, pool in (("pass", n_pool_pass), ("fail", n_pool_fail)):
+        n, changed = groups.get(g, (0, 0))
+        if pool == 0:
+            rates[g], ends[g] = 0.0, (0.0, 0.0)
+        else:
+            rates[g], ends[g] = _div(changed, n), wilson(changed, n)
+    out = {"changed": sum(c for _, c in groups.values()),
+           "of": sum(n for n, _ in groups.values()),
+           "groups": {g: {"asked": n, "changed": c} for g, (n, c) in groups.items()}}
+    if pi is None or None in (rates["pass"], rates["fail"]):
+        return {**out, "rate": None, "interval": [None, None]}
+
+    def mix(a, b):
+        return pi * a + (1 - pi) * b
+
+    return {**out, "rate": mix(rates["pass"], rates["fail"]),
+            "interval": [mix(ends["pass"][0], ends["fail"][0]),
+                         mix(ends["pass"][1], ends["fail"][1])]}

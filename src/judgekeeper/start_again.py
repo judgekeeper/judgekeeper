@@ -8,7 +8,7 @@ decides what happens.
 |                                     | answer, from the saved pool (no search)                |
 | a result, and the judge's verdicts  | the menu: review the disagreements, label more (a new  |
 | are the same as last time           | result replaces the old one, which goes to history/),  |
-|                                     | ask the judge again (the plan; not run yet), or        |
+|                                     | ask the judge again (plan, a default-No question, run),|
 |                                     | nothing; --review, --ask-again and --label-more answer |
 | a result, and new verdicts from the | a re-check: the saved labels against the new verdicts, |
 | same tool and judge name            | with the new pool's group sizes, next to the last one  |
@@ -141,19 +141,80 @@ def _saved_verdicts(ws: Workspace) -> dict[str, str]:
     return {i: r["verdict"] for i, r in records.items()}
 
 
-def _ask_again(ws: Workspace, talk, again_options) -> int:
-    """The plan for asking the judge again, with no call. Asking for real is not switched on
-    yet."""
-    from judgekeeper import again
+ASKED_NOTHING = "Your judge was not called; nothing was spent."
 
-    plan = again.make_plan(ws, again_options, talk=talk, dry=True)
+
+def _ask_again(ws: Workspace, talk, again_options) -> int:
+    """The plan for asking the judge again; then, after a yes (or --allow-calls), the calls
+    and the numbers. Switched on for promptfoo and judge commands."""
+    from judgekeeper import again, keys, start
+    from judgekeeper.again import command, fresh, promptfoo
+
+    runs = {"promptfoo": promptfoo.run, "command": command.run}
+    options = again_options or again.AgainOptions()
+    plan = again.make_plan(ws, options, talk=talk, dry=True)
     talk.say()
     for line in again.plan_lines(plan):
         talk.say(line)
-    if plan.status != again.CANT:
+    if plan.status == again.CANT:
+        return 0
+    talk.say()
+    if plan.tool not in runs:
+        talk.say(f"Asking a {keys.TOOLS.get(plan.tool, plan.tool)} judge again is not switched "
+                 "on yet.")
+        return 0
+    if not plan.key_ok:
+        talk.say("Set the key, then run judgekeeper start --ask-again again.")
+        return 0
+    if not again.approve(plan, talk, options.allow_calls):
+        talk.say(ASKED_NOTHING)
+        return 0
+    if plan.download:
+        version = plan.tool_version
+        if not start._interactive():
+            talk.say(f"promptfoo {version} is not installed here. Install it in this project "
+                     f"(npm install --save-dev promptfoo@{version}), or run judgekeeper start "
+                     "--ask-again in a terminal to let judgekeeper fetch it with npx.")
+            return start.EXIT_USAGE
+        if not talk.confirm(f"promptfoo {version} is not installed here. Download it with npx "
+                            f"--yes promptfoo@{version}?", default=False, with_yes=False,
+                            hint="Download promptfoo?"):
+            talk.say(ASKED_NOTHING)
+            return 0
+    folder_before = set((ws.dir / "again").iterdir()) if (ws.dir / "again").is_dir() else set()
+    try:
+        result = runs[plan.tool](ws, plan, talk)
+    except fresh.AgainError as e:
+        talk.say(str(e))
+        _drop_new_folders(ws, folder_before)
+        return 1
+    except KeyboardInterrupt:
         talk.say()
-        talk.say(again.NOT_YET)
+        talk.say("Stopped. Nothing was saved.")
+        _drop_new_folders(ws, folder_before, keep_files=False)
+        return 130
+    fresh.finish(ws, plan, result, talk)
     return 0
+
+
+def _drop_new_folders(ws: Workspace, before: set, keep_files: bool = True) -> None:
+    """Remove the again/<stamp>/ folder a run made, when it holds nothing (or, after Ctrl-C,
+    only the tool's partial output)."""
+    folder = ws.dir / "again"
+    if not folder.is_dir():
+        return
+    for path in set(folder.iterdir()) - before:
+        if not keep_files:
+            for f in path.glob("*"):
+                f.unlink()
+        try:
+            path.rmdir()
+        except OSError:
+            pass
+    try:
+        folder.rmdir()
+    except OSError:
+        pass
 
 
 def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,

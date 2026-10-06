@@ -355,7 +355,14 @@ def _next(r: dict) -> list[tuple[str, str]]:
     if to_review(r):
         steps.append((f"Review {disagreements_words(to_review(r))}:",
                       "judgekeeper start --review"))
+    steps.append(("Ask your judge again:", "judgekeeper start --ask-again"))
     return steps + [("Check again after your next eval run:", "judgekeeper start")]
+
+
+def _again_lines(r: dict) -> list[str]:
+    from judgekeeper.again.fresh import again_lines
+
+    return again_lines(r["again"]) if r.get("again") else []
 
 
 def _review_lines(r: dict) -> list[str]:
@@ -380,6 +387,8 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
     lines.append(f"  {CORRECTED}")
     if r.get("review"):
         lines += [""] + [f"  {line}" for line in _review_lines(r)]
+    if r.get("again"):
+        lines += ["", "  Your judge, asked again:"] + [f"  {line}" for line in _again_lines(r)]
     lines += ["", "Next:"]
     lines += [f"  {text}  {command}" for text, command in _next(r)]
     lines.append(f"  Saved in {saved}/ (result.html is the page you just saw)")
@@ -478,12 +487,20 @@ def page_content(r: dict) -> dict:
                                "reason. Free."),
                       "command": "judgekeeper start --review", "link": "/review",
                       "button": "Review them"})
+    steps.append({"title": "Ask your judge again",
+                  "text": ("How often it changes its mind, and how well it agrees with you "
+                           "today. It asks before any call:"),
+                  "command": "judgekeeper start --ask-again", "link": None, "button": None})
     steps.append({"title": "Check again later", "text": "After your next eval run:",
                   "command": "judgekeeper start", "link": None, "button": None})
     review = None
     if r.get("review"):
-        review = {"lines": _review_lines(r),
+        review = {"title": "Your review of the disagreements", "lines": _review_lines(r),
                   "files": [f"{FOLDER}/{name}" for name in r["review"].get("files", [])]}
+    asked_again = None
+    if r.get("again"):
+        asked_again = {"title": "Your judge, asked again", "lines": _again_lines(r),
+                       "files": [r["again"]["folder"] + "/"]}
     return {
         "kind": " · ".join(kind),
         "sentences": sentences(r),
@@ -501,6 +518,7 @@ def page_content(r: dict) -> dict:
         "judge": {"name": judge.get("metric") or judge.get("name"), "model": model,
                   "rule": judge.get("rule"), "source": source},
         "review": review,
+        "again": asked_again,
         "next": steps,
         "folder": f"{FOLDER}/",
     }

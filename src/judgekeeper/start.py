@@ -756,18 +756,20 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         yes: bool = False, port: int = 8765, no_browser: bool = False,
         new: bool = False, review: bool = False, label_more: bool = False,
         ask_again: bool = False, times: int = 2, python: str | None = None,
-        fields: str | None = None, judge_command: str | None = None) -> int:
+        fields: str | None = None, judge_command: str | None = None,
+        allow_calls: int | None = None) -> int:
     """`judgekeeper start`: say what was found, then open the labeling page and make the
     result. What is already saved in `.judgekeeper/` decides where it starts (start_again).
     `review`, `ask_again` and `label_more` answer the menu shown after a result; `times`,
-    `python`, `fields` and `judge_command` shape asking the judge again. Returns the exit
-    code."""
+    `python`, `fields`, `judge_command` and `allow_calls` shape asking the judge again.
+    Returns the exit code."""
     from judgekeeper import start_again
     from judgekeeper.again import AgainOptions
 
     talk = Talk(yes=yes)
     again_options = AgainOptions(times=times, python=python, fields=fields,
-                                 judge_command=judge_command, judge_model=judge_model)
+                                 judge_command=judge_command, judge_model=judge_model,
+                                 allow_calls=allow_calls)
     options = {"tool": tool, "metric": metric, "experiment": experiment, "pass_if": pass_if,
                "label_map": label_map, "judge_model": judge_model}
     try:

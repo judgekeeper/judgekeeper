@@ -398,6 +398,9 @@ def _parser() -> argparse.ArgumentParser:
     st.add_argument("--times", type=_times, default=2, metavar="N",
                     help="asking again: how many times to ask about each answer, 1 to 5 "
                          "(default 2)")
+    st.add_argument("--allow-calls", type=int, metavar="N",
+                    help="asking again: approve up to N judge calls without the question "
+                         "(needed without a terminal, and above 1,000 calls)")
     st.add_argument("--python", metavar="PATH",
                     help="asking again: the Python you run your evals with (default: the "
                          "active virtual environment, else the project's .venv or venv)")
@@ -751,7 +754,7 @@ def cmd_start(args) -> int:
                yes=args.yes, port=args.port, no_browser=args.no_browser, new=args.new,
                review=args.review, label_more=args.label_more, ask_again=args.ask_again,
                times=args.times, python=args.python, fields=args.fields,
-               judge_command=args.judge_command)
+               judge_command=args.judge_command, allow_calls=args.allow_calls)
 
 
 def cmd_export(args) -> int:

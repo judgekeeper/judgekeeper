@@ -500,10 +500,11 @@ def _step(s: dict, back: str | None) -> str:
 
 
 def _review(review: dict | None) -> str:
+    """A card of lines and saved files: the review, or asking the judge again."""
     if not review:
         return ""
     files = "".join(f"<li><code>{escape(f)}</code></li>" for f in review["files"])
-    return (f'<div class="review"><h2>Your review of the disagreements</h2>'
+    return (f'<div class="review"><h2>{escape(review["title"])}</h2>'
             f'{"".join(f"<p>{escape(line)}</p>" for line in review["lines"])}'
             + (f'<p class="meta">Saved:</p><ul class="files">{files}</ul>' if files else "")
             + "</div>")
@@ -533,6 +534,7 @@ def result_page(content: dict, back: str | None = None) -> str:
 <div class="tiles">{"".join(_tile(t) for t in content["tiles"])}</div>
 <div class="facts">{rate}<p>{escape(content["corrected"])}</p></div>
 {_review(content.get("review"))}
+{_review(content.get("again"))}
 </div>
 <aside class="panel">
   <div class="card">
