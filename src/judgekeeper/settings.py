@@ -32,7 +32,8 @@ from judgekeeper.textio import line_ending, read_utf8, write_keeping
 FILE = "judgekeeper.toml"
 TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
 MAP_KEYS = {"each": str, "id": str, "input": str, "output": str, "sides": list, "score": str,
-            "reason": str, "kind": str, "judges": list, "model_key": str, "leave_out": bool}
+            "reason": str, "kind": str, "judges": list, "model_key": str, "leave_out": bool,
+            "pass_mark_key": str}
 HEADER = ("# judgekeeper start reads this first: where your judge's results are and how to read\n"
           "# them. Written by judgekeeper setup (run it again to change it); nothing secret.\n")
 _TABLE = re.compile(r"^\s*\[\s*([^\[\]]+?)\s*\]\s*(#.*)?$")

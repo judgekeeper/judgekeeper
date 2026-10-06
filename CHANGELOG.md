@@ -121,6 +121,26 @@ after you say yes, your own judge through your own tool, and key names only.
 - New exit code 8: `start` and `setup` stopped at a question they cannot ask without a
   terminal. Nothing went wrong; the line before says what answers it. Exit code 2 stays for
   usage errors.
+- `--review`, `--ask-again` and `--try-new-judge` before a result name the exact command that
+  labels first (with `--yes` when there is no terminal) and what the flag does after.
+- DeepEval: `start` reads the `test_run_*.json` files in your results folder before
+  DeepEval's hidden copy of its newest run, says so when that copy holds a different run, and
+  shows the DEEPEVAL_RESULTS_FOLDER tip only when no results folder is kept. A GEval judge
+  built with evaluation steps and no criteria is shown by its first step, never "None".
+- MLflow: `start` keeps MLflow's own log lines out of what it says. With both `mlflow.db` and
+  an `mlruns/` folder, it names both and lets you choose (at a terminal, or with the store's
+  path, `--tracking-uri`, `--experiment` or `MLFLOW_TRACKING_URI`). `judgekeeper start
+  mlruns` reads that store. An `mlruns/` folder copied from another computer is read from its
+  own folder. An unknown `--experiment` names each store searched and its experiments.
+- `judgekeeper setup` reads a pass mark and a judge's model that your file states, for each
+  answer or for the whole run, and says where they came from; it lists every criterion as a
+  judge; at a terminal it asks whether its guess is right, and after No you correct only the
+  part that is wrong.
+- `judgekeeper record --snippet python` (and `typescript`) take the same arguments as
+  `judgekeeper.record()` and write the same line. `import records --check` shows each
+  judge's pass mark, model and ids, and how `start` reads several record files of one judge.
+- The agent skill follows `judgekeeper start`: find, set up, the person labels, the result,
+  then review, ask again or try a new judge, where the person answers the spending question.
 - Works on Windows: reading an MLflow store, and every test, now pass on Windows too.
   judgekeeper reads an `mlflow.db` store through a temporary copy (removed afterwards), so
   it never opens your store file itself; `judgekeeper setup` keeps your files' own line

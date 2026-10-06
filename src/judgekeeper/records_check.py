@@ -2,11 +2,12 @@
 plain words, without writing anything.
 
 For each file: the number of records and the format version, the pass/fail split per judge
-(with the same --pass-if and --label-map an import would use), the human labels, the first 3
-records, the fields kept without being known, a warning for a newer format version or a
+(with the same --pass-if and --label-map an import would use) with the pass mark used, the
+judge's model and the ids, the human labels, the first 3 records (with their ids), the fields
+kept without being known, a warning for a newer format version or a
 record over 1 MB, and every problem with its line number. A file is usable when it has no
-problem and at least one judge verdict reads as pass or fail. Exit 0 when every file is
-usable, 2 when one is not.
+problem and at least one judge verdict reads as pass or fail. Several files end with how
+`start` reads them (SEVERAL). Exit 0 when every file is usable, 2 when one is not.
 """
 
 from __future__ import annotations
@@ -44,6 +45,8 @@ from judgekeeper.records import (
 EXIT_OK = 0
 EXIT_USAGE = 2
 SHOWN = 3  # records shown in plain words
+SEVERAL = ("judgekeeper start reads the files of the same judge together, as one set: an answer "
+           "saved in more than one file counts once, with the verdict from the newest file.")
 TEXT_WIDTH = 80
 
 
@@ -110,12 +113,20 @@ def _number(x: float) -> str:
     return f"{x:g}"
 
 
+def _pass_mark(record: ScoreRecord):
+    mark = (record.metadata or {}).get("pass_mark")
+    return mark if isinstance(mark, int | float) and not isinstance(mark, bool) else None
+
+
 def _said(record: ScoreRecord) -> str:
     who = {LLM: record.name, HUMAN: "A person", CODE: f"A code check ({record.name})"}[
         record.annotator_kind]
     verb = "labeled it" if record.annotator_kind == HUMAN else "said"
     if record.label is not None:
-        score = f" (score {_number(record.score)})" if record.score is not None else ""
+        parts = [f"score {_number(record.score)}"] if record.score is not None else []
+        if record.score is not None and _pass_mark(record) is not None:
+            parts.append(f"pass mark {_number(_pass_mark(record))}")
+        score = f" ({', '.join(parts)})" if parts else ""
         return f"{who} {verb} {record.label}{score}."
     if record.score is not None:
         return f"{who} gave a score of {_number(record.score)}."
@@ -142,7 +153,8 @@ def _agent_words(record: ScoreRecord) -> str | None:
 
 
 def _shown(n: int, record: ScoreRecord) -> list[str]:
-    out = [f"    line {n}: {_said(record)}"]
+    where = f"line {n} (id {record.target_id})" if record.target_id else f"line {n}"
+    out = [f"    {where}: {_said(record)}"]
     for word, value in (("Input", record.input), ("Output", record.output),
                         ("Reason", record.explanation)):
         if value is not None:
@@ -151,6 +163,38 @@ def _shown(n: int, record: ScoreRecord) -> list[str]:
     if agent:
         out.append(f"      {agent}")
     return out
+
+
+def _and(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
+
+
+def _about_judge(records: list[ScoreRecord], pass_if: str | None) -> str:
+    """The pass mark used, the judge's model and the ids, in one line."""
+    marks = sorted({m for r in records if (m := _pass_mark(r)) is not None})
+    if marks:
+        mark = f"Pass mark{'s' if len(marks) > 1 else ''}: {_and([_number(m) for m in marks])}."
+    elif pass_if:
+        mark = f"Pass mark: --pass-if {pass_if}."
+    elif any(r.label is None and r.score is not None for r in records):
+        mark = "Pass mark: none."
+    else:
+        mark = "Pass mark: none (the verdicts are pass or fail)."
+    models = sorted({str(r.evaluator["model"]) for r in records if r.evaluator.get("model")})
+    if models:
+        model = f"Judge's model{'s' if len(models) > 1 else ''}: {_and(models)}."
+    else:
+        model = "Judge's model: not in the records."
+    ids = [str(r.target_id) for r in records if r.target_id]
+    unique = list(dict.fromkeys(ids))
+    if not ids:
+        named = "Ids: none (judgekeeper makes one from each input and output)."
+    else:
+        shown = ", ".join(unique[:SHOWN]) + (", …" if len(unique) > SHOWN else "")
+        within = "" if len(ids) == len(unique) and len(ids) == len(records) else (
+            f" in {_plural(len(ids), 'record')} with an id")
+        named = f"Ids: {len(unique)} unique{within} ({shown})."
+    return f"    {mark} {model} {named}"
 
 
 def _judge_line(name: str, records: list[ScoreRecord], norm: Normaliser) -> tuple[str, int]:
@@ -201,7 +245,7 @@ def lines(checked: Checked, pass_if: str | None = None,
     readable = 0
     for name, judged in judges.items():
         line, n = _judge_line(name, judged, norm)
-        out.append(line)
+        out += [line, _about_judge(judged, pass_if)]
         readable += n
     humans = [r for r in records if r.annotator_kind == HUMAN]
     if humans:
@@ -256,11 +300,15 @@ def run(paths, column_map=None, pass_if: str | None = None, label_map: str | Non
     from judgekeeper.readers import expand_paths
 
     usable = True
-    for n, path in enumerate(expand_paths("records", paths)):
+    files = expand_paths("records", paths)
+    for n, path in enumerate(files):
         if n:
             say("")
         text, ok = lines(check_file(path, column_map), pass_if, label_map)
         for line in text:
             say(line)
         usable = usable and ok
+    if len(files) > 1:
+        say("")
+        say(SEVERAL)
     return EXIT_OK if usable else EXIT_USAGE

@@ -28,6 +28,12 @@ or `expectation`, `rationale`, `metadata`, `overrides`, `valid`.
   ones are left out, with a note, unless `metric` names a judge that is only on spans; a
   judge on both never mixes them. An assessment on the root span is trace-level:
   `mlflow.genai.evaluate` logs every assessment there.
+- A folder store keeps each trace's files at the full path saved when it was made; once the
+  store is copied or cloned to another computer, MLflow cannot find them and drops the trace.
+  Here they are read from the store's own folder (`_traces`); traces whose files are in
+  neither place are left out and counted (TracesMissing when that is all of them).
+- MLflow's own log lines (its hint for coding agents, a warning per trace) are kept out of
+  judgekeeper's output while it reads (`quiet`).
 - Fingerprint: model from `source.source_id` (`openai:/gpt-4.1-mini` gives provider
   `openai`); `mlflow.assessment.scorerName`/`scorerVersion` metadata as the rubric version.
   The judge's prompt is not saved with the assessment, and scorer tracing is off by default,
@@ -40,6 +46,7 @@ import atexit
 import gc
 import inspect
 import json
+import logging
 import os
 import shutil
 import tempfile
@@ -75,6 +82,7 @@ BIG_STORE = 1_000_000_000  # bytes: a store this big gets a line before it is co
 SQLITE_SIDE_FILES = ("-wal", "-shm")  # SQLite keeps recent writes there until a checkpoint
 
 ALLOW = "MLFLOW_ALLOW_FILE_STORE"
+HINT = "MLFLOW_DISABLE_AGENT_HINT"  # MLflow's hint for coding agents, logged on import
 FOLDER_NOTE = ("Reading your mlruns/ folder with MLflow's folder-store setting switched on for "
                "this read only (MLFLOW_ALLOW_FILE_STORE).")
 _noted = False  # FOLDER_NOTE was said in this run
@@ -122,19 +130,49 @@ def store_uri(path: Path, say=None) -> str:
     return f"sqlite:///{copy.as_posix()}"
 
 
-def is_folder_store(uri) -> bool:
-    """Whether a tracking URI is a local folder store (`mlruns/`): a folder path, or a
-    file: address of one. Never mlflow.db (`sqlite:///...`) or a server."""
+def folder_of(uri) -> Path | None:
+    """The folder of a local folder store (`mlruns/`) that a tracking URI names: a folder
+    path, or a file: address of one. None for mlflow.db (`sqlite:///...`) or a server."""
     if not uri:
-        return False
+        return None
     text = str(uri)
     if text.startswith("file:"):
         path = Path(url2pathname(urlparse(text).path))
     elif "://" in text:
-        return False
+        return None
     else:
         path = Path(text)
-    return path.is_dir()
+    return path if path.is_dir() else None
+
+
+def is_folder_store(uri) -> bool:
+    """Whether a tracking URI is a local folder store (`mlruns/`) (folder_of)."""
+    return folder_of(uri) is not None
+
+
+@contextmanager
+def quiet() -> Iterator[None]:
+    """Around judgekeeper's own MLflow calls: MLflow says nothing of its own. Its hint for
+    coding agents (logged on `import mlflow` when an agent runs it) is switched off with
+    MLFLOW_DISABLE_AGENT_HINT=1, and its loggers show errors only (it warns once per trace it
+    cannot download, for example). Both are put back afterwards, also after an error; a
+    value the user set is left as it is. Never for the user's shell, never in a file."""
+    set_hint = HINT not in os.environ
+    if set_hint:
+        os.environ[HINT] = "1"
+    try:
+        import mlflow  # noqa: F401 - MLflow sets its loggers' level on import
+    except ImportError:
+        pass
+    logger = logging.getLogger("mlflow")
+    level = logger.level
+    logger.setLevel(logging.ERROR)
+    try:
+        yield
+    finally:
+        logger.setLevel(level)
+        if set_hint:
+            os.environ.pop(HINT, None)
 
 
 @contextmanager
@@ -189,7 +227,6 @@ atexit.register(remove_copies)
 
 
 def _client(tracking_uri):
-    os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
     try:
         from mlflow import MlflowClient
     except ImportError:
@@ -212,6 +249,20 @@ def _experiment(client, name_or_id: str):
     return exp
 
 
+def experiments_with_traces(uri: str) -> list[str]:
+    """The names of the experiments in the store at `uri` that hold at least one trace, in
+    MLflow's order. Call it inside folder_store_allowed and quiet."""
+    client = _client(uri)
+    names = []
+    for exp in client.search_experiments():
+        scope = _trace_scope(client.search_traces, exp.experiment_id)
+        if "include_spans" in inspect.signature(client.search_traces).parameters:
+            scope["include_spans"] = False
+        if len(client.search_traces(**scope, max_results=1)):
+            names.append(exp.name)
+    return names
+
+
 def _trace_scope(search_traces, experiment_id: str) -> dict:
     """The keyword that scopes `search_traces` to one experiment, by its signature."""
     if "locations" in inspect.signature(search_traces).parameters:
@@ -219,15 +270,51 @@ def _trace_scope(search_traces, experiment_id: str) -> dict:
     return {"experiment_ids": [experiment_id]}
 
 
-def _traces(client, experiment_id: str):
+def _traces(client, experiment_id: str, folder: Path | None = None,
+            missing: list | None = None):
+    """Every trace of an experiment, with its spans. In a folder store (`folder`), each
+    trace's files are read from the store's own folder: MLflow looks for them at the full
+    path saved when the trace was made, which points at another computer's folders once the
+    store is copied or cloned, and then drops the trace. A trace whose files are in neither
+    place is left out, its id added to `missing`."""
     scope = _trace_scope(client.search_traces, experiment_id)
+    local = folder is not None and "include_spans" in inspect.signature(
+        client.search_traces).parameters
     token = None
     while True:
-        page = client.search_traces(**scope, max_results=PAGE_SIZE, page_token=token)
-        yield from page
+        extra = {"include_spans": False} if local else {}
+        page = client.search_traces(**scope, max_results=PAGE_SIZE, page_token=token, **extra)
+        for trace in page:
+            if local:
+                page_trace_id = trace.info.trace_id
+                trace = _with_spans(client, trace, folder / str(experiment_id))
+                if trace is None:
+                    if missing is not None:
+                        missing.append(page_trace_id)
+                    continue
+            yield trace
         token = page.token
         if not token:
             return
+
+
+TRACE_FILE = ("traces", "artifacts", "traces.json")  # inside an experiment's folder
+
+
+def _with_spans(client, trace, experiment_folder: Path):
+    """`trace` (found without its spans) with its spans: from the experiment's own folder,
+    else where MLflow saved it; None when neither has them."""
+    from mlflow.entities import Trace, TraceData
+
+    trace_id = trace.info.trace_id
+    path = experiment_folder.joinpath(TRACE_FILE[0], trace_id, *TRACE_FILE[1:])
+    try:
+        if path.is_file():
+            return Trace(trace.info, TraceData.from_dict(json.loads(
+                path.read_text(encoding="utf-8"))))
+        return client.get_trace(trace_id)
+    except Exception:  # noqa: BLE001 - files missing or unreadable: left out, and said
+        return None
 
 
 def _json(text):
@@ -307,14 +394,25 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     """
     said: list[str] = []
     uri = tracking_uri or os.environ.get("MLFLOW_TRACKING_URI")
-    with folder_store_allowed(uri, say=said.append):
-        files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric)
+    with folder_store_allowed(uri, say=said.append), quiet():
+        files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric,
+                             folder_of(uri))
     files[-1][1].notes[:0] = said
     return files
 
 
-def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
-                 ) -> list[tuple[str, RecordList]]:
+class TracesMissing(RecordsError):
+    """The experiment's traces are listed, but the files that hold them are not there."""
+
+
+def missing_line(n: int, folder: str) -> str:
+    """The note for answers left out because their trace files are missing."""
+    what = "1 answer was" if n == 1 else f"{n} answers were"
+    return f"{what} left out: their trace files are missing from {folder}/."
+
+
+def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric,
+                 folder: Path | None = None) -> list[tuple[str, RecordList]]:
     client = _client(tracking_uri)
     exp = _experiment(client, str(experiment))
     runs = {r.info.run_id: r for r in client.search_runs([exp.experiment_id])}
@@ -329,7 +427,8 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     on_spans: list[tuple[str | None, ScoreRecord]] = []  # (run, record) of span assessments
     missing_ids = 0
     n_traces = 0
-    for trace in _traces(client, exp.experiment_id):
+    missing: list[str] = []
+    for trace in _traces(client, exp.experiment_id, folder, missing):
         n_traces += 1
         request, response = _content(trace)
         item_id = _item_id(trace, request, id_from)
@@ -380,6 +479,13 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
             else:
                 judged.setdefault(run, RecordList()).append(record)
 
+    if n_traces == 0 and missing:
+        where = f"{folder.name}/" if folder is not None else "the store"
+        raise TracesMissing(
+            f"MLflow experiment {exp.name!r} in {where}: the files of its {len(missing)} "
+            f"traces are missing (MLflow keeps each trace's question and answer in "
+            f"{where}{exp.experiment_id}/traces/), so there is nothing to read. Run your "
+            "evaluation again on this computer, or point judgekeeper at a store that has them.")
     if n_traces == 0:
         raise RecordsError(f"MLflow experiment {exp.name!r} has no traces")
     on_traces = {r.name for recs in judged.values() for r in recs}
@@ -421,5 +527,7 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
         humans.notes.append(f"{left_out} span-level {what} (on one step inside a trace, not "
                             "on the answer) left out. To check a judge that is only on spans, "
                             "name it with --metric.")
+    if missing:
+        humans.notes.append(missing_line(len(missing), folder.name if folder else "the store"))
     files.append(("human assessments", humans))
     return files

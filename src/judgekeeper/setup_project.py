@@ -3,12 +3,15 @@
 1. Find what there is: an eval tool's results or judgekeeper.record() files (`start` reads
    them as they are), else a results file in the project's own format (own_format.search),
    or the file named on the command line.
-2. Map an own-format file (mapper.py): list its nested paths, show the guess, and ask only
-   what the file cannot tell: whether each of several answers per item (A and B) is its own
-   answer, which judge to check when there are several, the pass mark when the scores are
-   not between 0 and 1, whether to leave out answers with an error or a score made by a
-   rule, and one confirm line when a guess goes by value types only. Then 3 answers as
-   judgekeeper will read them.
+2. Map an own-format file (mapper.py): list its nested paths, show the guess (with where the
+   pass mark and the judge's model come from), and ask whether it is right: at a terminal
+   always, without one only when a guess goes by value types only. After No the person
+   says which part is wrong and chooses it from the file's paths (or types the pass mark);
+   the coding-agent prompt comes only when none of the parts fit. Then ask only what the
+   file cannot tell: whether each of several answers per item (A and B) is its own answer,
+   which judge to check when there are several, the pass mark when the scores are not
+   between 0 and 1 and the file does not state one, and whether to leave out answers with
+   an error or a score made by a rule. Then 3 answers as judgekeeper will read them.
 3. One question lists every file change: judgekeeper.toml's [start] table, the .gitignore
    lines (in a Git repository, when missing), and judgekeeper in the dev requirements (the
    first of pyproject.toml's dev group or dev extra, requirements-dev.txt,
@@ -31,9 +34,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from judgekeeper import find, mapper, own_format, settings
+from judgekeeper import find, mapper, own_format, settings, start
 from judgekeeper.recorder import project_root
-from judgekeeper.records import LLM
+from judgekeeper.records import LLM, RecordsError
 from judgekeeper.start import EXIT_OK, EXIT_USAGE, StartError, Stop, Talk, _or, find_judge
 from judgekeeper.textio import line_ending, quote_arg, read_utf8, tick, write_keeping
 
@@ -231,7 +234,7 @@ def _cannot(talk: Talk, why: str) -> None:
     talk.say(RECORD_DOOR)
 
 
-def _how(g: mapper.Guess) -> list[str]:
+def _how(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
     each = f"each item of {g.each}" if g.each else "each line or row"
     answer = mapper.shown(g.output) + (f" ({' and '.join(g.sides)})" if g.sides else "")
     score = mapper.shown(g.score) + (f" (judges: {', '.join(g.judges)})" if g.judges else "")
@@ -242,12 +245,68 @@ def _how(g: mapper.Guess) -> list[str]:
         lines.append(f"  reason:          {mapper.shown(g.reason)}")
     if g.id:
         lines.append(f"  id:              {g.id}")
-    lines.append(f"  judge's model:   {g.model_key} ({g.model})" if g.model_key else
-                 "  judge's model:   not in the file")
+    if g.model_key:
+        lines.append(f"  judge's model:   {mapper.shown(g.model_key)} ({g.model})")
+    elif judge_model:
+        lines.append(f"  judge's model:   {judge_model} (given with --judge-model)")
+    else:
+        lines.append("  judge's model:   not in the file")
     if g.kind == "score":
-        sure = " (the scores are between 0 and 1)" if g.pass_mark_sure else ""
-        lines.append(f"  pass mark:       {g.pass_mark}{sure}")
+        if g.pass_mark_given:
+            where = " (given by you)"
+        elif g.pass_mark_key:
+            where = f" ({g.pass_mark_key} in the file)"
+        else:
+            where = " (the scores are between 0 and 1)" if g.pass_mark_sure else ""
+        lines.append(f"  pass mark:       {g.pass_mark}{where}")
     return lines
+
+
+# One part of the guess, corrected by the person: (part, its name, the question).
+PARTS = (("each", "what one answer is", "Which list holds the answers, one item each?"),
+         ("input", "the input", "Which path holds the input?"),
+         ("output", "the answer", "Which path holds the answer?"),
+         ("score", "the score", "Which path holds the score?"),
+         ("reason", "the reason", "Which path holds the reason?"),
+         ("id", "the id", "Which path holds the id?"),
+         ("model_key", "the judge's model", "Which path holds the judge's model?"),
+         ("pass_mark", "the pass mark", None))
+OPTIONAL = ("reason", "id", "model_key")  # a file may have none
+
+
+def _correct(talk: Talk, units: list, g: mapper.Guess) -> mapper.Guess | None:
+    """After "Is this right?" was answered No: which part is wrong, then that part, chosen
+    from the file's paths (or typed in, for the pass mark). None: none of the parts fit."""
+    import dataclasses
+
+    names = [name for _, name, _ in PARTS]
+    i = talk.choose("Which part is wrong?", [*names, "none of these fit"],
+                    "Run judgekeeper setup in a terminal to correct it.")
+    if i == len(PARTS):
+        return None
+    role, _, question = PARTS[i]
+    if role == "pass_mark":
+        answer = talk.ask("Pass when the score is at least",
+                          str(g.pass_mark if g.pass_mark is not None else 0.5))
+        mark = mapper.number(answer)
+        if mark is None:
+            talk.say(f"  {answer!r} is not a number: the pass mark stays {g.pass_mark}.")
+            return g
+        return dataclasses.replace(g, kind="score", pass_mark=mark, pass_mark_sure=True,
+                                   pass_mark_given=True, pass_mark_key=None)
+    found = mapper.choices(units, g, role)
+    width = min(max((len(mapper.shown(p)) for p, _ in found), default=0), 44)
+    options = [f"{mapper.shown(p) or '(the whole line)':<{width}}  {example}"
+               for p, example in found] + (["none"] if role in OPTIONAL else [])
+    if not options:
+        talk.say("  Nothing else in the file fits there.")
+        return g
+    j = talk.choose(question, options, "Run judgekeeper setup in a terminal to correct it.")
+    try:
+        return mapper.with_part(units, g, role, found[j][0] if j < len(found) else None)
+    except mapper.MapError as e:
+        talk.say(f"  That does not work: {e}. The guess stays as it was.")
+        return g
 
 
 def _count(units: list, g: mapper.Guess, judge: str) -> int:
@@ -337,16 +396,22 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     if len(listed) > MAX_PATHS:
         talk.say(f"  and {len(listed) - MAX_PATHS} more")
     talk.say()
-    talk.say("How judgekeeper reads it:")
-    for line in _how(g):
-        talk.say(line)
-    talk.say()
-    if g.unsure and not talk.confirm(
-            "Is this right?", default=True, with_yes=True,
-            hint="judgekeeper is not sure how to read this file. Run judgekeeper setup in a "
-                 "terminal to check its guess."):
-        _cannot(talk, "the guess was not right")
-        return None
+    while True:
+        talk.say("How judgekeeper reads it:")
+        for line in _how(g, judge_model):
+            talk.say(line)
+        talk.say()
+        # At a terminal the person checks the guess; without one, only an unsure guess stops.
+        if not (g.unsure or start._interactive()) or talk.confirm(
+                "Is this right?", default=True, with_yes=True,
+                hint="judgekeeper is not sure how to read this file. Run judgekeeper setup in "
+                     "a terminal to check its guess."):
+            break
+        g = _correct(talk, units, g)
+        if g is None:
+            _cannot(talk, "none of the parts of the guess fit")
+            return None
+        talk.say()
 
     sides = list(g.sides)
     if len(sides) > 1 and not talk.confirm(
@@ -378,9 +443,12 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     if not g.model_key and not judge_model:
         talk.say("Your results do not say which model judged. To record it: judgekeeper setup "
                  "--judge-model NAME")
-    records = [r for _, recs in read_mapped(path, {**m, "judge": judge, "pass_mark":
-                                                    saved.pass_mark, "model": judge_model})
-               for r in recs if r.annotator_kind == LLM]
+    try:
+        records = [r for _, recs in read_mapped(path, {**m, "judge": judge, "pass_mark":
+                                                        saved.pass_mark, "model": judge_model})
+                   for r in recs if r.annotator_kind == LLM]
+    except RecordsError:
+        records = []
     if not records:
         _cannot(talk, "no answer could be read with this map")
         return None

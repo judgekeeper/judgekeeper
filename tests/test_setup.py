@@ -74,17 +74,18 @@ def snapshot(root):
 
 # Runs, cases, A and B, at a terminal ---------------------------------------------------------
 
-def test_nested_runs_asks_three_questions_and_one_yes(tmp_path, capsys, terminal):
+def test_nested_runs_asks_four_questions_and_one_yes(tmp_path, capsys, terminal):
     answers, asked = terminal
     nested_runs_project(tmp_path, runs=3, cases=8, rule_rows=1)
-    answers += ["", "1", "", ""]  # each answer on its own; Safe wording; leave rules out; yes
+    answers += ["", "", "1", "", ""]  # right; each on its own; Safe wording; rules out; yes
     code, out = setup(capsys, tmp_path)
     assert code == 0, out
-    assert len(asked) == 4
-    assert "Count each as its own answer?" in asked[0]
+    assert len(asked) == 5
+    assert "Is this right?" in asked[0]
+    assert "Count each as its own answer?" in asked[1]
     assert "Which judge do you want to check?" in out
-    assert "Leave them out?" in asked[2]
-    assert asked[3].strip() == "[Y/n]"
+    assert "Leave them out?" in asked[3]
+    assert asked[4].strip() == "[Y/n]"
     # what it found and how it reads it
     assert "history/evals.jsonl looks like your judge's results in a format of its own" in out
     assert "cases[].A.output" in out and "cases[].A.scores.<criterion>.score" in out
@@ -102,7 +103,7 @@ def test_nested_runs_asks_three_questions_and_one_yes(tmp_path, capsys, terminal
 def test_nested_runs_files_after_the_yes(tmp_path, capsys, terminal):
     answers, _ = terminal
     nested_runs_project(tmp_path, runs=3, cases=8, rule_rows=1)
-    answers += ["", "1", "", ""]
+    answers += ["", "", "1", "", ""]
     setup(capsys, tmp_path)
     settings = tomllib.loads((tmp_path / "judgekeeper.toml").read_text(encoding="utf-8"))
     start_table = settings["start"]
@@ -124,7 +125,7 @@ def test_nested_runs_files_after_the_yes(tmp_path, capsys, terminal):
 def test_then_start_reads_judgekeeper_toml(tmp_path, capsys, terminal, no_labeling):
     answers, _ = terminal
     nested_runs_project(tmp_path, runs=3, cases=8, rule_rows=1)
-    answers += ["", "1", "", ""]
+    answers += ["", "", "1", "", ""]
     setup(capsys, tmp_path)
     answers += [""]  # start: open the labeling page? yes
     code = main(["start", str(tmp_path)])
@@ -140,7 +141,7 @@ def test_nothing_is_written_before_the_yes(tmp_path, capsys, terminal):
     answers, _ = terminal
     nested_runs_project(tmp_path)
     before = snapshot(tmp_path)
-    answers += ["", "1", "", "n"]
+    answers += ["", "", "1", "", "n"]
     code, out = setup(capsys, tmp_path)
     assert code == 0
     assert snapshot(tmp_path) == before
@@ -150,7 +151,7 @@ def test_nothing_is_written_before_the_yes(tmp_path, capsys, terminal):
 def test_one_side_when_each_is_not_its_own_answer(tmp_path, capsys, terminal):
     answers, _ = terminal
     nested_runs_project(tmp_path, rule_rows=0)
-    answers += ["n", "2", "2", ""]  # not each; side B; Plain language; yes
+    answers += ["", "n", "2", "2", ""]  # right; not each; side B; Plain language; yes
     code, _ = setup(capsys, tmp_path)
     assert code == 0
     settings = tomllib.loads((tmp_path / "judgekeeper.toml").read_text(encoding="utf-8"))
@@ -161,7 +162,7 @@ def test_one_side_when_each_is_not_its_own_answer(tmp_path, capsys, terminal):
 def test_all_judges_one_at_a_time(tmp_path, capsys, terminal):
     answers, _ = terminal
     nested_runs_project(tmp_path, rule_rows=0)
-    answers += ["", "3", ""]
+    answers += ["", "", "3", ""]
     setup(capsys, tmp_path)
     settings = tomllib.loads((tmp_path / "judgekeeper.toml").read_text(encoding="utf-8"))
     assert settings["start"]["judge"] == "*"
@@ -169,13 +170,14 @@ def test_all_judges_one_at_a_time(tmp_path, capsys, terminal):
 
 # Questions only when needed -------------------------------------------------------------
 
-def test_a_flat_file_with_one_judge_asks_only_the_yes(tmp_path, capsys, terminal):
+def test_a_flat_file_with_one_judge_asks_only_whether_it_is_right_and_the_yes(
+        tmp_path, capsys, terminal):
     answers, asked = terminal
     (tmp_path / ".git").mkdir()
     flat_jsonl(tmp_path / "evals" / "graded.jsonl")
-    answers += [""]
+    answers += ["", ""]
     code, out = setup(capsys, tmp_path)
-    assert code == 0 and len(asked) == 1
+    assert code == 0 and len(asked) == 2 and "Is this right?" in asked[0]
     assert "judgekeeper is not listed in your project's requirements; add it so teammates " \
            "get it" in out
 
@@ -187,7 +189,7 @@ def test_a_guess_it_is_not_sure_of_asks_one_confirm_line(tmp_path, capsys, termi
     path.write_text("".join(json.dumps({"q": f"Question {i}?", "text": f"An answer {i}.",
                                         "verdict": "pass" if i % 2 else "fail"}) + "\n"
                             for i in range(36)), encoding="utf-8")
-    answers += ["n"]
+    answers += ["n", "9"]  # not right; none of the parts fit
     code, out = setup(capsys, path)
     assert code == 2  # nothing set up
     assert "Is this right?" in asked[0]
@@ -215,9 +217,9 @@ def test_scores_outside_0_to_1_ask_for_the_pass_mark(tmp_path, capsys, terminal)
     path.write_text("".join(json.dumps({"question": f"q{i}", "answer": f"a{i}",
                                         "score": 1 + i % 5}) + "\n" for i in range(40)),
                     encoding="utf-8")
-    answers += ["4", ""]
+    answers += ["", "4", ""]
     code, _ = setup(capsys, path)
-    assert code == 0 and "Pass when the score is at least" in asked[0]
+    assert code == 0 and "Pass when the score is at least" in asked[1]
     settings = tomllib.loads((tmp_path / "judgekeeper.toml").read_text(encoding="utf-8"))
     assert settings["start"]["pass_mark"] == 4
 
@@ -294,7 +296,7 @@ def test_nothing_found_shows_the_three_doors(tmp_path, capsys):
 def test_setup_again_offers_to_change_it(tmp_path, capsys, terminal):
     answers, asked = terminal
     flat_jsonl(tmp_path / "evals" / "graded.jsonl")
-    answers += [""]
+    answers += ["", ""]
     setup(capsys, tmp_path)
     first = (tmp_path / "judgekeeper.toml").read_text(encoding="utf-8")
     answers += [""]  # set it up again? No (the default)
@@ -311,7 +313,7 @@ def test_setup_again_replaces_only_its_own_table(tmp_path, capsys, terminal):
     (tmp_path / "judgekeeper.toml").write_text(
         "# my thresholds\n[gate]\nkappa_min = 0.7\n\n[start]\nsource = \"promptfoo\"\n",
         encoding="utf-8")
-    answers += ["y", ""]
+    answers += ["y", "", ""]
     code, out = setup(capsys, tmp_path)
     assert code == 0
     text = (tmp_path / "judgekeeper.toml").read_text(encoding="utf-8")
@@ -326,7 +328,7 @@ def test_setup_again_replaces_only_its_own_table(tmp_path, capsys, terminal):
 def test_a_changed_shape_says_to_run_setup_again(tmp_path, capsys, terminal):
     answers, _ = terminal
     path = nested_runs_project(tmp_path, rule_rows=0)
-    answers += ["", "1", ""]
+    answers += ["", "", "1", ""]
     setup(capsys, tmp_path)
     path.write_text(path.read_text(encoding="utf-8").replace('"cases"', '"items"'),
                     encoding="utf-8")

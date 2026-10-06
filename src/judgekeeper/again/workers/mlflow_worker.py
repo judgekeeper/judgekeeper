@@ -15,10 +15,13 @@ the user's store. MLflow's telemetry is off.
 
 import inspect
 import json
+import logging
 import os
 import sys
+from pathlib import Path
 
 os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
+os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
 
 
 def emit(path, record):
@@ -85,22 +88,52 @@ def feedback(result):
     return result, None, None
 
 
+def get_trace(client, uri, trace_id, infos):
+    """A trace with its spans. MLflow looks for a folder store's trace files at the full path
+    saved when the trace was made; when the store was copied or cloned from another computer,
+    they are in the store's own folder instead (`infos` keeps each experiment's traces,
+    found without their spans, between calls)."""
+    try:
+        return client.get_trace(trace_id)
+    except Exception:  # not where MLflow looks: try the store's own folder
+        if not uri or "://" in str(uri) or not Path(uri).is_dir():
+            raise
+    from mlflow.entities import Trace, TraceData
+
+    for path in Path(uri).glob(f"*/traces/{trace_id}/artifacts/traces.json"):
+        experiment = path.parts[-5]
+        if experiment not in infos:
+            infos[experiment] = {}
+            token = None
+            while True:
+                page = client.search_traces(locations=[experiment], max_results=100,
+                                            page_token=token, include_spans=False)
+                infos[experiment].update((t.info.trace_id, t.info) for t in page)
+                token = page.token
+                if not token:
+                    break
+        return Trace(infos[experiment][trace_id],
+                     TraceData.from_dict(json.loads(path.read_text(encoding="utf-8"))))
+    raise LookupError(f"the files of trace {trace_id} are missing from {uri}")
+
+
 def run(job, out_path, version):
     import mlflow
     from mlflow import MlflowClient
     from mlflow.genai import scorers
 
+    logging.getLogger("mlflow").setLevel(logging.ERROR)
     mlflow.set_tracking_uri(job["uri"])
     client = MlflowClient(tracking_uri=job["uri"])
     judge = build(job["judge"], scorers)
-    traces = {}
+    traces, infos = {}, {}
     for time in range(job["times"]):
         for answer in job["answers"]:
             line = {"id": answer["id"], "time": time}
             try:
                 if answer["id"] not in traces:  # None: a new judge's answer, no trace kept
-                    traces[answer["id"]] = (client.get_trace(answer["trace"])
-                                            if answer.get("trace") else None)
+                    traces[answer["id"]] = (get_trace(client, job["uri"], answer["trace"],
+                                                      infos) if answer.get("trace") else None)
                 trace = traces[answer["id"]]
                 if job["judge"].get("trace"):
                     result = call(judge, trace=trace)

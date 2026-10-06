@@ -197,3 +197,52 @@ def test_what_is_printed_is_scrubbed(tmp_path, capsys):
     code, out = check(capsys, write_jsonl(tmp_path / "r.jsonl", rows))
     assert code == 0
     assert secret not in out
+
+
+# The pass mark, the judge's model and the ids, per judge -------------------------------------
+
+def test_each_judge_says_its_pass_mark_model_and_ids(tmp_path, capsys):
+    rows = [judged(i, "pass" if i % 2 else "fail", target_id=f"q0{i}A", score=0.6 + i / 10,
+                   metadata={"pass_mark": 0.7}, evaluator={"model": "claude-haiku-4-5"})
+            for i in range(1, 5)]
+    code, out = check(capsys, write_jsonl(tmp_path / "r.jsonl", rows))
+    assert code == 0
+    assert ("    Pass mark: 0.7. Judge's model: claude-haiku-4-5. Ids: 4 unique (q01A, q02A, "
+            "q03A, …).") in out
+    assert "line 1 (id q01A): Safe wording said pass (score 0.7, pass mark 0.7)." in out
+
+
+def test_no_ids_no_model_and_verdicts_without_a_pass_mark(tmp_path, capsys):
+    rows = [judged(i, "pass") for i in range(1, 4)]
+    code, out = check(capsys, write_jsonl(tmp_path / "r.jsonl", rows))
+    assert code == 0
+    assert ("    Pass mark: none (the verdicts are pass or fail). Judge's model: not in the "
+            "records. Ids: none (judgekeeper makes one from each input and output).") in out
+
+
+def test_repeated_ids_and_several_pass_marks(tmp_path, capsys):
+    rows = [judged(1, "pass", target_id="a", metadata={"pass_mark": 0.5}),
+            judged(2, "pass", target_id="a", metadata={"pass_mark": 0.7}),
+            judged(3, "fail", target_id="b", evaluator={"model": "m1"}),
+            judged(4, "fail", evaluator={"model": "m2"})]
+    code, out = check(capsys, write_jsonl(tmp_path / "r.jsonl", rows))
+    assert code == 0
+    assert ("    Pass marks: 0.5 and 0.7. Judge's models: m1 and m2. Ids: 2 unique in 3 "
+            "records with an id (a, b).") in out
+
+
+def test_several_files_say_how_start_reads_them(tmp_path, capsys):
+    folder = tmp_path / "records"
+    folder.mkdir()
+    write_jsonl(folder / "Safe-wording-2026-10-06-925.jsonl", [judged(1, "pass")])
+    write_jsonl(folder / "Safe-wording-2026-10-06-930.jsonl", [judged(1, "fail")])
+    code, out = check(capsys, folder)
+    assert code == 0
+    assert out.rstrip().endswith(
+        "judgekeeper start reads the files of the same judge together, as one set: an answer "
+        "saved in more than one file counts once, with the verdict from the newest file.")
+
+
+def test_one_file_says_nothing_about_several(tmp_path, capsys):
+    _, out = check(capsys, write_jsonl(tmp_path / "r.jsonl", [judged(1, "pass")]))
+    assert "as one set" not in out

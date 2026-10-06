@@ -189,6 +189,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "rule": found.rule,
         "description": found.description,
         "app_version": found.app_version,
+        **({"mlflow_store": found.store} if found.store else {}),
         "fingerprint": scrub_fingerprint(found.fingerprint),
         "pool": {"answers": len(p.answers), "pass": p.n_pass, "fail": p.n_fail},
         "pool_sha256": pool_sha,

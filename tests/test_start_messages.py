@@ -463,3 +463,53 @@ def test_ask_again_at_a_terminal_needs_no_yes_to_label(tmp_path, capsys, termina
     promptfoo_project(tmp_path, split(20, 12))
     _, out, _ = run(capsys, "--ask-again")
     assert "Label first: judgekeeper start\n" in out
+
+
+# --review, --ask-again and --try-new-judge before a result -----------------------------------
+
+PLAN = "shows the plan (how many calls, the cost, the key's name) and asks before any call."
+BEFORE = {
+    "--review": ("There is no result to review yet: a review needs your labels.",
+                 "opens the answers where you and your judge disagree, to look at again."),
+    "--ask-again": (("There is no result to ask about yet: asking your judge again needs "
+                     "your labels."), PLAN),
+    "--try-new-judge": (("There is no result yet to try a new judge on: trying one needs your "
+                         "labels."), PLAN),
+}
+
+
+@pytest.mark.parametrize("flag", list(BEFORE))
+def test_before_a_result_each_flag_names_the_command_to_run_first(tmp_path, capsys,
+                                                                  monkeypatch, flag):
+    monkeypatch.chdir(tmp_path)
+    promptfoo_project(tmp_path, split(20, 12))
+    code, out, _ = run(capsys, flag, "--no-browser")
+    assert code == start.EXIT_USAGE  # not a question: there is nothing to do yet
+    first, then = BEFORE[flag]
+    assert out.splitlines()[:2] == [
+        f"{first} Label first: judgekeeper start --no-browser --yes",
+        f"Then judgekeeper start --no-browser {flag} {then}"]
+
+
+@pytest.mark.parametrize("flag", list(BEFORE))
+@pytest.mark.parametrize("started", [False, True])
+def test_the_command_to_run_first_works_as_printed(tmp_path, capsys, monkeypatch, no_labeling,
+                                                   flag, started):
+    monkeypatch.chdir(tmp_path)
+    promptfoo_project(tmp_path, split(20, 12))
+    if started:  # labeling started, not finished
+        start_label.prepare(start.find_judge(tmp_path), say=lambda line="": None)
+    _, out, _ = run(capsys, flag, "--metric", "llm-rubric")
+    label = re.search(r"Label first: (.+)$", out, re.MULTILINE)[1]
+    assert label == "judgekeeper start --metric llm-rubric --yes"
+    code, out, _ = run(capsys, *split_command(label)[2:])
+    assert code == 0 and no_labeling, out
+
+
+@pytest.mark.parametrize("flag", list(BEFORE))
+def test_at_a_terminal_label_first_needs_no_yes(tmp_path, capsys, terminal, monkeypatch, flag):
+    monkeypatch.chdir(tmp_path)
+    promptfoo_project(tmp_path, split(20, 12))
+    terminal += ["3"] * 3  # the menu, if one is offered: stop
+    _, out, _ = run(capsys, flag)
+    assert "Label first: judgekeeper start\n" in out
