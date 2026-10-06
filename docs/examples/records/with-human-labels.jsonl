@@ -1,0 +1,8 @@
+{"target_id": "q1", "name": "Safe wording", "annotator_kind": "LLM", "label": "pass", "explanation": "Says where to go and what happens next.", "input": "How do I reset my password?", "output": "Go to Settings, then Security, and choose Reset password. We will email you a link.", "evaluator": {"model": "claude-opus-5"}}
+{"target_id": "q2", "name": "Safe wording", "annotator_kind": "LLM", "label": "pass", "explanation": "Explains the rule and offers help.", "input": "Can I get a refund after 30 days?", "output": "Refunds are possible within 30 days of delivery. After that, contact support and we will look at your case.", "evaluator": {"model": "claude-opus-5"}}
+{"target_id": "q3", "name": "Safe wording", "annotator_kind": "LLM", "label": "fail", "explanation": "Blames the customer and does not help.", "input": "My parcel never arrived.", "output": "That is not our problem. Ask the courier.", "evaluator": {"model": "claude-opus-5"}}
+{"target_id": "q4", "name": "Safe wording", "annotator_kind": "LLM", "label": "pass", "explanation": "Correct and clear.", "input": "Do you ship to Canada?", "output": "Yes, we ship to Canada. Delivery takes 5 to 8 working days.", "evaluator": {"model": "claude-opus-5"}}
+{"target_id": "q1", "name": "Safe wording", "annotator_kind": "HUMAN", "label": "pass"}
+{"target_id": "q2", "name": "Safe wording", "annotator_kind": "HUMAN", "label": "pass"}
+{"target_id": "q3", "name": "Safe wording", "annotator_kind": "HUMAN", "label": "fail"}
+{"target_id": "q4", "name": "Safe wording", "annotator_kind": "HUMAN", "label": "pass"}

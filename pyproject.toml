@@ -22,7 +22,8 @@ dependencies = []
 
 [project.optional-dependencies]
 # build, hatchling and pyyaml: tests/test_release.py builds the wheels and reads the workflows.
-dev = ["pytest>=8", "ruff>=0.6", "build>=1", "hatchling>=1.26", "pyyaml>=6"]
+dev = ["pytest>=8", "ruff>=0.6", "build>=1", "hatchling>=1.26", "pyyaml>=6",
+       "jsonschema>=4.18"]
 anthropic = ["anthropic>=0.40"]
 openai = ["openai>=1.40"]
 inspect = ["inspect-ai>=0.3"]

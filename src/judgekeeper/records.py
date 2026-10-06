@@ -2,9 +2,23 @@
 
 Field names follow OpenInference annotations, so other tools' exports map onto it by renaming:
 `target_id, name, annotator_kind ("LLM" | "HUMAN" | "CODE"), label, score, explanation, run,
-input, output, evaluator {provider, model, prompt, temperature, version}, created_at`.
+input, output, evaluator {provider, model, prompt, temperature, version, rule}, created_at`.
 `evaluator` also accepts `prompt_hash`, `snapshot` and `endpoint`, which `export records` writes
 because judgekeeper keeps only the hash of a prompt, never its text.
+
+Version 2 of the format (`schema_version`; a record without one is version 1) adds:
+- `metadata`, an open object for anything else (a criterion name, a run id, an A/B version);
+- `rule` inside `evaluator`: the judge's rule text, hashed into the prompt hash when the
+  record gives neither a prompt nor a hash;
+- three fields ready for agents, stored and passed through to the anchor set but not shown on
+  any page yet: `trajectory` (the agent's steps as OpenAI-style messages: role, content,
+  tool_calls [id, name, arguments], tool_call_id), `outcome` (an automatic check of the
+  result: passed, score, source, detail) and `app_version` (the app or agent that answered).
+Fields judgekeeper does not know are kept, at the top level and inside `evaluator`, and are
+written again. A file of a newer version is read as far as this version understands it, with
+one warning. `problems` holds the rules; schemas/records.schema.json says the same for other
+tools, and a test keeps the two in step. A record's id, when it has to be derived, covers its
+trajectory too, so two agent runs that end in the same answer stay two answers.
 
 `records_to_report` pivots records into the files `check` writes: HUMAN records become anchor
 labels, LLM records become judgments (one run per source file and run index), CODE records are
@@ -14,21 +28,28 @@ for `check`. Nothing here knows about any framework; see judgekeeper.readers.
 
 from __future__ import annotations
 
+import csv
+import hashlib
+import io
 import json
 import math
+import re
 import tempfile
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from judgekeeper.anchors import PAIRWISE, SINGLE
+from judgekeeper.anchors import PAIRWISE, SINGLE, canonical_json
 from judgekeeper.fingerprint import ENDPOINT_UNKNOWN, IDENTITY_FIELDS
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map, unmapped_error
+from judgekeeper.redact import scrub_value
 from judgekeeper.table import (
+    ID_LENGTH,
     TableError,
     _blank,
+    _delimiter,
     _listed,
     _run_key,
     derive_id,
@@ -38,25 +59,173 @@ from judgekeeper.table import (
     write_anchor_file,
     write_runs_and_report,
 )
+from judgekeeper.textio import read_utf8
 
+SCHEMA_VERSION = 2
 LLM, HUMAN, CODE = "LLM", "HUMAN", "CODE"
 KINDS = (LLM, HUMAN, CODE)
 _KIND_ALIASES = {"LLM_JUDGE": LLM, "JUDGE": LLM, "HUMAN_ANNOTATION": HUMAN, "HEURISTIC": CODE}
 FIELDS = ("target_id", "name", "annotator_kind", "label", "score", "explanation", "run",
           "input", "output", "evaluator", "created_at")
+AGENT_FIELDS = ("trajectory", "outcome", "app_version")
+OPTIONAL_FIELDS = ("metadata", *AGENT_FIELDS)
+ALL_FIELDS = ("schema_version", *FIELDS, *OPTIONAL_FIELDS)
 EVALUATOR_KEYS = ("provider", "model", "prompt", "temperature", "version", "prompt_hash",
-                  "snapshot", "endpoint")
+                  "snapshot", "endpoint", "rule")
+JSON_CELLS = ("metadata", "trajectory", "outcome")  # JSON text in a CSV cell
 DEFAULT_NAME = "judge"
+BIG = 1_000_000  # bytes: a record larger than this is kept, with a warning
+_NUMBER = re.compile(r"\A\s*([-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?)?\s*\Z")
 
 
 class RecordsError(TableError):
     """The records cannot be turned into a report: a usage error."""
 
 
-def derive_record_id(input, output) -> str:
-    """table.derive_id over an item's input and output, with a missing value read as ""."""
-    return derive_id({"input": "" if input is None else input,
-                      "output": "" if output is None else output})
+def derive_record_id(input, output, trajectory=None) -> str:
+    """table.derive_id over an item's input and output, with a missing value read as "".
+
+    With a trajectory (a non-empty list of steps), the id covers it too: two agent runs that
+    end in the same answer are two answers. Without one, the id is as it always was."""
+    item = {"input": "" if input is None else input, "output": "" if output is None else output}
+    if not trajectory:
+        return derive_id(item)
+    content = canonical_json({**item, "trajectory": trajectory})
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()[:ID_LENGTH]
+
+
+# The rules -------------------------------------------------------------------------------
+
+def _is_text(v) -> bool:
+    """Text, or a number written as text (an id, a version, a date)."""
+    return isinstance(v, str) or (isinstance(v, int | float) and not isinstance(v, bool))
+
+
+def _is_whole(v) -> bool:
+    return (isinstance(v, int) and not isinstance(v, bool)) or (
+        isinstance(v, float) and v.is_integer())
+
+
+def _is_number(v, text: bool = True) -> bool:
+    """A number; with `text`, also a number written as text (or a blank cell)."""
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, int | float):
+        return True
+    return text and isinstance(v, str) and bool(_NUMBER.match(v))
+
+
+def _kind(v) -> str | None:
+    if _blank(v):
+        return LLM
+    text = str(v).strip().upper()
+    text = _KIND_ALIASES.get(text, text)
+    return text if text in KINDS else None
+
+
+def _evaluator_problems(v) -> list[str]:
+    if _blank(v):
+        return []
+    if isinstance(v, str):
+        try:
+            v = json.loads(v)
+        except json.JSONDecodeError:
+            return [f"evaluator {v[:60]!r} is not a JSON object"]
+    if not isinstance(v, dict):
+        return [("evaluator must be an object with provider, model, prompt, temperature and "
+                 "version")]
+    out = []
+    for key in EVALUATOR_KEYS:
+        value = v.get(key)
+        if key == "temperature":
+            if value is not None and not _is_number(value):
+                out.append(f"evaluator.temperature {value!r} is not a number")
+        elif value is not None and not _is_text(value):
+            out.append(f"evaluator.{key} must be text")
+    return out
+
+
+def _message_problems(n: int, m) -> list[str]:
+    where = f"trajectory step {n}"
+    if not isinstance(m, dict):
+        return [f"{where} must be an object with a role"]
+    out = []
+    if not isinstance(m.get("role"), str) or not m["role"]:
+        out.append(f"{where} needs a role (user, assistant, tool or system)")
+    content = m.get("content")
+    if content is not None and not isinstance(content, str | list):
+        out.append(f"{where}: content must be text, a list of parts or null")
+    calls = m.get("tool_calls")
+    if calls is not None and not isinstance(calls, list):
+        out.append(f"{where}: tool_calls must be a list")
+    for c, call in enumerate(calls if isinstance(calls, list) else [], 1):
+        if not isinstance(call, dict):
+            out.append(f"{where}, tool call {c} must be an object with a name")
+            continue
+        if not isinstance(call.get("name"), str) or not call["name"]:
+            out.append(f"{where}, tool call {c} needs a name")
+        if call.get("id") is not None and not isinstance(call["id"], str):
+            out.append(f"{where}, tool call {c}: id must be text")
+    if m.get("tool_call_id") is not None and not isinstance(m["tool_call_id"], str):
+        out.append(f"{where}: tool_call_id must be text")
+    return out
+
+
+def _outcome_problems(v) -> list[str]:
+    if v is None:
+        return []
+    if not isinstance(v, dict):
+        return ["outcome must be an object with passed (true or false) or score (a number)"]
+    out = []
+    if "passed" not in v and "score" not in v:
+        out.append("outcome needs passed or score")
+    if "passed" in v and not isinstance(v["passed"], bool):
+        out.append("outcome.passed must be true or false")
+    if "score" in v and not _is_number(v["score"], text=False):
+        out.append("outcome.score must be a number")
+    for key in ("source", "detail"):
+        if v.get(key) is not None and not _is_text(v[key]):
+            out.append(f"outcome.{key} must be text")
+    return out
+
+
+def problems(d: dict) -> list[str]:
+    """What is wrong with one record, in words; [] when judgekeeper can read it.
+
+    These are the rules of schemas/records.schema.json. Fields judgekeeper does not know are
+    never a problem. Values from a CSV are text: read_records turns them into JSON values
+    first (a version number, and the JSON in metadata, trajectory and outcome cells)."""
+    out = []
+    version = d.get("schema_version")
+    if version is not None and not (_is_whole(version) and version >= 1):
+        out.append(f"schema_version {version!r} must be a whole number, 1 or more")
+    target = d.get("target_id")
+    if target is not None and not (isinstance(target, str) or _is_whole(target)):
+        out.append("target_id must be text or a whole number")
+    for key in ("name", "explanation", "created_at", "app_version"):
+        if d.get(key) is not None and not _is_text(d[key]):
+            out.append(f"{key} must be text")
+    kind = d.get("annotator_kind")
+    if kind is not None and (not isinstance(kind, str) or _kind(kind) is None):
+        out.append(f"annotator_kind {kind!r} is not one of {', '.join(KINDS)}")
+    score = d.get("score")
+    if score is not None and not (_is_number(score) or isinstance(score, bool)):
+        out.append(f"score {score!r} is not a number")
+    run = d.get("run")
+    if run is not None and not (isinstance(run, str) or _is_whole(run)):
+        out.append("run must be a whole number or text")
+    out += _evaluator_problems(d.get("evaluator"))
+    meta = d.get("metadata")
+    if meta is not None and not isinstance(meta, dict):
+        out.append("metadata must be an object")
+    steps = d.get("trajectory")
+    if steps is not None and not isinstance(steps, list):
+        out.append("trajectory must be a list of messages (role, content, tool_calls, "
+                   "tool_call_id)")
+    for n, m in enumerate(steps if isinstance(steps, list) else [], 1):
+        out += _message_problems(n, m)
+    out += _outcome_problems(d.get("outcome"))
+    return out
 
 
 @dataclass
@@ -72,25 +241,39 @@ class ScoreRecord:
     output: Any = None
     evaluator: dict = field(default_factory=dict)
     created_at: str | None = None
+    metadata: dict = field(default_factory=dict)
+    trajectory: list | None = None
+    outcome: dict | None = None
+    app_version: str | None = None
+    schema_version: int = SCHEMA_VERSION
+    extra: dict = field(default_factory=dict)  # fields judgekeeper does not know, kept
 
     def to_dict(self) -> dict:
-        return {k: getattr(self, k) for k in FIELDS}
+        """The record as written: version 2 (or the newer version it was read as), the
+        classic fields, the optional ones that are set, then the fields kept unread."""
+        d = {"schema_version": max(self.schema_version, SCHEMA_VERSION)}
+        d.update({k: getattr(self, k) for k in FIELDS})
+        for k in OPTIONAL_FIELDS:
+            if getattr(self, k) not in (None, {}, []):
+                d[k] = getattr(self, k)
+        for k, v in self.extra.items():
+            d.setdefault(k, v)
+        return d
+
+    def agent(self) -> dict:
+        """The fields ready for agents that this record has."""
+        return {k: getattr(self, k) for k in AGENT_FIELDS if getattr(self, k) is not None}
 
     @classmethod
     def from_dict(cls, d: dict) -> ScoreRecord:
-        unknown = sorted(set(d) - set(FIELDS))
-        if unknown:
-            raise RecordsError(f"unknown ScoreRecord field(s) {unknown}; fields are "
-                               f"{', '.join(FIELDS)}")
-        kind = "LLM" if _blank(d.get("annotator_kind")) else str(d["annotator_kind"]).strip()
-        kind = _KIND_ALIASES.get(kind.upper(), kind.upper())
-        if kind not in KINDS:
-            raise RecordsError(f"annotator_kind {d.get('annotator_kind')!r} is not one of "
-                               f"{', '.join(KINDS)}")
+        found = problems(d)
+        if found:
+            raise RecordsError(found[0])
+        version = d.get("schema_version")
         return cls(
             target_id=None if _blank(d.get("target_id")) else str(d["target_id"]).strip(),
             name=DEFAULT_NAME if _blank(d.get("name")) else str(d["name"]),
-            annotator_kind=kind,
+            annotator_kind=_kind(d.get("annotator_kind")),
             label=None if _blank(d.get("label")) else d["label"],
             score=_number(d.get("score")),
             explanation=None if _blank(d.get("explanation")) else str(d["explanation"]),
@@ -99,6 +282,12 @@ class ScoreRecord:
             output=_content(d.get("output")),
             evaluator=_evaluator(d.get("evaluator")),
             created_at=None if _blank(d.get("created_at")) else str(d["created_at"]),
+            metadata=dict(d.get("metadata") or {}),
+            trajectory=d.get("trajectory") or None,
+            outcome=d.get("outcome"),
+            app_version=None if _blank(d.get("app_version")) else str(d["app_version"]),
+            schema_version=1 if version is None else int(version),
+            extra={k: v for k, v in d.items() if k not in ALL_FIELDS},
         )
 
 
@@ -152,21 +341,28 @@ def _run(v):
 
 
 def _evaluator(v) -> dict:
+    """The evaluator object; keys judgekeeper does not know are kept."""
     if _blank(v):
         return {}
     if isinstance(v, str):
-        try:
-            v = json.loads(v)
-        except json.JSONDecodeError:
-            raise RecordsError(f"evaluator {v[:60]!r} is not a JSON object") from None
-    if not isinstance(v, dict):
-        raise RecordsError("evaluator must be an object with provider, model, prompt, "
-                           "temperature and version")
-    bad = sorted(set(v) - set(EVALUATOR_KEYS))
-    if bad:
-        raise RecordsError(f"unknown evaluator field(s) {bad}; allowed: "
-                           f"{', '.join(EVALUATOR_KEYS)}")
+        v = json.loads(v)  # problems() has checked it is a JSON object
     return {k: val for k, val in v.items() if not (_blank(val) and k != "endpoint")}
+
+
+def fingerprint_known(evaluator: dict) -> dict:
+    """The judge identity in a record's evaluator, as make_fingerprint takes it.
+
+    `version` is the rubric version. The rule stands in for the prompt when the evaluator has
+    neither a prompt nor a prompt hash, so it is hashed into the prompt hash. Keys judgekeeper
+    does not know are left out."""
+    known = {k: v for k, v in evaluator.items()
+             if k in EVALUATOR_KEYS and k not in ("version", "rule")}
+    if evaluator.get("version") is not None:
+        known["rubric_version"] = evaluator["version"]
+    rule = evaluator.get("rule")
+    if rule is not None and "prompt" not in known and "prompt_hash" not in known:
+        known["prompt"] = rule
+    return known
 
 
 # Reading ScoreRecords from JSONL or CSV, with an optional column map ----------------------
@@ -182,38 +378,163 @@ def parse_map(text: str | dict | None) -> dict[str, str]:
     for key, column in pairs:
         key, column = str(key).strip(), str(column).strip()
         sub = key.split(".", 1)[1] if key.startswith("evaluator.") else None
-        if (key not in FIELDS and sub not in EVALUATOR_KEYS) or not column:
+        if (key not in ALL_FIELDS and sub not in EVALUATOR_KEYS) or not column:
             raise RecordsError(f"--map entries look like field=column with field one of "
-                               f"{', '.join(FIELDS)} or evaluator.<{'|'.join(EVALUATOR_KEYS)}>; "
-                               f"got {key}={column}")
+                               f"{', '.join(ALL_FIELDS)} or "
+                               f"evaluator.<{'|'.join(EVALUATOR_KEYS)}>; got {key}={column}")
         out[key] = column
     return out
 
 
-def read_records(path: str | Path, column_map: str | dict | None = None) -> RecordList:
-    """ScoreRecords from a JSONL, CSV or TSV file. `column_map` renames source columns."""
-    rows = read_table(path)
-    mapping = parse_map(column_map)
-    columns = list(dict.fromkeys(k for r in rows for k in r))
+def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bool]:
+    """([(line number, the row or what is wrong with the line, size in bytes)], whether the
+    file is a CSV or TSV, whose values are all text). Blank lines are skipped."""
+    path = Path(path)
+    if not path.is_file():
+        raise RecordsError(f"file not found: {path}")
+    suffix = path.suffix.lower()
+    if suffix in (".csv", ".tsv"):
+        text = read_utf8(path, RecordsError)
+        reader = csv.DictReader(io.StringIO(text, newline=""), delimiter=_delimiter(text, suffix))
+        rows = []
+        for row in reader:
+            row = {k: v for k, v in row.items() if k is not None}
+            rows.append((reader.line_num, row, len(json.dumps(row).encode("utf-8"))))
+        return rows, True
+    if suffix in (".jsonl", ".ndjson", ".json"):
+        rows = []
+        for n, line in enumerate(read_utf8(path, RecordsError).splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as e:
+                rows.append((n, f"not valid JSON ({e.msg})", 0))
+                continue
+            if not isinstance(row, dict):
+                rows.append((n, "each line must be a JSON object", 0))
+                continue
+            rows.append((n, row, len(line.encode("utf-8"))))
+        return rows, False
+    raise RecordsError(f"{path}: expected a .csv, .tsv or .jsonl file")
+
+
+def check_map(mapping: dict, rows: list, path: Path) -> None:
+    """A usage error when `mapping` names a column the file does not have."""
+    columns = list(dict.fromkeys(k for _, r, _ in rows if isinstance(r, dict) for k in r))
     missing = [c for c in mapping.values() if c not in columns]
     if missing:
-        raise RecordsError(f"--map names column(s) {missing} not in {Path(path).name}; "
+        raise RecordsError(f"--map names column(s) {missing} not in {path.name}; "
                            f"columns are: {', '.join(columns)}")
+
+
+def record_dict(row: dict, mapping: dict, cells: bool) -> tuple[dict, list[str]]:
+    """One source row as a record (columns renamed by `mapping`; `evaluator.<key>` columns
+    folded into `evaluator`; other columns kept as they are), and what is wrong with the row
+    before the rules run. `cells`: the row is from a CSV, so a version number is text and
+    metadata, trajectory and outcome hold JSON text."""
+    used = set()
+    d = {}
+    for f in ALL_FIELDS:
+        col = mapping.get(f, f)
+        if col in row:
+            d[f] = row[col]
+            used.add(col)
+    columns = {}
+    for k in EVALUATOR_KEYS:
+        col = mapping.get(f"evaluator.{k}", f"evaluator.{k}")
+        if col in row:
+            used.add(col)
+            columns[k] = row[col]
+    for k, v in row.items():
+        if k in used or k in ALL_FIELDS:
+            continue
+        if k.startswith("evaluator."):
+            columns[k.split(".", 1)[1]] = v
+        else:
+            d[k] = v
+    found = []
+    if cells:
+        for f in JSON_CELLS:
+            if f in d and _blank(d[f]):
+                del d[f]
+            elif f in d:
+                try:
+                    d[f] = json.loads(d[f])
+                except json.JSONDecodeError:
+                    found.append(f"{f} is not JSON: a CSV cell for {f} must hold JSON text")
+                    del d[f]
+        version = d.get("schema_version")
+        if isinstance(version, str) and _blank(version):
+            del d["schema_version"]
+        elif isinstance(version, str) and version.strip().isdigit():
+            d["schema_version"] = int(version.strip())
+    columns = {k: v for k, v in columns.items() if not _blank(v)}
+    if columns:
+        ev = d.get("evaluator")
+        if _blank(ev):
+            ev = {}
+        elif isinstance(ev, str):
+            try:
+                ev = json.loads(ev)
+            except json.JSONDecodeError:
+                pass  # problems() names it
+        if isinstance(ev, dict):
+            d["evaluator"] = {**ev, **columns}
+    return d, found
+
+
+def file_warnings(name: str, records: list[ScoreRecord], n_big: int) -> list[str]:
+    """One warning for a newer version of the format, one for records over 1 MB."""
+    out = []
+    newest = max((r.schema_version for r in records), default=1)
+    if newest > SCHEMA_VERSION:
+        out.append(f"{name} uses records format version {newest}; this judgekeeper knows up "
+                   f"to version {SCHEMA_VERSION}. It read what it could: update judgekeeper "
+                   "to read the rest.")
+    if n_big:
+        out.append(f"{n_big} {'record' if n_big == 1 else 'records'} in {name} "
+                   f"{'is' if n_big == 1 else 'are'} over 1 MB: kept, but such files are slow "
+                   "to read.")
+    return out
+
+
+def read_records(path: str | Path, column_map: str | dict | None = None) -> RecordList:
+    """ScoreRecords from a JSONL, CSV or TSV file. `column_map` renames source columns.
+
+    A record judgekeeper cannot read stops with its line number (`import records --check`
+    lists every problem). A newer version of the format, or a record over 1 MB, adds one
+    warning."""
+    path = Path(path)
+    rows, cells = source_rows(path)
+    mapping = parse_map(column_map)
+    check_map(mapping, rows, path)
     records = RecordList()
-    for row in rows:
-        d = {f: row.get(mapping.get(f, f)) for f in FIELDS if mapping.get(f, f) in row}
-        ev = _evaluator(d.get("evaluator")) if "evaluator" in d else {}
-        for k in EVALUATOR_KEYS:
-            col = mapping.get(f"evaluator.{k}", f"evaluator.{k}")
-            if col in row and not _blank(row[col]):
-                ev[k] = row[col]
-        d["evaluator"] = ev
+    n_big = 0
+    for n, row, size in rows:
+        if isinstance(row, str):
+            raise RecordsError(f"{path}: line {n}: {row}")
+        d, found = record_dict(row, mapping, cells)
+        found += problems(d)
+        if found:
+            raise RecordsError(f"{path.name}: line {n}: {found[0]}")
         rec = ScoreRecord.from_dict(d)
         if rec.target_id is None:
-            rec.target_id = derive_record_id(rec.input, rec.output)
+            rec.target_id = derive_record_id(rec.input, rec.output, rec.trajectory)
             records.ids_derived = True
+        n_big += size > BIG
         records.append(rec)
+    records.warnings += file_warnings(path.name, records, n_big)
     return records
+
+
+def write_records(path: str | Path, records) -> int:
+    """Write ScoreRecords as JSONL, one record per line; returns how many."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(r.to_dict(), ensure_ascii=False) + "\n"
+                            for r in records), encoding="utf-8")
+    return len(records)
 
 
 # Records to a report --------------------------------------------------------------------
@@ -337,11 +658,9 @@ def _judgments(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
             except UnmappedValue as e:
                 unmapped.append(e.value)
                 continue
-            known = dict(r.evaluator)
-            if "version" in known:
-                known["rubric_version"] = known.pop("version")
             entries[r.target_id] = {"verdict": verdict, "rationale": r.explanation or "",
-                                    "fingerprint": make_fingerprint(known, r.created_at)}
+                                    "fingerprint": make_fingerprint(
+                                        fingerprint_known(r.evaluator), r.created_at)}
     if unmapped:
         raise unmapped_error(unmapped, f"judge verdict ({metric!r})",
                              pass_if=norm.kind != PAIRWISE)
@@ -405,6 +724,9 @@ def records_to_report(files: list[tuple[str, RecordList]], kind: str, metric: st
             c.setdefault("input", r.input)
         if r.output is not None:
             c.setdefault("output", r.output)
+        for k, v in r.agent().items():
+            if k not in c:
+                c[k] = scrub_value(v)
     label_of = _human_labels(all_records, metric, llm_names, human_norm)
     if labels is not None:
         file_labels, file_content = _read_labels(labels, extra_map)
@@ -446,6 +768,7 @@ def records_to_report(files: list[tuple[str, RecordList]], kind: str, metric: st
                 "human_label": label_of[i]}
         if c.get("slice"):
             item["slice"] = c["slice"]  # a slice column in --labels, as import-labels keeps it
+        item.update({k: c[k] for k in AGENT_FIELDS if k in c})
         anchor_items.append(item)
 
     entries_fps = [e["fingerprint"] for entries in by_run.values() for e in entries.values()]
@@ -476,8 +799,9 @@ def write_label_anchors(path: str | Path, label_of: dict[str, str],
                         content: dict[str, dict]) -> dict:
     """Write each labeled item (id, input, output, human_label) as an anchor set and freeze it.
 
-    Input and output are the text the source returned, or "" when it returned none. Nothing
-    else goes in: no rationales, no annotator ids. Returns the manifest.
+    Input and output are the text the source returned, or "" when it returned none; the
+    fields ready for agents (trajectory, outcome, app_version) go in when the records have
+    them. Nothing else goes in: no rationales, no annotator ids. Returns the manifest.
     """
     items = []
     for i, label in label_of.items():
@@ -486,6 +810,7 @@ def write_label_anchors(path: str | Path, label_of: dict[str, str],
                 "human_label": label}
         if c.get("slice"):
             item["slice"] = c["slice"]
+        item.update({k: c[k] for k in AGENT_FIELDS if k in c})
         items.append(item)
     if not items:
         raise RecordsError("--anchors-out: no item has a human label")
@@ -571,8 +896,4 @@ def export_records(source: str | Path, out: str | Path, anchors: str | Path | No
                 explanation=rec.get("rationale") or None, run=header.get("run"),
                 input=item.get("input"), output=item.get("output"),
                 evaluator=_evaluator_from(fp), created_at=fp.get("created_at")))
-    out = Path(out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("".join(json.dumps(r.to_dict(), ensure_ascii=False) + "\n"
-                           for r in out_records), encoding="utf-8")
-    return len(out_records)
+    return write_records(out, out_records)

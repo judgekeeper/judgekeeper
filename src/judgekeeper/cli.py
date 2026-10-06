@@ -378,6 +378,10 @@ def _parser() -> argparse.ArgumentParser:
     im.add_argument("--map", metavar="MAP",
                     help="records: field=column pairs for renamed columns, e.g. "
                          "'target_id=trace_id,label=value,annotator_kind=source'")
+    im.add_argument("--check", action="store_true",
+                    help="records: check the file and say what judgekeeper reads in it (counts, "
+                         "the pass/fail split per judge, the first 3 records, every problem "
+                         "with its line); writes nothing. Exit 0 if usable, 2 if not")
     im.add_argument("--anchors-out", metavar="JSONL",
                     help="mlflow, langfuse: also write every item with a human label as a "
                          "frozen anchor set, to re-judge with `judgekeeper judge`")
@@ -777,6 +781,15 @@ def _platform_source(args) -> dict | None:
 def cmd_import(args) -> int:
     from judgekeeper.readers import import_results
 
+    if args.check:
+        from judgekeeper import records_check
+
+        if args.tool != "records":
+            raise UsageError("--check applies to `import records` only")
+        if not args.paths:
+            raise UsageError("`import records --check` needs at least one path")
+        return records_check.run(args.paths, column_map=args.map, pass_if=args.pass_if,
+                                 label_map=args.label_map, say=lambda line: _say(scrub(line)))
     source = _platform_source(args)
     if source is not None and args.paths:
         raise UsageError(f"`import {args.tool}` reads the platform, not files: drop the "

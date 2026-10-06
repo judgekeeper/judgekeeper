@@ -15,10 +15,12 @@ decides what happens.
 | anything, with --new                | moves it all (except baseline.json) to                 |
 |                                     | previous-<date>/ and starts fresh; deletes nothing     |
 
-A re-check finds the labeled answers in the new results by exact input and output. When
-fewer than 15 Correct or 15 Wrong of them came back, the answers changed (the app writes
-different outputs now), so the old labels do not apply: start offers to label the latest
-results instead, moving the old check to previous-<date>/. Before a re-check replaces the
+A re-check finds the labeled answers in the new results by exact input and output (and the
+agent's steps, when the results keep them), and says when the judge or the app's version
+changed since the last check. When fewer than 15 Correct or 15 Wrong of them came back, the
+answers changed (the app writes different outputs now), so the old labels do not apply:
+start offers to label the latest results instead, moving the old check to
+previous-<date>/. Before a re-check replaces the
 saved pool, the old start.json, pool files and labels are copied to history/check-<date>/.
 After a re-check, at a terminal, the menu follows. `--review` reviews the saved result at once,
 without looking for new results.
@@ -355,6 +357,18 @@ def judge_change(old: dict, new: dict) -> str | None:
     return "; ".join(parts) or None
 
 
+def app_change(saved: dict, now: str | None) -> str | None:
+    """What changed in the app's version, in words, or None. A check saved before
+    judgekeeper kept app versions has nothing to compare."""
+    if "app_version" not in saved or saved["app_version"] == now:
+        return None
+
+    def shown(value):
+        return "not recorded" if value is None else value
+
+    return f"its version was {shown(saved['app_version'])}, now {shown(now)}"
+
+
 def _share(value) -> str:
     return "an unknown share" if value is None else f"about {value:.0%}"
 
@@ -371,6 +385,9 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
     changed = judge_change(ws.data()["fingerprint"], found.fingerprint)
     if changed:
         talk.say(f"Your judge changed since your last check: {changed}.")
+    app = app_change(ws.data(), found.app_version)
+    if app:
+        talk.say(f"Your app changed since your last check: {app}.")
     kept = list(back.values())
     if min(kept.count("pass"), kept.count("fail")) < ROUGH and len(back) < len(labels):
         talk.say(f"Fewer than {ROUGH} Correct or {ROUGH} Wrong of them came back unchanged: "

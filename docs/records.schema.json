@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "judgekeeper records, version 2",
+  "description": "One judged answer per JSON line: a judge's verdict (annotator_kind LLM), a person's label (HUMAN) or a code check (CODE). Field names follow OpenInference annotations. Only a verdict is needed in practice (label or score); every field is optional. Fields not listed here are allowed and kept. A record without schema_version is version 1, which has the same fields minus metadata, rule, trajectory, outcome and app_version.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "description": "The records format version. Missing means 1. This schema is version 2.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "target_id": {
+      "description": "The answer's id. Missing: derived from input and output (and the trajectory, when there is one).",
+      "type": [
+        "string",
+        "integer",
+        "null"
+      ]
+    },
+    "name": {
+      "description": "Which judge, metric or criterion. Default: judge.",
+      "$ref": "#/$defs/text"
+    },
+    "annotator_kind": {
+      "description": "LLM (a judge's verdict, the default), HUMAN (a person's label) or CODE (a code check, left out). Any case; LLM_JUDGE, JUDGE, HUMAN_ANNOTATION and HEURISTIC are read as those.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^\\s*(|[Ll][Ll][Mm]|[Hh][Uu][Mm][Aa][Nn]|[Cc][Oo][Dd][Ee]|[Ll][Ll][Mm]_[Jj][Uu][Dd][Gg][Ee]|[Jj][Uu][Dd][Gg][Ee]|[Hh][Uu][Mm][Aa][Nn]_[Aa][Nn][Nn][Oo][Tt][Aa][Tt][Ii][Oo][Nn]|[Hh][Ee][Uu][Rr][Ii][Ss][Tt][Ii][Cc])\\s*$"
+    },
+    "label": {
+      "description": "The verdict: pass or fail, true or false, a bool, or a value --label-map maps."
+    },
+    "score": {
+      "description": "A number. Read as the verdict with --pass-if, or when label is empty.",
+      "anyOf": [
+        {
+          "type": [
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^\\s*([-+]?(\\d+(\\.\\d*)?|\\.\\d+)([eE][-+]?\\d+)?)?\\s*$"
+        }
+      ]
+    },
+    "explanation": {
+      "description": "The judge's reason.",
+      "$ref": "#/$defs/text"
+    },
+    "run": {
+      "description": "Which repeat this verdict is from. Empty: each file is one run.",
+      "type": [
+        "string",
+        "integer",
+        "null"
+      ]
+    },
+    "input": {
+      "description": "The question or input, as text or any JSON."
+    },
+    "output": {
+      "description": "The answer that was judged, as text or any JSON."
+    },
+    "evaluator": {
+      "description": "The judge's identity. A string must hold this object as JSON (as a CSV cell does).",
+      "anyOf": [
+        {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        {
+          "$ref": "#/$defs/evaluator"
+        }
+      ]
+    },
+    "created_at": {
+      "description": "When the verdict was made, ISO 8601.",
+      "$ref": "#/$defs/text"
+    },
+    "metadata": {
+      "description": "Anything else: a criterion name, a run id, an A/B version. Kept and passed on; never part of the judge's identity.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "trajectory": {
+      "description": "The agent's steps that led to the output, as OpenAI-style messages. Kept in the anchor set; not shown on any page yet.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/$defs/message"
+      }
+    },
+    "outcome": {
+      "description": "An automatic check of the result (unit tests, a database check).",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/outcome"
+        }
+      ]
+    },
+    "app_version": {
+      "description": "The version of the app or agent that produced the output. judgekeeper start says when it changes between checks.",
+      "$ref": "#/$defs/text"
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": [
+        "string",
+        "number",
+        "null"
+      ]
+    },
+    "evaluator": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "description": "Who serves the judge's model, e.g. anthropic, openai.",
+          "$ref": "#/$defs/text"
+        },
+        "model": {
+          "description": "The judge's model.",
+          "$ref": "#/$defs/text"
+        },
+        "prompt": {
+          "description": "The judge's prompt; judgekeeper keeps only its hash.",
+          "$ref": "#/$defs/text"
+        },
+        "temperature": {
+          "description": "The judge's temperature.",
+          "anyOf": [
+            {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*([-+]?(\\d+(\\.\\d*)?|\\.\\d+)([eE][-+]?\\d+)?)?\\s*$"
+            }
+          ]
+        },
+        "version": {
+          "description": "The rubric version.",
+          "$ref": "#/$defs/text"
+        },
+        "prompt_hash": {
+          "description": "sha256 of the prompt, when the prompt itself is not given.",
+          "$ref": "#/$defs/text"
+        },
+        "snapshot": {
+          "description": "The model snapshot the provider served.",
+          "$ref": "#/$defs/text"
+        },
+        "endpoint": {
+          "description": "The endpoint the judge was called at; null means the provider's default.",
+          "$ref": "#/$defs/text"
+        },
+        "rule": {
+          "description": "The judge's rule in words (GEval criteria and steps, an llm-rubric value). Hashed into the prompt hash when there is no prompt or prompt_hash.",
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "message": {
+      "type": "object",
+      "required": [
+        "role"
+      ],
+      "properties": {
+        "role": {
+          "description": "user, assistant, tool or system.",
+          "type": "string",
+          "minLength": 1
+        },
+        "content": {
+          "description": "Text, a list of content parts, or null (an assistant step that only calls tools).",
+          "type": [
+            "string",
+            "array",
+            "null"
+          ]
+        },
+        "tool_calls": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/tool_call"
+          }
+        },
+        "tool_call_id": {
+          "description": "On a tool step: the id of the call it answers.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "tool_call": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "The tool's name.",
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "description": "The arguments, as an object or as JSON text."
+        }
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "anyOf": [
+        {
+          "required": [
+            "passed"
+          ]
+        },
+        {
+          "required": [
+            "score"
+          ]
+        }
+      ],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "score": {
+          "type": "number"
+        },
+        "source": {
+          "description": "What checked it, e.g. unit tests, database check, SWE-bench resolved.",
+          "$ref": "#/$defs/text"
+        },
+        "detail": {
+          "description": "What the check found.",
+          "$ref": "#/$defs/text"
+        }
+      }
+    }
+  }
+}

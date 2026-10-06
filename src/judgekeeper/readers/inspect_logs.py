@@ -10,6 +10,13 @@ with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, option
 `explanation`, `metadata`, `history[]`.
 
 - Item id is `samples[].id`; run is `samples[].epoch`.
+- `samples[].messages` (the conversation, with any tool calls) is kept as the record's
+  `trajectory`, in OpenAI-style messages: role, content (text), tool_calls (id, name,
+  arguments), tool_call_id. Inspect's message ids, sources and models are left out, so the
+  same run read with or without inspect_ai gives the same steps. `start` makes an answer's id
+  from its input, output and steps (`sample_key`).
+- A score whose value is a dict (rubric and checklist graders report this way) is one judge
+  per key, named `<scorer>.<key>`, each with the scorer's prompt.
 - The prompt hash covers the scorer's `template` and `instructions` options, or Inspect's
   default for that scorer when they are unset; never the per-sample `metadata.grading`.
 - Values `C`/`I` read as pass/fail; `P` (partial) and anything else need --label-map.
@@ -25,7 +32,14 @@ import math
 from pathlib import Path
 
 from judgekeeper.anchors import canonical_json
-from judgekeeper.records import HUMAN, LLM, RecordList, RecordsError, ScoreRecord
+from judgekeeper.records import (
+    HUMAN,
+    LLM,
+    RecordList,
+    RecordsError,
+    ScoreRecord,
+    derive_record_id,
+)
 from judgekeeper.textio import read_utf8
 
 DEFAULT_LABELS = {"C": "pass", "I": "fail"}
@@ -63,6 +77,41 @@ def _model(config) -> tuple[str | None, float | None]:
     if isinstance(config, str):
         return config, None
     return None, None
+
+
+def _text(content):
+    """A message's content as text: text parts joined; None when there is no text."""
+    if isinstance(content, str) or content is None:
+        return content
+    if isinstance(content, list):
+        texts = [p["text"] for p in content if isinstance(p, dict)
+                 and p.get("type") == "text" and isinstance(p.get("text"), str)]
+        return "\n".join(texts) if texts else None
+    return None
+
+
+def _step(message: dict) -> dict:
+    step = {"role": str(message.get("role") or "unknown"), "content": _text(message.get("content"))}
+    calls = [{"id": c.get("id"), "name": str(c.get("function") or c.get("name") or "unknown"),
+              "arguments": c.get("arguments")}
+             for c in message.get("tool_calls") or [] if isinstance(c, dict)]
+    if calls:
+        step["tool_calls"] = calls
+    if isinstance(message.get("tool_call_id"), str):
+        step["tool_call_id"] = message["tool_call_id"]
+    return step
+
+
+def trajectory(sample: dict) -> list[dict] | None:
+    """A sample's messages as OpenAI-style steps, or None when it has none."""
+    messages = [m for m in sample.get("messages") or [] if isinstance(m, dict)]
+    return [_step(m) for m in messages] or None
+
+
+def sample_key(sample: dict) -> str:
+    """The id `start` gives this sample's answer: its input, output and steps."""
+    return derive_record_id(sample.get("input"), (sample.get("output") or {}).get("completion"),
+                            trajectory(sample))
 
 
 def _value(v) -> tuple[object, float | None]:
@@ -121,7 +170,8 @@ def read_inspect(path: str | Path) -> RecordList:
         item_id = str(sample.get("id"))
         epoch = sample.get("epoch")
         output = (sample.get("output") or {}).get("completion")
-        content = {"input": sample.get("input"), "output": output}
+        content = {"input": sample.get("input"), "output": output,
+                   "trajectory": trajectory(sample)}
         for name, score in (sample.get("scores") or {}).items():
             if not isinstance(score, dict):
                 continue
@@ -139,16 +189,25 @@ def read_inspect(path: str | Path) -> RecordList:
             evaluator["prompt"] = scorer_prompt(name, options)
             edit = _human_edit(score)
             judged = edit[0] if edit else score
-            label, value = _value(judged.get("value"))
-            records.append(ScoreRecord(
-                target_id=item_id, name=name, annotator_kind=LLM, label=label, score=value,
-                explanation=judged.get("explanation") or None, run=epoch, **content,
-                evaluator=evaluator, created_at=created_at))
-            if edit:
-                human_label, human_score = _value(score.get("value"))
-                provenance = edit[1]["provenance"]
+            for key, value in _verdicts(name, judged.get("value")):
+                label, number = _value(value)
                 records.append(ScoreRecord(
-                    target_id=item_id, name=name, annotator_kind=HUMAN, label=human_label,
-                    score=human_score, explanation=provenance.get("reason") or None, **content,
-                    created_at=provenance.get("timestamp")))
+                    target_id=item_id, name=key, annotator_kind=LLM, label=label, score=number,
+                    explanation=judged.get("explanation") or None, run=epoch, **content,
+                    evaluator=dict(evaluator), created_at=created_at))
+            if edit:
+                provenance = edit[1]["provenance"]
+                for key, value in _verdicts(name, score.get("value")):
+                    human_label, human_score = _value(value)
+                    records.append(ScoreRecord(
+                        target_id=item_id, name=key, annotator_kind=HUMAN, label=human_label,
+                        score=human_score, explanation=provenance.get("reason") or None,
+                        **content, created_at=provenance.get("timestamp")))
     return records
+
+
+def _verdicts(name: str, value) -> list[tuple[str, object]]:
+    """[(judge name, value)]: one per key of a dict value, named scorer.key; else one."""
+    if isinstance(value, dict) and value:
+        return [(f"{name}.{key}", v) for key, v in value.items()]
+    return [(name, value)]

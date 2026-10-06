@@ -71,6 +71,19 @@ after you say yes, your own judge through your own tool, and key names only.
   an earlier version can report `JUDGE_CHANGED` once; a warning when the saved verdicts came
   from promptfoo's cache. DeepEval: the judge's provider is read from the end of its model
   name, such as `(Anthropic)`.
+- The records format (what `import records` reads and `export records` writes) now has a
+  version (`schema_version`, now 2) and keeps fields it does not know instead of stopping. New
+  optional fields: `metadata` for anything else, the judge's `rule`, and, ready for agents,
+  `trajectory` (the agent's steps), `outcome` (an automatic check such as unit tests) and
+  `app_version`. New: `judgekeeper import records FILE --check` says what judgekeeper reads
+  in a file and lists every problem with its line, and writes nothing. The format is
+  published as a JSON Schema (`docs/records.schema.json`), with three example files.
+- Reading results: Inspect AI keeps each sample's steps, so two agent runs that end in the
+  same answer stay two answers in `start`; a score whose value is a dict is read as one judge
+  per key. MLflow: an assessment on one span inside a trace is left out unless `--metric`
+  names a judge that is only on spans.
+- `judgekeeper start` says when your app's version changed since your last check, from
+  `app_version` in the results (or an `app_version` column in a table).
 - The website's home page shows the install for Mac and Windows, with a check for Python, and
   then `judgekeeper start`. "Use it on your app" is about `judgekeeper start`; the earlier
   paths are under "Other ways".
