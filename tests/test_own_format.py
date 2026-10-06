@@ -33,6 +33,11 @@ def test_a_nested_jsonl_of_scores_is_spotted(tmp_path):
     ({"prompt": "q", "response": "a", "verdict": "pass"}, True),
     ({"Question": "q", "Answer": "a", "Passed": True}, True),
     ({"runs": [{"cases": [{"user_input": "q", "actual_output": "a", "label": 1}]}]}, True),
+    # the input on the case, the answers and their scores one level down (A and B)
+    ({"cases": [{"id": "c1", "prompt": "q", "A": {"output": "a", "scores": {
+        "Safe wording": {"score": 0.3, "reason": "r"}}}}]}, True),
+    ({"config": {"input": {"format": "csv"}, "output": {"dir": "out"}, "label": "prod"}},
+     False),  # settings named input and output, not text
     ({"input": "q", "output": "a"}, False),  # no score
     ({"label": "prod", "timeout": 3}, False),  # a setting called label
     ({"name": "app", "version": "1.0", "scripts": {"test": "pytest"}}, False),

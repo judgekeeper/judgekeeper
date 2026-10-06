@@ -103,3 +103,11 @@ def test_pytest_options_exist():
 
 def test_readme_links_the_skill():
     assert "skills/judgekeeper/SKILL.md" in (ROOT / "README.md").read_text(encoding="utf-8")
+
+
+def test_the_three_doors_in_order_and_record_only_after_a_yes():
+    text = SKILL.read_text(encoding="utf-8")
+    doors = [text.index(d) for d in ("(1) `judgekeeper setup`", "(2) one `judgekeeper.record()`",
+                                     "(3) a table")]
+    assert doors == sorted(doors)
+    assert "add a `judgekeeper.record()` line only after their yes on the diff" in text

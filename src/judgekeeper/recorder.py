@@ -214,8 +214,8 @@ export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): voi
 }
 
 AGENT_PROMPT = """\
-In this project, my LLM judge runs in my own code. Please add judgekeeper's record() line, so
-judgekeeper can check my judge against my own labels:
+In this project, my LLM judge runs in my own code. Please add the judgekeeper.record() line,
+so that judgekeeper can check my judge against my own labels:
 
 1. judgekeeper must be installed in this project's own Python environment, as a dev tool. If
    it is missing, install it there: for example `uv add --dev judgekeeper`, `poetry add

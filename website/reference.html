@@ -40,6 +40,7 @@
 <p>Every command, file format, flag, exit code and config key. The README has the short version.</p>
 <ul>
 <li><a href="#start-find-your-results-label-see-the-result">start: find your results, label, see the result</a></li>
+<li><a href="#setup-set-a-project-up-in-one-step">setup: set a project up in one step</a></li>
 <li><a href="#init-a-starter-rule-file">init: a starter rule file</a></li>
 <li><a href="#anchor-sets-judging-and-the-report">Anchor sets, judging and the report</a></li>
 <li><a href="#check-a-table-in-a-report-out">check: a table in, a report out</a></li>
@@ -93,6 +94,7 @@
 <tr><td><code>--port N</code></td><td>Port on 127.0.0.1 for the labeling page (default 8765)</td></tr>
 </tbody>
 </table>
+<p>**<code>judgekeeper.toml</code> first.** When the project's <code>judgekeeper.toml</code> has a <code>[start]</code> table ([written by <code>setup</code>](#setup-set-a-project-up-in-one-step)), <code>start</code> reads it before anything else: a mapped results file is read with its map and nothing is searched; a saved tool and judge are used without asking (<code>--tool</code> and <code>--metric</code> still win); a saved model names the judge when the results do not.</p>
 <p><strong>What it reads.</strong> It looks only inside the folder, to a depth of four folders, skipping <code>.git</code>, <code>node_modules</code>, virtual environments and hidden folders (except <code>.deepeval</code>, and <code>.judgekeeper/records/</code>, where <code>judgekeeper.record()</code> writes). It stops after 5,000 files or 2 seconds and says so. It does not follow symbolic links, and results files over 200 MB are listed, not read.</p>
 <table>
 <thead><tr><th>Tool</th><th>How it is found</th><th>What is read</th></tr></thead>
@@ -162,6 +164,48 @@
 <p><strong>When promptfoo's results are only in its database</strong>, at a terminal <code>start</code> offers to run <code>promptfoo export eval latest</code> for you (no AI call; promptfoo's telemetry, update check and logs off). The file is checked against this project's promptfoo config (its description, else its prompts): a run from another project is deleted with a note on how to find yours; otherwise it is saved as <code>promptfoo-results.json</code> and <code>start</code> carries on.</p>
 <p><strong>Without a terminal</strong> (a script, CI, a coding agent) it never asks. It prints what it found and the flag that answers the question, and exits 2; <code>--yes</code> takes the defaults. Labeling needs a person: in CI, <code>start</code> can only find and report. Exit codes: 0 done (also when you stop early, and after No to a spending question), 1 a runtime failure (for asking again: the tool failed), 2 a usage error or a question that needs an answer, 130 asking again stopped with Ctrl-C.</p>
 <p><strong>Installed in your project?</strong> judgekeeper belongs in your project's own Python environment, like pytest. In a terminal, <code>judgekeeper --version</code> says judgekeeper is ready and what to run next; when Python is not running in a virtual environment, or judgekeeper was installed as a tool for the whole computer (in the folder where a tool installer keeps its tools, not in a project), it adds: "judgekeeper is installed outside a project. Install it inside your project's environment instead (see www.judgekeeper.com/start.html#install)." Piped or in a script it prints only <code>judgekeeper &lt;version&gt;</code>.</p>
+<h2 id="setup-set-a-project-up-in-one-step">setup: set a project up in one step</h2>
+<pre><code>judgekeeper setup [PATH] [--metric NAME] [--judge-model NAME] [--yes]</code></pre>
+<p>For a project whose judge saves its results its own way, and to set any project up in one step. Run it in your project folder (or give <code>PATH</code>: the folder, or your judge's results file). It never edits your code, and it writes nothing before the one question that lists every file change.</p>
+<ol>
+<li><strong>It finds what there is.</strong> Results <code>start</code> reads as they are (promptfoo, DeepEval, Inspect AI, MLflow, a table, <code>judgekeeper.record()</code> files): it names the tool and the judge, and saves them. Else a results file in a format of its own: a recent JSON, JSONL or CSV file whose items hold a score-like key with an input-like and an output-like key, at any depth.</li>
+<li><strong>It maps that file.</strong> It lists every nested path with an example value (cut to 60 characters), such as <code>cases[].A.output</code> and <code>cases[].A.scores.&lt;criterion&gt;.score</code>, and says how it reads it: what one answer is (the list that holds the answers), the input, the answer, the score or verdict, the reason, the id and the judge's model, from key names (<code>input</code>, <code>question</code>, <code>prompt</code>; <code>output</code>, <code>answer</code>, <code>response</code>, <code>actual_output</code>; <code>score</code>, <code>verdict</code>, <code>label</code>, <code>grade</code>; <code>reason</code>, <code>explanation</code>) and value types. Scores between 0 and 1 get the pass mark 0.5.</li>
+<li><strong>It asks only what it cannot tell.</strong> Several answers per item (A and B): "Count each as its own answer?" (No: which one). Several criteria: "Which judge do you want to check?" (or all, one at a time; <code>--metric</code> answers, <code>--metric all</code> for every judge). Scores outside 0 to 1: the pass mark. Answers with an error or a score made by a rule (a reason starting "Rule"): "Leave them out?". A guess made from value types alone: "Is this right?". Then it shows 3 answers as it will read them.</li>
+<li><strong>One question for every file change:</strong></li>
+</ol>
+<p><code></code><code> Set up judgekeeper in this project? • save judgekeeper.toml (where your judge&#x27;s results are and how to read them) • add .judgekeeper/ to .gitignore (your answers stay off Git) • add judgekeeper to requirements-dev.txt [Y/n] </code><code></code> - <code>judgekeeper.toml</code>: a <code>[start]</code> table (below). An existing file keeps every other table and line; only <code>[start]</code> is added or replaced. - <code>.gitignore</code>: only in a Git repository, and only when no <code>.judgekeeper</code> line is there. The lines are <code>.judgekeeper/*</code>, <code>!.judgekeeper/baseline.json</code> and <code>!.judgekeeper/migrations/</code>, so your answers and labels stay off Git while a <a href="#gate-ci-on-the-judge">gate baseline</a> can still be committed. - The requirements line goes to the first that exists: <code>pyproject.toml</code>'s <code>[dependency-groups] dev</code> or <code>[project.optional-dependencies] dev</code>, then <code>requirements-dev.txt</code>, then <code>requirements-dev.in</code>; only when judgekeeper is not listed anywhere; never into the main requirements. With none of them, the list says "judgekeeper is not listed in your project's requirements; add it so teammates get it" and changes nothing. A <code>pyproject.toml</code> list in a shape judgekeeper does not edit is left alone, with a message.</p>
+<p>When a file cannot be mapped (no answers or no scores in it), or you say the guess is wrong, it prints the prompt for your coding agent that writes a table instead, and the <code>judgekeeper.record()</code> way. Nothing found at all: it says the three ways in (<code>setup</code> with a file, one [<code>record()</code> line](#record-save-your-own-judges-verdicts-with-one-line), or the coding-agent prompt). Run again, it says what <code>judgekeeper.toml</code> holds and asks before changing it (default No).</p>
+<table>
+<thead><tr><th>Flag</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>PATH</code></td><td>Your project folder (default: this folder), or your judge's results file</td></tr>
+<tr><td><code>--metric NAME</code></td><td>The judge to check when the results hold several; <code>all</code> for every judge, one at a time. Needed without a terminal when there are several</td></tr>
+<tr><td><code>--judge-model NAME</code></td><td>The judge's model, when the results do not say it; saved in <code>judgekeeper.toml</code></td></tr>
+<tr><td><code>--yes</code></td><td>Without a terminal, answer every yes/no question with its default, including the one before the file changes. Without a terminal and without <code>--yes</code>, it prints the list and exits 2</td></tr>
+</tbody>
+</table>
+<p>Exit 0 when a source is set up (or you kept the one set up before), 2 when none was found or a question needs an answer.</p>
+<p>**The <code>[start]</code> table of <code>judgekeeper.toml</code>.** Nothing secret; <code>start</code> reads it first. The same file holds <code>[gate]</code>, <code>[migrate]</code> and <code>[attribute]</code> (below).</p>
+<pre><code>[start]
+source = "map"                  # or the tool start reads as it is: records, promptfoo, deepeval, inspect, mlflow, table
+file = "history/evals.jsonl"    # map: the results file, inside the project
+judge = "Safe wording"          # the judge to check; "*": every judge, one at a time
+pass_mark = 0.5                 # map: pass when the score is at least this
+model = "claude-opus-5"         # only when the results do not say which model judged
+
+[start.map]                     # how to read the file
+each = "cases[]"                # the items: every element of the list cases
+id = "id"
+input = "prompt"
+output = "{side}.output"
+sides = ["A", "B"]              # one answer per side
+score = "{side}.scores.{judge}.score"
+reason = "{side}.scores.{judge}.reason"
+kind = "score"                  # or "verdict": pass/fail values, no pass mark
+judges = ["Safe wording", "Plain language"]
+model_key = "judge_model"       # the key that names the judge's model, in the item or around it
+leave_out = true                # leave out answers with an error or a score made by a rule</code></pre>
+<p>Paths are keys joined by dots; <code>[]</code> after a key means every element of that list; a key with other characters than letters, digits, <code>_</code> and <code>-</code> is written in double quotes (<code>&quot;User Question&quot;</code>). Each line of a JSONL file whose items are inside it (often one eval run) is its own set of results, newest first, as for any other tool; in a flat file each line is one answer. When the file no longer fits the map, <code>start</code> says "Your results file changed shape. Run judgekeeper setup again."</p>
 <h2 id="init-a-starter-rule-file">init: a starter rule file</h2>
 <pre><code>judgekeeper init [--out prompts/judge.md] [--pairwise] [--force]</code></pre>
 <p>Writes one rule file, the prompt your judge runs with, from a template that ships in the package (<code>src/judgekeeper/templates/single.md</code>, or <code>pairwise.md</code> with <code>--pairwise</code>). The file loads with the Anthropic and OpenAI runners as it is: frontmatter <code>rubric_version: my-metric-v1</code>, the placeholders <code>{{input}}</code> and <code>{{output}}</code> (pairwise: <code>{{output_a}}</code> and <code>{{output_b}}</code>) and the final <code>Verdict:</code> line. The parts you write are marked <code>[FILL IN: ...]</code>: the one thing being checked, what counts as pass, what counts as fail, two or three examples of each, and edge cases (pairwise: what makes one output better, and the tie rule). Parent folders are created; an existing file is not overwritten without <code>--force</code> (usage error, exit 2). It prints the next commands: label, <code>judge --prompt</code>, <code>validate</code>. No model is called and nothing else is written.</p>
@@ -447,7 +491,7 @@ judgekeeper gate reports/my-judge/report.json           # writes gate.json and g
 </ol>
 <p><code>JUDGE_CHANGED</code> points at <code>migrate</code>, below: compare the old and new judge, then <code>--rebase</code> to make the new one the baseline.</p>
 <p><code>--flaky-as pass</code> or <code>--flaky-as fail</code> maps <code>FLAKY</code> to exit 0 or 1; the status in <code>gate.json</code> and <code>gate.md</code> stays <code>FLAKY</code>. Without the flag <code>FLAKY</code> exits 4. <code>gate.md</code> is a short summary for a PR comment or <code>$GITHUB_STEP_SUMMARY</code>: the status, why, a metric / baseline / now / delta / noise band table and the judge fingerprint.</p>
-<p>Thresholds live in an optional <code>judgekeeper.toml</code> (<code>--config</code>, default <code>./judgekeeper.toml</code> when it exists), one table per command: <code>[gate]</code> here, <code>[migrate]</code> and <code>[attribute]</code> below. Unknown tables and keys are a usage error.</p>
+<p>Thresholds live in an optional <code>judgekeeper.toml</code> (<code>--config</code>, default <code>./judgekeeper.toml</code> when it exists), one table per command: <code>[gate]</code> here, <code>[migrate]</code> and <code>[attribute]</code> below, and <code>[start]</code>, which [<code>setup</code>](#setup-set-a-project-up-in-one-step) writes. Unknown tables and keys are a usage error.</p>
 <pre><code>[gate]
 kappa_min = 0.6
 tpr_min = 0.8

@@ -20,7 +20,8 @@ write little code, so say what you are doing in plain words. Full flags:
   Never write a key into a file, a command line, a config, a commit or the chat.
 - Report TPR, TNR and kappa together. Never report raw agreement on its own.
 - Count judge calls before running: items x runs (x 2 for pairwise). Ask before spending.
-- Stop and ask whenever a step needs the human: labels, a key, money, what the rule means.
+- Stop and ask whenever a step needs the human: labels, a key, money, what the rule means,
+  and any change to their code: add a `judgekeeper.record()` line only after their yes on the diff.
 - Labeling needs the person, and so does a review. Run `judgekeeper start --yes --no-browser`
   only to show what it found; then tell the person to open the page or run `judgekeeper start`.
   Run `--review` only with them. Never answer a spending question or pass `--allow-calls`: for
@@ -41,14 +42,13 @@ Search the project for how it grades outputs today:
   logs, MLflow assessments on traces, Langfuse scores;
 - a CSV or JSONL that already has judge verdicts and human labels side by side.
 
-Tell the user what you found and which on-ramp in step 3 fits. If the project has no rule
-file yet (no judge prompt that says what pass and fail mean), say so and offer
-`judgekeeper init` (`--pairwise` for A/B rules): it writes `prompts/judge.md` with
-`[FILL IN: ...]` markers for the one thing checked, pass, fail, examples and edge cases. The
-rule is the human's decision: ask them, type their answers in, show them the file
-(`judge --prompt` refuses it until every marker is gone). See `docs/own-metric.md`. If a
-judge already exists, ask the human to say in one sentence what pass means before they
-label: the labels must follow the human's rule, not the judge's.
+The judge saves its results its own way, so `judgekeeper start` finds nothing? Three doors, in this order:
+(1) `judgekeeper setup` maps the file with no code change (the person answers its few questions and the one yes);
+(2) one `judgekeeper.record()` line where the judge runs (`judgekeeper record --agent-prompt` says how; show the diff, wait for the yes);
+(3) a table written by a converter (`judgekeeper start --agent-prompt`), checked with `judgekeeper start <table>`.
+
+Tell the user what you found and which on-ramp in step 3 fits. If the project has no rule file yet (no judge prompt that says what pass and fail mean), say so and offer `judgekeeper init` (`--pairwise` for A/B rules): it writes `prompts/judge.md` with `[FILL IN: ...]` markers for the one thing checked, pass, fail, examples and edge cases.
+The rule is the human's decision: ask them, type their answers in, show them the file (`judge --prompt` refuses it until every marker is gone). See `docs/own-metric.md`. If a judge already exists, ask the human to say in one sentence what pass means before they label: the labels must follow the human's rule, not the judge's.
 
 ## 2. Get human labels (if there are none)
 

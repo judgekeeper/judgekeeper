@@ -45,12 +45,14 @@ from judgekeeper.gate import DEFAULT_BASELINE, DEFAULT_CONFIG, GateError
 from judgekeeper.judging import JudgeCallError
 from judgekeeper.judgments import JudgmentsError
 from judgekeeper.label import LabelError
+from judgekeeper.mapper import MapError
 from judgekeeper.migrate import MigrateError
 from judgekeeper.normalise import NormaliseError
 from judgekeeper.prompts import PromptError, unfilled_marker
 from judgekeeper.readers.langfuse_api import LangfuseError
 from judgekeeper.redact import printable, register_key_env, scrub
 from judgekeeper.report import ReportError
+from judgekeeper.settings import SettingsError
 from judgekeeper.start import StartError
 from judgekeeper.table import TableError
 from judgekeeper.templates import DEFAULT_OUT, ExistsError, next_steps, write_starter
@@ -68,6 +70,7 @@ MESSAGE = "Check your LLM-as-a-judge."
 # (tests/test_front_door.py compares these with the parser).
 START_HERE = (
     ("start", "find your judge's saved results and check them against your own labels"),
+    ("setup", "results saved your own way? set the project up in one step, asked once"),
     ("check", "a table of judge verdicts and human labels in, a verdict out"),
     ("label", "no human labels yet? label answers in a local page"),
 )
@@ -482,6 +485,22 @@ def _parser() -> argparse.ArgumentParser:
     er.add_argument("-o", "--out", required=True, help="JSONL file to write")
     er.add_argument("--anchors", help="anchor set, when source is a bare runs directory")
 
+    su = sub.add_parser("setup", parents=[common],
+                        help="set a project up in one step: where your judge's results are and "
+                             "how to read them, .gitignore and the dev requirements; one "
+                             "question before any file changes")
+    su.add_argument("path", nargs="?", default=".", metavar="PATH",
+                    help="your project folder (default: this folder), or your judge's "
+                         "results file")
+    su.add_argument("--metric", metavar="NAME",
+                    help="the judge to check when the results hold several (all: every "
+                         "judge, one at a time)")
+    su.add_argument("--judge-model", metavar="NAME",
+                    help="the judge's model, when the results do not say it")
+    su.add_argument("--yes", action="store_true",
+                    help="without a terminal, answer the yes/no questions with their "
+                         "default, including the one before the file changes")
+
     rc = sub.add_parser("record", parents=[common],
                         help="save your own judge's verdicts: the judgekeeper.record() line as "
                              "a snippet, or a prompt for your coding agent that adds it")
@@ -841,6 +860,13 @@ def cmd_start(args) -> int:
                judge_command=args.judge_command, allow_calls=args.allow_calls)
 
 
+def cmd_setup(args) -> int:
+    from judgekeeper import setup_project
+
+    return setup_project.run(args.path, yes=args.yes, metric=args.metric,
+                             judge_model=args.judge_model)
+
+
 def cmd_record(args) -> int:
     from judgekeeper import recorder
 
@@ -992,7 +1018,7 @@ COMMANDS = {"init": cmd_init, "freeze": cmd_freeze, "judge": cmd_judge, "validat
             "attribute": cmd_attribute, "check": cmd_check,
             "template": cmd_template, "import-labels": cmd_import_labels, "label": cmd_label,
             "import": cmd_import, "export": cmd_export, "start": cmd_start,
-            "record": cmd_record}
+            "record": cmd_record, "setup": cmd_setup}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1016,7 +1042,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_HASH_MISMATCH
     except (UsageError, AnchorError, PromptError, JudgmentsError, GateError, MigrateError,
             AttributionError, NormaliseError, TableError, CallableError, CallLimitError,
-            LabelError, StartError) as e:
+            LabelError, StartError, SettingsError, MapError) as e:
         _error(str(e))
         return EXIT_USAGE
     except LangfuseError as e:

@@ -3,8 +3,8 @@ agent that turns them into judgekeeper's table.
 
 When `start` finds no results it can read, it must not send the user to run their eval again
 when that would not help (a DeepEval metric's `measure()` called directly saves nothing). It
-looks instead for a recent JSON, JSONL or CSV file whose items hold a score-like key next to
-an input-like and an output-like key, at any depth, names it, and prints AGENT_PROMPT: a short
+looks instead for a recent JSON, JSONL or CSV file whose items hold a score-like key with an
+input-like and an output-like key (looks_judged), at any depth, names it, and prints AGENT_PROMPT: a short
 prompt to paste into a coding agent, which writes the converter. Standard library only;
 nothing is written, and only the first part of each file is read.
 """
@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from judgekeeper import find
+from judgekeeper.mapper import SCORE_WORDS, _words
 
 OWN_FORMAT_URL = "www.judgekeeper.com/start.html#own-format"
 INSTALL_URL = "www.judgekeeper.com/start.html#install"
@@ -60,15 +61,31 @@ def _has(keys, words) -> bool:
     return any(w in k for k in keys for w in words)
 
 
+def _within(d: dict, depth: int = 0):
+    """(key in lower case, value) for every key of `d` and of the objects inside it, down to
+    three levels, not going into lists: one item's keys."""
+    for key, value in d.items():
+        yield str(key).lower(), value
+        if isinstance(value, dict) and depth < 3:
+            yield from _within(value, depth + 1)
+
+
+def _text(value) -> bool:
+    return value is None or isinstance(value, str)  # None: a CSV cell, known by its name only
+
+
 def looks_judged(value, depth: int = 0) -> bool:
-    """Whether `value` holds, at any depth, an object with a score-like key next to an
-    input-like and an output-like key."""
+    """Whether `value` holds, at any depth, an item: an input-like key holding text, an
+    output-like key holding text (or one text per side, such as A and B), and a score-like
+    key, in the item itself or in the objects inside it (not across lists)."""
     if depth > MAX_NESTING:
         return False
     if isinstance(value, dict):
-        keys = [str(k).lower() for k in value]
-        if (any(k in SCORE_KEYS for k in keys) and _has(keys, INPUT_WORDS)
-                and _has(keys, OUTPUT_WORDS)):
+        pairs = list(_within(value))
+        if (any(k in SCORE_KEYS or _words(k) & set(SCORE_WORDS) for k, _ in pairs)
+                and any(_has([k], INPUT_WORDS) and _text(v) for k, v in pairs)
+                and any(_has([k], OUTPUT_WORDS) and (_text(v) or (isinstance(v, dict) and any(
+                    isinstance(x, str) for x in v.values()))) for k, v in pairs)):
             return True
         return any(looks_judged(v, depth + 1) for v in value.values()
                    if isinstance(v, dict | list))

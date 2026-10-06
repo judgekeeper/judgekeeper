@@ -95,7 +95,9 @@ def test_every_command_on_the_site_parses(argv):
 
 def test_the_pages_show_commands():
     counts = {p.name: len(commands(p)) for p in hand_written_pages()}
-    assert counts["index.html"] == 3  # --version on each install tab, then judgekeeper start
+    # --version on each install tab; setup and start, named again in the text and above the
+    # output
+    assert counts["index.html"] == 7
     assert counts["start.html"] >= 6  # judgekeeper start, then the four other steps
     assert counts["learn.html"] >= 12
     assert counts["setup.html"] >= 4

@@ -87,6 +87,8 @@ Open the labeling page now? [Y/n]</code></pre>
       <li><strong>Inspect AI</strong>: the logs in <code>logs/</code>.</li>
       <li><strong>MLflow</strong>: the assessments in a local <code>mlruns/</code> folder or <code>mlflow.db</code>.</li>
       <li><strong>A table you made</strong>: a CSV or JSONL file with an <code>input</code>, an <code>output</code> and a <code>verdict</code> column.</li>
+      <li><strong>Your judge&#39;s own results file</strong>, after <code>judgekeeper setup</code>: it reads <code>judgekeeper.toml</code> first (<a href="#own-format">below</a>).</li>
+      <li><strong><code>judgekeeper.record()</code></strong>: the verdicts it saved in <code>.judgekeeper/records/</code> (<a href="#door-record">below</a>).</li>
     </ul>
     <p>It names your judge from the results: its name, the first line of its rubric and its model. Several tools or several judges? It asks which one. Too few answers? It says how many there are and prints the command that makes more with your own tool. You run that command, not judgekeeper. Your judge saves its results in a format of its own? See <a href="#own-format">below</a>.</p>
   </div>
@@ -180,11 +182,49 @@ Open the labeling page now? [Y/n]</code></pre>
 <section class="alt" id="own-format" aria-labelledby="own-format-title">
   <div class="wrap narrow">
     <h2 id="own-format-title">Your judge saves results its own way</h2>
-    <p>Many judges are code you wrote, and they save their results in a format of their own. Then <code>judgekeeper start</code> finds nothing it can read. It looks for a recent file that seems to hold judge results, names it, and prints the prompt below.</p>
-    <p>To use those results, turn them into a table: a CSV with the columns <code>id</code>, <code>input</code>, <code>output</code>, <code>verdict</code> (pass or fail) and <code>reason</code>, plus <code>judge_model</code> when you know which model judged. Make one CSV per judge or criterion. Then run:</p>
+    <p>Many judges are code you wrote, and they save their results in a format of their own. Then <code>judgekeeper start</code> finds nothing it can read. There are three ways in. Pick one.</p>
+
+    <h3 id="door-setup">1. <code>judgekeeper setup</code>: no change to your code</h3>
+    <p>In your project folder, run:</p>
+    <div class="code"><pre><code>judgekeeper setup</code></pre></div>
+    <p>It finds a recent JSON, JSONL or CSV file that seems to hold your judge&#39;s results, nested or flat, lists what one line holds, and says how it will read it: what one answer is, the input, the answer, the score or verdict and the reason. It asks only what it cannot tell, for example whether two answers per case (A and B) each count as an answer, and which judge to check. It shows 3 answers as it reads them. Then it asks once before it changes any file: it saves where your results are and how to read them in <code>judgekeeper.toml</code>, adds <code>.judgekeeper/</code> to <code>.gitignore</code> and judgekeeper to your dev requirements. It never edits your code. Then run <code>judgekeeper start</code>. Your results are somewhere else? <code>judgekeeper setup path/to/results.jsonl</code>.</p>
+
+    <h3 id="door-record">2. One <code>judgekeeper.record()</code> line</h3>
+    <p>Your judge runs in your own code? Add one line right after it gives each verdict, in your eval code. Then run your eval once, and <code>judgekeeper start</code> finds the verdicts.</p>
+    <div class="code"><pre><code>import judgekeeper
+judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
+                   reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")</code></pre></div>
+    <p>It never stops your program, uses only Python&#39;s standard library, and <code>JUDGEKEEPER_RECORD=0</code> turns it off. Without the import, or in TypeScript: <code>judgekeeper record --snippet python</code> (or <code>typescript</code>) prints a few lines that do the same. judgekeeper never edits your code, but your coding agent can add the line. Paste this prompt: it shows you the change and waits for your yes.</p>
+    <div class="code"><pre><code id="record-prompt">In this project, my LLM judge runs in my own code. Please add the judgekeeper.record() line,
+so that judgekeeper can check my judge against my own labels:
+
+1. judgekeeper must be installed in this project's own Python environment, as a dev tool. If
+   it is missing, install it there: for example `uv add --dev judgekeeper`, `poetry add
+   --group dev judgekeeper`, or `pip install judgekeeper` with the project's virtual
+   environment active.
+2. Find where this project's LLM judge produces each score or verdict.
+3. Right after it, add one call, with the values the judge just used and gave:
+
+       import judgekeeper
+       judgekeeper.record(input=..., output=..., score=..., pass_mark=..., reason=...,
+                          judge="&lt;the judge's model&gt;", rule=&lt;the judge's rule or criteria&gt;,
+                          name="&lt;the judge's or criterion's name&gt;")
+
+   When the judge gives pass or fail, pass verdict=... instead of score and pass_mark. One
+   call per judge or criterion. Only in the eval code, never in code that serves real users
+   (it saves inputs and outputs to a file); JUDGEKEEPER_RECORD=0 turns it off.
+4. Touch nothing else. record() catches its own errors and returns nothing, so it can never
+   change what the program does; do not wrap it in code that could.
+5. Show me the diff and wait for my yes before saving.
+6. Then run the eval once, run `judgekeeper import records .judgekeeper/records --check`, and
+   show me what it prints.</code></pre></div>
+    <p class="note"><code>judgekeeper record --agent-prompt</code> prints the same prompt in your terminal.</p>
+
+    <h3 id="door-agent">3. Your coding agent writes a table</h3>
+    <p>Turn your results into a table: a CSV with the columns <code>id</code>, <code>input</code>, <code>output</code>, <code>verdict</code> (pass or fail) and <code>reason</code>, plus <code>judge_model</code> when you know which model judged. Make one CSV per judge or criterion. Then run:</p>
     <div class="code"><pre><code>judgekeeper start your-table.csv</code></pre></div>
     <p>When it reads a table, it prints how many answers it found, how many the judge passed and failed, and the first 3 rows, so a wrong table shows at once.</p>
-    <p>Or let your coding agent (Claude Code, Cursor or Codex) write the table for you. Paste this prompt:</p>
+    <p>Your coding agent (Claude Code, Cursor or Codex) can write that table for you. Paste this prompt:</p>
     <div class="code"><pre><code id="agent-prompt">In this project, my LLM judge saves its results in its own format. Please:
 
 1. Install judgekeeper into this project's own Python environment, as a dev tool: for
@@ -199,6 +239,9 @@ Open the labeling page now? [Y/n]</code></pre>
 5. Run `judgekeeper start &lt;the CSV file&gt;` and show me what it prints, so I can check the
    counts and the example rows.</code></pre></div>
     <p class="note"><code>judgekeeper start --agent-prompt</code> prints the same prompt in your terminal.</p>
+
+    <h3 id="records-format">The records format</h3>
+    <p><code>judgekeeper.record()</code> and the snippets write judgekeeper&#39;s own format: one JSON line per verdict. It has a version and keeps fields it does not know, so files you write today still read later. <code>judgekeeper import records your-file.jsonl --check</code> checks a file and lists every problem with its line. The fields are in the <a href="reference.html#records-format-import-records-and-export-records">reference</a>, and the rules as a <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json">JSON Schema</a>.</p>
   </div>
 </section>
 

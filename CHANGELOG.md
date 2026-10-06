@@ -82,6 +82,14 @@ after you say yes, your own judge through your own tool, and key names only.
   same answer stay two answers in `start`; a score whose value is a dict is read as one judge
   per key. MLflow: an assessment on one span inside a trace is left out unless `--metric`
   names a judge that is only on spans.
+- New: `judgekeeper setup`, to set any project up in one step. When your judge saves its
+  results in a format of its own (a JSON, JSONL or CSV file, nested or flat), it shows what
+  one line holds and how it will read it, asks only what it cannot tell (for example whether
+  answers A and B each count, and which judge to check), and shows 3 answers as it reads
+  them. Then one question lists every file change: `judgekeeper.toml` (where your results
+  are and how to read them; `judgekeeper start` reads it first), the `.gitignore` lines and
+  judgekeeper in your dev requirements. It never edits your code. The website's "Run it"
+  step is now `judgekeeper setup`, then `judgekeeper start`.
 - New: `judgekeeper.record()`. When your judge runs in your own code, one line right after
   it saves each verdict in `.judgekeeper/records/` (one file per process), and
   `judgekeeper start` finds them; `start --new` leaves them in place. It never stops your
