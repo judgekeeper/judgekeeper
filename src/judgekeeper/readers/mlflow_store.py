@@ -44,7 +44,11 @@ import os
 import shutil
 import tempfile
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from judgekeeper.records import (
     CODE,
@@ -70,6 +74,11 @@ NO_RUN = "(no run)"
 BIG_STORE = 1_000_000_000  # bytes: a store this big gets a line before it is copied
 SQLITE_SIDE_FILES = ("-wal", "-shm")  # SQLite keeps recent writes there until a checkpoint
 
+ALLOW = "MLFLOW_ALLOW_FILE_STORE"
+FOLDER_NOTE = ("Reading your mlruns/ folder with MLflow's folder-store setting switched on for "
+               "this read only (MLFLOW_ALLOW_FILE_STORE).")
+_noted = False  # FOLDER_NOTE was said in this run
+
 _copies: dict[tuple, Path] = {}  # (store path, size, modified) -> its copy, this process
 _copies_lock = threading.Lock()
 
@@ -85,9 +94,10 @@ def store_uri(path: Path, say=None) -> str:
     copy lives until the process ends, not until this function returns.
 
     A folder store (`mlruns/`) is read where it is: copying it would copy every artifact.
-    MLflow 3.16's FileStore opens it only when MLFLOW_ALLOW_FILE_STORE=true is set, and
-    creates `mlruns/.trash` when it is missing (a store MLflow wrote always has it); it
-    writes nothing else on reading (mlflow/store/tracking/file_store.py, FileStore.__init__).
+    MLflow 3.16's FileStore opens it only when MLFLOW_ALLOW_FILE_STORE=true is set (see
+    folder_store_allowed), and creates `mlruns/.trash` when it is missing (a store MLflow
+    wrote always has it); it writes nothing else on reading
+    (mlflow/store/tracking/file_store.py, FileStore.__init__).
     """
     path = Path(path)
     if path.is_dir():
@@ -110,6 +120,42 @@ def store_uri(path: Path, say=None) -> str:
             _copies[key] = folder / path.name
         copy = _copies[key]
     return f"sqlite:///{copy.as_posix()}"
+
+
+def is_folder_store(uri) -> bool:
+    """Whether a tracking URI is a local folder store (`mlruns/`): a folder path, or a
+    file: address of one. Never mlflow.db (`sqlite:///...`) or a server."""
+    if not uri:
+        return False
+    text = str(uri)
+    if text.startswith("file:"):
+        path = Path(url2pathname(urlparse(text).path))
+    elif "://" in text:
+        return False
+    else:
+        path = Path(text)
+    return path.is_dir()
+
+
+@contextmanager
+def folder_store_allowed(uri, say=None) -> Iterator[None]:
+    """Around MLflow calls that read the store at `uri`: when it is a folder store, set
+    MLFLOW_ALLOW_FILE_STORE=true for these calls only (MLflow 3.16 and later open a folder
+    store only with it; older versions ignore it), then remove it again, also after an
+    error. A value the user set is left as it is. `say` gets FOLDER_NOTE the first time in
+    a run. The variable is never set for mlflow.db or a server, and never written anywhere."""
+    global _noted
+    if not is_folder_store(uri) or ALLOW in os.environ:
+        yield
+        return
+    if say is not None and not _noted:
+        _noted = True
+        say(FOLDER_NOTE)
+    os.environ[ALLOW] = "true"
+    try:
+        yield
+    finally:
+        os.environ.pop(ALLOW, None)
 
 
 def _close_engines(folders: list[Path]) -> None:
@@ -256,8 +302,19 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     Returns [(MLflow run id, judge records of that run)] in run start order, then
     ("human assessments", the human records): each run is one judgekeeper run. `run_ids` keeps
     only those runs' judge assessments. `metric` (--metric) may name a judge whose
-    assessments are all on spans: then those are read too.
+    assessments are all on spans: then those are read too. A folder store is read with
+    MLFLOW_ALLOW_FILE_STORE set for this read only (folder_store_allowed), said in a note.
     """
+    said: list[str] = []
+    uri = tracking_uri or os.environ.get("MLFLOW_TRACKING_URI")
+    with folder_store_allowed(uri, say=said.append):
+        files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric)
+    files[-1][1].notes[:0] = said
+    return files
+
+
+def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
+                 ) -> list[tuple[str, RecordList]]:
     client = _client(tracking_uri)
     exp = _experiment(client, str(experiment))
     runs = {r.info.run_id: r for r in client.search_runs([exp.experiment_id])}

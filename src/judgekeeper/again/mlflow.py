@@ -28,6 +28,7 @@ opened read-only; an answer whose trace is no longer there is left out.
 
 from __future__ import annotations
 
+import os
 import re
 
 from judgekeeper import again, keys, prices
@@ -38,6 +39,17 @@ from judgekeeper.start_label import display
 from judgekeeper.table import make_fingerprint
 
 WORKER_ENV = {"MLFLOW_DISABLE_TELEMETRY": "true"}
+
+
+def worker_env(uri) -> dict:
+    """The worker's extra environment: for a folder store (mlruns/), MLflow's folder-store
+    setting too, in the worker's environment only, unless the user set it themselves (then
+    the worker inherits their value)."""
+    from judgekeeper.readers.mlflow_store import ALLOW, is_folder_store
+
+    if is_folder_store(uri) and ALLOW not in os.environ:
+        return {**WORKER_ENV, ALLOW: "true"}
+    return WORKER_ENV
 TRACE_CALLS = 30
 SCORER_NAME = "mlflow.assessment.scorerName"
 SCORER_VERSION = "mlflow.assessment.scorerVersion"
@@ -105,9 +117,10 @@ def judge_meta(meta: dict) -> dict:
 def assessment_info(ws, metric: str, run: str | None = None) -> dict:
     """The judge named `metric` in the project's MLflow store, read-only: one of its
     assessments {source_id, name, scorer_name, scorer_version, guidelines, instructions,
-    trace, text, experiment}, the `uri` of a temporary copy of the store, `traces`:
-    {answer id: trace id} for every trace that holds one of its assessments (answer ids as `start` makes them), and
-    `all_traces`: the same for every trace. `run` (an MLflow run id) takes the assessment
+    trace, text, experiment}, the `uri` of a temporary copy of the store (or of the mlruns/
+    folder), `traces`: {answer id: trace id} for every trace that holds one of its
+    assessments (answer ids as `start` makes them), and `all_traces`: the same for every
+    trace. `run` (an MLflow run id) takes the assessment
     from that run, the newest results of a new judge."""
     from mlflow import MlflowClient
 
@@ -118,34 +131,36 @@ def assessment_info(ws, metric: str, run: str | None = None) -> dict:
         TRACE_SOURCE_RUN,
         _content,
         _traces,
+        folder_store_allowed,
         store_uri,
     )
     from judgekeeper.records import derive_record_id
 
     store = next(iter(find.search(ws.root).readable("mlflow")))
     uri = store_uri(store.path)  # a temporary copy of mlflow.db, kept for the worker
-    client = MlflowClient(tracking_uri=uri)
-    info, traces, every = None, {}, {}
-    for exp in client.search_experiments():
-        for trace in _traces(client, exp.experiment_id):
-            key = derive_record_id(*_content(trace))
-            every.setdefault(key, trace.info.trace_id)
-            trace_run = (trace.info.trace_metadata or {}).get(TRACE_SOURCE_RUN)
-            for a in trace.info.assessments or []:
-                d = a.to_dictionary()
-                source = d.get("source") or {}
-                if d.get("assessment_name") != metric or source.get("source_type") not in (
-                        "LLM_JUDGE", "AI_JUDGE"):
-                    continue
-                meta = d.get("metadata") or {}
-                if run not in (None, NO_RUN) and (meta.get(SOURCE_RUN_ID) or trace_run) != run:
-                    continue
-                traces.setdefault(key, trace.info.trace_id)
-                if info is None:
-                    info = {"source_id": source.get("source_id"), "name": metric,
-                            "scorer_name": meta.get(SCORER_NAME),
-                            "scorer_version": meta.get(SCORER_VERSION),
-                            "experiment": exp.experiment_id, **judge_meta(meta)}
+    with folder_store_allowed(uri):  # mlruns/: MLflow's folder-store setting, this read only
+        client = MlflowClient(tracking_uri=uri)
+        info, traces, every = None, {}, {}
+        for exp in client.search_experiments():
+            for trace in _traces(client, exp.experiment_id):
+                key = derive_record_id(*_content(trace))
+                every.setdefault(key, trace.info.trace_id)
+                trace_run = (trace.info.trace_metadata or {}).get(TRACE_SOURCE_RUN)
+                for a in trace.info.assessments or []:
+                    d = a.to_dictionary()
+                    source = d.get("source") or {}
+                    if d.get("assessment_name") != metric or source.get("source_type") not in (
+                            "LLM_JUDGE", "AI_JUDGE"):
+                        continue
+                    meta = d.get("metadata") or {}
+                    if run not in (None, NO_RUN) and (meta.get(SOURCE_RUN_ID) or trace_run) != run:
+                        continue
+                    traces.setdefault(key, trace.info.trace_id)
+                    if info is None:
+                        info = {"source_id": source.get("source_id"), "name": metric,
+                                "scorer_name": meta.get(SCORER_NAME),
+                                "scorer_version": meta.get(SCORER_VERSION),
+                                "experiment": exp.experiment_id, **judge_meta(meta)}
     if info is None:
         raise ValueError(f"no judge assessment named {metric} in your MLflow store")
     return {**info, "uri": uri, "traces": traces, "all_traces": every}
@@ -184,7 +199,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         worker = again.run_worker("mlflow", python, {
             "mode": "dry", "name": info.get("scorer_name") or info.get("name"),
             "version": info.get("scorer_version"), "uri": info.get("uri"),
-            "experiment": info.get("experiment")}, root, env=WORKER_ENV)
+            "experiment": info.get("experiment")}, root, env=worker_env(info.get("uri")))
         if not worker.get("ok"):
             if worker.get("missing"):
                 return cant("mlflow", judge, f"MLflow is not installed in {python}. Use "
@@ -248,7 +263,8 @@ def run(ws, plan: Plan, talk) -> Fresh:
         except UnmappedValue:
             return None
 
-    fresh, got, done = worker_run.ask(ws, plan, talk, "MLflow", env=WORKER_ENV)
+    fresh, got, done = worker_run.ask(ws, plan, talk, "MLflow",
+                                      env=worker_env(plan.job.get("uri")))
     worker_run.count(fresh, plan, got, "MLflow", verdict)
     judge = plan.job["judge"]
     evaluator = _model(judge.get("model"))
