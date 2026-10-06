@@ -22,6 +22,7 @@ from judgekeeper import again, keys, new_judge, start, start_label
 from judgekeeper.cli import main
 from judgekeeper.judgments import read_run
 from judgekeeper.start_label import StartSession, Workspace, save_result
+from judgekeeper.textio import quote_arg
 from tests.start_projects import (
     RUBRIC,
     answer,
@@ -126,7 +127,7 @@ def confirmed(monkeypatch):
 
     calls = Calls()
 
-    def serve(ws, cws, port, open_browser, say):
+    def serve(ws, cws, port, open_browser, say, command="judgekeeper start"):
         session = StartSession(cws)
         groups = {q["id"]: q["group"] for q in cws.data()["queue"]}
         chosen = (calls.labels or (lambda items, groups: {
@@ -157,7 +158,7 @@ def _folder(ws) -> Path:
 def test_a_changed_rubric_offers_to_try_the_new_judge(fake, capsys):
     _new_run(fake.root)
     code, out, _ = run(capsys, fake.root)
-    assert code == 2  # no terminal: the menu as flags
+    assert code == start.EXIT_QUESTION  # no terminal: the menu as flags
     assert "Your judge changed since your last check: the prompt changed." in out
     line = next(x for x in out.splitlines() if "--try-new-judge" in x)
     assert "Try your new judge on your 36 marked answers (36 calls, " in line
@@ -206,10 +207,11 @@ def test_a_renamed_judge_asks_whether_it_is_the_new_version(fake, capsys, termin
 def test_a_renamed_judge_without_a_terminal_needs_a_flag(fake, capsys):
     _new_run(fake.root, metric="tone")
     code, out, _ = run(capsys, fake.root)
-    assert code == 2
-    assert ("Is tone the new version of your judge llm-rubric? Run judgekeeper start "
-            "--try-new-judge to try it, or judgekeeper start --new to check it as a new judge."
-            ) in out
+    assert code == start.EXIT_QUESTION
+    root = quote_arg(fake.root)
+    assert (f"Is tone the new version of your judge llm-rubric? Run judgekeeper start {root} "
+            f"--try-new-judge to try it, or judgekeeper start {root} --new to check it as a new "
+            "judge.") in out
     code, out, _ = run(capsys, fake.root, "--try-new-judge")
     assert "Try your new judge" in out and "36 labeled answers × 1 time = 36 judge calls." in out
 
@@ -219,7 +221,7 @@ def test_a_renamed_judge_said_no_to_points_to_new(fake, capsys, terminal):
     terminal += ["n"]
     code, out, _ = run(capsys, fake.root)
     assert code == 0
-    assert "To check these results instead, run judgekeeper start --new" in out
+    assert f"To check these results instead, run judgekeeper start {quote_arg(fake.root)} --new" in out
 
 
 # The plan and the question -----------------------------------------------------------------
@@ -239,9 +241,9 @@ def test_the_plan_is_asked_once_by_default_and_no_spends_nothing(fake, capsys, t
 def test_without_a_terminal_allow_calls_is_needed(fake, capsys):
     _new_run(fake.root)
     code, out, _ = run(capsys, fake.root, "--try-new-judge")
-    assert code == 2
-    assert ("To go ahead without a terminal: judgekeeper start --try-new-judge --allow-calls 36"
-            in out)
+    assert code == start.EXIT_QUESTION
+    assert ("To go ahead without a terminal: judgekeeper start "
+            f"{quote_arg(fake.root)} --try-new-judge --allow-calls 36") in out
 
 
 def test_the_new_judge_grades_the_old_answers_never_the_new_outputs(fake, capsys):
@@ -296,7 +298,7 @@ def test_the_will_look_better_line_is_always_shown(fake, capsys):
     assert ("You changed your judge after seeing mistakes on these answers, so it will look "
             "better on them.") in out
     assert ("To confirm on new answers, mark 10 Correct and 10 Wrong: judgekeeper start "
-            "--try-new-judge") in out  # no terminal: the question as a command
+            f"{quote_arg(fake.root)} --try-new-judge") in out  # no terminal: the question as a command
 
 
 def test_old_numbers_from_asking_again_are_used_and_said(fake, capsys):

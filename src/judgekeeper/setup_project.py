@@ -13,11 +13,13 @@
    lines (in a Git repository, when missing), and judgekeeper in the dev requirements (the
    first of pyproject.toml's dev group or dev extra, requirements-dev.txt,
    requirements-dev.in; only when judgekeeper is not listed; never the main requirements).
-   `--yes` answers it; without a terminal and without `--yes` it prints the list and exits 2.
+   `--yes` answers it; without a terminal and without `--yes` it prints the list and exits 8
+   (start.EXIT_QUESTION, as for every question it cannot ask).
 
 Nothing is written before that yes, and the user's code is never edited. When a file cannot
 be mapped, or the guess is wrong, it prints the prompt for a coding agent (own_format) and
-the record() door. Exit 0 when a source is set up (or already was), 2 when none was found.
+the record() door. Exit 0 when a source is set up (or already was), 2 when none was found,
+8 when it stopped at a question.
 """
 
 from __future__ import annotations

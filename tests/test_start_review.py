@@ -24,6 +24,7 @@ from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace, save_result
 from judgekeeper.start_review import ReviewSession, pick, review_lines
 from judgekeeper.table import guard_cell
+from judgekeeper.textio import quote_arg
 from tests.start_projects import promptfoo_project, split
 from tests.test_label_server import Client
 
@@ -567,11 +568,11 @@ def test_step_b_page_shows_the_three_choices(tmp_path):
 def served(monkeypatch):
     calls = []
 
-    def serve(ws, port, open_browser, say):
+    def serve(ws, port, open_browser, say, command="judgekeeper start"):
         calls.append(("label", ws.dir))
         return 0
 
-    def review(ws, port, open_browser, say):
+    def review(ws, port, open_browser, say, command="judgekeeper start"):
         calls.append(("review", ws.dir))
         return 0
 
@@ -638,12 +639,11 @@ def test_the_flags_answer_the_menu(tmp_path, capsys, served):
 def test_without_a_terminal_the_menu_is_printed_as_flags(tmp_path, capsys, served):
     _reviewable(tmp_path)
     code, out, _ = run(capsys, tmp_path)
-    assert code == 2 and served == []
-    assert "judgekeeper start --review" in out
-    assert "judgekeeper start --ask-again" in out
-    assert "judgekeeper start --label-more" in out
+    assert code == start.EXIT_QUESTION and served == []
+    for flag in ("--review", "--ask-again", "--label-more"):
+        assert f"  judgekeeper start {quote_arg(tmp_path)} {flag} " in out
     code, out, _ = run(capsys, tmp_path, "--yes")  # --yes never picks from the menu
-    assert code == 2 and served == []
+    assert code == start.EXIT_QUESTION and served == []
 
 
 def test_with_no_disagreements_the_menu_has_no_review(tmp_path, capsys, served, terminal):

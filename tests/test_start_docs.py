@@ -3,7 +3,7 @@ Guide (start.html), the reference, the README, the guide, the skill, and the ver
 
 The terminal text on the website is real: `start_screen` runs `judgekeeper start` on a test
 project (212 promptfoo answers, the judge passed 171 and failed 41) in a folder named
-support-bot, answering no to the last question. Two things are fixed so the text is the same
+support-bot, up to its last question. Two things are fixed so the text is the same
 on every machine: the time zone (UTC) and the folder's place, shown as /Users/me/support-bot.
 """
 
@@ -50,7 +50,8 @@ def start_screen(tmp_path, monkeypatch, capsys) -> list[str]:
     capsys.readouterr()
     assert main(["start"]) == 0
     out = capsys.readouterr().out.replace(str(project.resolve()), SHOWN_PROJECT)
-    return [line.rstrip() for line in out.strip("\n").splitlines()]
+    lines = [line.rstrip() for line in out.strip("\n").splitlines()]
+    return lines[:lines.index("Open the labeling page now? [Y/n]") + 1]  # up to the question
 
 
 def _els(page: str) -> list[Element]:

@@ -301,7 +301,8 @@ def test_a_missing_key_stops_before_the_question(deepeval_ws, stubs, capsys,
     monkeypatch.delenv("OPENAI_API_KEY")
     code, out = ask(capsys, deepeval_ws, *FIELDS, "--allow-calls", 72)
     assert code == 0 and "Your judge needs OPENAI_API_KEY" in out
-    assert "Set the key, then run judgekeeper start --ask-again again." in out
+    assert "Set the key, then run judgekeeper start " in out
+    assert " --fields input,actual_output --ask-again again." in out  # your flags, repeated
     assert stubs("measure") == []
 
 

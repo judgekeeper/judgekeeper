@@ -110,6 +110,17 @@ after you say yes, your own judge through your own tool, and key names only.
   with its screenshots. The home page now says what judgekeeper is, shows how to install it,
   and points to checking your own judge.
 - Reads MLflow results kept in an mlruns/ folder with MLflow 3.16 and later.
+- `judgekeeper start` goes on to labeling when your judge failed (or passed) only a few
+  answers, and says so: that may mean it passes too much, and your labels will show it. It
+  stops only when there are fewer than 30 answers, and then says how many you have and how to
+  make more with your own tool, naming the config, test file or task it read. The targets
+  say they are about your labels ("15 you mark Correct and 15 you mark Wrong").
+- Every command `start` prints for you to run next repeats the flags you gave, so it works as
+  printed. With `--no-browser` it asks "Start the labeling page? It will print a link.", and
+  after No it says what to run when you're ready.
+- New exit code 8: `start` and `setup` stopped at a question they cannot ask without a
+  terminal. Nothing went wrong; the line before says what answers it. Exit code 2 stays for
+  usage errors.
 - Works on Windows: reading an MLflow store, and every test, now pass on Windows too.
   judgekeeper reads an `mlflow.db` store through a temporary copy (removed afterwards), so
   it never opens your store file itself; `judgekeeper setup` keeps your files' own line

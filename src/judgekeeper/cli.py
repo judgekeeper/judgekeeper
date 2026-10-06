@@ -2,7 +2,7 @@
 
 Exit codes: 0 success, 1 runtime failure, 2 usage error (including unmapped verdicts or
 labels, duplicate ids, and more than 1,000 --callable/--exec judge calls without --yes),
-3 anchor hash mismatch.
+3 anchor hash mismatch, 8 stopped at a question (`start` and `setup`, below).
 `gate` maps its status to an exit code: 0 PASS, 1 FAIL, 3 ANCHORS_CHANGED, 4 FLAKY,
 5 JUDGE_CHANGED (see judgekeeper.gate.EXIT_CODES). `migrate` exits 0 when the analysis
 completes, 1 when --fail-on matches. `attribute` exits 0 STABLE, 6 JUDGE_DRIFT, 7 SYSTEM_CHANGE.
@@ -12,8 +12,10 @@ Everything printed as an error goes through redact.scrub. A failure with no bett
 traceback, also scrubbed. A path that cannot be written or read (no permission, a file where
 a folder should be) is a usage error: one line that names the path and what to do.
 
-`start` exits 0 when it is done (also when the person stops), 2 when it needs an answer it
-cannot ask for (no terminal) or finds nothing it can use.
+`start` exits 0 when it is done (also when the person stops), 8 when it stopped at a question
+it cannot ask (no terminal: the line before says the flag or command that answers it, and
+nothing went wrong), 2 when the command is wrong or it finds nothing it can use. `setup`
+exits 8 the same way.
 
 `judge` exits 1 when every judgment was an error (the judge program was not found, the judge
 function raised each time): the run files are written, but there is nothing to validate.

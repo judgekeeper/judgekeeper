@@ -52,7 +52,7 @@ def terminal(monkeypatch):
 def no_labeling(monkeypatch):
     calls = []
 
-    def run_labeling(found, port, open_browser, say):
+    def run_labeling(found, port, open_browser, say, command="judgekeeper start"):
         calls.append(found)
         say("(labeling page)")
         return 0
@@ -224,11 +224,11 @@ def test_scores_outside_0_to_1_ask_for_the_pass_mark(tmp_path, capsys, terminal)
 
 # Without a terminal ----------------------------------------------------------------------
 
-def test_without_a_terminal_it_prints_the_list_and_exits_2(tmp_path, capsys):
+def test_without_a_terminal_it_prints_the_list_and_stops_at_the_question(tmp_path, capsys):
     flat_jsonl(tmp_path / "evals" / "graded.jsonl")
     before = snapshot(tmp_path)
     code, out = setup(capsys, tmp_path)
-    assert code == 2
+    assert code == start.EXIT_QUESTION
     assert "Set up judgekeeper in this project?" in out and "  • save judgekeeper.toml" in out
     assert "judgekeeper setup --yes" in out
     assert snapshot(tmp_path) == before
@@ -243,7 +243,7 @@ def test_yes_answers_it(tmp_path, capsys):
 def test_several_judges_without_a_terminal_need_metric(tmp_path, capsys):
     nested_runs_project(tmp_path, rule_rows=0)
     code, out = setup(capsys, tmp_path, "--yes")
-    assert code == 2 and "--metric" in out
+    assert code == start.EXIT_QUESTION and "--metric" in out
     assert not (tmp_path / "judgekeeper.toml").exists()
     code, out = setup(capsys, tmp_path, "--yes", "--metric", "Plain language")
     assert code == 0
@@ -467,7 +467,7 @@ def test_the_change_list_without_a_terminal_names_each_change_once(tmp_path, cap
     (tmp_path / "requirements-dev.txt").write_text("pytest\n", encoding="utf-8")
     flat_jsonl(tmp_path / "evals" / "graded.jsonl")
     code, out = setup(capsys, tmp_path)
-    assert code == 2
+    assert code == start.EXIT_QUESTION
     bullets = _bullets(out)
     assert len(bullets) == 3 and len(set(bullets)) == 3
     assert sum("requirements-dev.txt" in line for line in out.splitlines()) == 1

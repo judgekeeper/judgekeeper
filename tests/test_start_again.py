@@ -21,6 +21,7 @@ import pytest
 from judgekeeper import start, start_label
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace, save_result
+from judgekeeper.textio import quote_arg
 from tests.start_projects import promptfoo_data, promptfoo_project, split
 
 
@@ -47,7 +48,7 @@ def served(monkeypatch):
     """Serving the page is replaced: the workspaces it would have served are kept."""
     calls = []
 
-    def serve(ws, port, open_browser, say):
+    def serve(ws, port, open_browser, say, command="judgekeeper start"):
         calls.append(ws)
         say("(labeling page)")
         return 0
@@ -100,14 +101,14 @@ def test_no_to_continue_says_how_to_start_over(tmp_path, capsys, served, termina
     terminal.append("n")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and served == []
-    assert "To start over: judgekeeper start --new" in out
+    assert f"To start over: judgekeeper start {quote_arg(tmp_path)} --new" in out
 
 
 def test_continue_without_a_terminal_needs_yes(tmp_path, capsys, served):
     _checked(tmp_path, labeled=3, result=False)
     code, out, _ = run(capsys, tmp_path)
-    assert code == 2 and served == []
-    assert "Continue labeling? Run judgekeeper start --yes to continue" in out
+    assert code == start.EXIT_QUESTION and served == []
+    assert f"Continue labeling? Run judgekeeper start {quote_arg(tmp_path)} --yes to continue" in out
     code, out, _ = run(capsys, tmp_path, "--yes")
     assert code == 0 and len(served) == 1
 
@@ -187,7 +188,7 @@ def test_a_changed_judge_is_said_first_then_offered_to_try(tmp_path, capsys, ser
     _checked(tmp_path, n_pass=20, n_fail=16)
     _rewrite(tmp_path, split(20, 16), model="openai:gpt-5.4-mini")
     code, out, _ = run(capsys, tmp_path)
-    assert code == 2  # no terminal: the menu as flags
+    assert code == start.EXIT_QUESTION  # no terminal: the menu as flags
     line = ("Your judge changed since your last check: the model was openai:gpt-4.1-mini, now "
             "openai:gpt-5.4-mini.")
     assert line in out
@@ -199,7 +200,7 @@ def test_a_changed_prompt_is_said_too(tmp_path, capsys, served):
     _checked(tmp_path, n_pass=20, n_fail=16)
     _rewrite(tmp_path, split(20, 16), rubric="Is polite, correct and short.")
     code, out, _ = run(capsys, tmp_path)
-    assert code == 2
+    assert code == start.EXIT_QUESTION
     assert "Your judge changed since your last check: the prompt changed." in out
     assert "Try your new judge on your 36 marked answers" in out
 
@@ -224,8 +225,9 @@ def test_changed_answers_without_a_terminal_need_yes(tmp_path, capsys, served):
     _checked(tmp_path, n_pass=20, n_fail=16)
     _rewrite(tmp_path, split(20, 16), tag=" (new wording)")
     code, out, _ = run(capsys, tmp_path)
-    assert code == 2 and served == []
-    assert "Label your latest results? Run judgekeeper start --yes to label them." in out
+    assert code == start.EXIT_QUESTION and served == []
+    assert (f"Label your latest results? Run judgekeeper start {quote_arg(tmp_path)} --yes to "
+            "label them.") in out
 
 
 def test_results_from_another_tool_point_to_new(tmp_path, capsys, served):
@@ -238,14 +240,14 @@ def test_results_from_another_tool_point_to_new(tmp_path, capsys, served):
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and served == []
     assert "Your last check was of the judge llm-rubric" in out
-    assert "To check these results instead, run judgekeeper start --new" in out
+    assert f"To check these results instead, run judgekeeper start {quote_arg(tmp_path)} --new" in out
 
 
 def test_a_renamed_judge_is_asked_about(tmp_path, capsys, served):
     _checked(tmp_path, n_pass=20, n_fail=16)
     _rewrite(tmp_path, split(20, 16), metric="tone")
     code, out, _ = run(capsys, tmp_path)
-    assert code == 2 and served == []
+    assert code == start.EXIT_QUESTION and served == []
     assert "Is tone the new version of your judge llm-rubric?" in out
 
 

@@ -317,11 +317,11 @@ def approve(p: Plan, talk, allow_calls: int | None, command: str = "--ask-again"
     """Whether to spend the plan's calls. The question defaults to No and `--yes` never
     answers it. Without a terminal, and above 1,000 calls at a terminal too, only
     `--allow-calls N` (N at least the planned calls) approves."""
-    from judgekeeper.start import EXIT_USAGE, Stop, _interactive
+    from judgekeeper.start import EXIT_QUESTION, EXIT_USAGE, Stop, _interactive
 
     if p.status == CANT:
         return False
-    flag = f"judgekeeper start {command} --allow-calls {p.calls}"
+    flag = talk.command(command, "--allow-calls", str(p.calls))
     if allow_calls is not None:
         if allow_calls >= p.calls:
             return True
@@ -330,10 +330,10 @@ def approve(p: Plan, talk, allow_calls: int | None, command: str = "--ask-again"
         raise Stop(EXIT_USAGE)
     if p.calls > ALWAYS_ASK_ABOVE:
         talk.say(f"More than 1,000 calls: to go ahead, run {flag}")
-        raise Stop(EXIT_USAGE)
+        raise Stop(EXIT_QUESTION)
     if not _interactive():
         talk.say(f"To go ahead without a terminal: {flag}")
-        raise Stop(EXIT_USAGE)
+        raise Stop(EXIT_QUESTION)
     return talk.confirm("Go ahead?", default=False, with_yes=False,
                         hint=f"To go ahead: {flag}")
 

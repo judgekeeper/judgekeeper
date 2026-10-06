@@ -17,7 +17,6 @@ from judgekeeper.normalise import Normaliser
 from judgekeeper.records import HUMAN, LLM, RecordList, ScoreRecord
 from tests.start_projects import (
     deepeval_project,
-    inspect_project,
     promptfoo_data,
     promptfoo_project,
     split,
@@ -30,7 +29,7 @@ def no_labeling(monkeypatch):
     """These tests stop where labeling starts (tests/test_start_label.py covers the rest)."""
     calls = []
 
-    def run_labeling(found, port, open_browser, say):
+    def run_labeling(found, port, open_browser, say, command="judgekeeper start"):
         calls.append(found)
         say("(labeling page)")
         return 0
@@ -76,7 +75,7 @@ def _two_tools(root):
 def test_two_tools_found_without_a_terminal_asks_for_a_flag(tmp_path, capsys):
     _two_tools(tmp_path)
     code, out, _ = run(capsys, tmp_path, yes=False)
-    assert code == 2
+    assert code == start.EXIT_QUESTION
     assert "Several tools found; choose one with --tool promptfoo or --tool table" in out
     assert "answers with a verdict" not in out
 
@@ -103,7 +102,7 @@ def test_tool_answers_without_asking(tmp_path, capsys):
 def test_yes_does_not_choose_between_tools(tmp_path, capsys):
     _two_tools(tmp_path)
     code, out, _ = run(capsys, tmp_path, "--yes")
-    assert code == 2 and "--tool promptfoo or --tool table" in out
+    assert code == start.EXIT_QUESTION and "--tool promptfoo or --tool table" in out
 
 
 def test_a_tool_that_is_not_there(tmp_path, capsys):
@@ -126,7 +125,7 @@ def _two_metrics(root):
 def test_several_judges_without_a_terminal_ask_for_a_flag(tmp_path, capsys):
     _two_metrics(tmp_path)
     code, out, _ = run(capsys, tmp_path, yes=False)
-    assert code == 2
+    assert code == start.EXIT_QUESTION
     assert "Several judges found; choose one with --metric helpfulness or --metric tone" in out
 
 
@@ -350,12 +349,12 @@ def test_judge_model_is_refused_when_the_file_names_a_model(tmp_path, capsys):
             "--judge-model") in err
 
 
-def test_a_long_rubric_is_cut_to_sixty_characters(tmp_path, capsys):
+def test_a_long_rubric_is_cut_at_a_word_within_sixty_characters(tmp_path, capsys):
     rubric = "The answer is polite, correct, complete and cites the refund policy by name."
     promptfoo_project(tmp_path, split(20, 12), rubric=rubric)
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    shown = rubric[:59] + "…"
+    shown = "The answer is polite, correct, complete and cites the…"
     assert f'Your judge: llm-rubric "{shown}" with openai:gpt-4.1-mini' in out
 
 
@@ -367,13 +366,7 @@ def test_a_model_not_recorded_by_another_tool(tmp_path, capsys):
 
 
 # Too few answers -------------------------------------------------------------------------
-
-TOO_FEW = [
-    "That is too few for a result: a rough check needs 15 Correct and 15 Wrong,",
-    "so judgekeeper needs at least 30 answers, with some the judge failed.",
-    "Make more answers with your own eval, then run judgekeeper start again:",
-]
-
+# (tests/test_start_messages.py has the command for each tool and the few-fails note)
 
 def test_too_few_prints_the_promptfoo_command_and_asks(tmp_path, capsys, terminal):
     promptfoo_project(tmp_path, split(20, 2))
@@ -381,11 +374,12 @@ def test_too_few_prints_the_promptfoo_command_and_asks(tmp_path, capsys, termina
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert f"{ok()} 22 answers with a verdict: the judge passed 20 and failed 2" in out
-    for line in TOO_FEW:
-        assert line in out
+    assert "You have 22 answers; a rough check needs at least 30." in out
+    assert (f"Make more answers with your own eval, then run judgekeeper start "
+            f"{textio.quote_arg(tmp_path)} again:") in out
     assert ("  Add more tests to promptfooconfig.yaml, then run: promptfoo eval -o "
             "results.json") in out
-    assert "  This one runs your eval again: new answers need it." in out
+    assert "  Running your eval again makes model calls, so it costs money." in out
     assert "Label the 22 you have anyway? The result will say how unsure it is. [y/N]" in out
     assert "You will label answers" not in out
 
@@ -398,51 +392,36 @@ def test_too_few_and_yes_at_the_question_goes_on(tmp_path, capsys, terminal):
     assert "You will label answers in your browser" in out
 
 
-@pytest.mark.parametrize("make, command", [
-    (lambda root: deepeval_project(root, split(10, 5)),
-     "  Add more test cases, then run: deepeval test run test_support.py"),
-    (lambda root: inspect_project(root, split(10, 5)),
-     "  inspect eval support_task.py --limit 100"),
-    (lambda root: table_project(root, split(10, 5)),
-     "  Add more rows to results.csv."),
-])
-def test_too_few_prints_the_command_for_each_tool(tmp_path, capsys, make, command):
-    make(tmp_path)
-    code, out, _ = run(capsys, tmp_path, yes=False)
-    assert command in out
-    assert code == 2  # no terminal to ask in
-
-
 def test_too_few_deepeval_adds_the_results_folder_tip(tmp_path, capsys):
     deepeval_project(tmp_path, split(10, 5))
-    _, out, _ = run(capsys, tmp_path)
+    _, out, _ = run(capsys, tmp_path, yes=False)
     assert ("  Tip: set DEEPEVAL_RESULTS_FOLDER so DeepEval keeps every run, not only the "
             "latest.") in out
 
 
-def test_a_group_under_five_is_too_few_even_with_thirty(tmp_path, capsys):
+def test_a_group_under_five_with_thirty_answers_goes_on(tmp_path, capsys):
     promptfoo_project(tmp_path, split(28, 4))
-    code, out, _ = run(capsys, tmp_path, yes=False)
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0
     assert "32 answers with a verdict: the judge passed 28 and failed 4" in out
-    assert TOO_FEW[0] in out
-    assert code == 2
+    assert "Your judge failed only 4 of 32 answers." in out
+    assert "a rough check needs at least" not in out
 
 
-def test_a_group_under_fifteen_warns_and_goes_on(tmp_path, capsys):
+def test_a_group_under_fifteen_says_so_and_goes_on(tmp_path, capsys):
     promptfoo_project(tmp_path, split(30, 9))
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert ("Your judge failed only 9 answers, so you may not reach 15 Wrong. The result will "
-            "say how sure it is.") in out
-    assert TOO_FEW[0] not in out
+    assert ("Your judge failed only 9 of 39 answers. That may mean it passes too much: your "
+            "labels will show it.") in out
     assert "You will label answers" in out
 
 
-def test_a_pass_group_under_fifteen_warns_too(tmp_path, capsys):
+def test_a_pass_group_under_fifteen_says_so_too(tmp_path, capsys):
     promptfoo_project(tmp_path, split(12, 30))
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "Your judge passed only 12 answers, so you may not reach 15 Correct." in out
+    assert "Your judge passed only 12 of 42 answers. That may mean it fails too much" in out
 
 
 # Without a terminal ----------------------------------------------------------------------
@@ -450,8 +429,9 @@ def test_a_pass_group_under_fifteen_warns_too(tmp_path, capsys):
 def test_without_a_terminal_too_few_stops_with_the_flag(tmp_path, capsys):
     promptfoo_project(tmp_path, split(20, 2))
     code, out, _ = run(capsys, tmp_path, yes=False)
-    assert code == 2
-    assert "Label the 22 you have anyway? Run judgekeeper start --yes to say yes." in out
+    assert code == start.EXIT_QUESTION
+    assert (f"Label the 22 you have anyway? Run judgekeeper start {textio.quote_arg(tmp_path)} "
+            "--yes to say yes.") in out
 
 
 def test_yes_takes_the_default_answer(tmp_path, capsys):
@@ -469,4 +449,4 @@ def test_without_a_terminal_nothing_is_asked(tmp_path, capsys, monkeypatch):
 
     monkeypatch.setattr(builtins, "input", no_input)
     code, _, _ = run(capsys, tmp_path, yes=False)
-    assert code == 2
+    assert code == start.EXIT_QUESTION
