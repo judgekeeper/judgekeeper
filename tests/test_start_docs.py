@@ -161,7 +161,7 @@ def test_the_home_page_install_has_two_tabs_and_the_python_check():
 
 def test_the_home_page_run_it_step():
     run = _by_id("index.html", "run")
-    assert _codes(run) == ["cd your-project\njudgekeeper start"]
+    assert _codes(run) == ["cd your-project\njudgekeeper setup\njudgekeeper start"]
     assert [argv for _, argv in commands(WEBSITE / "index.html")][-1] == ["start"]
     assert "start.html" in [a.attrs.get("href") for a in run.iter() if a.tag == "a"]
 
@@ -330,3 +330,24 @@ def test_the_skill_never_spends_for_the_person():
                    "the person answers `Go ahead? [y/N]` themselves",
                    "into the project's own environment, never for the whole computer"):
         assert needed in text, needed
+
+
+def test_the_own_format_section_shows_the_three_doors_in_order():
+    from judgekeeper.recorder import AGENT_PROMPT as RECORD_PROMPT
+
+    section = _by_id("start.html", "own-format")
+    heads = [el.attrs.get("id") for el in section.iter() if el.tag == "h3"]
+    assert heads == ["door-setup", "door-record", "door-agent", "records-format"]
+    flat = _flat(section)
+    for needed in ("judgekeeper setup", "asks once before it changes any file",
+                   "It never edits your code", "judgekeeper.record(",
+                   "judgekeeper record --snippet python", "JUDGEKEEPER_RECORD=0",
+                   "judgekeeper record --agent-prompt", "--check"):
+        assert needed in flat, needed
+    (prompt,) = [el for el in section.iter() if el.attrs.get("id") == "record-prompt"]
+    assert "code" in prompt.parent.parent.classes()  # so it gets a copy button
+    assert prompt.text() == RECORD_PROMPT
+    hrefs = [a.attrs.get("href") for a in section.iter() if a.tag == "a"]
+    assert "reference.html#records-format-import-records-and-export-records" in hrefs
+    assert "https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json" in \
+        hrefs

@@ -26,7 +26,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper import find
+from judgekeeper import find, settings
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser, UnmappedValue, _example, parse_label_map
@@ -126,7 +126,8 @@ class Talk:
             self.say(hint)
             raise Stop(EXIT_USAGE)
         while True:
-            answer = self._input(f"{question} {'[Y/n]' if default else '[y/N]'} ").lower()
+            prompt = f"{question} {'[Y/n]' if default else '[y/N]'} ".lstrip()
+            answer = self._input(prompt).lower()
             if not answer:
                 return default
             if answer in ("y", "yes", "n", "no"):
@@ -305,6 +306,35 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
             talk.say(f"  {warning}")
         loaded.append(Loaded(r.rel, records))
     return loaded
+
+
+def _saved(path: Path):
+    """The [start] table of the project's judgekeeper.toml, when `path` is a folder."""
+    if not path.is_dir():
+        return None
+    try:
+        return settings.load(path.resolve())
+    except settings.SettingsError as e:
+        raise StartError(str(e)) from None
+
+
+def _mapped_source(talk: Talk, root: Path, saved) -> tuple[Path, str, list, dict]:
+    """The results file judgekeeper.toml maps: no search."""
+    path = root / saved.file
+    if not path.is_file():
+        raise StartError(f"{settings.FILE} says your judge's results are in {saved.file}, "
+                         "which is not there. Run judgekeeper setup again.")
+    talk.say(f"Looking in {root} ...")
+    talk.say()
+    return root, "mapped", [find.Result("mapped", path, saved.file, path.stat().st_size)], {}
+
+
+def _read_mapped(result: find.Result, saved) -> list[Loaded]:
+    from judgekeeper.readers.mapped import read_mapped
+
+    m = {**saved.map, "judge": saved.judge, "pass_mark": saved.pass_mark, "model": saved.model}
+    return [Loaded(label, records) for label, records in read_mapped(result.path, m,
+                                                                     label=result.rel)]
 
 
 def _where(result: find.Result) -> str:
@@ -660,7 +690,15 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     check) is chosen without asking when the newest results hold it among several.
     """
     talk = talk or Talk(quiet=True)
-    root, kind, results, signs = _locate(talk, Path(path), tool)
+    saved = _saved(Path(path)) if tool is None else None
+    if saved is not None and saved.source != "map":
+        tool = saved.source
+    if saved is not None and saved.judge not in (None, "*"):
+        prefer = prefer or saved.judge
+    if saved is not None and saved.source == "map":
+        root, kind, results, signs = _mapped_source(talk, Path(path).resolve(), saved)
+    else:
+        root, kind, results, signs = _locate(talk, Path(path), tool)
     newest = results[0]
     description = None
     if kind == "mlflow":
@@ -679,24 +717,28 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         if kind == "promptfoo":
             description = results_description(newest)
             _check_description(talk, root, description, newest)
-        if kind == "records":  # every file the newest judge wrote: one run can be many files
-            loaded = _read_records(talk, results)
+        if kind in ("records", "mapped"):  # every file (or run) the newest judge wrote
+            loaded = (_read_records(talk, results) if kind == "records"
+                      else _read_mapped(results[0], saved))
             if not loaded:
                 raise StartError("none of the records files could be read")
             every = Loaded(_folder_of(newest), RecordList(r for x in loaded for r in x.records))
             metric = _choose_metric(talk, every, metric, prefer)
             loaded = [x for x in loaded
                       if any(r.annotator_kind == LLM and r.name == metric for r in x.records)]
-            labels = [x.label for x in loaded]
-            results = sorted((r for r in results if r.rel in labels),
-                             key=lambda r: labels.index(r.rel))
-            newest = results[0]
+            if not loaded:
+                raise StartError(f"no judge named {metric!r} in {_folder_of(newest)}")
+            if kind == "records":
+                labels = [x.label for x in loaded]
+                results = sorted((r for r in results if r.rel in labels),
+                                 key=lambda r: labels.index(r.rel))
+                newest = results[0]
             first, read_older = loaded[0], iter(loaded[1:])
         else:
             first = _read(newest)
             talk.say(f"{tick()} Your eval tool: {find.NAMES[kind]} ({_where(newest)})")
             read_older = (_read(r) for r in results[1:])
-    if kind == "records":
+    if kind in ("records", "mapped"):
         metrics = sorted({r.name for r in every.records if r.annotator_kind == LLM})
     else:
         metric = _choose_metric(talk, first, metric, prefer)
@@ -719,6 +761,11 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         where = f" in {where}" if where.endswith("/") else f": {where}"
         talk.say(f"{tick()} Your judge's saved records: {n} from judgekeeper.record() "
                  f"({_plural(len(used), 'file', 'files')}{where})")
+    elif kind == "mapped":
+        lines = f" (its newest {_plural(len(used), 'line', 'lines')})" if " line " in \
+            first.label else ""
+        talk.say(f"{tick()} Your judge's results: {newest.rel}, read as {settings.FILE} "
+                 f"says{lines}")
     elif len(used) > 1:
         talk.say(f"  Fewer than {MIN_POOL} answers in the newest results, so older results "
                  f"from the same judge were added: {', '.join(x.label for x in used[1:])}")
@@ -734,6 +781,9 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                              f"({', '.join(models)}): drop --judge-model")
         fingerprint.update(model=judge_model, model_source=GIVEN_BY_YOU)
         models = [judge_model]
+    elif not models and saved is not None and saved.model:
+        fingerprint.update(model=saved.model, model_source=f"given in {settings.FILE}")
+        models = [saved.model]
     rule = rule_of(records)
     rubric = rubric_line(rule)
     judge = _judge_name(kind, metric, rubric, models, judge_model is not None,
@@ -831,6 +881,8 @@ def more_answers(found: Found) -> list[str]:
     if found.tool == "records":
         return [("  Run your eval on more answers: each judgekeeper.record() call saves one "
                  "more verdict.")]
+    if found.tool == "mapped":
+        return [f"  Run your eval on more answers: it adds them to {newest.rel}."]
     return [f"  Add more rows to {newest.rel}."]
 
 

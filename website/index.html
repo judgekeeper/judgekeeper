@@ -136,10 +136,12 @@ Next: go to your project folder and run judgekeeper start</code></pre>
   <div class="wrap narrow">
     <p class="kicker">Step 3</p>
     <h2 id="run-title">Run it</h2>
-    <p>In the folder of your AI app, where your eval tool saves its results, with its environment switched on, run:</p>
+    <p>In the folder of your AI app, with its environment switched on, run:</p>
     <div class="code"><pre><code>cd your-project
+judgekeeper setup
 judgekeeper start</code></pre></div>
-    <p class="output-label">What you see, for a project with promptfoo results:</p>
+    <p><code>judgekeeper setup</code> finds where your judge&#39;s results are and how to read them, and asks once before it changes any file. With promptfoo, DeepEval, Inspect AI or MLflow results you can skip it: <code>judgekeeper start</code> finds them by itself.</p>
+    <p class="output-label">What <code>judgekeeper start</code> shows, for a project with promptfoo results:</p>
     <pre class="output" data-output="start"><code>Looking in /Users/me/support-bot ...
 
 &#x2713; Your eval tool: promptfoo (results.json, saved 2026-10-03 14:12)

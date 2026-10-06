@@ -201,3 +201,72 @@ def records_project(root: Path, verdicts, name: str = "Safe wording", pid: int =
     if mtime is not None:
         os.utime(path, (mtime, mtime))
     return path
+
+
+CRITERIA = ("Safe wording", "Plain language")
+
+
+def nested_runs_data(runs: int = 3, cases: int = 8, rule_rows: int = 1) -> list[dict]:
+    """A made-up results history shaped like a homemade DeepEval setup's: one line per run,
+    each run's cases, two answers per case (A and B), a score from 0 to 1 and a reason per
+    criterion. Case `c` answer A passes "Safe wording" when c is even, B when c is odd; the
+    first `rule_rows` cases of each run have a "Safe wording" score made by a rule."""
+    lines = []
+    for r in range(runs):
+        rows = []
+        for c in range(cases):
+            case = {"id": f"c{c}", "prompt": question(c, f" (run {r})")}
+            for side in ("A", "B"):
+                passes = (c % 2 == 0) == (side == "A")
+                scores = {}
+                for crit in CRITERIA:
+                    score = 0.9 if passes else 0.2
+                    reason = f"{crit}: {'fine' if passes else 'not fine'} ({side}{c})"
+                    if crit == "Safe wording" and c < rule_rows:
+                        reason = "Rule: answers with a phone number fail"
+                    scores[crit] = {"score": score, "reason": reason}
+                case[side] = {"output": answer(c, f" ({side}, run {r})"), "scores": scores}
+            rows.append(case)
+        lines.append({"run_id": f"2026-10-0{r + 1}T10:00", "judge_model": "claude-opus-5",
+                      "cases": rows})
+    return lines
+
+
+def nested_runs_project(root: Path, git: bool = True, requirements_dev: bool = True,
+                    **kwargs) -> Path:
+    """A project whose homemade judge uses DeepEval: DeepEval in requirements.txt, no
+    DeepEval results file, the judge's results only in its own nested JSONL
+    (history/evals.jsonl)."""
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "requirements.txt").write_text("deepeval==4.2.8\nanthropic\n", encoding="utf-8")
+    if requirements_dev:
+        (root / "requirements-dev.txt").write_text("pytest\n", encoding="utf-8")
+    if git:
+        (root / ".git").mkdir(exist_ok=True)
+    path = root / "history" / "evals.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(line) + "\n" for line in nested_runs_data(**kwargs)),
+                    encoding="utf-8")
+    return path
+
+
+def flat_jsonl(path: Path, n: int = 36) -> Path:
+    """One judged answer per line, with names of its own: question, model_answer, grade
+    (PASS or FAIL) and explanation."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps({"question": question(i), "model_answer": answer(i),
+                                        "grade": "PASS" if i % 3 else "FAIL",
+                                        "explanation": f"because {i}"}) + "\n"
+                            for i in range(n)), encoding="utf-8")
+    return path
+
+
+def odd_csv(path: Path, n: int = 36) -> Path:
+    """A CSV with odd column names and scores from 0 to 1 written as text."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["Row", "User Question", "Bot Reply", "Judge Score", "Judge Reasoning"])
+        for i in range(n):
+            w.writerow([i, question(i), answer(i), "0.8" if i % 2 else "0.3", f"why {i}"])
+    return path

@@ -146,7 +146,7 @@ def test_the_home_page_has_its_parts_in_order():
            if isinstance(el, Element) and el.tag == "section"]
     assert ids == [None, "idea", "install", "run"]
     assert [argv for _, argv in commands(WEBSITE / "index.html")] == [
-        ["--version"], ["--version"], ["start"]]
+        ["--version"], ["--version"], ["setup"], ["start"], ["setup"], ["start"], ["start"]]
     assert _hrefs(_by_id("index.html", "run")) == ["start.html", "own-metric.html"]
     text = (WEBSITE / "index.html").read_text(encoding="utf-8")
     for gone in ("demo", "examples.html", "See it work", "try-question", "Skip the"):

@@ -232,6 +232,11 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
         elif data["tool"] in planners:
             plan = planners[data["tool"]](source, answers, opts, talk, dry,
                                           new=new is not None)
+        elif data["tool"] == "mapped":
+            plan = cant("mapped", data["judge"],
+                        "your judge's verdicts are in your own results file, and judgekeeper "
+                        "can't run the judge that made them",
+                        short="your judge's verdicts are in your own results file")
         elif data["tool"] == "records":
             plan = cant("records", data["judge"],
                         "your judge's verdicts were saved by judgekeeper.record() in your own "

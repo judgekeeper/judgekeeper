@@ -1,4 +1,5 @@
-"""judgekeeper.toml: one table per command. Unknown tables and keys are errors."""
+"""judgekeeper.toml: one table per command. Unknown tables and keys are errors. The [start]
+table (where the judge's results are) is read and checked by settings.py."""
 
 from __future__ import annotations
 
@@ -8,7 +9,7 @@ from pathlib import Path
 
 from judgekeeper.textio import read_utf8
 
-TABLES = ("attribute", "gate", "migrate")
+TABLES = ("attribute", "gate", "migrate", "start")  # [start]: settings.py, from setup
 
 
 def load_section(path: str | Path, table: str, defaults, error: type[Exception]):
