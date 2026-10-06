@@ -101,7 +101,9 @@ def test_the_home_page_carries_the_message():
     # The browser tab and a search result also need the project's name.
     title = re.search(r"<title>(.*?)</title>", text, flags=re.DOTALL)[1]
     assert title == f"{MESSAGE} | judgekeeper"
-    assert re.search(r"<h1>(.*?)</h1>", text, flags=re.DOTALL)[1] == MESSAGE
+    # The headline keeps the term on one line: non-breaking hyphens, in a span that never wraps.
+    h1 = re.search(r"<h1>(.*?)</h1>", text, flags=re.DOTALL)[1]
+    assert re.sub(r"<[^>]+>", "", h1).replace("&#8209;", "-") == MESSAGE
     lead = f'<p class="lead">{SUPPORT}</p>'
     assert lead in text
     after = text[text.index(lead) + len(lead):].lstrip()

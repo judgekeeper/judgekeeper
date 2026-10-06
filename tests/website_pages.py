@@ -89,9 +89,14 @@ def pages() -> list[Path]:
 
 # reference, own-metric and assistant come from docs/*.md (scripts/render_reference.py).
 GENERATED_PAGES = {"reference.html", "own-metric.html", "assistant.html"}
-# The navigation bar every page carries, in order: (href, label).
-NAV = [("index.html", "Home"), ("own-metric.html", "Your own metric"), ("start.html", "Use it on your app"), ("assistant.html", "With a coding assistant"),
-       ("reference.html", "Reference"), ("https://github.com/judgekeeper/judgekeeper", "GitHub")]
+# The navigation bar every page carries, in order: (href, label). The theme switch sits next
+# to it.
+NAV = [("index.html", "Home"), ("start.html", "Guide"), ("reference.html", "Reference"),
+       ("https://github.com/judgekeeper/judgekeeper", "GitHub")]
+# The footer's "More" column: every page outside the navigation, in this order.
+MORE = [("own-metric.html", "No judge yet? Your own metric"),
+        ("assistant.html", "With a coding assistant"), ("setup.html", "Setup and API keys"),
+        ("learn.html", "How it works, in depth"), ("tutorial.html", "Advanced commands")]
 
 
 def hand_written_pages() -> list[Path]:
@@ -100,8 +105,10 @@ def hand_written_pages() -> list[Path]:
 
 
 def in_output(el: Element) -> bool:
-    """Inside a block that shows what a command printed, not a command to type."""
-    return any("output" in a.classes() for a in [el, *el.ancestors()])
+    """Inside a block that shows what a command printed, or a message judgekeeper prints
+    quoted in a sentence (`data-said-by`), not a command to type."""
+    return any("output" in a.classes() or "data-said-by" in a.attrs
+               for a in [el, *el.ancestors()])
 
 
 def command_lines(text: str) -> list[str]:

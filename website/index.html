@@ -19,154 +19,174 @@
 <meta name="twitter:description" content="Check your LLM-as-a-judge: see how often it agrees with human labels, in one command.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
+<script src="assets/theme.js"></script>
 <script src="assets/site.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
-
 <header class="site-header">
-  <div class="wrap">
-    <a class="brand" href="index.html">
-      <svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">
-        <path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>
-        <path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>
-        <path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      judgekeeper
-    </a>
-    <nav class="site-nav" aria-label="Site">
-      <ul>
-        <li><a href="index.html" aria-current="page">Home</a></li>
-        <li><a href="own-metric.html">Your own metric</a></li>
-        <li><a href="start.html">Use it on your app</a></li>
-        <li><a href="assistant.html">With a coding assistant</a></li>
-        <li><a href="reference.html">Reference</a></li>
-        <li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li>
-      </ul>
-    </nav>
-  </div>
+<div class="wrap">
+<a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
+<nav class="site-nav" id="site-nav" aria-label="Site">
+<ul><li><a href="index.html" aria-current="page">Home</a></li><li><a href="start.html">Guide</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul>
+</nav>
+<button class="theme-btn" type="button" aria-label="Switch to the light theme"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
+<button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+</div>
 </header>
 
 <main id="main">
 
 <section class="hero">
   <div class="wrap">
-    <svg class="logo-big" viewBox="0 0 64 72" role="img" aria-label="The judgekeeper logo: a shield, half navy and half green, with a white check across both halves">
-      <path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>
-      <path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>
-      <path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    <h1>Check your LLM-as-a-judge.</h1>
-    <p class="lead">See how often it agrees with human labels, in one command.</p>
-    <p>An <strong>LLM-as-a-judge</strong> is an AI model that grades the answers of another AI model. Teams use one because reading every answer by hand is slow.</p>
-    <div class="buttons">
-      <a class="btn primary" href="#install">Install</a>
-      <a class="btn secondary" href="own-metric.html">Check your own LLM-as-a-judge</a>
-    </div>
-    <p class="note" style="margin-top:16px">Free and open source (MIT license). It runs on your own computer. There is no account and no server.</p>
-  </div>
-</section>
-
-<section class="alt" id="idea" aria-labelledby="idea-title">
-  <div class="wrap">
-    <p class="kicker">The idea</p>
-    <h2 id="idea-title">Three boxes</h2>
-    <ol class="flow">
-      <li>
-        <h3>Your app answers</h3>
-        <p>Someone asks your AI app a question. The app writes an answer.</p>
-      </li>
-      <li>
-        <h3>An AI judge grades it</h3>
-        <p>A second AI model reads the answer and says <em>pass</em> or <em>fail</em>. It is fast and cheap. It can also be wrong.</p>
-      </li>
-      <li>
-        <h3>judgekeeper checks the judge against people</h3>
-        <p>A person grades a small set of the same answers. judgekeeper counts how often the judge agrees with that person.</p>
-      </li>
-    </ol>
-    <p>You see how often the judge agrees with people. Then you decide whether to rely on its grades.</p>
-  </div>
-</section>
-
-<section id="install" aria-labelledby="install-title">
-  <div class="wrap narrow">
-    <p class="kicker">Start here</p>
-    <h2 id="install-title">Install</h2>
-    <p>A <strong>terminal</strong> is the window where you type commands: the Terminal app on a Mac, PowerShell on Windows. judgekeeper is a Python tool for developers, like pytest: you install it inside your project, in the project&#39;s own Python environment. First check that Python is there.</p>
-    <div class="tabs" id="install-tabs">
-      <div role="tablist" aria-label="Your computer">
-        <button role="tab" type="button" id="tab-mac" aria-controls="panel-mac" aria-selected="true">Mac</button>
-        <button role="tab" type="button" id="tab-win" aria-controls="panel-win" aria-selected="false" tabindex="-1">Windows</button>
+    <div>
+      <h1>Check your <span class="nobr">LLM&#8209;as&#8209;a&#8209;judge.</span></h1>
+      <p class="lead">See how often it agrees with human labels, in one command.</p>
+      <p>An <strong>LLM-as-a-judge</strong> is an AI model that grades the answers of another AI model. Teams use one because reading every answer by hand is slow.</p>
+      <div class="actions">
+        <a class="btn primary" href="start.html">Get started</a>
+        <a class="btn secondary" href="#how">How it works</a>
       </div>
-      <div role="tabpanel" id="panel-mac" aria-labelledby="tab-mac">
-        <h3>Mac</h3>
-        <p><strong>Step 1. Check Python.</strong> Open the Terminal app and run:</p>
-        <div class="code"><pre><code>python3 --version</code></pre></div>
-        <p>You need <code>3.11</code> or newer. No Python, or older? Install it from <a href="https://www.python.org/downloads/">python.org</a>, then come back.</p>
-        <p><strong>Step 2. Install judgekeeper in your project.</strong> Go to your project, switch on its environment, install, and check it runs:</p>
-        <div class="code"><pre><code>cd your-project
+      <p class="small">Free and open source. Runs on your computer, inside your project. No account, no server.</p>
+    </div>
+
+    <figure class="verdicts" id="vcard" aria-live="polite" aria-label="Two verdicts on one answer: the AI judge&#39;s and yours">
+      <p class="label">The question</p>
+      <p class="q" id="vq">How do I reset my password?</p>
+      <p class="label">Your app&#39;s answer</p>
+      <p class="a" id="va">Go to Settings, then Security, and choose Reset password. We will email you a link.</p>
+      <div class="pair">
+        <div class="slip pass" id="sj"><div class="who">The AI judge says</div><div class="v" id="vj">Pass</div></div>
+        <div class="slip pass" id="sy"><div class="who">You say</div><div class="v" id="vy">Correct</div></div>
+      </div>
+      <div class="outcome">
+        <span class="badge agree" id="vb"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>They agree</span>
+        <button class="next" id="vnext" type="button">Next answer</button>
+      </div>
+      <p class="tally" id="vt">So far: the judge agrees with you on <b>1 of 1</b> answers. judgekeeper counts this for you, with how sure it is.</p>
+      <script type="application/json" id="verdict-examples">[
+  {"q": "How do I reset my password?", "a": "Go to Settings, then Security, and choose Reset password. We will email you a link.", "j": "Pass", "y": "Correct"},
+  {"q": "Can I get a refund after 30 days?", "a": "Yes, refunds are always available, whenever you ask.", "j": "Pass", "y": "Wrong"},
+  {"q": "Is my order shipped?", "a": "I can't see orders. Check the email we sent you, or your account page.", "j": "Fail", "y": "Correct"},
+  {"q": "What is the weight limit for carry-on bags?", "a": "7 kg on all our flights.", "j": "Pass", "y": "Correct"}
+]</script>
+    </figure>
+  </div>
+</section>
+
+<section class="band alt" id="how" aria-labelledby="how-title">
+  <div class="wrap">
+    <h2 id="how-title">How it works</h2>
+    <p class="intro">Three parts. judgekeeper is the third: it checks the judge against a person.</p>
+    <div class="roles">
+      <div class="role">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg>
+        <h3>Your app answers</h3>
+        <p>Someone asks your AI app a question. It writes an answer.</p>
+      </div>
+      <div class="role">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 7h14M7 7l-3 7h6zM17 7l-3 7h6z"/></svg>
+        <h3>An AI judge grades it</h3>
+        <p>A second AI model says pass or fail. It is fast and cheap, and sometimes wrong.</p>
+      </div>
+      <div class="role">
+        <svg class="ico shield" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" opacity=".35"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z"/></svg>
+        <h3>You check the judge</h3>
+        <p>You mark some of the same answers yourself. judgekeeper shows how often the judge agrees with you.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="route" aria-labelledby="route-title">
+  <div class="wrap">
+    <h2 id="route-title">The whole process, in six steps</h2>
+    <p class="intro">The Guide walks you through each step. Labeling takes the longest: most people need 10 to 20 minutes.</p>
+    <ol class="route">
+      <li><a href="start.html#install"><span class="dot" aria-hidden="true">1</span><b>Install</b><span>Into your project, like pytest.</span></a></li>
+      <li><a href="start.html#connect"><span class="dot" aria-hidden="true">2</span><b>Connect</b><span>Most eval tools need nothing. Own format? One setup command.</span></a></li>
+      <li><a href="start.html#start"><span class="dot" aria-hidden="true">3</span><b>Start</b><span>One command finds your judge&#39;s results.</span></a></li>
+      <li><a href="start.html#label"><span class="dot" aria-hidden="true">4</span><b>Label</b><span>Correct or Wrong, in your browser.</span></a></li>
+      <li><a href="start.html#result"><span class="dot" aria-hidden="true">5</span><b>Result</b><span>How often your judge agrees with you.</span></a></li>
+      <li><a href="start.html#improve"><span class="dot" aria-hidden="true">6</span><b>Improve</b><span>See its mistakes, ask it again, try a new judge.</span></a></li>
+    </ol>
+  </div>
+</section>
+
+<section class="band alt" id="install" aria-labelledby="install-title">
+  <div class="wrap install-grid">
+    <div>
+      <h2 id="install-title">Install it in your project</h2>
+      <p class="intro" style="margin-bottom:12px">judgekeeper is a developer tool, like pytest. It goes into your project&#39;s own Python environment, never onto the whole computer.</p>
+      <p class="small">You need Python 3.11 or newer. No Python? Get it from <a href="https://www.python.org/downloads/">python.org</a>, then come back.</p>
+    </div>
+    <div>
+      <div class="tabs" id="install-tabs">
+        <div role="tablist" aria-label="Your computer">
+          <button role="tab" type="button" id="tab-mac" aria-controls="panel-mac" aria-selected="true">Mac and Linux</button>
+          <button role="tab" type="button" id="tab-win" aria-controls="panel-win" aria-selected="false" tabindex="-1">Windows</button>
+        </div>
+        <div role="tabpanel" id="panel-mac" aria-labelledby="tab-mac">
+          <p class="boxlabel">Terminal</p>
+          <div class="code"><pre><code>cd your-project
 source .venv/bin/activate
 pip install judgekeeper
 judgekeeper --version</code></pre></div>
-        <p class="note">No <code>.venv</code> in your project yet? Run <code>python3 -m venv .venv</code> first. Your project uses uv or Poetry? Run <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code> instead. If pip says <code>externally-managed-environment</code>, the environment is not switched on: run the <code>source</code> line, then install again.</p>
-      </div>
-      <div role="tabpanel" id="panel-win" aria-labelledby="tab-win">
-        <h3>Windows</h3>
-        <p><strong>Step 1. Check Python.</strong> Open PowerShell and run:</p>
-        <div class="code"><pre><code>py --version</code></pre></div>
-        <p>You need <code>3.11</code> or newer. No Python, or older? Install it from <a href="https://www.python.org/downloads/">python.org</a>, then come back.</p>
-        <p><strong>Step 2. Install judgekeeper in your project.</strong> Go to your project, switch on its environment, install, and check it runs:</p>
-        <div class="code"><pre><code>cd your-project
+        </div>
+        <div role="tabpanel" id="panel-win" aria-labelledby="tab-win">
+          <p class="boxlabel">PowerShell</p>
+          <div class="code"><pre><code>cd your-project
 .venv\Scripts\activate
 pip install judgekeeper
 judgekeeper --version</code></pre></div>
-        <p class="note">No <code>.venv</code> in your project yet? Run <code>py -m venv .venv</code> first. Your project uses uv or Poetry? Run <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code> instead.</p>
+        </div>
       </div>
+      <div class="screen"><p class="bar"><i></i><i></i><i></i><span>What you will see</span></p><pre class="output" data-output="version"><code><span class="ok">&#x2713;</span> judgekeeper 0.2.0 is ready
+<span class="dim">Next: go to your project folder and run judgekeeper start</span></code></pre></div>
+      <p class="small">Uses uv or Poetry? <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code>. No <code>.venv</code> yet, or something went wrong? <a href="start.html#install">The Guide shows how.</a></p>
     </div>
-    <p class="output-label">What you see when it is installed:</p>
-    <pre class="output" data-output="version"><code>&#x2713; judgekeeper 0.2.0 is ready
-Next: go to your project folder and run judgekeeper start</code></pre>
-    <p class="note">Linux follows the Mac tab. A command that is not found, or an install that was refused? The <a href="start.html#install">full install guide</a> has the fix for each.</p>
   </div>
 </section>
 
-<section class="alt" id="run" aria-labelledby="run-title">
-  <div class="wrap narrow">
-    <p class="kicker">Step 3</p>
-    <h2 id="run-title">Run it</h2>
-    <p>In the folder of your AI app, with its environment switched on, run:</p>
-    <div class="code"><pre><code>cd your-project
-judgekeeper setup
-judgekeeper start</code></pre></div>
-    <p><code>judgekeeper setup</code> finds where your judge&#39;s results are and how to read them, and asks once before it changes any file. With promptfoo, DeepEval, Inspect AI or MLflow results you can skip it: <code>judgekeeper start</code> finds them by itself.</p>
-    <p class="output-label">What <code>judgekeeper start</code> shows, for a project with promptfoo results:</p>
-    <pre class="output" data-output="start"><code>Looking in /Users/me/support-bot ...
-
-&#x2713; Your eval tool: promptfoo (results.json, saved 2026-10-03 14:12)
-&#x2713; Your judge: llm-rubric "is polite and correct" with openai:gpt-4.1-mini
-&#x2713; 212 answers with a verdict: the judge passed 171 and failed 41
-
-You will label answers in your browser, one at a time: Correct or Wrong.
-You won't see what the judge said. judgekeeper picks half from the judge's
-passes and half from its fails, so you see enough of both.
-
-  A rough check needs 15 Correct and 15 Wrong.
-  A reliable result needs 25 Correct and 25 Wrong.
-  Most people need 10 to 20 minutes.
-
-Open the labeling page now? [Y/n]</code></pre>
-    <p>Press Enter: a page opens in your browser, you mark answers Correct or Wrong, and judgekeeper shows how often your judge agrees with you. <a href="start.html">Use it on your app</a> explains each step. No judge yet? Start with <a href="own-metric.html">your own metric</a>.</p>
+<section class="band" id="get" aria-labelledby="get-title">
+  <div class="wrap get-grid">
+    <div>
+      <h2 id="get-title">What you get</h2>
+      <p class="intro" style="margin-bottom:18px">Plain sentences first, then the numbers. Every number comes with how sure it is.</p>
+      <ul class="points">
+        <li>How often your judge passes the answers you marked Correct, and fails the ones you marked Wrong.</li>
+        <li>Whether it agrees with you often enough to use as a gate, in one line.</li>
+        <li>Where it went wrong, so you can fix its rule.</li>
+        <li>Your labels and results stay on your computer, in your project.</li>
+      </ul>
+    </div>
+    <div class="rcard result-preview" data-illustration data-tpr="0.94 0.83 0.99" data-tnr="0.86 0.68 0.95" data-kappa="0.79" data-correct="19" data-wrong="21">
+      <span class="tag-illustration">An illustration</span>
+      <h3>Your result</h3>
+      <p class="s">Of the answers you marked Correct, your judge passed about 94% (83% to 99%).</p>
+      <p class="s">Of the answers you marked Wrong, your judge failed about 86% (68% to 95%).</p>
+      <div class="vbox amber"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4.5M12 17.5v.1"/></svg><div>It agrees with you often, but check its fails and passes by hand before relying on it.</div></div>
+      <div class="tiles3">
+        <div class="num"><small>Good answers it passed</small><b>0.94</b><div class="bar1"><span style="left:83%;right:1%"></span><i style="left:94%"></i></div></div>
+        <div class="num"><small>Bad answers it failed</small><b>0.86</b><div class="bar1"><span style="left:68%;right:5%"></span><i style="left:86%"></i></div></div>
+        <div class="num"><small>Agreement beyond chance</small><b>0.79</b><div class="bar1"><i style="left:79%"></i></div></div>
+      </div>
+    </div>
   </div>
 </section>
 
 </main>
 
 <footer class="site-footer">
-  <div class="wrap">
-    <p>judgekeeper is free and open source under the MIT license. <a href="https://github.com/judgekeeper/judgekeeper">Source on GitHub</a> · <a href="setup.html">Setup and keys</a> · <a href="tutorial.html">Tutorial</a> · <a href="own-metric.html">Your own metric</a></p>
-  </div>
+<div class="wrap cols">
+<div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
+<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with your labels; it never decides for you.</p></div>
+<div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
+<div><h2>More</h2><ul><li><a href="own-metric.html">No judge yet? Your own metric</a></li><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li><li><a href="tutorial.html">Advanced commands</a></li></ul></div>
+</div>
 </footer>
 </body>
 </html>

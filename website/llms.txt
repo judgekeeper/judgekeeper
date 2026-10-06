@@ -4,14 +4,14 @@
 
 ## Pages
 
-- [Home](https://www.judgekeeper.com/): what judgekeeper is, how to install it inside your project on Mac or Windows, and `judgekeeper start` with what it prints
-- [Use it on your app](https://www.judgekeeper.com/start.html): `judgekeeper start`: what it reads, what it never does, the labeling page, the result, reviewing the disagreements, asking your judge again, trying your new judge, results saved in your own format, running it again and the install inside your project; other ways (a table you make yourself) at the end
-- [With a coding assistant](https://www.judgekeeper.com/assistant.html): how to hand the job to Claude Code, Codex or Cursor
-- [How it works, in more depth](https://www.judgekeeper.com/learn.html): why a judge needs checking, what the numbers mean, how to keep checking, the tools it works with and a real result
-- [Setup and keys](https://www.judgekeeper.com/setup.html): how to give judgekeeper an API key safely
-- [Tutorial](https://www.judgekeeper.com/tutorial.html): the main commands with what each prints, on ten quiz questions
-- [Your own metric](https://www.judgekeeper.com/own-metric.html): how to write your own rule, with two worked examples
+- [Home](https://www.judgekeeper.com/): what judgekeeper is, how it works in three parts, the whole process in six steps, how to install it inside your project on Mac, Linux or Windows, and what you get
+- [Guide](https://www.judgekeeper.com/start.html): check your judge step by step with `judgekeeper start`: install, connect your results, start, label, your result, improve your judge; each step with what to type, what you will see, when you are done and what to do when it did not work; then the details: what it reads, what it never does, reviewing the disagreements, asking your judge again, trying your new judge, running it again, results saved in your own format, and a table you make yourself
 - [Reference](https://www.judgekeeper.com/reference.html): every command, file format, option, exit code and config key
+- [Your own metric](https://www.judgekeeper.com/own-metric.html): no judge yet, or your own rule: how to write one, with two worked examples
+- [With a coding assistant](https://www.judgekeeper.com/assistant.html): how to hand the job to Claude Code, Codex or Cursor
+- [Setup and API keys](https://www.judgekeeper.com/setup.html): when a key is needed, and how to give one safely
+- [How it works, in depth](https://www.judgekeeper.com/learn.html): why a judge needs checking, what the numbers mean, how to keep checking, the tools it works with and a real result
+- [Advanced commands, step by step](https://www.judgekeeper.com/tutorial.html): the main commands with what each prints, on ten quiz questions
 
 ## For coding assistants
 

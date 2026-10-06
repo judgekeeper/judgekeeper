@@ -1,9 +1,10 @@
-"""The website's paths: the navigation, the short home page, "Use it on your app"
-(start.html), "With a coding assistant" (assistant.html) and llms.txt.
+"""The website's paths: the navigation, the short home page, the Guide (start.html), "With a
+coding assistant" (assistant.html) and llms.txt.
 
 tests/test_website.py already checks, for every page, that commands parse, links resolve and
-nothing loads from another site. This file checks that every page carries the same
-navigation; the home page is short; the output blocks are what the commands print; the
+nothing loads from another site; tests/test_website_look.py checks the frame, the theme and the
+Guide's steps. This file checks that every page carries the same navigation; the home page is
+short; the install is inside the project; the output blocks are what the commands print; the
 assistant page shows the prompt exactly; and the links in llms.txt point at real files.
 """
 
@@ -91,17 +92,14 @@ def test_every_page_in_the_navigation_exists():
     assert NAV[-1][0].startswith("https://github.com/")
 
 
-def test_the_converter_and_the_tests_agree_on_the_navigation():
-    assert _load_script("render_reference").NAV == NAV
+def test_the_frame_script_and_the_tests_agree_on_the_navigation():
+    assert _load_script("site_frame").NAV == NAV
 
 
-def test_the_pages_outside_the_navigation_are_linked_from_use_it_on_your_app():
-    more = _hrefs(_by_id("start.html", "more"))
-    for page in ("setup.html", "tutorial.html", "own-metric.html", "learn.html", "reference.html"):
-        assert page in more, page
-        assert (WEBSITE / page).is_file(), page
+def test_the_older_pages_link_back_to_the_guide():
     assert "learn.html" not in [href for href, _ in NAV]
-    for page in ("setup.html", "tutorial.html", "learn.html"):  # and each one links back
+    for page in ("setup.html", "tutorial.html", "learn.html", "own-metric.html",
+                 "assistant.html"):
         assert any(h.startswith("start.html") for h in _hrefs(_main(page))), page
 
 
@@ -114,8 +112,8 @@ def test_no_jargon_outside_quoted_output(page):
     assert not JARGON.search(_text_outside(_main(page), {"pre"})), page
 
 
-def test_use_it_on_your_app_explains_each_term_in_one_line():
-    step = _by_id("start.html", "step-read").parent
+def test_the_guide_explains_each_term_in_one_line_where_the_result_is():
+    step = _by_id("start.html", "result")
     lines = {li.text().split(":")[0].strip().lower(): li.text() for li in step.iter()
              if li.tag == "li" and ":" in li.text()}
     for term in ("tpr", "tnr", "kappa"):
@@ -123,7 +121,7 @@ def test_use_it_on_your_app_explains_each_term_in_one_line():
         assert len(lines[term].split(". ")) <= 2 and len(lines[term]) < 140, lines[term]
     main_text = _text_outside(_main("start.html"), {"pre"})
     first = JARGON.search(main_text).start()
-    assert main_text.index("The result") < first < main_text.index("When you need more")
+    assert main_text.index("Your result") < first < main_text.index("Improve your judge")
 
 
 # Home
@@ -133,22 +131,11 @@ def test_the_home_page_stays_short():
     assert len(lines) <= HOME_MAX_LINES, len(lines)
 
 
-def test_the_home_page_has_its_parts_in_order():
-    """What judgekeeper is, then install, then run it. No demo and no examples."""
-    main_el = _main("index.html")
-    boxes = [li for el in main_el.iter() if el.tag == "ol" and "flow" in el.classes()
-             for li in el.children if isinstance(li, Element)]
-    heads = [next(h for h in li.iter() if h.tag == "h3").text() for li in boxes]
-    assert len(heads) == 3
-    for head, needle in zip(heads, ("app answers", "judge grades", "checks the judge against people"),
-                            strict=True):
-        assert needle in head, head
-    ids = [el.attrs.get("id") for el in main_el.children
-           if isinstance(el, Element) and el.tag == "section"]
-    assert ids == [None, "idea", "install", "run"]
-    assert [argv for _, argv in commands(WEBSITE / "index.html")] == [
-        ["--version"], ["--version"], ["setup"], ["start"], ["setup"], ["start"], ["start"]]
-    assert _hrefs(_by_id("index.html", "run")) == ["start.html", "own-metric.html"]
+def test_the_home_page_shows_only_the_install_and_sends_the_rest_to_the_guide():
+    """What judgekeeper is, the six steps, install, what you get. No demo and no examples."""
+    assert [argv for _, argv in commands(WEBSITE / "index.html")] == [["--version"],
+                                                                     ["--version"]]
+    assert "start.html#install" in _hrefs(_by_id("index.html", "install"))
     text = (WEBSITE / "index.html").read_text(encoding="utf-8")
     for gone in ("demo", "examples.html", "See it work", "try-question", "Skip the"):
         assert gone not in text, gone
@@ -177,64 +164,68 @@ OUTSIDE = ("pip3 install judgekeeper", "judgekeeper-env", "uvx judgekeeper", "uv
 def _panel_commands(page: str, key: str) -> list[str]:
     panel = _by_id(page, f"panel-{key}")
     assert panel.attrs.get("role") == "tabpanel"
+    assert "hidden" not in panel.attrs  # without JavaScript both are shown
     return [el.text() for el in panel.iter() if el.tag == "code" and el.parent.tag == "pre"]
 
 
-def _tab_labels(page: str) -> list[str]:
-    return [el.text() for el in _by_id(page, "install-tabs").iter()
-            if el.attrs.get("role") == "tab"]
+def _tab_labels(page: str, box: str = "install-tabs") -> list[str]:
+    return [el.text() for el in _by_id(page, box).iter() if el.attrs.get("role") == "tab"]
 
 
 def _flat(el: Element) -> str:
     return " ".join(el.text().split())
 
 
-def _notes(key: str) -> dict[str, str]:
-    panel = _by_id("start.html", f"panel-{key}")
-    return {_flat(s): _flat(d) for d in panel.iter() if d.tag == "details"
-            for s in d.children if isinstance(s, Element) and s.tag == "summary"}
+INSTALL = {"mac": "source .venv/bin/activate\npip install judgekeeper\njudgekeeper --version",
+           "win": ".venv\\Scripts\\activate\npip install judgekeeper\njudgekeeper --version"}
 
 
-def test_the_full_install_guide_installs_inside_the_project():
-    section = _by_id("start.html", "install")
-    assert _tab_labels("start.html") == ["Mac", "Windows"]
-    flat = _flat(section)
-    assert "Linux follows the Mac tab" in flat
+def _help(step: str) -> dict[str, str]:
+    """A step's "Didn't work?" box: what you see -> what to do."""
+    (box,) = [d for d in _by_id("start.html", step).iter()
+              if d.tag == "details" and "help" in d.classes()]
+    terms = [el for el in box.iter() if el.tag in {"dt", "dd"}]
+    return {_flat(dt): _flat(dd) for dt, dd in zip(terms[::2], terms[1::2], strict=True)}
+
+
+def test_the_guide_installs_inside_the_project():
+    step = _by_id("start.html", "install")
+    assert _tab_labels("start.html") == ["Mac and Linux", "Windows"]
+    flat = _flat(step)
     assert "like pytest" in flat and "inside your project" in flat
     assert "not on your computer as a whole" in flat
     for key in ("mac", "win"):
-        panel = _by_id("start.html", f"panel-{key}")
-        steps_only = _panel_commands("start.html", key)
-        expected = [CHECK[key], ACTIVATE[key], MAKE_VENV[key], "pip install judgekeeper",
-                    *DEV_TOOLS, "judgekeeper --version"]
-        assert steps_only[:len(expected)] == expected, key
-        (steps,) = [el for el in panel.iter() if el.tag == "ol"]
-        heads = [h.text() for h in steps.iter() if h.tag == "h3"]
-        for want, head in zip(("Python", "environment", "Install", "runs"), heads, strict=True):
-            assert want in head, (key, head)
-        assert _flat(steps).count("What you see.") == 4
-        assert "(.venv)" in _flat(steps)
-        assert "https://www.python.org/downloads/" in _hrefs(steps)
-        absent = "command not found" if key == "mac" else "'py' is not recognized"
-        assert absent in _flat(steps) and "lower number" in _flat(steps)
-        assert "installed outside a project" in _flat(steps)
-        notes = _notes(key)
-        refused = next(text for head, text in notes.items() if REFUSED in head)
-        for needed in ("not switched on", "It is not about judgekeeper", "step 2"):
-            assert needed in refused, (key, needed)
-        missing = next(text for head, text in notes.items() if "command is not found" in head)
-        assert MODULE_FORM in missing and "uv run" in missing and "poetry run" in missing
-        assert (NO_PIP in notes) == (key == "mac")
-        assert (NO_PIP_WINDOWS in notes) == (key == "win")
-    assert "pip3" in _notes("mac")[NO_PIP]
-    assert "Homebrew" in next(v for k, v in _notes("mac").items() if REFUSED in k)
-    windows_pip = _notes("win")[NO_PIP_WINDOWS]
-    for needed in ("The term 'pip' is not recognized", "not switched on", PY_PIP):
-        assert needed in windows_pip, needed
-    windows = _by_id("start.html", "panel-win").text()
-    for needed in ("python --version", "Scripts\\activate.bat",
-                   "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser"):
-        assert needed in windows, needed
+        assert _panel_commands("start.html", key) == [INSTALL[key]], key
+    help_box = _help("install")
+    whole = " ".join(f"{k} {v}" for k, v in help_box.items())
+    for needed in (*CHECK.values(), "python --version", *MAKE_VENV.values(), *DEV_TOOLS,
+                   "The term 'pip' is not recognized", PY_PIP, MODULE_FORM, "uv run",
+                   "poetry run", "Scripts\\activate.bat", "(.venv)", "Homebrew", "pip3",
+                   "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser",
+                   "a higher number"):
+        assert needed in whole, needed
+    # Each message a beginner can hit is explained once, under its own heading.
+    for message in (REFUSED, NO_PIP, NO_PIP_WINDOWS, "installed outside a project",
+                    "It is not about judgekeeper"):
+        assert whole.count(message) == 1, message
+    refused = next(v for k, v in help_box.items() if REFUSED in k)
+    assert "not switched on" in refused
+    assert "https://www.python.org/downloads/" in _hrefs(step)
+
+
+def test_the_home_page_install_has_two_tabs_and_the_python_line():
+    assert _tab_labels("index.html") == ["Mac and Linux", "Windows"]
+    for key in ("mac", "win"):
+        activate = ACTIVATE[key]
+        assert _panel_commands("index.html", key) == [
+            f"{activate}\npip install judgekeeper\njudgekeeper --version"], key
+    section = _by_id("index.html", "install")
+    flat = _flat(section)
+    assert "You need Python 3.11 or newer." in flat
+    assert "project's own Python environment" in flat and "never onto the whole computer" in flat
+    assert "https://www.python.org/downloads/" in _hrefs(section)
+    for needed in DEV_TOOLS:
+        assert needed in flat, needed
 
 
 def test_a_link_can_open_the_install_on_either_tab():
@@ -271,8 +262,8 @@ def test_the_python_version_on_the_site_is_the_one_the_package_needs():
     needs = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
         "requires-python"]
     assert needs == ">=3.11"
-    assert "Python 3.11 or a higher number" in _flat(_main("start.html"))
-    assert "You need 3.11 or newer." in _flat(_main("index.html"))
+    assert "Python 3.11 or newer" in _flat(_main("start.html"))
+    assert "You need Python 3.11 or newer." in _flat(_main("index.html"))
     assert "`Python 3.11` or a higher number" in GUIDE.read_text(encoding="utf-8")
 
 
@@ -304,7 +295,7 @@ def test_use_it_on_your_app_has_four_steps_each_with_something_to_run_or_make():
     (steps,) = [el for el in _by_id("start.html", "other").iter()
                 if el.tag == "ol" and "steps" in el.classes()]
     items = [li for li in steps.children if isinstance(li, Element)]
-    heads = [next(h for h in li.iter() if h.tag == "h3").text() for li in items]
+    heads = [next(h for h in li.iter() if h.tag == "h4").text() for li in items]
     assert len(heads) == 4
     for head, needle in zip(heads, ("Collect", "Label", "judge", "Read"), strict=True):
         assert needle in head, head
@@ -351,9 +342,9 @@ def test_the_assistant_page_shows_the_prompt_exactly_in_one_block_with_a_copy_bu
     holding = [el for el in _els("assistant.html") if el.tag == "pre" and el.text() == prompt]
     assert len(holding) == 1 and "code" in holding[0].parent.classes()
     scripts = [el.attrs.get("src") for el in _els("assistant.html") if el.tag == "script"]
-    assert scripts == ["assets/site.js"]
+    assert scripts == ["assets/theme.js", "assets/site.js"]
     js = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
-    assert '$all(".code pre, .install")' in js and "navigator.clipboard.writeText" in js
+    assert '$all(".code pre")' in js and "navigator.clipboard.writeText" in js
 
 
 # llms.txt and the sitemap
@@ -460,10 +451,9 @@ def test_the_tutorial_is_described_by_what_it_covers_not_as_every_command():
     missing = set(sub.choices) - shown
     assert missing, "the tutorial now shows every command: this test can go"
     tutorial = (WEBSITE / "tutorial.html").read_text(encoding="utf-8")
-    start = next(card.text() for card in _by_id("start.html", "more").iter()
-                 if card.tag == "article" and "tutorial.html" in _hrefs(card))
     llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
-    line = next(x for x in llms.splitlines() if x.startswith("- [Tutorial]"))
-    for text in (tutorial[:tutorial.index('<h2 id="setup">')], start, line):
+    line = next(x for x in llms.splitlines()
+                if x.startswith("- [Advanced commands, step by step]"))
+    for text in (tutorial[:tutorial.index('<h2 id="setup">')], line):
         assert not re.search(r"every (judgekeeper )?command", text, flags=re.IGNORECASE), text[:80]
     assert "main commands" in line and "main judgekeeper commands" in tutorial

@@ -46,8 +46,8 @@ SOURCE_ATTRS = ("data-report", "data-const", "data-exit", "data-tutorial")
 def test_site_has_its_pages():
     for name in ("index.html", "start.html", "assistant.html", "learn.html",
                  "setup.html", "tutorial.html", "own-metric.html", "reference.html", "llms.txt",
-                 "assets/style.css", "assets/site.js", "assets/metrics.js", "assets/logo.svg",
-                 "assets/social-preview.png"):
+                 "assets/style.css", "assets/site.js", "assets/theme.js", "assets/metrics.js",
+                 "assets/logo.svg", "assets/social-preview.png"):
         assert (WEBSITE / name).is_file(), name
 
 
@@ -95,9 +95,8 @@ def test_every_command_on_the_site_parses(argv):
 
 def test_the_pages_show_commands():
     counts = {p.name: len(commands(p)) for p in hand_written_pages()}
-    # --version on each install tab; setup and start, named again in the text and above the
-    # output
-    assert counts["index.html"] == 7
+    # --version on each install tab
+    assert counts["index.html"] == 2
     assert counts["start.html"] >= 6  # judgekeeper start, then the four other steps
     assert counts["learn.html"] >= 12
     assert counts["setup.html"] >= 4
@@ -195,7 +194,7 @@ def test_exit_codes_match_the_code():
 
 
 NUMBER = re.compile(r"\d+\.\d+|\d+(?:\.\d+)?\s?%")
-NAMES = ("Claude Haiku 4.5",)  # product names, not measurements
+NAMES = ("Claude Haiku 4.5", "Python 3.11")  # names, not measurements
 EXEMPT_TAGS = {"pre", "code", "script", "style", "svg"}
 
 
@@ -278,6 +277,11 @@ def _assets():
 
 
 IMAGES = {".png", ".jpg", ".jpeg", ".gif", ".webp"}  # pictures: bytes, with no text to read
+# The fonts and their licence texts: no page reads the licences, and fonts are bytes.
+FONTS = WEBSITE / "assets" / "fonts"
+# Kept in the visitor's own browser only: the theme they chose and the steps they ticked
+# (test_website_look.py checks each use sits inside try/catch).
+STORES = {"theme.js", "site.js"}
 
 
 def _is_external(url: str) -> bool:
@@ -293,15 +297,18 @@ def test_no_external_assets_and_no_tracking():
             if el.tag == "link":
                 assert not _is_external(el.attrs.get("href", "")), (page.name, el.attrs)
             assert el.tag not in {"form", "iframe", "object", "embed"}, (page.name, el.tag)
-    for path in WEBSITE.joinpath("assets").iterdir():
-        if path.suffix.lower() in IMAGES:
+    for path in WEBSITE.joinpath("assets").rglob("*"):
+        if path.is_dir() or path.suffix.lower() in IMAGES or path.parent == FONTS:
             continue  # every other file, the SVG logo included, is read as text and checked
         text = path.read_text(encoding="utf-8")
         text = text.replace('xmlns="http://www.w3.org/2000/svg"', "")  # a name, not a request
         assert "http://" not in text and "https://" not in text, path.name
         for banned in ("@import", "document.cookie", "localStorage", "sessionStorage", "fetch(",
-                       "XMLHttpRequest", "sendBeacon", "WebSocket"):
+                       "XMLHttpRequest", "sendBeacon", "WebSocket", "indexedDB"):
+            if banned == "localStorage" and path.name in STORES:
+                continue
             assert banned not in text, (path.name, banned)
+    assert {p.suffix for p in FONTS.iterdir()} == {".woff2", ".txt"}
 
 
 def _ids(page: Path) -> set[str]:
@@ -456,7 +463,7 @@ def test_pages_are_accessible_basics():
 def test_css_respects_motion_theme_and_focus():
     css = (WEBSITE / "assets/style.css").read_text(encoding="utf-8")
     assert "prefers-reduced-motion: reduce" in css
-    assert "prefers-color-scheme: dark" in css
+    assert "prefers-color-scheme: light" in css  # dark by default
     assert ":focus-visible" in css
     for colour in ("#1E293B", "#10B981"):
         assert colour.lower() in css.lower(), colour

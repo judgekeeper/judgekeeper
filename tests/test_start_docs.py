@@ -1,6 +1,5 @@
-"""`judgekeeper start` in the docs and on the website: the home page's install steps and the
-terminal text it shows, the "Use it on your app" page, the reference, the README, the guide,
-the skill, and the version.
+"""`judgekeeper start` in the docs and on the website: the terminal text the site shows, the
+Guide (start.html), the reference, the README, the guide, the skill, and the version.
 
 The terminal text on the website is real: `start_screen` runs `judgekeeper start` on a test
 project (212 promptfoo answers, the judge passed 171 and failed 41) in a folder named
@@ -22,7 +21,7 @@ import pytest
 from judgekeeper import __version__, start
 from judgekeeper.cli import _parser, main, version_lines
 from tests.start_projects import promptfoo_project, split
-from tests.website_pages import ROOT, WEBSITE, Element, commands, parse
+from tests.website_pages import ROOT, WEBSITE, Element, parse
 
 README = ROOT / "README.md"
 GUIDE = ROOT / "docs" / "guide.md"
@@ -92,7 +91,7 @@ def test_the_screen_shows_what_was_found_then_asks_to_open_the_page(tmp_path, mo
     assert screen[-1] == "Open the labeling page now? [Y/n]"
 
 
-@pytest.mark.parametrize("page", ["index.html", "start.html"])
+@pytest.mark.parametrize("page", ["start.html"])
 def test_the_start_output_on_the_site_is_real(tmp_path, monkeypatch, capsys, utc, page):
     shown = _output(page, "start")
     assert shown, f"{page} shows what judgekeeper start prints"
@@ -101,7 +100,8 @@ def test_the_start_output_on_the_site_is_real(tmp_path, monkeypatch, capsys, utc
         assert block == screen
 
 
-def test_the_version_line_on_the_home_page_is_real(monkeypatch):
+@pytest.mark.parametrize("page", ["index.html", "start.html"])
+def test_the_version_line_on_the_site_is_real(monkeypatch, page):
     class Terminal(io.StringIO):
         encoding = "utf-8"
 
@@ -112,58 +112,19 @@ def test_the_version_line_on_the_home_page_is_real(monkeypatch):
     # Installed inside a project, as the page shows: a virtual environment is active.
     monkeypatch.setenv("VIRTUAL_ENV", "/Users/me/support-bot/.venv")
     monkeypatch.setattr("shutil.which", lambda name: "/usr/local/bin/judgekeeper")
-    (shown,) = _output("index.html", "version")
+    (shown,) = _output(page, "version")
     assert shown == version_lines(Terminal())
     assert shown[0] == f"✓ judgekeeper {__version__} is ready"
 
 
-# The home page ---------------------------------------------------------------------------
+# The home page and the Guide ---------------------------------------------------------------
 
-HOME_INSTALL = {
-    "mac": ["python3 --version", ("cd your-project\nsource .venv/bin/activate\n"
-                                  "pip install judgekeeper\njudgekeeper --version")],
-    "win": ["py --version", ("cd your-project\n.venv\\Scripts\\activate\n"
-                             "pip install judgekeeper\njudgekeeper --version")],
-}
-
-
-def test_the_home_page_is_what_it_is_then_install_then_run_it():
-    main_el = next(el for el in _els("index.html") if el.tag == "main")
-    ids = [el.attrs.get("id") for el in main_el.children
-           if isinstance(el, Element) and el.tag == "section"]
-    assert ids == [None, "idea", "install", "run"]
+def test_the_home_page_has_no_demo_and_sends_people_to_the_guide():
     text = (WEBSITE / "index.html").read_text(encoding="utf-8")
     for gone in ("demo", "See it work", "try-question", "screenshot"):
         assert gone not in text.lower(), gone
-
-
-def test_the_home_page_install_has_two_tabs_and_the_python_check():
-    tabs = [el.text() for el in _by_id("index.html", "install-tabs").iter()
-            if el.attrs.get("role") == "tab"]
-    assert tabs == ["Mac", "Windows"]
-    for key, wanted in HOME_INSTALL.items():
-        panel = _by_id("index.html", f"panel-{key}")
-        assert panel.attrs.get("role") == "tabpanel"
-        assert "hidden" not in panel.attrs  # without JavaScript both are shown
-        assert _codes(panel) == wanted, key
-        flat = _flat(panel)
-        assert "You need 3.11 or newer. No Python, or older? Install it from python.org, then " \
-               "come back." in flat
-        assert "https://www.python.org/downloads/" in [a.attrs.get("href") for a in panel.iter()
-                                                       if a.tag == "a"]
-        for needed in ("uv add --dev judgekeeper", "poetry add --group dev judgekeeper"):
-            assert needed in flat, (key, needed)
-    mac = _flat(_by_id("index.html", "panel-mac"))
-    assert "externally-managed-environment" in mac and "python3 -m venv .venv" in mac
-    assert "py -m venv .venv" in _flat(_by_id("index.html", "panel-win"))
-    assert "inside your project" in _flat(_by_id("index.html", "install"))
-
-
-def test_the_home_page_run_it_step():
-    run = _by_id("index.html", "run")
-    assert _codes(run) == ["cd your-project\njudgekeeper setup\njudgekeeper start"]
-    assert [argv for _, argv in commands(WEBSITE / "index.html")][-1] == ["start"]
-    assert "start.html" in [a.attrs.get("href") for a in run.iter() if a.tag == "a"]
+    hrefs = [a.attrs.get("href") for a in _els("index.html") if a.tag == "a"]
+    assert hrefs.count("start.html") >= 2  # the hero's button and the footer
 
 
 def test_the_tabs_choose_windows_first_on_windows():
@@ -172,14 +133,18 @@ def test_the_tabs_choose_windows_first_on_windows():
     assert "Win" in script and 'aria-controls") === "panel-win"' in script
 
 
-# Use it on your app ----------------------------------------------------------------------
-
-def test_use_it_on_your_app_is_about_start_with_the_older_paths_at_the_end():
+def test_the_guide_is_six_steps_then_the_details():
     main_el = next(el for el in _els("start.html") if el.tag == "main")
-    ids = [el.attrs.get("id") for el in main_el.children
+    steps = [el.attrs.get("id") for el in main_el.children
+             if isinstance(el, Element) and el.tag == "section" and "stop" in el.classes()]
+    assert steps == ["install", "connect", "start", "label", "result", "improve"]
+    details = _by_id("start.html", "details")
+    assert details.parent.tag == "main"
+    ids = [el.attrs.get("id") for el in details.children
            if isinstance(el, Element) and el.tag == "section"]
-    assert ids == ["start", "reads", "never", "page", "result", "review", "ask-again",
-                   "new-judge", "again", "own-format", "install", "other", "more"]
+    assert ids == ["reads", "never", "review", "ask-again", "new-judge", "again", "own-format",
+                   "other"]
+    assert _codes(_by_id("start.html", "start")) == ["judgekeeper start"]
     reads = _flat(_by_id("start.html", "reads"))
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow", "input", "output", "verdict"):
         assert tool in reads, tool
@@ -204,7 +169,7 @@ def test_use_it_on_your_app_is_about_start_with_the_older_paths_at_the_end():
                    "Your judge changed", "--new", "previous-"):
         assert needed in again, needed
     other = _by_id("start.html", "other")
-    assert [h.attrs.get("id") for h in other.iter() if h.tag == "h3"][:4] == [
+    assert [h.attrs.get("id") for h in other.iter() if h.tag == "h4"][:4] == [
         "step-collect", "step-label", "step-judge", "step-read"]
 
 
@@ -336,7 +301,7 @@ def test_the_own_format_section_shows_the_three_doors_in_order():
     from judgekeeper.recorder import AGENT_PROMPT as RECORD_PROMPT
 
     section = _by_id("start.html", "own-format")
-    heads = [el.attrs.get("id") for el in section.iter() if el.tag == "h3"]
+    heads = [el.attrs.get("id") for el in section.iter() if el.tag == "h4"]
     assert heads == ["door-setup", "door-record", "door-agent", "records-format"]
     flat = _flat(section)
     for needed in ("judgekeeper setup", "asks once before it changes any file",
