@@ -110,7 +110,7 @@ def test_the_picks_are_seeded_and_mixed():
 def test_the_review_is_saved_with_its_seed_and_picks(tmp_path):
     ws, flipped = _reviewable(tmp_path)
     session = ReviewSession(ws)
-    saved = json.loads(ws.review.read_text())
+    saved = json.loads(ws.review.read_text(encoding="utf-8"))
     assert isinstance(saved["seed"], int)
     assert [i["id"] for i in saved["items"]] == [i["id"] for i in session.items]
     dis = {i["id"] for i in session.items if i["disagreement"]}
@@ -169,12 +169,12 @@ def test_second_looks_are_saved_on_every_click(tmp_path):
         first = client.state()["items"][0]["id"]
         status, body = client.label(id=first, second="unsure")
         assert status == 200 and body["summary"]["step"] == "a"
-        saved = json.loads(ws.review.read_text())
+        saved = json.loads(ws.review.read_text(encoding="utf-8"))
         item = next(i for i in saved["items"] if i["id"] == first)
         assert item["second"] == "unsure" and item["second_at"]
         status, _ = client.label(id=first, second=None)  # Undo
         assert status == 200
-        assert next(i for i in json.loads(ws.review.read_text())["items"]
+        assert next(i for i in json.loads(ws.review.read_text(encoding="utf-8"))["items"]
                     if i["id"] == first)["second"] is None
     finally:
         server.stop()
@@ -204,7 +204,7 @@ def test_step_b_shows_only_the_disagreements_with_the_verdict_and_reason(tmp_pat
     assert state["step"] == "b"
     assert {i["id"] for i in state["items"]} == set(flipped["pass"] + flipped["fail"])
     raw = {r["id"]: r for r in (json.loads(line) for line in
-                                ws.pool.read_text().splitlines())}
+                                ws.pool.read_text(encoding="utf-8").splitlines())}
     for item in state["items"]:
         n = int(re.search(r"\d+", json.dumps(raw[item["id"]]["input"]))[0])
         assert item["reason"] == f"reason {n}"
@@ -360,7 +360,7 @@ def test_the_review_lines_with_hand_worked_numbers(tmp_path):
     # TPR = 18 / (18 + 1) = 94.7%; TNR = 15 / (15 + 2) = 88.2%.
     ws, flipped = _reviewable(tmp_path)
     _full_review(ws, flipped)
-    r = json.loads(ws.result_json.read_text())
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     block = r["review"]
     assert block["second_look"]["tpr"] == pytest.approx(18 / 19)
     assert block["second_look"]["tnr"] == pytest.approx(15 / 17)
@@ -386,7 +386,7 @@ def test_the_second_look_uses_the_group_weights(tmp_path):
     n_p, n_f = groups.count("pass"), groups.count("fail")
     session = ReviewSession(ws)
     _second_look(session, {flipped["pass"][0]: "pass"})
-    block = json.loads(ws.result_json.read_text())["review"]
+    block = json.loads(ws.result_json.read_text(encoding="utf-8"))["review"]
     pi, a, b = 20 / 36, (n_p - 2) / n_p, 2 / n_f
     assert block["second_look"]["tpr"] == pytest.approx(pi * a / (pi * a + (1 - pi) * b))
     assert block["second_look"]["groups"]["pass"]["correct"] == n_p - 2
@@ -395,7 +395,7 @@ def test_the_second_look_uses_the_group_weights(tmp_path):
 def test_step_b_choices_change_no_number(tmp_path):
     ws, flipped = _reviewable(tmp_path)
     _full_review(ws, flipped)
-    one = json.loads(ws.result_json.read_text())
+    one = json.loads(ws.result_json.read_text(encoding="utf-8"))
     other = tmp_path / "other"
     other.mkdir()
     ws2, flipped2 = _reviewable(other)
@@ -404,7 +404,7 @@ def test_step_b_choices_change_no_number(tmp_path):
     _full_review(ws2, flipped2, second={q1: "pass", q2: "unsure", g1: "fail"},
                  choices={q1: "judge_wrong", q2: "slipped", q3: "slipped", g1: "slipped",
                           g2: "slipped"})
-    two = json.loads(ws2.result_json.read_text())
+    two = json.loads(ws2.result_json.read_text(encoding="utf-8"))
     for key in ("tpr", "tnr", "kappa"):
         assert one[key] == two[key]
         assert one["review"]["second_look"][key] == two["review"]["second_look"][key]
@@ -416,7 +416,7 @@ def test_several_changed_agreed_answers_say_the_rule_may_be_unclear(tmp_path):
     agreed = [i for i in session.items if not i["disagreement"]][:3]
     other = {"pass": "fail", "fail": "pass"}
     _second_look(session, {i["id"]: other[i["first"]] for i in agreed})
-    lines = review_lines(json.loads(ws.result_json.read_text())["review"])
+    lines = review_lines(json.loads(ws.result_json.read_text(encoding="utf-8"))["review"])
     assert "3 of the 5 answers you had agreed on" in lines[0]
     assert lines[0].endswith("You changed several answers on a second look: your rule may "
                              "be unclear.")
@@ -428,7 +428,7 @@ def test_two_changed_agreed_answers_do_not(tmp_path):
     agreed = [i for i in session.items if not i["disagreement"]][:2]
     other = {"pass": "fail", "fail": "pass"}
     _second_look(session, {i["id"]: other[i["first"]] for i in agreed})
-    lines = review_lines(json.loads(ws.result_json.read_text())["review"])
+    lines = review_lines(json.loads(ws.result_json.read_text(encoding="utf-8"))["review"])
     assert "rule may be unclear" not in " ".join(lines)
 
 
@@ -436,7 +436,7 @@ def test_nothing_changed_on_a_second_look_gives_no_numbers_line(tmp_path):
     ws, _ = _reviewable(tmp_path)
     session = ReviewSession(ws)
     _second_look(session)
-    lines = review_lines(json.loads(ws.result_json.read_text())["review"])
+    lines = review_lines(json.loads(ws.result_json.read_text(encoding="utf-8"))["review"])
     assert lines[0] == "On a second look without the judge, you kept all 10 of your labels."
     assert "second-look labels" not in " ".join(lines)
     assert lines[-1] == "Your first labels stay the main result."
@@ -446,8 +446,9 @@ def test_no_review_block_before_step_a_is_done(tmp_path):
     ws, _ = _reviewable(tmp_path)
     session = ReviewSession(ws)
     session.update({"id": session.items[0]["id"], "second": session.items[0]["first"]})
-    assert "review" not in json.loads(ws.result_json.read_text())
-    assert start_label.result_lines(json.loads(ws.result_json.read_text()))  # still fine
+    assert "review" not in json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert start_label.result_lines(json.loads(ws.result_json.read_text(
+        encoding="utf-8")))  # still fine
 
 
 def test_step_b_so_far_is_said_while_unfinished(tmp_path):
@@ -455,7 +456,7 @@ def test_step_b_so_far_is_said_while_unfinished(tmp_path):
     session = ReviewSession(ws)
     _second_look(session)
     session.update({"id": flipped["pass"][0], "choice": "judge_wrong"})
-    lines = review_lines(json.loads(ws.result_json.read_text())["review"])
+    lines = review_lines(json.loads(ws.result_json.read_text(encoding="utf-8"))["review"])
     assert ("After seeing the judge (1 of 5 so far): you called 1 judge mistake, 0 slips of "
             "yours, and 0 unclear rules.") in lines
 
@@ -464,37 +465,37 @@ def test_step_b_so_far_is_said_while_unfinished(tmp_path):
 
 def test_the_result_counts_the_disagreements_and_says_how_to_review(tmp_path):
     ws, _ = _reviewable(tmp_path)
-    r = json.loads(ws.result_json.read_text())
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert r["disagreements"] == 5
     lines = start_label.result_lines(r)
     assert "  Review the 5 disagreements:  judgekeeper start --review" in lines
-    page = ws.result_html.read_text()
+    page = ws.result_html.read_text(encoding="utf-8")
     assert "Review the 5 disagreements" in page
     assert "<code>judgekeeper start --review</code>" in page
 
 
 def test_no_review_line_without_disagreements(tmp_path):
     ws, _ = _reviewable(tmp_path, flip_pass=0, flip_fail=0)
-    r = json.loads(ws.result_json.read_text())
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert r["disagreements"] == 0
     assert not any("--review" in line for line in start_label.result_lines(r))
 
 
 def test_a_one_disagreement_line_is_singular(tmp_path):
     ws, _ = _reviewable(tmp_path, flip_pass=1, flip_fail=0)
-    lines = start_label.result_lines(json.loads(ws.result_json.read_text()))
+    lines = start_label.result_lines(json.loads(ws.result_json.read_text(encoding="utf-8")))
     assert "  Review the 1 disagreement:  judgekeeper start --review" in lines
 
 
 def test_the_result_after_a_review_shows_the_lines_and_the_files(tmp_path):
     ws, flipped = _reviewable(tmp_path)
     _full_review(ws, flipped)
-    r = json.loads(ws.result_json.read_text())
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     lines = start_label.result_lines(r)
     for line in review_lines(r["review"]):
         assert f"  {line}" in lines
     assert not any("--review" in line for line in lines)  # done: nothing left to review
-    page = ws.result_html.read_text()
+    page = ws.result_html.read_text(encoding="utf-8")
     assert "you called 3 judge mistakes" in page
     assert "judge-mistakes.csv" in page and "rule-unclear.csv" in page
     assert page.count("<p class=\"sentence\">") == 2  # the main sentences are unchanged
@@ -502,7 +503,7 @@ def test_the_result_after_a_review_shows_the_lines_and_the_files(tmp_path):
 
 def test_the_live_result_page_has_a_review_button(tmp_path):
     ws, _ = _reviewable(tmp_path, labeled=24)
-    r = json.loads(ws.result_json.read_text())
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     html = start_label.result_html(r, back="/?token=abc")
     assert 'href="/review?token=abc"' in html and "Review them" in html
 
@@ -600,7 +601,7 @@ def run(capsys, *argv):
 
 def test_the_menu_after_a_result(tmp_path, capsys, served, terminal):
     ws, _ = _reviewable(tmp_path)
-    made = json.loads(ws.result_json.read_text())["made_at"][:10]
+    made = json.loads(ws.result_json.read_text(encoding="utf-8"))["made_at"][:10]
     terminal.append("4")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and served == []

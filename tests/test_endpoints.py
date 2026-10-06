@@ -73,7 +73,7 @@ def sdks(monkeypatch):
 @pytest.fixture
 def prompt(tmp_path):
     p = tmp_path / "prompt.md"
-    p.write_text(PROMPT)
+    p.write_text(PROMPT, encoding="utf-8")
     return p
 
 
@@ -203,7 +203,7 @@ def test_cli_flags_reach_client_and_fingerprint(sdks, prompt, pairwise_dir, tmp_
     kwargs = sdks.openai.instances[-1].kwargs
     assert kwargs["api_key"] == "gateway-key-value"
     assert kwargs["base_url"] == "https://openrouter.ai/api/v1"
-    lines = (tmp_path / "runs" / "run-01.jsonl").read_text().splitlines()
+    lines = (tmp_path / "runs" / "run-01.jsonl").read_text(encoding="utf-8").splitlines()
     assert json.loads(lines[0])["fingerprint"]["endpoint"] == "openrouter.ai"
     assert all(json.loads(x)["fingerprint"]["endpoint"] == "openrouter.ai" for x in lines[1:])
 

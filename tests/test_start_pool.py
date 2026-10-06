@@ -120,7 +120,7 @@ def _two_metrics(root):
         c["assertion"] = {"type": "llm-rubric", "value": "Has a calm tone.", "metric": "tone"}
         c["pass"] = i % 2 == 0
         row["gradingResult"]["componentResults"].append(c)
-    (root / "results.json").write_text(json.dumps(data))
+    (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
 
 
 def test_several_judges_without_a_terminal_ask_for_a_flag(tmp_path, capsys):
@@ -288,7 +288,7 @@ def test_merged_repeats_are_said(tmp_path, capsys):
     data = promptfoo_data(split(20, 12))
     rows = data["results"]["results"]
     rows += copy.deepcopy(rows[:5])  # promptfoo --repeat: the same answers again
-    (tmp_path / "results.json").write_text(json.dumps(data))
+    (tmp_path / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "5 repeats of the same answer were merged." in out
@@ -298,7 +298,7 @@ def test_merged_repeats_are_said(tmp_path, capsys):
 def test_pairwise_items_are_refused(tmp_path, capsys):
     path = tmp_path / "pairs.csv"
     rows = ["input,output_a,output_b,verdict"] + [f"q{i},a{i},b{i},A" for i in range(40)]
-    path.write_text("\n".join(rows) + "\n")
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
     code, out, err = run(capsys, path)
     assert code == 2
     assert ("These are A/B comparisons. judgekeeper start handles pass/fail answers for now; "
@@ -310,7 +310,7 @@ def test_human_labels_in_the_source_are_not_used(tmp_path, capsys):
     for row in data["results"]["results"][:4]:
         row["gradingResult"]["componentResults"].append(
             {"pass": True, "score": 1, "reason": "Manual result", "assertion": {"type": "human"}})
-    (tmp_path / "results.json").write_text(json.dumps(data))
+    (tmp_path / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert ("results.json also holds 4 human labels. judgekeeper start does not use them: you "

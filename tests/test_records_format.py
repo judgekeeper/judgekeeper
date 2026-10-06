@@ -216,7 +216,7 @@ def test_a_newer_version_reads_what_it_can_with_one_warning(tmp_path):
     assert "version 3" in records.warnings[0] and "version 2" in records.warnings[0]
     assert records[0].extra == {"judge_cost": {"usd": 0.01}}
     write_records(tmp_path / "again.jsonl", records)
-    line = json.loads((tmp_path / "again.jsonl").read_text().splitlines()[0])
+    line = json.loads((tmp_path / "again.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert line["schema_version"] == 3  # it holds version 3's fields, so it stays version 3
     assert line["judge_cost"] == {"usd": 0.01}
 
@@ -300,7 +300,7 @@ def test_the_agent_fields_go_into_the_anchor_set(tmp_path):
     records_to_report([("labeled.jsonl", _labeled(tmp_path))], kind="records",
                       out=tmp_path / "rep")
     anchors = [json.loads(line) for line in
-               (tmp_path / "rep" / "anchors.jsonl").read_text().splitlines()]
+               (tmp_path / "rep" / "anchors.jsonl").read_text(encoding="utf-8").splitlines()]
     assert len(anchors) == 2
     for a in anchors:
         assert a["trajectory"] == TRAJECTORY
@@ -315,6 +315,6 @@ def test_the_agent_fields_are_scrubbed_in_the_anchor_set(tmp_path):
         {"id": "c1", "name": "call_api", "arguments": {"key": secret}}]}]
     records_to_report([("labeled.jsonl", _labeled(tmp_path, steps))], kind="records",
                       out=tmp_path / "rep")
-    text = (tmp_path / "rep" / "anchors.jsonl").read_text()
+    text = (tmp_path / "rep" / "anchors.jsonl").read_text(encoding="utf-8")
     assert secret not in text
     assert "[REDACTED]" in text

@@ -70,13 +70,13 @@ def test_the_users_python(tmp_path, monkeypatch):
     venv = tmp_path / ".venv" / ("Scripts" if sys.platform == "win32" else "bin")
     venv.mkdir(parents=True)
     exe = venv / ("python.exe" if sys.platform == "win32" else "python")
-    exe.write_text("")
+    exe.write_text("", encoding="utf-8")
     assert user_python(tmp_path, None) == str(exe)
     other = tmp_path / "other"
     (other / "bin").mkdir(parents=True)
     (other / "Scripts").mkdir(parents=True)
     for p in (other / "bin" / "python", other / "Scripts" / "python.exe"):
-        p.write_text("")
+        p.write_text("", encoding="utf-8")
     monkeypatch.setenv("VIRTUAL_ENV", str(other))
     assert user_python(tmp_path, None).startswith(str(other))
     assert user_python(tmp_path, "/given/python") == "/given/python"
@@ -85,7 +85,7 @@ def test_the_users_python(tmp_path, monkeypatch):
 # DeepEval ------------------------------------------------------------------------------------
 
 def _metrics(name=None):
-    case = json.loads(DEEPEVAL_FILE.read_text())["testCases"][0]
+    case = json.loads(DEEPEVAL_FILE.read_text(encoding="utf-8"))["testCases"][0]
     return {m["name"]: m for m in case["metricsData"]}, case
 
 
@@ -298,11 +298,11 @@ def test_the_menu_plan_runs_no_worker(tmp_path, stubs):
 
 def _deepeval_metric(root, change):
     path = root / ".deepeval" / ".latest_run_full.json"
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     for case in data["testCases"]:
         for m in case["metricsData"]:
             change(m)
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
 
 
 def test_built_ins_are_always_a_close_copy(tmp_path, stubs, terminal):
@@ -317,7 +317,7 @@ def test_built_ins_are_always_a_close_copy(tmp_path, stubs, terminal):
     _deepeval_metric(tmp_path, change)
     data = ws.data()
     data["metric"] = "Answer Relevancy"  # as if the check had been of this metric
-    ws.start.write_text(json.dumps(data))
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
     terminal += ["y"]
     p = make_plan(ws, PY, talk=start.Talk())
     assert p.status == "close" and "built-in" in p.why
@@ -347,9 +347,9 @@ def test_no_evaluation_model_is_refused():
 
 def _inspect_log(root, change):
     path = root / "logs" / "2026-10-02_support.json"
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     change(data)
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
 
 
 def test_the_inspect_plan(tmp_path, stubs):
@@ -433,7 +433,7 @@ def _openai_grader(root):
         data["eval"]["model_roles"] = {"grader": {"model": "openai/gpt-4.1-mini", "config": {}}}
 
     _inspect_log(root, change)
-    (root / ".env").write_text("OPENAI_API_KEY=x\n")
+    (root / ".env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
 
 
 def test_inspect_loads_env_with_its_own_loader(tmp_path, stubs):
@@ -450,7 +450,7 @@ def test_inspect_finds_the_nearest_env_upward_as_inspect_does(tmp_path, stubs):
     ws = _checked(project, inspect_project)
     _openai_grader(project)
     (project / ".env").unlink()
-    (tmp_path / ".env").write_text("OPENAI_API_KEY=x\n")
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
     lines = plan_lines(make_plan(ws, PY))
     assert any("OPENAI_API_KEY, in ../.env" in x and "Inspect AI loads it" in x for x in lines)
 
@@ -525,7 +525,7 @@ def test_the_mlflow_plan(tmp_path, stubs, monkeypatch, terminal):
     ws = _checked(tmp_path, inspect_project)  # any check: the store is read through info
     data = ws.data()
     data["tool"] = "mlflow"
-    ws.start.write_text(json.dumps(data))
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
     monkeypatch.setattr(mf, "assessment_info", lambda ws, metric: _info(
         name="safety", traces=_traces(ws)))
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
@@ -542,7 +542,7 @@ def test_a_trace_judge_is_up_to_thirty_calls(tmp_path, stubs, monkeypatch):
     ws = _checked(tmp_path, inspect_project)
     data = ws.data()
     data["tool"] = "mlflow"
-    ws.start.write_text(json.dumps(data))
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
     monkeypatch.setattr(mf, "assessment_info", lambda ws, metric: _info(
         name="tone", instructions=True, trace=True, traces=_traces(ws)))
     p = make_plan(ws, PY)

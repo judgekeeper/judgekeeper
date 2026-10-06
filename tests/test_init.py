@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
 import pytest
 
@@ -22,7 +23,7 @@ def _single_anchors(tmp_path):
     anchors = tmp_path / "anchors.jsonl"
     items = [{"id": f"s{i}", "input": "q", "output": "ok" if i % 2 else "",
               "human_label": "pass" if i % 2 else "fail"} for i in range(6)]
-    anchors.write_text("\n".join(json.dumps(i) for i in items) + "\n")
+    anchors.write_text("\n".join(json.dumps(i) for i in items) + "\n", encoding="utf-8")
     assert main(["freeze", str(anchors)]) == 0
     return anchors
 
@@ -77,9 +78,10 @@ def test_init_writes_the_single_template(tmp_path, monkeypatch, capsys):
     assert out.read_text(encoding="utf-8") == template_text(pairwise=False)
     assert load_prompt(out).rubric_version == "my-metric-v1"
     printed = capsys.readouterr().out
-    assert "prompts/judge.md" in printed
+    rule = str(Path("prompts") / "judge.md")  # with \ on Windows, as it is printed there
+    assert rule in printed
     for command in ("judgekeeper label ", "judgekeeper template ",
-                    "judgekeeper judge anchors.jsonl", "--prompt prompts/judge.md",
+                    "judgekeeper judge anchors.jsonl", f"--prompt {rule}",
                     "judgekeeper validate anchors.jsonl"):
         assert command in printed, command
 
@@ -93,9 +95,9 @@ def test_init_pairwise_and_out_create_the_folder(tmp_path):
 
 def test_init_refuses_to_overwrite_without_force(tmp_path, capsys):
     out = tmp_path / "judge.md"
-    out.write_text("mine\n")
+    out.write_text("mine\n", encoding="utf-8")
     assert main(["init", "--out", str(out)]) == 2
-    assert out.read_text() == "mine\n"
+    assert out.read_text(encoding="utf-8") == "mine\n"
     assert "--force" in capsys.readouterr().err
     assert main(["init", "--out", str(out), "--force"]) == 0
     assert out.read_text(encoding="utf-8") == template_text(pairwise=False)
@@ -150,6 +152,6 @@ def test_judge_accepts_a_filled_prompt(tmp_path, monkeypatch):
     runs = tmp_path / "runs"
     assert main(["judge", str(anchors), "--callable", "tests.judges_for_tests:keyword_judge",
                  "--prompt", "rule.md", "--out", str(runs)]) == 0
-    header = json.loads((runs / "run-01.jsonl").read_text().splitlines()[0])
+    header = json.loads((runs / "run-01.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert header["fingerprint"]["rubric_version"] == "my-metric-v1"
     assert header["fingerprint"]["prompt_hash"] == load_prompt(rule).prompt_hash

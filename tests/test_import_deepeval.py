@@ -41,7 +41,7 @@ def test_one_command_turns_the_fixture_into_a_report(tmp_path, capsys):
     out = tmp_path / "rep"
     assert main(["import", "deepeval", str(RESULTS), "--metric", "Correctness [GEval]",
                  "--labels", str(LABELS), "--out", str(out)]) == 0
-    r = json.loads((out / "report.json").read_text())
+    r = json.loads((out / "report.json").read_text(encoding="utf-8"))
     assert r["n_runs"] == 3
     assert r["anchors"]["n_items"] == 8
     assert [x["kappa"] for x in r["runs"]] == pytest.approx([0.75, 0.75, 0.75])
@@ -57,7 +57,8 @@ def test_one_command_turns_the_fixture_into_a_report(tmp_path, capsys):
     assert any("1 labeled item has no judge verdict" in n for n in r["notes"])
     # the three files, in timestamp order, are the three runs
     for n, stamp in enumerate(("100000", "110000", "120000"), 1):
-        header = json.loads((out / "runs" / f"run-0{n}.jsonl").read_text().splitlines()[0])
+        header = json.loads((out / "runs" / f"run-0{n}.jsonl").read_text(
+            encoding="utf-8").splitlines()[0])
         assert header["source"]["file"] == f"test_run_20260930_{stamp}.json"
     printed = capsys.readouterr()
     assert "positional" in printed.err
@@ -87,11 +88,11 @@ def test_positional_names_fall_back_to_derived_ids_with_a_warning(tmp_path):
 
 def test_names_set_by_the_user_are_the_ids(tmp_path):
     src = RESULTS / "test_run_20260930_100000.json"
-    data = json.loads(src.read_text())
+    data = json.loads(src.read_text(encoding="utf-8"))
     for case in data["testCases"]:
         case["name"] = "math-" + case["name"].rsplit("_", 1)[1]
     path = tmp_path / "test_run_1.json"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
     records = read_deepeval(path)
     assert not records.ids_derived and not records.warnings
     assert {r.target_id for r in records} == {f"math-{i}" for i in range(8)}
@@ -107,7 +108,7 @@ def test_fingerprint_from_evaluation_model_and_verbose_logs(tmp_path):
     assert fp["prompt_hash"] == hashlib.sha256(PROMPT.encode()).hexdigest()
     assert fp["temperature"] is None
     assert r["source"]["threshold"] == 0.5
-    assert "Criteria:" not in (tmp_path / "report.json").read_text()
+    assert "Criteria:" not in (tmp_path / "report.json").read_text(encoding="utf-8")
 
 
 def test_latest_run_full_is_one_run(tmp_path):
@@ -141,7 +142,7 @@ def test_pass_if_reads_the_score_instead_of_success(tmp_path):
 
 
 def test_conversational_test_cases_are_read_too(tmp_path):
-    data = json.loads((RESULTS / "test_run_20260930_100000.json").read_text())
+    data = json.loads((RESULTS / "test_run_20260930_100000.json").read_text(encoding="utf-8"))
     data["testCases"] = []
     data["conversationalTestCases"] = [{
         "name": "support-chat-1", "success": True, "runDuration": 1.0,
@@ -152,7 +153,7 @@ def test_conversational_test_cases_are_read_too(tmp_path):
                          "evaluationModel": "gpt-4.1"}],
     }]
     path = tmp_path / "test_run_1.json"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
     [rec] = read_deepeval(path)
     assert (rec.target_id, rec.name, rec.label, rec.score) == (
         "support-chat-1", "Conversation Completeness", "fail", 0.3)
@@ -177,14 +178,15 @@ def test_the_provider_from_the_model_name():
 
 
 def test_labels_slice_column_gives_per_slice_numbers(tmp_path):
-    rows = LABELS.read_text().splitlines()
+    rows = LABELS.read_text(encoding="utf-8").splitlines()
     sliced = [rows[0] + ",slice"] + [f"{r},{'easy' if n % 2 else 'hard'}"
                                       for n, r in enumerate(rows[1:])]
     labels = tmp_path / "labels.csv"
-    labels.write_text("\n".join(sliced) + "\n")
+    labels.write_text("\n".join(sliced) + "\n", encoding="utf-8")
     r = import_results("deepeval", [RESULTS], metric="Correctness [GEval]", labels=labels,
                        out=tmp_path / "out")
     assert {s["slice"] for s in r["slices"]} == {"easy", "hard"}
     assert sum(s["n"] for s in r["slices"]) == r["anchors"]["n_items"]
-    anchors = [json.loads(line) for line in (tmp_path / "out" / "anchors.jsonl").read_text().splitlines()]
+    anchors = [json.loads(line) for line in (tmp_path / "out" / "anchors.jsonl").read_text(
+        encoding="utf-8").splitlines()]
     assert all(a["slice"] in {"easy", "hard"} for a in anchors)

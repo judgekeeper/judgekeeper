@@ -22,7 +22,7 @@ def _single(tmp_path, n=10):
     items = [{"id": f"s{i}", "input": f"q{i}", "output": ("good " if i % 2 == 0 else "bad ")
               + str(i), "human_label": "pass" if i % 2 == 0 else "fail", "notes": "secret"}
              for i in range(n)]
-    path.write_text("".join(json.dumps(i) + "\n" for i in items))
+    path.write_text("".join(json.dumps(i) + "\n" for i in items), encoding="utf-8")
     freeze(path)
     return path
 
@@ -33,7 +33,7 @@ def _pairwise(tmp_path):
               "output_a": "good" if i % 2 == 0 else "meh",
               "output_b": "meh" if i % 2 == 0 else "good",
               "human_label": "A" if i % 2 == 0 else "B"} for i in range(6)]
-    path.write_text("".join(json.dumps(i) + "\n" for i in items))
+    path.write_text("".join(json.dumps(i) + "\n" for i in items), encoding="utf-8")
     freeze(path)
     return path
 
@@ -95,7 +95,7 @@ def test_judge_that_raises_is_error_not_fail(tmp_path):
     assert r["headline"]["kappa_mean"] == 1.0
     assert r["errors"]["n"] == 6 and r["errors"]["items"] == ["s1", "s2"]
     assert "judge_errors" in {f["code"] for f in r["verdict"]["flags"]}
-    line = (tmp_path / "out" / "runs" / "run-01.jsonl").read_text().splitlines()[2]
+    line = (tmp_path / "out" / "runs" / "run-01.jsonl").read_text(encoding="utf-8").splitlines()[2]
     rec = json.loads(line)
     assert rec["verdict"] == "error" and "RuntimeError: rate limited" in rec["error"]
 
@@ -176,7 +176,7 @@ def test_anchor_list_is_frozen_for_you(tmp_path):
 def _validate(anchors, runs, tmp_path):
     out = tmp_path / "rep"
     assert main(["validate", str(anchors), str(runs), "--out", str(out)]) == 0
-    return json.loads((out / "report.json").read_text())
+    return json.loads((out / "report.json").read_text(encoding="utf-8"))
 
 
 def test_cli_callable(tmp_path, capsys):
@@ -185,7 +185,7 @@ def test_cli_callable(tmp_path, capsys):
     assert main(["judge", str(anchors), "--callable", "tests.judges_for_tests:keyword_judge",
                  "--runs", "3", "--out", str(runs)]) == 0
     assert "30 judge calls" in capsys.readouterr().err
-    header = json.loads((runs / "run-01.jsonl").read_text().splitlines()[0])
+    header = json.loads((runs / "run-01.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert header["source"] == {"kind": "callable", "file": None,
                                 "metric": "tests.judges_for_tests:keyword_judge"}
     r = _validate(anchors, runs, tmp_path)
@@ -215,7 +215,7 @@ def test_cli_exec_bare_verdict(tmp_path):
     runs = tmp_path / "runs"
     assert main(["judge", str(anchors), "--exec", _exec("bare.py"), "--runs", "2",
                  "--out", str(runs)]) == 0
-    header = json.loads((runs / "run-01.jsonl").read_text().splitlines()[0])
+    header = json.loads((runs / "run-01.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert header["source"]["kind"] == "exec"
     assert _validate(anchors, runs, tmp_path)["headline"]["kappa_mean"] == 1.0
 
@@ -225,7 +225,7 @@ def test_cli_exec_json_verdict(tmp_path):
     runs = tmp_path / "runs"
     assert main(["judge", str(anchors), "--exec", _exec("json_verdict.py"), "--runs", "1",
                  "--out", str(runs)]) == 0
-    rec = json.loads((runs / "run-01.jsonl").read_text().splitlines()[1])
+    rec = json.loads((runs / "run-01.jsonl").read_text(encoding="utf-8").splitlines()[1])
     assert rec["verdict"] == "pass" and rec["rationale"] == "saw s0"
 
 
@@ -235,7 +235,7 @@ def test_cli_exec_nonzero_exit_is_error(tmp_path):
     assert main(["judge", str(anchors), "--exec", _exec("fails_some.py"), "--runs", "1",
                  "--out", str(runs)]) == 0
     recs = {json.loads(x)["id"]: json.loads(x)
-            for x in (runs / "run-01.jsonl").read_text().splitlines()[1:]}
+            for x in (runs / "run-01.jsonl").read_text(encoding="utf-8").splitlines()[1:]}
     assert recs["s1"]["verdict"] == "error" and "exit 3" in recs["s1"]["error"]
     assert "judge crashed" in recs["s1"]["error"]
     assert recs["s2"]["verdict"] == "pass"

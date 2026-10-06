@@ -65,7 +65,7 @@ class FakeAnthropic:
 
 def make_prompt(tmp_path, text=PAIRWISE_PROMPT):
     p = tmp_path / "prompt.md"
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
     return p
 
 

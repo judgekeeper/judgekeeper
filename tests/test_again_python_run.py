@@ -96,7 +96,7 @@ def _folder(ws) -> Path:
 
 
 def _block(ws) -> dict:
-    return json.loads(ws.result_json.read_text())["again"]
+    return json.loads(ws.result_json.read_text(encoding="utf-8"))["again"]
 
 
 def _jobs(monkeypatch) -> list:
@@ -104,7 +104,7 @@ def _jobs(monkeypatch) -> list:
     real, seen = again.run_process, []
 
     def spy(argv, cwd, env=None, timeout=None):
-        seen.append((json.loads(Path(argv[2]).read_text()), timeout))
+        seen.append((json.loads(Path(argv[2]).read_text(encoding="utf-8")), timeout))
         return real(argv, cwd, env, timeout)
 
     monkeypatch.setattr(again, "run_process", spy)
@@ -176,7 +176,7 @@ def _own_steps(root, verdicts):
     md["verboseLogs"] = md["verboseLogs"].replace("Check each claim", "Check every claim")
     path = root / ".deepeval" / ".latest_run_full.json"
     path.parent.mkdir(parents=True)
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
 
 
 def test_a_saved_model_name_is_used_when_deepeval_picks_another(deepeval_ws, stubs, capsys,
@@ -234,8 +234,9 @@ def test_an_answer_with_an_error_is_not_counted(deepeval_ws, stubs, capsys):
     assert "1 answer was not counted: the judge's tool gave an error for it." in out
     assert "The first error: RuntimeError: rate limited" in out
     assert _block(deepeval_ws)["counted"] == 35
-    every = "".join(p.read_text() for p in _folder(deepeval_ws).iterdir())
-    every += deepeval_ws.result_json.read_text() + deepeval_ws.result_html.read_text() + out
+    every = "".join(p.read_text(encoding="utf-8") for p in _folder(deepeval_ws).iterdir())
+    every += deepeval_ws.result_json.read_text(
+        encoding="utf-8") + deepeval_ws.result_html.read_text(encoding="utf-8") + out
     assert SECRET not in every and "[REDACTED]" in every
 
 
@@ -244,14 +245,14 @@ def test_when_every_call_fails_nothing_is_counted(deepeval_ws, stubs, capsys):
     code, out = ask(capsys, deepeval_ws, *FIELDS, "--allow-calls", 72)
     assert code == 1
     assert "DeepEval could not ask your judge: RuntimeError: rate limited" in out
-    assert "again" not in json.loads(deepeval_ws.result_json.read_text())
+    assert "again" not in json.loads(deepeval_ws.result_json.read_text(encoding="utf-8"))
 
 
 def test_a_worker_that_does_not_finish(deepeval_ws, capsys, monkeypatch):
     real = again.run_process
 
     def crash(argv, cwd, env=None, timeout=None):
-        if json.loads(Path(argv[2]).read_text())["mode"] == "run":
+        if json.loads(Path(argv[2]).read_text(encoding="utf-8"))["mode"] == "run":
             return subprocess.CompletedProcess(argv, 1, "", "Traceback\nImportError: boom\n")
         return real(argv, cwd, env, timeout)
 
@@ -265,7 +266,7 @@ def test_ctrl_c_saves_nothing(deepeval_ws, capsys, monkeypatch):
     real = again.run_process
 
     def interrupted(argv, cwd, env=None, timeout=None):
-        if json.loads(Path(argv[2]).read_text())["mode"] == "run":
+        if json.loads(Path(argv[2]).read_text(encoding="utf-8"))["mode"] == "run":
             raise KeyboardInterrupt
         return real(argv, cwd, env, timeout)
 
@@ -305,7 +306,8 @@ def test_a_missing_key_stops_before_the_question(deepeval_ws, stubs, capsys,
 
 
 def _builtin(name="Answer Relevancy", old_direction=False):
-    relevancy = next(m for m in json.loads(DEEPEVAL_FILE.read_text())["testCases"][0][
+    relevancy = next(m for m in json.loads(DEEPEVAL_FILE.read_text(
+        encoding="utf-8"))["testCases"][0][
         "metricsData"] if m["name"] == "Answer Relevancy")
 
     def maker(root, verdicts):
@@ -318,7 +320,7 @@ def _builtin(name="Answer Relevancy", old_direction=False):
             case["metricsData"] = [md]
         path = root / ".deepeval" / ".latest_run_full.json"
         path.parent.mkdir(parents=True)
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding="utf-8")
     return maker
 
 
@@ -390,7 +392,7 @@ def _inspect(change=None, prompts=False):
             change(data)
         path = root / "logs" / "2026-10-02_support.json"
         path.parent.mkdir(parents=True)
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding="utf-8")
     return maker
 
 
@@ -541,12 +543,12 @@ def _mlflow_ws(root, monkeypatch, **info):
     ws = _checked(root, inspect_project)
     data = ws.data()
     data["tool"] = "mlflow"
-    ws.start.write_text(json.dumps(data))
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
     answers = again.labeled_answers(ws)
     traces = {a["id"]: f"tr-{n}" for n, a in enumerate(answers)}
     base = {"source_id": "openai:/gpt-4.1-mini", "scorer_name": None, "scorer_version": None,
             "name": "safety", "guidelines": None, "instructions": False, "trace": False,
-            "text": None, "experiment": "1", "uri": "sqlite:///file:/x/mlflow.db?mode=ro&uri=true",
+            "text": None, "experiment": "1", "uri": "sqlite:////tmp/judgekeeper-mlflow-x/mlflow.db",
             "traces": traces}
     monkeypatch.setattr(mf, "assessment_info", lambda ws, metric: {**base, **info})
     by_input = {str(a["input"]): traces[a["id"]] for a in answers}
@@ -577,7 +579,7 @@ def test_mlflow_calls_a_built_in_judge_directly(tmp_path, stubs, capsys,
     assert all(e["telemetry"] == "true" for e in stubs("import"))
     assert sorted(e["trace"] for e in stubs("get_trace")) == sorted(traces.values())
     assert {e["uri"] for e in stubs("set_tracking_uri")} == {
-        "sqlite:///file:/x/mlflow.db?mode=ro&uri=true"}
+        "sqlite:////tmp/judgekeeper-mlflow-x/mlflow.db"}
 
 
 def test_mlflow_lines_carry_the_full_fingerprint(tmp_path, stubs, capsys,
@@ -699,7 +701,7 @@ def test_answers_not_in_the_store_are_left_out(tmp_path, stubs, capsys,
 def test_mlflow_needs_the_key_in_the_shell(tmp_path, stubs, capsys, monkeypatch):
     ws, *_ = _mlflow_ws(tmp_path, monkeypatch)
     monkeypatch.delenv("OPENAI_API_KEY")
-    (tmp_path / ".env").write_text("OPENAI_API_KEY=x\n")
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
     code, out = ask_mlflow(ws, capsys)
     assert code == 0 and "MLflow does not load .env files" in out
     assert "Set the key, then run judgekeeper start --ask-again again." in out
@@ -730,7 +732,9 @@ def test_trace_ids_come_from_a_real_store(tmp_path):
     build_mlflow_store(tmp_path)
     info = mf.assessment_info(start_label.Workspace(tmp_path), "correctness")
     assert info["traces"] and all(v.startswith("tr-") for v in info["traces"].values())
-    assert info["experiment"] and info["uri"].startswith("sqlite:///file:")
+    # a temporary copy of the store, read with a plain address: no read-only form
+    assert info["experiment"] and info["uri"].startswith("sqlite:///")
+    assert "mode=ro" not in info["uri"]
 
 
 # All three -----------------------------------------------------------------------------------

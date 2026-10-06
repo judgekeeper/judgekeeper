@@ -86,7 +86,7 @@ def env(monkeypatch, tmp_path, pairwise_dir):
     work = tmp_path / "work"
     work.mkdir()
     monkeypatch.chdir(work)
-    (work / "prompt.md").write_text(PROMPT)
+    (work / "prompt.md").write_text(PROMPT, encoding="utf-8")
     return SimpleNamespace(work=work, anchors=str(pairwise_dir / "anchors.jsonl"))
 
 
@@ -150,9 +150,9 @@ def test_no_key_leaks_anywhere(env, capsys):
     captured = run_pipeline(env, capsys)
     assert_no_sentinel(env.work, *captured)
     # The echoed keys were really there and really replaced, not just missing.
-    run = (env.work / "runs" / "old" / "run-01.jsonl").read_text()
+    run = (env.work / "runs" / "old" / "run-01.jsonl").read_text(encoding="utf-8")
     assert "[REDACTED]" in run
-    migration = (env.work / "migration" / "migration.json").read_text()
+    migration = (env.work / "migration" / "migration.json").read_text(encoding="utf-8")
     assert "old_rationale" in migration and "[REDACTED]" in migration
     assert list((env.work / ".judgekeeper" / "migrations").glob("*.json"))
     assert not (env.work / "runs" / "failed").exists() or not any(
@@ -186,7 +186,7 @@ def test_import_and_export_never_write_a_key(env, capsys, tmp_path):
     from tests.conftest import FIXTURES
 
     keys = f"{SENTINELS['ANTHROPIC_API_KEY']} {SENTINELS['OPENAI_API_KEY']}"
-    data = json.loads((FIXTURES / "promptfoo" / "results.json").read_text())
+    data = json.loads((FIXTURES / "promptfoo" / "results.json").read_text(encoding="utf-8"))
     for row in data["results"]["results"]:
         for c in row["gradingResult"]["componentResults"]:
             c["reason"] = f"{c['reason']} (debug: {keys})"
@@ -194,11 +194,11 @@ def test_import_and_export_never_write_a_key(env, capsys, tmp_path):
                 c["comment"] = f"Authorization: Bearer {SENTINELS['OPENAI_API_KEY']}"
     src = tmp_path / "in"
     src.mkdir()
-    (src / "results.json").write_text(json.dumps(data))
+    (src / "results.json").write_text(json.dumps(data), encoding="utf-8")
     (src / "records.csv").write_text(
         "id,metric,value,why,kind\n"
         f"a,q,pass,saw {SENTINELS['ANTHROPIC_API_KEY']},llm\nb,q,fail,ok,llm\n"
-        "a,q,pass,,human\nb,q,fail,,human\n")
+        "a,q,pass,,human\nb,q,fail,,human\n", encoding="utf-8")
     captured = []
 
     def step(code, expected):
@@ -217,9 +217,10 @@ def test_import_and_export_never_write_a_key(env, capsys, tmp_path):
     step(cli("import", "promptfoo", str(src / "results.json"), "--metric",
              SENTINELS["OPENAI_API_KEY"], "--out", "imported/bad"), 2)
     assert_no_sentinel(env.work, *captured)
-    run = (env.work / "imported" / "promptfoo" / "runs" / "run-01.jsonl").read_text()
+    run = (env.work / "imported" / "promptfoo" / "runs" / "run-01.jsonl").read_text(
+        encoding="utf-8")
     assert "[REDACTED]" in run
-    assert "[REDACTED]" in (env.work / "exported" / "records.jsonl").read_text()
+    assert "[REDACTED]" in (env.work / "exported" / "records.jsonl").read_text(encoding="utf-8")
 
 
 def test_mlflow_import_never_writes_a_key(env, capsys, tmp_path):
@@ -243,7 +244,8 @@ def test_mlflow_import_never_writes_a_key(env, capsys, tmp_path):
     step(cli("import", "mlflow", "--experiment", "qa-judge", "--tracking-uri", uri,
              "--metric", SENTINELS["OPENAI_API_KEY"], "--out", "imported/bad"), 2)
     assert_no_sentinel(env.work, *captured)
-    assert "[REDACTED]" in (env.work / "imported" / "mlflow" / "runs" / "run-01.jsonl").read_text()
+    assert "[REDACTED]" in (env.work / "imported" / "mlflow" / "runs" / "run-01.jsonl").read_text(
+        encoding="utf-8")
 
 
 def test_langfuse_import_never_writes_a_key(env, capsys, monkeypatch):
@@ -288,9 +290,11 @@ def test_langfuse_import_never_writes_a_key(env, capsys, monkeypatch):
                        f"https://u:{SENTINELS['LANGFUSE_SECRET_KEY']}@langfuse.example.com")
     step(langfuse("--out", "imported/badhost"), 2)
     assert_no_sentinel(env.work, *captured)
-    for text in captured + [p.read_text() for p in env.work.rglob("*") if p.is_file()]:
+    for text in captured + [p.read_text(
+        encoding="utf-8") for p in env.work.rglob("*") if p.is_file()]:
         assert basic not in text
-    assert "[REDACTED]" in (env.work / "imported" / "lf" / "runs" / "run-01.jsonl").read_text()
+    assert "[REDACTED]" in (env.work / "imported" / "lf" / "runs" / "run-01.jsonl").read_text(
+        encoding="utf-8")
 
 
 # --- the fingerprint (security review, finding 5) ----------------------------------------------
@@ -321,15 +325,15 @@ def test_key_in_the_served_model_id_never_reaches_a_file(env, capsys, monkeypatc
     assert_no_sentinel(env.work, *captured)
     served = f"served-{redact.REDACTED}"
     import json
-    header, first = map(json.loads, (env.work / "runs/old/run-01.jsonl").read_text()
+    header, first = map(json.loads, (env.work / "runs/old/run-01.jsonl").read_text(encoding="utf-8")
                         .splitlines()[:2])
     assert header["fingerprint"]["snapshot"] == first["fingerprint"]["snapshot"] == served
-    report = json.loads((env.work / "reports/old/report.json").read_text())
+    report = json.loads((env.work / "reports/old/report.json").read_text(encoding="utf-8"))
     assert report["fingerprint"]["snapshot"] == served
     assert report["snapshots_seen"] == [served]
-    assert served in (env.work / "reports/old/report.html").read_text()
+    assert served in (env.work / "reports/old/report.html").read_text(encoding="utf-8")
     # In Markdown the brackets are escaped, so the marker cannot start a link.
-    assert "served-\\[REDACTED\\]" in (env.work / "reports/old/gate.md").read_text()
+    assert "served-\\[REDACTED\\]" in (env.work / "reports/old/gate.md").read_text(encoding="utf-8")
 
 
 def test_old_files_with_a_key_in_the_fingerprint_render_without_it(pairwise_dir, monkeypatch):
@@ -340,12 +344,12 @@ def test_old_files_with_a_key_in_the_fingerprint_render_without_it(pairwise_dir,
 
     key = SENTINELS["OPENAI_API_KEY"]
     for run in (pairwise_dir / "runs").glob("run-*.jsonl"):
-        text = run.read_text()
+        text = run.read_text(encoding="utf-8")
         assert '"model": "claude-haiku-4-5-20251001"' in text
         run.write_text(text.replace('"model": "claude-haiku-4-5-20251001"',
                                     f'"model": "served-{key}"')
                        .replace('"snapshot": "claude-haiku-4-5-20251001"',
-                                f'"snapshot": "snap-{key}"'))
+                                f'"snapshot": "snap-{key}"'), encoding="utf-8")
     monkeypatch.setenv("OPENAI_API_KEY", key)
     report = build_report(pairwise_dir / "anchors.jsonl", pairwise_dir / "runs")
     import json

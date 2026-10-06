@@ -36,9 +36,9 @@ def _checked(root, n_pass=20, n_fail=16, labeled=None, maker=promptfoo_project, 
 def _edit(root, change, name="results.json"):
     """Change the saved promptfoo results: change(data) or change(row) for every row."""
     path = root / name
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     change(data)
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
 
 
 def _rows(fn):
@@ -78,7 +78,7 @@ def no_processes(monkeypatch):
 def _local_promptfoo(root, procs, version="0.123.1"):
     binary = root / "node_modules" / ".bin" / "promptfoo"
     binary.parent.mkdir(parents=True)
-    binary.write_text("")
+    binary.write_text("", encoding="utf-8")
     procs.versions[str(binary)] = version
     return binary
 

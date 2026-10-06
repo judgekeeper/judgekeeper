@@ -56,14 +56,14 @@ def test_old_reports_and_baselines_still_load(tmp_path):
     for path in sorted((FIXTURES / "gate").glob("*.json")):
         report = load_report(path)
         JudgeFingerprint.from_dict(report["fingerprint"])
-    old = json.loads((FIXTURES / "pairwise" / "baseline.json").read_text())
+    old = json.loads((FIXTURES / "pairwise" / "baseline.json").read_text(encoding="utf-8"))
     assert evaluate(old, old)["status"] in (PASS, FLAKY)
 
 
 def _report(fp: dict) -> dict:
     from tests.conftest import FIXTURES
 
-    r = json.loads((FIXTURES / "gate" / "pass.json").read_text())
+    r = json.loads((FIXTURES / "gate" / "pass.json").read_text(encoding="utf-8"))
     r["fingerprint"] = fp
     return r
 
@@ -107,8 +107,8 @@ def test_cli_require_fingerprint(tmp_path):
     from judgekeeper.cli import main
 
     base, now = tmp_path / "base.json", tmp_path / "now.json"
-    base.write_text(json.dumps(_report({**FULL, "snapshot": None})))
-    now.write_text(json.dumps(_report(FULL)))
+    base.write_text(json.dumps(_report({**FULL, "snapshot": None})), encoding="utf-8")
+    now.write_text(json.dumps(_report(FULL)), encoding="utf-8")
     assert main(["gate", str(now), "--baseline", str(base), "--out", str(tmp_path / "a")]) == 0
     assert main(["gate", str(now), "--baseline", str(base), "--out", str(tmp_path / "b"),
                  "--require-fingerprint"]) == 5

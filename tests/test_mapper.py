@@ -202,7 +202,7 @@ def test_a_verdict_file_and_a_csv_read_too(tmp_path):
 def test_a_changed_shape_says_to_run_setup_again(tmp_path):
     path = nested_runs_project(tmp_path, runs=2, cases=2, rule_rows=0)
     m = _map(mapper.guess(mapper.load(path)))
-    lines = [json.loads(line) for line in path.read_text().splitlines()]
+    lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     for line in lines:
         line["items"] = line.pop("cases")
     path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")

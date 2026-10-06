@@ -48,9 +48,9 @@ def _checked(root, n_pass=20, n_fail=16, maker=promptfoo_project, **kwargs):
 
 def _edit(root, change):
     path = root / "results.json"
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     change(data)
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
 
 
 def _version(data):
@@ -77,7 +77,7 @@ class FakePromptfoo:
         self.calls, self.files_seen = [], {}
         self.flips, self.prompt_changed, self.errors = set(), set(), set()
         self.code, self.stderr, self.extra, self.interrupt = None, "", "", False
-        saved = json.loads((ws.root / "results.json").read_text())
+        saved = json.loads((ws.root / "results.json").read_text(encoding="utf-8"))
         self.saved = {}
         for row in saved["results"]["results"]:
             comp = row["gradingResult"]["componentResults"][0]
@@ -90,8 +90,9 @@ class FakePromptfoo:
             return SimpleNamespace(returncode=0, stdout=self.version + "\n", stderr="")
         assert "eval" in argv, argv
         cwd = Path(cwd)
-        config = json.loads((cwd / argv[argv.index("-c") + 1]).read_text())
-        tests = json.loads((cwd / config["tests"].removeprefix("file://")).read_text())
+        config = json.loads((cwd / argv[argv.index("-c") + 1]).read_text(encoding="utf-8"))
+        tests = json.loads((cwd / config["tests"].removeprefix("file://")).read_text(
+            encoding="utf-8"))
         self.files_seen = {"config": config, "tests": tests}
         if self.interrupt:
             raise KeyboardInterrupt
@@ -122,7 +123,7 @@ class FakePromptfoo:
         out = cwd / argv[argv.index("-o") + 1]
         out.write_text(json.dumps({"results": {"version": 3, "results": rows},
                                    "metadata": {"promptfooVersion": self.version},
-                                   "config": config}))
+                                   "config": config}), encoding="utf-8")
         failed = any(not row["success"] for row in rows)
         return SimpleNamespace(returncode=100 if failed else 0, stdout="", stderr="")
 
@@ -135,7 +136,7 @@ def fake(monkeypatch, tmp_path):
     _edit(tmp_path, _version)
     binary = tmp_path / "node_modules" / ".bin" / "promptfoo"
     binary.parent.mkdir(parents=True)
-    binary.write_text("")
+    binary.write_text("", encoding="utf-8")
     fp = FakePromptfoo(ws)
     monkeypatch.setattr(again, "run_process", fp)
     monkeypatch.setattr(again, "which", lambda name: None)
@@ -180,7 +181,8 @@ def test_the_two_files_follow_promptfoos_shape(fake, capsys):
                       "prompts": ["{{judgekeeper_prompt}}"], "providers": ["echo"],
                       "evaluateOptions": {"cache": False}, "tests": f"file://{TESTS}"}
     assert len(tests) == 36
-    raw = {r["id"]: r for r in (json.loads(x) for x in ws.pool.read_text().splitlines())}
+    raw = {r["id"]: r for r in (json.loads(x) for x in ws.pool.read_text(
+        encoding="utf-8").splitlines())}
     for t in tests:
         assert t["description"] in raw
         assert t["providerOutput"] == raw[t["description"]]["output"]
@@ -329,15 +331,15 @@ def test_steadiness_agreement_and_matches(fake, capsys):
     assert ("Of the answers you marked Correct, your judge passed about 100% before and about "
             in out)
     assert "Its first new verdict matched the saved one on 35 of 36 answers (97%)." in out
-    block = json.loads(fake.ws.result_json.read_text())["again"]
+    block = json.loads(fake.ws.result_json.read_text(encoding="utf-8"))["again"]
     assert block["steadiness"]["changed"] == 4 and block["matches_saved"] == pytest.approx(35 / 36)
     assert block["status"] == "exact" and block["times"] == 2
 
 
 def test_when_every_answer_agrees_the_ranges_keep_their_width(fake, capsys):
     run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    for block in (json.loads(fake.ws.result_json.read_text())["again"],
-                  json.loads((_again_dir(fake.ws) / "again.json").read_text())):
+    for block in (json.loads(fake.ws.result_json.read_text(encoding="utf-8"))["again"],
+                  json.loads((_again_dir(fake.ws) / "again.json").read_text(encoding="utf-8"))):
         today = block["today"]
         for key in ("tpr", "tnr"):
             lo, hi = today[f"{key}_interval"]
@@ -361,7 +363,7 @@ def test_a_changed_grading_prompt_drops_that_answer(fake, capsys, tmp_path):
     _, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
     assert ("1 answer was not counted: its grading prompt differs from the saved one, so it "
             "was not the same judge input.") in out
-    block = json.loads(fake.ws.result_json.read_text())["again"]
+    block = json.loads(fake.ws.result_json.read_text(encoding="utf-8"))["again"]
     assert block["counted"] == 35
     assert block["not_counted"] == [{"id": first, "why": "grading prompt differs"}]
 
@@ -386,7 +388,7 @@ def test_a_close_copy_says_why_once_and_so_on_every_line(fake, capsys):
     lines = [x for x in after.splitlines() if x.startswith((
         "Asked twice", "Of the answers you", "Its first new verdict"))]
     assert len(lines) == 4 and all(x.endswith(" (close copy)") for x in lines)
-    page = fake.ws.result_html.read_text()
+    page = fake.ws.result_html.read_text(encoding="utf-8")
     assert page.count("promptfoo version not recorded") == 1 and "(close copy)" in page
 
 
@@ -420,8 +422,9 @@ def test_every_line_carries_the_full_fingerprint(fake, capsys):
             assert fp["tool"] == "promptfoo" and fp["tool_version"] == "0.123.1"
             assert fp["judge_copy"] == "exact" and fp["judge_copy_why"] == []
             assert fp["settings"] == []
-    every = "".join(p.read_text() for p in folder.iterdir())
-    every += fake.ws.result_json.read_text() + fake.ws.result_html.read_text()
+    every = "".join(p.read_text(encoding="utf-8") for p in folder.iterdir())
+    every += fake.ws.result_json.read_text(
+        encoding="utf-8") + fake.ws.result_html.read_text(encoding="utf-8")
     assert SECRET not in every and "[REDACTED]" in every
 
 
@@ -434,23 +437,23 @@ def test_setting_names_go_into_the_fingerprint(fake, capsys, monkeypatch):
 
 def test_an_earlier_again_block_goes_to_history(fake, capsys):
     run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    first = json.loads(fake.ws.result_json.read_text())["again"]
+    first = json.loads(fake.ws.result_json.read_text(encoding="utf-8"))["again"]
     run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
     kept = list(fake.ws.history.glob("again-*.json"))
-    assert len(kept) == 1 and json.loads(kept[0].read_text()) == first
+    assert len(kept) == 1 and json.loads(kept[0].read_text(encoding="utf-8")) == first
 
 
 def test_the_result_page_shows_the_again_lines(fake, capsys):
     run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    page = fake.ws.result_html.read_text()
+    page = fake.ws.result_html.read_text(encoding="utf-8")
     assert "Your judge, asked again" in page and "Asked twice more" in page
 
 
 def test_the_main_result_does_not_change(fake, capsys):
-    before = json.loads(fake.ws.result_json.read_text())
+    before = json.loads(fake.ws.result_json.read_text(encoding="utf-8"))
     labels = fake.ws.labels.read_bytes()
     run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    after = json.loads(fake.ws.result_json.read_text())
+    after = json.loads(fake.ws.result_json.read_text(encoding="utf-8"))
     for key in ("tpr", "tnr", "kappa", "made_at", "labels"):
         assert after[key] == before[key]
     assert fake.ws.labels.read_bytes() == labels
@@ -486,9 +489,9 @@ def test_a_judge_command_that_fails_is_not_counted(tmp_path, capsys):
 
 def test_next_says_how_to_ask_again(tmp_path):
     ws = _checked(tmp_path)
-    r = json.loads(ws.result_json.read_text())
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert "  Ask your judge again:  judgekeeper start --ask-again" in start_label.result_lines(r)
-    page = ws.result_html.read_text()
+    page = ws.result_html.read_text(encoding="utf-8")
     assert "Ask your judge again" in page and "<code>judgekeeper start --ask-again</code>" in page
 
 

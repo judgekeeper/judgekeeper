@@ -29,10 +29,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,mlflow]"
       - name: Test
-        # -rs lists every skipped test and why; the TypeScript snippet test may not skip here.
+        # -rfEs lists every failed, erroring and skipped test (and why); the TypeScript
+        # snippet test may not skip here.
         env:
           JUDGEKEEPER_NEEDS_NODE: "1"
-        run: pytest -rs
+        run: pytest -rfEs
       - name: Lint
         run: ruff check src tests
 

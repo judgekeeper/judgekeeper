@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from tests.test_website import _lookup, render
-from tests.website_pages import WEBSITE, command_lines, judgekeeper_argv, parse
+from tests.website_pages import WEBSITE, as_shown, command_lines, judgekeeper_argv, parse
 
 PAGE = WEBSITE / "tutorial.html"
 
@@ -56,9 +56,10 @@ def _run(line: str, cwd: Path) -> subprocess.CompletedProcess:
             break
     # What a terminal shows: both streams, in the order they were written.
     env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"  # the page shows UTF-8 output; a Windows pipe is cp1252
     return subprocess.run([sys.executable, "-m", "judgekeeper.cli", *argv], cwd=cwd, env=env,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                          timeout=120, check=False)
+                          encoding="utf-8", timeout=120, check=False)
 
 
 @pytest.fixture(scope="module")
@@ -92,7 +93,7 @@ def test_every_step_prints_what_the_page_shows(tutorial):
         assert proc.returncode == step["exit"], (step["line"], proc.stdout)
         assert "output" in step, f"step {step['step']} shows no output"
         shown = [line.rstrip() for line in step["output"].strip("\n").splitlines()]
-        real = [line.rstrip() for line in proc.stdout.strip("\n").splitlines()]
+        real = [line.rstrip() for line in as_shown(proc.stdout).strip("\n").splitlines()]
         assert shown == real, f"step {step['step']}: {step['line']}"
 
 

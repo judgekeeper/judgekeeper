@@ -32,19 +32,22 @@ def gate(work, name, *extra):
 def test_baseline_set_copies_to_default_path(work, capsys):
     assert main(["baseline", "set", str(work / "baseline" / "report.json")]) == 0
     dst = work / ".judgekeeper" / "baseline.json"
-    assert dst.read_text() == (work / "baseline" / "report.json").read_text()
-    assert ".judgekeeper/baseline.json" in capsys.readouterr().out
+    assert dst.read_text(
+        encoding="utf-8") == (work / "baseline" / "report.json").read_text(encoding="utf-8")
+    # the path as the system writes it: .judgekeeper/baseline.json, or with \ on Windows
+    assert str(Path(".judgekeeper") / "baseline.json") in capsys.readouterr().out
 
 
 def test_baseline_set_custom_path(work):
     dst = work / "b" / "base.json"
     assert main(["baseline", "set", str(work / "pass" / "report.json"), "--path", str(dst)]) == 0
-    assert json.loads(dst.read_text())["headline"]["kappa_mean"] == pytest.approx(0.8)
+    assert json.loads(dst.read_text(
+        encoding="utf-8"))["headline"]["kappa_mean"] == pytest.approx(0.8)
 
 
 def test_baseline_set_rejects_non_report(work):
     bad = work / "bad.json"
-    bad.write_text('{"hello": 1}')
+    bad.write_text('{"hello": 1}', encoding="utf-8")
     assert main(["baseline", "set", str(bad)]) == 2
     assert main(["baseline", "set", str(work / "missing.json")]) == 2
     assert not (work / ".judgekeeper").exists()
@@ -89,7 +92,8 @@ def test_gate_exit_codes(work, name, code):
 def test_gate_flaky_as(work, capsys, flaky_as, code):
     assert gate(work, "two-runs", "--flaky-as", flaky_as) == code
     assert "FLAKY" in capsys.readouterr().out
-    assert json.loads((work / "two-runs" / "gate.json").read_text())["status"] == "FLAKY"
+    assert json.loads((work / "two-runs" / "gate.json").read_text(
+        encoding="utf-8"))["status"] == "FLAKY"
 
 
 def test_gate_flaky_as_does_not_touch_other_statuses(work):
@@ -104,11 +108,11 @@ def test_gate_writes_json_and_markdown_next_to_report(work, capsys):
     assert gate(work, "kappa-drop-outside-band", "--baseline",
                 str(work / "baseline" / "report.json")) == 1
     out_dir = work / "kappa-drop-outside-band"
-    result = json.loads((out_dir / "gate.json").read_text())
+    result = json.loads((out_dir / "gate.json").read_text(encoding="utf-8"))
     assert result["status"] == "FAIL"
     assert result["exit_code"] == 1
     assert result["fingerprint"]["model"] == "claude-haiku-4-5-20251001"
-    md = (out_dir / "gate.md").read_text()
+    md = (out_dir / "gate.md").read_text(encoding="utf-8")
     assert md.startswith("## judgekeeper gate: FAIL")
     out = capsys.readouterr().out
     assert "FAIL" in out and "gate.md" in out
@@ -136,7 +140,7 @@ def test_gate_missing_explicit_baseline_is_usage_error(work):
 
 def test_gate_bad_report_is_usage_error(work):
     bad = work / "bad.json"
-    bad.write_text("[]")
+    bad.write_text("[]", encoding="utf-8")
     assert main(["gate", str(bad)]) == 2
     assert main(["gate", str(work / "missing.json")]) == 2
 
@@ -146,18 +150,18 @@ def test_gate_bad_report_is_usage_error(work):
 
 def test_gate_config_flag(work):
     cfg = work / "strict.toml"
-    cfg.write_text("[gate]\nkappa_min = 0.9\n")
+    cfg.write_text("[gate]\nkappa_min = 0.9\n", encoding="utf-8")
     assert gate(work, "pass", "--config", str(cfg)) == 1
 
 
 def test_gate_reads_judgekeeper_toml_by_default(work):
-    (work / "judgekeeper.toml").write_text("[gate]\nkappa_min = 0.9\n")
+    (work / "judgekeeper.toml").write_text("[gate]\nkappa_min = 0.9\n", encoding="utf-8")
     assert gate(work, "pass") == 1
 
 
 def test_gate_unknown_config_key_is_usage_error(work, capsys):
     cfg = work / "judgekeeper.toml"
-    cfg.write_text("[gate]\nkappa_minimum = 0.9\n")
+    cfg.write_text("[gate]\nkappa_minimum = 0.9\n", encoding="utf-8")
     assert gate(work, "pass") == 2
     assert "kappa_minimum" in capsys.readouterr().err
     assert not (work / "pass" / "gate.json").exists()
@@ -181,7 +185,7 @@ def test_action_pipeline_replay(pairwise_dir, tmp_path, monkeypatch):
     assert main(["validate", anchors, str(out / "runs"), "--out", str(out)]) == 0
     assert main(["gate", str(out / "report.json"),
                  "--baseline", str(pairwise_dir / "baseline.json")]) == 0
-    assert json.loads((out / "gate.json").read_text())["status"] == "PASS"
+    assert json.loads((out / "gate.json").read_text(encoding="utf-8"))["status"] == "PASS"
 
     # The disagreeing replay fixture fails the absolute kappa threshold (kappa .5).
     bad = tmp_path / "bad"
@@ -196,10 +200,10 @@ def test_action_pipeline_replay(pairwise_dir, tmp_path, monkeypatch):
 def test_gate_md_escapes_a_hostile_anchor_hash(work):
     """Security review, finding 6, with the reviewer's report.json."""
     path = work / "pass" / "report.json"
-    report = json.loads(path.read_text())
+    report = json.loads(path.read_text(encoding="utf-8"))
     report["anchors"]["sha256"] = "abc |\n\n# INJECTED HEADING\n\n[click](https://evil.example/x)"
-    path.write_text(json.dumps(report))
+    path.write_text(json.dumps(report), encoding="utf-8")
     assert gate(work, "pass") == 0
-    md = (work / "pass" / "gate.md").read_text()
+    md = (work / "pass" / "gate.md").read_text(encoding="utf-8")
     assert not [line for line in md.splitlines() if line.startswith("#") and "INJECTED" in line]
     assert "[click](" not in md

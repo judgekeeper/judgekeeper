@@ -42,7 +42,7 @@ def reports(tmp_path_factory) -> dict[str, Path]:
 
 
 def load(reports, name) -> dict:
-    return json.loads(reports[name].read_text())
+    return json.loads(reports[name].read_text(encoding="utf-8"))
 
 
 def attr(reports, name, **kw) -> dict:
@@ -166,9 +166,10 @@ def cli(name, *extra):
 ])
 def test_cli_exit_codes(work, name, extra, code):
     assert cli(name, *extra) == code
-    res = json.loads((work / name / "attribution.json").read_text())
+    res = json.loads((work / name / "attribution.json").read_text(encoding="utf-8"))
     assert res["exit_code"] == code
-    assert (work / name / "attribution.md").read_text().startswith("## judgekeeper attribute")
+    assert (work / name / "attribution.md").read_text(
+        encoding="utf-8").startswith("## judgekeeper attribute")
 
 
 def test_cli_default_baseline_and_out(work, capsys):
@@ -180,24 +181,24 @@ def test_cli_default_baseline_and_out(work, capsys):
 
 
 def test_cli_baseline_without_items_is_usage_error(work, capsys):
-    old = json.loads((work / "old" / "report.json").read_text())
+    old = json.loads((work / "old" / "report.json").read_text(encoding="utf-8"))
     del old["items"]
-    (work / "old" / "report.json").write_text(json.dumps(old))
+    (work / "old" / "report.json").write_text(json.dumps(old), encoding="utf-8")
     assert cli("old-rerun") == 2
     assert "regenerate" in capsys.readouterr().err
 
 
 def test_cli_current_without_items_is_usage_error(work):
-    cur = json.loads((work / "old-rerun" / "report.json").read_text())
+    cur = json.loads((work / "old-rerun" / "report.json").read_text(encoding="utf-8"))
     del cur["items"]
-    (work / "old-rerun" / "report.json").write_text(json.dumps(cur))
+    (work / "old-rerun" / "report.json").write_text(json.dumps(cur), encoding="utf-8")
     assert cli("old-rerun") == 2
 
 
 def test_cli_anchors_mismatch_exits_3(work):
-    cur = json.loads((work / "old-rerun" / "report.json").read_text())
+    cur = json.loads((work / "old-rerun" / "report.json").read_text(encoding="utf-8"))
     cur["anchors"]["sha256"] = "f" * 64
-    (work / "old-rerun" / "report.json").write_text(json.dumps(cur))
+    (work / "old-rerun" / "report.json").write_text(json.dumps(cur), encoding="utf-8")
     assert cli("old-rerun") == 3
 
 

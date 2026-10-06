@@ -120,7 +120,7 @@ def test_an_existing_file_is_asked_about(tmp_path, capsys, export, terminal):
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "promptfoo-results.json is already here. Replace it? [y/N]" in out
-    assert (tmp_path / "promptfoo-results.json").read_text() == "not results"
+    assert (tmp_path / "promptfoo-results.json").read_text(encoding="utf-8") == "not results"
     assert (tmp_path / ".judgekeeper" / "promptfoo-latest.json").is_file()
     assert "judgekeeper start .judgekeeper/promptfoo-latest.json" in out
 

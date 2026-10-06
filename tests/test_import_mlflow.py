@@ -33,7 +33,7 @@ def _import(store, out, *extra):
 
 
 def _report(out):
-    return json.loads((out / "report.json").read_text())
+    return json.loads((out / "report.json").read_text(encoding="utf-8"))
 
 
 def _qid_input(qid):
@@ -75,7 +75,8 @@ def test_runs_are_mlflow_runs_in_start_order(mlflow_store, tmp_path):
     assert [x.info.run_name for x in runs] == ["eval-1", "eval-2", "eval-3"]
     out = tmp_path / "rep"
     assert _import(mlflow_store, out, "--metric", "correctness") == 0
-    headers = [json.loads((out / "runs" / f"run-0{n}.jsonl").read_text().splitlines()[0])
+    headers = [json.loads((out / "runs" / f"run-0{n}.jsonl").read_text(
+        encoding="utf-8").splitlines()[0])
                for n in (1, 2, 3)]
     assert [h["source"]["file"] for h in headers] == [x.info.run_id for x in runs]
 
@@ -121,7 +122,8 @@ def test_id_from_reads_a_stable_id(mlflow_store, tmp_path):
     for key in ("qid", "row_id"):  # a request input key, then a trace tag
         out = tmp_path / key
         assert _import(mlflow_store, out, "--metric", "correctness", "--id-from", key) == 0
-        anchors = [json.loads(x) for x in (out / "anchors.jsonl").read_text().splitlines()]
+        anchors = [json.loads(x) for x in (out / "anchors.jsonl").read_text(
+            encoding="utf-8").splitlines()]
         assert {a["id"]: a["human_label"] for a in anchors} == HUMAN
         r = _report(out)
         assert r["source"]["ids_derived"] is False
@@ -171,11 +173,13 @@ def test_several_assessment_names_without_metric_is_a_usage_error(mlflow_store, 
 
 def test_feedback_error_becomes_an_error_verdict(mlflow_store, tmp_path):
     labels = tmp_path / "labels.csv"
-    labels.write_text("id,human_label\n" + "".join(f"{q},{HUMAN[q]}\n" for q in ITEMS))
+    labels.write_text("id,human_label\n" + "".join(f"{q},{HUMAN[q]}\n" for q in ITEMS),
+                      encoding="utf-8")
     out = tmp_path / "rep"
     assert _import(mlflow_store, out, "--metric", "concise", "--id-from", "qid",
                    "--labels", str(labels)) == 0
-    run1 = [json.loads(x) for x in (out / "runs" / "run-01.jsonl").read_text().splitlines()]
+    run1 = [json.loads(x) for x in (out / "runs" / "run-01.jsonl").read_text(
+        encoding="utf-8").splitlines()]
     q7 = next(x for x in run1 if x.get("id") == "Q7")
     assert q7["verdict"] == "error"
     assert "judge timed out" in (q7["rationale"] + (q7.get("error") or ""))
@@ -195,14 +199,14 @@ def test_anchors_out_hands_off_to_judge(mlflow_store, tmp_path):
     out, anchors = tmp_path / "rep", tmp_path / "labels" / "anchors.jsonl"
     assert _import(mlflow_store, out, "--metric", "correctness",
                    "--anchors-out", str(anchors)) == 0
-    items = [json.loads(x) for x in anchors.read_text().splitlines()]
+    items = [json.loads(x) for x in anchors.read_text(encoding="utf-8").splitlines()]
     assert len(items) == 8
     assert all(set(i) == {"id", "input", "output", "human_label"} for i in items)
     by_q = {i["input"]["qid"]: i for i in items}
     assert {q: i["human_label"] for q, i in by_q.items()} == HUMAN
     assert by_q["Q0"]["output"] == "Answer to question 0?"
-    assert "reviewed" not in anchors.read_text()  # no rationales
-    assert "reviewer@example.com" not in anchors.read_text()  # no user ids
+    assert "reviewed" not in anchors.read_text(encoding="utf-8")  # no rationales
+    assert "reviewer@example.com" not in anchors.read_text(encoding="utf-8")  # no user ids
     assert main(["freeze", str(anchors)]) == 0
     # replay the imported run 1 as a judge over the new anchor set, three times
     assert main(["judge", str(anchors), "--runner", "replay", "--fixture",

@@ -93,7 +93,7 @@ def test_a_key_in_the_shell(clean, tmp_path):
 
 
 def test_a_key_in_env_that_the_tool_loads(clean, tmp_path):
-    (tmp_path / ".env").write_text(f"OPENAI_API_KEY={FAKE}\n")
+    (tmp_path / ".env").write_text(f"OPENAI_API_KEY={FAKE}\n", encoding="utf-8")
     k = check("openai:gpt-4.1-mini", "promptfoo", tmp_path)
     assert k.ok
     assert k.lines == [("Your judge will use your OpenAI key (OPENAI_API_KEY, in .env in this "
@@ -102,32 +102,32 @@ def test_a_key_in_env_that_the_tool_loads(clean, tmp_path):
 
 def test_the_shell_wins_over_env(clean, tmp_path):
     clean.setenv("OPENAI_API_KEY", FAKE)
-    (tmp_path / ".env").write_text(f"OPENAI_API_KEY={FAKE}\n")
+    (tmp_path / ".env").write_text(f"OPENAI_API_KEY={FAKE}\n", encoding="utf-8")
     assert "set in your shell" in check("gpt-4.1", "deepeval", tmp_path).lines[0]
 
 
 def test_the_promptfoo_config_env_block_wins(clean, tmp_path):
     clean.setenv("OPENAI_API_KEY", FAKE)
     config = tmp_path / "promptfooconfig.yaml"
-    config.write_text("env:\n  OPENAI_API_KEY: x\n")
+    config.write_text("env:\n  OPENAI_API_KEY: x\n", encoding="utf-8")
     k = check("openai:gpt-4.1-mini", "promptfoo", tmp_path, config=config)
     assert k.lines[0] == ("Your judge will use your OpenAI key (OPENAI_API_KEY, in the env: "
                           "block of promptfooconfig.yaml; promptfoo uses it).")
 
 
 def test_deepeval_also_reads_env_local_and_the_app_env_file(clean, tmp_path):
-    (tmp_path / ".env.local").write_text("ANTHROPIC_API_KEY=x\n")
+    (tmp_path / ".env.local").write_text("ANTHROPIC_API_KEY=x\n", encoding="utf-8")
     k = check("claude-sonnet-4-6 (Anthropic)", "deepeval", tmp_path)
     assert k.ok and "in .env.local in this folder; DeepEval loads it" in k.lines[0]
     clean.setenv("APP_ENV", "staging")
     (tmp_path / ".env.local").unlink()
-    (tmp_path / ".env.staging").write_text("ANTHROPIC_API_KEY=x\n")
+    (tmp_path / ".env.staging").write_text("ANTHROPIC_API_KEY=x\n", encoding="utf-8")
     assert "in .env.staging in this folder" in check(
         "claude-sonnet-4-6 (Anthropic)", "deepeval", tmp_path).lines[0]
 
 
 def test_mlflow_needs_the_key_in_the_shell(clean, tmp_path):
-    (tmp_path / ".env").write_text("OPENAI_API_KEY=x\n")
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
     k = check("openai:/gpt-4.1-mini", "mlflow", tmp_path)
     assert not k.ok
     (line,) = k.lines
@@ -163,12 +163,13 @@ def test_one_of_several_names(clean, tmp_path):
 def test_credential_files_are_named_never_read(clean, tmp_path):
     aws = keys.HOME / ".aws"
     aws.mkdir(parents=True)
-    (aws / "credentials").write_text(f"[default]\naws_secret_access_key = {FAKE}\n")
+    (aws / "credentials").write_text(f"[default]\naws_secret_access_key = {FAKE}\n",
+                                     encoding="utf-8")
     k = check("bedrock:anthropic.claude-haiku", "promptfoo", tmp_path)
     assert k.ok and k.lines == ["AWS profile found; your judge will use it."]
     gcloud = keys.HOME / ".config" / "gcloud"
     gcloud.mkdir(parents=True)
-    (gcloud / "application_default_credentials.json").write_text("{}")
+    (gcloud / "application_default_credentials.json").write_text("{}", encoding="utf-8")
     k = check("vertex:gemini-3.8-flash", "promptfoo", tmp_path)
     assert k.ok and k.lines == ["Google default credentials found; your judge will use them."]
 
@@ -188,7 +189,7 @@ def test_an_unknown_provider_is_said(clean, tmp_path):
 def test_setting_variables_are_named(clean, tmp_path):
     clean.setenv("OPENAI_API_KEY", FAKE)
     clean.setenv("OPENAI_TEMPERATURE", "0.7")
-    (tmp_path / ".env").write_text("OPENAI_BASE_URL=http://proxy\n")
+    (tmp_path / ".env").write_text("OPENAI_BASE_URL=http://proxy\n", encoding="utf-8")
     k = check("openai:gpt-4.1-mini", "promptfoo", tmp_path)
     assert k.settings == ["OPENAI_BASE_URL", "OPENAI_TEMPERATURE"]
     assert "OPENAI_BASE_URL and OPENAI_TEMPERATURE are set; they change your judge." in k.lines
@@ -203,9 +204,10 @@ def test_one_setting_variable(clean, tmp_path):
 
 def test_no_value_ever_reaches_any_output(clean, tmp_path, capsys):
     clean.setenv("OPENAI_API_KEY", FAKE)
-    (tmp_path / ".env").write_text(f"ANTHROPIC_API_KEY={FAKE}\nOPENAI_TEMPERATURE={FAKE}\n")
+    (tmp_path / ".env").write_text(f"ANTHROPIC_API_KEY={FAKE}\nOPENAI_TEMPERATURE={FAKE}\n",
+                                   encoding="utf-8")
     config = tmp_path / "promptfooconfig.yaml"
-    config.write_text(f"env:\n  MISTRAL_API_KEY: {FAKE}\n")
+    config.write_text(f"env:\n  MISTRAL_API_KEY: {FAKE}\n", encoding="utf-8")
     seen = []
     for model, tool in (("openai:gpt-4.1-mini", "promptfoo"), ("claude-x (Anthropic)",
                                                                 "deepeval"),
@@ -251,10 +253,10 @@ def test_the_default_grader_follows_promptfoos_order(clean, tmp_path, names, fam
 
 
 def test_the_default_grader_reads_env_files_and_the_config(clean, tmp_path):
-    (tmp_path / ".env").write_text("ANTHROPIC_API_KEY=x\n")
+    (tmp_path / ".env").write_text("ANTHROPIC_API_KEY=x\n", encoding="utf-8")
     assert promptfoo_default(tmp_path, None, "0.123.1").family == "anthropic"
     config = tmp_path / "promptfooconfig.yaml"
-    config.write_text("env:\n  OPENAI_API_KEY: x\n")
+    config.write_text("env:\n  OPENAI_API_KEY: x\n", encoding="utf-8")
     assert promptfoo_default(tmp_path, config, "0.123.1").family == "openai"
 
 

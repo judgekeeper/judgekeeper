@@ -33,7 +33,7 @@ from judgekeeper import find, mapper, own_format, settings
 from judgekeeper.recorder import project_root
 from judgekeeper.records import LLM
 from judgekeeper.start import EXIT_OK, EXIT_USAGE, StartError, Stop, Talk, _or, find_judge
-from judgekeeper.textio import quote_arg, read_utf8, tick
+from judgekeeper.textio import line_ending, quote_arg, read_utf8, tick, write_keeping
 
 MAX_PATHS = 24
 EXAMPLES = 3
@@ -66,9 +66,10 @@ def gitignore_change(root: Path) -> Change | None:
         if line.strip().lstrip("/").rstrip("*").rstrip("/") == ".judgekeeper":
             return None
 
-    def apply():
-        before = text if not text or text.endswith("\n") else text + "\n"
-        path.write_text(before + "\n".join(GITIGNORE) + "\n", encoding="utf-8")
+    def apply():  # in the file's own line endings
+        eol = line_ending(text)
+        before = text if not text or text.endswith("\n") else text + eol
+        write_keeping(path, before + eol.join(GITIGNORE) + eol)
 
     return Change("add .judgekeeper/ to .gitignore (your answers stay off Git)", apply,
                   "Added .judgekeeper/ to .gitignore")
@@ -111,6 +112,7 @@ def _nested(data: dict, keys: tuple):
 def _added(text: str, header: str) -> str | None:
     """pyproject.toml's text with "judgekeeper" added to the `dev = [...]` list of the table
     `header`, or None when the list is not where or how judgekeeper edits it."""
+    eol = line_ending(text)  # new lines end as the file's lines do
     lines = text.splitlines(keepends=True)
     start = next((i for i, line in enumerate(lines)
                   if (m := _HEADER.match(line)) and m.group(1).replace(" ", "") == header),
@@ -139,14 +141,14 @@ def _added(text: str, header: str) -> str | None:
     if any("#" in lines[i] for i in items):
         return None
     if not items:
-        lines.insert(close, '    "judgekeeper",\n')
+        lines.insert(close, f'    "judgekeeper",{eol}')
         return "".join(lines)
     last = items[-1]
     indent = lines[last][:len(lines[last]) - len(lines[last].lstrip())]
     trailing = lines[last].rstrip().endswith(",")
     if not trailing:
-        lines[last] = lines[last].rstrip("\r\n") + ",\n"
-    lines.insert(last + 1, f'{indent}"judgekeeper"{"," if trailing else ""}\n')
+        lines[last] = lines[last].rstrip("\r\n") + "," + eol
+    lines.insert(last + 1, f'{indent}"judgekeeper"{"," if trailing else ""}{eol}')
     return "".join(lines)
 
 
@@ -178,16 +180,17 @@ def requirements_change(root: Path) -> Change | None:
                               f"{where} has a shape judgekeeper does not edit: add it to "
                               f"{where} yourself", None)
             return Change(f"add judgekeeper to {where}",
-                          lambda new=new: pyproject.write_text(new, encoding="utf-8"),
+                          lambda new=new: write_keeping(pyproject, new),
                           f"Added judgekeeper to {where}")
     for name in ("requirements-dev.txt", "requirements-dev.in"):
         path = root / name
         if path.is_file():
             text = read_utf8(path, StartError)
 
-            def apply(path=path, text=text):
-                before = text if not text or text.endswith("\n") else text + "\n"
-                path.write_text(before + "judgekeeper\n", encoding="utf-8")
+            def apply(path=path, text=text):  # in the file's own line endings
+                eol = line_ending(text)
+                before = text if not text or text.endswith("\n") else text + eol
+                write_keeping(path, before + "judgekeeper" + eol)
 
             return Change(f"add judgekeeper to {name}", apply, f"Added judgekeeper to {name}")
     return Change(NOT_LISTED, None)
@@ -209,7 +212,7 @@ def settings_change(root: Path, saved: settings.StartSettings) -> Change:
         line = f"change the [start] table in {settings.FILE} {why}"
     else:
         line = f"add a [start] table to {settings.FILE} {why}"
-    return Change(line, lambda: path.write_text(new, encoding="utf-8"), f"Saved {settings.FILE}")
+    return Change(line, lambda: write_keeping(path, new), f"Saved {settings.FILE}")
 
 
 # Mapping an own-format file ---------------------------------------------------------------

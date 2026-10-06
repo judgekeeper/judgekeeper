@@ -59,7 +59,7 @@ def run(stub, monkeypatch, out, *extra, window=("--from", "2026-09-01")):
 
 
 def report(out):
-    return json.loads((out / "report.json").read_text())
+    return json.loads((out / "report.json").read_text(encoding="utf-8"))
 
 
 def test_one_command_turns_the_api_into_a_report(keys, clock, monkeypatch, tmp_path, capsys):
@@ -83,7 +83,8 @@ def test_one_command_turns_the_api_into_a_report(keys, clock, monkeypatch, tmp_p
     prompt = load("evaluators.json")["data"][1]["prompt"]
     assert fp["prompt_hash"] == hashlib.sha256(canonical_json(prompt).encode()).hexdigest()
     assert fp["temperature"] is None  # Langfuse stores none
-    run1 = [json.loads(x) for x in (tmp_path / "rep" / "runs" / "run-01.jsonl").read_text()
+    run1 = [json.loads(x) for x in (tmp_path / "rep" / "runs" / "run-01.jsonl").read_text(
+        encoding="utf-8")
             .splitlines()]
     t1 = next(x for x in run1 if x.get("id") == "trace-1")
     assert t1["verdict"] == "pass" and t1["raw_score"] == 0.9
@@ -273,23 +274,23 @@ def test_no_credentials_in_any_output_or_file(keys, clock, monkeypatch, tmp_path
     printed = capsys.readouterr()
     files = [p for p in tmp_path.rglob("*") if p.is_file()]
     assert files
-    for text in [printed.out, printed.err, *(p.read_text() for p in files)]:
+    for text in [printed.out, printed.err, *(p.read_text(encoding="utf-8") for p in files)]:
         for value in (PUBLIC, SECRET, BASIC):
             assert value not in text
-    assert "[REDACTED]" in (out / "runs" / "run-01.jsonl").read_text()
+    assert "[REDACTED]" in (out / "runs" / "run-01.jsonl").read_text(encoding="utf-8")
 
 
 def test_anchors_out_hands_off_to_judge(keys, clock, monkeypatch, tmp_path):
     anchors = tmp_path / "anchors.jsonl"
     with LangfuseStub() as stub:
         assert run(stub, monkeypatch, tmp_path / "rep", "--anchors-out", str(anchors)) == 0
-    items = [json.loads(x) for x in anchors.read_text().splitlines()]
+    items = [json.loads(x) for x in anchors.read_text(encoding="utf-8").splitlines()]
     assert [i["id"] for i in items] == [f"trace-{n}" for n in range(1, 7)]
     assert [i["human_label"] for i in items] == ["pass"] * 3 + ["fail"] * 3
     # the v3 scores endpoint returns no trace text: input and output stay empty
     assert all(i["input"] == "" and i["output"] == "" for i in items)
-    assert "reviewed in queue" not in anchors.read_text()
-    assert "user-ann-1" not in anchors.read_text()
+    assert "reviewed in queue" not in anchors.read_text(encoding="utf-8")
+    assert "user-ann-1" not in anchors.read_text(encoding="utf-8")
     assert main(["freeze", str(anchors)]) == 0
     assert main(["judge", str(anchors), "--runner", "replay", "--fixture",
                  str(tmp_path / "rep" / "runs" / "run-01.jsonl"), "--runs", "3",

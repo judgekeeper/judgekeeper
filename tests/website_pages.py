@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shlex
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
@@ -65,6 +66,12 @@ class _TreeBuilder(HTMLParser):
 
     def handle_data(self, data):
         self.node.children.append(data)
+
+
+def as_shown(text: str) -> str:
+    """Printed output as the pages show it: the pages were made on macOS, so a path printed
+    with \\ on Windows is compared with / there."""
+    return text.replace(os.sep, "/") if os.sep != "/" else text
 
 
 def parse(path: Path) -> Element:

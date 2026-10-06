@@ -138,7 +138,7 @@ def test_marker_paths_are_relative_to_the_rootdir(pytester, reports):
     (sub / "test_judge.py").write_text(
         "import pytest\n\n"
         "@pytest.mark.judgekeeper(report='reports/pass.json')\n"
-        "def test_good():\n    pass\n")
+        "def test_good():\n    pass\n", encoding="utf-8")
     pytester.makeini("[pytest]\n")
     pytester.chdir()
     result = pytester.runpytest("evals")

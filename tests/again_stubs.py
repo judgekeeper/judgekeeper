@@ -421,18 +421,18 @@ def stubs(tmp_path_factory, monkeypatch):
     folder = tmp_path_factory.mktemp("stubs")
     write(folder, {**STUB_DEEPEVAL, **STUB_INSPECT, **STUB_MLFLOW})
     log = folder / "stub-log.jsonl"
-    log.write_text("")
+    log.write_text("", encoding="utf-8")
     plan_path = folder / "stub-plan.json"
     monkeypatch.setenv("PYTHONPATH", str(folder))
     monkeypatch.setenv("STUB_LOG", str(log))
     monkeypatch.setenv("STUB_PLAN", str(plan_path))
 
     def entries(kind: str | None = None):
-        rows = [json.loads(x) for x in log.read_text().splitlines() if x.strip()]
+        rows = [json.loads(x) for x in log.read_text(encoding="utf-8").splitlines() if x.strip()]
         return [r for r in rows if kind is None or r["kind"] == kind]
 
     def plan(**data):
-        plan_path.write_text(json.dumps(data))
+        plan_path.write_text(json.dumps(data), encoding="utf-8")
 
     entries.plan = plan
     return entries

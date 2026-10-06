@@ -1,9 +1,12 @@
-# Runs the test suite on Windows when started by hand (Actions > Windows > Run workflow).
-# Windows is not yet a supported platform: several tests still expect macOS and Linux output,
-# so this does not run on every push, where it would show a failing check on every change.
+# Runs the test suite on Windows: on every pull request, on every push to main, and by hand
+# (Actions > Windows > Run workflow). Windows is a supported platform, so this check must pass
+# like the others.
 name: Windows
 
 on:
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -22,4 +25,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,mlflow]"
       - name: Test
-        run: pytest
+        # -rfEs lists every failed, erroring and skipped test (and why)
+        run: pytest -rfEs

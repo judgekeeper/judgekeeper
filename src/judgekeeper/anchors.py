@@ -124,7 +124,8 @@ def build_manifest(items: list[dict]) -> dict:
 def freeze(path: str | Path) -> dict:
     items = load_anchors(path)
     manifest = build_manifest(items)
-    manifest_path_for(path).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    manifest_path_for(path).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8",
+                                       newline="\n")
     return manifest
 
 

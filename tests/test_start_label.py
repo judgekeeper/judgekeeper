@@ -184,7 +184,7 @@ def test_labeling_again_resumes_at_the_next_answer(workspace):
 
 def test_the_queue_order_is_the_page_order(workspace):
     _, ws = workspace
-    queue = json.loads(ws.start.read_text())["queue"]
+    queue = json.loads(ws.start.read_text(encoding="utf-8"))["queue"]
     assert [i["id"] for i in start_label.StartSession(ws).items] == [q["id"] for q in queue]
 
 
@@ -224,7 +224,7 @@ def test_see_my_result_works_before_everything_is_labeled(workspace):
 def test_after_the_last_answer_the_result_is_served_and_the_server_stops(tmp_path):
     ws = start_label.prepare(_found(tmp_path, 20, 16), say=lambda line: None)
     _, thread, client = _server(ws)
-    queue = {q["id"]: q["group"] for q in json.loads(ws.start.read_text())["queue"]}
+    queue = {q["id"]: q["group"] for q in json.loads(ws.start.read_text(encoding="utf-8"))["queue"]}
     for item_id, group in queue.items():
         assert client.label(id=item_id, label=group)[0] == 200
     resp, payload = client.request("GET", "/result")
@@ -309,14 +309,14 @@ def test_the_result_page_stands_alone():
 
 def test_starting_to_label_writes_the_start_files(workspace):
     _, ws = workspace
-    data = json.loads(ws.start.read_text())
+    data = json.loads(ws.start.read_text(encoding="utf-8"))
     for key in ("tool", "results_files", "metric", "fingerprint", "pool", "left_out", "seed",
                 "queue", "judgekeeper_version", "started_at", "judge"):
         assert key in data, key
     assert data["results_files"] == ["results.json"]
     assert data["pool"] == {"answers": 32, "pass": 20, "fail": 12}
     assert len(data["queue"]) == 32
-    pool = [json.loads(line) for line in ws.pool.read_text().splitlines()]
+    pool = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()]
     assert set(pool[0]) == {"id", "input", "output"}
     header, records = read_run(ws.pool_judge)
     assert len(records) == 32
@@ -329,7 +329,8 @@ def test_starting_to_label_writes_the_start_files(workspace):
 
 def _label_everything(ws, agree=True):
     session = start_label.StartSession(ws)
-    groups = {q["id"]: q["group"] for q in json.loads(ws.start.read_text())["queue"]}
+    groups = {q["id"]: q["group"] for q in json.loads(ws.start.read_text(
+        encoding="utf-8"))["queue"]}
     for item in session.items:
         group = groups[item["id"]]
         session.update({"id": item["id"],
@@ -343,14 +344,14 @@ def test_a_result_writes_anchors_and_the_result_files(workspace):
     start_label.save_result(ws, session, say=lambda line: None)
     items, manifest = load_verified(ws.anchors)
     assert len(items) == 32 and manifest["label_distribution"] == {"fail": 12, "pass": 20}
-    result = json.loads(ws.result_json.read_text())
+    result = json.loads(ws.result_json.read_text(encoding="utf-8"))
     for key in ("tpr", "tnr", "kappa", "tpr_interval", "real_pass_rate", "judge_pass_rate",
                 "groups", "labels", "fingerprint", "made_at", "verdict", "z", "judge"):
         assert key in result, key
     assert result["tpr"] == 1 and result["tnr"] == 1
-    html = ws.result_html.read_text()
+    html = ws.result_html.read_text(encoding="utf-8")
     assert html.startswith("<!doctype html>")
-    date = json.loads(ws.start.read_text())["results_date"]
+    date = json.loads(ws.start.read_text(encoding="utf-8"))["results_date"]
     assert "<b>llm-rubric</b> · openai:gpt-4.1-mini" in html
     when = f"{start_label.in_words(date[:10])}, {date[11:]}"
     assert f"From results.json (promptfoo), saved {when}" in html
@@ -360,10 +361,10 @@ def test_a_second_result_moves_the_first_to_history(workspace):
     _, ws = workspace
     session = _label_everything(ws)
     start_label.save_result(ws, session, say=lambda line: None)
-    first = ws.result_json.read_text()
+    first = ws.result_json.read_text(encoding="utf-8")
     start_label.save_result(ws, session, say=lambda line: None)
     history = sorted((ws.dir / "history").glob("result-*.json"))
-    assert len(history) == 1 and history[0].read_text() == first
+    assert len(history) == 1 and history[0].read_text(encoding="utf-8") == first
 
 
 def test_skipped_answers_are_not_in_the_anchors(workspace):
@@ -402,11 +403,11 @@ def test_the_first_save_says_what_the_folder_holds_once(tmp_path):
 def test_preparing_again_keeps_the_queue_and_the_labels(tmp_path):
     found = _found(tmp_path)
     ws = start_label.prepare(found, say=lambda line: None)
-    queue = json.loads(ws.start.read_text())["queue"]
+    queue = json.loads(ws.start.read_text(encoding="utf-8"))["queue"]
     session = start_label.StartSession(ws)
     session.update({"id": session.items[0]["id"], "label": "fail"})
     ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
-    assert json.loads(ws.start.read_text())["queue"] == queue
+    assert json.loads(ws.start.read_text(encoding="utf-8"))["queue"] == queue
     assert start_label.StartSession(ws).items[0]["label"] == "fail"
 
 
@@ -441,7 +442,8 @@ def clicker(monkeypatch):
         thread.start()
         client = Client(self)
         ws = self.session.workspace
-        groups = {q["id"]: q["group"] for q in json.loads(ws.start.read_text())["queue"]}
+        groups = {q["id"]: q["group"] for q in json.loads(ws.start.read_text(
+            encoding="utf-8"))["queue"]}
         for n, item in enumerate(client.state()["items"]):
             if plan["stop_after"] is not None and n == plan["stop_after"]:
                 self.stop()
