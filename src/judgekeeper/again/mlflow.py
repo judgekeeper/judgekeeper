@@ -102,40 +102,53 @@ def judge_meta(meta: dict) -> dict:
             "trace": bool(TRACE.search(str(instructions or ""))), "text": text}
 
 
-def assessment_info(ws, metric: str) -> dict:
+def assessment_info(ws, metric: str, run: str | None = None) -> dict:
     """The judge named `metric` in the project's MLflow store, read-only: one of its
     assessments {source_id, name, scorer_name, scorer_version, guidelines, instructions,
-    trace, text, experiment}, the store's read-only `uri`, and `traces`: {answer id: trace id}
-    for every trace that holds one of its assessments (answer ids as `start` makes them)."""
+    trace, text, experiment}, the store's read-only `uri`, `traces`: {answer id: trace id}
+    for every trace that holds one of its assessments (answer ids as `start` makes them), and
+    `all_traces`: the same for every trace. `run` (an MLflow run id) takes the assessment
+    from that run, the newest results of a new judge."""
     from mlflow import MlflowClient
 
     from judgekeeper import find
-    from judgekeeper.readers.mlflow_store import _content, _traces
+    from judgekeeper.readers.mlflow_store import (
+        NO_RUN,
+        SOURCE_RUN_ID,
+        TRACE_SOURCE_RUN,
+        _content,
+        _traces,
+    )
     from judgekeeper.records import derive_record_id
 
     store = next(iter(find.search(ws.root).readable("mlflow")))
     uri = (str(store.path) if store.path.is_dir() else
            f"sqlite:///file:{store.path.as_posix()}?mode=ro&uri=true")
     client = MlflowClient(tracking_uri=uri)
-    info, traces = None, {}
+    info, traces, every = None, {}, {}
     for exp in client.search_experiments():
         for trace in _traces(client, exp.experiment_id):
+            key = derive_record_id(*_content(trace))
+            every.setdefault(key, trace.info.trace_id)
+            trace_run = (trace.info.trace_metadata or {}).get(TRACE_SOURCE_RUN)
             for a in trace.info.assessments or []:
                 d = a.to_dictionary()
                 source = d.get("source") or {}
                 if d.get("assessment_name") != metric or source.get("source_type") not in (
                         "LLM_JUDGE", "AI_JUDGE"):
                     continue
-                traces.setdefault(derive_record_id(*_content(trace)), trace.info.trace_id)
+                meta = d.get("metadata") or {}
+                if run not in (None, NO_RUN) and (meta.get(SOURCE_RUN_ID) or trace_run) != run:
+                    continue
+                traces.setdefault(key, trace.info.trace_id)
                 if info is None:
-                    meta = d.get("metadata") or {}
                     info = {"source_id": source.get("source_id"), "name": metric,
                             "scorer_name": meta.get(SCORER_NAME),
                             "scorer_version": meta.get(SCORER_VERSION),
                             "experiment": exp.experiment_id, **judge_meta(meta)}
     if info is None:
         raise ValueError(f"no judge assessment named {metric} in your MLflow store")
-    return {**info, "uri": uri, "traces": traces}
+    return {**info, "uri": uri, "traces": traces, "all_traces": every}
 
 
 def judge_job(info: dict, worker: dict) -> dict:
@@ -152,11 +165,16 @@ def judge_job(info: dict, worker: dict) -> dict:
     return {**base, "kind": "make_judge", "text": info.get("text")}
 
 
-def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
+NEEDS_TRACE = ("its trace is not in your MLflow store, and your judge reads the whole trace",
+               "their traces are not in your MLflow store, and your judge reads the whole trace")
+
+
+def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> Plan:
     data = ws.data()
     root, metric, judge = ws.root, data["metric"], data["judge"]
     try:
-        info = assessment_info(ws, metric)
+        info = (assessment_info(ws, metric, run=data["results_files"][0]) if new
+                else assessment_info(ws, metric))
     except ImportError:
         return cant("mlflow", judge, 'reading MLflow needs pip install "judgekeeper[mlflow]"',
                     short="the mlflow extra is not installed")
@@ -186,8 +204,12 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
     model = info.get("source_id")
     calls = TRACE_CALLS if info.get("trace") else 1
     check = keys.check(model, "mlflow", root)
-    traces = info.get("traces") or {}
-    found = [a for a in answers if a["id"] in traces]
+    if new:  # a new judge never graded these answers: their traces, where still kept
+        traces = info.get("all_traces") or {}
+        found = [a for a in answers if a["id"] in traces or not info.get("trace")]
+    else:
+        traces = info.get("traces") or {}
+        found = [a for a in answers if a["id"] in traces]
     if not found:
         return cant("mlflow", judge, "none of your labeled answers is in your MLflow store any "
                     "more", short="your answers are not in your MLflow store")
@@ -197,10 +219,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
         tokens.append((i * calls, o * calls))
     left = []
     if len(found) < len(answers):
-        left.append(left_out_line(len(answers) - len(found),
-                                  "it is not in your MLflow store any more",
-                                  "they are not in your MLflow store any more"))
-    payload = [(a, {"id": a["id"], "trace": traces[a["id"]], "inputs": a["input"],
+        left.append(left_out_line(len(answers) - len(found), *(
+            NEEDS_TRACE if new else ("it is not in your MLflow store any more",
+                                     "they are not in your MLflow store any more"))))
+    payload = [(a, {"id": a["id"], "trace": traces.get(a["id"]), "inputs": a["input"],
                     "outputs": a["output"]}) for a in found]
     return Plan(tool="mlflow", judge=f"{judge} (MLflow {version})" if version else judge,
                 status=status, why=why, model=model, provider=check.provider,

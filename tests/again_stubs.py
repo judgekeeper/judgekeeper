@@ -178,6 +178,11 @@ STUB_INSPECT = {
                           model_roles=None, action=None, display=None, copy=True,
                           samples=None):
         time = _next("score_async")
+        _log("samples", time=time, samples=[
+            {"id": s.id, "epoch": s.epoch, "input": s.input, "target": s.target,
+             "output": getattr(s.output, "completion", None),
+             "messages": [[m.role, m.content] for m in s.messages or []],
+             "scores": list(s.scores)} for s in log.samples])
         _log("score_async", time=time, action=action, copy=copy,
              model=getattr(model, "name", model),
              model_cache=getattr(getattr(model, "config", None), "cache", "unset"),
@@ -251,6 +256,22 @@ STUB_INSPECT = {
         def __init__(self, name, config, base_url, args):
             self.name, self.config, self.base_url, self.args = name, config, base_url, args
 
+    class _Message:
+        def __init__(self, content="", **k):
+            self.content = content
+            self.role = type(self).__name__.removeprefix("ChatMessage").lower()
+
+    class ChatMessageUser(_Message): pass
+    class ChatMessageSystem(_Message): pass
+    class ChatMessageAssistant(_Message): pass
+
+    class ModelOutput:
+        def __init__(self, model, completion):
+            self.model, self.completion = model, completion
+        @classmethod
+        def from_content(cls, model, content):
+            return cls(model, content)
+
     def get_model(model=None, *, config=None, base_url=None, **args):
         _log("get_model", model=model, config=(config or GenerateConfig()).model_dump(),
              base_url=base_url, args=args)
@@ -285,6 +306,7 @@ STUB_INSPECT = {
                    model_base_url=e.get("model_base_url"), model_args=e.get("model_args") or {},
                    packages=e.get("packages") or {})
         samples = [Obj(id=s["id"], epoch=s.get("epoch"), input=s["input"],
+                       target=s.get("target"), output=None, messages=[],
                        scores={k: _score(v) for k, v in (s.get("scores") or {}).items()})
                    for s in d.get("samples") or []]
         return Obj(eval=spec, samples=samples)

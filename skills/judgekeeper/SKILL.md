@@ -21,13 +21,16 @@ write little code, so say what you are doing in plain words. Full flags:
 - Report TPR, TNR and kappa together. Never report raw agreement on its own.
 - Count judge calls before running: items x runs (x 2 for pairwise). Ask before spending.
 - Stop and ask whenever a step needs the human: labels, a key, money, what the rule means.
-- Labeling needs the person. Run `judgekeeper start --yes --no-browser` only to show what it
-  found; then tell the person to open the page or run `judgekeeper start` themselves.
+- Labeling needs the person, and so does a review. Run `judgekeeper start --yes --no-browser`
+  only to show what it found; then tell the person to open the page or run `judgekeeper start`.
+  Run `--review` only with them. Never answer a spending question or pass `--allow-calls`: for
+  `--ask-again` and `--try-new-judge`, the person answers `Go ahead? [y/N]` themselves.
 
 ## Install
 
-Run `pip install judgekeeper` (or the project's own package tool), then `judgekeeper --version`
-(no key, no network, no files) to confirm it runs.
+Install it into the project's own environment, never for the whole computer: with the
+project's virtual environment active, `pip install judgekeeper` (or `uv add --dev judgekeeper`,
+`poetry add --group dev judgekeeper`). Then `judgekeeper --version` confirms it runs.
 
 ## 1. Find the judge
 

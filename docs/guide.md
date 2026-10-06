@@ -19,7 +19,18 @@ cd your-project
 judgekeeper start
 ```
 
-`judgekeeper start` finds the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV or JSONL file with `input`, `output` and a verdict column) and names your judge. It opens a page in your browser with one answer at a time, half from the judge's passes and half from its fails, without what the judge said; you mark each one Correct or Wrong. Then it shows how often your judge agrees with you, corrected for that picking. A rough check needs 15 Correct and 15 Wrong, a reliable result 25 of each. Everything is saved in `.judgekeeper/`, so you can stop, carry on, and check again after your next eval run. It makes no AI calls, needs no API key and never runs your code. Every flag and saved file: [`reference.md`](reference.md#start-find-your-results-label-see-the-result).
+`judgekeeper start` finds the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV or JSONL file with `input`, `output` and a verdict column) and names your judge. It opens a page in your browser with one answer at a time, half from the judge's passes and half from its fails, without what the judge said; you mark each one Correct or Wrong. Then it shows how often your judge agrees with you, corrected for that picking. A rough check needs 15 Correct and 15 Wrong, a reliable result 25 of each. Everything is saved in `.judgekeeper/`, so you can stop, carry on, and check again after your next eval run. No AI calls unless you say yes. Then your own judge runs through your own tool; judgekeeper never sees your key, it only checks its name. It never runs your app. Every flag and saved file: [`reference.md`](reference.md#start-find-your-results-label-see-the-result).
+
+Your judge saves its results in a format of its own? Turn them into a table with `id`, `input`, `output`, `verdict` (pass or fail) and `reason` columns, plus `judge_model` when you know the model, and run `judgekeeper start your-table.csv`; it prints the counts, the pass/fail split and the first 3 rows, so a wrong table shows. `judgekeeper start --agent-prompt` prints a prompt that asks your coding agent to write that table for you.
+
+### After your first result
+
+Run `judgekeeper start` again and it asks what next:
+
+- **Review the disagreements** (`--review`, free, no AI call). First you look again at each answer where you and your judge disagree, mixed with answers you agreed on, with the judge's verdict still hidden. Then you see what the judge said, with its reason, and say whether the judge was wrong, you slipped, or the rule is unclear. The judge's mistakes go to `.judgekeeper/judge-mistakes.csv`. Your first labels stay the main result.
+- **Ask your judge again** (`--ask-again`). Your own eval tool grades the answers you labeled again, with your own judge; your app is not run. First a plan: whether this is exactly your judge or a close copy, which key it uses (by name only), how many calls and a dated cost range. Then `Go ahead? [y/N]`, No unless you type y. It shows how often the judge changes its verdict, and how well it agrees with you today.
+- **Try your new judge** (`--try-new-judge`). After you change your judge's rule or model and run your eval once, the new judge grades the answers you already marked, shown side by side with the old one. A judge fixed while looking at these answers looks better on them, so it then offers a quick check on 10 Correct and 10 Wrong new answers.
+- **Label more** (`--label-more`), or nothing for now.
 
 The layers below are the other ways in: a table you made yourself, your own rule and judge, checks over time, and your tools.
 
@@ -32,45 +43,44 @@ The report leads with TPR (how often the judge passes what humans passed) and TN
 ## 0. The core
 
 ```
+source .venv/bin/activate
 pip install judgekeeper
 judgekeeper --version
 ```
 
-The second line prints the version, which shows judgekeeper is installed. On a Mac the command is `pip3`. If the install is refused, see [Install](#install) below.
+Run these in your project folder. judgekeeper is a tool for developers, like pytest: it goes inside your project's own Python environment. The last line shows judgekeeper is installed. For Windows, uv, Poetry and a fix for each thing that can go wrong, see [Install](#install) below.
 
 ### Install
 
-Linux follows the Mac lines.
+judgekeeper is a tool for developers, like pytest: install it inside your project, in the project's own Python environment, never on your computer as a whole. Linux follows the Mac lines.
 
 1. Check Python. Mac: `python3 --version`. Windows: `py --version` (`python --version` works too when Python is on the PATH). You should see `Python 3.11` or a higher number. If you see "command not found" or a lower number, install Python from https://www.python.org/downloads/ and open a new terminal.
-2. Install. Mac: `pip3 install judgekeeper`. Windows: `pip install judgekeeper`. A line near the end starts with `Successfully installed`.
-3. Run `judgekeeper --version`. It prints `judgekeeper` and the version number.
+2. Go to your project and switch on its environment. The start of the line then reads `(.venv)`.
+3. Install: `pip install judgekeeper`. A line near the end starts with `Successfully installed`. Your project uses uv or Poetry? Run `uv add --dev judgekeeper` or `poetry add --group dev judgekeeper` instead.
+4. Run `judgekeeper --version`. It says judgekeeper is ready. If it also says it is installed outside a project, the environment was not switched on: go back to step 2.
 
-**If step 2 was refused** with `error: externally-managed-environment`: this Python is managed by Homebrew or by the system, and it refuses direct installs to protect itself. It is not about judgekeeper. The fix is a virtual environment: a folder that holds a Python program and what it needs, kept apart from the rest of your computer. Make one, switch it on, and install inside it.
-
-Mac:
-
-```
-python3 -m venv ~/judgekeeper-env
-source ~/judgekeeper-env/bin/activate
-pip install judgekeeper
-```
-
-Windows, in PowerShell:
+Step 2 on a Mac:
 
 ```
-py -m venv "$HOME\judgekeeper-env"
-& "$HOME\judgekeeper-env\Scripts\Activate.ps1"
-pip install judgekeeper
+cd your-project
+source .venv/bin/activate
 ```
 
-After the second line, the start of the prompt reads `(judgekeeper-env)`. Each time you open a new terminal, run that second line again before you use judgekeeper. In Command Prompt the first two lines are `py -m venv "%USERPROFILE%\judgekeeper-env"` and `"%USERPROFILE%\judgekeeper-env\Scripts\activate.bat"`. If PowerShell refuses to run the script, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` once and try again.
+Step 2 on Windows, in PowerShell:
 
-Three more notes:
+```
+cd your-project
+.venv\Scripts\activate
+```
 
-- `pip: command not found` (a Mac may print `zsh: command not found: pip`): on a Mac the command is named `pip3`.
-- `'pip' is not recognized as an internal or external command` on Windows (PowerShell words it as `The term 'pip' is not recognized`): Python was installed without being added to the PATH, the list of places Windows looks for commands. The `py` command is installed either way, so use `py -m pip install judgekeeper`.
-- The `judgekeeper` command is not found after installing: `python3 -m judgekeeper --version` (Mac) or `py -m judgekeeper --version` (Windows) does the same thing; put `python3 -m` or `py -m` in front of every `judgekeeper` command.
+No `.venv` folder in your project yet? Make one first with `python3 -m venv .venv` (Windows: `py -m venv .venv`), then switch it on. If your project keeps its environment in another folder, such as `venv`, use that name. In Command Prompt the line is `.venv\Scripts\activate.bat`. If PowerShell refuses to run the script, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` once and try again. Add judgekeeper to your project's dev requirements, so everyone who works on the project gets it.
+
+If something goes wrong:
+
+- `error: externally-managed-environment`: your project's environment is not switched on, so pip tried to install into the Python of your whole computer, which Homebrew or the system protects. It is not about judgekeeper. Run step 2, then install again.
+- `pip: command not found` (a Mac may print `zsh: command not found: pip`): outside an environment, a Mac names the command `pip3`. Switch on your project's environment (step 2): inside it, `pip` works.
+- `'pip' is not recognized as an internal or external command` on Windows (PowerShell words it as `The term 'pip' is not recognized`): Inside your project's environment `pip` is always found, so the environment is not switched on: switch it on again. Or use the environment's own Python, which always installs into your project: `.venv\Scripts\python -m pip install judgekeeper`.
+- The `judgekeeper` command is not found after installing: with your project's environment switched on, `python -m judgekeeper --version` does the same thing; put `python -m` in front of every `judgekeeper` command. With uv or Poetry, put `uv run` or `poetry run` in front instead.
 
 See a real report without installing anything: [LLMBar judged by Claude Haiku 4.5](examples/llmbar-haiku/report.html), also published at https://www.judgekeeper.com/examples/llmbar-haiku/.
 
@@ -137,7 +147,7 @@ judgekeeper validate anchors.jsonl runs/mine/ --out reports/mine/
 
 judgekeeper prints the number of judge calls first and asks for `--yes` above 1,000. The `--exec` contract, with 10-line Node and Python judges, is in [`docs/reference.md`](reference.md). Keys stay in environment variables; nothing judgekeeper writes or prints contains one.
 
-judgekeeper can also call the model for you, with its built-in Anthropic and OpenAI-compatible runners (`--runner anthropic|openai`, any OpenAI-compatible endpoint via `--base-url`). They need the provider's client library, which is an optional extra of the package:
+judgekeeper can also call the model for you, with its built-in Anthropic and OpenAI-compatible runners (`--runner anthropic|openai`, any OpenAI-compatible endpoint via `--base-url`). They need the provider's client library, which is an optional extra of the package. Install it in your project's environment:
 
 ```
 pip install "judgekeeper[anthropic]"        # for --runner openai: pip install "judgekeeper[openai]"

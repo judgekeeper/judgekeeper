@@ -16,10 +16,10 @@ inspect eval task.py --epochs 3
 judgekeeper import inspect logs/2026-09-30T10-00-00_task.json --metric model_graded_qa --labels labels.csv --out reports/qa/
 ```
 
-`.json` logs are read directly. `.eval` logs (Inspect's default, a zip archive) need the optional extra, which reads any log with `inspect_ai.log.read_eval_log`:
+`.json` logs are read directly. `.eval` logs (Inspect's default, a zip archive) need the optional extra, which reads any log with `inspect_ai.log.read_eval_log`. Install it in your project's environment:
 
 ```
-pip install "judgekeeper[inspect] @ git+https://github.com/judgekeeper/judgekeeper"
+pip install "judgekeeper[inspect]"
 ```
 
 Without it, convert first: `inspect log dump logs/x.eval > log.json`, or write JSON logs with `--log-format json`. A path can be a log, a folder of logs or a glob; several logs become separate runs.

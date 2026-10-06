@@ -9,7 +9,7 @@ judgekeeper reads the judge and human assessments MLflow already stores on your 
 ## Import it
 
 ```
-pip install "judgekeeper[mlflow] @ git+https://github.com/judgekeeper/judgekeeper"
+pip install "judgekeeper[mlflow]"                # in your project's environment
 judgekeeper import mlflow --experiment my-app-eval --metric correctness --out reports/correctness/
 ```
 

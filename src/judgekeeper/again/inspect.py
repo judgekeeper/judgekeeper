@@ -96,7 +96,21 @@ def saved_prompt(sample: dict, metric: str) -> str | None:
     return _text(grading[0]) if grading else None
 
 
-def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
+def _targets(root, files: list[str]) -> tuple[dict, dict]:
+    """({input as JSON: target}, {answer id: target}) of the samples in Inspect logs."""
+    by_input, by_id = {}, {}
+    for rel in files:
+        if not (root / rel).is_file():
+            continue
+        for s in _load(root / rel).get("samples") or []:
+            target = s.get("target")
+            by_input.setdefault(canonical_json(s.get("input")), target)
+            by_id.setdefault(derive_record_id(s.get("input"),
+                                              (s.get("output") or {}).get("completion")), target)
+    return by_input, by_id
+
+
+def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> Plan:
     data = ws.data()
     root, metric = ws.root, data["metric"]
     log = _load(root / data["results_files"][0])
@@ -136,7 +150,13 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
     if _cache_on(log):
         notes.append("Inspect's cache is on in your log; judgekeeper turns it off for this "
                      "run, so each answer is really asked again.")
-    if installed and made_with and installed != made_with:
+    if new and installed and made_with and installed != made_with:
+        status, why = CLOSE, (f"your Python has Inspect {installed} and your newest log was "
+                              f"made with {made_with}")
+    elif new:
+        status, why = EXACT, ("Inspect scores your marked answers with your new judge's scorer "
+                              "and grader")
+    elif installed and made_with and installed != made_with:
         status, why = CLOSE, (f"your Python has Inspect {installed} and your log was made with "
                               f"{made_with}; if the grading prompts match after the run, it is "
                               "exactly your judge")
@@ -147,7 +167,15 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
     for s in log.get("samples") or []:
         key = derive_record_id(s.get("input"), (s.get("output") or {}).get("completion"))
         samples.setdefault(key, s)
-    found = [(a, samples[a["id"]]) for a in answers if a["id"] in samples]
+    if new:  # the marked answers, placed into the newest log's samples by the worker
+        by_input, _ = _targets(root, data["results_files"])
+        _, old_targets = _targets(root, (data.get("saved") or {}).get("results_files") or [])
+        found = [(a, {"input": a["input"], "output": {"completion": a["output"]},
+                      "target": by_input.get(canonical_json(a["input"]),
+                                             old_targets.get(a["id"], ""))})
+                 for a in answers]
+    else:
+        found = [(a, samples[a["id"]]) for a in answers if a["id"] in samples]
     calls = max(1, len(graders))
     tokens = []
     for a, s in found:
@@ -162,14 +190,19 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
         n = len(answers) - len(found)
         left.append(left_out_line(n, "it is not in your log any more",
                                   "they are not in your log any more"))
-    payload = [(a, {"id": a["id"], "sample": s.get("id"), "epoch": s.get("epoch")},
-                saved_prompt(s, metric)) for a, s in found]
+    if new:
+        payload = [(a, {"id": a["id"], "input": s["input"], "output": a["output"],
+                        "target": s["target"]}, None) for a, s in found]
+    else:
+        payload = [(a, {"id": a["id"], "sample": s.get("id"), "epoch": s.get("epoch")},
+                    saved_prompt(s, metric)) for a, s in found]
     return Plan(tool="inspect", judge=judge, status=status, why=why, model=model,
                 provider=check.provider, key_lines=check.lines, notes=notes,
                 calls_each=[calls] * len(found), tokens=tokens, left_out=left,
                 settings=check.settings, key_ok=check.ok, tool_version=installed or made_with,
                 runner=[python], payload=payload,
-                job={"log": str(root / data["results_files"][0]), "scorer": metric},
+                job={"log": str(root / data["results_files"][0]), "scorer": metric,
+                     "new": new},
                 side_effects=[(f"Your app is not run. Inspect re-scores a copy of your log in "
                                f"your Python ({python}); your log is never changed.")])
 
@@ -215,6 +248,6 @@ def run(ws, plan: Plan, talk) -> Fresh:
         plan.status = EXACT
         plan.why = (f"the grading prompts matched your saved ones on every answer (Inspect "
                     f"{version} here; your log was made with {made_with})")
-    fresh.fingerprint = _fingerprint(log, ws.data()["metric"])
+    fresh.fingerprint = _fingerprint(log, plan.job["scorer"])
     plan.tool_version = version
     return fresh

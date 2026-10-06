@@ -37,10 +37,12 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 
 from judgekeeper import again, keys, prices
 from judgekeeper.again import CANT, CLOSE, EXACT, Plan, cant, left_out_line, worker_run
 from judgekeeper.again.fresh import Fresh
+from judgekeeper.anchors import canonical_json
 from judgekeeper.readers.deepeval import (
     SEPARATOR,
     SUFFIX,
@@ -252,11 +254,12 @@ def start_interactive() -> bool:
     return _interactive()
 
 
-def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
-    data = ws.data()
-    root, metric, judge = ws.root, data["metric"], data["judge"]
+def _cases(root, files: list[str], metric: str) -> dict[str, tuple[dict, dict]]:
+    """{answer id: (test case, its metric data for `metric`)}, newest file first."""
     cases = {}
-    for rel in data["results_files"]:
+    for rel in files:
+        if not (root / rel).is_file():
+            continue
         run = _load(root / rel)
         for case in run.get("testCases") or []:
             key = derive_record_id(case.get("input"), case.get("actualOutput"))
@@ -264,7 +267,53 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
                       None)
             if md is not None:
                 cases.setdefault(key, (case, md))
-    found = [(a, *cases[a["id"]]) for a in answers if a["id"] in cases]
+    return cases
+
+
+CASE_EXTRAS = ("expectedOutput", "context", "retrievalContext", "toolsCalled", "expectedTools")
+STEPS_DIFFER = ("your new judge's steps differ from answer to answer; I used the steps of the "
+                "newest answer with the same input, else the steps most answers share")
+
+
+def _new_cases(ws, answers: list[dict], metric: str) -> tuple[list, str | None]:
+    """For a new judge: (answer, test case, metric data) per marked answer, and why it is a
+    close copy (or None). The case is the marked answer's own input and output, with the
+    expected output and context of the newest row with the same input (else of its old row,
+    if its old results file is still there). The metric data is the newest row's with the
+    same input; else the one whose steps most rows share."""
+    data = ws.data()
+    newest = list(_cases(ws.root, data["results_files"], metric).values())
+    by_input = {}
+    for case, md in newest:
+        by_input.setdefault(canonical_json(case.get("input")), (case, md))
+    steps = Counter(canonical_json((parse_geval(md.get("verboseLogs")) or {}).get("steps"))
+                    for _, md in newest)
+    common = steps.most_common(1)[0][0] if steps else None
+    common_md = next((md for _, md in newest if canonical_json(
+        (parse_geval(md.get("verboseLogs")) or {}).get("steps")) == common), None)
+    old = _cases(ws.root, (data.get("saved") or {}).get("results_files") or [], metric)
+    found = []
+    for a in answers:
+        match = by_input.get(canonical_json(a["input"]))
+        source = match[0] if match else (old.get(a["id"]) or ({}, None))[0]
+        md = match[1] if match else common_md
+        if md is None:
+            continue
+        case = {"input": a["input"], "actualOutput": a["output"],
+                **{k: source[k] for k in CASE_EXTRAS if source.get(k) not in (None, "", [])}}
+        found.append((a, case, md))
+    return found, STEPS_DIFFER if len(steps) > 1 else None
+
+
+def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> Plan:
+    data = ws.data()
+    root, metric, judge = ws.root, data["metric"], data["judge"]
+    differ = None
+    if new:
+        found, differ = _new_cases(ws, answers, metric)
+    else:
+        cases = _cases(root, data["results_files"], metric)
+        found = [(a, *cases[a["id"]]) for a in answers if a["id"] in cases]
     if not found:
         return cant("deepeval", judge, "none of your labeled answers is in your results files "
                     "any more", short="your answers are not in your results files")
@@ -325,7 +374,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
         if talk is not None:
             version_ok = talk.ask_yes(f"Is DeepEval {version} the version you ran your eval "
                                       "with?")
-    reasons = []
+    reasons = [differ] if differ else []
     if kind == "builtin":
         reasons.append("built-in metrics keep settings the results file does not save, and "
                        "their prompts change between DeepEval versions")

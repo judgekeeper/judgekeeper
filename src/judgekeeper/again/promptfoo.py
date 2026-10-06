@@ -71,6 +71,9 @@ FLAGS = ("--no-cache", "--no-write", "--no-share", "--no-table", "--no-progress-
 DROPPED_OPTIONS = ("transform", "postprocess", "prefix", "suffix", "provider", "storeOutputAs")
 SIDE_EFFECT = "Your app is not run. Nothing is written to promptfoo's database or shared."
 EXACT_WHY = "promptfoo re-grades your saved answers with your own settings"
+NEW_WHY = "promptfoo grades your marked answers with your new judge's own settings"
+NO_TEST = ("no test in your newest results matches it",
+           "no test in your newest results matches them")
 
 
 def calls_for(assertion: dict) -> int:
@@ -116,33 +119,87 @@ def _installed(root: Path) -> tuple[str, str] | None:
     return None
 
 
-def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
-    data = ws.data()
-    root = ws.root
-    metric = data["metric"]
-    loaded = [json.loads((root / rel).read_text(encoding="utf-8"))
-              for rel in data["results_files"]]
-    newest = loaded[0]
-    version = (newest.get("metadata") or {}).get("promptfooVersion")
+def _rows(root: Path, files: list[str]) -> dict[str, tuple[dict, dict]]:
+    """{answer id: (row, defaultTest)} from promptfoo results files, newest first: the newest
+    row of an answer wins."""
     rows: dict[str, tuple[dict, dict]] = {}
-    for d in loaded:  # newest first: the newest row of an answer wins
+    for rel in files:
+        path = root / rel
+        if not path.is_file():
+            continue
+        d = json.loads(path.read_text(encoding="utf-8"))
         default_test = (d.get("config") or {}).get("defaultTest") or {}
         for row in (d.get("results") or {}).get("results") or []:
             key = derive_record_id(row.get("vars"), _text((row.get("response") or {})
                                                            .get("output")))
             rows.setdefault(key, (row, default_test if isinstance(default_test, dict) else {}))
+    return rows
+
+
+def _judged(row: dict, metric: str) -> list[dict]:
+    """The row's model-graded components of the judge `metric`."""
+    return [c for c in _components(row.get("gradingResult"))
+            if (c.get("assertion") or {}).get("type") in MODEL_GRADED
+            and ((c["assertion"].get("metric") or c["assertion"].get("type")) == metric)]
+
+
+def _new_rows(ws, answers: list[dict], metric: str) -> tuple[dict, int]:
+    """For a new judge: {answer id: (row, defaultTest, components)}, each marked answer's own
+    saved answer put into its test in the newest results, found by the test's vars, with the
+    new judge's assertions and grader. When the assertion is the same on every test, an
+    answer whose test is not in the newest results keeps its old test (if its old results
+    file is still there). The new judge never graded these answers, so there is no saved
+    grading prompt to compare. Returns those and how many answers have no test."""
+    data = ws.data()
+    newest = _rows(ws.root, data["results_files"])
+    by_vars: dict[str, tuple[dict, dict, list]] = {}
+    shapes = set()
+    for row, default_test in newest.values():
+        comps = _judged(row, metric)
+        if comps:
+            by_vars.setdefault(canonical_json(row.get("vars") or {}), (row, default_test, comps))
+            shapes.add(canonical_json([c["assertion"] for c in comps]))
+    common = next(iter(by_vars.values()))[2] if len(shapes) == 1 and by_vars else None
+    old = _rows(ws.root, (data.get("saved") or {}).get("results_files") or [])
+    out, missing = {}, 0
+    for a in answers:
+        match = by_vars.get(canonical_json(a["input"] if isinstance(a["input"], dict) else {}))
+        if match is not None:
+            row, default_test, comps = match
+        elif common is not None and a["id"] in old:
+            (row, default_test), comps = old[a["id"]], common
+        else:
+            missing += 1
+            continue
+        row = {**row, "response": {**(row.get("response") or {}), "output": a["output"]}}
+        comps = [{**c, "metadata": {k: v for k, v in (c.get("metadata") or {}).items()
+                                    if k not in ("renderedGradingPrompt", "cachedResponse")}}
+                 for c in comps]
+        out[a["id"]] = (row, default_test, comps)
+    return out, missing
+
+
+def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> Plan:
+    data = ws.data()
+    root = ws.root
+    metric = data["metric"]
+    newest = json.loads((root / data["results_files"][0]).read_text(encoding="utf-8"))
+    version = (newest.get("metadata") or {}).get("promptfooVersion")
+    if new:
+        matched, no_test = _new_rows(ws, answers, metric)
+    else:
+        rows, no_test = _rows(root, data["results_files"]), 0
+        matched = {a["id"]: (*rows[a["id"]], _judged(rows[a["id"]][0], metric))
+                   for a in answers if a["id"] in rows}
 
     judged, gone, empty, templated = [], 0, 0, 0
     graders: dict[str, object] = {}
     for a in answers:
-        if a["id"] not in rows:
-            gone += 1
+        if a["id"] not in matched:
+            gone += 0 if new else 1
             continue
-        row, default_test = rows[a["id"]]
+        row, default_test, comps = matched[a["id"]]
         test_opts = _options(row.get("testCase"))
-        comps = [c for c in _components(row.get("gradingResult"))
-                 if (c.get("assertion") or {}).get("type") in MODEL_GRADED
-                 and ((c["assertion"].get("metric") or c["assertion"].get("type")) == metric)]
         if not comps:
             gone += 1
             continue
@@ -204,7 +261,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
     if len(graders) > 1:
         notes.append(f"Your answers were graded by {len(graders)} different graders; the "
                      "first is named here.")
-    status, why = EXACT, EXACT_WHY
+    status, why = EXACT, NEW_WHY if new else EXACT_WHY
     runner, download = [], False
     if not version:
         reasons.append("promptfoo version not recorded")
@@ -266,6 +323,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
         tokens.append((inp, out))
 
     left = []
+    if no_test:
+        left.append(left_out_line(no_test, *NO_TEST))
     if gone:
         left.append(left_out_line(gone, "it is not in your results files any more",
                                   "they are not in your results files any more"))
@@ -283,6 +342,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
                 extra_calls="plus 4 embedding calls per answer" if embeddings else "",
                 tokens=tokens, left_out=left, settings=check.settings, key_ok=check.ok,
                 tool_version=version, runner=runner, download=download, payload=judged,
+                job={"metric": metric},
                 side_effects=[SIDE_EFFECT, (f"Two temporary files are written next to {where} "
                                             "and removed afterwards.")])
 
@@ -318,9 +378,10 @@ def _rendered(comps) -> list:
 
 def run(ws, plan: Plan, talk) -> Fresh:
     """Have promptfoo grade the labeled answers again, `plan.times` times each."""
-    root, metric = ws.root, ws.data()["metric"]
+    root, metric = ws.root, plan.job.get("metric") or ws.data()["metric"]
     config = _config(root)
-    folder = new_folder(ws)
+    folder = plan.folder or new_folder(ws)
+    folder.mkdir(parents=True, exist_ok=True)
     out = folder / "promptfoo.json"
     rel_out = out.relative_to(root).as_posix()
     argv = [*plan.runner, "eval", "-c", CONFIG, "--repeat", str(plan.times), *FLAGS,

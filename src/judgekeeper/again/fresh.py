@@ -84,8 +84,10 @@ def _pct(value) -> str:
     return "unknown" if value is None else f"{value:.0%}"
 
 
-def write_files(ws, plan, fresh: Fresh) -> list[Path]:
-    """One run file per time asked, every line with the full fingerprint."""
+def write_files(ws, plan, fresh: Fresh, prefix: str = "judge-again",
+                metric: str | None = None) -> list[Path]:
+    """One run file per time asked (`<prefix>-<n>.jsonl`), every line with the full
+    fingerprint. `metric` names the judge when it is not the saved check's (a new judge)."""
     data = ws.data()
     extras = {"tool": plan.tool, "tool_version": plan.tool_version,
               "settings": list(plan.settings),
@@ -107,9 +109,9 @@ def write_files(ws, plan, fresh: Fresh) -> list[Path]:
             rec = judgment_to_record(item_id, j, fp)
             rec["fingerprint"].update(extras)
             records.append(rec)
-        path = fresh.folder / f"judge-again-{t + 1}.jsonl"
+        path = fresh.folder / f"{prefix}-{t + 1}.jsonl"
         write_run(path, t + 1, data["pool_sha256"], fp, records,
-                  source={**fresh.source, "metric": data["metric"]})
+                  source={**fresh.source, "metric": metric or data["metric"]})
         paths.append(path)
     return paths
 
@@ -141,7 +143,8 @@ def numbers(ws, plan, fresh: Fresh) -> dict:
         "not_counted": [{"id": i, "why": w} for i, w in fresh.not_counted.items()],
         "steadiness": steady,
         "today": {k: today[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval", "kappa",
-                                        "kappa_interval", "resamples", "seed")},
+                                        "kappa_interval", "interval_methods", "resamples",
+                                        "seed")},
         "before": {"tpr": last.get("tpr"), "tnr": last.get("tnr")},
         "matches_saved": matches,
         "matches_count": sum(fresh.verdicts[a["id"]][0] == a["verdict"] for a in counted),

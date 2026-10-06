@@ -94,7 +94,7 @@
   <div class="wrap narrow">
     <p class="kicker">Start here</p>
     <h2 id="install-title">Install</h2>
-    <p>A <strong>terminal</strong> is the window where you type commands: the Terminal app on a Mac, PowerShell on Windows. judgekeeper is a Python program, so first check that Python is there.</p>
+    <p>A <strong>terminal</strong> is the window where you type commands: the Terminal app on a Mac, PowerShell on Windows. judgekeeper is a Python tool for developers, like pytest: you install it inside your project, in the project&#39;s own Python environment. First check that Python is there.</p>
     <div class="tabs" id="install-tabs">
       <div role="tablist" aria-label="Your computer">
         <button role="tab" type="button" id="tab-mac" aria-controls="panel-mac" aria-selected="true">Mac</button>
@@ -105,18 +105,24 @@
         <p><strong>Step 1. Check Python.</strong> Open the Terminal app and run:</p>
         <div class="code"><pre><code>python3 --version</code></pre></div>
         <p>You need <code>3.11</code> or newer. No Python, or older? Install it from <a href="https://www.python.org/downloads/">python.org</a>, then come back.</p>
-        <p><strong>Step 2. Install judgekeeper.</strong></p>
-        <div class="code"><pre><code>python3 -m pip install -U judgekeeper &amp;&amp; python3 -m judgekeeper --version</code></pre></div>
-        <p class="note">If pip says <code>externally-managed-environment</code>, use a virtual environment: run <code>python3 -m venv .venv &amp;&amp; source .venv/bin/activate</code>, then install again.</p>
+        <p><strong>Step 2. Install judgekeeper in your project.</strong> Go to your project, switch on its environment, install, and check it runs:</p>
+        <div class="code"><pre><code>cd your-project
+source .venv/bin/activate
+pip install judgekeeper
+judgekeeper --version</code></pre></div>
+        <p class="note">No <code>.venv</code> in your project yet? Run <code>python3 -m venv .venv</code> first. Your project uses uv or Poetry? Run <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code> instead. If pip says <code>externally-managed-environment</code>, the environment is not switched on: run the <code>source</code> line, then install again.</p>
       </div>
       <div role="tabpanel" id="panel-win" aria-labelledby="tab-win">
         <h3>Windows</h3>
         <p><strong>Step 1. Check Python.</strong> Open PowerShell and run:</p>
         <div class="code"><pre><code>py --version</code></pre></div>
         <p>You need <code>3.11</code> or newer. No Python, or older? Install it from <a href="https://www.python.org/downloads/">python.org</a>, then come back.</p>
-        <p><strong>Step 2. Install judgekeeper.</strong></p>
-        <div class="code"><pre><code>py -m pip install -U judgekeeper</code></pre></div>
-        <div class="code"><pre><code>py -m judgekeeper --version</code></pre></div>
+        <p><strong>Step 2. Install judgekeeper in your project.</strong> Go to your project, switch on its environment, install, and check it runs:</p>
+        <div class="code"><pre><code>cd your-project
+.venv\Scripts\activate
+pip install judgekeeper
+judgekeeper --version</code></pre></div>
+        <p class="note">No <code>.venv</code> in your project yet? Run <code>py -m venv .venv</code> first. Your project uses uv or Poetry? Run <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code> instead.</p>
       </div>
     </div>
     <p class="output-label">What you see when it is installed:</p>
@@ -130,7 +136,7 @@ Next: go to your project folder and run judgekeeper start</code></pre>
   <div class="wrap narrow">
     <p class="kicker">Step 3</p>
     <h2 id="run-title">Run it</h2>
-    <p>Go to the folder of your AI app, where your eval tool saves its results, and run:</p>
+    <p>In the folder of your AI app, where your eval tool saves its results, with its environment switched on, run:</p>
     <div class="code"><pre><code>cd your-project
 judgekeeper start</code></pre></div>
     <p class="output-label">What you see, for a project with promptfoo results:</p>

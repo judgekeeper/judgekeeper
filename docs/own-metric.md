@@ -67,7 +67,7 @@ Every human label in a slice is the same here, so one of TPR or TNR is not defin
 
 ## 4. Worked example B: a DeepEval metric
 
-The same items, labels and rule, judged by a DeepEval `GEval` metric with `claude-haiku-4-5-20251001` at temperature 0. The metric's criteria text is the rule part of `rule.md` (what is checked, pass, fail, examples, edge cases) without the placeholders and the `Verdict:` line. The script is [`deepeval_metric.py`](examples/own-metric/deepeval_metric.py). DeepEval and the Anthropic SDK are not judgekeeper dependencies.
+The same items, labels and rule, judged by a DeepEval `GEval` metric with `claude-haiku-4-5-20251001` at temperature 0. The metric's criteria text is the rule part of `rule.md` (what is checked, pass, fail, examples, edge cases) without the placeholders and the `Verdict:` line. The script is [`deepeval_metric.py`](examples/own-metric/deepeval_metric.py). DeepEval and the Anthropic SDK are not judgekeeper dependencies: install them in your project's environment.
 
 ```
 pip install deepeval anthropic

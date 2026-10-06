@@ -46,7 +46,9 @@ def run(ws, plan: Plan, talk) -> Fresh:
     fingerprint = make_fingerprint(known)
     runner = CustomRunner(exec_judge(command), Normaliser(), fingerprint,
                           source={"kind": "command", "command": command})
-    fresh = Fresh(folder=new_folder(ws), fingerprint=fingerprint.to_dict(),
+    folder = plan.folder or new_folder(ws)
+    folder.mkdir(parents=True, exist_ok=True)
+    fresh = Fresh(folder=folder, fingerprint=fingerprint.to_dict(),
                   source={"kind": "command", "file": command})
     answers = plan.payload_answers()
     got: dict[str, list] = {a["id"]: [] for a in answers}

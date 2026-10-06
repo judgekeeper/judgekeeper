@@ -185,7 +185,7 @@ def test_the_readme_is_one_screen_in_order():
                                        "When you need more", "Status", "Issues", "License"]
     sections = _sections(README)
     assert "\npip install judgekeeper\njudgekeeper --version\n" in sections["Install"]
-    assert "On a Mac the command is `pip3`." in sections["Install"]
+    assert "inside your project's own Python environment" in sections["Install"]
     use = sections["Use it on your own judge"]
     assert "\njudgekeeper check results.csv --judge verdict --human label\n" in use
     assert "one row per answer" in use

@@ -190,8 +190,17 @@
       var windows = tabs.filter(function (t) {
         return t.getAttribute("aria-controls") === "panel-win";
       });
-      select(onWindows() && windows.length ? windows[0] : tabs[0]);
+      var asked = tabs.filter(function (t) {
+        return t.getAttribute("aria-controls") === linkedPanel();
+      });
+      select(asked.length ? asked[0] : onWindows() && windows.length ? windows[0] : tabs[0]);
     });
+    if (linkedPanel() && $("#install")) $("#install").scrollIntoView();
+  }
+
+  // A link to #install-mac or #install-win opens the install steps on that tab.
+  function linkedPanel() {
+    return { "#install-mac": "panel-mac", "#install-win": "panel-win" }[location.hash] || null;
   }
 
   // The Windows tab comes first when the browser says it runs on Windows.

@@ -14,8 +14,10 @@ Three rules, each with its reason:
 - Judge calls cost money. Tell me the number of judge calls (answers x runs, x 2 when the judge
   compares two answers) before you make any, and wait for my yes.
 
-1. Install it. Run `pip install judgekeeper` (or use this project's own package tool), then
-   `judgekeeper --version`, and tell me what it printed.
+1. Install it inside this project's own Python environment, never for the whole computer: with
+   the project's virtual environment active, run `pip install judgekeeper` (or
+   `uv add --dev judgekeeper`, or `poetry add --group dev judgekeeper`). Then run
+   `judgekeeper --version` and tell me what it printed.
 2. Find the judge: prompts that grade an answer, eval configs (promptfoo, DeepEval, Inspect AI,
    MLflow, Langfuse), code that scores, passes or fails an answer. A plain function that calls
    no model counts too. Tell me what you found. If there is none, say so and offer a rule file

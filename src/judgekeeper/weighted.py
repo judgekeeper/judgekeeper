@@ -30,7 +30,13 @@ each labeled answer weighs N_group / n_group, TPR is the weighted share of the a
 should pass that the judge passed, TNR likewise, and kappa is Cohen's kappa on the weighted
 table. When the fresh verdicts equal the saved groups this is the form above. Its intervals
 come from a stratified bootstrap with a fixed seed (each group resampled on its own, 2,000
-times, percentile), so the same data always gives the same numbers. Steadiness, the share of
+times, percentile), so the same data always gives the same numbers. A range never collapses
+to one point from a finite sample: when the bootstrap gives TPR or TNR a range of zero width
+(every answer agrees, say), the Wilson-corners range is used instead (`wilson_corners`: within
+each saved group, the share the judge got right among the answers that should pass, or fail,
+with its Wilson interval at 97.5%, the groups joined at the corners by their weights), so 15 of
+15 shows about 75% to 100%. Kappa has no such form: a kappa range of zero width is dropped,
+as phase 1 shows kappa with no range. `interval_methods` says which made each range. Steadiness, the share of
 answers whose fresh verdicts are not all the same, is weighted like the real pass rate,
 pi f_p + (1 - pi) f_f, with Wilson intervals at 97.5% for each group joined at the corners.
 """
@@ -160,6 +166,29 @@ def _percentile(values: list[float], q: float) -> float:
     return values[low] + (values[high] - values[low]) * (k - low)
 
 
+def wilson_corners(items: list[tuple[str, str, str]], n_pool_pass: int,
+                   n_pool_fail: int) -> dict:
+    """{"tpr": [low, high], "tnr": [low, high]} by Wilson corners: TPR is the weighted share,
+    over the saved groups, of the answers labeled pass that the judge passed; each group's
+    share has a Wilson interval at 97.5%, and the ends are mixed with the same weights (each
+    labeled answer weighs N_group / n_group). TNR likewise. [None, None] when unknown."""
+    pool = {"pass": n_pool_pass, "fail": n_pool_fail}
+    by_group = {g: [x for x in items if x[0] == g] for g in pool}
+    out = {}
+    for key, label in (("tpr", "pass"), ("tnr", "fail")):
+        total = low = high = 0.0
+        for g, xs in by_group.items():
+            marked = [x for x in xs if x[1] == label]
+            if not marked or pool[g] <= 0:
+                continue
+            weight = pool[g] / len(xs) * len(marked)
+            lo, hi = wilson(sum(x[2] == label for x in marked), len(marked))
+            total, low, high = total + weight, low + weight * lo, high + weight * hi
+        out[key] = ([round(low / total, 12), round(high / total, 12)] if total > 0
+                    else [None, None])  # rounded: k of k mixes back to exactly 1
+    return out
+
+
 def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: int,
             seed: int = BOOT_SEED, resamples: int = RESAMPLES) -> dict:
     """TPR, TNR and kappa of the person's labels against fresh verdicts, weighted by the saved
@@ -175,11 +204,21 @@ def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: in
         for key, value in _table(sample, weights).items():
             if value is not None:
                 draws[key].append(value)
+    methods = {}
+    corners = None
     for key in ("tpr", "tnr", "kappa"):
         values = draws[key]
-        out[f"{key}_interval"] = ([_percentile(values, 0.025), _percentile(values, 0.975)]
-                                  if values and out[key] is not None else [None, None])
-    out.update(resamples=resamples, seed=seed,
+        interval = ([_percentile(values, 0.025), _percentile(values, 0.975)]
+                    if values and out[key] is not None else [None, None])
+        methods[key] = "bootstrap"
+        if interval[0] is not None and interval[1] - interval[0] <= 1e-12:  # one point
+            if key == "kappa":
+                interval, methods[key] = [None, None], "none"
+            else:
+                corners = corners or wilson_corners(items, n_pool_pass, n_pool_fail)
+                interval, methods[key] = corners[key], "wilson corners"
+        out[f"{key}_interval"] = interval
+    out.update(interval_methods=methods, resamples=resamples, seed=seed,
                groups={g: {"pool": pool[g], "labeled": len(by_group[g])} for g in pool})
     return out
 

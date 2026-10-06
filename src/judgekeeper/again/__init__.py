@@ -52,7 +52,7 @@ EXACT, CLOSE, CANT, OWN = "exact", "close", "cant", "own"
 
 @dataclass
 class AgainOptions:
-    times: int = TIMES
+    times: int | None = None  # --times; None: TIMES, or 1 when trying a new judge
     python: str | None = None  # --python
     fields: str | None = None  # --fields, DeepEval GEval: the parts the judge reads
     judge_command: str | None = None
@@ -71,7 +71,7 @@ class Plan:
     provider: str | None = None
     key_lines: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
-    times: int = TIMES
+    times: int | None = None  # --times; None: TIMES, or 1 when trying a new judge
     calls_each: list[int] = field(default_factory=list)  # judge calls per answer, per time
     calls_note: str = ""  # "at least" or "up to"
     extra_calls: str = ""  # "plus 4 embedding calls per answer"
@@ -87,6 +87,7 @@ class Plan:
     download: bool = False  # the runner downloads the tool first (npx)
     payload: list = field(default_factory=list)  # per asked answer, for the tool's run
     job: dict = field(default_factory=dict)  # the rest of a worker's job for the run
+    folder: Path | None = None  # where the run's files go (default: again/<date>/)
 
     def payload_answers(self) -> list[dict]:
         """The asked answers ({id, input, output, label, verdict}), in order."""
@@ -205,23 +206,32 @@ def left_out_line(n: int, why: str, why_many: str | None = None) -> str:
 
 # The plan --------------------------------------------------------------------------------------
 
-def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True) -> Plan:
+def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
+              new=None) -> Plan:
     """The plan for asking the judge of `ws` again. `dry` checks the judge where it would run
     (no API call); without it nothing runs (for the menu). `talk`, at a terminal, asks the
-    few questions a plan may need (DeepEval's fields, a tool's version)."""
+    few questions a plan may need (DeepEval's fields, a tool's version).
+
+    With `new` (a new_judge.View), the judge is the new one in the newest results, rebuilt
+    from them, and it grades the same labeled answers; it is asked once unless --times."""
+    from dataclasses import replace
+
     from judgekeeper.again import command, deepeval, inspect, mlflow, promptfoo
     from judgekeeper.records import RecordsError
 
     opts = opts or AgainOptions()
-    data = ws.data()
+    opts = replace(opts, times=opts.times or (1 if new is not None else TIMES))
     answers = labeled_answers(ws)
+    source = new if new is not None else ws
+    data = source.data()
     planners = {"promptfoo": promptfoo.plan, "deepeval": deepeval.plan,
                 "inspect": inspect.plan, "mlflow": mlflow.plan}
     try:
         if opts.judge_command:
-            plan = command.plan(ws, answers, opts)
+            plan = command.plan(source, answers, opts)
         elif data["tool"] in planners:
-            plan = planners[data["tool"]](ws, answers, opts, talk, dry)
+            plan = planners[data["tool"]](source, answers, opts, talk, dry,
+                                          new=new is not None)
         else:
             plan = cant(data["tool"], data["judge"],
                         "your judge's verdicts are a table, and judgekeeper can't run the "
@@ -258,9 +268,9 @@ def cost_words(p: Plan) -> str:
     return prices.amount(*p.cost)
 
 
-def plan_lines(p: Plan) -> list[str]:
+def plan_lines(p: Plan, title: str = "Ask your judge again") -> list[str]:
     """The plan as the terminal shows it."""
-    lines = ["Ask your judge again", "", f"  Your judge: {p.judge}"]
+    lines = [title, "", f"  Your judge: {p.judge}"]
     if p.status == CANT:
         return lines + [f"  Your judge can't be asked again: {p.why}.", f"  {WRAP}"]
     lines.append({EXACT: f"  This is exactly your judge: {p.why}.",
@@ -282,9 +292,18 @@ def menu_text(p: Plan) -> tuple[str, str]:
     return text, f"({note}{p.calls:,} calls, {cost_words(p)})"
 
 
+def run_tool(ws, plan: Plan, talk):
+    """Ask for real with the plan's tool (after the yes): its Fresh."""
+    from judgekeeper.again import command, deepeval, inspect, mlflow, promptfoo
+
+    runs = {"promptfoo": promptfoo.run, "command": command.run, "deepeval": deepeval.run,
+            "inspect": inspect.run, "mlflow": mlflow.run}
+    return runs[plan.tool](ws, plan, talk)
+
+
 # Spending --------------------------------------------------------------------------------------
 
-def approve(p: Plan, talk, allow_calls: int | None) -> bool:
+def approve(p: Plan, talk, allow_calls: int | None, command: str = "--ask-again") -> bool:
     """Whether to spend the plan's calls. The question defaults to No and `--yes` never
     answers it. Without a terminal, and above 1,000 calls at a terminal too, only
     `--allow-calls N` (N at least the planned calls) approves."""
@@ -292,7 +311,7 @@ def approve(p: Plan, talk, allow_calls: int | None) -> bool:
 
     if p.status == CANT:
         return False
-    flag = f"judgekeeper start --ask-again --allow-calls {p.calls}"
+    flag = f"judgekeeper start {command} --allow-calls {p.calls}"
     if allow_calls is not None:
         if allow_calls >= p.calls:
             return True
