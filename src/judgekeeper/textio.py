@@ -97,6 +97,21 @@ def read_utf8(path: str | Path, error: type[Exception]) -> str:
     return decode_utf8(Path(path).read_bytes(), path, error).removeprefix(BOM)
 
 
+def line_ending(text: str) -> str:
+    """The line ending `text` uses: "\r\n" (Windows) when it has one, else "\n"."""
+    return "\r\n" if "\r\n" in text else "\n"
+
+
+def write_keeping(path: str | Path, text: str) -> None:
+    """Write a user's file back as `text` says, byte for byte: UTF-8, no line-ending
+    translation (so a file read with read_utf8 keeps its own endings on every system), and
+    the byte order mark the file had."""
+    path = Path(path)
+    bom = path.is_file() and path.read_bytes().startswith(BOM.encode("utf-8"))
+    with open(path, "w", encoding="utf-8-sig" if bom else "utf-8", newline="") as f:
+        f.write(text)
+
+
 # File-system errors --------------------------------------------------------------------------
 
 def _folder_needed(path) -> str:

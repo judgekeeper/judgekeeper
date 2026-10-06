@@ -26,6 +26,7 @@ from tests.website_pages import (
     ROOT,
     WEBSITE,
     Element,
+    as_shown,
     commands,
     pages,
     parse,
@@ -327,7 +328,8 @@ def test_use_it_on_your_app_shows_the_real_file_and_the_real_output(tmp_path, mo
     monkeypatch.chdir(tmp_path)
     capsys.readouterr()
     assert main(["check", "results.csv", "--judge", "verdict", "--human", "label"]) == 0
-    assert _output("start.html", "check") == capsys.readouterr().out.strip("\n").splitlines()
+    printed = as_shown(capsys.readouterr().out)
+    assert _output("start.html", "check") == printed.strip("\n").splitlines()
 
 
 # With a coding assistant
@@ -387,7 +389,8 @@ def test_llms_txt_lists_the_pages_and_the_prompt_and_every_link_resolves():
 
 
 def test_the_sitemap_lists_the_main_pages():
-    locs = set(re.findall(r"<loc>(.*?)</loc>", (WEBSITE / "sitemap.xml").read_text(encoding="utf-8")))
+    locs = set(re.findall(r"<loc>(.*?)</loc>", (WEBSITE / "sitemap.xml").read_text(
+        encoding="utf-8")))
     for page in ("start.html", "assistant.html", "own-metric.html"):
         assert f"https://www.judgekeeper.com/{page}" in locs, page
 

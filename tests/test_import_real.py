@@ -74,7 +74,7 @@ PF_EXPECTED = {"kappa": [1 / 3, 2 / 3, 1 / 3], "tpr": [2 / 3, 1, 2 / 3], "tnr": 
 
 def test_real_promptfoo_repeats_have_their_own_test_index():
     # the shape this reader has to handle: one testIdx per repeat, identical vars
-    rows = json.loads((PF / "results.json").read_text())["results"]["results"]
+    rows = json.loads((PF / "results.json").read_text(encoding="utf-8"))["results"]["results"]
     assert len(rows) == 18
     assert sorted(r["testIdx"] for r in rows) == list(range(18))
     assert {r["promptIdx"] for r in rows} == {0}
@@ -86,7 +86,7 @@ def test_real_promptfoo_repeats_become_runs(tmp_path, extra):
     out = tmp_path / "rep"
     assert main(["import", "promptfoo", str(PF / "results.json"), "--id-var", "qid",
                  "--labels", str(PF / "labels.csv"), "--out", str(out), *extra]) == 0
-    r = json.loads((out / "report.json").read_text())
+    r = json.loads((out / "report.json").read_text(encoding="utf-8"))
     check(r, **PF_EXPECTED)
     assert r["source"]["version"] == 3
     assert r["source"]["metric"] == "helpfulness"
@@ -95,7 +95,7 @@ def test_real_promptfoo_repeats_become_runs(tmp_path, extra):
     assert fp["provider"] == "exec"
     # the prompt hash is promptfoo's grading template (the saved grading prompt with the answer
     # and vars put back as placeholders), the same on every row
-    row = json.loads((PF / "results.json").read_text())["results"]["results"][0]
+    row = json.loads((PF / "results.json").read_text(encoding="utf-8"))["results"]["results"][0]
     (comp,) = [c for c in row["gradingResult"]["componentResults"]
                if "renderedGradingPrompt" in (c.get("metadata") or {})]
     template = grading_template(comp["metadata"]["renderedGradingPrompt"],
@@ -107,7 +107,7 @@ def test_real_promptfoo_repeats_become_runs(tmp_path, extra):
 def test_real_promptfoo_derived_ids_hash_vars_only():
     records = read_promptfoo(PF / "results.json")
     assert records.ids_derived
-    rows = json.loads((PF / "results.json").read_text())["results"]["results"]
+    rows = json.loads((PF / "results.json").read_text(encoding="utf-8"))["results"]["results"]
     expected = list(dict.fromkeys(derive_record_id(r["vars"], None) for r in rows))
     llm = [r for r in records if r.annotator_kind == "LLM"]
     assert list(dict.fromkeys(r.target_id for r in llm)) == expected
@@ -120,11 +120,12 @@ def test_real_promptfoo_derived_ids_hash_vars_only():
 
 def test_real_promptfoo_with_derived_ids_gives_the_same_report(tmp_path):
     # labels keyed by derived id: the same human labels as labels.csv
-    rows = json.loads((PF / "results.json").read_text())["results"]["results"]
+    rows = json.loads((PF / "results.json").read_text(encoding="utf-8"))["results"]["results"]
     human = {"Q0": "pass", "Q1": "pass", "Q2": "pass", "Q3": "fail", "Q4": "fail", "Q5": "fail"}
     labels = tmp_path / "labels.csv"
     ids = dict.fromkeys((derive_record_id(r["vars"], None), r["vars"]["qid"]) for r in rows)
-    labels.write_text("id,human_label\n" + "".join(f"{i},{human[q]}\n" for i, q in ids))
+    labels.write_text("id,human_label\n" + "".join(f"{i},{human[q]}\n" for i, q in ids),
+                      encoding="utf-8")
     r = import_results("promptfoo", [PF / "results.json"], labels=labels, out=tmp_path / "rep")
     check(r, **PF_EXPECTED)
     assert r["source"]["ids_derived"] is True
@@ -143,7 +144,7 @@ def test_real_inspect_epochs_become_runs(tmp_path, extra):
     out = tmp_path / "rep"
     assert main(["import", "inspect", str(INSPECT / "logs"), "--labels",
                  str(INSPECT / "labels.csv"), "--out", str(out), *extra]) == 0
-    r = json.loads((out / "report.json").read_text())
+    r = json.loads((out / "report.json").read_text(encoding="utf-8"))
     check(r, **INSPECT_EXPECTED)
     assert r["source"]["version"] == 2
     fp = r["fingerprint"]
@@ -174,7 +175,7 @@ def test_real_deepeval_files_become_runs(tmp_path, extra):
     out = tmp_path / "rep"
     assert main(["import", "deepeval", str(DEEPEVAL / "results"), "--labels",
                  str(DEEPEVAL / "labels.csv"), "--out", str(out), *extra]) == 0
-    r = json.loads((out / "report.json").read_text())
+    r = json.loads((out / "report.json").read_text(encoding="utf-8"))
     check(r, **DEEPEVAL_EXPECTED)
     assert r["source"]["metric"] == "Listed Passes"
     assert r["source"]["ids_derived"] is False

@@ -94,7 +94,7 @@ def test_import_tools_exist():
 
 
 def test_pytest_options_exist():
-    plugin = (ROOT / "src" / "judgekeeper" / "pytest_plugin.py").read_text()
+    plugin = (ROOT / "src" / "judgekeeper" / "pytest_plugin.py").read_text(encoding="utf-8")
     text = SKILL.read_text(encoding="utf-8")
     for option in set(re.findall(r"--judgekeeper-[a-z-]+", text)):
         assert f'"{option}"' in plugin

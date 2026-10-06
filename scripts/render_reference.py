@@ -141,7 +141,7 @@ def build(source: Path, out: Path) -> None:
         body = body.replace("<pre>", '<div class="code"><pre>').replace("</pre>", "</pre></div>")
     out.write_text(PAGE.format(head=head(target, title, description), nav=nav(target), body=body,
                                source=source.name, source_url=DOCS_URL + source.name,
-                               script="render_reference.py"), encoding="utf-8")
+                               script="render_reference.py"), encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

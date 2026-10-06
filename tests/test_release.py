@@ -155,7 +155,7 @@ def test_release_runs_the_installed_wheel_end_to_end_before_publishing():
     assert "demo" not in text
 
 
-def test_ci_tests_every_python_the_classifiers_name_and_windows_without_gating():
+def test_ci_tests_every_python_the_classifiers_name_and_windows_on_every_pull_request():
     wf = _workflow("ci.yml")
     classifiers = _toml(ROOT / "pyproject.toml")["project"]["classifiers"]
     named = sorted(c.rsplit(" ", 1)[1] for c in classifiers
@@ -163,11 +163,17 @@ def test_ci_tests_every_python_the_classifiers_name_and_windows_without_gating()
     assert sorted(wf["jobs"]["test"]["strategy"]["matrix"]["python-version"]) == named
     assert wf["jobs"]["test"]["runs-on"] == "ubuntu-latest"
     assert not [j for j in wf["jobs"].values() if j["runs-on"] == "windows-latest"]
-    # Windows runs on demand only, so an unsupported platform never shows as a failing check.
+    # Windows runs on every pull request and every push to main, and by hand.
     win = _workflow("windows.yml")
-    assert list(win.get(True, win.get("on"))) == ["workflow_dispatch"]  # YAML reads `on` as True
+    on = win["on"]
+    assert set(on) == {"pull_request", "push", "workflow_dispatch"}
+    assert on["push"] == {"branches": ["main"]}
     (job,) = win["jobs"].values()
     assert job["runs-on"] == "windows-latest" and "pytest" in _steps_text(job)
+    (python,) = [s for s in job["steps"] if s.get("uses", "").startswith("actions/setup-python@")]
+    assert str(python["with"]["python-version"]) == "3.12"
+    assert "not yet a supported platform" not in (WORKFLOWS / "windows.yml").read_text(
+        encoding="utf-8")
 
 
 def test_action_is_marketplace_ready():

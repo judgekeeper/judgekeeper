@@ -36,9 +36,15 @@ or `expectation`, `rationale`, `metadata`, `overrides`, `valid`.
 
 from __future__ import annotations
 
+import atexit
+import gc
 import inspect
 import json
 import os
+import shutil
+import tempfile
+import threading
+from pathlib import Path
 
 from judgekeeper.records import (
     CODE,
@@ -61,6 +67,79 @@ TRACE_INPUTS = "mlflow.traceInputs"
 TRACE_OUTPUTS = "mlflow.traceOutputs"
 PAGE_SIZE = 100
 NO_RUN = "(no run)"
+BIG_STORE = 1_000_000_000  # bytes: a store this big gets a line before it is copied
+SQLITE_SIDE_FILES = ("-wal", "-shm")  # SQLite keeps recent writes there until a checkpoint
+
+_copies: dict[tuple, Path] = {}  # (store path, size, modified) -> its copy, this process
+_copies_lock = threading.Lock()
+
+
+def store_uri(path: Path, say=None) -> str:
+    """The tracking URI to read the local store at `path` with.
+
+    An `mlflow.db` file is never opened through MLflow: it is copied once per process (with
+    its `-wal` and `-shm` files when present) into a temporary folder, removed when the
+    process ends, and the copy is read with a plain `sqlite:///` address. Read-only SQLite
+    addresses (`sqlite:///file:...?mode=ro&uri=true`) do not work on Windows, where MLflow
+    takes them as a file name. The asking-again worker reads the same copy later, so the
+    copy lives until the process ends, not until this function returns.
+
+    A folder store (`mlruns/`) is read where it is: copying it would copy every artifact.
+    MLflow 3.16's FileStore opens it only when MLFLOW_ALLOW_FILE_STORE=true is set, and
+    creates `mlruns/.trash` when it is missing (a store MLflow wrote always has it); it
+    writes nothing else on reading (mlflow/store/tracking/file_store.py, FileStore.__init__).
+    """
+    path = Path(path)
+    if path.is_dir():
+        return str(path)
+    stat = path.stat()
+    key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
+    with _copies_lock:
+        if key not in _copies:
+            if stat.st_size >= BIG_STORE and say is not None:
+                say(f"Reading a copy of {path.name} ({stat.st_size / 1e9:.1f} GB)…")
+            folder = Path(tempfile.mkdtemp(prefix="judgekeeper-mlflow-"))
+            try:
+                for suffix in ("", *SQLITE_SIDE_FILES):
+                    part = path.with_name(path.name + suffix)
+                    if part.is_file():
+                        shutil.copy2(part, folder / part.name)
+            except BaseException:
+                shutil.rmtree(folder, ignore_errors=True)
+                raise
+            _copies[key] = folder / path.name
+        copy = _copies[key]
+    return f"sqlite:///{copy.as_posix()}"
+
+
+def _close_engines(folders: list[Path]) -> None:
+    """Close MLflow's database connections to the copies: Windows cannot delete a file that
+    is still open."""
+    try:
+        from sqlalchemy.engine import Engine
+    except ImportError:
+        return
+    marks = [f.as_posix() for f in folders]
+    for obj in gc.get_objects():
+        try:
+            if isinstance(obj, Engine) and any(m in str(obj.url) for m in marks):
+                obj.dispose()
+        except Exception:  # noqa: BLE001, S112 - closing what can be closed is enough
+            continue
+
+
+def remove_copies() -> None:
+    """Remove every copy this process made (also at exit, after an error or Ctrl-C)."""
+    with _copies_lock:
+        folders = [copy.parent for copy in _copies.values()]
+        _copies.clear()
+    if folders:
+        _close_engines(folders)
+    for folder in folders:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+atexit.register(remove_copies)
 
 
 def _client(tracking_uri):

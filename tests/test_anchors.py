@@ -20,7 +20,7 @@ ITEMS = [
 
 
 def write_jsonl(path, rows, **dump_kwargs):
-    path.write_text("\n".join(json.dumps(r, **dump_kwargs) for r in rows) + "\n")
+    path.write_text("\n".join(json.dumps(r, **dump_kwargs) for r in rows) + "\n", encoding="utf-8")
     return path
 
 
@@ -30,7 +30,7 @@ def test_hash_stable_under_key_reordering_and_whitespace(tmp_path):
     assert canonical_hash(reordered) == base
 
     p = write_jsonl(tmp_path / "a.jsonl", reordered, indent=None, separators=(" , ", " :  "))
-    p.write_text("\n\n" + p.read_text().replace("\n", "\n   \n"))
+    p.write_text("\n\n" + p.read_text(encoding="utf-8").replace("\n", "\n   \n"), encoding="utf-8")
     assert canonical_hash(load_anchors(p)) == base
 
 
@@ -58,7 +58,7 @@ def test_freeze_writes_manifest(tmp_path):
     p = write_jsonl(tmp_path / "anchors.jsonl", ITEMS)
     manifest = freeze(p)
     assert manifest_path_for(p) == tmp_path / "anchors.manifest.json"
-    on_disk = json.loads((tmp_path / "anchors.manifest.json").read_text())
+    on_disk = json.loads((tmp_path / "anchors.manifest.json").read_text(encoding="utf-8"))
     assert on_disk == manifest
     assert manifest["item_count"] == 3
     assert manifest["kind"] == "pairwise"
@@ -110,6 +110,6 @@ def test_invalid_anchor_sets_rejected(tmp_path, bad):
 
 def test_invalid_json_line_rejected(tmp_path):
     p = tmp_path / "anchors.jsonl"
-    p.write_text('{"id": "x"\n')
+    p.write_text('{"id": "x"\n', encoding="utf-8")
     with pytest.raises(AnchorError, match="line 1"):
         load_anchors(p)

@@ -24,7 +24,7 @@ MAP = ("target_id=trace_id,name=metric,label=value,explanation=comment,annotator
 
 
 def write_jsonl(path, rows):
-    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     return path
 
 
@@ -64,7 +64,7 @@ def test_score_record_fields_and_kinds():
 def test_import_records_jsonl(tmp_path):
     path = write_jsonl(tmp_path / "records.jsonl", SMALL)
     assert main(["import", "records", str(path), "--out", str(tmp_path / "rep")]) == 0
-    r = json.loads((tmp_path / "rep" / "report.json").read_text())
+    r = json.loads((tmp_path / "rep" / "report.json").read_text(encoding="utf-8"))
     assert r["n_runs"] == 2
     assert [x["kappa"] for x in r["runs"]] == pytest.approx([0.5, 1.0])
     assert r["source"]["kind"] == "records"
@@ -74,7 +74,7 @@ def test_import_records_jsonl(tmp_path):
 def test_map_on_a_csv_with_renamed_columns(tmp_path):
     out = tmp_path / "rep"
     assert main(["import", "records", str(CSV), "--map", MAP, "--out", str(out)]) == 0
-    r = json.loads((out / "report.json").read_text())
+    r = json.loads((out / "report.json").read_text(encoding="utf-8"))
     assert r["n_runs"] == 1
     assert r["headline"]["tpr_mean"] == pytest.approx(2 / 3)
     assert r["headline"]["tnr_mean"] == pytest.approx(1.0)
@@ -83,7 +83,8 @@ def test_map_on_a_csv_with_renamed_columns(tmp_path):
     assert {row["id"] for row in r["items"]} == {"r1", "r2", "r3", "r4", "r5"}
     r2 = next(d for d in r["disagreements"] if d["id"] == "r2")
     assert r2["rationale"] == "drifts off topic"
-    anchors = [json.loads(x) for x in (out / "anchors.jsonl").read_text().splitlines()]
+    anchors = [json.loads(x) for x in (out / "anchors.jsonl").read_text(
+        encoding="utf-8").splitlines()]
     assert anchors[0]["input"] == "Question 1" and anchors[0]["output"] == "Answer 1"
 
 
@@ -151,7 +152,7 @@ def test_labels_file_wins_over_in_file_human_records_with_a_note(tmp_path, capsy
     out = tmp_path / "rep"
     assert main(["import", "records", str(path), "--labels", str(labels),
                  "--out", str(out)]) == 0
-    r = json.loads((out / "report.json").read_text())
+    r = json.loads((out / "report.json").read_text(encoding="utf-8"))
     # human now: a pass; b c d fail. run 1 matches every item; run 2 passes b.
     assert [x["kappa"] for x in r["runs"]] == pytest.approx([1.0, 0.5])
     note = next(n for n in r["notes"] if "--labels" in n)
@@ -209,14 +210,14 @@ def test_evaluator_becomes_the_fingerprint_and_the_prompt_is_hashed(tmp_path):
     assert fp["prompt_hash"]
     for p in (tmp_path / "o").rglob("*"):
         if p.is_file():
-            assert "SECRET RUBRIC" not in p.read_text()
+            assert "SECRET RUBRIC" not in p.read_text(encoding="utf-8")
 
 
 def test_round_trip_export_then_import_gives_the_same_report(tmp_path):
     original = check_table(FIXTURES / "check" / "results.csv", out=tmp_path / "check")
     records = tmp_path / "records.jsonl"
     assert main(["export", "records", str(tmp_path / "check"), "-o", str(records)]) == 0
-    lines = [json.loads(x) for x in records.read_text().splitlines()]
+    lines = [json.loads(x) for x in records.read_text(encoding="utf-8").splitlines()]
     assert {x["annotator_kind"] for x in lines} == {"LLM", "HUMAN"}
     assert len([x for x in lines if x["annotator_kind"] == "LLM"]) == 30  # 10 items x 3 runs
     again = import_results("records", [records], out=tmp_path / "again")
@@ -235,7 +236,7 @@ def test_round_trip_export_then_import_gives_the_same_report(tmp_path):
 
     def strip(path):
         return [{k: v for k, v in json.loads(x).items() if k != "created_at"}
-                for x in path.read_text().splitlines()]
+                for x in path.read_text(encoding="utf-8").splitlines()]
 
     assert strip(records2) == strip(records)
 
@@ -245,7 +246,7 @@ def test_export_from_a_runs_dir_needs_anchors_for_labels(tmp_path, capsys):
     out = tmp_path / "r.jsonl"
     assert main(["export", "records", str(tmp_path / "check" / "runs"), "-o", str(out),
                  "--anchors", str(tmp_path / "check" / "anchors.jsonl")]) == 0
-    assert len(out.read_text().splitlines()) == 40
+    assert len(out.read_text(encoding="utf-8").splitlines()) == 40
     assert main(["export", "records", str(tmp_path / "nowhere"), "-o", str(out)]) == 2
     assert "nowhere" in capsys.readouterr().err
 

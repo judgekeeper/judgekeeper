@@ -54,9 +54,9 @@ def _checked(root, n_pass=20, n_fail=16):
 
 def _meta(root):
     path = root / "results.json"
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     data.setdefault("metadata", {}).update(VERSION)
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
 
 
 def _new_run(root, verdicts=None, rubric=NEW_RUBRIC, same=0, rubrics=None, drop=0, **kwargs):
@@ -72,7 +72,7 @@ def _new_run(root, verdicts=None, rubric=NEW_RUBRIC, same=0, rubrics=None, drop=
             row["gradingResult"]["componentResults"][0]["assertion"]["value"] = text
     data["results"]["results"] = rows[drop:]
     data["metadata"].update(VERSION)
-    (root / "results.json").write_text(json.dumps(data))
+    (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
 
 
 @pytest.fixture
@@ -82,7 +82,7 @@ def fake(monkeypatch, tmp_path):
     ws = _checked(tmp_path)
     binary = tmp_path / "node_modules" / ".bin" / "promptfoo"
     binary.parent.mkdir(parents=True)
-    binary.write_text("")
+    binary.write_text("", encoding="utf-8")
     for name in keys.all_names():
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
@@ -285,7 +285,7 @@ def test_old_and_new_side_by_side(fake, capsys):
     assert "old 100% (" in wrong and "->  new 75% (" in wrong
     assert "old 100% (" in correct and "->  new 100% (" in correct
     assert "100% to 100%" not in out  # a range never collapses to one point
-    block = json.loads(fake.result_json.read_text())["new_judge"]
+    block = json.loads(fake.result_json.read_text(encoding="utf-8"))["new_judge"]
     assert block["new"]["tnr"] == pytest.approx(0.75) and block["new"]["tpr"] == 1.0
     assert block["old"]["source"] == "result"
 
@@ -301,10 +301,10 @@ def test_the_will_look_better_line_is_always_shown(fake, capsys):
 
 def test_old_numbers_from_asking_again_are_used_and_said(fake, capsys):
     run(capsys, fake.root, "--ask-again", "--allow-calls", 72)  # the old judge, asked again
-    r = json.loads(fake.result_json.read_text())
+    r = json.loads(fake.result_json.read_text(encoding="utf-8"))
     r["again"]["made_at"] = "2026-10-06T10:00:00Z"
     r["again"]["today"].update(tnr=0.5, tnr_interval=[0.3, 0.7])
-    fake.result_json.write_text(json.dumps(r))
+    fake.result_json.write_text(json.dumps(r), encoding="utf-8")
     _new_run(fake.root)
     _, out, _ = run(capsys, fake.root, "--try-new-judge", "--allow-calls", 36)
     wrong = next(x for x in out.splitlines() if "you marked Wrong, the judge failed:" in x)
@@ -315,7 +315,7 @@ def test_old_numbers_from_asking_again_are_used_and_said(fake, capsys):
 # What is saved ---------------------------------------------------------------------------
 
 def test_the_new_judge_files(fake, capsys):
-    before = json.loads(fake.result_json.read_text())
+    before = json.loads(fake.result_json.read_text(encoding="utf-8"))
     labels = fake.labels.read_bytes()
     _new_run(fake.root)
     run(capsys, fake.root, "--try-new-judge", "--allow-calls", 36)
@@ -329,12 +329,12 @@ def test_the_new_judge_files(fake, capsys):
         fp = rec["fingerprint"]
         assert fp["model"] == "openai:gpt-4.1-mini" and fp["prompt_hash"] != saved_hash
         assert fp["tool"] == "promptfoo" and fp["judge_copy"] == "exact" and fp["created_at"]
-    after = json.loads(fake.result_json.read_text())
+    after = json.loads(fake.result_json.read_text(encoding="utf-8"))
     for key in ("tpr", "tnr", "kappa", "labels", "made_at"):
         assert after[key] == before[key]  # the main result stays the old judge's
     assert after["new_judge"]["folder"] == f".judgekeeper/{folder.name}"
     assert fake.labels.read_bytes() == labels
-    assert "Your new judge" in fake.result_html.read_text()
+    assert "Your new judge" in fake.result_html.read_text(encoding="utf-8")
 
 
 def test_trying_the_same_new_judge_again_asks_nothing_again(fake, capsys):
@@ -359,7 +359,7 @@ def test_the_confirmation_uses_new_answers_and_the_new_judges_groups(fake, capsy
     old = {a["id"] for a in again.labeled_answers(fake)}
     queue = {q["id"]: q["group"] for q in data["queue"]}
     assert not set(queue) & old and len(queue) == 30
-    pool = [json.loads(x) for x in cws.pool.read_text().splitlines()]
+    pool = [json.loads(x) for x in cws.pool.read_text(encoding="utf-8").splitlines()]
     assert all("(v2)" in p["output"] for p in pool)  # the newest results' new answers
     by_question = {p["id"]: int(p["input"]["question"].split()[1].rstrip("?")) for p in pool}
     assert all(queue[i] == ("pass" if new[by_question[i]] else "fail") for i in queue)
@@ -385,10 +385,10 @@ def test_the_confirmation_result(fake, capsys, confirmed):
     assert "On 36 new answers you marked (quick check):" in out
     assert "  Of the answers you marked Wrong, your new judge failed about 100% (" in out
     assert "  Of the answers you marked Correct, it passed about 92% (" in out  # 24 of 26
-    block = json.loads(fake.result_json.read_text())["new_judge"]["confirmation"]
+    block = json.loads(fake.result_json.read_text(encoding="utf-8"))["new_judge"]["confirmation"]
     assert block["labels"] == {"correct": 26, "wrong": 10} and block["check"] == "quick"
     assert (_folder(fake) / "confirm" / "result.json").is_file()
-    assert "On 36 new answers you marked" in fake.result_html.read_text()
+    assert "On 36 new answers you marked" in fake.result_html.read_text(encoding="utf-8")
 
 
 def test_fewer_than_ten_of_each_says_the_ranges_are_very_wide(fake, capsys, confirmed):
@@ -405,7 +405,8 @@ def test_no_to_the_confirmation_keeps_the_numbers(fake, capsys, terminal, confir
     code, out, _ = run(capsys, fake.root, "--try-new-judge")
     assert code == 0 and confirmed == []
     assert "Mark 10 Correct and 10 Wrong new answers to confirm? [Y/n]" in out
-    assert json.loads(fake.result_json.read_text())["new_judge"]["confirmation"] is None
+    assert json.loads(fake.result_json.read_text(
+        encoding="utf-8"))["new_judge"]["confirmation"] is None
 
 
 def test_new_makes_the_new_judge_the_one_checked_and_deletes_nothing(fake, capsys, confirmed):

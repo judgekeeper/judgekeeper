@@ -16,7 +16,7 @@ def _items(tmp_path, n=5, with_ids=True):
         if with_ids:
             row = {"id": f"it{i}", **row}
         rows.append(row)
-    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     return path
 
 
@@ -122,7 +122,7 @@ FORMULA_TEXTS = ("=HYPERLINK(\"http://evil\",\"x\")", "+1+1", "-2", "@SUM(A1)")
 def test_template_neutralises_formula_prefixes(tmp_path):
     src = tmp_path / "items.jsonl"
     src.write_text("".join(json.dumps({"id": f"it{i}", "input": t, "output": t}) + "\n"
-                           for i, t in enumerate(FORMULA_TEXTS)))
+                           for i, t in enumerate(FORMULA_TEXTS)), encoding="utf-8")
     labels = tmp_path / "labels.csv"
     assert main(["template", str(src), "-o", str(labels)]) == 0
     rows = _read(labels)
@@ -132,7 +132,8 @@ def test_template_neutralises_formula_prefixes(tmp_path):
 
 def test_template_leaves_ordinary_text_alone(tmp_path):
     src = tmp_path / "items.jsonl"
-    src.write_text(json.dumps({"id": "it0", "input": "what is 2+2?", "output": "it's 4"}) + "\n")
+    src.write_text(json.dumps({"id": "it0", "input": "what is 2+2?", "output": "it's 4"}) + "\n",
+                   encoding="utf-8")
     labels = tmp_path / "labels.csv"
     assert main(["template", str(src), "-o", str(labels)]) == 0
     assert _read(labels)[0] | {} == {"id": "it0", "input": "what is 2+2?", "output": "it's 4",
@@ -142,7 +143,7 @@ def test_template_leaves_ordinary_text_alone(tmp_path):
 def test_import_labels_restores_guarded_text(tmp_path):
     src = tmp_path / "items.jsonl"
     src.write_text("".join(json.dumps({"id": f"it{i}", "input": t, "output": t}) + "\n"
-                           for i, t in enumerate(FORMULA_TEXTS)))
+                           for i, t in enumerate(FORMULA_TEXTS)), encoding="utf-8")
     labels = tmp_path / "labels.csv"
     main(["template", str(src), "-o", str(labels)])
     rows = _read(labels)
@@ -175,7 +176,7 @@ def _cells(path):
 def test_template_guards_formula_ids_and_import_labels_restores_them(tmp_path):
     src = tmp_path / "items.jsonl"
     src.write_text("".join(json.dumps({"id": i, "input": f"q{n}", "output": f"a{n}"}) + "\n"
-                           for n, i in enumerate(HOSTILE_IDS)))
+                           for n, i in enumerate(HOSTILE_IDS)), encoding="utf-8")
     labels = tmp_path / "labels.csv"
     assert main(["template", str(src), "-o", str(labels)]) == 0
     assert not [c for c in _cells(labels) if c.startswith(FORMULA_STARTS)]
@@ -201,7 +202,7 @@ def test_template_from_csv_with_formula_ids_writes_no_formula(tmp_path):
     # A sheet that is read again as items (template of a template) keeps the ids.
     again = tmp_path / "again.csv"
     assert main(["template", str(out), "-o", str(again)]) == 0
-    assert again.read_text() == out.read_text()
+    assert again.read_text(encoding="utf-8") == out.read_text(encoding="utf-8")
 
 
 def test_guarded_ids_in_a_sheet_match_their_items_as_import_labels(tmp_path):
@@ -209,7 +210,7 @@ def test_guarded_ids_in_a_sheet_match_their_items_as_import_labels(tmp_path):
     ids = ("=x", "@y")
     src = tmp_path / "items.jsonl"
     src.write_text("".join(json.dumps({"id": i, "input": "q", "output": f"a{n}"}) + "\n"
-                           for n, i in enumerate(ids)))
+                           for n, i in enumerate(ids)), encoding="utf-8")
     sheet = tmp_path / "labels.csv"
     assert main(["template", str(src), "-o", str(sheet)]) == 0
     rows = _read(sheet)

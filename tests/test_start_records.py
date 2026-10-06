@@ -187,7 +187,7 @@ def test_records_reach_the_labeling_page_like_any_other_results(tmp_path):
     data = ws.data()
     assert data["tool"] == "records" and data["metric"] == "Safe wording"
     assert data["rule"] == "Be polite."
-    pool = [json.loads(line) for line in ws.pool.read_text().splitlines()]
+    pool = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()]
     assert len(pool) == 36
 
 

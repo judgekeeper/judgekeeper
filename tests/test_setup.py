@@ -20,6 +20,7 @@ from judgekeeper import own_format, recorder, setup_project, start
 from judgekeeper.cli import main
 from judgekeeper.config import load_section
 from judgekeeper.gate import GateConfig
+from judgekeeper.textio import tick
 from tests.start_projects import (
     flat_jsonl,
     nested_runs_project,
@@ -246,7 +247,8 @@ def test_several_judges_without_a_terminal_need_metric(tmp_path, capsys):
     assert not (tmp_path / "judgekeeper.toml").exists()
     code, out = setup(capsys, tmp_path, "--yes", "--metric", "Plain language")
     assert code == 0
-    assert "judge = \"Plain language\"" in (tmp_path / "judgekeeper.toml").read_text()
+    assert "judge = \"Plain language\"" in (tmp_path / "judgekeeper.toml").read_text(
+        encoding="utf-8")
 
 
 # Eval tools and records ------------------------------------------------------------------
@@ -326,7 +328,8 @@ def test_a_changed_shape_says_to_run_setup_again(tmp_path, capsys, terminal):
     path = nested_runs_project(tmp_path, rule_rows=0)
     answers += ["", "1", ""]
     setup(capsys, tmp_path)
-    path.write_text(path.read_text().replace('"cases"', '"items"'), encoding="utf-8")
+    path.write_text(path.read_text(encoding="utf-8").replace('"cases"', '"items"'),
+                    encoding="utf-8")
     code = main(["start", str(tmp_path), "--yes"])
     out = capsys.readouterr()
     assert code == 2
@@ -453,7 +456,7 @@ def test_the_change_list_never_repeats_a_line(tmp_path, capsys, shape):
     assert code == 0, out
     bullets = _bullets(out)
     assert bullets and len(bullets) == len(set(bullets)), bullets
-    done = [line for line in out.splitlines() if line.startswith("✓ ")]
+    done = [line for line in out.splitlines() if line.startswith(f"{tick()} ")]
     assert len(done) == len(set(done)), done
     assert len(done) == sum("is not listed" not in b for b in bullets)
 

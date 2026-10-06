@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from tests.test_website import _lookup, render
-from tests.website_pages import WEBSITE, command_lines, judgekeeper_argv, parse
+from tests.website_pages import WEBSITE, as_shown, command_lines, judgekeeper_argv, parse
 
 PAGE = WEBSITE / "tutorial.html"
 
@@ -92,7 +92,7 @@ def test_every_step_prints_what_the_page_shows(tutorial):
         assert proc.returncode == step["exit"], (step["line"], proc.stdout)
         assert "output" in step, f"step {step['step']} shows no output"
         shown = [line.rstrip() for line in step["output"].strip("\n").splitlines()]
-        real = [line.rstrip() for line in proc.stdout.strip("\n").splitlines()]
+        real = [line.rstrip() for line in as_shown(proc.stdout).strip("\n").splitlines()]
         assert shown == real, f"step {step['step']}: {step['line']}"
 
 

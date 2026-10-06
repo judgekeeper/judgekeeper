@@ -116,7 +116,7 @@ def test_continue_without_a_terminal_needs_yes(tmp_path, capsys, served):
 
 def test_the_same_results_offer_to_label_more(tmp_path, capsys, served, terminal):
     ws = _checked(tmp_path, labeled=20)
-    made = json.loads(ws.result_json.read_text())["made_at"][:10]
+    made = json.loads(ws.result_json.read_text(encoding="utf-8"))["made_at"][:10]
     queue = ws.data()["queue"]
     terminal.append("2")
     code, out, _ = run(capsys, tmp_path)
@@ -150,7 +150,7 @@ def test_nothing_for_now_stops(tmp_path, capsys, served, terminal):
 
 def test_newer_results_are_rechecked_with_the_saved_labels(tmp_path, capsys, served):
     ws = _checked(tmp_path, n_pass=20, n_fail=16)
-    before = json.loads(ws.result_json.read_text())
+    before = json.loads(ws.result_json.read_text(encoding="utf-8"))
     # The next eval run: the same 36 answers, but the judge now fails 4 it passed.
     _rewrite(tmp_path, split(16, 20))
     code, out, _ = run(capsys, tmp_path)
@@ -162,20 +162,21 @@ def test_newer_results_are_rechecked_with_the_saved_labels(tmp_path, capsys, ser
             "80% now.") in out
     assert ("Of the answers you marked Wrong, your judge failed about 100% before and about "
             "100% now.") in out
-    after = json.loads(ws.result_json.read_text())
+    after = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert after["tpr"] == pytest.approx(0.8) and after["groups"]["pass"]["pool"] == 16
     history = sorted(ws.history.glob("result-*.json"))
-    assert [json.loads(h.read_text())["made_at"] for h in history] == [before["made_at"]]
+    assert [json.loads(h.read_text(
+        encoding="utf-8"))["made_at"] for h in history] == [before["made_at"]]
     assert "changed since your last check" not in out
 
 
 def test_a_recheck_keeps_the_old_check_and_carries_the_labels(tmp_path, capsys, served):
     ws = _checked(tmp_path, n_pass=20, n_fail=16)
-    old_labels = ws.labels.read_text()
+    old_labels = ws.labels.read_text(encoding="utf-8")
     _rewrite(tmp_path, split(16, 20))
     run(capsys, tmp_path)
     (archive,) = ws.history.glob("check-*")
-    assert (archive / "labels.csv").read_text() == old_labels
+    assert (archive / "labels.csv").read_text(encoding="utf-8") == old_labels
     assert (archive / "start.json").is_file() and (archive / "pool-judge.jsonl").is_file()
     session = StartSession(ws)
     assert session.counts() == {"correct": 20, "wrong": 16, "skipped": 0}
@@ -252,7 +253,7 @@ def test_a_renamed_judge_is_asked_about(tmp_path, capsys, served):
 
 def test_new_moves_everything_but_the_baseline_and_deletes_nothing(tmp_path, capsys, served):
     ws = _checked(tmp_path, n_pass=20, n_fail=16)
-    (ws.dir / "baseline.json").write_text("{}")
+    (ws.dir / "baseline.json").write_text("{}", encoding="utf-8")
     before = {p.relative_to(ws.dir).as_posix(): p.read_bytes()
               for p in ws.dir.rglob("*") if p.is_file()}
     code, out, _ = run(capsys, tmp_path, "--new", "--yes")
@@ -261,7 +262,7 @@ def test_new_moves_everything_but_the_baseline_and_deletes_nothing(tmp_path, cap
     moved = {p.relative_to(previous).as_posix(): p.read_bytes()
              for p in previous.rglob("*") if p.is_file()}
     assert moved == {k: v for k, v in before.items() if k != "baseline.json"}
-    assert (ws.dir / "baseline.json").read_text() == "{}"
+    assert (ws.dir / "baseline.json").read_text(encoding="utf-8") == "{}"
     assert f"Moved your last check to .judgekeeper/{previous.name}/. Nothing was deleted." in out
     assert "36 answers with a verdict" in out and len(served) == 1
 

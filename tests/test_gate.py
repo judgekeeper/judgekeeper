@@ -264,7 +264,7 @@ def test_config_file_overrides(tmp_path):
 
 def test_config_without_gate_table_is_defaults(tmp_path):
     p = tmp_path / "judgekeeper.toml"
-    p.write_text("")
+    p.write_text("", encoding="utf-8")
     assert load_config(p) == GateConfig()
 
 
@@ -278,7 +278,7 @@ def test_config_without_gate_table_is_defaults(tmp_path):
 ])
 def test_config_errors(tmp_path, text, needle):
     p = tmp_path / "judgekeeper.toml"
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
     with pytest.raises(GateError, match=needle):
         load_config(p)
 
@@ -290,10 +290,10 @@ def test_config_missing_file(tmp_path):
 
 def test_load_report_rejects_non_reports(tmp_path):
     p = tmp_path / "r.json"
-    p.write_text(json.dumps({"hello": 1}))
+    p.write_text(json.dumps({"hello": 1}), encoding="utf-8")
     with pytest.raises(GateError, match="report"):
         load_report(p)
-    p.write_text("{not json")
+    p.write_text("{not json", encoding="utf-8")
     with pytest.raises(GateError):
         load_report(p)
 

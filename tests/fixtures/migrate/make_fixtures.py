@@ -70,9 +70,11 @@ def fingerprint(model: str, snapshot: str, created_at: str) -> dict:
 
 def main() -> None:
     items = anchors()
-    (ROOT / "anchors.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items))
+    (ROOT / "anchors.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items),
+                                        encoding="utf-8")
     manifest = build_manifest(items)
-    (ROOT / "anchors.manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (ROOT / "anchors.manifest.json").write_text(json.dumps(manifest, indent=2) + "\n",
+                                                encoding="utf-8")
     for name, (model, snapshot, created_at, patterns) in RUN_DIRS.items():
         d = ROOT / name
         d.mkdir(exist_ok=True)
@@ -88,7 +90,8 @@ def main() -> None:
                              "verdict_ba": verdict, "raw_score_ba": None,
                              "rationale_ba": f"{name} run{run} {item['id']} BA",
                              "fingerprint": fp})
-            (d / f"run-{run:02d}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+            (d / f"run-{run:02d}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows),
+                                                    encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ rubric_version: test-v1
 def test_freeze_success(pairwise_dir):
     (pairwise_dir / "anchors.manifest.json").unlink()
     assert main(["freeze", str(pairwise_dir / "anchors.jsonl")]) == 0
-    manifest = json.loads((pairwise_dir / "anchors.manifest.json").read_text())
+    manifest = json.loads((pairwise_dir / "anchors.manifest.json").read_text(encoding="utf-8"))
     assert manifest["item_count"] == 8
 
 
@@ -37,7 +37,9 @@ def test_validate_empty_runs_dir_exit_2(pairwise_dir, tmp_path):
 
 def test_anchor_hash_mismatch_exit_3(pairwise_dir, tmp_path):
     anchors = pairwise_dir / "anchors.jsonl"
-    anchors.write_text(anchors.read_text().replace('"human_label": "A"', '"human_label": "B"', 1))
+    anchors.write_text(anchors.read_text(
+        encoding="utf-8").replace('"human_label": "A"', '"human_label": "B"', 1),
+                       encoding="utf-8")
     out = tmp_path / "r"
     assert main(["validate", str(anchors), str(pairwise_dir / "runs"), "--out", str(out)]) == 3
     assert not (out / "report.json").exists()
@@ -48,18 +50,18 @@ def test_anchor_hash_mismatch_exit_3(pairwise_dir, tmp_path):
 
 def test_runs_recorded_against_other_anchors_exit_3(pairwise_dir, tmp_path):
     run = pairwise_dir / "runs" / "run-02.jsonl"
-    lines = run.read_text().splitlines()
+    lines = run.read_text(encoding="utf-8").splitlines()
     header = json.loads(lines[0])
     header["anchors_sha256"] = "0" * 64
-    run.write_text("\n".join([json.dumps(header)] + lines[1:]) + "\n")
+    run.write_text("\n".join([json.dumps(header)] + lines[1:]) + "\n", encoding="utf-8")
     assert main(["validate", str(pairwise_dir / "anchors.jsonl"), str(pairwise_dir / "runs"),
                  "--out", str(tmp_path / "r")]) == 3
 
 
 def test_mixed_judges_rejected(pairwise_dir, tmp_path):
     run = pairwise_dir / "runs" / "run-02.jsonl"
-    run.write_text(run.read_text().replace('"rubric_version": "pairwise-v1"',
-                                           '"rubric_version": "pairwise-v2"'))
+    run.write_text(run.read_text(encoding="utf-8").replace('"rubric_version": "pairwise-v1"',
+                                           '"rubric_version": "pairwise-v2"'), encoding="utf-8")
     assert main(["validate", str(pairwise_dir / "anchors.jsonl"), str(pairwise_dir / "runs"),
                  "--out", str(tmp_path / "r")]) == 2
 
@@ -72,7 +74,7 @@ def test_judge_with_replay_then_validate(pairwise_dir, tmp_path):
     assert code == 0
     files = sorted(p.name for p in runs.glob("*.jsonl"))
     assert files == ["run-01.jsonl", "run-02.jsonl"]
-    lines = (runs / "run-01.jsonl").read_text().splitlines()
+    lines = (runs / "run-01.jsonl").read_text(encoding="utf-8").splitlines()
     header = json.loads(lines[0])
     assert header["type"] == "header"
     assert header["fingerprint"]["model"] == "claude-haiku-4-5-20251001"
@@ -84,7 +86,7 @@ def test_judge_with_replay_then_validate(pairwise_dir, tmp_path):
         assert rec["fingerprint"]["created_at"]
     out = tmp_path / "report"
     assert main(["validate", str(pairwise_dir / "anchors.jsonl"), str(runs), "--out", str(out)]) == 0
-    report = json.loads((out / "report.json").read_text())
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     assert report["noise_floor"]["items_flipped_fraction"] == 0.0
 
 
@@ -93,22 +95,22 @@ def test_judge_single_output_end_to_end(tmp_path):
     anchors = tmp_path / "anchors.jsonl"
     items = [{"id": f"s{i}", "input": "q", "output": "o",
               "human_label": "pass" if i < 9 else "fail"} for i in range(10)]
-    anchors.write_text("\n".join(json.dumps(i) for i in items) + "\n")
+    anchors.write_text("\n".join(json.dumps(i) for i in items) + "\n", encoding="utf-8")
     assert main(["freeze", str(anchors)]) == 0
-    sha = json.loads((tmp_path / "anchors.manifest.json").read_text())["sha256"]
+    sha = json.loads((tmp_path / "anchors.manifest.json").read_text(encoding="utf-8"))["sha256"]
     fp = {"provider": "replay", "model": "m", "snapshot": "m", "prompt_hash": "h",
           "rubric_version": "single-v1", "temperature": 0.0, "created_at": "2026-10-01T00:00:00Z"}
     fixture = tmp_path / "fixture.jsonl"
     rows = [{"type": "header", "run": 1, "anchors_sha256": sha, "fingerprint": fp}]
     rows += [{"type": "judgment", "id": i["id"], "verdict": "pass", "raw_score": None,
               "rationale": "looks fine", "fingerprint": fp} for i in items]
-    fixture.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    fixture.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
     runs = tmp_path / "runs"
     assert main(["judge", str(anchors), "--runner", "replay", "--fixture", str(fixture),
                  "--out", str(runs)]) == 0
     out = tmp_path / "report"
     assert main(["validate", str(anchors), str(runs), "--out", str(out)]) == 0
-    report = json.loads((out / "report.json").read_text())
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     assert report["position_bias"] is None
     assert report["headline"]["accuracy_mean"] == 0.9
     assert report["headline"]["kappa_mean"] == 0.0
@@ -120,7 +122,7 @@ def test_judge_single_output_end_to_end(tmp_path):
 def test_judge_anthropic_without_key_is_usage_error(pairwise_dir, tmp_path, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     prompt = tmp_path / "p.md"
-    prompt.write_text(PAIRWISE_PROMPT)
+    prompt.write_text(PAIRWISE_PROMPT, encoding="utf-8")
     assert main(["judge", str(pairwise_dir / "anchors.jsonl"), "--runner", "anthropic",
                  "--model", "claude-haiku-4-5-20251001", "--prompt", str(prompt),
                  "--out", str(tmp_path / "runs")]) == 2
@@ -146,12 +148,12 @@ def test_printable_strips_control_characters_but_keeps_newline_and_tab():
 
 def _hostile_runs(pairwise_dir):
     for run in (pairwise_dir / "runs").glob("run-*.jsonl"):
-        lines = run.read_text().splitlines()
+        lines = run.read_text(encoding="utf-8").splitlines()
         header = json.loads(lines[0])
         header["source"] = {"kind": "records", "file": None, "metric": None,
                             "warnings": [ESCAPES], "notes": [ESCAPES]}
         header["fingerprint"]["model"] = f"model{ESCAPES}"
-        run.write_text("\n".join([json.dumps(header), *lines[1:]]) + "\n")
+        run.write_text("\n".join([json.dumps(header), *lines[1:]]) + "\n", encoding="utf-8")
 
 
 def test_validate_prints_no_escape_sequence_from_a_run_header(pairwise_dir, tmp_path, capsys):
@@ -188,7 +190,7 @@ def test_import_prints_no_escape_sequence_in_warnings_and_notes(pairwise_dir, tm
 
 def test_error_messages_print_no_escape_sequence(tmp_path, capsys):
     table = tmp_path / "t.csv"
-    table.write_text(f'"id{ESCAPES}",verdict\na,pass\n')
+    table.write_text(f'"id{ESCAPES}",verdict\na,pass\n', encoding="utf-8")
     assert main(["check", str(table), "--out", str(tmp_path / "o")]) == 2
     printed = capsys.readouterr()
     assert "PWNED-TITLE" in printed.err

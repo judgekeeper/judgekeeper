@@ -17,7 +17,7 @@ RESULTS = FIXTURES / "promptfoo" / "results.json"
 
 def _write(tmp_path, data, name="results.json"):
     path = tmp_path / name
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
     return path
 
 
@@ -28,7 +28,7 @@ def _judged(records, name=None):
 # promptfoo: a grader set with --grader ----------------------------------------------------
 
 def test_a_grader_object_without_an_id_is_a_set_grader_not_the_default(tmp_path):
-    data = json.loads(RESULTS.read_text())
+    data = json.loads(RESULTS.read_text(encoding="utf-8"))
     grader = {"modelName": "gpt-4.1-mini", "config": {"temperature": 0}, "mcpClient": None}
     data["config"]["defaultTest"]["options"]["provider"] = grader
     for row in data["results"]["results"]:
@@ -43,7 +43,7 @@ def test_a_grader_object_without_an_id_is_a_set_grader_not_the_default(tmp_path)
 
 
 def test_default_test_provider_is_the_last_grader_fallback(tmp_path):
-    data = json.loads(RESULTS.read_text())
+    data = json.loads(RESULTS.read_text(encoding="utf-8"))
     data["config"]["defaultTest"]["options"].pop("provider", None)
     data["config"]["defaultTest"]["provider"] = "anthropic:messages:claude-haiku-4-5"
     for row in data["results"]["results"]:
@@ -64,7 +64,7 @@ def test_the_saved_grading_prompt_is_hashed_as_its_template(tmp_path):
     judged = _judged(records)
     hashes = {r.evaluator.get("prompt_hash") for r in judged}
     assert len(hashes) == 1 and None not in hashes
-    data = json.loads(REAL.read_text())
+    data = json.loads(REAL.read_text(encoding="utf-8"))
     row = data["results"]["results"][0]
     comp = next(c for c in row["gradingResult"]["componentResults"]
                 if "renderedGradingPrompt" in (c.get("metadata") or {}))
@@ -77,7 +77,7 @@ def test_the_saved_grading_prompt_is_hashed_as_its_template(tmp_path):
 
 
 def test_a_changed_grading_template_changes_the_hash(tmp_path):
-    data = json.loads(REAL.read_text())
+    data = json.loads(REAL.read_text(encoding="utf-8"))
     before = {r.evaluator["prompt_hash"] for r in _judged(read_promptfoo(REAL))}
     changed = copy.deepcopy(data)
     for row in changed["results"]["results"]:
@@ -92,7 +92,7 @@ def test_a_changed_grading_template_changes_the_hash(tmp_path):
 
 
 def test_templates_that_differ_by_row_keep_the_rubric_hash(tmp_path):
-    data = json.loads(REAL.read_text())
+    data = json.loads(REAL.read_text(encoding="utf-8"))
     rows = data["results"]["results"]
     for c in rows[0]["gradingResult"]["componentResults"]:
         m = c.get("metadata") or {}
@@ -107,7 +107,7 @@ def test_templates_that_differ_by_row_keep_the_rubric_hash(tmp_path):
 # promptfoo: cached replies ------------------------------------------------------------------
 
 def test_cached_replies_are_warned_about(tmp_path):
-    data = json.loads(REAL.read_text())
+    data = json.loads(REAL.read_text(encoding="utf-8"))
     for row in data["results"]["results"][:3]:
         for c in row["gradingResult"]["componentResults"]:
             c.setdefault("metadata", {})["cachedResponse"] = True

@@ -14,9 +14,9 @@ STATE = Path(__file__).with_name("grader-state.json")
 
 prompt = sys.argv[1]
 qid = re.search(r"\b(Q\d+)\b", prompt).group(1)
-state = json.loads(STATE.read_text()) if STATE.exists() else {}
+state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
 state[qid] = state.get(qid, 0) + 1
-STATE.write_text(json.dumps(state))
+STATE.write_text(json.dumps(state), encoding="utf-8")
 
 passes = qid in {"Q0", "Q1", "Q5"} or (qid == "Q2" and state[qid] == 2)
 print(json.dumps({"pass": passes, "score": 1 if passes else 0,

@@ -29,7 +29,7 @@ def _items(tmp_path, n=4, pairwise=False, extra=None):
         else:
             row = {"id": f"it{i}", "input": f"question {i}", "output": f"answer {i}"}
         rows.append({**row, **(extra or {})})
-    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     return path
 
 
@@ -296,7 +296,8 @@ def test_judge_verdict_is_carried_but_hidden_by_default(tmp_path, serve):
 def test_strings_are_escaped(tmp_path, serve):
     path = tmp_path / "items.jsonl"
     evil = "<script>alert(1)</script>"
-    path.write_text(json.dumps({"id": "x", "input": evil, "output": f"</script>{evil}"}) + "\n")
+    path.write_text(json.dumps({"id": "x", "input": evil, "output": f"</script>{evil}"}) + "\n",
+                    encoding="utf-8")
     client = serve(path, tmp_path / "labels.csv")
     resp, payload = client.request("GET", "/")
     page = payload.decode()
@@ -358,7 +359,10 @@ def test_cli_label_prints_its_link_at_once_when_stdout_is_a_pipe(tmp_path):
         with urllib.request.urlopen(link, timeout=5) as resp:  # the printed link opens the page
             assert resp.status == 200 and b"judgekeeper label" in resp.read()
     finally:
-        proc.send_signal(signal.SIGINT)
+        if sys.platform == "win32":  # Windows cannot send SIGINT to a child: stop it outright
+            proc.terminate()
+        else:
+            proc.send_signal(signal.SIGINT)
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:  # SIGINT is ignored when pytest itself runs detached
@@ -404,7 +408,7 @@ def test_stopping_with_labels_names_the_file_and_the_next_command(tmp_path, monk
 
 def test_cli_label_bad_items_is_usage_error(tmp_path, capsys):
     path = tmp_path / "items.jsonl"
-    path.write_text(json.dumps({"id": "x", "input": "q"}) + "\n")
+    path.write_text(json.dumps({"id": "x", "input": "q"}) + "\n", encoding="utf-8")
     assert main(["label", str(path), "--no-browser", "--port", "0"]) == 2
     assert "output" in capsys.readouterr().err
 
@@ -414,7 +418,8 @@ def test_cli_label_bad_items_is_usage_error(tmp_path, capsys):
 
 def test_written_sheet_neutralises_formula_prefixes(tmp_path, serve):
     items = tmp_path / "items.jsonl"
-    items.write_text(json.dumps({"id": "it0", "input": "=1+1", "output": "@cmd"}) + "\n")
+    items.write_text(json.dumps({"id": "it0", "input": "=1+1", "output": "@cmd"}) + "\n",
+                     encoding="utf-8")
     out = tmp_path / "labels.csv"
     client = serve(items, out)
     client.label(id="it0", label="pass", note="-not a formula")
@@ -432,7 +437,7 @@ def test_formula_ids_are_guarded_and_survive_resume_and_import(tmp_path, serve):
            "\ttab", "\rcr")
     items = tmp_path / "items.jsonl"
     items.write_text("".join(json.dumps({"id": i, "input": f"q{n}", "output": f"a{n}"}) + "\n"
-                             for n, i in enumerate(ids)))
+                             for n, i in enumerate(ids)), encoding="utf-8")
     known = [i.strip() for i in ids]  # ids are trimmed when read, here as everywhere
     out = tmp_path / "labels.csv"
     client = serve(items, out)

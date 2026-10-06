@@ -214,7 +214,7 @@ def test_import_mlflow_checks_a_span_level_judge(span_store, tmp_path):
     out = tmp_path / "rep"
     assert main(["import", "mlflow", "--experiment", "agent", "--tracking-uri", uri,
                  "--metric", "tool_ok", "--out", str(out)]) == 0
-    report = json.loads((out / "report.json").read_text())
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     assert report["anchors"]["n_items"] == 4
     assert report["runs"][0]["kappa"] == pytest.approx(1)
 
@@ -234,7 +234,7 @@ def _inspect_project(root):
 def test_start_keeps_the_trajectory_in_the_pool_and_the_anchors_not_the_page(tmp_path):
     _inspect_project(tmp_path)
     ws = start_label.prepare(start.find_judge(tmp_path), say=_quiet)
-    pool = [json.loads(line) for line in ws.pool.read_text().splitlines()]
+    pool = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()]
     assert all(p["trajectory"][0]["role"] == "user" for p in pool)
     session = StartSession(ws)
     assert set(session.state()["items"][0]) == {"id", "input", "output", "label", "skipped"}
@@ -242,7 +242,7 @@ def test_start_keeps_the_trajectory_in_the_pool_and_the_anchors_not_the_page(tmp
     for item in session.items:
         session.update({"id": item["id"], "label": groups[item["id"]]})
     save_result(ws, session, say=_quiet)
-    anchors = [json.loads(line) for line in ws.anchors.read_text().splitlines()]
+    anchors = [json.loads(line) for line in ws.anchors.read_text(encoding="utf-8").splitlines()]
     assert all(a["trajectory"][1]["role"] == "assistant" for a in anchors)
 
 

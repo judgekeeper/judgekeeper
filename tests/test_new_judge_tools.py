@@ -73,7 +73,7 @@ def _deepeval_new(root, rows=None, steps_for=None):
             md["verboseLogs"] = md["verboseLogs"].replace(
                 STEPS, f'[\n    "{steps_for[case["input"]]}"\n]')
     data["testCases"] = cases
-    (root / ".deepeval" / ".latest_run_full.json").write_text(json.dumps(data))
+    (root / ".deepeval" / ".latest_run_full.json").write_text(json.dumps(data), encoding="utf-8")
     return new_judge.View(start_label.Workspace(root), start.find_judge(root))
 
 
@@ -119,7 +119,7 @@ def _inspect_new(root):
     for s in data["samples"]:
         s["output"]["completion"] += " (v2)"
         s["target"] = f"target of {s['input']}"
-    (root / "logs" / "2026-10-02_support.json").write_text(json.dumps(data))
+    (root / "logs" / "2026-10-02_support.json").write_text(json.dumps(data), encoding="utf-8")
     return new_judge.View(start_label.Workspace(root), start.find_judge(root))
 
 
@@ -164,7 +164,7 @@ def _mlflow(root, monkeypatch, keep=0, **info):
     ws = _checked(root, inspect_project)
     data = ws.data()
     data["tool"] = "mlflow"
-    ws.start.write_text(json.dumps(data))
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
     answers = again.labeled_answers(ws)
     kept = {a["id"]: f"tr-{n}" for n, a in enumerate(answers[:keep])}
     seen = {}
@@ -174,7 +174,7 @@ def _mlflow(root, monkeypatch, keep=0, **info):
         return {"source_id": "openai:/gpt-4.1-mini", "scorer_name": None,
                 "scorer_version": None, "name": "safety", "guidelines": None,
                 "instructions": False, "trace": False, "text": None, "experiment": "1",
-                "uri": "sqlite:///file:/x/mlflow.db?mode=ro&uri=true", "traces": {},
+                "uri": "sqlite:////tmp/judgekeeper-mlflow-x/mlflow.db", "traces": {},
                 "all_traces": kept, **info}
 
     monkeypatch.setattr(mf, "assessment_info", info_of)

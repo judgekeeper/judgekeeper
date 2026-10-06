@@ -255,9 +255,9 @@ def cli(work, status, *extra):
 
 def test_cli_writes_json_and_html(work, capsys):
     assert cli(work, DIFFERENT) == 0
-    m = json.loads((work / "out" / "migration.json").read_text())
+    m = json.loads((work / "out" / "migration.json").read_text(encoding="utf-8"))
     assert m["status"] == DIFFERENT
-    html = (work / "out" / "migration.html").read_text()
+    html = (work / "out" / "migration.html").read_text(encoding="utf-8")
     assert html.startswith("<!doctype html>")
     assert "<script" not in html and "http://" not in html and "https://" not in html
     for needle in ["DIFFERENT", "judge-old", "judge-new", "new_rate", "Wilson", "i04",
@@ -280,32 +280,32 @@ def test_cli_fail_on(work, status, fail_on, code):
 
 def test_cli_anchors_mismatch_exits_3(work):
     run_file = work / "mig" / "new-better" / "run-02.jsonl"
-    lines = run_file.read_text().splitlines()
+    lines = run_file.read_text(encoding="utf-8").splitlines()
     header = json.loads(lines[0])
     header["anchors_sha256"] = "f" * 64
-    run_file.write_text("\n".join([json.dumps(header), *lines[1:]]) + "\n")
+    run_file.write_text("\n".join([json.dumps(header), *lines[1:]]) + "\n", encoding="utf-8")
     assert cli(work, BETTER) == 3
     assert not (work / "out" / "migration.json").exists()
 
 
 def test_cli_reads_migrate_table_from_config(work):
     (work / "judgekeeper.toml").write_text("[gate]\nkappa_min = 0.6\n\n[migrate]\n"
-                                           "max_changed_share = 0.5\n")
+                                           "max_changed_share = 0.5\n", encoding="utf-8")
     assert cli(work, DIFFERENT, "--fail-on", "different") == 0
-    (work / "judgekeeper.toml").write_text("[migrate]\nmax_changed = 0.5\n")
+    (work / "judgekeeper.toml").write_text("[migrate]\nmax_changed = 0.5\n", encoding="utf-8")
     assert cli(work, DIFFERENT) == 2
 
 
 def test_cli_rebase_writes_baseline_and_audit(work, capsys):
     assert cli(work, BETTER, "--rebase") == 0
-    baseline = json.loads((work / ".judgekeeper" / "baseline.json").read_text())
+    baseline = json.loads((work / ".judgekeeper" / "baseline.json").read_text(encoding="utf-8"))
     assert baseline["fingerprint"]["model"] == "judge-new"
     assert baseline["schema_version"] == 2 and len(baseline["items"]) == 10
     audits = sorted((work / ".judgekeeper" / "migrations").glob("*.json"))
     today = datetime.now(UTC).strftime("%Y-%m-%d")
     assert [p.name for p in audits] == [f"{today}-judge-old-to-judge-new.json"]
-    audit = json.loads(audits[0].read_text())
-    assert audit == json.loads((work / "out" / "migration.json").read_text())
+    audit = json.loads(audits[0].read_text(encoding="utf-8"))
+    assert audit == json.loads((work / "out" / "migration.json").read_text(encoding="utf-8"))
     assert "baseline" in capsys.readouterr().out
 
     # a second rebase the same day keeps the first audit file
@@ -323,15 +323,17 @@ def test_after_rebase_gate_no_longer_reports_judge_changed(work):
                  "--out", "new-report"]) == 0
     assert main(["gate", "new-report/report.json"]) == 5  # JUDGE_CHANGED
     assert "judgekeeper migrate" in json.loads(
-        (work / "new-report" / "gate.json").read_text())["reason"]
+        (work / "new-report" / "gate.json").read_text(encoding="utf-8"))["reason"]
     assert cli(work, BETTER, "--rebase") == 0
     assert main(["gate", "new-report/report.json"]) == 0
-    assert json.loads((work / "new-report" / "gate.json").read_text())["status"] == "PASS"
+    assert json.loads((work / "new-report" / "gate.json").read_text(
+        encoding="utf-8"))["status"] == "PASS"
 
 
 def test_cli_rebase_custom_baseline_path(work):
     assert cli(work, BETTER, "--rebase", "--baseline", "b/base.json") == 0
-    assert json.loads((work / "b" / "base.json").read_text())["fingerprint"]["model"] == "judge-new"
+    assert json.loads((work / "b" / "base.json").read_text(
+        encoding="utf-8"))["fingerprint"]["model"] == "judge-new"
     assert len(list((work / "b" / "migrations").glob("*.json"))) == 1
 
 
@@ -349,11 +351,12 @@ def test_migrate_judges_with_unknown_model(tmp_path, monkeypatch):
     rows = ["id,input,output,human_label,notes"]
     for i in range(1, 9):
         rows.append(f"i{i},q{i},a{i},{'pass' if i <= 4 else 'fail'},")
-    (tmp_path / "labels.csv").write_text("\n".join(rows) + "\n")
+    (tmp_path / "labels.csv").write_text("\n".join(rows) + "\n", encoding="utf-8")
     (tmp_path / "loose_judge.py").write_text(
-        "def judge(item):\n    return 'pass' if item['id'] != 'i8' else 'fail'\n")
+        "def judge(item):\n    return 'pass' if item['id'] != 'i8' else 'fail'\n", encoding="utf-8")
     (tmp_path / "exact_judge.py").write_text(
-        "def judge(item):\n    return 'pass' if int(item['id'][1:]) <= 4 else 'fail'\n")
+        "def judge(item):\n    return 'pass' if int(item['id'][1:]) <= 4 else 'fail'\n",
+            encoding="utf-8")
     assert main(["import-labels", "labels.csv", "-o", "anchors.jsonl"]) == 0
     for name in ("loose", "exact"):
         assert main(["judge", "anchors.jsonl", "--callable", f"{name}_judge:judge",
@@ -361,10 +364,10 @@ def test_migrate_judges_with_unknown_model(tmp_path, monkeypatch):
 
     assert main(["migrate", "anchors.jsonl", "runs/loose", "runs/exact",
                  "--out", "out", "--rebase"]) == 0
-    m = json.loads((tmp_path / "out" / "migration.json").read_text())
+    m = json.loads((tmp_path / "out" / "migration.json").read_text(encoding="utf-8"))
     assert m["status"] == BETTER
     assert m["fingerprints"]["old"]["model"] is None
-    html = (tmp_path / "out" / "migration.html").read_text()
+    html = (tmp_path / "out" / "migration.html").read_text(encoding="utf-8")
     assert "None" not in html.split("<h1>", 1)[1].split("</h1>", 1)[0]
     assert "model unknown" in html
     audits = list((tmp_path / ".judgekeeper" / "migrations").glob("*.json"))

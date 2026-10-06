@@ -13,6 +13,7 @@ import os
 import shlex
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -312,7 +313,7 @@ def test_a_file_where_the_output_folder_should_be_is_said_plainly(tmp_path, caps
     capsys.readouterr()
     assert main(argv) == 2
     _plain_error(capsys, str(blocker), "is a file, but a folder is needed there")
-    assert blocker.read_text() == "a file\n"
+    assert blocker.read_text(encoding="utf-8") == "a file\n"
 
 
 @pytest.mark.skipif(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
@@ -353,6 +354,8 @@ def test_debug_adds_the_traceback_to_the_plain_line(tmp_path, capsys):
 
 
 def test_file_errors_in_plain_words(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "linux")  # each system's wording, on every system
+
     def message(cls, code, path="out/x"):
         return textio.describe_os_error(cls(code, os.strerror(code), path))
 
@@ -417,6 +420,7 @@ def test_migrate_prints_on_a_cp1252_terminal(tmp_path):
 
 
 def test_printed_commands_quote_paths_for_the_shell_in_use(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "linux")  # both shells' quoting, on every system
     assert textio.quote_arg("labels.csv") == "labels.csv"
     assert textio.quote_arg("my folder/labels.csv") == "'my folder/labels.csv'"
     monkeypatch.setattr(sys, "platform", "win32")
@@ -438,23 +442,31 @@ def test_the_label_next_command_uses_double_quotes_on_windows(tmp_path, monkeypa
 
 def test_init_quotes_a_rule_path_that_needs_it(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "platform", "linux")  # both shells' quoting, on every system
+    rule = str(Path("my folder/judge.md"))  # printed with \ on Windows
     assert main(["init", "--out", "my folder/judge.md"]) == 0
     printed = capsys.readouterr().out
-    assert printed.startswith("wrote my folder/judge.md: fill in every")
-    assert " --prompt 'my folder/judge.md' --runs 3 " in printed
+    assert printed.startswith(f"wrote {rule}: fill in every")
+    assert f" --prompt {shlex.quote(rule)} --runs 3 " in printed
     monkeypatch.setattr(sys, "platform", "win32")
     assert main(["init", "--out", "my folder/judge.md", "--force"]) == 0
-    assert ' --prompt "my folder/judge.md" --runs 3 ' in capsys.readouterr().out
+    assert f' --prompt "{rule}" --runs 3 ' in capsys.readouterr().out
     assert main(["init"]) == 0
-    assert " --prompt prompts/judge.md --runs 3 " in capsys.readouterr().out
+    assert f" --prompt {Path('prompts/judge.md')} --runs 3 " in capsys.readouterr().out
 
 
 def test_other_printed_commands_quote_their_paths_too(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "platform", "linux")  # both shells' quoting, on every system
     sheet = _write(tmp_path / "sheet.csv", SHEET)
     assert main(["template", str(sheet), "-o", "my labels.csv"]) == 0
     assert "`judgekeeper import-labels 'my labels.csv' -o anchors.jsonl`" in \
         capsys.readouterr().out
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert main(["template", str(sheet), "-o", "my labels.csv"]) == 0
+    assert '`judgekeeper import-labels "my labels.csv" -o anchors.jsonl`' in \
+        capsys.readouterr().out
+    monkeypatch.setattr(sys, "platform", "linux")
     assert main(["template", str(sheet), "-o", "labels.csv"]) == 0
     assert capsys.readouterr().out == (
         "wrote labels.csv (2 rows): fill in human_label (pass or fail), then run `judgekeeper "

@@ -109,6 +109,10 @@ after you say yes, your own judge through your own tool, and key names only.
 - Removed from the website: the "See it work" page and its menu entry, and the practice step
   with its screenshots. The home page now says what judgekeeper is, shows how to install it,
   and points to checking your own judge.
+- Works on Windows: reading an MLflow store, and every test, now pass on Windows too.
+  judgekeeper reads an `mlflow.db` store through a temporary copy (removed afterwards), so
+  it never opens your store file itself; `judgekeeper setup` keeps your files' own line
+  endings.
 - The project does not accept pull requests. Bug reports and ideas are welcome as issues.
 - No change to any other command, flag, metric or report field.
 

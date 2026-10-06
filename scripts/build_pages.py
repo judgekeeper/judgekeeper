@@ -80,8 +80,9 @@ def build(website: Path, examples: Path, out: Path) -> list[str]:
         f'<li><a href="{html.escape(n)}/">{html.escape(n)}</a>'
         f'<div class="meta">{html.escape(_describe(examples / n / "report.json"))}</div></li>'
         for n in names)
-    (out / "examples" / "index.html").write_text(INDEX.format(items=items), encoding="utf-8")
-    (out / ".nojekyll").write_text("", encoding="utf-8")
+    (out / "examples" / "index.html").write_text(INDEX.format(items=items), encoding="utf-8",
+                                                 newline="\n")
+    (out / ".nojekyll").write_text("", encoding="utf-8", newline="\n")
     return names
 
 

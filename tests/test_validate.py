@@ -19,7 +19,7 @@ def report(pairwise_dir, tmp_path):
     )
     assert code == 0
     assert (out / "report.html").exists()
-    return json.loads((out / "report.json").read_text())
+    return json.loads((out / "report.json").read_text(encoding="utf-8"))
 
 
 def test_fingerprint_echoed(report):
@@ -113,7 +113,7 @@ def test_disagreement_list(report):
 def test_html_is_self_contained(pairwise_dir, tmp_path):
     out = tmp_path / "r"
     main(["validate", str(pairwise_dir / "anchors.jsonl"), str(pairwise_dir / "runs"), "--out", str(out)])
-    html = (out / "report.html").read_text()
+    html = (out / "report.html").read_text(encoding="utf-8")
     assert html.startswith("<!doctype html>")
     for needle in ["claude-haiku-4-5-20251001", "not trustworthy as a gate", "Confusion matrix",
                    "Noise floor", "Position bias", "run1 i4 AB", "hard"]:
@@ -123,10 +123,12 @@ def test_html_is_self_contained(pairwise_dir, tmp_path):
 
 def test_html_escapes_rationales(pairwise_dir, tmp_path):
     run = pairwise_dir / "runs" / "run-01.jsonl"
-    run.write_text(run.read_text().replace("run1 i4 AB", "<script>alert(1)</script>"))
+    run.write_text(run.read_text(
+        encoding="utf-8").replace("run1 i4 AB", "<script>alert(1)</script>"),
+                   encoding="utf-8")
     out = tmp_path / "r"
     main(["validate", str(pairwise_dir / "anchors.jsonl"), str(pairwise_dir / "runs"), "--out", str(out)])
-    html = (out / "report.html").read_text()
+    html = (out / "report.html").read_text(encoding="utf-8")
     assert "<script>alert(1)</script>" not in html
     assert "&lt;script&gt;" in html
 

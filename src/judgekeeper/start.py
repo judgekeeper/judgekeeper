@@ -363,14 +363,14 @@ def _has(module: str) -> bool:
 
 def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
                  metric: str | None = None) -> tuple[str, list[Loaded]]:
-    """(experiment name, its runs newest first). The store is opened read-only. `metric`
+    """(experiment name, its runs newest first). An mlflow.db store is read through a
+    temporary copy (mlflow_store.store_uri), never opened itself. `metric`
     (--metric) may name a judge whose assessments are only on spans."""
     if not _has("mlflow"):
         raise _needs_extra(talk, "mlflow", f"{store.rel}/" if store.path.is_dir() else store.rel)
-    if store.path.is_dir():
-        uri = str(store.path)
-    else:
-        uri = f"sqlite:///file:{store.path.as_posix()}?mode=ro&uri=true"
+    from judgekeeper.readers.mlflow_store import store_uri
+
+    uri = store_uri(store.path, say=talk.say)
     if experiment is not None:
         found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
     else:

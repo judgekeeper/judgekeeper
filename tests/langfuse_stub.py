@@ -21,7 +21,7 @@ DIR = FIXTURES / "langfuse"
 
 
 def load(name: str) -> dict:
-    return json.loads((DIR / name).read_text())
+    return json.loads((DIR / name).read_text(encoding="utf-8"))
 
 
 def score_pages() -> list[dict]:

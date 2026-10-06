@@ -251,8 +251,9 @@ def build(out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     rng = random.Random(SEED)
     items = make_items(rng)
-    (out / "policy.md").write_text(POLICY, encoding="utf-8")
-    (out / "rule.md").write_text(rule_text(), encoding="utf-8")
+    # "\n" line endings on every system: the files are committed and compared byte for byte
+    (out / "policy.md").write_text(POLICY, encoding="utf-8", newline="\n")
+    (out / "rule.md").write_text(rule_text(), encoding="utf-8", newline="\n")
     write_csv(out / "items.csv", ["id", "input", "output", "slice"], items)
     labels = [{**i, "human_label": i["label"]} for i in items]
     write_csv(out / "labels.csv", ["id", "input", "output", "human_label", "notes", "slice"],

@@ -47,7 +47,7 @@ def _run(tmp_path, *extra):
 def test_one_command_turns_the_fixture_into_a_report(tmp_path):
     code, out = _run(tmp_path, "--label-map", "P=fail")
     assert code == 0
-    r = json.loads((out / "report.json").read_text())
+    r = json.loads((out / "report.json").read_text(encoding="utf-8"))
     assert r["n_runs"] == 3
     assert r["anchors"]["n_items"] == 6
     assert [x["kappa"] for x in r["runs"]] == pytest.approx([1 / 3, 1, 1])
@@ -112,11 +112,11 @@ def test_fingerprint_from_model_roles_and_scorer_options(tmp_path):
 
 
 def test_scorer_without_options_hashes_the_default_template_not_the_grading_prompt(tmp_path):
-    data = json.loads(LOG.read_text())
+    data = json.loads(LOG.read_text(encoding="utf-8"))
     data["eval"]["scorers"] = [s for s in data["eval"]["scorers"]
                                if s["name"] != "model_graded_qa"]
     path = tmp_path / "log.json"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
     prompts = {r.evaluator["prompt"] for r in read_inspect(path)
                if r.name == "model_graded_qa" and r.annotator_kind == "LLM"}
     # one prompt for every sample: metadata.grading holds each sample's text and is not used
@@ -142,7 +142,7 @@ def test_eval_without_the_extra_gives_the_documented_error(tmp_path, monkeypatch
 
 
 def test_eval_is_read_with_read_eval_log_when_installed(tmp_path, monkeypatch):
-    data = json.loads(LOG.read_text())
+    data = json.loads(LOG.read_text(encoding="utf-8"))
     seen = []
 
     def read_eval_log(path):

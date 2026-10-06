@@ -43,7 +43,7 @@ RUBRIC = "The answer is helpful and correct."
 
 
 def _report(out):
-    return json.loads((out / "report.json").read_text())
+    return json.loads((out / "report.json").read_text(encoding="utf-8"))
 
 
 def test_one_command_turns_the_fixture_into_a_report(tmp_path):
@@ -101,20 +101,21 @@ def test_default_grader_is_flagged_and_its_model_unknown(tmp_path):
     messages = [f["message"] for f in r["verdict"]["flags"]]
     assert any("default grader model not recorded by promptfoo" in m for m in messages)
     # each judgment keeps its own fingerprint: t2's model is unknown, the others are known
-    lines = [json.loads(x) for x in (tmp_path / "runs" / "run-01.jsonl").read_text().splitlines()]
+    lines = [json.loads(x) for x in (tmp_path / "runs" / "run-01.jsonl").read_text(
+        encoding="utf-8").splitlines()]
     models = {rec["id"]: rec["fingerprint"]["model"] for rec in lines[1:]}
     assert models["t2"] is None
     assert models["t0"] == "openai:gpt-4.1-mini"
     # the raw rubric is hashed, never written
-    assert RUBRIC not in (tmp_path / "report.json").read_text()
+    assert RUBRIC not in (tmp_path / "report.json").read_text(encoding="utf-8")
 
 
 def test_fingerprint_when_every_row_names_its_grader(tmp_path):
-    data = json.loads(RESULTS.read_text())
+    data = json.loads(RESULTS.read_text(encoding="utf-8"))
     data["config"]["defaultTest"]["options"]["provider"] = {
         "id": "openai:gpt-4.1-mini", "config": {"temperature": 0}}
     path = tmp_path / "results.json"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
     r = import_results("promptfoo", [path], metric="helpfulness", out=tmp_path / "rep")
     fp = r["fingerprint"]
     assert fp["model"] == "openai:gpt-4.1-mini"
@@ -126,7 +127,7 @@ def test_fingerprint_when_every_row_names_its_grader(tmp_path):
 
 
 def test_assertion_provider_wins_over_test_and_default_options(tmp_path):
-    data = json.loads(RESULTS.read_text())
+    data = json.loads(RESULTS.read_text(encoding="utf-8"))
     data["config"]["defaultTest"]["options"]["provider"] = "anthropic:messages:default-model"
     for row in data["results"]["results"]:
         for c in row["gradingResult"]["componentResults"]:
@@ -134,7 +135,7 @@ def test_assertion_provider_wins_over_test_and_default_options(tmp_path):
                 c["assertion"]["provider"] = "openai:gpt-4.1"
                 c["assertion"]["rubricPrompt"] = "Grade strictly."
     path = tmp_path / "results.json"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
     rec = next(r for r in read_promptfoo(path) if r.name == "helpfulness")
     assert rec.evaluator["model"] == "openai:gpt-4.1"
     assert "temperature" not in rec.evaluator  # a bare id carries no config
@@ -157,11 +158,11 @@ def test_id_var_reads_ids_from_vars(tmp_path):
 
 
 def test_duplicate_descriptions_fall_back_to_derived_ids(tmp_path):
-    data = json.loads(RESULTS.read_text())
+    data = json.loads(RESULTS.read_text(encoding="utf-8"))
     for row in data["results"]["results"]:
         row["testCase"]["description"] = "same for every test"
     path = tmp_path / "results.json"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
     records = read_promptfoo(path)
     assert records.ids_derived
     r = import_results("promptfoo", [path], metric="helpfulness", out=tmp_path / "rep")
@@ -170,13 +171,13 @@ def test_duplicate_descriptions_fall_back_to_derived_ids(tmp_path):
 
 
 def test_two_llm_rubric_components_with_the_same_name_are_an_error(tmp_path):
-    data = json.loads(RESULTS.read_text())
+    data = json.loads(RESULTS.read_text(encoding="utf-8"))
     row = data["results"]["results"][0]
     comps = row["gradingResult"]["componentResults"]
     comps.append(copy.deepcopy(next(c for c in comps
                                     if c["assertion"].get("metric") == "helpfulness")))
     path = tmp_path / "results.json"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(RecordsError, match="name them with metric"):
         read_promptfoo(path)
 

@@ -105,8 +105,8 @@ def judge_meta(meta: dict) -> dict:
 def assessment_info(ws, metric: str, run: str | None = None) -> dict:
     """The judge named `metric` in the project's MLflow store, read-only: one of its
     assessments {source_id, name, scorer_name, scorer_version, guidelines, instructions,
-    trace, text, experiment}, the store's read-only `uri`, `traces`: {answer id: trace id}
-    for every trace that holds one of its assessments (answer ids as `start` makes them), and
+    trace, text, experiment}, the `uri` of a temporary copy of the store, `traces`:
+    {answer id: trace id} for every trace that holds one of its assessments (answer ids as `start` makes them), and
     `all_traces`: the same for every trace. `run` (an MLflow run id) takes the assessment
     from that run, the newest results of a new judge."""
     from mlflow import MlflowClient
@@ -118,12 +118,12 @@ def assessment_info(ws, metric: str, run: str | None = None) -> dict:
         TRACE_SOURCE_RUN,
         _content,
         _traces,
+        store_uri,
     )
     from judgekeeper.records import derive_record_id
 
     store = next(iter(find.search(ws.root).readable("mlflow")))
-    uri = (str(store.path) if store.path.is_dir() else
-           f"sqlite:///file:{store.path.as_posix()}?mode=ro&uri=true")
+    uri = store_uri(store.path)  # a temporary copy of mlflow.db, kept for the worker
     client = MlflowClient(tracking_uri=uri)
     info, traces, every = None, {}, {}
     for exp in client.search_experiments():

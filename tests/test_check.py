@@ -35,7 +35,7 @@ def test_check_csv_with_run_column(tmp_path):
     out = tmp_path / "rep"
     assert main(["check", str(CSV), "--judge", "verdict", "--human", "label", "--id", "id",
                  "--run", "run", "--out", str(out)]) == 0
-    r = json.loads((out / "report.json").read_text())
+    r = json.loads((out / "report.json").read_text(encoding="utf-8"))
     assert (out / "report.html").is_file()
     assert r["n_runs"] == 3
     h = r["headline"]
@@ -62,13 +62,13 @@ def test_check_csv_with_run_column(tmp_path):
 
 def test_check_column_flags_default_to_their_names(tmp_path):
     assert main(["check", str(CSV), "--out", str(tmp_path / "a")]) == 0
-    r = json.loads((tmp_path / "a" / "report.json").read_text())
+    r = json.loads((tmp_path / "a" / "report.json").read_text(encoding="utf-8"))
     assert r["n_runs"] == 3 and r["source"]["ids_derived"] is False
 
 
 def test_every_judgment_on_disk_has_a_fingerprint_and_source(tmp_path):
     check_table(CSV, out=tmp_path)
-    lines = (tmp_path / "runs" / "run-01.jsonl").read_text().splitlines()
+    lines = (tmp_path / "runs" / "run-01.jsonl").read_text(encoding="utf-8").splitlines()
     header = json.loads(lines[0])
     assert header["source"]["kind"] == "table"
     assert header["normaliser"]["pass_if"] is None
@@ -84,7 +84,7 @@ def test_check_jsonl_single_run_derived_ids(tmp_path):
     out = tmp_path / "rep"
     assert main(["check", str(JSONL), "--judge", "score", "--pass-if", "score>=0.5",
                  "--out", str(out)]) == 0
-    r = json.loads((out / "report.json").read_text())
+    r = json.loads((out / "report.json").read_text(encoding="utf-8"))
     assert r["n_runs"] == 1
     assert r["headline"]["tpr_mean"] == pytest.approx(5 / 6)
     assert r["headline"]["tnr_mean"] == pytest.approx(0.75)
@@ -93,9 +93,9 @@ def test_check_jsonl_single_run_derived_ids(tmp_path):
     nf = r["noise_floor"]
     assert nf["status"] == "unknown: one run supplied"
     assert nf["items_flipped_fraction"] is None and nf["mean_item_flip_rate"] is None
-    assert "unknown: one run supplied" in (out / "report.html").read_text()
+    assert "unknown: one run supplied" in (out / "report.html").read_text(encoding="utf-8")
     # ids derived from the input and output, and the report says so
-    first = json.loads(JSONL.read_text().splitlines()[0])
+    first = json.loads(JSONL.read_text(encoding="utf-8").splitlines()[0])
     expected = hashlib.sha256(canonical_json(
         {"input": first["input"], "output": first["output"]}).encode()).hexdigest()[:16]
     assert derive_id(first) == expected
@@ -104,7 +104,7 @@ def test_check_jsonl_single_run_derived_ids(tmp_path):
     assert any("derived" in n for n in r["notes"])
     assert r["normaliser"]["pass_if"] == "score>=0.5"
     # raw scores are kept
-    run = (out / "runs" / "run-01.jsonl").read_text().splitlines()
+    run = (out / "runs" / "run-01.jsonl").read_text(encoding="utf-8").splitlines()
     assert {json.loads(x)["raw_score"] for x in run[1:]} >= {0.95, 0.49}
     # gate on a one-run report is FLAKY, with that reason
     g = evaluate(r)
@@ -181,7 +181,7 @@ def test_check_table_accepts_a_dataframe_like_object(tmp_path):
             assert orient == "records"
             return self.rows
 
-    rows = [json.loads(line) for line in JSONL.read_text().splitlines()]
+    rows = [json.loads(line) for line in JSONL.read_text(encoding="utf-8").splitlines()]
     r = check_table(FakeFrame(rows), judge="score", pass_if="score>=0.5", out=tmp_path)
     assert r["headline"]["kappa_mean"] == pytest.approx(K1)
 
@@ -206,6 +206,7 @@ def test_check_table_fingerprint_fields_are_recorded(tmp_path):
 def test_three_column_csv_in_one_command(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "results.csv").write_text("id,verdict,label\n" + "".join(
-        f"r{i},{'pass' if i % 3 else 'fail'},{'pass' if i % 2 else 'fail'}\n" for i in range(12)))
+        f"r{i},{'pass' if i % 3 else 'fail'},{'pass' if i % 2 else 'fail'}\n" for i in range(12)),
+            encoding="utf-8")
     assert main(["check", "results.csv"]) == 0
     assert (tmp_path / "judgekeeper-report" / "report.html").is_file()

@@ -14,8 +14,9 @@ read them. `judgekeeper setup` writes it; `judgekeeper start` reads it first. No
 
 Python reads TOML but cannot write it, so the table is written by hand: `merged` replaces
 the `[start]` and `[start.*]` tables of an existing file, or adds them at the end, and keeps
-every other line as it was. It checks the result with tomllib: when anything else would
-change (an unusual shape), it raises SettingsError instead.
+every other line as it was, in the file's own line endings (\r\n on Windows). It checks
+the result with tomllib: when anything else would change (an unusual shape), it raises
+SettingsError instead.
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import line_ending, read_utf8, write_keeping
 
 FILE = "judgekeeper.toml"
 TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
@@ -138,6 +139,8 @@ def merged(text: str | None, s: StartSettings) -> str:
     block = render(s)
     if not text:
         return HEADER + block
+    eol = line_ending(text)
+    block = block.replace("\n", eol)
     kept, inside = [], False
     for line in text.splitlines(keepends=True):
         m = _TABLE.match(line)
@@ -145,8 +148,8 @@ def merged(text: str | None, s: StartSettings) -> str:
             inside = _is_start(m.group(1))
         if not inside:
             kept.append(line)
-    body = "".join(kept).rstrip("\n")
-    new = (body + "\n\n" if body else "") + block
+    body = "".join(kept).rstrip("\r\n")
+    new = (body + eol + eol if body else "") + block
     try:
         before, after = tomllib.loads(text), tomllib.loads(new)
     except tomllib.TOMLDecodeError as e:
@@ -160,7 +163,7 @@ def merged(text: str | None, s: StartSettings) -> str:
 def save(root: str | Path, s: StartSettings) -> None:
     path = Path(root) / FILE
     text = read_utf8(path, SettingsError) if path.is_file() else None
-    path.write_text(merged(text, s), encoding="utf-8")
+    write_keeping(path, merged(text, s))
 
 
 __all__ = ["FILE", "SettingsError", "StartSettings", "load", "merged", "render", "save"]

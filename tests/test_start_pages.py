@@ -295,7 +295,7 @@ def test_the_judge_card_shows_the_full_rule(tmp_path):
     for item in session.items:
         session.update({"id": item["id"], "label": groups[item["id"]]})
     start_label.save_result(ws, session, say=lambda line: None)
-    html = _flat(ws.result_html.read_text())
+    html = _flat(ws.result_html.read_text(encoding="utf-8"))
     assert "<b>llm-rubric</b> · openai:gpt-4.1-mini" in html
     assert ('<div class="rule">&quot;Is polite and correct. Second line of the rubric.&quot;'
             '</div>') in html

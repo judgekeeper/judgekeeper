@@ -92,7 +92,7 @@ def test_write_run_scrubs_rationales_and_errors(tmp_path, monkeypatch):
            "fingerprint": fp.to_dict()}
     path = tmp_path / "run-01.jsonl"
     write_run(path, 1, "0" * 64, fp, [rec])
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     assert "sentinel-anthropic-key" not in text and "abcdef0123456789xyz" not in text
     line = json.loads(text.splitlines()[1])
     assert line["rationale"] == f"saw {REDACTED}"
@@ -109,7 +109,9 @@ def test_html_report_scrubs_rationales(pairwise_dir, tmp_path, monkeypatch):
     from judgekeeper.report import build_report
 
     run = pairwise_dir / "runs" / "run-01.jsonl"
-    run.write_text(run.read_text().replace("run1 i4 AB", "leaked sentinel-openai-key-0001"))
+    run.write_text(run.read_text(
+        encoding="utf-8").replace("run1 i4 AB", "leaked sentinel-openai-key-0001"),
+                   encoding="utf-8")
     monkeypatch.setenv("OPENAI_API_KEY", "sentinel-openai-key-0001")
     report = build_report(pairwise_dir / "anchors.jsonl", pairwise_dir / "runs")
     assert "sentinel-openai-key-0001" in json.dumps(report)  # the old file really had it

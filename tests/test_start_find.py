@@ -97,7 +97,8 @@ def test_deepeval_latest_run(tmp_path, capsys):
 
 def test_deepeval_results_folder_from_its_variable(tmp_path, capsys, monkeypatch):
     deepeval_project(tmp_path, split(20, 12), name="evals/runs/test_run_20261002_090000.json")
-    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["deepeval"]\n')
+    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["deepeval"]\n',
+                                             encoding="utf-8")
     monkeypatch.setenv("DEEPEVAL_RESULTS_FOLDER", str(tmp_path / "evals" / "runs"))
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
@@ -227,14 +228,14 @@ def test_a_results_file_as_the_path_skips_the_search(tmp_path, capsys):
 
 def test_a_file_that_is_not_results_is_a_usage_error(tmp_path, capsys):
     path = tmp_path / "notes.json"
-    path.write_text('{"hello": 1}')
+    path.write_text('{"hello": 1}', encoding="utf-8")
     code, _, err = run(capsys, path)
     assert code == 2
     assert "notes.json is not a results file judgekeeper start can read" in err
 
 
 def test_nothing_found_says_what_is_read(tmp_path, capsys):
-    (tmp_path / "README.md").write_text("hello")
+    (tmp_path / "README.md").write_text("hello", encoding="utf-8")
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
     assert f"No saved eval results found in {tmp_path.resolve()}." in out
@@ -280,7 +281,7 @@ def test_symbolic_links_are_not_followed(tmp_path, capsys):
 def test_the_search_stops_after_the_file_limit(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(find, "MAX_FILES", 20)
     for i in range(30):
-        (tmp_path / f"note-{i:02d}.txt").write_text("x")
+        (tmp_path / f"note-{i:02d}.txt").write_text("x", encoding="utf-8")
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
     assert ("Stopped looking after 20 files. Point me at the results: judgekeeper start "
@@ -295,7 +296,7 @@ def test_the_search_stops_after_the_time_limit(tmp_path, capsys, monkeypatch):
     ticks = iter(range(0, 1000, 3))
     monkeypatch.setattr(find, "_clock", lambda: next(ticks))
     for i in range(5):
-        (tmp_path / f"note-{i}.txt").write_text("x")
+        (tmp_path / f"note-{i}.txt").write_text("x", encoding="utf-8")
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
     assert "Stopped looking after 2 seconds. Point me at the results" in out
@@ -305,7 +306,7 @@ def test_known_places_are_looked_at_before_the_limit(tmp_path, capsys, monkeypat
     monkeypatch.setattr(find, "MAX_FILES", 5)
     for i in range(30):
         (tmp_path / "aaa" / f"note-{i:02d}.txt").parent.mkdir(exist_ok=True)
-        (tmp_path / "aaa" / f"note-{i:02d}.txt").write_text("x")
+        (tmp_path / "aaa" / f"note-{i:02d}.txt").write_text("x", encoding="utf-8")
     deepeval_project(tmp_path, split(20, 12))
     code, out, _ = run(capsys, tmp_path)
     assert "Your eval tool: DeepEval (.deepeval/.latest_run_full.json" in out
@@ -328,7 +329,7 @@ def test_results_over_the_size_limit_are_listed_not_read(tmp_path, capsys, monke
 
 def test_at_most_200_json_files_are_looked_into(tmp_path, monkeypatch):
     for i in range(find.MAX_JSON + 20):
-        (tmp_path / f"config-{i:03d}.json").write_text('{"not": "results"}')
+        (tmp_path / f"config-{i:03d}.json").write_text('{"not": "results"}', encoding="utf-8")
     opened = []
     real = find._head
 
@@ -343,15 +344,15 @@ def test_at_most_200_json_files_are_looked_into(tmp_path, monkeypatch):
 
 def test_only_the_head_of_a_json_file_is_read_to_sniff_it(tmp_path):
     big = tmp_path / "big.json"
-    big.write_text('{"items": [' + ",".join(['"x"'] * 100_000) + "]}")
+    big.write_text('{"items": [' + ",".join(['"x"'] * 100_000) + "]}", encoding="utf-8")
     assert len(find._head(big)) == find.HEAD_BYTES == 64 * 1024
 
 
 def test_a_dotenv_file_is_never_opened(tmp_path, capsys, monkeypatch):
     key = "sk-test-" + "k" * 40
-    (tmp_path / ".env").write_text(f"OPENAI_API_KEY={key}\n")
+    (tmp_path / ".env").write_text(f"OPENAI_API_KEY={key}\n", encoding="utf-8")
     (tmp_path / "config").mkdir()
-    (tmp_path / "config" / ".env").write_text(f"OPENAI_API_KEY={key}\n")
+    (tmp_path / "config" / ".env").write_text(f"OPENAI_API_KEY={key}\n", encoding="utf-8")
     promptfoo_project(tmp_path, split(20, 12))
     opened = []
     real_open, real_io_open, real_os_open = builtins.open, io.open, os.open
@@ -406,7 +407,7 @@ def test_a_promptfoo_config_without_results_prints_the_export_commands(tmp_path,
 
 @pytest.mark.parametrize("config", ["promptfooconfig.yml", "promptfooconfig.json"])
 def test_every_promptfoo_config_name_is_a_sign(tmp_path, capsys, config):
-    (tmp_path / config).write_text("{}")
+    (tmp_path / config).write_text("{}", encoding="utf-8")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and f"Your eval tool: promptfoo ({config})" in out
 
@@ -443,7 +444,7 @@ def test_stripped_promptfoo_results_say_which_setting_removed_what(tmp_path, cap
 
     data = _strip(json.loads(PROMPTFOO.read_text(encoding="utf-8")), part)
     path = tmp_path / "promptfoo-results.json"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
     code, out, err = run(capsys, tmp_path)
     assert code == 2
     assert STRIPPED[part].format(f="promptfoo-results.json") in out + err
@@ -456,7 +457,7 @@ def test_import_promptfoo_gives_the_same_warning(tmp_path, capsys, part):
 
     data = _strip(json.loads(PROMPTFOO.read_text(encoding="utf-8")), part)
     path = tmp_path / "promptfoo-results.json"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
     main(["import", "promptfoo", str(path), "--metric", "helpfulness",
           "--out", str(tmp_path / "rep")])
     out, err = capsys.readouterr()
