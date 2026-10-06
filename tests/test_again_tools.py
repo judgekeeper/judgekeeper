@@ -11,7 +11,6 @@ from __future__ import annotations
 import builtins
 import json
 import sys
-import textwrap
 
 import pytest
 
@@ -20,6 +19,7 @@ from judgekeeper.again import AgainOptions, make_plan, plan_lines, user_python
 from judgekeeper.again import deepeval as de
 from judgekeeper.again import mlflow as mf
 from judgekeeper.start_label import StartSession, save_result
+from tests.again_stubs import write
 from tests.conftest import FIXTURES
 from tests.start_projects import deepeval_project, inspect_project, split
 
@@ -40,136 +40,10 @@ def _checked(root, maker, n_pass=20, n_fail=16, **kwargs):
     return ws
 
 
-def _write(folder, files: dict):
-    for name, text in files.items():
-        path = folder / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(textwrap.dedent(text), encoding="utf-8")
-
-
 @pytest.fixture(autouse=True)
 def no_keys(monkeypatch):
     for name in keys.all_names():
         monkeypatch.delenv(name, raising=False)
-
-
-# Stub packages -------------------------------------------------------------------------------
-
-STUB_DEEPEVAL = {
-    "deepeval/__init__.py": """
-        import json, os
-        __version__ = os.environ.get("STUB_VERSION", "4.2.8")
-        def _log(kind, **data):
-            with open(os.environ["STUB_LOG"], "a") as f:
-                f.write(json.dumps({"kind": kind, **data}, default=str) + "\\n")
-        _log("import", telemetry=os.environ.get("DEEPEVAL_TELEMETRY_OPT_OUT"),
-             confident="CONFIDENT_API_KEY" in os.environ,
-             results_folder="DEEPEVAL_RESULTS_FOLDER" in os.environ)
-        def evaluate(*a, **k):
-            _log("evaluate")
-            raise AssertionError("evaluate must never be called")
-    """,
-    "deepeval/metrics/__init__.py": """
-        import os
-        from deepeval import _log
-        class _Metric:
-            def __init__(self, **kwargs):
-                _log("construct", cls=type(self).__name__, kwargs=kwargs)
-                self.evaluation_model = os.environ.get("STUB_MODEL", "gpt-4.1")
-            def measure(self, *a, **k):
-                _log("measure")
-                raise AssertionError("no judge call in a dry run")
-        class GEval(_Metric): pass
-        class AnswerRelevancyMetric(_Metric): pass
-        class FaithfulnessMetric(_Metric): pass
-        class HallucinationMetric(_Metric): pass
-        class BiasMetric(_Metric): pass
-        class ToxicityMetric(_Metric): pass
-        class ContextualRelevancyMetric(_Metric): pass
-        class ContextualPrecisionMetric(_Metric): pass
-        class ContextualRecallMetric(_Metric): pass
-    """,
-    "deepeval/metrics/g_eval/__init__.py": """
-        class Rubric:
-            def __init__(self, score_range, expected_outcome):
-                self.score_range, self.expected_outcome = score_range, expected_outcome
-            def __repr__(self):
-                return f"Rubric({self.score_range!r}, {self.expected_outcome!r})"
-    """,
-    "deepeval/test_case/__init__.py": """
-        class SingleTurnParams(str):
-            pass
-        class LLMTestCase:
-            def __init__(self, **kwargs):
-                self.kwargs = kwargs
-    """,
-}
-
-STUB_INSPECT = {
-    "inspect_ai/__init__.py": """
-        import os
-        __version__ = os.environ.get("STUB_VERSION", "0.3.273")
-        def score(*a, **k):
-            raise AssertionError("no scoring in a dry run")
-        async def score_async(*a, **k):
-            raise AssertionError("no scoring in a dry run")
-    """,
-    "inspect_ai/_util/__init__.py": "",
-    "inspect_ai/_util/dotenv.py": """
-        import os
-        if os.environ.get("STUB_NO_DOTENV"):
-            raise ImportError("init_dotenv was renamed")
-        def init_dotenv():
-            raise AssertionError("a dry run loads no .env")
-    """,
-    "inspect_ai/_util/registry.py": """
-        BUILTIN = {"model_graded_qa", "model_graded_fact", "match", "includes"}
-        def registry_lookup(kind, name):
-            base = name.split("/")[-1]
-            return object() if kind == "scorer" and base in BUILTIN else None
-    """,
-}
-
-STUB_MLFLOW = {
-    "mlflow/__init__.py": """
-        import os
-        __version__ = os.environ.get("STUB_VERSION", "3.16.1")
-        def _never(*a, **k):
-            raise AssertionError("never")
-    """,
-    "mlflow/genai/__init__.py": """
-        def evaluate(*a, **k):
-            raise AssertionError("evaluate must never be called")
-    """,
-    "mlflow/genai/scorers/__init__.py": """
-        import os
-        REGISTERED = set(filter(None, os.environ.get("STUB_REGISTERED", "").split(",")))
-        def get_scorer(name, version=None, **k):
-            if name not in REGISTERED:
-                raise ValueError(f"no scorer {name}")
-            return object()
-        class Correctness: pass
-        class Safety: pass
-        class RelevanceToQuery: pass
-        class Guidelines: pass
-    """,
-}
-
-
-@pytest.fixture
-def stubs(tmp_path_factory, monkeypatch):
-    """Put stub packages on the worker's path; returns the log the stubs write."""
-    folder = tmp_path_factory.mktemp("stubs")
-    _write(folder, {**STUB_DEEPEVAL, **STUB_INSPECT, **STUB_MLFLOW})
-    log = folder / "stub-log.jsonl"
-    log.write_text("")
-    monkeypatch.setenv("PYTHONPATH", str(folder))
-    monkeypatch.setenv("STUB_LOG", str(log))
-
-    def entries():
-        return [json.loads(x) for x in log.read_text().splitlines() if x.strip()]
-
-    return entries
 
 
 @pytest.fixture
@@ -283,7 +157,7 @@ def test_the_deepeval_worker_dry_run_builds_and_checks_only(tmp_path, stubs, mon
 
 def _missing(folder, monkeypatch, package):
     """A Python where `package` cannot be imported, whatever is installed."""
-    _write(folder, {f"{package}/__init__.py":
+    write(folder, {f"{package}/__init__.py":
                     f"raise ModuleNotFoundError(\"No module named {package}\", "
                     f"name={package!r})\n"})
     monkeypatch.setenv("PYTHONPATH", str(folder))
@@ -330,13 +204,81 @@ def test_without_a_terminal_deepeval_is_a_close_copy(tmp_path, stubs):
     assert "--fields" not in p.why
 
 
-def test_a_different_model_stops(tmp_path, stubs, monkeypatch):
+def test_a_model_deepeval_will_not_build_by_name_stops(tmp_path, stubs, monkeypatch):
     ws = _checked(tmp_path, deepeval_project)
     monkeypatch.setenv("STUB_MODEL", "gpt-5.4")
+    monkeypatch.setenv("STUB_STRING_SUFFIX", " (Anthropic)")  # as with USE_ANTHROPIC_MODEL
     p = make_plan(ws, PY)
     assert p.status == "cant"
     assert p.why == ("your DeepEval settings pick gpt-5.4 now, but your saved verdicts came "
-                     "from gpt-4.1")
+                     "from gpt-4.1; built with that name, DeepEval reports gpt-4.1 (Anthropic)")
+
+
+def _deepeval_model(root, model, monkeypatch, picks="gpt-5.4"):
+    ws = _checked(root, lambda r, v: deepeval_project(r, v, model=model))
+    monkeypatch.setenv("STUB_MODEL", picks)
+    return ws
+
+
+def test_a_bare_saved_name_is_built_by_name(tmp_path, stubs, monkeypatch, terminal):
+    ws = _deepeval_model(tmp_path, "gpt-4.1", monkeypatch)
+    terminal += ["", "y"]  # the fields as pre-selected; the version
+    p = make_plan(ws, PY, talk=start.Talk())
+    assert p.status == "exact" and p.model == "gpt-4.1"
+    assert ("  Your DeepEval settings pick gpt-5.4; judgekeeper builds your judge with the "
+            "model your results name, gpt-4.1, and DeepEval confirms it.") in plan_lines(p)
+    checks = [e["kwargs"]["model"] for e in stubs("construct")]
+    assert checks == [None, "gpt-4.1"]  # DeepEval's own pick first, then the saved name
+    assert all(item["metric"]["model"] == {"name": "gpt-4.1"} for _, item in p.payload)
+
+
+@pytest.mark.parametrize("saved, cls, name", [
+    ("claude-sonnet-4-6 (Anthropic)", "AnthropicModel", "claude-sonnet-4-6"),
+    ("gemini-3.8-flash (Gemini)", "GeminiModel", "gemini-3.8-flash"),
+    ("deepseek-chat (Deepseek)", "DeepSeekModel", "deepseek-chat"),
+    ("grok-4.3 (Grok)", "GrokModel", "grok-4.3"),
+    ("kimi-k2 (KIMI)", "KimiModel", "kimi-k2"),
+])
+def test_a_provider_suffix_is_built_with_that_providers_class(tmp_path, stubs, monkeypatch,
+                                                              saved, cls, name):
+    ws = _deepeval_model(tmp_path, saved, monkeypatch)
+    p = make_plan(ws, AgainOptions(python=sys.executable, fields="input,actual_output"))
+    assert p.status == "close" and p.why == "the DeepEval version was not confirmed"
+    assert p.model == saved
+    assert [(e["cls"], e["model"]) for e in stubs("model")] == [(cls, name)]
+    assert p.payload[0][1]["metric"]["model"] == {"class": cls, "name": name}
+
+
+@pytest.mark.parametrize("saved, words", [
+    ("my-deployment (Azure)", ("an Azure judge needs its endpoint and deployment as well as "
+                               "its name")),
+    ("llama3 (Ollama)", "an Ollama judge needs more than its name"),
+    ("my-model (Local Model)", "a Local Model judge needs more than its name"),
+    ("anthropic.claude-3-5-sonnet-20240620-v1:0", "this judge needs more than its name"),
+])
+def test_a_judge_that_needs_more_than_a_name_stops(tmp_path, stubs, monkeypatch, saved,
+                                                   words):
+    ws = _deepeval_model(tmp_path, saved, monkeypatch)
+    p = make_plan(ws, PY)
+    assert p.status == "cant"
+    assert p.why == (f"your DeepEval settings pick gpt-5.4 now, but your saved verdicts came "
+                     f"from {saved}; {words}, so judgekeeper can't build it again")
+    assert stubs("model") == [] and len(stubs("construct")) == 1
+
+
+@pytest.mark.parametrize("saved, spec", [
+    ("gpt-4.1", {"name": "gpt-4.1"}),
+    ("gpt-4.1-mini", {"name": "gpt-4.1-mini"}),
+    ("claude-sonnet-4-6 (Anthropic)", {"class": "AnthropicModel", "name": "claude-sonnet-4-6"}),
+    ("gemini-3.8-flash (Gemini)", {"class": "GeminiModel", "name": "gemini-3.8-flash"}),
+    ("x (Azure)", None),
+    ("x (OpenRouter)", None),
+    ("us.anthropic.claude-opus-5", None),
+    ("meta/llama-4", None),
+])
+def test_how_a_saved_model_is_built_again(saved, spec):
+    got, _ = de.by_name(saved)
+    assert got == spec
 
 
 def test_deepeval_not_installed(tmp_path, monkeypatch):
@@ -542,6 +484,10 @@ def _info(**kw):
     return {**base, **kw}
 
 
+def _traces(ws) -> dict:
+    return {a["id"]: f"tr-{n}" for n, a in enumerate(again.labeled_answers(ws))}
+
+
 @pytest.mark.parametrize("info, worker, status, words", [
     (_info(source_id="databricks"), {}, "cant",
      "Run judgekeeper inside your Databricks workspace"),
@@ -580,7 +526,8 @@ def test_the_mlflow_plan(tmp_path, stubs, monkeypatch, terminal):
     data = ws.data()
     data["tool"] = "mlflow"
     ws.start.write_text(json.dumps(data))
-    monkeypatch.setattr(mf, "assessment_info", lambda ws, metric: _info(name="safety"))
+    monkeypatch.setattr(mf, "assessment_info", lambda ws, metric: _info(
+        name="safety", traces=_traces(ws)))
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
     terminal += ["y"]
     p = make_plan(ws, PY, talk=start.Talk())
@@ -596,8 +543,8 @@ def test_a_trace_judge_is_up_to_thirty_calls(tmp_path, stubs, monkeypatch):
     data = ws.data()
     data["tool"] = "mlflow"
     ws.start.write_text(json.dumps(data))
-    monkeypatch.setattr(mf, "assessment_info",
-                        lambda ws, metric: _info(name="tone", instructions=True, trace=True))
+    monkeypatch.setattr(mf, "assessment_info", lambda ws, metric: _info(
+        name="tone", instructions=True, trace=True, traces=_traces(ws)))
     p = make_plan(ws, PY)
     assert "  36 labeled answers × 2 times × 30 calls each = up to 2,160 judge calls." in \
         plan_lines(p)

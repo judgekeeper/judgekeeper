@@ -17,6 +17,13 @@ worker runs with MLflow's telemetry off.
 
 A judge that reads the whole trace (`{{ trace }}`) makes up to 30 calls per answer. MLflow's
 Python API loads no `.env`: the key must be in the shell.
+
+In run mode (`run`, after the yes) the worker gets the judge back (`get_scorer` for a
+registered judge, the built-in class, `Guidelines`, or `make_judge` with the saved
+instructions) and, once per time asked, calls it on each labeled answer's saved inputs and
+outputs, with the expectations saved on its trace (read-only); a judge that reads the whole
+trace is given the trace. Each answer's trace comes from the store the check was made from,
+opened read-only; an answer whose trace is no longer there is left out.
 """
 
 from __future__ import annotations
@@ -24,13 +31,17 @@ from __future__ import annotations
 import re
 
 from judgekeeper import again, keys, prices
-from judgekeeper.again import CANT, CLOSE, EXACT, Plan, cant
+from judgekeeper.again import CANT, CLOSE, EXACT, Plan, cant, left_out_line, worker_run
+from judgekeeper.again.fresh import Fresh
+from judgekeeper.normalise import Normaliser, UnmappedValue
 from judgekeeper.start_label import display
+from judgekeeper.table import make_fingerprint
 
 WORKER_ENV = {"MLFLOW_DISABLE_TELEMETRY": "true"}
 TRACE_CALLS = 30
 SCORER_NAME = "mlflow.assessment.scorerName"
 SCORER_VERSION = "mlflow.assessment.scorerVersion"
+TRACE = re.compile(r"\{\{\s*trace\s*\}\}")
 
 
 def _version(text: str | None) -> tuple[int, ...]:
@@ -70,38 +81,75 @@ def classify(info: dict, worker: dict) -> tuple[str, str]:
     return CANT, "your judge is a custom scorer, which runs your own code"
 
 
+def judge_meta(meta: dict) -> dict:
+    """What a judge assessment's metadata says about its judge: {guidelines (how many),
+    instructions (a make_judge's, whose text holds template variables such as
+    {{ outputs }}), trace (the instructions read the whole trace), text}. MLflow saves a
+    list of guidelines joined by line breaks, so each line is one guideline."""
+    guideline = meta.get("guideline") if meta.get("guideline") is not None else meta.get(
+        "guidelines")
+    instructions = meta.get("instructions")
+    if instructions is None and isinstance(guideline, str) and "{{" in guideline:
+        instructions, guideline = guideline, None
+    count, text = None, None
+    if isinstance(guideline, list) and guideline:
+        count, text = len(guideline), guideline[0] if len(guideline) == 1 else None
+    elif isinstance(guideline, str) and guideline:
+        count, text = len(guideline.splitlines()), guideline
+    if instructions:
+        text = str(instructions)
+    return {"guidelines": count, "instructions": bool(instructions),
+            "trace": bool(TRACE.search(str(instructions or ""))), "text": text}
+
+
 def assessment_info(ws, metric: str) -> dict:
-    """One judge assessment named `metric` from the project's MLflow store, read-only:
-    {source_id, name, scorer_name, scorer_version, guidelines, instructions, trace}."""
+    """The judge named `metric` in the project's MLflow store, read-only: one of its
+    assessments {source_id, name, scorer_name, scorer_version, guidelines, instructions,
+    trace, text, experiment}, the store's read-only `uri`, and `traces`: {answer id: trace id}
+    for every trace that holds one of its assessments (answer ids as `start` makes them)."""
     from mlflow import MlflowClient
 
     from judgekeeper import find
-    from judgekeeper.readers.mlflow_store import _trace_scope
+    from judgekeeper.readers.mlflow_store import _content, _traces
+    from judgekeeper.records import derive_record_id
 
     store = next(iter(find.search(ws.root).readable("mlflow")))
     uri = (str(store.path) if store.path.is_dir() else
            f"sqlite:///file:{store.path.as_posix()}?mode=ro&uri=true")
     client = MlflowClient(tracking_uri=uri)
+    info, traces = None, {}
     for exp in client.search_experiments():
-        scope = _trace_scope(client.search_traces, exp.experiment_id)
-        for trace in client.search_traces(**scope, max_results=100):
+        for trace in _traces(client, exp.experiment_id):
             for a in trace.info.assessments or []:
                 d = a.to_dictionary()
                 source = d.get("source") or {}
                 if d.get("assessment_name") != metric or source.get("source_type") not in (
                         "LLM_JUDGE", "AI_JUDGE"):
                     continue
-                meta = d.get("metadata") or {}
-                guideline = meta.get("guideline") or meta.get("guidelines")
-                instructions = meta.get("instructions")
-                return {"source_id": source.get("source_id"), "name": metric,
-                        "scorer_name": meta.get(SCORER_NAME),
-                        "scorer_version": meta.get(SCORER_VERSION),
-                        "guidelines": (len(guideline) if isinstance(guideline, list)
-                                       else 1 if guideline else None),
-                        "instructions": bool(instructions),
-                        "trace": "{{ trace }}" in str(instructions or "")}
-    raise ValueError(f"no judge assessment named {metric} in your MLflow store")
+                traces.setdefault(derive_record_id(*_content(trace)), trace.info.trace_id)
+                if info is None:
+                    meta = d.get("metadata") or {}
+                    info = {"source_id": source.get("source_id"), "name": metric,
+                            "scorer_name": meta.get(SCORER_NAME),
+                            "scorer_version": meta.get(SCORER_VERSION),
+                            "experiment": exp.experiment_id, **judge_meta(meta)}
+    if info is None:
+        raise ValueError(f"no judge assessment named {metric} in your MLflow store")
+    return {**info, "uri": uri, "traces": traces}
+
+
+def judge_job(info: dict, worker: dict) -> dict:
+    """How the worker gets the judge back, as `classify` sorted it."""
+    base = {"name": info.get("scorer_name") or info.get("name"),
+            "model": info.get("source_id"), "trace": bool(info.get("trace"))}
+    if info.get("scorer_name") and worker.get("registered"):
+        return {**base, "kind": "registered", "version": info.get("scorer_version"),
+                "experiment": info.get("experiment")}
+    if info.get("name") == "guidelines":
+        return {**base, "kind": "guidelines", "text": info.get("text")}
+    if worker.get("builtin"):
+        return {**base, "kind": "builtin"}
+    return {**base, "kind": "make_judge", "text": info.get("text")}
 
 
 def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
@@ -117,7 +165,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
     if dry:
         worker = again.run_worker("mlflow", python, {
             "mode": "dry", "name": info.get("scorer_name") or info.get("name"),
-            "version": info.get("scorer_version")}, root, env=WORKER_ENV)
+            "version": info.get("scorer_version"), "uri": info.get("uri"),
+            "experiment": info.get("experiment")}, root, env=WORKER_ENV)
         if not worker.get("ok"):
             if worker.get("missing"):
                 return cant("mlflow", judge, f"MLflow is not installed in {python}. Use "
@@ -137,15 +186,53 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool) -> Plan:
     model = info.get("source_id")
     calls = TRACE_CALLS if info.get("trace") else 1
     check = keys.check(model, "mlflow", root)
+    traces = info.get("traces") or {}
+    found = [a for a in answers if a["id"] in traces]
+    if not found:
+        return cant("mlflow", judge, "none of your labeled answers is in your MLflow store any "
+                    "more", short="your answers are not in your MLflow store")
     tokens = []
-    for a in answers:
+    for a in found:
         i, o = prices.tokens_from_text(f"{display(a['input'])}\n{display(a['output'])}")
         tokens.append((i * calls, o * calls))
+    left = []
+    if len(found) < len(answers):
+        left.append(left_out_line(len(answers) - len(found),
+                                  "it is not in your MLflow store any more",
+                                  "they are not in your MLflow store any more"))
+    payload = [(a, {"id": a["id"], "trace": traces[a["id"]], "inputs": a["input"],
+                    "outputs": a["output"]}) for a in found]
     return Plan(tool="mlflow", judge=f"{judge} (MLflow {version})" if version else judge,
                 status=status, why=why, model=model, provider=check.provider,
-                key_lines=check.lines, calls_each=[calls] * len(answers),
+                key_lines=check.lines, calls_each=[calls] * len(found),
                 calls_note="up to" if info.get("trace") else "", tokens=tokens,
-                settings=check.settings,
+                settings=check.settings, key_ok=check.ok, tool_version=version, left_out=left,
+                runner=[python], payload=payload,
+                job={"uri": info.get("uri"), "judge": judge_job(info, worker)},
                 side_effects=[(f"Your app is not run. MLflow calls your judge directly in "
                                f"your Python ({python}); never mlflow.genai.evaluate(), so "
                                "nothing is added to your MLflow store.")])
+
+
+def run(ws, plan: Plan, talk) -> Fresh:
+    """Call the user's MLflow judge on each labeled answer, `plan.times` times."""
+    from judgekeeper.readers.mlflow_store import _model
+
+    norm = Normaliser()
+
+    def verdict(item, line):
+        try:
+            return norm(line.get("value")).verdict
+        except UnmappedValue:
+            return None
+
+    fresh, got, done = worker_run.ask(ws, plan, talk, "MLflow", env=WORKER_ENV)
+    worker_run.count(fresh, plan, got, "MLflow", verdict)
+    judge = plan.job["judge"]
+    evaluator = _model(judge.get("model"))
+    if judge["kind"] == "registered":
+        evaluator["rubric_version"] = "@".join(
+            str(x) for x in (judge["name"], judge.get("version")) if x)
+    fresh.fingerprint = make_fingerprint(evaluator).to_dict()
+    plan.tool_version = done.get("version") or plan.tool_version
+    return fresh
