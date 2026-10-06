@@ -13,6 +13,7 @@ Every command, file format, flag, exit code and config key. The README has the s
 - [import: promptfoo, DeepEval and Inspect AI results](#import-promptfoo-deepeval-and-inspect-ai-results)
 - [import mlflow and import langfuse](#import-mlflow-and-import-langfuse)
 - [Records format: import records and export records](#records-format-import-records-and-export-records)
+- [record: save your own judge's verdicts with one line](#record-save-your-own-judges-verdicts-with-one-line)
 - [Unknown judge fields](#unknown-judge-fields)
 - [Your API keys](#your-api-keys)
 - [Gate CI on the judge](#gate-ci-on-the-judge)
@@ -37,14 +38,14 @@ Finds the results your eval tool already saved, names your eval tool and your ju
 | Flag | What it does |
 |---|---|
 | `PATH` | Your project folder (default: this folder), or one results file, which skips the search |
-| `--tool NAME` | Which eval tool's results to use when several are found: `promptfoo`, `deepeval`, `inspect`, `mlflow` or `table` |
+| `--tool NAME` | Which eval tool's results to use when several are found: `records` (what `judgekeeper.record()` saved), `promptfoo`, `deepeval`, `inspect`, `mlflow` or `table` |
 | `--metric NAME` | The judge (metric, assertion or scorer) to check when the results hold several, as in `import` |
 | `--experiment NAME_OR_ID` | MLflow: the experiment to read when several have judge results |
 | `--pass-if RULE` | A rule for numeric verdicts, e.g. `score>=0.5`, as in `import` |
 | `--label-map MAP` | Extra verdict spellings, e.g. `good=pass,bad=fail`, as in `import` |
 | `--judge-model NAME` | The judge's model, when the results do not record it. Saved with `"model_source": "given by you"`. A usage error when the results already name a model |
 | `--yes` | Without a terminal, answer every yes/no question with its default (open the page, continue, label anyway). It never picks between tools or judges |
-| `--new` | Start a new check: everything in `.judgekeeper/` except `baseline.json` moves to `.judgekeeper/previous-<date>/`. Nothing is deleted |
+| `--new` | Start a new check: everything in `.judgekeeper/` except `baseline.json` and `records/` moves to `.judgekeeper/previous-<date>/`. Nothing is deleted |
 | `--review` | After a result: review the answers where you and your judge disagree (below). Answers the menu |
 | `--ask-again` | After a result: ask your judge again about your labeled answers (below). It shows the plan and asks before any call. Answers the menu |
 | `--try-new-judge` | After a result: try the new version of your judge (found in your newest results) on the answers you already marked; it asks before any call (below). Answers the menu |
@@ -58,10 +59,11 @@ Finds the results your eval tool already saved, names your eval tool and your ju
 | `--no-browser` | Print the labeling page's link instead of opening a browser |
 | `--port N` | Port on 127.0.0.1 for the labeling page (default 8765) |
 
-**What it reads.** It looks only inside the folder, to a depth of four folders, skipping `.git`, `node_modules`, virtual environments and hidden folders (except `.deepeval`). It stops after 5,000 files or 2 seconds and says so. It does not follow symbolic links, and results files over 200 MB are listed, not read.
+**What it reads.** It looks only inside the folder, to a depth of four folders, skipping `.git`, `node_modules`, virtual environments and hidden folders (except `.deepeval`, and `.judgekeeper/records/`, where `judgekeeper.record()` writes). It stops after 5,000 files or 2 seconds and says so. It does not follow symbolic links, and results files over 200 MB are listed, not read.
 
 | Tool | How it is found | What is read |
 |---|---|---|
+| `judgekeeper.record()` | `.judgekeeper/records/*.jsonl` | Every file written by the newest file's judge (one eval run can be many processes, so many files; a newer file wins for a repeated answer). Several judge names: it asks which, `--metric` answers. A last line cut short is left out; a file it cannot read is left out, with the `--check` command that shows why ([below](#record-save-your-own-judges-verdicts-with-one-line)) |
 | promptfoo | `promptfooconfig.yaml`, `.yml` or `.json` | JSON results files (`promptfoo eval -o` or `promptfoo export eval`). With a config and no results file, it offers to run `promptfoo export` for you (below), or prints the commands |
 | DeepEval | `.deepeval/`, or `deepeval` in `pyproject.toml` or `requirements*.txt` | `.deepeval/.latest_run_full.json`, `test_run_*.json`, and `DEEPEVAL_RESULTS_FOLDER` when it points inside the folder |
 | Inspect AI | `logs/`, or `inspect-ai` in the dependencies | `.json` logs; `.eval` logs need `pip install "judgekeeper[inspect]"` in your project's environment. Also `INSPECT_LOG_DIR` inside the folder |
@@ -88,6 +90,7 @@ From the newest results it builds the pool: every answer with a clear pass or fa
 | `result.json`, `result.html` | The result: every number, the label counts, the fingerprint and the date; the page opens without a server | With each result |
 | `history/` | Earlier results (`result-<date>.json`) and, before a re-check, the check it replaced (`check-<date>/`) | With each result |
 | `previous-<date>/` | Everything that was here before `--new`, or before you labeled new answers | On `--new` |
+| `records/` | Your judge's verdicts, saved by `judgekeeper.record()` (not by `start`); `--new` leaves them in place | By your eval |
 | `again/<date>/` | Asking your judge again: `judge-again-<n>.jsonl` (one run file per time asked, every line with the full fingerprint, plus the tool and its version, the names of setting variables that were set, and `exact` or `close copy` with the reasons), `again.json` (the numbers), and for promptfoo its own `promptfoo.json`, for DeepEval, Inspect AI and MLflow the script's output (`deepeval.jsonl`, `inspect.jsonl`, `mlflow.jsonl`). `result.json` gains an `again` block; an earlier one moves to `history/again-<date>.json` | When you ask your judge again |
 | `new-judge-<date>/` | Trying your new judge: `new-judge.json` (the numbers), `new-judge-<n>.jsonl` (one run file per time asked, every line with the full fingerprint and `exact` or `close copy`), the tool's own output (`promptfoo.json`, `deepeval.jsonl`, `inspect.jsonl` or `mlflow.jsonl`), and `confirm/` (the quick check: `start.json`, `pool.jsonl`, `pool-judge.jsonl`, `labels.csv`, `result.json`, `result.html`). `result.json` gains a `new_judge` block | When you try your new judge |
 | `review.json` | The review of the disagreements: the answers shown, the seed, your second looks and your choices | On every click of the review |
@@ -407,6 +410,85 @@ judgekeeper export records reports/x/ -o records.jsonl
 `import records` reads JSONL, CSV or TSV. `--map` takes `field=column` pairs; evaluator fields are `evaluator.model=judge_model` and so on (a CSV can also have `evaluator.model` columns, or an `evaluator` column holding JSON; `metadata`, `trajectory` and `outcome` cells hold JSON too). A mapped column that does not exist is a usage error listing the columns.
 
 `export records <dir> -o records.jsonl [--anchors anchors.jsonl]` writes judgekeeper's runs and anchors as records (version 2): one HUMAN record per anchor item and one LLM record per judgment, with the judgment's fingerprint as `evaluator` (the prompt as `prompt_hash`) and error judgments as an empty `label`. `<dir>` is a directory `check` or `import` wrote (or its `report.json`), or a runs directory with `--anchors`. `import records` on the result gives the same report. Single-output anchor sets only; `slice` and `notes` are not carried.
+
+## record: save your own judge's verdicts with one line
+
+When your judge runs in your own code and saves nothing judgekeeper reads, add one line right after it gives each verdict, in your eval code:
+
+```python
+import judgekeeper
+judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
+                   reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")
+```
+
+Then run your eval once and `judgekeeper start`: it finds the records. Install judgekeeper inside your project's environment, as for `start`.
+
+| Argument | What |
+|---|---|
+| `input`, `output` | The question and the answer the judge looked at: text or any JSON value (anything else is written as text) |
+| `verdict` | `pass` or `fail`, or `True` or `False` |
+| `score`, `pass_mark` | Instead of `verdict`: a number, and the mark it must reach to pass (pass when `score >= pass_mark`). The pass mark is kept in `metadata`. A score with no pass mark is kept without a verdict (then `start --pass-if` reads it) |
+| `reason` | The judge's reason |
+| `judge` | The judge's model, e.g. `claude-opus-5` |
+| `rule` | The judge's rule or criteria, shown as "Your judge's rule" |
+| `name` | Which judge or criterion (default `judge`); with several names, `start` asks which to check |
+| `temperature`, `id`, `metadata` | The judge's temperature, the answer's id (else one is made from the input and output), and a dict of anything else |
+
+Each call writes one line in the [records format](#records-format-import-records-and-export-records) (version 2, `annotator_kind` `LLM`) to `.judgekeeper/records/<name>-<date>-<process id>.jsonl` under your project root: the nearest folder upward from where your eval runs that has `judgekeeper.toml`, `pyproject.toml`, `setup.py`, `.git` or a `requirements*.txt` (never your home folder), else the current folder. One file per process, so evals that run in several processes never write to the same file. Each line is written whole and the file closed at once; a lock keeps threads' lines apart.
+
+It never breaks your program: any error inside it is caught, it logs one warning to the `judgekeeper` logger (once per process) and returns nothing. It uses only Python's standard library, and `import judgekeeper` loads nothing else until you call it. The file holds your inputs and outputs: use it in your eval code, not in code that serves real users. `JUDGEKEEPER_RECORD=0` (or `false`, `off`, `no`) turns it off.
+
+**Without the import, or in another language.** `judgekeeper record --snippet python` prints a short function that writes the same lines with nothing to install; `judgekeeper record --snippet typescript` prints the same for Node.js. Run them from your project folder.
+
+```python
+# Saves each judge verdict for judgekeeper; run it from your project folder. Standard library only.
+import json, os, time
+def jk_record(input, output, verdict=None, score=None, reason=None, name="judge",
+              judge=None, rule=None):
+    try:
+        folder, now = os.path.join(".judgekeeper", "records"), time.gmtime()
+        os.makedirs(folder, exist_ok=True)
+        line = {"schema_version": 2, "name": name, "annotator_kind": "LLM", "input": input,
+                "output": output, "label": verdict, "score": score, "explanation": reason,
+                "evaluator": {"model": judge, "rule": rule},
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", now)}
+        file = "".join(c if c.isalnum() else "-" for c in name)
+        file += f"-{time.strftime('%Y-%m-%d', now)}-{os.getpid()}.jsonl"
+        with open(os.path.join(folder, file), "a", encoding="utf-8") as f:
+            f.write(json.dumps(line, ensure_ascii=False, default=str) + "\n")
+    except Exception:
+        pass  # a record never stops your program
+```
+
+```typescript
+// Saves each judge verdict for judgekeeper; run it from your project folder. Node.js only.
+import { appendFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+
+type JkFields = { verdict?: "pass" | "fail" | boolean; score?: number; reason?: string;
+                  name?: string; judge?: string; rule?: string };
+
+export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): void {
+  try {
+    const folder = join(".judgekeeper", "records"), name = f.name ?? "judge";
+    const now = new Date().toISOString();
+    mkdirSync(folder, { recursive: true });
+    const line = { schema_version: 2, name, annotator_kind: "LLM", input, output,
+      label: f.verdict ?? null, score: f.score ?? null, explanation: f.reason ?? null,
+      evaluator: { model: f.judge ?? null, rule: f.rule ?? null }, created_at: now };
+    const file = `${name.replace(/[^A-Za-z0-9]/g, "-")}-${now.slice(0, 10)}-${process.pid}.jsonl`;
+    appendFileSync(join(folder, file), JSON.stringify(line) + "\n");
+  } catch { /* a record never stops your program */ }
+}
+```
+
+**Let your coding agent add the line.** judgekeeper never edits your code. `judgekeeper record --agent-prompt` prints a prompt for Claude Code, Cursor or Codex: find where your judge gives each score or verdict, add one `judgekeeper.record(...)` call right after it, touch nothing else, show you the diff and wait for your yes, then run the eval once and `judgekeeper import records .judgekeeper/records --check`.
+
+```
+judgekeeper record --snippet python
+judgekeeper record --snippet typescript
+judgekeeper record --agent-prompt
+```
 
 ## Unknown judge fields
 

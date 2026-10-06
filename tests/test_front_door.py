@@ -30,7 +30,8 @@ README = ROOT / "README.md"
 SITE = "https://www.judgekeeper.com/"
 GUIDE = ROOT / "docs" / "guide.md"
 COMMANDS = ["attribute", "baseline", "check", "export", "freeze", "gate", "import",
-            "import-labels", "init", "judge", "label", "migrate", "start", "template", "validate"]
+            "import-labels", "init", "judge", "label", "migrate", "record", "start", "template",
+            "validate"]
 LAST_HELP_LINE = "Run `judgekeeper <command> --help` for a command's options."
 # Syntax lines, not commands to type: <tool>, [--flag], ..., and the stand-ins X and Y.
 PLACEHOLDER = re.compile(r"<[a-z]|\[--|\.\.\.| [XY](?= |$)")
@@ -530,7 +531,7 @@ def _subcommands() -> list[str]:
     return sorted(sub.choices)
 
 
-def test_the_cli_has_the_same_fifteen_commands():
+def test_the_cli_has_the_same_sixteen_commands():
     assert _subcommands() == COMMANDS
 
 
@@ -554,7 +555,7 @@ def test_help_shows_three_commands_first(capsys):
     assert groups["More"] == [
         "  your own rule and judge   init, judge, validate, template, import-labels, freeze",
         "  keep checking             baseline, gate, migrate, attribute",
-        "  your tools                import, export",
+        "  your tools                import, export, record",
     ]
 
 
@@ -563,7 +564,7 @@ def test_help_lists_every_command_exactly_once(capsys):
     listed = [line.split()[0] for line in groups["Start here"]]
     for line in groups["More"]:
         listed += re.split(r"\s{2,}", line.strip())[-1].split(", ")
-    assert len(listed) == len(set(listed)) == 15
+    assert len(listed) == len(set(listed)) == 16
     # Read from the parser, so a command added later without a group fails here.
     assert sorted(listed) == _subcommands()
 

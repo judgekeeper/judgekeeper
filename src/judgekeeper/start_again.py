@@ -12,7 +12,7 @@ decides what happens.
 |                                     | nothing; --review, --ask-again and --label-more answer |
 | a result, and new verdicts from the | a re-check: the saved labels against the new verdicts, |
 | same tool and judge name            | with the new pool's group sizes, next to the last one  |
-| anything, with --new                | moves it all (except baseline.json) to                 |
+| anything, with --new                | moves it all (except baseline.json and records/) to    |
 |                                     | previous-<date>/ and starts fresh; deletes nothing     |
 
 A re-check finds the labeled answers in the new results by exact input and output (and the
@@ -46,7 +46,8 @@ from judgekeeper.start_label import (
     save_result,
 )
 
-KEPT = "baseline.json"  # set by `baseline set`, not part of a check
+# Not part of a check: baseline.json (set by `baseline set`) and records/ (judgekeeper.record())
+KEPT = ("baseline.json", "records")
 PREVIOUS = "previous-"
 
 
@@ -55,12 +56,12 @@ def _stamp() -> str:
 
 
 def move_to_previous(ws: Workspace, say) -> Path | None:
-    """Move everything in `.judgekeeper/` except baseline.json and earlier previous-<date>/
-    folders into a new previous-<date>/ folder. Nothing is deleted."""
+    """Move everything in `.judgekeeper/` except baseline.json, records/ and earlier
+    previous-<date>/ folders into a new previous-<date>/ folder. Nothing is deleted."""
     if not ws.dir.is_dir():
         return None
     entries = [p for p in ws.dir.iterdir()
-               if p.name != KEPT and not p.name.startswith(PREVIOUS)]
+               if p.name not in KEPT and not p.name.startswith(PREVIOUS)]
     if not entries:
         return None
     target = ws.dir / f"{PREVIOUS}{_stamp()}"

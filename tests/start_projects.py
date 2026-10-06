@@ -175,3 +175,29 @@ def own_format_project(root: Path, runs: int = 2, cases: int = 3) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
+
+
+def records_project(root: Path, verdicts, name: str = "Safe wording", pid: int = 4101,
+                    model: str | None = "claude-opus-5", rule: str | None = "Be polite.",
+                    tag: str = "", start: int = 0, day: str = "2026-10-05",
+                    mtime: float | None = None) -> Path:
+    """One file as judgekeeper.record() writes it, in `.judgekeeper/records/`: one line per
+    verdict, the file named <name>-<day>-<pid>.jsonl. `mtime` sets its modified time."""
+    import os
+
+    folder = root / ".judgekeeper" / "records"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{name.replace(' ', '-')}-{day}-{pid}.jsonl"
+    evaluator = {k: v for k, v in (("model", model), ("rule", rule)) if v is not None}
+    with path.open("a", encoding="utf-8") as f:
+        for i, v in enumerate(verdicts, start):
+            label = "pass" if v is True else "fail" if v is False else v
+            f.write(json.dumps({"schema_version": 2, "target_id": None, "name": name,
+                                "annotator_kind": "LLM", "label": label, "score": None,
+                                "explanation": f"reason {i}", "run": None,
+                                "input": question(i, tag), "output": answer(i, tag),
+                                "evaluator": evaluator,
+                                "created_at": f"{day}T10:00:00Z"}) + "\n")
+    if mtime is not None:
+        os.utime(path, (mtime, mtime))
+    return path

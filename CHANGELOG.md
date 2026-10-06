@@ -82,6 +82,14 @@ after you say yes, your own judge through your own tool, and key names only.
   same answer stay two answers in `start`; a score whose value is a dict is read as one judge
   per key. MLflow: an assessment on one span inside a trace is left out unless `--metric`
   names a judge that is only on spans.
+- New: `judgekeeper.record()`. When your judge runs in your own code, one line right after
+  it saves each verdict in `.judgekeeper/records/` (one file per process), and
+  `judgekeeper start` finds them; `start --new` leaves them in place. It never stops your
+  program (an error inside it only logs one warning), uses only Python's standard library,
+  and `JUDGEKEEPER_RECORD=0` turns it off. `judgekeeper record --snippet python` (or
+  `typescript`) prints a short version with nothing to install; `judgekeeper record
+  --agent-prompt` prints a prompt that asks your coding agent to add the line, show you the
+  diff and wait for your yes.
 - `judgekeeper start` says when your app's version changed since your last check, from
   `app_version` in the results (or an `app_version` column in a table).
 - The website's home page shows the install for Mac and Windows, with a check for Python, and

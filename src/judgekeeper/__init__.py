@@ -2,7 +2,7 @@
 
 __version__ = "0.2.0"
 
-__all__ = ["check_judge", "check_table", "import_results"]
+__all__ = ["check_judge", "check_table", "import_results", "record"]
 
 
 def __getattr__(name: str):
@@ -15,6 +15,10 @@ def __getattr__(name: str):
         from judgekeeper.custom import check_judge
 
         return check_judge
+    if name == "record":
+        from judgekeeper.recorder import record
+
+        return record
     if name == "import_results":
         from judgekeeper.readers import import_results
 
