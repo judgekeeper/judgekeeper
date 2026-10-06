@@ -13,7 +13,7 @@ pip install "judgekeeper[mlflow]"                # in your project's environment
 judgekeeper import mlflow --experiment my-app-eval --metric correctness --out reports/correctness/
 ```
 
-The tracking URI is `MLFLOW_TRACKING_URI` (or `--tracking-uri`), resolved exactly as MLflow resolves it: a local `mlruns` folder, a SQL store (`sqlite:///mlflow.db`), a tracking server or Databricks (`databricks`, with `DATABRICKS_HOST` and `DATABRICKS_TOKEN`). MLflow handles the credentials; judgekeeper never writes them anywhere.
+The tracking URI is `MLFLOW_TRACKING_URI` (or `--tracking-uri`), resolved exactly as MLflow resolves it: a local `mlruns` folder, a SQL store (`sqlite:///mlflow.db`), a tracking server or Databricks (`databricks`, with `DATABRICKS_HOST` and `DATABRICKS_TOKEN`). MLflow handles the credentials; judgekeeper never writes them anywhere. A local `mlruns` folder needs MLflow's folder-store setting from MLflow 3.16 on: judgekeeper switches it on (`MLFLOW_ALLOW_FILE_STORE=true`) for its own read only, says so once, and leaves your own value alone when you set one.
 
 - `--experiment` takes a name or an id.
 - `--metric` is the assessment name (your scorer's name). With several judge assessment names and no `--metric`, judgekeeper stops and lists them.

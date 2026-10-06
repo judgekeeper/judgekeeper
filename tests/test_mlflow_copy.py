@@ -10,8 +10,6 @@ as a file name on Windows. A folder store (`mlruns/`) is read where it is.
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -121,41 +119,13 @@ def test_asking_again_reads_a_real_store_through_a_copy(tmp_path):
     assert Path(info["uri"].removeprefix("sqlite:///")).is_file()  # kept for the worker
 
 
-FOLDER_STORE = r'''
-import os, sys
-os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"
-os.environ["MLFLOW_DISABLE_AGENT_HINT"] = "1"
-import mlflow
-from mlflow.entities import AssessmentSource
-
-mlflow.set_tracking_uri(sys.argv[1])
-mlflow.set_experiment("folder-store")
-judge = AssessmentSource(source_type="LLM_JUDGE", source_id="openai:/gpt-4.1")
-
-@mlflow.trace(name="app")
-def app(question):
-    return f"answer to {question}"
-
-for i, question in enumerate(["one", "two", "three", "four"]):
-    app(question)
-    mlflow.flush_trace_async_logging()
-    trace_id = mlflow.get_last_active_trace_id()
-    mlflow.log_feedback(trace_id=trace_id, name="helpful", value=i % 2 == 0, source=judge)
-'''
-
-
 def test_a_folder_store_reads_and_stays_as_it_was(tmp_path, monkeypatch):
-    """MLflow 3.16 opens an mlruns/ folder only with MLFLOW_ALLOW_FILE_STORE=true; then
-    judgekeeper reads it in place, and nothing in it changes."""
-    pytest.importorskip("mlflow")
-    script = tmp_path / "make.py"
-    script.write_text(FOLDER_STORE, encoding="utf-8")
-    folder = tmp_path / "project" / "mlruns"
-    folder.parent.mkdir()
-    subprocess.run([sys.executable, str(script), str(folder)], check=True, cwd=tmp_path,
-                   capture_output=True)
+    """judgekeeper reads an mlruns/ folder in place, and nothing in it changes."""
+    from tests.conftest import build_mlflow_folder_store
+
+    folder = build_mlflow_folder_store(tmp_path / "project" / "mlruns")
     before = _state(folder)
-    monkeypatch.setenv("MLFLOW_ALLOW_FILE_STORE", "true")
+    monkeypatch.delenv("MLFLOW_ALLOW_FILE_STORE", raising=False)
     found = start.find_judge(tmp_path / "project")
     assert found.tool == "mlflow" and len(found.pool.answers) == 4
     assert _state(folder) == before

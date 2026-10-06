@@ -368,9 +368,15 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
     (--metric) may name a judge whose assessments are only on spans."""
     if not _has("mlflow"):
         raise _needs_extra(talk, "mlflow", f"{store.rel}/" if store.path.is_dir() else store.rel)
-    from judgekeeper.readers.mlflow_store import store_uri
+    from judgekeeper.readers.mlflow_store import folder_store_allowed, store_uri
 
     uri = store_uri(store.path, say=talk.say)
+    with folder_store_allowed(uri, say=talk.say):
+        return _mlflow_experiment(talk, store, experiment, metric, uri)
+
+
+def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
+                       metric: str | None, uri: str) -> tuple[str, list[Loaded]]:
     if experiment is not None:
         found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
     else:

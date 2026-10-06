@@ -49,6 +49,46 @@ def build_mlflow_store(root, note: str = "") -> str:
     return module.build(root, note=note)
 
 
+FOLDER_STORE = r"""
+import os, sys
+os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"
+os.environ["MLFLOW_DISABLE_AGENT_HINT"] = "1"
+import mlflow
+from mlflow.entities import AssessmentSource
+
+mlflow.set_tracking_uri(sys.argv[1])
+mlflow.set_experiment("folder-store")
+judge = AssessmentSource(source_type="LLM_JUDGE", source_id="openai:/gpt-4.1")
+
+@mlflow.trace(name="app")
+def app(question):
+    return f"answer to {question}"
+
+for i, question in enumerate(["one", "two", "three", "four"]):
+    app(question)
+    mlflow.flush_trace_async_logging()
+    trace_id = mlflow.get_last_active_trace_id()
+    mlflow.log_feedback(trace_id=trace_id, name="helpful", value=i % 2 == 0, source=judge)
+"""
+
+
+def build_mlflow_folder_store(folder):
+    """A real MLflow folder store (mlruns/) at `folder`, made in another process by the
+    installed MLflow: experiment "folder-store", 4 traces, a judge "helpful" (openai:/gpt-4.1)
+    passing the first and third. Skips when mlflow is not installed."""
+    import subprocess
+    import sys
+
+    pytest.importorskip("mlflow")
+    folder.parent.mkdir(parents=True, exist_ok=True)
+    script = folder.parent / "make_folder_store.py"
+    script.write_text(FOLDER_STORE, encoding="utf-8")
+    subprocess.run([sys.executable, str(script), str(folder)], check=True,
+                   cwd=folder.parent, capture_output=True)
+    script.unlink()
+    return folder
+
+
 @pytest.fixture(scope="session")
 def mlflow_store(tmp_path_factory):
     """The MLflow fixture store, built once per session."""

@@ -109,6 +109,7 @@ after you say yes, your own judge through your own tool, and key names only.
 - Removed from the website: the "See it work" page and its menu entry, and the practice step
   with its screenshots. The home page now says what judgekeeper is, shows how to install it,
   and points to checking your own judge.
+- Reads MLflow results kept in an mlruns/ folder with MLflow 3.16 and later.
 - Works on Windows: reading an MLflow store, and every test, now pass on Windows too.
   judgekeeper reads an `mlflow.db` store through a temporary copy (removed afterwards), so
   it never opens your store file itself; `judgekeeper setup` keeps your files' own line
