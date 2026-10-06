@@ -257,16 +257,15 @@ def test_the_skill_installs_first_and_names_no_demo():
 def test_the_skill_reports_in_plain_words():
     flat = _flat(_skill_body())
     assert "plain sentence" in flat
-    step = flat[flat.index("## 4."):flat.index("## 5.")]
+    step = flat[flat.index("## 3."):flat.index("## 4.")]
     assert step.index("plain sentence") < step.index("kappa")
 
 
 def test_the_skill_sends_the_human_to_the_labeling_page():
     body = _skill_body()
     step = body[body.index("## 2."):body.index("## 3.")]
-    assert "judgekeeper label items.jsonl" in step
+    assert "judgekeeper start --yes --no-browser" in step
     assert "127.0.0.1" in step
-    assert step.index("judgekeeper label ") < step.index("judgekeeper template ")
     assert "Stop." in step
 
 
@@ -282,16 +281,11 @@ def test_the_skill_asks_what_pass_means_before_labeling():
     flat = _flat(_skill_body())
     assert "say in one sentence what pass means before they label" in flat
     assert "not the judge's" in flat
-    assert flat.index("what pass means before they label") < flat.index("judgekeeper label ")
-
-
-def test_the_skill_says_what_the_callable_receives():
-    body = _skill_body()
-    step = _flat(body[body.index("## 3."):body.index("## 4.")])
-    assert "one item as a dict with `id`, `input` and `output`" in step
+    assert flat.index("what pass means before they label") < flat.index(
+        "judgekeeper start --yes --no-browser")
 
 
 def test_every_command_in_the_skill_parses():
     found = _commands(_skill_body())
-    assert len(found) >= 15
+    assert len(found) >= 10
     _check_parses(found, "skills/judgekeeper/SKILL.md")

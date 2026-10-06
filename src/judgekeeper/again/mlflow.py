@@ -38,7 +38,7 @@ from judgekeeper.normalise import Normaliser, UnmappedValue
 from judgekeeper.start_label import display
 from judgekeeper.table import make_fingerprint
 
-WORKER_ENV = {"MLFLOW_DISABLE_TELEMETRY": "true"}
+WORKER_ENV = {"MLFLOW_DISABLE_TELEMETRY": "true", "MLFLOW_DISABLE_AGENT_HINT": "1"}
 
 
 def worker_env(uri) -> dict:
@@ -122,8 +122,6 @@ def assessment_info(ws, metric: str, run: str | None = None) -> dict:
     assessments (answer ids as `start` makes them), and `all_traces`: the same for every
     trace. `run` (an MLflow run id) takes the assessment
     from that run, the newest results of a new judge."""
-    from mlflow import MlflowClient
-
     from judgekeeper import find
     from judgekeeper.readers.mlflow_store import (
         NO_RUN,
@@ -131,18 +129,26 @@ def assessment_info(ws, metric: str, run: str | None = None) -> dict:
         TRACE_SOURCE_RUN,
         _content,
         _traces,
+        folder_of,
         folder_store_allowed,
+        quiet,
         store_uri,
     )
     from judgekeeper.records import derive_record_id
 
-    store = next(iter(find.search(ws.root).readable("mlflow")))
-    uri = store_uri(store.path)  # a temporary copy of mlflow.db, kept for the worker
-    with folder_store_allowed(uri):  # mlruns/: MLflow's folder-store setting, this read only
+    saved = ws.data().get("mlflow_store") if ws.start.is_file() else None
+    if saved and (ws.root / saved).exists():  # the store the check was made from
+        path = ws.root / saved
+    else:
+        path = next(iter(find.search(ws.root).readable("mlflow"))).path
+    uri = store_uri(path)  # a temporary copy of mlflow.db, kept for the worker
+    with folder_store_allowed(uri), quiet():  # mlruns/: the folder-store setting, this read
+        from mlflow import MlflowClient
+
         client = MlflowClient(tracking_uri=uri)
         info, traces, every = None, {}, {}
         for exp in client.search_experiments():
-            for trace in _traces(client, exp.experiment_id):
+            for trace in _traces(client, exp.experiment_id, folder_of(uri)):
                 key = derive_record_id(*_content(trace))
                 every.setdefault(key, trace.info.trace_id)
                 trace_run = (trace.info.trace_metadata or {}).get(TRACE_SOURCE_RUN)

@@ -41,6 +41,8 @@ Label one evaluation run's traces: ids come from the request input, so a label a
 - **CODE assessments** (a scorer that returns a bare bool or number) are not a judge and are ignored, with a note. Expectations (ground truth) are not verdicts and are not read.
 - **Span-level assessments.** An assessment logged on one span inside a trace (`span_id`) judges a step, not the answer. Only trace-level assessments (and those on the root span, where `evaluate` puts them) are read as the judge's verdicts; span-level ones are left out with a note, unless `--metric` names a judge that is only on spans. A judge on both never mixes them. The span id is kept in each record's `metadata`.
 - **One run.** With a single evaluation run the noise floor is "unknown". Re-run `evaluate`, or use the re-judge path below.
+- **A copied `mlruns/` folder.** A folder store saves where each trace's files are as a full path. Copied or cloned to another computer, MLflow looks for them at the old path and drops every trace it cannot find, with one warning each. judgekeeper reads them from the store's own folder instead, and says how many answers it left out when their files are not there either.
+- **MLflow's own problems, not judgekeeper's.** Two that new users meet: `mlflow.genai.evaluate` on an `mlflow.db` store can drop traces when it runs out of database connections, while still saying the evaluation completed (fewer parallel workers, `MLFLOW_GENAI_EVAL_MAX_WORKERS=4`, avoids it); and an experiment made in `mlflow.db` keeps its artifacts in `./mlruns/` by default, inside a folder store if you also have one (give the experiment its own `artifact_location`). judgekeeper only counts the traces that were saved.
 
 ## Re-judge the labeled items
 

@@ -1,5 +1,7 @@
-"""skills/judgekeeper/SKILL.md: the file coding agents load. It must parse, stay short, and
-name only commands and flags that exist."""
+"""skills/judgekeeper/SKILL.md: the file coding agents load. It must parse, stay short, name
+only commands and flags that exist, and walk the same path as the Guide: `judgekeeper start`,
+`setup` or the `record()` line when nothing is found, the person's labels, the result, then
+review, ask again or try a new judge, where the person answers the spending question."""
 
 import re
 import shlex
@@ -68,8 +70,7 @@ def test_every_command_exists_in_the_cli():
     _, body = _split(SKILL.read_text(encoding="utf-8"))
     lines = [line for line in _command_lines(body) if "<" not in line]
     commands = {shlex.split(line)[1] for line in lines}
-    assert {"init", "template", "label", "import-labels", "check", "judge", "validate",
-            "import", "baseline", "gate"} <= commands
+    assert {"start", "setup", "record", "init", "import", "baseline", "gate"} <= commands
     parser = _parser()
     for line in lines:
         argv = shlex.split(line)[1:]
@@ -89,8 +90,6 @@ def test_import_tools_exist():
     text = SKILL.read_text(encoding="utf-8")
     for tool in re.findall(r"judgekeeper import ([a-z]+)", text):
         assert tool in tools
-    for tool in ("promptfoo", "deepeval", "inspect", "mlflow", "langfuse"):
-        assert f"judgekeeper import {tool}" in text
 
 
 def test_pytest_options_exist():
@@ -111,3 +110,51 @@ def test_the_three_doors_in_order_and_record_only_after_a_yes():
                                      "(3) a table")]
     assert doors == sorted(doors)
     assert "add a `judgekeeper.record()` line only after their yes on the diff" in text
+
+
+def _body() -> str:
+    return " ".join(_split(SKILL.read_text(encoding="utf-8"))[1].split())
+
+
+def test_the_steps_follow_start():
+    body = _body()
+    body = body[body.index("## Install"):]
+    order = ["`judgekeeper --version`", "`judgekeeper start`", "`judgekeeper setup`",
+             "what pass means", "`judgekeeper start --yes --no-browser`", "plain sentence",
+             "`judgekeeper start --review`", "`judgekeeper start --ask-again`",
+             "`judgekeeper start --try-new-judge`", "`Go ahead? [y/N]`",
+             "judgekeeper baseline set"]
+    at = [body.index(x) for x in order]
+    assert at == sorted(at), [x for x, a in zip(order, at, strict=True)]
+
+
+def test_it_names_start_setup_and_record():
+    body = _body()
+    for needed in ("judgekeeper start", "judgekeeper setup", "judgekeeper.record()",
+                   "judgekeeper record --agent-prompt"):
+        assert needed in body, needed
+
+
+def test_the_person_labels_and_answers_the_spending_question():
+    body = _body()
+    assert "the person does the labeling" in body and "you never label" in body
+    assert "the person answers `Go ahead? [y/N]` themselves" in body
+    steps = body[body.index("## 4."):]
+    assert "never pass `--allow-calls`" in steps
+
+
+def test_the_older_commands_are_one_advanced_note():
+    body = _body()
+    note = body.index("Advanced, only if the person asks:")
+    for older in ("judgekeeper label ", "judgekeeper import-labels", "judgekeeper judge ",
+                  "judgekeeper validate", "judgekeeper check "):
+        assert older not in body[:note], older
+    assert "label, import-labels, judge, validate, check, import" in body[note:]
+
+
+def test_it_never_shows_an_install_outside_a_project():
+    body = _body()
+    for outside in ("pipx", "uv tool", "uvx", "pip3 install", "--user", "-g ",
+                    "py -m pip install judgekeeper"):
+        assert outside not in body, outside
+    assert "with the project's virtual environment active, `pip install judgekeeper`" in body

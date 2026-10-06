@@ -21,6 +21,7 @@ default answer of a yes/no question, but never picks between tools or judges. Ev
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import textwrap
@@ -93,7 +94,7 @@ def _interactive() -> bool:
 # flag). --port and --no-browser follow them. Left out on purpose (NOT_REPEATED): the menu's
 # answers, --yes and --allow-calls, which each hint adds when it needs them.
 REPEATED = (("tool", "--tool"), ("metric", "--metric"), ("experiment", "--experiment"),
-            ("pass_if", "--pass-if"), ("label_map", "--label-map"),
+            ("tracking_uri", "--tracking-uri"), ("pass_if", "--pass-if"), ("label_map", "--label-map"),
             ("judge_model", "--judge-model"), ("times", "--times"), ("python", "--python"),
             ("fields", "--fields"), ("judge_command", "--judge-command"))
 NOT_REPEATED = frozenset({"new", "review", "ask_again", "try_new_judge", "label_more",
@@ -120,16 +121,25 @@ class Talk:
     """What `start` says, and the questions it asks when there is a person to answer.
     `flags` (repeated_flags) are what every printed command repeats."""
 
-    def __init__(self, yes: bool = False, quiet: bool = False, flags: tuple[str, ...] = ()):
+    def __init__(self, yes: bool = False, quiet: bool = False, flags: tuple[str, ...] = (),
+                 path: str | Path = "."):
         self.yes = yes
         self.quiet = quiet
         self.flags = flags
+        self.path = str(path)  # the path the person gave; flags[0] when it is not "."
         self._blank = True  # the last line said was empty: never two in a row
 
     def command(self, *extra: str) -> str:
         """`judgekeeper start` with the person's flags, then `extra`: run as printed, it gets
         past the question it answers."""
         return " ".join(("judgekeeper start", *self.flags, *extra))
+
+    def command_at(self, where: str | Path, *extra: str) -> str:
+        """`command`, with `where` (a path inside the folder the person gave) as the path."""
+        given = self.flags[:1] == (quote_arg(self.path),) and self.path != "."
+        flags = self.flags[1:] if given else self.flags
+        path = Path(where) if self.path == "." else Path(self.path) / where
+        return " ".join(("judgekeeper start", quote_arg(path), *flags, *extra))
 
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):
@@ -396,35 +406,62 @@ def _has(module: str) -> bool:
     return True
 
 
+def _store_name(store: find.Result) -> str:
+    return f"{store.rel}/" if store.path.is_dir() else store.rel
+
+
 def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
                  metric: str | None = None) -> tuple[str, list[Loaded]]:
     """(experiment name, its runs newest first). An mlflow.db store is read through a
     temporary copy (mlflow_store.store_uri), never opened itself. `metric`
-    (--metric) may name a judge whose assessments are only on spans."""
-    if not _has("mlflow"):
-        raise _needs_extra(talk, "mlflow", f"{store.rel}/" if store.path.is_dir() else store.rel)
-    from judgekeeper.readers.mlflow_store import folder_store_allowed, store_uri
+    (--metric) may name a judge whose assessments are only on spans. MLflow's own log
+    lines are kept out (mlflow_store.quiet)."""
+    from judgekeeper.readers.mlflow_store import folder_store_allowed, quiet, store_uri
 
-    uri = store_uri(store.path, say=talk.say)
-    with folder_store_allowed(uri, say=talk.say):
-        return _mlflow_experiment(talk, store, experiment, metric, uri)
+    with quiet():
+        if not _has("mlflow"):
+            raise _needs_extra(talk, "mlflow", _store_name(store))
+        uri = store_uri(store.path, say=talk.say)
+        with folder_store_allowed(uri, say=talk.say):
+            return _mlflow_experiment(talk, store, experiment, metric, uri)
+
+
+def _no_experiment(experiment: str, stores: list[tuple[find.Result, list[str]]]) -> StartError:
+    """--experiment names none of the experiments: say each store searched and its own."""
+    where = [f"{_store_name(s)} (its experiments: {', '.join(names) or 'none'})"
+             for s, names in stores]
+    return StartError(f"no MLflow experiment named {experiment!r} in {_or(where)}")
 
 
 def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                        metric: str | None, uri: str) -> tuple[str, list[Loaded]]:
+    from judgekeeper.readers.mlflow_store import TracesMissing, experiments_with_traces
+
     if experiment is not None:
-        found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
+        try:
+            found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
+        except TracesMissing as e:
+            raise StartError(str(e)) from None
+        except RecordsError as e:
+            if not str(e).startswith("no MLflow experiment named"):
+                raise
+            raise _no_experiment(experiment, [(store, experiments_with_traces(uri))]) from None
     else:
         from mlflow import MlflowClient
 
-        found = []
+        found, missing = [], []
         for exp in MlflowClient(tracking_uri=uri).search_experiments():
             try:
                 runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
+            except TracesMissing as e:
+                missing.append(str(e))
+                continue
             except RecordsError:  # an experiment with no traces
                 continue
             if any(r.annotator_kind == LLM for _, recs in runs for r in recs):
                 found.append((exp.name, runs))
+        if not found and missing:
+            raise StartError(missing[0])
         if not found:
             raise StartError(f"no MLflow experiment in {store.rel} has judge assessments")
         if len(found) > 1:
@@ -435,6 +472,10 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                 f"{_or([f'--experiment {quote_arg(n)}' for n in names])}")]]
             _next_time(talk, "--experiment", found[0][0])
     name, runs = found[0]
+    for label, recs in runs:
+        for note in recs.notes if label == "human assessments" else ():
+            if "trace files are missing" in note:
+                talk.say(f"  {note}")
     judged = [Loaded(label, recs) for label, recs in runs if label != "human assessments"]
     humans = [r for label, recs in runs if label == "human assessments" for r in recs
               if r.annotator_kind == HUMAN]
@@ -461,10 +502,15 @@ class Found:
     description: str | None = None  # promptfoo's `config.description` of the newest results
     metrics: list[str] = field(default_factory=list)  # every judge in the newest results
     app_version: str | None = None  # the app's version in the pool, when the results say it
+    store: str | None = None  # MLflow: the store read (mlflow.db, mlruns), inside `root`
 
 
 def _or(items: list[str]) -> str:
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} or {items[-1]}"
+
+
+def _and(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
 # Why a tool seen in the project has no results judgekeeper can read. "Run your eval" only
@@ -546,6 +592,9 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     """(project folder, tool, its readable results newest first, tool signs)."""
     if not path.exists():
         raise StartError(f"file or folder not found: {path}")
+    if find.is_mlflow_folder(path) and tool in (None, "mlflow"):  # a store, like a file
+        path = path.resolve()
+        return path.parent, "mlflow", [find.Result("mlflow", path, path.name)], {}
     if path.is_file():
         kind = tool or find.classify_file(path)
         if kind is None:
@@ -601,6 +650,8 @@ def known_tool(path: str | Path, tool: str | None = None) -> str | None:
         return tool
     if path.is_file():
         return find.classify_file(path)
+    if find.is_mlflow_folder(path):
+        return "mlflow"
     if not path.is_dir():
         return None
     saved = _saved(path)
@@ -704,8 +755,35 @@ def rule_text(prompt) -> str | None:
         return None
     text = prompt.strip()
     if text.startswith("Criteria:"):
-        text = text[len("Criteria:"):].strip()
+        return _geval_rule(text)
     return text or None
+
+
+GEVAL_PARTS = " \n \n"  # how DeepEval joins the parts of a GEval prompt (readers/deepeval.py)
+
+
+def _geval_rule(text: str) -> str | None:
+    """A GEval rule: its criteria, or, for a GEval built with evaluation steps and no
+    criteria (saved as "None"), the steps, one numbered line each. Never "None"."""
+    parts = {}
+    for part in text.split(GEVAL_PARTS):
+        for name in ("Criteria:", "Evaluation Steps:", "Rubric:"):
+            if part.startswith(name):
+                parts[name] = part[len(name):].strip()
+    criteria = parts.get("Criteria:")
+    if criteria and criteria != "None":
+        return text[len("Criteria:"):].strip()
+    steps = parts.get("Evaluation Steps:")
+    if not steps or steps == "None":
+        return None
+    try:
+        listed = json.loads(steps)
+    except ValueError:
+        return steps
+    if not isinstance(listed, list):
+        return steps
+    listed = [" ".join(str(s).split()) for s in listed if str(s).strip()]
+    return "\n".join(f"{n}. {s}" for n, s in enumerate(listed, 1)) or None
 
 
 def rule_of(records) -> str | None:
@@ -727,6 +805,7 @@ def rubric_line(prompt) -> str | None:
     if text is None:
         return None
     line = next(line.strip() for line in text.splitlines() if line.strip())
+    line = re.sub(r"^1\.\s+", "", line)  # the first of numbered steps
     if len(line) <= RUBRIC_WIDTH:
         return line
     cut = line[:RUBRIC_WIDTH - 1]
@@ -756,23 +835,29 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
 def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
                experiment: str | None = None, pass_if: str | None = None,
                label_map: str | dict | None = None, judge_model: str | None = None,
-               talk: Talk | None = None, prefer: str | None = None) -> Found:
+               talk: Talk | None = None, prefer: str | None = None,
+               tracking_uri: str | None = None, store: str | None = None) -> Found:
     """Find the results, choose what to use, make the pool and name the judge.
 
     `talk` says each step and asks the questions; the default says nothing and, with no one
     to ask, stops (Stop) where a question would be needed. `prefer` (the judge of the last
-    check) is chosen without asking when the newest results hold it among several.
+    check) is chosen without asking when the newest results hold it among several; `store`
+    (the MLflow store of the last check) likewise. `tracking_uri` names the MLflow store.
     """
     talk = talk or Talk(quiet=True)
-    saved = _saved(Path(path)) if tool is None else None
+    saved = _saved(Path(path)) if tool is None and tracking_uri is None else None
     if saved is not None and saved.source != "map":
         tool = saved.source
     if saved is not None and saved.judge not in (None, "*"):
         prefer = prefer or saved.judge
-    if saved is not None and saved.source == "map":
+    if tracking_uri is not None:
+        root, kind, results, signs = _given_store(talk, Path(path), tracking_uri)
+    elif saved is not None and saved.source == "map":
         root, kind, results, signs = _mapped_source(talk, Path(path).resolve(), saved)
     else:
         root, kind, results, signs = _locate(talk, Path(path), tool)
+    if kind == "mlflow":
+        results = _choose_store(talk, root, results, experiment, store)
     newest = results[0]
     description = None
     if kind == "mlflow":
@@ -867,7 +952,90 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     return Found(root=root, tool=kind, results=results, used=[x.label for x in used],
                  metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs,
                  rule=rule, description=description, metrics=metrics,
-                 app_version=", ".join(versions) or None)
+                 app_version=", ".join(versions) or None,
+                 store=newest.rel if kind == "mlflow" else None)
+
+
+SERVERS = ("http://", "https://", "databricks")
+
+
+def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dict]:
+    """--tracking-uri: the local MLflow store it names (mlflow.db, `sqlite:///...`, an
+    mlruns/ folder or a `file:` address of one). A tracking server is read by
+    `judgekeeper import mlflow`, not by start."""
+    from judgekeeper.readers.mlflow_store import folder_of
+
+    text = str(uri)
+    if text.startswith(SERVERS):
+        raise StartError(f"judgekeeper start reads an MLflow store in your project (mlflow.db "
+                         f"or an mlruns/ folder); {uri} is a tracking server. To read it: "
+                         f"judgekeeper import mlflow --tracking-uri {uri} --experiment NAME")
+    if text.startswith("sqlite:///"):
+        store = Path(text[len("sqlite:///"):])
+    else:
+        store = folder_of(text) or Path(text)
+    if not store.exists():
+        raise StartError(f"no MLflow store at {uri}")
+    root = path.resolve() if path.is_dir() else path.resolve().parent
+    store = store.resolve()
+    rel = store.relative_to(root).as_posix() if store.is_relative_to(root) else str(store)
+    talk.say(f"Looking in {root} ...")
+    talk.say()
+    return root, "mlflow", [find.Result("mlflow", store, rel)], {}
+
+
+def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
+                  prefer: str | None) -> list:
+    """The MLflow store to read first, when the folder has several (mlflow.db and an
+    mlruns/ folder, say): the last check's (`prefer`), the one MLFLOW_TRACKING_URI names,
+    or the one that holds --experiment; else a question at a terminal, and without one the
+    first (mlflow.db before a folder store, MLflow's own choice since 3.16; then the newest),
+    naming how to read the other."""
+    if len(stores) < 2:
+        return stores
+
+    def first(store):
+        return [store, *[s for s in stores if s is not store]]
+
+    named = find._tracking_store(root, os.environ.get("MLFLOW_TRACKING_URI"))
+    for want in (root / prefer if prefer else None, named):
+        hit = next((s for s in stores if want is not None and s.path == want.resolve()), None)
+        if hit is not None:
+            return first(hit)
+    from judgekeeper.readers.mlflow_store import (
+        experiments_with_traces,
+        folder_store_allowed,
+        quiet,
+        store_uri,
+    )
+
+    stores = sorted(stores, key=lambda s: (s.path.is_dir(), -s.date().timestamp()))
+    names = []
+    for s in stores:
+        uri = store_uri(s.path, say=talk.say)
+        with quiet(), folder_store_allowed(uri, say=talk.say):
+            names.append(experiments_with_traces(uri))
+    if experiment is not None:
+        having = [s for s, n in zip(stores, names, strict=True) if experiment in n]
+        if not having:
+            raise _no_experiment(experiment, list(zip(stores, names, strict=True)))
+        if len(having) == 1:
+            return first(having[0])
+        names = [n for s, n in zip(stores, names, strict=True) if s in having]
+        stores = having
+    shown = [f"{_store_name(s)} ({', '.join(n) or 'no traces'})" for s, n in zip(
+        stores, names, strict=True)]
+    count = {2: "Two", 3: "Three"}.get(len(stores), str(len(stores)))
+    title = f"{count} MLflow stores found: {_and(shown)}."
+    if not _interactive():
+        talk.say(f"{title} Using {_store_name(stores[0])}.")
+        others = [talk.command_at(s.rel) for s in stores[1:]]
+        talk.say(f"For the other one: {others[0]}" if len(others) == 1
+                 else f"For another one: {_or(others)}")
+        return stores
+    chosen = stores[talk.choose(title, shown, "")]
+    talk.say(f"(Next time: {talk.command_at(chosen.rel)})")
+    return first(chosen)
 
 
 # What `start` says after finding ---------------------------------------------------------
@@ -975,8 +1143,11 @@ def more_answers(found: Found) -> list[str]:
         test_file = _head_value(found, _TEST_FILE)
         add = (f"  Add more test cases to {test_file}, then run: deepeval test run {test_file}"
                if test_file else "  Add more test cases, then run them with deepeval test run.")
-        return [add, COSTS, ("  Tip: set DEEPEVAL_RESULTS_FOLDER so DeepEval keeps every run, "
-                             "not only the latest.")]
+        kept = os.environ.get("DEEPEVAL_RESULTS_FOLDER") or any(
+            find.DEEPEVAL_RUN.fullmatch(r.path.name) for r in found.results)
+        tip = ("  Tip: set DEEPEVAL_RESULTS_FOLDER so DeepEval keeps every run, not only the "
+               "latest.")
+        return [add, COSTS] + ([] if kept else [tip])
     if found.tool == "inspect":
         inspect_eval = _inspect_eval(found)
         if inspect_eval is None:
@@ -1090,7 +1261,8 @@ def label_found(talk: Talk, found: Found, port: int, open_browser: bool) -> int:
 
 
 def run(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
-        experiment: str | None = None, pass_if: str | None = None,
+        experiment: str | None = None, tracking_uri: str | None = None,
+        pass_if: str | None = None,
         label_map: str | None = None, judge_model: str | None = None,
         yes: bool = False, port: int = DEFAULT_PORT, no_browser: bool = False,
         new: bool = False, review: bool = False, label_more: bool = False,
@@ -1107,15 +1279,17 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
     from judgekeeper import start_again
     from judgekeeper.again import AgainOptions
 
-    talk = Talk(yes=yes, flags=repeated_flags(
+    talk = Talk(yes=yes, path=path, flags=repeated_flags(
         path, port=port, no_browser=no_browser, tool=tool, metric=metric,
-        experiment=experiment, pass_if=pass_if, label_map=label_map, judge_model=judge_model,
-        times=times, python=python, fields=fields, judge_command=judge_command))
+        experiment=experiment, tracking_uri=tracking_uri, pass_if=pass_if,
+        label_map=label_map, judge_model=judge_model, times=times, python=python,
+        fields=fields, judge_command=judge_command))
     again_options = AgainOptions(times=times, python=python, fields=fields,
                                  judge_command=judge_command, judge_model=judge_model,
                                  allow_calls=allow_calls)
-    options = {"tool": tool, "metric": metric, "experiment": experiment, "pass_if": pass_if,
-               "label_map": label_map, "judge_model": judge_model}
+    options = {"tool": tool, "metric": metric, "experiment": experiment,
+               "tracking_uri": tracking_uri, "pass_if": pass_if, "label_map": label_map,
+               "judge_model": judge_model}
     try:
         then = ("review" if review else "ask" if ask_again else "try" if try_new_judge
                 else "label" if label_more else None)

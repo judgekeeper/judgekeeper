@@ -4,7 +4,9 @@ judgekeeper.toml (see mapper.py for the paths).
 One judged answer per item, side and judge: a record with the item's input, the side's
 output, the judge's name, and the verdict: a score with its pass/fail from the pass mark, or
 a verdict value as written (pass/fail, true/false, or what --label-map maps). The judge's
-model comes from the map's `model_key` (in the item or around it) or from the settings.
+model comes from the map's `model_key` (a path, in the item or around it) or from the
+settings; the pass mark from `pass_mark_key` (where the file states it, so each run's own)
+or from the settings.
 When the items are inside a unit (a JSONL line holding a list of cases: often one eval
 run), each unit is its own RecordList, newest (last) first, so `start` uses the newest run
 first, as it does for any other tool's files. When each line or row is itself one item (a
@@ -49,10 +51,11 @@ def read_mapped(path: str | Path, m: dict, label: str | None = None
             for item, up in found:
                 question = mapper.get(item, m["input"])
                 model = _model(item, up, m)
+                mark = {**m, "pass_mark": _pass_mark(item, up, m)}
                 for side in m.get("sides") or [None]:
                     answer = mapper.get(item, m["output"], side)
                     for judge in mapper.judges_read(m):
-                        records += _records(item, side, judge, question, answer, model, m,
+                        records += _records(item, side, judge, question, answer, model, mark,
                                             unnamed)
         except mapper.Missing:
             raise RecordsError(CHANGED_SHAPE) from None
@@ -103,11 +106,21 @@ def _records(item, side, judge, question, answer, model, m, unnamed) -> list[Sco
 def _model(item: dict, up: list, m: dict) -> str | None:
     key = m.get("model_key")
     if key:
-        for obj in (item, *reversed(up)):
-            value = obj.get(key) if isinstance(obj, dict) else None
-            if isinstance(value, str) and value.strip():
-                return value
+        value = mapper.value_around(item, up, key)
+        if isinstance(value, str) and value.strip():
+            return value
     return m.get("model")
+
+
+def _pass_mark(item: dict, up: list, m: dict):
+    """The pass mark the file states for this item or its run (pass_mark_key), else the
+    saved one."""
+    key = m.get("pass_mark_key")
+    if key:
+        value = mapper.number(mapper.value_around(item, up, key))
+        if value is not None:
+            return value
+    return m.get("pass_mark")
 
 
 __all__ = ["CHANGED_SHAPE", "read_mapped"]

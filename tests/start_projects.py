@@ -270,3 +270,50 @@ def odd_csv(path: Path, n: int = 36) -> Path:
         for i in range(n):
             w.writerow([i, question(i), answer(i), "0.8" if i % 2 else "0.3", f"why {i}"])
     return path
+
+
+COACH_CRITERIA = {"safe_wording": "Safe wording: gentle, never medical advice.",
+                  "helpful": "Helpful: answers the question with one next step."}
+
+
+def coach_runs_data(runs: int = 1, cases: int = 30, pass_mark: float = 0.7) -> list[dict]:
+    """A made-up study-break coach's results, one line per run, shaped like a homemade judge's
+    history: the run states its own pass mark and judge model (`judge.pass_mark`,
+    `judge.model`) next to the app's model (`app.model`), and two criteria in
+    `judge.criteria`. Each case has two answers (A and B), each with a score, a reason and
+    `passed` per criterion. Case `c` scores 0.9 on both when c % 3 == 0, 0.6 when c % 3 == 1
+    (a fail at 0.7, a pass at 0.5) and 0.2 when c % 3 == 2."""
+    lines = []
+    for r in range(runs):
+        rows = []
+        for c in range(cases):
+            score = (0.9, 0.6, 0.2)[c % 3]
+            case = {"case_id": f"q{c:02d}", "topic": "focus", "question": question(c),
+                    "answers": {}}
+            for side in ("A", "B"):
+                case["answers"][side] = {
+                    "prompt_version": "careful" if side == "A" else "sloppy",
+                    "text": answer(c, f" ({side}, run {r})"),
+                    "scores": {name: {"score": score, "reason": f"{name} {c}{side}",
+                                      "passed": score >= pass_mark}
+                               for name in COACH_CRITERIA}}
+            rows.append(case)
+        lines.append({"run_id": f"run-{r}", "started_at": f"2026-10-0{r + 1}T15:40:41+00:00",
+                      "app": {"model": "claude-haiku-4-5", "prompt_versions": ["careful",
+                                                                              "sloppy"]},
+                      "judge": {"model": "claude-sonnet-5", "temperature": 0.0,
+                                "pass_mark": pass_mark, "criteria": dict(COACH_CRITERIA)},
+                      "usage": {"judge": {"input_tokens": 100, "output_tokens": 50}},
+                      "cost_usd": 0.1, "cases": rows})
+    return lines
+
+
+def coach_project(root: Path, **kwargs) -> Path:
+    """A project with the coach's history in history/evals.jsonl, and a pyproject.toml."""
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "pyproject.toml").write_text('[project]\nname = "coach"\n', encoding="utf-8")
+    path = root / "history" / "evals.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(line) + "\n" for line in coach_runs_data(**kwargs)),
+                    encoding="utf-8")
+    return path

@@ -88,7 +88,13 @@ def _labels(ws: Workspace) -> dict[str, str]:
 
 
 def _project(path: Path) -> Path:
-    return path.resolve().parent if path.is_file() else path.resolve()
+    """The project folder: the folder of a results file or of an MLflow store given as the
+    path, so .judgekeeper/ is never made inside an mlruns/ folder."""
+    from judgekeeper import find
+
+    if path.is_file() or find.is_mlflow_folder(path):
+        return path.resolve().parent
+    return path.resolve()
 
 
 def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: bool,
@@ -98,25 +104,19 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
 
     ws = Workspace(_project(path)) if path.exists() else None
     has_result = ws is not None and ws.result_json.is_file() and ws.start.is_file()
+    if then in BEFORE and not has_result:
+        return _no_result_yet(path, ws, talk, then, options.get("tool"))
     if then == "review":
-        if not has_result:
-            talk.say(f"There is no result to review yet. Run {talk.command()} to label first.")
-            return start.EXIT_USAGE
         return start_review.run(ws, talk, port, open_browser)
     if then == "ask":
-        if not has_result:
-            return _nothing_to_ask(path, ws, talk, options.get("tool"))
         return _ask_again(ws, talk, again_options)
-    if then == "try" and not has_result:
-        talk.say(f"There is no result yet to try a new judge on. Run {talk.command()} to label "
-                 "first.")
-        return start.EXIT_USAGE
     if ws is not None and new:
         move_to_previous(ws, talk.say)
     elif ws is not None and ws.start.is_file():
         if not ws.result_json.is_file():
             return _unfinished(ws, talk, port, open_browser)
-        found = start.find_judge(path, talk=talk, prefer=ws.data()["metric"], **options)
+        found = start.find_judge(path, talk=talk, prefer=ws.data()["metric"],
+                                 store=ws.data().get("mlflow_store"), **options)
         return _again(ws, found, talk, port, open_browser, then, again_options)
     found = start.find_judge(path, talk=talk, **options)
     return start.label_found(talk, found, port, open_browser)
@@ -128,15 +128,31 @@ OWN_CODE = {"records": "Your judge runs in your own code",
             "table": "Your results are a table"}
 
 
-def _nothing_to_ask(path: Path, ws: Workspace | None, talk, tool: str | None) -> int:
-    """`--ask-again` before a result: what it will do once there are labels."""
+# `--review`, `--ask-again` and `--try-new-judge` before a result: (flag, why there is
+# nothing to do yet, what the flag does once there are labels).
+PLAN = "shows the plan (how many calls, the cost, the key's name) and asks before any call."
+BEFORE = {
+    "review": ("--review", "There is no result to review yet: a review needs your labels.",
+               "opens the answers where you and your judge disagree, to look at again."),
+    "ask": ("--ask-again", ("There is no result to ask about yet: asking your judge again "
+                            "needs your labels."), PLAN),
+    "try": ("--try-new-judge", ("There is no result yet to try a new judge on: trying one "
+                                "needs your labels."), PLAN),
+}
+
+
+def _no_result_yet(path: Path, ws: Workspace | None, talk, then: str, tool: str | None) -> int:
+    """A menu flag before a result: the exact command that labels first (with --yes when no
+    one can answer its question), and what the flag does after. Exit 2: not a question,
+    there is nothing to do yet."""
     from judgekeeper import start
 
+    flag, why, does = BEFORE[then]
     label = talk.command() if start._interactive() else talk.command("--yes")
-    talk.say("There is no result to ask about yet: asking your judge again needs your labels. "
-             f"Label first: {label}")
-    talk.say(f"Then {talk.command('--ask-again')} shows the plan (how many calls, the cost, the "
-             "key's name) and asks before any call.")
+    talk.say(f"{why} Label first: {label}")
+    talk.say(f"Then {talk.command(flag)} {does}")
+    if then != "ask":
+        return start.EXIT_USAGE
     if ws is not None and ws.start.is_file():
         tool = ws.data()["tool"]
     else:

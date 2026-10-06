@@ -17,6 +17,8 @@ The rules:
   MAX_JSON files. A table (CSV, TSV or JSONL with input, output and verdict columns) is read
   up to its header, and only TABLE_DEPTH folders deep.
 - Results over MAX_BYTES are listed, not read.
+- DeepEval's hidden copies of its newest run count once; when a results folder holds its
+  `test_run_*.json` files, those are read instead (_prefer_saved_runs).
 - Nothing is written, and SQLite stores are opened read-only (by the reader, later).
 """
 
@@ -50,7 +52,9 @@ SKIP_DIRS = frozenset({".git", "node_modules", ".venv", "venv", "site-packages",
 HIDDEN_KEPT = ".deepeval"
 RECORDS_DIR = Path(".judgekeeper") / "records"  # where judgekeeper.record() writes
 PROMPTFOO_CONFIGS = ("promptfooconfig.yaml", "promptfooconfig.yml", "promptfooconfig.json")
-DEEPEVAL_LATEST = ".latest_run_full.json"
+# DeepEval's hidden copies of its newest run, rewritten on every run: the full run, and the
+# run under a "testRunData" key (deepeval/test_run/test_run.py, DeepEval 4.2).
+DEEPEVAL_COPIES = (".latest_run_full.json", ".latest_test_run.json")
 DEEPEVAL_RUN = re.compile(r"test_run_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.json")
 VERDICT_COLUMNS = ("verdict", "judge_verdict", "judge")
 TABLE_SUFFIXES = (".csv", ".tsv", ".jsonl")
@@ -161,6 +165,20 @@ def is_records(columns) -> bool:
     return "annotator_kind" in columns or "schema_version" in columns
 
 
+def is_mlflow_folder(path: Path) -> bool:
+    """Whether `path` is an MLflow folder store (`mlruns/`): named mlruns, or holding what
+    MLflow writes there (`.trash`, an experiment folder with meta.yaml)."""
+    if not path.is_dir():
+        return False
+    if path.name == "mlruns" or (path / ".trash").is_dir():
+        return True
+    try:
+        return any(d.is_dir() and d.name.isdigit() and (d / "meta.yaml").is_file()
+                   for d in path.iterdir())
+    except OSError:
+        return False
+
+
 def classify_file(path: Path) -> str | None:
     """The tool whose results `path` is, or None. For a file named on the command line."""
     suffix = path.suffix.lower()
@@ -173,7 +191,7 @@ def classify_file(path: Path) -> str | None:
     if suffix in TABLE_SUFFIXES:
         return "table" if is_table(table_columns(path)) else None
     if suffix == ".json":
-        if DEEPEVAL_RUN.fullmatch(path.name) or path.name == DEEPEVAL_LATEST:
+        if DEEPEVAL_RUN.fullmatch(path.name) or path.name in DEEPEVAL_COPIES:
             return "deepeval"
         return sniff_json(_head(path))
     return None
@@ -277,7 +295,7 @@ class _Walk:
         elif suffix == ".eval":
             self.add("inspect", path, size)
         elif suffix == ".json":
-            if DEEPEVAL_RUN.fullmatch(name) or name == DEEPEVAL_LATEST:
+            if DEEPEVAL_RUN.fullmatch(name) or name in DEEPEVAL_COPIES:
                 self.add("deepeval", path, size)
             elif name != INSPECT_SKIP and self.json_sniffed < MAX_JSON:
                 self.json_sniffed += 1
@@ -381,13 +399,47 @@ def search(root: str | Path) -> Search:
         walk.folder(root)
     except _Stop:
         pass
-    _drop_latest_copy(walk.search)
+    _prefer_saved_runs(walk.search)
     return walk.search
 
 
-def _drop_latest_copy(found: Search) -> None:
-    """DeepEval writes `.latest_run_full.json` as a copy of its newest `test_run_*.json` when
-    it keeps every run; then the copy is left out."""
+def _run_of(path: Path):
+    """The test cases of a DeepEval run file, for comparing two files; None when unreadable."""
+    try:
+        if path.stat().st_size > MAX_BYTES:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError):
+        return None
+    if isinstance(data, dict) and isinstance(data.get("testRunData"), dict):
+        data = data["testRunData"]
+    if not isinstance(data, dict):
+        return None
+    return data.get("testCases"), data.get("conversationalTestCases")
+
+
+def _prefer_saved_runs(found: Search) -> None:
+    """DeepEval's hidden copies (DEEPEVAL_COPIES) count once per folder, the newest. When
+    a results folder holds `test_run_*.json` files, those are read and the copies left out;
+    a copy that holds a different run than the newest of them is named in a note."""
     runs = found.results.get("deepeval", [])
-    if any(DEEPEVAL_RUN.fullmatch(r.path.name) for r in runs):
-        found.results["deepeval"] = [r for r in runs if r.path.name != DEEPEVAL_LATEST]
+    copies: dict[Path, Result] = {}
+    for r in runs:
+        if r.path.name in DEEPEVAL_COPIES:
+            kept = copies.get(r.path.parent)
+            if kept is None or r.path.stat().st_mtime > kept.path.stat().st_mtime:
+                copies[r.path.parent] = r
+    saved = [r for r in runs if DEEPEVAL_RUN.fullmatch(r.path.name)]
+    if saved:
+        newest = max(saved, key=lambda r: r.date())
+        for copy in copies.values():
+            theirs, ours = _run_of(copy.path), _run_of(newest.path)
+            if theirs is not None and ours is not None and theirs != ours:
+                found.notes.append(
+                    f"DeepEval's hidden copy {copy.rel} holds a different run. Using the newest "
+                    f"file in your results folder, {newest.rel}; to use the other: judgekeeper "
+                    f"start {copy.rel}")
+        copies = {}
+    if "deepeval" in found.results:
+        found.results["deepeval"] = [r for r in runs if r.path.name not in DEEPEVAL_COPIES
+                                     or r in copies.values()]

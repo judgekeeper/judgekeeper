@@ -8,6 +8,7 @@ runs, touch nothing else, show the diff and wait for a yes, then check the recor
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -37,7 +38,7 @@ def test_the_python_snippet_is_printed(capsys):
     code, out, _ = run(capsys, "--snippet", "python")
     assert code == 0
     assert out == recorder.SNIPPETS["python"] + "\n"
-    assert len(recorder.SNIPPETS["python"].splitlines()) <= 17
+    assert len(recorder.SNIPPETS["python"].splitlines()) <= 36
 
 
 def test_the_typescript_snippet_is_printed(capsys):
@@ -160,3 +161,76 @@ def test_the_reference_shows_the_same_snippets_and_the_commands():
                     "judgekeeper record --snippet typescript",
                     "judgekeeper record --agent-prompt", "JUDGEKEEPER_RECORD=0"):
         assert command in text
+
+
+# The snippets take record()'s arguments and write what it writes ----------------------------
+
+CALLS = [
+    {"input": "Do you ship to Canada?", "output": "Yes, in 5 days.", "score": 0.82,
+     "pass_mark": 0.7, "reason": "Clear.", "judge": "claude-opus-5", "rule": "Be polite.",
+     "name": "Safe wording", "temperature": 0, "id": "q01A", "metadata": {"topic": "shipping"}},
+    {"input": {"question": "q"}, "output": "a", "score": 0.3, "pass_mark": 0.5,
+     "name": "Safe wording"},
+    {"input": "q2", "output": "a2", "verdict": False, "name": "Safe wording", "id": 7},
+    {"input": "q3", "output": "a3", "verdict": " PASS ", "name": "Safe wording"},
+    {"input": "q4", "output": "a4", "verdict": "maybe", "name": "Safe wording",
+     "metadata": {"pass_mark": 0.9}, "pass_mark": 0.5},
+    {"input": "q5", "output": "a5", "score": 0.4, "name": "Safe wording"},
+]
+
+
+def _lines(folder):
+    files = sorted(folder.glob("*.jsonl"))
+    assert len(files) == 1, files
+    rows = [json.loads(line) for line in files[0].read_text(encoding="utf-8").splitlines()]
+    for row in rows:
+        assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", row.pop("created_at"))
+    return files[0].name.rsplit("-", 1)[0], rows
+
+
+def _by_record(tmp_path, monkeypatch):
+    here = tmp_path / "record"
+    here.mkdir()
+    monkeypatch.chdir(here)
+    recorder._reset()
+    for call in CALLS:
+        recorder.record(**call)
+    return _lines(here / ".judgekeeper" / "records")
+
+
+def test_the_python_snippet_takes_the_arguments_of_record():
+    import inspect
+
+    space = {}
+    exec(recorder.SNIPPETS["python"], space)  # noqa: S102 - our own snippet
+    assert list(inspect.signature(space["jk_record"]).parameters) == list(
+        inspect.signature(recorder.record).parameters)
+
+
+def test_the_python_snippet_writes_what_record_writes(tmp_path, monkeypatch):
+    expected = _by_record(tmp_path, monkeypatch)
+    here = tmp_path / "snippet"
+    here.mkdir()
+    script = here / "eval.py"
+    script.write_text(recorder.SNIPPETS["python"] + "\n\nCALLS = " + repr(CALLS) +
+                      "\nfor call in CALLS:\n    jk_record(**call)\n", encoding="utf-8")
+    subprocess.run([sys.executable, "-I", str(script)], cwd=here, check=True)
+    assert _lines(here / ".judgekeeper" / "records") == expected
+
+
+@pytest.mark.skipif(not _node_runs_typescript() and not os.environ.get("JUDGEKEEPER_NEEDS_NODE"),
+                    reason="needs Node.js 22.18 or later")
+def test_the_typescript_snippet_writes_what_record_writes(tmp_path, monkeypatch):
+    expected = _by_record(tmp_path, monkeypatch)
+    here = tmp_path / "snippet"
+    here.mkdir()
+    calls = "\n".join(
+        f"jkRecord({json.dumps(c['input'])}, {json.dumps(c['output'])}, "
+        f"{json.dumps({k: v for k, v in c.items() if k not in ('input', 'output')})});"
+        for c in CALLS)
+    (here / "eval.ts").write_text(recorder.SNIPPETS["typescript"] + "\n\n" + calls + "\n",
+                                  encoding="utf-8")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("NODE_")}
+    subprocess.run(["node", "eval.ts"], cwd=here, check=True, env=env, capture_output=True)
+    name, rows = _lines(here / ".judgekeeper" / "records")
+    assert (name, rows) == expected

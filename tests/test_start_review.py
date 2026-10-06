@@ -667,7 +667,7 @@ def test_review_without_a_result_says_to_label_first(tmp_path, capsys, served):
     promptfoo_project(tmp_path, split(20, 16))
     code, out, _ = run(capsys, tmp_path, "--review")
     assert code == 2 and served == []
-    assert "There is no result to review yet." in out
+    assert "There is no result to review yet: a review needs your labels." in out
 
 
 def test_review_says_what_the_two_steps_are(tmp_path, capsys, served):

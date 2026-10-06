@@ -423,13 +423,18 @@ def _parser() -> argparse.ArgumentParser:
                         help="find your judge's saved results and check them against your own "
                              "labels")
     st.add_argument("path", nargs="?", default=".", metavar="PATH",
-                    help="your project folder (default: this folder), or one results file")
+                    help="your project folder (default: this folder), one results file, or "
+                         "an MLflow store (mlflow.db or an mlruns/ folder)")
     st.add_argument("--tool", choices=TOOLS,
                     help="which eval tool's results to use, when several are found")
     st.add_argument("--metric", metavar="NAME",
                     help="the judge metric or scorer to check, when the results hold several")
     st.add_argument("--experiment", metavar="NAME_OR_ID",
                     help="MLflow: the experiment to read, when several have judge results")
+    st.add_argument("--tracking-uri", metavar="URI",
+                    help="MLflow: the store to read, when the folder has several (mlflow.db, "
+                         "sqlite:///..., an mlruns/ folder or file:...; default: "
+                         "MLFLOW_TRACKING_URI when it names one)")
     _normaliser_args(st)
     st.add_argument("--judge-model", metavar="NAME",
                     help="the judge's model, when the results do not record it")
@@ -854,7 +859,7 @@ def cmd_start(args) -> int:
         print(AGENT_PROMPT)
         return 0
     return run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
-               pass_if=args.pass_if, label_map=args.label_map, judge_model=args.judge_model,
+               tracking_uri=args.tracking_uri, pass_if=args.pass_if, label_map=args.label_map, judge_model=args.judge_model,
                yes=args.yes, port=args.port, no_browser=args.no_browser, new=args.new,
                review=args.review, label_more=args.label_more, ask_again=args.ask_again,
                try_new_judge=args.try_new_judge,
