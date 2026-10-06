@@ -12,21 +12,22 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from share_preview import head  # the title, the description and the share-preview tags
+from site_frame import footer, head_links, header  # the frame every page shares
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS_URL = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/"
-PAGES = {  # source stem: (target page, title, description)
+PAGES = {  # source stem: (target page, title, description, who the page is for)
     "reference": ("reference.html", "Reference: every command and flag",
-                  "Every judgekeeper command, file format, flag, exit code and config key."),
+                  "Every judgekeeper command, file format, flag, exit code and config key.", ""),
     "own-metric": ("own-metric.html", "Your own metric", ("Write your own rule, label real "
-                   "outputs, run any judge, and read how often it agrees with your labels.")),
+                   "outputs, run any judge, and read how often it agrees with your labels."),
+                   "when you have no judge yet, or want to write your own rule"),
     "assistant": ("assistant.html", "With a coding assistant",
-                  "Hand the whole job to a coding assistant: install the skill or paste one prompt."),
+                  "Hand the whole job to a coding assistant: install the skill or paste one prompt.",
+                  "handing the whole job to a coding assistant, with the skill or one prompt"),
 }
-NAV = [("index.html", "Home"),
-       ("own-metric.html", "Your own metric"), ("start.html", "Use it on your app"),
-       ("assistant.html", "With a coding assistant"), ("reference.html", "Reference"),
-       ("https://github.com/judgekeeper/judgekeeper", "GitHub")]
+NEW_HERE = ('<p class="newhere">New here? Start with the <a href="start.html">Guide</a>. '
+            "This page is for {who}.</p>\n")
 
 PAGE = """<!doctype html>
 <html lang="en">
@@ -34,23 +35,16 @@ PAGE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {head}
-<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-<link rel="stylesheet" href="assets/style.css">
+{links}
 <script src="assets/site.js" defer></script>
 </head>
 <body>
-<a class="skip" href="#main">Skip to the content</a>
-<header class="site-header"><div class="wrap">
-<a class="brand" href="index.html"><img src="assets/logo.svg" alt="" width="28" height="32"> judgekeeper</a>
-<nav class="site-nav" aria-label="Site"><ul>
-{nav}</ul></nav>
-</div></header>
+{header}
 <main id="main" class="wrap narrow doc">
-{body}
+{new_here}{body}
 <p class="note">This page is generated from <a href="{source_url}">docs/{source}</a> by <code>scripts/{script}</code>.</p>
 </main>
-<footer class="site-footer"><div class="wrap">judgekeeper is free and open source (MIT).
-<a href="https://github.com/judgekeeper/judgekeeper">Source on GitHub</a>.</div></footer>
+{footer}
 </body>
 </html>
 """
@@ -127,21 +121,16 @@ def render(markdown: str) -> str:
     return "\n".join(out)
 
 
-def nav(target: str) -> str:
-    """The navigation bar every page carries, with `target` marked as the current page."""
-    current = ' aria-current="page"'
-    return "".join(f'<li><a href="{href}"{current if href == target else ""}>{label}</a></li>\n'
-                   for href, label in NAV)
-
-
 def build(source: Path, out: Path) -> None:
-    target, title, description = PAGES[source.stem]
+    target, title, description, who = PAGES[source.stem]
     body = render(source.read_text(encoding="utf-8"))
     if target == "assistant.html":  # commands and the prompt get a copy button (assets/site.js)
         body = body.replace("<pre>", '<div class="code"><pre>').replace("</pre>", "</pre></div>")
-    out.write_text(PAGE.format(head=head(target, title, description), nav=nav(target), body=body,
-                               source=source.name, source_url=DOCS_URL + source.name,
-                               script="render_reference.py"), encoding="utf-8", newline="\n")
+    out.write_text(PAGE.format(
+        head=head(target, title, description), links=head_links(), header=header(target),
+        footer=footer(), new_here=NEW_HERE.format(who=who) if who else "", body=body,
+        source=source.name, source_url=DOCS_URL + source.name, script="render_reference.py"),
+        encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

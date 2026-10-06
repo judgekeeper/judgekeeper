@@ -1,9 +1,11 @@
 /*
   judgekeeper website behaviour. Plain JavaScript, no libraries, no network requests.
 
-  Every page works without this file: all text is in the HTML. This file adds copy
-  buttons, the interactive numbers, the small toggles in "It keeps checking", the
-  install tabs and the bar widths in the real result.
+  Every page works without this file: all text is in the HTML. This file adds the theme
+  switch and the phone menu, copy buttons, the install tabs, the home page's two-verdicts
+  card, the Guide's rail and done ticks, the interactive numbers, the small toggles in
+  "It keeps checking" and the bar widths in the real result. What it keeps (the theme and
+  the ticked steps) stays in this browser, and every read or write is wrapped in try/catch.
 */
 (function () {
   "use strict";
@@ -15,16 +17,45 @@
   function num(el) { return el ? parseFloat(el.textContent) : NaN; }
   function fmt(x) { return x === null ? "n/a" : x.toFixed(2); }
 
+  // The theme switch: dark or light, kept in this browser (assets/theme.js reads it back).
+  function setUpTheme() {
+    var root = document.documentElement, button = $(".theme-btn");
+    if (!button) return;
+    function current() {
+      if (root.dataset.theme) return root.dataset.theme;
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
+    function label() {
+      button.setAttribute("aria-label", current() === "dark" ? "Switch to the light theme" : "Switch to the dark theme");
+    }
+    button.addEventListener("click", function () {
+      var next = current() === "dark" ? "light" : "dark";
+      root.dataset.theme = next;
+      try { window.localStorage.setItem("jk-theme", next); } catch (e) { /* kept for this page only */ }
+      label();
+    });
+    label();
+  }
+
+  // On a phone the navigation folds behind a Menu button.
+  function setUpMenu() {
+    var button = $(".menu-btn"), nav = $("#site-nav");
+    if (!button || !nav) return;
+    button.addEventListener("click", function () {
+      var open = nav.classList.toggle("open");
+      button.setAttribute("aria-expanded", String(open));
+    });
+  }
+
   // Copy buttons on every command block.
   function addCopyButtons() {
-    $all(".code pre, .install").forEach(function (block) {
-      var holder = block.classList.contains("install") ? block : block.parentNode;
+    $all(".code pre").forEach(function (block) {
+      var holder = block.parentNode;
       var button = document.createElement("button");
       button.type = "button";
       button.className = "copy";
       button.textContent = "Copy";
       button.setAttribute("aria-label", "Copy this command");
-      if (holder.classList.contains("install")) button.style.position = "static";
       button.addEventListener("click", function () {
         var text = $("code", block).textContent;
         var done = function () {
@@ -221,12 +252,91 @@
     });
   }
 
+  // Home: the two-verdicts card. An illustration: it never runs judgekeeper. The examples
+  // are the JSON in #verdict-examples; the first one is already in the HTML.
+  function setUpVerdicts() {
+    var card = $("#vcard"), next = $("#vnext");
+    if (!card || !next) return;
+    var examples = JSON.parse($("#verdict-examples").textContent), i = 0;
+    var tick = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    var cross = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>';
+    function agrees(e) { return (e.j === "Pass") === (e.y === "Correct"); }
+    function show() {
+      var e = examples[i % examples.length], seen = (i % examples.length) + 1, agreed = 0;
+      $("#vq").textContent = e.q; $("#va").textContent = e.a;
+      $("#vj").textContent = e.j; $("#vy").textContent = e.y;
+      $("#sj").className = "slip " + (e.j === "Pass" ? "pass" : "fail");
+      $("#sy").className = "slip " + (e.y === "Correct" ? "pass" : "fail");
+      var badge = $("#vb");
+      badge.className = "badge " + (agrees(e) ? "agree" : "disagree");
+      badge.innerHTML = agrees(e) ? tick + "They agree" : cross + "They disagree";
+      for (var k = 0; k < seen; k++) if (agrees(examples[k])) agreed++;
+      $("#vt b").textContent = agreed + " of " + seen;
+      ["#sj", "#sy", "#vb"].forEach(function (id) {
+        var el = $(id); el.classList.remove("in"); void el.offsetWidth; el.classList.add("in");
+      });
+    }
+    next.addEventListener("click", function () { i++; show(); });
+  }
+
+  // The Guide: done ticks kept in this browser, and the rail marks the step in view.
+  function loadDone() {
+    try { return JSON.parse(window.localStorage.getItem("jk-done") || "{}") || {}; } catch (e) { return {}; }
+  }
+  function setUpGuide() {
+    var rail = $(".rail");
+    if (!rail) return;
+    var links = $all(".rail ol > li > a"), done = loadDone();
+    function paint() { links.forEach(function (a, n) { a.classList.toggle("done", !!done[n + 1]); }); }
+    $all("input[data-step]").forEach(function (box) {
+      box.checked = !!done[box.getAttribute("data-step")];
+      box.addEventListener("change", function () {
+        done[box.getAttribute("data-step")] = box.checked;
+        try { window.localStorage.setItem("jk-done", JSON.stringify(done)); } catch (e) { /* this visit only */ }
+        paint();
+      });
+    });
+    paint();
+    var stops = links.map(function (a) { return $(a.getAttribute("href")); });
+    var ticking = false;
+    function update() {
+      ticking = false;
+      var cur = 0;
+      stops.forEach(function (el, n) { if (el && el.getBoundingClientRect().top < 220) cur = n; });
+      links.forEach(function (a, n) {
+        a.classList.toggle("on", n === cur);
+        if (n === cur) a.setAttribute("aria-current", "step"); else a.removeAttribute("aria-current");
+      });
+    }
+    window.addEventListener("scroll", function () {
+      if (!ticking) { ticking = true; window.requestAnimationFrame(update); }
+    }, { passive: true });
+    update();
+  }
+
+  // A link to a part inside a closed fold-out opens the fold-out first.
+  function openLinkedDetails() {
+    if (!location.hash || location.hash.length < 2) return;
+    var target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (!target) return;
+    for (var el = target; el; el = el.parentElement) {
+      if (el.tagName === "DETAILS") el.open = true;
+    }
+    target.scrollIntoView();
+  }
+
   function start() {
+    setUpTheme();
+    setUpMenu();
     addCopyButtons();
     setUpMatrix();
     setUpPanels();
     setUpTabs();
     setUpBars();
+    setUpVerdicts();
+    setUpGuide();
+    openLinkedDetails();
+    window.addEventListener("hashchange", openLinkedDetails);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();

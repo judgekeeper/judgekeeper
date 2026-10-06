@@ -49,7 +49,7 @@ First a plain sentence: of the answers people passed, how many the judge passed,
 
 ## Status
 
-Alpha (0.2.0): commands and report fields may still change. [Use it on your app](https://www.judgekeeper.com/start.html) explains `judgekeeper start`, [How it works](https://www.judgekeeper.com/learn.html) has the background, the [reference](https://www.judgekeeper.com/reference.html) has every command and flag, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed.
+Alpha (0.2.0): commands and report fields may still change. The [Guide](https://www.judgekeeper.com/start.html) explains `judgekeeper start`, [How it works](https://www.judgekeeper.com/learn.html) has the background, the [reference](https://www.judgekeeper.com/reference.html) has every command and flag, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed.
 
 ## Issues
 

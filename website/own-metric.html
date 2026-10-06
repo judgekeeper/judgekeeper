@@ -19,23 +19,26 @@
 <meta name="twitter:description" content="Write your own rule, label real outputs, run any judge, and read how often it agrees with your labels.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
+<script src="assets/theme.js"></script>
 <script src="assets/site.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
-<header class="site-header"><div class="wrap">
-<a class="brand" href="index.html"><img src="assets/logo.svg" alt="" width="28" height="32"> judgekeeper</a>
-<nav class="site-nav" aria-label="Site"><ul>
-<li><a href="index.html">Home</a></li>
-<li><a href="own-metric.html" aria-current="page">Your own metric</a></li>
-<li><a href="start.html">Use it on your app</a></li>
-<li><a href="assistant.html">With a coding assistant</a></li>
-<li><a href="reference.html">Reference</a></li>
-<li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li>
-</ul></nav>
-</div></header>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
+<nav class="site-nav" id="site-nav" aria-label="Site">
+<ul><li><a href="index.html">Home</a></li><li><a href="start.html">Guide</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul>
+</nav>
+<button class="theme-btn" type="button" aria-label="Switch to the light theme"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
+<button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+</div>
+</header>
 <main id="main" class="wrap narrow doc">
+<p class="newhere">New here? Start with the <a href="start.html">Guide</a>. This page is for when you have no judge yet, or want to write your own rule.</p>
 <h1 id="your-own-metric">Your own metric</h1>
 <p>Bring your own metric. judgekeeper checks it against your labels and tells you when that check is out of date. This page shows how, from an empty folder to a checked metric, with two worked examples on one rule.</p>
 <ul>
@@ -124,7 +127,13 @@ judgekeeper import deepeval deepeval/results/ --metric "Refund policy [GEval]" -
 <p>It does not write the rule for you. The rule is what you mean by good, and nobody else can say that. It does not label for you either: the labels are what the judge is checked against, and a label a model wrote proves nothing about the model. judgekeeper takes a rule and labels from you, runs the judge, and reports how often they agree.</p>
 <p class="note">This page is generated from <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/own-metric.md">docs/own-metric.md</a> by <code>scripts/render_reference.py</code>.</p>
 </main>
-<footer class="site-footer"><div class="wrap">judgekeeper is free and open source (MIT).
-<a href="https://github.com/judgekeeper/judgekeeper">Source on GitHub</a>.</div></footer>
+<footer class="site-footer">
+<div class="wrap cols">
+<div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
+<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with your labels; it never decides for you.</p></div>
+<div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
+<div><h2>More</h2><ul><li><a href="own-metric.html">No judge yet? Your own metric</a></li><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li><li><a href="tutorial.html">Advanced commands</a></li></ul></div>
+</div>
+</footer>
 </body>
 </html>
