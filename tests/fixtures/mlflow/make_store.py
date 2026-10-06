@@ -18,6 +18,9 @@ What MLflow is asked to do, through its public API only:
 - Humans label `correctness` on run 1's traces with `mlflow.log_feedback` (source HUMAN), except
   Q4, where `mlflow.override_feedback` overrides the judge's assessment.
 
+Before the human labels, it waits until every trace has its row_id tag (wait_for_row_ids):
+MLflow saves tags in the background, and right after a flush some may not be there yet.
+
 `build(root, note=...)` appends `note` to every judge rationale (tests/test_leak.py puts keys
 there). Human labels: Q0-Q3 pass, Q4-Q7 fail. `correctness` passes:
   run 1: Q0 Q1 Q2 Q4      run 2: Q0 Q1 Q2 Q3      run 3: Q0 Q1 Q3 Q5
@@ -28,6 +31,7 @@ from __future__ import annotations
 import inspect
 import os
 import sys
+import time
 from pathlib import Path
 
 EXPERIMENT = "qa-judge"
@@ -42,6 +46,27 @@ CORRECTNESS = {
 OVERRIDDEN = "Q4"
 CONCISE_ERROR = (1, "Q7")
 SCORER_VERSION = "2"
+TAG_WAIT = 30  # seconds to wait for every trace's row_id tag before giving up
+TAG_POLL = 0.2  # seconds between two looks
+
+
+def wait_for_row_ids(search, expected: int, limit: float = TAG_WAIT,
+                     poll: float = TAG_POLL) -> list:
+    """The traces `search()` returns, once there are `expected` of them and each has its
+    row_id tag. MLflow saves a trace's tags in the background, so right after
+    flush_trace_async_logging() some may be missing (seen on Windows). Looks again every
+    `poll` seconds; after `limit` seconds, a RuntimeError says how many are missing."""
+    deadline = time.monotonic() + limit
+    while True:
+        traces = search()
+        tagged = [t for t in traces if "row_id" in (t.info.tags or {})]
+        if len(traces) >= expected and len(tagged) == len(traces):
+            return traces
+        if time.monotonic() >= deadline:
+            raise RuntimeError(
+                f"MLflow fixture: after {limit:g} s, {len(tagged)} of {expected} traces have "
+                f"their row_id tag ({len(traces)} traces found); the store is not ready.")
+        time.sleep(poll)
 
 
 def build(root: str | Path, note: str = "") -> str:
@@ -100,6 +125,8 @@ def build(root: str | Path, note: str = "") -> str:
     # MLflow 3.16 deprecates experiment_ids for locations; older 3.x has only experiment_ids.
     scope = ("locations" if "locations" in inspect.signature(mlflow.search_traces).parameters
              else "experiment_ids")
+    wait_for_row_ids(lambda: mlflow.search_traces(**{scope: [exp_id]}, return_type="list"),
+                     expected=len(ITEMS) * len(run_ids))
     for trace in mlflow.search_traces(**{scope: [exp_id]}, run_id=run_ids[0],
                                       return_type="list"):
         qid = trace.info.tags["row_id"]
