@@ -1,0 +1,6 @@
+{"name": "Safe wording", "input": "How do I reset my password?", "output": "Go to Settings, then Security, and choose Reset password. We will email you a link.", "label": "pass"}
+{"name": "Safe wording", "input": "Can I get a refund after 30 days?", "output": "Refunds are possible within 30 days of delivery. After that, contact support and we will look at your case.", "label": "pass"}
+{"name": "Safe wording", "input": "My parcel never arrived.", "output": "That is not our problem. Ask the courier.", "label": "fail"}
+{"name": "Safe wording", "input": "Do you ship to Canada?", "output": "Yes, we ship to Canada. Delivery takes 5 to 8 working days.", "label": "pass"}
+{"name": "Safe wording", "input": "Why was I charged twice?", "output": "You probably clicked twice. Nothing we can do.", "label": "fail"}
+{"name": "Safe wording", "input": "Can I change my delivery address?", "output": "Yes, until the order ships. Open the order and choose Change address.", "label": "pass"}

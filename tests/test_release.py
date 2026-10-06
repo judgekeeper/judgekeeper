@@ -192,7 +192,8 @@ def test_wheel_ships_templates_and_plugin_and_no_demo(tmp_path):
     assert wheel.name == f"judgekeeper-{VERSION}-py3-none-any.whl"
     names = set(zipfile.ZipFile(wheel).namelist())
     for needed in ("judgekeeper/templates/single.md", "judgekeeper/templates/pairwise.md",
-                   "judgekeeper/pytest_plugin.py", "judgekeeper/label.py"):
+                   "judgekeeper/pytest_plugin.py", "judgekeeper/label.py",
+                   "judgekeeper/schemas/records.schema.json"):
         assert needed in names, needed
     for gone in ("judgekeeper/demo_data/", "judgekeeper/demo.py"):
         assert not any(name.startswith(gone) for name in names), gone
@@ -466,3 +467,17 @@ def test_security_policy_and_dependabot_exist():
     import yaml
     config = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8"))
     assert {u["package-ecosystem"] for u in config["updates"]} >= {"github-actions", "pip"}
+
+
+BUILD_TOOLS = {"ruff", "build", "hatchling"}  # in [dev] for the maintainer, not for the tests
+
+
+@pytest.mark.parametrize("workflow", ["ci.yml", "release.yml"])
+def test_the_installed_wheel_gets_every_package_the_tests_need(workflow):
+    """The wheel jobs list the test-only packages by hand: each one in [dev] must be there."""
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    needed = [d for d in project["optional-dependencies"]["dev"]
+              if re.split(r"[<>=\[ ]", d, maxsplit=1)[0] not in BUILD_TOOLS]
+    text = (WORKFLOWS / workflow).read_text(encoding="utf-8")
+    for dependency in needed:
+        assert f'"{dependency}"' in text, dependency

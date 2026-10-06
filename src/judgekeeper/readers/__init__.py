@@ -96,7 +96,7 @@ def import_results(tool: str, paths=(), metric: str | None = None, labels=None,
             metric = metric or options.get("judge_score")
             files = [read_langfuse(**options)]
         else:
-            files = read_mlflow(**options)
+            files = read_mlflow(**options, metric=metric)
         return records_to_report(files, kind=tool, metric=metric, labels=labels,
                                  pass_if=pass_if, label_map=label_map,
                                  runs_by_order=runs_by_order, out=out, anchors_out=anchors_out)

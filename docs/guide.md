@@ -213,7 +213,7 @@ Langfuse (judge and human scores from the public API; keys from `LANGFUSE_PUBLIC
 judgekeeper import langfuse --judge-score helpfulness --human-score helpfulness_human --from 2026-09-01 --pass-if "score>=0.5" --out reports/helpfulness/
 ```
 
-Each writes the same `report.json` and `report.html` as `check`. With `--anchors-out anchors.jsonl`, the MLflow and Langfuse imports also freeze the labeled items as an anchor set, so you can re-judge them with `judgekeeper judge` for a real noise floor. How to get each file, how labels get in and each tool's traps: [`docs/integrations/`](integrations/). Any other tool can export ScoreRecords (`target_id, name, annotator_kind, label, score, explanation, run, input, output, evaluator, created_at`) and use `judgekeeper import records`, with `--map` for renamed columns; `judgekeeper export records` writes judgekeeper's runs in that format.
+Each writes the same `report.json` and `report.html` as `check`. With `--anchors-out anchors.jsonl`, the MLflow and Langfuse imports also freeze the labeled items as an anchor set, so you can re-judge them with `judgekeeper judge` for a real noise floor. How to get each file, how labels get in and each tool's traps: [`docs/integrations/`](integrations/). Any other tool (or your own code) can write judgekeeper's records format (one JSON line per verdict: `name, input, output, label` or `score`, plus optional fields such as `evaluator` and `metadata`; see the [records format](reference.md#records-format-import-records-and-export-records)), check it with `judgekeeper import records records.jsonl --check`, and use `judgekeeper import records`, with `--map` for renamed columns; `judgekeeper export records` writes judgekeeper's runs in that format.
 
 ## First results
 

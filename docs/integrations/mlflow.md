@@ -39,6 +39,7 @@ Label one evaluation run's traces: ids come from the request input, so a label a
 - **Prompt and temperature.** The fingerprint has the model from `source.source_id` (the provider is the part before `:/`) and, for registered scorers, `scorerName@scorerVersion` as the rubric version. MLflow does not save the judge's prompt with its assessments, and scorer tracing is off by default, so the prompt hash is unknown and the report flags it. Temperature is unknown unless you pass `--temperature`.
 - **Errors.** A `Feedback` with an `error` (a judge that timed out) is an `error` verdict, with the error code and message as its rationale.
 - **CODE assessments** (a scorer that returns a bare bool or number) are not a judge and are ignored, with a note. Expectations (ground truth) are not verdicts and are not read.
+- **Span-level assessments.** An assessment logged on one span inside a trace (`span_id`) judges a step, not the answer. Only trace-level assessments (and those on the root span, where `evaluate` puts them) are read as the judge's verdicts; span-level ones are left out with a note, unless `--metric` names a judge that is only on spans. A judge on both never mixes them. The span id is kept in each record's `metadata`.
 - **One run.** With a single evaluation run the noise floor is "unknown". Re-run `evaluate`, or use the re-judge path below.
 
 ## Re-judge the labeled items

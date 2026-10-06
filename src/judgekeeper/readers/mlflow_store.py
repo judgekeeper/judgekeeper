@@ -23,6 +23,11 @@ or `expectation`, `rationale`, `metadata`, `overrides`, `valid`.
   `mlflow.sourceRun`. Runs are ordered by start time.
 - Trace ids change on every evaluation run, so the item id is derived from the trace's request
   input (`table.derive_id`), unless `id_from` names a trace tag or request input key.
+- An assessment can be on the whole trace or on one span inside it (`span_id`, kept in the
+  record's `metadata`). Only trace-level assessments are verdicts on the answer, so span-level
+  ones are left out, with a note, unless `metric` names a judge that is only on spans; a
+  judge on both never mixes them. An assessment on the root span is trace-level:
+  `mlflow.genai.evaluate` logs every assessment there.
 - Fingerprint: model from `source.source_id` (`openai:/gpt-4.1-mini` gives provider
   `openai`); `mlflow.assessment.scorerName`/`scorerVersion` metadata as the rubric version.
   The judge's prompt is not saved with the assessment, and scorer tracing is off by default,
@@ -122,6 +127,12 @@ def _content(trace) -> tuple:
     return _json(request), _json(response)
 
 
+def _root_span(trace) -> str | None:
+    """The id of the trace's root span (the one with no parent), or None."""
+    spans = getattr(getattr(trace, "data", None), "spans", None) or []
+    return next((s.span_id for s in spans if getattr(s, "parent_id", None) is None), None)
+
+
 def _item_id(trace, request, id_from: str | None) -> str | None:
     if id_from is None:
         return derive_record_id(request, None)
@@ -159,13 +170,14 @@ def _model(source_id: str | None) -> dict:
 
 
 def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
-                id_from: str | None = None, temperature: float | None = None
-                ) -> list[tuple[str, RecordList]]:
+                id_from: str | None = None, temperature: float | None = None,
+                metric: str | None = None) -> list[tuple[str, RecordList]]:
     """ScoreRecords from the traces of one MLflow experiment.
 
     Returns [(MLflow run id, judge records of that run)] in run start order, then
     ("human assessments", the human records): each run is one judgekeeper run. `run_ids` keeps
-    only those runs' judge assessments.
+    only those runs' judge assessments. `metric` (--metric) may name a judge whose
+    assessments are all on spans: then those are read too.
     """
     client = _client(tracking_uri)
     exp = _experiment(client, str(experiment))
@@ -178,6 +190,7 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
 
     judged: dict[str, RecordList] = {}
     humans = RecordList()
+    on_spans: list[tuple[str | None, ScoreRecord]] = []  # (run, record) of span assessments
     missing_ids = 0
     n_traces = 0
     for trace in _traces(client, exp.experiment_id):
@@ -188,6 +201,7 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
             missing_ids += 1
             continue
         trace_run = (trace.info.trace_metadata or {}).get(TRACE_SOURCE_RUN)
+        root = _root_span(trace)
         for a in trace.info.assessments or []:
             d = a.to_dictionary()
             feedback = d.get("feedback")
@@ -197,16 +211,21 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
                 continue
             label, score, error = _value(feedback)
             meta = d.get("metadata") or {}
+            span = d.get("span_id")
             common = {"target_id": item_id, "name": d.get("assessment_name"),
                       "label": label, "score": score, "input": request, "output": response,
-                      "created_at": d.get("create_time")}
-            if kind == CODE:
-                humans.append(ScoreRecord(annotator_kind=CODE, **common))
-                continue
-            if kind == HUMAN:
-                if d.get("valid") is False:
-                    continue  # overridden by a later human assessment
-                humans.append(ScoreRecord(annotator_kind=HUMAN, **common))
+                      "created_at": d.get("create_time"),
+                      "metadata": {"span_id": span} if span else {}}
+            if span == root:
+                span = None  # on the root span: a verdict on the whole answer
+            if kind == HUMAN and d.get("valid") is False:
+                continue  # overridden by a later human assessment
+            if kind in (CODE, HUMAN):
+                record = ScoreRecord(annotator_kind=kind, **common)
+                if span:
+                    on_spans.append((None, record))
+                else:
+                    humans.append(record)
                 continue
             run = meta.get(SOURCE_RUN_ID) or trace_run or NO_RUN
             if wanted and run not in wanted:
@@ -218,11 +237,24 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
             if temperature is not None:
                 evaluator["temperature"] = temperature
             explanation = error or d.get("rationale") or None
-            judged.setdefault(run, RecordList()).append(ScoreRecord(
-                annotator_kind=LLM, explanation=explanation, evaluator=evaluator, **common))
+            record = ScoreRecord(annotator_kind=LLM, explanation=explanation,
+                                 evaluator=evaluator, **common)
+            if span:
+                on_spans.append((run, record))
+            else:
+                judged.setdefault(run, RecordList()).append(record)
 
     if n_traces == 0:
         raise RecordsError(f"MLflow experiment {exp.name!r} has no traces")
+    on_traces = {r.name for recs in judged.values() for r in recs}
+    left_out = 0
+    for run, record in on_spans:
+        if metric is None or record.name != metric or metric in on_traces:
+            left_out += 1
+        elif run is None:
+            humans.append(record)
+        else:
+            judged.setdefault(run, RecordList()).append(record)
     if id_from is not None and missing_ids:
         raise RecordsError(f"--id-from {id_from}: {missing_ids} of {n_traces} traces have no "
                            f"tag or request input key {id_from!r}")
@@ -248,5 +280,10 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
                             "mlflow.genai.evaluate): they form one run, listed last.")
     humans.notes.append("MLflow does not save the judge's prompt with its assessments: prompt "
                         "hash unknown.")
+    if left_out:
+        what = "assessment" if left_out == 1 else "assessments"
+        humans.notes.append(f"{left_out} span-level {what} (on one step inside a trace, not "
+                            "on the answer) left out. To check a judge that is only on spans, "
+                            "name it with --metric.")
     files.append(("human assessments", humans))
     return files

@@ -81,11 +81,11 @@ judgekeeper validate anchors.jsonl runs/judge/ --out reports/judge/
 ```
 
 or from Python: `judgekeeper.check_judge(my_judge, "anchors.jsonl", runs=3)`. The function
-gets one item as a dict with `id`, `input` and `output` and returns True or False; if the
-project's judge takes something else, add a small wrapper file in the project folder.
+gets one item as a dict with `id`, `input` and `output` and returns True or False (if the project's judge takes something else, add a small wrapper file in the project folder).
 
-An eval framework (human labels from the tool, or `--labels labels.csv`):
+An eval framework (human labels from the tool, or `--labels labels.csv`), or results saved in judgekeeper's records format (one JSON line per verdict; run `--check` first, it lists every problem with its line):
 ```
+judgekeeper import records records.jsonl --check
 judgekeeper import promptfoo results.json --metric helpfulness --out reports/judge/
 judgekeeper import deepeval deepeval-results/ --labels labels.csv --out reports/judge/
 judgekeeper import inspect logs/ --labels labels.csv --out reports/judge/

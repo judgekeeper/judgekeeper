@@ -85,6 +85,17 @@ def scrub(text: str | None) -> str | None:
     return text
 
 
+def scrub_value(value):
+    """`value` with every string in it (inside lists and objects too) scrubbed."""
+    if isinstance(value, str):
+        return scrub(value)
+    if isinstance(value, list):
+        return [scrub_value(v) for v in value]
+    if isinstance(value, dict):
+        return {k: scrub_value(v) for k, v in value.items()}
+    return value
+
+
 def scrub_fingerprint(fp, seen: dict | None = None):
     """A fingerprint dict with every string value scrubbed. Anything else passes through.
 

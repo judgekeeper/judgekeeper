@@ -7,7 +7,8 @@ code; when there are too few answers it prints the command that makes more, and 
 runs it.
 
 The pool is every answer with a clear pass or fail from the judge. An answer is its input
-and output (`derive_record_id`), so a repeat of the same answer counts once: the newest
+and output, plus the agent's steps when the results keep them (`derive_record_id`), so a
+repeat of the same answer counts once: the newest
 results file wins, and inside it the majority of its verdicts, a tie going to fail. Verdicts
 that are errors or cannot be mapped are left out and counted.
 
@@ -41,6 +42,7 @@ from judgekeeper.records import (
     _consensus,
     _verdict_value,
     derive_record_id,
+    fingerprint_known,
 )
 from judgekeeper.redact import printable, scrub
 from judgekeeper.table import _blank, make_fingerprint, read_table
@@ -159,6 +161,7 @@ class Answer:
     score: float | None
     fingerprint: JudgeFingerprint
     source: str
+    agent: dict = field(default_factory=dict)  # trajectory, outcome, app_version: kept, not shown
 
 
 @dataclass
@@ -179,10 +182,7 @@ class Pool:
 
 
 def _known(evaluator: dict) -> dict:
-    known = dict(evaluator)
-    if "version" in known:
-        known["rubric_version"] = known.pop("version")
-    return known
+    return fingerprint_known(evaluator)
 
 
 def _identity(records: RecordList, metric: str) -> frozenset:
@@ -212,7 +212,8 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
             if v.verdict == ERROR:
                 pool.n_unclear += 1
                 continue
-            groups.setdefault(derive_record_id(r.input, r.output), []).append((r, v))
+            groups.setdefault(derive_record_id(r.input, r.output, r.trajectory),
+                              []).append((r, v))
         for key, judged in groups.items():
             if key in chosen:  # a newer file has this answer
                 pool.n_merged += len(judged)
@@ -224,7 +225,8 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
             chosen[key] = Answer(
                 id=key, input=r.input, output=r.output, verdict=verdict,
                 reason=v.rationale or r.explanation or "", score=v.raw_score,
-                fingerprint=make_fingerprint(_known(r.evaluator), r.created_at), source=source)
+                fingerprint=make_fingerprint(_known(r.evaluator), r.created_at), source=source,
+                agent=r.agent())
     pool.answers = list(chosen.values())
     return pool
 
@@ -233,7 +235,8 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
 
 def read_results_table(path: Path) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
-    column, when there is one, as human records (counted, not used)."""
+    column, when there is one, as human records (counted, not used). A `model` (or
+    `judge_model`) column names the judge's model, an `app_version` column the app's."""
     rows = read_table(path)
     columns = list(dict.fromkeys(k for row in rows for k in row))
     if "output_a" in columns and "output_b" in columns:
@@ -252,7 +255,9 @@ def read_results_table(path: Path) -> RecordList:
             name=verdict, annotator_kind=LLM,
             label=None if _blank(row.get(verdict)) else row[verdict],
             explanation=None if _blank(row.get("reason")) else str(row["reason"]),
-            evaluator={} if _blank(model) else {"model": str(model)}, **content))
+            evaluator={} if _blank(model) else {"model": str(model)},
+            app_version=None if _blank(row.get("app_version")) else str(row["app_version"]),
+            **content))
         if human and not _blank(row.get(human)):
             records.append(ScoreRecord(name=verdict, annotator_kind=HUMAN, label=row[human],
                                        **content))
@@ -302,9 +307,10 @@ def _has(module: str) -> bool:
     return True
 
 
-def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None
-                 ) -> tuple[str, list[Loaded]]:
-    """(experiment name, its runs newest first). The store is opened read-only."""
+def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
+                 metric: str | None = None) -> tuple[str, list[Loaded]]:
+    """(experiment name, its runs newest first). The store is opened read-only. `metric`
+    (--metric) may name a judge whose assessments are only on spans."""
     if not _has("mlflow"):
         raise _needs_extra(talk, "mlflow", f"{store.rel}/" if store.path.is_dir() else store.rel)
     if store.path.is_dir():
@@ -312,14 +318,14 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None
     else:
         uri = f"sqlite:///file:{store.path.as_posix()}?mode=ro&uri=true"
     if experiment is not None:
-        found = [(experiment, read_mlflow(experiment, tracking_uri=uri))]
+        found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
     else:
         from mlflow import MlflowClient
 
         found = []
         for exp in MlflowClient(tracking_uri=uri).search_experiments():
             try:
-                runs = read_mlflow(exp.name, tracking_uri=uri)
+                runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
             except RecordsError:  # an experiment with no traces
                 continue
             if any(r.annotator_kind == LLM for _, recs in runs for r in recs):
@@ -358,6 +364,7 @@ class Found:
     rule: str | None = None  # the judge's whole rule, as its results file holds it
     description: str | None = None  # promptfoo's `config.description` of the newest results
     metrics: list[str] = field(default_factory=list)  # every judge in the newest results
+    app_version: str | None = None  # the app's version in the pool, when the results say it
 
 
 def _or(items: list[str]) -> str:
@@ -575,8 +582,21 @@ def rule_text(prompt) -> str | None:
     return text or None
 
 
+def rule_of(records) -> str | None:
+    """The judge's whole rule: a record's `evaluator.rule` when it has one, else read from
+    the first saved prompt (rule_text)."""
+    for r in records:
+        rule = r.evaluator.get("rule")
+        if isinstance(rule, str) and rule.strip():
+            return rule.strip()
+    prompt = next((r.evaluator.get("prompt") for r in records if r.evaluator.get("prompt")),
+                  None)
+    return rule_text(prompt)
+
+
 def rubric_line(prompt) -> str | None:
-    """The first line of the judge's rule, cut to RUBRIC_WIDTH, or None."""
+    """The first line of the judge's rule (or of the rule in `prompt`), cut to
+    RUBRIC_WIDTH, or None."""
     text = rule_text(prompt)
     if text is None:
         return None
@@ -615,7 +635,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     newest = results[0]
     description = None
     if kind == "mlflow":
-        name, runs = _mlflow_runs(talk, newest, experiment)
+        name, runs = _mlflow_runs(talk, newest, experiment, metric)
         talk.say(f"{tick()} Your eval tool: MLflow ({newest.rel}, experiment {name})")
         read_older = iter(runs[1:])
         first = runs[0] if runs else None
@@ -662,15 +682,16 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                              f"({', '.join(models)}): drop --judge-model")
         fingerprint.update(model=judge_model, model_source=GIVEN_BY_YOU)
         models = [judge_model]
-    prompt = next((r.evaluator.get("prompt") for r in records if r.evaluator.get("prompt")),
-                  None)
-    rubric = rubric_line(prompt)
+    rule = rule_of(records)
+    rubric = rubric_line(rule)
     judge = _judge_name(kind, metric, rubric, models, judge_model is not None,
                         Path(newest.rel).name)
     talk.say(f"{tick()} Your judge: {judge}")
+    versions = sorted({a.agent["app_version"] for a in pool.answers if "app_version" in a.agent})
     return Found(root=root, tool=kind, results=results, used=[x.label for x in used],
                  metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs,
-                 rule=rule_text(prompt), description=description, metrics=metrics)
+                 rule=rule, description=description, metrics=metrics,
+                 app_version=", ".join(versions) or None)
 
 
 # What `start` says after finding ---------------------------------------------------------

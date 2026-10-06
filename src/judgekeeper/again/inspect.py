@@ -35,8 +35,13 @@ from judgekeeper.again import CLOSE, EXACT, Plan, cant, left_out_line, worker_ru
 from judgekeeper.again.fresh import Fresh
 from judgekeeper.anchors import canonical_json
 from judgekeeper.normalise import Normaliser, UnmappedValue
-from judgekeeper.readers.inspect_logs import DEFAULT_LABELS, _load, _model, scorer_prompt
-from judgekeeper.records import derive_record_id
+from judgekeeper.readers.inspect_logs import (
+    DEFAULT_LABELS,
+    _load,
+    _model,
+    sample_key,
+    scorer_prompt,
+)
 from judgekeeper.table import make_fingerprint
 
 MODEL_GRADED = {"model_graded_qa", "model_graded_fact"}
@@ -61,6 +66,18 @@ def cant_reason(name: str, options: dict, builtin: bool) -> str | None:
         return (f"your scorer's include_history was a function ({history}), which the log "
                 "saves only by name")
     return None
+
+
+def several_verdicts(metric: str, spec: dict) -> str | None:
+    """Why one key of a scorer that gives a dict of verdicts cannot be asked again, or None.
+
+    The reader names each key `<scorer>.<key>`; Inspect re-scores the whole scorer."""
+    scorer = metric.rpartition(".")[0]
+    names = {s.get("name") for s in spec.get("scorers") or [] if isinstance(s, dict)}
+    if not scorer or metric in names or scorer not in names:
+        return None
+    return (f"your judge {scorer} gives several verdicts at once ({metric} is one of them); "
+            "asking again about one of them is not supported yet")
 
 
 def _models(value) -> list[str]:
@@ -105,8 +122,7 @@ def _targets(root, files: list[str]) -> tuple[dict, dict]:
         for s in _load(root / rel).get("samples") or []:
             target = s.get("target")
             by_input.setdefault(canonical_json(s.get("input")), target)
-            by_id.setdefault(derive_record_id(s.get("input"),
-                                              (s.get("output") or {}).get("completion")), target)
+            by_id.setdefault(sample_key(s), target)
     return by_input, by_id
 
 
@@ -120,6 +136,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     scorer = next((s for s in spec.get("scorers") or [] if isinstance(s, dict)
                    and s.get("name") == metric), None)
     if scorer is None:
+        several = several_verdicts(metric, spec)
+        if several:
+            return cant("inspect", judge, several, short="your judge gives several verdicts at once")
         return cant("inspect", judge, f"your log no longer lists the scorer {metric}",
                     short="the scorer is not in your log")
     options = scorer.get("options") or {}
@@ -165,8 +184,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
 
     samples = {}
     for s in log.get("samples") or []:
-        key = derive_record_id(s.get("input"), (s.get("output") or {}).get("completion"))
-        samples.setdefault(key, s)
+        samples.setdefault(sample_key(s), s)
     if new:  # the marked answers, placed into the newest log's samples by the worker
         by_input, _ = _targets(root, data["results_files"])
         _, old_targets = _targets(root, (data.get("saved") or {}).get("results_files") or [])

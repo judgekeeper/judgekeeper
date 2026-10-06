@@ -9,13 +9,15 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
 - start.json: the tool, the results files used, the judge and its fingerprint, the pool
   counts, what was left out, the seed and the queue (ids and groups). Written when labeling
   starts.
-- pool.jsonl (id, input, output, in queue order) and pool-judge.jsonl (the judge's verdict on
-  every pool answer, in the run-file format, each line with the full fingerprint). Written
-  when labeling starts.
+- pool.jsonl (id, input, output, in queue order; plus trajectory, outcome and app_version
+  when the results have them, never shown on a page) and pool-judge.jsonl (the judge's
+  verdict on every pool answer, in the run-file format, each line with the full fingerprint).
+  Written when labeling starts.
 - labels.csv: the person's labels in the `template` shape, written on every click. A skipped
   answer has no label and the note "skipped".
 - anchors.jsonl and its manifest: the labeled answers as a frozen anchor set, so `judge`,
-  `baseline` and `gate` work on them later. Written with each result.
+  `baseline` and `gate` work on them later (with the pool's trajectory, outcome and
+  app_version, frozen too). Written with each result.
 - result.json and result.html, with the earlier result moved to history/.
 - review.json, judge-mistakes.csv and rule-unclear.csv: the review of the disagreements
   (start_review.py).
@@ -38,7 +40,8 @@ from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import JudgeFingerprint, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
 from judgekeeper.label import LabelSession, make_server
-from judgekeeper.redact import scrub, scrub_fingerprint
+from judgekeeper.records import AGENT_FIELDS
+from judgekeeper.redact import scrub_fingerprint, scrub_value
 from judgekeeper.report import KAPPA_GATE, RATE_CARE, RATE_GATE
 from judgekeeper.runners.base import Judgment
 from judgekeeper.start_page import label_page, result_page
@@ -100,13 +103,7 @@ class Workspace:
 
 def _scrubbed(value):
     """`value` with every string in it scrubbed of credentials."""
-    if isinstance(value, str):
-        return scrub(value)
-    if isinstance(value, list):
-        return [_scrubbed(v) for v in value]
-    if isinstance(value, dict):
-        return {k: _scrubbed(v) for k, v in value.items()}
-    return value
+    return scrub_value(value)
 
 
 def _write_json(path: Path, data) -> None:
@@ -168,7 +165,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     pool, records = [], []
     for q in queue:
         a = answers[q["id"]]
-        pool.append({"id": a.id, "input": a.input, "output": a.output})
+        pool.append({"id": a.id, "input": a.input, "output": a.output, **a.agent})
         fp = a.fingerprint.with_(model=found.fingerprint["model"]) if given else a.fingerprint
         records.append(judgment_to_record(a.id, Judgment(
             verdict=a.verdict, raw_score=a.score, rationale=a.reason), fp))
@@ -191,6 +188,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "judge": found.judge,
         "rule": found.rule,
         "description": found.description,
+        "app_version": found.app_version,
         "fingerprint": scrub_fingerprint(found.fingerprint),
         "pool": {"answers": len(p.answers), "pass": p.n_pass, "fail": p.n_fail},
         "pool_sha256": pool_sha,
@@ -586,7 +584,8 @@ def save_result(ws: Workspace, session: StartSession, say) -> dict:
     result moves to history/), and say it in the terminal."""
     r = compute(ws, session)
     anchors = [{"id": i["id"], "input": session.raw[i["id"]].get("input", ""),
-                "output": session.raw[i["id"]].get("output", ""), "human_label": i["label"]}
+                "output": session.raw[i["id"]].get("output", ""), "human_label": i["label"],
+                **{k: session.raw[i["id"]][k] for k in AGENT_FIELDS if k in session.raw[i["id"]]}}
                for i in session.items if i["label"]]
     if anchors:
         write_anchor_file(ws.anchors, _scrubbed(anchors))

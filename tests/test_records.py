@@ -51,13 +51,14 @@ def test_score_record_fields_and_kinds():
     assert r.target_id == "7" and r.annotator_kind == "HUMAN"
     assert r.evaluator == {"model": "m", "version": "v2"}
     d = r.to_dict()
-    assert list(d) == ["target_id", "name", "annotator_kind", "label", "score", "explanation",
-                       "run", "input", "output", "evaluator", "created_at"]
+    assert list(d) == ["schema_version", "target_id", "name", "annotator_kind", "label",
+                       "score", "explanation", "run", "input", "output", "evaluator",
+                       "created_at"]
     with pytest.raises(RecordsError, match="annotator_kind"):
         ScoreRecord.from_dict({"target_id": "x", "name": "q", "annotator_kind": "robot"})
     with pytest.raises(RecordsError, match="evaluator"):
         ScoreRecord.from_dict({"target_id": "x", "name": "q", "annotator_kind": "LLM",
-                               "evaluator": {"api_key": "nope"}})
+                               "evaluator": ["nope"]})
 
 
 def test_import_records_jsonl(tmp_path):

@@ -12,7 +12,7 @@ Every command, file format, flag, exit code and config key. The README has the s
 - [label: a local labeling page](#label-a-local-labeling-page)
 - [import: promptfoo, DeepEval and Inspect AI results](#import-promptfoo-deepeval-and-inspect-ai-results)
 - [import mlflow and import langfuse](#import-mlflow-and-import-langfuse)
-- [ScoreRecords: import records and export records](#scorerecords-import-records-and-export-records)
+- [Records format: import records and export records](#records-format-import-records-and-export-records)
 - [Unknown judge fields](#unknown-judge-fields)
 - [Your API keys](#your-api-keys)
 - [Gate CI on the judge](#gate-ci-on-the-judge)
@@ -288,6 +288,7 @@ The server uses only the standard library and binds `127.0.0.1`, never `0.0.0.0`
 ```
 judgekeeper import <tool> <path>... [--metric NAME] [--labels labels.csv] [--pass-if RULE] \
   [--label-map MAP] [--runs-by-order] [--id-var NAME] [--map MAP] --out reports/x/
+judgekeeper import records <path>... --check [--map MAP] [--pass-if RULE] [--label-map MAP]
 ```
 
 `<tool>` is `promptfoo`, `deepeval`, `inspect` or `records`. A path is a file, a directory or a quoted glob; files are read in the order given (a directory or glob in name order). The output is what `check` writes: `anchors.jsonl` with its manifest, `runs/run-NN.jsonl` and `report.json` / `report.html`, with `source.kind` set to the tool and `source.version` to the tool's own format version when the file states one (promptfoo `results.version`, Inspect `version`). Exit 0 on success, 2 on a usage error. Per-tool pages: [promptfoo](integrations/promptfoo.md), [DeepEval](integrations/deepeval.md), [Inspect AI](integrations/inspect.md).
@@ -298,6 +299,7 @@ judgekeeper import <tool> <path>... [--metric NAME] [--labels labels.csv] [--pas
 - `--runs-by-order`: number each item's verdicts in a file 1, 2, 3 in order of appearance, in place of any run index the file carries, instead of stopping when one run holds several verdicts for one item. Works with every tool. The promptfoo reader always numbers repeats this way, because promptfoo strips the repeat index.
 - `--id-var NAME` (promptfoo only): the test var holding the item id.
 - `--map MAP` (records only): see below.
+- `--check` (records only): check the files and say what judgekeeper reads in them, without writing a report. See [Records format](#records-format-import-records-and-export-records).
 
 How records become a report: human records become anchor labels, judge records become judgments and code records (promptfoo's `contains`, `javascript`, ...) are ignored with a note. Several files, or several run indices in one file (Inspect epochs, promptfoo repeats), become separate runs; an item a run does not judge is an error judgment in that run. With one run the noise floor is "unknown: one run supplied". An item with a verdict and no human label, or a label and no verdict, is dropped, counted in `source.n_judged_unlabeled` / `source.n_labeled_unjudged` and noted in the report. Ids that had to be derived (a hash of input and output, as in `check`) are noted too.
 
@@ -363,34 +365,48 @@ report = judgekeeper.import_results("langfuse", pass_if="score>=0.5", out="repor
                                             "max_items": None, "rate": 30})
 ```
 
-## ScoreRecords: import records and export records
+## Records format: import records and export records
 
-A ScoreRecord is one verdict. Field names follow OpenInference annotations, so other tools' exports map onto it by renaming:
+judgekeeper's own format for judge results: one judged answer per line of a JSONL file (CSV and TSV work too). Use it when your judge saves its results in a way judgekeeper does not read: write these lines, check them with `--check`, then `import records`. Field names follow OpenInference annotations, so other tools' exports map onto it by renaming. Only a verdict is needed in practice; every field is optional. The smallest useful line:
+
+```
+{"name": "Safe wording", "input": "Do you ship to Canada?", "output": "Yes, in 5 to 8 working days.", "label": "pass"}
+```
 
 | field | meaning |
 |---|---|
-| `target_id` | the item. Missing: derived from `input` and `output` as in `check`, and the report says so |
-| `name` | the metric or scorer (default `judge`); choose one with `--metric` |
+| `schema_version` | the format version: `2` now. A line without one is version 1, which has the same fields minus `metadata`, `rule`, `trajectory`, `outcome` and `app_version` |
+| `target_id` | the item. Missing: derived from `input` and `output` (and `trajectory`, when there is one) as in `check`, and the report says so |
+| `name` | the judge, metric or criterion (default `judge`); choose one with `--metric` |
 | `annotator_kind` | `LLM` (a judge verdict), `HUMAN` (a label) or `CODE` (ignored). Case-insensitive; `LLM_JUDGE` reads as `LLM`. Default `LLM` |
 | `label` | the verdict or label: `pass`/`fail`, `true`/`false`, a bool, or anything `--label-map` maps |
 | `score` | a number; read as the verdict with `--pass-if`, or when `label` is empty |
 | `explanation` | the judge's rationale |
 | `run` | repeat index, or empty. Without one, each file is one run (see `--runs-by-order`) |
 | `input`, `output` | the item's text (or any JSON) |
-| `evaluator` | `{provider, model, prompt, temperature, version}`; `version` is the rubric version, `prompt` is hashed. Also `prompt_hash`, `snapshot` and `endpoint`, which `export records` writes |
+| `evaluator` | the judge's identity: `{provider, model, prompt, temperature, version, rule}`; `version` is the rubric version, `prompt` is hashed. `rule` is the judge's rule in words (GEval criteria and steps, an llm-rubric value): `start` shows it as "Your judge's rule", and it is hashed into the prompt hash when there is no `prompt` or `prompt_hash`. Also `prompt_hash`, `snapshot` and `endpoint`, which `export records` writes |
 | `created_at` | when the verdict was made |
+| `metadata` | an open object for anything else: a criterion name, a run id, an A/B version. Kept and written again; never part of the judge's identity |
+| `trajectory` | for agents: the steps that led to the output, as OpenAI-style messages (`role`, `content`, `tool_calls` with `id`, `name` and `arguments`, `tool_call_id`). Kept in the frozen anchor set, because hosted traces expire; not shown on any page yet |
+| `outcome` | for agents: an automatic check of the result, `{passed, score, source, detail}`, e.g. `{"passed": true, "source": "unit tests"}` |
+| `app_version` | the version of the app or agent that gave the answer. When `start` re-checks and it changed, it says so, as it does for a changed judge |
+
+Fields judgekeeper does not know are kept, at the top level and inside `evaluator`, and written again; a file of a newer version is read as far as this version understands it, with one warning. A line over 1 MB is kept, with a warning. The rules are published as a JSON Schema (draft 2020-12): [records.schema.json](records.schema.json), also inside the package as `judgekeeper/schemas/records.schema.json`. Example files: [minimal.jsonl](examples/records/minimal.jsonl) (four fields per line), [full.jsonl](examples/records/full.jsonl) (every field) and [with-human-labels.jsonl](examples/records/with-human-labels.jsonl).
 
 HUMAN records label the metric they are named after, or any metric when their name is not a judge metric in the file (promptfoo's ratings are named `human`).
 
 ```
+judgekeeper import records records.jsonl --check
 judgekeeper import records records.jsonl --out reports/x/
 judgekeeper import records export.csv --map "target_id=trace_id,name=metric,label=value,explanation=comment,annotator_kind=source" --out reports/x/
 judgekeeper export records reports/x/ -o records.jsonl
 ```
 
-`import records` reads JSONL, CSV or TSV. `--map` takes `field=column` pairs; evaluator fields are `evaluator.model=judge_model` and so on (a CSV can also have `evaluator.model` columns, or an `evaluator` column holding JSON). A mapped column that does not exist is a usage error listing the columns.
+`import records --check` writes nothing. For each file it prints the number of records and the format version, the pass/fail split per judge (with the `--pass-if` and `--label-map` you give), the human labels, the first 3 records in plain words, the fields it kept without knowing them, and every problem with its line number. Exit 0 when the file is usable (no problems, and at least one judge verdict reads as pass or fail), 2 when not. An import stops at the first problem, with its line number.
 
-`export records <dir> -o records.jsonl [--anchors anchors.jsonl]` writes judgekeeper's runs and anchors as ScoreRecords: one HUMAN record per anchor item and one LLM record per judgment, with the judgment's fingerprint as `evaluator` (the prompt as `prompt_hash`) and error judgments as an empty `label`. `<dir>` is a directory `check` or `import` wrote (or its `report.json`), or a runs directory with `--anchors`. `import records` on the result gives the same report. Single-output anchor sets only; `slice` and `notes` are not carried.
+`import records` reads JSONL, CSV or TSV. `--map` takes `field=column` pairs; evaluator fields are `evaluator.model=judge_model` and so on (a CSV can also have `evaluator.model` columns, or an `evaluator` column holding JSON; `metadata`, `trajectory` and `outcome` cells hold JSON too). A mapped column that does not exist is a usage error listing the columns.
+
+`export records <dir> -o records.jsonl [--anchors anchors.jsonl]` writes judgekeeper's runs and anchors as records (version 2): one HUMAN record per anchor item and one LLM record per judgment, with the judgment's fingerprint as `evaluator` (the prompt as `prompt_hash`) and error judgments as an empty `label`. `<dir>` is a directory `check` or `import` wrote (or its `report.json`), or a runs directory with `--anchors`. `import records` on the result gives the same report. Single-output anchor sets only; `slice` and `notes` are not carried.
 
 ## Unknown judge fields
 
