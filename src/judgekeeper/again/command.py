@@ -7,9 +7,13 @@ from __future__ import annotations
 
 from judgekeeper import prices
 from judgekeeper.again import OWN, Plan, cant
-from judgekeeper.custom import split_command
+from judgekeeper.again.fresh import Fresh, new_folder
+from judgekeeper.custom import CustomRunner, exec_judge, split_command
 from judgekeeper.keys import provider_of
+from judgekeeper.metrics import ERROR
+from judgekeeper.normalise import Normaliser
 from judgekeeper.start_label import display
+from judgekeeper.table import make_fingerprint
 
 
 def plan(ws, answers: list[dict], opts) -> Plan:
@@ -32,4 +36,29 @@ def plan(ws, answers: list[dict], opts) -> Plan:
                 cost_text=None if model else
                 "Cost unknown: name your command's model with --judge-model.",
                 side_effects=[("Your app is not run. Your command gets one answer at a time, "
-                               "as JSON on stdin.")])
+                               "as JSON on stdin.")], payload=list(answers), runner=[command])
+
+
+def run(ws, plan: Plan, talk) -> Fresh:
+    """Run the command once per answer per time: {id, input, output} as JSON on stdin."""
+    command = plan.runner[0]
+    known = {"model": plan.model} if plan.model else {}
+    fingerprint = make_fingerprint(known)
+    runner = CustomRunner(exec_judge(command), Normaliser(), fingerprint,
+                          source={"kind": "command", "command": command})
+    fresh = Fresh(folder=new_folder(ws), fingerprint=fingerprint.to_dict(),
+                  source={"kind": "command", "file": command})
+    answers = plan.payload_answers()
+    got: dict[str, list] = {a["id"]: [] for a in answers}
+    for _ in range(plan.times):
+        for a in answers:
+            got[a["id"]].append(runner.judge({"id": a["id"], "input": a["input"],
+                                              "output": a["output"]}))
+    for item_id, judgments in got.items():
+        if any(j.verdict in (ERROR, None) for j in judgments):
+            fresh.not_counted[item_id] = "no clear verdict"
+            continue
+        fresh.verdicts[item_id] = [j.verdict for j in judgments]
+        fresh.scores[item_id] = [j.raw_score for j in judgments]
+        fresh.reasons[item_id] = [j.rationale or "" for j in judgments]
+    return fresh

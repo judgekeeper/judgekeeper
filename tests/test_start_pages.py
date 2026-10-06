@@ -269,10 +269,12 @@ def test_make_it_reliable_says_the_real_numbers_still_needed():
     assert "Make it a reliable result" not in reliable
 
 
-def test_what_next_holds_only_the_two_steps():
+def test_what_next_holds_the_three_steps():
     html = start_label.result_html(_result(*CHECK), back="/?token=t")
     assert re.findall(r"<li><b>(.*?)</b>", html) == ["Make it a reliable result",
+                                                    "Ask your judge again",
                                                     "Check again later"]
+    assert "<code>judgekeeper start --ask-again</code>" in html  # a command: no button
     assert "<b>Check again later</b>After your next eval run: <code>judgekeeper start</code>" \
         in _flat(html)
     assert ("Saved in <code>.judgekeeper/</code> in your project. This page is "

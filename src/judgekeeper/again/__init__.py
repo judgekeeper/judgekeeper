@@ -19,8 +19,11 @@ script (`workers/`) run with the user's own Python, which builds the judge and c
 no API call. judgekeeper never imports DeepEval, Inspect AI or MLflow itself for this. The
 menu's line uses a plan made without `dry`: it runs nothing.
 
-Every process goes through `run_process`, which tests replace. Asking for real (the calls,
-after a yes) is not switched on yet: the plan is printed and nothing is run.
+Every process goes through `run_process`, which tests replace. After the plan, `approve` asks
+before anything is spent (default No; `--yes` never answers it; without a terminal only
+`--allow-calls N` does). Asking for real is switched on for promptfoo and for the user's own
+judge command (`promptfoo.run`, `command.run`, then `fresh.finish`); for DeepEval, Inspect AI
+and MLflow the plan is shown and nothing runs yet.
 """
 
 from __future__ import annotations
@@ -55,6 +58,7 @@ class AgainOptions:
     fields: str | None = None  # --fields, DeepEval GEval: the parts the judge reads
     judge_command: str | None = None
     judge_model: str | None = None
+    allow_calls: int | None = None  # --allow-calls
 
 
 @dataclass
@@ -78,6 +82,15 @@ class Plan:
     side_effects: list[str] = field(default_factory=list)
     labeled: int = 0  # every labeled answer, asked or left out
     settings: list[str] = field(default_factory=list)  # setting variable names that are set
+    tool_version: str | None = None
+    key_ok: bool = True  # the key the judge needs was found (by name)
+    runner: list[str] = field(default_factory=list)  # the command that runs the tool
+    download: bool = False  # the runner downloads the tool first (npx)
+    payload: list = field(default_factory=list)  # per asked answer, for the tool's run
+
+    def payload_answers(self) -> list[dict]:
+        """The asked answers ({id, input, output, label, verdict}), in order."""
+        return [p[0] if isinstance(p, tuple) else p for p in self.payload]
 
     @property
     def answers(self) -> int:
@@ -272,7 +285,7 @@ def approve(p: Plan, talk, allow_calls: int | None) -> bool:
         if allow_calls >= p.calls:
             return True
         talk.say(f"--allow-calls {allow_calls:,} is below the {p.calls:,} calls planned. "
-                 "Nothing was asked.")
+                 "Your judge was not called; nothing was spent.")
         raise Stop(EXIT_USAGE)
     if p.calls > ALWAYS_ASK_ABOVE:
         talk.say(f"More than 1,000 calls: to go ahead, run {flag}")
