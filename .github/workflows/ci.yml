@@ -65,7 +65,7 @@ jobs:
       - name: Run the test suite against the installed wheels
         run: |
           "$RUNNER_TEMP/venv/bin/pip" install --find-links dist dist/pytest_judgekeeper-*.whl \
-            "pytest>=8" "pyyaml>=6"
+            "pytest>=8" "pyyaml>=6" "jsonschema>=4.18"
           "$RUNNER_TEMP/venv/bin/python" -c 'import judgekeeper, sys; assert "site-packages" in judgekeeper.__file__, judgekeeper.__file__'
           "$RUNNER_TEMP/venv/bin/python" -m pytest -p no:cacheprovider
 
