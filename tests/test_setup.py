@@ -434,3 +434,37 @@ def test_no_dev_requirements_file_changes_nothing(tmp_path):
     assert change.apply is None
     assert change.text == ("judgekeeper is not listed in your project's requirements; add it "
                            "so teammates get it")
+
+
+def _bullets(out: str) -> list[str]:
+    return [line for line in out.splitlines() if line.startswith("  • ")]
+
+
+@pytest.mark.parametrize("shape", ["requirements-dev", "pyproject", "settings-file", "none"])
+def test_the_change_list_never_repeats_a_line(tmp_path, capsys, shape):
+    """Each change is named once in the list, and confirmed once after the yes."""
+    nested_runs_project(tmp_path, rule_rows=0, requirements_dev=shape == "requirements-dev")
+    if shape == "pyproject":
+        (tmp_path / "pyproject.toml").write_text(PYPROJECT_GROUPS, encoding="utf-8")
+    if shape == "settings-file":
+        (tmp_path / "judgekeeper.toml").write_text("[gate]\nkappa_min = 0.7\n",
+                                                    encoding="utf-8")
+    code, out = setup(capsys, tmp_path, "--yes", "--metric", "Safe wording")
+    assert code == 0, out
+    bullets = _bullets(out)
+    assert bullets and len(bullets) == len(set(bullets)), bullets
+    done = [line for line in out.splitlines() if line.startswith("✓ ")]
+    assert len(done) == len(set(done)), done
+    assert len(done) == sum("is not listed" not in b for b in bullets)
+
+
+def test_the_change_list_without_a_terminal_names_each_change_once(tmp_path, capsys):
+    """A flat file with one judge asks nothing, so without a terminal the list prints."""
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "requirements-dev.txt").write_text("pytest\n", encoding="utf-8")
+    flat_jsonl(tmp_path / "evals" / "graded.jsonl")
+    code, out = setup(capsys, tmp_path)
+    assert code == 2
+    bullets = _bullets(out)
+    assert len(bullets) == 3 and len(set(bullets)) == 3
+    assert sum("requirements-dev.txt" in line for line in out.splitlines()) == 1
