@@ -32,7 +32,7 @@ from pathlib import Path
 from judgekeeper import find, settings
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.metrics import ERROR
-from judgekeeper.normalise import Normaliser, UnmappedValue, _example, parse_label_map
+from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map, unmapped_error
 from judgekeeper.readers import read_deepeval, read_inspect, read_mlflow, read_promptfoo
 from judgekeeper.readers.inspect_logs import DEFAULT_PROMPT
 from judgekeeper.readers.promptfoo import is_stripped_warning
@@ -1081,11 +1081,8 @@ def _say_pool(talk: Talk, found: Found) -> None:
         talk.say("  " + (f"{pool.n_unclear} answers had no clear verdict and were left out."
                          if pool.n_unclear != 1 else
                          "1 answer had no clear verdict and was left out."))
-    if pool.unmapped:
-        words = [str(v) for v in pool.unmapped]
-        shown = ", ".join(repr(w) for w in words[:5])
-        talk.say(f"  To count {shown}, map {'it' if len(words) == 1 else 'them'} with "
-                 f'--label-map, e.g. --label-map "{_example(words)}"')
+    if pool.unmapped:  # stop: a result without those answers would be wrong
+        raise StartError(str(unmapped_error(pool.unmapped)))
     if pool.n_human:
         where = (f"{Path(found.used[0]).name} also holds" if len(found.used) == 1
                  else "These results also hold")

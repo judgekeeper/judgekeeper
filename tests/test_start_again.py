@@ -22,6 +22,7 @@ from judgekeeper import start, start_label
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace, save_result
 from judgekeeper.textio import quote_arg
+from tests import keyboard
 from tests.start_projects import promptfoo_data, promptfoo_project, split
 
 
@@ -64,7 +65,7 @@ def terminal(monkeypatch):
 
     def fake_input(prompt=""):
         print(prompt)
-        return answers.pop(0) if answers else ""
+        return answers.pop(0) if answers else keyboard.enter()
 
     monkeypatch.setattr(builtins, "input", fake_input)
     return answers
@@ -133,7 +134,7 @@ def test_the_same_results_offer_to_label_more(tmp_path, capsys, served, terminal
 
 def test_the_same_results_say_how_far_the_last_result_got(tmp_path, capsys, served, terminal):
     _checked(tmp_path, n_pass=20, n_fail=16)
-    terminal.append("3")
+    terminal.append("2")  # 1 Ask again, 2 Nothing for now: every answer is labeled
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "): rough check (20 Correct, 16 Wrong)." in out
@@ -141,10 +142,11 @@ def test_the_same_results_say_how_far_the_last_result_got(tmp_path, capsys, serv
 
 def test_nothing_for_now_stops(tmp_path, capsys, served, terminal):
     _checked(tmp_path)
-    terminal.append("3")
+    terminal.append("2")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and served == []
-    assert "  3. Nothing for now" in out
+    assert "  2. Nothing for now" in out
+    assert "Label more" not in out  # every saved answer is labeled
 
 
 # Re-check --------------------------------------------------------------------------------
@@ -283,3 +285,11 @@ def test_new_with_nothing_saved_is_the_full_flow(tmp_path, capsys, served):
     promptfoo_project(tmp_path, split(20, 16))
     code, out, _ = run(capsys, tmp_path, "--new", "--yes")
     assert code == 0 and "Moved" not in out and len(served) == 1
+
+
+def test_an_unknown_new_prompt_is_not_called_a_change():
+    from judgekeeper.start_again import judge_change
+
+    assert judge_change({"prompt_hash": "abc"}, {"prompt_hash": None}) == \
+        "the prompt was recorded, now not recorded"
+    assert judge_change({"prompt_hash": "abc"}, {"prompt_hash": "def"}) == "the prompt changed"

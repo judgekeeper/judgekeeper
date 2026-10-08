@@ -15,6 +15,7 @@ from judgekeeper.again import AgainOptions, approve, make_plan, plan_lines
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, save_result
 from judgekeeper.textio import quote_arg
+from tests import keyboard
 from tests.start_projects import promptfoo_project, split, table_project
 
 
@@ -413,7 +414,7 @@ def terminal(monkeypatch):
 
     def fake_input(prompt=""):
         print(prompt)
-        return answers.pop(0) if answers else ""
+        return answers.pop(0) if answers else keyboard.enter()
 
     monkeypatch.setattr(builtins, "input", fake_input)
     return answers
@@ -509,15 +510,22 @@ def test_the_menu_line_and_choice(tmp_path, capsys, terminal, no_processes, monk
     assert "Your judge was not called; nothing was spent." in out
 
 
-def test_the_menu_says_why_a_judge_cant_be_asked(tmp_path, capsys, terminal):
-    _checked(tmp_path, maker=table_project)
-    terminal.append("1")
+def test_the_menu_leaves_out_asking_a_judge_it_cannot_run(tmp_path, capsys, terminal):
+    _checked(tmp_path, maker=table_project, labeled=10)
+    terminal.append("2")  # 1 Label more, 2 Nothing for now
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert ("  1. Ask your judge again about your 36 labeled answers   (can't: your judge's "
-            "verdicts are a table)") in out
-    assert "Your judge can't be asked again:" in out
-    assert "not switched on yet" not in out
+    assert "Ask your judge again" not in out and "can't" not in out
+    assert "  1. Label more\n  2. Nothing for now" in out
+
+
+def test_with_nothing_left_to_do_there_is_no_menu(tmp_path, capsys, terminal):
+    _checked(tmp_path, maker=table_project)  # every answer labeled, no disagreement
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0
+    assert "Choose" not in out and "Label more" not in out
+    assert ("Every saved answer is labeled. After your next eval run, run judgekeeper start "
+            "again.") in out
 
 
 def test_ask_again_without_a_result(tmp_path, capsys):

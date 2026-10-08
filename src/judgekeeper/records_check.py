@@ -23,7 +23,7 @@ from judgekeeper.normalise import (
     PASS_IF_EXAMPLE,
     Normaliser,
     UnmappedValue,
-    _example,
+    label_map_hint,
     parse_label_map,
 )
 from judgekeeper.records import (
@@ -223,8 +223,8 @@ def _judge_line(name: str, records: list[ScoreRecord], norm: Normaliser) -> tupl
     if counts["unmapped"]:
         words = [str(v) for v in unmapped]
         parts.append(f"{_plural(counts['unmapped'], 'value')} judgekeeper cannot map "
-                     f"({', '.join(repr(w) for w in words[:5])}; add --label-map "
-                     f'"{_example(words)}")')
+                     f"({', '.join(repr(w) for w in words[:5])}; add "
+                     f"{label_map_hint(words)})")
     return f'  Judge "{name}": {", ".join(parts)}.', counts["pass"] + counts["fail"]
 
 

@@ -76,6 +76,8 @@ VERDICTS = {
     None: "Too few labels to tell yet. Label more for a rough check.",
 }
 CHECKS = {"reliable": "reliable result", "rough": "rough check", "too_few": "too few labels"}
+ASKABLE = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools whose judge can be run again
+ALL_LABELED = "Every saved answer is labeled. Run your evals again for more answers, then:"
 
 
 class Workspace:
@@ -309,6 +311,10 @@ def _pct(x: float) -> str:
 
 
 def sentences(r: dict) -> list[str]:
+    if r["check"] == "too_few":
+        labels = r["labels"]
+        return [(f"A rough check needs {ROUGH} you mark Correct and {ROUGH} you mark Wrong. "
+                 f"So far: {labels['correct']} Correct, {labels['wrong']} Wrong.")]
     out = []
     for key, marked, did, does in (("tpr", "Correct", "passed", "passes"),
                                    ("tnr", "Wrong", "failed", "fails")):
@@ -333,7 +339,7 @@ def _number(name: str, value, interval) -> str:
 def pass_rate_line(r: dict) -> str:
     if r["judge_pass_rate"] is None:
         return ""
-    line = f"Your judge passes {_pct(r['judge_pass_rate'])} of your answers."
+    line = f"Your judge passes {_pct(r['judge_pass_rate'])} of your app's answers."
     if r["real_pass_rate"] is None:
         return f"{line} How many should pass is unknown yet."
     lo, hi = r["real_pass_rate_interval"]
@@ -350,13 +356,26 @@ def disagreements_words(n: int) -> str:
     return f"the {n} disagreement{'' if n == 1 else 's'}"
 
 
+def can_ask_again(r: dict) -> bool:
+    """Whether judgekeeper can run this judge again (not for verdicts saved by your own code
+    or in a table; an older result that does not say which tool is offered as before)."""
+    tool = (r.get("judge") or {}).get("tool")
+    return tool is None or tool in ASKABLE
+
+
+def all_labeled(r: dict) -> bool:
+    return r.get("left") == 0
+
+
 def _next(r: dict) -> list[tuple[str, str]]:
-    steps = [] if r["check"] == "reliable" else [("Label more for a reliable result:",
-                                                  "judgekeeper start")]
+    steps = []
+    if r["check"] != "reliable" and not all_labeled(r):
+        steps.append(("Label more for a reliable result:", "judgekeeper start"))
     if to_review(r):
         steps.append((f"Review {disagreements_words(to_review(r))}:",
                       "judgekeeper start --review"))
-    steps.append(("Ask your judge again:", "judgekeeper start --ask-again"))
+    if can_ask_again(r):
+        steps.append(("Ask your judge again:", "judgekeeper start --ask-again"))
     if r.get("new_judge"):
         steps.append(("Check your new judge from now on:", "judgekeeper start --new"))
     return steps + [("Check again after your next eval run:", "judgekeeper start")]
@@ -387,13 +406,15 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
              f"{labels['wrong']} Wrong)")
     lines = [title, ""]
     lines += sentences(r)
-    lines += [r["verdict"], ""]
-    lines.append("  " + "   ".join([_number("TPR", r["tpr"], r["tpr_interval"]),
-                                    _number("TNR", r["tnr"], r["tnr_interval"]),
-                                    _number("kappa", r["kappa"], None)]))
-    if pass_rate_line(r):
-        lines.append(f"  {pass_rate_line(r)}")
-    lines.append(f"  {CORRECTED}")
+    lines += [r["verdict"]]
+    if r["check"] != "too_few":
+        lines.append("")
+        lines.append("  " + "   ".join([_number("TPR", r["tpr"], r["tpr_interval"]),
+                                        _number("TNR", r["tnr"], r["tnr_interval"]),
+                                        _number("kappa", r["kappa"], None)]))
+        if pass_rate_line(r):
+            lines.append(f"  {pass_rate_line(r)}")
+        lines.append(f"  {CORRECTED}")
     if r.get("review"):
         lines += [""] + [f"  {line}" for line in _review_lines(r)]
     if r.get("again"):
@@ -402,7 +423,7 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
         lines += ["", "  Your new judge:"] + [f"  {line}" for line in _new_judge_lines(r)]
     lines += ["", "Next:"]
     lines += [f"  {text}  {command}" for text, command in _next(r)]
-    lines.append(f"  Saved in {saved}/ (result.html is the page you just saw)")
+    lines += ["", f"Saved in {saved}/ (result.html is the page you just saw)."]
     return lines
 
 
@@ -447,7 +468,7 @@ def _pass_rate(r: dict) -> list[tuple[str, bool]] | None:
     if r["judge_pass_rate"] is None:
         return None
     parts = [("Your judge passes ", False), (_pct(r["judge_pass_rate"]), True),
-             (" of your answers.", False)]
+             (" of your app's answers.", False)]
     if r["real_pass_rate"] is None:
         return parts + [(" How many should pass is unknown yet.", False)]
     lo, hi = r["real_pass_rate_interval"]
@@ -465,7 +486,12 @@ def page_content(r: dict) -> dict:
     if _made_on(r.get("made_at")):
         kind.append(_made_on(r.get("made_at")))
 
+    too_few = r["check"] == "too_few"
+
     def tile(name, plain, value, interval, count):
+        if too_few:
+            return {"name": name, "plain": plain, "value": "–", "interval": None,
+                    "mark": None, "line": count}
         known = value is not None
         span = known and interval is not None and interval[0] is not None
         return {"name": name, "plain": plain,
@@ -489,7 +515,10 @@ def page_content(r: dict) -> dict:
             source += f", saved {in_words(saved[:10])}{saved[10:].replace(' ', ', ', 1)}"
     steps = []
     needed = still_needed(labels)
-    if needed:
+    if needed and all_labeled(r):
+        steps.append({"title": "Make it a reliable result", "text": ALL_LABELED,
+                      "command": "judgekeeper start", "link": None, "button": None})
+    elif needed:
         steps.append({"title": "Make it a reliable result", "text": needed,
                       "command": "judgekeeper start", "link": "/", "button": "Keep labeling"})
     if to_review(r):
@@ -498,17 +527,20 @@ def page_content(r: dict) -> dict:
                                "reason. Free."),
                       "command": "judgekeeper start --review", "link": "/review",
                       "button": "Review them"})
-    steps.append({"title": "Ask your judge again",
-                  "text": ("How often it changes its mind, and how well it agrees with you "
-                           "today. It asks before any call:"),
-                  "command": "judgekeeper start --ask-again", "link": None, "button": None})
+    if can_ask_again(r):
+        steps.append({"title": "Ask your judge again",
+                      "text": ("How often it changes its mind, and how well it agrees with "
+                               "you today. It asks before any call:"),
+                      "command": "judgekeeper start --ask-again", "link": None,
+                      "button": None})
     if r.get("new_judge"):
         steps.append({"title": "Check your new judge from now on",
                       "text": ("Your last check moves to .judgekeeper/previous-<date>/; nothing "
                                "is deleted:"),
                       "command": "judgekeeper start --new", "link": None, "button": None})
-    steps.append({"title": "Check again later", "text": "After your next eval run:",
-                  "command": "judgekeeper start", "link": None, "button": None})
+    if not (needed and all_labeled(r)):  # else the first step already says it
+        steps.append({"title": "Check again later", "text": "After your next eval run:",
+                      "command": "judgekeeper start", "link": None, "button": None})
     review = None
     if r.get("review"):
         review = {"title": "Your review of the disagreements", "lines": _review_lines(r),
@@ -532,10 +564,10 @@ def page_content(r: dict) -> dict:
                        f"from {labels['wrong']} Wrong"),
                   tile("kappa", "Agreement beyond chance", r["kappa"], None,
                        f"from {n} labels · {KAPPA_GATE:g} or more is good")],
-        "pass_rate": _pass_rate(r),
-        "corrected": ("Numbers are corrected for picking half from the judge's passes and half "
-                      "from its fails. The bar under each number shows how sure it is: "
-                      "narrower is surer."),
+        "pass_rate": None if too_few else _pass_rate(r),
+        "corrected": None if too_few else (
+            "Numbers are corrected for picking half from the judge's passes and half from its "
+            "fails. The bar under each number shows how sure it is: narrower is surer."),
         "judge": {"name": judge.get("metric") or judge.get("name"), "model": model,
                   "rule": judge.get("rule"), "source": source},
         "review": review,
@@ -571,6 +603,7 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     r = describe(weighted.corrected(data["pool"]["pass"], data["pool"]["fail"],
                                     *counted["pass"], *counted["fail"]))
     r.update(skipped=session.counts()["skipped"], disagreements=disagreements,
+             left=sum(1 for item in session.items if not item["label"]),
              made_at=utc_now(),
              judgekeeper_version=__version__, fingerprint=data["fingerprint"],
              judge={"name": data["judge"], "tool": data["tool"], "metric": data["metric"],

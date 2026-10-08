@@ -195,3 +195,27 @@ def test_error_messages_print_no_escape_sequence(tmp_path, capsys):
     printed = capsys.readouterr()
     assert "PWNED-TITLE" in printed.err
     _no_control(printed.out, printed.err)
+
+
+def test_ctrl_c_stops_with_one_line_and_no_traceback(monkeypatch, capsys):
+    from judgekeeper import cli
+
+    def stopped(args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setitem(cli.COMMANDS, "start", stopped)
+    assert main(["start"]) == 130
+    out = capsys.readouterr()
+    assert "Traceback" not in out.out + out.err
+    assert out.out == "\nStopped.\n"
+
+
+def test_template_never_overwrites_a_labels_file_without_force(tmp_path, capsys):
+    items = tmp_path / "items.jsonl"
+    items.write_text('{"id": "a", "input": "q", "output": "x"}\n', encoding="utf-8")
+    labels = tmp_path / "labels.csv"
+    labels.write_text("id,input,output,human_label,notes\na,q,x,pass,\n", encoding="utf-8")
+    assert main(["template", str(items), "-o", str(labels)]) == 2
+    assert "pass" in labels.read_text(encoding="utf-8")
+    assert "--force" in capsys.readouterr().err
+    assert main(["template", str(items), "-o", str(labels), "--force"]) == 0

@@ -20,6 +20,7 @@ import pytest
 from judgekeeper import start, start_label
 from judgekeeper.cli import _parser, main
 from judgekeeper.textio import split_command
+from tests import keyboard
 from tests.start_projects import (
     deepeval_project,
     inspect_data,
@@ -62,7 +63,7 @@ def terminal(monkeypatch):
 
     def fake_input(prompt=""):
         print(prompt)
-        return answers.pop(0) if answers else ""
+        return answers.pop(0) if answers else keyboard.enter()
 
     monkeypatch.setattr(builtins, "input", fake_input)
     return answers

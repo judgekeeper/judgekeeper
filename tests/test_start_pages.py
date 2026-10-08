@@ -57,7 +57,6 @@ def test_the_labeling_page_has_the_progress_rule_and_keys_cards(tmp_path):
     page = _flat(start_label.page_template(_ws(tmp_path).data()))
     for needed in ("Is this answer correct? Your judge's verdict is hidden.",
                    "Your progress", "15 rough", "25 reliable", "See my result →",
-                   "With so few labels the result will be very unsure.",
                    "What are you checking?", "Your judge's rule",
                    ("Mark each answer by what you think is right. The judge's verdict stays "
                     "hidden."), "Keys",
@@ -65,9 +64,9 @@ def test_the_labeling_page_has_the_progress_rule_and_keys_cards(tmp_path):
                     "<code>judgekeeper start</code> to continue."),
                    "See result →", 'aria-live="polite"'):
         assert needed in page, needed
-    # The whole rule, in quotes, inside a fold-out that starts closed.
+    # The whole rule, in quotes, inside a fold-out that starts open.
     details = re.findall(r"<details[^>]*>", page)
-    assert details == ["<details>"]
+    assert details == ["<details open>"]
     assert "&quot;Is polite and correct. Second line of the rubric.&quot;" in page
     assert "…" not in page
 
@@ -221,7 +220,7 @@ def test_the_number_boxes():
                        re.DOTALL)
     assert len(tiles) == 3
     assert all('class="rangebar"' in t for t in tiles)
-    assert "<span" in tiles[0] and "<span" not in tiles[2]  # kappa: the mark only
+    assert "<span style" in tiles[0] and "<span style" not in tiles[2]  # kappa: the mark only
 
 
 def test_the_kappa_line_reads_the_gate(monkeypatch):
@@ -229,13 +228,13 @@ def test_the_kappa_line_reads_the_gate(monkeypatch):
     assert "0.7 or more is good" in start_label.result_html(_result(*GATE))
 
 
-def test_an_unknown_rate_shows_unknown_and_no_bar():
+def test_an_unknown_rate_shows_a_dash_and_no_bar():  # only with too few labels
     r = _result(100, 100, 20, 15, 0, 0)
     assert r["tnr"] is None
     html = start_label.result_html(r)
     tiles = re.findall(r'<div class="tile">.*?</div>\s*</div>', html, re.DOTALL)
     tnr = next(t for t in tiles if "Bad answers it failed" in t)
-    assert '<div class="val">unknown</div>' in tnr and "rangebar" not in tnr
+    assert '<div class="val">–</div>' in tnr and "rangebar" not in tnr
     assert "None" not in html and "nan" not in html
 
 
@@ -243,9 +242,9 @@ def test_the_pass_rate_box():
     r = _result(*CHECK)
     html = _flat(start_label.result_html(r))
     lo, hi = r["real_pass_rate_interval"]
-    assert (f"Your judge passes <b>{r['judge_pass_rate']:.0%}</b> of your answers. From your "
-            f"labels, about <b>{r['real_pass_rate']:.0%}</b> should pass ({lo:.0%} to "
-            f"{hi:.0%}).") in html
+    assert (f"Your judge passes <b>{r['judge_pass_rate']:.0%}</b> of your app's answers. From "
+            f"your labels, about <b>{r['real_pass_rate']:.0%}</b> should pass ({lo:.0%} to "
+            f"{hi:.0%}).") in unescape(html)
     assert ("Numbers are corrected for picking half from the judge's passes and half from "
             "its fails. The bar under each number shows how sure it is: narrower is surer."
             ) in unescape(html)
@@ -317,3 +316,70 @@ def test_both_pages_follow_the_computers_theme_and_hold_the_amber():
         assert "--care:" in page and "--care-bg:" in page
         assert ":focus-visible" in page
         assert "@media (max-width: 760px)" in page
+
+
+# When labeling more or asking again cannot help ------------------------------------------
+
+def test_with_every_answer_labeled_it_does_not_offer_to_label_more():
+    r = _result(*CHECK, left=0)
+    html = _flat(start_label.result_html(r, back="/?token=t"))
+    assert "Keep labeling" not in html
+    assert ("<b>Make it a reliable result</b>Every saved answer is labeled. Run your evals "
+            "again for more answers, then:") in html
+    lines = start_label.result_lines(r)
+    assert not any(line.startswith("  Label more") for line in lines)
+
+
+def test_with_answers_left_it_still_offers_to_label_more():
+    html = _flat(start_label.result_html(_result(*CHECK, left=7), back="/?token=t"))
+    assert '<a class="btn" href="/?token=t">Keep labeling</a>' in html
+
+
+@pytest.mark.parametrize("tool", ["records", "table", "mapped"])
+def test_a_judge_it_cannot_ask_again_is_not_offered(tool):
+    r = _result(*CHECK, judge={"tool": tool})
+    assert "--ask-again" not in start_label.result_html(r)
+    assert not any("--ask-again" in line for line in start_label.result_lines(r))
+
+
+@pytest.mark.parametrize("tool", ["promptfoo", "deepeval", "inspect", "mlflow"])
+def test_a_judge_it_can_ask_again_is_offered(tool):
+    r = _result(*CHECK, judge={"tool": tool})
+    assert "judgekeeper start --ask-again" in start_label.result_html(r)
+
+
+# Too few labels: no numbers yet ----------------------------------------------------------
+
+def test_too_few_labels_show_no_numbers():
+    r = _result(100, 100, 2, 1, 1, 0)  # 1 Correct, 2 Wrong
+    body = _flat(start_label.result_html(r).split("<main>")[1])
+    assert "-0." not in body and "0.00" not in body and "%" not in body
+    assert "Too few labels to tell yet." in body
+    assert ("A rough check needs 15 you mark Correct and 15 you mark Wrong. So far: 1 "
+            "Correct, 2 Wrong.") in body
+    assert body.count('<div class="val">–</div>') == 3 and "rangebar" not in body
+    assert "Numbers are corrected" not in body and 'class="facts"' not in body
+    lines = start_label.result_lines(r)
+    assert not any("TPR" in line or "%" in line for line in lines)
+
+
+def test_the_result_links_start_hidden_until_a_rough_check():
+    page = start_label.page_template({"rule": "x"})
+    links = re.findall(r'<a class="seelink see"[^>]*>', page)
+    assert len(links) == 2 and all(" hidden" in a for a in links)
+    assert "a.hidden = least < ROUGH" in page  # the script shows them at 15 + 15
+    assert "With so few labels" not in page
+
+
+def test_the_answer_box_does_not_stretch_to_fill_the_screen():
+    page = start_label.page_template({})
+    answer = re.search(r"#answer \{([^}]*)\}", page)[1]
+    assert "flex: 0 1 auto" in answer
+    assert ".choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }" in page
+
+
+def test_each_number_box_leads_with_its_plain_name():
+    html = start_label.result_html(_result(*CHECK))
+    tile = re.findall(r'<div class="tile">.*?</div>\s*</div>', html, re.DOTALL)[0]
+    assert tile.startswith('<div class="tile"><div class="lbl">Good answers it passed '
+                           '<span class="abbr">TPR</span></div>')

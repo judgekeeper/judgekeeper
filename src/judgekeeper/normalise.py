@@ -32,6 +32,7 @@ DEFAULT_LABEL_MAP = {
     "true": "pass", "false": "fail",
     "yes": "pass", "no": "fail",
     "correct": "pass", "incorrect": "fail",
+    "right": "pass", "wrong": "fail",
     "1": "pass", "0": "fail",
 }
 DEFAULT_PAIRWISE_MAP = {"a": "A", "b": "B"}
@@ -232,14 +233,18 @@ def unmapped_error(values, what: str = "verdict", pass_if: bool = True) -> Norma
                               f"--pass-if, e.g. {PASS_IF_EXAMPLE}")
     hint = f"; numbers need --pass-if, e.g. {PASS_IF_EXAMPLE}" if numbers else ""
     return NormaliseError(
-        f"{listed} judgekeeper does not guess: map them with --label-map, e.g. --label-map "
-        f"\"{_example(words)}\"{hint}"
+        f"{listed} judgekeeper does not guess: map them with {label_map_hint(words)}{hint}"
     )
 
 
-def _example(seen: list) -> str:
-    words = [str(v) for v in seen if isinstance(v, str)][:2] or ["good", "bad"]
-    return ",".join(f"{w}={lab}" for w, lab in zip(words, ("pass", "fail")))
+def label_map_hint(seen: list) -> str:
+    """How to map unknown words, without guessing which side a word is on: a wrong guess
+    would turn fails into passes."""
+    words = [str(v) for v in seen if isinstance(v, str)] or ["good"]
+    w = words[0]
+    more = "; map several at once with commas" if len(words) > 1 else ""
+    return f'--label-map "{w}=pass" or --label-map "{w}=fail", whichever it means{more}'
+
 
 
 def normalise_all(norm: Normaliser, values, what: str = "verdict",

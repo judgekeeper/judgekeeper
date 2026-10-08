@@ -138,7 +138,7 @@ The result shows both judges against your same marks, side by side, weighted by 
 
 **When promptfoo's results are only in its database**, at a terminal `start` offers to run `promptfoo export eval latest` for you (no AI call; promptfoo's telemetry, update check and logs off). The file is checked against this project's promptfoo config (its description, else its prompts): a run from another project is deleted with a note on how to find yours; otherwise it is saved as `promptfoo-results.json` and `start` carries on.
 
-**Without a terminal** (a script, CI, a coding agent) it never asks. It prints what it found and the flag or command that answers the question, and exits 8; `--yes` takes the defaults. A printed command repeats the flags you gave (the path, `--metric`, `--experiment`, `--no-browser`, ...), so it works as printed. With `--no-browser` the question is "Start the labeling page? It will print a link."; after No at a terminal it says the command to run when you're ready. After you pick a tool, an experiment, a judge or an MLflow store at a terminal, it prints what picks it next time, such as `(Next time: --metric safe_wording)` or `(Next time: judgekeeper start mlruns)`. Labeling needs a person: in CI, `start` can only find and report. Exit codes: 0 done (also when you stop early, after No, and after No to a spending question), 1 a runtime failure (for asking again: the tool failed), 2 a usage error, nothing it can use found, or `--review`, `--ask-again` or `--try-new-judge` before a result (it prints the command that labels first, with `--yes` when there is no terminal, and what the flag does after), 8 stopped at a question that needs an answer (nothing went wrong), 130 asking again stopped with Ctrl-C.
+**Without a terminal** (a script, CI, a coding agent) it never asks. It prints what it found and the flag or command that answers the question, and exits 8; `--yes` takes the defaults. A printed command repeats the flags you gave (the path, `--metric`, `--experiment`, `--no-browser`, ...), so it works as printed. With `--no-browser` the question is "Start the labeling page? It will print a link."; after No at a terminal it says the command to run when you're ready. After you pick a tool, an experiment, a judge or an MLflow store at a terminal, it prints what picks it next time, such as `(Next time: --metric safe_wording)` or `(Next time: judgekeeper start mlruns)`. Labeling needs a person: in CI, `start` can only find and report. Exit codes: 0 done (also when you stop early, after No, and after No to a spending question), 1 a runtime failure (for asking again: the tool failed), 2 a usage error, nothing it can use found, or `--review`, `--ask-again` or `--try-new-judge` before a result (it prints the command that labels first, with `--yes` when there is no terminal, and what the flag does after), 8 stopped at a question that needs an answer (nothing went wrong), 130 stopped with Ctrl-C (asking again saves nothing from that run).
 
 **Installed in your project?** judgekeeper belongs in your project's own Python environment, like pytest. In a terminal, `judgekeeper --version` says judgekeeper is ready and what to run next; when Python is not running in a virtual environment, or judgekeeper was installed as a tool for the whole computer (in the folder where a tool installer keeps its tools, not in a project), it adds: "judgekeeper is installed outside a project. Install it inside your project's environment instead (see www.judgekeeper.com/start.html#install)." Piped or in a script it prints only `judgekeeper <version>`.
 
@@ -271,7 +271,7 @@ report = judgekeeper.check_table(df_or_rows_or_path, judge="verdict", human="lab
 One normaliser serves `check`, `check_judge`, `--callable`, `--exec` and `import-labels`. It turns a raw judge output into `pass`/`fail` (or `A`/`B`) or `error`, plus a rationale:
 
 - a bool: `True` is pass;
-- a string, case-insensitively, through the label map. Defaults: `pass`/`fail`, `true`/`false`, `yes`/`no`, `correct`/`incorrect`, `1`/`0`, and a leading `PASS` or `FAIL` token (`PASS: looks right`). Pairwise: `A`/`B`. `--label-map "good=pass,bad=fail"` adds entries;
+- a string, case-insensitively, through the label map. Defaults: `pass`/`fail`, `true`/`false`, `yes`/`no`, `correct`/`incorrect`, `right`/`wrong`, `1`/`0`, and a leading `PASS` or `FAIL` token (`PASS: looks right`). Pairwise: `A`/`B`. `--label-map "good=pass,bad=fail"` adds entries;
 - a number, through a required `--pass-if` rule: `score>=0.5`, `>`, `<=`, `<`, `==`. The name is free text, except that for a dict it names the key to read (`relevance>=3`). Integers `1`/`0` follow the label map when no rule is given;
 - a `(verdict, reason)` tuple or two-element list;
 - a dict with the verdict under `verdict`, `pass`, `passed`, `label` or `score` (first found) and the reason under `reason`, `rationale`, `explanation` or `comment`.
@@ -337,7 +337,7 @@ judgekeeper template items.jsonl -o labels.csv      # or items.csv
 judgekeeper import-labels labels.csv -o anchors.jsonl [--label-map "good=pass,bad=fail"]
 ```
 
-`template` writes `id,input,output,human_label,notes` (pairwise: `output_a,output_b`) with `human_label` and `notes` empty, ready for Excel or Google Sheets. Ids come from an `id` column or are derived as in `check`. `import-labels` reads the sheet back, checks every label through the normaliser (an unmapped label is a usage error listing them), skips and lists unlabeled rows, keeps non-empty `notes` and `slice`, writes the anchor file and freezes it. It prints the label-quality warnings that also appear in every report.
+`template` writes `id,input,output,human_label,notes` (pairwise: `output_a,output_b`) with `human_label` and `notes` empty, ready for Excel or Google Sheets. It refuses to overwrite an existing file (it may hold your labels) unless you pass `--force`. Ids come from an `id` column or are derived as in `check`. `import-labels` reads the sheet back, checks every label through the normaliser (an unmapped label is a usage error listing them), skips and lists unlabeled rows, keeps non-empty `notes` and `slice`, writes the anchor file and freezes it. It prints the label-quality warnings that also appear in every report.
 
 ## label: a local labeling page
 
@@ -754,6 +754,7 @@ max_moved_share = 0.02   # share of stable items that may move before it is JUDG
 | 6 | `JUDGE_DRIFT` | `attribute` |
 | 7 | `SYSTEM_CHANGE` | `attribute` |
 | 8 | stopped at a question it cannot ask (no terminal): the line before says the flag or command that answers it; nothing went wrong | `start`, `setup` |
+| 130 | stopped with Ctrl-C: it prints "Stopped."; what was saved before stays saved | all |
 
 ## GitHub Action
 

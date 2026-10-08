@@ -9,7 +9,8 @@ The rules:
 - Skip `.git`, `node_modules`, virtual environments, package folders, `__pycache__`,
   `.judgekeeper` and every other hidden folder except `.deepeval`. Never follow a symbolic
   link, to a file or a folder. The one place read inside `.judgekeeper` is `records/`, where
-  `judgekeeper.record()` writes the judge's verdicts (`*.jsonl`).
+  `judgekeeper.record()` writes the judge's verdicts (`*.jsonl`); a records file elsewhere is
+  found like a table.
 - Look in the known places first (the folder itself, `.deepeval/`, `logs/`, the folders the
   variables name), then walk to a depth of four folders. Stop after MAX_FILES files or
   MAX_SECONDS seconds and say so.
@@ -302,9 +303,12 @@ class _Walk:
                 tool = sniff_json(_head(path))
                 if tool:
                     self.add(tool, path, size)
-        elif (suffix in TABLE_SUFFIXES and depth <= TABLE_DEPTH
-              and is_table(table_columns(path))):
-            self.add("table", path, size)
+        elif suffix in TABLE_SUFFIXES and depth <= TABLE_DEPTH:
+            columns = table_columns(path)
+            if suffix == ".jsonl" and is_records(columns):  # record()'s format, moved
+                self.add("records", path, size)
+            elif is_table(columns):
+                self.add("table", path, size)
 
     def folder(self, path: Path) -> None:
         """Walk `path` breadth first, at most MAX_DEPTH folders below the root."""

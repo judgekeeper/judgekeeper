@@ -64,6 +64,7 @@ EXIT_OK = 0
 EXIT_FAILURE = 1
 EXIT_USAGE = 2
 EXIT_HASH_MISMATCH = 3
+EXIT_STOPPED = 130  # Ctrl-C, as shells report it
 # The first error of a failed judge is quoted on one line, up to this many characters.
 MAX_ERROR_SHOWN = 300
 
@@ -135,7 +136,7 @@ def version_lines(stream=None) -> list[str]:
     else:
         command = f"{'py' if is_windows() else 'python3'} -m judgekeeper start"
     lines = [f"{tick(stream)} judgekeeper {__version__} is ready",
-             f"Next: go to your project folder and run {command}"]
+             f"Next: run {command}"]
     if not in_an_environment():
         from judgekeeper.own_format import INSTALL_URL
 
@@ -339,6 +340,8 @@ def _parser() -> argparse.ArgumentParser:
                        help="write a labeling sheet (CSV) for Excel or Google Sheets")
     t.add_argument("items", help="items as JSONL or CSV, with input and output columns")
     t.add_argument("-o", "--out", required=True, help="CSV to write, e.g. labels.csv")
+    t.add_argument("--force", action="store_true",
+                   help="overwrite an existing file (its labels are lost)")
 
     il = sub.add_parser("import-labels", parents=[common],
                         help="read a filled-in labeling sheet into a frozen anchor set")
@@ -539,7 +542,7 @@ def _normaliser_args(p: argparse.ArgumentParser) -> None:
                    help="rule for numeric verdicts, e.g. 'score>=0.5' (required for numbers)")
     p.add_argument("--label-map", metavar="MAP",
                    help="extra verdict spellings, e.g. 'good=pass,bad=fail' (added to the "
-                        "defaults pass/fail, true/false, yes/no, correct/incorrect, 1/0)")
+                        "defaults pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0)")
 
 
 def _print_report(report: dict, out: Path) -> None:
@@ -742,6 +745,9 @@ def cmd_validate(args) -> int:
 def cmd_template(args) -> int:
     from judgekeeper.table import write_template
 
+    if Path(args.out).is_file() and not args.force:  # it may already hold someone's labels
+        raise UsageError(f"{args.out} exists; pass --force to overwrite it (its labels are "
+                         "lost)")
     n = write_template(args.items, args.out)
     print(f"wrote {args.out} ({_count(n, 'row')}): fill in human_label (pass or fail), then "
           f"run `judgekeeper import-labels {quote_arg(args.out)} -o anchors.jsonl`")
@@ -1044,6 +1050,9 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_OK
     try:
         return COMMANDS[args.command](args)
+    except KeyboardInterrupt:  # Ctrl-C, often at a question: what was saved stays saved
+        print("\nStopped.")
+        return EXIT_STOPPED
     except AnchorHashMismatch as e:
         _error(str(e))
         return EXIT_HASH_MISMATCH

@@ -145,6 +145,19 @@ after you say yes, your own judge through your own tool, and key names only.
   judgekeeper reads an `mlflow.db` store through a temporary copy (removed afterwards), so
   it never opens your store file itself; `judgekeeper setup` keeps your files' own line
   endings.
+- `start` says only what can happen next: no "label more" once every saved answer is
+  labeled (run your evals again for more answers), and no "ask your judge again" for a judge
+  it cannot run (verdicts saved by your own code or in a table). Below a rough check (15
+  Correct and 15 Wrong) the result shows no numbers, and the labeling page shows "See my
+  result" only from then on. A records file is found anywhere `start` looks, not only in
+  `.judgekeeper/records/`. When verdicts cannot be read, `start` stops and says what to map,
+  or `--pass-if` for scores, instead of leaving those answers out.
+- The labeling page: the answer box fits the answer, the buttons sit under it, and your
+  judge's rule is shown open. The result page leads each number with its plain name.
+- Ctrl-C at any question stops with "Stopped." (exit code 130) instead of a traceback.
+- `--label-map` advice never guesses which side a word is on, and `right`/`wrong` are read
+  like `correct`/`incorrect` by default. `template` refuses to overwrite an existing file
+  without `--force`, so a filled labels file is never lost.
 - The project does not accept pull requests. Bug reports and ideas are welcome as issues.
 - No change to any other command, flag, metric or report field.
 

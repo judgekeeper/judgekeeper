@@ -463,7 +463,7 @@ def test_other_printed_commands_quote_their_paths_too(tmp_path, monkeypatch, cap
     assert "`judgekeeper import-labels 'my labels.csv' -o anchors.jsonl`" in \
         capsys.readouterr().out
     monkeypatch.setattr(sys, "platform", "win32")
-    assert main(["template", str(sheet), "-o", "my labels.csv"]) == 0
+    assert main(["template", str(sheet), "-o", "my labels.csv", "--force"]) == 0
     assert '`judgekeeper import-labels "my labels.csv" -o anchors.jsonl`' in \
         capsys.readouterr().out
     monkeypatch.setattr(sys, "platform", "linux")
@@ -631,11 +631,12 @@ def test_numbers_in_the_judge_column_point_at_pass_if(tmp_path, capsys):
 
 def test_numbers_and_words_get_both_hints_and_human_labels_only_the_map():
     mixed = str(unmapped_error(["0.9", "good", 0.2, "bad"], "judge verdict"))
-    assert '--pass-if "score>=0.5"' in mixed and '--label-map "good=pass,bad=fail"' in mixed
+    hint = '--label-map "good=pass" or --label-map "good=fail", whichever it means'
+    assert '--pass-if "score>=0.5"' in mixed and hint in mixed
     words = str(unmapped_error(["good", "bad"], "judge verdict"))
-    assert "--pass-if" not in words and '--label-map "good=pass,bad=fail"' in words
+    assert "--pass-if" not in words and hint in words
     human = str(unmapped_error(["4", "2"], "human label", pass_if=False))
-    assert "--pass-if" not in human and '--label-map "4=pass,2=fail"' in human
+    assert "--pass-if" not in human and '--label-map "4=pass" or --label-map "4=fail"' in human
     assert isinstance(unmapped_error([0.5]), NormaliseError)
     assert "'" not in str(unmapped_error([0.5]))  # no single quotes: cmd.exe does not strip them
 

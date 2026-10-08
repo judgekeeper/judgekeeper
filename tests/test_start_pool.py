@@ -15,6 +15,7 @@ from judgekeeper import start, textio
 from judgekeeper.cli import main
 from judgekeeper.normalise import Normaliser
 from judgekeeper.records import HUMAN, LLM, RecordList, ScoreRecord
+from tests import keyboard
 from tests.start_projects import (
     deepeval_project,
     promptfoo_data,
@@ -59,7 +60,7 @@ def terminal(monkeypatch):
 
     def fake_input(prompt=""):
         print(prompt)
-        return answers.pop(0) if answers else ""  # then Enter: the default answer
+        return answers.pop(0) if answers else keyboard.enter()  # then Enter: the default answer
 
     monkeypatch.setattr(builtins, "input", fake_input)
     return answers
@@ -264,14 +265,28 @@ def test_the_pool_keeps_each_judgment_with_its_fingerprint():
     assert a.id and a.output == "a0"
 
 
-def test_unclear_verdicts_are_said_in_one_line(tmp_path, capsys):
-    verdicts = split(20, 12) + [None, None, "maybe"]
-    table_project(tmp_path, verdicts)
+def test_empty_verdicts_are_said_in_one_line(tmp_path, capsys):
+    table_project(tmp_path, split(20, 12) + [None, None])
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "3 answers had no clear verdict and were left out." in out
-    assert "To count 'maybe', map it with --label-map, e.g. --label-map \"maybe=pass\"" in out
+    assert "2 answers had no clear verdict and were left out." in out
     assert "32 answers with a verdict" in out
+
+
+def test_a_verdict_it_cannot_map_stops_with_the_flag_to_add(tmp_path, capsys):
+    table_project(tmp_path, split(20, 12) + ["maybe"])
+    code, out, err = run(capsys, tmp_path)
+    assert code == 2
+    assert ('--label-map "maybe=pass" or --label-map "maybe=fail", whichever it means'
+            in out + err)
+    assert "Your judge failed" not in out
+
+
+def test_scores_with_no_pass_mark_stop_with_pass_if(tmp_path, capsys):
+    table_project(tmp_path, ["0.9"] * 20 + ["0.1"] * 12)
+    code, out, err = run(capsys, tmp_path)
+    assert code == 2
+    assert "--pass-if" in out + err and "0.9=pass" not in out + err
 
 
 def test_label_map_and_pass_if_work_as_in_import(tmp_path, capsys):

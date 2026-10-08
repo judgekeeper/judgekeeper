@@ -19,6 +19,7 @@ from judgekeeper.again import AgainOptions, make_plan, plan_lines, user_python
 from judgekeeper.again import deepeval as de
 from judgekeeper.again import mlflow as mf
 from judgekeeper.start_label import StartSession, save_result
+from tests import keyboard
 from tests.again_stubs import write
 from tests.conftest import FIXTURES
 from tests.start_projects import deepeval_project, inspect_project, split
@@ -53,7 +54,7 @@ def terminal(monkeypatch):
 
     def fake_input(prompt=""):
         print(prompt)
-        return answers.pop(0) if answers else ""
+        return answers.pop(0) if answers else keyboard.enter()
 
     monkeypatch.setattr(builtins, "input", fake_input)
     return answers
