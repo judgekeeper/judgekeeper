@@ -1,4 +1,4 @@
-"""Write the migrate/attribute replay fixtures. Run from the repo root after editing a table:
+"""Write the migrate replay fixtures. Run from the repo root after editing a table:
 
     python tests/fixtures/migrate/make_fixtures.py
 
@@ -44,7 +44,7 @@ RUN_DIRS = {
     "new-better": ("judge-new", "judge-new", "2026-10-08T00:00:00Z", [H, H, H]),
     "new-worse": ("judge-new", "judge-new", "2026-10-08T00:00:00Z", [X, X, X]),
     "new-different": ("judge-new", "judge-new", "2026-10-08T00:00:00Z", [N, N, N]),
-    # attribute: the old judge re-run a week later
+    # the old judge re-run a week later
     "old-rerun": ("judge-old", "judge-old", "2026-10-08T00:00:00Z", [X, X, X]),
     "old-noisy": ("judge-old", "judge-old", "2026-10-08T00:00:00Z",
                   [flip(X, 5), flip(X, 5), X]),

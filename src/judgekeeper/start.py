@@ -1,5 +1,5 @@
-"""`judgekeeper start`: find the judge's saved results, make the pool of answers, say what was
-found.
+"""`judgekeeper start`: find the judge's saved results, make the pool of answers and say what
+was found.
 
 No AI call and no API key: everything comes from files the user's eval tool already saved
 (see judgekeeper.find for where it looks). judgekeeper never runs the user's app, eval or
@@ -8,9 +8,9 @@ runs it.
 
 The pool is every answer with a clear pass or fail from the judge. An answer is its input
 and output, plus the agent's steps when the results keep them (`derive_record_id`), so a
-repeat of the same answer counts once: the newest
-results file wins, and inside it the majority of its verdicts, a tie going to fail. Verdicts
-that are errors or cannot be mapped are left out and counted.
+repeat of the same answer counts once: the newest results file wins, and inside it the
+majority of its verdicts, a tie going to fail. Verdicts that are errors or cannot be mapped
+are left out and counted.
 
 Questions are asked only at a terminal (stdin). Without one, `start` prints the question as
 the flag that answers it and exits 8 (EXIT_QUESTION: nothing went wrong); `--yes` takes the
@@ -413,9 +413,8 @@ def _store_name(store: find.Result) -> str:
 def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
                  metric: str | None = None) -> tuple[str, list[Loaded]]:
     """(experiment name, its runs newest first). An mlflow.db store is read through a
-    temporary copy (mlflow_store.store_uri), never opened itself. `metric`
-    (--metric) may name a judge whose assessments are only on spans. MLflow's own log
-    lines are kept out (mlflow_store.quiet)."""
+    temporary copy (mlflow_store.store_uri), never opened itself. `metric` (--metric) may name
+    a judge whose assessments are only on spans. MLflow's own log lines are kept out."""
     from judgekeeper.readers.mlflow_store import folder_store_allowed, quiet, store_uri
 
     with quiet():
@@ -1270,9 +1269,8 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
     """`judgekeeper start`: say what was found, then open the labeling page and make the
     result. What is already saved in `.judgekeeper/` decides where it starts (start_again).
     `review`, `ask_again`, `try_new_judge` and `label_more` answer the menu shown after a
-    result; `times` (default 2, or 1 when trying a new judge),
-    `python`, `fields`, `judge_command` and `allow_calls` shape asking the judge again.
-    Returns the exit code."""
+    result; `times` (default 2, or 1 when trying a new judge), `python`, `fields`,
+    `judge_command` and `allow_calls` shape asking the judge again. Returns the exit code."""
     from judgekeeper import start_again
     from judgekeeper.again import AgainOptions
 

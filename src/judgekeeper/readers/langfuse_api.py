@@ -122,7 +122,6 @@ class LangfuseClient:
         self.interval = 60.0 / rate
         self._last: float | None = None
         self._opener = urllib.request.build_opener(_SameHostRedirects())
-        self.n_requests = 0
 
     def _wait_turn(self) -> None:
         if self._last is not None:
@@ -137,7 +136,6 @@ class LangfuseClient:
             self._wait_turn()
             req = urllib.request.Request(url, headers={"Authorization": self._auth,
                                                        "Accept": "application/json"})
-            self.n_requests += 1
             try:
                 with self._opener.open(req, timeout=TIMEOUT) as resp:
                     body = resp.read()

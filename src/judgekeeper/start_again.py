@@ -19,11 +19,10 @@ A re-check finds the labeled answers in the new results by exact input and outpu
 agent's steps, when the results keep them), and says when the judge or the app's version
 changed since the last check. When fewer than 15 Correct or 15 Wrong of them came back, the
 answers changed (the app writes different outputs now), so the old labels do not apply:
-start offers to label the latest results instead, moving the old check to
-previous-<date>/. Before a re-check replaces the
-saved pool, the old start.json, pool files and labels are copied to history/check-<date>/.
-After a re-check, at a terminal, the menu follows. `--review` reviews the saved result at once,
-without looking for new results.
+start offers to label the latest results instead, moving the old check to previous-<date>/.
+Before a re-check replaces the saved pool, the old start.json, pool files and labels are
+copied to history/check-<date>/. After a re-check, at a terminal, the menu follows. `--review`
+reviews the saved result at once, without looking for new results.
 """
 
 from __future__ import annotations
@@ -424,8 +423,8 @@ def judge_change(old: dict, new: dict) -> str | None:
 
 
 def app_change(saved: dict, now: str | None) -> str | None:
-    """What changed in the app's version, in words, or None. A check saved before
-    judgekeeper kept app versions has nothing to compare."""
+    """What changed in the app's version, in words, or None. A saved check with no
+    app_version has nothing to compare."""
     if "app_version" not in saved or saved["app_version"] == now:
         return None
 

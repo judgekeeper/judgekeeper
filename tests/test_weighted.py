@@ -149,7 +149,7 @@ def test_the_same_labels_give_the_same_ranges_to_two_decimals_whatever_the_seed(
 
 
 def _corners(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f):
-    """The TNR range before: Wilson at 97.5% per group, joined at the corners."""
+    """The TNR range the simple way: Wilson at 97.5% per group, joined at the corners."""
     pi = n_pool_pass / (n_pool_pass + n_pool_fail)
     (a_lo, a_hi), (b_lo, b_hi) = weighted.wilson(c_p, n_p), weighted.wilson(c_f, n_f)
 

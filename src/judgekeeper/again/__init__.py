@@ -41,7 +41,6 @@ from judgekeeper import prices
 from judgekeeper.redact import scrub
 
 TIMES = 2
-MAX_TIMES = 5
 ALWAYS_ASK_ABOVE = 1000
 WORKER_TIMEOUT = 300
 REFERENCE = "https://www.judgekeeper.com/reference.html#bring-your-own-judge"

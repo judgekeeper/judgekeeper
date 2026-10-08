@@ -7,10 +7,11 @@ a verdict value as written (pass/fail, true/false, or what --label-map maps). Th
 model comes from the map's `model_key` (a path, in the item or around it) or from the
 settings; the pass mark from `pass_mark_key` (where the file states it, so each run's own)
 or from the settings.
-When the items are inside a unit (a JSONL line holding a list of cases: often one eval
-run), each unit is its own RecordList, newest (last) first, so `start` uses the newest run
-first, as it does for any other tool's files. When each line or row is itself one item (a
-flat file), the whole file is one RecordList.
+
+When the items are inside a unit (a JSONL line holding a list of cases: often one eval run),
+each unit is its own RecordList, newest (last) first, so `start` uses the newest run first, as
+it does for any other tool's files. When each line or row is itself one item (a flat file),
+the whole file is one RecordList.
 
 A map that no longer fits the file (the items, an input or an answer missing) is an error
 with one plain message: CHANGED_SHAPE.

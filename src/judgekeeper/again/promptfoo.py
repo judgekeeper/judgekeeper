@@ -1,9 +1,7 @@
 """The plan for asking a promptfoo judge again.
 
-promptfoo itself re-grades: each labeled answer goes into a temporary config as a fixed answer
-(`providerOutput`), with its own model-graded assertion and grader copied unchanged, and
-promptfoo runs with its cache, database, sharing, telemetry and logs off. The plan reads the
-saved results files again to rebuild that judge, and says:
+promptfoo itself grades again (see `run` below). The plan reads the saved results files
+again to rebuild the judge, and says:
 
 - exactly your judge: the grader is named in the file and the same promptfoo version will run
   (the installed one when its version matches the file's `metadata.promptfooVersion`, else
@@ -18,15 +16,16 @@ Answers are left out, and listed, when they are empty (promptfoo would call the 
 instead), or when a prompt-using judge type (factuality, closedqa, g-eval, answer-relevance,
 context-*) would see template text (`{{`, `{%`, `{#`) that promptfoo fills in again.
 
-`run` writes two temporary files next to the user's promptfoo config (so relative `file://`
-and `exec:` paths work as in the original run): a config whose prompt is each answer's saved
-prompt and whose provider is promptfoo's echo, and a tests file (kept separate, so promptfoo
-does not fill `{{ env.X }}` into saved answers) with each labeled answer as `providerOutput`,
-its saved vars and only its model-graded assertions and grader, copied unchanged. promptfoo
-then runs with `--no-cache --no-write --no-share` and its telemetry, update check, sharing and
-logs off; `--grader` is never passed. Both files are removed afterwards, also after an error or
-Ctrl-C. Exit codes 0 and 100 (some test failed) both mean finished. An llm-rubric answer whose
-new grading prompt is not byte for byte the saved one is not counted.
+`run` writes two temporary files next to the user's promptfoo config (so relative `file://` and
+`exec:` paths work as in the original run): a config whose prompt is each answer's saved prompt
+and whose provider is promptfoo's echo, and a tests file (kept separate, so promptfoo does not
+fill `{{ env.X }}` into saved answers) with each labeled answer as a fixed answer
+(`providerOutput`), its saved vars and only its model-graded assertions and grader, copied
+unchanged. promptfoo then runs with `--no-cache --no-write --no-share` and its telemetry,
+update check, sharing and logs off; `--grader` is never passed. Both files are removed
+afterwards, also after an error or Ctrl-C. Exit codes 0 and 100 (some test failed) both mean
+finished. An llm-rubric answer whose new grading prompt is not byte for byte the saved one is
+not counted.
 """
 
 from __future__ import annotations

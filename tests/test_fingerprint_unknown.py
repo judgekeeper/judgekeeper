@@ -38,7 +38,7 @@ def test_from_dict_never_raises_on_missing_fields():
     fp = JudgeFingerprint.from_dict({})
     assert fp.provider is None and fp.model is None and fp.temperature is None
     assert fp.created_at is None
-    # A missing endpoint is the provider default (files written before endpoints were recorded), not unknown.
+    # A missing endpoint means the provider default (older files have none), not unknown.
     assert fp.endpoint is None
     assert "endpoint" not in fp.unknown_fields()
     assert fp.unknown_fields() == [f for f in UNKNOWN_FIELDS_ORDER if f != "endpoint"]

@@ -2,9 +2,9 @@
 
 Run from the repo root: python tests/fixtures/make_framework_fixtures.py
 
-The shapes follow each tool's own documentation and
-source; each fixture folder has a README saying where its shape came from. The verdicts are
-chosen so every number in the tests can be derived by hand (see the test modules' docstrings).
+The shapes follow each tool's own documentation and source; each fixture folder has a README
+saying where its shape came from. The verdicts are chosen so every number in the tests can be
+derived by hand (see the test modules' docstrings).
 """
 
 from __future__ import annotations

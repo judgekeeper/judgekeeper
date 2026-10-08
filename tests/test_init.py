@@ -1,4 +1,4 @@
-"""`judgekeeper init`: a starter rule file, and `judge --prompt` refusing one that is not filled in."""
+"""`judgekeeper init`: a starter rule file, and `judge --prompt` refusing one not filled in."""
 
 from __future__ import annotations
 

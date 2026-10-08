@@ -1,3 +1,6 @@
+"""The command line: exit codes, `judge` then `validate` end to end, and no terminal escape
+sequences in anything it prints."""
+
 import json
 
 from judgekeeper.anchors import freeze
@@ -117,7 +120,7 @@ def test_judge_anthropic_without_key_is_usage_error(pairwise_dir, tmp_path, monk
                  "--out", str(tmp_path / "runs")]) == 2
 
 
-# --- terminal escape sequences from input files (security review, finding 7) --------------------
+# --- terminal escape sequences from input files ---------------------------------------------------
 
 ESCAPES = "\x1b]0;PWNED-TITLE\x07\x1b[2J\x1b[H cleared\r\x9b31m\x7f"
 CONTROL = [chr(c) for c in (*range(0x09), *range(0x0b, 0x20), *range(0x7f, 0xa0))]

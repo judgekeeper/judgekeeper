@@ -20,10 +20,10 @@ Correct, are left out and counted), and its average width.
 
 Ranges measured:
 - start, now: Jeffreys draws (weighted.corrected) at each level in LEVELS, from the same draws.
-- start, before: Wilson at 97.5% per group, joined at the corners (judgekeeper 0.2.0 before
-  this change), rebuilt here.
+- start, before: Wilson at 97.5% per group, joined at the corners (the earlier method),
+  rebuilt here.
 - general(), before: a stratified percentile bootstrap, 2,000 resamples, with the Wilson
-  corners when a range has zero width (judgekeeper 0.2.0 before this change), rebuilt here.
+  corners when a range has zero width (the earlier method), rebuilt here.
 - general(), now: weighted.general as it is.
 
 The level for start is the first of 0.95, 0.96 and 0.97 whose ranges hold the true TPR, TNR
@@ -86,10 +86,10 @@ def pool_counts(pi: float) -> tuple[int, int]:
     return n_pass, POOL - n_pass
 
 
-# The ranges before this change, rebuilt -----------------------------------------------------
+# The earlier ranges, rebuilt -----------------------------------------------------------
 
 def corners(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f) -> dict:
-    """Wilson at 97.5% per group, the ends put into the formulas (weighted.corrected before)."""
+    """Wilson at 97.5% per group, the ends put into the formulas (the earlier weighted.corrected)."""
     pi = n_pool_pass / (n_pool_pass + n_pool_fail)
     (a_lo, a_hi), (b_lo, b_hi) = weighted.wilson(c_p, n_p), weighted.wilson(c_f, n_f)
     a, b = c_p / n_p, c_f / n_f
@@ -129,7 +129,7 @@ def wilson_corners(items, n_pool_pass, n_pool_fail) -> dict:
 
 
 def bootstrap(items, n_pool_pass, n_pool_fail) -> dict:
-    """The stratified percentile bootstrap weighted.general used before, with its corners."""
+    """The stratified percentile bootstrap the earlier weighted.general used, with its corners."""
     pool = {"pass": n_pool_pass, "fail": n_pool_fail}
     by_group = {g: [x for x in items if x[0] == g] for g in pool}
     weights = {g: weighted._div(pool[g], len(xs)) or 0.0 for g, xs in by_group.items()}

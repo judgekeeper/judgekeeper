@@ -68,14 +68,6 @@ def new_folder(ws) -> Path:
     return folder
 
 
-def remove_if_empty(folder: Path) -> None:
-    for path in (folder, folder.parent):
-        try:
-            path.rmdir()
-        except OSError:
-            return
-
-
 def _share(value) -> str:
     return "an unknown share" if value is None else f"about {value:.0%}"
 

@@ -388,7 +388,7 @@ def test_the_sitemap_lists_the_main_pages():
         assert f"https://www.judgekeeper.com/{page}" in locs, page
 
 
-# Pre-publication review: what a reader who installed from PyPI can actually run
+# What a reader who installed from PyPI can actually run
 
 DOCS = ROOT / "docs"
 RUNNER_PAGES = (WEBSITE / "setup.html", WEBSITE / "learn.html", DOCS / "reference.md",
@@ -397,7 +397,7 @@ RUNNER_PAGES = (WEBSITE / "setup.html", WEBSITE / "learn.html", DOCS / "referenc
 
 @pytest.mark.parametrize("path", RUNNER_PAGES, ids=lambda p: p.name)
 def test_judge_commands_use_the_rule_file_init_writes_and_show_init_first(path):
-    """prompts/pairwise.md is a file of this repository, not of the
+    """prompts/single.md and prompts/pairwise.md are files of this repository, not of the
     package: someone who ran `pip install judgekeeper` does not have them."""
     text = html.unescape(path.read_text(encoding="utf-8"))
     assert "--prompt prompts/single.md" not in text

@@ -26,7 +26,7 @@ def _in_git_checkout() -> bool:
 
 @pytest.mark.skipif(not _in_git_checkout(), reason="not a git checkout")
 def test_every_fixture_file_is_tracked():
-    """A .gitignore rule once hid fixture runs: tests passed locally and failed on a clone."""
+    """A .gitignore rule that hides fixture files makes tests pass locally and fail on a clone."""
     on_disk = {
         p.relative_to(ROOT).as_posix()
         for p in FIXTURES.rglob("*")

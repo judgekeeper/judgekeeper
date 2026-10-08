@@ -102,7 +102,7 @@ def test_write_run_scrubs_rationales_and_errors(tmp_path, monkeypatch):
 
 
 def test_html_report_scrubs_rationales(pairwise_dir, tmp_path, monkeypatch):
-    """A run written before scrubbing existed still renders without the key."""
+    """A run file that still holds a key (written unscrubbed) renders without it."""
     import json
 
     from judgekeeper.html_report import render_html
@@ -144,8 +144,8 @@ def test_basic_word_in_prose_is_left_alone():
 
 
 def test_scrub_is_fast_on_long_dotted_text():
-    """Security review, finding 2: an unbounded URL scheme made this quadratic (about two
-    seconds for 80 KB, minutes for a megabyte)."""
+    """A URL scheme with no length limit would make this quadratic (about two seconds for
+    80 KB, minutes for a megabyte)."""
     import time
 
     text = "a." * 500_000

@@ -1,10 +1,10 @@
 """No credential reaches disk, stdout or stderr, whatever the judge returns or raises.
 
 Sentinel values sit in ANTHROPIC_API_KEY, OPENAI_API_KEY, the Langfuse keys and a custom
-variable named with --api-key-env. One fake client echoes the key it was given and both standard keys into its
-rationale; another raises an error whose message carries them. Then every command that writes
-files runs over the results. Each command starts with no variables registered by an earlier
-one, as separate processes would.
+variable named with --api-key-env. One fake client echoes the key it was given and both
+standard keys into its rationale; another raises an error whose message carries them. Then every
+command that writes files runs over the results. Each command starts with no variables
+registered by an earlier one, as separate processes would.
 """
 
 import os
@@ -290,7 +290,7 @@ def test_langfuse_import_never_writes_a_key(env, capsys, monkeypatch):
         encoding="utf-8")
 
 
-# --- the fingerprint (security review, finding 5) ----------------------------------------------
+# --- the fingerprint ------------------------------------------------------------------------------
 
 
 class KeyInModelAnthropic(EchoingAnthropic):

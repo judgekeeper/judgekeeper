@@ -129,7 +129,7 @@ class _TopParser(_Parser):
 
 def version_lines(stream=None) -> list[str]:
     """What `--version` prints. In a terminal it is the install check: the install is ready,
-    and what to run next. Piped (a script, CI), exactly `judgekeeper <version>`, as always.
+    and what to run next. Piped (a script, CI), exactly `judgekeeper <version>`.
 
     When the `judgekeeper` command is not on the PATH, the next step names the form that works.
     """

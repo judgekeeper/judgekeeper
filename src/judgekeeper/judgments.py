@@ -4,8 +4,8 @@ Line 1 is a header: {"type": "header", "run", "anchors_sha256", "fingerprint", "
 for imported or custom judges, "normaliser" (the --pass-if rule and label map used).
 `source` says where the verdicts came from: {"kind": "judgekeeper" | "table" | "callable" |
 "exec" | "promptfoo" | "deepeval" | "inspect" | "records", "file", "metric"}; imports add
-"version" (the tool's own format version), "notes" and "warnings". A file written by an early version has no `source` and reads as
-judgekeeper.
+"version" (the tool's own format version), "notes" and "warnings". A file with no `source`
+reads as judgekeeper.
 Every following line is {"type": "judgment", "id", "verdict", "raw_score", "rationale",
 "fingerprint", and for pairwise items "verdict_ba", "raw_score_ba", "rationale_ba"}. A verdict
 of "error" means the judge raised, returned nothing or returned something unparseable; the

@@ -39,14 +39,14 @@ share it failed again (r), are Beta(k, m - k): exactly 0 or 1 when none or every
 and the saved verdict when there is none to tell. So a steady judge (the same verdicts again)
 gets `corrected`'s ranges. Each group weighs its pool, TPR and TNR come from each draw of
 the weighted table, and the range is the middle LEVEL, widened to hold the number itself.
-Kappa has no range here either.
-A range never collapses to one point: when one would (the judge got every one right again, or
-none), that range draws q and r from Beta(k + 0.5, m - k + 0.5) too ("jeffreys, verdicts too"
-in `interval_methods`). A group of the pool with no labels leaves the ranges unknown. A
-stratified bootstrap did this before; in scripts/coverage_check.py's grid its ranges held the
-true value as rarely as 54 times in 100. Steadiness, the share of answers whose fresh verdicts
-are not all the same, is weighted like the real pass rate,
-pi f_p + (1 - pi) f_f, with Wilson intervals at 97.5% for each group joined at the corners.
+Kappa has no range here either. A range never collapses to one point: when one would (the
+judge got every one right again, or none), that range draws q and r from
+Beta(k + 0.5, m - k + 0.5) too ("jeffreys, verdicts too" in `interval_methods`). A group of
+the pool with no labels leaves the ranges unknown.
+
+Steadiness, the share of answers whose fresh verdicts are not all the same, is weighted like
+the real pass rate, pi f_p + (1 - pi) f_f, with Wilson intervals at 97.5% for each group
+joined at the corners.
 """
 
 from __future__ import annotations
@@ -238,9 +238,9 @@ def _general_draws(by_group: dict, pool: dict, draws: int, seed: int,
 def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: int,
             level: float = LEVEL, draws: int = DRAWS, seed: int = SEED) -> dict:
     """TPR, TNR and kappa of the person's labels against fresh verdicts, weighted by the saved
-    groups; TPR and TNR with their ranges, kappa without one. `items` are (saved group, label, fresh verdict), each "pass"
-    or "fail". A group of the pool with no labeled answer counts for nothing in the numbers,
-    and leaves the ranges unknown, as in `corrected`."""
+    groups; TPR and TNR with their ranges, kappa without one. `items` are (saved group, label,
+    fresh verdict), each "pass" or "fail". A group of the pool with no labeled answer counts
+    for nothing in the numbers, and leaves the ranges unknown, as in `corrected`."""
     pool = {"pass": n_pool_pass, "fail": n_pool_fail}
     by_group = {g: [x for x in items if x[0] == g] for g in pool}
     weights = {g: _div(pool[g], len(xs)) or 0.0 for g, xs in by_group.items()}

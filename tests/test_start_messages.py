@@ -1,7 +1,6 @@
-"""What `judgekeeper start` says, checked against what new users ran into: a judge that fails
-few answers, hints that must work as printed, `--no-browser` and No, the exit code for
-"stopped at a question", resuming, the judge's rule cut short, choosing a judge, and
-`--ask-again` before any labels.
+"""What `judgekeeper start` says: a judge that fails few answers, hints that must work as
+printed, `--no-browser` and No, the exit code for "stopped at a question", resuming, the
+judge's rule cut short, choosing a judge, and `--ask-again` before any labels.
 
 The person's labels decide Correct and Wrong; the judge's fails only decide how the answers
 are picked. So a judge that passes nearly everything goes on to labeling, with a note.
@@ -370,7 +369,7 @@ def test_the_question_code_is_new():
     from judgekeeper import cli, gate
 
     used = {cli.EXIT_OK, cli.EXIT_FAILURE, cli.EXIT_USAGE, cli.EXIT_HASH_MISMATCH,
-            *gate.EXIT_CODES.values(), 6, 7, 130}  # 6 and 7: attribute
+            *gate.EXIT_CODES.values(), 6, 7, 130}  # 6, 7: once attribute's, not reused
     assert QUESTION not in used
     assert f"{QUESTION} when it stopped at a question" in cli.__doc__
 

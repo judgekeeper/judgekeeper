@@ -198,7 +198,7 @@ def test_action_pipeline_replay(pairwise_dir, tmp_path, monkeypatch):
 
 
 def test_gate_md_escapes_a_hostile_anchor_hash(work):
-    """Security review, finding 6, with the reviewer's report.json."""
+    """A hostile anchor hash in report.json adds no heading and no link to gate.md."""
     path = work / "pass" / "report.json"
     report = json.loads(path.read_text(encoding="utf-8"))
     report["anchors"]["sha256"] = "abc |\n\n# INJECTED HEADING\n\n[click](https://evil.example/x)"

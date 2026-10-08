@@ -4,8 +4,8 @@ plain words, without writing anything.
 For each file: the number of records and the format version, the pass/fail split per judge
 (with the same --pass-if and --label-map an import would use) with the pass mark used, the
 judge's model and the ids, the human labels, the first 3 records (with their ids), the fields
-kept without being known, a warning for a newer format version or a
-record over 1 MB, and every problem with its line number. A file is usable when it has no
+kept without being known, a warning for a newer format version or a record over 1 MB, and
+every problem with its line number. A file is usable when it has no
 problem and at least one judge verdict reads as pass or fail. Several files end with how
 `start` reads them (SEVERAL). Exit 0 when every file is usable, 2 when one is not.
 """

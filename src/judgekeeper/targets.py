@@ -10,9 +10,9 @@
   answers marked Correct, the TNR range about those marked Wrong.
 
 Why 0.30: about what 25 + 25 gives when the judge agrees with the person about 85% of the
-time and passes half the answers, so such checks are reliable at 25 of each as before; when
-the judge passes most answers, its TNR range stays wide for longer, and the result is not
-called reliable until it is really that narrow (docs/examples/coverage/coverage.md).
+time and passes half the answers, so such checks are reliable at 25 of each; when the judge
+passes most answers, its TNR range stays wide for longer, and the result is not called
+reliable until it is really that narrow (docs/examples/coverage/coverage.md).
 """
 
 from __future__ import annotations

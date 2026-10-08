@@ -70,7 +70,7 @@ def test_the_old_label_flags_are_gone(tmp_path):
 
 def test_guarded_ids_in_a_sheet_match_their_items(tmp_path):
     """`import --labels` reads a sheet judgekeeper wrote: the quote on an id must not hide its
-    label (security review, finding 1)."""
+    label."""
     ids = ("=x", "@y")
     sheet = tmp_path / "labels.csv"
     _write(sheet, [{"id": "'" + i, "input": "q", "output": f"a{n}", "human_label": label,

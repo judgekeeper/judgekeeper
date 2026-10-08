@@ -120,8 +120,8 @@ def assessment_info(ws, metric: str, run: str | None = None) -> dict:
     trace, text, experiment}, the `uri` of a temporary copy of the store (or of the mlruns/
     folder), `traces`: {answer id: trace id} for every trace that holds one of its
     assessments (answer ids as `start` makes them), and `all_traces`: the same for every
-    trace. `run` (an MLflow run id) takes the assessment
-    from that run, the newest results of a new judge."""
+    trace. `run` (an MLflow run id) takes the assessment from that run, the newest results of
+    a new judge."""
     from judgekeeper import find
     from judgekeeper.readers.mlflow_store import (
         NO_RUN,

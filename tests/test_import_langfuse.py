@@ -313,7 +313,7 @@ def test_judge_and_human_score_are_required(keys, tmp_path, capsys):
     assert "--judge-score" in capsys.readouterr().err
 
 
-# --- plain http:// to a remote host (security audit item 6) ------------------------------------
+# --- plain http:// to a remote host ------------------------------------------------------------
 
 
 def test_plain_http_remote_host_is_warned_about(keys, clock, monkeypatch, tmp_path, capsys):
