@@ -46,7 +46,7 @@ Label one evaluation run's traces: ids come from the request input, so a label a
 
 ## Re-judge the labeled items
 
-The import measures the judgments MLflow already holds. For a noise floor you control, freeze the labeled items as an anchor set and judge them again:
+The import measures the judgments MLflow already holds. For a noise floor you control, save the labeled items as an anchor set and judge them again:
 
 ```
 judgekeeper import mlflow --experiment my-app-eval --metric correctness \
