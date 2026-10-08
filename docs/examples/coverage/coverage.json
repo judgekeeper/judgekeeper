@@ -68,23 +68,21 @@
  "general": {
   "before": {
    "min_cell": 0.538,
-   "mean": 0.938996109420285,
+   "mean": 0.9466052687731962,
    "per_metric": {
     "tpr": 0.917,
-    "tnr": 0.538,
-    "kappa": 0.6844121026426656
+    "tnr": 0.538
    },
    "passes": false
   },
   "now": {
-   "min_cell": 0.92375,
-   "mean": 0.9610485248290987,
+   "min_cell": 0.93625,
+   "mean": 0.9623910742806852,
    "per_metric": {
     "tpr": 0.93625,
-    "tnr": 0.941,
-    "kappa": 0.92375
+    "tnr": 0.941
    },
-   "passes": false
+   "passes": true
   },
   "now_method": "jeffreys"
  },
@@ -250,16 +248,9 @@
    "truth": {
     "tpr": 0.6,
     "tnr": 0.6,
-    "real_pass_rate": 0.5,
-    "kappa": 0.19999999999999996
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9657414353588397,
-     "width": 0.7889503625906724,
-     "checked": 3999,
-     "unknown": 1
-    },
     "general_before/tnr": {
      "coverage": 0.9625,
      "width": 0.4604908065687805,
@@ -269,12 +260,6 @@
     "general_before/tpr": {
      "coverage": 0.9535,
      "width": 0.46519944420502696,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9655,
-     "width": 0.7822533044754293,
      "checked": 4000,
      "unknown": 0
     },
@@ -390,16 +375,9 @@
    "truth": {
     "tpr": 0.6,
     "tnr": 0.6,
-    "real_pass_rate": 0.5,
-    "kappa": 0.19999999999999996
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.96325,
-     "width": 0.6683612499999815,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94925,
      "width": 0.38741203540730035,
@@ -409,12 +387,6 @@
     "general_before/tpr": {
      "coverage": 0.9545,
      "width": 0.3803859386817251,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96225,
-     "width": 0.6658336235021457,
      "checked": 4000,
      "unknown": 0
     },
@@ -530,16 +502,9 @@
    "truth": {
     "tpr": 0.6,
     "tnr": 0.6,
-    "real_pass_rate": 0.5,
-    "kappa": 0.19999999999999996
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.95625,
-     "width": 0.5283639999999792,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94825,
      "width": 0.28478298464349205,
@@ -549,12 +514,6 @@
     "general_before/tpr": {
      "coverage": 0.9515,
      "width": 0.2905906063385159,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9605,
-     "width": 0.5347043060571213,
      "checked": 4000,
      "unknown": 0
     },
@@ -670,16 +629,9 @@
    "truth": {
     "tpr": 0.6,
     "tnr": 0.6,
-    "real_pass_rate": 0.5,
-    "kappa": 0.19999999999999996
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.95075,
-     "width": 0.4202362499999793,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94925,
      "width": 0.2232696246262424,
@@ -689,12 +641,6 @@
     "general_before/tpr": {
      "coverage": 0.946,
      "width": 0.22369588722435,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.94925,
-     "width": 0.4322766324243058,
      "checked": 4000,
      "unknown": 0
     },
@@ -810,16 +756,9 @@
    "truth": {
     "tpr": 0.75,
     "tnr": 0.6666666666666666,
-    "real_pass_rate": 0.39999999999999997,
-    "kappa": 0.3999999999999999
+    "real_pass_rate": 0.39999999999999997
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9491991991991992,
-     "width": 0.7175944694694634,
-     "checked": 3996,
-     "unknown": 4
-    },
     "general_before/tnr": {
      "coverage": 0.94825,
      "width": 0.3568150510281103,
@@ -829,12 +768,6 @@
     "general_before/tpr": {
      "coverage": 0.9835,
      "width": 0.4825689757844435,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96075,
-     "width": 0.7233125750025513,
      "checked": 4000,
      "unknown": 0
     },
@@ -950,16 +883,9 @@
    "truth": {
     "tpr": 0.75,
     "tnr": 0.6666666666666666,
-    "real_pass_rate": 0.39999999999999997,
-    "kappa": 0.3999999999999999
+    "real_pass_rate": 0.39999999999999997
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9535,
-     "width": 0.6101624999999857,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.949,
      "width": 0.3121155933545676,
@@ -969,12 +895,6 @@
     "general_before/tpr": {
      "coverage": 0.97525,
      "width": 0.40691647031488204,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.945,
-     "width": 0.613357069000429,
      "checked": 4000,
      "unknown": 0
     },
@@ -1090,16 +1010,9 @@
    "truth": {
     "tpr": 0.75,
     "tnr": 0.6666666666666666,
-    "real_pass_rate": 0.39999999999999997,
-    "kappa": 0.3999999999999999
+    "real_pass_rate": 0.39999999999999997
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9475,
-     "width": 0.4731430000000146,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.9445,
      "width": 0.23169242843396987,
@@ -1109,12 +1022,6 @@
     "general_before/tpr": {
      "coverage": 0.9445,
      "width": 0.3136655844176622,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96,
-     "width": 0.4913952731794375,
      "checked": 4000,
      "unknown": 0
     },
@@ -1230,16 +1137,9 @@
    "truth": {
     "tpr": 0.75,
     "tnr": 0.6666666666666666,
-    "real_pass_rate": 0.39999999999999997,
-    "kappa": 0.3999999999999999
+    "real_pass_rate": 0.39999999999999997
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9535,
-     "width": 0.3888234375000011,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.95125,
      "width": 0.18499353551596137,
@@ -1249,12 +1149,6 @@
     "general_before/tpr": {
      "coverage": 0.95775,
      "width": 0.25525165800235644,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95625,
-     "width": 0.3957955393629975,
      "checked": 4000,
      "unknown": 0
     },
@@ -1370,16 +1264,9 @@
    "truth": {
     "tpr": 0.923076923076923,
     "tnr": 0.7037037037037036,
-    "real_pass_rate": 0.325,
-    "kappa": 0.5499999999999998
+    "real_pass_rate": 0.325
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9467737886015566,
-     "width": 0.607808812452904,
-     "checked": 3983,
-     "unknown": 17
-    },
     "general_before/tnr": {
      "coverage": 0.93675,
      "width": 0.3040614830797373,
@@ -1391,12 +1278,6 @@
      "width": 0.45567121073622047,
      "checked": 3999,
      "unknown": 1
-    },
-    "general_now/kappa": {
-     "coverage": 0.96725,
-     "width": 0.6393343367429178,
-     "checked": 4000,
-     "unknown": 0
     },
     "general_now/tnr": {
      "coverage": 0.967,
@@ -1510,16 +1391,9 @@
    "truth": {
     "tpr": 0.923076923076923,
     "tnr": 0.7037037037037036,
-    "real_pass_rate": 0.325,
-    "kappa": 0.5499999999999998
+    "real_pass_rate": 0.325
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9277319329832459,
-     "width": 0.5280866049845663,
-     "checked": 3999,
-     "unknown": 1
-    },
     "general_before/tnr": {
      "coverage": 0.91775,
      "width": 0.27651419552187534,
@@ -1529,12 +1403,6 @@
     "general_before/tpr": {
      "coverage": 0.995,
      "width": 0.35157827753897236,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.949,
-     "width": 0.5328377702606859,
      "checked": 4000,
      "unknown": 0
     },
@@ -1650,16 +1518,9 @@
    "truth": {
     "tpr": 0.923076923076923,
     "tnr": 0.7037037037037036,
-    "real_pass_rate": 0.325,
-    "kappa": 0.5499999999999998
+    "real_pass_rate": 0.325
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94875,
-     "width": 0.4053100000000171,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94775,
      "width": 0.2017855515970983,
@@ -1669,12 +1530,6 @@
     "general_before/tpr": {
      "coverage": 0.99725,
      "width": 0.24386577095906486,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9595,
-     "width": 0.4226015559051127,
      "checked": 4000,
      "unknown": 0
     },
@@ -1790,16 +1645,9 @@
    "truth": {
     "tpr": 0.923076923076923,
     "tnr": 0.7037037037037036,
-    "real_pass_rate": 0.325,
-    "kappa": 0.5499999999999998
+    "real_pass_rate": 0.325
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.95775,
-     "width": 0.3269265625000076,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.9505,
      "width": 0.16024249792235573,
@@ -1809,12 +1657,6 @@
     "general_before/tpr": {
      "coverage": 0.99075,
      "width": 0.1874879483350733,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95875,
-     "width": 0.3396758508706241,
      "checked": 4000,
      "unknown": 0
     },
@@ -1930,16 +1772,9 @@
    "truth": {
     "tpr": 0.6666666666666666,
     "tnr": 0.75,
-    "real_pass_rate": 0.6000000000000001,
-    "kappa": 0.3999999999999999
+    "real_pass_rate": 0.6000000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9476976976976977,
-     "width": 0.7251539039039,
-     "checked": 3996,
-     "unknown": 4
-    },
     "general_before/tnr": {
      "coverage": 0.9775,
      "width": 0.4877678535281756,
@@ -1949,12 +1784,6 @@
     "general_before/tpr": {
      "coverage": 0.943,
      "width": 0.3650602510407995,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.94975,
-     "width": 0.723284527162132,
      "checked": 4000,
      "unknown": 0
     },
@@ -2070,16 +1899,9 @@
    "truth": {
     "tpr": 0.6666666666666666,
     "tnr": 0.75,
-    "real_pass_rate": 0.6000000000000001,
-    "kappa": 0.3999999999999999
+    "real_pass_rate": 0.6000000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.95725,
-     "width": 0.6151524999999849,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.974,
      "width": 0.4135731376743083,
@@ -2089,12 +1911,6 @@
     "general_before/tpr": {
      "coverage": 0.94975,
      "width": 0.30252679953535966,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95225,
-     "width": 0.613038023038971,
      "checked": 4000,
      "unknown": 0
     },
@@ -2210,16 +2026,9 @@
    "truth": {
     "tpr": 0.6666666666666666,
     "tnr": 0.75,
-    "real_pass_rate": 0.6000000000000001,
-    "kappa": 0.3999999999999999
+    "real_pass_rate": 0.6000000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9535,
-     "width": 0.4857965000000053,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.949,
      "width": 0.31786509973447885,
@@ -2229,12 +2038,6 @@
     "general_before/tpr": {
      "coverage": 0.9505,
      "width": 0.23546020486086652,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96525,
-     "width": 0.49323831425068754,
      "checked": 4000,
      "unknown": 0
     },
@@ -2350,16 +2153,9 @@
    "truth": {
     "tpr": 0.6666666666666666,
     "tnr": 0.75,
-    "real_pass_rate": 0.6000000000000001,
-    "kappa": 0.3999999999999999
+    "real_pass_rate": 0.6000000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.95475,
-     "width": 0.3820298437500028,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.93975,
      "width": 0.24847017796388587,
@@ -2369,12 +2165,6 @@
     "general_before/tpr": {
      "coverage": 0.94775,
      "width": 0.1825582824452931,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96125,
-     "width": 0.39697669907628713,
      "checked": 4000,
      "unknown": 0
     },
@@ -2490,16 +2280,9 @@
    "truth": {
     "tpr": 0.8,
     "tnr": 0.8,
-    "real_pass_rate": 0.5,
-    "kappa": 0.6000000000000001
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9353775975671567,
-     "width": 0.6373035985808316,
-     "checked": 3946,
-     "unknown": 54
-    },
     "general_before/tnr": {
      "coverage": 0.98775,
      "width": 0.36904156225949963,
@@ -2509,12 +2292,6 @@
     "general_before/tpr": {
      "coverage": 0.984,
      "width": 0.3644555439810117,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95725,
-     "width": 0.6554333309063465,
      "checked": 4000,
      "unknown": 0
     },
@@ -2630,16 +2407,9 @@
    "truth": {
     "tpr": 0.8,
     "tnr": 0.8,
-    "real_pass_rate": 0.5,
-    "kappa": 0.6000000000000001
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9517017017017017,
-     "width": 0.548103520186843,
-     "checked": 3996,
-     "unknown": 4
-    },
     "general_before/tnr": {
      "coverage": 0.97175,
      "width": 0.32085598922516034,
@@ -2649,12 +2419,6 @@
     "general_before/tpr": {
      "coverage": 0.965,
      "width": 0.31474667713610055,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9645,
-     "width": 0.5544605265101394,
      "checked": 4000,
      "unknown": 0
     },
@@ -2770,16 +2534,9 @@
    "truth": {
     "tpr": 0.8,
     "tnr": 0.8,
-    "real_pass_rate": 0.5,
-    "kappa": 0.6000000000000001
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94075,
-     "width": 0.42331750000001295,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.93275,
      "width": 0.2510403780180932,
@@ -2789,12 +2546,6 @@
     "general_before/tpr": {
      "coverage": 0.922,
      "width": 0.24786234157349538,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.94625,
-     "width": 0.44304920687734606,
      "checked": 4000,
      "unknown": 0
     },
@@ -2910,16 +2661,9 @@
    "truth": {
     "tpr": 0.8,
     "tnr": 0.8,
-    "real_pass_rate": 0.5,
-    "kappa": 0.6000000000000001
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9585,
-     "width": 0.3502279687500062,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94375,
      "width": 0.20202683940064273,
@@ -2929,12 +2673,6 @@
     "general_before/tpr": {
      "coverage": 0.9485,
      "width": 0.20566703984816304,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96825,
-     "width": 0.35525965262790854,
      "checked": 4000,
      "unknown": 0
     },
@@ -3050,16 +2788,9 @@
    "truth": {
     "tpr": 0.9411764705882353,
     "tnr": 0.8260869565217391,
-    "real_pass_rate": 0.42500000000000004,
-    "kappa": 0.75
+    "real_pass_rate": 0.42500000000000004
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9789164665065385,
-     "width": 0.510274886575918,
-     "checked": 3747,
-     "unknown": 253
-    },
     "general_before/tnr": {
      "coverage": 0.9835,
      "width": 0.30950922527314406,
@@ -3069,12 +2800,6 @@
     "general_before/tpr": {
      "coverage": 0.98925,
      "width": 0.36197668671447353,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.974,
-     "width": 0.5577595309558355,
      "checked": 4000,
      "unknown": 0
     },
@@ -3190,16 +2915,9 @@
    "truth": {
     "tpr": 0.9411764705882353,
     "tnr": 0.8260869565217391,
-    "real_pass_rate": 0.42500000000000004,
-    "kappa": 0.75
+    "real_pass_rate": 0.42500000000000004
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9089285714285714,
-     "width": 0.4422453231292533,
-     "checked": 3920,
-     "unknown": 80
-    },
     "general_before/tnr": {
      "coverage": 0.9375,
      "width": 0.27611375389548887,
@@ -3209,12 +2927,6 @@
     "general_before/tpr": {
      "coverage": 0.9965,
      "width": 0.2734375131092385,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.94975,
-     "width": 0.46227356915125645,
      "checked": 4000,
      "unknown": 0
     },
@@ -3330,16 +3042,9 @@
    "truth": {
     "tpr": 0.9411764705882353,
     "tnr": 0.8260869565217391,
-    "real_pass_rate": 0.42500000000000004,
-    "kappa": 0.75
+    "real_pass_rate": 0.42500000000000004
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9434292866082603,
-     "width": 0.3420175219023715,
-     "checked": 3995,
-     "unknown": 5
-    },
     "general_before/tnr": {
      "coverage": 0.9185,
      "width": 0.21787857378680942,
@@ -3349,12 +3054,6 @@
     "general_before/tpr": {
      "coverage": 0.996,
      "width": 0.18872258710446174,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.94925,
-     "width": 0.36625743030181307,
      "checked": 4000,
      "unknown": 0
     },
@@ -3470,16 +3169,9 @@
    "truth": {
     "tpr": 0.9411764705882353,
     "tnr": 0.8260869565217391,
-    "real_pass_rate": 0.42500000000000004,
-    "kappa": 0.75
+    "real_pass_rate": 0.42500000000000004
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.95325,
-     "width": 0.27712468750000074,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94225,
      "width": 0.17522047603126073,
@@ -3489,12 +3181,6 @@
     "general_before/tpr": {
      "coverage": 0.99425,
      "width": 0.14323687683386455,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95925,
-     "width": 0.2920569624829833,
      "checked": 4000,
      "unknown": 0
     },
@@ -3610,16 +3296,9 @@
    "truth": {
     "tpr": 0.7037037037037036,
     "tnr": 0.923076923076923,
-    "real_pass_rate": 0.675,
-    "kappa": 0.5499999999999998
+    "real_pass_rate": 0.675
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9440261044176707,
-     "width": 0.6082586596385356,
-     "checked": 3984,
-     "unknown": 16
-    },
     "general_before/tnr": {
      "coverage": 0.98975,
      "width": 0.46040118087802545,
@@ -3629,12 +3308,6 @@
     "general_before/tpr": {
      "coverage": 0.936,
      "width": 0.3058861543629387,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96725,
-     "width": 0.6329047783220799,
      "checked": 4000,
      "unknown": 0
     },
@@ -3750,16 +3423,9 @@
    "truth": {
     "tpr": 0.7037037037037036,
     "tnr": 0.923076923076923,
-    "real_pass_rate": 0.675,
-    "kappa": 0.5499999999999998
+    "real_pass_rate": 0.675
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9314485864398299,
-     "width": 0.5159857393044684,
-     "checked": 3997,
-     "unknown": 3
-    },
     "general_before/tnr": {
      "coverage": 0.99675,
      "width": 0.35303490967725676,
@@ -3769,12 +3435,6 @@
     "general_before/tpr": {
      "coverage": 0.92075,
      "width": 0.2571939521783401,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95525,
-     "width": 0.5317252863580705,
      "checked": 4000,
      "unknown": 0
     },
@@ -3890,16 +3550,9 @@
    "truth": {
     "tpr": 0.7037037037037036,
     "tnr": 0.923076923076923,
-    "real_pass_rate": 0.675,
-    "kappa": 0.5499999999999998
+    "real_pass_rate": 0.675
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.924,
-     "width": 0.4092510000000157,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.998,
      "width": 0.25006878817213635,
@@ -3909,12 +3562,6 @@
     "general_before/tpr": {
      "coverage": 0.93775,
      "width": 0.20270898831681355,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.957,
-     "width": 0.42262177473238866,
      "checked": 4000,
      "unknown": 0
     },
@@ -4030,16 +3677,9 @@
    "truth": {
     "tpr": 0.7037037037037036,
     "tnr": 0.923076923076923,
-    "real_pass_rate": 0.675,
-    "kappa": 0.5499999999999998
+    "real_pass_rate": 0.675
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.95925,
-     "width": 0.3280448437500051,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.98875,
      "width": 0.1835510313958217,
@@ -4049,12 +3689,6 @@
     "general_before/tpr": {
      "coverage": 0.9535,
      "width": 0.16099574423529428,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95825,
-     "width": 0.34084668812346214,
      "checked": 4000,
      "unknown": 0
     },
@@ -4170,16 +3804,9 @@
    "truth": {
     "tpr": 0.8260869565217391,
     "tnr": 0.9411764705882353,
-    "real_pass_rate": 0.575,
-    "kappa": 0.75
+    "real_pass_rate": 0.575
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9783711615487316,
-     "width": 0.5136715620827682,
-     "checked": 3745,
-     "unknown": 255
-    },
     "general_before/tnr": {
      "coverage": 0.98375,
      "width": 0.36530097465197314,
@@ -4189,12 +3816,6 @@
     "general_before/tpr": {
      "coverage": 0.984,
      "width": 0.3080923859953452,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9715,
-     "width": 0.5556719695328752,
      "checked": 4000,
      "unknown": 0
     },
@@ -4310,16 +3931,9 @@
    "truth": {
     "tpr": 0.8260869565217391,
     "tnr": 0.9411764705882353,
-    "real_pass_rate": 0.575,
-    "kappa": 0.75
+    "real_pass_rate": 0.575
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9010654490106544,
-     "width": 0.437901234567904,
-     "checked": 3942,
-     "unknown": 58
-    },
     "general_before/tnr": {
      "coverage": 0.9955,
      "width": 0.2745550325890028,
@@ -4329,12 +3943,6 @@
     "general_before/tpr": {
      "coverage": 0.92975,
      "width": 0.26623921265444,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95975,
-     "width": 0.4629396451204011,
      "checked": 4000,
      "unknown": 0
     },
@@ -4450,16 +4058,9 @@
    "truth": {
     "tpr": 0.8260869565217391,
     "tnr": 0.9411764705882353,
-    "real_pass_rate": 0.575,
-    "kappa": 0.75
+    "real_pass_rate": 0.575
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9541927409261577,
-     "width": 0.34029561952439913,
-     "checked": 3995,
-     "unknown": 5
-    },
     "general_before/tnr": {
      "coverage": 0.99725,
      "width": 0.1890554406092392,
@@ -4469,12 +4070,6 @@
     "general_before/tpr": {
      "coverage": 0.917,
      "width": 0.21540275034998907,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.958,
-     "width": 0.3630592114918017,
      "checked": 4000,
      "unknown": 0
     },
@@ -4590,16 +4185,9 @@
    "truth": {
     "tpr": 0.8260869565217391,
     "tnr": 0.9411764705882353,
-    "real_pass_rate": 0.575,
-    "kappa": 0.75
+    "real_pass_rate": 0.575
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.95975,
-     "width": 0.2758821874999997,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.99375,
      "width": 0.14073333214628658,
@@ -4609,12 +4197,6 @@
     "general_before/tpr": {
      "coverage": 0.946,
      "width": 0.1775912247204861,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95,
-     "width": 0.2901566890814159,
      "checked": 4000,
      "unknown": 0
     },
@@ -4730,16 +4312,9 @@
    "truth": {
     "tpr": 0.95,
     "tnr": 0.95,
-    "real_pass_rate": 0.5,
-    "kappa": 0.8999999999999999
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9950038431975403,
-     "width": 0.3932744043043714,
-     "checked": 2602,
-     "unknown": 1398
-    },
     "general_before/tnr": {
      "coverage": 0.9895,
      "width": 0.3148376964332979,
@@ -4749,12 +4324,6 @@
     "general_before/tpr": {
      "coverage": 0.98825,
      "width": 0.3139706547719599,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.92375,
-     "width": 0.44210949678700306,
      "checked": 4000,
      "unknown": 0
     },
@@ -4870,16 +4439,9 @@
    "truth": {
     "tpr": 0.95,
     "tnr": 0.95,
-    "real_pass_rate": 0.5,
-    "kappa": 0.8999999999999999
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9948701506893235,
-     "width": 0.3039649460297228,
-     "checked": 3119,
-     "unknown": 881
-    },
     "general_before/tnr": {
      "coverage": 0.995,
      "width": 0.23298405389703497,
@@ -4889,12 +4451,6 @@
     "general_before/tpr": {
      "coverage": 0.995,
      "width": 0.23275533805716725,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.939,
-     "width": 0.34844604866055484,
      "checked": 4000,
      "unknown": 0
     },
@@ -5010,16 +4566,9 @@
    "truth": {
     "tpr": 0.95,
     "tnr": 0.95,
-    "real_pass_rate": 0.5,
-    "kappa": 0.8999999999999999
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9875507442489851,
-     "width": 0.2311014884979697,
-     "checked": 3695,
-     "unknown": 305
-    },
     "general_before/tnr": {
      "coverage": 0.99875,
      "width": 0.1604843216894139,
@@ -5029,12 +4578,6 @@
     "general_before/tpr": {
      "coverage": 0.999,
      "width": 0.15988502657638748,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9595,
-     "width": 0.265709905912198,
      "checked": 4000,
      "unknown": 0
     },
@@ -5150,16 +4693,9 @@
    "truth": {
     "tpr": 0.95,
     "tnr": 0.95,
-    "real_pass_rate": 0.5,
-    "kappa": 0.8999999999999999
+    "real_pass_rate": 0.5
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9201017811704835,
-     "width": 0.17874252544529248,
-     "checked": 3930,
-     "unknown": 70
-    },
     "general_before/tnr": {
      "coverage": 0.99475,
      "width": 0.1179740269945745,
@@ -5169,12 +4705,6 @@
     "general_before/tpr": {
      "coverage": 0.99325,
      "width": 0.11935992660434579,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.943,
-     "width": 0.20536462997756771,
      "checked": 4000,
      "unknown": 0
     },
@@ -5290,16 +4820,9 @@
    "truth": {
     "tpr": 0.7777777777777777,
     "tnr": 0.39130434782608703,
-    "real_pass_rate": 0.54,
-    "kappa": 0.17355371900826438
+    "real_pass_rate": 0.54
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9452363090772693,
-     "width": 0.7166904991198165,
-     "checked": 3999,
-     "unknown": 1
-    },
     "general_before/tnr": {
      "coverage": 0.946,
      "width": 0.48070238557465733,
@@ -5309,12 +4832,6 @@
     "general_before/tpr": {
      "coverage": 0.939,
      "width": 0.3651590760264771,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95475,
-     "width": 0.704486769360894,
      "checked": 4000,
      "unknown": 0
     },
@@ -5430,16 +4947,9 @@
    "truth": {
     "tpr": 0.7777777777777777,
     "tnr": 0.39130434782608703,
-    "real_pass_rate": 0.54,
-    "kappa": 0.17355371900826438
+    "real_pass_rate": 0.54
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94425,
-     "width": 0.6247405030187217,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94675,
      "width": 0.4178675931618814,
@@ -5449,12 +4959,6 @@
     "general_before/tpr": {
      "coverage": 0.96,
      "width": 0.2817570309495672,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95875,
-     "width": 0.6009402214650135,
      "checked": 4000,
      "unknown": 0
     },
@@ -5570,16 +5074,9 @@
    "truth": {
     "tpr": 0.7777777777777777,
     "tnr": 0.39130434782608703,
-    "real_pass_rate": 0.54,
-    "kappa": 0.17355371900826438
+    "real_pass_rate": 0.54
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94675,
-     "width": 0.47963081149961145,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94525,
      "width": 0.2946426861844784,
@@ -5589,12 +5086,6 @@
     "general_before/tpr": {
      "coverage": 0.952,
      "width": 0.2109581821355506,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95925,
-     "width": 0.4823881110412001,
      "checked": 4000,
      "unknown": 0
     },
@@ -5710,16 +5201,9 @@
    "truth": {
     "tpr": 0.7777777777777777,
     "tnr": 0.39130434782608703,
-    "real_pass_rate": 0.54,
-    "kappa": 0.17355371900826438
+    "real_pass_rate": 0.54
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94825,
-     "width": 0.38243727281781237,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.95475,
      "width": 0.2263843748873023,
@@ -5729,12 +5213,6 @@
     "general_before/tpr": {
      "coverage": 0.94975,
      "width": 0.16264023102702024,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9645,
-     "width": 0.39027053065627704,
      "checked": 4000,
      "unknown": 0
     },
@@ -5850,16 +5328,9 @@
    "truth": {
     "tpr": 0.875,
     "tnr": 0.4615384615384616,
-    "real_pass_rate": 0.48,
-    "kappa": 0.3307086614173229
+    "real_pass_rate": 0.48
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.923923923923924,
-     "width": 0.6629881831181517,
-     "checked": 3996,
-     "unknown": 4
-    },
     "general_before/tnr": {
      "coverage": 0.94125,
      "width": 0.4280927163534562,
@@ -5869,12 +5340,6 @@
     "general_before/tpr": {
      "coverage": 0.9855,
      "width": 0.34026780766639614,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95325,
-     "width": 0.6628545569533079,
      "checked": 4000,
      "unknown": 0
     },
@@ -5990,16 +5455,9 @@
    "truth": {
     "tpr": 0.875,
     "tnr": 0.4615384615384616,
-    "real_pass_rate": 0.48,
-    "kappa": 0.3307086614173229
+    "real_pass_rate": 0.48
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9365,
-     "width": 0.5778517460659373,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94575,
      "width": 0.38144963668822424,
@@ -6009,12 +5467,6 @@
     "general_before/tpr": {
      "coverage": 0.97425,
      "width": 0.2564417486718279,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9565,
-     "width": 0.5627556147928972,
      "checked": 4000,
      "unknown": 0
     },
@@ -6130,16 +5582,9 @@
    "truth": {
     "tpr": 0.875,
     "tnr": 0.4615384615384616,
-    "real_pass_rate": 0.48,
-    "kappa": 0.3307086614173229
+    "real_pass_rate": 0.48
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9415,
-     "width": 0.43962691807001236,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94975,
      "width": 0.27077750742385576,
@@ -6149,12 +5594,6 @@
     "general_before/tpr": {
      "coverage": 0.94525,
      "width": 0.18606136190206446,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9615,
-     "width": 0.45040879941465456,
      "checked": 4000,
      "unknown": 0
     },
@@ -6270,16 +5709,9 @@
    "truth": {
     "tpr": 0.875,
     "tnr": 0.4615384615384616,
-    "real_pass_rate": 0.48,
-    "kappa": 0.3307086614173229
+    "real_pass_rate": 0.48
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9585,
-     "width": 0.35835633637593106,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.96275,
      "width": 0.2111511372512548,
@@ -6289,12 +5721,6 @@
     "general_before/tpr": {
      "coverage": 0.95675,
      "width": 0.1516214214342037,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96375,
-     "width": 0.3629684373387308,
      "checked": 4000,
      "unknown": 0
     },
@@ -6410,16 +5836,9 @@
    "truth": {
     "tpr": 0.9655172413793103,
     "tnr": 0.5044247787610621,
-    "real_pass_rate": 0.435,
-    "kappa": 0.43916349809885946
+    "real_pass_rate": 0.435
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9437751004016064,
-     "width": 0.5993977331078548,
-     "checked": 3984,
-     "unknown": 16
-    },
     "general_before/tnr": {
      "coverage": 0.92825,
      "width": 0.3945524278723404,
@@ -6429,12 +5848,6 @@
     "general_before/tpr": {
      "coverage": 0.98975,
      "width": 0.3886507952369073,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9635,
-     "width": 0.6086407689250338,
      "checked": 4000,
      "unknown": 0
     },
@@ -6550,16 +5963,9 @@
    "truth": {
     "tpr": 0.9655172413793103,
     "tnr": 0.5044247787610621,
-    "real_pass_rate": 0.435,
-    "kappa": 0.43916349809885946
+    "real_pass_rate": 0.435
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9179589794897449,
-     "width": 0.5364370261926545,
-     "checked": 3998,
-     "unknown": 2
-    },
     "general_before/tnr": {
      "coverage": 0.916,
      "width": 0.36549793970434463,
@@ -6569,12 +5975,6 @@
     "general_before/tpr": {
      "coverage": 0.9955,
      "width": 0.2674544956266942,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96075,
-     "width": 0.5152807741602453,
      "checked": 4000,
      "unknown": 0
     },
@@ -6690,16 +6090,9 @@
    "truth": {
     "tpr": 0.9655172413793103,
     "tnr": 0.5044247787610621,
-    "real_pass_rate": 0.435,
-    "kappa": 0.43916349809885946
+    "real_pass_rate": 0.435
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.938,
-     "width": 0.40458655232267493,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.9385,
      "width": 0.2522551759194057,
@@ -6709,12 +6102,6 @@
     "general_before/tpr": {
      "coverage": 0.99625,
      "width": 0.1588248218802685,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.961,
-     "width": 0.41045668342725966,
      "checked": 4000,
      "unknown": 0
     },
@@ -6830,16 +6217,9 @@
    "truth": {
     "tpr": 0.9655172413793103,
     "tnr": 0.5044247787610621,
-    "real_pass_rate": 0.435,
-    "kappa": 0.43916349809885946
+    "real_pass_rate": 0.435
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94975,
-     "width": 0.32283257187977965,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.954,
      "width": 0.19697963562784385,
@@ -6849,12 +6229,6 @@
     "general_before/tpr": {
      "coverage": 0.9935,
      "width": 0.1034864488681935,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96075,
-     "width": 0.3317442989142136,
      "checked": 4000,
      "unknown": 0
     },
@@ -6970,16 +6344,9 @@
    "truth": {
     "tpr": 0.8235294117647058,
     "tnr": 0.5625000000000001,
-    "real_pass_rate": 0.6799999999999999,
-    "kappa": 0.39252336448598135
+    "real_pass_rate": 0.6799999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9251938954215662,
-     "width": 0.7216323987723873,
-     "checked": 3997,
-     "unknown": 3
-    },
     "general_before/tnr": {
      "coverage": 0.94075,
      "width": 0.6009174716333735,
@@ -6989,12 +6356,6 @@
     "general_before/tpr": {
      "coverage": 0.94525,
      "width": 0.24125234755020752,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.94625,
-     "width": 0.7125910979495161,
      "checked": 4000,
      "unknown": 0
     },
@@ -7110,16 +6471,9 @@
    "truth": {
     "tpr": 0.8235294117647058,
     "tnr": 0.5625000000000001,
-    "real_pass_rate": 0.6799999999999999,
-    "kappa": 0.39252336448598135
+    "real_pass_rate": 0.6799999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9445,
-     "width": 0.631699352583981,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.947,
      "width": 0.5589707107621766,
@@ -7129,12 +6483,6 @@
     "general_before/tpr": {
      "coverage": 0.953,
      "width": 0.19766979769009693,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95575,
-     "width": 0.6125446574992803,
      "checked": 4000,
      "unknown": 0
     },
@@ -7250,16 +6598,9 @@
    "truth": {
     "tpr": 0.8235294117647058,
     "tnr": 0.5625000000000001,
-    "real_pass_rate": 0.6799999999999999,
-    "kappa": 0.39252336448598135
+    "real_pass_rate": 0.6799999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.93625,
-     "width": 0.49897076878342006,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94225,
      "width": 0.43108938527575874,
@@ -7269,12 +6610,6 @@
     "general_before/tpr": {
      "coverage": 0.94625,
      "width": 0.15339280043478606,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95675,
-     "width": 0.4976042784429088,
      "checked": 4000,
      "unknown": 0
     },
@@ -7390,16 +6725,9 @@
    "truth": {
     "tpr": 0.8235294117647058,
     "tnr": 0.5625000000000001,
-    "real_pass_rate": 0.6799999999999999,
-    "kappa": 0.39252336448598135
+    "real_pass_rate": 0.6799999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9345,
-     "width": 0.39316754632107015,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.937,
      "width": 0.33667613030427673,
@@ -7409,12 +6737,6 @@
     "general_before/tpr": {
      "coverage": 0.94175,
      "width": 0.11853584742272673,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9545,
-     "width": 0.4044920370688777,
      "checked": 4000,
      "unknown": 0
     },
@@ -7530,16 +6852,9 @@
    "truth": {
     "tpr": 0.903225806451613,
     "tnr": 0.6315789473684211,
-    "real_pass_rate": 0.6199999999999999,
-    "kappa": 0.5575221238938055
+    "real_pass_rate": 0.6199999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9006321112515803,
-     "width": 0.6586115968399714,
-     "checked": 3955,
-     "unknown": 45
-    },
     "general_before/tnr": {
      "coverage": 0.953,
      "width": 0.5093383138042668,
@@ -7549,12 +6864,6 @@
     "general_before/tpr": {
      "coverage": 0.978,
      "width": 0.23192550827432407,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96375,
-     "width": 0.6586165227779833,
      "checked": 4000,
      "unknown": 0
     },
@@ -7670,16 +6979,9 @@
    "truth": {
     "tpr": 0.903225806451613,
     "tnr": 0.6315789473684211,
-    "real_pass_rate": 0.6199999999999999,
-    "kappa": 0.5575221238938055
+    "real_pass_rate": 0.6199999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9409704852426213,
-     "width": 0.5663419999789779,
-     "checked": 3998,
-     "unknown": 2
-    },
     "general_before/tnr": {
      "coverage": 0.9285,
      "width": 0.4796454083057363,
@@ -7689,12 +6991,6 @@
     "general_before/tpr": {
      "coverage": 0.96025,
      "width": 0.17853904517749183,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.956,
-     "width": 0.562970775921654,
      "checked": 4000,
      "unknown": 0
     },
@@ -7810,16 +7106,9 @@
    "truth": {
     "tpr": 0.903225806451613,
     "tnr": 0.6315789473684211,
-    "real_pass_rate": 0.6199999999999999,
-    "kappa": 0.5575221238938055
+    "real_pass_rate": 0.6199999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.93775,
-     "width": 0.4460427051017474,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.93,
      "width": 0.3771934452361748,
@@ -7829,12 +7118,6 @@
     "general_before/tpr": {
      "coverage": 0.9335,
      "width": 0.1366990576147274,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95175,
-     "width": 0.45553474809611527,
      "checked": 4000,
      "unknown": 0
     },
@@ -7950,16 +7233,9 @@
    "truth": {
     "tpr": 0.903225806451613,
     "tnr": 0.6315789473684211,
-    "real_pass_rate": 0.6199999999999999,
-    "kappa": 0.5575221238938055
+    "real_pass_rate": 0.6199999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.944,
-     "width": 0.3671757881158739,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94175,
      "width": 0.300374859591914,
@@ -7969,12 +7245,6 @@
     "general_before/tpr": {
      "coverage": 0.941,
      "width": 0.11288492611611456,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95775,
-     "width": 0.369852388361722,
      "checked": 4000,
      "unknown": 0
     },
@@ -8090,16 +7360,9 @@
    "truth": {
     "tpr": 0.9739130434782608,
     "tnr": 0.6705882352941177,
-    "real_pass_rate": 0.575,
-    "kappa": 0.6702127659574467
+    "real_pass_rate": 0.575
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9489850427350427,
-     "width": 0.578053933808126,
-     "checked": 3744,
-     "unknown": 256
-    },
     "general_before/tnr": {
      "coverage": 0.98375,
      "width": 0.4542663499666744,
@@ -8109,12 +7372,6 @@
     "general_before/tpr": {
      "coverage": 0.99,
      "width": 0.3070468171079216,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.961,
-     "width": 0.5927224328801353,
      "checked": 4000,
      "unknown": 0
     },
@@ -8230,16 +7487,9 @@
    "truth": {
     "tpr": 0.9739130434782608,
     "tnr": 0.6705882352941177,
-    "real_pass_rate": 0.575,
-    "kappa": 0.6702127659574467
+    "real_pass_rate": 0.575
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.8958438925494171,
-     "width": 0.5070100230769559,
-     "checked": 3946,
-     "unknown": 54
-    },
     "general_before/tnr": {
      "coverage": 0.88575,
      "width": 0.43118594418603556,
@@ -8249,12 +7499,6 @@
     "general_before/tpr": {
      "coverage": 0.9935,
      "width": 0.2066516896379526,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95575,
-     "width": 0.5053557744804535,
      "checked": 4000,
      "unknown": 0
     },
@@ -8370,16 +7614,9 @@
    "truth": {
     "tpr": 0.9739130434782608,
     "tnr": 0.6705882352941177,
-    "real_pass_rate": 0.575,
-    "kappa": 0.6702127659574467
+    "real_pass_rate": 0.575
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9044044044044044,
-     "width": 0.4022093159275185,
-     "checked": 3996,
-     "unknown": 4
-    },
     "general_before/tnr": {
      "coverage": 0.90625,
      "width": 0.345031378582401,
@@ -8389,12 +7626,6 @@
     "general_before/tpr": {
      "coverage": 0.9985,
      "width": 0.12011377067773607,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.946,
-     "width": 0.410145074522494,
      "checked": 4000,
      "unknown": 0
     },
@@ -8510,16 +7741,9 @@
    "truth": {
     "tpr": 0.9739130434782608,
     "tnr": 0.6705882352941177,
-    "real_pass_rate": 0.575,
-    "kappa": 0.6702127659574467
+    "real_pass_rate": 0.575
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.93125,
-     "width": 0.3258150791809197,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.937,
      "width": 0.27521451902201305,
@@ -8529,12 +7753,6 @@
     "general_before/tpr": {
      "coverage": 0.99425,
      "width": 0.07685342423389832,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96175,
-     "width": 0.3335688477142787,
      "checked": 4000,
      "unknown": 0
     },
@@ -8650,16 +7868,9 @@
    "truth": {
     "tpr": 0.8471337579617835,
     "tnr": 0.8372093023255813,
-    "real_pass_rate": 0.7849999999999999,
-    "kappa": 0.5984455958549223
+    "real_pass_rate": 0.7849999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9422110552763819,
-     "width": 0.6092818632364632,
-     "checked": 3980,
-     "unknown": 20
-    },
     "general_before/tnr": {
      "coverage": 0.9879909932449337,
      "width": 0.5380650487797134,
@@ -8669,12 +7880,6 @@
     "general_before/tpr": {
      "coverage": 0.93175,
      "width": 0.18803713377925907,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.951,
-     "width": 0.650154612531687,
      "checked": 4000,
      "unknown": 0
     },
@@ -8790,16 +7995,9 @@
    "truth": {
     "tpr": 0.8471337579617835,
     "tnr": 0.8372093023255813,
-    "real_pass_rate": 0.7849999999999999,
-    "kappa": 0.5984455958549223
+    "real_pass_rate": 0.7849999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94125,
-     "width": 0.5236656084808922,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.99675,
      "width": 0.46213013761545807,
@@ -8809,12 +8007,6 @@
     "general_before/tpr": {
      "coverage": 0.917,
      "width": 0.15770686749067675,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95575,
-     "width": 0.5484065930216198,
      "checked": 4000,
      "unknown": 0
     },
@@ -8930,16 +8122,9 @@
    "truth": {
     "tpr": 0.8471337579617835,
     "tnr": 0.8372093023255813,
-    "real_pass_rate": 0.7849999999999999,
-    "kappa": 0.5984455958549223
+    "real_pass_rate": 0.7849999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9385,
-     "width": 0.4136740070766979,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.99675,
      "width": 0.37318981058197,
@@ -8949,12 +8134,6 @@
     "general_before/tpr": {
      "coverage": 0.93575,
      "width": 0.12414148084806624,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9615,
-     "width": 0.43224938867313323,
      "checked": 4000,
      "unknown": 0
     },
@@ -9070,16 +8249,9 @@
    "truth": {
     "tpr": 0.8471337579617835,
     "tnr": 0.8372093023255813,
-    "real_pass_rate": 0.7849999999999999,
-    "kappa": 0.5984455958549223
+    "real_pass_rate": 0.7849999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9455,
-     "width": 0.33144625959861146,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.953,
      "width": 0.3167031689239866,
@@ -9089,12 +8261,6 @@
     "general_before/tpr": {
      "coverage": 0.94475,
      "width": 0.09924200858522246,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.961,
-     "width": 0.34983876372402056,
      "checked": 4000,
      "unknown": 0
     },
@@ -9210,16 +8376,9 @@
    "truth": {
     "tpr": 0.9172413793103449,
     "tnr": 0.8727272727272727,
-    "real_pass_rate": 0.7249999999999999,
-    "kappa": 0.7682926829268294
+    "real_pass_rate": 0.7249999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9737546866630958,
-     "width": 0.497340960333439,
-     "checked": 3734,
-     "unknown": 266
-    },
     "general_before/tnr": {
      "coverage": 0.99175,
      "width": 0.4420326749080012,
@@ -9229,12 +8388,6 @@
     "general_before/tpr": {
      "coverage": 0.98325,
      "width": 0.1858563478672995,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.973,
-     "width": 0.5694075901407787,
      "checked": 4000,
      "unknown": 0
     },
@@ -9350,16 +8503,9 @@
    "truth": {
     "tpr": 0.9172413793103449,
     "tnr": 0.8727272727272727,
-    "real_pass_rate": 0.7249999999999999,
-    "kappa": 0.7682926829268294
+    "real_pass_rate": 0.7249999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9191326530612245,
-     "width": 0.4186257876907126,
-     "checked": 3920,
-     "unknown": 80
-    },
     "general_before/tnr": {
      "coverage": 0.9925,
      "width": 0.37031326179389573,
@@ -9369,12 +8515,6 @@
     "general_before/tpr": {
      "coverage": 0.92025,
      "width": 0.14631608610239416,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9675,
-     "width": 0.47248832873924734,
      "checked": 4000,
      "unknown": 0
     },
@@ -9490,16 +8630,9 @@
    "truth": {
     "tpr": 0.9172413793103449,
     "tnr": 0.8727272727272727,
-    "real_pass_rate": 0.7249999999999999,
-    "kappa": 0.7682926829268294
+    "real_pass_rate": 0.7249999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9196696696696697,
-     "width": 0.3399635002323592,
-     "checked": 3996,
-     "unknown": 4
-    },
     "general_before/tnr": {
      "coverage": 0.99825,
      "width": 0.30371769409269544,
@@ -9509,12 +8642,6 @@
     "general_before/tpr": {
      "coverage": 0.92575,
      "width": 0.11467946603511768,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95575,
-     "width": 0.3725011944933696,
      "checked": 4000,
      "unknown": 0
     },
@@ -9630,16 +8757,9 @@
    "truth": {
     "tpr": 0.9172413793103449,
     "tnr": 0.8727272727272727,
-    "real_pass_rate": 0.7249999999999999,
-    "kappa": 0.7682926829268294
+    "real_pass_rate": 0.7249999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94125,
-     "width": 0.2762333468497743,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.97075,
      "width": 0.25371730483167915,
@@ -9649,12 +8769,6 @@
     "general_before/tpr": {
      "coverage": 0.947,
      "width": 0.09420300005015522,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.965,
-     "width": 0.2965570740994968,
      "checked": 4000,
      "unknown": 0
     },
@@ -9770,16 +8884,9 @@
    "truth": {
     "tpr": 0.9779411764705882,
     "tnr": 0.8906249999999999,
-    "real_pass_rate": 0.6799999999999999,
-    "kappa": 0.8831775700934579
+    "real_pass_rate": 0.6799999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9813333333333333,
-     "width": 0.4256226587180385,
-     "checked": 2625,
-     "unknown": 1375
-    },
     "general_before/tnr": {
      "coverage": 0.9895,
      "width": 0.3921220287801181,
@@ -9789,12 +8896,6 @@
     "general_before/tpr": {
      "coverage": 0.98675,
      "width": 0.2610420313370676,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95525,
-     "width": 0.48747132958530826,
      "checked": 4000,
      "unknown": 0
     },
@@ -9910,16 +9011,9 @@
    "truth": {
     "tpr": 0.9779411764705882,
     "tnr": 0.8906249999999999,
-    "real_pass_rate": 0.6799999999999999,
-    "kappa": 0.8831775700934579
+    "real_pass_rate": 0.6799999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9961464354527938,
-     "width": 0.34029940473234704,
-     "checked": 3114,
-     "unknown": 886
-    },
     "general_before/tnr": {
      "coverage": 0.996,
      "width": 0.32436622421842115,
@@ -9929,12 +9023,6 @@
     "general_before/tpr": {
      "coverage": 0.99525,
      "width": 0.17784064450837717,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.97525,
-     "width": 0.39320761188568853,
      "checked": 4000,
      "unknown": 0
     },
@@ -10050,16 +9138,9 @@
    "truth": {
     "tpr": 0.9779411764705882,
     "tnr": 0.8906249999999999,
-    "real_pass_rate": 0.6799999999999999,
-    "kappa": 0.8831775700934579
+    "real_pass_rate": 0.6799999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.8767643865363735,
-     "width": 0.25994676506127007,
-     "checked": 3684,
-     "unknown": 316
-    },
     "general_before/tnr": {
      "coverage": 0.99875,
      "width": 0.25967172113026754,
@@ -10069,12 +9150,6 @@
     "general_before/tpr": {
      "coverage": 0.99875,
      "width": 0.10042909141212122,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.968,
-     "width": 0.3020051260736834,
      "checked": 4000,
      "unknown": 0
     },
@@ -10190,16 +9265,9 @@
    "truth": {
     "tpr": 0.9779411764705882,
     "tnr": 0.8906249999999999,
-    "real_pass_rate": 0.6799999999999999,
-    "kappa": 0.8831775700934579
+    "real_pass_rate": 0.6799999999999999
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9161159125571937,
-     "width": 0.21233396390516918,
-     "checked": 3934,
-     "unknown": 66
-    },
     "general_before/tnr": {
      "coverage": 0.99175,
      "width": 0.21778253641406212,
@@ -10209,12 +9277,6 @@
     "general_before/tpr": {
      "coverage": 0.99425,
      "width": 0.06388530942033539,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9535,
-     "width": 0.2399713509280321,
      "checked": 4000,
      "unknown": 0
     },
@@ -10330,16 +9392,9 @@
    "truth": {
     "tpr": 0.9310344827586207,
     "tnr": 0.1428571428571428,
-    "real_pass_rate": 0.5800000000000001,
-    "kappa": 0.08256880733944937
+    "real_pass_rate": 0.5800000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94325,
-     "width": 0.48236753241971786,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94275,
      "width": 0.3743573979380941,
@@ -10349,12 +9404,6 @@
     "general_before/tpr": {
      "coverage": 0.9395,
      "width": 0.1839200385905624,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9545,
-     "width": 0.44415512575352123,
      "checked": 4000,
      "unknown": 0
     },
@@ -10470,16 +9519,9 @@
    "truth": {
     "tpr": 0.9310344827586207,
     "tnr": 0.1428571428571428,
-    "real_pass_rate": 0.5800000000000001,
-    "kappa": 0.08256880733944937
+    "real_pass_rate": 0.5800000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94025,
-     "width": 0.4092123240140451,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94025,
      "width": 0.30467047714253637,
@@ -10489,12 +9531,6 @@
     "general_before/tpr": {
      "coverage": 0.956,
      "width": 0.11764354460017762,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95075,
-     "width": 0.36336259742203497,
      "checked": 4000,
      "unknown": 0
     },
@@ -10610,16 +9646,9 @@
    "truth": {
     "tpr": 0.9310344827586207,
     "tnr": 0.1428571428571428,
-    "real_pass_rate": 0.5800000000000001,
-    "kappa": 0.08256880733944937
+    "real_pass_rate": 0.5800000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94275,
-     "width": 0.28559610856833884,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94275,
      "width": 0.17823222397697214,
@@ -10629,12 +9658,6 @@
     "general_before/tpr": {
      "coverage": 0.9475,
      "width": 0.0821579145083849,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95175,
-     "width": 0.2815485417198225,
      "checked": 4000,
      "unknown": 0
     },
@@ -10750,16 +9773,9 @@
    "truth": {
     "tpr": 0.9310344827586207,
     "tnr": 0.1428571428571428,
-    "real_pass_rate": 0.5800000000000001,
-    "kappa": 0.08256880733944937
+    "real_pass_rate": 0.5800000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94575,
-     "width": 0.21632060186216365,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.948,
      "width": 0.1255571944256298,
@@ -10769,12 +9785,6 @@
     "general_before/tpr": {
      "coverage": 0.9445,
      "width": 0.06257244020583842,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95725,
-     "width": 0.2195865908147403,
      "checked": 4000,
      "unknown": 0
     },
@@ -10890,16 +9900,9 @@
    "truth": {
     "tpr": 0.9642857142857143,
     "tnr": 0.18181818181818177,
-    "real_pass_rate": 0.56,
-    "kappa": 0.15929203539823
+    "real_pass_rate": 0.56
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9244433324993745,
-     "width": 0.5011768586557003,
-     "checked": 3997,
-     "unknown": 3
-    },
     "general_before/tnr": {
      "coverage": 0.9435,
      "width": 0.3749270041968788,
@@ -10909,12 +9912,6 @@
     "general_before/tpr": {
      "coverage": 0.987,
      "width": 0.1829690284985608,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9535,
-     "width": 0.46605430879405085,
      "checked": 4000,
      "unknown": 0
     },
@@ -11030,16 +10027,9 @@
    "truth": {
     "tpr": 0.9642857142857143,
     "tnr": 0.18181818181818177,
-    "real_pass_rate": 0.56,
-    "kappa": 0.15929203539823
+    "real_pass_rate": 0.56
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.942,
-     "width": 0.431497258915578,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94575,
      "width": 0.32167384981584,
@@ -11049,12 +10039,6 @@
     "general_before/tpr": {
      "coverage": 0.97475,
      "width": 0.09856845014137523,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95725,
-     "width": 0.3849876342444479,
      "checked": 4000,
      "unknown": 0
     },
@@ -11170,16 +10154,9 @@
    "truth": {
     "tpr": 0.9642857142857143,
     "tnr": 0.18181818181818177,
-    "real_pass_rate": 0.56,
-    "kappa": 0.15929203539823
+    "real_pass_rate": 0.56
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.935,
-     "width": 0.3006678658663332,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94275,
      "width": 0.19132185948224037,
@@ -11189,12 +10166,6 @@
     "general_before/tpr": {
      "coverage": 0.9405,
      "width": 0.062061880209322996,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95075,
-     "width": 0.2970213271517375,
      "checked": 4000,
      "unknown": 0
     },
@@ -11310,16 +10281,9 @@
    "truth": {
     "tpr": 0.9642857142857143,
     "tnr": 0.18181818181818177,
-    "real_pass_rate": 0.56,
-    "kappa": 0.15929203539823
+    "real_pass_rate": 0.56
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94125,
-     "width": 0.23314798844216233,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.95025,
      "width": 0.13924848102443865,
@@ -11329,12 +10293,6 @@
     "general_before/tpr": {
      "coverage": 0.958,
      "width": 0.04882114165077395,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95475,
-     "width": 0.23383226467426324,
      "checked": 4000,
      "unknown": 0
     },
@@ -11450,16 +10408,9 @@
    "truth": {
     "tpr": 0.9908256880733944,
     "tnr": 0.20879120879120872,
-    "real_pass_rate": 0.545,
-    "kappa": 0.2133620689655172
+    "real_pass_rate": 0.545
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9310258339603712,
-     "width": 0.5092184812356308,
-     "checked": 3987,
-     "unknown": 13
-    },
     "general_before/tnr": {
      "coverage": 0.928,
      "width": 0.37811117105888015,
@@ -11469,12 +10420,6 @@
     "general_before/tpr": {
      "coverage": 0.987,
      "width": 0.3245652211110711,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.967,
-     "width": 0.475545026937279,
      "checked": 4000,
      "unknown": 0
     },
@@ -11590,16 +10535,9 @@
    "truth": {
     "tpr": 0.9908256880733944,
     "tnr": 0.20879120879120872,
-    "real_pass_rate": 0.545,
-    "kappa": 0.2133620689655172
+    "real_pass_rate": 0.545
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.914,
-     "width": 0.46266054250905897,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.916,
      "width": 0.34295203183498607,
@@ -11609,12 +10547,6 @@
     "general_before/tpr": {
      "coverage": 0.996,
      "width": 0.20424576831467992,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95925,
-     "width": 0.39429967334259003,
      "checked": 4000,
      "unknown": 0
     },
@@ -11730,16 +10662,9 @@
    "truth": {
     "tpr": 0.9908256880733944,
     "tnr": 0.20879120879120872,
-    "real_pass_rate": 0.545,
-    "kappa": 0.2133620689655172
+    "real_pass_rate": 0.545
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.94625,
-     "width": 0.30873342109213037,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94625,
      "width": 0.19691261654357967,
@@ -11749,12 +10674,6 @@
     "general_before/tpr": {
      "coverage": 0.99525,
      "width": 0.09621688005096751,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96675,
-     "width": 0.30318807261194525,
      "checked": 4000,
      "unknown": 0
     },
@@ -11870,16 +10789,9 @@
    "truth": {
     "tpr": 0.9908256880733944,
     "tnr": 0.20879120879120872,
-    "real_pass_rate": 0.545,
-    "kappa": 0.2133620689655172
+    "real_pass_rate": 0.545
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.95475,
-     "width": 0.23638431543530142,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.95475,
      "width": 0.14404132176928677,
@@ -11889,12 +10801,6 @@
     "general_before/tpr": {
      "coverage": 0.98975,
      "width": 0.04410762549264883,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.962,
-     "width": 0.24005764568537968,
      "checked": 4000,
      "unknown": 0
     },
@@ -12010,16 +10916,9 @@
    "truth": {
     "tpr": 0.9473684210526315,
     "tnr": 0.25,
-    "real_pass_rate": 0.7600000000000001,
-    "kappa": 0.24657534246575305
+    "real_pass_rate": 0.7600000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.8861930965482742,
-     "width": 0.6741409361633298,
-     "checked": 3998,
-     "unknown": 2
-    },
     "general_before/tnr": {
      "coverage": 0.8715,
      "width": 0.6658112261043084,
@@ -12029,12 +10928,6 @@
     "general_before/tpr": {
      "coverage": 0.944,
      "width": 0.09119686353805395,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9565,
-     "width": 0.6049635288246192,
      "checked": 4000,
      "unknown": 0
     },
@@ -12150,16 +11043,9 @@
    "truth": {
     "tpr": 0.9473684210526315,
     "tnr": 0.25,
-    "real_pass_rate": 0.7600000000000001,
-    "kappa": 0.24657534246575305
+    "real_pass_rate": 0.7600000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.927,
-     "width": 0.6147285257484244,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94675,
      "width": 0.6702990191091354,
@@ -12169,12 +11055,6 @@
     "general_before/tpr": {
      "coverage": 0.95325,
      "width": 0.06978500036734052,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95425,
-     "width": 0.5257657470562191,
      "checked": 4000,
      "unknown": 0
     },
@@ -12290,16 +11170,9 @@
    "truth": {
     "tpr": 0.9473684210526315,
     "tnr": 0.25,
-    "real_pass_rate": 0.7600000000000001,
-    "kappa": 0.24657534246575305
+    "real_pass_rate": 0.7600000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.93825,
-     "width": 0.46993530071773004,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.94025,
      "width": 0.459298762778974,
@@ -12309,12 +11182,6 @@
     "general_before/tpr": {
      "coverage": 0.9505,
      "width": 0.053401366415141094,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9545,
-     "width": 0.4302054621408053,
      "checked": 4000,
      "unknown": 0
     },
@@ -12430,16 +11297,9 @@
    "truth": {
     "tpr": 0.9473684210526315,
     "tnr": 0.25,
-    "real_pass_rate": 0.7600000000000001,
-    "kappa": 0.24657534246575305
+    "real_pass_rate": 0.7600000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9305,
-     "width": 0.3560719962116211,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.93525,
      "width": 0.3135809761524396,
@@ -12449,12 +11309,6 @@
     "general_before/tpr": {
      "coverage": 0.94375,
      "width": 0.04107545410628552,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.955,
-     "width": 0.3513654652553314,
      "checked": 4000,
      "unknown": 0
     },
@@ -12570,16 +11424,9 @@
    "truth": {
     "tpr": 0.9729729729729729,
     "tnr": 0.3076923076923077,
-    "real_pass_rate": 0.7400000000000001,
-    "kappa": 0.35064935064935043
+    "real_pass_rate": 0.7400000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.8876262626262627,
-     "width": 0.6747481575023763,
-     "checked": 3960,
-     "unknown": 40
-    },
     "general_before/tnr": {
      "coverage": 0.8775,
      "width": 0.6278168471559981,
@@ -12589,12 +11436,6 @@
     "general_before/tpr": {
      "coverage": 0.983,
      "width": 0.10359470693000598,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9665,
-     "width": 0.6274915791813552,
      "checked": 4000,
      "unknown": 0
     },
@@ -12710,16 +11551,9 @@
    "truth": {
     "tpr": 0.9729729729729729,
     "tnr": 0.3076923076923077,
-    "real_pass_rate": 0.7400000000000001,
-    "kappa": 0.35064935064935043
+    "real_pass_rate": 0.7400000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9323647294589178,
-     "width": 0.6266472508531944,
-     "checked": 3992,
-     "unknown": 8
-    },
     "general_before/tnr": {
      "coverage": 0.9315,
      "width": 0.6347780175906508,
@@ -12729,12 +11563,6 @@
     "general_before/tpr": {
      "coverage": 0.96625,
      "width": 0.06320503102611308,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9525,
-     "width": 0.5499477478886409,
      "checked": 4000,
      "unknown": 0
     },
@@ -12850,16 +11678,9 @@
    "truth": {
     "tpr": 0.9729729729729729,
     "tnr": 0.3076923076923077,
-    "real_pass_rate": 0.7400000000000001,
-    "kappa": 0.35064935064935043
+    "real_pass_rate": 0.7400000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9442360590147537,
-     "width": 0.4932961248733788,
-     "checked": 3999,
-     "unknown": 1
-    },
     "general_before/tnr": {
      "coverage": 0.931,
      "width": 0.4699368127970455,
@@ -12869,12 +11690,6 @@
     "general_before/tpr": {
      "coverage": 0.93375,
      "width": 0.04180728457021074,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96275,
-     "width": 0.4557205560693747,
      "checked": 4000,
      "unknown": 0
     },
@@ -12990,16 +11805,9 @@
    "truth": {
     "tpr": 0.9729729729729729,
     "tnr": 0.3076923076923077,
-    "real_pass_rate": 0.7400000000000001,
-    "kappa": 0.35064935064935043
+    "real_pass_rate": 0.7400000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9355,
-     "width": 0.3844148936032258,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.93675,
      "width": 0.3300022193166273,
@@ -13009,12 +11817,6 @@
     "general_before/tpr": {
      "coverage": 0.952,
      "width": 0.03439316858992169,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9585,
-     "width": 0.37100695958457,
      "checked": 4000,
      "unknown": 0
     },
@@ -13130,16 +11932,9 @@
    "truth": {
     "tpr": 0.993103448275862,
     "tnr": 0.34545454545454546,
-    "real_pass_rate": 0.7250000000000001,
-    "kappa": 0.4218750000000001
+    "real_pass_rate": 0.7250000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9396689802455953,
-     "width": 0.6667087773502394,
-     "checked": 3746,
-     "unknown": 254
-    },
     "general_before/tnr": {
      "coverage": 0.881,
      "width": 0.5994163511384449,
@@ -13149,12 +11944,6 @@
     "general_before/tpr": {
      "coverage": 0.9905,
      "width": 0.255672490700495,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96675,
-     "width": 0.6315307257724776,
      "checked": 4000,
      "unknown": 0
     },
@@ -13270,16 +12059,9 @@
    "truth": {
     "tpr": 0.993103448275862,
     "tnr": 0.34545454545454546,
-    "real_pass_rate": 0.7250000000000001,
-    "kappa": 0.4218750000000001
+    "real_pass_rate": 0.7250000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9051855617691916,
-     "width": 0.6409250364800979,
-     "checked": 3934,
-     "unknown": 66
-    },
     "general_before/tnr": {
      "coverage": 0.89025,
      "width": 0.6182169874274182,
@@ -13289,12 +12071,6 @@
     "general_before/tpr": {
      "coverage": 0.9945,
      "width": 0.15813044796397188,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.94225,
-     "width": 0.5564250863206521,
      "checked": 4000,
      "unknown": 0
     },
@@ -13410,16 +12186,9 @@
    "truth": {
     "tpr": 0.993103448275862,
     "tnr": 0.34545454545454546,
-    "real_pass_rate": 0.7250000000000001,
-    "kappa": 0.4218750000000001
+    "real_pass_rate": 0.7250000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.9052026013006503,
-     "width": 0.5015725503331195,
-     "checked": 3998,
-     "unknown": 2
-    },
     "general_before/tnr": {
      "coverage": 0.906,
      "width": 0.45713147547900834,
@@ -13429,12 +12198,6 @@
     "general_before/tpr": {
      "coverage": 0.99825,
      "width": 0.07249848581183733,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.94125,
-     "width": 0.4612459747937082,
      "checked": 4000,
      "unknown": 0
     },
@@ -13550,16 +12313,9 @@
    "truth": {
     "tpr": 0.993103448275862,
     "tnr": 0.34545454545454546,
-    "real_pass_rate": 0.7250000000000001,
-    "kappa": 0.4218750000000001
+    "real_pass_rate": 0.7250000000000001
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.935,
-     "width": 0.39312930211119623,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.93575,
      "width": 0.3346581109860197,
@@ -13569,12 +12325,6 @@
     "general_before/tpr": {
      "coverage": 0.9935,
      "width": 0.03365483575423445,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9545,
-     "width": 0.37989313578323425,
      "checked": 4000,
      "unknown": 0
     },
@@ -13690,16 +12440,9 @@
    "truth": {
     "tpr": 0.9553072625698323,
     "tnr": 0.5714285714285712,
-    "real_pass_rate": 0.895,
-    "kappa": 0.5380434782608693
+    "real_pass_rate": 0.895
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.772704465629704,
-     "width": 0.6142628211986384,
-     "checked": 3986,
-     "unknown": 14
-    },
     "general_before/tnr": {
      "coverage": 0.76975,
      "width": 0.6242644106384218,
@@ -13709,12 +12452,6 @@
     "general_before/tpr": {
      "coverage": 0.9315,
      "width": 0.06454876028318753,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96825,
-     "width": 0.6934665266862418,
      "checked": 4000,
      "unknown": 0
     },
@@ -13830,16 +12567,9 @@
    "truth": {
     "tpr": 0.9553072625698323,
     "tnr": 0.5714285714285712,
-    "real_pass_rate": 0.895,
-    "kappa": 0.5380434782608693
+    "real_pass_rate": 0.895
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.8045,
-     "width": 0.5644061760608565,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.5775,
      "width": 0.6017111657660517,
@@ -13849,12 +12579,6 @@
     "general_before/tpr": {
      "coverage": 0.928,
      "width": 0.05200426270811641,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.967,
-     "width": 0.6100830507779688,
      "checked": 4000,
      "unknown": 0
     },
@@ -13970,16 +12694,9 @@
    "truth": {
     "tpr": 0.9553072625698323,
     "tnr": 0.5714285714285712,
-    "real_pass_rate": 0.895,
-    "kappa": 0.5380434782608693
+    "real_pass_rate": 0.895
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.82575,
-     "width": 0.4917092934139138,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.71525,
      "width": 0.5893183597936519,
@@ -13989,12 +12706,6 @@
     "general_before/tpr": {
      "coverage": 0.93675,
      "width": 0.041029133936853784,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.97275,
-     "width": 0.5083385269848976,
      "checked": 4000,
      "unknown": 0
     },
@@ -14110,16 +12821,9 @@
    "truth": {
     "tpr": 0.9553072625698323,
     "tnr": 0.5714285714285712,
-    "real_pass_rate": 0.895,
-    "kappa": 0.5380434782608693
+    "real_pass_rate": 0.895
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.8995,
-     "width": 0.40679972323032754,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.86275,
      "width": 0.5644757007013663,
@@ -14129,12 +12833,6 @@
     "general_before/tpr": {
      "coverage": 0.949,
      "width": 0.03268754468761306,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9585,
-     "width": 0.42688091772548636,
      "checked": 4000,
      "unknown": 0
     },
@@ -14250,16 +12948,9 @@
    "truth": {
     "tpr": 0.9771428571428571,
     "tnr": 0.6399999999999998,
-    "real_pass_rate": 0.875,
-    "kappa": 0.6749999999999998
+    "real_pass_rate": 0.875
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.8059060402684564,
-     "width": 0.5277112426305081,
-     "checked": 3725,
-     "unknown": 275
-    },
     "general_before/tnr": {
      "coverage": 0.7515,
      "width": 0.5486598169776311,
@@ -14269,12 +12960,6 @@
     "general_before/tpr": {
      "coverage": 0.98475,
      "width": 0.08353063172592101,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.962,
-     "width": 0.6856233423406662,
      "checked": 4000,
      "unknown": 0
     },
@@ -14390,16 +13075,9 @@
    "truth": {
     "tpr": 0.9771428571428571,
     "tnr": 0.6399999999999998,
-    "real_pass_rate": 0.875,
-    "kappa": 0.6749999999999998
+    "real_pass_rate": 0.875
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.6984207845134998,
-     "width": 0.49255297269359755,
-     "checked": 3926,
-     "unknown": 74
-    },
     "general_before/tnr": {
      "coverage": 0.538,
      "width": 0.5338262040881113,
@@ -14409,12 +13087,6 @@
     "general_before/tpr": {
      "coverage": 0.9245,
      "width": 0.05131284011615121,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96725,
-     "width": 0.6019601032452861,
      "checked": 4000,
      "unknown": 0
     },
@@ -14530,16 +13202,9 @@
    "truth": {
     "tpr": 0.9771428571428571,
     "tnr": 0.6399999999999998,
-    "real_pass_rate": 0.875,
-    "kappa": 0.6749999999999998
+    "real_pass_rate": 0.875
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.7455591693770328,
-     "width": 0.4535737139221809,
-     "checked": 3997,
-     "unknown": 3
-    },
     "general_before/tnr": {
      "coverage": 0.72,
      "width": 0.5250608442189622,
@@ -14549,12 +13214,6 @@
     "general_before/tpr": {
      "coverage": 0.91775,
      "width": 0.034268890582657176,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.97225,
-     "width": 0.5020103292601682,
      "checked": 4000,
      "unknown": 0
     },
@@ -14670,16 +13329,9 @@
    "truth": {
     "tpr": 0.9771428571428571,
     "tnr": 0.6399999999999998,
-    "real_pass_rate": 0.875,
-    "kappa": 0.6749999999999998
+    "real_pass_rate": 0.875
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.8675,
-     "width": 0.39684038373825054,
-     "checked": 4000,
-     "unknown": 0
-    },
     "general_before/tnr": {
      "coverage": 0.863,
      "width": 0.5010071106815183,
@@ -14689,12 +13341,6 @@
     "general_before/tpr": {
      "coverage": 0.94275,
      "width": 0.02785544551191035,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.96225,
-     "width": 0.4219269237553946,
      "checked": 4000,
      "unknown": 0
     },
@@ -14810,16 +13456,9 @@
    "truth": {
     "tpr": 0.9941860465116279,
     "tnr": 0.6785714285714283,
-    "real_pass_rate": 0.86,
-    "kappa": 0.7641509433962261
+    "real_pass_rate": 0.86
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.6844121026426656,
-     "width": 0.5419034392554613,
-     "checked": 2611,
-     "unknown": 1389
-    },
     "general_before/tnr": {
      "coverage": 0.9875,
      "width": 0.5101017377747094,
@@ -14829,12 +13468,6 @@
     "general_before/tpr": {
      "coverage": 0.98975,
      "width": 0.21951233498967462,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95675,
-     "width": 0.6676341418994203,
      "checked": 4000,
      "unknown": 0
     },
@@ -14950,16 +13583,9 @@
    "truth": {
     "tpr": 0.9941860465116279,
     "tnr": 0.6785714285714283,
-    "real_pass_rate": 0.86,
-    "kappa": 0.7641509433962261
+    "real_pass_rate": 0.86
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.7109079445145019,
-     "width": 0.4922420107060241,
-     "checked": 3172,
-     "unknown": 828
-    },
     "general_before/tnr": {
      "coverage": 0.54575,
      "width": 0.5007459801453117,
@@ -14969,12 +13595,6 @@
     "general_before/tpr": {
      "coverage": 0.992,
      "width": 0.13261810427029988,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.95875,
-     "width": 0.584308293972289,
      "checked": 4000,
      "unknown": 0
     },
@@ -15090,16 +13710,9 @@
    "truth": {
     "tpr": 0.9941860465116279,
     "tnr": 0.6785714285714283,
-    "real_pass_rate": 0.86,
-    "kappa": 0.7641509433962261
+    "real_pass_rate": 0.86
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.779503952030526,
-     "width": 0.42738638082928687,
-     "checked": 3669,
-     "unknown": 331
-    },
     "general_before/tnr": {
      "coverage": 0.71675,
      "width": 0.47981174435118684,
@@ -15109,12 +13722,6 @@
     "general_before/tpr": {
      "coverage": 0.99875,
      "width": 0.06334742515619453,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.97225,
-     "width": 0.48653296793944184,
      "checked": 4000,
      "unknown": 0
     },
@@ -15230,16 +13837,9 @@
    "truth": {
     "tpr": 0.9941860465116279,
     "tnr": 0.6785714285714283,
-    "real_pass_rate": 0.86,
-    "kappa": 0.7641509433962261
+    "real_pass_rate": 0.86
    },
    "ranges": {
-    "general_before/kappa": {
-     "coverage": 0.8612099644128114,
-     "width": 0.37423284973495174,
-     "checked": 3934,
-     "unknown": 66
-    },
     "general_before/tnr": {
      "coverage": 0.84725,
      "width": 0.4534007721575729,
@@ -15249,12 +13849,6 @@
     "general_before/tpr": {
      "coverage": 0.99475,
      "width": 0.02793753617377854,
-     "checked": 4000,
-     "unknown": 0
-    },
-    "general_now/kappa": {
-     "coverage": 0.9735,
-     "width": 0.40958843936054906,
      "checked": 4000,
      "unknown": 0
     },

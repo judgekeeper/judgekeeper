@@ -37,8 +37,9 @@ Jeffreys draws too, per saved group: the share marked Correct (p) is Beta(k + 0.
 as in `corrected`; of those, the share the judge passed again (q), and of those marked Wrong the
 share it failed again (r), are Beta(k, m - k): exactly 0 or 1 when none or every one agrees,
 and the saved verdict when there is none to tell. So a steady judge (the same verdicts again)
-gets `corrected`'s ranges. Each group weighs its pool, TPR, TNR and kappa come from each draw
-of the weighted table, and the range is the middle LEVEL, widened to hold the number itself.
+gets `corrected`'s ranges. Each group weighs its pool, TPR and TNR come from each draw of
+the weighted table, and the range is the middle LEVEL, widened to hold the number itself.
+Kappa has no range here either.
 A range never collapses to one point: when one would (the judge got every one right again, or
 none), that range draws q and r from Beta(k + 0.5, m - k + 0.5) too ("jeffreys, verdicts too"
 in `interval_methods`). A group of the pool with no labels leaves the ranges unknown. A
@@ -205,7 +206,7 @@ def _verdict_shares(rng: random.Random, k: int, m: int, saved: float, draws: int
 
 def _general_draws(by_group: dict, pool: dict, draws: int, seed: int,
                    jeffreys: bool) -> dict[str, list[float]]:
-    """Sorted draws of TPR, TNR and kappa of the weighted table (see `general`)."""
+    """Sorted draws of TPR and TNR of the weighted table (see `general`)."""
     rng = random.Random(seed)
     shares = []  # per group: (pool, draws of p, of q, of r)
     for g, xs in by_group.items():
@@ -222,17 +223,13 @@ def _general_draws(by_group: dict, pool: dict, draws: int, seed: int,
                                        jeffreys),
                        _verdict_shares(rng, failed, len(wrong), float(g == "fail"), draws,
                                        jeffreys)))
-    values: dict[str, list[float]] = {"tpr": [], "tnr": [], "kappa": []}
+    values: dict[str, list[float]] = {"tpr": [], "tnr": []}
     for i in range(draws):
         tp = fn = fp = tn = 0.0
         for w, p, q, r in shares:
             tp, fn = tp + w * p[i] * q[i], fn + w * p[i] * (1 - q[i])
             tn, fp = tn + w * (1 - p[i]) * r[i], fp + w * (1 - p[i]) * (1 - r[i])
-        total = tp + fn + fp + tn
-        judge, people = (tp + fp) / total, (tp + fn) / total
-        chance = judge * people + (1 - judge) * (1 - people)
-        for key, value in (("tpr", _div(tp, tp + fn)), ("tnr", _div(tn, tn + fp)),
-                           ("kappa", _div((tp + tn) / total - chance, 1 - chance))):
+        for key, value in (("tpr", _div(tp, tp + fn)), ("tnr", _div(tn, tn + fp))):
             if value is not None:
                 values[key].append(value)
     return {k: sorted(v) for k, v in values.items()}
@@ -241,14 +238,14 @@ def _general_draws(by_group: dict, pool: dict, draws: int, seed: int,
 def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: int,
             level: float = LEVEL, draws: int = DRAWS, seed: int = SEED) -> dict:
     """TPR, TNR and kappa of the person's labels against fresh verdicts, weighted by the saved
-    groups, with their ranges. `items` are (saved group, label, fresh verdict), each "pass"
+    groups; TPR and TNR with their ranges, kappa without one. `items` are (saved group, label, fresh verdict), each "pass"
     or "fail". A group of the pool with no labeled answer counts for nothing in the numbers,
     and leaves the ranges unknown, as in `corrected`."""
     pool = {"pass": n_pool_pass, "fail": n_pool_fail}
     by_group = {g: [x for x in items if x[0] == g] for g in pool}
     weights = {g: _div(pool[g], len(xs)) or 0.0 for g, xs in by_group.items()}
     out = _table(items, weights)
-    keys = ("tpr", "tnr", "kappa")
+    keys = ("tpr", "tnr")
     methods = dict.fromkeys(keys, "jeffreys")
     if any(pool[g] > 0 and not xs for g, xs in by_group.items()):
         for key in keys:
