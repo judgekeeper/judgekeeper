@@ -268,22 +268,22 @@ def test_the_terminal_result():
     assert (f"  TPR 0.95 ({tpr_lo:.2f}–{tpr_hi:.2f})   TNR 0.25 ({tnr_lo:.2f}–"
             f"{tnr_hi:.2f})   kappa 0.25") in lines
     lo, hi = r["real_pass_rate_interval"]
-    assert (f"  Your judge passes 90% of your answers. From your labels, about 76% should pass "
+    assert (f"  Your judge passes 90% of your app's answers. From your labels, about 76% should pass "
             f"({lo:.0%}–{hi:.0%}).") in lines
     assert ("  Corrected for picking half from the judge's passes and half from its fails."
             in lines)
     assert "  Label more for a reliable result:  judgekeeper start" in lines
     assert "  Check again after your next eval run:  judgekeeper start" in lines
-    assert "  Saved in .judgekeeper/ (result.html is the page you just saw)" in lines
+    assert lines[-2:] == ["", "Saved in .judgekeeper/ (result.html is the page you just saw)."]
 
 
-def test_an_unknown_rate_is_said_in_words():
+def test_too_few_labels_say_what_a_rough_check_needs():  # a rate is unknown only then
     r = _result(100, 100, 20, 15, 0, 0)
     text = "\n".join(start_label.result_lines(r, saved=".judgekeeper"))
     assert "None" not in text and "nan" not in text
-    assert ("How often your judge fails the answers you mark Wrong is unknown yet: label more "
-            "answers to find out.") in text
-    assert "TNR unknown" in text
+    assert ("A rough check needs 15 you mark Correct and 15 you mark Wrong. So far: 15 "
+            "Correct, 5 Wrong.") in text
+    assert "TNR" not in text  # no numbers before a rough check
 
 
 def test_the_word_trust_is_nowhere():

@@ -28,6 +28,14 @@ def no_browser(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def keyboard_limit():
+    """Each test starts with the fake keyboard's count of unanswered questions at zero."""
+    from tests import keyboard
+
+    keyboard.reset()
+
+
+@pytest.fixture(autouse=True)
 def fresh_key_registry(monkeypatch):
     """Variables named with --api-key-env are registered for the life of a process; give each
     test its own registry so one test cannot hide a leak in another."""

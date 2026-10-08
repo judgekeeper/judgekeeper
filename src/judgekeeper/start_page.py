@@ -99,11 +99,11 @@ LABEL_STYLE = """
   border-radius: 12px; background: var(--bg-soft); font-size: 17px; line-height: 1.6;
   white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; }
 #question { flex: 0 1 auto; max-height: 28%; }
-#answer { flex: 1 1 auto; min-height: 120px; font-size: 18px;
+#answer { flex: 0 1 auto; min-height: 120px; font-size: 18px;
   border-left: 4px solid var(--edge); }
 .field-name { font-size: 0.75rem; font-weight: 700; color: var(--muted); }
 .field + .field-name { margin-top: 10px; }
-.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: auto; }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
 .choice { font: inherit; font-size: 1.15rem; font-weight: 700; min-height: 64px;
   padding: 10px 14px; border-radius: 14px; border: 2px solid; background: var(--surface);
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
@@ -120,7 +120,6 @@ LABEL_STYLE = """
   text-align: center; }
 #done { margin: 32px 0; text-align: center; font-size: 1.2rem; font-weight: 650; }
 .side { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 14px; }
-.side .keys-card { margin-top: auto; }
 .meter { margin: 0 0 12px; }
 .meter-top { display: flex; justify-content: space-between; font-weight: 700;
   margin-bottom: 5px; }
@@ -186,8 +185,11 @@ h1 { font-size: 2.1rem; line-height: 1.2; margin: 0 0 6px; letter-spacing: -.02e
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0 0 18px; }
 .tile { border: 1px solid var(--line); border-radius: 12px; padding: 14px;
   background: var(--surface); }
-.tile .lbl { font-size: 0.8rem; font-weight: 700; color: var(--muted); }
-.tile .plain { font-size: 0.82rem; color: var(--muted); margin: 0 0 6px; }
+.tile .lbl { font-size: 0.95rem; font-weight: 650; margin: 0 0 6px; display: flex;
+  justify-content: space-between; align-items: flex-start; gap: 8px; }
+.tile .abbr { flex: none; font-size: 0.72rem; font-weight: 700; letter-spacing: .04em;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px;
+  margin-top: 1px; }
 .tile .val { font-size: 1.9rem; font-weight: 750; line-height: 1.1; }
 .tile .rng { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
 .rangebar { position: relative; height: 6px; background: var(--line); border-radius: 999px;
@@ -255,7 +257,7 @@ LABEL_BODY = """<main>
   <div class="tally-mini"><span aria-live="polite" aria-atomic="true"><span class="c">Correct
     <span class="nc">0</span></span> &middot; <span class="w">Wrong
     <span class="nw">0</span></span></span>
-    <a class="seelink see" href="#">See result →</a></div>
+    <a class="seelink see" href="#" hidden>See result →</a></div>
   <section id="ask" aria-labelledby="where">
     <p class="where"><span id="where"></span><span id="about">__ABOUT__</span></p>
     <div class="cap">The question</div>
@@ -289,8 +291,7 @@ LABEL_BODY = """<main>
     <h2>Your progress</h2>
     __METERS__
     <p class="ready not" id="ready" aria-live="polite"></p>
-    <a class="seelink see" href="#">See my result →</a>
-    <p class="unsure" id="unsure">With so few labels the result will be very unsure.</p>
+    <a class="seelink see" href="#" hidden>See my result →</a>
   </div>
   __RULE_CARD__
   <div class="card keys-card">
@@ -327,7 +328,7 @@ LABEL_BODY = """<main>
     STATUS.forEach(function (s) { if (least >= s[0]) { line = s; } });
     setText("ready", line[1]);
     $("ready").className = line[2] ? "ready" : "ready not";
-    $("unsure").hidden = least >= ROUGH;
+    each(".see", function (a) { a.hidden = least < ROUGH; });
   }
 
   // A question is text, or [[name, value], ...]: each name a small label above its value.
@@ -477,8 +478,8 @@ def _tile(t: dict) -> str:
                 f'right: {_pct(1 - t["interval"][1])}"></span>')
         bar = (f'<div class="rangebar" aria-hidden="true">{span}'
                f'<i style="left: {_pct(t["mark"])}"></i></div>')
-    return (f'<div class="tile"><div class="lbl">{escape(t["name"])}</div>'
-            f'<p class="plain">{escape(t["plain"])}</p>'
+    return (f'<div class="tile"><div class="lbl">{escape(t["plain"])} '
+            f'<span class="abbr">{escape(t["name"])}</span></div>'
             f'<div class="val">{escape(t["value"])}</div>{bar}'
             f'<div class="rng">{escape(t["line"])}</div></div>')
 
@@ -526,6 +527,8 @@ def result_page(content: dict, back: str | None = None) -> str:
     rate = ("" if content["pass_rate"] is None else "<p>" + "".join(
         f"<b>{escape(text)}</b>" if bold else escape(text)
         for text, bold in content["pass_rate"]) + "</p>")
+    corrected = f'<p>{escape(content["corrected"])}</p>' if content["corrected"] else ""
+    facts = f'<div class="facts">{rate}{corrected}</div>' if rate or corrected else ""
     return _head("judgekeeper: your result", RESULT_STYLE,
                  "How often your judge agrees with you") + f"""<main>
 <div class="result-grid">
@@ -535,7 +538,7 @@ def result_page(content: dict, back: str | None = None) -> str:
 {"".join(f'<p class="sentence">{escape(s)}</p>' for s in content["sentences"])}
 {_verdict(content["verdict"])}
 <div class="tiles">{"".join(_tile(t) for t in content["tiles"])}</div>
-<div class="facts">{rate}<p>{escape(content["corrected"])}</p></div>
+{facts}
 {_review(content.get("review"))}
 {_review(content.get("again"))}
 {_review(content.get("new_judge"))}
@@ -810,7 +813,7 @@ REVIEW_BODY = """<main>
 def _rule_card(rule: str | None, line: str) -> str:
     return "" if not rule else f"""<div class="card">
     <h2>What are you checking?</h2>
-    <details><summary>Your judge's rule</summary>
+    <details open><summary>Your judge's rule</summary>
       <p>{_text(f'"{rule}"')}</p>
       <small>{line}</small></details>
   </div>"""

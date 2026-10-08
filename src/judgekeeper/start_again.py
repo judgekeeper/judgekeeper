@@ -293,11 +293,16 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
         text = (f"Review the {n} answer{'' if n == 1 else 's'} where you and your judge "
                 "disagree")
         options.append(("review", text, "(free)", "--review"))
-    if then is None:
+    if then is None and _can_ask(ws, again_options):
         plan = again.make_plan(ws, again_options, dry=False)
         options.append(("ask", *again.menu_text(plan), "--ask-again"))
-    options += [("label", "Label more", "", "--label-more"),
-                ("nothing", "Nothing for now", "", None)]
+    nothing_left = last.get("left") == 0
+    if not nothing_left:
+        options.append(("label", "Label more", "", "--label-more"))
+    options.append(("nothing", "Nothing for now", "", None))
+    if then == "label" and nothing_left or then is None and len(options) == 1:
+        talk.say(ALL_LABELED)
+        return 0
     if then is None:
         width = max(len(text) for _, text, _, _ in options)
         shown = [f"{text:<{width}}   {note}".rstrip() for _, text, note, _ in options]
@@ -320,6 +325,18 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
     if then == "label":
         return _serve(ws, talk, port, open_browser)
     return 0
+
+
+ALL_LABELED = ("Every saved answer is labeled. After your next eval run, run judgekeeper "
+               "start again.")
+
+
+def _can_ask(ws: Workspace, again_options) -> bool:
+    """Whether asking the judge again can work: its tool can run it, or you gave your own
+    judge as a command."""
+    from judgekeeper.start_label import ASKABLE
+
+    return ws.data()["tool"] in ASKABLE or bool(getattr(again_options, "judge_command", None))
 
 
 def _again(ws: Workspace, found, talk, port: int, open_browser: bool,
@@ -394,7 +411,12 @@ def judge_change(old: dict, new: dict) -> str | None:
         parts.append(f"the provider was {shown(old.get('provider'))}, now "
                      f"{shown(new.get('provider'))}")
     if old.get("prompt_hash") != new.get("prompt_hash"):
-        parts.append("the prompt changed")
+        if None in (old.get("prompt_hash"), new.get("prompt_hash")):  # unknown is not changed
+            was, now = (("recorded" if v else "not recorded")
+                        for v in (old.get("prompt_hash"), new.get("prompt_hash")))
+            parts.append(f"the prompt was {was}, now {now}")
+        else:
+            parts.append("the prompt changed")
     if old.get("temperature") != new.get("temperature"):
         parts.append(f"the temperature was {shown(old.get('temperature'))}, now "
                      f"{shown(new.get('temperature'))}")

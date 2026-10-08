@@ -25,6 +25,7 @@ from judgekeeper.start_label import StartSession, Workspace, save_result
 from judgekeeper.start_review import ReviewSession, pick, review_lines
 from judgekeeper.table import guard_cell
 from judgekeeper.textio import quote_arg
+from tests import keyboard
 from tests.start_projects import promptfoo_project, split
 from tests.test_label_server import Client
 
@@ -588,7 +589,7 @@ def terminal(monkeypatch):
 
     def fake_input(prompt=""):
         print(prompt)
-        return answers.pop(0) if answers else ""
+        return answers.pop(0) if answers else keyboard.enter()
 
     monkeypatch.setattr(builtins, "input", fake_input)
     return answers
@@ -603,15 +604,15 @@ def run(capsys, *argv):
 def test_the_menu_after_a_result(tmp_path, capsys, served, terminal):
     ws, _ = _reviewable(tmp_path)
     made = json.loads(ws.result_json.read_text(encoding="utf-8"))["made_at"][:10]
-    terminal.append("4")
+    terminal.append("3")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and served == []
     assert f"Your last result ({made}): rough check (19 Correct, 17 Wrong)." in out
     assert "What next?" in out
     assert "  1. Review the 5 answers where you and your judge disagree   (free)" in out
     assert "  2. Ask your judge again about your 36 labeled answers       (72 calls, " in out
-    assert "  3. Label more" in out and "  4. Nothing for now" in out
-    assert "Choose [1-4]:" in out
+    assert "  3. Nothing for now" in out and "Label more" not in out  # every answer labeled
+    assert "Choose [1-3]:" in out
 
 
 def test_menu_choice_one_opens_the_review(tmp_path, capsys, served, terminal):
@@ -622,14 +623,14 @@ def test_menu_choice_one_opens_the_review(tmp_path, capsys, served, terminal):
 
 
 def test_menu_choice_three_opens_the_labeling_page(tmp_path, capsys, served, terminal):
-    ws, _ = _reviewable(tmp_path)
-    terminal.append("3")
+    ws, _ = _reviewable(tmp_path, labeled=30)  # 6 answers left to label
+    terminal.append("3")  # 1 review, 2 ask again, 3 label more
     code, _, _ = run(capsys, tmp_path)
     assert code == 0 and served == [("label", ws.dir)]
 
 
 def test_the_flags_answer_the_menu(tmp_path, capsys, served):
-    ws, _ = _reviewable(tmp_path)
+    ws, _ = _reviewable(tmp_path, labeled=30)
     code, out, _ = run(capsys, tmp_path, "--label-more")
     assert code == 0 and served == [("label", ws.dir)] and "What next?" not in out
     code, out, _ = run(capsys, tmp_path, "--review")
@@ -637,7 +638,7 @@ def test_the_flags_answer_the_menu(tmp_path, capsys, served):
 
 
 def test_without_a_terminal_the_menu_is_printed_as_flags(tmp_path, capsys, served):
-    _reviewable(tmp_path)
+    _reviewable(tmp_path, labeled=30)
     code, out, _ = run(capsys, tmp_path)
     assert code == start.EXIT_QUESTION and served == []
     for flag in ("--review", "--ask-again", "--label-more"):
@@ -647,13 +648,21 @@ def test_without_a_terminal_the_menu_is_printed_as_flags(tmp_path, capsys, serve
 
 
 def test_with_no_disagreements_the_menu_has_no_review(tmp_path, capsys, served, terminal):
-    _reviewable(tmp_path, flip_pass=0, flip_fail=0)
-    terminal.append("2")
+    _reviewable(tmp_path, flip_pass=0, flip_fail=0, labeled=30)
+    terminal.append("3")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "Review the" not in out
     assert "  1. Ask your judge again" in out
     assert "  2. Label more" in out and "Choose [1-3]:" in out
+
+
+def test_label_more_with_nothing_left_says_so(tmp_path, capsys, served):
+    _reviewable(tmp_path)  # every answer labeled
+    code, out, _ = run(capsys, tmp_path, "--label-more")
+    assert code == 0 and served == []
+    assert ("Every saved answer is labeled. After your next eval run, run judgekeeper start "
+            "again.") in out
 
 
 def test_review_with_no_disagreements_says_so(tmp_path, capsys, served):

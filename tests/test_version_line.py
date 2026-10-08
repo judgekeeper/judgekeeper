@@ -61,7 +61,7 @@ def _version(monkeypatch, out, which="/usr/local/bin/judgekeeper") -> list[str]:
 def test_in_a_terminal_it_says_ready_and_what_to_run_next(monkeypatch, plain_env):
     lines = _version(monkeypatch, Terminal())
     assert lines == [f"✓ judgekeeper {__version__} is ready",
-                     "Next: go to your project folder and run judgekeeper start"]
+                     "Next: run judgekeeper start"]
 
 
 def test_piped_it_prints_only_the_version(monkeypatch, plain_env):
@@ -70,7 +70,7 @@ def test_piped_it_prints_only_the_version(monkeypatch, plain_env):
 
 def test_without_the_command_on_path_it_names_python_m(monkeypatch, plain_env):
     lines = _version(monkeypatch, Terminal(), which=None)
-    assert lines[1] == "Next: go to your project folder and run python3 -m judgekeeper start"
+    assert lines[1] == "Next: run python3 -m judgekeeper start"
 
 
 def test_on_windows_without_the_command_on_path_it_names_py_m(monkeypatch, plain_env):
@@ -78,7 +78,7 @@ def test_on_windows_without_the_command_on_path_it_names_py_m(monkeypatch, plain
     monkeypatch.setenv("WT_SESSION", "1")
     lines = _version(monkeypatch, Terminal(), which=None)
     assert lines == [f"✓ judgekeeper {__version__} is ready",
-                     "Next: go to your project folder and run py -m judgekeeper start"]
+                     "Next: run py -m judgekeeper start"]
 
 
 def test_the_tick_needs_an_encoding_that_has_it(plain_env):
@@ -110,7 +110,7 @@ def test_the_tick_is_never_an_emoji(plain_env):
 def test_outside_a_project_it_says_to_install_inside_one(monkeypatch, plain_env, outside):
     lines = _version(monkeypatch, Terminal())
     assert lines == [f"✓ judgekeeper {__version__} is ready",
-                     "Next: go to your project folder and run judgekeeper start", OUTSIDE]
+                     "Next: run judgekeeper start", OUTSIDE]
 
 
 def test_piped_outside_a_project_it_still_prints_only_the_version(monkeypatch, plain_env,

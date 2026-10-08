@@ -528,3 +528,12 @@ def test_the_same_description_does_not_ask(tmp_path, capsys):
 def test_the_fixture_reads_as_promptfoo_data():
     data = promptfoo_data(split(1, 1))
     assert len(data["results"]["results"]) == 2
+
+
+def test_a_records_file_outside_the_records_folder_is_found(tmp_path):
+    line = {"schema_version": 2, "name": "Helpful", "annotator_kind": "LLM", "label": "pass",
+            "input": "q", "output": "a"}
+    (tmp_path / "judge-results.jsonl").write_text(json.dumps(line) + "\n", encoding="utf-8")
+    found = find.search(tmp_path)
+    assert [r.path.name for r in found.results.get("records", [])] == ["judge-results.jsonl"]
+    assert "table" not in found.results

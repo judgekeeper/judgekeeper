@@ -33,7 +33,8 @@ def test_default_label_map(n, raw, expected):
 def test_default_map_has_the_documented_pairs():
     assert DEFAULT_LABEL_MAP == {"pass": "pass", "fail": "fail", "true": "pass", "false": "fail",
                                  "yes": "pass", "no": "fail", "correct": "pass",
-                                 "incorrect": "fail", "1": "pass", "0": "fail"}
+                                 "incorrect": "fail", "right": "pass", "wrong": "fail",
+                                 "1": "pass", "0": "fail"}
 
 
 @pytest.mark.parametrize("raw,expected", [
@@ -156,3 +157,17 @@ def test_describe_records_rule_and_map():
     assert d["pass_if"] == "score>=0.5"
     assert d["label_map"]["good"] == "pass"
     assert d["label_map"]["yes"] == "pass"
+
+
+def test_the_label_map_advice_never_guesses_a_side():
+    from judgekeeper.normalise import unmapped_error
+
+    msg = str(unmapped_error(["Meh"]))
+    assert '--label-map "Meh=pass" or --label-map "Meh=fail", whichever it means' in msg
+    assert "Meh=pass," not in msg
+
+
+def test_right_and_wrong_are_default_spellings():
+    from judgekeeper.normalise import DEFAULT_LABEL_MAP
+
+    assert DEFAULT_LABEL_MAP["right"] == "pass" and DEFAULT_LABEL_MAP["wrong"] == "fail"

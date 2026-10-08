@@ -23,6 +23,7 @@ from judgekeeper.cli import main
 from judgekeeper.judgments import read_run
 from judgekeeper.start_label import StartSession, Workspace, save_result
 from judgekeeper.textio import quote_arg
+from tests import keyboard
 from tests.start_projects import (
     RUBRIC,
     answer,
@@ -112,7 +113,7 @@ def terminal(monkeypatch):
 
     def fake_input(prompt=""):
         print(prompt)
-        return answers.pop(0) if answers else ""
+        return answers.pop(0) if answers else keyboard.enter()
 
     monkeypatch.setattr(builtins, "input", fake_input)
     return answers
@@ -168,11 +169,11 @@ def test_a_changed_rubric_offers_to_try_the_new_judge(fake, capsys):
 
 def test_the_try_line_is_choice_one_at_a_terminal(fake, capsys, terminal):
     _new_run(fake.root)
-    terminal += ["4"]  # 1 try, 2 ask again, 3 label more, 4 nothing for now
+    terminal += ["3"]  # 1 try, 2 ask again, 3 nothing for now (every answer is labeled)
     code, out, _ = run(capsys, fake.root)
     assert code == 0
     assert "  1. Try your new judge on your 36 marked answers" in out
-    assert "  4. Nothing for now" in out and _evals(fake) == 0
+    assert "  3. Nothing for now" in out and _evals(fake) == 0
 
 
 def test_a_changed_model_offers_it_too(fake, capsys):
@@ -197,7 +198,7 @@ def test_try_new_judge_without_a_new_judge(fake, capsys):
 
 def test_a_renamed_judge_asks_whether_it_is_the_new_version(fake, capsys, terminal):
     _new_run(fake.root, metric="tone")
-    terminal += ["y", "4"]
+    terminal += ["y", "3"]
     code, out, _ = run(capsys, fake.root)
     assert code == 0
     assert "Is tone the new version of your judge llm-rubric? [Y/n]" in out

@@ -25,6 +25,7 @@ from judgekeeper.cli import main
 from judgekeeper.judgments import read_run
 from judgekeeper.start_label import StartSession, save_result
 from judgekeeper.textio import quote_arg
+from tests import keyboard
 from tests.conftest import FIXTURES
 from tests.start_projects import promptfoo_project, split, table_project
 
@@ -154,7 +155,7 @@ def terminal(monkeypatch):
 
     def fake_input(prompt=""):
         print(prompt)
-        return answers.pop(0) if answers else ""
+        return answers.pop(0) if answers else keyboard.enter()
 
     monkeypatch.setattr(builtins, "input", fake_input)
     return answers
