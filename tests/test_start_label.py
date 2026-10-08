@@ -14,7 +14,7 @@ import threading
 import pytest
 
 from judgekeeper import label as label_mod
-from judgekeeper import start, start_label, weighted
+from judgekeeper import start, start_label, targets, weighted
 from judgekeeper.anchors import load_verified
 from judgekeeper.cli import main
 from judgekeeper.fingerprint import JudgeFingerprint
@@ -99,7 +99,8 @@ def test_the_page_never_holds_the_judges_verdict(workspace):
     server, thread, client = _server(ws)
     try:
         data = _page_data(server)
-        assert set(data) == {"items", "start", "counts"}
+        assert set(data) == {"items", "start", "counts", "status"}
+        assert set(data["status"]) == {"text", "ready"}
         for item in data["items"]:
             assert set(item) == {"id", "input", "output", "label", "skipped"}
         page = server.page()[0]
@@ -277,6 +278,37 @@ def test_the_terminal_result():
     assert lines[-2:] == ["", "Saved in .judgekeeper/ (result.html is the page you just saw)."]
 
 
+# 900 passes and 100 fails in the pool, 25 labeled in each group, 24 and 1 Correct: 25 marked
+# Correct and 25 Wrong, but the judge passes most answers, so the TNR range stays wide.
+LOPSIDED = (900, 100, 25, 24, 25, 1)
+
+
+def test_twenty_five_of_each_with_a_wide_range_is_not_reliable_yet():
+    r = _result(*LOPSIDED)
+    assert r["labels"] == {"correct": 25, "wrong": 25}
+    assert r["check"] == "rough" and set(r["wide"]) == {"tnr"}
+    width = r["tnr_interval"][1] - r["tnr_interval"][0]
+    assert width > targets.MAX_WIDTH and r["wide"]["tnr"] == pytest.approx(width)
+    lines = start_label.result_lines(r, saved=".judgekeeper")
+    assert lines[0] == "Your result (rough check: 25 Correct, 25 Wrong)"
+    assert (f"Not reliable yet: the range for answers you marked Wrong is still {width:.2f} "
+            "wide. Label more answers to narrow it.") in lines
+    assert "  Label more for a reliable result:  judgekeeper start" in lines
+
+
+def test_a_reliable_result_has_both_ranges_narrow_enough():
+    r = _result(100, 100, 50, 48, 50, 2)
+    assert r["check"] == "reliable" and r["wide"] == {}
+    for key in ("tpr", "tnr"):
+        lo, hi = r[f"{key}_interval"]
+        assert hi - lo <= targets.MAX_WIDTH
+    assert not any(line.startswith("Not reliable yet") for line in start_label.result_lines(r))
+
+
+def test_the_targets_are_the_shared_ones():
+    assert (start_label.ROUGH, start_label.RELIABLE) == (targets.ROUGH, targets.RELIABLE)
+
+
 def test_too_few_labels_say_what_a_rough_check_needs():  # a rate is unknown only then
     r = _result(100, 100, 20, 15, 0, 0)
     text = "\n".join(start_label.result_lines(r, saved=".judgekeeper"))
@@ -351,7 +383,7 @@ def test_a_result_writes_anchors_and_the_result_files(workspace):
     assert len(items) == 32 and manifest["label_distribution"] == {"fail": 12, "pass": 20}
     result = json.loads(ws.result_json.read_text(encoding="utf-8"))
     for key in ("tpr", "tnr", "kappa", "tpr_interval", "real_pass_rate", "judge_pass_rate",
-                "groups", "labels", "fingerprint", "made_at", "verdict", "z", "judge"):
+                "groups", "labels", "fingerprint", "made_at", "verdict", "level", "judge"):
         assert key in result, key
     assert result["tpr"] == 1 and result["tnr"] == 1
     html = ws.result_html.read_text(encoding="utf-8")

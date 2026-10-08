@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "judgekeeper_version": "0.1.0",
-  "generated_at": "2026-10-03T20:46:57Z",
+  "judgekeeper_version": "0.2.0",
+  "generated_at": "2026-10-08T05:01:30Z",
   "anchors": {
     "file": "anchors.jsonl",
     "sha256": "72ad349e81d48b15289c93bb39f198922fa35e110f33d0d1039cb80f9cf7324e",
@@ -25,7 +25,7 @@
     "prompt_hash": "8e0733239ef683b36451d74c1732278437f61c9badda123591467dfae4bf79fd",
     "rubric_version": "refund-policy-v1",
     "temperature": null,
-    "created_at": "2026-10-03T20:46:56Z",
+    "created_at": "2026-10-08T05:01:30Z",
     "endpoint": "unknown"
   },
   "fingerprint_unknown": [
@@ -51,6 +51,8 @@
       "no": "fail",
       "correct": "pass",
       "incorrect": "fail",
+      "right": "pass",
+      "wrong": "fail",
       "1": "pass",
       "0": "fail"
     }
@@ -89,6 +91,10 @@
       {
         "code": "identity_incomplete",
         "message": "judge identity incomplete: provider, snapshot, endpoint, temperature"
+      },
+      {
+        "code": "not_reliable_yet",
+        "message": "Not reliable yet: the range for answers people failed is still 0.32 wide. Label more answers to narrow it."
       }
     ]
   },
@@ -115,8 +121,14 @@
   },
   "label_quality": {
     "n_labeled": 60,
-    "largest_class": "fail",
-    "largest_class_share": 0.5
+    "per_class": {
+      "pass": 30,
+      "fail": 30
+    },
+    "check": "rough",
+    "wide": {
+      "tnr": 0.31989978659323537
+    }
   },
   "notes": [],
   "runs": [

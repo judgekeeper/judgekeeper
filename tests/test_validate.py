@@ -95,9 +95,9 @@ def test_slices(report):
 
 def test_verdict_flags(report):
     codes = {f["code"] for f in report["verdict"]["flags"]}
-    # The TPR/TNR rules and the label-quality warning (8 labeled items).
+    # The TPR/TNR rules and the label targets (8 labeled items: too few for a rough check).
     assert codes == {"low_tpr", "low_tnr", "low_kappa", "position_inconsistent", "noisy",
-                     "few_labels"}
+                     "too_few_labels"}
     assert "not trustworthy as a gate" in report["verdict"]["summary"].lower()
     msgs = " ".join(f["message"] for f in report["verdict"]["flags"])
     assert "use majority of runs" in msgs

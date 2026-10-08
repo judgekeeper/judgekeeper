@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import builtins
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -373,7 +374,13 @@ def test_the_confirmation_page_aims_at_ten_and_ten(fake, capsys, confirmed):
     _new_run(fake.root)
     run(capsys, fake.root, "--try-new-judge", "--allow-calls", 36, "--yes")
     page = new_judge.confirmation_page(confirmed[0])
-    assert "A quick check needs 10 of each." in page and "Quick check ready." in page
+    assert re.search(r">10\s+quick</em>", page) and re.search(r">15\s+rough</em>", page)
+    session = start_label.StartSession(confirmed[0], status=new_judge.quick_status)
+    counts = session.counts()
+    least = min(counts["correct"], counts["wrong"])
+    _, text, ready = [s for s in new_judge.QUICK_STATUS if least >= s[0]][-1]
+    assert session.summary()["status"] == {"text": text, "ready": ready}
+    assert new_judge.QUICK_STATUS[0][1] == "A quick check needs 10 of each."
 
 
 def test_the_confirmation_result(fake, capsys, confirmed):

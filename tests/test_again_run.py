@@ -347,7 +347,7 @@ def test_when_every_answer_agrees_the_ranges_keep_their_width(fake, capsys):
         for key in ("tpr", "tnr"):
             lo, hi = today[f"{key}_interval"]
             assert today[key] == 1.0 and lo < hi == 1.0
-        assert today["interval_methods"]["tpr"] == "wilson corners"
+        assert today["interval_methods"]["tpr"] == "jeffreys"
 
 
 def test_below_ninety_percent_asks_if_the_judge_changed(fake, capsys):

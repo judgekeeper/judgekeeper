@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "judgekeeper_version": "0.1.1",
-  "generated_at": "2026-10-03T20:58:46Z",
+  "judgekeeper_version": "0.2.0",
+  "generated_at": "2026-10-08T05:01:37Z",
   "anchors": {
     "file": "anchors.jsonl",
     "sha256": "a5c4f247970d40967b2e81c2a9de4bab52f5ce27e27f396abc987a90adae2439",
@@ -119,8 +119,12 @@
   },
   "label_quality": {
     "n_labeled": 60,
-    "largest_class": "fail",
-    "largest_class_share": 0.5
+    "per_class": {
+      "pass": 30,
+      "fail": 30
+    },
+    "check": "reliable",
+    "wide": {}
   },
   "notes": [],
   "runs": [

@@ -454,7 +454,7 @@ judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --prompt 
     <h2 id="faq-title">Short, honest answers</h2>
     <details>
       <summary>How many human labels do I need?</summary>
-      <p>With <code>judgekeeper start</code>: <span data-const="judgekeeper.start_label:ROUGH" data-format="int">15</span> Correct and <span data-const="judgekeeper.start_label:ROUGH" data-format="int">15</span> Wrong for a rough check, <span data-const="judgekeeper.start_label:RELIABLE" data-format="int">25</span> of each for a reliable result. The advanced commands&#39; report asks for about 100, roughly half pass and half fail. With fewer than <span data-const="judgekeeper.report:MIN_LABELS" data-format="int">60</span> the report warns that the error bars are wide. It also warns when the split is more lopsided than <span data-const="judgekeeper.report:MAX_CLASS_SHARE" data-format="split">80/20</span>.</p>
+      <p>Every command uses the same targets. A rough check needs <span data-const="judgekeeper.targets:ROUGH" data-format="int">15</span> labels of each kind: answers you mark Correct and Wrong in <code>judgekeeper start</code>, or answers people passed and failed in <code>check</code> and <code>validate</code>. A reliable result needs <span data-const="judgekeeper.targets:RELIABLE" data-format="int">25</span> of each, and both ranges, for TPR and for TNR, no wider than <span data-const="judgekeeper.targets:MAX_WIDTH">0.30</span>. When your judge passes most answers, the TNR range narrows more slowly, so the result says when it is not reliable yet and which range is still too wide.</p>
     </details>
     <details>
       <summary>Why TPR and TNR first, and not kappa?</summary>

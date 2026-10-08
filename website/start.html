@@ -206,7 +206,7 @@ you see enough of both.
     </div>
     <p>Press <kbd>1</kbd> for Correct (this answer should pass) and <kbd>2</kbd> for Wrong (it should fail). <kbd>S</kbd> skips an answer you can&#39;t judge from the text, and <kbd>U</kbd> undoes the last one. Every click is saved at once, so you can stop at any time and run <code>judgekeeper start</code> later to carry on.</p>
     <p>You never see what the judge said, so it can&#39;t sway you. The counts are your own: how many you marked Correct and how many Wrong. Half the answers are ones the judge passed and half it failed, so you see enough of both.</p>
-    <div class="donewhen"><p>You&#39;re done when it says <b>Rough check ready</b> (15 of each) or <b>Reliable result ready</b> (25 of each).</p><label class="tick"><input type="checkbox" data-step="4"> Mark step 4 done</label></div>
+    <div class="donewhen"><p>You&#39;re done when it says <b>Rough check ready</b> (15 of each) or <b>Reliable result ready</b> (25 of each, and both ranges narrow enough). <b>Not reliable yet</b> means you have 25 of each but a range is still too wide: label more.</p><label class="tick"><input type="checkbox" data-step="4"> Mark step 4 done</label></div>
   </div>
 </section>
 
@@ -379,7 +379,7 @@ so that judgekeeper can check my judge against my own labels:
     <ol class="steps">
       <li>
         <h4 id="step-collect">Collect answers from your app</h4>
-        <p>Save 30 to 60 real answers in one file named <code>items.csv</code>. Each row is one answer: an <code>id</code>, the <code>input</code> your app got and the <code>output</code> it wrote. Take ordinary cases and hard ones, good answers and bad ones. That many is enough for a first look. About 100 gives a firmer result.</p>
+        <p>Save real answers in one file named <code>items.csv</code>. Each row is one answer: an <code>id</code>, the <code>input</code> your app got and the <code>output</code> it wrote. Take ordinary cases and hard ones, good answers and bad ones. A rough check needs 15 that should pass and 15 that should fail; a reliable result needs 25 of each, and more when the judge&#39;s ranges are still wide.</p>
         <p>This step has no command. You make the file in a spreadsheet. From Excel, save it as <strong>CSV UTF-8</strong>.</p>
         <p class="output-label">What the file looks like:</p>
         <pre class="output" data-file="tutorial/items.csv" data-rows="3"><code>id,input,output
@@ -402,7 +402,7 @@ Not trustworthy as a gate: TPR 1.00, TNR 0.33, kappa 0.41 against human labels.
   - TNR is 0.33 (below 0.80): not trustworthy as a gate.
   - Kappa vs human labels is 0.41 (below 0.6): not trustworthy as a gate.
   - judge identity incomplete: provider, model, snapshot, endpoint, prompt_hash, rubric_version, temperature
-  - Only 10 labeled items: error bars are wide; aim for about 100.
+  - Too few labels for a rough check (7 labeled pass, 3 labeled fail): it needs 15 of each.
 wrote judgekeeper-report/report.json and judgekeeper-report/report.html</code></pre>
         <details class="callout">
           <summary><strong>No saved verdicts?</strong> judgekeeper can run your judge.</summary>

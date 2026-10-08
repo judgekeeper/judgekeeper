@@ -7,7 +7,6 @@ No test runs the page's script: what the script shows comes from tables that Pyt
 
 from __future__ import annotations
 
-import json
 import re
 from html import unescape
 
@@ -136,21 +135,30 @@ def test_the_page_shows_the_question_without_its_name(tmp_path):
 
 # The status line -------------------------------------------------------------------------
 
-@pytest.mark.parametrize("correct, wrong, text, ready", [
-    (0, 0, "A rough check needs 15 of each.", False),
-    (14, 30, "A rough check needs 15 of each.", False),
-    (15, 15, "Rough check ready. A reliable result needs 25 of each.", True),
-    (25, 24, "Rough check ready. A reliable result needs 25 of each.", True),
-    (25, 25, "Reliable result ready.", True),
+# (pool passes, pool fails, labeled in the pass group, of them Correct, in the fail group,
+# of them Correct)
+@pytest.mark.parametrize("counts, text, ready", [
+    ((100, 100, 0, 0, 0, 0), "A rough check needs 15 of each.", False),
+    ((100, 100, 22, 14, 22, 0), "A rough check needs 15 of each.", False),  # 14 Correct
+    ((100, 100, 15, 14, 15, 1), "Rough check ready. A reliable result needs 25 of each.", True),
+    ((100, 100, 25, 24, 25, 2), "Rough check ready. A reliable result needs 25 of each.", True),
+    ((100, 100, 50, 48, 50, 2), "Reliable result ready.", True),
 ])
-def test_the_status_line(correct, wrong, text, ready):
-    assert start_label.progress_status(correct, wrong) == (text, ready)
+def test_the_status_line(counts, text, ready):
+    assert start_label.progress_status(*counts) == {"text": text, "ready": ready}
 
 
-def test_the_page_uses_the_same_status_lines():
+def test_the_status_line_says_when_twenty_five_of_each_is_not_reliable_yet():
+    status = start_label.progress_status(900, 100, 25, 24, 25, 1)
+    assert status["ready"] is True
+    assert status["text"].startswith("Not reliable yet: the range for answers you marked "
+                                     "Wrong is still ")
+
+
+def test_the_page_shows_the_status_the_server_sends():
     page = start_label.page_template({})
-    for _, text, _ in start_label.STATUS:
-        assert json.dumps(text) in page
+    assert "STATUS" not in page and "least < ROUGH" not in page  # no statistics in the page
+    assert "summary.status" in page and "data.status" in page
 
 
 # The result page -------------------------------------------------------------------------
@@ -268,6 +276,14 @@ def test_make_it_reliable_says_the_real_numbers_still_needed():
     assert "Make it a reliable result" not in reliable
 
 
+def test_make_it_reliable_says_which_range_is_still_too_wide():
+    r = _result(900, 100, 25, 24, 25, 1)  # 25 Correct, 25 Wrong; the TNR range stays wide
+    width = r["tnr_interval"][1] - r["tnr_interval"][0]
+    html = _flat(start_label.result_html(r, back="/?token=t"))
+    assert (f"<b>Make it a reliable result</b>Not reliable yet: the range for answers you "
+            f"marked Wrong is still {width:.2f} wide. Label more answers to narrow it.") in html
+
+
 def test_what_next_holds_the_three_steps():
     html = start_label.result_html(_result(*CHECK), back="/?token=t")
     assert re.findall(r"<li><b>(.*?)</b>", html) == ["Make it a reliable result",
@@ -367,7 +383,7 @@ def test_the_result_links_start_hidden_until_a_rough_check():
     page = start_label.page_template({"rule": "x"})
     links = re.findall(r'<a class="seelink see"[^>]*>', page)
     assert len(links) == 2 and all(" hidden" in a for a in links)
-    assert "a.hidden = least < ROUGH" in page  # the script shows them at 15 + 15
+    assert "a.hidden = !status.ready" in page  # the server says when: at 15 + 15
     assert "With so few labels" not in page
 
 

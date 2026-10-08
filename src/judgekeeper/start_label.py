@@ -35,7 +35,7 @@ import webbrowser
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from judgekeeper import __version__, find, weighted
+from judgekeeper import __version__, find, targets, weighted
 from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import JudgeFingerprint, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
@@ -50,16 +50,11 @@ from judgekeeper.table import write_anchor_file
 FOLDER = ".judgekeeper"
 SKIPPED = "skipped"
 BLOCK = 10
-ROUGH = 15
-RELIABLE = 25
+ROUGH = targets.ROUGH
+RELIABLE = targets.RELIABLE
 SAVED_NOTE = (f"Saved in {FOLDER}/. It holds your answers' text: commit it only if your data "
               "may live in your repo.")
 CORRECTED = "Corrected for picking half from the judge's passes and half from its fails."
-STATUS = [  # (the fewest of Correct and Wrong, the line under the meters, ready for a result)
-    (0, f"A rough check needs {ROUGH} of each.", False),
-    (ROUGH, f"Rough check ready. A reliable result needs {RELIABLE} of each.", True),
-    (RELIABLE, "Reliable result ready.", True),
-]
 LEVELS = {  # verdict level: (colour, icon, second line)
     "gate": ("green", "tick", "Keep checking it after changes to its model or rule."),
     "check": ("amber", "warn", "Close to good enough. Labeling more will make this surer."),
@@ -233,19 +228,32 @@ def question_view(value):
     return display(value)
 
 
-def progress_status(correct: int, wrong: int) -> tuple[str, bool]:
-    """The line under the meters on the labeling page, and whether a result is ready."""
-    least = min(correct, wrong)
-    _, text, ready = [s for s in STATUS if least >= s[0]][-1]
-    return text, ready
+def progress_status(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f: int,
+                    c_f: int) -> dict:
+    """The line under the meters on the labeling page (targets.line), and whether a result is
+    ready: from the labels in each group, as the result counts them."""
+    r = describe(weighted.corrected(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f))
+    return {"text": targets.line(r), "ready": r["check"] != "too_few"}
+
+
+def start_status(session: StartSession) -> dict:
+    """The line under the meters for `start`'s labeling: from the session's labels."""
+    counted = session.group_counts()
+    return progress_status(session.pool["pass"], session.pool["fail"], *counted["pass"],
+                           *counted["fail"])
 
 
 class StartSession(LabelSession):
     """The pool in queue order and the person's labels. Skip is the label session's defer,
-    saved as the note "skipped". The page gets ids, text and the person's labels only."""
+    saved as the note "skipped". The page gets ids, text, the person's labels and the line
+    under the meters (`status`, by default start_status) only."""
 
-    def __init__(self, ws: Workspace):
+    def __init__(self, ws: Workspace, status=None):
         self.workspace = ws
+        data = ws.data()
+        self.groups = {q["id"]: q["group"] for q in data.get("queue", [])}
+        self.pool = data.get("pool", {})
+        self.status = status or start_status
         super().__init__(ws.pool, ws.labels)
         raw = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()
                if line.strip()]
@@ -265,10 +273,22 @@ class StartSession(LabelSession):
         return {"correct": labels.count("pass"), "wrong": labels.count("fail"),
                 "skipped": sum(i["deferred"] for i in self.items)}
 
+    def group_counts(self) -> dict:
+        """{"pass": [labeled, Correct], "fail": [...]}: the labels in each of the judge's
+        groups."""
+        counted = {"pass": [0, 0], "fail": [0, 0]}
+        for item in self.items:
+            if item["label"]:
+                g = counted[self.groups[item["id"]]]
+                g[0] += 1
+                g[1] += item["label"] == "pass"
+        return counted
+
     def summary(self) -> dict:
         counts = self.counts()
         return {"n_items": len(self.items), "n_labeled": counts["correct"] + counts["wrong"],
-                "counts": counts, "done": all(i["label"] or i["deferred"] for i in self.items)}
+                "counts": counts, "done": all(i["label"] or i["deferred"] for i in self.items),
+                "status": self.status(self)}
 
     def state(self) -> dict:
         start = next((n for n, i in enumerate(self.items)
@@ -276,7 +296,8 @@ class StartSession(LabelSession):
         items = [{"id": i["id"], "input": question_view(self.raw[i["id"]].get("input")),
                   "output": display(self.raw[i["id"]].get("output")), "label": i["label"],
                   "skipped": i["deferred"]} for i in self.items]
-        return {"items": items, "start": start, "counts": self.counts()}
+        return {"items": items, "start": start, "counts": self.counts(),
+                "status": self.status(self)}
 
 
 # The result ------------------------------------------------------------------------------
@@ -297,10 +318,9 @@ def describe(corrected: dict) -> dict:
     g = corrected["groups"]
     correct = g["pass"]["correct"] + g["fail"]["correct"]
     wrong = g["pass"]["labeled"] + g["fail"]["labeled"] - correct
-    least = min(correct, wrong)
     r = dict(corrected)
     r["labels"] = {"correct": correct, "wrong": wrong}
-    r["check"] = "reliable" if least >= RELIABLE else "rough" if least >= ROUGH else "too_few"
+    r.update(targets.check(correct, wrong, r["tpr_interval"], r["tnr_interval"]))
     r["verdict_level"] = _level(r)
     r["verdict"] = VERDICTS[r["verdict_level"]]
     return r
@@ -407,6 +427,8 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
     lines = [title, ""]
     lines += sentences(r)
     lines += [r["verdict"]]
+    if r.get("wide"):
+        lines.append(targets.line(r))
     if r["check"] != "too_few":
         lines.append("")
         lines.append("  " + "   ".join([_number("TPR", r["tpr"], r["tpr_interval"]),
@@ -456,11 +478,15 @@ def _detail(r: dict) -> str | None:
     return f"{side} {detail}"
 
 
-def still_needed(labels: dict) -> str | None:
-    """"6 more Correct and 4 more Wrong." for a reliable result, or None once reliable."""
+def still_needed(r: dict) -> str | None:
+    """"6 more Correct and 4 more Wrong." for a reliable result; with enough of each but a
+    range still too wide, the line that says so (targets.line); None once reliable."""
+    labels = r["labels"]
     parts = [f"{RELIABLE - labels[k]} more {name}"
              for k, name in (("correct", "Correct"), ("wrong", "Wrong")) if labels[k] < RELIABLE]
-    return f"{' and '.join(parts)}." if parts else None
+    if parts:
+        return f"{' and '.join(parts)}."
+    return targets.line(r) if r.get("wide") else None
 
 
 def _pass_rate(r: dict) -> list[tuple[str, bool]] | None:
@@ -514,7 +540,7 @@ def page_content(r: dict) -> dict:
         if saved:
             source += f", saved {in_words(saved[:10])}{saved[10:].replace(' ', ', ', 1)}"
     steps = []
-    needed = still_needed(labels)
+    needed = still_needed(r)
     if needed and all_labeled(r):
         steps.append({"title": "Make it a reliable result", "text": ALL_LABELED,
                       "command": "judgekeeper start", "link": None, "button": None})
@@ -586,20 +612,15 @@ def page_template(about: dict | None = None) -> str:
     """The labeling page for a check whose start.json is `about`: its description and its
     judge's rule are shown; nothing else from it is."""
     about = about or {}
-    return label_page(about.get("description"), about.get("rule"), STATUS)
+    return label_page(about.get("description"), about.get("rule"))
 
 
 def compute(ws: Workspace, session: StartSession) -> dict:
     data = ws.data()
     groups = {q["id"]: q["group"] for q in data["queue"]}
-    counted = {"pass": [0, 0], "fail": [0, 0]}  # labeled, Correct
-    disagreements = 0
-    for item in session.items:
-        if item["label"]:
-            g = counted[groups[item["id"]]]
-            g[0] += 1
-            g[1] += item["label"] == "pass"
-            disagreements += item["label"] != groups[item["id"]]
+    counted = session.group_counts()
+    disagreements = sum(item["label"] != groups[item["id"]] for item in session.items
+                        if item["label"])
     r = describe(weighted.corrected(data["pool"]["pass"], data["pool"]["fail"],
                                     *counted["pass"], *counted["fail"]))
     r.update(skipped=session.counts()["skipped"], disagreements=disagreements,

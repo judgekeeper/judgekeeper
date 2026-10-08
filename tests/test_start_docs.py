@@ -243,7 +243,7 @@ def test_the_changelog_says_what_0_2_0_adds_and_what_it_does_not_do():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entry = " ".join(text[text.index("## 0.2.0"):text.index("## 0.1.3")].split())
     assert "## 0.2.0 (unreleased)" in entry and "## 0.1.4" not in text
-    unchanged = "No change to any metric or report field"
+    unchanged = "No change to any metric."
     for needed in ("`judgekeeper start`", "`judgekeeper --version`", "no AI calls",
                    "no API key", "never runs your", unchanged, "Removed: `judgekeeper demo`",
                    ("Removed: `label`, `template`, `import-labels`, `freeze`, `attribute`, "

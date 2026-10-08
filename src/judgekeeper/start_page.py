@@ -21,8 +21,9 @@ The result page is static HTML that runs no script and loads nothing, so the cop
 
 from __future__ import annotations
 
-import json
 from html import escape
+
+from judgekeeper import targets
 
 LOGO = """<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">
       <path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>
@@ -308,9 +309,10 @@ LABEL_BODY = """<main>
 <script nonce="__NONCE__">
 "use strict";
 (function () {
-  var TOKEN = "__TOKEN__", STATUS = __STATUS__, ROUGH = __ROUGH__, RELIABLE = __RELIABLE__;
+  var TOKEN = "__TOKEN__", RELIABLE = __RELIABLE__;
   var data = JSON.parse(document.getElementById("data").textContent);
   var items = data.items, counts = data.counts, pos = data.start, busy = false, history = [];
+  var status = data.status;  // the line under the meters, from the server
   var $ = function (id) { return document.getElementById(id); };
   function setText(id, text) { $(id).textContent = text == null ? "" : String(text); }
   function each(selector, fn) {
@@ -324,11 +326,9 @@ LABEL_BODY = """<main>
     each(".nw", function (e) { e.textContent = counts.wrong; });
     $("bc").style.width = Math.min(counts.correct, RELIABLE) / RELIABLE * 100 + "%";
     $("bw").style.width = Math.min(counts.wrong, RELIABLE) / RELIABLE * 100 + "%";
-    var least = Math.min(counts.correct, counts.wrong), line = STATUS[0];
-    STATUS.forEach(function (s) { if (least >= s[0]) { line = s; } });
-    setText("ready", line[1]);
-    $("ready").className = line[2] ? "ready" : "ready not";
-    each(".see", function (a) { a.hidden = least < ROUGH; });
+    setText("ready", status.text);
+    $("ready").className = status.ready ? "ready" : "ready not";
+    each(".see", function (a) { a.hidden = !status.ready; });
   }
 
   // A question is text, or [[name, value], ...]: each name a small label above its value.
@@ -377,7 +377,8 @@ LABEL_BODY = """<main>
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
       if (!res.ok) { setText("status", "Not saved: " + res.body.error); render(); return; }
-      counts = res.body.summary.counts; setText("status", "");
+      counts = res.body.summary.counts; status = res.body.summary.status;
+      setText("status", "");
       then();
     }).catch(function () {
       setText("status", "Not saved: this page lost its link to judgekeeper. Is it still " +
@@ -442,24 +443,24 @@ def _text(value: str) -> str:
     return escape(value).replace("_", "&#95;")
 
 
-def label_page(description: str | None, rule: str | None, status: list,
-               marks: tuple[str, str] = ("rough", "reliable")) -> str:
-    """The labeling page. `status` is the table of lines under the meters: (the fewest of
-    Correct and Wrong, the line, ready for a result), the second and third rows the two marks
-    on the meters (by default the rough check and the reliable result, named by `marks`). The
-    server fills in __DATA__, __TOKEN__ and __NONCE__."""
-    rough, reliable = status[1][0], status[2][0]
+def label_page(description: str | None, rule: str | None,
+               marks: tuple[tuple[int, str], tuple[int, str]] = (
+                   (targets.ROUGH, "rough"), (targets.RELIABLE, "reliable"))) -> str:
+    """The labeling page. `marks` are the two marks on the meters, (count, name): by default
+    the rough check and the reliable result. The line under the meters is the session's
+    `status`, which the server sends with the data and after every label: the page works out
+    nothing itself. The server fills in __DATA__, __TOKEN__ and __NONCE__."""
+    (rough, first), (reliable, second) = marks
     meters = "\n    ".join(
         METER.replace("__KEY__", key).replace("__NAME__", name)
         for key, name in (("c", "Correct"), ("w", "Wrong")))
     meters = (meters.replace("__AT__", f"{rough / reliable * 100:g}")
               .replace("__ROUGH__", str(rough)).replace("__RELIABLE__", str(reliable))
-              .replace("__FIRST_MARK__", marks[0]).replace("__SECOND_MARK__", marks[1]))
+              .replace("__FIRST_MARK__", first).replace("__SECOND_MARK__", second))
     card = _rule_card(rule, """Mark each answer by what you think is right. The judge's verdict stays
         hidden.""")
     body = (LABEL_BODY.replace("__METERS__", meters)
-            .replace("__STATUS__", json.dumps(status).replace("<", "\\u003c"))
-            .replace("__ROUGH__", str(rough)).replace("__RELIABLE__", str(reliable))
+            .replace("__RELIABLE__", str(reliable))
             .replace("__RULE_CARD__", card)
             .replace("__ABOUT__", _text(description or "")))
     return (_head("judgekeeper: label answers", LABEL_STYLE,

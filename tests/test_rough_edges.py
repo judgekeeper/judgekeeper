@@ -482,10 +482,14 @@ def test_install_hints_use_quotes_that_work_in_every_shell(tmp_path, monkeypatch
 
 def test_one_labeled_item_is_singular():
     def message(n: int) -> str:
-        return label_quality({"label_distribution": {"pass": n}})["flags"][0]["message"]
+        manifest = {"label_distribution": {"pass": n}, "kind": "single"}
+        ends = {"tpr_ci": {"lo": 0.5, "hi": 1.0}, "tnr_ci": {"lo": None, "hi": None}}
+        return label_quality(manifest, ends)["flags"][0]["message"]
 
-    assert message(1) == "Only 1 labeled item: error bars are wide; aim for about 100."
-    assert message(10) == "Only 10 labeled items: error bars are wide; aim for about 100."
+    assert message(1) == ("Too few labels for a rough check (1 labeled pass, 0 labeled fail): "
+                          "it needs 15 of each.")
+    assert message(10) == ("Too few labels for a rough check (10 labeled pass, 0 labeled fail): "
+                           "it needs 15 of each.")
 
 
 def test_one_item_and_one_run_are_singular(tmp_path, capsys):
@@ -577,6 +581,8 @@ def test_init_gives_the_same_label_counts_as_the_website(tmp_path, monkeypatch, 
     monkeypatch.chdir(tmp_path)
     assert main(["init"]) == 0
     lines = capsys.readouterr().out.splitlines()
-    assert lines[1] == ("  1. label real items (30 to 60 for a first look, about 100 for a "
-                        "firmer result) in anchors.jsonl,")
+    assert lines[1] == ("  1. label real items in anchors.jsonl: at least 15 that should pass "
+                        "and 15 that should fail")
+    assert lines[2] == ("     for a rough check, 25 of each for a reliable result. One JSON line "
+                        "each: id, input,")
     assert "50 to 100" not in "\n".join(lines)

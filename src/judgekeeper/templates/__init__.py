@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from judgekeeper.targets import RELIABLE, ROUGH
 from judgekeeper.textio import quote_arg
 
 TEMPLATES = Path(__file__).resolve().parent
@@ -42,11 +43,13 @@ def next_steps(out: str | Path) -> str:
     """The steps that follow `init`, with the rule file filled in."""
     return "\n".join([
         f"wrote {out}: fill in every [FILL IN: ...] marker, then",
-        ("  1. label real items (30 to 60 for a first look, about 100 for a firmer result) "
-         "in anchors.jsonl,"),
-        ("     one JSON line each: id, input, output and human_label (pass or fail; with "
-         "--pairwise,"),
-        "     output_a, output_b and A or B). judge seals the file the first time it reads it.",
+        (f"  1. label real items in anchors.jsonl: at least {ROUGH} that should pass and "
+         f"{ROUGH} that should fail"),
+        (f"     for a rough check, {RELIABLE} of each for a reliable result. One JSON line "
+         "each: id, input,"),
+        ("     output and human_label (pass or fail; with --pairwise, output_a, output_b and A "
+         "or B)."),
+        "     judge seals the file the first time it reads it.",
         "  2. run any judge with the rule, 3 times:",
         ("       judgekeeper judge anchors.jsonl --runner anthropic --model "
          f"claude-haiku-4-5-20251001 --prompt {quote_arg(out)} --runs 3 --out "
