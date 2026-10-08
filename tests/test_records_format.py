@@ -22,7 +22,6 @@ from judgekeeper.records import (
     problems,
     read_records,
     records_to_report,
-    write_records,
 )
 from judgekeeper.table import make_fingerprint
 
@@ -188,7 +187,7 @@ def test_read_write_read_gives_the_same_records(tmp_path):
              "annotator_kind": "HUMAN", "label": "pass", "input": FULL["input"],
              "output": FULL["output"], "metadata": {"labeler": "support lead"}}]
     first = read_records(write_jsonl(tmp_path / "a.jsonl", rows))
-    write_records(tmp_path / "b.jsonl", first)
+    write_jsonl(tmp_path / "b.jsonl", [r.to_dict() for r in first])
     second = read_records(tmp_path / "b.jsonl")
     assert [r.to_dict() for r in second] == [r.to_dict() for r in first]
     assert second[0].extra == {"colour": "blue"}
@@ -215,7 +214,7 @@ def test_a_newer_version_reads_what_it_can_with_one_warning(tmp_path):
     assert len(records.warnings) == 1
     assert "version 3" in records.warnings[0] and "version 2" in records.warnings[0]
     assert records[0].extra == {"judge_cost": {"usd": 0.01}}
-    write_records(tmp_path / "again.jsonl", records)
+    write_jsonl(tmp_path / "again.jsonl", [r.to_dict() for r in records])
     line = json.loads((tmp_path / "again.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert line["schema_version"] == 3  # it holds version 3's fields, so it stays version 3
     assert line["judge_cost"] == {"usd": 0.01}

@@ -70,7 +70,7 @@ def test_every_command_exists_in_the_cli():
     _, body = _split(SKILL.read_text(encoding="utf-8"))
     lines = [line for line in _command_lines(body) if "<" not in line]
     commands = {shlex.split(line)[1] for line in lines}
-    assert {"start", "setup", "record", "init", "import", "baseline", "gate"} <= commands
+    assert {"start", "setup", "init", "import", "baseline", "gate"} <= commands
     parser = _parser()
     for line in lines:
         argv = shlex.split(line)[1:]
@@ -131,7 +131,7 @@ def test_the_steps_follow_start():
 def test_it_names_start_setup_and_record():
     body = _body()
     for needed in ("judgekeeper start", "judgekeeper setup", "judgekeeper.record()",
-                   "judgekeeper record --agent-prompt"):
+                   "www.judgekeeper.com/assistant.html#add-the-record-line"):
         assert needed in body, needed
 
 
@@ -149,7 +149,7 @@ def test_the_older_commands_are_one_advanced_note():
     for older in ("judgekeeper label ", "judgekeeper import-labels", "judgekeeper judge ",
                   "judgekeeper validate", "judgekeeper check "):
         assert older not in body[:note], older
-    assert "label, import-labels, judge, validate, check, import" in body[note:]
+    assert "judge, validate, check, import" in body[note:]
 
 
 def test_it_never_shows_an_install_outside_a_project():

@@ -51,9 +51,10 @@ Three rules, each with its reason:
    answers its question. If it found several tools or judges, ask me which one. If it
    finds no results it can read, run `judgekeeper setup` and show me its questions
    instead of answering them for me; it asks once before it changes any file. If the
-   judge is code that saves nothing, `judgekeeper record --agent-prompt` prints how to
-   add one line: show me the diff and wait for my yes. If there is no judge at all, say
-   so and stop.
+   judge is code that saves nothing,
+   www.judgekeeper.com/assistant.html#add-the-record-line has a prompt that adds one
+   line: show me the diff and wait for my yes. If there is no judge at all, say so and
+   stop.
 3. Ask me to say in one sentence what pass means before I label: my labels must follow
    my rule, not the judge's.
 4. Open the labeling page for me: `judgekeeper start --yes --no-browser`. It is a local
@@ -77,9 +78,8 @@ Stop and ask me whenever a step needs me: the labels, a key, spending money, wha
 rule means, or a choice you are not sure about. Do not change my app's code or its CI
 unless I say yes to the diff. `judgekeeper <command> --help` lists every option.
 
-Advanced, only if I ask: the older commands (label, import-labels, judge, validate,
-check) build the same check by hand when nothing was saved;
-www.judgekeeper.com/tutorial.html shows each one.
+Advanced, only if I ask: the older commands (judge, validate, check) build the same
+check by hand when nothing was saved; www.judgekeeper.com/tutorial.html shows each one.
 ```
 
 The same text is in the file `docs/assistant-prompt.md`.
@@ -96,6 +96,36 @@ The same text is in the file `docs/assistant-prompt.md`.
 **You do one thing yourself: the labels.** The assistant must never fill them in for you. The labels are the only part of the check that is not a model's opinion. If a model wrote them, the check would compare one model with another and prove nothing.
 
 The assistant also stops and asks you when it needs a key. A key is the password for a paid AI service. Keep it in an environment variable, which is a setting in your own terminal. Do not paste it into the chat.
+
+## Add the record() line
+
+Your judge runs in your own code and saves nothing judgekeeper reads? One `judgekeeper.record()` line, right where the judge gives each verdict, saves it ([what the line takes](reference.md#record-save-your-own-judges-verdicts-with-one-line)). judgekeeper never edits your code. Paste this prompt into your assistant and it adds the line for you:
+
+```
+In this project, my LLM judge runs in my own code. Please add the judgekeeper.record() line,
+so that judgekeeper can check my judge against my own labels:
+
+1. judgekeeper must be installed in this project's own Python environment, as a dev tool. If
+   it is missing, install it there: for example `uv add --dev judgekeeper`, `poetry add
+   --group dev judgekeeper`, or `pip install judgekeeper` with the project's virtual
+   environment active.
+2. Find where this project's LLM judge produces each score or verdict.
+3. Right after it, add one call, with the values the judge just used and gave:
+
+       import judgekeeper
+       judgekeeper.record(input=..., output=..., score=..., pass_mark=..., reason=...,
+                          judge="<the judge's model>", rule=<the judge's rule or criteria>,
+                          name="<the judge's or criterion's name>")
+
+   When the judge gives pass or fail, pass verdict=... instead of score and pass_mark. One
+   call per judge or criterion. Only in the eval code, never in code that serves real users
+   (it saves inputs and outputs to a file); JUDGEKEEPER_RECORD=0 turns it off.
+4. Touch nothing else. record() catches its own errors and returns nothing, so it can never
+   change what the program does; do not wrap it in code that could.
+5. Show me the diff and wait for my yes before saving.
+6. Then run the eval once, run `judgekeeper import records .judgekeeper/records --check`, and
+   show me what it prints.
+```
 
 ## Works with
 

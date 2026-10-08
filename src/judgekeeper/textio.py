@@ -161,7 +161,7 @@ def describe_os_error(e: OSError) -> str | None:
 def unwritable_file(path: str | Path) -> str | None:
     """Why a file at `path` clearly cannot be written, or None. Nothing is created.
 
-    For a command that writes only later (`label` writes on the first label): a folder at the
+    For a command that writes only later (the labeling page writes on the first label): a folder at the
     path, a file where one of its parent folders should be, or a parent that refuses writes.
     """
     path = Path(path)

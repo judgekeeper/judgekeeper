@@ -80,7 +80,7 @@ def test_load_verified_refuses_on_mismatch(tmp_path):
 
 def test_load_verified_requires_manifest(tmp_path):
     p = write_jsonl(tmp_path / "anchors.jsonl", ITEMS)
-    with pytest.raises(AnchorError, match="freeze"):
+    with pytest.raises(AnchorError, match="not sealed yet"):
         load_verified(p)
 
 

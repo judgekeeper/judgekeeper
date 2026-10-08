@@ -28,7 +28,7 @@ A path can be the folder, a glob (`"deepeval-results/test_run_*.json"`) or files
 
 ## Human labels
 
-DeepEval stores no human verdict (`expectedOutput` is a reference answer, not a pass/fail label), so labels come from `--labels`: a CSV or JSONL with an `id` column and a `human_label` column. To get the ids right, make the sheet with `judgekeeper template items.jsonl -o labels.csv` from your test cases' `input` and `output`, or name your test cases (below) and use those names.
+DeepEval stores no human verdict (`expectedOutput` is a reference answer, not a pass/fail label), so labels come from `--labels`: a CSV or JSONL with an `id` column and a `human_label` column. To get the ids right, name your test cases (below) and use those names. Or label with `judgekeeper start`, which reads DeepEval's results as they are.
 
 ## Traps
 

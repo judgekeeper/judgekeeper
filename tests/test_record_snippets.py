@@ -1,4 +1,4 @@
-"""`judgekeeper record --snippet python|typescript` and `judgekeeper record --agent-prompt`.
+"""The `judgekeeper.record()` snippets in docs/reference.md and the prompt in docs/assistant.md.
 
 The snippets write the same JSON line as `judgekeeper.record()`, for people who do not want
 the import or use another language; the records they write pass `import records --check`.
@@ -14,17 +14,47 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 from judgekeeper import recorder
 from judgekeeper.cli import main
 
+DOCS = Path(__file__).resolve().parent.parent / "docs"
+RECORD_SECTION = "## record(): save your own judge's verdicts with one line\n"
+PROMPT_SECTION = "## Add the record() line\n"
 
-def run(capsys, *argv):
-    code = main(["record", *argv])
-    out, err = capsys.readouterr()
-    return code, out, err
+
+def _section(path: Path, heading: str) -> str:
+    text = path.read_text(encoding="utf-8")
+    start = text.index(heading)
+    end = text.find("\n## ", start + len(heading))
+    return text[start:] if end == -1 else text[start:end]
+
+
+def _blocks(text: str, language: str = "") -> list[str]:
+    return re.findall(rf"```{language}\n(.*?)\n```", text, re.DOTALL)
+
+
+def _snippets() -> dict[str, str]:
+    section = _section(DOCS / "reference.md", RECORD_SECTION)
+    found = {}
+    for language in ("python", "typescript"):
+        found[language] = [b for b in _blocks(section, language) if "jk_record" in b
+                           or "jkRecord" in b]
+    assert [len(v) for v in found.values()] == [1, 1], found
+    return {k: v[0] for k, v in found.items()}
+
+
+def _agent_prompt() -> str:
+    blocks = _blocks(_section(DOCS / "assistant.md", PROMPT_SECTION))
+    assert len(blocks) == 1
+    return blocks[0]
+
+
+SNIPPETS = _snippets()
+AGENT_PROMPT = _agent_prompt()
 
 
 def check(capsys, folder):
@@ -34,22 +64,9 @@ def check(capsys, folder):
 
 # The snippets ----------------------------------------------------------------------------
 
-def test_the_python_snippet_is_printed(capsys):
-    code, out, _ = run(capsys, "--snippet", "python")
-    assert code == 0
-    assert out == recorder.SNIPPETS["python"] + "\n"
-    assert len(recorder.SNIPPETS["python"].splitlines()) <= 36
-
-
-def test_the_typescript_snippet_is_printed(capsys):
-    code, out, _ = run(capsys, "--snippet", "typescript")
-    assert code == 0
-    assert out == recorder.SNIPPETS["typescript"] + "\n"
-
-
 def test_the_python_snippet_writes_records_that_pass_the_check(tmp_path, capsys):
     script = tmp_path / "eval.py"
-    script.write_text(recorder.SNIPPETS["python"] + """
+    script.write_text(SNIPPETS["python"] + """
 
 jk_record("Do you ship to Canada?", "Yes, in 5 days.", verdict="pass", name="Safe wording",
           reason="Clear.", judge="claude-opus-5", rule="Be polite.")
@@ -67,7 +84,7 @@ jk_record({"question": "q"}, "a", score=0.3, name="Safe wording")
 def test_the_python_snippet_never_raises(tmp_path):
     (tmp_path / ".judgekeeper").write_text("not a folder", encoding="utf-8")
     script = tmp_path / "eval.py"
-    script.write_text(recorder.SNIPPETS["python"] + '\njk_record("q", "a", verdict="pass")\n'
+    script.write_text(SNIPPETS["python"] + '\njk_record("q", "a", verdict="pass")\n'
                       'print("still running")\n', encoding="utf-8")
     out = subprocess.run([sys.executable, "-I", str(script)], cwd=tmp_path, check=True,
                          capture_output=True, text=True).stdout
@@ -90,7 +107,7 @@ def _node_runs_typescript() -> bool:
                     reason="needs Node.js 22.18 or later")
 def test_the_typescript_snippet_writes_records_that_pass_the_check(tmp_path, capsys):
     script = tmp_path / "eval.ts"
-    script.write_text(recorder.SNIPPETS["typescript"] + """
+    script.write_text(SNIPPETS["typescript"] + """
 
 jkRecord("Do you ship to Canada?", "Yes, in 5 days.",
          { verdict: "pass", name: "Safe wording", reason: "Clear.", judge: "gpt-4.1" });
@@ -110,24 +127,22 @@ def test_the_snippets_write_the_same_fields():
     for name in ("schema_version", "annotator_kind", "label", "score", "explanation",
                  "evaluator", "created_at", ".judgekeeper", "records"):
         for language in ("python", "typescript"):
-            assert name in recorder.SNIPPETS[language], (language, name)
+            assert name in SNIPPETS[language], (language, name)
+
+
+def test_the_python_snippet_fits_on_a_screen():
+    assert len(SNIPPETS["python"].splitlines()) <= 36
 
 
 def test_the_snippets_say_where_to_run_them():
-    for text in recorder.SNIPPETS.values():
+    for text in SNIPPETS.values():
         assert "project" in text.splitlines()[0] or "project" in text.splitlines()[1]
 
 
 # The agent prompt ------------------------------------------------------------------------
 
-def test_the_agent_prompt_is_printed(capsys):
-    code, out, _ = run(capsys, "--agent-prompt")
-    assert code == 0
-    assert out == recorder.AGENT_PROMPT + "\n"
-
-
 def test_the_agent_prompt_says_what_to_do_and_what_not_to():
-    text = " ".join(recorder.AGENT_PROMPT.split())
+    text = " ".join(AGENT_PROMPT.split())
     for words in ("where this project's LLM judge produces each score or verdict",
                   "judgekeeper.record(", "input", "output", "pass_mark", "reason", "judge=",
                   "rule=", "name=", "verdict=", "Touch nothing else",
@@ -140,27 +155,7 @@ def test_the_agent_prompt_says_what_to_do_and_what_not_to():
 
 def test_the_agent_prompt_installs_inside_the_project_only():
     for outside in ("pipx", "uv tool", "uvx", "pip3 install", "--user", "-g "):
-        assert outside not in recorder.AGENT_PROMPT
-
-
-def test_record_needs_one_of_its_flags(capsys):
-    code, _, err = run(capsys)
-    assert code == 2
-    assert "--snippet" in err and "--agent-prompt" in err
-    assert main(["record", "--snippet", "rust"]) == 2
-
-
-def test_the_reference_shows_the_same_snippets_and_the_commands():
-    from pathlib import Path
-
-    text = (Path(__file__).resolve().parent.parent / "docs" / "reference.md").read_text(
-        encoding="utf-8")
-    for language, snippet in recorder.SNIPPETS.items():
-        assert f"```{language}\n{snippet}\n```" in text, language
-    for command in ("judgekeeper record --snippet python",
-                    "judgekeeper record --snippet typescript",
-                    "judgekeeper record --agent-prompt", "JUDGEKEEPER_RECORD=0"):
-        assert command in text
+        assert outside not in AGENT_PROMPT
 
 
 # The snippets take record()'s arguments and write what it writes ----------------------------
@@ -202,7 +197,7 @@ def test_the_python_snippet_takes_the_arguments_of_record():
     import inspect
 
     space = {}
-    exec(recorder.SNIPPETS["python"], space)  # noqa: S102 - our own snippet
+    exec(SNIPPETS["python"], space)  # noqa: S102 - our own snippet
     assert list(inspect.signature(space["jk_record"]).parameters) == list(
         inspect.signature(recorder.record).parameters)
 
@@ -212,7 +207,7 @@ def test_the_python_snippet_writes_what_record_writes(tmp_path, monkeypatch):
     here = tmp_path / "snippet"
     here.mkdir()
     script = here / "eval.py"
-    script.write_text(recorder.SNIPPETS["python"] + "\n\nCALLS = " + repr(CALLS) +
+    script.write_text(SNIPPETS["python"] + "\n\nCALLS = " + repr(CALLS) +
                       "\nfor call in CALLS:\n    jk_record(**call)\n", encoding="utf-8")
     subprocess.run([sys.executable, "-I", str(script)], cwd=here, check=True)
     assert _lines(here / ".judgekeeper" / "records") == expected
@@ -228,7 +223,7 @@ def test_the_typescript_snippet_writes_what_record_writes(tmp_path, monkeypatch)
         f"jkRecord({json.dumps(c['input'])}, {json.dumps(c['output'])}, "
         f"{json.dumps({k: v for k, v in c.items() if k not in ('input', 'output')})});"
         for c in CALLS)
-    (here / "eval.ts").write_text(recorder.SNIPPETS["typescript"] + "\n\n" + calls + "\n",
+    (here / "eval.ts").write_text(SNIPPETS["typescript"] + "\n\n" + calls + "\n",
                                   encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if not k.startswith("NODE_")}
     subprocess.run(["node", "eval.ts"], cwd=here, check=True, env=env, capture_output=True)

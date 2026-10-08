@@ -82,8 +82,8 @@ def load_report(path: str | Path) -> dict:
         raise GateError(f"{path} is not a judgekeeper report (missing {', '.join(missing)})")
     if "sha256" not in data["anchors"]:
         raise GateError(f"{path} is not a judgekeeper report (anchors has no sha256)")
-    # The fingerprint is copied into gate.json and attribution.json and shown in their
-    # summaries; a report written by an older version may hold a key in it.
+    # The fingerprint is copied into gate.json and shown in its summary; a report written by
+    # an older version may hold a key in it.
     data["fingerprint"] = scrub_fingerprint(data["fingerprint"])
     if isinstance(data.get("snapshots_seen"), list):
         data["snapshots_seen"] = [scrub(s) if isinstance(s, str) else s

@@ -18,7 +18,7 @@ so the review has two steps:
   old one moves to history/review-<date>/.
 - judge-mistakes.csv and rule-unclear.csv: the answers marked "The judge was wrong" and "The
   rule is unclear", with both labels and the judge's verdict and reason. Cells that could be
-  read as spreadsheet formulas are guarded as `template` does.
+  read as spreadsheet formulas are guarded as labels.csv's are.
 
 labels.csv never changes: the first labels stay the main result. Once step A is done,
 result.json gains a `review` block: the second-look numbers (each re-looked answer's second

@@ -28,9 +28,10 @@ Three rules, each with its reason:
    answers its question. If it found several tools or judges, ask me which one. If it
    finds no results it can read, run `judgekeeper setup` and show me its questions
    instead of answering them for me; it asks once before it changes any file. If the
-   judge is code that saves nothing, `judgekeeper record --agent-prompt` prints how to
-   add one line: show me the diff and wait for my yes. If there is no judge at all, say
-   so and stop.
+   judge is code that saves nothing,
+   www.judgekeeper.com/assistant.html#add-the-record-line has a prompt that adds one
+   line: show me the diff and wait for my yes. If there is no judge at all, say so and
+   stop.
 3. Ask me to say in one sentence what pass means before I label: my labels must follow
    my rule, not the judge's.
 4. Open the labeling page for me: `judgekeeper start --yes --no-browser`. It is a local
@@ -54,6 +55,5 @@ Stop and ask me whenever a step needs me: the labels, a key, spending money, wha
 rule means, or a choice you are not sure about. Do not change my app's code or its CI
 unless I say yes to the diff. `judgekeeper <command> --help` lists every option.
 
-Advanced, only if I ask: the older commands (label, import-labels, judge, validate,
-check) build the same check by hand when nothing was saved;
-www.judgekeeper.com/tutorial.html shows each one.
+Advanced, only if I ask: the older commands (judge, validate, check) build the same
+check by hand when nothing was saved; www.judgekeeper.com/tutorial.html shows each one.

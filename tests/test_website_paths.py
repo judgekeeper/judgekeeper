@@ -300,15 +300,17 @@ def test_use_it_on_your_app_has_four_steps_each_with_something_to_run_or_make():
     for head, needle in zip(heads, ("Collect", "Label", "judge", "Read"), strict=True):
         assert needle in head, head
     for li in items:
+        if "This step has no command either" in li.text():  # the labels, typed in the sheet
+            continue
         shown = [el for el in li.iter() if el.tag == "pre"]
         assert shown, li.text()[:60]
         assert "What you see" in li.text() or "What the file looks like" in li.text()
     used = {argv[0] for _, argv in commands(WEBSITE / "start.html") if argv}
-    assert {"label", "check", "judge", "validate", "import-labels"} <= used
+    assert {"check", "judge", "validate"} <= used
     step_commands = [el.text() for el in steps.iter() if el.tag == "code"
                      and el.parent.tag == "pre" and "output" not in el.parent.classes()]
-    assert step_commands[:2] == ["judgekeeper label items.csv --out labels.csv",
-                                 "judgekeeper check results.csv --judge verdict --human label"]
+    assert step_commands[0] == "judgekeeper check results.csv --judge verdict --human label"
+    assert step_commands[1].startswith("judgekeeper judge anchors.jsonl ")
 
 
 def test_use_it_on_your_app_shows_the_real_file_and_the_real_output(tmp_path, monkeypatch, capsys):

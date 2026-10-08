@@ -139,10 +139,6 @@ def run_pipeline(env, capsys) -> list[str]:
     step(cli("migrate", env.anchors, "runs/old", "runs/new", "--out", "migration",
              "--rebase"), 0)
     step(cli("gate", "reports/new/report.json"), 1)  # rebased: no longer JUDGE_CHANGED
-    step(cli("attribute", "reports/new/report.json"), 0)
-    step(cli("attribute", "reports/old/report.json", "--out", "attribution-old"), 6)
-    step(cli("attribute", "reports/new/report.json", "--app-score-before", "0.7",
-             "--app-score-after", "0.5", "--out", "attribution-app"), 7)
     return captured
 
 
@@ -178,7 +174,7 @@ def test_debug_shows_a_scrubbed_traceback(env, capsys):
         assert value not in err
 
 
-def test_import_and_export_never_write_a_key(env, capsys, tmp_path):
+def test_import_never_writes_a_key(env, capsys, tmp_path):
     """Judge rationales and human comments in imported files may echo a key, as above. Only
     the standard variables: nothing names a custom one with --api-key-env here."""
     import json
@@ -211,8 +207,6 @@ def test_import_and_export_never_write_a_key(env, capsys, tmp_path):
     step(cli("import", "records", str(src / "records.csv"), "--map",
              "target_id=id,name=metric,label=value,explanation=why,annotator_kind=kind",
              "--out", "imported/records"), 0)
-    step(cli("export", "records", "imported/promptfoo", "-o", "exported/promptfoo.jsonl"), 0)
-    step(cli("export", "records", "imported/records", "-o", "exported/records.jsonl"), 0)
     # a usage error that echoes what the user typed
     step(cli("import", "promptfoo", str(src / "results.json"), "--metric",
              SENTINELS["OPENAI_API_KEY"], "--out", "imported/bad"), 2)
@@ -220,7 +214,8 @@ def test_import_and_export_never_write_a_key(env, capsys, tmp_path):
     run = (env.work / "imported" / "promptfoo" / "runs" / "run-01.jsonl").read_text(
         encoding="utf-8")
     assert "[REDACTED]" in run
-    assert "[REDACTED]" in (env.work / "exported" / "records.jsonl").read_text(encoding="utf-8")
+    assert "[REDACTED]" in (env.work / "imported" / "records" / "runs" / "run-01.jsonl").read_text(
+        encoding="utf-8")
 
 
 def test_mlflow_import_never_writes_a_key(env, capsys, tmp_path):
@@ -240,7 +235,6 @@ def test_mlflow_import_never_writes_a_key(env, capsys, tmp_path):
     step(cli("import", "mlflow", "--experiment", "qa-judge", "--tracking-uri", uri,
              "--metric", "correctness", "--anchors-out", "anchors/mlflow.jsonl",
              "--out", "imported/mlflow"), 0)
-    step(cli("export", "records", "imported/mlflow", "-o", "exported/mlflow.jsonl"), 0)
     step(cli("import", "mlflow", "--experiment", "qa-judge", "--tracking-uri", uri,
              "--metric", SENTINELS["OPENAI_API_KEY"], "--out", "imported/bad"), 2)
     assert_no_sentinel(env.work, *captured)
@@ -279,7 +273,6 @@ def test_langfuse_import_never_writes_a_key(env, capsys, monkeypatch):
     with LangfuseStub(pages=pages) as stub:
         monkeypatch.setenv("LANGFUSE_HOST", stub.url)
         step(langfuse("--anchors-out", "anchors/langfuse.jsonl", "--out", "imported/lf"), 0)
-    step(cli("export", "records", "imported/lf", "-o", "exported/lf.jsonl"), 0)
     with LangfuseStub(status=401) as stub:
         monkeypatch.setenv("LANGFUSE_HOST", stub.url)
         step(langfuse("--out", "imported/denied"), 1)

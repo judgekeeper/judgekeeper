@@ -5,7 +5,7 @@ Conventions the pages follow, so these tests can check every figure:
 - `data-report="headline.kappa_mean"` with `data-format`: a number from
   docs/examples/llmbar-haiku/report.json. `slices[Natural].kappa_mean` picks a list entry.
 - `data-const="judgekeeper.report:MIN_LABELS"`: a constant from the code.
-- `data-exit="gate:PASS"`: an exit code from judgekeeper.gate or judgekeeper.attribute.
+- `data-exit="gate:PASS"`: an exit code from judgekeeper.gate.
 - `data-tutorial="lazy:headline.tnr_mean"`: a number from the tutorial run, checked in
   test_website_tutorial.py.
 - `data-illustration` on a container: made-up numbers, labelled as such on the page.
@@ -181,13 +181,12 @@ def test_constants_match_the_code():
 
 
 def test_exit_codes_match_the_code():
-    from judgekeeper import attribute, gate
+    from judgekeeper import gate
 
-    tables = {"gate": gate.EXIT_CODES, "attribute": attribute.EXIT_CODES}
+    tables = {"gate": gate.EXIT_CODES}
     found = list(_sourced("data-exit"))
     statuses = {el.attrs["data-exit"] for _, el in found}
     assert {f"gate:{s}" for s in gate.EXIT_CODES} <= statuses
-    assert {f"attribute:{s}" for s in attribute.EXIT_CODES} <= statuses
     for page, el in found:
         table, status = el.attrs["data-exit"].split(":")
         assert el.text().strip() == str(tables[table][status]), (page.name, el.attrs)

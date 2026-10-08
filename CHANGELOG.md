@@ -71,13 +71,13 @@ after you say yes, your own judge through your own tool, and key names only.
   an earlier version can report `JUDGE_CHANGED` once; a warning when the saved verdicts came
   from promptfoo's cache. DeepEval: the judge's provider is read from the end of its model
   name, such as `(Anthropic)`.
-- The records format (what `import records` reads and `export records` writes) now has a
-  version (`schema_version`, now 2) and keeps fields it does not know instead of stopping. New
-  optional fields: `metadata` for anything else, the judge's `rule`, and, ready for agents,
-  `trajectory` (the agent's steps), `outcome` (an automatic check such as unit tests) and
-  `app_version`. New: `judgekeeper import records FILE --check` says what judgekeeper reads
-  in a file and lists every problem with its line, and writes nothing. The format is
-  published as a JSON Schema (`docs/records.schema.json`), with three example files.
+- The records format (what `import records` reads) now has a version (`schema_version`, now 2)
+  and keeps fields it does not know instead of stopping. New optional fields: `metadata` for
+  anything else, the judge's `rule`, and, ready for agents, `trajectory` (the agent's steps),
+  `outcome` (an automatic check such as unit tests) and `app_version`. New: `judgekeeper
+  import records FILE --check` says what judgekeeper reads in a file and lists every problem
+  with its line, and writes nothing. The format is published as a JSON Schema
+  (`docs/records.schema.json`), with three example files.
 - Reading results: Inspect AI keeps each sample's steps, so two agent runs that end in the
   same answer stay two answers in `start`; a score whose value is a dict is read as one judge
   per key. MLflow: an assessment on one span inside a trace is left out unless `--metric`
@@ -94,10 +94,7 @@ after you say yes, your own judge through your own tool, and key names only.
   it saves each verdict in `.judgekeeper/records/` (one file per process), and
   `judgekeeper start` finds them; `start --new` leaves them in place. It never stops your
   program (an error inside it only logs one warning), uses only Python's standard library,
-  and `JUDGEKEEPER_RECORD=0` turns it off. `judgekeeper record --snippet python` (or
-  `typescript`) prints a short version with nothing to install; `judgekeeper record
-  --agent-prompt` prints a prompt that asks your coding agent to add the line, show you the
-  diff and wait for your yes.
+  and `JUDGEKEEPER_RECORD=0` turns it off.
 - `judgekeeper start` says when your app's version changed since your last check, from
   `app_version` in the results (or an `app_version` column in a table).
 - The website's home page shows the install for Mac and Windows, with a check for Python, and
@@ -106,6 +103,9 @@ after you say yes, your own judge through your own tool, and key names only.
 - Removed: `judgekeeper demo`, with its bundled synthetic data. Running it now gives the usual
   "invalid choice" error. This includes `judgekeeper demo --try` (the five practice questions)
   and `judgekeeper demo support`, `coding` and `health` (the three worked examples).
+- Removed: `label`, `template`, `import-labels`, `freeze`, `attribute`, `export` and the
+  `record` command (the `judgekeeper.record()` function stays). Labeling is `judgekeeper
+  start`; `judge` and `validate` seal a new anchor file themselves.
 - Removed from the website: the "See it work" page and its menu entry, and the practice step
   with its screenshots. The home page now says what judgekeeper is, shows how to install it,
   and points to checking your own judge.
@@ -136,9 +136,8 @@ after you say yes, your own judge through your own tool, and key names only.
   answer or for the whole run, and says where they came from; it lists every criterion as a
   judge; at a terminal it asks whether its guess is right, and after No you correct only the
   part that is wrong.
-- `judgekeeper record --snippet python` (and `typescript`) take the same arguments as
-  `judgekeeper.record()` and write the same line. `import records --check` shows each
-  judge's pass mark, model and ids, and how `start` reads several record files of one judge.
+- `import records --check` shows each judge's pass mark, model and ids, and how `start`
+  reads several record files of one judge.
 - The agent skill follows `judgekeeper start`: find, set up, the person labels, the result,
   then review, ask again or try a new judge, where the person answers the spending question.
 - Works on Windows: reading an MLflow store, and every test, now pass on Windows too.
@@ -156,10 +155,9 @@ after you say yes, your own judge through your own tool, and key names only.
   judge's rule is shown open. The result page leads each number with its plain name.
 - Ctrl-C at any question stops with "Stopped." (exit code 130) instead of a traceback.
 - `--label-map` advice never guesses which side a word is on, and `right`/`wrong` are read
-  like `correct`/`incorrect` by default. `template` refuses to overwrite an existing file
-  without `--force`, so a filled labels file is never lost.
+  like `correct`/`incorrect` by default.
 - The project does not accept pull requests. Bug reports and ideas are welcome as issues.
-- No change to any other command, flag, metric or report field.
+- No change to any metric or report field.
 
 ## 0.1.3 (2026-10-04)
 

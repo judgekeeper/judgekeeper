@@ -39,14 +39,14 @@ def write_starter(out: str | Path, pairwise: bool = False, force: bool = False) 
 
 
 def next_steps(out: str | Path) -> str:
-    """The three commands that follow `init`, with the rule file filled in."""
+    """The steps that follow `init`, with the rule file filled in."""
     return "\n".join([
         f"wrote {out}: fill in every [FILL IN: ...] marker, then",
         ("  1. label real items (30 to 60 for a first look, about 100 for a firmer result) "
-         "and freeze the labels:"),
-        "       judgekeeper label items.jsonl --out labels.csv        "
-        + "# or: judgekeeper template items.jsonl -o labels.csv",
-        "       judgekeeper import-labels labels.csv -o anchors.jsonl",
+         "in anchors.jsonl,"),
+        ("     one JSON line each: id, input, output and human_label (pass or fail; with "
+         "--pairwise,"),
+        "     output_a, output_b and A or B). judge seals the file the first time it reads it.",
         "  2. run any judge with the rule, 3 times:",
         ("       judgekeeper judge anchors.jsonl --runner anthropic --model "
          f"claude-haiku-4-5-20251001 --prompt {quote_arg(out)} --runs 3 --out "

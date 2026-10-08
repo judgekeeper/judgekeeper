@@ -3,8 +3,7 @@
 Field names follow OpenInference annotations, so other tools' exports map onto it by renaming:
 `target_id, name, annotator_kind ("LLM" | "HUMAN" | "CODE"), label, score, explanation, run,
 input, output, evaluator {provider, model, prompt, temperature, version, rule}, created_at`.
-`evaluator` also accepts `prompt_hash`, `snapshot` and `endpoint`, which `export records` writes
-because judgekeeper keeps only the hash of a prompt, never its text.
+`evaluator` also accepts `prompt_hash`, `snapshot` and `endpoint`.
 
 Version 2 of the format (`schema_version`; a record without one is version 1) adds:
 - `metadata`, an open object for anything else (a criterion name, a run id, an A/B version);
@@ -14,8 +13,8 @@ Version 2 of the format (`schema_version`; a record without one is version 1) ad
   any page yet: `trajectory` (the agent's steps as OpenAI-style messages: role, content,
   tool_calls [id, name, arguments], tool_call_id), `outcome` (an automatic check of the
   result: passed, score, source, detail) and `app_version` (the app or agent that answered).
-Fields judgekeeper does not know are kept, at the top level and inside `evaluator`, and are
-written again. A file of a newer version is read as far as this version understands it, with
+Fields judgekeeper does not know are kept, at the top level and inside `evaluator`
+(`ScoreRecord.to_dict` gives them back). A file of a newer version is read as far as this version understands it, with
 one warning. `problems` holds the rules; schemas/records.schema.json says the same for other
 tools, and a test keeps the two in step. A record's id, when it has to be derived, covers its
 trajectory too, so two agent runs that end in the same answer stay two answers.
@@ -539,15 +538,6 @@ def read_records(path: str | Path, column_map: str | dict | None = None,
     return records
 
 
-def write_records(path: str | Path, records) -> int:
-    """Write ScoreRecords as JSONL, one record per line; returns how many."""
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(json.dumps(r.to_dict(), ensure_ascii=False) + "\n"
-                            for r in records), encoding="utf-8")
-    return len(records)
-
-
 # Records to a report --------------------------------------------------------------------
 
 def _plural(n: int, one: str, many: str) -> str:
@@ -575,7 +565,7 @@ def _read_labels(path, label_map) -> tuple[dict[str, str], dict[str, dict]]:
     for row in rows:
         if _blank(row.get("id")):
             continue
-        item_id = sheet_id(row["id"])  # a sheet from `template` or `label` guards its ids
+        item_id = sheet_id(row["id"])  # a labels.csv judgekeeper wrote guards its ids
         try:
             v = norm(row.get(label_col)).verdict
         except UnmappedValue as e:
@@ -778,7 +768,7 @@ def records_to_report(files: list[tuple[str, RecordList]], kind: str, metric: st
         item = {"id": i, "input": c.get("input", ""), "output": c.get("output", ""),
                 "human_label": label_of[i]}
         if c.get("slice"):
-            item["slice"] = c["slice"]  # a slice column in --labels, as import-labels keeps it
+            item["slice"] = c["slice"]  # a slice column in --labels is kept
         item.update({k: c[k] for k in AGENT_FIELDS if k in c})
         anchor_items.append(item)
 
@@ -830,81 +820,3 @@ def write_label_anchors(path: str | Path, label_of: dict[str, str],
 
 def _or_blank(v):
     return "" if v is None else v
-
-
-# judgekeeper's own runs back out as ScoreRecords ----------------------------------------
-
-def _evaluator_from(fp: dict) -> dict:
-    ev = {k: fp.get(k) for k in ("provider", "model", "snapshot", "prompt_hash", "temperature")
-          if fp.get(k) is not None}
-    if fp.get("rubric_version") is not None:
-        ev["version"] = fp["rubric_version"]
-    if fp.get("endpoint") != ENDPOINT_UNKNOWN:
-        ev["endpoint"] = fp.get("endpoint")
-    return ev
-
-
-def _locate(source: Path, anchors: Path | None) -> tuple[Path, Path | None]:
-    if source.is_file() and source.suffix == ".json":
-        source = source.parent
-    if not source.is_dir():
-        raise RecordsError(f"{source} is not a report or runs directory")
-    if (source / "runs").is_dir():
-        if anchors is None and (source / "anchors.jsonl").is_file():
-            anchors = source / "anchors.jsonl"
-        source = source / "runs"
-    if not list(source.glob("*.jsonl")):
-        raise RecordsError(f"no run files (*.jsonl) in {source}")
-    return source, anchors
-
-
-def export_records(source: str | Path, out: str | Path, anchors: str | Path | None = None) -> int:
-    """Write judgekeeper runs (and the anchor set's human labels) as ScoreRecords JSONL.
-
-    `source` is a directory written by `check` or `import` (anchors.jsonl and runs/), its
-    report.json, or a runs directory (pass `anchors` for the human labels and the item text).
-    Returns the number of records written.
-    """
-    from judgekeeper.judgments import JudgmentsError, read_run
-    from judgekeeper.report import ReportError, load_runs
-
-    runs_dir, anchors = _locate(Path(source), Path(anchors) if anchors else None)
-    if anchors is not None:
-        try:
-            items, manifest, runs = load_runs(anchors, runs_dir)
-        except ReportError as e:
-            raise RecordsError(str(e)) from None
-        if manifest["kind"] == PAIRWISE:
-            raise RecordsError("ScoreRecords hold single-output items; this anchor set is "
-                               "pairwise")
-        headers = [r["header"] for r in runs]
-        run_records = [r["records"] for r in runs]
-    else:
-        items = []
-        headers, run_records = [], []
-        for path in sorted(runs_dir.glob("*.jsonl")):
-            try:
-                h, recs = read_run(path)
-            except JudgmentsError as e:
-                raise RecordsError(str(e)) from None
-            headers.append(h)
-            run_records.append(recs)
-    by_id = {i["id"]: i for i in items}
-    name = (headers[0].get("source") or {}).get("metric") or DEFAULT_NAME
-    out_records = [ScoreRecord(target_id=i["id"], name=name, annotator_kind=HUMAN,
-                               label=i["human_label"], input=i.get("input"),
-                               output=i.get("output")) for i in items]
-    for header, recs in zip(headers, run_records):
-        ids = [i["id"] for i in items] if items else list(recs)
-        for item_id in ids:
-            rec = recs[item_id]
-            fp = rec.get("fingerprint") or {}
-            verdict = rec.get("verdict")
-            item = by_id.get(item_id, {})
-            out_records.append(ScoreRecord(
-                target_id=item_id, name=name, annotator_kind=LLM,
-                label=None if verdict == ERROR else verdict, score=rec.get("raw_score"),
-                explanation=rec.get("rationale") or None, run=header.get("run"),
-                input=item.get("input"), output=item.get("output"),
-                evaluator=_evaluator_from(fp), created_at=fp.get("created_at")))
-    return write_records(out, out_records)

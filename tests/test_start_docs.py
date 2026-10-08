@@ -243,9 +243,11 @@ def test_the_changelog_says_what_0_2_0_adds_and_what_it_does_not_do():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entry = " ".join(text[text.index("## 0.2.0"):text.index("## 0.1.3")].split())
     assert "## 0.2.0 (unreleased)" in entry and "## 0.1.4" not in text
-    unchanged = "No change to any other command, flag, metric or report field"
+    unchanged = "No change to any metric or report field"
     for needed in ("`judgekeeper start`", "`judgekeeper --version`", "no AI calls",
                    "no API key", "never runs your", unchanged, "Removed: `judgekeeper demo`",
+                   ("Removed: `label`, `template`, `import-labels`, `freeze`, `attribute`, "
+                    "`export` and the `record` command"),
                    "AI calls only after you say yes", "your own judge through your own tool",
                    "key names only", "review the disagreements", "ask your judge again",
                    "try your new judge", "`promptfoo export`", "Install inside your project",
@@ -299,7 +301,7 @@ def test_the_skill_never_spends_for_the_person():
 
 
 def test_the_own_format_section_shows_the_three_doors_in_order():
-    from judgekeeper.recorder import AGENT_PROMPT as RECORD_PROMPT
+    from tests.test_record_snippets import AGENT_PROMPT as RECORD_PROMPT
 
     section = _by_id("start.html", "own-format")
     heads = [el.attrs.get("id") for el in section.iter() if el.tag == "h4"]
@@ -307,13 +309,13 @@ def test_the_own_format_section_shows_the_three_doors_in_order():
     flat = _flat(section)
     for needed in ("judgekeeper setup", "asks once before it changes any file",
                    "It never edits your code", "judgekeeper.record(",
-                   "judgekeeper record --snippet python", "JUDGEKEEPER_RECORD=0",
-                   "judgekeeper record --agent-prompt", "--check"):
+                   "JUDGEKEEPER_RECORD=0", "--check"):
         assert needed in flat, needed
     (prompt,) = [el for el in section.iter() if el.attrs.get("id") == "record-prompt"]
     assert "code" in prompt.parent.parent.classes()  # so it gets a copy button
     assert prompt.text() == RECORD_PROMPT
     hrefs = [a.attrs.get("href") for a in section.iter() if a.tag == "a"]
-    assert "reference.html#records-format-import-records-and-export-records" in hrefs
+    assert "reference.html#records-format-import-records" in hrefs
+    assert "reference.html#record-save-your-own-judges-verdicts-with-one-line" in hrefs
     assert "https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json" in \
         hrefs

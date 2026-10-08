@@ -331,7 +331,7 @@ def test_readme_and_guide_cover_the_launch_contract():
     assert "skills/judgekeeper/SKILL.md" in readme
     for text in (readme, guide):
         assert "before the first PyPI release" not in text
-    for needed in ("judgekeeper init", "](own-metric.md)", "judgekeeper label", "pytest",
+    for needed in ("judgekeeper init", "](own-metric.md)", "judgekeeper start", "pytest",
                    "skills/judgekeeper/SKILL.md", "kappa", "TPR", "TNR"):
         assert needed in guide, needed
 

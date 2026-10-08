@@ -29,9 +29,9 @@ OLD_MESSAGE = "grades the judge"
 README = ROOT / "README.md"
 SITE = "https://www.judgekeeper.com/"
 GUIDE = ROOT / "docs" / "guide.md"
-COMMANDS = ["attribute", "baseline", "check", "export", "freeze", "gate", "import",
-            "import-labels", "init", "judge", "label", "migrate", "record", "setup", "start",
-            "template", "validate"]
+COMMANDS = ["baseline", "check", "gate", "import", "init", "judge", "migrate", "setup", "start",
+            "validate"]
+REMOVED = ["attribute", "export", "freeze", "import-labels", "label", "record", "template"]
 LAST_HELP_LINE = "Run `judgekeeper <command> --help` for a command's options."
 # Syntax lines, not commands to type: <tool>, [--flag], ..., and the stand-ins X and Y.
 PLACEHOLDER = re.compile(r"<[a-z]|\[--|\.\.\.| [XY](?= |$)")
@@ -219,9 +219,8 @@ def test_the_readme_table_has_a_row_for_each_layer_and_for_agents():
     table = [line for line in _sections(README)["When you need more"].splitlines()
              if line.startswith("|")]
     rows = table[2:]
-    assert len(rows) == 5
+    assert len(rows) == 4
     for row, (command, link) in zip(rows, (
-            ("judgekeeper label", "start.html#step-label"),
             ("judgekeeper init", "own-metric.html"),
             ("judgekeeper gate", "learn.html#keeps"),
             ("judgekeeper import", "learn.html#works"),
@@ -355,7 +354,7 @@ def test_every_command_in_the_guide_parses():
             typed = " ".join(["judgekeeper", *argv])  # without the shell comment
             (skipped if PLACEHOLDER.search(typed) else found).append((line, argv))
     assert len(found) >= 15
-    assert [line.split()[1] for line, _ in skipped] == ["attribute"]  # X and Y stand-ins
+    assert skipped == []
     for line, argv in found:
         try:
             _parser().parse_args(argv)
@@ -533,8 +532,18 @@ def _subcommands() -> list[str]:
     return sorted(sub.choices)
 
 
-def test_the_cli_has_the_same_seventeen_commands():
+def test_the_cli_has_the_same_ten_commands():
     assert _subcommands() == COMMANDS
+
+
+@pytest.mark.parametrize("command", REMOVED)
+def test_a_removed_command_is_an_invalid_choice(capsys, command):
+    assert main([command, "x"]) == 2
+    err = capsys.readouterr().err
+    assert f"invalid choice: '{command}'" in err
+    # Some Python versions quote each choice, others do not
+    assert "choose from init, judge, validate, baseline, gate, migrate, check, import, start, " \
+           "setup" in err.replace("'", "")
 
 
 def test_help_starts_with_the_message_and_ends_with_the_pointer(capsys):
@@ -544,30 +553,28 @@ def test_help_starts_with_the_message_and_ends_with_the_pointer(capsys):
     assert lines[-2] == ""
 
 
-def test_help_shows_three_commands_first(capsys):
-    text = _help(capsys)
-    groups = _help_groups(text)
-    assert list(groups)[:2] == ["Start here", "More"]
-    assert text.index("Start here:") < text.index("More:")
+def test_help_shows_three_groups(capsys):
+    groups = _help_groups(_help(capsys))
+    assert list(groups)[:3] == ["Start here", "Check again in CI", "Other inputs"]
     assert groups["Start here"] == [
         "  start    find your judge's saved results and check them against your own labels",
         "  setup    results saved your own way? set the project up in one step, asked once",
-        "  check    a table of judge verdicts and human labels in, a verdict out",
-        "  label    no human labels yet? label answers in a local page",
     ]
-    assert groups["More"] == [
-        "  your own rule and judge   init, judge, validate, template, import-labels, freeze",
-        "  keep checking             baseline, gate, migrate, attribute",
-        "  your tools                import, export, record",
+    assert groups["Check again in CI"] == ["  init, judge, validate, baseline, gate, migrate"]
+    assert groups["Other inputs"] == [
+        "  check    a table of judge verdicts and human labels in, a verdict out",
+        ("  import   your eval tool's results into judge runs (promptfoo, DeepEval, Inspect AI, "
+         "MLflow,"),
+        "           Langfuse, records)",
     ]
 
 
 def test_help_lists_every_command_exactly_once(capsys):
     groups = _help_groups(_help(capsys))
-    listed = [line.split()[0] for line in groups["Start here"]]
-    for line in groups["More"]:
-        listed += re.split(r"\s{2,}", line.strip())[-1].split(", ")
-    assert len(listed) == len(set(listed)) == 17
+    listed = [line.split()[0] for group in ("Start here", "Other inputs")
+              for line in groups[group] if not line.startswith("   ")]
+    listed += groups["Check again in CI"][0].strip().split(", ")
+    assert len(listed) == len(set(listed)) == 10
     # Read from the parser, so a command added later without a group fails here.
     assert sorted(listed) == _subcommands()
 
@@ -575,8 +582,7 @@ def test_help_lists_every_command_exactly_once(capsys):
 def test_a_command_without_a_group_is_caught():
     from judgekeeper import cli
 
-    grouped = [name for name, _ in cli.START_HERE]
-    grouped += [name for _, names in cli.MORE for name in names]
+    grouped = [name for name, _ in cli.START_HERE + cli.OTHER_INPUTS] + list(cli.IN_CI)
     assert sorted(grouped) == sorted(cli.COMMANDS) == _subcommands()
 
 

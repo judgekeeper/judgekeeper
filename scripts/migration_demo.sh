@@ -34,7 +34,7 @@ if [ -n "${BASE_URL:-}" ]; then extra+=(--base-url "$BASE_URL"); fi
 if [ -n "${API_KEY_ENV:-}" ]; then extra+=(--api-key-env "$API_KEY_ENV"); fi
 
 python -m judgekeeper.datasets.llmbar --out anchors/llmbar.jsonl
-judgekeeper freeze anchors/llmbar.jsonl
+rm -f anchors/llmbar.manifest.json  # a fresh download: the first judge call seals it again
 for model in "$OLD_MODEL" "$NEW_MODEL"; do
   runs="runs/llmbar-$(safe "$model")"
   rm -rf "$runs"
