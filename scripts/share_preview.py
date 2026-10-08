@@ -4,10 +4,10 @@ The share-preview tags (Open Graph, and the ones X reads) are what WhatsApp, Lin
 and X use to show a picture, a title and one line when someone pastes a link to the site.
 
 The address of the picture and its alt text are written here, once. The generated pages get
-this block from scripts/render_reference.py. The hand-written
-pages carry the same block, typed in; tests/test_website.py compares every page with head().
-The addresses are absolute and on the site's own domain, because the apps that read them fetch
-the picture themselves. No page loads it. Standard library only.
+this block from scripts/render_reference.py; the hand-written pages carry the same block, typed
+in, and tests/test_website.py compares every page with head(). The addresses are absolute and on
+the site's own domain, because the apps that read them fetch the picture themselves. No page
+loads it. Standard library only.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from __future__ import annotations
 import html
 
 SITE = "https://www.judgekeeper.com/"
-IMAGE = SITE + "assets/social-preview.png"  # website/assets/social-preview.png
+IMAGE = SITE + "assets/social-preview.png"  # the file is website/assets/social-preview.png
 IMAGE_SIZE = (1280, 640)
 IMAGE_ALT = ("judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, "
              "in one command.")

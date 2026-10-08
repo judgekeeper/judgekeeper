@@ -1,5 +1,5 @@
-"""Rough edges found before publication: files that are not UTF-8, unwritable output, a judge
-that fails on every item, `--version`, Windows terminals and shells, and rare wordings.
+"""Rough edges: files that are not UTF-8, unwritable output, a judge that fails on every item,
+`--version`, Windows terminals and shells, and rare wordings.
 
 Windows itself is not run here. What depends on it is reached by setting `sys.platform`.
 """
@@ -69,7 +69,7 @@ def _plain_error(capsys, *needles: str) -> str:
     return lines[0]
 
 
-# 1. A file that is not UTF-8 -----------------------------------------------------------------
+# A file that is not UTF-8 --------------------------------------------------------------------
 
 @pytest.mark.parametrize("encoding", ENCODINGS)
 def test_check_says_a_spreadsheet_file_is_not_utf8_and_how_to_fix_it(tmp_path, capsys,
@@ -158,7 +158,7 @@ def test_anchors_runs_prompt_report_and_config_say_they_are_not_utf8(tmp_path, c
     _plain_error(capsys, str(anchors), "UTF-8")
 
 
-# 2 and 3. --version, and --debug with no command ---------------------------------------------
+# --version, and --debug with no command ------------------------------------------------------
 
 def test_version_flag_prints_the_version(capsys):
     assert main(["--version"]) == 0
@@ -186,7 +186,7 @@ def test_debug_with_no_command_prints_the_help(capsys):
     assert out == usual and err == ""
 
 
-# 4. A judge that fails ------------------------------------------------------------------------
+# A judge that fails ---------------------------------------------------------------------------
 
 def _judge(anchors, out, *source, runs: int = 1) -> int:
     return main(["judge", str(anchors), *source, "--runs", str(runs), "--out", str(out)])
@@ -249,7 +249,7 @@ def test_replaying_a_run_of_errors_is_a_failure_too(tmp_path, capsys):
     assert "the judge failed on every item" in capsys.readouterr().err
 
 
-# 5. An output location that cannot be written -------------------------------------------------
+# An output location that cannot be written ----------------------------------------------------
 
 def _report(tmp_path) -> str:
     out = tmp_path / "made"
@@ -354,7 +354,7 @@ def test_on_windows_opening_a_folder_as_a_file_is_not_called_a_permission_proble
     assert "is a folder, but a file is needed there" in textio.describe_os_error(e)
 
 
-# 6. Windows -----------------------------------------------------------------------------------
+# Windows --------------------------------------------------------------------------------------
 
 def _terminal(encoding: str) -> io.TextIOWrapper:
     return io.TextIOWrapper(io.BytesIO(), encoding=encoding)
@@ -478,7 +478,7 @@ def test_install_hints_use_quotes_that_work_in_every_shell(tmp_path, monkeypatch
     assert "'" not in str(e.value)
 
 
-# 7. Wording of rare cases ---------------------------------------------------------------------
+# Wording of rare cases ------------------------------------------------------------------------
 
 def test_one_labeled_item_is_singular():
     def message(n: int) -> str:

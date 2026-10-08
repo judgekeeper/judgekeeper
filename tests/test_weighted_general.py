@@ -53,12 +53,13 @@ def test_the_ranges_are_repeatable_with_their_seed():
     one = weighted.general(ITEMS, 20, 16)
     two = weighted.general(ITEMS, 20, 16)
     assert one["tpr_interval"] == two["tpr_interval"]
-    assert one["kappa_interval"] == two["kappa_interval"]
+    assert one["tnr_interval"] == two["tnr_interval"]
+    assert "kappa_interval" not in one  # kappa has a value, no range
     other = weighted.general(ITEMS, 20, 16, seed=7)
     assert other["tpr_interval"] != one["tpr_interval"]
     assert (one["draws"], one["seed"], one["level"]) == (weighted.DRAWS, weighted.SEED,
                                                           weighted.LEVEL)
-    assert one["interval_methods"] == {"tpr": "jeffreys", "tnr": "jeffreys", "kappa": "jeffreys"}
+    assert one["interval_methods"] == {"tpr": "jeffreys", "tnr": "jeffreys"}
 
 
 def _middle(values, level):
@@ -77,7 +78,7 @@ def test_the_ranges_are_the_middle_of_jeffreys_draws_per_group():
     #   fail group (pool 16): 1 of 4 Correct; 1 of 1 passed again; 2 of 3 failed again
     r = weighted.general(ITEMS, 20, 16)
     rng, n = random.Random(1), 100_000
-    tpr, tnr, kappa = [], [], []
+    tpr, tnr = [], []
     for _ in range(n):
         tp = fn = fp = tn = 0.0
         for pool, (labeled, correct), (passed, of_correct), (failed, of_wrong) in (
@@ -87,13 +88,9 @@ def test_the_ranges_are_the_middle_of_jeffreys_draws_per_group():
             w = 1.0 if failed == of_wrong else rng.betavariate(failed, of_wrong - failed)
             tp, fn = tp + pool * p * q, fn + pool * p * (1 - q)
             tn, fp = tn + pool * (1 - p) * w, fp + pool * (1 - p) * (1 - w)
-        total = tp + fn + fp + tn
-        judge, people = (tp + fp) / total, (tp + fn) / total
-        chance = judge * people + (1 - judge) * (1 - people)
         tpr.append(tp / (tp + fn))
         tnr.append(tn / (tn + fp))
-        kappa.append(((tp + tn) / total - chance) / (1 - chance))
-    for key, values in (("tpr", tpr), ("tnr", tnr), ("kappa", kappa)):
+    for key, values in (("tpr", tpr), ("tnr", tnr)):
         assert r[f"{key}_interval"] == pytest.approx(_middle(values, weighted.LEVEL), abs=0.01)
 
 
@@ -135,7 +132,8 @@ def _all_agree(n_pass=15, n_fail=15):
 
 def test_fifteen_of_fifteen_shows_a_real_range():
     out = weighted.general(_all_agree(), 15, 15)
-    for key in ("tpr", "tnr", "kappa"):
+    assert out["kappa"] == 1.0
+    for key in ("tpr", "tnr"):
         lo, hi = out[f"{key}_interval"]
         assert out[key] == 1.0 and hi == 1.0
         assert lo < 1.0, key  # not 100% to 100%
@@ -167,6 +165,6 @@ def test_zero_percent_shows_a_real_range():
 def test_no_range_is_ever_one_point():
     for items in (_all_agree(), _all_agree(3, 3), [("pass", "pass", "pass")] * 2):
         out = weighted.general(items, 10, 10)
-        for key in ("tpr", "tnr", "kappa"):
+        for key in ("tpr", "tnr"):
             lo, hi = out[f"{key}_interval"]
             assert lo is None or lo < hi, (key, lo, hi)

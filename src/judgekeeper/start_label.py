@@ -377,8 +377,8 @@ def disagreements_words(n: int) -> str:
 
 
 def can_ask_again(r: dict) -> bool:
-    """Whether judgekeeper can run this judge again (not for verdicts saved by your own code
-    or in a table; an older result that does not say which tool is offered as before)."""
+    """Whether judgekeeper can run this judge again: not for verdicts saved by your own code
+    or in a table. A result that does not name its tool is offered it."""
     tool = (r.get("judge") or {}).get("tool")
     return tool is None or tool in ASKABLE
 

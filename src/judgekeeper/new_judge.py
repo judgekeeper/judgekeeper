@@ -215,7 +215,7 @@ def finish(ws: Workspace, view: View, plan, fresh, new: NewJudge) -> dict:
         "fingerprint": fresh.fingerprint, "found_fingerprint": new.found.fingerprint,
         "close": plan.status == CLOSE, "old": _old_numbers(r),
         "new": {k: numbers[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval",
-                                        "kappa", "kappa_interval", "interval_methods")},
+                                        "kappa", "interval_methods")},
         "confirmation": None, "notes": list(fresh.notes),
     }
     _write_json(fresh.folder / "new-judge.json", block)

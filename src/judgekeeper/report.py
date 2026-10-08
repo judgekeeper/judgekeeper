@@ -1,16 +1,14 @@
 """Build the validation report (report.json) from an anchor set and a directory of runs.
 
-Schema version 2 adds `items`: per anchor item, the verdict of every run and the
-majority, in AB order and for pairwise sets also in BA order. Version 1 reports have no
-`schema_version` field and no `items`.
+Schema version 2 adds `items`: per anchor item, the verdict of every run and the majority, in
+AB order and, for pairwise sets, also in BA order. Version 1 reports have no `schema_version`
+field and no `items`. Imported results also carry `source.version`, `source.notes` (copied
+into `notes`) and `source.warnings` (copied into the verdict flags).
 
-Later versions add `source.version`, `source.notes` (copied into `notes`) and `source.warnings`
-(copied into the verdict flags) for imported results.
-
-Other keys were added without changing any the gate reads: `source`, `normaliser`, `errors`,
-`label_quality`, `notes`, `verdict.level`, `headline.tpr_ci` / `tnr_ci` / `n_positive` /
-`n_negative`, and `noise_floor.status`. With one run, the noise-floor numbers are null and
-`noise_floor.status` says "unknown: one run supplied", never zero.
+These keys came later and change none of the keys the gate reads: `source`, `normaliser`,
+`errors`, `label_quality`, `notes`, `verdict.level`, `headline.tpr_ci` / `tnr_ci` /
+`n_positive` / `n_negative`, and `noise_floor.status`. With one run, the noise-floor numbers
+are null and `noise_floor.status` says "unknown: one run supplied", never zero.
 """
 
 from __future__ import annotations
@@ -38,8 +36,8 @@ REPORT_SCHEMA_VERSION = 2
 KAPPA_GATE = 0.6
 POSITION_BIAS_MAX = 0.10
 FLIP_RATE_MAX = 0.10
-# TPR and TNR are the numbers to act on: below RATE_GATE the judge is not
-# trustworthy as a gate, below RATE_CARE it is usable with care.
+# TPR and TNR are the numbers to act on: below RATE_GATE the judge is not fit to be a gate,
+# below RATE_CARE it is usable with care.
 RATE_GATE = 0.80
 RATE_CARE = 0.90
 ERROR_RATE_MAX = 0.02

@@ -259,7 +259,7 @@ def test_base_url_env_var_alone_still_needs_a_key(sdks, prompt, monkeypatch):
         OpenAIRunner(model="m", prompt_path=prompt)
 
 
-# --- plain http:// to a remote host (security audit item 6) ------------------------------------
+# --- plain http:// to a remote host ------------------------------------------------------------
 
 
 @pytest.mark.parametrize("url", [
@@ -291,7 +291,7 @@ def test_cli_does_not_warn_about_local_http(sdks, prompt, pairwise_dir, tmp_path
     assert "unencrypted" not in capsys.readouterr().err
 
 
-# --- redirects (security review, finding 4) -----------------------------------------------------
+# --- redirects ----------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("cls,sdk", [(AnthropicRunner, "anthropic"), (OpenAIRunner, "openai")])

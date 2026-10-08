@@ -88,7 +88,6 @@ CATEGORIES = {
     "sale": (["a jacket from the clearance sale", "a sale-priced backpack",
               "a pair of sale boots"], "It was a sale item.", None),
 }
-SLICES = ("correct", "wrong window", "over-promise", "polite but wrong")
 COUNTS = {"correct": 30, "wrong window": 10, "over-promise": 10, "polite but wrong": 10}
 
 

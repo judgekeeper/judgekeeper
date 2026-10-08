@@ -6,8 +6,8 @@ Standard library plus the user's installed DeepEval. Mode "dry" builds the metri
 describes and writes DeepEval's version and the model the metric will use: no judge call,
 `measure()` is not called. Mode "run" measures each of the job's answers `times` times with
 its own metric (a GEval answer keeps its own saved steps) and writes one line per answer per
-time, then a "done" line. `metric.measure()` is called directly, never
-`deepeval.evaluate()` (which would overwrite the user's .deepeval/ files and may upload).
+time, then a "done" line. `metric.measure()` is called directly, never `deepeval.evaluate()`
+(which would overwrite the user's .deepeval/ files and may upload).
 DeepEval's telemetry is off, and CONFIDENT_API_KEY and DEEPEVAL_RESULTS_FOLDER are removed
 before DeepEval is imported, so nothing is uploaded or written to a results folder.
 """

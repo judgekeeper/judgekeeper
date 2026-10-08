@@ -1,6 +1,6 @@
 """When promptfoo keeps its results only in its own database, `start` offers to run promptfoo's
 `export` command for the user, at a terminal only. Without a terminal, or on No, it prints the
-commands as before.
+commands.
 
 The export reads promptfoo's database in the home folder and writes one file; it runs no
 tests and calls no model. It runs with promptfoo's telemetry, update check and logs off:

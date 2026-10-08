@@ -3,8 +3,8 @@
 judgekeeper never opens the user's own store file through MLflow: it copies `mlflow.db` (and
 `mlflow.db-wal` and `mlflow.db-shm` when present) into a temporary folder once per process,
 reads the copy with a plain `sqlite:///` address, and removes the folder when the process
-ends. The read-only address it used before (`sqlite:///file:...?mode=ro&uri=true`) is taken
-as a file name on Windows. A folder store (`mlruns/`) is read where it is.
+ends. A read-only address (`sqlite:///file:...?mode=ro&uri=true`) would be taken as a file
+name on Windows. A folder store (`mlruns/`) is read where it is.
 """
 
 from __future__ import annotations

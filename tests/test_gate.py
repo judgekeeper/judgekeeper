@@ -367,7 +367,7 @@ def test_judge_changed_points_at_migrate(baseline):
     assert "judgekeeper migrate" in res["reason"]
 
 
-# --- markdown escaping (security audit item 4) ------------------------------------------------
+# --- markdown escaping ---------------------------------------------------------------------
 
 
 HOSTILE = "bad|model <img src=x> `x`"
@@ -391,7 +391,7 @@ def test_markdown_escapes_newlines_in_cells(baseline):
     assert "| rubric_version | v1 \\| injected \\| row \\| |" in md
 
 
-# --- markdown injection (security review, finding 6) --------------------------------------------
+# --- markdown injection --------------------------------------------------------------------
 
 HOSTILE_HASH = "abc |\n\n# INJECTED HEADING\n\n[click](https://evil.example/x)"
 

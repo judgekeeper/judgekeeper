@@ -4,9 +4,9 @@ agent that turns them into judgekeeper's table.
 When `start` finds no results it can read, it must not send the user to run their eval again
 when that would not help (a DeepEval metric's `measure()` called directly saves nothing). It
 looks instead for a recent JSON, JSONL or CSV file whose items hold a score-like key with an
-input-like and an output-like key (looks_judged), at any depth, names it, and prints AGENT_PROMPT: a short
-prompt to paste into a coding agent, which writes the converter. Standard library only;
-nothing is written, and only the first part of each file is read.
+input-like and an output-like key (looks_judged), at any depth, names it, and prints
+AGENT_PROMPT: a short prompt to paste into a coding agent, which writes the converter.
+Standard library only; nothing is written, and only the first part of each file is read.
 """
 
 from __future__ import annotations

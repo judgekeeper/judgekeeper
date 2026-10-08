@@ -1,4 +1,5 @@
-"""Reader fixes found while checking how to ask a judge again."""
+"""What the readers give asking a judge again: promptfoo's grader, grading prompt and cached
+replies, and where MLflow keeps the judge's prompt."""
 
 from __future__ import annotations
 
@@ -116,7 +117,7 @@ def test_cached_replies_are_warned_about(tmp_path):
     assert not any("cache" in w for w in read_promptfoo(REAL).warnings)
 
 
-# MLflow: the comment on where the judge's prompt lives ------------------------------------
+# MLflow: the docstring on where the judge's prompt lives ---------------------------------
 
 def test_the_mlflow_reader_does_not_claim_the_prompt_is_in_a_scorer_trace():
     from judgekeeper.readers import mlflow_store

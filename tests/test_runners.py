@@ -154,7 +154,7 @@ def test_openai_runner_requires_key_without_client(tmp_path, monkeypatch):
         OpenAIRunner(model="m", prompt_path=make_prompt(tmp_path))
 
 
-# --- redirects (security review, finding 4) -----------------------------------------------------
+# --- redirects ----------------------------------------------------------------------------------
 
 REDIRECT_KEY = "sentinel-redirect-key-51ab"
 SINGLE_ITEM = {"id": "s", "input": "q", "output": "o", "human_label": "pass"}

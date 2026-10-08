@@ -9,16 +9,15 @@ function the `inspect` command calls), which asking again uses so the key can st
 The dry run does not call it. No model is called, and no log is read or written.
 
 Mode "run" calls that loader (when it is there), reads the log with `read_eval_log` (never
-writing it), keeps the job's samples (for a new judge, which never graded the person's
-marked answers: puts those answers into copies of the log's first sample) and rebuilds the
-recorded scorer from Inspect's own
-registry with its saved options. Then, once per time asked, `score_async(log, [scorer],
-action="append", copy=True)` re-scores a copy in memory, with every model role (and a grader
-given as a scorer option) rebuilt with its cache off, so each time is really asked. When a
-grader is set, the model under test is `mockllm/model`, Inspect's stand-in that can't call
-anything; without one, the judge is the model under test, rebuilt with its cache off. One line
-per sample per time: the new score's value, explanation and grading prompt. `inspect score
---overwrite` is never used.
+writing it), keeps the job's samples (for a new judge, which never graded the person's marked
+answers: puts those answers into copies of the log's first sample) and rebuilds the recorded
+scorer from Inspect's own registry with its saved options. Then, once per time asked,
+`score_async(log, [scorer], action="append", copy=True)` re-scores a copy in memory, with
+every model role (and a grader given as a scorer option) rebuilt with its cache off, so each
+time is really asked. When a grader is set, the model under test is `mockllm/model`, Inspect's
+stand-in that can't call anything; without one, the judge is the model under test, rebuilt
+with its cache off. One line per sample per time: the new score's value, explanation and
+grading prompt. `inspect score --overwrite` is never used.
 """
 
 import asyncio

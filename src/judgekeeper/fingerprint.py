@@ -2,8 +2,8 @@
 
 Every identity field may be None, meaning unknown: data imported from a spreadsheet or a
 homemade judge rarely records the snapshot or the temperature. `endpoint` is the exception,
-because None already means the provider's default endpoint; an unknown endpoint
-is the string "unknown".
+because None already means the provider's default endpoint; an unknown endpoint is the string
+"unknown".
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ class JudgeFingerprint:
     temperature: float | None = None
     created_at: str | None = None
     # Host of the base URL the judge was reached through; None for the provider's default.
-    # Optional so that files written before endpoints were recorded still load (as the default endpoint).
+    # Optional, so files that never recorded an endpoint still load (as the default endpoint).
     endpoint: str | None = None
 
     def to_dict(self) -> dict:

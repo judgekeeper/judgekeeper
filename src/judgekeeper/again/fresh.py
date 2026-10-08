@@ -68,14 +68,6 @@ def new_folder(ws) -> Path:
     return folder
 
 
-def remove_if_empty(folder: Path) -> None:
-    for path in (folder, folder.parent):
-        try:
-            path.rmdir()
-        except OSError:
-            return
-
-
 def _share(value) -> str:
     return "an unknown share" if value is None else f"about {value:.0%}"
 
@@ -143,8 +135,7 @@ def numbers(ws, plan, fresh: Fresh) -> dict:
         "not_counted": [{"id": i, "why": w} for i, w in fresh.not_counted.items()],
         "steadiness": steady,
         "today": {k: today[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval", "kappa",
-                                        "kappa_interval", "interval_methods", "level",
-                                        "draws", "seed")},
+                                        "interval_methods", "level", "draws", "seed")},
         "before": {"tpr": last.get("tpr"), "tnr": last.get("tnr")},
         "matches_saved": matches,
         "matches_count": sum(fresh.verdicts[a["id"]][0] == a["verdict"] for a in counted),

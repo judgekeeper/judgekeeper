@@ -1,11 +1,8 @@
 """The MLflow tests raise no warning from judgekeeper's own code.
 
-MLflow 3.16 deprecates `search_traces(experiment_ids=...)` in favour of `locations` with a
-FutureWarning attributed to the caller. The reader and the fixture script pick the parameter
-from `inspect.signature`; this runs tests/test_import_mlflow.py in a fresh pytest with
-warnings attributed to judgekeeper's modules (and the fixture script, loaded as
-`make_mlflow_store`) turned into errors. Third-party warnings (SQLAlchemy, pandas) are
-attributed to their own modules and do not match.
+MLflow 3.16 deprecates `search_traces(experiment_ids=...)` with a FutureWarning attributed to
+the caller. This runs tests/test_import_mlflow.py in a fresh pytest with warnings from
+judgekeeper's modules and the fixture script (loaded as `make_mlflow_store`) turned into errors.
 """
 
 import subprocess

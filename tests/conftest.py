@@ -1,3 +1,5 @@
+"""Fixtures shared by the tests: fixture copies, no real browser, and the MLflow stores."""
+
 import shutil
 from pathlib import Path
 

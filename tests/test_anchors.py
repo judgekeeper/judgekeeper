@@ -1,3 +1,5 @@
+"""Anchor sets: the content hash, the manifest `freeze()` writes, and the checks on loading."""
+
 import json
 
 import pytest

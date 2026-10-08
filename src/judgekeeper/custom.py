@@ -220,9 +220,10 @@ def check_judge(judge: Callable[[dict], Any], anchors, runs: int = 3,
     """Run `judge` `runs` times over a frozen anchor set; write run files; return the report.
 
     `anchors` is an anchor JSONL path (sealed on first use, as `judgekeeper judge` does), or a
-    list of anchor items (written under `out` and frozen for you). `fingerprint` is whatever you know about the judge: model, provider,
-    prompt (text, hashed), temperature...; the rest is recorded as unknown. Files go under
-    `out` (a temporary directory if None): `runs/run-NN.jsonl`, `report.json`, `report.html`.
+    list of anchor items (written under `out` and frozen for you). `fingerprint` is whatever
+    you know about the judge: model, provider, prompt (text, hashed), temperature...; the rest
+    is recorded as unknown. Files go under `out` (a temporary directory if None):
+    `runs/run-NN.jsonl`, `report.json`, `report.html`.
     """
     from judgekeeper.judging import run_judge
     from judgekeeper.report import build_report

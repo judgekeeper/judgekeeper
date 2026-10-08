@@ -1,3 +1,5 @@
+"""The package imports, and the command line starts."""
+
 from judgekeeper import __version__
 from judgekeeper.cli import main
 

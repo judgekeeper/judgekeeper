@@ -12,11 +12,11 @@ that stays silent for CONNECTION_TIMEOUT seconds is dropped. The server stops on
 after IDLE_TIMEOUT seconds without a request.
 
 The caller passes the page (start_page.py) and a `result` function: GET /result answers with
-the result page, a static HTML page that runs no script. Once every
-item is labeled or deferred, the server stops right after serving that page, or RESULT_WAIT
-seconds after the last item if nobody fetches it. It may also pass `switches`: a GET of one of
-their paths swaps the session, the page and the result function (from labeling to the review
-of the disagreements) and sends the browser back to the page.
+the result page, a static HTML page that runs no script. Once every item is labeled or
+deferred, the server stops right after serving that page, or RESULT_WAIT seconds after the
+last item if nobody fetches it. It may also pass `switches`: a GET of one of their paths swaps
+the session, the page and the result function (from labeling to the review of the
+disagreements) and sends the browser back to the page.
 """
 
 from __future__ import annotations
@@ -155,7 +155,7 @@ class LabelSession:
             item["note"] = body["note"]
 
     def write(self) -> None:
-        """Write the whole sheet to a temporary file next to --out, then rename it over."""
+        """Write the whole sheet to a temporary file next to the output, then rename it over."""
         buf = io.StringIO()
         w = csv.writer(buf)
         w.writerow(self.columns)

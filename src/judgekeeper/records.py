@@ -14,10 +14,11 @@ Version 2 of the format (`schema_version`; a record without one is version 1) ad
   tool_calls [id, name, arguments], tool_call_id), `outcome` (an automatic check of the
   result: passed, score, source, detail) and `app_version` (the app or agent that answered).
 Fields judgekeeper does not know are kept, at the top level and inside `evaluator`
-(`ScoreRecord.to_dict` gives them back). A file of a newer version is read as far as this version understands it, with
-one warning. `problems` holds the rules; schemas/records.schema.json says the same for other
-tools, and a test keeps the two in step. A record's id, when it has to be derived, covers its
-trajectory too, so two agent runs that end in the same answer stay two answers.
+(`ScoreRecord.to_dict` gives them back). A file of a newer version is read as far as this
+version understands it, with one warning. `problems` holds the rules;
+schemas/records.schema.json says the same for other tools, and a test keeps the two in step.
+A record's id, when it has to be derived, covers its trajectory too, so two agent runs that
+end in the same answer stay two answers.
 
 `records_to_report` pivots records into the files `check` writes: HUMAN records become anchor
 labels, LLM records become judgments (one run per source file and run index), CODE records are
@@ -85,7 +86,7 @@ def derive_record_id(input, output, trajectory=None) -> str:
     """table.derive_id over an item's input and output, with a missing value read as "".
 
     With a trajectory (a non-empty list of steps), the id covers it too: two agent runs that
-    end in the same answer are two answers. Without one, the id is as it always was."""
+    end in the same answer are two answers."""
     item = {"input": "" if input is None else input, "output": "" if output is None else output}
     if not trajectory:
         return derive_id(item)

@@ -95,7 +95,7 @@ BARE = (("gpt-", "openai"), ("o1", "openai"), ("o3", "openai"), ("o4", "openai")
 TOOLS = {"promptfoo": "promptfoo", "deepeval": "DeepEval", "inspect": "Inspect AI",
          "mlflow": "MLflow"}
 LOADS_ENV = {"promptfoo", "deepeval"}
-# promptfoo's default grader, per promptfoo version: family -> model (research, 2026-10-05).
+# promptfoo's default grader, per promptfoo version: family -> model (checked 2026-10-05).
 DEFAULT_GRADERS = {
     "0.123.1": {"openai": "gpt-5.6-sol", "anthropic": "claude-sonnet-4-6",
                 "google": "gemini-3.8-flash", "vertex": "gemini-3.8-flash",

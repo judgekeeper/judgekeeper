@@ -32,12 +32,10 @@ DEFAULT_BASELINE = Path(".judgekeeper") / "baseline.json"
 DEFAULT_CONFIG = Path("judgekeeper.toml")
 
 MIN_RUNS = 3
-# Fields compared between baseline and report. created_at is when, not who. A report written
-# before `endpoint` existed has no such field and reads as None, the provider default.
-# A field unknown on either side (see judgekeeper.fingerprint.is_unknown) cannot be compared:
-# by default that is a warning, because data imported from a spreadsheet or a homemade judge
-# rarely records the temperature or the snapshot, and blocking on it would make the gate
-# unusable for that data. `require_fingerprint` makes it JUDGE_CHANGED instead.
+# Fields compared between baseline and report (created_at is when, not who). A report with no
+# `endpoint` reads as None, the provider default. A field unknown on either side cannot be
+# compared: that is a warning, because data imported from a spreadsheet or a homemade judge
+# rarely records the temperature or the snapshot. `require_fingerprint` makes it JUDGE_CHANGED.
 JUDGE_FIELDS = ("provider", "model", "snapshot", "endpoint", "prompt_hash", "rubric_version",
                 "temperature")
 FLAKY_ADVICE = "use the majority of more runs"

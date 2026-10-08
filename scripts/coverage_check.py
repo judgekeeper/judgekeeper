@@ -11,7 +11,7 @@ answer the judge passed is Correct with chance `a`; an answer it failed is Wrong
 `w` (Correct with chance b = 1 - w). `n` answers are labeled in each group, each Correct with
 that chance. The true TPR, TNR and real pass rate follow from pi, a and b with weighted.py's
 formulas. For general(), the judge asked again gives the same verdicts as the saved ones (a
-steady judge), and its true kappa follows from pi, a and b too.
+steady judge). Kappa has no range, so it is not measured.
 
 The grid: pi in SHARES, a in CORRECT_IF_PASS, w in WRONG_IF_FAIL, n in LABELS; CHECKS checks
 per cell, each cell with its own fixed seed. For each cell and each range, how often it holds
@@ -20,10 +20,10 @@ Correct, are left out and counted), and its average width.
 
 Ranges measured:
 - start, now: Jeffreys draws (weighted.corrected) at each level in LEVELS, from the same draws.
-- start, before: Wilson at 97.5% per group, joined at the corners (judgekeeper 0.2.0 before
-  this change), rebuilt here.
+- start, before: Wilson at 97.5% per group, joined at the corners (the earlier method),
+  rebuilt here.
 - general(), before: a stratified percentile bootstrap, 2,000 resamples, with the Wilson
-  corners when a range has zero width (judgekeeper 0.2.0 before this change), rebuilt here.
+  corners when a range has zero width (the earlier method), rebuilt here.
 - general(), now: weighted.general as it is.
 
 The level for start is the first of 0.95, 0.96 and 0.97 whose ranges hold the true TPR, TNR
@@ -64,7 +64,7 @@ CANDIDATES = (0.95, 0.96, 0.97)
 FLOOR_CELL = 0.93
 FLOOR_MEAN = 0.95
 START_METRICS = ("tpr", "tnr", "real_pass_rate")
-GENERAL_METRICS = ("tpr", "tnr", "kappa")
+GENERAL_METRICS = ("tpr", "tnr")
 STABILITY = [(500, 500, 25, 21, 25, 4), (700, 300, 15, 13, 15, 2), (900, 100, 25, 24, 25, 6),
              (900, 100, 40, 38, 40, 9), (171, 41, 16, 15, 15, 5), (600, 400, 10, 7, 10, 3)]
 STABILITY_SEEDS = (1, 2, 3, 4, 5)
@@ -78,7 +78,7 @@ RESAMPLES = 2000
 
 def truth(pi: float, a: float, b: float) -> dict:
     return {"tpr": weighted._tpr(pi, a, b), "tnr": weighted._tnr(pi, a, b),
-            "real_pass_rate": weighted._pass_rate(pi, a, b), "kappa": weighted._kappa(pi, a, b)}
+            "real_pass_rate": weighted._pass_rate(pi, a, b)}
 
 
 def pool_counts(pi: float) -> tuple[int, int]:
@@ -86,10 +86,10 @@ def pool_counts(pi: float) -> tuple[int, int]:
     return n_pass, POOL - n_pass
 
 
-# The ranges before this change, rebuilt -----------------------------------------------------
+# The earlier ranges, rebuilt -----------------------------------------------------------
 
 def corners(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f) -> dict:
-    """Wilson at 97.5% per group, the ends put into the formulas (weighted.corrected before)."""
+    """Wilson at 97.5% per group, the ends put into the formulas (the earlier weighted.corrected)."""
     pi = n_pool_pass / (n_pool_pass + n_pool_fail)
     (a_lo, a_hi), (b_lo, b_hi) = weighted.wilson(c_p, n_p), weighted.wilson(c_f, n_f)
     a, b = c_p / n_p, c_f / n_f
@@ -129,7 +129,7 @@ def wilson_corners(items, n_pool_pass, n_pool_fail) -> dict:
 
 
 def bootstrap(items, n_pool_pass, n_pool_fail) -> dict:
-    """The stratified percentile bootstrap weighted.general used before, with its corners."""
+    """The stratified percentile bootstrap the earlier weighted.general used, with its corners."""
     pool = {"pass": n_pool_pass, "fail": n_pool_fail}
     by_group = {g: [x for x in items if x[0] == g] for g in pool}
     weights = {g: weighted._div(pool[g], len(xs)) or 0.0 for g, xs in by_group.items()}
@@ -149,8 +149,7 @@ def bootstrap(items, n_pool_pass, n_pool_fail) -> dict:
             continue
         interval = [weighted._percentile(values, 0.025), weighted._percentile(values, 0.975)]
         if interval[1] - interval[0] <= 1e-12:
-            interval = (None if key == "kappa"
-                        else wilson_corners(items, n_pool_pass, n_pool_fail)[key])
+            interval = wilson_corners(items, n_pool_pass, n_pool_fail)[key]
         out[key] = interval
     return out
 
@@ -431,16 +430,15 @@ def markdown(result: dict) -> str:
                      + " | ".join(cells_) + " |")
     g = result["general"]
     lines += ["", "## After asking the judge again (`weighted.general`)", "",
-              "A steady judge: asked again, it gives the same verdicts. TPR, TNR and kappa.", "",
+              "A steady judge: asked again, it gives the same verdicts. TPR and TNR.", "",
               (f"Before (stratified bootstrap): lowest cell {_pct(g['before']['min_cell'])}, "
               f"average {_pct(g['before']['mean'])}. Now ({g['now_method']}): lowest cell "
               f"{_pct(g['now']['min_cell'])}, average {_pct(g['now']['mean'])}."), "",
               ("Lowest cell per number, before → now: " + "; ".join(
-                  f"{k.upper() if k != 'kappa' else 'kappa'} {_pct(g['before']['per_metric'][k])}"
+                  f"{k.upper()} {_pct(g['before']['per_metric'][k])}"
                   f" → {_pct(g['now']['per_metric'][k])}" for k in GENERAL_METRICS)
-               + ". Only the TPR and TNR ranges are shown; the kappa range is saved in "
-               "again.json."), "",
-              "| pi | a | w | n | TPR | TNR | Kappa |", "|---|---|---|---|---|---|---|"]
+               + ". Kappa is given without a range, as in `start`'s result."), "",
+              "| pi | a | w | n | TPR | TNR |", "|---|---|---|---|---|---|"]
     for row in result["rows"]:
         cells_ = []
         for k in GENERAL_METRICS:

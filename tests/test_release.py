@@ -294,7 +294,7 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     assert 'href="llmbar-haiku/"' in index
     assert "http" not in index.replace("http-equiv", "")  # no external assets
     assert (tmp_path / ".nojekyll").is_file()
-    assert not (tmp_path / "CNAME").exists()  # the custom domain is a later, manual step
+    assert not (tmp_path / "CNAME").exists()  # the build sets no custom domain
 
 
 # README and the guide (the short README's own contract is in test_front_door.py)
@@ -400,7 +400,7 @@ def _llmbar_report() -> dict:
 
 
 def test_llmbar_report_verdict_follows_the_current_thresholds():
-    """A report written by an older version said "usable as a gate" with TNR 0.88."""
+    """The committed LLMBar report's verdict matches the current thresholds."""
     from judgekeeper import report as rules
 
     report = _llmbar_report()
@@ -435,7 +435,7 @@ def test_guide_and_learn_page_quote_the_llmbar_verdict_as_the_report_states_it()
         assert f"Verdict: {other}" not in result
 
 
-# Security audit: pins
+# Pins
 
 PIN_FILES = ("README.md", "docs/reference.md", "docs/examples/workflows/judge-gate.yml",
              "website/index.html", "website/learn.html", "website/setup.html",
@@ -475,7 +475,7 @@ def test_security_policy_and_dependabot_exist():
     assert {u["package-ecosystem"] for u in config["updates"]} >= {"github-actions", "pip"}
 
 
-BUILD_TOOLS = {"ruff", "build", "hatchling"}  # in [dev] for the maintainer, not for the tests
+BUILD_TOOLS = {"ruff", "build", "hatchling"}  # in [dev] to build and lint, not for the tests
 
 
 @pytest.mark.parametrize("workflow", ["ci.yml", "release.yml"])
