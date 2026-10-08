@@ -207,7 +207,7 @@ def test_anchors_out_hands_off_to_judge(mlflow_store, tmp_path):
     assert by_q["Q0"]["output"] == "Answer to question 0?"
     assert "reviewed" not in anchors.read_text(encoding="utf-8")  # no rationales
     assert "reviewer@example.com" not in anchors.read_text(encoding="utf-8")  # no user ids
-    assert main(["freeze", str(anchors)]) == 0
+    # --anchors-out sealed it: judge reads it as it is
     # replay the imported run 1 as a judge over the new anchor set, three times
     assert main(["judge", str(anchors), "--runner", "replay", "--fixture",
                  str(out / "runs" / "run-01.jsonl"), "--runs", "3",

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from judgekeeper.anchors import freeze
 from judgekeeper.cli import main
 from judgekeeper.prompts import FILL_IN, load_prompt, unfilled_marker
 from judgekeeper.templates import TEMPLATES, template_text
@@ -24,7 +25,7 @@ def _single_anchors(tmp_path):
     items = [{"id": f"s{i}", "input": "q", "output": "ok" if i % 2 else "",
               "human_label": "pass" if i % 2 else "fail"} for i in range(6)]
     anchors.write_text("\n".join(json.dumps(i) for i in items) + "\n", encoding="utf-8")
-    assert main(["freeze", str(anchors)]) == 0
+    freeze(anchors)
     return anchors
 
 
@@ -80,7 +81,7 @@ def test_init_writes_the_single_template(tmp_path, monkeypatch, capsys):
     printed = capsys.readouterr().out
     rule = str(Path("prompts") / "judge.md")  # with \ on Windows, as it is printed there
     assert rule in printed
-    for command in ("judgekeeper label ", "judgekeeper template ",
+    for command in ("in anchors.jsonl", "judge seals the file",
                     "judgekeeper judge anchors.jsonl", f"--prompt {rule}",
                     "judgekeeper validate anchors.jsonl"):
         assert command in printed, command

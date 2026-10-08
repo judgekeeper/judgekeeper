@@ -44,7 +44,7 @@ stores, ask the person which one.
 
 The judge saves its results its own way, so `judgekeeper start` finds nothing? Three doors, in this order:
 (1) `judgekeeper setup` maps the file with no code change (the person answers its few questions and the one yes);
-(2) one `judgekeeper.record()` line where the judge runs (`judgekeeper record --agent-prompt` says how; show the diff, wait for the yes; after one eval run, `judgekeeper import records .judgekeeper/records --check` shows what it saved);
+(2) one `judgekeeper.record()` line where the judge runs (www.judgekeeper.com/assistant.html#add-the-record-line has the prompt that adds it; show the diff, wait for the yes; after one eval run, `judgekeeper import records .judgekeeper/records --check` shows what it saved);
 (3) a table written by a converter (`judgekeeper start --agent-prompt`), checked with `judgekeeper start <table>`.
 
 If the project has no judge at all, say so and stop. If it has no rule file (nothing says
@@ -117,6 +117,6 @@ change inside the noise band. Then pick one:
 Tell the user what was added, where the report is, and what they must do by hand (label,
 add the secret, commit the baseline).
 
-Advanced, only if the person asks: the older commands (label, import-labels, judge, validate,
-check, import) build the same check by hand when nothing was saved;
-www.judgekeeper.com/tutorial.html shows each one.
+Advanced, only if the person asks: the older commands (judge, validate, check, import) build
+the same check by hand when nothing was saved; www.judgekeeper.com/tutorial.html shows each
+one.

@@ -47,8 +47,8 @@ NOT_LISTED = ("judgekeeper is not listed in your project's requirements; add it 
 GITIGNORE = ("# judgekeeper: your answers and labels stay off Git; a gate baseline is shared",
              ".judgekeeper/*", "!.judgekeeper/baseline.json", "!.judgekeeper/migrations/")
 RECORD_DOOR = ("Or save your judge's verdicts from now on with one judgekeeper.record() line "
-               "where it runs: judgekeeper record --agent-prompt prints a prompt that asks your "
-               "coding agent to add it.")
+               f"where it runs: {own_format.RECORD_URL} has a prompt that asks your coding "
+               "agent to add it.")
 NEXT = "Next: judgekeeper start"
 
 
@@ -469,8 +469,8 @@ def _doors(talk: Talk, root: Path) -> None:
     talk.say("  1. Your judge saves its results in a file of its own: judgekeeper setup "
              "path/to/results.jsonl (no code change).")
     talk.say("  2. Save your judge's verdicts from now on with one judgekeeper.record() line "
-             "where it runs: judgekeeper record --agent-prompt prints a prompt that asks your "
-             "coding agent to add it (judgekeeper record --snippet python shows the line).")
+             f"where it runs: {own_format.RECORD_URL} has a prompt that asks your coding "
+             "agent to add it.")
     talk.say("  3. Ask your coding agent to turn your results into judgekeeper's table: "
              "judgekeeper start --agent-prompt prints the prompt.")
 

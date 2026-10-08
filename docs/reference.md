@@ -9,18 +9,15 @@ Every command, file format, flag, exit code and config key. The README has the s
 - [check: a table in, a report out](#check-a-table-in-a-report-out)
 - [How verdicts are read](#how-verdicts-are-read)
 - [Bring your own judge](#bring-your-own-judge)
-- [Labels from a spreadsheet](#labels-from-a-spreadsheet)
-- [label: a local labeling page](#label-a-local-labeling-page)
 - [import: promptfoo, DeepEval and Inspect AI results](#import-promptfoo-deepeval-and-inspect-ai-results)
 - [import mlflow and import langfuse](#import-mlflow-and-import-langfuse)
-- [Records format: import records and export records](#records-format-import-records-and-export-records)
-- [record: save your own judge's verdicts with one line](#record-save-your-own-judges-verdicts-with-one-line)
+- [Records format: import records](#records-format-import-records)
+- [record(): save your own judge's verdicts with one line](#record-save-your-own-judges-verdicts-with-one-line)
 - [Unknown judge fields](#unknown-judge-fields)
 - [Your API keys](#your-api-keys)
 - [Gate CI on the judge](#gate-ci-on-the-judge)
 - [pytest plugin](#pytest-plugin)
 - [Migrate to a new judge](#migrate-to-a-new-judge)
-- [Attribute a score change](#attribute-a-score-change)
 - [Exit codes](#exit-codes)
 - [GitHub Action](#github-action)
 
@@ -89,7 +86,7 @@ From the newest results it builds the pool: every answer with a clear pass or fa
 | `start.json` | The tool, the results files used, the judge and its fingerprint, the pool counts, what was left out and why, the seed and the queue | When labeling starts |
 | `pool-judge.jsonl` | The judge's verdict on every pool answer, as a run file with the full fingerprint on every line | When labeling starts |
 | `pool.jsonl` | Each pool answer's id, input and output | When labeling starts |
-| `labels.csv` | Your labels, in the `template` shape (a skipped answer has the note `skipped`) | On every click |
+| `labels.csv` | Your labels: `id,input,output,human_label,notes` (a skipped answer has the note `skipped`) | On every click |
 | `anchors.jsonl` and `anchors.manifest.json` | The answers you labeled, as a frozen anchor set for `judge`, `baseline` and `gate` | With each result |
 | `result.json`, `result.html` | The result: every number, the label counts, the fingerprint and the date; the page opens without a server | With each result |
 | `history/` | Earlier results (`result-<date>.json`) and, before a re-check, the check it replaced (`check-<date>/`) | With each result |
@@ -176,7 +173,7 @@ When a file cannot be mapped (no answers or no scores in it), or you say none of
 
 Exit 0 when a source is set up (or you kept the one set up before), 2 when none was found, 8 when a question needs an answer.
 
-**The `[start]` table of `judgekeeper.toml`.** Nothing secret; `start` reads it first. The same file holds `[gate]`, `[migrate]` and `[attribute]` (below).
+**The `[start]` table of `judgekeeper.toml`.** Nothing secret; `start` reads it first. The same file holds `[gate]` and `[migrate]` (below).
 
 ```toml
 [start]
@@ -209,7 +206,7 @@ Paths are keys joined by dots; `[]` after a key means every element of that list
 judgekeeper init [--out prompts/judge.md] [--pairwise] [--force]
 ```
 
-Writes one rule file, the prompt your judge runs with, from a template that ships in the package (`src/judgekeeper/templates/single.md`, or `pairwise.md` with `--pairwise`). The file loads with the Anthropic and OpenAI runners as it is: frontmatter `rubric_version: my-metric-v1`, the placeholders `{{input}}` and `{{output}}` (pairwise: `{{output_a}}` and `{{output_b}}`) and the final `Verdict:` line. The parts you write are marked `[FILL IN: ...]`: the one thing being checked, what counts as pass, what counts as fail, two or three examples of each, and edge cases (pairwise: what makes one output better, and the tie rule). Parent folders are created; an existing file is not overwritten without `--force` (usage error, exit 2). It prints the next commands: label, `judge --prompt`, `validate`. No model is called and nothing else is written.
+Writes one rule file, the prompt your judge runs with, from a template that ships in the package (`src/judgekeeper/templates/single.md`, or `pairwise.md` with `--pairwise`). The file loads with the Anthropic and OpenAI runners as it is: frontmatter `rubric_version: my-metric-v1`, the placeholders `{{input}}` and `{{output}}` (pairwise: `{{output_a}}` and `{{output_b}}`) and the final `Verdict:` line. The parts you write are marked `[FILL IN: ...]`: the one thing being checked, what counts as pass, what counts as fail, two or three examples of each, and edge cases (pairwise: what makes one output better, and the tie rule). Parent folders are created; an existing file is not overwritten without `--force` (usage error, exit 2). It prints the next steps: label real items in `anchors.jsonl`, `judge --prompt`, `validate`. No model is called and nothing else is written.
 
 `judge --prompt` refuses a file that still contains a `[FILL IN` marker, naming the first marker and its line number (usage error, exit 2). Change `rubric_version` whenever you change the rule: a changed rule is a changed judge, and `gate` reports `JUDGE_CHANGED`. How to write the rule, with two worked examples: [`own-metric.md`](own-metric.md).
 
@@ -218,7 +215,6 @@ Writes one rule file, the prompt your judge runs with, from a template that ship
 ```
 pip install "judgekeeper[anthropic]"      # for --runner openai: pip install "judgekeeper[openai]"
 judgekeeper init                          # writes prompts/judge.md; fill in its [FILL IN: ...] parts
-judgekeeper freeze anchors.jsonl          # writes anchors.manifest.json (counts + sha256)
 judgekeeper judge anchors.jsonl --runner anthropic --model claude-haiku-4-5-20251001 \
   --prompt prompts/judge.md --runs 3 --out runs/my-judge/
 judgekeeper validate anchors.jsonl runs/my-judge/ --out reports/my-judge/
@@ -226,7 +222,7 @@ judgekeeper validate anchors.jsonl runs/my-judge/ --out reports/my-judge/
 
 `--runner anthropic` and `--runner openai` call the model for you and need the provider's client library, which the first line installs in your project's environment (switch it on first); plain `pip install judgekeeper` does not include it. `--callable`, `--exec`, `check` and `import` do not need it. `prompts/judge.md` in the examples on this page is the rule file `judgekeeper init` writes (`judgekeeper init --pairwise` for an anchor set that compares two outputs).
 
-An anchor set is JSONL with `id`, `input` and `human_label` on every line. Pairwise items add `output_a` and `output_b` with labels `A`/`B`; single-output items add `output` with labels `pass`/`fail`. `slice` and `notes` are optional. After `freeze`, every command checks the anchor set against its manifest and exits with code 3 if it changed.
+An anchor set is JSONL with `id`, `input` and `human_label` on every line. Pairwise items add `output_a` and `output_b` with labels `A`/`B`; single-output items add `output` with labels `pass`/`fail`. `slice` and `notes` are optional. Label with `judgekeeper start` (it writes `.judgekeeper/anchors.jsonl`), or write the file yourself. The first `judge` or `validate` on an anchor set with no manifest seals it: it writes `anchors.manifest.json` (counts and sha256) and says so in one line, `Sealed anchors.jsonl: <n> items (sha256 <first 12 characters>...). Commit anchors.manifest.json with it.` After that, every command checks the anchor set against its manifest and exits with code 3 if it changed.
 
 `judge` writes one `run-NN.jsonl` per run. Line 1 is a header with the judge fingerprint and a `source` object (`{kind: judgekeeper | table | callable | exec | promptfoo | deepeval | inspect | records | mlflow | langfuse, file, metric}`, plus `version`, `notes` and `warnings` for imports; imported and custom judges also record the `--pass-if` rule and label map used). Every judgment line carries the judge fingerprint (provider, model, served snapshot, endpoint, prompt hash, rubric version, temperature, timestamp). Pairwise items are judged in both AB and BA order.
 
@@ -268,7 +264,7 @@ report = judgekeeper.check_table(df_or_rows_or_path, judge="verdict", human="lab
 
 ## How verdicts are read
 
-One normaliser serves `check`, `check_judge`, `--callable`, `--exec` and `import-labels`. It turns a raw judge output into `pass`/`fail` (or `A`/`B`) or `error`, plus a rationale:
+One normaliser serves `check`, `check_judge`, `--callable` and `--exec`. It turns a raw judge output into `pass`/`fail` (or `A`/`B`) or `error`, plus a rationale:
 
 - a bool: `True` is pass;
 - a string, case-insensitively, through the label map. Defaults: `pass`/`fail`, `true`/`false`, `yes`/`no`, `correct`/`incorrect`, `right`/`wrong`, `1`/`0`, and a leading `PASS` or `FAIL` token (`PASS: looks right`). Pairwise: `A`/`B`. `--label-map "good=pass,bad=fail"` adds entries;
@@ -287,7 +283,7 @@ judgekeeper.check_judge(judge, anchors, runs=3, pass_if=None, label_map=None, fi
                         out=None, yes=False)   # returns the report dict
 ```
 
-`judge(item: dict)` returns a bool, str, float, tuple or dict; it may be `async def` (this also works inside a running event loop, as in a notebook). `item` is the anchor item without `human_label` and `notes`. Pairwise items are judged twice, with `output_a` and `output_b` swapped the second time; the second verdict is mapped back to the original labels. `anchors` is a frozen anchor JSONL path, or a list of items (written under `out` and frozen). `fingerprint` takes what you know: `provider`, `model`, `snapshot`, `endpoint`, `prompt` (text, hashed) or `prompt_hash`, `rubric_version`, `temperature`; everything else is recorded as unknown. Above 1,000 judge calls it needs `yes=True`.
+`judge(item: dict)` returns a bool, str, float, tuple or dict; it may be `async def` (this also works inside a running event loop, as in a notebook). `item` is the anchor item without `human_label` and `notes`. Pairwise items are judged twice, with `output_a` and `output_b` swapped the second time; the second verdict is mapped back to the original labels. `anchors` is an anchor JSONL path (sealed on first use, as `judge` does), or a list of items (written under `out` and frozen). `fingerprint` takes what you know: `provider`, `model`, `snapshot`, `endpoint`, `prompt` (text, hashed) or `prompt_hash`, `rubric_version`, `temperature`; everything else is recorded as unknown. Above 1,000 judge calls it needs `yes=True`.
 
 Command line:
 
@@ -330,27 +326,6 @@ print(json.dumps({"verdict": "pass" if ok else "fail", "reason": reason}))
 sys.exit(0)  # a non-zero exit is recorded as an error, not a fail
 ```
 
-## Labels from a spreadsheet
-
-```
-judgekeeper template items.jsonl -o labels.csv      # or items.csv
-judgekeeper import-labels labels.csv -o anchors.jsonl [--label-map "good=pass,bad=fail"]
-```
-
-`template` writes `id,input,output,human_label,notes` (pairwise: `output_a,output_b`) with `human_label` and `notes` empty, ready for Excel or Google Sheets. It refuses to overwrite an existing file (it may hold your labels) unless you pass `--force`. Ids come from an `id` column or are derived as in `check`. `import-labels` reads the sheet back, checks every label through the normaliser (an unmapped label is a usage error listing them), skips and lists unlabeled rows, keeps non-empty `notes` and `slice`, writes the anchor file and freezes it. It prints the label-quality warnings that also appear in every report.
-
-## label: a local labeling page
-
-```
-judgekeeper label items.jsonl [--out labels.csv] [--port 8765] [--no-browser]   # or items.csv
-```
-
-Opens a page in your browser that shows one item at a time: the input and the output (pairwise: A and B side by side). Keys: `1` pass (pairwise: A, also `a`), `2` fail (pairwise: B, also `b`), `d` defer, `u` undo, `n` note, arrow keys to move; a button mirrors every key. A judge verdict in the items (a `judge_verdict`, `verdict` or `judge` column, with `judge_reason`, `reason` or `rationale`) sits behind a "Show judge" button, hidden by default so it does not anchor the labeler.
-
-Every change is written to `--out` at once (to a temporary file, then renamed over it) as `id,input,output,human_label,notes` (pairwise `output_a,output_b`), the shape `template` writes, so `import-labels` and `import --labels` read it unchanged. Single items get `pass`/`fail`, pairwise items `A`/`B`; deferred items stay unlabeled (deferral is not saved to the file). Reopening with the same `--out` resumes where it left off; an `--out` with ids that are not in the items is refused. `items` may itself be a sheet from `template`, partly filled in. When every item is labeled or deferred, the page shows the counts, the split, the label-quality warnings (fewer than 60 labels, worse than 80/20) and the `import-labels` command to run next.
-
-The server uses only the standard library and binds `127.0.0.1`, never `0.0.0.0`. The URL carries a random token that the page and every request must present; a request whose `Host` header is not `127.0.0.1:<port>` is refused (DNS rebinding); the page loads nothing from the network (a Content-Security-Policy enforces it) and shows every string as text. Ctrl-C stops it, and it stops by itself after 2 hours without a request. It keeps serving until then.
-
 ## import: promptfoo, DeepEval and Inspect AI results
 
 ```
@@ -362,12 +337,12 @@ judgekeeper import records <path>... --check [--map MAP] [--pass-if RULE] [--lab
 `<tool>` is `promptfoo`, `deepeval`, `inspect` or `records`. A path is a file, a directory or a quoted glob; files are read in the order given (a directory or glob in name order). The output is what `check` writes: `anchors.jsonl` with its manifest, `runs/run-NN.jsonl` and `report.json` / `report.html`, with `source.kind` set to the tool and `source.version` to the tool's own format version when the file states one (promptfoo `results.version`, Inspect `version`). Exit 0 on success, 2 on a usage error. Per-tool pages: [promptfoo](integrations/promptfoo.md), [DeepEval](integrations/deepeval.md), [Inspect AI](integrations/inspect.md).
 
 - `--metric NAME`: the judge to validate (promptfoo assertion `metric` or type, DeepEval metric `name`, Inspect scorer name). Optional when the files hold one; with several, leaving it out is a usage error that lists the names.
-- `--labels TABLE`: human labels, CSV, TSV or JSONL with an `id` column and a `human_label` (or `label`) column, read through the same normaliser as `check`. It wins over human labels in the files (promptfoo web-UI ratings, Inspect score edits) and the report notes how many it replaced and how many differed. Rows with an empty label are skipped. A `slice` column is kept, as `import-labels` keeps it, so the report has per-slice numbers.
+- `--labels TABLE`: human labels, CSV, TSV or JSONL with an `id` column and a `human_label` (or `label`) column, read through the same normaliser as `check`. It wins over human labels in the files (promptfoo web-UI ratings, Inspect score edits) and the report notes how many it replaced and how many differed. Rows with an empty label are skipped. A `slice` column is kept, so the report has per-slice numbers.
 - `--pass-if`, `--label-map`: as in `check`. `--pass-if` is applied to the record's `score` (DeepEval `score`, promptfoo component `score`, numeric Inspect values); without it the verdict is the tool's own pass flag or label. Human labels never use `--pass-if`.
 - `--runs-by-order`: number each item's verdicts in a file 1, 2, 3 in order of appearance, in place of any run index the file carries, instead of stopping when one run holds several verdicts for one item. Works with every tool. The promptfoo reader always numbers repeats this way, because promptfoo strips the repeat index.
 - `--id-var NAME` (promptfoo only): the test var holding the item id.
 - `--map MAP` (records only): see below.
-- `--check` (records only): check the files and say what judgekeeper reads in them, without writing a report. See [Records format](#records-format-import-records-and-export-records).
+- `--check` (records only): check the files and say what judgekeeper reads in them, without writing a report. See [Records format](#records-format-import-records).
 
 How records become a report: human records become anchor labels, judge records become judgments and code records (promptfoo's `contains`, `javascript`, ...) are ignored with a note. Several files, or several run indices in one file (Inspect epochs, promptfoo repeats), become separate runs; an item a run does not judge is an error judgment in that run. With one run the noise floor is "unknown: one run supplied". An item with a verdict and no human label, or a label and no verdict, is dropped, counted in `source.n_judged_unlabeled` / `source.n_labeled_unjudged` and noted in the report. Ids that had to be derived (a hash of input and output, as in `check`) are noted too.
 
@@ -433,7 +408,7 @@ report = judgekeeper.import_results("langfuse", pass_if="score>=0.5", out="repor
                                             "max_items": None, "rate": 30})
 ```
 
-## Records format: import records and export records
+## Records format: import records
 
 judgekeeper's own format for judge results: one judged answer per line of a JSONL file (CSV and TSV work too). Use it when your judge saves its results in a way judgekeeper does not read: write these lines, check them with `--check`, then `import records`. Field names follow OpenInference annotations, so other tools' exports map onto it by renaming. Only a verdict is needed in practice; every field is optional. The smallest useful line:
 
@@ -452,14 +427,14 @@ judgekeeper's own format for judge results: one judged answer per line of a JSON
 | `explanation` | the judge's rationale |
 | `run` | repeat index, or empty. Without one, each file is one run (see `--runs-by-order`) |
 | `input`, `output` | the item's text (or any JSON) |
-| `evaluator` | the judge's identity: `{provider, model, prompt, temperature, version, rule}`; `version` is the rubric version, `prompt` is hashed. `rule` is the judge's rule in words (GEval criteria and steps, an llm-rubric value): `start` shows it as "Your judge's rule", and it is hashed into the prompt hash when there is no `prompt` or `prompt_hash`. Also `prompt_hash`, `snapshot` and `endpoint`, which `export records` writes |
+| `evaluator` | the judge's identity: `{provider, model, prompt, temperature, version, rule}`; `version` is the rubric version, `prompt` is hashed. `rule` is the judge's rule in words (GEval criteria and steps, an llm-rubric value): `start` shows it as "Your judge's rule", and it is hashed into the prompt hash when there is no `prompt` or `prompt_hash`. Also `prompt_hash`, `snapshot` and `endpoint` |
 | `created_at` | when the verdict was made |
-| `metadata` | an open object for anything else: a criterion name, a run id, an A/B version. Kept and written again; never part of the judge's identity |
+| `metadata` | an open object for anything else: a criterion name, a run id, an A/B version. Kept; never part of the judge's identity |
 | `trajectory` | for agents: the steps that led to the output, as OpenAI-style messages (`role`, `content`, `tool_calls` with `id`, `name` and `arguments`, `tool_call_id`). Kept in the frozen anchor set, because hosted traces expire; not shown on any page yet |
 | `outcome` | for agents: an automatic check of the result, `{passed, score, source, detail}`, e.g. `{"passed": true, "source": "unit tests"}` |
 | `app_version` | the version of the app or agent that gave the answer. When `start` re-checks and it changed, it says so, as it does for a changed judge |
 
-Fields judgekeeper does not know are kept, at the top level and inside `evaluator`, and written again; a file of a newer version is read as far as this version understands it, with one warning. A line over 1 MB is kept, with a warning. The rules are published as a JSON Schema (draft 2020-12): [records.schema.json](records.schema.json), also inside the package as `judgekeeper/schemas/records.schema.json`. Example files: [minimal.jsonl](examples/records/minimal.jsonl) (four fields per line), [full.jsonl](examples/records/full.jsonl) (every field) and [with-human-labels.jsonl](examples/records/with-human-labels.jsonl).
+Fields judgekeeper does not know are kept, at the top level and inside `evaluator`; a file of a newer version is read as far as this version understands it, with one warning. A line over 1 MB is kept, with a warning. The rules are published as a JSON Schema (draft 2020-12): [records.schema.json](records.schema.json), also inside the package as `judgekeeper/schemas/records.schema.json`. Example files: [minimal.jsonl](examples/records/minimal.jsonl) (four fields per line), [full.jsonl](examples/records/full.jsonl) (every field) and [with-human-labels.jsonl](examples/records/with-human-labels.jsonl).
 
 HUMAN records label the metric they are named after, or any metric when their name is not a judge metric in the file (promptfoo's ratings are named `human`).
 
@@ -467,16 +442,13 @@ HUMAN records label the metric they are named after, or any metric when their na
 judgekeeper import records records.jsonl --check
 judgekeeper import records records.jsonl --out reports/x/
 judgekeeper import records export.csv --map "target_id=trace_id,name=metric,label=value,explanation=comment,annotator_kind=source" --out reports/x/
-judgekeeper export records reports/x/ -o records.jsonl
 ```
 
 `import records --check` writes nothing. For each file it prints the number of records and the format version, the pass/fail split per judge (with the `--pass-if` and `--label-map` you give) and, for each judge, the pass mark used, the judge's model and how many unique ids, the human labels, the first 3 records in plain words (each with its id), the fields it kept without knowing them, and every problem with its line number. Exit 0 when the file is usable (no problems, and at least one judge verdict reads as pass or fail), 2 when not. Given several files (a folder), it ends with how `judgekeeper start` reads them: the files of the same judge together, as one set, where an answer saved in more than one file counts once, with the verdict from the newest file. An import stops at the first problem, with its line number.
 
 `import records` reads JSONL, CSV or TSV. `--map` takes `field=column` pairs; evaluator fields are `evaluator.model=judge_model` and so on (a CSV can also have `evaluator.model` columns, or an `evaluator` column holding JSON; `metadata`, `trajectory` and `outcome` cells hold JSON too). A mapped column that does not exist is a usage error listing the columns.
 
-`export records <dir> -o records.jsonl [--anchors anchors.jsonl]` writes judgekeeper's runs and anchors as records (version 2): one HUMAN record per anchor item and one LLM record per judgment, with the judgment's fingerprint as `evaluator` (the prompt as `prompt_hash`) and error judgments as an empty `label`. `<dir>` is a directory `check` or `import` wrote (or its `report.json`), or a runs directory with `--anchors`. `import records` on the result gives the same report. Single-output anchor sets only; `slice` and `notes` are not carried.
-
-## record: save your own judge's verdicts with one line
+## record(): save your own judge's verdicts with one line
 
 When your judge runs in your own code and saves nothing judgekeeper reads, add one line right after it gives each verdict, in your eval code:
 
@@ -499,11 +471,11 @@ Then run your eval once and `judgekeeper start`: it finds the records. Install j
 | `name` | Which judge or criterion (default `judge`); with several names, `start` asks which to check |
 | `temperature`, `id`, `metadata` | The judge's temperature, the answer's id (else one is made from the input and output), and a dict of anything else |
 
-Each call writes one line in the [records format](#records-format-import-records-and-export-records) (version 2, `annotator_kind` `LLM`) to `.judgekeeper/records/<name>-<date>-<process id>.jsonl` under your project root: the nearest folder upward from where your eval runs that has `judgekeeper.toml`, `pyproject.toml`, `setup.py`, `.git` or a `requirements*.txt` (never your home folder), else the current folder. One file per process, so evals that run in several processes never write to the same file. `judgekeeper start` reads the files of the same judge together, as one set: an answer saved in more than one file (a second run, or the same day again) counts once, with the verdict from the newest file. Each line is written whole and the file closed at once; a lock keeps threads' lines apart.
+Each call writes one line in the [records format](#records-format-import-records) (version 2, `annotator_kind` `LLM`) to `.judgekeeper/records/<name>-<date>-<process id>.jsonl` under your project root: the nearest folder upward from where your eval runs that has `judgekeeper.toml`, `pyproject.toml`, `setup.py`, `.git` or a `requirements*.txt` (never your home folder), else the current folder. One file per process, so evals that run in several processes never write to the same file. `judgekeeper start` reads the files of the same judge together, as one set: an answer saved in more than one file (a second run, or the same day again) counts once, with the verdict from the newest file. Each line is written whole and the file closed at once; a lock keeps threads' lines apart.
 
 It never breaks your program: any error inside it is caught, it logs one warning to the `judgekeeper` logger (once per process) and returns nothing. It uses only Python's standard library, and `import judgekeeper` loads nothing else until you call it. The file holds your inputs and outputs: use it in your eval code, not in code that serves real users. `JUDGEKEEPER_RECORD=0` (or `false`, `off`, `no`) turns it off.
 
-**Without the import, or in another language.** `judgekeeper record --snippet python` prints a function, `jk_record`, that takes the same arguments as `judgekeeper.record()` and writes the same lines, with nothing to install; `judgekeeper record --snippet typescript` prints the same for Node.js (`jkRecord(input, output, { score, pass_mark, ... })`, the same names in its options). Run them from your project folder: unlike `record()`, they do not look upward for the project root.
+**Without the import, or in another language.** Copy one of these into your eval code. The Python function, `jk_record`, takes the same arguments as `judgekeeper.record()` and writes the same lines, with nothing to install; the TypeScript one does the same for Node.js (`jkRecord(input, output, { score, pass_mark, ... })`, the same names in its options). Run them from your project folder: unlike `record()`, they do not look upward for the project root.
 
 ```python
 # Saves each judge verdict for judgekeeper; run it from your project folder. Standard library only.
@@ -581,13 +553,7 @@ export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): voi
 }
 ```
 
-**Let your coding agent add the line.** judgekeeper never edits your code. `judgekeeper record --agent-prompt` prints a prompt for Claude Code, Cursor or Codex: find where your judge gives each score or verdict, add one `judgekeeper.record(...)` call right after it, touch nothing else, show you the diff and wait for your yes, then run the eval once and `judgekeeper import records .judgekeeper/records --check`.
-
-```
-judgekeeper record --snippet python
-judgekeeper record --snippet typescript
-judgekeeper record --agent-prompt
-```
+**Let your coding agent add the line.** judgekeeper never edits your code. [A prompt for Claude Code, Cursor or Codex](assistant.md#add-the-record-line) asks it to find where your judge gives each score or verdict, add one `judgekeeper.record(...)` call right after it, touch nothing else, show you the diff and wait for your yes, then run the eval once and `judgekeeper import records .judgekeeper/records --check`.
 
 ## Unknown judge fields
 
@@ -598,7 +564,7 @@ Every fingerprint field except `created_at` may be unknown: provider, model, sna
 ## Your API keys
 
 - judgekeeper has no server. Your key stays in your environment, and requests go from your machine (or your CI runner) straight to the provider or the endpoint you name.
-- Nothing judgekeeper writes contains a key: judgment files, reports, gate, migration and attribution files are all scrubbed. Before any text reaches disk or your terminal, the value of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `MLFLOW_TRACKING_PASSWORD`, the variable named with `--api-key-env` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET` (`DATABRICKS_TOKEN`, `MLFLOW_TRACKING_TOKEN`) is replaced with `[REDACTED]`, as is anything shaped like a provider key (`sk-ant-…`, `sk-…`, `Bearer …`, `Basic …`) and the `user:password@` part of a URL.
+- Nothing judgekeeper writes contains a key: judgment files, reports, gate and migration files are all scrubbed. Before any text reaches disk or your terminal, the value of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `MLFLOW_TRACKING_PASSWORD`, the variable named with `--api-key-env` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET` (`DATABRICKS_TOKEN`, `MLFLOW_TRACKING_TOKEN`) is replaced with `[REDACTED]`, as is anything shaped like a provider key (`sk-ant-…`, `sk-…`, `Bearer …`, `Basic …`) and the `user:password@` part of a URL.
 - Platform readers take credentials from the environment only: `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` (host from `LANGFUSE_BASE_URL` or `LANGFUSE_HOST`, default `https://cloud.langfuse.com`) for Langfuse; whatever MLflow reads (`MLFLOW_TRACKING_URI`, `MLFLOW_TRACKING_TOKEN`, `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, ...) for MLflow. The Langfuse reader only issues GET requests, sends the keys only to the configured host, refuses redirects to another host and never prints the Authorization header, a response body or the keys.
 - Error text is scrubbed too. A failed provider call prints one line and exits 1; `--debug` adds the traceback, still scrubbed. A failed call is never scored.
 - There is no flag that takes a key, and there never will be. `--api-key-env` takes the *name* of a variable.
@@ -644,7 +610,7 @@ judgekeeper gate reports/my-judge/report.json           # writes gate.json and g
 
 `--flaky-as pass` or `--flaky-as fail` maps `FLAKY` to exit 0 or 1; the status in `gate.json` and `gate.md` stays `FLAKY`. Without the flag `FLAKY` exits 4. `gate.md` is a short summary for a PR comment or `$GITHUB_STEP_SUMMARY`: the status, why, a metric / baseline / now / delta / noise band table and the judge fingerprint.
 
-Thresholds live in an optional `judgekeeper.toml` (`--config`, default `./judgekeeper.toml` when it exists), one table per command: `[gate]` here, `[migrate]` and `[attribute]` below, and `[start]`, which [`setup`](#setup-set-a-project-up-in-one-step) writes. Unknown tables and keys are a usage error.
+Thresholds live in an optional `judgekeeper.toml` (`--config`, default `./judgekeeper.toml` when it exists), one table per command: `[gate]` here, `[migrate]` below, and `[start]`, which [`setup`](#setup-set-a-project-up-in-one-step) writes. Unknown tables and keys are a usage error.
 
 ```toml
 [gate]
@@ -718,41 +684,16 @@ max_changed_share = 0.02   # changed-and-stable share above which equal kappa is
 
 No example migration report is published yet, so this page quotes no migration numbers.
 
-## Attribute a score change
-
-Your app's eval score moved. Did your system change, or did the judge? The anchor set is frozen, so the outputs being judged are identical every time: any movement in verdicts on it comes from the judge. Re-judge the anchor set, validate, and compare with the baseline:
-
-```
-judgekeeper attribute reports/now/report.json [--baseline .judgekeeper/baseline.json] \
-  [--app-score-before X --app-score-after Y]
-```
-
-It compares per-item majority verdicts between the baseline and the current report. An item counts as moved only if it was stable (unanimous across runs) in both. Judge drift is declared when more than 2% of items moved, or kappa vs humans moved outside the noise band. This works when the declared fingerprint is identical, which is what a silent provider-side update looks like, and it reports whether the served snapshot changed.
-
-- `STABLE`: the judge did not move on the anchor set.
-- `JUDGE_DRIFT`: it did. Re-validate the judge; to keep the new behaviour, `migrate` and rebase.
-- `SYSTEM_CHANGE`: the judge is stable on the anchor set and the app scores you supplied (pass rates between 0 and 1) differ by more than the judge's own run-to-run pass-rate spread on the anchor set (at least `min_band`). The score change comes from your system.
-
-Both reports need per-item verdicts (`items`, written by `validate` from this version on); an older baseline is a usage error that tells you to regenerate it. `attribute` writes `attribution.json` and `attribution.md` (for `$GITHUB_STEP_SUMMARY`) next to the report, or under `--out`. The example workflow in `docs/examples/workflows/judge-gate.yml` runs it weekly after the gate job re-judges the anchor set.
-
-```toml
-[attribute]
-min_band = 0.02          # smallest noise band, for kappa and for app scores
-max_moved_share = 0.02   # share of stable items that may move before it is JUDGE_DRIFT
-```
-
 ## Exit codes
 
 | exit code | meaning | commands |
 |---|---|---|
-| 0 | success; `PASS`; `STABLE`; `migrate` finished | all |
+| 0 | success; `PASS`; `migrate` finished | all |
 | 1 | `FAIL`; a judge call failed, or the judge failed on every item; `migrate --fail-on` matched; a Langfuse request failed | `gate`, `judge`, `migrate`, `import langfuse` |
 | 2 | usage error (bad arguments, report, baseline or config; unmapped verdicts or labels; duplicate ids; several metrics without `--metric`; more than 1,000 judge calls without `--yes`; a missing extra or platform key; a Langfuse import with no time window or `--max-items`; an input file that is not UTF-8 text; an output location that cannot be written) | all |
 | 3 | anchor set changed: hash mismatch, `ANCHORS_CHANGED`, runs or reports from a different anchor set | all that read anchors or reports |
 | 4 | `FLAKY` (`--flaky-as` maps it to 0 or 1) | `gate` |
 | 5 | `JUDGE_CHANGED` | `gate` |
-| 6 | `JUDGE_DRIFT` | `attribute` |
-| 7 | `SYSTEM_CHANGE` | `attribute` |
 | 8 | stopped at a question it cannot ask (no terminal): the line before says the flag or command that answers it; nothing went wrong | `start`, `setup` |
 | 130 | stopped with Ctrl-C: it prints "Stopped."; what was saved before stays saved | all |
 

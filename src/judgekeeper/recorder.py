@@ -18,9 +18,9 @@ It never breaks the user's program: any error inside is caught, one warning goes
 false, off, no) turns it off, for production. Standard library only, and nothing else of
 judgekeeper is imported, so `import judgekeeper` stays light.
 
-SNIPPETS hold the same line for people who do not want the import (Python) or use another
-language (TypeScript); AGENT_PROMPT asks a coding agent to add the call. `judgekeeper record
---snippet python|typescript` and `judgekeeper record --agent-prompt` print them.
+docs/reference.md holds the same line as a snippet for people who do not want the import
+(Python) or use another language (TypeScript); docs/assistant.md holds a prompt that asks a
+coding agent to add the call.
 """
 
 from __future__ import annotations
@@ -170,104 +170,3 @@ def _reset() -> None:
         _paths.clear()
         _file_locks.clear()
         _warned.clear()
-
-
-SNIPPETS = {
-    "python": """\
-# Saves each judge verdict for judgekeeper; run it from your project folder. Standard library only.
-# It takes the arguments of judgekeeper.record() and writes the same line.
-import json, os, re, time
-def jk_record(input=None, output=None, *, verdict=None, score=None, pass_mark=None,
-              reason=None, judge=None, rule=None, name=None, temperature=None, id=None,
-              metadata=None):
-    try:
-        name, now = "judge" if name is None else str(name), time.gmtime()
-        meta = dict(metadata or {})
-        if pass_mark is not None:
-            meta.setdefault("pass_mark", pass_mark)
-        label = verdict
-        if isinstance(verdict, bool):
-            label = "pass" if verdict else "fail"
-        elif isinstance(verdict, str) and verdict.strip().lower() in ("pass", "fail"):
-            label = verdict.strip().lower()
-        elif verdict is None and score is not None and pass_mark is not None:
-            label = "pass" if score >= pass_mark else "fail"
-        line = {"schema_version": 2, "target_id": None if id is None else str(id), "name": name,
-                "annotator_kind": "LLM", "label": label, "score": score,
-                "explanation": None if reason is None else str(reason), "run": None,
-                "input": input, "output": output,
-                "evaluator": {k: v for k, v in (("model", judge), ("temperature", temperature),
-                                                ("rule", rule)) if v is not None},
-                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", now)}
-        if meta:
-            line["metadata"] = meta
-        folder = os.path.join(".judgekeeper", "records")
-        os.makedirs(folder, exist_ok=True)
-        file = re.sub(r"[^A-Za-z0-9._]+", "-", name).strip("-.")[:60] or "judge"
-        file += f"-{time.strftime('%Y-%m-%d', now)}-{os.getpid()}.jsonl"
-        with open(os.path.join(folder, file), "a", encoding="utf-8", newline="\\n") as f:
-            f.write(json.dumps(line, ensure_ascii=False, default=str) + "\\n")
-    except Exception:
-        pass  # a record never stops your program""",
-    "typescript": """\
-// Saves each judge verdict for judgekeeper; run it from your project folder. Node.js only.
-// It takes the arguments of judgekeeper.record() and writes the same line.
-import { appendFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-
-type JkFields = { verdict?: unknown; score?: number; pass_mark?: number; reason?: string;
-  judge?: string; rule?: string; name?: string; temperature?: number; id?: string | number;
-  metadata?: Record<string, unknown> };
-
-export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): void {
-  try {
-    const name = f.name ?? "judge", now = new Date().toISOString();
-    const meta: Record<string, unknown> = { ...(f.metadata ?? {}) };
-    if (f.pass_mark != null && !("pass_mark" in meta)) meta.pass_mark = f.pass_mark;
-    const said = typeof f.verdict === "string" ? f.verdict.trim().toLowerCase() : "";
-    let label: unknown = f.verdict ?? null;
-    if (typeof f.verdict === "boolean") label = f.verdict ? "pass" : "fail";
-    else if (said === "pass" || said === "fail") label = said;
-    else if (f.verdict == null && f.score != null && f.pass_mark != null)
-      label = f.score >= f.pass_mark ? "pass" : "fail";
-    const evaluator = Object.fromEntries(Object.entries(
-      { model: f.judge, temperature: f.temperature, rule: f.rule }).filter(([, v]) => v != null));
-    const line: Record<string, unknown> = { schema_version: 2,
-      target_id: f.id == null ? null : String(f.id), name, annotator_kind: "LLM", label,
-      score: f.score ?? null, explanation: f.reason == null ? null : String(f.reason), run: null,
-      input, output, evaluator, created_at: now.slice(0, 19) + "Z" };
-    if (Object.keys(meta).length) line.metadata = meta;
-    const folder = join(".judgekeeper", "records");
-    mkdirSync(folder, { recursive: true });
-    const file = name.replace(/[^A-Za-z0-9._]+/g, "-").replace(/^[-.]+|[-.]+$/g, "")
-      .slice(0, 60) || "judge";
-    appendFileSync(join(folder, `${file}-${now.slice(0, 10)}-${process.pid}.jsonl`),
-      JSON.stringify(line) + "\\n");
-  } catch { /* a record never stops your program */ }
-}""",
-}
-
-AGENT_PROMPT = """\
-In this project, my LLM judge runs in my own code. Please add the judgekeeper.record() line,
-so that judgekeeper can check my judge against my own labels:
-
-1. judgekeeper must be installed in this project's own Python environment, as a dev tool. If
-   it is missing, install it there: for example `uv add --dev judgekeeper`, `poetry add
-   --group dev judgekeeper`, or `pip install judgekeeper` with the project's virtual
-   environment active.
-2. Find where this project's LLM judge produces each score or verdict.
-3. Right after it, add one call, with the values the judge just used and gave:
-
-       import judgekeeper
-       judgekeeper.record(input=..., output=..., score=..., pass_mark=..., reason=...,
-                          judge="<the judge's model>", rule=<the judge's rule or criteria>,
-                          name="<the judge's or criterion's name>")
-
-   When the judge gives pass or fail, pass verdict=... instead of score and pass_mark. One
-   call per judge or criterion. Only in the eval code, never in code that serves real users
-   (it saves inputs and outputs to a file); JUDGEKEEPER_RECORD=0 turns it off.
-4. Touch nothing else. record() catches its own errors and returns nothing, so it can never
-   change what the program does; do not wrap it in code that could.
-5. Show me the diff and wait for my yes before saving.
-6. Then run the eval once, run `judgekeeper import records .judgekeeper/records --check`, and
-   show me what it prints."""

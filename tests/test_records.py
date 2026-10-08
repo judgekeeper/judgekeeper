@@ -1,4 +1,4 @@
-"""ScoreRecords: the common format every reader produces, `import records` and `export records`.
+"""ScoreRecords: the common format every reader produces, and `import records`.
 
 export.csv (tests/fixtures/records/) maps onto ScoreRecords with --map. Five items, one run.
 Human: r1 r2 r5 pass, r3 r4 fail. Judge (yes/no): r1 yes, r2 no, r3 no, r4 no, r5 yes.
@@ -13,9 +13,9 @@ import json
 
 import pytest
 
-from judgekeeper import check_table, import_results
+from judgekeeper import import_results
 from judgekeeper.cli import main
-from judgekeeper.records import RecordsError, ScoreRecord, export_records, read_records
+from judgekeeper.records import RecordsError, ScoreRecord, read_records
 from tests.conftest import FIXTURES
 
 CSV = FIXTURES / "records" / "export.csv"
@@ -211,44 +211,6 @@ def test_evaluator_becomes_the_fingerprint_and_the_prompt_is_hashed(tmp_path):
     for p in (tmp_path / "o").rglob("*"):
         if p.is_file():
             assert "SECRET RUBRIC" not in p.read_text(encoding="utf-8")
-
-
-def test_round_trip_export_then_import_gives_the_same_report(tmp_path):
-    original = check_table(FIXTURES / "check" / "results.csv", out=tmp_path / "check")
-    records = tmp_path / "records.jsonl"
-    assert main(["export", "records", str(tmp_path / "check"), "-o", str(records)]) == 0
-    lines = [json.loads(x) for x in records.read_text(encoding="utf-8").splitlines()]
-    assert {x["annotator_kind"] for x in lines} == {"LLM", "HUMAN"}
-    assert len([x for x in lines if x["annotator_kind"] == "LLM"]) == 30  # 10 items x 3 runs
-    again = import_results("records", [records], out=tmp_path / "again")
-
-    def comparable(rep):
-        fp = {k: v for k, v in rep["fingerprint"].items() if k != "created_at"}
-        return (rep["anchors"]["sha256"], rep["n_runs"], rep["headline"], fp,
-                rep["fingerprint_unknown"], rep["noise_floor"], rep["items"],
-                rep["disagreements"], [{k: v for k, v in run.items() if k != "file"}
-                                       for run in rep["runs"]], rep["errors"])
-
-    assert comparable(again) == comparable(original)
-    # and once more: exporting the import gives the same records, timestamps aside
-    records2 = tmp_path / "records2.jsonl"
-    export_records(tmp_path / "again", records2)
-
-    def strip(path):
-        return [{k: v for k, v in json.loads(x).items() if k != "created_at"}
-                for x in path.read_text(encoding="utf-8").splitlines()]
-
-    assert strip(records2) == strip(records)
-
-
-def test_export_from_a_runs_dir_needs_anchors_for_labels(tmp_path, capsys):
-    check_table(FIXTURES / "check" / "results.csv", out=tmp_path / "check")
-    out = tmp_path / "r.jsonl"
-    assert main(["export", "records", str(tmp_path / "check" / "runs"), "-o", str(out),
-                 "--anchors", str(tmp_path / "check" / "anchors.jsonl")]) == 0
-    assert len(out.read_text(encoding="utf-8").splitlines()) == 40
-    assert main(["export", "records", str(tmp_path / "nowhere"), "-o", str(out)]) == 2
-    assert "nowhere" in capsys.readouterr().err
 
 
 def test_read_records_derives_missing_ids(tmp_path):

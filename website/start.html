@@ -140,7 +140,7 @@ judgekeeper --version</code></pre></div>
       <div class="in"><p>Run this once in your project folder. It looks inside the file, asks only what it can&#39;t tell, shows 3 answers as it will read them, then asks once before it changes any file. It never edits your code. (<a href="#door-setup">More on setup</a>.)</p>
         <div class="code"><pre><code>judgekeeper setup</code></pre></div></div></details>
     <details><summary>My judge is code I wrote, and it saves nothing</summary>
-      <div class="in"><p>Add one line where your judge gives each verdict, in your eval code, then run your eval once. Or let your coding assistant add it: <code>judgekeeper record --agent-prompt</code> prints the prompt. (<a href="#door-record">More on record()</a>.)</p>
+      <div class="in"><p>Add one line where your judge gives each verdict, in your eval code, then run your eval once. Or let your coding assistant add it: <a href="#door-record">More on record()</a> has the prompt.</p>
         <div class="code"><pre><code>judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
                    judge="claude-opus-5", rule=criteria)</code></pre></div></div></details>
   </div>
@@ -325,7 +325,7 @@ you see enough of both.
     <div class="code"><pre><code>import judgekeeper
 judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
                    reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")</code></pre></div>
-    <p>It never stops your program, uses only Python&#39;s standard library, and <code>JUDGEKEEPER_RECORD=0</code> turns it off. Without the import, or in TypeScript: <code>judgekeeper record --snippet python</code> (or <code>typescript</code>) prints a few lines that do the same. judgekeeper never edits your code, but your coding agent can add the line. Paste this prompt: it shows you the change and waits for your yes.</p>
+    <p>It never stops your program, uses only Python&#39;s standard library, and <code>JUDGEKEEPER_RECORD=0</code> turns it off. Without the import, or in TypeScript: the <a href="reference.html#record-save-your-own-judges-verdicts-with-one-line">reference</a> has a few lines that do the same. judgekeeper never edits your code, but your coding agent can add the line. Paste this prompt: it shows you the change and waits for your yes.</p>
     <div class="code"><pre><code id="record-prompt">In this project, my LLM judge runs in my own code. Please add the judgekeeper.record() line,
 so that judgekeeper can check my judge against my own labels:
 
@@ -349,7 +349,6 @@ so that judgekeeper can check my judge against my own labels:
 5. Show me the diff and wait for my yes before saving.
 6. Then run the eval once, run `judgekeeper import records .judgekeeper/records --check`, and
    show me what it prints.</code></pre></div>
-    <p class="note"><code>judgekeeper record --agent-prompt</code> prints the same prompt in your terminal.</p>
 
     <h4 id="door-agent">3. Your coding agent writes a table</h4>
     <p>Turn your results into a table: a CSV with the columns <code>id</code>, <code>input</code>, <code>output</code>, <code>verdict</code> (pass or fail) and <code>reason</code>, plus <code>judge_model</code> when you know which model judged. Make one CSV per judge or criterion. Then run:</p>
@@ -372,7 +371,7 @@ so that judgekeeper can check my judge against my own labels:
     <p class="note"><code>judgekeeper start --agent-prompt</code> prints the same prompt in your terminal.</p>
 
     <h4 id="records-format">The records format</h4>
-    <p><code>judgekeeper.record()</code> and the snippets write judgekeeper&#39;s own format: one JSON line per verdict. It has a version and keeps fields it does not know, so files you write today still read later. <code>judgekeeper import records your-file.jsonl --check</code> checks a file and lists every problem with its line. The fields are in the <a href="reference.html#records-format-import-records-and-export-records">reference</a>, and the rules as a <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json">JSON Schema</a>.</p>
+    <p><code>judgekeeper.record()</code> and the snippets write judgekeeper&#39;s own format: one JSON line per verdict. It has a version and keeps fields it does not know, so files you write today still read later. <code>judgekeeper import records your-file.jsonl --check</code> checks a file and lists every problem with its line. The fields are in the <a href="reference.html#records-format-import-records">reference</a>, and the rules as a <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json">JSON Schema</a>.</p>
   </div></details></section>
 
   <section id="other"><details class="detail"><summary><h3>No saved results? Check a judge with a table you make</h3></summary><div class="in">
@@ -390,13 +389,12 @@ q2,What is the capital of Japan?,The capital of Japan is Tokyo.</code></pre>
       <li>
         <h4 id="step-label">Label them</h4>
         <p>You read each answer and say <em>pass</em> or <em>fail</em>. That mark is a <strong>human label</strong>. It is the one part no AI model may do for you: the labels are what the judge is checked against.</p>
-        <div class="code"><pre><code>judgekeeper label items.csv --out labels.csv</code></pre></div>
-        <p><strong>What you see.</strong> A page opens in your browser. It runs on your own computer, and nothing leaves it. It shows one answer at a time. Press <kbd>1</kbd> for pass and <kbd>2</kbd> for fail. Every label is saved at once into <code>labels.csv</code>, so you can stop and come back. Press Ctrl-C in the terminal when you are done.</p>
+        <p>This step has no command either. In the spreadsheet, add a <code>label</code> column and write <em>pass</em> or <em>fail</em> on every row.</p>
       </li>
       <li>
         <h4 id="step-judge">Run your judge, or bring its verdicts</h4>
         <p>A <strong>verdict</strong> is the judge&#39;s pass or fail on one answer. judgekeeper needs the judge&#39;s verdicts on the same answers you labeled.</p>
-        <p>If your tools already saved the verdicts, put them next to your labels in one table. Open <code>labels.csv</code> in a spreadsheet, add a <code>verdict</code> column with what the judge said, rename <code>human_label</code> to <code>label</code> and save it as <code>results.csv</code>. Then run:</p>
+        <p>If your tools already saved the verdicts, put them next to your labels in one table. Add a <code>verdict</code> column with what the judge said and save the sheet as <code>results.csv</code>. Then run:</p>
         <div class="code"><pre><code>judgekeeper check results.csv --judge verdict --human label</code></pre></div>
         <p class="output-label">What you see. This is the result for the small table in <a href="tutorial.html#step-check">Advanced commands</a>:</p>
         <pre class="output" data-output="check"><code>Of the answers people passed, the judge passed 100%. Of the answers people failed, the judge failed 33%. It is not trustworthy as a gate.
@@ -408,11 +406,10 @@ Not trustworthy as a gate: TPR 1.00, TNR 0.33, kappa 0.41 against human labels.
 wrote judgekeeper-report/report.json and judgekeeper-report/report.html</code></pre>
         <details class="callout">
           <summary><strong>No saved verdicts?</strong> judgekeeper can run your judge.</summary>
-          <p style="margin-top:12px">The first command freezes your labels so nobody can change them later. The second runs the judge three times. The third compares it with your labels and prints the same kind of result.</p>
-          <div class="code"><pre><code>judgekeeper import-labels labels.csv -o anchors.jsonl
-judgekeeper judge anchors.jsonl --callable my_judges:judge --runs 3 --out runs/mine
+          <p style="margin-top:12px">Save your labeled answers as <code>anchors.jsonl</code>: one line per answer, such as <code>{"id": "q1", "input": "...", "output": "...", "human_label": "pass"}</code>. The first command runs the judge three times. The first time, it also seals <code>anchors.jsonl</code>, so nobody can change your labels later without it showing. The second compares the judge with your labels and prints the same kind of result.</p>
+          <div class="code"><pre><code>judgekeeper judge anchors.jsonl --callable my_judges:judge --runs 3 --out runs/mine
 judgekeeper validate anchors.jsonl runs/mine --out reports/mine</code></pre></div>
-          <p class="note">Here <code>my_judges:judge</code> is your own Python function. For other kinds of judge, see <a href="learn.html#works">Works with what you already use</a>. <a href="tutorial.html#step-freeze">Advanced commands</a> shows each command with its output.</p>
+          <p class="note">Here <code>my_judges:judge</code> is your own Python function. For other kinds of judge, see <a href="learn.html#works">Works with what you already use</a>. <a href="tutorial.html#step-judges">Advanced commands</a> shows each command with its output.</p>
         </details>
       </li>
       <li>

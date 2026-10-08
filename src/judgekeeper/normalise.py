@@ -244,18 +244,3 @@ def label_map_hint(seen: list) -> str:
     w = words[0]
     more = "; map several at once with commas" if len(words) > 1 else ""
     return f'--label-map "{w}=pass" or --label-map "{w}=fail", whichever it means{more}'
-
-
-
-def normalise_all(norm: Normaliser, values, what: str = "verdict",
-                  pass_if: bool = True) -> list[Normalised]:
-    """Normalise every value; raise one NormaliseError listing every unmapped value."""
-    out, unmapped = [], []
-    for v in values:
-        try:
-            out.append(norm(v))
-        except UnmappedValue as e:
-            unmapped.append(e.value)
-    if unmapped:
-        raise unmapped_error(unmapped, what, pass_if=pass_if)
-    return out

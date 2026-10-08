@@ -135,12 +135,13 @@ def test_the_prompt_starts_with_the_install():
 
 
 def test_the_prompt_follows_todays_path():
-    """Install inside the project, start to see what it found, setup or record() when it finds
-    nothing, the person labels, then the result and what comes next."""
+    """Install inside the project, start to see what it found, setup or the record() prompt
+    when it finds nothing, the person labels, then the result and what comes next."""
     text = _read(PROMPT)
     flat = _flat(text)
     found = _commands(text)
-    assert {"start", "setup", "record"} <= _subcommands(found)
+    assert {"start", "setup"} <= _subcommands(found)
+    assert "www.judgekeeper.com/assistant.html#add-the-record-line" in text
     starts = [argv for _, argv in found if argv[:1] == ["start"]]
     for flags in (["--yes", "--no-browser"], ["--review"], ["--ask-again"],
                   ["--try-new-judge"]):
@@ -181,11 +182,11 @@ def test_the_page_embeds_the_prompt_verbatim_in_one_code_block():
     assert len(holding) == 1, "docs/assistant.md shows docs/assistant-prompt.md exactly, once"
 
 
-def test_the_page_has_its_four_parts_in_order():
+def test_the_page_has_its_five_parts_in_order():
     heads = re.findall(r"^## (.+)$", FENCE.sub("", _read(PAGE)), flags=re.MULTILINE)
-    assert len(heads) == 4
-    for head, needle in zip(heads, ("skill", "prompt", "What happens next", "Works with"),
-                            strict=True):
+    assert len(heads) == 5
+    for head, needle in zip(heads, ("skill", "prompt", "What happens next", "record()",
+                                    "Works with"), strict=True):
         assert needle in head, head
 
 
@@ -233,7 +234,7 @@ def test_the_renderer_keeps_the_prompt_whole():
     rendered = module.render(_read(PAGE))
     prompt = _read(PROMPT).rstrip("\n")
     assert f"<pre><code>{html.escape(prompt, quote=False)}</code></pre>" in rendered
-    assert rendered.count("<h2") == 4
+    assert rendered.count("<h2") == 5
 
 
 # The skill

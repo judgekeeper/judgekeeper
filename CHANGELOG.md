@@ -106,6 +106,9 @@ after you say yes, your own judge through your own tool, and key names only.
 - Removed: `judgekeeper demo`, with its bundled synthetic data. Running it now gives the usual
   "invalid choice" error. This includes `judgekeeper demo --try` (the five practice questions)
   and `judgekeeper demo support`, `coding` and `health` (the three worked examples).
+- Removed: `label`, `template`, `import-labels`, `freeze`, `attribute`, `export` and the
+  `record` command (the `judgekeeper.record()` function stays). Labeling is `judgekeeper
+  start`; `judge` and `validate` seal a new anchor file themselves.
 - Removed from the website: the "See it work" page and its menu entry, and the practice step
   with its screenshots. The home page now says what judgekeeper is, shows how to install it,
   and points to checking your own judge.
@@ -159,7 +162,7 @@ after you say yes, your own judge through your own tool, and key names only.
   like `correct`/`incorrect` by default. `template` refuses to overwrite an existing file
   without `--force`, so a filled labels file is never lost.
 - The project does not accept pull requests. Bug reports and ideas are welcome as issues.
-- No change to any other command, flag, metric or report field.
+- No change to any metric or report field.
 
 ## 0.1.3 (2026-10-04)
 

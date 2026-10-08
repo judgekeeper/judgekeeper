@@ -5,10 +5,10 @@ Check your LLM-as-a-judge. See how often it agrees with human labels, in one com
 | Layer | When you need it | Commands |
 |---|---|---|
 | [0. The core](#0-the-core) | You have judge verdicts and human labels | `check` |
-| [1. Labels](#1-labels) | You have no human labels yet | `label` |
-| [2. Rule and judge](#2-rule-and-judge) | You want your own rule, or want judgekeeper to run the judge | `init`, `judge`, `validate`, `template`, `import-labels`, `freeze` |
-| [3. Keep checking](#3-keep-checking) | You want a warning when the judge changes | `baseline`, `gate`, `migrate`, `attribute` |
-| [4. Your tools](#4-your-tools) | You use an eval framework, pytest or CI | `import`, `export`, the pytest plugin, the GitHub Action |
+| [1. Labels](#1-labels) | You have no human labels yet | `start` |
+| [2. Rule and judge](#2-rule-and-judge) | You want your own rule, or want judgekeeper to run the judge | `init`, `judge`, `validate` |
+| [3. Keep checking](#3-keep-checking) | You want a warning when the judge changes | `baseline`, `gate`, `migrate` |
+| [4. Your tools](#4-your-tools) | You use an eval framework, pytest or CI | `import`, the pytest plugin, the GitHub Action |
 
 Also on this page: [Start here](#start-here), [Why](#why), [First results](#first-results), [Why this and not X](#why-this-and-not-x) and [The website](#the-website). Every command, flag, exit code and config key is in [`docs/reference.md`](reference.md).
 
@@ -103,14 +103,9 @@ report = judgekeeper.check_table(df, judge="verdict", human="label")   # a DataF
 
 ## 1. Labels
 
-No labels yet? Label in the local page or in Excel or Google Sheets, then freeze the labels as an anchor set:
+No labels yet? Label with `judgekeeper start` ([above](#start-here)): it shows your judge's answers one at a time in a local page, and saves the answers you labeled as an anchor set, `.judgekeeper/anchors.jsonl`, for `judge`, `baseline` and `gate`.
 
-```
-judgekeeper label items.jsonl --out labels.csv        # or: judgekeeper template items.jsonl -o labels.csv
-judgekeeper import-labels labels.csv -o anchors.jsonl # checks every label, skips and lists unlabeled rows, freezes
-```
-
-`judgekeeper label items.jsonl` opens a local labeling page (keys 1/2, defer, undo, notes) that writes `labels.csv` as you go. [Details](reference.md#label-a-local-labeling-page).
+No judge results to start from? Write the anchor set yourself: one JSON line per item with `id`, `input`, `output` and `human_label` (`pass` or `fail`). `judge` and `validate` seal a new anchor set the first time they read it. [Details](reference.md#anchor-sets-judging-and-the-report).
 
 ## 2. Rule and judge
 
@@ -166,10 +161,9 @@ The flags and the custom endpoints are in [`docs/reference.md`](reference.md).
 judgekeeper baseline set reports/my-judge/report.json   # commit .judgekeeper/baseline.json
 judgekeeper gate reports/my-judge/report.json           # PASS, FAIL, FLAKY, JUDGE_CHANGED, ANCHORS_CHANGED
 judgekeeper migrate anchors.jsonl runs/old/ runs/new/ --out reports/migration/
-judgekeeper attribute reports/now/report.json --app-score-before X --app-score-after Y
 ```
 
-`gate` never fails on a change inside the noise band. In CI, the GitHub Action (`action.yml`) runs judge, validate and gate, and the pytest plugin gates a report your pipeline already wrote. A judge field that is unknown on either side (imported data rarely records temperature or snapshot) is a warning, not a block, unless you pass `--require-fingerprint`. `migrate` compares an old and a new judge item by item; `attribute` says whether a score moved because your system changed or the judge did. Details: [`docs/reference.md`](reference.md).
+`gate` never fails on a change inside the noise band. In CI, the GitHub Action (`action.yml`) runs judge, validate and gate, and the pytest plugin gates a report your pipeline already wrote. A judge field that is unknown on either side (imported data rarely records temperature or snapshot) is a warning, not a block, unless you pass `--require-fingerprint`. `migrate` compares an old and a new judge item by item. Details: [`docs/reference.md`](reference.md).
 
 ## 4. Your tools
 
@@ -213,7 +207,7 @@ Langfuse (judge and human scores from the public API; keys from `LANGFUSE_PUBLIC
 judgekeeper import langfuse --judge-score helpfulness --human-score helpfulness_human --from 2026-09-01 --pass-if "score>=0.5" --out reports/helpfulness/
 ```
 
-Each writes the same `report.json` and `report.html` as `check`. With `--anchors-out anchors.jsonl`, the MLflow and Langfuse imports also freeze the labeled items as an anchor set, so you can re-judge them with `judgekeeper judge` for a real noise floor. How to get each file, how labels get in and each tool's traps: [`docs/integrations/`](integrations/). Any other tool (or your own code) can write judgekeeper's records format (one JSON line per verdict: `name, input, output, label` or `score`, plus optional fields such as `evaluator` and `metadata`; see the [records format](reference.md#records-format-import-records-and-export-records)), check it with `judgekeeper import records records.jsonl --check`, and use `judgekeeper import records`, with `--map` for renamed columns; `judgekeeper export records` writes judgekeeper's runs in that format.
+Each writes the same `report.json` and `report.html` as `check`. With `--anchors-out anchors.jsonl`, the MLflow and Langfuse imports also freeze the labeled items as an anchor set, so you can re-judge them with `judgekeeper judge` for a real noise floor. How to get each file, how labels get in and each tool's traps: [`docs/integrations/`](integrations/). Any other tool (or your own code) can write judgekeeper's records format (one JSON line per verdict: `name, input, output, label` or `score`, plus optional fields such as `evaluator` and `metadata`; see the [records format](reference.md#records-format-import-records)), check it with `judgekeeper import records records.jsonl --check`, and use `judgekeeper import records`, with `--map` for renamed columns.
 
 ## First results
 

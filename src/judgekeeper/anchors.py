@@ -1,4 +1,4 @@
-"""Anchor set format, canonical hashing and the freeze manifest.
+"""Anchor set format, canonical hashing and the manifest that seals it.
 
 An anchor set is JSONL, one item per line. Every item has `id`, `input` and `human_label`.
 Pairwise items add `output_a`, `output_b` and use labels A/B. Single-output items add `output`
@@ -6,6 +6,10 @@ and use labels pass/fail. `slice` and `notes` are optional.
 
 The hash is sha256 over canonical JSON (sorted keys, no whitespace) of the items sorted by id,
 so it is stable under key order, whitespace and line order, and changes on any content change.
+
+An anchor set is sealed once: its manifest (`<name>.manifest.json`) records the hash. `judge`
+and `validate` seal a set that has no manifest yet (`seal_new`); after that, a changed file
+is a hash mismatch, never sealed again.
 """
 
 from __future__ import annotations
@@ -129,12 +133,21 @@ def freeze(path: str | Path) -> dict:
     return manifest
 
 
+def seal_new(path: str | Path) -> dict | None:
+    """Seal an anchor set that has no manifest yet and return the manifest; None when it
+    already has one (it is then checked, never rewritten)."""
+    if manifest_path_for(path).is_file():
+        return None
+    return freeze(path)
+
+
 def load_verified(path: str | Path) -> tuple[list[dict], dict]:
     """Load an anchor set and verify it against its manifest. Raises on mismatch."""
     mpath = manifest_path_for(path)
     items = load_anchors(path)
     if not mpath.is_file():
-        raise AnchorError(f"no manifest at {mpath}; run `judgekeeper freeze {path}` first")
+        raise AnchorError(f"no manifest at {mpath}: {path} is not sealed yet; `judgekeeper "
+                          "judge` seals a new anchor set on first use")
     try:
         manifest = json.loads(read_utf8(mpath, AnchorError))
     except json.JSONDecodeError:

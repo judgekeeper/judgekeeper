@@ -291,7 +291,7 @@ def test_anchors_out_hands_off_to_judge(keys, clock, monkeypatch, tmp_path):
     assert all(i["input"] == "" and i["output"] == "" for i in items)
     assert "reviewed in queue" not in anchors.read_text(encoding="utf-8")
     assert "user-ann-1" not in anchors.read_text(encoding="utf-8")
-    assert main(["freeze", str(anchors)]) == 0
+    # --anchors-out sealed it: judge reads it as it is
     assert main(["judge", str(anchors), "--runner", "replay", "--fixture",
                  str(tmp_path / "rep" / "runs" / "run-01.jsonl"), "--runs", "3",
                  "--out", str(tmp_path / "rejudged")]) == 0

@@ -29,7 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from judgekeeper.table import import_labels
+from judgekeeper.table import write_anchor_file
 from judgekeeper.templates import template_text
 
 OUT = ROOT / "docs" / "examples" / "own-metric"
@@ -258,7 +258,9 @@ def build(out: Path) -> None:
     labels = [{**i, "human_label": i["label"]} for i in items]
     write_csv(out / "labels.csv", ["id", "input", "output", "human_label", "notes", "slice"],
               labels)
-    import_labels(out / "labels.csv", out / "anchors.jsonl")
+    write_anchor_file(out / "anchors.jsonl", [
+        {"id": i["id"], "input": i["input"], "output": i["output"], "human_label": i["label"],
+         "slice": i["slice"], **({"notes": i["notes"]} if i["notes"] else {})} for i in items])
 
 
 def main() -> None:

@@ -3,8 +3,8 @@
 Each step on the page is a `<pre data-step="N">` with the command and a
 `<pre class="output" data-step="N">` with what it prints. This test copies website/tutorial/
 to a temporary folder, runs every command in order and checks that the page shows the real
-output and exit code. A step marked `data-run="no"` (the labeling page, which waits for a
-person) is only parsed, not run.
+output and exit code. A step marked `data-run="no"` (a command that waits for a person) is only
+parsed, not run.
 """
 
 from __future__ import annotations
@@ -78,11 +78,20 @@ def tutorial(tmp_path_factory):
 
 def test_the_tutorial_has_every_step():
     lines = [s["line"] for s in _steps()]
-    for needed in ("judgekeeper --version", "judgekeeper check ", "judgekeeper template ",
-                   "judgekeeper label ", "judgekeeper import-labels ", "--callable lazy_judge",
+    for needed in ("judgekeeper --version", "judgekeeper check ", "--callable lazy_judge",
                    "--callable careful_judge", "judgekeeper validate ", "judgekeeper gate ",
                    "judgekeeper migrate ", "judgekeeper import promptfoo "):
         assert any(needed in line for line in lines), needed
+
+
+def test_the_first_judge_run_seals_the_downloaded_anchor_set(tutorial):
+    work, results = tutorial
+    assert not (WEBSITE / "tutorial" / "anchors.manifest.json").exists()  # the reader seals it
+    sealed = [step["line"] for step, proc in results
+              if proc is not None and proc.stdout.startswith("Sealed anchors.jsonl: ")]
+    assert sealed == [("judgekeeper judge anchors.jsonl --callable lazy_judge:judge --runs 3 "
+                       "--out runs/lazy")]
+    assert (work / "anchors.manifest.json").is_file()
 
 
 def test_every_step_prints_what_the_page_shows(tutorial):

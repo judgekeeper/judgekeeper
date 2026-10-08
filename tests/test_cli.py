@@ -1,5 +1,6 @@
 import json
 
+from judgekeeper.anchors import freeze
 from judgekeeper.cli import main
 
 PAIRWISE_PROMPT = """---
@@ -9,23 +10,11 @@ rubric_version: test-v1
 """
 
 
-def test_freeze_success(pairwise_dir):
-    (pairwise_dir / "anchors.manifest.json").unlink()
-    assert main(["freeze", str(pairwise_dir / "anchors.jsonl")]) == 0
-    manifest = json.loads((pairwise_dir / "anchors.manifest.json").read_text(encoding="utf-8"))
-    assert manifest["item_count"] == 8
-
-
 def test_usage_errors_exit_2(pairwise_dir, tmp_path):
-    assert main(["freeze"]) == 2
-    assert main(["freeze", str(tmp_path / "missing.jsonl")]) == 2
     assert main(["validate", str(pairwise_dir / "anchors.jsonl")]) == 2
     assert main(["judge", str(pairwise_dir / "anchors.jsonl"), "--runner", "bogus"]) == 2
-    # validate without a manifest is a usage error: freeze first
-    (pairwise_dir / "anchors.manifest.json").unlink()
-    out = tmp_path / "r"
-    assert main(["validate", str(pairwise_dir / "anchors.jsonl"), str(pairwise_dir / "runs"),
-                 "--out", str(out)]) == 2
+    assert main(["validate", str(tmp_path / "missing.jsonl"), str(pairwise_dir / "runs"),
+                 "--out", str(tmp_path / "r")]) == 2
 
 
 def test_validate_empty_runs_dir_exit_2(pairwise_dir, tmp_path):
@@ -96,7 +85,7 @@ def test_judge_single_output_end_to_end(tmp_path):
     items = [{"id": f"s{i}", "input": "q", "output": "o",
               "human_label": "pass" if i < 9 else "fail"} for i in range(10)]
     anchors.write_text("\n".join(json.dumps(i) for i in items) + "\n", encoding="utf-8")
-    assert main(["freeze", str(anchors)]) == 0
+    freeze(anchors)
     sha = json.loads((tmp_path / "anchors.manifest.json").read_text(encoding="utf-8"))["sha256"]
     fp = {"provider": "replay", "model": "m", "snapshot": "m", "prompt_hash": "h",
           "rubric_version": "single-v1", "temperature": 0.0, "created_at": "2026-10-01T00:00:00Z"}
@@ -209,13 +198,3 @@ def test_ctrl_c_stops_with_one_line_and_no_traceback(monkeypatch, capsys):
     assert "Traceback" not in out.out + out.err
     assert out.out == "\nStopped.\n"
 
-
-def test_template_never_overwrites_a_labels_file_without_force(tmp_path, capsys):
-    items = tmp_path / "items.jsonl"
-    items.write_text('{"id": "a", "input": "q", "output": "x"}\n', encoding="utf-8")
-    labels = tmp_path / "labels.csv"
-    labels.write_text("id,input,output,human_label,notes\na,q,x,pass,\n", encoding="utf-8")
-    assert main(["template", str(items), "-o", str(labels)]) == 2
-    assert "pass" in labels.read_text(encoding="utf-8")
-    assert "--force" in capsys.readouterr().err
-    assert main(["template", str(items), "-o", str(labels), "--force"]) == 0

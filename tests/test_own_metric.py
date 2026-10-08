@@ -279,7 +279,7 @@ def test_every_command_on_the_page_parses():
             argv = judgekeeper_argv(line)
             if argv is not None and not PLACEHOLDER.search(line):
                 found.append((line, argv))
-    assert len(found) >= 6
+    assert len(found) >= 5
     for line, argv in found:
         try:
             _parser().parse_args(argv)

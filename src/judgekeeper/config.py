@@ -9,7 +9,7 @@ from pathlib import Path
 
 from judgekeeper.textio import read_utf8
 
-TABLES = ("attribute", "gate", "migrate", "start")  # [start]: settings.py, from setup
+TABLES = ("gate", "migrate", "start")  # [start]: settings.py, from setup
 
 
 def load_section(path: str | Path, table: str, defaults, error: type[Exception]):

@@ -8,9 +8,9 @@ from judgekeeper.normalise import (
     NormaliseError,
     Normaliser,
     UnmappedValue,
-    normalise_all,
     parse_label_map,
     parse_pass_if,
+    unmapped_error,
 )
 
 
@@ -122,9 +122,13 @@ def test_bad_label_map_is_usage_error(text):
 
 
 def test_unmapped_value_lists_values_seen():
-    with pytest.raises(NormaliseError) as e:
-        normalise_all(Normaliser(), ["pass", "good", "bad", "good", "fail"])
-    msg = str(e.value)
+    norm, seen = Normaliser(), []
+    for value in ["pass", "good", "bad", "good", "fail"]:
+        try:
+            norm(value)
+        except UnmappedValue as e:
+            seen.append(e.value)
+    msg = str(unmapped_error(seen, "verdict"))
     assert "'good'" in msg and "'bad'" in msg and "--label-map" in msg
     assert "'pass'" not in msg
 

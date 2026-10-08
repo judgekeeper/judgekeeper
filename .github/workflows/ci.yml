@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
-      # Node.js 22.18 or later runs the TypeScript snippet of `judgekeeper record` as it is.
+      # Node.js 22.18 or later runs the TypeScript record() snippet in docs/reference.md as it is.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: "22"

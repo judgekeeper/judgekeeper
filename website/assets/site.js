@@ -180,20 +180,6 @@
       p.appendChild(strong);
       p.appendChild(document.createTextNode(" " + migrateText[status]));
     });
-
-    var attrText = {
-      SYSTEM_CHANGE: ["no", "The judge still grades the frozen examples the same way, so the drop comes from your app."],
-      JUDGE_DRIFT: ["mid", "The judge's verdicts on the frozen examples moved, so the judge changed. Your app may be fine."]
-    };
-    toggles("data-attr", function (status) {
-      var p = $("#attr-text");
-      p.innerHTML = "";
-      var tag = document.createElement("span");
-      tag.className = "status " + attrText[status][0];
-      tag.textContent = status;
-      p.appendChild(tag);
-      p.appendChild(document.createTextNode(" " + attrText[status][1]));
-    });
   }
 
   // Get started: accessible tabs. Without this script every panel is shown.

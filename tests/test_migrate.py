@@ -348,16 +348,15 @@ def test_migrate_judges_with_unknown_model(tmp_path, monkeypatch):
     """Callable judges carry no model name; migrate must still render, summarise and rebase."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.syspath_prepend(str(tmp_path))
-    rows = ["id,input,output,human_label,notes"]
-    for i in range(1, 9):
-        rows.append(f"i{i},q{i},a{i},{'pass' if i <= 4 else 'fail'},")
-    (tmp_path / "labels.csv").write_text("\n".join(rows) + "\n", encoding="utf-8")
+    (tmp_path / "anchors.jsonl").write_text("".join(json.dumps(
+        {"id": f"i{i}", "input": f"q{i}", "output": f"a{i}",
+         "human_label": "pass" if i <= 4 else "fail"}) + "\n" for i in range(1, 9)),
+        encoding="utf-8")  # no manifest: the first judge seals it
     (tmp_path / "loose_judge.py").write_text(
         "def judge(item):\n    return 'pass' if item['id'] != 'i8' else 'fail'\n", encoding="utf-8")
     (tmp_path / "exact_judge.py").write_text(
         "def judge(item):\n    return 'pass' if int(item['id'][1:]) <= 4 else 'fail'\n",
             encoding="utf-8")
-    assert main(["import-labels", "labels.csv", "-o", "anchors.jsonl"]) == 0
     for name in ("loose", "exact"):
         assert main(["judge", "anchors.jsonl", "--callable", f"{name}_judge:judge",
                      "--runs", "3", "--out", f"runs/{name}"]) == 0

@@ -24,6 +24,7 @@ from judgekeeper.mapper import SCORE_WORDS, _words
 
 OWN_FORMAT_URL = "www.judgekeeper.com/start.html#own-format"
 INSTALL_URL = "www.judgekeeper.com/start.html#install"
+RECORD_URL = "www.judgekeeper.com/assistant.html#add-the-record-line"
 AGENT_PROMPT = """\
 In this project, my LLM judge saves its results in its own format. Please:
 

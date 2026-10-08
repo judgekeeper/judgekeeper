@@ -254,24 +254,6 @@
         </div>
         <p aria-live="polite" id="migrate-text"><strong>BETTER:</strong> the new judge agrees with people more, by more than the noise. Switch, and expect scores to move because the judge improved.</p>
       </article>
-      <article class="card" id="attr-panel">
-        <h3>Attribute: was it your app or the judge?</h3>
-        <p>Your score dropped. judgekeeper grades the frozen examples again. Their answers never change, so if the judge's verdicts on them moved, the judge changed. If not, your app did.</p>
-        <div class="code"><pre><code>judgekeeper attribute reports/now/report.json --app-score-before 0.82 --app-score-after 0.74</code></pre></div>
-        <div class="toggle-row" role="group" aria-label="Pick what happened to the judge">
-          <button type="button" class="btn secondary" data-attr="SYSTEM_CHANGE" aria-pressed="true">Judge stayed the same</button>
-          <button type="button" class="btn secondary" data-attr="JUDGE_DRIFT" aria-pressed="false">Judge changed</button>
-        </div>
-        <p aria-live="polite" id="attr-text"><span class="status no">SYSTEM_CHANGE</span> The judge still grades the frozen examples the same way, so the drop comes from your app.</p>
-        <table class="plain">
-          <thead><tr><th scope="col">Status</th><th scope="col">Means</th><th scope="col">Exit</th></tr></thead>
-          <tbody>
-            <tr><td>STABLE</td><td>Nothing moved beyond the noise.</td><td data-exit="attribute:STABLE">0</td></tr>
-            <tr><td>JUDGE_DRIFT</td><td>The judge's verdicts on the frozen examples moved.</td><td data-exit="attribute:JUDGE_DRIFT">6</td></tr>
-            <tr><td>SYSTEM_CHANGE</td><td>The judge held still; your app's score moved.</td><td data-exit="attribute:SYSTEM_CHANGE">7</td></tr>
-          </tbody>
-        </table>
-      </article>
     </div>
   </div>
 </section>

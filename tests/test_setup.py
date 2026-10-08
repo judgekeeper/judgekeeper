@@ -16,7 +16,7 @@ import tomllib
 
 import pytest
 
-from judgekeeper import own_format, recorder, setup_project, start
+from judgekeeper import own_format, setup_project, start
 from judgekeeper.cli import main
 from judgekeeper.config import load_section
 from judgekeeper.gate import GateConfig
@@ -194,8 +194,7 @@ def test_a_guess_it_is_not_sure_of_asks_one_confirm_line(tmp_path, capsys, termi
     assert code == 2  # nothing set up
     assert "Is this right?" in asked[0]
     assert own_format.AGENT_PROMPT in out  # the guesses were wrong: the converter prompt
-    assert recorder.AGENT_PROMPT not in out
-    assert "judgekeeper record --agent-prompt" in out
+    assert own_format.RECORD_URL in out
     assert not (tmp_path / "judgekeeper.toml").exists()
 
 
@@ -286,7 +285,7 @@ def test_nothing_found_shows_the_three_doors(tmp_path, capsys):
     (tmp_path / "requirements.txt").write_text("deepeval\n", encoding="utf-8")
     code, out = setup(capsys, tmp_path, "--yes")
     assert code == 2
-    assert "judgekeeper record --agent-prompt" in out
+    assert own_format.RECORD_URL in out
     assert "judgekeeper setup path/to/results.jsonl" in out
     assert not (tmp_path / "judgekeeper.toml").exists()
 

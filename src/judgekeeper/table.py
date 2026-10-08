@@ -330,10 +330,6 @@ def _plain(value) -> str:
     return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
 
 
-def _cell(value) -> str:
-    return guard_cell(_plain(value))
-
-
 def sheet_id(value) -> str:
     """An id cell as the item's id: trimmed, and without the quote `guard_cell` put on it."""
     return unguard_cell(str(value).strip())
@@ -349,66 +345,3 @@ def _with_ids(rows: list[dict]) -> list[tuple[str, dict]]:
     if dups:
         raise TableError(f"duplicate ids: {_listed(dups)}; add a unique id column")
     return out
-
-
-def write_template(items_path: str | Path, out_path: str | Path) -> int:
-    """A labeling sheet for Excel or Google Sheets, with human_label empty. Returns rows."""
-    rows = read_table(items_path)
-    if not rows:
-        raise TableError(f"{items_path} has no rows")
-    columns = set().union(*rows)
-    kind = kind_of(columns)
-    needed = ("input", "output_a", "output_b") if kind == PAIRWISE else ("input", "output")
-    missing = [c for c in needed if c not in columns]
-    if missing:
-        raise TableError(f"{items_path} has no {', '.join(missing)} column")
-    header = TEMPLATE_COLUMNS[kind]
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w", encoding="utf-8", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(header)
-        for item_id, row in _with_ids(rows):
-            w.writerow([guard_cell(item_id)] + [_cell(row.get(c)) for c in header[1:-2]]
-                       + ["", ""])
-    return len(rows)
-
-
-def import_labels(labels_path: str | Path, out_path: str | Path,
-                  label_map: dict | str | None = None) -> dict:
-    """Read a filled-in sheet, check every label, write and freeze the anchor set.
-
-    Returns {"manifest", "n_labeled", "unlabeled": [ids], "quality"}.
-    """
-    from judgekeeper.normalise import normalise_all
-    from judgekeeper.report import label_quality
-
-    rows = read_table(labels_path)
-    if not rows:
-        raise TableError(f"{labels_path} has no rows")
-    columns = set().union(*rows)
-    if "human_label" not in columns:
-        raise TableError(f"{labels_path} has no human_label column")
-    kind = kind_of(columns)
-    keyed = _with_ids(rows)
-    labels = normalise_all(Normaliser(kind, label_map=label_map),
-                           [row.get("human_label") for _, row in keyed], what="human_label",
-                           pass_if=False)
-    items, unlabeled = [], []
-    outputs = ("output_a", "output_b") if kind == PAIRWISE else ("output",)
-    for (item_id, row), label in zip(keyed, labels):
-        if label.verdict == ERROR:
-            unlabeled.append(item_id)
-            continue
-        item = {"id": item_id, "input": unguard_cell(row.get("input", "") or "")}
-        item.update({c: unguard_cell(row.get(c, "") or "") for c in outputs})
-        item["human_label"] = label.verdict
-        for extra in ("slice", "notes"):
-            if not _blank(row.get(extra)):
-                item[extra] = unguard_cell(str(row[extra]))
-        items.append(item)
-    if not items:
-        raise TableError(f"no row in {labels_path} has a human_label yet")
-    manifest = write_anchor_file(Path(out_path), items)
-    return {"manifest": manifest, "n_labeled": len(items), "unlabeled": unlabeled,
-            "quality": label_quality(manifest)}

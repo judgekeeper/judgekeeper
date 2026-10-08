@@ -13,8 +13,8 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
   when the results have them, never shown on a page) and pool-judge.jsonl (the judge's
   verdict on every pool answer, in the run-file format, each line with the full fingerprint).
   Written when labeling starts.
-- labels.csv: the person's labels in the `template` shape, written on every click. A skipped
-  answer has no label and the note "skipped".
+- labels.csv: the person's labels (id, input, output, human_label, notes), written on every
+  click. A skipped answer has no label and the note "skipped".
 - anchors.jsonl and its manifest: the labeled answers as a frozen anchor set, so `judge`,
   `baseline` and `gate` work on them later (with the pool's trajectory, outcome and
   app_version, frozen too). Written with each result.

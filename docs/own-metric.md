@@ -40,14 +40,12 @@ One example rule, from a support team: a reply must state the refund window the 
 
 Everything in this example is synthetic. The data is made up by `scripts/make_own_metric_example.py`, which decides which replies break the policy, so the labels are known by construction. It is an illustration of the steps, not a benchmark of any model.
 
-The files are in [`docs/examples/own-metric/`](examples/own-metric/): [`policy.md`](examples/own-metric/policy.md), the made-up refund policy; [`rule.md`](examples/own-metric/rule.md), the `init` template filled in, with `rubric_version: refund-policy-v1`; [`items.csv`](examples/own-metric/items.csv), 60 customer questions with a support reply each, in four slices (correct, wrong window, over-promise, polite but wrong); [`labels.csv`](examples/own-metric/labels.csv), the labeling sheet filled in; and [`function_judge.py`](examples/own-metric/function_judge.py), a judge that is a short Python function.
+The files are in [`docs/examples/own-metric/`](examples/own-metric/): [`policy.md`](examples/own-metric/policy.md), the made-up refund policy; [`rule.md`](examples/own-metric/rule.md), the `init` template filled in, with `rubric_version: refund-policy-v1`; [`items.csv`](examples/own-metric/items.csv), 60 customer questions with a support reply each, in four slices (correct, wrong window, over-promise, polite but wrong); [`labels.csv`](examples/own-metric/labels.csv), the human labels as a table; [`anchors.jsonl`](examples/own-metric/anchors.jsonl), the same labeled items as the anchor set the judge runs on, sealed by [`anchors.manifest.json`](examples/own-metric/anchors.manifest.json); and [`function_judge.py`](examples/own-metric/function_judge.py), a judge that is a short Python function.
 
-The commands, in order, from that folder. With your own rule, you write the rule and label the items yourself; the files here stand in for that.
+The commands, in order, from that folder. With your own rule, you write the rule and label the items yourself (one JSON line per item in `anchors.jsonl`, with `id`, `input`, `output` and `human_label`; `judge` seals a new file the first time it reads it); the files here stand in for that.
 
 ```
 judgekeeper init --out rule.md                        # then fill in every FILL IN marker
-judgekeeper label items.csv --out labels.csv          # or: judgekeeper template items.csv -o labels.csv
-judgekeeper import-labels labels.csv -o anchors.jsonl
 judgekeeper judge anchors.jsonl --callable function_judge:judge --prompt rule.md --model function_judge.py --runs 3 --out runs/
 judgekeeper validate anchors.jsonl runs/ --out function/
 ```

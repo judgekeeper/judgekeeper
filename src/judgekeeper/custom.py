@@ -26,7 +26,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from judgekeeper.anchors import PAIRWISE, item_kind, load_verified
+from judgekeeper.anchors import PAIRWISE, item_kind, load_verified, seal_new
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser, UnmappedValue, unmapped_error
@@ -206,6 +206,7 @@ def _anchor_path(anchors, out: Path) -> Path:
     from judgekeeper.table import write_anchor_file
 
     if isinstance(anchors, str | Path):
+        seal_new(anchors)  # a new anchor set is sealed on first use, as `judge` does
         return Path(anchors)
     path = out / "anchors.jsonl"
     write_anchor_file(path, list(anchors))
@@ -218,8 +219,8 @@ def check_judge(judge: Callable[[dict], Any], anchors, runs: int = 3,
                 yes: bool = False) -> dict:
     """Run `judge` `runs` times over a frozen anchor set; write run files; return the report.
 
-    `anchors` is a frozen anchor JSONL path, or a list of anchor items (written under `out`
-    and frozen for you). `fingerprint` is whatever you know about the judge: model, provider,
+    `anchors` is an anchor JSONL path (sealed on first use, as `judgekeeper judge` does), or a
+    list of anchor items (written under `out` and frozen for you). `fingerprint` is whatever you know about the judge: model, provider,
     prompt (text, hashed), temperature...; the rest is recorded as unknown. Files go under
     `out` (a temporary directory if None): `runs/run-NN.jsonl`, `report.json`, `report.html`.
     """

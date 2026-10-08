@@ -5,7 +5,7 @@ labels, duplicate ids, and more than 1,000 --callable/--exec judge calls without
 3 anchor hash mismatch, 8 stopped at a question (`start` and `setup`, below).
 `gate` maps its status to an exit code: 0 PASS, 1 FAIL, 3 ANCHORS_CHANGED, 4 FLAKY,
 5 JUDGE_CHANGED (see judgekeeper.gate.EXIT_CODES). `migrate` exits 0 when the analysis
-completes, 1 when --fail-on matches. `attribute` exits 0 STABLE, 6 JUDGE_DRIFT, 7 SYSTEM_CHANGE.
+completes, 1 when --fail-on matches.
 
 Everything printed as an error goes through redact.scrub. A failure with no better message
 (a provider error after the SDK's retries) prints one scrubbed line; --debug adds the
@@ -33,13 +33,19 @@ import os
 import re
 import shutil
 import sys
+import textwrap
 import traceback
 from itertools import pairwise
 from pathlib import Path
 
 from judgekeeper import __version__
-from judgekeeper.anchors import AnchorError, AnchorHashMismatch, freeze, load_verified
-from judgekeeper.attribute import AttributionError
+from judgekeeper.anchors import (
+    AnchorError,
+    AnchorHashMismatch,
+    load_verified,
+    manifest_path_for,
+    seal_new,
+)
 from judgekeeper.custom import CallableError, CallLimitError
 from judgekeeper.find import TOOLS
 from judgekeeper.fingerprint import plaintext_warning
@@ -69,19 +75,18 @@ EXIT_STOPPED = 130  # Ctrl-C, as shells report it
 MAX_ERROR_SHOWN = 300
 
 MESSAGE = "Check your LLM-as-a-judge."
-# The top-level help shows the commands in two groups. Every command is in exactly one
+# The top-level help shows the commands in three groups. Every command is in exactly one
 # (tests/test_front_door.py compares these with the parser).
 START_HERE = (
     ("start", "find your judge's saved results and check them against your own labels"),
     ("setup", "results saved your own way? set the project up in one step, asked once"),
-    ("check", "a table of judge verdicts and human labels in, a verdict out"),
-    ("label", "no human labels yet? label answers in a local page"),
 )
-MORE = (
-    ("your own rule and judge", ("init", "judge", "validate", "template", "import-labels",
-                                 "freeze")),
-    ("keep checking", ("baseline", "gate", "migrate", "attribute")),
-    ("your tools", ("import", "export", "record")),
+IN_CI = ("init", "judge", "validate", "baseline", "gate", "migrate")
+HELP_WIDTH = 100
+OTHER_INPUTS = (
+    ("check", "a table of judge verdicts and human labels in, a verdict out"),
+    ("import", ("your eval tool's results into judge runs (promptfoo, DeepEval, Inspect AI, "
+                "MLflow, Langfuse, records)")),
 )
 
 _ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -100,15 +105,19 @@ class _Parser(argparse.ArgumentParser):
 
 
 class _TopParser(_Parser):
-    """The top-level help: the message, three commands first, the rest in groups."""
+    """The top-level help: the message, then the commands in three groups."""
 
     def format_help(self) -> str:
-        name_width = max(len(name) for name, _ in START_HERE) + 4
-        group_width = max(len(group) for group, _ in MORE) + 3
-        lines = [self.description, "", "Start here:"]
-        lines += [f"  {name:<{name_width}}{text}" for name, text in START_HERE]
-        lines += ["", "More:"]
-        lines += [f"  {group:<{group_width}}{', '.join(names)}" for group, names in MORE]
+        width = max(len(name) for name, _ in START_HERE + OTHER_INPUTS) + 3
+
+        def described(commands) -> list[str]:  # a long line goes on under its description
+            return [line for name, text in commands for line in textwrap.wrap(
+                text, HELP_WIDTH, initial_indent=f"  {name:<{width}}",
+                subsequent_indent=" " * (2 + width))]
+
+        lines = [self.description, "", "Start here:", *described(START_HERE)]
+        lines += ["", "Check again in CI:", f"  {', '.join(IN_CI)}"]
+        lines += ["", "Other inputs:", *described(OTHER_INPUTS)]
         lines += ["", "Options:",
                   "  -h, --help   show this help and exit",
                   "  --version    show the version and exit",
@@ -229,9 +238,6 @@ def _parser() -> argparse.ArgumentParser:
                    help="a rule that compares two outputs (A or B) instead of pass or fail")
     i.add_argument("--force", action="store_true", help="overwrite an existing file")
 
-    f = sub.add_parser("freeze", parents=[common], help="hash an anchor set and write its manifest")
-    f.add_argument("anchors", help="anchor set JSONL")
-
     j = sub.add_parser("judge", parents=[common], help="run a judge over a frozen anchor set")
     j.add_argument("anchors", help="anchor set JSONL (must be frozen)")
     j.add_argument("--runner", choices=["anthropic", "openai", "replay"],
@@ -335,31 +341,6 @@ def _parser() -> argparse.ArgumentParser:
     c.add_argument("--out", default="judgekeeper-report",
                    help="directory for the anchor set, runs and report (default "
                         "judgekeeper-report)")
-
-    t = sub.add_parser("template", parents=[common],
-                       help="write a labeling sheet (CSV) for Excel or Google Sheets")
-    t.add_argument("items", help="items as JSONL or CSV, with input and output columns")
-    t.add_argument("-o", "--out", required=True, help="CSV to write, e.g. labels.csv")
-    t.add_argument("--force", action="store_true",
-                   help="overwrite an existing file (its labels are lost)")
-
-    il = sub.add_parser("import-labels", parents=[common],
-                        help="read a filled-in labeling sheet into a frozen anchor set")
-    il.add_argument("labels", help="CSV (or JSONL) with id, input, output, human_label, notes")
-    il.add_argument("-o", "--out", required=True, help="anchor set JSONL to write")
-    il.add_argument("--label-map", metavar="MAP",
-                    help="extra label spellings, e.g. 'good=pass,bad=fail'")
-
-    lb = sub.add_parser("label", parents=[common],
-                        help="label items in a local page (127.0.0.1) instead of a spreadsheet")
-    lb.add_argument("items", help="items as JSONL or CSV, with input and output columns (or a "
-                                  "sheet from `template`)")
-    lb.add_argument("--out", default="labels.csv",
-                    help="CSV written after every label, in the `template` shape (default "
-                         "labels.csv); reopening resumes from it")
-    lb.add_argument("--port", type=int, default=8765, help="port on 127.0.0.1 (default 8765)")
-    lb.add_argument("--no-browser", action="store_true",
-                    help="print the URL instead of opening a browser")
 
     im = sub.add_parser("import", parents=[common],
                         help="promptfoo, DeepEval, Inspect AI, MLflow or Langfuse results (or "
@@ -485,16 +466,6 @@ def _parser() -> argparse.ArgumentParser:
                     help="print a prompt for your coding agent that turns judge results saved "
                          "in your own format into judgekeeper's table, then exit")
 
-    ex = sub.add_parser("export", parents=[common],
-                        help="write judgekeeper runs and labels in a format other tools read")
-    exsub = ex.add_subparsers(dest="export_format", metavar="format")
-    er = exsub.add_parser("records", help="ScoreRecords JSONL (the format `import records` "
-                                          "reads)")
-    er.add_argument("source", help="a directory written by check or import (or its "
-                                   "report.json), or a runs directory")
-    er.add_argument("-o", "--out", required=True, help="JSONL file to write")
-    er.add_argument("--anchors", help="anchor set, when source is a bare runs directory")
-
     su = sub.add_parser("setup", parents=[common],
                         help="set a project up in one step: where your judge's results are and "
                              "how to read them, .gitignore and the dev requirements; one "
@@ -511,29 +482,6 @@ def _parser() -> argparse.ArgumentParser:
                     help="without a terminal, answer the yes/no questions with their "
                          "default, including the one before the file changes")
 
-    rc = sub.add_parser("record", parents=[common],
-                        help="save your own judge's verdicts: the judgekeeper.record() line as "
-                             "a snippet, or a prompt for your coding agent that adds it")
-    show = rc.add_mutually_exclusive_group(required=True)
-    show.add_argument("--snippet", choices=["python", "typescript"],
-                      help="print a short snippet that writes the same records as "
-                           "judgekeeper.record(), with no import (Python) or for Node.js")
-    show.add_argument("--agent-prompt", action="store_true",
-                      help="print a prompt for your coding agent (Claude Code, Cursor or Codex) "
-                           "that adds one judgekeeper.record() call where your judge runs")
-
-    a = sub.add_parser("attribute", parents=[common],
-                       help="did scores move because the system or the judge changed?")
-    a.add_argument("report", help="current report.json from `validate`")
-    a.add_argument("--baseline", help=f"baseline report (default {DEFAULT_BASELINE})")
-    a.add_argument("--app-score-before", type=float, metavar="X",
-                   help="your app's pass rate (0 to 1) before the change")
-    a.add_argument("--app-score-after", type=float, metavar="Y",
-                   help="your app's pass rate (0 to 1) after the change")
-    a.add_argument("--config", help=f"thresholds TOML, [attribute] table (default "
-                                    f"{DEFAULT_CONFIG} if present)")
-    a.add_argument("--out", help="directory for attribution.json and attribution.md "
-                                 "(default: next to the report)")
     return p
 
 
@@ -617,12 +565,6 @@ def _refuse_unfilled_prompt(prompt: str | None) -> None:
                          "that part of the rule, then run judge again")
 
 
-def cmd_freeze(args) -> int:
-    manifest = freeze(args.anchors)
-    print(json.dumps(manifest, indent=2))
-    return EXIT_OK
-
-
 def cmd_judge(args) -> int:
     from judgekeeper.judging import run_judge
 
@@ -632,6 +574,7 @@ def cmd_judge(args) -> int:
     if len(sources) != 1:
         raise UsageError("judge needs exactly one of --runner, --callable or --exec")
     _refuse_unfilled_prompt(args.prompt)
+    _seal_new(args.anchors)
     items, manifest = load_verified(args.anchors)
     if args.runner is None:
         return _judge_custom(args, items, manifest, run_judge)
@@ -642,6 +585,15 @@ def cmd_judge(args) -> int:
     files = run_judge(items, runner, args.runs, args.out, manifest["sha256"], workers=workers,
                       progress=lambda msg: print(msg, file=sys.stderr))
     return _judge_outcome(files)
+
+
+def _seal_new(anchors: str) -> None:
+    """Seal an anchor set the first time `judge` or `validate` gets it, and say so."""
+    manifest = seal_new(anchors)
+    if manifest is not None:
+        mpath = manifest_path_for(anchors)
+        _say(f"Sealed {anchors}: {_count(manifest['item_count'], 'item')} "
+             f"(sha256 {manifest['sha256'][:12]}...). Commit {mpath} with it.")
 
 
 def _count(n: int, noun: str, fmt: str = "") -> str:
@@ -729,6 +681,7 @@ def cmd_validate(args) -> int:
     from judgekeeper.html_report import render_html
     from judgekeeper.report import ReportError, build_report
 
+    _seal_new(args.anchors)
     try:
         report = build_report(args.anchors, args.runs)
     except ReportError as e:
@@ -739,44 +692,6 @@ def cmd_validate(args) -> int:
                                      encoding="utf-8")
     (out / "report.html").write_text(render_html(report), encoding="utf-8")
     _print_report(report, out)
-    return EXIT_OK
-
-
-def cmd_template(args) -> int:
-    from judgekeeper.table import write_template
-
-    if Path(args.out).is_file() and not args.force:  # it may already hold someone's labels
-        raise UsageError(f"{args.out} exists; pass --force to overwrite it (its labels are "
-                         "lost)")
-    n = write_template(args.items, args.out)
-    print(f"wrote {args.out} ({_count(n, 'row')}): fill in human_label (pass or fail), then "
-          f"run `judgekeeper import-labels {quote_arg(args.out)} -o anchors.jsonl`")
-    return EXIT_OK
-
-
-def cmd_import_labels(args) -> int:
-    from judgekeeper.table import import_labels
-
-    res = import_labels(args.labels, args.out, label_map=args.label_map)
-    m = res["manifest"]
-    dist = ", ".join(f"{k} {v}" for k, v in m["label_distribution"].items())
-    _say(f"wrote {args.out}: {res['n_labeled']} labeled "
-         f"{'item' if res['n_labeled'] == 1 else 'items'} ({dist}), frozen "
-         f"(sha256 {m['sha256'][:12]}...)")
-    if res["unlabeled"]:
-        shown = ", ".join(res["unlabeled"][:10])
-        more = f" and {len(res['unlabeled']) - 10} more" if len(res["unlabeled"]) > 10 else ""
-        rows = "row" if len(res["unlabeled"]) == 1 else "rows"
-        _say(f"  {len(res['unlabeled'])} unlabeled {rows} skipped: {shown}{more}")
-    for flag in res["quality"]["flags"]:
-        _say(f"  warning: {flag['message']}")
-    return EXIT_OK
-
-
-def cmd_label(args) -> int:
-    from judgekeeper.label import run
-
-    run(args.items, args.out, port=args.port, open_browser=not args.no_browser)
     return EXIT_OK
 
 
@@ -880,23 +795,6 @@ def cmd_setup(args) -> int:
                              judge_model=args.judge_model)
 
 
-def cmd_record(args) -> int:
-    from judgekeeper import recorder
-
-    print(recorder.AGENT_PROMPT if args.agent_prompt else recorder.SNIPPETS[args.snippet])
-    return EXIT_OK
-
-
-def cmd_export(args) -> int:
-    from judgekeeper.records import export_records
-
-    if args.export_format is None:
-        raise UsageError("export needs a format: records")
-    n = export_records(args.source, args.out, anchors=args.anchors)
-    print(f"wrote {n} ScoreRecords to {args.out}")
-    return EXIT_OK
-
-
 def cmd_baseline(args) -> int:
     from judgekeeper.gate import load_report
 
@@ -998,40 +896,9 @@ def cmd_migrate(args) -> int:
     return EXIT_OK
 
 
-def cmd_attribute(args) -> int:
-    from judgekeeper.attribute import (
-        AttributeConfig,
-        attribute,
-        load_config,
-        render_markdown,
-    )
-    from judgekeeper.gate import load_report
-
-    config = _config(args, load_config, AttributeConfig())
-    baseline_path = Path(args.baseline) if args.baseline else DEFAULT_BASELINE
-    if not baseline_path.is_file():
-        raise UsageError(f"no baseline at {baseline_path}; pass --baseline or run "
-                         "`judgekeeper baseline set <report.json>`")
-    current = load_report(args.report)
-    baseline = load_report(baseline_path)
-    result = attribute(current, baseline, config, args.app_score_before, args.app_score_after)
-    result = {**result, "baseline_path": str(baseline_path)}
-    out = Path(args.out) if args.out else Path(args.report).parent
-    out.mkdir(parents=True, exist_ok=True)
-    _write_json(out / "attribution.json", result)
-    (out / "attribution.md").write_text(render_markdown(result), encoding="utf-8")
-    _say(f"{result['status']}: {scrub(result['reason'])}")
-    print(f"wrote {out / 'attribution.json'} and {out / 'attribution.md'} "
-          f"(exit {result['exit_code']})")
-    return result["exit_code"]
-
-
-COMMANDS = {"init": cmd_init, "freeze": cmd_freeze, "judge": cmd_judge, "validate": cmd_validate,
+COMMANDS = {"init": cmd_init, "judge": cmd_judge, "validate": cmd_validate,
             "baseline": cmd_baseline, "gate": cmd_gate, "migrate": cmd_migrate,
-            "attribute": cmd_attribute, "check": cmd_check,
-            "template": cmd_template, "import-labels": cmd_import_labels, "label": cmd_label,
-            "import": cmd_import, "export": cmd_export, "start": cmd_start,
-            "record": cmd_record, "setup": cmd_setup}
+            "check": cmd_check, "import": cmd_import, "start": cmd_start, "setup": cmd_setup}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1057,7 +924,7 @@ def main(argv: list[str] | None = None) -> int:
         _error(str(e))
         return EXIT_HASH_MISMATCH
     except (UsageError, AnchorError, PromptError, JudgmentsError, GateError, MigrateError,
-            AttributionError, NormaliseError, TableError, CallableError, CallLimitError,
+            NormaliseError, TableError, CallableError, CallLimitError,
             LabelError, StartError, SettingsError, MapError) as e:
         _error(str(e))
         return EXIT_USAGE

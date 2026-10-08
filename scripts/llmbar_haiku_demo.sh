@@ -18,7 +18,7 @@ if [[ -n "${BASE_URL:-}" ]]; then
 fi
 
 python -m judgekeeper.datasets.llmbar --out anchors/llmbar.jsonl
-judgekeeper freeze anchors/llmbar.jsonl
+rm -f anchors/llmbar.manifest.json  # a fresh download: the first judge call seals it again
 judgekeeper judge anchors/llmbar.jsonl --runner anthropic --model claude-haiku-4-5-20251001 \
   --prompt prompts/pairwise.md --temperature 0 --runs 3 --out runs/llmbar-haiku/ \
   "${judge_flags[@]}"

@@ -21,7 +21,7 @@ from judgekeeper import __version__, check_table, textio
 from judgekeeper.anchors import freeze
 from judgekeeper.cli import main
 from judgekeeper.custom import exec_judge
-from judgekeeper.label import LabelError, LabelSession
+from judgekeeper.label import LabelError, LabelSession, make_server
 from judgekeeper.normalise import NormaliseError, unmapped_error
 from judgekeeper.report import label_quality
 from judgekeeper.table import TableError, read_table
@@ -41,18 +41,6 @@ RECORDS = ["import", "records", str(FIXTURES / "records" / "export.csv"), "--map
 @pytest.fixture
 def windows(monkeypatch):
     monkeypatch.setattr(sys, "platform", "win32")
-
-
-@pytest.fixture(autouse=True)
-def label_server_gives_up_at_once(monkeypatch):
-    """`label` is run here only to see it refuse; if it ever starts, it must not wait."""
-    from judgekeeper import label
-
-    monkeypatch.setattr(label, "IDLE_TIMEOUT", 0.2)
-
-
-def _label(sheet, out) -> list[str]:
-    return ["label", str(sheet), "--out", str(out), "--no-browser", "--port", "0"]
 
 
 def _write(path, text: str, encoding: str = "utf-8"):
@@ -109,16 +97,9 @@ def test_a_utf8_file_with_a_byte_order_mark_still_reads(tmp_path):
 
 
 @pytest.mark.parametrize("encoding", ENCODINGS)
-@pytest.mark.parametrize("command", ["label", "template", "import-labels", "import --labels"])
-def test_every_reader_of_a_table_says_it_is_not_utf8(tmp_path, capsys, command, encoding):
+def test_a_labels_table_says_it_is_not_utf8(tmp_path, capsys, encoding):
     sheet = _write(tmp_path / "sheet.csv", SHEET, encoding)
-    argv = {
-        "label": _label(sheet, tmp_path / "l.csv"),
-        "template": ["template", str(sheet), "-o", str(tmp_path / "t.csv")],
-        "import-labels": ["import-labels", str(sheet), "-o", str(tmp_path / "a.jsonl")],
-        "import --labels": [*RECORDS, "--labels", str(sheet), "--out", str(tmp_path / "o")],
-    }[command]
-    assert main(argv) == 2
+    assert main([*RECORDS, "--labels", str(sheet), "--out", str(tmp_path / "o")]) == 2
     _plain_error(capsys, str(sheet), "UTF-8", "CSV UTF-8 (Comma delimited)")
 
 
@@ -173,7 +154,7 @@ def test_anchors_runs_prompt_report_and_config_say_they_are_not_utf8(tmp_path, c
     _plain_error(capsys, str(run), "UTF-8")
 
     anchors.write_bytes(bad)
-    assert main(["freeze", str(anchors)]) == 2
+    assert main(["validate", str(anchors), str(runs), "--out", str(tmp_path / "r4")]) == 2
     _plain_error(capsys, str(anchors), "UTF-8")
 
 
@@ -279,7 +260,6 @@ def _report(tmp_path) -> str:
 def _output_commands(tmp_path, pairwise_dir, target: str) -> dict[str, list[str]]:
     """Every command that writes, with its output at `target`."""
     anchors, runs = str(pairwise_dir / "anchors.jsonl"), str(pairwise_dir / "runs")
-    sheet = str(_write(tmp_path / "sheet.csv", SHEET))
     report = _report(tmp_path)
     return {
         "check": ["check", str(CHECK_CSV), "--out", target],
@@ -287,21 +267,15 @@ def _output_commands(tmp_path, pairwise_dir, target: str) -> dict[str, list[str]
         "judge": ["judge", anchors, "--runner", "replay", "--fixture",
                   str(pairwise_dir / "runs" / "run-01.jsonl"), "--out", target],
         "gate": ["gate", report, "--out", target],
-        "attribute": ["attribute", report, "--baseline", report, "--out", target],
         "migrate": ["migrate", str(MIG / "anchors.jsonl"), str(MIG / "old"),
                     str(MIG / "new-better"), "--out", target],
         "import": [*RECORDS, "--out", target],
         "init": ["init", "--out", f"{target}/judge.md"],
-        "template": ["template", sheet, "-o", f"{target}/labels.csv"],
-        "import-labels": ["import-labels", sheet, "-o", f"{target}/anchors.jsonl"],
-        "label": _label(sheet, f"{target}/labels.csv"),
-        "export": ["export", "records", str(tmp_path / "made"), "-o", f"{target}/r.jsonl"],
         "baseline": ["baseline", "set", report, "--path", f"{target}/baseline.json"],
     }
 
 
-COMMANDS_THAT_WRITE = ("check", "validate", "judge", "gate", "attribute", "migrate",
-                       "import", "init", "template", "import-labels", "label", "export",
+COMMANDS_THAT_WRITE = ("check", "validate", "judge", "gate", "migrate", "import", "init",
                        "baseline")
 
 
@@ -338,11 +312,10 @@ def test_a_folder_where_a_file_should_be_is_said_plainly(tmp_path, capsys):
     sheet = _write(tmp_path / "sheet.csv", SHEET)
     folder = tmp_path / "a-folder"
     folder.mkdir()
-    for argv in (["template", str(sheet), "-o", str(folder)],
-                 _label(sheet, folder),
-                 ["init", "--out", str(folder), "--force"]):
-        assert main(argv) == 2, argv
-        _plain_error(capsys, str(folder), "is a folder, but a file is needed there")
+    assert main(["init", "--out", str(folder), "--force"]) == 2
+    _plain_error(capsys, str(folder), "is a folder, but a file is needed there")
+    with pytest.raises(LabelError, match="is a folder, but a file is needed there"):
+        make_server(LabelSession(sheet, folder), 0, page="")  # start's labels.csv
 
 
 def test_debug_adds_the_traceback_to_the_plain_line(tmp_path, capsys):
@@ -429,17 +402,6 @@ def test_printed_commands_quote_paths_for_the_shell_in_use(monkeypatch):
     assert textio.quote_arg(r"C:\my data\labels.csv") == r'"C:\my data\labels.csv"'
 
 
-def test_the_label_next_command_uses_double_quotes_on_windows(tmp_path, monkeypatch):
-    out = tmp_path / "my labels.csv"
-    session = LabelSession(_write(tmp_path / "items.csv", SHEET), out)
-    command = session.summary()["next_command"]
-    assert shlex.split(command) == ["judgekeeper", "import-labels", str(out), "-o",
-                                    "anchors.jsonl"]
-    monkeypatch.setattr(sys, "platform", "win32")
-    assert session.summary()["next_command"] == (f'judgekeeper import-labels "{out}" '
-                                                 "-o anchors.jsonl")
-
-
 def test_init_quotes_a_rule_path_that_needs_it(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "platform", "linux")  # both shells' quoting, on every system
@@ -453,24 +415,6 @@ def test_init_quotes_a_rule_path_that_needs_it(tmp_path, monkeypatch, capsys):
     assert f' --prompt "{rule}" --runs 3 ' in capsys.readouterr().out
     assert main(["init"]) == 0
     assert f" --prompt {Path('prompts/judge.md')} --runs 3 " in capsys.readouterr().out
-
-
-def test_other_printed_commands_quote_their_paths_too(tmp_path, monkeypatch, capsys):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "platform", "linux")  # both shells' quoting, on every system
-    sheet = _write(tmp_path / "sheet.csv", SHEET)
-    assert main(["template", str(sheet), "-o", "my labels.csv"]) == 0
-    assert "`judgekeeper import-labels 'my labels.csv' -o anchors.jsonl`" in \
-        capsys.readouterr().out
-    monkeypatch.setattr(sys, "platform", "win32")
-    assert main(["template", str(sheet), "-o", "my labels.csv", "--force"]) == 0
-    assert '`judgekeeper import-labels "my labels.csv" -o anchors.jsonl`' in \
-        capsys.readouterr().out
-    monkeypatch.setattr(sys, "platform", "linux")
-    assert main(["template", str(sheet), "-o", "labels.csv"]) == 0
-    assert capsys.readouterr().out == (
-        "wrote labels.csv (2 rows): fill in human_label (pass or fail), then run `judgekeeper "
-        "import-labels labels.csv -o anchors.jsonl`\n")
 
 
 def test_exec_command_keeps_backslashes_on_windows(monkeypatch):
@@ -557,18 +501,6 @@ def test_one_item_and_one_run_are_singular(tmp_path, capsys):
     assert capsys.readouterr().err.splitlines()[0] == "10 judge calls (10 items x 1 run)"
 
 
-def test_import_labels_and_template_count_one_in_the_singular(tmp_path, capsys):
-    sheet = _write(tmp_path / "sheet.csv", "id,input,output,human_label,notes\na,q,o,pass,\n"
-                                           "b,q,o,,\n")
-    assert main(["import-labels", str(sheet), "-o", str(tmp_path / "a.jsonl")]) == 0
-    out = capsys.readouterr().out.splitlines()
-    assert out[0].startswith(f"wrote {tmp_path / 'a.jsonl'}: 1 labeled item (pass 1), frozen")
-    assert out[1] == "  1 unlabeled row skipped: b"
-    one = _write(tmp_path / "one.csv", "id,input,output\na,q,o\n")
-    assert main(["template", str(one), "-o", str(tmp_path / "t.csv")]) == 0
-    assert f"wrote {tmp_path / 't.csv'} (1 row): " in capsys.readouterr().out
-
-
 def _kappa_flag(report: dict) -> dict:
     (flag,) = [f for f in report["verdict"]["flags"] if "appa" in f["message"]]
     return flag
@@ -646,5 +578,5 @@ def test_init_gives_the_same_label_counts_as_the_website(tmp_path, monkeypatch, 
     assert main(["init"]) == 0
     lines = capsys.readouterr().out.splitlines()
     assert lines[1] == ("  1. label real items (30 to 60 for a first look, about 100 for a "
-                        "firmer result) and freeze the labels:")
+                        "firmer result) in anchors.jsonl,")
     assert "50 to 100" not in "\n".join(lines)

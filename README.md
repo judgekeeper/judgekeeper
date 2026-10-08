@@ -41,7 +41,6 @@ First a plain sentence: of the answers people passed, how many the judge passed,
 
 | You need | Command | Read |
 |---|---|---|
-| Human labels, because you have none yet | `judgekeeper label items.jsonl` | [Labels](https://www.judgekeeper.com/start.html#step-label) |
 | Your own rule, or judgekeeper to run the judge | `judgekeeper init` | [Your own metric](https://www.judgekeeper.com/own-metric.html) |
 | A warning when the judge changes | `judgekeeper gate report.json` | [Keep checking](https://www.judgekeeper.com/learn.html#keeps) |
 | To use results from an eval framework, pytest or CI | `judgekeeper import promptfoo results.json` | [Your tools](https://www.judgekeeper.com/learn.html#works) |

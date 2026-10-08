@@ -1,6 +1,7 @@
 # Copy to .github/workflows/judge-gate.yml in your repo and adjust the paths.
-# Before the first run: `judgekeeper freeze evals/anchors.jsonl`, judge and validate once,
-# then `judgekeeper baseline set reports/report.json` and commit .judgekeeper/baseline.json.
+# Before the first run: judge and validate evals/anchors.jsonl once (the first `judge` seals it:
+# commit evals/anchors.manifest.json), then `judgekeeper baseline set reports/report.json`
+# and commit .judgekeeper/baseline.json.
 name: judge gate
 
 on:
@@ -39,30 +40,3 @@ jobs:
           runs: 3
           flaky-as: pass  # FLAKY is reported in the summary but does not fail the build
 
-  # Weekly only: the gate job above has just re-judged the frozen anchor set. Compare those
-  # verdicts item by item with the baseline's to tell judge drift from a change in your system,
-  # even when the declared fingerprint is identical (a silent provider-side update).
-  # The baseline must carry per-item verdicts (`items` in report.json, schema_version 2): if it
-  # predates them, re-run `validate` on the baseline runs and `baseline set` again.
-  attribute:
-    needs: gate
-    if: always() && github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
-        with:
-          python-version: "3.12"
-      # the same tag as the action above; a commit sha is stricter
-      - run: pip install "judgekeeper @ git+https://github.com/judgekeeper/judgekeeper@v0.2.0"
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
-        with:
-          name: judgekeeper-gate  # the gate action's artifact-name
-          path: judgekeeper-out
-      - name: Attribute
-        run: |
-          set +e
-          judgekeeper attribute judgekeeper-out/report.json --baseline .judgekeeper/baseline.json
-          code=$?
-          cat judgekeeper-out/attribution.md >> "$GITHUB_STEP_SUMMARY"
-          exit $code  # 0 STABLE, 6 JUDGE_DRIFT, 7 SYSTEM_CHANGE, 2 usage, 3 anchors changed

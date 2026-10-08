@@ -548,8 +548,8 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
             talk.say(line)
         talk.say()
         talk.say("Or save your judge's verdicts from now on with one judgekeeper.record() line "
-                 "where it runs: judgekeeper record --agent-prompt prints a prompt that asks "
-                 "your coding agent to add it.")
+                 f"where it runs: {own_format.RECORD_URL} has a prompt that asks your coding "
+                 "agent to add it.")
     talk.say("judgekeeper start reads the results that promptfoo, DeepEval, Inspect AI and "
              "MLflow save, or a CSV or JSONL file with input, output and verdict columns.")
     talk.say(POINT_ME)

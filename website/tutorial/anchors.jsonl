@@ -1,0 +1,10 @@
+{"id": "q1", "input": "What is the capital of France?", "output": "Paris is the capital of France.", "human_label": "pass"}
+{"id": "q2", "input": "What is the capital of Japan?", "output": "The capital of Japan is Tokyo.", "human_label": "pass"}
+{"id": "q3", "input": "What is 12 times 12?", "output": "12 times 12 is 144.", "human_label": "pass"}
+{"id": "q4", "input": "Who wrote Romeo and Juliet?", "output": "It was written by Charles Dickens.", "human_label": "fail"}
+{"id": "q5", "input": "What is the boiling point of water at sea level in Celsius?", "output": "Water boils at 100 degrees Celsius at sea level.", "human_label": "pass"}
+{"id": "q6", "input": "What is the largest planet in our solar system?", "output": "Saturn is the largest planet.", "human_label": "fail"}
+{"id": "q7", "input": "How many continents are there?", "output": "There are seven continents.", "human_label": "pass"}
+{"id": "q8", "input": "What gas do plants absorb from the air?", "output": "Plants absorb oxygen from the air.", "human_label": "fail"}
+{"id": "q9", "input": "What is the square root of 81?", "output": "The square root of 81 is 9.", "human_label": "pass"}
+{"id": "q10", "input": "Which ocean is the largest?", "output": "The Pacific Ocean is the largest ocean.", "human_label": "pass"}

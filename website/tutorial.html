@@ -53,9 +53,8 @@
     <li>
       <h3>Download the files into that folder</h3>
       <ul>
-        <li><a href="tutorial/items.csv" download>items.csv</a>: ten questions, each with an answer. Three answers are wrong: q4 says Dickens wrote Romeo and Juliet, q6 says Saturn is the largest planet, q8 says plants absorb oxygen.</li>
+        <li><a href="tutorial/anchors.jsonl" download>anchors.jsonl</a>: ten questions, each with an answer, already labeled by a person. Three answers are wrong: q4 says Dickens wrote Romeo and Juliet, q6 says Saturn is the largest planet, q8 says plants absorb oxygen.</li>
         <li><a href="tutorial/results.csv" download>results.csv</a>: a pretend judge's verdicts on those answers, three times over, next to a person's labels.</li>
-        <li><a href="tutorial/labels-filled.csv" download>labels-filled.csv</a>: the ten answers, already labeled by a person.</li>
         <li><a href="tutorial/lazy_judge.py" download>lazy_judge.py</a> and <a href="tutorial/careful_judge.py" download>careful_judge.py</a>: two pretend judges, written as short Python functions.</li>
         <li>A folder named <code>promptfoo</code> with <a href="tutorial/promptfoo/results.json" download>results.json</a> and <a href="tutorial/promptfoo/labels.csv" download>labels.csv</a>, for the last step.</li>
       </ul>
@@ -87,45 +86,32 @@ Not trustworthy as a gate: TPR 1.00, TNR 0.33, kappa 0.41 against human labels.
 wrote reports/csv/report.json and reports/csv/report.html</code></pre>
   <p><strong>What it means.</strong> <strong>TPR</strong> (true positive rate) is how often the judge passed what people passed. <strong>TNR</strong> (true negative rate) is how often it failed what people failed. <strong>Kappa</strong> is overall agreement after taking away lucky guessing. Here TPR is <span data-tutorial="csv:headline.tpr_mean">1.00</span>: the judge passed every good answer. But TNR is <span data-tutorial="csv:headline.tnr_mean">0.33</span>: it caught only one of the three wrong answers. This is the most common way a judge fails: it passes too much. Raw agreement would hide it, because most answers are good. The flag "judge identity incomplete" means the spreadsheet does not say which model judged, so judgekeeper cannot tell later if the judge changed.</p>
 
-  <h2 id="step-template">3. Make a labeling sheet</h2>
-  <p>To check a judge you need <strong>human labels</strong>: a person's pass or fail on each answer. Start a sheet you can fill in Excel or Google Sheets:</p>
-  <div class="code"><pre data-step="3"><code>judgekeeper template items.csv -o labels.csv</code></pre></div>
-  <p class="output-label">It prints:</p>
-  <pre class="output" data-step="3"><code>wrote labels.csv (10 rows): fill in human_label (pass or fail), then run `judgekeeper import-labels labels.csv -o anchors.jsonl`</code></pre>
+  <h2 id="step-labels">3. The labels</h2>
+  <p>To check a judge you need <strong>human labels</strong>: a person's pass or fail on each answer. <code>anchors.jsonl</code> holds them, one line per answer: the question, the answer and the person's label. To label your own judge&#39;s answers, run <code>judgekeeper start</code>: it opens a labeling page on your own computer.</p>
+  <p>This file is an <strong>anchor set</strong>: a fixed answer key. The first command that reads it seals it, as the next step shows.</p>
 
-  <h2 id="step-label">4. Or label in your browser</h2>
-  <p>Instead of a spreadsheet, judgekeeper can open a small labeling page on your own computer. Nothing leaves your machine.</p>
-  <div class="code"><pre data-step="4" data-run="no"><code>judgekeeper label items.csv --out labels.csv</code></pre></div>
-  <p>A page opens in your browser and shows one answer at a time. Press <kbd>1</kbd> for pass and <kbd>2</kbd> for fail. It saves after every key, so you can stop and come back. Press Ctrl-C in the terminal when you are done.</p>
-
-  <h2 id="step-freeze">5. Freeze the labels</h2>
-  <p>This step uses <code>labels-filled.csv</code>, which is already labeled. If you labeled your own sheet, use <code>labels.csv</code> instead.</p>
-  <div class="code"><pre data-step="5"><code>judgekeeper import-labels labels-filled.csv -o anchors.jsonl</code></pre></div>
-  <p class="output-label">It prints:</p>
-  <pre class="output" data-step="5"><code>wrote anchors.jsonl: 10 labeled items (fail 3, pass 7), frozen (sha256 2e75fe64157b...)
-  warning: Only 10 labeled items: error bars are wide; aim for about 100.</code></pre>
-  <p><strong>What it means.</strong> The labeled answers are now an <strong>anchor set</strong>: a fixed answer key. judgekeeper stored a hash, a fingerprint of the file. If anyone changes a label, every later command notices and stops. The warning is right: ten labels are too few for real use. Aim for about 100.</p>
-
-  <h2 id="step-judges">6. Run two judges, three times each</h2>
+  <h2 id="step-judges">4. Run two judges, three times each</h2>
   <p>Open <code>lazy_judge.py</code> and <code>careful_judge.py</code>; each is a few lines long. The lazy judge passes any answer that sounds confident. The careful judge knows the facts, but is unsure about one question and sometimes changes its mind, as real AI judges do.</p>
-  <div class="code"><pre data-step="6"><code>judgekeeper judge anchors.jsonl --callable lazy_judge:judge --runs 3 --out runs/lazy</code></pre></div>
+  <div class="code"><pre data-step="3"><code>judgekeeper judge anchors.jsonl --callable lazy_judge:judge --runs 3 --out runs/lazy</code></pre></div>
   <p class="output-label">It prints:</p>
-  <pre class="output" data-step="6"><code>30 judge calls (10 items x 3 runs)
+  <pre class="output" data-step="3"><code>Sealed anchors.jsonl: 10 items (sha256 2e75fe64157b...). Commit anchors.manifest.json with it.
+30 judge calls (10 items x 3 runs)
 wrote runs/lazy/run-01.jsonl (10 judgments)
 wrote runs/lazy/run-02.jsonl (10 judgments)
 wrote runs/lazy/run-03.jsonl (10 judgments)</code></pre>
-  <div class="code"><pre data-step="7"><code>judgekeeper judge anchors.jsonl --callable careful_judge:judge --runs 3 --out runs/careful</code></pre></div>
+  <div class="code"><pre data-step="4"><code>judgekeeper judge anchors.jsonl --callable careful_judge:judge --runs 3 --out runs/careful</code></pre></div>
   <p class="output-label">It prints:</p>
-  <pre class="output" data-step="7"><code>30 judge calls (10 items x 3 runs)
+  <pre class="output" data-step="4"><code>30 judge calls (10 items x 3 runs)
 wrote runs/careful/run-01.jsonl (10 judgments)
 wrote runs/careful/run-02.jsonl (10 judgments)
 wrote runs/careful/run-03.jsonl (10 judgments)</code></pre>
   <p><strong>What it means.</strong> <code>--callable lazy_judge:judge</code> means "the function <code>judge</code> in the file <code>lazy_judge.py</code>". Each run is one full pass over the ten answers. A judge that calls a real model works the same way.</p>
+  <p>The first line is the seal. judgekeeper stored a hash, a fingerprint of <code>anchors.jsonl</code>, in <code>anchors.manifest.json</code>. If anyone changes a label, every later command notices and stops.</p>
 
-  <h2 id="step-validate">7. Compare each judge with the person</h2>
-  <div class="code"><pre data-step="8"><code>judgekeeper validate anchors.jsonl runs/lazy --out reports/lazy</code></pre></div>
+  <h2 id="step-validate">5. Compare each judge with the person</h2>
+  <div class="code"><pre data-step="5"><code>judgekeeper validate anchors.jsonl runs/lazy --out reports/lazy</code></pre></div>
   <p class="output-label">It prints:</p>
-  <pre class="output" data-step="8"><code>Of the answers people passed, the judge passed 86%. Of the answers people failed, the judge failed 67%. It is not trustworthy as a gate.
+  <pre class="output" data-step="5"><code>Of the answers people passed, the judge passed 86%. Of the answers people failed, the judge failed 67%. It is not trustworthy as a gate.
 Not trustworthy as a gate: TPR 0.86, TNR 0.67, kappa 0.52 against human labels.
   - TPR is 0.86 (between 0.80 and 0.90): usable with care.
   - TNR is 0.67 (below 0.80): not trustworthy as a gate.
@@ -133,42 +119,42 @@ Not trustworthy as a gate: TPR 0.86, TNR 0.67, kappa 0.52 against human labels.
   - judge identity incomplete: provider, model, snapshot, endpoint, prompt_hash, rubric_version, temperature
   - Only 10 labeled items: error bars are wide; aim for about 100.
 wrote reports/lazy/report.json and reports/lazy/report.html</code></pre>
-  <div class="code"><pre data-step="9"><code>judgekeeper validate anchors.jsonl runs/careful --out reports/careful</code></pre></div>
+  <div class="code"><pre data-step="6"><code>judgekeeper validate anchors.jsonl runs/careful --out reports/careful</code></pre></div>
   <p class="output-label">It prints:</p>
-  <pre class="output" data-step="9"><code>Of the answers people passed, the judge passed 95%. Of the answers people failed, the judge failed 100%. It is usable as a gate.
+  <pre class="output" data-step="6"><code>Of the answers people passed, the judge passed 95%. Of the answers people failed, the judge failed 100%. It is usable as a gate.
 Usable as a gate: TPR 0.95, TNR 1.00, kappa 0.93 against human labels. Read the flags below before relying on it.
   - judge identity incomplete: provider, model, snapshot, endpoint, prompt_hash, rubric_version, temperature
   - Only 10 labeled items: error bars are wide; aim for about 100.
 wrote reports/careful/report.json and reports/careful/report.html</code></pre>
   <p><strong>What it means.</strong> The lazy judge passed the wrong answer about Saturn, because it sounds sure of itself. Its TNR is <span data-tutorial="lazy:headline.tnr_mean">0.67</span> and kappa <span data-tutorial="lazy:headline.kappa_mean">0.52</span>: not trustworthy. The careful judge caught every wrong answer (TNR <span data-tutorial="careful:headline.tnr_mean">1.00</span>), so it is usable as a gate. Open <code>reports/careful/report.html</code> and find the noise section: the careful judge changed its verdict on <span data-tutorial="careful:noise_floor.items_flipped_fraction" data-format="pct0">10%</span> of the answers, the continents question (q7), between runs. That is why judgekeeper runs a judge more than once.</p>
 
-  <h2 id="step-gate">8. Gate on the result</h2>
+  <h2 id="step-gate">6. Gate on the result</h2>
   <p>A <strong>gate</strong> is an automatic check that can stop a release. In CI it fails the build when the judge is not good enough, using the command's <strong>exit code</strong>: 0 means pass, anything else stops the build.</p>
-  <div class="code"><pre data-step="10"><code>judgekeeper gate reports/lazy/report.json --out gates/lazy</code></pre></div>
+  <div class="code"><pre data-step="7"><code>judgekeeper gate reports/lazy/report.json --out gates/lazy</code></pre></div>
   <p class="output-label">It prints, and exits with code 1:</p>
-  <pre class="output" data-step="10" data-exit-code="1"><code>FAIL: Kappa mean 0.52 is below the 0.60 threshold; TNR mean 0.67 is below the 0.80 threshold.
+  <pre class="output" data-step="7" data-exit-code="1"><code>FAIL: Kappa mean 0.52 is below the 0.60 threshold; TNR mean 0.67 is below the 0.80 threshold.
   no baseline: absolute thresholds only
 wrote gates/lazy/gate.json and gates/lazy/gate.md (exit 1)</code></pre>
-  <div class="code"><pre data-step="11"><code>judgekeeper gate reports/careful/report.json --out gates/careful</code></pre></div>
+  <div class="code"><pre data-step="8"><code>judgekeeper gate reports/careful/report.json --out gates/careful</code></pre></div>
   <p class="output-label">It prints, and exits with code 0:</p>
-  <pre class="output" data-step="11"><code>PASS: The judge clears every absolute threshold; no baseline to compare against.
+  <pre class="output" data-step="8"><code>PASS: The judge clears every absolute threshold; no baseline to compare against.
   no baseline: absolute thresholds only
 wrote gates/careful/gate.json and gates/careful/gate.md (exit 0)</code></pre>
   <p><strong>What it means.</strong> The lazy judge would stop the build; the careful one lets it through. With a saved <strong>baseline</strong> (an earlier report you trust, set with <code>judgekeeper baseline set reports/careful/report.json</code>), the gate also fails when the judge gets worse than before by more than its own noise.</p>
 
-  <h2 id="step-migrate">9. Switch judges with migrate</h2>
-  <p>Pretend you are replacing the lazy judge with the careful one. <code>migrate</code> compares them on the same frozen answers:</p>
-  <div class="code"><pre data-step="12"><code>judgekeeper migrate anchors.jsonl runs/lazy runs/careful --out migration</code></pre></div>
+  <h2 id="step-migrate">7. Switch judges with migrate</h2>
+  <p>Pretend you are replacing the lazy judge with the careful one. <code>migrate</code> compares them on the same sealed answers:</p>
+  <div class="code"><pre data-step="9"><code>judgekeeper migrate anchors.jsonl runs/lazy runs/careful --out migration</code></pre></div>
   <p class="output-label">It prints:</p>
-  <pre class="output" data-step="12"><code>BETTER: The new judge agrees with humans more than the old one (kappa 0.52 → 0.93, +0.40, outside the ±0.22 noise band). Switch and rebase: scores will move because the judge improved, not because your system changed, so do not compare scores across the switch.
+  <pre class="output" data-step="9"><code>BETTER: The new judge agrees with humans more than the old one (kappa 0.52 → 0.93, +0.40, outside the ±0.22 noise band). Switch and rebase: scores will move because the judge improved, not because your system changed, so do not compare scores across the switch.
 wrote migration/migration.json and migration/migration.html</code></pre>
   <p><strong>What it means.</strong> BETTER: the new judge agrees with the person more, by more than the noise between runs. The <strong>noise band</strong> is how much kappa moves on its own between identical runs; a change inside it proves nothing. Open <code>migration/migration.html</code> to see each answer whose verdict changed, and whether the change fixed or broke it.</p>
 
-  <h2 id="step-promptfoo">10. Read results from an eval framework</h2>
+  <h2 id="step-promptfoo">8. Read results from an eval framework</h2>
   <p>promptfoo is a popular tool for testing AI apps. The <code>promptfoo</code> folder holds a results file that promptfoo itself wrote, for six different questions graded three times, and a person's labels for them.</p>
-  <div class="code"><pre data-step="13"><code>judgekeeper import promptfoo promptfoo/results.json --id-var qid --labels promptfoo/labels.csv --out reports/promptfoo</code></pre></div>
+  <div class="code"><pre data-step="10"><code>judgekeeper import promptfoo promptfoo/results.json --id-var qid --labels promptfoo/labels.csv --out reports/promptfoo</code></pre></div>
   <p class="output-label">It prints:</p>
-  <pre class="output" data-step="13"><code>Of the answers people passed, the judge passed 78%. Of the answers people failed, the judge failed 67%. It is not trustworthy as a gate.
+  <pre class="output" data-step="10"><code>Of the answers people passed, the judge passed 78%. Of the answers people failed, the judge failed 67%. It is not trustworthy as a gate.
 Not trustworthy as a gate: TPR 0.78, TNR 0.67, kappa 0.44 against human labels.
   - TPR is 0.78 (below 0.80): not trustworthy as a gate.
   - TNR is 0.67 (below 0.80): not trustworthy as a gate.
