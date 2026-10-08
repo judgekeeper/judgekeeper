@@ -21,7 +21,7 @@ import re
 import shlex
 from pathlib import Path
 
-from judgekeeper import start_label, start_page
+from judgekeeper import start_label, start_page, targets
 from judgekeeper.cli import _parser
 from tests.website_pages import MORE, NAV, ROOT, WEBSITE, Element, pages, parse
 
@@ -417,11 +417,12 @@ def test_the_result_pictures_say_what_judgekeeper_would_say_for_their_numbers():
 def test_the_labeling_picture_uses_the_products_words():
     (mini,) = [el for el in _els(GUIDE) if "mini" in el.classes()]
     flat = _flat(mini)
-    page = start_page.label_page(None, None, start_label.STATUS)
+    page = start_page.label_page(None, None)
     for words in ("The question", "The answer", "Your progress", "See my result →",
                   "Is this answer correct? Your judge's verdict is hidden."):
         assert words in flat and words in page, words
-    assert start_label.STATUS[1][1] in flat  # the line under the meters at a rough check
+    rough = targets.line({"check": "rough", "wide": {}})
+    assert rough in flat  # the line under the meters at a rough check
 
 
 # Older pages -----------------------------------------------------------------------------

@@ -8,15 +8,27 @@ group n_f are labeled, c_f Correct: b = c_f / n_f.
 
 from __future__ import annotations
 
+import json
 import math
+import random
+from pathlib import Path
 
 import pytest
 
 from judgekeeper import weighted
 from judgekeeper.metrics import cohen_kappa
 
+COVERAGE = Path(__file__).resolve().parent.parent / "docs" / "examples" / "coverage"
 
-def test_the_interval_z_is_for_two_intervals_at_97_5_percent():
+
+def test_the_level_is_the_one_the_coverage_grid_chose():
+    chosen = json.loads((COVERAGE / "coverage.json").read_text(encoding="utf-8"))
+    assert weighted.LEVEL == chosen["corrected"]["chosen_level"]
+    assert weighted.LEVEL in (0.95, 0.96, 0.97)
+    assert weighted.DRAWS == chosen["draws"] and weighted.SEED == chosen["seed"]
+
+
+def test_the_steadiness_and_corner_intervals_keep_z_for_two_intervals_at_97_5_percent():
     assert weighted.Z == 2.2414
 
 
@@ -102,24 +114,57 @@ def test_intervals_hold_the_point_and_stay_between_0_and_1(counts):
         assert 0 <= lo <= r[key] + 1e-12 and r[key] - 1e-12 <= hi <= 1, key
 
 
-def test_the_interval_ends_go_into_the_formulas():
-    # TPR low = f(a_low, b_high), high = f(a_high, b_low); TNR the same; the real pass rate
-    # rises with both a and b.
-    r = weighted.corrected(900, 100, 25, 20, 25, 10)
-    a_lo, a_hi = r["a_interval"]
-    b_lo, b_hi = r["b_interval"]
-    pi = 0.9
+def _middle(values, level):
+    values = sorted(values)
+    k = len(values)
+    return values[int(k * (1 - level) / 2)], values[int(k * (1 + level) / 2) - 1]
 
-    def tpr(a, b):
-        return pi * a / (pi * a + (1 - pi) * b)
+
+def test_the_ranges_are_the_middle_of_jeffreys_draws():
+    # Each group's share of Correct answers is Beta(correct + 0.5, labeled - correct + 0.5);
+    # TPR, TNR and the real pass rate come from pairs of draws, and the range is their middle
+    # LEVEL. Checked here with draws of our own (another seed, many more of them).
+    r = weighted.corrected(900, 100, 25, 20, 25, 10)
+    rng, pi, n = random.Random(1), 0.9, 200_000
+    a = [rng.betavariate(20.5, 5.5) for _ in range(n)]
+    b = [rng.betavariate(10.5, 15.5) for _ in range(n)]
+    expected = {
+        "a": a, "b": b,
+        "tpr": [pi * x / (pi * x + (1 - pi) * y) for x, y in zip(a, b)],
+        "tnr": [(1 - pi) * (1 - y) / ((1 - pi) * (1 - y) + pi * (1 - x)) for x, y in zip(a, b)],
+        "real_pass_rate": [pi * x + (1 - pi) * y for x, y in zip(a, b)],
+    }
+    for key, values in expected.items():
+        assert r[f"{key}_interval"] == pytest.approx(_middle(values, weighted.LEVEL), abs=0.01)
+
+
+def test_the_same_labels_give_the_same_ranges_to_two_decimals_whatever_the_seed():
+    one = weighted.corrected(171, 41, 16, 15, 15, 5)
+    assert weighted.corrected(171, 41, 16, 15, 15, 5) == one  # a fixed seed
+    for seed in (1, 2, 3):
+        other = weighted.corrected(171, 41, 16, 15, 15, 5, seed=seed)
+        for key in ("tpr_interval", "tnr_interval", "real_pass_rate_interval"):
+            assert [round(x, 2) for x in other[key]] == pytest.approx(
+                [round(x, 2) for x in one[key]], abs=0.011), key
+
+
+def _corners(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f):
+    """The TNR range before: Wilson at 97.5% per group, joined at the corners."""
+    pi = n_pool_pass / (n_pool_pass + n_pool_fail)
+    (a_lo, a_hi), (b_lo, b_hi) = weighted.wilson(c_p, n_p), weighted.wilson(c_f, n_f)
 
     def tnr(a, b):
         return (1 - pi) * (1 - b) / ((1 - pi) * (1 - b) + pi * (1 - a))
 
-    assert r["tpr_interval"] == pytest.approx([tpr(a_lo, b_hi), tpr(a_hi, b_lo)])
-    assert r["tnr_interval"] == pytest.approx([tnr(a_lo, b_hi), tnr(a_hi, b_lo)])
-    assert r["real_pass_rate_interval"] == pytest.approx(
-        [pi * a_lo + (1 - pi) * b_lo, pi * a_hi + (1 - pi) * b_hi])
+    return tnr(a_lo, b_hi), tnr(a_hi, b_lo)
+
+
+@pytest.mark.parametrize("counts", [(900, 100, 25, 20, 25, 10), (500, 500, 25, 22, 25, 4),
+                                    (700, 300, 15, 12, 15, 3)])
+def test_the_ranges_are_narrower_than_the_corners_were(counts):
+    lo, hi = weighted.corrected(*counts)["tnr_interval"]
+    old_lo, old_hi = _corners(*counts)
+    assert hi - lo < 0.9 * (old_hi - old_lo)
 
 
 def test_the_wilson_interval_at_97_5_percent():
@@ -137,4 +182,5 @@ def test_the_counts_are_kept_with_the_numbers():
     r = weighted.corrected(900, 100, 25, 20, 25, 10)
     assert r["groups"] == {"pass": {"pool": 900, "labeled": 25, "correct": 20},
                            "fail": {"pool": 100, "labeled": 25, "correct": 10}}
-    assert r["z"] == weighted.Z
+    assert r["method"] == "jeffreys"
+    assert (r["level"], r["draws"], r["seed"]) == (weighted.LEVEL, weighted.DRAWS, weighted.SEED)

@@ -82,7 +82,7 @@ Not trustworthy as a gate: TPR 1.00, TNR 0.33, kappa 0.41 against human labels.
   - TNR is 0.33 (below 0.80): not trustworthy as a gate.
   - Kappa vs human labels is 0.41 (below 0.6): not trustworthy as a gate.
   - judge identity incomplete: provider, model, snapshot, endpoint, prompt_hash, rubric_version, temperature
-  - Only 10 labeled items: error bars are wide; aim for about 100.
+  - Too few labels for a rough check (7 labeled pass, 3 labeled fail): it needs 15 of each.
 wrote reports/csv/report.json and reports/csv/report.html</code></pre>
   <p><strong>What it means.</strong> <strong>TPR</strong> (true positive rate) is how often the judge passed what people passed. <strong>TNR</strong> (true negative rate) is how often it failed what people failed. <strong>Kappa</strong> is overall agreement after taking away lucky guessing. Here TPR is <span data-tutorial="csv:headline.tpr_mean">1.00</span>: the judge passed every good answer. But TNR is <span data-tutorial="csv:headline.tnr_mean">0.33</span>: it caught only one of the three wrong answers. This is the most common way a judge fails: it passes too much. Raw agreement would hide it, because most answers are good. The flag "judge identity incomplete" means the spreadsheet does not say which model judged, so judgekeeper cannot tell later if the judge changed.</p>
 
@@ -117,14 +117,14 @@ Not trustworthy as a gate: TPR 0.86, TNR 0.67, kappa 0.52 against human labels.
   - TNR is 0.67 (below 0.80): not trustworthy as a gate.
   - Kappa vs human labels is 0.52 (below 0.6): not trustworthy as a gate.
   - judge identity incomplete: provider, model, snapshot, endpoint, prompt_hash, rubric_version, temperature
-  - Only 10 labeled items: error bars are wide; aim for about 100.
+  - Too few labels for a rough check (7 labeled pass, 3 labeled fail): it needs 15 of each.
 wrote reports/lazy/report.json and reports/lazy/report.html</code></pre>
   <div class="code"><pre data-step="6"><code>judgekeeper validate anchors.jsonl runs/careful --out reports/careful</code></pre></div>
   <p class="output-label">It prints:</p>
   <pre class="output" data-step="6"><code>Of the answers people passed, the judge passed 95%. Of the answers people failed, the judge failed 100%. It is usable as a gate.
 Usable as a gate: TPR 0.95, TNR 1.00, kappa 0.93 against human labels. Read the flags below before relying on it.
   - judge identity incomplete: provider, model, snapshot, endpoint, prompt_hash, rubric_version, temperature
-  - Only 10 labeled items: error bars are wide; aim for about 100.
+  - Too few labels for a rough check (7 labeled pass, 3 labeled fail): it needs 15 of each.
 wrote reports/careful/report.json and reports/careful/report.html</code></pre>
   <p><strong>What it means.</strong> The lazy judge passed the wrong answer about Saturn, because it sounds sure of itself. Its TNR is <span data-tutorial="lazy:headline.tnr_mean">0.67</span> and kappa <span data-tutorial="lazy:headline.kappa_mean">0.52</span>: not trustworthy. The careful judge caught every wrong answer (TNR <span data-tutorial="careful:headline.tnr_mean">1.00</span>), so it is usable as a gate. Open <code>reports/careful/report.html</code> and find the noise section: the careful judge changed its verdict on <span data-tutorial="careful:noise_floor.items_flipped_fraction" data-format="pct0">10%</span> of the answers, the continents question (q7), between runs. That is why judgekeeper runs a judge more than once.</p>
 
@@ -161,13 +161,13 @@ Not trustworthy as a gate: TPR 0.78, TNR 0.67, kappa 0.44 against human labels.
   - Kappa vs human labels is 0.44 (below 0.6): not trustworthy as a gate.
   - 16.7% of items changed verdict between identical runs (above 10%): noisy, use majority of runs.
   - judge identity incomplete: snapshot, endpoint, rubric_version, temperature
-  - Only 6 labeled items: error bars are wide; aim for about 100.
+  - Too few labels for a rough check (3 labeled pass, 3 labeled fail): it needs 15 of each.
 wrote reports/promptfoo/report.json and reports/promptfoo/report.html</code></pre>
   <p><strong>What it means.</strong> judgekeeper read promptfoo's own file; nothing had to be converted. This grader is weak (kappa <span data-tutorial="promptfoo:headline.kappa_mean">0.44</span>) and noisy: it changed its mind between runs. <code>--id-var qid</code> tells judgekeeper which promptfoo variable names each question. DeepEval, Inspect AI, MLflow and Langfuse work the same way: see <a href="learn.html#works">Works with what you already use</a>.</p>
 
   <h2 id="next">Where next</h2>
   <ul>
-    <li>Use your own judge and about 100 labeled answers from your product.</li>
+    <li>Use your own judge and your own labeled answers: at least 25 that should pass and 25 that should fail for a reliable result.</li>
     <li><a href="setup.html">Set up an API key safely</a> to let judgekeeper call Anthropic or OpenAI models.</li>
     <li>Add the gate to your CI with the <a href="setup.html#actions">GitHub Action</a>.</li>
     <li>Every command and flag is in the <a href="reference.html">reference</a>.</li>

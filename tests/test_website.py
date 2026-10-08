@@ -4,7 +4,7 @@ Conventions the pages follow, so these tests can check every figure:
 
 - `data-report="headline.kappa_mean"` with `data-format`: a number from
   docs/examples/llmbar-haiku/report.json. `slices[Natural].kappa_mean` picks a list entry.
-- `data-const="judgekeeper.report:MIN_LABELS"`: a constant from the code.
+- `data-const="judgekeeper.targets:RELIABLE"`: a constant from the code.
 - `data-exit="gate:PASS"`: an exit code from judgekeeper.gate.
 - `data-tutorial="lazy:headline.tnr_mean"`: a number from the tutorial run, checked in
   test_website_tutorial.py.

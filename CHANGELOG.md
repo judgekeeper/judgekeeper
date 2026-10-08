@@ -157,7 +157,23 @@ after you say yes, your own judge through your own tool, and key names only.
 - `--label-map` advice never guesses which side a word is on, and `right`/`wrong` are read
   like `correct`/`incorrect` by default.
 - The project does not accept pull requests. Bug reports and ideas are welcome as issues.
-- No change to any metric or report field.
+- `judgekeeper start`'s ranges are narrower, and still hold what they promise. They come from
+  Jeffreys draws instead of Wilson ranges at 97.5% joined at the corners, at a 96% level that
+  a coverage check chose (`scripts/coverage_check.py`; results in
+  `docs/examples/coverage/coverage.md`): in thousands of simulated checks they held the true
+  value at least 93.6 times in 100 in every case, and they are 27.1% narrower on average. After
+  asking your judge again, the ranges use the same draws instead of a bootstrap, which held the
+  true value as rarely as 53.8 times in 100.
+- One set of label targets for every command: a rough check needs 15 of each kind of label, a
+  reliable result 25 of each and both the TPR and the TNR range no wider than 0.30. When 25 of
+  each is reached but a range is still wider, `start`, its labeling page, `check` and
+  `validate` say which range and to label more. `init` prints the same targets. Changed in
+  `report.json`: the flags `few_labels` (fewer than 60 labels) and `lopsided_labels` (worse
+  than 80/20) are replaced by `too_few_labels`, `rough_check` and `not_reliable_yet`;
+  `label_quality.largest_class` and `largest_class_share` by `per_class`, `check` and `wide`.
+  In `result.json`, `z` is replaced by `method`, `level`, `draws` and `seed`, with a new
+  `wide`; in the block after asking again, `resamples` is replaced by `level` and `draws`.
+- No change to any metric.
 
 ## 0.1.3 (2026-10-04)
 

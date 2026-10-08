@@ -18,8 +18,15 @@ from __future__ import annotations
 from collections import defaultdict
 from pathlib import Path
 
-from judgekeeper import __version__
-from judgekeeper.anchors import NEGATIVE, PAIRWISE, POSITIVE, AnchorHashMismatch, load_verified
+from judgekeeper import __version__, targets
+from judgekeeper.anchors import (
+    NEGATIVE,
+    PAIRWISE,
+    POSITIVE,
+    SINGLE,
+    AnchorHashMismatch,
+    load_verified,
+)
 from judgekeeper.fingerprint import JudgeFingerprint, unknown_fields, utc_now
 from judgekeeper.judgments import JudgmentsError, default_source, read_run
 from judgekeeper.metrics import ERROR, _mean, agreement, noise_floor, position_bias, wilson_interval
@@ -36,9 +43,6 @@ FLIP_RATE_MAX = 0.10
 RATE_GATE = 0.80
 RATE_CARE = 0.90
 ERROR_RATE_MAX = 0.02
-# Label quality: fewer labeled items than this gives wide error bars.
-MIN_LABELS = 60
-MAX_CLASS_SHARE = 0.80
 NOISE_UNKNOWN = "unknown: one run supplied"
 
 TRUSTWORTHY = "usable"
@@ -115,24 +119,35 @@ def _rate_flags(name: str, value: float | None) -> list[dict]:
     return []
 
 
-def label_quality(manifest: dict) -> dict:
-    """Warnings about the human labels themselves: too few, or one class dominating."""
+# The words for the two kinds of human label, in the label targets' flags.
+LABEL_NAMES = {PAIRWISE: ("items people labeled A", "items people labeled B")}
+SINGLE_NAMES = ("answers people passed", "answers people failed")
+
+
+def label_quality(manifest: dict, headline: dict) -> dict:
+    """The human labels against the label targets every command shares (targets.py): a
+    rough check needs ROUGH of each kind, a reliable result RELIABLE of each and the TPR and
+    TNR ranges (the headline's) no wider than MAX_WIDTH."""
     dist = manifest["label_distribution"]
-    n = sum(dist.values())
-    top_label, top_n = max(dist.items(), key=lambda kv: kv[1]) if dist else (None, 0)
-    share = top_n / n if n else None
+    kind = manifest.get("kind") or SINGLE
+    pos, neg = POSITIVE[kind], NEGATIVE[kind]
+    n_pos, n_neg = dist.get(pos, 0), dist.get(neg, 0)
+    ends = {k: [(headline.get(k) or {}).get("lo"), (headline.get(k) or {}).get("hi")]
+            for k in ("tpr_ci", "tnr_ci")}
+    r = targets.check(n_pos, n_neg, ends["tpr_ci"], ends["tnr_ci"])
+    counts = f"{n_pos} labeled {pos}, {n_neg} labeled {neg}"
     flags = []
-    if n < MIN_LABELS:
-        items = "item" if n == 1 else "items"
-        flags.append(_flag("few_labels", f"Only {n} labeled {items}: error bars are wide; aim "
-                                         "for about 100."))
-    if share is not None and share > MAX_CLASS_SHARE:
-        flags.append(_flag("lopsided_labels",
-                           f"{share:.0%} of human labels are {top_label!r} (more lopsided than "
-                           f"80/20): the rarer class has few examples, so its rate is "
-                           "poorly measured; aim for a more even split."))
-    return {"n_labeled": n, "largest_class": top_label, "largest_class_share": share,
-            "flags": flags}
+    if r["check"] == "too_few":
+        flags.append(_flag("too_few_labels", f"Too few labels for a rough check ({counts}): it "
+                                             f"needs {targets.ROUGH} of each."))
+    elif r["wide"]:
+        flags.append(_flag("not_reliable_yet",
+                           targets.line(r, LABEL_NAMES.get(kind, SINGLE_NAMES))))
+    elif r["check"] == "rough":
+        flags.append(_flag("rough_check", f"Rough check ({counts}): a reliable result needs "
+                                          f"{targets.RELIABLE} of each."))
+    return {"n_labeled": sum(dist.values()), "per_class": {pos: n_pos, neg: n_neg},
+            "check": r["check"], "wide": r["wide"], "flags": flags}
 
 
 def _verdict(headline: dict, nf: dict, pb: dict | None, n_runs: int, n_invalid: int,
@@ -380,7 +395,7 @@ def report_from_runs(anchors_path: str | Path, items: list[dict], manifest: dict
     }
     fingerprint = scrub_fingerprint(runs[0]["fingerprint"].to_dict())
     unknown = unknown_fields(fingerprint)
-    quality = label_quality(manifest)
+    quality = label_quality(manifest, headline)
     header = runs[0]["header"]
     source = {**default_source(), **(header.get("source") or {})}
     notes = []

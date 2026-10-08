@@ -32,7 +32,7 @@ import webbrowser
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from judgekeeper import weighted
+from judgekeeper import targets, weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.start_label import FOLDER, Workspace
 
@@ -41,7 +41,7 @@ COMMAND = "--try-new-judge"
 QUICK = 10
 QUICK_STATUS = [(0, f"A quick check needs {QUICK} of each.", False),
                 (QUICK, "Quick check ready. More makes the ranges narrower.", True),
-                (15, "Quick check ready, as many as a rough check.", True)]
+                (targets.ROUGH, "Quick check ready, as many as a rough check.", True)]
 WARNING = ("You changed your judge after seeing mistakes on these answers, so it will look "
            "better on them.")
 CONFIRM = f"Mark {QUICK} Correct and {QUICK} Wrong new answers to confirm?"
@@ -323,8 +323,16 @@ def confirmation_page(cws: Workspace) -> str:
     from judgekeeper.start_page import label_page
 
     data = cws.data()
-    return label_page(data.get("description"), data.get("rule"), QUICK_STATUS,
-                      marks=("quick", "rough"))
+    return label_page(data.get("description"), data.get("rule"),
+                      marks=((QUICK, "quick"), (targets.ROUGH, "rough")))
+
+
+def quick_status(session) -> dict:
+    """The line under the meters for the quick check: from the counts alone (QUICK_STATUS)."""
+    counts = session.counts()
+    least = min(counts["correct"], counts["wrong"])
+    _, text, ready = [s for s in QUICK_STATUS if least >= s[0]][-1]
+    return {"text": text, "ready": ready}
 
 
 def serve_confirmation(ws: Workspace, cws: Workspace, port: int, open_browser: bool,
@@ -334,7 +342,7 @@ def serve_confirmation(ws: Workspace, cws: Workspace, port: int, open_browser: b
     from judgekeeper.label import make_server
     from judgekeeper.start_label import StartSession, _scrubbed, result_html
 
-    session = StartSession(cws)
+    session = StartSession(cws, status=quick_status)
     made: list[bool] = []
 
     def result(session, back):

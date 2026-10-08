@@ -29,7 +29,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper import find, settings
+from judgekeeper import find, settings, targets
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map, unmapped_error
@@ -57,9 +57,9 @@ EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_QUESTION = 8  # stopped at a question it cannot ask (no terminal); nothing went wrong
 
-MIN_POOL = 30  # a rough check needs ROUGH of each
-ROUGH = 15
-RELIABLE = 25
+ROUGH = targets.ROUGH  # the label targets every command shares
+RELIABLE = targets.RELIABLE
+MIN_POOL = 2 * ROUGH  # a rough check needs ROUGH of each
 RUBRIC_WIDTH = 60
 GIVEN_BY_YOU = "given by you"
 POINT_ME = "Point me at the results: judgekeeper start path/to/results.json"
