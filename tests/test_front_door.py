@@ -541,8 +541,9 @@ def test_a_removed_command_is_an_invalid_choice(capsys, command):
     assert main([command, "x"]) == 2
     err = capsys.readouterr().err
     assert f"invalid choice: '{command}'" in err
+    # Some Python versions quote each choice, others do not
     assert "choose from init, judge, validate, baseline, gate, migrate, check, import, start, " \
-           "setup" in err
+           "setup" in err.replace("'", "")
 
 
 def test_help_starts_with_the_message_and_ends_with_the_pointer(capsys):
