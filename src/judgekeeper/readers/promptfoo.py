@@ -23,6 +23,13 @@ Traps handled here:
   when promptfoo changes its own grading prompt; when every judged row of a metric gives the
   same template, its hash is the prompt hash. The rule shown to the person stays the rubric.
 - `metadata.cachedResponse` marks a verdict promptfoo replayed from its cache: a warning.
+- A grader that failed (its call errored, or its reply could not be read) is saved as a plain
+  fail: `graderFail(reason)` in src/matchers/shared.ts is fail(reason) plus
+  `metadata.graderError`. The record keeps it as promptfoo saved it and gets an in-memory
+  mark (records.Mark) for `start`'s judge check; older files have no flag, so the reasons
+  promptfoo writes (src/matchers/rubric.ts, llmGrading.ts) are read instead. The row's
+  `error` and `failureReason` are never used for this: `error` also holds the reason of an
+  ordinary fail, and a grader error has `failureReason` 1 (ASSERT), like any fail.
 - promptfoo's PROMPTFOO_STRIP_RESPONSE_OUTPUT, PROMPTFOO_STRIP_TEST_VARS and
   PROMPTFOO_STRIP_GRADING_RESULT settings remove the answers, the inputs or the grading from
   every row, in `eval -o` and `export` files alike. When most rows lack one of them, the file
@@ -34,6 +41,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -42,6 +50,7 @@ from judgekeeper.records import (
     CODE,
     HUMAN,
     LLM,
+    Mark,
     RecordList,
     RecordsError,
     ScoreRecord,
@@ -62,6 +71,29 @@ SET_GRADER = ("{n} judgments were graded by a grader set with --grader (provider
               "promptfoo saves only its model name.")
 CACHED = ("{n} judgments in {file} came from promptfoo's cache: they may be old replies, not "
           "fresh verdicts.")
+
+
+# How promptfoo words a grader failure (graderFail callers in src/matchers/rubric.ts,
+# llmGrading.ts and rag.ts): a reply it could not read, or a call that failed ("API error: ..."
+# is the provider's error, src/providers/openai/chat.ts, passed on by rubric.ts; an empty
+# reply is "No output"). Read by these words only when the file has no graderError flag (older
+# promptfoo), so they are kept narrow.
+UNREADABLE_REASONS = ("Could not extract JSON from ", "Error parsing output:")
+ERROR_REASONS = ("Could not perform remote grading:", "API error:")
+NO_OUTPUT = "No output"
+MALFORMED = re.compile(r"\A(\S+ |Model grader )?produced (a )?malformed response")
+
+
+def grader_problem(component: dict, metadata: dict) -> str | None:
+    """"unreadable" or "error" when the grader made no real decision, else None."""
+    reason = component.get("reason")
+    reason = reason if isinstance(reason, str) else ""
+    flagged = metadata.get("graderError") is True
+    if reason.startswith(UNREADABLE_REASONS) or (flagged and MALFORMED.match(reason)):
+        return "unreadable"
+    if flagged or reason.startswith(ERROR_REASONS) or reason == NO_OUTPUT:
+        return "error"
+    return None
 
 
 STRIPPED = ("The {what} are missing from {file}. promptfoo leaves them out when {setting} is "
@@ -278,10 +310,13 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                 prompt = f"{prompt or ''}\n\n{_text(rubric_prompt)}"
             if prompt is not None:
                 evaluator["prompt"] = prompt
+            problem = grader_problem(c, metadata)
+            mark = Mark(problem=problem, tool_counted_as=label if problem else None)
             record = ScoreRecord(
                 target_id=item_id, name=name, annotator_kind=LLM, label=label,
                 score=c.get("score"), explanation=c.get("reason") or None, run=run, **content,
-                evaluator=evaluator, created_at=created_at)
+                evaluator=evaluator, created_at=created_at,
+                mark=mark)
             records.append(record)
             rendered = metadata.get("renderedGradingPrompt")
             templates[name].append((record, grading_template(

@@ -14,7 +14,9 @@ or `expectation`, `rationale`, `metadata`, `overrides`, `valid`.
   one page of 100 at a time, scoped with `locations` where it takes that parameter (MLflow
   3.16 deprecates `experiment_ids`) and `experiment_ids` otherwise.
 - `source_type` LLM_JUDGE is the judge, HUMAN the human, CODE ignored. Only feedback counts;
-  expectations (ground truth) are not verdicts.
+  expectations (ground truth) are not verdicts. A judge assessment with `feedback.error` has
+  no verdict; its error text is the explanation, and an in-memory mark (records.Mark) tells
+  `start`'s judge check the judge's call failed.
 - `mlflow.override_feedback` marks the judge's assessment `valid: false` and logs the human's
   with `overrides` = its id: the overridden value is still the judge's verdict. A human
   assessment that is itself overridden (`valid: false`) is dropped.
@@ -61,6 +63,8 @@ from judgekeeper.records import (
     CODE,
     HUMAN,
     LLM,
+    NO_MARK,
+    Mark,
     RecordList,
     RecordsError,
     ScoreRecord,
@@ -473,7 +477,8 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
                 evaluator["temperature"] = temperature
             explanation = error or d.get("rationale") or None
             record = ScoreRecord(annotator_kind=LLM, explanation=explanation,
-                                 evaluator=evaluator, **common)
+                                 evaluator=evaluator, **common,
+                                 mark=Mark(problem="error") if error else NO_MARK)
             if span:
                 on_spans.append((run, record))
             else:

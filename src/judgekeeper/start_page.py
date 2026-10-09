@@ -24,6 +24,7 @@ from __future__ import annotations
 from html import escape
 
 from judgekeeper import targets
+from judgekeeper.judge_check import TITLE as JUDGE_CHECK_TITLE
 
 LOGO = """<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">
       <path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>
@@ -219,6 +220,9 @@ h1 { font-size: 2.1rem; line-height: 1.2; margin: 0 0 6px; letter-spacing: -.02e
 .review p { margin: 0 0 6px; }
 .review .meta { margin-top: 10px; }
 .files { margin: 4px 0 0; padding-left: 20px; }
+.quiet { margin: 10px 0 0; color: var(--muted); font-size: 0.9rem; }
+.quiet summary { cursor: pointer; }
+.quiet p { margin: 6px 0 0; }
 @media (max-width: 760px) {
   header { padding: 0 16px; } .hdr-note { display: none; }
   main { padding: 16px 16px 32px; }
@@ -515,6 +519,14 @@ def _review(review: dict | None) -> str:
             + "</div>")
 
 
+def _quiet(line: str | None) -> str:
+    """Nothing found by the judge check: one quiet line, folded."""
+    if not line:
+        return ""
+    return (f'<details class="quiet"><summary>{escape(JUDGE_CHECK_TITLE)}</summary>'
+            f'<p>{escape(line)}</p></details>')
+
+
 def result_page(content: dict, back: str | None = None) -> str:
     """The result as a page. `content` holds the text (see start_label.page_content); `back`
     is the link to the labeling page while the server runs, None for the saved copy, where
@@ -540,6 +552,7 @@ def result_page(content: dict, back: str | None = None) -> str:
 {_verdict(content["verdict"])}
 <div class="tiles">{"".join(_tile(t) for t in content["tiles"])}</div>
 {facts}
+{_review(content.get("judge_check"))}
 {_review(content.get("review"))}
 {_review(content.get("again"))}
 {_review(content.get("new_judge"))}
@@ -550,6 +563,7 @@ def result_page(content: dict, back: str | None = None) -> str:
     <p class="judge">{name}{escape(judge["model"])}</p>
     {rule}
     {source}
+    {_quiet(content.get("judge_check_quiet"))}
   </div>
   <div class="card">
     <h2>What next</h2>

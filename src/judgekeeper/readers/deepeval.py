@@ -15,6 +15,17 @@ Traps handled here:
 - The GEval rubric is persisted only inside `verboseLogs` (deepeval/metrics/g_eval/g_eval.py):
   steps "Criteria:", "Evaluation Steps:", "Rubric:" and "Score: <x>" joined with " \\n \\n".
   The prompt hash covers the first three; the score differs per item and is left out.
+- A metric whose judge call failed is saved with `success: false` and `score: null`, often
+  with `error` empty too (an unreadable reply or an HTTP 400 in Faithfulness). DeepEval also
+  refuses an empty `actual_output` this way, before any call, with the error
+  "'actual_output' cannot be empty for the '<metric>' metric"
+  (deepeval/metrics/utils/test_case.py): marked "empty_answer_refused". A QAG metric whose judge returned no verdicts at
+  all scores a full 1.0 and passes (`score_qag_verdicts(...,
+  empty_score=1)` in deepeval/metrics/utils/qag.py; its verboseLogs then hold an empty
+  "Verdicts:\n[]" part, built by construct_verbose_logs in deepeval/metrics/utils/verbose.py
+  from `f"Verdicts:\n{prettify_list(self.verdicts)}"`, e.g. metrics/faithfulness). Both are
+  read as DeepEval saved them, with an in-memory mark (records.Mark) for `start`'s judge
+  check.
 - `evaluationModel` is the model's name as DeepEval's model class gives it: the provider is a
   suffix (`claude-sonnet-4-6 (Anthropic)`, `my-deployment (Azure)`, `gemini-x (Gemini)`), and
   a bare name is OpenAI's, since DeepEval builds an OpenAI model for any plain string. A
@@ -28,7 +39,14 @@ import re
 from pathlib import Path
 
 from judgekeeper.anchors import canonical_json
-from judgekeeper.records import LLM, RecordList, RecordsError, ScoreRecord, derive_record_id
+from judgekeeper.records import (
+    LLM,
+    Mark,
+    RecordList,
+    RecordsError,
+    ScoreRecord,
+    derive_record_id,
+)
 from judgekeeper.textio import read_utf8
 
 POSITIONAL = re.compile(r"(conversational_)?test_case_\d+")
@@ -61,6 +79,36 @@ def rubric_from_verbose_logs(logs: str | None) -> str | None:
         return None
     parts = [p for p in logs.split(SEPARATOR) if p.startswith(PROMPT_PARTS)]
     return SEPARATOR.join(parts) or None
+
+
+NO_VERDICTS = "Verdicts:\n[]"  # prettify_list([]) is "[]"
+FULL_MARKS = 1.0  # score_qag_verdicts' empty_score
+
+
+def checked_nothing(md: dict) -> bool:
+    """The metric's judge returned no verdicts, and DeepEval scored that as full marks."""
+    logs = md.get("verboseLogs")
+    return (md.get("score") == FULL_MARKS and isinstance(logs, str)
+            and any(part.strip() == NO_VERDICTS for part in logs.split(SEPARATOR)))
+
+
+def failed(md: dict) -> bool:
+    """The metric's judge made no decision: `error` set, or no score and `success` false."""
+    return bool(md.get("error")) or (md.get("score") is None and md.get("success") is False)
+
+
+EMPTY_REFUSED = "'actual_output' cannot be empty"
+
+
+def _mark(md: dict, label, conversational: bool) -> Mark:
+    problem = None
+    if failed(md):
+        refused = str(md.get("error") or "").startswith(EMPTY_REFUSED)
+        problem = "empty_answer_refused" if refused else "error"
+    elif checked_nothing(md):
+        problem = "nothing_checked"
+    return Mark(problem=problem, tool_counted_as=label if problem else None,
+                output_elsewhere=conversational)
 
 
 def _load(path: Path) -> dict:
@@ -110,11 +158,12 @@ def read_deepeval(path: str | Path) -> RecordList:
                 evaluator["prompt"] = prompt
             if md.get("threshold") is not None:
                 thresholds.setdefault(md["name"], set()).add(md["threshold"])
+            label = None if not isinstance(success, bool) else ("pass" if success else "fail")
             records.append(ScoreRecord(
-                target_id=item_id, name=md["name"], annotator_kind=LLM,
-                label=None if not isinstance(success, bool) else ("pass" if success else "fail"),
+                target_id=item_id, name=md["name"], annotator_kind=LLM, label=label,
                 score=md.get("score"), explanation=md.get("reason") or md.get("error") or None,
-                input=item_input, output=output, evaluator=evaluator, created_at=created_at))
+                input=item_input, output=output, evaluator=evaluator, created_at=created_at,
+                mark=_mark(md, label, conversational)))
     if records.ids_derived:
         records.warnings.append(POSITIONAL_WARNING)
     records.per_metric = {name: {"threshold": next(iter(ts)) if len(ts) == 1 else sorted(ts)}

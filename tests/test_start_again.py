@@ -223,6 +223,42 @@ def test_changed_answers_offer_to_label_the_latest_results(tmp_path, capsys, ser
     assert ws.data()["pool"]["answers"] == 36 and not ws.result_json.exists()
 
 
+def test_labeled_answers_the_judge_did_not_judge_are_not_called_changed(tmp_path, capsys,
+                                                                       served):
+    from tests.test_judge_check import promptfoo_with_problems
+
+    _checked(tmp_path, n_pass=20, n_fail=16)
+    # The next eval run: the same 36 answers, but the grader errored on 6 of the judge's
+    # fails, so only 10 of the 16 marked Wrong are left to compare.
+    data = promptfoo_with_problems(split(20, 16), errors=range(30, 36))
+    data["metadata"] = {"evaluationCreatedAt": "2026-10-09T09:00:00Z"}
+    (tmp_path / "results.json").write_text(json.dumps(data), encoding="utf-8")
+    code, out, _ = run(capsys, tmp_path)
+    assert "30 of your 36 labeled answers are in your latest results (2026-10-09)." in out
+    assert ("6 of your labeled answers are left out now: your judge made no real decision on "
+            "them.") in out
+    assert "your app gives different answers now" not in out
+    assert "Fewer than 15 Correct or 15 Wrong of them are left to compare." in out
+    assert code == start.EXIT_QUESTION and served == []  # asks before labeling the new results
+
+
+def test_a_labeled_answer_left_out_and_others_changed(tmp_path, capsys, served):
+    from tests.test_judge_check import grader_fail
+
+    _checked(tmp_path, n_pass=20, n_fail=16)
+    data = promptfoo_data(split(20, 16), created="2026-10-09T09:00:00Z")
+    rows = data["results"]["results"]
+    grader_fail(rows[0], "Could not perform remote grading: timeout")
+    for i in range(20, 36):  # the app answers these differently now
+        rows[i]["response"]["output"] += " (new wording)"
+    (tmp_path / "results.json").write_text(json.dumps(data), encoding="utf-8")
+    _, out, _ = run(capsys, tmp_path)
+    assert ("1 of your labeled answers is left out now: your judge made no real decision on "
+            "it.") in out
+    assert ("Fewer than 15 Correct or 15 Wrong of them came back unchanged: your app gives "
+            "different answers now, so the old labels do not apply to them.") in out
+
+
 def test_changed_answers_without_a_terminal_need_yes(tmp_path, capsys, served):
     _checked(tmp_path, n_pass=20, n_fail=16)
     _rewrite(tmp_path, split(20, 16), tag=" (new wording)")

@@ -109,8 +109,9 @@ def test_no_fails_at_all(tmp_path, capsys, no_labeling):
     promptfoo_project(tmp_path, split(40, 0))
     code, out, _ = run(capsys, tmp_path, "--yes")
     assert code == 0 and no_labeling
-    assert ("Your judge failed none of your 40 answers. That may mean it passes too much: "
-            "your labels will show it.") in out
+    assert ("Your judge passed every answer. It may not be checking anything: your marks "
+            "will show it.") in out
+    assert "none of your" not in out
     assert "You'll see only answers it passed." in out
 
 

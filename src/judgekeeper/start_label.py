@@ -18,6 +18,9 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
 - anchors.jsonl and its manifest: the labeled answers as a frozen anchor set, so `judge`,
   `baseline` and `gate` work on them later (with the pool's trajectory, outcome and
   app_version, frozen too). Written with each result.
+- judge-check.json and judge-check.csv: did the judge actually judge? (judge_check.py): the
+  counts and each answer found, written when labeling starts (and when `start` names the
+  CSV). A re-check copies the old ones to history/ with the other start files.
 - result.json and result.html, with the earlier result moved to history/.
 - review.json, judge-mistakes.csv and rule-unclear.csv: the review of the disagreements
   (start_review.py).
@@ -27,6 +30,7 @@ written anywhere else, and the user's .gitignore is never touched.
 
 from __future__ import annotations
 
+import csv
 import json
 import random
 import secrets
@@ -35,17 +39,17 @@ import webbrowser
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from judgekeeper import __version__, find, targets, weighted
+from judgekeeper import __version__, find, judge_check, targets, weighted
 from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import JudgeFingerprint, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
 from judgekeeper.label import LabelSession, make_server
 from judgekeeper.records import AGENT_FIELDS
-from judgekeeper.redact import scrub_fingerprint, scrub_value
+from judgekeeper.redact import scrub, scrub_fingerprint, scrub_value
 from judgekeeper.report import KAPPA_GATE, RATE_CARE, RATE_GATE
 from judgekeeper.runners.base import Judgment
 from judgekeeper.start_page import label_page, result_page
-from judgekeeper.table import write_anchor_file
+from judgekeeper.table import guard_cell, write_anchor_file
 
 FOLDER = ".judgekeeper"
 SKIPPED = "skipped"
@@ -93,6 +97,8 @@ class Workspace:
         self.review = self.dir / "review.json"
         self.judge_mistakes = self.dir / "judge-mistakes.csv"
         self.rule_unclear = self.dir / "rule-unclear.csv"
+        self.judge_check_json = self.dir / judge_check.JSON_FILE
+        self.judge_check_csv = self.dir / judge_check.CSV_FILE
 
     def data(self) -> dict:
         return json.loads(self.start.read_text(encoding="utf-8"))
@@ -134,6 +140,23 @@ def build_queue(answers, seed: int) -> list[dict]:
 
 # Starting to label -----------------------------------------------------------------------
 
+def save_judge_check(ws: Workspace, found) -> None:
+    """judge-check.json (the counts and each answer found) and judge-check.csv (the same
+    answers with their text) for `found.check`, scrubbed; CSV cells guarded as labels.csv's."""
+    check = found.check
+    if check is None:
+        return
+    ws.dir.mkdir(parents=True, exist_ok=True)
+    _write_json(ws.judge_check_json, check.to_json())
+    with ws.judge_check_csv.open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(judge_check.CSV_COLUMNS)
+        for x in check.findings:
+            w.writerow([guard_cell(scrub(v) or "") for v in (
+                x.id, x.problem, x.tool_counted_as or "", x.judge_decision, x.judge_reason,
+                display(x.input), display(x.output))])
+
+
 def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     """Write start.json, pool.jsonl and pool-judge.jsonl for `found` (a start.Found), in `ws`
     (default: the project's `.judgekeeper/`).
@@ -173,6 +196,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     source = {"kind": found.tool, "file": ", ".join(found.used), "metric": found.metric}
     write_run(ws.pool_judge, 1, pool_sha, JudgeFingerprint.from_dict(found.fingerprint),
               records, source=source)
+    save_judge_check(ws, found)
 
     newest = found.results[0]
     p = found.pool
@@ -192,6 +216,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "pool_sha256": pool_sha,
         "left_out": {"no_clear_verdict": p.n_unclear, "unmapped_values": p.unmapped,
                      "repeats_merged": p.n_merged, "human_labels_not_used": p.n_human},
+        **({"judge_check": found.check.block()} if found.check is not None else {}),
         "seed": seed,
         "queue": queue,
         "started_at": started or utc_now(),
@@ -580,6 +605,11 @@ def page_content(r: dict) -> dict:
         files = [r["new_judge"]["folder"] + "/"]
         new_judge = {"title": "Your new judge", "lines": [x for x in _new_judge_lines(r) if x],
                      "files": files}
+    checked = r.get("judge_check")
+    judged = None
+    if judge_check.lines(checked):
+        judged = {"title": judge_check.TITLE, "lines": judge_check.page_lines(checked),
+                  "files": [judge_check.CSV_PATH] if judge_check.has_rows(checked) else []}
     return {
         "kind": " · ".join(kind),
         "sentences": sentences(r),
@@ -599,6 +629,8 @@ def page_content(r: dict) -> dict:
         "review": review,
         "again": asked_again,
         "new_judge": new_judge,
+        "judge_check": judged,
+        "judge_check_quiet": judge_check.EVERY_ANSWER if checked and not judged else None,
         "next": steps,
         "folder": f"{FOLDER}/",
     }
@@ -631,6 +663,8 @@ def compute(ws: Workspace, session: StartSession) -> dict:
                     "rule": data.get("rule"), "description": data.get("description"),
                     "results_files": data["results_files"],
                     "results_date": data.get("results_date")})
+    if data.get("judge_check"):
+        r["judge_check"] = data["judge_check"]
     return r
 
 

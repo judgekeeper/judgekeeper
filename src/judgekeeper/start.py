@@ -9,8 +9,9 @@ runs it.
 The pool is every answer with a clear pass or fail from the judge. An answer is its input
 and output, plus the agent's steps when the results keep them (`derive_record_id`), so a
 repeat of the same answer counts once: the newest results file wins, and inside it the
-majority of its verdicts, a tie going to fail. Verdicts that are errors or cannot be mapped
-are left out and counted.
+majority of its verdicts, a tie going to fail. An answer with no real decision from the judge
+(judge_check: an error, a reply it could not read, none at all, or a check of nothing) is
+left out and counted, and said; a verdict that cannot be mapped stops `start`.
 
 Questions are asked only at a terminal (stdin). Without one, `start` prints the question as
 the flag that answers it and exits 8 (EXIT_QUESTION: nothing went wrong); `--yes` takes the
@@ -29,7 +30,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper import find, settings, targets
+from judgekeeper import find, judge_check, settings, targets
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map, unmapped_error
@@ -40,6 +41,8 @@ from judgekeeper.records import (
     CUT_END,
     HUMAN,
     LLM,
+    NO_MARK,
+    Mark,
     RecordList,
     RecordsError,
     ScoreRecord,
@@ -210,15 +213,21 @@ class Answer:
     fingerprint: JudgeFingerprint
     source: str
     agent: dict = field(default_factory=dict)  # trajectory, outcome, app_version: kept, not shown
+    mark: Mark = NO_MARK  # what the reader learned about this verdict (records.Mark)
 
 
 @dataclass
 class Pool:
     answers: list[Answer] = field(default_factory=list)
-    n_unclear: int = 0
     unmapped: list = field(default_factory=list)
     n_merged: int = 0
     n_human: int = 0
+    left: dict = field(default_factory=dict)  # answer id: (judge_check kind, its record)
+
+    @property
+    def n_unclear(self) -> int:
+        """Answers left out: no real decision from the judge."""
+        return len(self.left)
 
     @property
     def n_pass(self) -> int:
@@ -239,7 +248,9 @@ def _identity(records: RecordList, metric: str) -> frozenset:
 
 
 def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normaliser) -> Pool:
-    """The pool from the judge `metric`'s verdicts in `files`, newest file first."""
+    """The pool from the judge `metric`'s verdicts in `files`, newest file first. An answer
+    whose verdicts are all no real decision (the reader's mark, or nothing the normaliser can
+    read) goes to `left` with its kind instead."""
     pool = Pool()
     chosen: dict[str, Answer] = {}
     for source, records in files:
@@ -250,21 +261,25 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                 continue
             if r.annotator_kind != LLM or r.name != metric:
                 continue
-            try:
-                v = norm(_verdict_value(r, norm.pass_if))
-            except UnmappedValue as e:
-                pool.n_unclear += 1
-                if e.value not in pool.unmapped:
-                    pool.unmapped.append(e.value)
-                continue
-            if v.verdict == ERROR:
-                pool.n_unclear += 1
-                continue
+            v, kind = None, r.mark.problem
+            if kind is None:
+                try:
+                    v = norm(_verdict_value(r, norm.pass_if))
+                except UnmappedValue as e:
+                    if e.value not in pool.unmapped:
+                        pool.unmapped.append(e.value)
+                    continue
+                if v.verdict == ERROR:
+                    kind = judge_check.EMPTY
             groups.setdefault(derive_record_id(r.input, r.output, r.trajectory),
-                              []).append((r, v))
-        for key, judged in groups.items():
-            if key in chosen:  # a newer file has this answer
+                              []).append((r, v, kind))
+        for key, seen in groups.items():
+            judged = [(r, v) for r, v, kind in seen if kind is None]
+            if key in chosen or key in pool.left:  # a newer file has this answer
                 pool.n_merged += len(judged)
+                continue
+            if not judged:
+                pool.left[key] = (seen[0][2], seen[0][0])
                 continue
             pool.n_merged += len(judged) - 1
             passes = sum(v.verdict == "pass" for _, v in judged)
@@ -274,7 +289,7 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                 id=key, input=r.input, output=r.output, verdict=verdict,
                 reason=v.rationale or r.explanation or "", score=v.raw_score,
                 fingerprint=make_fingerprint(_known(r.evaluator), r.created_at), source=source,
-                agent=r.agent())
+                agent=r.agent(), mark=r.mark)
     pool.answers = list(chosen.values())
     return pool
 
@@ -323,6 +338,8 @@ class Loaded:
 def _read(result: find.Result) -> Loaded:
     if result.tool == "table":
         records = read_results_table(result.path)
+    elif result.tool == "inspect":  # a sample that errored before it was scored, too
+        records = read_inspect(result.path, with_errors=True)
     else:
         records = FILE_READERS[result.tool](result.path)
     stripped = [w for w in records.warnings if is_stripped_warning(w)]
@@ -502,6 +519,7 @@ class Found:
     metrics: list[str] = field(default_factory=list)  # every judge in the newest results
     app_version: str | None = None  # the app's version in the pool, when the results say it
     store: str | None = None  # MLflow: the store read (mlflow.db, mlruns), inside `root`
+    check: judge_check.Result | None = None  # did the judge actually judge?
 
 
 def _or(items: list[str]) -> str:
@@ -948,11 +966,15 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                         Path(newest.rel).name)
     talk.say(f"{tick()} Your judge: {judge}")
     versions = sorted({a.agent["app_version"] for a in pool.answers if "app_version" in a.agent})
+    score_judge = (norm.pass_if is not None or kind == "deepeval"  # score and threshold
+                   or (kind == "mapped" and (saved.map or {}).get("kind", "score") == "score")
+                   or any((r.metadata or {}).get("pass_mark") is not None for r in records))
     return Found(root=root, tool=kind, results=results, used=[x.label for x in used],
                  metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs,
                  rule=rule, description=description, metrics=metrics,
                  app_version=", ".join(versions) or None,
-                 store=newest.rel if kind == "mlflow" else None)
+                 store=newest.rel if kind == "mlflow" else None,
+                 check=judge_check.check(pool, kind, score_judge=score_judge))
 
 
 SERVERS = ("http://", "https://", "databricks")
@@ -1066,20 +1088,25 @@ def _first_rows(talk: Talk, found: Found) -> None:
                  f"{verdict}: {_cell(row.get(verdict))}")
 
 
+def say_check(talk: Talk, found: Found) -> None:
+    """Did the judge actually judge? Its lines (judge_check.terminal_lines)."""
+    if found.check is not None:
+        for line in judge_check.terminal_lines(found.check.block(), tick()):
+            talk.say(line)
+
+
 def _say_pool(talk: Talk, found: Found) -> None:
     pool = found.pool
     talk.say(f"{tick()} {_plural(len(pool.answers), 'answer', 'answers')} with a verdict: the "
              f"judge passed {pool.n_pass} and failed {pool.n_fail}")
+    if not pool.unmapped:  # else start stops below, and says why
+        say_check(talk, found)
     if found.tool == "table":
         _first_rows(talk, found)
     if pool.n_merged:
         talk.say("  " + (f"{pool.n_merged} repeats of the same answer were merged."
                          if pool.n_merged != 1 else
                          "1 repeat of the same answer was merged."))
-    if pool.n_unclear:
-        talk.say("  " + (f"{pool.n_unclear} answers had no clear verdict and were left out."
-                         if pool.n_unclear != 1 else
-                         "1 answer had no clear verdict and was left out."))
     if pool.unmapped:  # stop: a result without those answers would be wrong
         raise StartError(str(unmapped_error(pool.unmapped)))
     if pool.n_human:
@@ -1214,19 +1241,23 @@ def _label_anyway(talk: Talk, found: Found) -> bool:
 
 
 def _few_note(talk: Talk, pool: Pool) -> None:
-    """A judge that fails (or passes) few answers is the one most worth checking: go on."""
+    """A judge that fails (or passes) few answers is the one most worth checking: go on. One
+    that fails (or passes) none was said with the judge check."""
     n = len(pool.answers)
     for count, did, too in ((pool.n_fail, "failed", "passes too much"),
                             (pool.n_pass, "passed", "fails too much")):
-        if count < ROUGH:
-            how = f"none of your {n}" if not count else f"only {count} of {n}"
-            talk.say(f"Your judge {did} {how} answers. That may mean it {too}: your labels "
-                     "will show it.")
+        if 0 < count < ROUGH:
+            talk.say(f"Your judge {did} only {count} of {n} answers. That may mean it {too}: "
+                     "your labels will show it.")
 
 
 def label_found(talk: Talk, found: Found, port: int, open_browser: bool) -> int:
     """Say the pool and how labeling goes, then open the labeling page."""
+    from judgekeeper import start_label
+
     _say_pool(talk, found)
+    if found.check is not None and judge_check.has_rows(found.check.block()):
+        start_label.save_judge_check(start_label.Workspace(found.root), found)  # it is named
     pool = found.pool
     if not pool.answers:
         raise StartError("no answer has a clear pass or fail from the judge, so there is "
@@ -1250,8 +1281,6 @@ def label_found(talk: Talk, found: Found, port: int, open_browser: bool) -> int:
     if not talk.confirm(asked, default=True, with_yes=True, hint=hint):
         talk.say(f"OK. Run {talk.command()} when you're ready to label.")
         return EXIT_OK
-    from judgekeeper import start_label
-
     return start_label.run_labeling(found, port=port, open_browser=open_browser, say=talk.say,
                                     command=talk.command())
 
@@ -1296,4 +1325,4 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
 
 
 __all__ = ["Answer", "Found", "Pool", "StartError", "Talk", "build_pool", "find_judge",
-           "intro_lines", "label_found", "more_answers", "picking_line", "run"]
+           "intro_lines", "label_found", "more_answers", "picking_line", "run", "say_check"]

@@ -20,6 +20,15 @@ with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, option
 - The prompt hash covers the scorer's `template` and `instructions` options, or Inspect's
   default for that scorer when they are unset; never the per-sample `metadata.grading`.
 - Values `C`/`I` read as pass/fail; `P` (partial) and anything else need --label-map.
+- A grader whose reply held no grade: current versions save `Score.unscored(reason=
+  "grader_failed", explanation="Grade not found in model output: ...")` (a NaN value that
+  Inspect's metrics skip; scorer/_model.py, scorer/_metric.py; logs before 0.3.245 keep the
+  reason in `metadata.unscored_reason`), older ones INCORRECT with the same explanation.
+  Read as saved, with an in-memory mark (records.Mark) for `start`'s judge check.
+- A sample whose grader call failed (an HTTP 400, say) has `samples[].error` (a
+  ModelGenerateError) and no scores, while the app's answer is fine. `import` reads no record
+  for it, as before; with `with_errors` (what `start` uses) it gives one record per scorer of
+  the eval, with no verdict, the error as its explanation and an "error" mark.
 - A human edit (`edit_score`, log/_score.py) appends to `history`: the first entry is the
   original score (no provenance), later ones carry `provenance.author`. The original value is
   the judge's verdict and the edited value is the human label.
@@ -35,6 +44,7 @@ from judgekeeper.anchors import canonical_json
 from judgekeeper.records import (
     HUMAN,
     LLM,
+    Mark,
     RecordList,
     RecordsError,
     ScoreRecord,
@@ -48,6 +58,28 @@ DEFAULT_PROMPT = "inspect_ai default for {name}"
 EVAL_NEEDS_EXTRA = ("{path}: reading .eval logs needs inspect_ai. Install the extra "
                     "(pip install \"judgekeeper[inspect]\"), or run `inspect log dump {path} > "
                     "log.json` first and import the .json.")
+
+
+GRADER_FAILED = "grader_failed"
+NO_GRADE = "Grade not found in model output"
+SAMPLE_ERROR = "sample_error"  # judgekeeper's own reason: the sample errored, no score
+
+
+def _sample_error(error) -> dict:
+    """A stand-in score for a sample that errored before it was scored."""
+    message = error.get("message") if isinstance(error, dict) else error
+    return {"value": None, "reason": SAMPLE_ERROR, "explanation": str(message or "error")}
+
+
+def _mark(score: dict, label) -> Mark:
+    """What the judge check needs to know about one score (see the module docstring)."""
+    unscored = score.get("reason") == SAMPLE_ERROR or GRADER_FAILED in (
+        score.get("reason"), (score.get("metadata") or {}).get("unscored_reason"))
+    explanation = score.get("explanation")
+    no_grade = isinstance(explanation, str) and explanation.startswith(NO_GRADE)
+    problem = "unreadable" if no_grade else "error" if unscored else None
+    counted = "left out" if unscored else DEFAULT_LABELS.get(label)  # C or I
+    return Mark(problem=problem, tool_counted_as=counted if problem else None)
 
 
 def _load(path: Path) -> dict:
@@ -172,8 +204,10 @@ def _human_edit(score: dict) -> tuple[dict, dict] | None:
     return history[0], edits[-1]
 
 
-def read_inspect(path: str | Path) -> RecordList:
-    """ScoreRecords from one Inspect AI log: one LLM record per scorer per sample and epoch."""
+def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
+    """ScoreRecords from one Inspect AI log: one LLM record per scorer per sample and epoch.
+    `with_errors`: also one record per scorer for a sample that errored before it was scored
+    (see the module docstring)."""
     path = Path(path)
     data = _load(path)
     spec = data.get("eval") if isinstance(data, dict) else None
@@ -195,7 +229,10 @@ def read_inspect(path: str | Path) -> RecordList:
         output = (sample.get("output") or {}).get("completion")
         content = {"input": sample.get("input"), "output": output,
                    "trajectory": trajectory(sample)}
-        for name, score in (sample.get("scores") or {}).items():
+        scores = sample.get("scores") or {}
+        if with_errors and not scores and sample.get("error"):
+            scores = {name: _sample_error(sample["error"]) for name in scorer_options}
+        for name, score in scores.items():
             if not isinstance(score, dict):
                 continue
             options = scorer_options.get(name) or {}
@@ -217,7 +254,8 @@ def read_inspect(path: str | Path) -> RecordList:
                 records.append(ScoreRecord(
                     target_id=item_id, name=key, annotator_kind=LLM, label=label, score=number,
                     explanation=judged.get("explanation") or None, run=epoch, **content,
-                    evaluator=dict(evaluator), created_at=created_at))
+                    evaluator=dict(evaluator), created_at=created_at,
+                    mark=_mark(judged, label)))
             if edit:
                 provenance = edit[1]["provenance"]
                 for key, value in _verdicts(name, score.get("value")):
