@@ -37,6 +37,14 @@ judgekeeper check results.csv --judge verdict --human label
 
 First a plain sentence: of the answers people passed, how many the judge passed, and of the answers people failed, how many it failed. Then whether the judge is usable as a gate, with every warning, and a report you can open in a browser. A report from a real judge on a public dataset: [LLMBar judged by Claude Haiku 4.5](https://www.judgekeeper.com/examples/llmbar-haiku/report.html).
 
+## Numbers
+
+- **Its ranges hold on real data.** On 5 real judges from 3 public datasets (LLMBar, MT-Bench and LLMJudge), with 50 human labels per check, the ranges for how often the judge passed answers people passed (TPR) and how often it failed answers people failed (TNR) held the value worked out from all of the dataset's human labels in 96.0 checks in 100 on average (lowest 94.6, highest 98.4), over 1,000 checks per judge. [Real-data check](https://www.judgekeeper.com/examples/real-data-check/report.md)
+- **One of those checks:** GPT-4 as the judge on MT-Bench, 50 labels: TPR 0.82 (range 0.71 to 0.91), and the value from all 1,814 human labels is 0.85; TNR 0.49 (range 0.36 to 0.65), and from all labels 0.56.
+- **In simulation too:** the ranges held the true value at least 93.6 times in 100 in every tested case, and 96.2 on average. [Coverage check](https://www.judgekeeper.com/examples/coverage/coverage.md)
+- **A real judge, checked:** Claude Haiku 4.5 on LLMBar, 419 items: TPR 0.95, TNR 0.88, kappa (agreement after taking away lucky guesses) 0.83. [Report](https://www.judgekeeper.com/examples/llmbar-haiku/report.html)
+- Tested on Python 3.11 to 3.14 on Linux, and on Windows. [![CI](https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml)
+
 ## When you need more
 
 | You need | Command | Read |

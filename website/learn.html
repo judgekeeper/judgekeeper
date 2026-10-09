@@ -53,6 +53,7 @@
       <li><a href="#keeps">Keep checking after the first check</a></li>
       <li><a href="#works">Works with what you already use</a></li>
       <li><a href="#result">A real result</a></li>
+      <li><a href="#real-data">Do the ranges hold on real data?</a></li>
       <li><a href="#keys">Your data and keys</a></li>
       <li><a href="#faq">Questions</a></li>
     </ul>
@@ -417,7 +418,22 @@ judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --prompt 
   </div>
 </section>
 
-<section class="alt" id="keys" aria-labelledby="keys-title">
+<section class="alt" id="real-data" aria-labelledby="real-data-title">
+  <div class="wrap narrow">
+    <p class="kicker">Numbers</p>
+    <h2 id="real-data-title">Do the ranges hold on real data?</h2>
+    <p class="lead">Each number in a result comes with a range. In public datasets where a judge and people both decided on the same answers, we pretended a person labeled only a few of them, and counted how often the range held the value worked out from all of the dataset's human labels. No judge was called.</p>
+    <ul>
+      <li><strong>On real data.</strong> On <span data-realcheck="summary.25+25.judges" data-format="int">5</span> real judges from <span data-realcheck="summary.25+25.datasets" data-format="int">3</span> public datasets (LLMBar, MT-Bench and LLMJudge), with <span data-realcheck="summary.25+25.labels_mean.lowest" data-format="int">50</span> human labels per check, the ranges for how often the judge passed answers people passed (TPR) and how often it failed answers people failed (TNR) held that value in <span data-realcheck="summary.25+25.tpr_tnr.mean" data-format="per100">96.0</span> checks in 100 on average (lowest <span data-realcheck="summary.25+25.tpr_tnr.lowest" data-format="per100">94.6</span>, highest <span data-realcheck="summary.25+25.tpr_tnr.highest" data-format="per100">98.4</span>), over <span data-realcheck="settings.checks" data-format="count">1,000</span> checks per judge.</li>
+      <li><strong>One of those checks.</strong> GPT-4 as the judge on MT-Bench, <span data-realcheck="summary.25+25.labels_mean.lowest" data-format="int">50</span> labels: TPR <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tpr.value">0.82</span> (range <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tpr.range.0">0.71</span> to <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tpr.range.1">0.91</span>), and the value from all <span data-realcheck="pools.mtbench-gpt4.truth.n" data-format="count">1,814</span> human labels is <span data-realcheck="pools.mtbench-gpt4.truth.tpr">0.85</span>; TNR <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tnr.value">0.49</span> (range <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tnr.range.0">0.36</span> to <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tnr.range.1">0.65</span>), and from all labels <span data-realcheck="pools.mtbench-gpt4.truth.tnr">0.56</span>.</li>
+      <li><strong>In simulation too.</strong> The ranges held the true value at least <span data-coverage="corrected/levels/0.96/min_cell" data-format="per100">93.6</span> times in 100 in every tested case, and <span data-coverage="corrected/levels/0.96/mean" data-format="per100">96.2</span> on average.</li>
+      <li><strong>Tested</strong> on Python 3.11 to 3.14 on Linux, and on Windows.</li>
+    </ul>
+    <p><a class="btn primary" href="examples/real-data-check/report.md">Open the real-data check</a> <a class="btn secondary" href="examples/coverage/coverage.md">Open the coverage check</a></p>
+  </div>
+</section>
+
+<section id="keys" aria-labelledby="keys-title">
   <div class="wrap">
     <p class="kicker">Privacy</p>
     <h2 id="keys-title">Your data and keys stay with you</h2>
@@ -448,7 +464,7 @@ judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --prompt 
   </div>
 </section>
 
-<section id="faq" aria-labelledby="faq-title">
+<section class="alt" id="faq" aria-labelledby="faq-title">
   <div class="wrap narrow faq">
     <p class="kicker">Questions</p>
     <h2 id="faq-title">Short, honest answers</h2>

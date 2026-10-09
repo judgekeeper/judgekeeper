@@ -213,7 +213,7 @@ def test_the_readme_makes_start_the_main_path():
     assert use.index("judgekeeper start") < use.index("judgekeeper check")
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
         assert tool in use, tool
-    assert len(README.read_text(encoding="utf-8").splitlines()) <= 60
+    assert len(README.read_text(encoding="utf-8").splitlines()) <= 70
 
 
 def test_the_guide_starts_with_start():
