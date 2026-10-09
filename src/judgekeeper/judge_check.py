@@ -4,14 +4,15 @@ No labels, no AI call, no key: plain Python on the pool `start` already made (st
 and the marks the readers set (records.Mark). Four checks:
 
 1. No real decision: the judge's call failed ("error"), its reply could not be read
-   ("unreadable"), or there is no decision at all ("empty"); and, for DeepEval, a check of
+   ("unreadable"), the tool would not judge an empty answer ("empty_answer_refused": DeepEval
+   refuses one), or there is no decision at all ("empty"); and, for DeepEval, a check of
    nothing that still got full marks ("nothing_checked"). These are left out of the pool.
-2. Passed an empty answer: the app's answer is empty (or the app's run failed) and the judge
+2. Passed an empty answer: the app's answer is empty after trimming spaces and the judge
    passed it. These stay in the pool: a real, bad decision, worth a person's mark.
 3. The same decision for everything: the judge passed (or failed) every answer.
 4. The reason says the opposite: the judge's own reason states the other decision, in one of a
-   few explicit forms only (stated_decision). Skipped for score judges with a pass mark, whose
-   reasons talk about a score.
+   few explicit forms only (stated_decisions). Skipped for score judges with a pass mark
+   (`--pass-if`, DeepEval's thresholds), whose reasons talk about a score.
 
 Every check is information: none stops `start`. The functions here are pure; start_label
 writes judge-check.json and judge-check.csv, and the terminal and the result page say `lines`.
@@ -26,9 +27,10 @@ from judgekeeper.find import NAMES
 from judgekeeper.redact import scrub
 
 ERROR, UNREADABLE, EMPTY, NOTHING_CHECKED = "error", "unreadable", "empty", "nothing_checked"
-NO_DECISION = (ERROR, UNREADABLE, EMPTY)
+EMPTY_ANSWER_REFUSED = "empty_answer_refused"
+NO_DECISION = (ERROR, UNREADABLE, EMPTY_ANSWER_REFUSED, EMPTY)
 LEFT_OUT = (*NO_DECISION, NOTHING_CHECKED)  # left out of the pool
-PASSED_EMPTY = "passed_empty_answer"
+PASSED_EMPTY = "empty_answer_passed"  # kept in the pool: a real decision
 OPPOSITE = "reason_says_opposite"
 KINDS = (*LEFT_OUT, PASSED_EMPTY, OPPOSITE)
 JSON_FILE, CSV_FILE = "judge-check.json", "judge-check.csv"
@@ -54,32 +56,33 @@ _MARKER = re.compile(r"\b(?:final verdict|final answer|grade|verdict|result|deci
 _GRADE = re.compile(r"GRADE\s*:\s*([CI])[ \t.*]*$", re.MULTILINE)
 
 
-def stated_decision(reason) -> str | None:
-    """The decision the reason states, "pass" or "fail", or None. Narrow on purpose (a false
-    alarm costs trust): the last marker (`_MARKER`, `_GRADE`) when there is one, else a first
-    word PASS, PASSED, FAIL or FAILED. No other words count."""
+def stated_decisions(reason) -> list[str]:
+    """The decisions the reason states, "pass" or "fail": its first word when that is PASS,
+    PASSED, FAIL or FAILED, then its last marker (`_MARKER`, `_GRADE`). Narrow on purpose (a
+    false alarm costs trust): no other words count."""
     if not isinstance(reason, str):
-        return None
+        return []
+    stated = []
+    m = _FIRST.match(reason)
+    if m:
+        stated.append(_WORDS[m[1].lower()])
     markers = [(m.start(), m[1]) for pattern in (_MARKER, _GRADE)
                for m in pattern.finditer(reason)]
     if markers:
-        return _WORDS[max(markers)[1].lower()]
-    m = _FIRST.match(reason)
-    return _WORDS[m[1].lower()] if m else None
+        stated.append(_WORDS[max(markers)[1].lower()])
+    return stated
 
 
 def says_opposite(reason, decision: str) -> bool:
-    stated = stated_decision(reason)
-    return stated is not None and stated != decision
+    """Either form states the other decision (Inspect's "FAIL: ... GRADE: C" on a pass)."""
+    return any(stated != decision for stated in stated_decisions(reason))
 
 
 # Empty answers ---------------------------------------------------------------------------
 
 def is_empty_answer(output, mark) -> bool:
-    """The app gave nothing: its run failed, or its output is empty after trimming spaces.
-    An answer kept elsewhere (a DeepEval conversation's turns) is not empty."""
-    if mark.app_error:
-        return True
+    """The app gave nothing: its output is empty after trimming spaces. An answer kept
+    elsewhere (a DeepEval conversation's turns) is not empty."""
     if mark.output_elsewhere:
         return False
     if output is None:
@@ -177,6 +180,8 @@ def _n(n: int, one: str, many: str) -> str:
 
 _NO_DECISION_WORDS = {ERROR: ("error", "errors"),
                       UNREADABLE: ("reply it could not read", "replies it could not read"),
+                      EMPTY_ANSWER_REFUSED: ("empty answer it could not judge",
+                                             "empty answers it could not judge"),
                       EMPTY: ("empty decision", "empty decisions")}
 _COUNTED = {"pass": ("counted it as a pass", "counted them as passes"),
             "fail": ("counted it as a fail", "counted them as fails"),
@@ -250,4 +255,4 @@ def page_lines(block: dict | None) -> list[str]:
 
 __all__ = ["CSV_COLUMNS", "EVERY_ANSWER", "KINDS", "LEFT_OUT", "TITLE", "Finding", "Result",
            "check", "has_rows", "is_empty_answer", "lines", "page_lines",
-           "says_opposite", "stated_decision", "terminal_lines"]
+           "says_opposite", "stated_decisions", "terminal_lines"]

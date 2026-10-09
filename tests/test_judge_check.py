@@ -5,9 +5,10 @@ decision for every answer, and a reason that says the opposite of the decision.
 
 The fixtures are shaped like each tool's real output (the source files are named next to each
 detector in the readers): promptfoo's graderFail (src/matchers/shared.ts), DeepEval's errored
-metric and its empty `Verdicts:` list scored 1.0 (deepeval/metrics/utils/qag.py), Inspect's
-`Score.unscored(reason="grader_failed")` and its older INCORRECT shape
-(inspect_ai/scorer/_model.py), MLflow's `feedback.error`.
+metric (often with `error` empty: no score and `success` false) and its empty `Verdicts:` list
+scored 1.0 (deepeval/metrics/utils/qag.py), Inspect's `Score.unscored(reason="grader_failed")`,
+its older INCORRECT shape (inspect_ai/scorer/_model.py) and a sample whose grader call failed
+(`samples[].error`, no scores), MLflow's `feedback.error`.
 """
 
 from __future__ import annotations
@@ -74,13 +75,7 @@ def grader_fail(row: dict, reason: str, flag: bool = True) -> None:
     row["failureReason"] = 1
 
 
-def app_error(row: dict) -> None:
-    """A promptfoo row whose app call failed: response.error and failureReason ERROR (2)."""
-    row["response"] = {"error": "API error: 500 Internal Server Error", "output": None}
-    row["failureReason"] = 2
-
-
-def promptfoo_with_problems(verdicts, errors=(), unreadable=(), old=(), app_errors=()):
+def promptfoo_with_problems(verdicts, errors=(), unreadable=(), old=()):
     data = promptfoo_data(verdicts)
     rows = data["results"]["results"]
     for i in errors:
@@ -89,17 +84,23 @@ def promptfoo_with_problems(verdicts, errors=(), unreadable=(), old=(), app_erro
         grader_fail(rows[i], "Could not extract JSON from llm-rubric response")
     for i in old:
         grader_fail(rows[i], "Error parsing output: Unexpected token", flag=False)
-    for i in app_errors:
-        app_error(rows[i])
     return data
 
 
-def deepeval_with_problems(verdicts, errors=(), nothing=()):
+def deepeval_with_problems(verdicts, errors=(), nothing=(), silent=(), refused=()):
     data = deepeval_data(verdicts)
     for i in errors:  # DeepEval's MetricData for a metric that raised (ignore_errors=True)
         data["testCases"][i]["metricsData"][0].update(
             success=False, score=None, reason=None, verboseLogs=None,
             error="RateLimitError: Error code: 429")
+    for i in refused:  # an empty actual_output, refused before any call
+        data["testCases"][i]["actualOutput"] = ""
+        data["testCases"][i]["metricsData"][0].update(
+            success=False, score=None, reason=None, verboseLogs=None,
+            error="'actual_output' cannot be empty for the 'Correctness [GEval]' metric")
+    for i in silent:  # an unreadable reply or an HTTP 400, as DeepEval 4.2.8 saved it
+        data["testCases"][i]["metricsData"][0].update(
+            success=False, score=None, reason=None, verboseLogs=None, error=None)
     for i in nothing:  # score_qag_verdicts(..., empty_score=1) with no verdicts
         data["testCases"][i]["metricsData"][0].update(
             success=True, score=1.0, reason="The score is 1.00 because there are no "
@@ -124,25 +125,26 @@ def unscored(sample: dict, new: bool = True, legacy: bool = False) -> None:
 
 # The contradiction check -----------------------------------------------------------------
 
-@pytest.mark.parametrize("reason, decision", [
-    ("PASS: the answer is polite.", "pass"),
-    ("Pass", "pass"),
-    ("passed - every claim checks out", "pass"),
-    ("FAIL. It is rude.", "fail"),
-    ("Failed: wrong number", "fail"),
-    ("**FAIL**: the refund window is wrong", "fail"),
-    ("The answer is fine.\nVerdict: pass", "pass"),
-    ("Grade: incorrect", "fail"),
-    ("Final verdict: correct", "pass"),
-    ("Result = FAILED", "fail"),
-    ("decision: Passed", "pass"),
-    ("Final answer: incorrect.", "fail"),
-    ("The answer names the right day.\n\nGRADE: C", "pass"),
-    ("The answer is wrong.\nGRADE: I", "fail"),
-    ("Verdict: fail at first, but after a second look\nVerdict: pass", "pass"),
+@pytest.mark.parametrize("reason, stated", [
+    ("PASS: the answer is polite.", ["pass"]),
+    ("Pass", ["pass"]),
+    ("passed - every claim checks out", ["pass"]),
+    ("FAIL. It is rude.", ["fail"]),
+    ("Failed: wrong number", ["fail"]),
+    ("**FAIL**: the refund window is wrong", ["fail"]),
+    ("The answer is fine.\nVerdict: pass", ["pass"]),
+    ("Grade: incorrect", ["fail"]),
+    ("Final verdict: correct", ["pass"]),
+    ("Result = FAILED", ["fail"]),
+    ("decision: Passed", ["pass"]),
+    ("Final answer: incorrect.", ["fail"]),
+    ("The answer names the right day.\n\nGRADE: C", ["pass"]),
+    ("The answer is wrong.\nGRADE: I", ["fail"]),
+    ("Verdict: fail at first, but after a second look\nVerdict: pass", ["pass"]),
+    ("FAIL: the sum is wrong.\nGRADE: C", ["fail", "pass"]),
 ])
-def test_a_stated_decision_is_read(reason, decision):
-    assert judge_check.stated_decision(reason) == decision
+def test_a_stated_decision_is_read(reason, stated):
+    assert judge_check.stated_decisions(reason) == stated
 
 
 @pytest.mark.parametrize("reason", [
@@ -160,12 +162,13 @@ def test_a_stated_decision_is_read(reason, decision):
     None,
 ])
 def test_near_misses_state_no_decision(reason):
-    assert judge_check.stated_decision(reason) is None
+    assert judge_check.stated_decisions(reason) == []
 
 
 def test_the_reason_says_the_opposite_only_when_it_states_the_other_decision():
     assert judge_check.says_opposite("FAIL: rude", "pass")
     assert judge_check.says_opposite("Looks right.\nGRADE: C", "fail")
+    assert judge_check.says_opposite("FAIL: the sum is wrong.\nGRADE: C", "pass")  # Inspect
     assert not judge_check.says_opposite("FAIL: rude", "fail")
     assert not judge_check.says_opposite("does not fail", "pass")
     assert not judge_check.says_opposite("Result: partially correct", "fail")
@@ -175,7 +178,7 @@ def test_the_reason_says_the_opposite_only_when_it_states_the_other_decision():
 
 def _block(**counts):
     block = {"answers": 57, "error": 0, "unreadable": 0, "empty": 0, "nothing_checked": 0,
-             "passed_empty_answer": 0, "reason_says_opposite": 0, "same_decision": None,
+             "empty_answer_passed": 0, "reason_says_opposite": 0, "same_decision": None,
              "tool": "promptfoo", "tool_counted_as": None}
     block.update(counts)
     return block
@@ -187,7 +190,7 @@ def test_nothing_found_is_one_line():
 
 
 def test_every_finding_has_its_line():
-    block = _block(error=5, unreadable=2, nothing_checked=4, passed_empty_answer=3,
+    block = _block(error=5, unreadable=2, nothing_checked=4, empty_answer_passed=3,
                    reason_says_opposite=2, same_decision="pass", tool_counted_as="fail")
     lines = judge_check.terminal_lines(block, "✓")
     assert lines == [
@@ -236,7 +239,7 @@ def test_tables_and_records_say_only_that_they_are_left_out():
 
 
 def test_one_of_each_is_said_in_the_singular():
-    block = _block(error=1, nothing_checked=1, passed_empty_answer=1, reason_says_opposite=1,
+    block = _block(error=1, nothing_checked=1, empty_answer_passed=1, reason_says_opposite=1,
                    tool="deepeval", tool_counted_as="fail")
     assert judge_check.terminal_lines(block, "✓") == [
         "  ! Your judge made no real decision on 1 of 57 answers: 1 error.",
@@ -249,14 +252,16 @@ def test_one_of_each_is_said_in_the_singular():
     ]
 
 
-def test_the_three_kinds_of_no_decision_are_listed():
-    lines = judge_check.terminal_lines(_block(error=1, unreadable=1, empty=3), "✓")
-    assert lines[0] == ("  ! Your judge made no real decision on 5 of 57 answers: 1 error, "
-                        "1 reply it could not read, 3 empty decisions.")
+def test_the_kinds_of_no_decision_are_listed():
+    block = _block(error=1, unreadable=1, empty_answer_refused=2, empty=3)
+    lines = judge_check.terminal_lines(block, "✓")
+    assert lines[0] == ("  ! Your judge made no real decision on 7 of 57 answers: 1 error, "
+                        "1 reply it could not read, 2 empty answers it could not judge, "
+                        "3 empty decisions.")
 
 
 def test_the_words_follow_the_agreed_rules():
-    block = _block(error=5, unreadable=2, empty=1, nothing_checked=4, passed_empty_answer=3,
+    block = _block(error=5, unreadable=2, empty=1, nothing_checked=4, empty_answer_passed=3,
                    reason_says_opposite=2, same_decision="fail", tool_counted_as="fail")
     text = " ".join(judge_check.terminal_lines(block, "✓") + judge_check.page_lines(block))
     assert "verdict" not in text.lower() and "minute" not in text
@@ -277,31 +282,50 @@ def test_promptfoo_grader_errors_are_marked(tmp_path):
 
 
 def test_promptfoo_older_files_are_read_by_the_reason_alone(tmp_path):
-    data = promptfoo_data(split(0, 5))
     reasons = ["Could not extract JSON from llm-rubric response", "Error parsing output: x",
                "No output", "Could not perform remote grading: 503",
+               "API error: 400 Bad Request", "No output was given, so it fails",
                "The answer does not fail the rule but is rude"]
+    data = promptfoo_data(split(0, len(reasons)))
     for row, reason in zip(data["results"]["results"], reasons, strict=True):
         row["gradingResult"]["componentResults"][0]["reason"] = reason
     records = read_promptfoo(_write_json(tmp_path / "r.json", data))
     assert _marks(records) == [("unreadable", "fail"), ("unreadable", "fail"),
-                               ("error", "fail"), ("error", "fail"), (None, None)]
+                               ("error", "fail"), ("error", "fail"), ("error", "fail"),
+                               (None, None), (None, None)]
 
 
-def test_promptfoo_app_errors_are_marked(tmp_path):
-    data = promptfoo_with_problems(split(3, 0), app_errors=[0])
-    data["results"]["results"][1]["failureReason"] = 2
-    records = [r for r in read_promptfoo(_write_json(tmp_path / "r.json", data))
-               if r.annotator_kind == LLM]
-    assert [r.mark.app_error for r in records] == [True, True, False]
+def test_promptfoo_rows_error_and_failure_reason_are_not_used(tmp_path):
+    """`error` also holds the reason of an ordinary fail, and a grader error has
+    failureReason 1 like any fail: only the component says it was the grader."""
+    data = promptfoo_data(split(1, 1))
+    for row in data["results"]["results"]:
+        row["error"], row["failureReason"] = "reason", 2
+    records = read_promptfoo(_write_json(tmp_path / "r.json", data))
+    assert _marks(records) == [(None, None), (None, None)]
 
 
 def test_deepeval_errors_and_empty_checks_are_marked(tmp_path):
-    data = deepeval_with_problems(split(3, 1), errors=[0], nothing=[1])
+    data = deepeval_with_problems(split(3, 2), errors=[0], nothing=[1], silent=[4])
     records = read_deepeval(_write_json(tmp_path / "test_run_20261009_120000.json", data))
     assert _marks(records) == [("error", "fail"), ("nothing_checked", "pass"), (None, None),
-                               (None, None)]
+                               (None, None), ("error", "fail")]
     assert records[0].explanation == "RateLimitError: Error code: 429"
+
+
+def test_deepeval_refusing_an_empty_answer_has_its_own_name(tmp_path, capsys):
+    data = deepeval_with_problems(split(20, 20), refused=[0], silent=[1])
+    path = _write_json(tmp_path / ".deepeval" / ".latest_run_full.json", data)
+    assert _marks(read_deepeval(path))[:2] == [("empty_answer_refused", "fail"),
+                                                ("error", "fail")]
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0
+    assert ("  ! Your judge made no real decision on 2 of 40 answers: 1 error, 1 empty answer "
+            "it could not judge.\n") in out
+    assert "passed 1 empty answer" not in out
+    with (tmp_path / ".judgekeeper" / "judge-check.csv").open(encoding="utf-8") as f:
+        assert sorted(r["problem"] for r in csv.DictReader(f)) == ["empty_answer_refused",
+                                                                   "error"]
 
 
 def test_a_deepeval_score_below_full_marks_with_no_verdicts_is_not_marked(tmp_path):
@@ -339,12 +363,22 @@ def test_an_inspect_grader_failure_without_the_explanation_is_an_error(tmp_path)
     assert _marks(records) == [("error", "left out")]
 
 
-def test_inspect_sample_errors_are_marked(tmp_path):
+def grader_call_failed(sample: dict) -> None:
+    """An Inspect sample whose grader call failed: samples[].error, no scores."""
+    sample["scores"] = {}
+    sample["error"] = {"message": "ModelGenerateError: Error code: 400 - invalid request",
+                       "traceback": "", "traceback_ansi": ""}
+
+
+def test_inspect_samples_that_errored_before_scoring(tmp_path):
     data = inspect_data(split(2, 0))
-    data["samples"][0]["error"] = {"message": "RuntimeError: the app crashed",
-                                   "traceback": "", "traceback_ansi": ""}
-    records = read_inspect(_write_json(tmp_path / "log.json", data))
-    assert [r.mark.app_error for r in records] == [True, False]
+    grader_call_failed(data["samples"][0])
+    path = _write_json(tmp_path / "log.json", data)
+    assert _marks(read_inspect(path)) == [(None, None)]  # import reads them as before
+    records = read_inspect(path, with_errors=True)
+    assert _marks(records) == [("error", "left out"), (None, None)]
+    assert records[0].label is None and records[0].output == "Answer 0."
+    assert records[0].explanation.startswith("ModelGenerateError")
 
 
 def test_mlflow_feedback_errors_are_marked(mlflow_store):
@@ -433,13 +467,11 @@ def test_empty_answers_stay_and_a_pass_on_one_is_flagged():
     from judgekeeper.records import Mark
 
     records = [_rec(0, "pass", output="  "), _rec(1, "fail", output=""), _rec(2, "pass"),
-               _rec(3, "pass", output=None, mark=Mark(app_error=True)),
-               _rec(4, "pass", output="", mark=Mark(output_elsewhere=True))]
-    records[3].output = "There was an error."
+               _rec(3, "pass", output="", mark=Mark(output_elsewhere=True))]
     pool, result = _pool(records)
-    assert len(pool.answers) == 5
-    assert result.block()["passed_empty_answer"] == 2
-    assert {f.id for f in result.findings} == {pool.answers[0].id, pool.answers[3].id}
+    assert len(pool.answers) == 4
+    assert result.block()["empty_answer_passed"] == 1
+    assert {f.id for f in result.findings} == {pool.answers[0].id}
 
 
 def test_the_same_decision_for_everything_also_below_thirty():
@@ -507,6 +539,29 @@ def test_deepeval_checks_of_nothing_are_left_out(tmp_path, capsys):
     assert f"{ok()} 45 answers with a verdict: the judge passed 26 and failed 19" in out
 
 
+def test_deepeval_silent_errors_and_its_score_judges(tmp_path, capsys):
+    data = deepeval_with_problems(split(30, 20), silent=[40, 41])
+    data["testCases"][0]["metricsData"][0]["reason"] = "FAIL: the sum is wrong."  # score 0.9
+    _write_json(tmp_path / ".deepeval" / ".latest_run_full.json", data)
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0
+    assert ("  ! Your judge made no real decision on 2 of 50 answers: 2 errors.\n"
+            "    DeepEval counted them as fails. They are left out here.\n") in out
+    assert "opposite" not in out  # a GEval score and a threshold decide, not the reason
+
+
+def test_inspect_samples_whose_grader_call_failed_are_left_out(tmp_path, capsys):
+    data = inspect_data(split(16, 18))
+    grader_call_failed(data["samples"][0])
+    data["samples"][1]["scores"]["model_graded_qa"]["explanation"] = "FAIL: wrong.\nGRADE: C"
+    _write_json(tmp_path / "logs" / "2026-10-02_support.json", data)
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0
+    assert ("  ! Your judge made no real decision on 1 of 34 answers: 1 error.\n"
+            "    Inspect AI left it out. It is left out here.\n"
+            "  ! On 1 answer, your judge's reason says the opposite of its decision.\n") in out
+
+
 def test_inspect_grader_failures_are_left_out(tmp_path, capsys):
     data = inspect_data(split(16, 18))
     unscored(data["samples"][0])
@@ -563,7 +618,8 @@ def test_the_only_c_of_n_note_stays(tmp_path, capsys):
 
 
 def test_an_empty_answer_passed_is_flagged_and_kept(tmp_path, capsys, no_labeling):
-    data = promptfoo_with_problems(split(20, 12), app_errors=[0])
+    data = promptfoo_data(split(20, 12))
+    data["results"]["results"][0]["response"]["output"] = ""
     data["results"]["results"][1]["response"]["output"] = "   "
     _write_json(tmp_path / "results.json", data)
     code, out, _ = run(capsys, tmp_path)
@@ -585,9 +641,9 @@ def test_the_saved_files(tmp_path, capsys):
     folder = tmp_path / ".judgekeeper"
     saved = json.loads((folder / "judge-check.json").read_text(encoding="utf-8"))
     assert saved["counts"]["error"] == 1 and saved["counts"]["reason_says_opposite"] == 1
-    assert saved["counts"]["passed_empty_answer"] == 1
+    assert saved["counts"]["empty_answer_passed"] == 1
     problems = sorted(f["problem"] for f in saved["findings"])
-    assert problems == ["error", "passed_empty_answer", "reason_says_opposite"]
+    assert problems == ["empty_answer_passed", "error", "reason_says_opposite"]
     assert all(set(f) == {"id", "problem", "tool_counted_as", "judge_decision",
                           "judge_reason"} for f in saved["findings"])
     with (folder / "judge-check.csv").open(encoding="utf-8", newline="") as f:

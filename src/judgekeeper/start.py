@@ -338,6 +338,8 @@ class Loaded:
 def _read(result: find.Result) -> Loaded:
     if result.tool == "table":
         records = read_results_table(result.path)
+    elif result.tool == "inspect":  # a sample that errored before it was scored, too
+        records = read_inspect(result.path, with_errors=True)
     else:
         records = FILE_READERS[result.tool](result.path)
     stripped = [w for w in records.warnings if is_stripped_warning(w)]
@@ -964,7 +966,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                         Path(newest.rel).name)
     talk.say(f"{tick()} Your judge: {judge}")
     versions = sorted({a.agent["app_version"] for a in pool.answers if "app_version" in a.agent})
-    score_judge = norm.pass_if is not None or (
+    score_judge = norm.pass_if is not None or kind == "deepeval" or (  # score and threshold
         kind == "mapped" and (saved.map or {}).get("kind", "score") == "score")
     return Found(root=root, tool=kind, results=results, used=[x.label for x in used],
                  metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs,

@@ -237,13 +237,12 @@ class Mark:
     `problem`: the judge made no real decision: "error" (its call failed), "unreadable" (its
     reply could not be read) or "nothing_checked" (it checked nothing and the tool gave full
     marks). `tool_counted_as`: what the eval tool counted such a verdict as ("pass", "fail" or
-    "left out"); None when it does not say. `app_error`: the app's own run failed.
-    `output_elsewhere`: the answer is not in `output` (a DeepEval conversation's turns).
+    "left out"); None when it does not say. `output_elsewhere`: the answer is not in `output`
+    (a DeepEval conversation's turns).
     """
 
     problem: str | None = None
     tool_counted_as: str | None = None
-    app_error: bool = False
     output_elsewhere: bool = False
 
 

@@ -27,9 +27,9 @@ Traps handled here:
   fail: `graderFail(reason)` in src/matchers/shared.ts is fail(reason) plus
   `metadata.graderError`. The record keeps it as promptfoo saved it and gets an in-memory
   mark (records.Mark) for `start`'s judge check; older files have no flag, so the reasons
-  promptfoo writes (src/matchers/rubric.ts, llmGrading.ts) are read instead. A row whose app
-  call failed (`response.error`, or `failureReason` 2, ERROR in src/types/index.ts) is marked
-  too.
+  promptfoo writes (src/matchers/rubric.ts, llmGrading.ts) are read instead. The row's
+  `error` and `failureReason` are never used for this: `error` also holds the reason of an
+  ordinary fail, and a grader error has `failureReason` 1 (ASSERT), like any fail.
 - promptfoo's PROMPTFOO_STRIP_RESPONSE_OUTPUT, PROMPTFOO_STRIP_TEST_VARS and
   PROMPTFOO_STRIP_GRADING_RESULT settings remove the answers, the inputs or the grading from
   every row, in `eval -o` and `export` files alike. When most rows lack one of them, the file
@@ -74,13 +74,14 @@ CACHED = ("{n} judgments in {file} came from promptfoo's cache: they may be old 
 
 
 # How promptfoo words a grader failure (graderFail callers in src/matchers/rubric.ts,
-# llmGrading.ts and rag.ts): a reply it could not read, or a call that failed. Read by these
-# words only when the file has no graderError flag (older promptfoo), so they are kept narrow.
+# llmGrading.ts and rag.ts): a reply it could not read, or a call that failed ("API error: ..."
+# is the provider's error, src/providers/openai/chat.ts, passed on by rubric.ts; an empty
+# reply is "No output"). Read by these words only when the file has no graderError flag (older
+# promptfoo), so they are kept narrow.
 UNREADABLE_REASONS = ("Could not extract JSON from ", "Error parsing output:")
-ERROR_REASONS = ("Could not perform remote grading:",)
+ERROR_REASONS = ("Could not perform remote grading:", "API error:")
 NO_OUTPUT = "No output"
 MALFORMED = re.compile(r"\A(\S+ |Model grader )?produced (a )?malformed response")
-FAILURE_ERROR = 2  # ResultFailureReason.ERROR: the app's call failed
 
 
 def grader_problem(component: dict, metadata: dict) -> str | None:
@@ -93,12 +94,6 @@ def grader_problem(component: dict, metadata: dict) -> str | None:
     if flagged or reason.startswith(ERROR_REASONS) or reason == NO_OUTPUT:
         return "error"
     return None
-
-
-def app_failed(row: dict) -> bool:
-    """The app's own call failed for this row."""
-    return bool((row.get("response") or {}).get("error")) or \
-        row.get("failureReason") == FAILURE_ERROR
 
 
 STRIPPED = ("The {what} are missing from {file}. promptfoo leaves them out when {setting} is "
@@ -316,8 +311,7 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
             if prompt is not None:
                 evaluator["prompt"] = prompt
             problem = grader_problem(c, metadata)
-            mark = Mark(problem=problem, tool_counted_as=label if problem else None,
-                        app_error=app_failed(r))
+            mark = Mark(problem=problem, tool_counted_as=label if problem else None)
             record = ScoreRecord(
                 target_id=item_id, name=name, annotator_kind=LLM, label=label,
                 score=c.get("score"), explanation=c.get("reason") or None, run=run, **content,

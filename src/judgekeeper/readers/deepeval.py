@@ -15,8 +15,12 @@ Traps handled here:
 - The GEval rubric is persisted only inside `verboseLogs` (deepeval/metrics/g_eval/g_eval.py):
   steps "Criteria:", "Evaluation Steps:", "Rubric:" and "Score: <x>" joined with " \\n \\n".
   The prompt hash covers the first three; the score differs per item and is left out.
-- A metric that raised is saved with `error` set and `success: false`; a QAG metric whose judge
-  returned no verdicts at all scores a full 1.0 and passes (`score_qag_verdicts(...,
+- A metric whose judge call failed is saved with `success: false` and `score: null`, often
+  with `error` empty too (an unreadable reply or an HTTP 400 in Faithfulness). DeepEval also
+  refuses an empty `actual_output` this way, before any call, with the error
+  "'actual_output' cannot be empty for the '<metric>' metric"
+  (deepeval/metrics/utils/test_case.py): marked "empty_answer_refused". A QAG metric whose judge returned no verdicts at
+  all scores a full 1.0 and passes (`score_qag_verdicts(...,
   empty_score=1)` in deepeval/metrics/utils/qag.py; its verboseLogs then hold an empty
   "Verdicts:\n[]" part, built by construct_verbose_logs in deepeval/metrics/utils/verbose.py
   from `f"Verdicts:\n{prettify_list(self.verdicts)}"`, e.g. metrics/faithfulness). Both are
@@ -88,8 +92,21 @@ def checked_nothing(md: dict) -> bool:
             and any(part.strip() == NO_VERDICTS for part in logs.split(SEPARATOR)))
 
 
+def failed(md: dict) -> bool:
+    """The metric's judge made no decision: `error` set, or no score and `success` false."""
+    return bool(md.get("error")) or (md.get("score") is None and md.get("success") is False)
+
+
+EMPTY_REFUSED = "'actual_output' cannot be empty"
+
+
 def _mark(md: dict, label, conversational: bool) -> Mark:
-    problem = "error" if md.get("error") else "nothing_checked" if checked_nothing(md) else None
+    problem = None
+    if failed(md):
+        refused = str(md.get("error") or "").startswith(EMPTY_REFUSED)
+        problem = "empty_answer_refused" if refused else "error"
+    elif checked_nothing(md):
+        problem = "nothing_checked"
     return Mark(problem=problem, tool_counted_as=label if problem else None,
                 output_elsewhere=conversational)
 
