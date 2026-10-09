@@ -132,6 +132,7 @@ def read_deepeval(path: str | Path) -> RecordList:
     created_at = f"{m[1]}-{m[2]}-{m[3]}T{m[4]}:{m[5]}:{m[6]}" if m else None
     records = RecordList()
     thresholds: dict[str, set] = {}
+    strict: set[str] = set()  # metrics in strict mode: a score of 1 or 0, the threshold fixed
     cases = [(c, False) for c in data.get("testCases") or []]
     cases += [(c, True) for c in data.get("conversationalTestCases") or []]
     for case, conversational in cases:
@@ -158,6 +159,8 @@ def read_deepeval(path: str | Path) -> RecordList:
                 evaluator["prompt"] = prompt
             if md.get("threshold") is not None:
                 thresholds.setdefault(md["name"], set()).add(md["threshold"])
+            if md.get("strictMode") is True:
+                strict.add(md["name"])
             label = None if not isinstance(success, bool) else ("pass" if success else "fail")
             records.append(ScoreRecord(
                 target_id=item_id, name=md["name"], annotator_kind=LLM, label=label,
@@ -168,4 +171,6 @@ def read_deepeval(path: str | Path) -> RecordList:
         records.warnings.append(POSITIONAL_WARNING)
     records.per_metric = {name: {"threshold": next(iter(ts)) if len(ts) == 1 else sorted(ts)}
                           for name, ts in thresholds.items()}
+    for name in strict:
+        records.per_metric.setdefault(name, {})["strict_mode"] = True
     return records

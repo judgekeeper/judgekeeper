@@ -33,9 +33,14 @@ after you say yes, your own judge through your own tool, and key names only.
 - New: review the disagreements (free, no AI call). First you look again at each answer where
   you and your judge disagree, mixed with answers you agreed on, with the judge's verdict still
   hidden. Then you see what the judge said, with its reason, and say whether the judge was
-  wrong, you slipped, or the rule is unclear. The judge's mistakes go to
-  `.judgekeeper/judge-mistakes.csv`, unclear cases to `rule-unclear.csv`. Your first labels
-  stay the main result.
+  wrong, you were wrong, or the rule is unclear, with an optional line of why. The judge's
+  mistakes go to `.judgekeeper/judge-mistakes.csv`, unclear cases to `rule-unclear.csv`. Your
+  first labels stay the main result.
+- New: fix your judge (`judgekeeper start --fix`, free, no AI call), after the review. About
+  30% of your marked answers are set aside to test a change fairly; from the rest, a page
+  shows what your judge gets wrong, with plain patterns. For a judge that gives a score, it
+  finds the pass mark that fits your marks best and tests it on the answers set aside: how
+  many it fixed and broke, and "it did better", "it did worse" or "Can't tell yet".
 - New: ask your judge again. Your own eval tool grades the answers you labeled again, with
   your own judge: promptfoo, DeepEval, Inspect AI, MLflow, or your own command
   (`--judge-command`). Your app is not run. First a plan, with no AI call: whether this is

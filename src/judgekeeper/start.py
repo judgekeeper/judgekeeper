@@ -22,6 +22,8 @@ default answer of a yes/no question, but never picks between tools or judges. Ev
 from __future__ import annotations
 
 import json
+import math
+import operator
 import os
 import re
 import sys
@@ -100,8 +102,8 @@ REPEATED = (("tool", "--tool"), ("metric", "--metric"), ("experiment", "--experi
             ("tracking_uri", "--tracking-uri"), ("pass_if", "--pass-if"), ("label_map", "--label-map"),
             ("judge_model", "--judge-model"), ("times", "--times"), ("python", "--python"),
             ("fields", "--fields"), ("judge_command", "--judge-command"))
-NOT_REPEATED = frozenset({"new", "review", "ask_again", "try_new_judge", "label_more",
-                          "yes", "allow_calls", "agent_prompt"})
+NOT_REPEATED = frozenset({"new", "review", "fix", "test_pass_mark", "ask_again",
+                          "try_new_judge", "label_more", "yes", "allow_calls", "agent_prompt"})
 DEFAULT_PORT = 8765
 
 
@@ -214,6 +216,8 @@ class Answer:
     source: str
     agent: dict = field(default_factory=dict)  # trajectory, outcome, app_version: kept, not shown
     mark: Mark = NO_MARK  # what the reader learned about this verdict (records.Mark)
+    pass_mark: float | None = None  # the pass mark `score` was held against, when known
+    pass_op: str | None = None  # how: ">=", ">", "<=" or "<"; None when only the data can tell
 
 
 @dataclass
@@ -247,6 +251,24 @@ def _identity(records: RecordList, metric: str) -> frozenset:
                      if r.annotator_kind == LLM and r.name == metric)
 
 
+def _number(value) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float) or math.isnan(value):
+        return None
+    return float(value)
+
+
+def _mark_of(r: ScoreRecord, v, norm: Normaliser, threshold) -> tuple[float | None, str | None]:
+    """The pass mark a verdict was made with, and how a score is held against it: --pass-if's
+    rule, the pass mark judgekeeper.record() or a mapped file keeps with each verdict, or
+    DeepEval's threshold (its direction left to the data)."""
+    if norm.pass_if is not None and v.raw_score is not None:
+        return norm.pass_if.threshold, norm.pass_if.op
+    mark = _number(r.metadata.get("pass_mark"))
+    if mark is not None:
+        return mark, ">="
+    return _number(threshold), None
+
+
 def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normaliser) -> Pool:
     """The pool from the judge `metric`'s verdicts in `files`, newest file first. An answer
     whose verdicts are all no real decision (the reader's mark, or nothing the normaliser can
@@ -254,6 +276,8 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
     pool = Pool()
     chosen: dict[str, Answer] = {}
     for source, records in files:
+        extra = records.per_metric.get(metric, {})
+        threshold = None if extra.get("strict_mode") else extra.get("threshold")
         groups: dict[str, list] = {}
         for r in records:
             if r.annotator_kind == HUMAN:
@@ -285,11 +309,13 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
             passes = sum(v.verdict == "pass" for _, v in judged)
             verdict = "pass" if passes * 2 > len(judged) else "fail"
             r, v = next((r, v) for r, v in reversed(judged) if v.verdict == verdict)
+            score = v.raw_score if v.raw_score is not None else _number(r.score)
+            pass_mark, pass_op = _mark_of(r, v, norm, threshold)
             chosen[key] = Answer(
                 id=key, input=r.input, output=r.output, verdict=verdict,
-                reason=v.rationale or r.explanation or "", score=v.raw_score,
+                reason=v.rationale or r.explanation or "", score=score,
                 fingerprint=make_fingerprint(_known(r.evaluator), r.created_at), source=source,
-                agent=r.agent(), mark=r.mark)
+                agent=r.agent(), mark=r.mark, pass_mark=pass_mark, pass_op=pass_op)
     pool.answers = list(chosen.values())
     return pool
 
@@ -520,6 +546,50 @@ class Found:
     app_version: str | None = None  # the app's version in the pool, when the results say it
     store: str | None = None  # MLflow: the store read (mlflow.db, mlruns), inside `root`
     check: judge_check.Result | None = None  # did the judge actually judge?
+    # The judge's pass mark, when every answer has a number score held against the same one
+    # (pass_mark_of); None for a judge that gives no score or no pass mark
+    pass_mark: dict | None = None
+
+
+PASS_OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt}
+
+
+def passes(score: float, op: str, mark: float) -> str:
+    """The verdict a score gets against a pass mark."""
+    return "pass" if PASS_OPS[op](score, mark) else "fail"
+
+
+def pass_mark_of(pool: Pool, tool: str, pass_if=None, key: str | None = None) -> dict | None:
+    """{"mark", "op", "source", "follows"} when every answer has a number score and the same
+    pass mark; `follows` says whether every verdict is the score held against it. The
+    direction of a DeepEval threshold comes from the verdicts (some of its metrics pass a
+    lower score); when they do not tell it, None. `source` is "pass_if" (with its "rule"),
+    "deepeval", "records" or "mapped" (with the "key" a mapped file states it in)."""
+    answers = pool.answers
+    if not answers or any(a.score is None or a.pass_mark is None for a in answers):
+        return None
+    marks, ops = {a.pass_mark for a in answers}, {a.pass_op for a in answers}
+    if len(marks) != 1 or len(ops) != 1:
+        return None
+    mark, op = marks.pop(), ops.pop()
+    if op is None:
+        fits = [o for o in (">=", "<=")
+                if all(passes(a.score, o, mark) == a.verdict for a in answers)]
+        if len(fits) > 1:
+            return None
+        op = fits[0] if fits else None
+    elif op not in PASS_OPS:
+        return None
+    source = ("pass_if" if pass_if is not None else
+              "deepeval" if tool == "deepeval" else tool)
+    out = {"mark": mark, "op": op, "source": source,
+           "follows": op is not None and all(passes(a.score, op, mark) == a.verdict
+                                             for a in answers)}
+    if pass_if is not None:
+        out["rule"] = pass_if.text
+    if key and source == "mapped":
+        out["key"] = key
+    return out
 
 
 def _or(items: list[str]) -> str:
@@ -969,12 +1039,14 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     score_judge = (norm.pass_if is not None or kind == "deepeval"  # score and threshold
                    or (kind == "mapped" and (saved.map or {}).get("kind", "score") == "score")
                    or any((r.metadata or {}).get("pass_mark") is not None for r in records))
+    key = (saved.map.get("pass_mark_key") if kind == "mapped" else None)
     return Found(root=root, tool=kind, results=results, used=[x.label for x in used],
                  metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs,
                  rule=rule, description=description, metrics=metrics,
                  app_version=", ".join(versions) or None,
                  store=newest.rel if kind == "mlflow" else None,
-                 check=judge_check.check(pool, kind, score_judge=score_judge))
+                 check=judge_check.check(pool, kind, score_judge=score_judge),
+                 pass_mark=pass_mark_of(pool, kind, norm.pass_if, key))
 
 
 SERVERS = ("http://", "https://", "databricks")
@@ -1291,14 +1363,15 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         label_map: str | None = None, judge_model: str | None = None,
         yes: bool = False, port: int = DEFAULT_PORT, no_browser: bool = False,
         new: bool = False, review: bool = False, label_more: bool = False,
-        ask_again: bool = False, try_new_judge: bool = False, times: int | None = None,
+        ask_again: bool = False, try_new_judge: bool = False, fix: bool = False,
+        test_pass_mark: bool = False, times: int | None = None,
         python: str | None = None,
         fields: str | None = None, judge_command: str | None = None,
         allow_calls: int | None = None) -> int:
     """`judgekeeper start`: say what was found, then open the labeling page and make the
     result. What is already saved in `.judgekeeper/` decides where it starts (start_again).
-    `review`, `ask_again`, `try_new_judge` and `label_more` answer the menu shown after a
-    result; `times` (default 2, or 1 when trying a new judge), `python`, `fields`,
+    `review`, `fix`, `ask_again`, `try_new_judge` and `label_more` answer the menu shown
+    after a result (`test_pass_mark`, with `fix`, tests the pass mark in the terminal); `times` (default 2, or 1 when trying a new judge), `python`, `fields`,
     `judge_command` and `allow_calls` shape asking the judge again. Returns the exit code."""
     from judgekeeper import start_again
     from judgekeeper.again import AgainOptions
@@ -1315,11 +1388,11 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
                "tracking_uri": tracking_uri, "pass_if": pass_if, "label_map": label_map,
                "judge_model": judge_model}
     try:
-        then = ("review" if review else "ask" if ask_again else "try" if try_new_judge
-                else "label" if label_more else None)
+        then = ("review" if review else "fix" if fix else "ask" if ask_again
+                else "try" if try_new_judge else "label" if label_more else None)
         return start_again.run(Path(path), talk, options, port=port,
                                open_browser=not no_browser, new=new, then=then,
-                               again_options=again_options)
+                               again_options=again_options, test_pass_mark=test_pass_mark)
     except Stop as stop:
         return stop.code
 

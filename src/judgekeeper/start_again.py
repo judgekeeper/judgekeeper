@@ -6,10 +6,12 @@ decides what happens.
 | nothing                             | the full flow                                          |
 | labeling not finished, no result    | asks to continue; yes reopens the page at the next     |
 |                                     | answer, from the saved pool (no search)                |
-| a result, and the judge's verdicts  | the menu: review the disagreements, label more (a new  |
-| are the same as last time           | result replaces the old one, which goes to history/),  |
-|                                     | ask the judge again (plan, a default-No question, run),|
-|                                     | nothing; --review, --ask-again and --label-more answer |
+| a result, and the judge's verdicts  | the menu: review the disagreements, fix your judge     |
+| are the same as last time           | (once the review found something to fix), label more   |
+|                                     | (a new result replaces the old one, which goes to      |
+|                                     | history/), ask the judge again (plan, a default-No     |
+|                                     | question, run), nothing; --review, --fix, --ask-again  |
+|                                     | and --label-more answer                                |
 | a result, and new verdicts from the | a re-check: the saved labels against the new verdicts, |
 | same tool and judge name            | with the new pool's group sizes, next to the last one  |
 | anything, with --new                | moves it all (except baseline.json and records/) to    |
@@ -22,7 +24,8 @@ answers changed (the app writes different outputs now), so the old labels do not
 start offers to label the latest results instead, moving the old check to previous-<date>/.
 Before a re-check replaces the saved pool, the old start.json, pool files, labels and judge
 check files are copied to history/check-<date>/. After a re-check, at a terminal, the menu
-follows. `--review` reviews the saved result at once, without looking for new results.
+follows. `--review` reviews the saved result at once, without looking for new results; `--fix`
+likewise.
 """
 
 from __future__ import annotations
@@ -97,9 +100,10 @@ def _project(path: Path) -> Path:
 
 
 def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: bool,
-        then: str | None = None, again_options=None) -> int:
-    """`then` answers the menu after a result: "review", "ask" or "label"."""
-    from judgekeeper import start, start_review
+        then: str | None = None, again_options=None, test_pass_mark: bool = False) -> int:
+    """`then` answers the menu after a result: "review", "fix", "ask", "try" or "label".
+    `test_pass_mark` (with "fix") tests the pass mark in the terminal."""
+    from judgekeeper import start, start_fix, start_review
 
     ws = Workspace(_project(path)) if path.exists() else None
     has_result = ws is not None and ws.result_json.is_file() and ws.start.is_file()
@@ -107,6 +111,8 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
         return _no_result_yet(path, ws, talk, then, options.get("tool"))
     if then == "review":
         return start_review.run(ws, talk, port, open_browser)
+    if then == "fix":
+        return start_fix.run(ws, talk, port, open_browser, test_pass_mark)
     if then == "ask":
         return _ask_again(ws, talk, again_options)
     if ws is not None and new:
@@ -127,12 +133,15 @@ OWN_CODE = {"records": "Your judge runs in your own code",
             "table": "Your results are a table"}
 
 
-# `--review`, `--ask-again` and `--try-new-judge` before a result: (flag, why there is
-# nothing to do yet, what the flag does once there are labels).
+# `--review`, `--fix`, `--ask-again` and `--try-new-judge` before a result: (flag, why there
+# is nothing to do yet, what the flag does once there are labels).
 PLAN = "shows the plan (how many calls, the cost, the key's name) and asks before any call."
 BEFORE = {
     "review": ("--review", "There is no result to review yet: a review needs your labels.",
                "opens the answers where you and your judge disagree, to look at again."),
+    "fix": ("--fix", "There is no result yet to fix your judge with: it needs your labels.",
+            ("shows what your judge gets wrong, once you have looked again at where you "
+             "disagree. Free.")),
     "ask": ("--ask-again", ("There is no result to ask about yet: asking your judge again "
                             "needs your labels."), PLAN),
     "try": ("--try-new-judge", ("There is no result yet to try a new judge on: trying one "
@@ -275,8 +284,8 @@ def _drop_new_folders(ws: Workspace, before: set, keep_files: bool = True) -> No
 def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
           again_options=None, new=None) -> int:
     """What next after a result: try the new judge (when `new`, a new_judge.NewJudge),
-    review the disagreements, ask the judge again, label more, or nothing."""
-    from judgekeeper import again, new_judge, start, start_review
+    review the disagreements, fix the judge, ask the judge again, label more, or nothing."""
+    from judgekeeper import again, new_judge, start, start_fix, start_review
 
     last = json.loads(ws.result_json.read_text(encoding="utf-8"))
     labels = last.get("labels", {})
@@ -292,6 +301,8 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
         text = (f"Review the {n} answer{'' if n == 1 else 's'} where you and your judge "
                 "disagree")
         options.append(("review", text, "(free)", "--review"))
+    if start_fix.ready(ws):
+        options.append(("fix", "Fix your judge", "(free)", "--fix"))
     if then is None and _can_ask(ws, again_options):
         plan = again.make_plan(ws, again_options, dry=False)
         options.append(("ask", *again.menu_text(plan), "--ask-again"))
@@ -319,6 +330,8 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
         return new_judge.run(ws, new, talk, again_options, port, open_browser)
     if then == "review":
         return start_review.run(ws, talk, port, open_browser)
+    if then == "fix":
+        return start_fix.run(ws, talk, port, open_browser)
     if then == "ask":
         return _ask_again(ws, talk, again_options)
     if then == "label":

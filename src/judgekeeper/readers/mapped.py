@@ -101,7 +101,9 @@ def _records(item, side, judge, question, answer, model, m, unnamed) -> list[Sco
         name=judge if judge is not None else unnamed, annotator_kind=LLM, label=verdict,
         score=float(score) if score is not None else None,
         explanation=None if reason is None else str(reason), input=question, output=answer,
-        evaluator={"model": model} if model else {})]
+        evaluator={"model": model} if model else {},
+        metadata={"pass_mark": m["pass_mark"]} if verdict is not None and score is not None
+        else {})]
 
 
 def _model(item: dict, up: list, m: dict) -> str | None:

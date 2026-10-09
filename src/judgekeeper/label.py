@@ -16,7 +16,9 @@ the result page, a static HTML page that runs no script. Once every item is labe
 deferred, the server stops right after serving that page, or RESULT_WAIT seconds after the
 last item if nobody fetches it. It may also pass `switches`: a GET of one of their paths swaps
 the session, the page and the result function (from labeling to the review of the
-disagreements) and sends the browser back to the page.
+disagreements) and sends the browser back to the page; a switch that returns None leaves them
+as they are. A session may answer POSTs to paths of its own (`posts`: path -> a function from
+the JSON body to the JSON answer), under the same token and Host rules.
 """
 
 from __future__ import annotations
@@ -187,7 +189,7 @@ class LabelServer:
         # (session, link back to the labeling page) -> the result page (HTML), for GET /result
         self.result = result
         self.template = page
-        # path -> a function returning the (session, page, result) to switch to
+        # path -> a function returning the (session, page, result) to switch to, or None
         self.switches = switches or {}
         self.done_at: float | None = None
         self.token = secrets.token_urlsafe(32)
@@ -270,8 +272,10 @@ def _handler(server: LabelServer):
             elif url.path == "/state":
                 self._json(200, server.session.state())
             elif url.path in server.switches:
-                server.session, server.template, server.result = server.switches[url.path]()
-                server.done_at = None
+                swapped = server.switches[url.path]()
+                if swapped is not None:
+                    server.session, server.template, server.result = swapped
+                    server.done_at = None
                 self._send(303, b"", "text/plain; charset=utf-8",
                            {"Location": f"/?token={server.token}"})
             elif url.path == "/result" and server.result is not None:
@@ -289,7 +293,8 @@ def _handler(server: LabelServer):
             url = urlsplit(self.path)
             if not self._allowed(url):
                 return
-            if url.path != "/label":
+            posts = getattr(server.session, "posts", {})
+            if url.path != "/label" and url.path not in posts:
                 self._json(404, {"error": "not found"})
                 return
             try:
@@ -297,10 +302,20 @@ def _handler(server: LabelServer):
                 if not 0 < length <= MAX_BODY:
                     raise ValueError("expected a JSON body")
                 body = json.loads(self.rfile.read(length))
-                if not isinstance(body, dict) or not isinstance(body.get("id"), str):
+                if not isinstance(body, dict):
+                    raise TypeError("expected a JSON object")
+                if url.path == "/label" and not isinstance(body.get("id"), str):
                     raise TypeError("expected a JSON object with an id")
             except (ValueError, TypeError, UnicodeDecodeError) as e:
                 self._json(400, {"error": str(e)})
+                return
+            if url.path in posts:
+                try:
+                    self._json(200, posts[url.path](body))
+                except (ValueError, TypeError) as e:
+                    self._json(400, {"error": str(e)})
+                except OSError as e:
+                    self._json(500, {"error": describe_os_error(e) or str(e)})
                 return
             if body["id"] not in server.session.by_id:
                 self._json(404, {"error": "no item with that id"})
