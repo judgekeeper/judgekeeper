@@ -20,9 +20,9 @@ agent's steps, when the results keep them), and says when the judge or the app's
 changed since the last check. When fewer than 15 Correct or 15 Wrong of them came back, the
 answers changed (the app writes different outputs now), so the old labels do not apply:
 start offers to label the latest results instead, moving the old check to previous-<date>/.
-Before a re-check replaces the saved pool, the old start.json, pool files and labels are
-copied to history/check-<date>/. After a re-check, at a terminal, the menu follows. `--review`
-reviews the saved result at once, without looking for new results.
+Before a re-check replaces the saved pool, the old start.json, pool files, labels and judge
+check files are copied to history/check-<date>/. After a re-check, at a terminal, the menu
+follows. `--review` reviews the saved result at once, without looking for new results.
 """
 
 from __future__ import annotations
@@ -447,6 +447,7 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
     talk.say()
     talk.say(f"{len(back)} of your {len(labels)} labeled answers are in your latest results "
              f"({found.results[0].date():%Y-%m-%d}).")
+    start.say_check(talk, found)
     changed = judge_change(ws.data()["fingerprint"], found.fingerprint)
     if changed:
         talk.say(f"Your judge changed since your last check: {changed}.")
@@ -467,7 +468,8 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
 
     archive = ws.history / f"check-{_stamp()}"
     archive.mkdir(parents=True)
-    for p in (ws.start, ws.pool, ws.pool_judge, ws.labels):
+    for p in (ws.start, ws.pool, ws.pool_judge, ws.labels, ws.judge_check_json,
+              ws.judge_check_csv):
         if p.is_file():
             shutil.copy2(p, archive / p.name)
     ws.labels.unlink(missing_ok=True)

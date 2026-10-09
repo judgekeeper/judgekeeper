@@ -241,7 +241,7 @@ def test_unclear_verdicts_are_left_out_and_counted():
                        _rec(4, "pass"), _rec(5, "fail")])
     pool = _pool([("r.json", recs)])
     assert [a.input for a in pool.answers] == ["q4", "q5"]
-    assert pool.n_unclear == 4
+    assert pool.n_unclear == 2  # no decision; the unmapped words stop start instead
     assert pool.unmapped == ["maybe"]
 
 
@@ -269,7 +269,7 @@ def test_empty_verdicts_are_said_in_one_line(tmp_path, capsys):
     table_project(tmp_path, split(20, 12) + [None, None])
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "2 answers had no clear verdict and were left out." in out
+    assert ("Your judge made no real decision on 2 of 34 answers: 2 empty decisions." in out)
     assert "32 answers with a verdict" in out
 
 

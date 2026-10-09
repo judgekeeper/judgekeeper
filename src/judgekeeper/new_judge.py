@@ -315,7 +315,7 @@ def confirmation_workspace(ws: Workspace, new: NewJudge, block: dict, talk) -> W
             talk.say(f"Your new judge {did} only {count} of the answers you have not marked, "
                      f"so you may not reach {QUICK} {label}.")
     cws = Workspace(ws.root, folder=ws.root / block["folder"] / "confirm")
-    prepare(replace(new.found, pool=pool), say=lambda *a: None, ws=cws)
+    prepare(replace(new.found, pool=pool, check=None), say=lambda *a: None, ws=cws)
     return cws
 
 

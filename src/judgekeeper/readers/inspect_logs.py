@@ -20,6 +20,12 @@ with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, option
 - The prompt hash covers the scorer's `template` and `instructions` options, or Inspect's
   default for that scorer when they are unset; never the per-sample `metadata.grading`.
 - Values `C`/`I` read as pass/fail; `P` (partial) and anything else need --label-map.
+- A grader whose reply held no grade: current versions save `Score.unscored(reason=
+  "grader_failed", explanation="Grade not found in model output: ...")` (a NaN value that
+  Inspect's metrics skip; scorer/_model.py, scorer/_metric.py; logs before 0.3.245 keep the
+  reason in `metadata.unscored_reason`), older ones INCORRECT with the same explanation.
+  `samples[].error` means the app's own run failed. Both are read as saved, with an in-memory
+  mark (records.Mark) for `start`'s judge check.
 - A human edit (`edit_score`, log/_score.py) appends to `history`: the first entry is the
   original score (no provenance), later ones carry `provenance.author`. The original value is
   the judge's verdict and the edited value is the human label.
@@ -35,6 +41,7 @@ from judgekeeper.anchors import canonical_json
 from judgekeeper.records import (
     HUMAN,
     LLM,
+    Mark,
     RecordList,
     RecordsError,
     ScoreRecord,
@@ -48,6 +55,22 @@ DEFAULT_PROMPT = "inspect_ai default for {name}"
 EVAL_NEEDS_EXTRA = ("{path}: reading .eval logs needs inspect_ai. Install the extra "
                     "(pip install \"judgekeeper[inspect]\"), or run `inspect log dump {path} > "
                     "log.json` first and import the .json.")
+
+
+GRADER_FAILED = "grader_failed"
+NO_GRADE = "Grade not found in model output"
+
+
+def _mark(score: dict, label, app_error: bool) -> Mark:
+    """What the judge check needs to know about one score (see the module docstring)."""
+    unscored = GRADER_FAILED in (score.get("reason"),
+                                 (score.get("metadata") or {}).get("unscored_reason"))
+    explanation = score.get("explanation")
+    no_grade = isinstance(explanation, str) and explanation.startswith(NO_GRADE)
+    problem = "unreadable" if no_grade else "error" if unscored else None
+    counted = "left out" if unscored else DEFAULT_LABELS.get(label)  # C or I
+    return Mark(problem=problem, tool_counted_as=counted if problem else None,
+                app_error=app_error)
 
 
 def _load(path: Path) -> dict:
@@ -217,7 +240,8 @@ def read_inspect(path: str | Path) -> RecordList:
                 records.append(ScoreRecord(
                     target_id=item_id, name=key, annotator_kind=LLM, label=label, score=number,
                     explanation=judged.get("explanation") or None, run=epoch, **content,
-                    evaluator=dict(evaluator), created_at=created_at))
+                    evaluator=dict(evaluator), created_at=created_at,
+                    mark=_mark(judged, label, bool(sample.get("error")))))
             if edit:
                 provenance = edit[1]["provenance"]
                 for key, value in _verdicts(name, score.get("value")):

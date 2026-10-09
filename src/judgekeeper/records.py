@@ -228,6 +228,28 @@ def problems(d: dict) -> list[str]:
     return out
 
 
+@dataclass(frozen=True)
+class Mark:
+    """What a reader learned about one verdict that its file keeps no field for: held in memory
+    only, for `start`'s judge check (judgekeeper.judge_check). Never written to any file and
+    never compared, so `import`, `report` and `check` read exactly as before.
+
+    `problem`: the judge made no real decision: "error" (its call failed), "unreadable" (its
+    reply could not be read) or "nothing_checked" (it checked nothing and the tool gave full
+    marks). `tool_counted_as`: what the eval tool counted such a verdict as ("pass", "fail" or
+    "left out"); None when it does not say. `app_error`: the app's own run failed.
+    `output_elsewhere`: the answer is not in `output` (a DeepEval conversation's turns).
+    """
+
+    problem: str | None = None
+    tool_counted_as: str | None = None
+    app_error: bool = False
+    output_elsewhere: bool = False
+
+
+NO_MARK = Mark()
+
+
 @dataclass
 class ScoreRecord:
     target_id: str
@@ -247,6 +269,7 @@ class ScoreRecord:
     app_version: str | None = None
     schema_version: int = SCHEMA_VERSION
     extra: dict = field(default_factory=dict)  # fields judgekeeper does not know, kept
+    mark: Mark = field(default=NO_MARK, compare=False, repr=False)  # in memory only
 
     def to_dict(self) -> dict:
         """The record as written: version 2 (or the newer version it was read as), the

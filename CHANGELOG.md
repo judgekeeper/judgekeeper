@@ -20,6 +20,12 @@ after you say yes, your own judge through your own tool, and key names only.
 - `judgekeeper start` never runs your app. Finding, labeling, the result and the review make
   no AI calls and need no API key. When there are too few answers, it prints the command that
   makes more with your own tool, and you run it.
+- New: before you label, `start` checks whether your judge actually judged (no labels, no AI
+  call). Answers with no real decision (its call failed, its reply could not be read, there is
+  none, or a DeepEval check of nothing got full marks) are left out and named, with what your
+  eval tool counted them as; an empty answer it passed, the same decision for every answer,
+  and a reason that says the opposite are named too. The answers are listed in
+  `.judgekeeper/judge-check.csv`.
 - After a result, `start` shows a short menu: review the disagreements, ask your judge again,
   label more, or nothing. When your newest results hold a new version of your judge, it also
   offers to try the new judge. `--review`, `--ask-again`, `--try-new-judge` and
