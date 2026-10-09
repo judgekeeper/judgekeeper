@@ -14,7 +14,8 @@ after IDLE_TIMEOUT seconds without a request.
 The caller passes the page (start_page.py) and a `result` function: GET /result answers with
 the result page, a static HTML page that runs no script. Once every item is labeled or
 deferred, the server stops right after serving that page, or RESULT_WAIT seconds after the
-last item if nobody fetches it. It may also pass `switches`: a GET of one of their paths swaps
+last item if nobody fetches it; not after a click the session's `asks_why` says leaves the page
+on its Why? box, which can take longer. It may also pass `switches`: a GET of one of their paths swaps
 the session, the page and the result function (from labeling to the review of the
 disagreements) and sends the browser back to the page; a switch that returns None leaves them
 as they are. A session may answer POSTs to paths of its own (`posts`: path -> a function from
@@ -331,8 +332,11 @@ def _handler(server: LabelServer):
                 return
             summary = server.session.summary()
             self._json(200, {"summary": summary})
-            if server.result is not None and summary["done"] and server.done_at is None:
-                server.done_at = time.monotonic()
+            if server.result is not None and summary["done"]:
+                if getattr(server.session, "asks_why", lambda body: False)(body):
+                    server.done_at = None  # the page waits for a why; its GET /result stops
+                elif server.done_at is None:
+                    server.done_at = time.monotonic()
 
     return Handler
 

@@ -1034,10 +1034,9 @@ FIX_BODY = """<main class="fix">
     if (!test) { return; }
     box.appendChild(el("p", "sentence", test.lines[0]));
     box.appendChild(el("p", null, test.lines[1]));
-    test.numbers.forEach(function (line) { box.appendChild(el("p", null, line)); });
     var d = el("details"), ul = el("ul");
-    d.appendChild(el("summary", null, "How sure: the ranges"));
-    test.ranges.forEach(function (line) { ul.appendChild(el("li", null, line)); });
+    d.appendChild(el("summary", null, "How often your judge agreed with you, before and after"));
+    test.numbers.forEach(function (line) { ul.appendChild(el("li", null, line)); });
     d.appendChild(ul); box.appendChild(d);
     box.appendChild(el("h3", null, test.kind === "better" ? "Where to change it"
       : "If you still want to use it"));

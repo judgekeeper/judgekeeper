@@ -8,8 +8,9 @@ unclear", which have a box of their own). The main result keeps the first labels
 
 The first time, about 30% of the answers with a final mark are set aside: ceil(30%) of each
 of four cells (the judge's pass or fail, times whether it agrees with the final mark), in a
-seeded shuffle. They are used only to test a change, so the test is fair: nothing from them is
-shown or counted in a pattern, and they never go into a prompt. The page shows, from the rest:
+seeded shuffle; a cell of one answer stays in the rest, so a single mistake is still shown. They
+are used only to test a change, so the test is fair: nothing from them is shown or counted in a
+pattern, and they never go into a prompt. The page shows, from the rest:
 
 - what the judge gets wrong: the two kinds of mistakes, each a list that folds open, and plain
   patterns in them (too easy or too strict, close to the pass mark, long answers, words that
@@ -18,9 +19,10 @@ shown or counted in a pattern, and they never go into a prompt. The page shows, 
   the person's marks best, and a free test of it on the answers set aside.
 
 A test says how many of the set-aside answers the change fixed and broke, with an exact sign
-test on the two, and the two agreement numbers before and after (weighted by the saved groups,
-as `new_judge` does). After 3 tests on one split, the answers set aside no longer give a fair
-test.
+test on the two, and the two agreement numbers before and after, with no range. Rounding up per
+cell sets aside more of the few disagreements than of the many agreed answers, so the numbers on
+either part weigh each answer by its cell (cell_weights), not only its group. After 3 tests on
+one split, the answers set aside no longer give a fair test.
 
 `.judgekeeper/` gains fix.json (the result it is of, the seed, the two parts, the tests) and
 fix/ (patterns.json: the counts and the pattern lines; pass-mark.json: the pass-mark test). A
@@ -160,7 +162,8 @@ def ready(ws: Workspace) -> bool:
 # The split --------------------------------------------------------------------------------
 
 def split(marks: list[dict], seed: int) -> tuple[list[str], list[str]]:
-    """(used ids, set-aside ids): ceil(30%) of each of the four cells set aside."""
+    """(used ids, set-aside ids): ceil(30%) of each of the four cells set aside, except a cell
+    of one answer, which stays in the used part."""
     rng = random.Random(seed)
     used, aside = [], []
     for judge in ("pass", "fail"):
@@ -168,10 +171,25 @@ def split(marks: list[dict], seed: int) -> tuple[list[str], list[str]]:
             ids = sorted(m["id"] for m in marks
                          if m["judge"] == judge and (m["final"] == judge) == agrees)
             rng.shuffle(ids)
-            n = -(-len(ids) * ASIDE_TENTHS // 10)
+            n = -(-len(ids) * ASIDE_TENTHS // 10) if len(ids) > 1 else 0
             aside += ids[:n]
             used += ids[n:]
     return used, aside
+
+
+def cell(m: dict) -> tuple[str, bool]:
+    """The cell of a final mark: the judge's group, and whether the judge agrees with it."""
+    return m["judge"], m["judge"] == m["final"]
+
+
+def cell_weights(marks: list[dict], part: list[dict], pool: dict) -> dict:
+    """The weight of an answer in each cell of `part` (the used or the set-aside answers of
+    `marks`): the pool's group size times the cell's share of the group's marks, over the
+    cell's answers in the part. The numbers on the part are then those of all the marks."""
+    labeled = Counter(cell(m) for m in marks)
+    groups = Counter(m["judge"] for m in marks)
+    here = Counter(cell(m) for m in part)
+    return {c: pool[c[0]] * labeled[c] / groups[c[0]] / k for c, k in here.items()}
 
 
 def _keep_old(ws: Workspace) -> None:
@@ -310,11 +328,20 @@ def where_lines(pm: dict, mark: float) -> list[str]:
                  "eval sets it.")]
     if source == "mapped":
         return [f"Set pass_mark = {m} in judgekeeper.toml [start]."]
-    rule = re.sub(rf"{_NUMBER}\s*$", m, pm.get("rule") or f"score{pm['op']}0")
-    return [f"Use --pass-if '{rule}'."]
+    if source == "pass_if":  # double quotes work in Windows cmd too
+        rule = re.sub(rf"{_NUMBER}\s*$", m, pm.get("rule") or f"score{pm['op']}0")
+        return [f'Use --pass-if "{rule}".']
+    # a pass mark kept with each verdict, read from another tool's files
+    return [(f"Set pass_mark={m} in your judgekeeper.record() line, or pass_mark = {m} in "
+             "judgekeeper.toml [start].")]
 
 
-SEARCHED = {"deepeval": "threshold", "records": "pass_mark", "mapped": "pass_mark"}
+def searched(pm: dict) -> str | None:
+    """The name the pass mark is set with in the project's files, or None when it is not
+    set in them (--pass-if, or a key a mapped file states it in)."""
+    if pm["source"] == "pass_if" or (pm["source"] == "mapped" and pm.get("key")):
+        return None
+    return "threshold" if pm["source"] == "deepeval" else "pass_mark"
 
 
 def _files(root: Path):
@@ -329,12 +356,17 @@ def _files(root: Path):
             except OSError:
                 continue
             for e in entries:
-                if e.is_symlink():
+                try:
+                    if e.is_symlink():
+                        continue
+                    if e.is_dir():
+                        if e.name not in SEARCH_SKIP:
+                            folders.append(Path(e.path))
+                        continue
+                    small = e.is_file() and e.stat().st_size <= SEARCH_MAX_BYTES
+                except OSError:  # gone, or not ours to look at
                     continue
-                if e.is_dir():
-                    if e.name not in SEARCH_SKIP:
-                        folders.append(Path(e.path))
-                elif e.is_file() and e.stat().st_size <= SEARCH_MAX_BYTES:
+                if small:
                     seen += 1
                     if seen > SEARCH_MAX_FILES:
                         return
@@ -395,15 +427,8 @@ def test_sentence(n: int, fixed: int, broke: int) -> str:
             "That is too few to be sure. Mark more answers to find out.")
 
 
-
 def _pct(value) -> str:
     return "unknown" if value is None else f"{value:.0%}"
-
-
-def _ranged(value, interval) -> str:
-    lo, hi = interval or (None, None)
-    return _pct(value) if value is None or lo is None or hi is None else (
-        f"{_pct(value)} ({_pct(lo)} to {_pct(hi)})")
 
 
 # The session the page reads -------------------------------------------------------------
@@ -505,11 +530,10 @@ class Fix:
         return None
 
     def _weights(self, ids) -> dict:
-        n = Counter(self.marks[i]["judge"] for i in ids)
-        return {g: self.pool[g] / n[g] if n[g] else 0.0 for g in ("pass", "fail")}
+        return cell_weights(list(self.marks.values()), [self.marks[i] for i in ids], self.pool)
 
     def suggested(self) -> float:
-        items = [(self.marks[i]["judge"], self.marks[i]["final"], self.scores[i])
+        items = [(cell(self.marks[i]), self.marks[i]["final"], self.scores[i])
                  for i in self.used_ids]
         return choose_mark(items, self.pm["mark"], self.pm["op"], self._weights(self.used_ids))
 
@@ -534,11 +558,13 @@ class Fix:
         saved = self._saved_test()
         if saved is not None and saved["new_mark"] == mark:
             section["test"] = saved["test"]
-        elif self.refusal():
-            section["refusal"] = self.refusal()
         elif section["kind"] == "suggest":
-            section["button"] = (f"Test {_mark(mark)} on the "
-                                 f"{_plural(len(self.aside_ids), 'answer')} set aside")
+            refusal = self.refusal()
+            if refusal:
+                section["refusal"] = refusal
+            else:
+                section["button"] = (f"Test {_mark(mark)} on the "
+                                     f"{_plural(len(self.aside_ids), 'answer')} set aside")
         return section
 
     def test_pass_mark(self, mark: float) -> dict:
@@ -551,19 +577,18 @@ class Fix:
             raise ValueError("this judge has no pass mark that can be moved")
         if section.get("test") and section["mark"] == mark:
             return section["test"]
-        if section.get("refusal"):
-            raise ValueError(section["refusal"])
         if section["kind"] != "suggest" or mark != section["mark"]:
             raise ValueError("only the suggested pass mark can be tested")
+        if section.get("refusal"):
+            raise ValueError(section["refusal"])
         old_mark, op = self.pm["mark"], self.pm["op"]
         new = {i: passes(self.scores[i], op, mark) for i in self.aside_ids}
         test = self.fair_test(new)
         hand_over = where_lines(self.pm, mark)
-        name = SEARCHED.get(self.pm["source"])
-        if name and not (self.pm["source"] == "mapped" and self.pm.get("key")):
-            found = locate(self.workspace.root, name, old_mark)
-            if found:
-                hand_over.append(f"Probably in {found[0]}, line {found[1]}: {found[2]}")
+        name = searched(self.pm)
+        found = name and locate(self.workspace.root, name, old_mark)
+        if found:  # a line of the person's own file: scrubbed before it is saved or shown
+            hand_over.append(scrub(f"Probably in {found[0]}, line {found[1]}: {found[2]}"))
         test.update(hand_over=hand_over + [NEXT_RUN], old_mark=old_mark, new_mark=mark)
         self._record(f"pass mark {_mark(old_mark)} to {_mark(mark)}", "pass_mark", test)
         _write_json(self.folder / "pass-mark.json", {
@@ -581,25 +606,21 @@ class Fix:
     # The fair test ------------------------------------------------------------------------
 
     def fair_test(self, new: dict[str, str]) -> dict:
-        """Old decisions (the saved verdicts) against `new` ones on the set-aside answers."""
+        """Old decisions (the saved verdicts) against `new` ones on the set-aside answers:
+        fixed and broke, and the two agreement numbers before and after, weighted by cell,
+        with no range."""
         aside = [self.marks[i] for i in self.aside_ids]
         fixed = sum(m["judge"] != m["final"] and new[m["id"]] == m["final"] for m in aside)
         broke = sum(m["judge"] == m["final"] and new[m["id"]] != m["final"] for m in aside)
         n = len(aside)
-        before = weighted.general([(m["judge"], m["final"], m["judge"]) for m in aside],
-                                  self.pool["pass"], self.pool["fail"])
-        after = weighted.general([(m["judge"], m["final"], new[m["id"]]) for m in aside],
-                                 self.pool["pass"], self.pool["fail"])
-        numbers, ranges = [], []
-        for key, said in (("tpr", "Pass"), ("tnr", "Fail")):
-            line = f"When you said {said}, your judge also said {said}"
-            numbers.append(f"{line}: {_pct(before[key])} → {_pct(after[key])}")
-            ranges.append(f"{line}: before {_ranged(before[key], before[f'{key}_interval'])}, "
-                          f"after {_ranged(after[key], after[f'{key}_interval'])}.")
+        weights = self._weights(self.aside_ids)
+        before = weighted._table([(cell(m), m["final"], m["judge"]) for m in aside], weights)
+        after = weighted._table([(cell(m), m["final"], new[m["id"]]) for m in aside], weights)
+        numbers = [f"When you said {said}, your judge also said {said}: {_pct(before[key])} → "
+                   f"{_pct(after[key])}" for key, said in (("tpr", "Pass"), ("tnr", "Fail"))]
         return {"kind": test_kind(fixed, broke), "n": n, "fixed": fixed, "broke": broke,
                 "p": sign_test(fixed, broke),
-                "lines": [test_sentence(n, fixed, broke), SMALL],
-                "numbers": numbers, "ranges": ranges}
+                "lines": [test_sentence(n, fixed, broke), SMALL], "numbers": numbers}
 
     def _record(self, change: str, kind: str, test: dict) -> None:
         self.saved["tests"].append({"kind": kind, "made_at": utc_now(), "change": change,

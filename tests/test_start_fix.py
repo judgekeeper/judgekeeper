@@ -17,7 +17,7 @@ import threading
 import pytest
 
 from judgekeeper import label as label_mod
-from judgekeeper import start, start_fix, start_label, start_review
+from judgekeeper import start, start_fix, start_label, start_review, weighted
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace, save_result
 from judgekeeper.start_review import ReviewSession
@@ -143,7 +143,7 @@ def _marks(cells):
 
 def test_the_split_sets_aside_30_percent_rounded_up_in_each_of_four_cells():
     marks = _marks({("pass", "pass"): 10, ("pass", "fail"): 7, ("fail", "fail"): 21,
-                    ("fail", "pass"): 1})
+                    ("fail", "pass"): 2})
     used, aside = start_fix.split(marks, seed=7)
     cells = {}
     for i in aside:
@@ -153,6 +153,74 @@ def test_the_split_sets_aside_30_percent_rounded_up_in_each_of_four_cells():
                      ("fail", "pass"): 1}
     assert sorted(used + aside) == sorted(m["id"] for m in marks)
     assert not set(used) & set(aside)
+
+
+def test_a_cell_of_one_answer_stays_in_the_used_part():
+    # One mistake flagged: it stays on the page instead of being set aside.
+    marks = _marks({("pass", "pass"): 10, ("pass", "fail"): 1, ("fail", "fail"): 10})
+    for seed in range(20):
+        used, aside = start_fix.split(marks, seed=seed)
+        assert "pass-fail-0" in used and "pass-fail-0" not in aside
+
+
+def _tnr(items, weights):
+    return weighted._table(items, weights)["tnr"]
+
+
+def test_cell_weights_keep_the_set_aside_numbers_those_of_all_labels():
+    # 900 passes and 100 fails in the pool. Labels: the judge's passes 24 agreed + 1 not,
+    # its fails 20 agreed + 5 not. On all labels, weighted by group (900 / 25, 100 / 25):
+    # TNR = 20 * 4 / (20 * 4 + 1 * 36) = 0.69.
+    pool = {"pass": 900, "fail": 100}
+    marks = _marks({("pass", "pass"): 24, ("pass", "fail"): 1, ("fail", "fail"): 20,
+                    ("fail", "pass"): 5})
+    every = _tnr([(m["judge"], m["final"], m["judge"]) for m in marks],
+                 {"pass": 900 / 25, "fail": 100 / 25})
+    assert every == pytest.approx(80 / 116)
+    # The four-cell split with every cell rounded up (8, 1, 6 and 2 set aside) holds
+    # proportionally more disagreements: weighted by group it reads 0.43.
+    by_cell = {}
+    for m in marks:
+        by_cell.setdefault(start_fix.cell(m), []).append(m)
+    aside = (by_cell[("pass", True)][:8] + by_cell[("pass", False)][:1]
+             + by_cell[("fail", True)][:6] + by_cell[("fail", False)][:2])
+    old = _tnr([(m["judge"], m["final"], m["judge"]) for m in aside],
+               {"pass": 900 / 9, "fail": 100 / 8})
+    assert old == pytest.approx(75 / 175)
+    # Weighted by cell, the set-aside part reads the same as all labels.
+    weights = start_fix.cell_weights(marks, aside, pool)
+    assert _tnr([(start_fix.cell(m), m["final"], m["judge"]) for m in aside],
+                weights) == pytest.approx(every)
+
+
+def test_with_one_answer_cells_kept_the_used_part_keeps_the_numbers_of_all_labels():
+    # The same labels through the real split: the single wrong pass stays in the used part,
+    # where the pass mark is chosen, and the numbers there are those of all labels.
+    pool = {"pass": 900, "fail": 100}
+    marks = _marks({("pass", "pass"): 24, ("pass", "fail"): 1, ("fail", "fail"): 20,
+                    ("fail", "pass"): 5})
+    by_id = {m["id"]: m for m in marks}
+    used_ids, _ = start_fix.split(marks, seed=3)
+    assert "pass-fail-0" in used_ids
+    used = [by_id[i] for i in used_ids]
+    weights = start_fix.cell_weights(marks, used, pool)
+    table = weighted._table([(start_fix.cell(m), m["final"], m["judge"]) for m in used],
+                            weights)
+    every = weighted._table([(m["judge"], m["final"], m["judge"]) for m in marks],
+                            {"pass": 900 / 25, "fail": 100 / 25})
+    assert table["tnr"] == pytest.approx(every["tnr"])
+    assert table["tpr"] == pytest.approx(every["tpr"])
+    # With two wrong passes, both parts hold every cell, and the set-aside part matches too.
+    marks = _marks({("pass", "pass"): 23, ("pass", "fail"): 2, ("fail", "fail"): 20,
+                    ("fail", "pass"): 5})
+    by_id = {m["id"]: m for m in marks}
+    every = weighted._table([(m["judge"], m["final"], m["judge"]) for m in marks],
+                            {"pass": 900 / 25, "fail": 100 / 25})
+    aside = [by_id[i] for i in start_fix.split(marks, seed=3)[1]]
+    table = weighted._table([(start_fix.cell(m), m["final"], m["judge"]) for m in aside],
+                            start_fix.cell_weights(marks, aside, pool))
+    assert table["tnr"] == pytest.approx(every["tnr"])
+    assert table["tpr"] == pytest.approx(every["tpr"])
 
 
 def test_the_split_is_seeded():
@@ -409,6 +477,19 @@ def test_a_mark_that_already_fits_has_no_button(tmp_path):
     assert scores[90] > 0.9
 
 
+def test_a_mark_that_already_fits_has_no_refusal(tmp_path):
+    # 20 answers: too few set aside for a test, but nothing to test either.
+    scores = [round(0.025 + 0.05 * i, 3) for i in range(20)]
+    scored_records(tmp_path, scores)
+    ws = start_label.prepare(start.find_judge(tmp_path), say=_quiet)
+    _mark_all(ws, lambda i, g: "fail" if i in (18, 19) else g)
+    fix = start_fix.Fix(ws)
+    assert fix.refusal() is not None
+    section = fix.state()["pass_mark"]
+    assert section["kind"] == "fits"
+    assert "refusal" not in section and "button" not in section
+
+
 # The fair test ---------------------------------------------------------------------------
 
 def test_the_sign_test_p_values():
@@ -442,12 +523,16 @@ def test_the_pass_mark_test_on_the_set_aside_answers(tmp_path, seeded):
                                   "broke none.")
     assert result["lines"][1] == ("This test is small. The real check is on new answers, after "
                                   "your next eval run.")
-    numbers = result["numbers"]
-    assert numbers[0].startswith("When you said Pass, your judge also said Pass: 100% → 100%")
-    assert numbers[1].startswith("When you said Fail, your judge also said Fail: ")
-    assert "→ 100%" in numbers[1]
-    assert all("(" not in x for x in numbers)  # ranges only in the details
-    assert result["ranges"]
+    # The old -> new numbers, point values weighted by cell (no ranges): before the change
+    # they are those of all final marks, weighted by group.
+    marks = list(fix.marks.values())
+    n = {g: sum(m["judge"] == g for m in marks) for g in ("pass", "fail")}
+    every = weighted._table([(m["judge"], m["final"], m["judge"]) for m in marks],
+                            {g: fix.pool[g] / n[g] for g in n})
+    assert result["numbers"] == [
+        "When you said Pass, your judge also said Pass: 100% → 100%",
+        f"When you said Fail, your judge also said Fail: {every['tnr']:.0%} → 100%"]
+    assert "ranges" not in result
     saved = json.loads((ws.dir / "fix.json").read_text(encoding="utf-8"))
     assert saved["tests"] == [{"kind": "pass_mark", "made_at": saved["tests"][0]["made_at"],
                                "change": "pass mark 0.5 to 0.7", "fixed": 6, "broke": 0,
@@ -524,8 +609,50 @@ def test_the_hand_over_per_source():
         "Set threshold=0.65 in your metric, e.g. GEval(..., threshold=0.65).")
     assert start_fix.where_lines({"source": "mapped", "op": ">="}, 0.65)[0] == (
         "Set pass_mark = 0.65 in judgekeeper.toml [start].")
+    # Double quotes, which work in Windows cmd as well.
     assert start_fix.where_lines({"source": "pass_if", "op": ">=", "rule": "score>=0.5"},
-                                 0.65)[0] == "Use --pass-if 'score>=0.65'."
+                                 0.65)[0] == 'Use --pass-if "score>=0.65".'
+    # A pass mark kept with each verdict, read by another reader: record() or the toml.
+    for source in ("table", "jsonl", "promptfoo"):
+        assert start_fix.where_lines({"source": source, "op": ">="}, 0.65) == [
+            ("Set pass_mark=0.65 in your judgekeeper.record() line, or pass_mark = 0.65 in "
+             "judgekeeper.toml [start].")]
+
+
+def test_the_hand_over_scrubs_the_line_it_found(tmp_path, seeded):
+    ws = too_easy_project(tmp_path)
+    key = "sk-ant-api03-" + "x" * 40
+    (tmp_path / "check.py").write_text(f'judgekeeper.record(pass_mark=0.5, key="{key}")\n',
+                                       encoding="utf-8")
+    test = start_fix.Fix(ws).test_pass_mark(0.7)
+    found = test["hand_over"][1]
+    assert found.startswith("Probably in check.py, line 1: judgekeeper.record(pass_mark=0.5")
+    assert key not in found
+    assert key not in (ws.dir / "fix" / "pass-mark.json").read_text(encoding="utf-8")
+
+
+def test_the_search_goes_on_past_a_file_it_cannot_look_at(tmp_path, monkeypatch):
+    (tmp_path / "b.py").write_text("GEval(threshold=0.5)\n", encoding="utf-8")
+    real = os.scandir
+
+    class Gone:
+        name, path = "a.py", str(tmp_path / "a.py")
+
+        def is_symlink(self):
+            return False
+
+        def is_dir(self):
+            return False
+
+        def is_file(self):
+            return True
+
+        def stat(self):
+            raise FileNotFoundError(self.path)
+
+    monkeypatch.setattr(start_fix.os, "scandir",
+                        lambda folder: [Gone(), *real(folder)])
+    assert start_fix.locate(tmp_path, "threshold", 0.5) == ("b.py", 1, "GEval(threshold=0.5)")
 
 
 def test_the_search_skips_virtual_environments_and_judgekeeper(tmp_path):
@@ -645,6 +772,55 @@ def test_changing_the_choice_keeps_the_why_and_undo_clears_it(tmp_path):
     assert review.by_id[p1]["why"] == "too vague"
     review.update({"id": p1, "choice": None})
     assert review.by_id[p1]["why"] is None
+
+
+def _last_choice_server(tmp_path, monkeypatch):
+    """A review server with every disagreement but the last one chosen, and a short wait
+    before the server stops on its own."""
+    monkeypatch.setattr(label_mod, "RESULT_WAIT", 0.3)
+    ws, _ = _reviewable(tmp_path)
+    review = ReviewSession(ws)
+    _second_look(review)
+    dis = [i["id"] for i in review.items if i["disagreement"]]
+    for i in dis[:-1]:
+        review.update({"id": i, "choice": "slipped"})
+    server = label_mod.LabelServer(review, port=0, page=start_review.page_template(ws),
+                                   result=start_review.result_maker(ws, say=_quiet))
+    thread = threading.Thread(target=server.serve, daemon=True)
+    thread.start()
+    return server, thread, Client(server), dis[-1]
+
+
+def test_a_slow_why_on_the_last_disagreement_is_not_lost(tmp_path, monkeypatch):
+    server, thread, client, last = _last_choice_server(tmp_path, monkeypatch)
+    try:
+        status, body = client.label(id=last, choice="judge_wrong")
+        assert status == 200 and body["summary"]["done"]
+        thread.join(timeout=1)  # the person is still typing why
+        assert thread.is_alive()
+        assert client.label(id=last, why="it ignored the refund rule")[0] == 200
+        thread.join(timeout=1)
+        assert thread.is_alive()
+        saved = json.loads(server.session.workspace.review.read_text(encoding="utf-8"))
+        assert {i["id"]: i for i in saved["items"]}[last]["why"] == "it ignored the refund rule"
+        resp, _ = client.request("GET", "/result")  # Next: the result page stops the server
+        assert resp.status == 200
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+    finally:
+        server.stop()
+        thread.join(5)
+
+
+def test_i_was_wrong_on_the_last_disagreement_still_stops_on_its_own(tmp_path, monkeypatch):
+    server, thread, client, last = _last_choice_server(tmp_path, monkeypatch)
+    try:
+        assert client.label(id=last, choice="slipped")[0] == 200
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+    finally:
+        server.stop()
+        thread.join(5)
 
 
 def test_the_why_text_is_in_step_b_page_data(tmp_path):

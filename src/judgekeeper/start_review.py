@@ -192,6 +192,11 @@ class ReviewSession:
             item.update(before)
             raise
 
+    def asks_why(self, body: dict) -> bool:
+        """Whether the page stays on the answer after this click, for its Why? box: a choice
+        that asks why, or the why itself. It moves on with GET /result, not on a timer."""
+        return body.get("choice") in WHY_CHOICES or "why" in body
+
     def _apply(self, item: dict, body: dict) -> None:
         keys = set(body) - {"id"}
         if keys == {"second"}:
