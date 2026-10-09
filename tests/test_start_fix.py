@@ -381,6 +381,19 @@ def test_deepeval_threshold_is_the_pass_mark(tmp_path):
     assert start.find_judge(tmp_path).pass_mark is None
 
 
+def test_answers_with_no_real_decision_do_not_count_for_the_pass_mark(tmp_path):
+    # Two failed judge calls: no score, counted as fails by DeepEval. They are left out of
+    # the pool, so the pass mark is still read from the answers the judge did decide.
+    path = deepeval_project(tmp_path, split(20, 16))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for case in data["testCases"][:2]:
+        case["metricsData"][0].update(success=False, score=None, error="rate limited")
+    path.write_text(json.dumps(data), encoding="utf-8")
+    found = start.find_judge(tmp_path)
+    assert len(found.pool.left) == 2 and len(found.pool.answers) == 34
+    assert found.pass_mark == {"mark": 0.5, "op": ">=", "source": "deepeval", "follows": True}
+
+
 def test_deepeval_lower_is_better_is_read_from_the_saved_verdicts(tmp_path):
     path = deepeval_project(tmp_path, split(20, 16))
     data = json.loads(path.read_text(encoding="utf-8"))
