@@ -6,9 +6,9 @@ The queue: a seeded shuffle of each group (the judge's passes and its fails), th
 from the other. The whole pool is queued. The seed is saved, so the queue can be rebuilt.
 
 `.judgekeeper/` in the project holds:
-- start.json: the tool, the results files used, the judge and its fingerprint, the pool
-  counts, what was left out, the seed and the queue (ids and groups). Written when labeling
-  starts.
+- start.json: the tool, the results files used, the judge and its fingerprint, its pass mark
+  (for a judge that gives a score), the pool counts, what was left out, the seed and the
+  queue (ids and groups). Written when labeling starts.
 - pool.jsonl (id, input, output, in queue order; plus trajectory, outcome and app_version
   when the results have them, never shown on a page) and pool-judge.jsonl (the judge's
   verdict on every pool answer, in the run-file format, each line with the full fingerprint).
@@ -24,6 +24,7 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
 - result.json and result.html, with the earlier result moved to history/.
 - review.json, judge-mistakes.csv and rule-unclear.csv: the review of the disagreements
   (start_review.py).
+- fix.json and fix/: fixing the judge after the review (start_fix.py).
 Every string from a results file is scrubbed of credentials before it is written. Nothing is
 written anywhere else, and the user's .gitignore is never touched.
 """
@@ -212,6 +213,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "app_version": found.app_version,
         **({"mlflow_store": found.store} if found.store else {}),
         "fingerprint": scrub_fingerprint(found.fingerprint),
+        "pass_mark": found.pass_mark,
         "pool": {"answers": len(p.answers), "pass": p.n_pass, "fail": p.n_fail},
         "pool_sha256": pool_sha,
         "left_out": {"no_clear_verdict": p.n_unclear, "unmapped_values": p.unmapped,
@@ -401,6 +403,12 @@ def disagreements_words(n: int) -> str:
     return f"the {n} disagreement{'' if n == 1 else 's'}"
 
 
+def can_fix(r: dict) -> bool:
+    """Whether the review is done and found something to fix the judge with."""
+    review = r.get("review") or {}
+    return bool(review.get("done") and review.get("to_fix"))
+
+
 def can_ask_again(r: dict) -> bool:
     """Whether judgekeeper can run this judge again: not for verdicts saved by your own code
     or in a table. A result that does not name its tool is offered it."""
@@ -419,6 +427,8 @@ def _next(r: dict) -> list[tuple[str, str]]:
     if to_review(r):
         steps.append((f"Review {disagreements_words(to_review(r))}:",
                       "judgekeeper start --review"))
+    if can_fix(r):
+        steps.append(("Fix your judge (free):", "judgekeeper start --fix"))
     if can_ask_again(r):
         steps.append(("Ask your judge again:", "judgekeeper start --ask-again"))
     if r.get("new_judge"):
@@ -578,6 +588,12 @@ def page_content(r: dict) -> dict:
                                "reason. Free."),
                       "command": "judgekeeper start --review", "link": "/review",
                       "button": "Review them"})
+    if can_fix(r):
+        steps.append({"title": "Fix your judge",
+                      "text": ("See what your judge gets wrong, and test a change on answers "
+                               "set aside. Free."),
+                      "command": "judgekeeper start --fix", "link": "/fix",
+                      "button": "Fix your judge"})
     if can_ask_again(r):
         steps.append({"title": "Ask your judge again",
                       "text": ("How often it changes its mind, and how well it agrees with "
@@ -722,14 +738,15 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
                     command: str = "judgekeeper start") -> int:
     """Serve the labeling page until the last answer, Ctrl-C or 2 hours idle. `command`
     (start.Talk.command) is what the person runs to continue."""
-    from judgekeeper import start_review
+    from judgekeeper import start_fix, start_review
 
     session = StartSession(ws)
     made: list[bool] = []
     reviewed: list[bool] = []
     server = make_server(session, port, result=result_maker(ws, say, made),
                          page=page_template(ws.data()),
-                         switches={"/review": start_review.switch(ws, say, reviewed)})
+                         switches={"/review": start_review.switch(ws, say, reviewed),
+                                   "/fix": start_fix.switch(ws, say)})
     print(f"Labeling page: {server.url}")  # not scrubbed: the token must stay whole
     say(f"Every click is saved. Press Ctrl-C here to stop; run {command} to continue.")
     sys.stdout.flush()

@@ -212,7 +212,8 @@ def test_step_b_shows_only_the_disagreements_with_the_verdict_and_reason(tmp_pat
         assert item["reason"] == f"reason {n}"
         judge = "Pass" if item["id"] in flipped["pass"] else "Fail"
         assert item["judge"] == judge
-        assert set(item) == {"id", "input", "output", "said", "judge", "reason", "choice"}
+        assert set(item) == {"id", "input", "output", "said", "judge", "reason", "choice",
+                             "why"}
 
 
 def test_you_said_names_the_first_and_the_second_look(tmp_path):
@@ -244,7 +245,7 @@ def test_step_b_choices_undo_and_the_files(tmp_path):
     assert [r["id"] for r in rows] == [i["id"] for i in session.items
                                        if i["id"] in (p2, f2)]
     assert list(rows[0]) == ["id", "input", "output", "your_label", "second_look_label",
-                             "judge_verdict", "judge_reason"]
+                             "judge_verdict", "judge_reason", "why"]
     row = next(r for r in rows if r["id"] == p2)
     assert (row["your_label"], row["second_look_label"], row["judge_verdict"]) == (
         "fail", "fail", "pass")
@@ -371,8 +372,8 @@ def test_the_review_lines_with_hand_worked_numbers(tmp_path):
          "the 5 answers you had agreed on. With your second-look labels: of the answers that "
          "should pass, your judge passed about 95%; of those that should fail, it failed about "
          "88%."),
-        ("After seeing the judge: you called 3 judge mistakes, 1 slip of yours, and 1 unclear "
-         "rule."),
+        ("After seeing the judge: you called 3 judge mistakes and 1 unclear rule, and said you "
+         "were wrong on 1 answer."),
         "Your first labels stay the main result.",
     ]
     assert r["tpr"] == pytest.approx(17 / 19) and r["tnr"] == pytest.approx(14 / 17)
@@ -459,8 +460,8 @@ def test_step_b_so_far_is_said_while_unfinished(tmp_path):
     _second_look(session)
     session.update({"id": flipped["pass"][0], "choice": "judge_wrong"})
     lines = review_lines(json.loads(ws.result_json.read_text(encoding="utf-8"))["review"])
-    assert ("After seeing the judge (1 of 5 so far): you called 1 judge mistake, 0 slips of "
-            "yours, and 0 unclear rules.") in lines
+    assert ("After seeing the judge (1 of 5 so far): you called 1 judge mistake and 0 unclear "
+            "rules, and said you were wrong on 0 answers.") in lines
 
 
 # The result -------------------------------------------------------------------------------
@@ -548,7 +549,8 @@ def test_the_review_ends_on_the_result_page_and_stops(tmp_path):
         assert body["summary"]["done"]
         resp, payload = client.request("GET", "/result")
         assert resp.status == 200
-        assert b"you called 0 judge mistakes, 0 slips of yours, and 5 unclear rules" in payload
+        assert (b"you called 0 judge mistakes and 5 unclear rules, and said you were wrong on "
+                b"0 answers") in payload
         thread.join(5)
         assert not thread.is_alive()
     finally:
@@ -558,7 +560,7 @@ def test_the_review_ends_on_the_result_page_and_stops(tmp_path):
 def test_step_b_page_shows_the_three_choices(tmp_path):
     ws, _ = _reviewable(tmp_path)
     page = start_review.page_template(ws)
-    for needed in ("The judge was wrong", "I slipped", "The rule is unclear",
+    for needed in ("The judge was wrong", "I was wrong", "The rule is unclear",
                    "See what your judge said", "Your judge said", "Your judge's reason"):
         assert needed in page, needed
 

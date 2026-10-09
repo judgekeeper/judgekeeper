@@ -1,4 +1,5 @@
-"""The pages `judgekeeper start` shows: the labeling page and the result page.
+"""The pages `judgekeeper start` shows: the labeling page, the review page, the fix page and
+the result page.
 
 Both are one self-contained page: no fonts, scripts or images from anywhere else. On a laptop
 they have two columns (the task, and a side panel); at 760px or less, one. Light and dark
@@ -12,8 +13,13 @@ only, never a verdict) and the keys: 1 Correct, 2 Wrong, S Skip, U Undo.
 The review page has the labeling page's look. Step A ("Look again") shows answers one at a
 time with Correct, Wrong and Not sure, and nothing the judge said and no first label; step B
 ("See what your judge said") shows each disagreement with both labels and the judge's verdict
-and reason, with The judge was wrong, I slipped and The rule is unclear. Text goes through
-textContent.
+and reason, with The judge was wrong, I was wrong and The rule is unclear; after the first or
+the last, an optional one-line box asks why. Text goes through textContent.
+
+The fix page ("What your judge gets wrong") shows the judge's rule, its two kinds of mistakes
+as lists that fold open, the patterns in them, the answers whose rule is unclear and, for a
+judge that gives a score, the pass mark that fits best with a button that tests it. Its data
+holds only the answers judgekeeper used, never those set aside; text goes through textContent.
 
 The result page is static HTML that runs no script and loads nothing, so the copy saved as
 `.judgekeeper/result.html` opens with no server. Every string in it is escaped.
@@ -604,6 +610,10 @@ REVIEW_STYLE = """
 .count { font-size: 1.6rem; font-weight: 750; margin: 4px 0 6px;
   font-variant-numeric: tabular-nums; }
 .track.one span { background: var(--green); }
+#whybox-wrap { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
+#whybox { flex: 1 1 auto; min-width: 0; font: inherit; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  color: var(--text); }
 @media (max-width: 760px) {
   .choices.three { grid-template-columns: 1fr; gap: 8px; }
   .choices.three .choice { min-height: 48px; }
@@ -644,9 +654,15 @@ REVIEW_BODY = """<main>
       <button class="choice pick" type="button" data-value="judge_wrong">
         The judge was wrong <kbd>1</kbd></button>
       <button class="choice pick" type="button" data-value="slipped">
-        I slipped <kbd>2</kbd></button>
+        I was wrong <kbd>2</kbd></button>
       <button class="choice pick" type="button" data-value="rule_unclear">
         The rule is unclear <kbd>3</kbd></button>
+    </div>
+    <div id="whybox-wrap" hidden>
+      <input id="whybox" type="text" maxlength="300" autocomplete="off"
+        placeholder="Why? (optional, helps fix your judge)"
+        aria-label="Why? (optional, helps fix your judge)">
+      <button class="text-btn" id="whynext" type="button">Next <kbd>Enter</kbd></button>
     </div>
     <div class="small">
       <button class="text-btn" id="undo" type="button">Undo <kbd>U</kbd></button>
@@ -672,7 +688,7 @@ REVIEW_BODY = """<main>
       <li><span>Wrong</span><kbd>2</kbd></li><li><span>Not sure</span><kbd>3</kbd></li>
       <li><span>Undo</span><kbd>U</kbd></li></ul>
     <ul class="keys" id="keys-b" hidden><li><span>The judge was wrong</span><kbd>1</kbd></li>
-      <li><span>I slipped</span><kbd>2</kbd></li><li><span>The rule is unclear</span><kbd>3</kbd></li>
+      <li><span>I was wrong</span><kbd>2</kbd></li><li><span>The rule is unclear</span><kbd>3</kbd></li>
       <li><span>Undo</span><kbd>U</kbd></li></ul>
     <p class="saved">Every click is saved. Your labels stay as you gave them. Close the tab any
       time; run <code>judgekeeper start --review</code> to continue.</p>
@@ -699,6 +715,7 @@ REVIEW_BODY = """<main>
   var data = JSON.parse(document.getElementById("data").textContent);
   var step = data.step, items = data.items, pos = data.start, busy = false, history = [];
   var FIELD = step === "a" ? "second" : "choice";
+  var WHY = ["judge_wrong", "rule_unclear"], lastSummary = null;  // the choices that ask why
   var $ = function (id) { return document.getElementById(id); };
   function setText(id, text) { $(id).textContent = text == null ? "" : String(text); }
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
@@ -755,8 +772,16 @@ REVIEW_BODY = """<main>
       $("reason-wrap").hidden = !it.reason;
     }
     $("question").scrollTop = 0; $("answer").scrollTop = 0;
+    showWhy(it);
     busy = false;
     buttons.forEach(function (b) { b.disabled = false; });
+  }
+
+  // The why box: under the buttons once The judge was wrong or The rule is unclear is picked.
+  function showWhy(it) {
+    var on = step === "b" && WHY.indexOf(it.choice) >= 0;
+    $("whybox-wrap").hidden = !on;
+    if (on) { $("whybox").value = it.why || ""; }
   }
 
   function next() {
@@ -767,12 +792,7 @@ REVIEW_BODY = """<main>
     window.location.reload();
   }
 
-  function send(value, then) {
-    if (busy) { return; }
-    busy = true;
-    buttons.forEach(function (b) { b.disabled = true; });
-    var change = {id: items[pos].id};
-    change[FIELD] = value;
+  function post(change, then) {
     fetch(url("/label"), {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify(change)
@@ -781,9 +801,8 @@ REVIEW_BODY = """<main>
     }).then(function (res) {
       if (!res.ok) { setText("status", "Not saved: " + res.body.error); render(); return; }
       setText("status", "");
-      if (res.body.summary.step === "done") { window.location.href = url("/result"); return; }
-      if (res.body.summary.step !== step) { window.location.reload(); return; }
-      then();
+      lastSummary = res.body.summary;
+      then(res.body.summary);
     }).catch(function () {
       setText("status", "Not saved: this page lost its link to judgekeeper. Is it still " +
         "running in your terminal? Your earlier clicks are saved.");
@@ -791,25 +810,59 @@ REVIEW_BODY = """<main>
     });
   }
 
+  function send(value, then) {
+    if (busy) { return; }
+    busy = true;
+    buttons.forEach(function (b) { b.disabled = true; });
+    var change = {id: items[pos].id};
+    change[FIELD] = value;
+    post(change, then);
+  }
+
+  // Where to go once a click is saved: the result, the other step, or the next answer.
+  function after(summary) {
+    if (summary.step === "done") { window.location.href = url("/result"); return; }
+    if (summary.step !== step) { window.location.reload(); return; }
+    next();
+  }
+
   function choose(value) {
     var it = items[pos];
-    send(value, function () { it[FIELD] = value; history.push(pos); next(); });
+    send(value, function (summary) {
+      it[FIELD] = value; history.push(pos);
+      if (step === "b" && WHY.indexOf(value) >= 0) { render(); $("whybox").focus(); }
+      else { after(summary); }
+    });
   }
+
+  // Save the why when it changed, then `then`.
+  function saveWhy(then) {
+    var it = items[pos], text = $("whybox").value.trim();
+    if ($("whybox-wrap").hidden || (it.why || "") === text) { then(); return; }
+    post({id: it.id, why: text || null}, function () { it.why = text || null; then(); });
+  }
+
+  function goOn() { saveWhy(function () { after(lastSummary); }); }
 
   function undo() {
     if (!history.length) { setText("status", "Nothing to undo."); return; }
     pos = history.pop();
     var it = items[pos];
     render();
-    send(null, function () { it[FIELD] = null; render(); });
+    send(null, function () { it[FIELD] = null; it.why = null; render(); });
   }
 
   buttons.forEach(function (b) {
     b.addEventListener("click", function () { choose(b.getAttribute("data-value")); });
   });
   $("undo").addEventListener("click", undo);
+  $("whynext").addEventListener("click", goOn);
+  $("whybox").addEventListener("blur", function () { saveWhy(function () {}); });
+  $("whybox").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); goOn(); }
+  });
   document.addEventListener("keydown", function (e) {
-    if (e.ctrlKey || e.metaKey || e.altKey) { return; }
+    if (e.ctrlKey || e.metaKey || e.altKey || e.target === $("whybox")) { return; }
     var k = e.key.toLowerCase();
     if (k === "1" || k === "2" || k === "3") { choose(buttons[+k - 1].getAttribute("data-value")); }
     else if (k === "u") { undo(); }
@@ -842,3 +895,202 @@ def review_page(description: str | None, rule: str | None) -> str:
             .replace("__ABOUT__", _text(description or "")))
     return (_head("judgekeeper: review the disagreements", LABEL_STYLE + REVIEW_STYLE,
                   "Review the answers where you and your judge disagree") + body)
+
+
+FIX_STYLE = """
+main.fix { max-width: 880px; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 6px; letter-spacing: -.02em; }
+.kind { margin: 0 0 18px; color: var(--muted); }
+.fix > .card, .fix > section { margin: 0 0 16px; }
+.rule { margin: 6px 0 0; padding: 10px 12px; border-left: 3px solid var(--green);
+  background: var(--bg-soft); border-radius: 0 8px 8px 0; white-space: pre-wrap;
+  overflow-wrap: anywhere; }
+.patterns p { margin: 0 0 8px; font-size: 1.08rem; font-weight: 600; }
+.lists { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0 0 8px; }
+.list { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  background: var(--surface); }
+.list > summary { font-weight: 700; }
+.list { border-left: 4px solid var(--edge); }
+#unclear { margin: 0 0 16px; }
+.list ol { margin: 10px 0 0; padding-left: 22px; }
+.list li { margin: 0 0 8px; }
+.list li summary { font-weight: 500; overflow-wrap: anywhere; }
+.cap { margin: 10px 0 4px; font-size: 0.75rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted); }
+.box { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg-soft); white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 40vh; overflow: auto; }
+.field-name { font-size: 0.75rem; font-weight: 700; color: var(--muted); }
+b.pass { color: var(--pass); } b.fail { color: var(--fail); }
+.meta { color: var(--muted); font-size: 0.9rem; margin: 0 0 16px; }
+.pm p { margin: 0 0 6px; }
+.pm .sentence { font-size: 1.1rem; font-weight: 650; }
+.pm h3 { margin: 14px 0 6px; font-size: 1rem; }
+.pm ul { margin: 0; padding-left: 20px; }
+.pm code { white-space: normal; }
+.btn:disabled { opacity: 0.6; cursor: default; }
+#status { color: var(--fail); min-height: 1.2em; margin: 6px 0 0; }
+.saved a { color: var(--link); font-weight: 600; }
+@media (max-width: 760px) {
+  header { padding: 0 16px; } .hdr-note { display: none; }
+  main { padding: 16px 16px 32px; }
+  h1 { font-size: 1.6rem; }
+  .lists { grid-template-columns: 1fr; } }
+"""
+
+FIX_BODY = """<main class="fix">
+<h1>What your judge gets wrong</h1>
+<p class="kind" id="sub"></p>
+<div class="card" id="rule-card" hidden>
+  <details open><summary>Your judge's rule</summary><p class="rule" id="rule"></p></details>
+</div>
+<section class="patterns" id="patterns" aria-label="Patterns in your judge's mistakes"></section>
+<div class="lists" id="lists"></div>
+<p class="meta" id="aside"></p>
+<details class="list" id="unclear"><summary></summary><ol></ol></details>
+<section class="card pm" id="pm" hidden aria-labelledby="pm-title">
+  <h2 id="pm-title">Move the pass mark</h2>
+  <div id="pm-lines"></div>
+  <button class="btn" id="pm-test" type="button" hidden></button>
+  <div id="pm-result" aria-live="polite"></div>
+  <p id="status" role="status"></p>
+</section>
+<p class="saved">Free: no AI call. Saved in <code>.judgekeeper/fix/</code>. Your own files are
+  never changed. <a class="seelink" id="see" href="#">See your result</a></p>
+</main>
+<script type="application/json" id="data">__DATA__</script>
+<script nonce="__NONCE__">
+"use strict";
+(function () {
+  var TOKEN = "__TOKEN__";
+  var data = JSON.parse(document.getElementById("data").textContent);
+  var $ = function (id) { return document.getElementById(id); };
+  function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text != null) { e.textContent = String(text); }
+    return e;
+  }
+  function question(value) {
+    var box = el("div", "box");
+    if (!Array.isArray(value)) { box.textContent = value == null ? "" : String(value); return box; }
+    value.forEach(function (pair) {
+      box.appendChild(el("div", "field-name", pair[0]));
+      box.appendChild(el("div", "field", pair[1]));
+    });
+    return box;
+  }
+  function short(value) {
+    var text = Array.isArray(value) ? value.map(function (p) { return p[1]; }).join(" · ")
+      : String(value == null ? "" : value);
+    text = text.replace(/\\s+/g, " ").trim();
+    return text.length > 110 ? text.slice(0, 109) + "…" : text || "(no question)";
+  }
+  function items(list, ol) {
+    list.forEach(function (it) {
+      var li = el("li"), d = el("details"), s = el("summary", null, short(it.input));
+      d.appendChild(s);
+      d.appendChild(el("div", "cap", "The question")); d.appendChild(question(it.input));
+      d.appendChild(el("div", "cap", "The answer")); d.appendChild(el("div", "box", it.output));
+      if (it.reason) {
+        d.appendChild(el("div", "cap", "Your judge's reason"));
+        d.appendChild(el("div", "box", it.reason));
+      }
+      if (it.why) {
+        d.appendChild(el("div", "cap", "Why, in your words"));
+        d.appendChild(el("div", "box", it.why));
+      }
+      li.appendChild(d); ol.appendChild(li);
+    });
+  }
+
+  $("see").setAttribute("href", url("/result"));
+  $("sub").textContent = "From the " + data.used + " answers judgekeeper used. Free: no AI call.";
+  if (data.rule) { $("rule-card").hidden = false; $("rule").textContent = data.rule; }
+  data.lines.forEach(function (line) { $("patterns").appendChild(el("p", null, line)); });
+  data.lists.forEach(function (list, n) {
+    // "Passed, but you said Fail (3)", the two verdicts in their colours
+    var d = el("details", "list " + (n === 0 ? "pass-wrong" : "fail-wrong")), s = el("summary");
+    s.appendChild(el("b", list.judge === "Pass" ? "pass" : "fail", list.judge === "Pass" ?
+      "Passed" : "Failed"));
+    s.appendChild(document.createTextNode(", but you said "));
+    s.appendChild(el("b", list.you === "Pass" ? "pass" : "fail", list.you));
+    s.appendChild(document.createTextNode(" (" + list.items.length + ")"));
+    d.appendChild(s);
+    var ol = el("ol"); items(list.items, ol); d.appendChild(ol);
+    if (!list.items.length) { d.appendChild(el("p", "meta", "None.")); }
+    $("lists").appendChild(d);
+  });
+  $("aside").textContent = data.aside;
+  var unclear = $("unclear");
+  unclear.querySelector("summary").textContent = data.unclear.title;
+  unclear.hidden = !data.unclear.items.length;
+  items(data.unclear.items, unclear.querySelector("ol"));
+
+  function renderTest(test) {
+    var box = $("pm-result");
+    box.textContent = "";
+    if (!test) { return; }
+    box.appendChild(el("p", "sentence", test.lines[0]));
+    box.appendChild(el("p", null, test.lines[1]));
+    var d = el("details"), ul = el("ul");
+    d.appendChild(el("summary", null, "How often your judge agreed with you, before and after"));
+    test.numbers.forEach(function (line) { ul.appendChild(el("li", null, line)); });
+    d.appendChild(ul); box.appendChild(d);
+    box.appendChild(el("h3", null, test.kind === "better" ? "Where to change it"
+      : "If you still want to use it"));
+    var hand = el("ul");
+    test.hand_over.forEach(function (line) { hand.appendChild(el("li", null, line)); });
+    box.appendChild(hand);
+  }
+
+  function renderPM() {
+    var pm = data.pass_mark;
+    $("pm").hidden = !pm;
+    if (!pm) { return; }
+    var lines = $("pm-lines");
+    lines.textContent = "";
+    (pm.kind === "no_follow" ? [pm.text] : pm.lines).forEach(function (line) {
+      lines.appendChild(el("p", null, line));
+    });
+    if (pm.refusal) { lines.appendChild(el("p", "meta", pm.refusal)); }
+    $("pm-test").hidden = !pm.button;
+    $("pm-test").textContent = pm.button || "";
+    renderTest(pm.test);
+  }
+
+  $("pm-test").addEventListener("click", function () {
+    var button = $("pm-test");
+    button.disabled = true;
+    fetch(url("/fix/pass-mark"), {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({mark: data.pass_mark.mark})
+    }).then(function (r) {
+      return r.json().then(function (body) { return {ok: r.ok, body: body}; });
+    }).then(function (res) {
+      button.disabled = false;
+      if (!res.ok) { $("status").textContent = "Not tested: " + res.body.error; return; }
+      $("status").textContent = "";
+      data.pass_mark = res.body.pass_mark;
+      renderPM();
+    }).catch(function () {
+      button.disabled = false;
+      $("status").textContent = "Not tested: this page lost its link to judgekeeper. Is it " +
+        "still running in your terminal?";
+    });
+  });
+
+  renderPM();
+})();
+</script>
+</body>
+</html>
+"""
+
+
+def fix_page(description: str | None) -> str:
+    """The fix page ("What your judge gets wrong"). The server fills in __DATA__, __TOKEN__
+    and __NONCE__; everything shown comes from the data, through textContent."""
+    note = _text(description) if description else "What your judge gets wrong"
+    return _head("judgekeeper: fix your judge", FIX_STYLE, note) + FIX_BODY

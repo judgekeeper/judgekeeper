@@ -9,15 +9,16 @@ so the review has two steps:
   seeded random order, with the judge's verdict and the first label hidden. Correct, Wrong
   or Not sure.
 - Step B, "See what your judge said": only the disagreements, each with both labels, the
-  judge's verdict and its reason. The judge was wrong, I slipped, or The rule is unclear.
+  judge's verdict and its reason. The judge was wrong, I was wrong (saved as `slipped`), or
+  The rule is unclear; after the first or the last, one optional line of why.
 
 `.judgekeeper/` gains:
 - review.json: the result it reviews, the seed, the step A picks in the order shown (id,
   whether a disagreement, the first label, the judge's verdict), each second look and step B
-  choice with its time. Written on every click; a new result starts a new review and the
+  choice with its time, and the why (scrubbed). Written on every click; a new result starts a new review and the
   old one moves to history/review-<date>/.
 - judge-mistakes.csv and rule-unclear.csv: the answers marked "The judge was wrong" and "The
-  rule is unclear", with both labels and the judge's verdict and reason. Cells that could be
+  rule is unclear", with both labels, the judge's verdict and reason, and the why. Cells that could be
   read as spreadsheet formulas are guarded as labels.csv's are.
 
 labels.csv never changes: the first labels stay the main result. Once step A is done,
@@ -58,7 +59,9 @@ CHOICES = ("judge_wrong", "slipped", "rule_unclear")
 SAID = {"pass": "Correct", "fail": "Wrong"}
 VERDICT = {"pass": "Pass", "fail": "Fail"}
 COLUMNS = ("id", "input", "output", "your_label", "second_look_label", "judge_verdict",
-           "judge_reason")
+           "judge_reason", "why")
+WHY_MAX = 300  # characters of the one line of why
+WHY_CHOICES = ("judge_wrong", "rule_unclear")  # the choices that ask why
 FILES = {"judge_wrong": "judge-mistakes.csv", "rule_unclear": "rule-unclear.csv"}
 SEVERAL = 3  # changed agreed answers that suggest the rule is unclear
 
@@ -146,7 +149,8 @@ class ReviewSession:
             self.seed = secrets.randbelow(2**31)
             self.started_at = utc_now()
             self.items = [{**p, "second": None, "second_at": None, "choice": None,
-                           "choice_at": None} for p in pick(labeled(ws), self.seed)]
+                           "choice_at": None, "why": None}
+                          for p in pick(labeled(ws), self.seed)]
         else:
             self.seed, self.started_at, self.items = (saved["seed"], saved["started_at"],
                                                       saved["items"])
@@ -178,7 +182,7 @@ class ReviewSession:
 
     def update(self, body: dict) -> None:
         """One click: {"id", "second": Correct, Wrong or Not sure, or None to undo} in step
-        A, {"id", "choice": one of CHOICES or None} in step B."""
+        A, {"id", "choice": one of CHOICES or None} or {"id", "why": text} in step B."""
         item = self.by_id[body["id"]]
         before = dict(item)
         try:
@@ -187,6 +191,11 @@ class ReviewSession:
         except BaseException:
             item.update(before)
             raise
+
+    def asks_why(self, body: dict) -> bool:
+        """Whether the page stays on the answer after this click, for its Why? box: a choice
+        that asks why, or the why itself. It moves on with GET /result, not on a timer."""
+        return body.get("choice") in WHY_CHOICES or "why" in body
 
     def _apply(self, item: dict, body: dict) -> None:
         keys = set(body) - {"id"}
@@ -206,8 +215,20 @@ class ReviewSession:
             if any(i["second"] is None for i in self.items):
                 raise ValueError("look again at every answer first")
             item["choice"], item["choice_at"] = value, utc_now() if value else None
+            if value is None:  # undo: the why goes with the choice
+                item["why"] = None
+        elif keys == {"why"}:
+            value = body["why"]
+            if value is not None and not isinstance(value, str):
+                raise ValueError("why must be text or null")
+            if item.get("choice") not in WHY_CHOICES:
+                raise ValueError("say why after The judge was wrong or The rule is unclear")
+            text = " ".join((value or "").split())
+            if len(text) > WHY_MAX:
+                raise ValueError(f"why is at most {WHY_MAX} characters")
+            item["why"] = scrub(text) or None
         else:
-            raise ValueError("expected second or choice")
+            raise ValueError("expected second, choice or why")
 
     # What is saved -----------------------------------------------------------------------
 
@@ -238,7 +259,8 @@ class ReviewSession:
                 raw = self.raw.get(i["id"], {})
                 w.writerow([guard_cell(scrub(v)) for v in (
                     i["id"], display(raw.get("input")), display(raw.get("output")), i["first"],
-                    i["second"] or "", i["judge"], self.reasons.get(i["id"], ""))])
+                    i["second"] or "", i["judge"], self.reasons.get(i["id"], ""),
+                    i.get("why") or "")])
 
     def block(self) -> dict:
         """The `review` block of result.json."""
@@ -256,6 +278,8 @@ class ReviewSession:
             g[1] += label == "pass"
         c = weighted.corrected(data["pool"]["pass"], data["pool"]["fail"], *counted["pass"],
                                *counted["fail"])
+        from judgekeeper import start_fix
+
         dis = self.disagreements()
 
         def changed(items):
@@ -277,6 +301,7 @@ class ReviewSession:
             "chosen": len(chosen),
             "done": len(chosen) == len(dis),
             "files": list(FILES.values()),
+            "to_fix": start_fix.to_fix(labeled(ws), self.items),
         }
 
     # The page ----------------------------------------------------------------------------
@@ -295,7 +320,7 @@ class ReviewSession:
             dis = self.disagreements()
             items = [{"id": i["id"], **self._text(i["id"]), "said": said(i),
                       "judge": VERDICT[i["judge"]], "reason": self.reasons.get(i["id"], ""),
-                      "choice": i["choice"]} for i in dis]
+                      "choice": i["choice"], "why": i.get("why")} for i in dis]
             start = next(n for n, i in enumerate(dis) if i["choice"] is None)
         else:
             items, start = [], 0
@@ -343,9 +368,9 @@ def review_lines(block: dict) -> list[str]:
         when = ("" if block["done"] else
                 f" ({block['chosen']} of {block['disagreements']} so far)")
         lines.append(f"After seeing the judge{when}: you called "
-                     f"{_plural(c['judge_wrong'], 'judge mistake')}, "
-                     f"{_plural(c['slipped'], 'slip')} of yours, and "
-                     f"{_plural(c['rule_unclear'], 'unclear rule')}.")
+                     f"{_plural(c['judge_wrong'], 'judge mistake')} and "
+                     f"{_plural(c['rule_unclear'], 'unclear rule')}, and said you were wrong "
+                     f"on {_plural(c['slipped'], 'answer')}.")
     lines.append("Your first labels stay the main result.")
     return lines
 
@@ -404,8 +429,11 @@ def finish(ws: Workspace, say, command: str = "judgekeeper start") -> None:
 def serve_review(ws: Workspace, port: int, open_browser: bool, say,
                  command: str = "judgekeeper start") -> int:
     """Serve the review page until the review is done, Ctrl-C or 2 hours idle."""
+    from judgekeeper import start_fix
+
     session = ReviewSession(ws)
-    server = make_server(session, port, result=result_maker(ws, say), page=page_template(ws))
+    server = make_server(session, port, result=result_maker(ws, say), page=page_template(ws),
+                         switches={"/fix": start_fix.switch(ws, say)})
     print(f"Review page: {server.url}")  # not scrubbed: the token must stay whole
     say(f"Every click is saved. Press Ctrl-C here to stop; run {command} --review to "
         "continue.")
