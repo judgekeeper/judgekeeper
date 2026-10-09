@@ -444,9 +444,13 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
     labels = _labels(ws)
     pool = {a.id for a in found.pool.answers}
     back = {i: label for i, label in labels.items() if i in pool}
+    left = sum(i in found.pool.left for i in labels)  # in the results, but no real decision
     talk.say()
     talk.say(f"{len(back)} of your {len(labels)} labeled answers are in your latest results "
              f"({found.results[0].date():%Y-%m-%d}).")
+    if left:
+        talk.say(f"{left} of your labeled answers {'is' if left == 1 else 'are'} left out now: "
+                 f"your judge made no real decision on {'it' if left == 1 else 'them'}.")
     start.say_check(talk, found)
     changed = judge_change(ws.data()["fingerprint"], found.fingerprint)
     if changed:
@@ -456,9 +460,13 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
         talk.say(f"Your app changed since your last check: {app}.")
     kept = list(back.values())
     if min(kept.count("pass"), kept.count("fail")) < ROUGH and len(back) < len(labels):
-        talk.say(f"Fewer than {ROUGH} Correct or {ROUGH} Wrong of them came back unchanged: "
-                 "your app gives different answers now, so the old labels do not apply to "
-                 "them.")
+        if len(back) + left < len(labels):  # some are gone, not only left out
+            talk.say(f"Fewer than {ROUGH} Correct or {ROUGH} Wrong of them came back "
+                     "unchanged: your app gives different answers now, so the old labels do "
+                     "not apply to them.")
+        else:
+            talk.say(f"Fewer than {ROUGH} Correct or {ROUGH} Wrong of them are left to "
+                     "compare.")
         if not talk.confirm("Label your latest results?", default=True, with_yes=True,
                             hint=f"Label your latest results? Run {talk.command('--yes')} to "
                                  "label them."):

@@ -178,6 +178,28 @@ def test_older_files_are_added_only_for_the_same_judge(tmp_path, capsys):
     assert f"{ok()} 35 answers with a verdict: the judge passed 21 and failed 14" in out
 
 
+def test_the_newest_file_wins_when_older_results_are_added(tmp_path, capsys, no_labeling):
+    """The newest results left answer 0 out (its grader errored); older results added to reach
+    30 have a real decision for it. The newest file wins: answer 0 stays left out."""
+    from tests.test_judge_check import promptfoo_with_problems
+
+    newest = promptfoo_with_problems(split(6, 4), errors=[0])
+    newest["metadata"] = {"evaluationCreatedAt": "2026-10-04T09:00:00.000Z"}
+    (tmp_path / "promptfooconfig.yaml").write_text("description: support bot\n",
+                                                   encoding="utf-8")
+    (tmp_path / "results.json").write_text(json.dumps(newest), encoding="utf-8")
+    older = promptfoo_data(split(15, 10), created="2026-10-03T09:00:00.000Z")
+    (tmp_path / "older.json").write_text(json.dumps(older), encoding="utf-8")
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0
+    assert "older results from the same judge were added: older.json" in out
+    (found,) = no_labeling
+    (left,) = found.pool.left
+    assert found.pool.left[left][0] == "error"
+    assert left not in {a.id for a in found.pool.answers}
+    assert len(found.pool.answers) == 24  # 9 from the newest, 15 more from the older one
+
+
 def test_older_files_stop_once_there_are_thirty(tmp_path, capsys):
     runs = tmp_path / "runs"
     deepeval_project(runs, split(6, 4), name="test_run_20261003_090000.json", start=0)

@@ -474,6 +474,19 @@ def test_empty_answers_stay_and_a_pass_on_one_is_flagged():
     assert {f.id for f in result.findings} == {pool.answers[0].id}
 
 
+def test_a_missing_answer_is_not_an_empty_one():
+    from judgekeeper.records import Mark
+
+    mark = Mark()
+    assert judge_check.is_empty_answer("  \n", mark) and judge_check.is_empty_answer([], mark)
+    assert judge_check.is_empty_answer({}, mark)
+    assert not judge_check.is_empty_answer(None, mark)  # unknown, never flagged
+    missing = ScoreRecord(target_id="0", name="j", annotator_kind=LLM, label="pass",
+                          input="q0", output=None)
+    pool, result = _pool([missing, _rec(1, "fail")])
+    assert len(pool.answers) == 2 and result.block()["empty_answer_passed"] == 0
+
+
 def test_the_same_decision_for_everything_also_below_thirty():
     assert _pool([_rec(i, "pass") for i in range(4)])[1].block()["same_decision"] == "pass"
     assert _pool([_rec(i, "fail") for i in range(4)])[1].block()["same_decision"] == "fail"
@@ -493,6 +506,39 @@ def test_score_judges_with_a_pass_mark_skip_the_contradiction_check():
     records = [_rec(0, "pass", reason="FAIL: the answer is rude."), _rec(1, "fail")]
     _, result = _pool(records, score_judge=True)
     assert result.block()["reason_says_opposite"] == 0
+
+
+def _with_pass_mark(path, opposite: int) -> None:
+    """A judgekeeper.record() file rewritten as a score judge: score and pass_mark on every
+    line, and on line `opposite` a pass whose reason starts with FAIL."""
+    lines = []
+    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines()):
+        row = json.loads(line)
+        row["score"] = 0.9 if row["label"] == "pass" else 0.1
+        row["metadata"] = {"pass_mark": 0.5}
+        if i == opposite:
+            row["explanation"] = "FAIL: the answer is rude."
+        lines.append(json.dumps(row))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_records_with_a_pass_mark_skip_the_contradiction_check(tmp_path, capsys):
+    path = records_project(tmp_path, split(16, 16))
+    _with_pass_mark(path, opposite=0)
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0
+    assert "reason says the opposite" not in out
+    assert f"{ok()} {judge_check.EVERY_ANSWER}" in out
+
+
+def test_records_without_a_pass_mark_keep_the_contradiction_check(tmp_path, capsys):
+    path = records_project(tmp_path, split(16, 16))
+    lines = path.read_text(encoding="utf-8").splitlines()
+    row = json.loads(lines[0])
+    row["explanation"] = "FAIL: the answer is rude."
+    path.write_text("\n".join([json.dumps(row), *lines[1:]]) + "\n", encoding="utf-8")
+    _, out, _ = run(capsys, tmp_path)
+    assert "On 1 answer, your judge's reason says the" in out
 
 
 # `judgekeeper start`, end to end ---------------------------------------------------------

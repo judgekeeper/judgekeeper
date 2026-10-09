@@ -12,7 +12,8 @@ and the marks the readers set (records.Mark). Four checks:
 3. The same decision for everything: the judge passed (or failed) every answer.
 4. The reason says the opposite: the judge's own reason states the other decision, in one of a
    few explicit forms only (stated_decisions). Skipped for score judges with a pass mark
-   (`--pass-if`, DeepEval's thresholds), whose reasons talk about a score.
+   (`--pass-if`, DeepEval's thresholds, record()'s pass_mark, a mapped score), whose reasons
+   talk about a score.
 
 Every check is information: none stops `start`. The functions here are pure; start_label
 writes judge-check.json and judge-check.csv, and the terminal and the result page say `lines`.
@@ -81,12 +82,11 @@ def says_opposite(reason, decision: str) -> bool:
 # Empty answers ---------------------------------------------------------------------------
 
 def is_empty_answer(output, mark) -> bool:
-    """The app gave nothing: its output is empty after trimming spaces. An answer kept
-    elsewhere (a DeepEval conversation's turns) is not empty."""
+    """The app gave nothing: its output is a text that is empty after trimming spaces, or an
+    empty list or dict. A missing output (None) is unknown, not empty, and an answer kept
+    elsewhere (a DeepEval conversation's turns) is not empty either."""
     if mark.output_elsewhere:
         return False
-    if output is None:
-        return True
     if isinstance(output, str):
         return not output.strip()
     if isinstance(output, list | dict):

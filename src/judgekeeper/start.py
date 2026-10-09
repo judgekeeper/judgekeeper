@@ -966,8 +966,9 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                         Path(newest.rel).name)
     talk.say(f"{tick()} Your judge: {judge}")
     versions = sorted({a.agent["app_version"] for a in pool.answers if "app_version" in a.agent})
-    score_judge = norm.pass_if is not None or kind == "deepeval" or (  # score and threshold
-        kind == "mapped" and (saved.map or {}).get("kind", "score") == "score")
+    score_judge = (norm.pass_if is not None or kind == "deepeval"  # score and threshold
+                   or (kind == "mapped" and (saved.map or {}).get("kind", "score") == "score")
+                   or any((r.metadata or {}).get("pass_mark") is not None for r in records))
     return Found(root=root, tool=kind, results=results, used=[x.label for x in used],
                  metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs,
                  rule=rule, description=description, metrics=metrics,
