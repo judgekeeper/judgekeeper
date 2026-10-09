@@ -560,6 +560,7 @@ def result_page(content: dict, back: str | None = None) -> str:
 {facts}
 {_review(content.get("judge_check"))}
 {_review(content.get("review"))}
+{_review(content.get("fix"))}
 {_review(content.get("again"))}
 {_review(content.get("new_judge"))}
 </div>
@@ -929,6 +930,22 @@ b.pass { color: var(--pass); } b.fail { color: var(--fail); }
 .pm ul { margin: 0; padding-left: 20px; }
 .pm code { white-space: normal; }
 .btn:disabled { opacity: 0.6; cursor: default; }
+.btn.quiet { background: transparent; color: var(--text); border: 1px solid var(--line); }
+.rc p { margin: 0 0 8px; }
+.rc h3 { margin: 16px 0 6px; font-size: 1rem; }
+.rc ul { margin: 0; padding-left: 20px; }
+.rc .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+.rc .buttons .btn { margin-top: 0; }
+.rc pre.box { margin: 6px 0 0; font: 0.85rem/1.5 ui-monospace, Menlo, monospace; }
+#rc-new { display: block; width: 100%; min-height: 9em; margin: 6px 0 0; font: inherit;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--text); resize: vertical; }
+.checks p { margin: 8px 0 0; font-weight: 600; color: var(--care); }
+.checks p.block { color: var(--fail); }
+.diff { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff ins { color: var(--pass); background: var(--pass-bg); text-decoration: none; }
+.diff del { color: var(--fail); background: var(--fail-bg); }
+.err { color: var(--fail); min-height: 1.2em; margin: 6px 0 0; }
 #status { color: var(--fail); min-height: 1.2em; margin: 6px 0 0; }
 .saved a { color: var(--link); font-weight: 600; }
 @media (max-width: 760px) {
@@ -954,6 +971,41 @@ FIX_BODY = """<main class="fix">
   <button class="btn" id="pm-test" type="button" hidden></button>
   <div id="pm-result" aria-live="polite"></div>
   <p id="status" role="status"></p>
+</section>
+<section class="card rc" id="rc" hidden aria-labelledby="rc-title">
+  <h2 id="rc-title">Change the rule</h2>
+  <p id="rc-text" hidden></p>
+  <div id="rc-do" hidden>
+    <p>Change your judge's rule with any AI assistant, or yourself. judgekeeper never edits
+      your files: it says where the new rule goes.</p>
+    <div class="buttons">
+      <button class="btn" id="rc-ask" type="button">Copy a prompt for your AI assistant</button>
+      <button class="btn quiet" id="rc-self" type="button">I'll write it myself</button>
+    </div>
+    <div id="rc-prompt" hidden>
+      <p>Paste this into any AI assistant. It holds only the answers judgekeeper used, never
+        the ones set aside.</p>
+      <pre class="box" id="rc-prompt-text"></pre>
+      <button class="btn quiet" id="rc-copy" type="button">Copy</button>
+    </div>
+    <div id="rc-paste" hidden>
+      <label class="cap" for="rc-new">Paste the new rule here</label>
+      <textarea id="rc-new" spellcheck="false"></textarea>
+      <button class="btn" id="rc-save" type="button">Save the new rule</button>
+    </div>
+    <div class="checks" id="rc-checks" aria-live="polite"></div>
+    <div id="rc-saved" hidden>
+      <h3>Your new rule, against the old one</h3>
+      <p class="diff box" id="rc-diff"></p>
+      <h3>Where it goes</h3>
+      <ul id="rc-where"></ul>
+      <h3>Or ask your coding agent</h3>
+      <pre class="box" id="rc-agent"></pre>
+      <button class="btn quiet" id="rc-agent-copy" type="button">Copy</button>
+      <p id="rc-last"></p>
+    </div>
+  </div>
+  <p class="err" id="rc-status" role="status"></p>
 </section>
 <p class="saved">Free: no AI call. Saved in <code>.judgekeeper/fix/</code>. Your own files are
   never changed. <a class="seelink" id="see" href="#">See your result</a></p>
@@ -1081,7 +1133,102 @@ FIX_BODY = """<main class="fix">
     });
   });
 
+  function postJSON(path, body) {
+    return fetch(url(path), {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().then(function (b) { return {ok: r.ok, body: b}; });
+    });
+  }
+  var LOST = "this page lost its link to judgekeeper. Is it still running in your terminal?";
+
+  function copy(text, button) {
+    function done(ok) {
+      button.textContent = ok ? "Copied" : "Select the text and copy it";
+      setTimeout(function () { button.textContent = "Copy"; }, 2000);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); },
+        function () { done(false); });
+    } else { done(false); }
+  }
+
+  var how = "pasted";
+  function renderRule() {
+    var rc = data.rule_change;
+    $("rc").hidden = !rc;
+    if (!rc) { return; }
+    $("rc-text").hidden = rc.kind === "ok";
+    $("rc-do").hidden = rc.kind !== "ok";
+    if (rc.kind !== "ok") { $("rc-text").textContent = rc.text; return; }
+    var saved = rc.saved;
+    $("rc-saved").hidden = !saved;
+    if (!saved) { return; }
+    showChecks(saved.checks);
+    var diff = $("rc-diff");
+    diff.textContent = "";
+    saved.diff.forEach(function (part) {
+      var tag = part[0] === "add" ? "ins" : part[0] === "del" ? "del" : "span";
+      diff.appendChild(el(tag, null, part[1]));
+    });
+    var where = $("rc-where");
+    where.textContent = "";
+    [saved.hand_over.where].concat(saved.hand_over.notes).forEach(function (line) {
+      where.appendChild(el("li", null, line));
+    });
+    $("rc-agent").textContent = saved.hand_over.agent_prompt;
+    $("rc-last").textContent = saved.hand_over.last;
+  }
+
+  function showChecks(checks) {
+    var box = $("rc-checks");
+    box.textContent = "";
+    checks.forEach(function (c) { box.appendChild(el("p", c.blocking ? "block" : null, c.text)); });
+  }
+
+  $("rc-ask").addEventListener("click", function () {
+    var button = $("rc-ask");
+    button.disabled = true;
+    postJSON("/fix/prompt", {}).then(function (res) {
+      button.disabled = false;
+      if (!res.ok) { $("rc-status").textContent = res.body.error; return; }
+      $("rc-status").textContent = "";
+      $("rc-prompt-text").textContent = res.body.prompt;
+      $("rc-prompt").hidden = false;
+      how = "pasted";
+      $("rc-paste").hidden = false;
+      $("rc-new").value = "";
+      copy(res.body.prompt, $("rc-copy"));
+    }).catch(function () { button.disabled = false; $("rc-status").textContent = LOST; });
+  });
+  $("rc-copy").addEventListener("click", function () {
+    copy($("rc-prompt-text").textContent, $("rc-copy"));
+  });
+  $("rc-self").addEventListener("click", function () {
+    how = "written";
+    $("rc-prompt").hidden = true;
+    $("rc-paste").hidden = false;
+    $("rc-new").value = data.rule_change.rule;
+    $("rc-new").focus();
+  });
+  $("rc-save").addEventListener("click", function () {
+    var button = $("rc-save");
+    button.disabled = true;
+    postJSON("/fix/rule", {text: $("rc-new").value, how: how}).then(function (res) {
+      button.disabled = false;
+      if (!res.ok) { $("rc-status").textContent = "Not saved: " + res.body.error; return; }
+      $("rc-status").textContent = "";
+      data.rule_change = res.body.rule_change;
+      renderRule();
+      showChecks(res.body.result.checks);
+    }).catch(function () { button.disabled = false; $("rc-status").textContent = LOST; });
+  });
+  $("rc-agent-copy").addEventListener("click", function () {
+    copy($("rc-agent").textContent, $("rc-agent-copy"));
+  });
+
   renderPM();
+  renderRule();
 })();
 </script>
 </body>

@@ -1,0 +1,561 @@
+"""Fix your judge, part two: change the rule, the hand-over, and the fair test of a new rule.
+
+The page builds a prompt for any AI assistant from the answers judgekeeper used (never the ones
+set aside), takes the new rule back, checks it, and says where it probably goes in the
+person's own files, which judgekeeper never changes. The fair test runs inside "Try your new
+judge", on the answers set aside.
+
+No test calls an AI or needs promptfoo: "Try your new judge" runs on the fake promptfoo of
+test_again_run.
+"""
+
+from __future__ import annotations
+
+import html
+import json
+import threading
+
+import pytest
+
+from judgekeeper import again, keys, start, start_fix, start_fix_rule, start_label, start_review
+from judgekeeper import label as label_mod
+from judgekeeper.start_label import StartSession, save_result
+from judgekeeper.start_review import ReviewSession
+from tests.start_projects import answer, promptfoo_project, question, split
+from tests.test_again_run import FakePromptfoo
+from tests.test_label_server import Client
+from tests.test_new_judge import _meta, _new_run, run
+from tests.test_start_fix import _mark_all, _quiet, scored_records, too_easy_project
+from tests.test_start_review import _second_look
+
+KEY = "sk-ant-api03-" + "k" * 40
+
+
+@pytest.fixture
+def seeded(monkeypatch):
+    monkeypatch.setattr(start_fix.secrets, "randbelow", lambda n: 1234)
+
+
+def _item(n, judge="pass", final="fail", why=None, text=None):
+    return {"judge": judge, "final": final, "why": why, "reason": f"reason {n}",
+            "input": question(n), "output": text if text is not None else answer(n)}
+
+
+# The prompt ------------------------------------------------------------------------------
+
+def test_the_prompt_holds_only_the_used_answers(tmp_path, seeded):
+    ws = too_easy_project(tmp_path)
+    fix = start_fix.Fix(ws)
+    prompt = fix.prompt()
+    saved = (ws.dir / "fix" / "prompt.txt").read_text(encoding="utf-8")
+    assert saved.strip() == prompt.strip()
+    raw = {json.loads(x)["id"]: json.loads(x)
+           for x in ws.pool.read_text(encoding="utf-8").splitlines()}
+    assert fix.aside_ids
+    for i in fix.aside_ids:
+        for text in (raw[i]["input"], raw[i]["output"]):
+            assert text not in prompt and text not in saved
+    used_mistake = next(i for i in fix.used_ids
+                        if fix.marks[i]["judge"] != fix.marks[i]["final"])
+    assert raw[used_mistake]["output"] in prompt
+
+
+def test_the_prompt_reads_as_the_spec_says():
+    prompt = start_fix_rule.build_prompt(
+        "Be helpful.", "records",
+        [_item(1, why="it says nothing useful")], [_item(2, "fail", "pass", why="tone?")],
+        [_item(3, "pass", "pass"), _item(4, "fail", "fail")])
+    assert prompt.startswith(
+        "You are editing the grading rule of an LLM judge. The judge decides Pass or Fail.\n"
+        "A person checked some of its decisions and found mistakes.\n\n"
+        "THE RULE NOW (keep its meaning, wording and format where you can):\nBe helpful.\n")
+    assert ('[M1] Judge said PASS, person said FAIL. Person\'s note: "it says nothing useful". '
+            'Judge\'s reason: "reason 1".\n     Question: "Question 1?" Answer: "Answer 1."'
+            ) in prompt
+    assert "THE RULE DOES NOT DECIDE THESE:\n[U1] Judge said FAIL, person said PASS." in prompt
+    assert "KEEP THESE RIGHT (the judge and the person agreed):\n[K1]" in prompt
+    assert "[K2]" in prompt
+    assert prompt.rstrip().endswith(
+        "Reply with the new rule only, between the lines NEW RULE START and NEW RULE END.")
+    assert "KEEP EXACTLY" not in prompt  # no placeholders in this rule
+    assert "DeepEval" not in prompt
+
+
+def test_the_prompt_keeps_template_parts_and_asks_deepeval_for_steps():
+    rule = "Grade {{output}} against {{ vars.question }}."
+    prompt = start_fix_rule.build_prompt(rule, "promptfoo", [_item(1)], [], [])
+    assert "KEEP EXACTLY these template parts: {{output}} {{ vars.question }}" in prompt
+    steps = ("Is it correct? \n \nEvaluation Steps:\n[\n    \"Check each claim.\",\n"
+             "    \"Penalise false claims.\"\n] \n \nRubric:\nNone")
+    prompt = start_fix_rule.build_prompt(steps, "deepeval", [_item(1)], [], [])
+    assert "THE RULE NOW (keep its meaning, wording and format where you can):\n" \
+           "1. Check each claim.\n2. Penalise false claims.\n" in prompt
+    assert ("(For DeepEval: reply with the new evaluation steps, one per line, between those "
+            "lines.)") in prompt
+    inspect = "Grade it.\nEnd with GRADE: $LETTER"
+    prompt = start_fix_rule.build_prompt(inspect, "inspect", [_item(1)], [], [])
+    assert "KEEP EXACTLY these template parts: GRADE: $LETTER" in prompt
+
+
+def test_each_text_is_cut_at_1500_characters():
+    long = "word " * 600
+    prompt = start_fix_rule.build_prompt("Be helpful.", "records", [_item(1, text=long)],
+                                         [], [])
+    line = next(x for x in prompt.splitlines() if "Answer:" in x)
+    shown = line.split('Answer: "', 1)[1]
+    assert shown.endswith(' (cut)"')
+    assert len(shown) == len('"') + 1500 + len(" (cut)")
+
+
+def test_at_most_20_mistakes_6_unclear_and_6_agreed_half_and_half():
+    mistakes = [_item(i) for i in range(30)]
+    unclear = [_item(100 + i) for i in range(10)]
+    agreed = ([_item(200 + i, "pass", "pass") for i in range(10)]
+              + [_item(300 + i, "fail", "fail") for i in range(10)])
+    prompt = start_fix_rule.build_prompt("Be helpful.", "records", mistakes, unclear, agreed)
+    assert "[M20]" in prompt and "[M21]" not in prompt
+    assert "[U6]" in prompt and "[U7]" not in prompt
+    assert "[K6]" in prompt and "[K7]" not in prompt
+    keep = prompt.split("KEEP THESE RIGHT")[1]
+    assert keep.count("Both said PASS") == 3 and keep.count("Both said FAIL") == 3
+    # one side short: the other fills up to 6
+    prompt = start_fix_rule.build_prompt("Be helpful.", "records", mistakes, [],
+                                         agreed[:10] + agreed[10:11])
+    keep = prompt.split("KEEP THESE RIGHT")[1]
+    assert keep.count("Both said PASS") == 5 and keep.count("Both said FAIL") == 1
+
+
+def test_mistakes_with_a_why_come_first():
+    mistakes = [_item(i) for i in range(25)] + [_item(99, why="the reason")]
+    prompt = start_fix_rule.build_prompt("Be helpful.", "records", mistakes, [], [])
+    assert '[M1] Judge said PASS, person said FAIL. Person\'s note: "the reason".' in prompt
+
+
+# Paste back ------------------------------------------------------------------------------
+
+def test_the_text_between_start_and_end_is_taken():
+    reply = "Sure! Here it is.\nNEW RULE START\nBe helpful and short.\nNEW RULE END\nHope it helps."
+    assert start_fix_rule.new_rule_of(reply) == "Be helpful and short."
+    assert start_fix_rule.new_rule_of("  Just the rule.  ") == "Just the rule."
+    assert start_fix_rule.new_rule_of("NEW RULE START\nNo end line") == "No end line"
+
+
+def _texts(checks):
+    return [c["text"] for c in checks]
+
+
+def test_a_dropped_placeholder_blocks_the_save():
+    checks = start_fix_rule.checks("Grade {{output}}.", "Grade the answer.", "promptfoo", [])
+    assert _texts(checks) == ["The new rule dropped {{output}}: put it back before using it."]
+    assert checks[0]["blocking"]
+    assert start_fix_rule.checks("Grade {{output}}.", "Grade {{ output }} well.", "promptfoo",
+                                 []) == []
+
+
+def test_inspect_must_keep_its_grade_line():
+    checks = start_fix_rule.checks("Grade it. GRADE: $LETTER", "Grade it well.", "inspect", [])
+    assert _texts(checks) == [("The new rule dropped GRADE: $LETTER: put it back before using "
+                               "it.")]
+    assert checks[0]["blocking"]
+
+
+def test_an_empty_rule_blocks_the_save():
+    checks = start_fix_rule.checks("Be helpful.", "  ", "records", [])
+    assert checks[0]["blocking"] and checks[0]["text"] == "The new rule is empty."
+
+
+def test_a_big_change_is_said_but_not_blocking():
+    old = "Be helpful."
+    new = "x" * (int(1.5 * len(old)) + 401)
+    checks = start_fix_rule.checks(old, new, "records", [])
+    assert _texts(checks) == ["This is a big change, not a small edit."]
+    assert not checks[0]["blocking"]
+    assert start_fix_rule.checks(old, "y" * (int(1.5 * len(old)) + 400), "records", []) == []
+
+
+def test_eight_words_copied_from_an_answer_are_said():
+    outputs = ["The refund takes five working days to reach your card, sorry."]
+    new = "Be helpful. Fail when it says the refund takes five working days to reach you."
+    checks = start_fix_rule.checks("Be helpful.", new, "records", outputs)
+    assert _texts(checks) == [("It copies text from your answers, so it may only fix these "
+                               "answers.")]
+    assert not checks[0]["blocking"]
+    seven = "Be helpful. Fail when the refund takes five working days."
+    assert start_fix_rule.checks("Be helpful.", seven, "records", outputs) == []
+
+
+def test_the_word_diff():
+    diff = start_fix_rule.word_diff("Be helpful and polite.", "Be helpful and short.")
+    assert diff == [["same", "Be helpful and "], ["del", "polite"], ["add", "short"],
+                    ["same", "."]]
+
+
+# Saving the new rule ------------------------------------------------------------------------
+
+def test_a_pasted_rule_is_saved_with_its_checks(tmp_path, seeded):
+    ws = too_easy_project(tmp_path)
+    fix = start_fix.Fix(ws)
+    out = fix.save_rule("NEW RULE START\nBe helpful and say no to refunds after 30 days.\n"
+                        "NEW RULE END", "pasted")
+    assert out["saved"]
+    assert (ws.dir / "fix" / "rule.txt").read_text(encoding="utf-8") == (
+        "Be helpful and say no to refunds after 30 days.\n")
+    meta = json.loads((ws.dir / "fix" / "rule.json").read_text(encoding="utf-8"))
+    assert meta["how"] == "pasted" and meta["checks"] == [] and meta["old"] == "Be helpful."
+    section = fix.state()["rule_change"]
+    assert section["saved"]["rule"] == "Be helpful and say no to refunds after 30 days."
+    assert section["saved"]["diff"] == [["same", "Be helpful"],
+                                        ["add", " and say no to refunds after 30 days"],
+                                        ["same", "."]]
+
+
+def test_a_blocked_rule_is_not_saved(tmp_path, seeded):
+    ws = too_easy_project(tmp_path)
+    fix = start_fix.Fix(ws)
+    out = fix.save_rule("   ", "written")
+    assert not out["saved"] and out["checks"][0]["blocking"]
+    assert not (ws.dir / "fix" / "rule.txt").exists()
+
+
+def test_the_rule_section_needs_one_shared_rule(tmp_path):
+    promptfoo_project(tmp_path, split(20, 16))
+    data = json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))
+    rows = data["results"]["results"]
+    for n, row in enumerate(rows):
+        row["gradingResult"]["componentResults"][0]["assertion"]["value"] = f"Rubric {n}."
+    (tmp_path / "results.json").write_text(json.dumps(data), encoding="utf-8")
+    found = start.find_judge(tmp_path)
+    assert found.one_rule is False
+    promptfoo_project(tmp_path, split(20, 16))
+    assert start.find_judge(tmp_path).one_rule is True
+
+
+def _fix_with(ws, **changes):
+    data = ws.data()
+    data.update(changes)
+    start_label._write_json(ws.start, data)
+    return start_fix.Fix(ws)
+
+
+def test_a_rule_that_differs_by_test_or_is_unknown_gets_patterns_only(tmp_path, seeded):
+    ws = too_easy_project(tmp_path)
+    section = _fix_with(ws, one_rule=False).state()["rule_change"]
+    assert section == {"kind": "per_test", "text": (
+        "Your rule is different for each test, so judgekeeper can't write one prompt for it "
+        "yet. The patterns above still show where it goes wrong.")}
+    section = _fix_with(ws, one_rule=True, rule=None).state()["rule_change"]
+    assert section["kind"] == "unknown"
+    assert section["text"].startswith("Your results do not say your judge's rule")
+    with pytest.raises(ValueError):
+        start_fix.Fix(ws).prompt()
+
+
+# The hand-over ---------------------------------------------------------------------------
+
+def test_where_the_rule_lives_is_found_and_skips_venv_and_judgekeeper(tmp_path):
+    rule = "Is polite and correct.\nSecond line of the rubric."
+    for folder in (".venv", ".judgekeeper", "node_modules"):
+        (tmp_path / folder).mkdir()
+        (tmp_path / folder / "promptfooconfig.yaml").write_text(
+            f"value: {rule.splitlines()[0]}\n", encoding="utf-8")
+    assert start_fix_rule.locate_rule(tmp_path, rule, "promptfoo") is None
+    (tmp_path / "promptfooconfig.yaml").write_text(
+        "tests:\n  - assert:\n      - type: llm-rubric\n        value: |\n"
+        "          Is polite and correct.\n          Second line of the rubric.\n",
+        encoding="utf-8")
+    assert start_fix_rule.locate_rule(tmp_path, rule, "promptfoo") == (
+        "promptfooconfig.yaml", 5, "Is polite and correct.")
+
+
+def test_the_search_never_imports_or_runs_anything(tmp_path):
+    marker = tmp_path / "ran"
+    (tmp_path / "evals.py").write_text(
+        f"open({str(marker)!r}, 'w').close()\nRULE = 'Be helpful to every customer.'\n",
+        encoding="utf-8")
+    found = start_fix_rule.locate_rule(tmp_path, "Be helpful to every customer.", "records")
+    assert found == ("evals.py", 2, "RULE = 'Be helpful to every customer.'")
+    assert not marker.exists()
+
+
+def test_deepeval_steps_are_searched_by_their_first_step(tmp_path):
+    rule = ("Is it correct? \n \nEvaluation Steps:\n[\n    \"Check each claim in the answer.\","
+            "\n    \"Penalise false claims.\"\n] \n \nRubric:\nNone")
+    (tmp_path / "test_quality.py").write_text(
+        "metric = GEval(\n    evaluation_steps=[\n        \"Check each claim in the answer.\",\n"
+        "    ])\n", encoding="utf-8")
+    assert start_fix_rule.locate_rule(tmp_path, rule, "deepeval")[:2] == ("test_quality.py", 3)
+
+
+def test_the_field_per_tool():
+    field = start_fix_rule.field
+    assert field("promptfoo") == "the `value:` of the llm-rubric assert"
+    assert field("deepeval") == "`evaluation_steps=[...]` in `GEval(...)`"
+    assert field("inspect") == "`instructions=` in `model_graded_qa(...)`"
+    assert field("mlflow") == ("`instructions=` in `make_judge(...)`, or the text of "
+                               "`Guidelines(...)`")
+    for tool in ("records", "table", "mapped"):
+        assert field(tool) == "where your code keeps the rule"
+
+
+def test_the_hand_over_found_and_not_found(tmp_path):
+    hand = start_fix_rule.hand_over(tmp_path, {"tool": "promptfoo"}, "Is polite.",
+                                    "Is polite and short.", 15)
+    assert hand["where"] == ("judgekeeper could not find where this rule is written. It is "
+                             "the `value:` of the llm-rubric assert of your judge.")
+    assert hand["agent_prompt"] == (
+        "In your eval's files, replace the `value:` of the llm-rubric assert with the text "
+        "below. Change only this text, nothing else. Then run the eval.\n\nIs polite and short.")
+    assert hand["last"] == ("Then run your eval and judgekeeper start: it offers Try your new "
+                            "judge on your marked answers, and tests it on the 15 set aside.")
+    (tmp_path / "promptfooconfig.yaml").write_text("x: 1\nvalue: Is polite.\n",
+                                                   encoding="utf-8")
+    hand = start_fix_rule.hand_over(tmp_path, {"tool": "promptfoo"}, "Is polite.",
+                                    "Is polite and short.", 15)
+    assert hand["where"] == "Probably in promptfooconfig.yaml, line 2: value: Is polite."
+    assert hand["agent_prompt"].startswith(
+        "In promptfooconfig.yaml (probably line 2), replace the `value:` of the llm-rubric "
+        "assert with the text below.")
+
+
+def test_the_hand_over_for_judges_that_cannot_be_asked_again(tmp_path):
+    hand = start_fix_rule.hand_over(tmp_path, {"tool": "records"}, "Be helpful.", "Be kind.",
+                                    15)
+    assert hand["last"] == ("Then run your eval and judgekeeper start to check it on new "
+                            "answers.")
+
+
+def test_the_hand_over_for_deepeval_and_mlflow(tmp_path):
+    hand = start_fix_rule.hand_over(tmp_path, {"tool": "deepeval"}, "1. Check.", "1. Check it.",
+                                    15)
+    assert ("If your GEval has only `criteria=`, add `evaluation_steps=` with these steps. "
+            "This also stops DeepEval writing new steps on every run.") in hand["notes"]
+    hand = start_fix_rule.hand_over(tmp_path, {"tool": "mlflow"}, "Be kind.", "Be kinder.", 15)
+    assert ("A registered judge: register it again yourself with `.register(name=...)`; this "
+            "adds a new version in your store.") in hand["notes"]
+
+
+def test_inspect_names_the_task_file_from_its_log(tmp_path):
+    hand = start_fix_rule.hand_over(tmp_path, {"tool": "inspect", "task_file": "tasks/qa.py"},
+                                    "Grade it.", "Grade it well.", 15)
+    assert hand["where"] == ("judgekeeper could not find where this rule is written. It is "
+                             "the `instructions=` in `model_graded_qa(...)` of your judge, "
+                             "probably in tasks/qa.py.")
+
+
+# The page ---------------------------------------------------------------------------------
+
+def test_the_fix_page_holds_the_rule_section(tmp_path):
+    ws = too_easy_project(tmp_path)
+    page = start_fix.page_template(ws)
+    for needed in ("Change the rule", "Copy a prompt for your AI assistant",
+                   "I'll write it myself", "Paste the new rule here", "/fix/prompt",
+                   "/fix/rule"):
+        assert needed in page, needed
+
+
+def test_the_page_asks_for_the_prompt_and_saves_the_rule(tmp_path, seeded):
+    ws = too_easy_project(tmp_path)
+    fix = start_fix.Fix(ws)
+    server = label_mod.make_server(fix, port=0, page=start_fix.page_template(ws),
+                                   result=start_review.result_maker(ws, say=_quiet))
+    thread = threading.Thread(target=server.serve, daemon=True)
+    thread.start()
+    client = Client(server)
+    try:
+        resp, payload = client.request("POST", "/fix/prompt", {})
+        assert resp.status == 200 and "THE RULE NOW" in json.loads(payload)["prompt"]
+        resp, payload = client.request("POST", "/fix/rule", {"text": "Be kind.", "how": "written"})
+        assert resp.status == 200
+        body = json.loads(payload)
+        assert body["result"]["saved"] and body["rule_change"]["saved"]["rule"] == "Be kind."
+        resp, _ = client.request("POST", "/fix/rule", {"text": "Be kind.", "how": "magic"})
+        assert resp.status == 400
+        resp, _ = client.request("POST", "/fix/rule", {"text": 5, "how": "pasted"})
+        assert resp.status == 400
+        resp, _ = client.request("POST", "/fix/rule", {"text": "x", "how": "pasted"},
+                                 token=False)
+        assert resp.status == 403
+    finally:
+        server.stop()
+        thread.join(5)
+
+
+# The fair test inside "Try your new judge" ------------------------------------------------
+
+N_PASS, N_FAIL, WRONG_FAILS = 20, 30, 6
+
+
+def _verdicts():
+    return split(N_PASS, N_FAIL)
+
+
+@pytest.fixture
+def fixable(monkeypatch, tmp_path):
+    """A checked promptfoo project whose judge failed 6 answers the person marked Correct,
+    a finished review, the split made, the project's own promptfoo and the fake behind it."""
+    promptfoo_project(tmp_path, _verdicts())
+    _meta(tmp_path)
+    ws = start_label.prepare(start.find_judge(tmp_path), say=_quiet)
+    session = StartSession(ws)
+    for q in ws.data()["queue"]:
+        i = int(session.raw[q["id"]]["output"].split()[1].rstrip("."))
+        wrong_fail = N_PASS <= i < N_PASS + WRONG_FAILS
+        session.update({"id": q["id"], "label": "pass" if wrong_fail else q["group"]})
+    save_result(ws, session, say=_quiet)
+    review = ReviewSession(ws)
+    _second_look(review)
+    for item in review.items:
+        if item["disagreement"]:
+            review.update({"id": item["id"], "choice": "judge_wrong"})
+    monkeypatch.setattr(start_fix.secrets, "randbelow", lambda n: 1234)
+    binary = tmp_path / "node_modules" / ".bin" / "promptfoo"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("", encoding="utf-8")
+    for name in keys.all_names():
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
+    monkeypatch.setattr(again, "which", lambda name: None)
+    holder = {}
+
+    def runner(argv, cwd, env=None, timeout=None):
+        if "fake" not in holder:
+            holder["fake"] = FakePromptfoo(ws)
+        return holder["fake"](argv, cwd, env, timeout)
+
+    monkeypatch.setattr(again, "run_process", runner)
+    ws.fake = holder
+    return ws
+
+
+def _fixed_judge():
+    """The new judge passes the 6 answers the old one wrongly failed."""
+    v = _verdicts()
+    return [True if N_PASS <= i < N_PASS + WRONG_FAILS else x for i, x in enumerate(v)]
+
+
+def _try(capsys, ws):
+    calls = 2 * (N_PASS + N_FAIL)
+    return run(capsys, ws.root, "--try-new-judge", "--allow-calls", calls)
+
+
+def test_try_your_new_judge_tests_it_on_the_answers_set_aside(fixable, capsys):
+    fix = start_fix.Fix(fixable)
+    aside = [fix.marks[i] for i in fix.aside_ids]
+    wrong = sum(m["judge"] != m["final"] for m in aside)
+    assert wrong == 2 and len(aside) == 16
+    _new_run(fixable.root, verdicts=_fixed_judge())
+    code, out, _ = _try(capsys, fixable)
+    assert code == 0
+    sentence = ("Can't tell yet: on the 16 answers set aside it fixed 2 and broke 0. That is "
+                "too few to be sure. Mark more answers to find out.")
+    assert sentence in out
+    assert out.index(sentence) < out.index("Your new judge vs your old judge")
+    assert "This test is small. The real check is on new answers" in out
+    block = json.loads(fixable.result_json.read_text(encoding="utf-8"))["new_judge"]
+    assert block["aside"]["fixed"] == 2 and block["aside"]["broke"] == 0
+    assert block["aside"]["kind"] == "unsure" and block["aside"]["p"] == pytest.approx(0.5)
+    tests = json.loads((fixable.dir / "fix.json").read_text(encoding="utf-8"))["tests"]
+    assert [(t["kind"], t["fixed"], t["broke"]) for t in tests] == [("rule", 2, 0)]
+    r = json.loads(fixable.result_json.read_text(encoding="utf-8"))
+    assert r["fix"]["tests"][-1]["kind"] == "rule"
+    assert html.escape(sentence) in fixable.result_html.read_text(encoding="utf-8")
+
+
+def test_without_a_split_there_is_no_test_on_answers_set_aside(fixable, capsys):
+    _new_run(fixable.root, verdicts=_fixed_judge())
+    _, out, _ = _try(capsys, fixable)
+    assert "set aside" not in out
+    assert "aside" not in json.loads(fixable.result_json.read_text(encoding="utf-8"))["new_judge"]
+    assert not (fixable.dir / "fix.json").exists()
+
+
+def test_a_hand_written_rule_says_the_test_may_look_better(fixable, capsys):
+    start_fix.Fix(fixable).save_rule("Is polite, correct and kind.", "written")
+    _new_run(fixable.root, verdicts=_fixed_judge())
+    _, out, _ = _try(capsys, fixable)
+    assert ("You wrote this rule after seeing all your disagreements, so this test may look "
+            "better than it is.") in out
+
+
+def test_the_fourth_test_across_pass_mark_and_rule_is_refused(fixable, capsys):
+    start_fix.Fix(fixable)
+    path = fixable.dir / "fix.json"
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    saved["tests"] = [{"kind": "pass_mark", "made_at": "x", "change": "pass mark 0.5 to 0.7",
+                       "fixed": 1, "broke": 0, "p": 1.0, "result": "unsure"}] * 3
+    path.write_text(json.dumps(saved), encoding="utf-8")
+    _new_run(fixable.root, verdicts=_fixed_judge())
+    _, out, _ = _try(capsys, fixable)
+    assert ("You have tested 3 changes on the same 16 answers, so they no longer give a fair "
+            "test. Mark new answers to test more.") in out
+    assert len(json.loads(path.read_text(encoding="utf-8"))["tests"]) == 3
+    block = json.loads(fixable.result_json.read_text(encoding="utf-8"))["new_judge"]
+    assert block["aside"]["kind"] == "refused"
+
+
+def test_old_decisions_come_from_asking_again_when_there_are(fixable, capsys):
+    fix = start_fix.Fix(fixable)
+    run(capsys, fixable.root, "--ask-again", "--allow-calls", 2 * (N_PASS + N_FAIL))
+    folder = json.loads(fixable.result_json.read_text(encoding="utf-8"))["again"]["folder"]
+    path = fixable.root / folder / "judge-again-1.jsonl"
+    # Asked again, the old judge got one of the set-aside mistakes right already.
+    first = next(i for i in fix.aside_ids if fix.marks[i]["judge"] != fix.marks[i]["final"])
+    lines = path.read_text(encoding="utf-8").splitlines()
+    out_lines = []
+    for line in lines:
+        rec = json.loads(line)
+        if rec.get("id") == first:
+            rec["verdict"] = "pass"
+        out_lines.append(json.dumps(rec))
+    path.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    fixable.fake.clear()  # the fake reads the newest results again: the new judge's
+    _new_run(fixable.root, verdicts=_fixed_judge())
+    _, out, _ = _try(capsys, fixable)
+    assert "it fixed 1 and broke 0" in out
+
+
+# Safety ---------------------------------------------------------------------------------
+
+def _snapshot(root):
+    return {p.relative_to(root).as_posix(): p.stat().st_mtime_ns for p in root.rglob("*")
+            if p.is_file() and ".judgekeeper" not in p.relative_to(root).parts}
+
+
+def test_a_key_in_env_reaches_no_file_and_nothing_outside_judgekeeper_is_written(tmp_path,
+                                                                                  seeded):
+    (tmp_path / ".env").write_text(f"OPENAI_API_KEY={KEY}\n", encoding="utf-8")
+    scored_records(tmp_path, [round(0.005 + 0.01 * i, 3) for i in range(100)])
+    ws = start_label.prepare(start.find_judge(tmp_path), say=_quiet)
+    _mark_all(ws, lambda i, g: "pass" if 0.005 + 0.01 * i >= 0.7 else "fail")
+    before = _snapshot(tmp_path)
+    fix = start_fix.Fix(ws)
+    fix.prompt()
+    fix.save_rule(f"NEW RULE START\nBe helpful. Key {KEY}\nNEW RULE END", "pasted")
+    fix.test_pass_mark(fix.state()["pass_mark"]["mark"])
+    fix.state()
+    assert _snapshot(tmp_path) == before
+    for path in ws.dir.rglob("*"):
+        if path.is_file():
+            assert KEY not in path.read_text(encoding="utf-8", errors="replace"), path
+
+
+# The result page ---------------------------------------------------------------------------
+
+def test_the_result_gets_a_fix_your_judge_card_with_the_latest_test(tmp_path, seeded):
+    ws = too_easy_project(tmp_path)
+    before = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    fix = start_fix.Fix(ws)
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert r["fix"]["counts"] == fix.counts() and r["fix"]["tests"] == []
+    fix.test_pass_mark(0.7)
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    for key in ("tpr", "tnr", "kappa", "labels", "made_at"):
+        assert r[key] == before[key]  # the main result never changes
+    assert r["fix"]["tests"][0]["sentence"] == (
+        "On the 30 answers set aside, it did better: it fixed 6 and broke none.")
+    page = ws.result_html.read_text(encoding="utf-8")
+    assert "<h2>Fix your judge</h2>" in page
+    assert ("Latest test (pass mark 0.5 to 0.7): On the 30 answers set aside, it did better: "
+            "it fixed 6 and broke none.") in page
+    lines = start_label.result_lines(r)
+    assert "  Fix your judge:" in lines

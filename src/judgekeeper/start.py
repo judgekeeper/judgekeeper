@@ -549,6 +549,9 @@ class Found:
     # The judge's pass mark, when every answer has a number score held against the same one
     # (pass_mark_of); None for a judge that gives no score or no pass mark
     pass_mark: dict | None = None
+    # whether every verdict of the judge has the same rule (no rule per test)
+    one_rule: bool = True
+    task_file: str | None = None  # Inspect: the task file its newest log names
 
 
 PASS_OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt}
@@ -1031,6 +1034,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         fingerprint.update(model=saved.model, model_source=f"given in {settings.FILE}")
         models = [saved.model]
     rule = rule_of(records)
+    one_rule = len({rule_of([r]) for r in records}) <= 1
     rubric = rubric_line(rule)
     judge = _judge_name(kind, metric, rubric, models, judge_model is not None,
                         Path(newest.rel).name)
@@ -1046,7 +1050,16 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  app_version=", ".join(versions) or None,
                  store=newest.rel if kind == "mlflow" else None,
                  check=judge_check.check(pool, kind, score_judge=score_judge),
-                 pass_mark=pass_mark_of(pool, kind, norm.pass_if, key))
+                 pass_mark=pass_mark_of(pool, kind, norm.pass_if, key), one_rule=one_rule,
+                 task_file=_task_file(newest.path) if kind == "inspect" else None)
+
+
+def _task_file(path: Path) -> str | None:
+    """The task file an Inspect log names, or None."""
+    from judgekeeper.readers.inspect_logs import eval_header
+
+    task = eval_header(path).get("task_file")
+    return task.strip() if isinstance(task, str) and task.strip() else None
 
 
 SERVERS = ("http://", "https://", "databricks")

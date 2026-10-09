@@ -214,6 +214,8 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         **({"mlflow_store": found.store} if found.store else {}),
         "fingerprint": scrub_fingerprint(found.fingerprint),
         "pass_mark": found.pass_mark,
+        "one_rule": found.one_rule,
+        **({"task_file": found.task_file} if found.task_file else {}),
         "pool": {"answers": len(p.answers), "pass": p.n_pass, "fail": p.n_fail},
         "pool_sha256": pool_sha,
         "left_out": {"no_clear_verdict": p.n_unclear, "unmapped_values": p.unmapped,
@@ -454,6 +456,12 @@ def _review_lines(r: dict) -> list[str]:
     return review_lines(r["review"]) if r.get("review") else []
 
 
+def _fix_lines(r: dict) -> list[str]:
+    from judgekeeper.start_fix import result_lines as fix_lines
+
+    return fix_lines(r["fix"]) if r.get("fix") else []
+
+
 def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
     """The result as the terminal shows it."""
     labels = r["labels"]
@@ -474,6 +482,8 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
         lines.append(f"  {CORRECTED}")
     if r.get("review"):
         lines += [""] + [f"  {line}" for line in _review_lines(r)]
+    if r.get("fix"):
+        lines += ["", "  Fix your judge:"] + [f"  {line}" for line in _fix_lines(r)]
     if r.get("again"):
         lines += ["", "  Your judge, asked again:"] + [f"  {line}" for line in _again_lines(r)]
     if r.get("new_judge"):
@@ -612,6 +622,9 @@ def page_content(r: dict) -> dict:
     if r.get("review"):
         review = {"title": "Your review of the disagreements", "lines": _review_lines(r),
                   "files": [f"{FOLDER}/{name}" for name in r["review"].get("files", [])]}
+    fixed = None
+    if r.get("fix"):
+        fixed = {"title": "Fix your judge", "lines": _fix_lines(r), "files": [f"{FOLDER}/fix/"]}
     asked_again = None
     if r.get("again"):
         asked_again = {"title": "Your judge, asked again", "lines": _again_lines(r),
@@ -643,6 +656,7 @@ def page_content(r: dict) -> dict:
         "judge": {"name": judge.get("metric") or judge.get("name"), "model": model,
                   "rule": judge.get("rule"), "source": source},
         "review": review,
+        "fix": fixed,
         "again": asked_again,
         "new_judge": new_judge,
         "judge_check": judged,

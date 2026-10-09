@@ -24,10 +24,16 @@ cell sets aside more of the few disagreements than of the many agreed answers, s
 either part weigh each answer by its cell (cell_weights), not only its group. After 3 tests on
 one split, the answers set aside no longer give a fair test.
 
+- for a judge with one rule: changing it, with a prompt for any AI assistant (start_fix_rule).
+  A new judge is then tested on the answers set aside inside Try your new judge
+  (new_judge_test).
+
 `.judgekeeper/` gains fix.json (the result it is of, the seed, the two parts, the tests) and
-fix/ (patterns.json: the counts and the pattern lines; pass-mark.json: the pass-mark test). A
-new result moves both to history/fix-<date>/. judgekeeper never edits the person's own files:
-it only says where the pass mark probably is.
+fix/ (patterns.json: the counts and the pattern lines; pass-mark.json: the pass-mark test;
+prompt.txt, rule.txt and rule.json: the prompt, the new rule, its checks and hand-over), and
+result.json a `fix` block. A new result moves fix.json and fix/ to history/fix-<date>/.
+judgekeeper never edits the person's own files: it only says where the pass mark or the rule
+probably is.
 """
 
 from __future__ import annotations
@@ -45,7 +51,7 @@ import webbrowser
 from collections import Counter
 from pathlib import Path
 
-from judgekeeper import start_review, weighted
+from judgekeeper import start_fix_rule, start_review, weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.redact import scrub
@@ -442,7 +448,8 @@ class Fix:
         self.out = ws.dir / "fix.json"
         self.folder = ws.dir / "fix"
         self.by_id: dict = {}  # nothing on this page is labeled
-        self.posts = {"/fix/pass-mark": self._post_pass_mark}
+        self.posts = {"/fix/pass-mark": self._post_pass_mark, "/fix/prompt": self._post_prompt,
+                      "/fix/rule": self._post_rule}
         basis = start_review._basis(ws)
         saved = json.loads(self.out.read_text(encoding="utf-8")) if self.out.is_file() \
             else None
@@ -463,6 +470,9 @@ class Fix:
         self.aside_ids = [i for i in saved["aside_ids"] if i in self.marks]
         data = ws.data()
         self.pool, self.rule, self.pm = data["pool"], data.get("rule"), data.get("pass_mark")
+        self.data = data
+        self.tool = data.get("tool") or ""
+        self.one_rule = data.get("one_rule", True)  # checks made before it was kept: one
         self.raw = {}
         for line in ws.pool.read_text(encoding="utf-8").splitlines():
             if line.strip():
@@ -472,6 +482,7 @@ class Fix:
         self.reasons = {i: scrub(r.get("rationale") or "") for i, r in records.items()}
         self.scores = {i: r.get("raw_score") for i, r in records.items()}
         self.write_patterns()
+        self._sync_result()
 
     # The used part ------------------------------------------------------------------------
 
@@ -513,14 +524,15 @@ class Fix:
 
     # The pass mark ------------------------------------------------------------------------
 
-    def refusal(self) -> str | None:
-        """Why no change can be tested on this split, or None."""
+    def refusal(self, ids: list[str] | None = None) -> str | None:
+        """Why no change can be tested on this split (on `ids` of it, by default all the
+        answers set aside), or None."""
         n = len(self.aside_ids)
         tests = len(self.saved["tests"])
         if tests >= MAX_TESTS:
             return (f"You have tested {tests} changes on the same {n} answers, so they no "
                     "longer give a fair test. Mark new answers to test more.")
-        finals = [self.marks[i]["final"] for i in self.aside_ids]
+        finals = [self.marks[i]["final"] for i in (self.aside_ids if ids is None else ids)]
         short = [f"{finals.count(v)} {SAID[v]}" for v in ("pass", "fail")
                  if finals.count(v) < MIN_EACH]
         if short:
@@ -605,16 +617,19 @@ class Fix:
 
     # The fair test ------------------------------------------------------------------------
 
-    def fair_test(self, new: dict[str, str]) -> dict:
-        """Old decisions (the saved verdicts) against `new` ones on the set-aside answers:
-        fixed and broke, and the two agreement numbers before and after, weighted by cell,
-        with no range."""
-        aside = [self.marks[i] for i in self.aside_ids]
-        fixed = sum(m["judge"] != m["final"] and new[m["id"]] == m["final"] for m in aside)
-        broke = sum(m["judge"] == m["final"] and new[m["id"]] != m["final"] for m in aside)
+    def fair_test(self, new: dict[str, str], old: dict[str, str] | None = None,
+                  ids: list[str] | None = None) -> dict:
+        """Old decisions (the saved verdicts, or `old`) against `new` ones on the set-aside
+        answers (or `ids` of them): fixed and broke, and the two agreement numbers before and
+        after, weighted by cell (the saved verdict's), with no range."""
+        ids = self.aside_ids if ids is None else ids
+        aside = [self.marks[i] for i in ids]
+        was = {m["id"]: (old or {}).get(m["id"], m["judge"]) for m in aside}
+        fixed = sum(was[m["id"]] != m["final"] and new[m["id"]] == m["final"] for m in aside)
+        broke = sum(was[m["id"]] == m["final"] and new[m["id"]] != m["final"] for m in aside)
         n = len(aside)
-        weights = self._weights(self.aside_ids)
-        before = weighted._table([(cell(m), m["final"], m["judge"]) for m in aside], weights)
+        weights = self._weights(ids)
+        before = weighted._table([(cell(m), m["final"], was[m["id"]]) for m in aside], weights)
         after = weighted._table([(cell(m), m["final"], new[m["id"]]) for m in aside], weights)
         numbers = [f"When you said {said}, your judge also said {said}: {_pct(before[key])} → "
                    f"{_pct(after[key])}" for key, said in (("tpr", "Pass"), ("tnr", "Fail"))]
@@ -625,8 +640,127 @@ class Fix:
     def _record(self, change: str, kind: str, test: dict) -> None:
         self.saved["tests"].append({"kind": kind, "made_at": utc_now(), "change": change,
                                     "fixed": test["fixed"], "broke": test["broke"],
-                                    "p": test["p"], "result": test["kind"]})
+                                    "p": test["p"], "result": test["kind"],
+                                    "sentence": test["lines"][0]})
         _write_json(self.out, self.saved)
+        self._sync_result()
+
+    def _sync_result(self) -> None:
+        """Put the fix block (counts and tests) in result.json and redraw result.html. The
+        main result does not change."""
+        from judgekeeper.start_label import _scrubbed, result_html
+
+        ws = self.workspace
+        r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+        r["fix"] = {"counts": self.counts(), "used": len(self.used_ids),
+                    "aside": len(self.aside_ids), "tests": self.saved["tests"]}
+        _write_json(ws.result_json, r)
+        ws.result_html.write_text(result_html(_scrubbed(r)), encoding="utf-8")
+
+    def _old_decisions(self) -> dict[str, str]:
+        """The old judge's decisions asked again, when that was done for this result: from
+        the first run file of result.json's `again` folder."""
+        r = json.loads(self.workspace.result_json.read_text(encoding="utf-8"))
+        folder = (r.get("again") or {}).get("folder")
+        path = self.workspace.root / folder / "judge-again-1.jsonl" if folder else None
+        if path is None or not path.is_file():
+            return {}
+        _, records = read_run(path)
+        return {i: rec["verdict"] for i, rec in records.items()
+                if rec.get("verdict") in ("pass", "fail")}
+
+    def test_new_judge(self, new: dict[str, str], change: str) -> dict:
+        """The fair test of a new judge (Try your new judge) on the set-aside answers it
+        decided: counted in the tests unless refused. Old decisions are the old judge's
+        asked again, when it was, else the saved verdicts."""
+        ids = [i for i in self.aside_ids if new.get(i) in ("pass", "fail")]
+        refusal = self.refusal(ids)
+        if refusal:
+            return {"kind": "refused", "lines": [refusal]}
+        test = self.fair_test(new, self._old_decisions(), ids)
+        if (self._saved_rule() or {}).get("how") == "written":
+            test["lines"].append(start_fix_rule.HAND_WRITTEN)
+        self._record(f"new judge: {change}", "rule", test)
+        return {k: test[k] for k in ("kind", "n", "fixed", "broke", "p", "lines", "numbers")}
+
+    # Change the rule ----------------------------------------------------------------------
+
+    def _text(self, m: dict) -> dict:
+        raw = self.raw.get(m["id"], {})
+        return {**m, "input": display(raw.get("input")), "output": display(raw.get("output")),
+                "reason": self.reasons.get(m["id"], "")}
+
+    def _rule_problem(self) -> str | None:
+        if not self.rule:
+            return start_fix_rule.UNKNOWN
+        if not self.one_rule:
+            return start_fix_rule.PER_TEST
+        return None
+
+    def prompt(self) -> str:
+        """The prompt for an AI assistant, from the used answers only; saved (scrubbed) in
+        fix/prompt.txt."""
+        problem = self._rule_problem()
+        if problem:
+            raise ValueError(problem)
+        rows = [self._text(self.marks[i]) for i in self.used_ids]
+        agreed = [m for m in rows if m["judge"] == m["final"]
+                  and m.get("choice") != "rule_unclear"]
+        text = scrub(start_fix_rule.build_prompt(self.rule, self.tool, mistakes(rows),
+                                                 unclear(rows), agreed))
+        self.folder.mkdir(exist_ok=True)
+        (self.folder / "prompt.txt").write_text(text, encoding="utf-8")
+        return text
+
+    def _saved_rule(self) -> dict | None:
+        path = self.folder / "rule.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+
+    def save_rule(self, text: str, how: str) -> dict:
+        """Check the new rule (pasted from an AI assistant, or written by hand) and save it
+        in fix/rule.txt and rule.json unless a check blocks it: {"saved", "checks"}."""
+        if how not in ("pasted", "written"):
+            raise ValueError("how must be pasted or written")
+        if not isinstance(text, str) or len(text) > start_fix_rule.MAX_RULE:
+            raise ValueError(f"the rule must be text of at most {start_fix_rule.MAX_RULE:,} "
+                             "characters")
+        problem = self._rule_problem()
+        if problem:
+            raise ValueError(problem)
+        old = start_fix_rule.rule_text(self.rule, self.tool)
+        new = scrub(start_fix_rule.new_rule_of(text))
+        outputs = [display(self.raw.get(i, {}).get("output")) for i in self.used_ids]
+        found = start_fix_rule.checks(old, new, self.tool, outputs)
+        if any(c["blocking"] for c in found):
+            return {"saved": False, "checks": found}
+        self.folder.mkdir(exist_ok=True)
+        (self.folder / "rule.txt").write_text(new + "\n", encoding="utf-8")
+        hand = start_fix_rule.hand_over(self.workspace.root, self.data, self.rule, new,
+                                        len(self.aside_ids))
+        _write_json(self.folder / "rule.json", {
+            "made_at": utc_now(), "how": how, "old": old, "new": new, "checks": found,
+            "hand_over": hand})
+        return {"saved": True, "checks": found}
+
+    def rule_change(self) -> dict:
+        """The page's "Change the rule" section."""
+        problem = self._rule_problem()
+        if problem:
+            return {"kind": "unknown" if not self.rule else "per_test", "text": problem}
+        old = start_fix_rule.rule_text(self.rule, self.tool)
+        saved = self._saved_rule()
+        if saved is not None:
+            saved = {"rule": saved["new"], "how": saved["how"], "checks": saved["checks"],
+                     "diff": start_fix_rule.word_diff(saved["old"], saved["new"]),
+                     "hand_over": saved["hand_over"]}
+        return {"kind": "ok", "rule": old, "steps": self.tool == "deepeval", "saved": saved}
+
+    def _post_prompt(self, body: dict) -> dict:
+        return {"prompt": self.prompt()}
+
+    def _post_rule(self, body: dict) -> dict:
+        result = self.save_rule(body.get("text"), body.get("how"))
+        return {"result": result, "rule_change": self.rule_change()}
 
     # What the server asks for -------------------------------------------------------------
 
@@ -643,7 +777,8 @@ class Fix:
                 "lists": lists,
                 "unclear": {"title": f"Your rule does not decide these ({len(hazy)})",
                             "items": hazy},
-                "aside": self.aside_note(), "pass_mark": self.pass_mark_section()}
+                "aside": self.aside_note(), "pass_mark": self.pass_mark_section(),
+                "rule_change": self.rule_change()}
 
     def summary(self) -> dict:
         return {"done": False}  # the page stays until Ctrl-C
@@ -725,6 +860,28 @@ def switch(ws: Workspace, say):
         return fix, page_template(ws), start_review.result_maker(ws, say)
 
     return go
+
+
+def new_judge_test(ws: Workspace, new: dict[str, str], change: str) -> dict | None:
+    """For Try your new judge: the fair test on the answers set aside, when Fix your judge
+    set some aside for this result; else None (no split is made here)."""
+    path = ws.dir / "fix.json"
+    if not path.is_file():
+        return None
+    if json.loads(path.read_text(encoding="utf-8")).get("basis") != start_review._basis(ws):
+        return None
+    return Fix(ws).test_new_judge(new, change)
+
+
+def result_lines(block: dict) -> list[str]:
+    """The fix block of result.json in words: the two counts and the latest test."""
+    c = block["counts"]
+    lines = [(f"On the {block['used']} answers judgekeeper used: Passed, but you said Fail: "
+              f"{c['passed_but_fail']}. Failed, but you said Pass: {c['failed_but_pass']}.")]
+    tests = block.get("tests") or []
+    if tests and tests[-1].get("sentence"):
+        lines.append(f"Latest test ({tests[-1]['change']}): {tests[-1]['sentence']}")
+    return lines
 
 
 def finish(fix: Fix, say) -> None:

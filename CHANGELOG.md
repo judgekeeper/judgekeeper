@@ -41,6 +41,10 @@ after you say yes, your own judge through your own tool, and key names only.
   shows what your judge gets wrong, with plain patterns. For a judge that gives a score, it
   finds the pass mark that fits your marks best and tests it on the answers set aside: how
   many it fixed and broke, and "it did better", "it did worse" or "Can't tell yet".
+- New: change your judge's rule from the fix page: a prompt to paste into any AI assistant
+  (from the answers not set aside), a box for the new rule with plain checks and the change
+  word by word, and where the rule probably is in your files. judgekeeper never edits them.
+  Try your new judge then also tests the new rule on the answers set aside.
 - New: ask your judge again. Your own eval tool grades the answers you labeled again, with
   your own judge: promptfoo, DeepEval, Inspect AI, MLflow, or your own command
   (`--judge-command`). Your app is not run. First a plan, with no AI call: whether this is
