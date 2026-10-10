@@ -1,0 +1,1290 @@
+{
+ "made_by": "scripts/real_data_check.py",
+ "settings": {
+  "seed": 20261009,
+  "checks": 1000,
+  "sizes": [
+   25,
+   30
+  ],
+  "start_rule": {
+   "block": 5,
+   "target": 25
+  },
+  "weighted": {
+   "level": 0.96,
+   "draws": 20000,
+   "seed": 20261008
+  }
+ },
+ "data": {
+  "llmbar": {
+   "name": "LLMBar",
+   "licence": "MIT",
+   "source": "https://github.com/princeton-nlp/LLMBar",
+   "revision": "900616bff90b6c6c8e1681f7d079250637c55992",
+   "attribution": "Zeng et al. (2024), Evaluating Large Language Models at Evaluating Instruction Following, ICLR 2024. The judge verdicts are judgekeeper's own run of claude-haiku-4-5-20251001, kept in docs/examples/llmbar-haiku/report.json.",
+   "files": []
+  },
+  "mtbench": {
+   "name": "MT-Bench human judgments",
+   "licence": "CC-BY-4.0",
+   "source": "https://huggingface.co/datasets/lmsys/mt_bench_human_judgments",
+   "revision": "f7d2896d2cc5d80f8b55c2bbc722613555233c25",
+   "attribution": "Zheng et al. (2023), Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena, NeurIPS 2023 Datasets and Benchmarks. Licensed CC-BY-4.0. Changed here: each item turned into one yes/no question as described in this report; no data is copied into this repository.",
+   "files": [
+    {
+     "file": "mtbench/gpt4_pair.parquet",
+     "url": "https://huggingface.co/datasets/lmsys/mt_bench_human_judgments/resolve/f7d2896d2cc5d80f8b55c2bbc722613555233c25/data/gpt4_pair-00000-of-00001-c0b431264a82ddc0.parquet",
+     "sha256": "57068327ffb5f8fddb15fedbbfe40b26fe862da2326331e5cf64a42320a00e71"
+    },
+    {
+     "file": "mtbench/human.parquet",
+     "url": "https://huggingface.co/datasets/lmsys/mt_bench_human_judgments/resolve/f7d2896d2cc5d80f8b55c2bbc722613555233c25/data/human-00000-of-00001-25f4910818759289.parquet",
+     "sha256": "4877bc46a40929f4082c3c79593700fb897b1d6c7f4c473032694a01322f5769"
+    }
+   ]
+  },
+  "llmjudge": {
+   "name": "LLMJudge benchmark",
+   "licence": "MIT",
+   "source": "https://github.com/llm4eval/LLMJudge-benchmark",
+   "revision": "0e2024814e3192cfc662ecee56dbd16b2536a7de",
+   "attribution": "Rahmani et al. (2024), LLMJudge: LLMs for Relevance Judgments, LLM4Eval workshop at SIGIR 2024. Grades by NIST assessors for TREC Deep Learning 2023 and by the submitted runs; only grades and ids are read.",
+   "files": [
+    {
+     "file": "llmjudge/qrels.txt",
+     "url": "https://raw.githubusercontent.com/llm4eval/LLMJudge-benchmark/0e2024814e3192cfc662ecee56dbd16b2536a7de/llmjudge/qrels/llmjudge_test_qrel_idx.txt",
+     "sha256": "3a2169a62cecf8725acf402be3222f53399fd5b3467f9f734aa3b2bbd583426c"
+    },
+    {
+     "file": "llmjudge/RMITIR-GPT4o.txt",
+     "url": "https://raw.githubusercontent.com/llm4eval/LLMJudge-benchmark/0e2024814e3192cfc662ecee56dbd16b2536a7de/submissions/scores/RMITIR-GPT4o.txt",
+     "sha256": "7b2a67e6b6215f84377c5b9b3b622aeae6fff54e03806f7b90caec36379293d6"
+    },
+    {
+     "file": "llmjudge/willia-umbrela1.txt",
+     "url": "https://raw.githubusercontent.com/llm4eval/LLMJudge-benchmark/0e2024814e3192cfc662ecee56dbd16b2536a7de/submissions/scores/willia-umbrela1.txt",
+     "sha256": "a7a40aca152a13313b7e39e5356d876f3f7b0d1d8f3ddadc3c4185bde350db01"
+    },
+    {
+     "file": "llmjudge/NISTRetrieval-instruct0.txt",
+     "url": "https://raw.githubusercontent.com/llm4eval/LLMJudge-benchmark/0e2024814e3192cfc662ecee56dbd16b2536a7de/submissions/scores/NISTRetrieval-instruct0.txt",
+     "sha256": "e4b1d4dc953bed2aa510a111bb221d4c70864778f665b3b26b879f9dae8d8658"
+    }
+   ]
+  }
+ },
+ "pools": {
+  "llmbar-haiku": {
+   "title": "LLMBar × Claude Haiku 4.5",
+   "dataset": "llmbar",
+   "judge": "Claude Haiku 4.5",
+   "question": "Is output A the better of the two?",
+   "judge_pass": "run 1 of the saved runs says A",
+   "human_pass": "LLMBar's gold label is A",
+   "truth": {
+    "n": 419,
+    "tp": 196,
+    "fn": 10,
+    "fp": 28,
+    "tn": 185,
+    "tpr": 0.951456,
+    "tnr": 0.868545,
+    "real_pass_rate": 0.491647,
+    "judge_pass_rate": 0.534606,
+    "kappa": 0.818825
+   },
+   "designs": {
+    "25+25": {
+     "labels": {
+      "mean": 50,
+      "min": 50,
+      "max": 50
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 25,
+        "correct": 21
+       },
+       "fail": {
+        "labeled": 25,
+        "correct": 0
+       }
+      },
+      "tpr": {
+       "value": 1.0,
+       "range": [
+        0.902277,
+        1.0
+       ]
+      },
+      "tnr": {
+       "value": 0.844741,
+       "range": [
+        0.710558,
+        0.942358
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.449069,
+       "range": [
+        0.355977,
+        0.522175
+       ]
+      },
+      "kappa": 0.830124
+     },
+     "plain": {
+      "tpr": 0.948961,
+      "tnr": 0.887161
+     },
+     "tpr": {
+      "held": 984,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.984,
+      "width_mean": 0.149955,
+      "abs_error_median": 0.024792
+     },
+     "tnr": {
+      "held": 946,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.946,
+      "width_mean": 0.221107,
+      "abs_error_median": 0.040638
+     },
+     "real_pass_rate": {
+      "held": 964,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.964,
+      "width_mean": 0.170911,
+      "abs_error_median": 0.023962
+     }
+    },
+    "30+30": {
+     "labels": {
+      "mean": 60,
+      "min": 60,
+      "max": 60
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 30,
+        "correct": 26
+       },
+       "fail": {
+        "labeled": 30,
+        "correct": 2
+       }
+      },
+      "tpr": {
+       "value": 0.937238,
+       "range": [
+        0.825258,
+        0.987234
+       ]
+      },
+      "tnr": {
+       "value": 0.859031,
+       "range": [
+        0.72812,
+        0.94898
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.494352,
+       "range": [
+        0.405303,
+        0.574705
+       ]
+      },
+      "kappa": 0.795546
+     },
+     "plain": {
+      "tpr": 0.945762,
+      "tnr": 0.885341
+     },
+     "tpr": {
+      "held": 990,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.99,
+      "width_mean": 0.140241,
+      "abs_error_median": 0.017309
+     },
+     "tnr": {
+      "held": 974,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.974,
+      "width_mean": 0.207204,
+      "abs_error_median": 0.033858
+     },
+     "real_pass_rate": {
+      "held": 968,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.968,
+      "width_mean": 0.157534,
+      "abs_error_median": 0.022832
+     }
+    },
+    "start_rule": {
+     "labels": {
+      "mean": 59.18,
+      "min": 50,
+      "max": 70
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 30,
+        "correct": 29
+       },
+       "fail": {
+        "labeled": 30,
+        "correct": 2
+       }
+      },
+      "tpr": {
+       "value": 0.943363,
+       "range": [
+        0.842037,
+        0.988484
+       ]
+      },
+      "tnr": {
+       "value": 0.960591,
+       "range": [
+        0.837923,
+        0.996318
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.547812,
+       "range": [
+        0.481113,
+        0.612457
+       ]
+      },
+      "kappa": 0.901656
+     },
+     "plain": {
+      "tpr": 0.944532,
+      "tnr": 0.887925
+     },
+     "tpr": {
+      "held": 990,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.99,
+      "width_mean": 0.142423,
+      "abs_error_median": 0.018391
+     },
+     "tnr": {
+      "held": 975,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.975,
+      "width_mean": 0.207457,
+      "abs_error_median": 0.038757
+     },
+     "real_pass_rate": {
+      "held": 973,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.973,
+      "width_mean": 0.158469,
+      "abs_error_median": 0.028321
+     }
+    }
+   }
+  },
+  "mtbench-gpt4": {
+   "title": "MT-Bench × GPT-4",
+   "dataset": "mtbench",
+   "judge": "GPT-4",
+   "question": "Is model_b's answer better than model_a's?",
+   "judge_pass": "GPT-4 says model_b; its ties are not a pass",
+   "human_pass": "more than half of the expert votes say model_b; ties and split votes are not a pass",
+   "truth": {
+    "n": 1814,
+    "tp": 877,
+    "fn": 158,
+    "fp": 343,
+    "tn": 436,
+    "tpr": 0.847343,
+    "tnr": 0.559692,
+    "real_pass_rate": 0.570562,
+    "judge_pass_rate": 0.672547,
+    "kappa": 0.419351
+   },
+   "designs": {
+    "25+25": {
+     "labels": {
+      "mean": 50,
+      "min": 50,
+      "max": 50
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 25,
+        "correct": 16
+       },
+       "fail": {
+        "labeled": 25,
+        "correct": 7
+       }
+      },
+      "tpr": {
+       "value": 0.824394,
+       "range": [
+        0.707448,
+        0.913907
+       ]
+      },
+      "tnr": {
+       "value": 0.493355,
+       "range": [
+        0.358535,
+        0.654869
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.522117,
+       "range": [
+        0.377741,
+        0.655977
+       ]
+      },
+      "kappa": 0.322044
+     },
+     "plain": {
+      "tpr": 0.734549,
+      "tnr": 0.72618
+     },
+     "tpr": {
+      "held": 960,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.96,
+      "width_mean": 0.181905,
+      "abs_error_median": 0.032489
+     },
+     "tnr": {
+      "held": 957,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.957,
+      "width_mean": 0.329887,
+      "abs_error_median": 0.05282
+     },
+     "real_pass_rate": {
+      "held": 965,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.965,
+      "width_mean": 0.260755,
+      "abs_error_median": 0.045358
+     }
+    },
+    "30+30": {
+     "labels": {
+      "mean": 60,
+      "min": 60,
+      "max": 60
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 30,
+        "correct": 18
+       },
+       "fail": {
+        "labeled": 30,
+        "correct": 7
+       }
+      },
+      "tpr": {
+       "value": 0.840799,
+       "range": [
+        0.727763,
+        0.92258
+       ]
+      },
+      "tnr": {
+       "value": 0.482722,
+       "range": [
+        0.370819,
+        0.618041
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.479934,
+       "range": [
+        0.347758,
+        0.606454
+       ]
+      },
+      "kappa": 0.318588
+     },
+     "plain": {
+      "tpr": 0.728997,
+      "tnr": 0.721777
+     },
+     "tpr": {
+      "held": 959,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.959,
+      "width_mean": 0.168004,
+      "abs_error_median": 0.02785
+     },
+     "tnr": {
+      "held": 970,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.97,
+      "width_mean": 0.303097,
+      "abs_error_median": 0.050282
+     },
+     "real_pass_rate": {
+      "held": 974,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.974,
+      "width_mean": 0.241062,
+      "abs_error_median": 0.042705
+     }
+    },
+    "start_rule": {
+     "labels": {
+      "mean": 59.73,
+      "min": 50,
+      "max": 90
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 30,
+        "correct": 23
+       },
+       "fail": {
+        "labeled": 30,
+        "correct": 8
+       }
+      },
+      "tpr": {
+       "value": 0.855175,
+       "range": [
+        0.766338,
+        0.924754
+       ]
+      },
+      "tnr": {
+       "value": 0.604776,
+       "range": [
+        0.445162,
+        0.771041
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.60294,
+       "range": [
+        0.473123,
+        0.708049
+       ]
+      },
+      "kappa": 0.474142
+     },
+     "plain": {
+      "tpr": 0.729248,
+      "tnr": 0.723308
+     },
+     "tpr": {
+      "held": 957,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.957,
+      "width_mean": 0.169004,
+      "abs_error_median": 0.027065
+     },
+     "tnr": {
+      "held": 950,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.95,
+      "width_mean": 0.304378,
+      "abs_error_median": 0.05414
+     },
+     "real_pass_rate": {
+      "held": 955,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.955,
+      "width_mean": 0.24137,
+      "abs_error_median": 0.034877
+     }
+    }
+   }
+  },
+  "llmjudge-RMITIR-GPT4o": {
+   "title": "LLMJudge × RMITIR-GPT4o",
+   "dataset": "llmjudge",
+   "judge": "RMITIR-GPT4o",
+   "question": "Is this passage relevant to the question (grade 2 or 3 of 0 to 3)?",
+   "judge_pass": "the run's grade is 2 or 3",
+   "human_pass": "the NIST assessor's grade is 2 or 3",
+   "truth": {
+    "n": 4423,
+    "tp": 601,
+    "fn": 584,
+    "fp": 417,
+    "tn": 2821,
+    "tpr": 0.507173,
+    "tnr": 0.871217,
+    "real_pass_rate": 0.267918,
+    "judge_pass_rate": 0.230161,
+    "kappa": 0.396086
+   },
+   "designs": {
+    "25+25": {
+     "labels": {
+      "mean": 50,
+      "min": 50,
+      "max": 50
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 25,
+        "correct": 20
+       },
+       "fail": {
+        "labeled": 25,
+        "correct": 2
+       }
+      },
+      "tpr": {
+       "value": 0.749356,
+       "range": [
+        0.487211,
+        0.93953
+       ]
+      },
+      "tnr": {
+       "value": 0.938972,
+       "range": [
+        0.882735,
+        0.975692
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.245716,
+       "range": [
+        0.177409,
+        0.371656
+       ]
+      },
+      "kappa": 0.703339
+     },
+     "plain": {
+      "tpr": 0.777374,
+      "tnr": 0.67089
+     },
+     "tpr": {
+      "held": 956,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.956,
+      "width_mean": 0.441207,
+      "abs_error_median": 0.086522
+     },
+     "tnr": {
+      "held": 961,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.961,
+      "width_mean": 0.116806,
+      "abs_error_median": 0.019805
+     },
+     "real_pass_rate": {
+      "held": 953,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.953,
+      "width_mean": 0.243227,
+      "abs_error_median": 0.046647
+     }
+    },
+    "30+30": {
+     "labels": {
+      "mean": 60,
+      "min": 60,
+      "max": 60
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 30,
+        "correct": 17
+       },
+       "fail": {
+        "labeled": 30,
+        "correct": 10
+       }
+      },
+      "tpr": {
+       "value": 0.336981,
+       "range": [
+        0.218562,
+        0.497322
+       ]
+      },
+      "tnr": {
+       "value": 0.837288,
+       "range": [
+        0.759687,
+        0.898339
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.387037,
+       "range": [
+        0.259948,
+        0.535121
+       ]
+      },
+      "kappa": 0.188338
+     },
+     "plain": {
+      "tpr": 0.778532,
+      "tnr": 0.671505
+     },
+     "tpr": {
+      "held": 950,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.95,
+      "width_mean": 0.411886,
+      "abs_error_median": 0.071823
+     },
+     "tnr": {
+      "held": 965,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.965,
+      "width_mean": 0.106245,
+      "abs_error_median": 0.01757
+     },
+     "real_pass_rate": {
+      "held": 965,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.965,
+      "width_mean": 0.223113,
+      "abs_error_median": 0.039683
+     }
+    },
+    "start_rule": {
+     "labels": {
+      "mean": 70.44,
+      "min": 50,
+      "max": 110
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 45,
+        "correct": 20
+       },
+       "fail": {
+        "labeled": 45,
+        "correct": 7
+       }
+      },
+      "tpr": {
+       "value": 0.460686,
+       "range": [
+        0.290971,
+        0.665862
+       ]
+      },
+      "tnr": {
+       "value": 0.835637,
+       "range": [
+        0.791876,
+        0.876274
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.222046,
+       "range": [
+        0.146095,
+        0.328375
+       ]
+      },
+      "kappa": 0.292503
+     },
+     "plain": {
+      "tpr": 0.777138,
+      "tnr": 0.673871
+     },
+     "tpr": {
+      "held": 956,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.956,
+      "width_mean": 0.381833,
+      "abs_error_median": 0.060951
+     },
+     "tnr": {
+      "held": 964,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.964,
+      "width_mean": 0.099501,
+      "abs_error_median": 0.01713
+     },
+     "real_pass_rate": {
+      "held": 955,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.955,
+      "width_mean": 0.209921,
+      "abs_error_median": 0.03526
+     }
+    }
+   }
+  },
+  "llmjudge-willia-umbrela1": {
+   "title": "LLMJudge × willia-umbrela1",
+   "dataset": "llmjudge",
+   "judge": "willia-umbrela1",
+   "question": "Is this passage relevant to the question (grade 2 or 3 of 0 to 3)?",
+   "judge_pass": "the run's grade is 2 or 3",
+   "human_pass": "the NIST assessor's grade is 2 or 3",
+   "truth": {
+    "n": 4423,
+    "tp": 545,
+    "fn": 640,
+    "fp": 312,
+    "tn": 2926,
+    "tpr": 0.459916,
+    "tnr": 0.903644,
+    "real_pass_rate": 0.267918,
+    "judge_pass_rate": 0.19376,
+    "kappa": 0.39853
+   },
+   "designs": {
+    "25+25": {
+     "labels": {
+      "mean": 50,
+      "min": 50,
+      "max": 50
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 25,
+        "correct": 15
+       },
+       "fail": {
+        "labeled": 25,
+        "correct": 3
+       }
+      },
+      "tpr": {
+       "value": 0.54579,
+       "range": [
+        0.303842,
+        0.823032
+       ]
+      },
+      "tnr": {
+       "value": 0.901519,
+       "range": [
+        0.851071,
+        0.94328
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.213005,
+       "range": [
+        0.13081,
+        0.358654
+       ]
+      },
+      "kappa": 0.46255
+     },
+     "plain": {
+      "tpr": 0.786328,
+      "tnr": 0.696667
+     },
+     "tpr": {
+      "held": 948,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.948,
+      "width_mean": 0.437076,
+      "abs_error_median": 0.081284
+     },
+     "tnr": {
+      "held": 966,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.966,
+      "width_mean": 0.09823,
+      "abs_error_median": 0.015988
+     },
+     "real_pass_rate": {
+      "held": 958,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.958,
+      "width_mean": 0.249955,
+      "abs_error_median": 0.045915
+     }
+    },
+    "30+30": {
+     "labels": {
+      "mean": 60,
+      "min": 60,
+      "max": 60
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 30,
+        "correct": 21
+       },
+       "fail": {
+        "labeled": 30,
+        "correct": 6
+       }
+      },
+      "tpr": {
+       "value": 0.456858,
+       "range": [
+        0.29541,
+        0.669791
+       ]
+      },
+      "tnr": {
+       "value": 0.917329,
+       "range": [
+        0.866339,
+        0.955899
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.29688,
+       "range": [
+        0.195634,
+        0.43966
+       ]
+      },
+      "kappa": 0.415921
+     },
+     "plain": {
+      "tpr": 0.783149,
+      "tnr": 0.695924
+     },
+     "tpr": {
+      "held": 959,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.959,
+      "width_mean": 0.403362,
+      "abs_error_median": 0.073091
+     },
+     "tnr": {
+      "held": 964,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.964,
+      "width_mean": 0.089868,
+      "abs_error_median": 0.015061
+     },
+     "real_pass_rate": {
+      "held": 947,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.947,
+      "width_mean": 0.231152,
+      "abs_error_median": 0.040312
+     }
+    },
+    "start_rule": {
+     "labels": {
+      "mean": 66.07,
+      "min": 50,
+      "max": 100
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 40,
+        "correct": 21
+       },
+       "fail": {
+        "labeled": 40,
+        "correct": 7
+       }
+      },
+      "tpr": {
+       "value": 0.418934,
+       "range": [
+        0.263881,
+        0.628334
+       ]
+      },
+      "tnr": {
+       "value": 0.87845,
+       "range": [
+        0.836307,
+        0.915631
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.242816,
+       "range": [
+        0.157863,
+        0.36145
+       ]
+      },
+      "kappa": 0.319294
+     },
+     "plain": {
+      "tpr": 0.781078,
+      "tnr": 0.69936
+     },
+     "tpr": {
+      "held": 959,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.959,
+      "width_mean": 0.381816,
+      "abs_error_median": 0.065128
+     },
+     "tnr": {
+      "held": 973,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.973,
+      "width_mean": 0.086813,
+      "abs_error_median": 0.013684
+     },
+     "real_pass_rate": {
+      "held": 961,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.961,
+      "width_mean": 0.2246,
+      "abs_error_median": 0.040414
+     }
+    }
+   }
+  },
+  "llmjudge-NISTRetrieval-instruct0": {
+   "title": "LLMJudge × NISTRetrieval-instruct0",
+   "dataset": "llmjudge",
+   "judge": "NISTRetrieval-instruct0",
+   "question": "Is this passage relevant to the question (grade 2 or 3 of 0 to 3)?",
+   "judge_pass": "the run's grade is 2 or 3",
+   "human_pass": "the NIST assessor's grade is 2 or 3",
+   "truth": {
+    "n": 4423,
+    "tp": 590,
+    "fn": 595,
+    "fp": 626,
+    "tn": 2612,
+    "tpr": 0.49789,
+    "tnr": 0.806671,
+    "real_pass_rate": 0.267918,
+    "judge_pass_rate": 0.274927,
+    "kappa": 0.302056
+   },
+   "designs": {
+    "25+25": {
+     "labels": {
+      "mean": 50,
+      "min": 50,
+      "max": 50
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 25,
+        "correct": 13
+       },
+       "fail": {
+        "labeled": 25,
+        "correct": 5
+       }
+      },
+      "tpr": {
+       "value": 0.496436,
+       "range": [
+        0.300704,
+        0.73106
+       ]
+      },
+      "tnr": {
+       "value": 0.814662,
+       "range": [
+        0.738389,
+        0.882095
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.287976,
+       "range": [
+        0.180461,
+        0.435424
+       ]
+      },
+      "kappa": 0.315353
+     },
+     "plain": {
+      "tpr": 0.729656,
+      "tnr": 0.615264
+     },
+     "tpr": {
+      "held": 950,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.95,
+      "width_mean": 0.445364,
+      "abs_error_median": 0.083751
+     },
+     "tnr": {
+      "held": 967,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.967,
+      "width_mean": 0.138619,
+      "abs_error_median": 0.021953
+     },
+     "real_pass_rate": {
+      "held": 952,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.952,
+      "width_mean": 0.243327,
+      "abs_error_median": 0.041935
+     }
+    },
+    "30+30": {
+     "labels": {
+      "mean": 60,
+      "min": 60,
+      "max": 60
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 30,
+        "correct": 16
+       },
+       "fail": {
+        "labeled": 30,
+        "correct": 8
+       }
+      },
+      "tpr": {
+       "value": 0.431282,
+       "range": [
+        0.280996,
+        0.622551
+       ]
+      },
+      "tnr": {
+       "value": 0.805613,
+       "range": [
+        0.729229,
+        0.872816
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.33998,
+       "range": [
+        0.227587,
+        0.480905
+       ]
+      },
+      "kappa": 0.24842
+     },
+     "plain": {
+      "tpr": 0.723958,
+      "tnr": 0.612154
+     },
+     "tpr": {
+      "held": 963,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.963,
+      "width_mean": 0.410254,
+      "abs_error_median": 0.07239
+     },
+     "tnr": {
+      "held": 970,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.97,
+      "width_mean": 0.126408,
+      "abs_error_median": 0.021127
+     },
+     "real_pass_rate": {
+      "held": 953,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.953,
+      "width_mean": 0.224935,
+      "abs_error_median": 0.038729
+     }
+    },
+    "start_rule": {
+     "labels": {
+      "mean": 79.39,
+      "min": 50,
+      "max": 130
+     },
+     "first_check": {
+      "labeled": {
+       "pass": {
+        "labeled": 40,
+        "correct": 16
+       },
+       "fail": {
+        "labeled": 40,
+        "correct": 9
+       }
+      },
+      "tpr": {
+       "value": 0.402657,
+       "range": [
+        0.25192,
+        0.593617
+       ]
+      },
+      "tnr": {
+       "value": 0.773066,
+       "range": [
+        0.713968,
+        0.827237
+       ]
+      },
+      "real_pass_rate": {
+       "value": 0.273112,
+       "range": [
+        0.18163,
+        0.389142
+       ]
+      },
+      "kappa": 0.175359
+     },
+     "plain": {
+      "tpr": 0.724341,
+      "tnr": 0.616128
+     },
+     "tpr": {
+      "held": 959,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.959,
+      "width_mean": 0.360985,
+      "abs_error_median": 0.060394
+     },
+     "tnr": {
+      "held": 964,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.964,
+      "width_mean": 0.112209,
+      "abs_error_median": 0.017932
+     },
+     "real_pass_rate": {
+      "held": 964,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.964,
+      "width_mean": 0.200325,
+      "abs_error_median": 0.032947
+     }
+    }
+   }
+  }
+ },
+ "summary": {
+  "25+25": {
+   "judges": 5,
+   "datasets": 3,
+   "labels_mean": {
+    "lowest": 50,
+    "highest": 50
+   },
+   "tpr_tnr": {
+    "mean": 0.9595,
+    "lowest": 0.946,
+    "lowest_case": [
+     "llmbar-haiku",
+     "tnr"
+    ],
+    "highest": 0.984,
+    "highest_case": [
+     "llmbar-haiku",
+     "tpr"
+    ]
+   }
+  },
+  "30+30": {
+   "judges": 5,
+   "datasets": 3,
+   "labels_mean": {
+    "lowest": 60,
+    "highest": 60
+   },
+   "tpr_tnr": {
+    "mean": 0.9664,
+    "lowest": 0.95,
+    "lowest_case": [
+     "llmjudge-RMITIR-GPT4o",
+     "tpr"
+    ],
+    "highest": 0.99,
+    "highest_case": [
+     "llmbar-haiku",
+     "tpr"
+    ]
+   }
+  },
+  "start_rule": {
+   "judges": 5,
+   "datasets": 3,
+   "labels_mean": {
+    "lowest": 59.18,
+    "highest": 79.39
+   },
+   "tpr_tnr": {
+    "mean": 0.9647,
+    "lowest": 0.95,
+    "lowest_case": [
+     "mtbench-gpt4",
+     "tnr"
+    ],
+    "highest": 0.99,
+    "highest_case": [
+     "llmbar-haiku",
+     "tpr"
+    ]
+   }
+  }
+ }
+}

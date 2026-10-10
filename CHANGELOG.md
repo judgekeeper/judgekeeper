@@ -176,6 +176,11 @@ after you say yes, your own judge through your own tool, and key names only.
   asking your judge again, the TPR and TNR ranges use the same draws instead of a bootstrap,
   which held the true value as rarely as 53.8 times in 100, and kappa has no range, as in your
   result: `kappa_interval` is no longer saved in `again.json`.
+- The ranges, checked on real data: on 5 real judges from 3 public datasets, with 25 + 25
+  labels, the TPR and TNR ranges held the value worked out from all of the dataset's human
+  labels in 96.0 checks in 100 on average (lowest 94.6, highest 98.4), over 1,000 checks per
+  judge (`scripts/real_data_check.py`; results in `docs/examples/real-data-check/report.md`).
+  No judge is called; the data is downloaded at run time and never committed.
 - One set of label targets for every command: a rough check needs 15 of each kind of label, a
   reliable result 25 of each and both the TPR and the TNR range no wider than 0.30. When 25 of
   each is reached but a range is still wider, `start`, its labeling page, `check` and

@@ -8,6 +8,10 @@ Conventions the pages follow, so these tests can check every figure:
 - `data-exit="gate:PASS"`: an exit code from judgekeeper.gate.
 - `data-tutorial="lazy:headline.tnr_mean"`: a number from the tutorial run, checked in
   test_website_tutorial.py.
+- `data-realcheck="summary.25+25.tpr_tnr.mean"` with `data-format`: a number from
+  docs/examples/real-data-check/report.json.
+- `data-coverage="corrected/levels/0.96/min_cell"`: a number from
+  docs/examples/coverage/coverage.json (its keys hold dots, so the path uses slashes).
 - `data-illustration` on a container: made-up numbers, labelled as such on the page.
 Any other decimal or percentage in a hand-written page fails test_no_unsourced_numbers.
 """
@@ -40,7 +44,11 @@ from tests.website_pages import (
 )
 
 REPORT = json.loads((ROOT / "docs/examples/llmbar-haiku/report.json").read_text(encoding="utf-8"))
-SOURCE_ATTRS = ("data-report", "data-const", "data-exit", "data-tutorial")
+REALCHECK = json.loads((ROOT / "docs/examples/real-data-check/report.json").read_text(
+    encoding="utf-8"))
+COVERAGE = json.loads((ROOT / "docs/examples/coverage/coverage.json").read_text(encoding="utf-8"))
+SOURCE_ATTRS = ("data-report", "data-const", "data-exit", "data-tutorial", "data-realcheck",
+                "data-coverage")
 
 
 def test_site_has_its_pages():
@@ -126,8 +134,8 @@ def test_the_setup_page_shows_the_example_workflow_unchanged():
 
 # Numbers
 
-def _lookup(data, path: str):
-    for part in path.split("."):
+def _lookup(data, path: str, sep: str = "."):
+    for part in path.split(sep):
         m = re.fullmatch(r"(\w+)\[(.+)\]", part)
         if m:
             key, wanted = m.groups()
@@ -149,6 +157,10 @@ def render(value, fmt: str) -> str:
         return f"{value:.1%}"
     if fmt == "int":
         return str(int(value))
+    if fmt == "count":
+        return f"{int(value):,}"
+    if fmt == "per100":  # a share such as 0.946 written as 94.6 (times in 100)
+        return f"{value * 100:.1f}"
     if fmt == "split":  # a class share such as 0.8 written as 80/20
         return f"{round(value * 100)}/{round(100 - value * 100)}"
     raise ValueError(f"unknown data-format {fmt!r}")
@@ -166,6 +178,27 @@ def test_report_numbers_match_the_committed_report():
     assert len(found) >= 15
     for page, el in found:
         value = _lookup(REPORT, el.attrs["data-report"])
+        fmt = el.attrs.get("data-format", "2f")
+        assert el.text().strip() == render(value, fmt), (page.name, el.attrs)
+
+
+def test_real_data_numbers_match_the_committed_report():
+    found = list(_sourced("data-realcheck"))
+    assert len(found) >= 15
+    for page, el in found:
+        value = _lookup(REALCHECK, el.attrs["data-realcheck"])
+        fmt = el.attrs.get("data-format", "2f")
+        assert el.text().strip() == render(value, fmt), (page.name, el.attrs)
+
+
+def test_coverage_numbers_match_the_committed_grid():
+    found = list(_sourced("data-coverage"))
+    assert found
+    level = str(COVERAGE["corrected"]["chosen_level"])
+    for page, el in found:
+        path = el.attrs["data-coverage"]
+        assert path.startswith(f"corrected/levels/{level}/"), (page.name, path)
+        value = _lookup(COVERAGE, path, sep="/")
         fmt = el.attrs.get("data-format", "2f")
         assert el.text().strip() == render(value, fmt), (page.name, el.attrs)
 
@@ -193,7 +226,7 @@ def test_exit_codes_match_the_code():
 
 
 NUMBER = re.compile(r"\d+\.\d+|\d+(?:\.\d+)?\s?%")
-NAMES = ("Claude Haiku 4.5", "Python 3.11")  # names, not measurements
+NAMES = ("Claude Haiku 4.5", "Python 3.11 to 3.14", "Python 3.11")  # names, not measurements
 EXEMPT_TAGS = {"pre", "code", "script", "style", "svg"}
 
 

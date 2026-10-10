@@ -183,9 +183,10 @@ def test_python_m_judgekeeper_is_the_same_entry_point():
 
 def test_the_readme_is_one_screen_in_order():
     lines = _lines(README)
-    assert len(lines) <= 60
+    assert len(lines) <= 70
     assert list(_sections(README)) == ["Install", "Use it on your own judge", "What you get",
-                                       "When you need more", "Status", "Issues", "License"]
+                                       "Numbers", "When you need more", "Status", "Issues",
+                                       "License"]
     sections = _sections(README)
     assert "\npip install judgekeeper\njudgekeeper --version\n" in sections["Install"]
     assert "inside your project's own Python environment" in sections["Install"]
@@ -208,8 +209,16 @@ def test_the_readme_is_one_screen_in_order():
 def test_the_readme_has_no_jargon_no_demo_and_no_link_to_the_unused_pages_address():
     text = README.read_text(encoding="utf-8")
     assert "judgekeeper.github.io" not in text
+    numbers = _sections(README)["Numbers"]
     for word in ("kappa", "tpr", "tnr"):
-        assert word not in text.lower(), word
+        assert word not in text.replace(numbers, "").lower(), word
+    # The Numbers section names them, each after plain words the first time.
+    for plain in ("how often the judge passed answers people passed (TPR)",
+                  "how often it failed answers people failed (TNR)",
+                  "kappa (agreement after taking away lucky guesses)"):
+        assert plain in numbers, plain
+    for word, first in (("TPR", "(TPR)"), ("TNR", "(TNR)"), ("kappa", "kappa (agreement")):
+        assert numbers.index(word) == numbers.index(first) + first.index(word), word
     for gone in ("demo", "examples.html", "See it work", "Skip the"):
         assert gone not in text, gone
     assert "before the first PyPI release" not in text
@@ -254,10 +263,22 @@ def test_every_website_link_in_the_readme_is_a_page_and_an_anchor_that_exist():
             assert f'id="{fragment}"' in file.read_text(encoding="utf-8"), target
 
 
+BADGE_LINK = "https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"
+BADGE = BADGE_LINK + "/badge.svg"
+
+
+def test_the_readme_shows_the_ci_badge_and_where_it_is_tested():
+    numbers = _sections(README)["Numbers"]
+    assert f"[![CI]({BADGE})]({BADGE_LINK})" in numbers
+    assert "Tested on Python 3.11 to 3.14 on Linux, and on Windows." in numbers
+    assert (ROOT / ".github" / "workflows" / "ci.yml").is_file()
+    assert (ROOT / ".github" / "workflows" / "windows.yml").is_file()
+
+
 def test_every_github_link_in_the_readme_is_a_file_in_the_repository():
     prefix = "https://github.com/judgekeeper/judgekeeper/blob/main/"
     for target in _readme_links():
-        if target == "https://github.com/judgekeeper/judgekeeper/issues":
+        if target in ("https://github.com/judgekeeper/judgekeeper/issues", BADGE, BADGE_LINK):
             continue
         if target.startswith("https://github.com/"):
             assert target.startswith(prefix), target
