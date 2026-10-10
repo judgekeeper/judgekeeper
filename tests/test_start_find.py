@@ -61,6 +61,11 @@ def local(iso: str) -> str:
         "%Y-%m-%d %H:%M")
 
 
+def when(iso: str) -> str:
+    """The date as the first block shows it, in the local time zone."""
+    return start.when_words(datetime.fromisoformat(iso).astimezone())
+
+
 # Each tool -------------------------------------------------------------------------------
 
 def test_promptfoo_names_the_tool_the_judge_and_the_counts(tmp_path, capsys):
@@ -68,10 +73,12 @@ def test_promptfoo_names_the_tool_the_judge_and_the_counts(tmp_path, capsys):
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert f"Looking in {tmp_path.resolve()} ..." in out
-    assert (f"{ok()} Your eval tool: promptfoo (results.json, saved "
-            f"{local('2026-10-03T14:12:00Z')})") in out
-    assert f'{ok()} Your judge: llm-rubric "Is polite and correct." with openai:gpt-4.1-mini' in out
-    assert f"{ok()} 40 answers with a verdict: the judge passed 25 and failed 15" in out
+    assert "judgekeeper found your LLM-as-a-judge:" in out
+    assert "  Eval tool       promptfoo" in out
+    assert f"  Results file    results.json (saved {when('2026-10-03T14:12:00Z')})" in out
+    assert '  What it checks  "Is polite and correct."' in out
+    assert "  Judge model     openai:gpt-4.1-mini" in out
+    assert "  Its decisions   40 answers: 25 passed, 15 failed" in out
 
 
 def test_enough_answers_print_the_labeling_plan_and_write_nothing(tmp_path, capsys):
@@ -79,11 +86,10 @@ def test_enough_answers_print_the_labeling_plan_and_write_nothing(tmp_path, caps
     before = sorted(p.name for p in tmp_path.iterdir())
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "You will label answers in your browser, one at a time: Correct or Wrong." in out
-    assert "  A rough check needs 15 you mark Correct and 15 you mark Wrong." in out
-    assert ("  A reliable result needs 25 you mark Correct and 25 you mark Wrong: that takes "
-            "50 answers, and you have 40.") in out
-    assert "  Most people need 10 to 20 minutes." in out
+    assert "Next: in your browser, mark each answer Pass or Fail." in out
+    assert "This shows how often your judge agrees with you." in out
+    for gone in ("rough check", "reliable result", "minutes", "Correct", "Wrong", "You will label"):
+        assert gone not in out, gone
     assert sorted(p.name for p in tmp_path.iterdir()) == before  # no .judgekeeper/ yet
 
 
@@ -91,10 +97,11 @@ def test_deepeval_latest_run(tmp_path, capsys):
     deepeval_project(tmp_path, split(20, 12))
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert f"{ok()} Your eval tool: DeepEval (.deepeval/.latest_run_full.json, saved " in out
-    assert (f'{ok()} Your judge: Correctness [GEval] "Is the actual output factually correct '
-            'given the input?" with gpt-4.1') in out
-    assert f"{ok()} 32 answers with a verdict: the judge passed 20 and failed 12" in out
+    assert "  Eval tool       DeepEval" in out
+    assert "  Results file    .deepeval/.latest_run_full.json (saved " in out
+    assert '  What it checks  "Is the actual output factually correct given the input?"' in out
+    assert "  Judge model     gpt-4.1" in out
+    assert "  Its decisions   32 answers: 20 passed, 12 failed" in out
 
 
 def test_deepeval_results_folder_from_its_variable(tmp_path, capsys, monkeypatch):
@@ -104,7 +111,8 @@ def test_deepeval_results_folder_from_its_variable(tmp_path, capsys, monkeypatch
     monkeypatch.setenv("DEEPEVAL_RESULTS_FOLDER", str(tmp_path / "evals" / "runs"))
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "DeepEval (evals/runs/test_run_20261002_090000.json, saved 2026-10-02 09:00)" in out
+    assert ("  Results file    evals/runs/test_run_20261002_090000.json (saved 2 Oct 2026, "
+            "09:00)") in out
 
 
 def test_a_results_variable_outside_the_folder_is_not_read(tmp_path, capsys, monkeypatch):
@@ -115,7 +123,7 @@ def test_a_results_variable_outside_the_folder_is_not_read(tmp_path, capsys, mon
     code, out, _ = run(capsys, project)
     assert code == 0
     assert "DeepEval" not in out.replace("DEEPEVAL_RESULTS_FOLDER", "")
-    assert "Your eval tool: a plain table (results.csv" in out
+    assert "  Eval tool       a table (results.csv)" in out
     assert "DEEPEVAL_RESULTS_FOLDER points outside this folder, so it was not read." in out
 
 
@@ -123,11 +131,12 @@ def test_inspect_json_log(tmp_path, capsys):
     inspect_project(tmp_path, split(18, 14))
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert (f"{ok()} Your eval tool: Inspect AI (logs/2026-10-02_support.json, saved "
-            f"{local('2026-09-30T10:00:00+00:00')})") in out
-    assert (f'{ok()} Your judge: model_graded_qa "Grade the answer as C (correct) or I '
-            '(incorrect)." with anthropic/claude-haiku-4-5') in out
-    assert f"{ok()} 32 answers with a verdict: the judge passed 18 and failed 14" in out
+    assert "  Eval tool       Inspect AI" in out
+    assert (f"  Results file    logs/2026-10-02_support.json (saved "
+            f"{when('2026-09-30T10:00:00+00:00')})") in out
+    assert '  What it checks  "Grade the answer as C (correct) or I (incorrect)."' in out
+    assert "  Judge model     anthropic/claude-haiku-4-5" in out
+    assert "  Its decisions   32 answers: 18 passed, 14 failed" in out
 
 
 def test_inspect_eval_logs_without_the_extra_say_how_to_read_them(tmp_path, capsys,
@@ -146,9 +155,11 @@ def test_a_plain_table(tmp_path, capsys):
     table_project(tmp_path, split(16, 16), name="data/results.csv")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert f"{ok()} Your eval tool: a plain table (data/results.csv, saved " in out
-    assert f"{ok()} Your judge: not named in results.csv" in out
-    assert f"{ok()} 32 answers with a verdict: the judge passed 16 and failed 16" in out
+    assert "  Eval tool       a table (results.csv)" in out
+    assert "  Results file    data/results.csv (saved " in out
+    assert "  What it checks  not in the file" in out
+    assert "  Judge model     not named in the results (add --judge-model NAME)" in out
+    assert "  Its decisions   32 answers: 16 passed, 16 failed" in out
 
 
 def test_a_plain_table_with_a_model_column_and_another_verdict_name(tmp_path, capsys):
@@ -156,7 +167,7 @@ def test_a_plain_table_with_a_model_column_and_another_verdict_name(tmp_path, ca
                   name="scores.csv")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert f"{ok()} Your judge: judge_verdict in scores.csv with gpt-4.1-mini" in out
+    assert "  Judge model     gpt-4.1-mini" in out
 
 
 def test_a_table_says_its_first_three_rows_so_a_wrong_conversion_shows(tmp_path, capsys):
@@ -186,7 +197,7 @@ def test_other_tools_do_not_list_rows(tmp_path, capsys):
 def test_a_judge_model_column_names_the_judge(tmp_path, capsys):
     table_project(tmp_path, split(16, 16), extra={"judge_model": ["claude-opus-5"] * 32})
     _, out, _ = run(capsys, tmp_path)
-    assert f"{ok()} Your judge: verdict in results.csv with claude-opus-5" in out
+    assert "  Judge model     claude-opus-5" in out
 
 
 def test_a_table_deeper_than_two_folders_is_not_a_table(tmp_path, capsys):
@@ -201,9 +212,10 @@ def test_mlflow_store(tmp_path, capsys):
 
     build_mlflow_store(tmp_path)
     code, out, _ = run(capsys, tmp_path, "--metric", "correctness", yes=False)
-    assert f"{ok()} Your eval tool: MLflow (mlflow.db, experiment qa-judge)" in out
-    assert f"{ok()} Your judge: correctness with fake:/judge-model-1" in out
-    assert f"{ok()} 8 answers with a verdict: the judge passed 4 and failed 4" in out
+    assert "  Eval tool       MLflow" in out
+    assert "  Results file    mlflow.db (experiment qa-judge)" in out
+    assert "  Judge model     fake:/judge-model-1" in out
+    assert "  Its decisions   8 answers: 4 passed, 4 failed" in out
     assert "Run your MLflow evaluation again on more data." in out
     assert code == start.EXIT_QUESTION  # too few, and no terminal to ask in
 
@@ -224,8 +236,8 @@ def test_a_results_file_as_the_path_skips_the_search(tmp_path, capsys):
     code, out, _ = run(capsys, path)
     assert code == 0
     assert "Looking in" not in out
-    assert "Your eval tool: promptfoo (run.json, saved" in out
-    assert "32 answers with a verdict" in out
+    assert "  Results file    run.json (saved" in out
+    assert "Its decisions   32 answers" in out
 
 
 def test_a_file_that_is_not_results_is_a_usage_error(tmp_path, capsys):
@@ -311,7 +323,7 @@ def test_known_places_are_looked_at_before_the_limit(tmp_path, capsys, monkeypat
         (tmp_path / "aaa" / f"note-{i:02d}.txt").write_text("x", encoding="utf-8")
     deepeval_project(tmp_path, split(20, 12))
     code, out, _ = run(capsys, tmp_path)
-    assert "Your eval tool: DeepEval (.deepeval/.latest_run_full.json" in out
+    assert "  Results file    .deepeval/.latest_run_full.json" in out
     assert "Stopped looking after 5 files." in out
     assert code == 0
 
@@ -324,9 +336,9 @@ def test_results_over_the_size_limit_are_listed_not_read(tmp_path, capsys, monke
     mb = path.stat().st_size / 1_000_000
     assert (f"results.json is {mb:,.0f} MB. Run judgekeeper start results.json to read it "
             "anyway.") in out
-    assert "answers with a verdict" not in out
+    assert "Its decisions" not in out
     code, out, _ = run(capsys, path)  # named on the command line: read
-    assert code == 0 and "32 answers with a verdict" in out
+    assert code == 0 and "Its decisions   32 answers" in out
 
 
 def test_at_most_200_json_files_are_looked_into(tmp_path, monkeypatch):
@@ -450,7 +462,7 @@ def test_stripped_promptfoo_results_say_which_setting_removed_what(tmp_path, cap
     code, out, err = run(capsys, tmp_path)
     assert code == 2
     assert STRIPPED[part].format(f="promptfoo-results.json") in out + err
-    assert "answers with a verdict" not in out
+    assert "Its decisions" not in out
 
 
 @pytest.mark.parametrize("part", list(STRIPPED))
@@ -481,7 +493,7 @@ def test_the_run_date_is_when_the_eval_ran_else_the_file_time(tmp_path, capsys):
     os.utime(path, (stamp, stamp))
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "(results.json, saved 2026-09-01 08:30)" in out
+    assert "  Results file    results.json (saved 1 Sep 2026, 08:30)" in out
 
 
 def test_the_newest_promptfoo_file_is_the_one_whose_eval_ran_last(tmp_path, capsys):
@@ -490,8 +502,8 @@ def test_the_newest_promptfoo_file_is_the_one_whose_eval_ran_last(tmp_path, caps
     os.utime(tmp_path / "b.json")  # touched last, but its eval is older
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert f"(a.json, saved {local('2026-10-05T10:00:00Z')})" in out
-    assert "32 answers with a verdict" in out
+    assert f"  Results file    a.json (saved {when('2026-10-05T10:00:00Z')})" in out
+    assert "Its decisions   32 answers" in out
 
 
 def test_results_from_another_project_ask_first(tmp_path, capsys, monkeypatch):
@@ -505,11 +517,11 @@ def test_results_from_another_project_ask_first(tmp_path, capsys, monkeypatch):
     assert code == 0
     assert ('results.json looks like it is from another project (its description is "billing '
             'bot"). Continue? [y/N]') in out
-    assert "answers with a verdict" not in out
+    assert "Its decisions" not in out
 
     answers = iter(["y", ""])  # yes, then Enter to open the labeling page
     code, out, _ = run(capsys, tmp_path)
-    assert code == 0 and "32 answers with a verdict" in out
+    assert code == 0 and "Its decisions   32 answers" in out
 
 
 def test_another_project_without_a_terminal_stops(tmp_path, capsys):

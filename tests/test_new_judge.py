@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import builtins
 import json
-import re
 from pathlib import Path
 
 import pytest
@@ -215,7 +214,7 @@ def test_a_renamed_judge_without_a_terminal_needs_a_flag(fake, capsys):
             f"--try-new-judge to try it, or judgekeeper start {root} --new to check it as a new "
             "judge.") in out
     code, out, _ = run(capsys, fake.root, "--try-new-judge")
-    assert "Try your new judge" in out and "36 labeled answers × 1 time = 36 judge calls." in out
+    assert "Try your new judge" in out and "36 marked answers × 1 time = 36 judge calls." in out
 
 
 def test_a_renamed_judge_said_no_to_points_to_new(fake, capsys, terminal):
@@ -234,7 +233,7 @@ def test_the_plan_is_asked_once_by_default_and_no_spends_nothing(fake, capsys, t
     code, out, _ = run(capsys, fake.root, "--try-new-judge")
     assert code == 0
     assert out.count("Try your new judge") >= 1 and "Your judge: llm-rubric" in out
-    assert "  36 labeled answers × 1 time = 36 judge calls." in out
+    assert "  36 marked answers × 1 time = 36 judge calls." in out
     assert "Go ahead? [y/N]" in out
     assert out.rstrip().endswith("Your judge was not called; nothing was spent.")
     assert _evals(fake) == 0 and not list(fake.dir.glob("new-judge-*"))
@@ -283,9 +282,9 @@ def test_old_and_new_side_by_side(fake, capsys):
     code, out, _ = run(capsys, fake.root, "--try-new-judge", "--allow-calls", 36)
     assert code == 0
     assert "Your new judge vs your old judge, on your 36 marked answers:" in out
-    wrong = next(x for x in out.splitlines() if "you marked Wrong, the judge failed:" in x)
-    correct = next(x for x in out.splitlines() if "you marked Correct, the judge passed:" in x)
-    # old: the person agreed with every old verdict; new: 4 of the 16 Wrong now pass
+    wrong = next(x for x in out.splitlines() if "When you said Fail, the judge also said Fail:" in x)
+    correct = next(x for x in out.splitlines() if "When you said Pass, the judge also said Pass:" in x)
+    # old: the person agreed with every old verdict; new: 4 of the 16 marked Fail now pass
     assert "old 100% (" in wrong and "->  new 75% (" in wrong
     assert "old 100% (" in correct and "->  new 100% (" in correct
     assert "100% to 100%" not in out  # a range never collapses to one point
@@ -299,7 +298,7 @@ def test_the_will_look_better_line_is_always_shown(fake, capsys):
     _, out, _ = run(capsys, fake.root, "--try-new-judge", "--allow-calls", 36)
     assert ("You changed your judge after seeing mistakes on these answers, so it will look "
             "better on them.") in out
-    assert ("To confirm on new answers, mark 10 Correct and 10 Wrong: judgekeeper start "
+    assert ("To confirm on new answers, mark 10 Pass and 10 Fail: judgekeeper start "
             f"{quote_arg(fake.root)} --try-new-judge") in out  # no terminal: the question as a command
 
 
@@ -311,7 +310,7 @@ def test_old_numbers_from_asking_again_are_used_and_said(fake, capsys):
     fake.result_json.write_text(json.dumps(r), encoding="utf-8")
     _new_run(fake.root)
     _, out, _ = run(capsys, fake.root, "--try-new-judge", "--allow-calls", 36)
-    wrong = next(x for x in out.splitlines() if "you marked Wrong, the judge failed:" in x)
+    wrong = next(x for x in out.splitlines() if "When you said Fail, the judge also said Fail:" in x)
     assert "old 50% (30% to 70%)" in wrong
     assert "The old numbers are from asking your old judge again on 2026-10-06." in out
 
@@ -374,27 +373,28 @@ def test_the_confirmation_page_aims_at_ten_and_ten(fake, capsys, confirmed):
     _new_run(fake.root)
     run(capsys, fake.root, "--try-new-judge", "--allow-calls", 36, "--yes")
     page = new_judge.confirmation_page(confirmed[0])
-    assert re.search(r">10\s+quick</em>", page) and re.search(r">15\s+rough</em>", page)
+    assert "FULL = 15;" in page  # each bar is full at a rough check's count; no target is written
+    assert "quick" not in page.split("<main>")[1].split("<script")[0]
     session = start_label.StartSession(confirmed[0], status=new_judge.quick_status)
     counts = session.counts()
     least = min(counts["correct"], counts["wrong"])
     _, text, ready = [s for s in new_judge.QUICK_STATUS if least >= s[0]][-1]
     assert session.summary()["status"] == {"text": text, "ready": ready}
-    assert new_judge.QUICK_STATUS[0][1] == "A quick check needs 10 of each."
+    assert new_judge.QUICK_STATUS[0][1] == "Mark a few more new answers to see the result."
 
 
 def test_the_confirmation_result(fake, capsys, confirmed):
     _new_run(fake.root, verdicts=_flipped(4))  # the new judge: 24 passes, 12 fails
 
-    def labels(items, groups):  # 2 of the new judge's fails are marked Correct
+    def labels(items, groups):  # 2 of the new judge's fails are marked Pass
         fails = [i["id"] for i in items if groups[i["id"]] == "fail"]
         return {i["id"]: ("pass" if i["id"] in fails[:2] else groups[i["id"]]) for i in items}
 
     confirmed.labels = labels
     _, out, _ = run(capsys, fake.root, "--try-new-judge", "--allow-calls", 36, "--yes")
     assert "On 36 new answers you marked (quick check):" in out
-    assert "  Of the answers you marked Wrong, your new judge failed about 100% (" in out
-    assert "  Of the answers you marked Correct, it passed about 92% (" in out  # 24 of 26
+    assert "  When you said Fail, your new judge also said Fail about 100% (" in out
+    assert "  When you said Pass, it also said Pass about 92% (" in out  # 24 of 26
     block = json.loads(fake.result_json.read_text(encoding="utf-8"))["new_judge"]["confirmation"]
     assert block["labels"] == {"correct": 26, "wrong": 10} and block["check"] == "quick"
     assert (_folder(fake) / "confirm" / "result.json").is_file()
@@ -405,7 +405,7 @@ def test_fewer_than_ten_of_each_says_the_ranges_are_very_wide(fake, capsys, conf
     _new_run(fake.root, verdicts=_flipped(4))
     confirmed.labels = lambda items, groups: {i["id"]: groups[i["id"]] for i in items[:12]}
     _, out, _ = run(capsys, fake.root, "--try-new-judge", "--allow-calls", 36, "--yes")
-    assert "new answers you marked (fewer than 10 Correct or 10 Wrong: the ranges are very " \
+    assert "new answers you marked (fewer than 10 Pass or 10 Fail: the ranges are very " \
            "wide):" in out
 
 
@@ -414,7 +414,7 @@ def test_no_to_the_confirmation_keeps_the_numbers(fake, capsys, terminal, confir
     terminal += ["y", "n"]  # go ahead; no confirmation
     code, out, _ = run(capsys, fake.root, "--try-new-judge")
     assert code == 0 and confirmed == []
-    assert "Mark 10 Correct and 10 Wrong new answers to confirm? [Y/n]" in out
+    assert "Mark 10 Pass and 10 Fail new answers to confirm? [Y/n]" in out
     assert json.loads(fake.result_json.read_text(
         encoding="utf-8"))["new_judge"]["confirmation"] is None
 

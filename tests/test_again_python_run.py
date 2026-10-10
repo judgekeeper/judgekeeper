@@ -129,7 +129,7 @@ def test_deepeval_measures_each_answer_directly(deepeval_ws, stubs, capsys,
     code, out = ask(capsys, deepeval_ws, *FIELDS, "--allow-calls", 72)
     assert code == 0
     assert "Asking your judge 72 times through DeepEval. Ctrl-C stops it." in out
-    assert "Asked twice more, your judge changed its verdict on 0 of your 36 answers." in out
+    assert "Asked twice more, your judge changed its mind on 0 of your 36 answers." in out
     measures = stubs("measure")
     assert len(measures) == 72 and all(m["show_indicator"] is False for m in measures)
     assert stubs("evaluate") == []
@@ -198,7 +198,8 @@ def test_a_close_copy_says_why_once(deepeval_ws, capsys):
     result = out.split("Ctrl-C stops it.")[1]
     assert result.count("the DeepEval version was not confirmed") == 1
     assert "This was a close copy of your judge: the DeepEval version was not confirmed." in result
-    numbers = [x for x in result.splitlines() if x.startswith(("Asked", "Of the", "Its first"))]
+    numbers = [x for x in result.splitlines()
+               if x.startswith(("Asked", "When you said", "Its first"))]
     assert len(numbers) == 4 and all(x.endswith(" (close copy)") for x in numbers)
 
 
@@ -216,8 +217,8 @@ def test_deepeval_flips_and_matches(deepeval_ws, stubs, capsys):
     stubs.plan(verdicts=_saved(deepeval_ws),
                flips=[[inputs[0], 1], [inputs[1], 1], [inputs[2], 0]])
     _, out = ask(capsys, deepeval_ws, *FIELDS, "--allow-calls", 72)
-    assert "Asked twice more, your judge changed its verdict on 3 of your 36 answers." in out
-    assert "Its first new verdict matched the saved one on 35 of 36 answers (97%)." in out
+    assert "Asked twice more, your judge changed its mind on 3 of your 36 answers." in out
+    assert "Its first new decision matched the saved one on 35 of 36 answers (97%)." in out
     block = _block(deepeval_ws)
     assert block["steadiness"]["changed"] == 3 and block["counted"] == 36
 
@@ -330,7 +331,7 @@ def test_a_built_in_metric_is_asked_as_a_close_copy(tmp_path, stubs, capsys):
     ws = _checked(tmp_path, _builtin())
     stubs.plan(verdicts=_saved(ws))
     code, out = ask(capsys, ws, "--allow-calls", 216)
-    assert code == 0 and "36 labeled answers × 2 times × 3 calls each = 216 judge calls." in out
+    assert code == 0 and "36 marked answers × 2 times × 3 calls each = 216 judge calls." in out
     assert {e["cls"] for e in stubs("construct")} == {"AnswerRelevancyMetric"}
     assert len(stubs("measure")) == 72  # one measure() makes the metric's 3 calls
     assert _block(ws)["status"] == "close"
@@ -411,7 +412,7 @@ def test_inspect_rescores_a_copy_of_the_log(inspect_ws, stubs, capsys):
     code, out = ask(capsys, inspect_ws, "--allow-calls", 72)
     assert code == 0
     assert "Asking your judge 72 times through Inspect AI. Ctrl-C stops it." in out
-    assert "Asked twice more, your judge changed its verdict on 0 of your 36 answers." in out
+    assert "Asked twice more, your judge changed its mind on 0 of your 36 answers." in out
     assert [e["path"] for e in stubs("read_eval_log")] == [str(log)]
     scored = stubs("score_async")
     assert len(scored) == 2
@@ -519,7 +520,7 @@ def test_a_partial_grade_is_not_a_clear_verdict(inspect_ws, stubs, capsys):
     first = _inputs(inspect_ws)[0]
     stubs.plan(verdicts=_saved(inspect_ws), values={first: "P"})
     _, out = ask(capsys, inspect_ws, "--allow-calls", 72)
-    assert "1 answer was not counted: the judge gave no clear verdict." in out
+    assert "1 answer was not counted: the judge gave no clear decision." in out
 
 
 def test_without_inspects_loader_nothing_is_loaded(inspect_ws, stubs, capsys,
@@ -571,7 +572,7 @@ def test_mlflow_calls_a_built_in_judge_directly(tmp_path, stubs, capsys,
     code, out = ask_mlflow(ws, capsys)
     assert code == 0
     assert "Asking your judge 72 times through MLflow. Ctrl-C stops it." in out
-    assert "Asked twice more, your judge changed its verdict on 0 of your 36 answers." in out
+    assert "Asked twice more, your judge changed its mind on 0 of your 36 answers." in out
     assert stubs("construct") == [{"kind": "construct", "cls": "Safety",
                                    "kwargs": {"model": "openai:/gpt-4.1-mini"}}]
     calls = stubs("judge")
@@ -607,7 +608,7 @@ def test_mlflow_flips_and_errors(tmp_path, stubs, capsys, monkeypatch):
     stubs.plan(verdicts=verdicts, by_input=by_input, flips=[[ids[0], 1], [ids[1], 1]],
                errors=[[ids[2], 0]])
     _, out = ask_mlflow(ws, capsys)
-    assert "Asked twice more, your judge changed its verdict on 2 of your 35 answers." in out
+    assert "Asked twice more, your judge changed its mind on 2 of your 35 answers." in out
     assert "1 answer was not counted: the judge's tool gave an error for it." in out
 
 
@@ -696,7 +697,7 @@ def test_answers_not_in_the_store_are_left_out(tmp_path, stubs, capsys,
     monkeypatch.setattr(mf, "assessment_info", lambda ws, metric: info)
     stubs.plan(verdicts=verdicts, by_input=by_input)
     _, out = ask_mlflow(ws, capsys, allow=70)
-    assert "35 labeled answers × 2 times = 70 judge calls." in out
+    assert "35 marked answers × 2 times = 70 judge calls." in out
     assert "1 answer is left out: it is not in your MLflow store any more." in out
 
 

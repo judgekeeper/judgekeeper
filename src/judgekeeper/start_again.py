@@ -19,8 +19,8 @@ decides what happens.
 
 A re-check finds the labeled answers in the new results by exact input and output (and the
 agent's steps, when the results keep them), and says when the judge or the app's version
-changed since the last check. When fewer than 15 Correct or 15 Wrong of them came back, the
-answers changed (the app writes different outputs now), so the old labels do not apply:
+changed since the last check. When fewer than 15 marked Pass or 15 marked Fail of them came
+back, the answers changed (the app writes different outputs now), so the old marks do not apply:
 start offers to label the latest results instead, moving the old check to previous-<date>/.
 Before a re-check replaces the saved pool, the old start.json, pool files, labels and judge
 check files are copied to history/check-<date>/. After a re-check, at a terminal, the menu
@@ -38,12 +38,12 @@ from pathlib import Path
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.start_label import (
-    CHECKS,
     FOLDER,
     ROUGH,
     StartSession,
     Workspace,
     compute,
+    marks_words,
     prepare,
     save_result,
 )
@@ -79,7 +79,7 @@ def move_to_previous(ws: Workspace, say) -> Path | None:
 
 
 def _labels(ws: Workspace) -> dict[str, str]:
-    """{answer id: pass or fail} from labels.csv: the person's Correct and Wrong."""
+    """{answer id: pass or fail} from labels.csv: the person's Pass and Fail marks."""
     if not ws.labels.is_file():
         return {}
     from judgekeeper.table import sheet_id
@@ -122,6 +122,7 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
             return _unfinished(ws, talk, port, open_browser)
         found = start.find_judge(path, talk=talk, prefer=ws.data()["metric"],
                                  store=ws.data().get("mlflow_store"), **options)
+        start.say_found(talk, found)
         return _again(ws, found, talk, port, open_browser, then, again_options)
     found = start.find_judge(path, talk=talk, **options)
     return start.label_found(talk, found, port, open_browser)
@@ -134,30 +135,30 @@ OWN_CODE = {"records": "Your judge runs in your own code",
 
 
 # `--review`, `--fix`, `--ask-again` and `--try-new-judge` before a result: (flag, why there
-# is nothing to do yet, what the flag does once there are labels).
+# is nothing to do yet, what the flag does once there are marks).
 PLAN = "shows the plan (how many calls, the cost, the key's name) and asks before any call."
 BEFORE = {
-    "review": ("--review", "There is no result to review yet: a review needs your labels.",
+    "review": ("--review", "There is no result to review yet: a review needs your marks.",
                "opens the answers where you and your judge disagree, to look at again."),
-    "fix": ("--fix", "There is no result yet to fix your judge with: it needs your labels.",
+    "fix": ("--fix", "There is no result yet to fix your judge with: it needs your marks.",
             ("shows what your judge gets wrong, once you have looked again at where you "
              "disagree. Free.")),
     "ask": ("--ask-again", ("There is no result to ask about yet: asking your judge again "
-                            "needs your labels."), PLAN),
+                            "needs your marks."), PLAN),
     "try": ("--try-new-judge", ("There is no result yet to try a new judge on: trying one "
-                                "needs your labels."), PLAN),
+                                "needs your marks."), PLAN),
 }
 
 
 def _no_result_yet(path: Path, ws: Workspace | None, talk, then: str, tool: str | None) -> int:
-    """A menu flag before a result: the exact command that labels first (with --yes when no
-    one can answer its question), and what the flag does after. Exit 2: not a question,
-    there is nothing to do yet."""
+    """A menu flag before a result: the exact command that marks answers first (with --yes
+    when no one can answer its question), and what the flag does after. Exit 2: not a
+    question, there is nothing to do yet."""
     from judgekeeper import start
 
     flag, why, does = BEFORE[then]
     label = talk.command() if start._interactive() else talk.command("--yes")
-    talk.say(f"{why} Label first: {label}")
+    talk.say(f"{why} Mark answers first: {label}")
     talk.say(f"Then {talk.command(flag)} {does}")
     if then != "ask":
         return start.EXIT_USAGE
@@ -179,14 +180,12 @@ def _serve(ws: Workspace, talk, port: int, open_browser: bool) -> int:
 
 def _unfinished(ws: Workspace, talk, port: int, open_browser: bool) -> int:
     data = ws.data()
-    talk.say(f"Using {', '.join(data['results_files'])}: the judge passed "
+    talk.say(f"Carrying on with {', '.join(data['results_files'])}: your judge passed "
              f"{data['pool']['pass']} and failed {data['pool']['fail']}.")
-    labels = list(_labels(ws).values())
-    question = (f"You labeled {len(labels)} (Correct {labels.count('pass')}, Wrong "
-                f"{labels.count('fail')}). Continue?")
-    if not talk.confirm(question, default=True, with_yes=True,
-                        hint=f"{question[:-len('Continue?')]}Continue labeling? Run "
-                             f"{talk.command('--yes')} to continue, or "
+    n = len(_labels(ws))
+    marked = f"You marked {n} answer{'' if n == 1 else 's'}."
+    if not talk.confirm(f"{marked} Carry on?", default=True, with_yes=True,
+                        hint=f"{marked} Carry on? Run {talk.command('--yes')} to carry on, or "
                              f"{talk.command('--new')} to start over."):
         talk.say(f"To start over: {talk.command('--new')}")
         return 0
@@ -288,19 +287,18 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
     from judgekeeper import again, new_judge, start, start_fix, start_review
 
     last = json.loads(ws.result_json.read_text(encoding="utf-8"))
-    labels = last.get("labels", {})
+    labels = {"correct": 0, "wrong": 0, **last.get("labels", {})}
+    marked = labels["correct"] + labels["wrong"]
     talk.say()
-    talk.say(f"Your last result ({last['made_at'][:10]}): {CHECKS[last['check']]} "
-             f"({labels.get('correct', 0)} Correct, {labels.get('wrong', 0)} Wrong).")
+    talk.say(f"Your last result ({last['made_at'][:10]}), from the {marked} "
+             f"answer{'' if marked == 1 else 's'} you marked ({marks_words(labels)}).")
     n = start_review.count(ws)
     options = []  # (answer, text, note, flag)
     if new is not None and then is None:
         options.append(("try", *new_judge.menu_text(ws, new, again_options),
                         "--try-new-judge"))
     if n:
-        text = (f"Review the {n} answer{'' if n == 1 else 's'} where you and your judge "
-                "disagree")
-        options.append(("review", text, "(free)", "--review"))
+        options.append(("review", f"See where you disagree ({n})", "(free)", "--review"))
     if start_fix.ready(ws):
         options.append(("fix", "Fix your judge", "(free)", "--fix"))
     if then is None and _can_ask(ws, again_options):
@@ -308,7 +306,7 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
         options.append(("ask", *again.menu_text(plan), "--ask-again"))
     nothing_left = last.get("left") == 0
     if not nothing_left:
-        options.append(("label", "Label more", "", "--label-more"))
+        options.append(("label", "Mark more answers", "", "--label-more"))
     options.append(("nothing", "Nothing for now", "", None))
     if then == "label" and nothing_left or then is None and len(options) == 1:
         talk.say(ALL_LABELED)
@@ -339,7 +337,7 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
     return 0
 
 
-ALL_LABELED = ("Every saved answer is labeled. After your next eval run, run judgekeeper "
+ALL_LABELED = ("Every saved answer is marked. After your next eval run, run judgekeeper "
                "start again.")
 
 
@@ -459,12 +457,11 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
     back = {i: label for i, label in labels.items() if i in pool}
     left = sum(i in found.pool.left for i in labels)  # in the results, but no real decision
     talk.say()
-    talk.say(f"{len(back)} of your {len(labels)} labeled answers are in your latest results "
+    talk.say(f"{len(back)} of your {len(labels)} marked answers are in your latest results "
              f"({found.results[0].date():%Y-%m-%d}).")
     if left:
-        talk.say(f"{left} of your labeled answers {'is' if left == 1 else 'are'} left out now: "
+        talk.say(f"{left} of your marked answers {'is' if left == 1 else 'are'} left out now: "
                  f"your judge made no real decision on {'it' if left == 1 else 'them'}.")
-    start.say_check(talk, found)
     changed = judge_change(ws.data()["fingerprint"], found.fingerprint)
     if changed:
         talk.say(f"Your judge changed since your last check: {changed}.")
@@ -474,15 +471,13 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
     kept = list(back.values())
     if min(kept.count("pass"), kept.count("fail")) < ROUGH and len(back) < len(labels):
         if len(back) + left < len(labels):  # some are gone, not only left out
-            talk.say(f"Fewer than {ROUGH} Correct or {ROUGH} Wrong of them came back "
-                     "unchanged: your app gives different answers now, so the old labels do "
-                     "not apply to them.")
+            talk.say("Too few of them came back unchanged to compare: your app gives "
+                     "different answers now, so your old marks do not apply to them.")
         else:
-            talk.say(f"Fewer than {ROUGH} Correct or {ROUGH} Wrong of them are left to "
-                     "compare.")
-        if not talk.confirm("Label your latest results?", default=True, with_yes=True,
-                            hint=f"Label your latest results? Run {talk.command('--yes')} to "
-                                 "label them."):
+            talk.say("Too few of them are left to compare.")
+        if not talk.confirm("Mark your latest results instead?", default=True, with_yes=True,
+                            hint=f"Mark your latest results instead? Run "
+                                 f"{talk.command('--yes')} to mark them."):
             return 0
         move_to_previous(ws, talk.say)
         return start.label_found(talk, found, port, open_browser)
@@ -502,8 +497,8 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
 
     now = compute(ws, session)
     talk.say()
-    for key, marked, did in (("tpr", "Correct", "passed"), ("tnr", "Wrong", "failed")):
-        talk.say(f"Of the answers you marked {marked}, your judge {did} {_share(last[key])} "
-                 f"before and {_share(now[key])} now.")
+    for key, said in (("tpr", "Pass"), ("tnr", "Fail")):
+        talk.say(f"When you said {said}, your judge also said {said} {_share(last[key])} of "
+                 f"the time before and {_share(now[key])} now.")
     save_result(ws, session, talk.say)
     return 0

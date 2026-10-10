@@ -1,7 +1,7 @@
 """Fix your judge, after the review of the disagreements. No AI call and no key.
 
-The person's final mark for an answer is their second look (Correct or Wrong) when they gave
-one in the review, else their first label; "I was wrong" makes it the judge's verdict, and an
+The person's final mark for an answer is their second look (Pass or Fail) when they gave
+one in the review, else their first mark; "I was wrong" makes it the judge's verdict, and an
 answer they were not sure about on the second look is left out. A mistake is an answer whose
 final mark differs from the judge's saved verdict (not counting those marked "The rule is
 unclear", which have a box of their own). The main result keeps the first labels.
@@ -46,8 +46,6 @@ import random
 import re
 import secrets
 import statistics
-import sys
-import webbrowser
 from collections import Counter
 from pathlib import Path
 
@@ -55,7 +53,14 @@ from judgekeeper import start_fix_rule, start_review, weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.redact import scrub
-from judgekeeper.start_label import FOLDER, Workspace, _write_json, display, question_view
+from judgekeeper.start_label import (
+    FOLDER,
+    Workspace,
+    _write_json,
+    display,
+    question_view,
+    say_opened,
+)
 
 ASIDE_TENTHS = 3  # of each cell set aside, rounded up
 MIN_EACH = 5  # set-aside answers marked Pass, and Fail, a test needs
@@ -238,20 +243,20 @@ def pattern_lines(rows: list[dict], mark: float | None = None) -> list[str]:
     passes = sum(m["judge"] == "pass" for m in wrong)
     fails = n - passes
     if passes > fails:
-        lines.append(f"{passes} of your judge's {n} mistakes are passes that should have "
-                     "failed: its rule may be too easy.")
+        lines.append(f"{passes} of its {n} mistakes are answers it passed but you failed. Its "
+                     "rule may be too easy.")
     elif fails > passes:
-        lines.append(f"{fails} of your judge's {n} mistakes are fails that should have "
-                     "passed: its rule may be too strict.")
+        lines.append(f"{fails} of its {n} mistakes are answers it failed but you passed. Its "
+                     "rule may be too strict.")
     else:
-        lines.append(f"Half of your judge's {n} mistakes are passes that should have failed, "
-                     "and half are fails that should have passed.")
+        lines.append(f"Half of its {n} mistakes are answers it passed but you failed, and half "
+                     "are answers it failed but you passed.")
     if mark is not None:
         near = sum(m.get("score") is not None and abs(m["score"] - mark) <= NEAR + 1e-9
                    for m in wrong)
         if near * 2 > n:
-            lines.append(f"{near} of {n} mistakes sit close to the pass mark. Moving the pass "
-                         "mark may fix them.")
+            lines.append(f"{near} of its {n} mistakes sit close to the pass mark. Moving the "
+                         "pass mark may fix them.")
     for judge, final, name in (("fail", "pass", "wrong fails"), ("pass", "fail",
                                                                  "wrong passes")):
         side = [len(m["output"].split()) for m in wrong if m["judge"] == judge]
@@ -261,8 +266,8 @@ def pattern_lines(rows: list[dict], mark: float | None = None) -> list[str]:
             continue
         long, usual = statistics.median(side), statistics.median(agreed)
         if usual > 0 and long >= LONG * usual:
-            lines.append(f"Your judge's {name} are long answers (about {_about(long)} words, "
-                         f"against {_about(usual)}).")
+            lines.append(f"Its {name} are long answers (about {_about(long)} words, against "
+                         f"{_about(usual)}).")
     agreed = [m for m in rows if m["judge"] == m["final"]]
     if len(agreed) >= FEW:
         in_wrong = Counter(w for m in wrong for w in _words(m["output"]))
@@ -277,7 +282,7 @@ def pattern_lines(rows: list[dict], mark: float | None = None) -> list[str]:
                 strong.append((odds, a, word))
         strong.sort(key=lambda x: (-x[0], -x[1]))
         if strong:
-            lines.append("Words in many mistakes: " + ", ".join(
+            lines.append("Words that show up in many of its mistakes: " + ", ".join(
                 f"{word} ({a})" for _, a, word in strong[:WORDS_SHOWN]) + ".")
     return lines
 
@@ -427,13 +432,13 @@ def test_kind(fixed: int, broke: int) -> str:
 def test_sentence(n: int, fixed: int, broke: int) -> str:
     kind = test_kind(fixed, broke)
     if kind == "better":
-        return (f"On the {n} answers set aside, it did better: it fixed {fixed} and broke "
-                f"{broke or 'none'}.")
+        return (f"On the {n} answers kept aside, the change did better: it fixed {fixed} and "
+                f"broke {broke or 'none'}.")
     if kind == "worse":
-        return (f"On the {n} answers set aside, it did worse: it fixed {fixed} and broke "
-                f"{broke}. Keep what you have.")
-    return (f"Can't tell yet: on the {n} answers set aside it fixed {fixed} and broke {broke}. "
-            "That is too few to be sure. Mark more answers to find out.")
+        return (f"On the {n} answers kept aside, the change did worse: it fixed {fixed} and "
+                f"broke {broke}. Keep what you have.")
+    return (f"Can't tell yet: on the {n} answers kept aside, the change fixed {fixed} and broke "
+            f"{broke}. That is too few to be sure. Mark more answers to find out.")
 
 
 def _pct(value) -> str:
@@ -510,9 +515,10 @@ class Fix:
                 "unclear": len(unclear(rows))}
 
     def aside_note(self) -> str:
-        return (f"{_plural(len(self.aside_ids), 'answer')} "
-                f"{'is' if len(self.aside_ids) == 1 else 'are'} set aside for the test and "
-                "not shown here.")
+        n = len(self.aside_ids)
+        return (f"judgekeeper kept {n} of your answers aside. "
+                f"{'It tests' if n == 1 else 'They test'} whether a change really helps, so "
+                f"{'it is' if n == 1 else 'they are'} not shown here.")
 
     def _item(self, m: dict) -> dict:
         raw = self.raw.get(m["id"], {})
@@ -541,7 +547,7 @@ class Fix:
         short = [f"{finals.count(v)} {SAID[v]}" for v in ("pass", "fail")
                  if finals.count(v) < MIN_EACH]
         if short:
-            return (f"Too few answers set aside to test a change fairly: it needs {MIN_EACH} "
+            return (f"Too few answers kept aside to test a change fairly: it needs {MIN_EACH} "
                     f"you marked Pass and {MIN_EACH} you marked Fail (you have "
                     f"{' and '.join(short)}). Mark more answers first.")
         return None
@@ -581,7 +587,7 @@ class Fix:
                 section["refusal"] = refusal
             else:
                 section["button"] = (f"Test {_mark(mark)} on the "
-                                     f"{_plural(len(self.aside_ids), 'answer')} set aside")
+                                     f"{_plural(len(self.aside_ids), 'answer')} kept aside")
         return section
 
     def test_pass_mark(self, mark: float) -> dict:
@@ -797,9 +803,9 @@ class Fix:
 # The terminal -----------------------------------------------------------------------------
 
 def aside_line(fix: Fix) -> str:
-    return (f"Setting aside {len(fix.aside_ids)} of your {len(fix.marks)} marked answers. "
-            "They are used only to test a change, so the test is fair. They never go into a "
-            "prompt.")
+    return (f"judgekeeper kept {len(fix.aside_ids)} of your {len(fix.marks)} marked answers "
+            "aside. They test whether a change really helps, so they are not shown, and they "
+            "never go into a prompt.")
 
 
 def count_lines(fix: Fix) -> list[str]:
@@ -836,7 +842,7 @@ def _terminal(fix: Fix, talk, test: bool) -> int:
             for line in test_lines(section["test"]):
                 talk.say(line)
         elif section.get("button") and not test:
-            talk.say(f"To test it on the {_plural(len(fix.aside_ids), 'answer')} set aside "
+            talk.say(f"To test it on the {_plural(len(fix.aside_ids), 'answer')} kept aside "
                      f"(free): {talk.command('--fix', '--test-pass-mark')}")
     if test:
         talk.say()
@@ -913,12 +919,7 @@ def serve_fix(ws: Workspace, port: int, open_browser: bool, say,
     fix = Fix(ws)
     server = make_server(fix, port, result=start_review.result_maker(ws, say),
                          page=page_template(ws), switches={"/fix": switch(ws, say)})
-    print(f"Fix page: {server.url}")  # not scrubbed: the token must stay whole
-    say(f"Press Ctrl-C here to stop; run {command} --fix to come back.")
-    sys.stdout.flush()
-    if open_browser:
-        webbrowser.open(server.url)
-        say("Opened in your browser.")
+    say_opened(server.url, open_browser, say, command, " --fix")
     try:
         server.serve()
     except KeyboardInterrupt:

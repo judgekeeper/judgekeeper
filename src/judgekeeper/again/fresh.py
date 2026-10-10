@@ -33,7 +33,7 @@ NOT_COUNTED = {  # key: (one answer, several answers)
         "its grading prompt differs from the saved one, so it was not the same judge input",
         ("their grading prompts differ from the saved ones, so they were not the same judge "
          "input")),
-    "no clear verdict": ("the judge gave no clear verdict", "the judge gave no clear verdict"),
+    "no clear verdict": ("the judge gave no clear decision", "the judge gave no clear decision"),
     "error": ("the judge's tool gave an error for it", "the judge's tool gave an error for them"),
     "missing": ("it is missing from the tool's output",
                 "they are missing from the tool's output"),
@@ -159,14 +159,14 @@ def again_lines(block: dict) -> list[str]:
         across = (f" Across all your answers that is {_share(steady['rate'])} ({_pct(lo)} to "
                   f"{_pct(hi)})." if steady["rate"] is not None else "")
         lines.append(f"Asked {TIMES_WORDS.get(times, f'{times} times')} more, your judge "
-                     f"changed its verdict on {steady['changed']} of your {n} answers."
+                     f"changed its mind on {steady['changed']} of your {n} answers."
                      f"{across}{tail}")
     today, before = block["today"], block["before"]
-    for key, marked, did in (("tpr", "Correct", "passed"), ("tnr", "Wrong", "failed")):
-        lines.append(f"Of the answers you marked {marked}, your judge {did} "
-                     f"{_share(before[key])} before and {_share(today[key])} now.{tail}")
+    for key, said in (("tpr", "Pass"), ("tnr", "Fail")):
+        lines.append(f"When you said {said}, your judge also said {said} {_share(before[key])} "
+                     f"of the time before and {_share(today[key])} now.{tail}")
     if block["matches_saved"] is not None:
-        lines.append(f"Its first new verdict matched the saved one on {block['matches_count']} "
+        lines.append(f"Its first new decision matched the saved one on {block['matches_count']} "
                      f"of {n} answers ({_pct(block['matches_saved'])}).{tail}")
         if block["matches_saved"] < MATCH_FLOOR:
             change = block.get("judge_change")
@@ -213,6 +213,6 @@ def finish(ws, plan, fresh: Fresh, talk) -> dict:
     talk.say()
     for line in again_lines(block):
         talk.say(line)
-    talk.say(f"Saved in {block['folder']}/. Your first labels and your result stay as they "
+    talk.say(f"Saved in {block['folder']}/. Your first marks and your result stay as they "
              "were.")
     return block

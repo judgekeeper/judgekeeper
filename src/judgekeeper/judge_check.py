@@ -40,6 +40,7 @@ CSV_COLUMNS = ("id", "problem", "tool_counted_as", "judge_decision", "judge_reas
                "output")
 TITLE = "Did your judge actually judge?"
 EVERY_ANSWER = "Your judge made a real decision on every answer."
+LIST_LINE = f"The list is in {CSV_PATH}"
 TOOLS = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools that count verdicts themselves
 
 
@@ -178,8 +179,8 @@ def _n(n: int, one: str, many: str) -> str:
     return f"{n} {one if n == 1 else many}"
 
 
-_NO_DECISION_WORDS = {ERROR: ("error", "errors"),
-                      UNREADABLE: ("reply it could not read", "replies it could not read"),
+_NO_DECISION_WORDS = {ERROR: ("call failed", "calls failed"),
+                      UNREADABLE: ("reply could not be read", "replies could not be read"),
                       EMPTY_ANSWER_REFUSED: ("empty answer it could not judge",
                                              "empty answers it could not judge"),
                       EMPTY: ("empty decision", "empty decisions")}
@@ -244,7 +245,7 @@ def terminal_lines(block: dict | None, tick: str) -> list[str]:
     for first, *rest in found:
         out += [f"  ! {first}"] + [f"    {line}" for line in rest]
     if has_rows(block):
-        out.append(f"    See them: {CSV_PATH}")
+        out.append(f"    {LIST_LINE}")
     return out
 
 
@@ -253,6 +254,7 @@ def page_lines(block: dict | None) -> list[str]:
     return [" ".join(found) for found in lines(block)]
 
 
-__all__ = ["CSV_COLUMNS", "EVERY_ANSWER", "KINDS", "LEFT_OUT", "TITLE", "Finding", "Result",
+__all__ = ["CSV_COLUMNS", "EVERY_ANSWER", "KINDS", "LEFT_OUT", "LIST_LINE", "TITLE", "Finding",
+           "Result",
            "check", "has_rows", "is_empty_answer", "lines", "page_lines",
            "says_opposite", "stated_decisions", "terminal_lines"]

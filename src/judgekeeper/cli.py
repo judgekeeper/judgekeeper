@@ -78,7 +78,7 @@ MESSAGE = "Check your LLM-as-a-judge."
 # The top-level help shows the commands in three groups. Every command is in exactly one
 # (tests/test_front_door.py compares these with the parser).
 START_HERE = (
-    ("start", "find your judge's saved results and check them against your own labels"),
+    ("start", "find your judge's saved results and check them against your own marks"),
     ("setup", "results saved your own way? set the project up in one step, asked once"),
 )
 IN_CI = ("init", "judge", "validate", "baseline", "gate", "migrate")
@@ -423,9 +423,9 @@ def _parser() -> argparse.ArgumentParser:
     st.add_argument("--judge-model", metavar="NAME",
                     help="the judge's model, when the results do not record it")
     st.add_argument("--port", type=int, default=8765,
-                    help="port on 127.0.0.1 for the labeling page (default 8765)")
+                    help="port on 127.0.0.1 for the page that opens (default 8765)")
     st.add_argument("--no-browser", action="store_true",
-                    help="print the labeling page's link instead of opening a browser")
+                    help="print the page's link instead of opening a browser")
     then = st.add_mutually_exclusive_group()
     then.add_argument("--new", action="store_true",
                       help="start a new check: move what is saved in .judgekeeper/ (except "
@@ -435,7 +435,7 @@ def _parser() -> argparse.ArgumentParser:
                       help="after a result: review the answers where you and your judge "
                            "disagree (no AI call)")
     then.add_argument("--ask-again", action="store_true",
-                      help="after a result: ask your judge again about your labeled answers, "
+                      help="after a result: ask your judge again about your marked answers, "
                            "through your own eval tool; it shows the plan (calls, cost, key "
                            "name) and asks before any call")
     then.add_argument("--try-new-judge", action="store_true",
@@ -443,7 +443,7 @@ def _parser() -> argparse.ArgumentParser:
                            "newest results) on the answers you already marked; it asks before "
                            "any call")
     then.add_argument("--label-more", action="store_true",
-                      help="after a result: open the labeling page to label more")
+                      help="after a result: open the page to mark more answers")
     then.add_argument("--fix", action="store_true",
                       help="after the review: what your judge gets wrong, and a fair test of "
                            "a change on answers set aside (no AI call)")

@@ -91,8 +91,7 @@ def test_unfinished_labeling_asks_to_continue_and_reopens_the_page(tmp_path, cap
     first = [q["group"] for q in ws.data()["queue"][:3]]
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert (f"You labeled 3 (Correct {first.count('pass')}, Wrong {first.count('fail')}). "
-            "Continue? [Y/n]") in out
+    assert first and "You marked 3 answers. Carry on? [Y/n]" in out
     assert [w.dir for w in served] == [ws.dir]
     assert "Looking in" not in out  # the saved pool is used as it is
 
@@ -109,7 +108,7 @@ def test_continue_without_a_terminal_needs_yes(tmp_path, capsys, served):
     _checked(tmp_path, labeled=3, result=False)
     code, out, _ = run(capsys, tmp_path)
     assert code == start.EXIT_QUESTION and served == []
-    assert f"Continue labeling? Run judgekeeper start {quote_arg(tmp_path)} --yes to continue" in out
+    assert f"Carry on? Run judgekeeper start {quote_arg(tmp_path)} --yes to carry on" in out
     code, out, _ = run(capsys, tmp_path, "--yes")
     assert code == 0 and len(served) == 1
 
@@ -123,12 +122,12 @@ def test_the_same_results_offer_to_label_more(tmp_path, capsys, served, terminal
     terminal.append("2")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "Your eval tool: promptfoo (results.json" in out
+    assert "  Results file    results.json (saved" in out
     labels = [q["group"] for q in queue[:20]]
-    assert (f"Your last result ({made}): too few labels ({labels.count('pass')} Correct, "
-            f"{labels.count('fail')} Wrong).") in out
-    assert "  1. Ask your judge again about your 20 labeled answers" in out
-    assert "  2. Label more" in out
+    assert (f"Your last result ({made}), from the 20 answers you marked ({labels.count('pass')} "
+            f"Pass, {labels.count('fail')} Fail).") in out
+    assert "  1. Ask your judge again about your 20 marked answers" in out
+    assert "  2. Mark more answers" in out
     assert len(served) == 1 and ws.data()["queue"] == queue
 
 
@@ -137,7 +136,7 @@ def test_the_same_results_say_how_far_the_last_result_got(tmp_path, capsys, serv
     terminal.append("2")  # 1 Ask again, 2 Nothing for now: every answer is labeled
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "): rough check (20 Correct, 16 Wrong)." in out
+    assert "), from the 36 answers you marked (20 Pass, 16 Fail)." in out
 
 
 def test_nothing_for_now_stops(tmp_path, capsys, served, terminal):
@@ -146,7 +145,7 @@ def test_nothing_for_now_stops(tmp_path, capsys, served, terminal):
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and served == []
     assert "  2. Nothing for now" in out
-    assert "Label more" not in out  # every saved answer is labeled
+    assert "Mark more answers" not in out  # every saved answer is marked
 
 
 # Re-check --------------------------------------------------------------------------------
@@ -158,13 +157,13 @@ def test_newer_results_are_rechecked_with_the_saved_labels(tmp_path, capsys, ser
     _rewrite(tmp_path, split(16, 20))
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and served == []
-    assert "36 of your 36 labeled answers are in your latest results (2026-10-09)." in out
-    # All 36 are labeled, so the corrected rates are the plain ones: of the 20 marked
-    # Correct the judge now passes 16 (80%); of the 16 marked Wrong it fails all 16.
-    assert ("Of the answers you marked Correct, your judge passed about 100% before and about "
-            "80% now.") in out
-    assert ("Of the answers you marked Wrong, your judge failed about 100% before and about "
-            "100% now.") in out
+    assert "36 of your 36 marked answers are in your latest results (2026-10-09)." in out
+    # All 36 are marked, so the corrected rates are the plain ones: of the 20 marked Pass
+    # the judge now passes 16 (80%); of the 16 marked Fail it fails all 16.
+    assert ("When you said Pass, your judge also said Pass about 100% of the time before and "
+            "about 80% now.") in out
+    assert ("When you said Fail, your judge also said Fail about 100% of the time before and "
+            "about 100% now.") in out
     after = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert after["tpr"] == pytest.approx(0.8) and after["groups"]["pass"]["pool"] == 16
     history = sorted(ws.history.glob("result-*.json"))
@@ -195,7 +194,7 @@ def test_a_changed_judge_is_said_first_then_offered_to_try(tmp_path, capsys, ser
             "openai:gpt-5.4-mini.")
     assert line in out
     assert out.index(line) < out.index("--try-new-judge")
-    assert "Of the answers you marked Correct" not in out  # no re-check with a changed judge
+    assert "When you said Pass" not in out  # no re-check with a changed judge
 
 
 def test_a_changed_prompt_is_said_too(tmp_path, capsys, served):
@@ -213,10 +212,10 @@ def test_changed_answers_offer_to_label_the_latest_results(tmp_path, capsys, ser
     _rewrite(tmp_path, split(20, 16), tag=" (new wording)")  # every answer is new text
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "0 of your 36 labeled answers are in your latest results (2026-10-09)." in out
-    assert ("your app gives different answers now, so the old labels do not apply to them."
+    assert "0 of your 36 marked answers are in your latest results (2026-10-09)." in out
+    assert ("your app gives different answers now, so your old marks do not apply to them."
             in out)
-    assert "Label your latest results? [Y/n]" in out
+    assert "Mark your latest results instead? [Y/n]" in out
     (previous,) = ws.dir.glob("previous-*")
     assert {p.name: p.read_bytes() for p in previous.iterdir() if p.is_file()} == old
     assert len(served) == 1
@@ -234,11 +233,11 @@ def test_labeled_answers_the_judge_did_not_judge_are_not_called_changed(tmp_path
     data["metadata"] = {"evaluationCreatedAt": "2026-10-09T09:00:00Z"}
     (tmp_path / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out, _ = run(capsys, tmp_path)
-    assert "30 of your 36 labeled answers are in your latest results (2026-10-09)." in out
-    assert ("6 of your labeled answers are left out now: your judge made no real decision on "
+    assert "30 of your 36 marked answers are in your latest results (2026-10-09)." in out
+    assert ("6 of your marked answers are left out now: your judge made no real decision on "
             "them.") in out
     assert "your app gives different answers now" not in out
-    assert "Fewer than 15 Correct or 15 Wrong of them are left to compare." in out
+    assert "Too few of them are left to compare." in out
     assert code == start.EXIT_QUESTION and served == []  # asks before labeling the new results
 
 
@@ -253,10 +252,10 @@ def test_a_labeled_answer_left_out_and_others_changed(tmp_path, capsys, served):
         rows[i]["response"]["output"] += " (new wording)"
     (tmp_path / "results.json").write_text(json.dumps(data), encoding="utf-8")
     _, out, _ = run(capsys, tmp_path)
-    assert ("1 of your labeled answers is left out now: your judge made no real decision on "
+    assert ("1 of your marked answers is left out now: your judge made no real decision on "
             "it.") in out
-    assert ("Fewer than 15 Correct or 15 Wrong of them came back unchanged: your app gives "
-            "different answers now, so the old labels do not apply to them.") in out
+    assert ("Too few of them came back unchanged to compare: your app gives different answers "
+            "now, so your old marks do not apply to them.") in out
 
 
 def test_changed_answers_without_a_terminal_need_yes(tmp_path, capsys, served):
@@ -264,8 +263,8 @@ def test_changed_answers_without_a_terminal_need_yes(tmp_path, capsys, served):
     _rewrite(tmp_path, split(20, 16), tag=" (new wording)")
     code, out, _ = run(capsys, tmp_path)
     assert code == start.EXIT_QUESTION and served == []
-    assert (f"Label your latest results? Run judgekeeper start {quote_arg(tmp_path)} --yes to "
-            "label them.") in out
+    assert (f"Mark your latest results instead? Run judgekeeper start {quote_arg(tmp_path)} "
+            "--yes to mark them.") in out
 
 
 def test_results_from_another_tool_point_to_new(tmp_path, capsys, served):
@@ -304,7 +303,7 @@ def test_new_moves_everything_but_the_baseline_and_deletes_nothing(tmp_path, cap
     assert moved == {k: v for k, v in before.items() if k != "baseline.json"}
     assert (ws.dir / "baseline.json").read_text(encoding="utf-8") == "{}"
     assert f"Moved your last check to .judgekeeper/{previous.name}/. Nothing was deleted." in out
-    assert "36 answers with a verdict" in out and len(served) == 1
+    assert "Its decisions   36 answers" in out and len(served) == 1
 
 
 def test_new_twice_keeps_both_earlier_checks(tmp_path, capsys, served, monkeypatch):

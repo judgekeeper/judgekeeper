@@ -19,7 +19,24 @@ cd your-project
 judgekeeper start
 ```
 
-`judgekeeper start` finds the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV or JSONL file with `input`, `output` and a verdict column) and names your judge. It opens a page in your browser with one answer at a time, half from the judge's passes and half from its fails, without what the judge said; you mark each one Correct or Wrong. Then it shows how often your judge agrees with you, corrected for that picking. A rough check needs 15 Correct and 15 Wrong, a reliable result 25 of each and both ranges no wider than 0.30. Everything is saved in `.judgekeeper/`, so you can stop, carry on, and check again after your next eval run. No AI calls unless you say yes. Then your own judge runs through your own tool; judgekeeper never sees your key, it only checks its name. It never runs your app. Every flag and saved file: [`reference.md`](reference.md#start-find-your-results-label-see-the-result).
+`judgekeeper start` finds the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV or JSONL file with `input`, `output` and a verdict column) and names your judge. It opens a page in your browser with one answer at a time, half from the judge's passes and half from its fails, without what the judge said; you mark each one Pass or Fail by your judge's rule (keys `←` Fail and `→` Pass). Then it shows how often your judge agrees with you, corrected for that picking: "When you said Pass, your judge also said Pass 83% of the time." You see a result after 15 Pass and 15 Fail; 25 of each with both ranges no wider than 0.30 makes it reliable. Everything is saved in `.judgekeeper/`, so you can stop, carry on, and check again after your next eval run.
+
+What it prints first:
+
+```text
+judgekeeper found your LLM-as-a-judge:
+
+  Eval tool       promptfoo
+  Results file    evals/results.json (saved 3 Oct 2026, 10:00)
+  What it checks  "Is polite and correct."
+  Judge model     openai:gpt-4.1-mini
+  Its decisions   50 answers: 30 passed, 20 failed
+
+Next: in your browser, mark each answer Pass or Fail.
+This shows how often your judge agrees with you.
+Open it now? [Y/n]
+```
+ No AI calls unless you say yes. Then your own judge runs through your own tool; judgekeeper never sees your key, it only checks its name. It never runs your app. Every flag and saved file: [`reference.md`](reference.md#start-find-your-results-label-see-the-result).
 
 Your judge saves its results in a format of its own? Turn them into a table with `id`, `input`, `output`, `verdict` (pass or fail) and `reason` columns, plus `judge_model` when you know the model, and run `judgekeeper start your-table.csv`; it prints the counts, the pass/fail split and the first 3 rows, so a wrong table shows. `judgekeeper start --agent-prompt` prints a prompt that asks your coding agent to write that table for you.
 
@@ -27,11 +44,11 @@ Your judge saves its results in a format of its own? Turn them into a table with
 
 Run `judgekeeper start` again and it asks what next:
 
-- **Review the disagreements** (`--review`, free, no AI call). First you look again at each answer where you and your judge disagree, mixed with answers you agreed on, with the judge's verdict still hidden. Then you see what the judge said, with its reason, and say whether the judge was wrong, you were wrong, or the rule is unclear, with an optional line of why. The judge's mistakes go to `.judgekeeper/judge-mistakes.csv`. Your first labels stay the main result.
-- **Fix your judge** (`--fix`, free, no AI call), once the review found something. First it sets about 30% of your marked answers aside, to test a change fairly. From the rest it shows what your judge gets wrong: the two kinds of mistakes, with your why, and plain patterns in them. For a judge that gives a score, it finds the pass mark that fits your marks best and tests it on the answers set aside in one click. To change the rule, it gives you a prompt for any AI assistant and says where the new rule goes; Try your new judge then tests it on the answers set aside.
-- **Ask your judge again** (`--ask-again`). Your own eval tool grades the answers you labeled again, with your own judge; your app is not run. First a plan: whether this is exactly your judge or a close copy, which key it uses (by name only), how many calls and a dated cost range. Then `Go ahead? [y/N]`, No unless you type y. It shows how often the judge changes its verdict, and how well it agrees with you today.
-- **Try your new judge** (`--try-new-judge`). After you change your judge's rule or model and run your eval once, the new judge grades the answers you already marked, shown side by side with the old one. A judge fixed while looking at these answers looks better on them, so it then offers a quick check on 10 Correct and 10 Wrong new answers.
-- **Label more** (`--label-more`), or nothing for now.
+- **See where you disagree** (`--review`, free, no AI call). First you look again at each answer where you and your judge disagree, mixed with answers you agreed on, with what the judge said still hidden. Then you see what the judge said, with its reason, and say whether your judge was wrong, you were wrong, or the rule is unclear, with an optional line of why. The judge's mistakes go to `.judgekeeper/judge-mistakes.csv`. Your first marks stay the main result.
+- **Fix your judge** (`--fix`, free, no AI call), once the review found something. First it keeps about 30% of your marked answers aside, to test a change fairly. From the rest it shows what your judge gets wrong: the two kinds of mistakes, with your why, and plain patterns in them. For a judge that gives a score, it finds the pass mark that fits your marks best and tests it on the answers kept aside in one click. To change the rule, it gives you a prompt for any AI assistant and says where the new rule goes; Try your new judge then tests it on the answers kept aside.
+- **Ask your judge again** (`--ask-again`). Your own eval tool grades the answers you marked again, with your own judge; your app is not run. First a plan: whether this is exactly your judge or a close copy, which key it uses (by name only), how many calls and a dated cost range. Then `Go ahead? [y/N]`, No unless you type y. It shows how often the judge changes its verdict, and how well it agrees with you today.
+- **Try your new judge** (`--try-new-judge`). After you change your judge's rule or model and run your eval once, the new judge grades the answers you already marked, shown side by side with the old one. A judge fixed while looking at these answers looks better on them, so it then offers a quick check on 10 Pass and 10 Fail new answers.
+- **Mark more answers** (`--label-more`), or nothing for now.
 
 The layers below are the other ways in: a table you made yourself, your own rule and judge, checks over time, and your tools.
 
@@ -104,7 +121,7 @@ report = judgekeeper.check_table(df, judge="verdict", human="label")   # a DataF
 
 ## 1. Labels
 
-No labels yet? Label with `judgekeeper start` ([above](#start-here)): it shows your judge's answers one at a time in a local page, and saves the answers you labeled as an anchor set, `.judgekeeper/anchors.jsonl`, for `judge`, `baseline` and `gate`.
+No labels yet? Mark answers with `judgekeeper start` ([above](#start-here)): it shows your judge's answers one at a time in a local page, and saves the answers you marked as an anchor set, `.judgekeeper/anchors.jsonl`, for `judge`, `baseline` and `gate`.
 
 No judge results to start from? Write the anchor set yourself: one JSON line per item with `id`, `input`, `output` and `human_label` (`pass` or `fail`). `judge` and `validate` seal a new anchor set the first time they read it. [Details](reference.md#anchor-sets-judging-and-the-report).
 

@@ -131,8 +131,9 @@ def test_then_start_reads_judgekeeper_toml(tmp_path, capsys, terminal, no_labeli
     code = main(["start", str(tmp_path)])
     out = capsys.readouterr().out
     assert code == 0
-    assert "Your judge's results: history/evals.jsonl, read as judgekeeper.toml says" in out
-    assert "Your judge: Safe wording with claude-opus-5" in out
+    assert "  Eval tool       your own format (read as judgekeeper.toml says)" in out
+    assert "  Results file    history/evals.jsonl (saved " in out
+    assert "  Judge model     claude-opus-5" in out
     (found,) = no_labeling
     assert found.tool == "mapped" and len(found.pool.answers) == 42  # 48 less 6 rule-made
 

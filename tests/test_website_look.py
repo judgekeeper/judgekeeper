@@ -21,7 +21,7 @@ import re
 import shlex
 from pathlib import Path
 
-from judgekeeper import start_label, start_page, targets
+from judgekeeper import start_label, start_page
 from judgekeeper.cli import _parser
 from tests.website_pages import MORE, NAV, ROOT, WEBSITE, Element, pages, parse
 
@@ -409,7 +409,8 @@ def test_the_result_pictures_say_what_judgekeeper_would_say_for_their_numbers():
             if page == GUIDE:
                 assert want["line"] in _flat(tile)
         if page == GUIDE:
-            assert content["verdict"]["detail"] in _flat(box)
+            assert content["verdict"]["detail"] is None  # amber: the one line says it all
+            assert "<span>" not in box.text()
             assert [t["name"] for t in content["tiles"]] == [
                 _all(t, "small")[0].text() for t in tiles]
 
@@ -418,11 +419,12 @@ def test_the_labeling_picture_uses_the_products_words():
     (mini,) = [el for el in _els(GUIDE) if "mini" in el.classes()]
     flat = _flat(mini)
     page = start_page.label_page(None, None)
-    for words in ("The question", "The answer", "Your progress", "See my result →",
-                  "Is this answer correct? Your judge's verdict is hidden."):
+    for words in ("The question", "Your app's answer", "Your progress", "See your result →",
+                  "Mark each answer Pass or Fail. What your judge decided stays hidden."):
         assert words in flat and words in page, words
-    rough = targets.line({"check": "rough", "wide": {}})
-    assert rough in flat  # the line under the meters at a rough check
+    assert "Fail ←" in flat and "Pass →" in flat  # the keys the product shows
+    rough = start_label.status_line({"check": "rough", "wide": {}})
+    assert rough in flat  # the line under the meters once a result can be shown
 
 
 # Older pages -----------------------------------------------------------------------------

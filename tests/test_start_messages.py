@@ -2,7 +2,7 @@
 printed, `--no-browser` and No, the exit code for "stopped at a question", resuming, the
 judge's rule cut short, choosing a judge, and `--ask-again` before any labels.
 
-The person's labels decide Correct and Wrong; the judge's fails only decide how the answers
+The person's marks decide Pass and Fail; the judge's fails only decide how the answers
 are picked. So a judge that passes nearly everything goes on to labeling, with a note.
 """
 
@@ -30,6 +30,7 @@ from tests.start_projects import (
     split,
     table_project,
 )
+from tests.test_start_find import ok
 
 QUESTION = start.EXIT_QUESTION
 
@@ -82,7 +83,7 @@ def test_two_fails_in_sixty_go_on_to_labeling_with_an_honest_note(tmp_path, caps
     code, out, _ = run(capsys, tmp_path, "--yes")
     assert code == 0 and no_labeling
     assert ("Your judge failed only 2 of 60 answers. That may mean it passes too much: your "
-            "labels will show it.") in out
+            "marks will show it.") in out
     assert "You'll see all 2 it failed among the first 10, then answers it passed." in out
     for wrong in ("too few", "Make more answers", "half from", "may not reach",
                   "Labeling anyway"):
@@ -119,7 +120,7 @@ def test_few_passes_is_the_same_the_other_way_round(tmp_path, capsys):
     promptfoo_project(tmp_path, split(3, 40))
     _, out, _ = run(capsys, tmp_path, "--yes")
     assert ("Your judge passed only 3 of 43 answers. That may mean it fails too much: your "
-            "labels will show it.") in out
+            "marks will show it.") in out
     assert "You'll see all 3 it passed among the first 10, then answers it failed." in out
 
 
@@ -135,41 +136,44 @@ def test_the_picking_line_matches_the_queue():
         assert last_fail < shown <= last_fail + 10
 
 
-def test_the_targets_are_about_your_labels(tmp_path, capsys):
+def test_the_next_lines_say_what_to_do_and_why(tmp_path, capsys):
+    """No targets, no time estimate, no "label": the two Next lines, then the question."""
     promptfoo_project(tmp_path, split(40, 20))
     _, out, _ = run(capsys, tmp_path, "--yes")
-    assert "  A rough check needs 15 you mark Correct and 15 you mark Wrong." in out
-    assert "  A reliable result needs 25 you mark Correct and 25 you mark Wrong." in out
-    assert "judgekeeper picks half from the judge's" in out  # both groups are big enough
+    after = out[out.index("Its decisions"):]
+    assert after.splitlines()[1:5] == [
+        f"  {ok()} Your judge made a real decision on every answer.", "",
+        "Next: in your browser, mark each answer Pass or Fail.",
+        "This shows how often your judge agrees with you."]
+    for gone in ("rough check", "reliable", "minutes", "you mark Correct", "You will label",
+                 "picks half"):
+        assert gone not in after, gone
 
 
-def test_a_reliable_result_out_of_reach_is_said(tmp_path, capsys):
+def test_with_enough_of_both_nothing_is_said_about_the_picking(tmp_path, capsys):
     promptfoo_project(tmp_path, split(25, 15))
     _, out, _ = run(capsys, tmp_path, "--yes")
-    assert ("  A reliable result needs 25 you mark Correct and 25 you mark Wrong: that takes "
-            "50 answers, and you have 40.") in out
-    assert "  A rough check needs 15 you mark Correct and 15 you mark Wrong." in out
+    assert "You'll see" not in out and "failed only" not in out
 
 
 def test_too_few_answers_says_the_real_count(tmp_path, capsys, terminal):
     promptfoo_project(tmp_path, split(20, 2))
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "You have 22 answers; a rough check needs at least 30." in out
+    assert "You have 22 answers. judgekeeper needs at least 30 to show a result." in out
     assert "with some the judge failed" not in out and "too few for a result" not in out
     assert "Make more answers with your own eval, then run judgekeeper start" in out
-    assert "Label the 22 you have anyway? The result will say how unsure it is. [y/N]" in out
+    assert "Mark the 22 you have anyway? The result will have wide ranges. [y/N]" in out
 
 
 def test_too_few_with_yes_says_one_line_and_goes_on(tmp_path, capsys, no_labeling):
     promptfoo_project(tmp_path, split(20, 2))
     code, out, _ = run(capsys, tmp_path, "--yes")
     assert code == 0 and no_labeling
-    assert out.count("a rough check needs at least 30") == 1
-    assert "Labeling anyway, as you asked (--yes)." in out
-    assert "Make more answers" not in out and "Label the 22" not in out
-    assert ("  A rough check needs 15 you mark Correct and 15 you mark Wrong: that takes 30 "
-            "answers, and you have 22.") in out
+    assert out.count("needs at least 30 to show a result") == 1
+    assert "Going on anyway, as you asked (--yes)." in out
+    assert "Make more answers" not in out and "Mark the 22" not in out
+    assert "Next: in your browser, mark each answer Pass or Fail." in out
 
 
 COSTS = "  Running your eval again makes model calls, so it costs money."
@@ -269,9 +273,9 @@ def test_the_open_hint_keeps_a_label_map_and_no_browser(tmp_path, capsys, monkey
     _labels_need_a_map(tmp_path / "proj")
     code, out, _ = run(capsys, "proj", "--label-map", "good=pass,bad=fail", "--no-browser")
     assert code == QUESTION
-    assert ("Start the labeling page? Run judgekeeper start proj --label-map good=pass,bad=fail "
+    assert ("Start it now? Run judgekeeper start proj --label-map good=pass,bad=fail "
             "--no-browser --yes to start it (it prints a link).") in out
-    code, _, _ = follow(capsys, out, "Start the labeling page?")
+    code, _, _ = follow(capsys, out, "Start it now?")
     assert code == 0
     assert no_labeling[-1]["open_browser"] is False
 
@@ -287,8 +291,8 @@ def test_the_open_hint_keeps_the_judge_you_chose(tmp_path, capsys, monkeypatch, 
     (tmp_path / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out, _ = run(capsys, "--metric", "tone")
     assert code == QUESTION
-    assert "Open the labeling page? Run judgekeeper start --metric tone --yes to open it." in out
-    code, again, _ = follow(capsys, out, "Open the labeling page?")
+    assert "Open it now? Run judgekeeper start --metric tone --yes to open it." in out
+    code, again, _ = follow(capsys, out, "Open it now?")
     assert code == 0 and "Several judges" not in again
     assert no_labeling[-1]["found"].metric == "tone"
 
@@ -298,9 +302,9 @@ def test_the_too_few_hint_keeps_your_flags(tmp_path, capsys, monkeypatch, no_lab
     table_project(tmp_path / "proj", ["good"] * 20 + ["bad"] * 2)
     code, out, _ = run(capsys, "proj", "--label-map", "good=pass,bad=fail", "--port", "8999")
     assert code == QUESTION
-    assert ("Label the 22 you have anyway? Run judgekeeper start proj --label-map "
+    assert ("Mark the 22 you have anyway? Run judgekeeper start proj --label-map "
             "good=pass,bad=fail --port 8999 --yes to say yes.") in out
-    code, _, _ = follow(capsys, out, "Label the 22 you have anyway?")
+    code, _, _ = follow(capsys, out, "Mark the 22 you have anyway?")
     assert code == 0
     assert no_labeling[-1]["port"] == 8999
 
@@ -311,9 +315,9 @@ def test_the_continue_hint_keeps_your_flags(tmp_path, capsys, monkeypatch, no_la
     start_label.prepare(start.find_judge(tmp_path / "proj"), say=lambda line="": None)
     code, out, _ = run(capsys, "proj", "--no-browser")
     assert code == QUESTION
-    assert ("Continue labeling? Run judgekeeper start proj --no-browser --yes to continue, or "
-            "judgekeeper start proj --no-browser --new to start over.") in out
-    code, _, _ = follow(capsys, out, "Continue labeling?")
+    assert ("You marked 0 answers. Carry on? Run judgekeeper start proj --no-browser --yes to "
+            "carry on, or judgekeeper start proj --no-browser --new to start over.") in out
+    code, _, _ = follow(capsys, out, "Carry on?")
     assert code == 0
     assert no_labeling[-1]["ws"].root == (tmp_path / "proj").resolve()
 
@@ -347,10 +351,10 @@ def test_no_browser_asks_to_start_the_page(tmp_path, capsys, terminal, monkeypat
     terminal.append("n")
     code, out, _ = run(capsys, "--no-browser")
     assert code == 0
-    assert "Start the labeling page? It will print a link. [Y/n]" in out
-    assert "Open the labeling page" not in out
+    assert "Start it now? It prints a link. [Y/n]" in out
+    assert "Open it now" not in out
     assert out.rstrip().splitlines()[-1] == ("OK. Run judgekeeper start --no-browser when "
-                                             "you're ready to label.")
+                                             "you're ready.")
 
 
 def test_no_at_a_terminal_says_how_to_come_back(tmp_path, capsys, terminal, monkeypatch):
@@ -359,8 +363,8 @@ def test_no_at_a_terminal_says_how_to_come_back(tmp_path, capsys, terminal, monk
     terminal.append("n")
     code, out, _ = run(capsys)
     assert code == 0
-    assert "Open the labeling page now? [Y/n]" in out
-    assert out.rstrip().splitlines()[-1] == "OK. Run judgekeeper start when you're ready to label."
+    assert "Open it now? [Y/n]" in out
+    assert out.rstrip().splitlines()[-1] == "OK. Run judgekeeper start when you're ready."
     assert not (tmp_path / ".judgekeeper").exists()
 
 
@@ -405,15 +409,16 @@ def test_resuming_names_the_results_and_the_counts(tmp_path, capsys, terminal):
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     lines = [line.rstrip() for line in out.splitlines()]
-    asked = lines.index("You labeled 0 (Correct 0, Wrong 0). Continue? [Y/n]")
-    assert lines[asked - 1] == "Using results.json: the judge passed 20 and failed 12."
+    asked = lines.index("You marked 0 answers. Carry on? [Y/n]")
+    assert lines[asked - 1] == "Carrying on with results.json: your judge passed 20 and failed 12."
 
 
 def test_the_rule_is_cut_at_a_word():
     rule = ("The answer is polite, is correct for a small UK online homeware shop (no made-up "
             "promises, never reveals passwords), and gives the customer a clear next step.")
-    assert start.rubric_line(rule) == "The answer is polite, is correct for a small UK online…"
-    assert start.rubric_line("x" * 100) == "x" * 59 + "…"  # no word to cut at
+    assert start.rubric_line(rule) == ("The answer is polite, is correct for a small UK online "
+                                       "homeware shop…")
+    assert start.rubric_line("x" * 100) == "x" * 69 + "…"  # no word to cut at
 
 
 def test_after_choosing_a_judge_it_says_the_flag_for_next_time(tmp_path, capsys, terminal):
@@ -440,8 +445,8 @@ def test_ask_again_before_labels_says_what_it_will_do(tmp_path, capsys, monkeypa
     code, out, _ = run(capsys, "--ask-again", "--no-browser")
     assert code == 2
     assert out.splitlines() == [
-        ("There is no result to ask about yet: asking your judge again needs your labels. "
-         "Label first: judgekeeper start --no-browser --yes"),
+        ("There is no result to ask about yet: asking your judge again needs your marks. "
+         "Mark answers first: judgekeeper start --no-browser --yes"),
         ("Then judgekeeper start --no-browser --ask-again shows the plan (how many calls, the "
          "cost, the key's name) and asks before any call."),
     ]
@@ -463,19 +468,19 @@ def test_ask_again_at_a_terminal_needs_no_yes_to_label(tmp_path, capsys, termina
     monkeypatch.chdir(tmp_path)
     promptfoo_project(tmp_path, split(20, 12))
     _, out, _ = run(capsys, "--ask-again")
-    assert "Label first: judgekeeper start\n" in out
+    assert "Mark answers first: judgekeeper start\n" in out
 
 
 # --review, --ask-again and --try-new-judge before a result -----------------------------------
 
 PLAN = "shows the plan (how many calls, the cost, the key's name) and asks before any call."
 BEFORE = {
-    "--review": ("There is no result to review yet: a review needs your labels.",
+    "--review": ("There is no result to review yet: a review needs your marks.",
                  "opens the answers where you and your judge disagree, to look at again."),
     "--ask-again": (("There is no result to ask about yet: asking your judge again needs "
-                     "your labels."), PLAN),
+                     "your marks."), PLAN),
     "--try-new-judge": (("There is no result yet to try a new judge on: trying one needs your "
-                         "labels."), PLAN),
+                         "marks."), PLAN),
 }
 
 
@@ -488,7 +493,7 @@ def test_before_a_result_each_flag_names_the_command_to_run_first(tmp_path, caps
     assert code == start.EXIT_USAGE  # not a question: there is nothing to do yet
     first, then = BEFORE[flag]
     assert out.splitlines()[:2] == [
-        f"{first} Label first: judgekeeper start --no-browser --yes",
+        f"{first} Mark answers first: judgekeeper start --no-browser --yes",
         f"Then judgekeeper start --no-browser {flag} {then}"]
 
 
@@ -501,7 +506,7 @@ def test_the_command_to_run_first_works_as_printed(tmp_path, capsys, monkeypatch
     if started:  # labeling started, not finished
         start_label.prepare(start.find_judge(tmp_path), say=lambda line="": None)
     _, out, _ = run(capsys, flag, "--metric", "llm-rubric")
-    label = re.search(r"Label first: (.+)$", out, re.MULTILINE)[1]
+    label = re.search(r"Mark answers first: (.+)$", out, re.MULTILINE)[1]
     assert label == "judgekeeper start --metric llm-rubric --yes"
     code, out, _ = run(capsys, *split_command(label)[2:])
     assert code == 0 and no_labeling, out
@@ -513,4 +518,4 @@ def test_at_a_terminal_label_first_needs_no_yes(tmp_path, capsys, terminal, monk
     promptfoo_project(tmp_path, split(20, 12))
     terminal += ["3"] * 3  # the menu, if one is offered: stop
     _, out, _ = run(capsys, flag)
-    assert "Label first: judgekeeper start\n" in out
+    assert "Mark answers first: judgekeeper start\n" in out

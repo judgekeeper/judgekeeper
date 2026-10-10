@@ -60,14 +60,15 @@ Then start the labeling page for them: `judgekeeper start --yes --no-browser`. I
 local page (127.0.0.1); the command keeps running and prints a link that includes a token.
 The page opens only with that full link, and the link changes each time the command starts.
 So ask them to run `judgekeeper start` in their own terminal, or start it in the background
-and give them the exact link it printed. Keys: 1 Correct, 2 Wrong, S skip, U undo.
+and give them the exact link it printed. Keys: ← Fail, → Pass, S skip, U undo.
 
-Stop. Tell the person to label and to come back when done. Do not continue without labels.
+Stop. Tell the person to mark the answers and to come back when done. Do not continue
+without their marks (labeling needs the person).
 
 ## 3. Tell the result in plain words
 
-- First the plain sentence judgekeeper prints (of the answers the person marked Correct,
-  how many the judge passed; of those marked Wrong, how many it failed), then its verdict.
+- First the two plain sentences judgekeeper prints ("When you said Pass, your judge also
+  said Pass 83% of the time.", and the same for Fail), then its one coloured line.
 - TPR: of the answers people passed, how many the judge passed.
 - TNR: of the answers people failed, how many the judge failed. A judge that passes
   everything has TPR 1.0 and TNR 0.0.

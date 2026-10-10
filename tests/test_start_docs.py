@@ -51,7 +51,7 @@ def start_screen(tmp_path, monkeypatch, capsys) -> list[str]:
     assert main(["start"]) == 0
     out = capsys.readouterr().out.replace(str(project.resolve()), SHOWN_PROJECT)
     lines = [line.rstrip() for line in out.strip("\n").splitlines()]
-    return lines[:lines.index("Open the labeling page now? [Y/n]") + 1]  # up to the question
+    return lines[:lines.index("Open it now? [Y/n]") + 1]  # up to the question
 
 
 def _els(page: str) -> list[Element]:
@@ -88,8 +88,9 @@ def _sections(path) -> dict[str, str]:
 def test_the_screen_shows_what_was_found_then_asks_to_open_the_page(tmp_path, monkeypatch, capsys, utc):
     screen = start_screen(tmp_path, monkeypatch, capsys)
     assert screen[0] == f"Looking in {SHOWN_PROJECT} ..."
-    assert "✓ Your eval tool: promptfoo (results.json, saved 2026-10-03 14:12)" in screen
-    assert screen[-1] == "Open the labeling page now? [Y/n]"
+    assert "judgekeeper found your LLM-as-a-judge:" in screen
+    assert "  Results file    results.json (saved 3 Oct 2026, 14:12)" in screen
+    assert screen[-1] == "Open it now? [Y/n]"
 
 
 @pytest.mark.parametrize("page", ["start.html"])
@@ -287,7 +288,7 @@ def test_the_guide_says_what_comes_after_the_first_result():
     text = GUIDE.read_text(encoding="utf-8")
     section = text[text.index("### After your first result"):text.index("## Why")]
     for needed in ("--review", "--ask-again", "--try-new-judge", "--label-more",
-                   "Go ahead? [y/N]", "by name only", "10 Correct and 10 Wrong"):
+                   "Go ahead? [y/N]", "by name only", "10 Pass and 10 Fail"):
         assert needed in section, needed
 
 

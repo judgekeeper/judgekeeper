@@ -150,7 +150,7 @@ def test_step_a_holds_no_first_label_and_no_judge_verdict(tmp_path):
             assert word not in text, word
         for i in range(36):
             assert f"reason {i}" not in page
-        assert "Look again at a few answers. Your judge's verdict is still hidden." in page
+        assert "Mark it once more. Your judge's answer stays hidden for now." in page
     finally:
         server.stop()
         thread.join(5)
@@ -159,8 +159,8 @@ def test_step_a_holds_no_first_label_and_no_judge_verdict(tmp_path):
 def test_step_a_has_not_sure_undo_and_a_counter(tmp_path):
     ws, _ = _reviewable(tmp_path)
     page = start_review.page_template(ws)
-    for needed in ("Correct", "Wrong", "Not sure", "Undo", "<kbd>3</kbd>", "<kbd>U</kbd>",
-                   " of "):
+    for needed in ("Fail <kbd>←</kbd>", "Pass <kbd>→</kbd>", "Not sure <kbd>N</kbd>", "Undo",
+                   "<kbd>U</kbd>", " of "):
         assert needed in page, needed
 
 
@@ -222,12 +222,12 @@ def test_you_said_names_the_first_and_the_second_look(tmp_path):
     session = ReviewSession(ws)
     _second_look(session, {p1: "pass", p2: "unsure"})
     said = {i["id"]: "".join(t for t, _ in i["said"]) for i in session.state()["items"]}
-    assert said[p1] == "You said: Wrong (and Correct on a second look)"
-    assert said[p2] == "You said: Wrong (and not sure on a second look)"
-    assert said[p3] == "You said: Wrong (and Wrong again on a second look)"
+    assert said[p1] == "You said: Fail (and Pass on a second look)"
+    assert said[p2] == "You said: Fail (and not sure on a second look)"
+    assert said[p3] == "You said: Fail (and Fail again on a second look)"
     bold = [t for t, b in next(i for i in session.state()["items"] if i["id"] == p3)["said"]
             if b]
-    assert bold == ["Wrong", "Wrong"]
+    assert bold == ["Fail", "Fail"]
 
 
 def test_step_b_choices_undo_and_the_files(tmp_path):
@@ -368,13 +368,13 @@ def test_the_review_lines_with_hand_worked_numbers(tmp_path):
     assert block["second_look"]["tpr"] == pytest.approx(18 / 19)
     assert block["second_look"]["tnr"] == pytest.approx(15 / 17)
     assert review_lines(block) == [
-        ("On a second look without the judge, you changed 2 of the 5 disagreements and 0 of "
-         "the 5 answers you had agreed on. With your second-look labels: of the answers that "
-         "should pass, your judge passed about 95%; of those that should fail, it failed about "
-         "88%."),
-        ("After seeing the judge: you called 3 judge mistakes and 1 unclear rule, and said you "
-         "were wrong on 1 answer."),
-        "Your first labels stay the main result.",
+        ("On a second look without your judge, you changed 2 of the 5 disagreements and 0 of "
+         "the 5 answers you had agreed on. With your second-look marks: when you said Pass, "
+         "your judge also said Pass about 95% of the time; when you said Fail, it also said "
+         "Fail about 88% of the time."),
+        ("After seeing what your judge said: your judge was wrong on 3 answers, the rule is "
+         "unclear on 1 answer, and you were wrong on 1 answer."),
+        "Your first marks stay the main result.",
     ]
     assert r["tpr"] == pytest.approx(17 / 19) and r["tnr"] == pytest.approx(14 / 17)
 
@@ -440,9 +440,9 @@ def test_nothing_changed_on_a_second_look_gives_no_numbers_line(tmp_path):
     session = ReviewSession(ws)
     _second_look(session)
     lines = review_lines(json.loads(ws.result_json.read_text(encoding="utf-8"))["review"])
-    assert lines[0] == "On a second look without the judge, you kept all 10 of your labels."
-    assert "second-look labels" not in " ".join(lines)
-    assert lines[-1] == "Your first labels stay the main result."
+    assert lines[0] == "On a second look without your judge, you kept all 10 of your marks."
+    assert "second-look marks" not in " ".join(lines)
+    assert lines[-1] == "Your first marks stay the main result."
 
 
 def test_no_review_block_before_step_a_is_done(tmp_path):
@@ -460,8 +460,8 @@ def test_step_b_so_far_is_said_while_unfinished(tmp_path):
     _second_look(session)
     session.update({"id": flipped["pass"][0], "choice": "judge_wrong"})
     lines = review_lines(json.loads(ws.result_json.read_text(encoding="utf-8"))["review"])
-    assert ("After seeing the judge (1 of 5 so far): you called 1 judge mistake and 0 unclear "
-            "rules, and said you were wrong on 0 answers.") in lines
+    assert ("After seeing what your judge said (1 of 5 so far): your judge was wrong on 1 "
+            "answer, the rule is unclear on 0 answers, and you were wrong on 0 answers.") in lines
 
 
 # The result -------------------------------------------------------------------------------
@@ -471,9 +471,9 @@ def test_the_result_counts_the_disagreements_and_says_how_to_review(tmp_path):
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert r["disagreements"] == 5
     lines = start_label.result_lines(r)
-    assert "  Review the 5 disagreements:  judgekeeper start --review" in lines
+    assert "  See where you disagree (5):  judgekeeper start --review" in lines
     page = ws.result_html.read_text(encoding="utf-8")
-    assert "Review the 5 disagreements" in page
+    assert "See where you disagree (5)" in page
     assert "<code>judgekeeper start --review</code>" in page
 
 
@@ -487,7 +487,7 @@ def test_no_review_line_without_disagreements(tmp_path):
 def test_a_one_disagreement_line_is_singular(tmp_path):
     ws, _ = _reviewable(tmp_path, flip_pass=1, flip_fail=0)
     lines = start_label.result_lines(json.loads(ws.result_json.read_text(encoding="utf-8")))
-    assert "  Review the 1 disagreement:  judgekeeper start --review" in lines
+    assert "  See where you disagree (1):  judgekeeper start --review" in lines
 
 
 def test_the_result_after_a_review_shows_the_lines_and_the_files(tmp_path):
@@ -499,7 +499,7 @@ def test_the_result_after_a_review_shows_the_lines_and_the_files(tmp_path):
         assert f"  {line}" in lines
     assert not any("--review" in line for line in lines)  # done: nothing left to review
     page = ws.result_html.read_text(encoding="utf-8")
-    assert "you called 3 judge mistakes" in page
+    assert "your judge was wrong on 3 answers" in page
     assert "judge-mistakes.csv" in page and "rule-unclear.csv" in page
     assert page.count("<p class=\"sentence\">") == 2  # the main sentences are unchanged
 
@@ -508,7 +508,7 @@ def test_the_live_result_page_has_a_review_button(tmp_path):
     ws, _ = _reviewable(tmp_path, labeled=24)
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     html = start_label.result_html(r, back="/?token=abc")
-    assert 'href="/review?token=abc"' in html and "Review them" in html
+    assert 'href="/review?token=abc"' in html and "See where you disagree" in html
 
 
 def test_the_labeling_server_switches_to_the_review(tmp_path):
@@ -549,8 +549,8 @@ def test_the_review_ends_on_the_result_page_and_stops(tmp_path):
         assert body["summary"]["done"]
         resp, payload = client.request("GET", "/result")
         assert resp.status == 200
-        assert (b"you called 0 judge mistakes and 5 unclear rules, and said you were wrong on "
-                b"0 answers") in payload
+        assert (b"your judge was wrong on 0 answers, the rule is unclear on 5 answers, and you "
+                b"were wrong on 0 answers") in payload
         thread.join(5)
         assert not thread.is_alive()
     finally:
@@ -560,7 +560,7 @@ def test_the_review_ends_on_the_result_page_and_stops(tmp_path):
 def test_step_b_page_shows_the_three_choices(tmp_path):
     ws, _ = _reviewable(tmp_path)
     page = start_review.page_template(ws)
-    for needed in ("The judge was wrong", "I was wrong", "The rule is unclear",
+    for needed in ("Your judge was wrong", "I was wrong", "The rule is unclear",
                    "See what your judge said", "Your judge said", "Your judge's reason"):
         assert needed in page, needed
 
@@ -609,11 +609,11 @@ def test_the_menu_after_a_result(tmp_path, capsys, served, terminal):
     terminal.append("3")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and served == []
-    assert f"Your last result ({made}): rough check (19 Correct, 17 Wrong)." in out
+    assert f"Your last result ({made}), from the 36 answers you marked (19 Pass, 17 Fail)." in out
     assert "What next?" in out
-    assert "  1. Review the 5 answers where you and your judge disagree   (free)" in out
-    assert "  2. Ask your judge again about your 36 labeled answers       (72 calls, " in out
-    assert "  3. Nothing for now" in out and "Label more" not in out  # every answer labeled
+    assert "  1. See where you disagree (5)" in out and "(free)" in out
+    assert "  2. Ask your judge again about your 36 marked answers   (72 calls, " in out
+    assert "  3. Nothing for now" in out and "Mark more answers" not in out  # every answer marked
     assert "Choose [1-3]:" in out
 
 
@@ -626,7 +626,7 @@ def test_menu_choice_one_opens_the_review(tmp_path, capsys, served, terminal):
 
 def test_menu_choice_three_opens_the_labeling_page(tmp_path, capsys, served, terminal):
     ws, _ = _reviewable(tmp_path, labeled=30)  # 6 answers left to label
-    terminal.append("3")  # 1 review, 2 ask again, 3 label more
+    terminal.append("3")  # 1 see where you disagree, 2 ask again, 3 mark more
     code, _, _ = run(capsys, tmp_path)
     assert code == 0 and served == [("label", ws.dir)]
 
@@ -654,16 +654,16 @@ def test_with_no_disagreements_the_menu_has_no_review(tmp_path, capsys, served, 
     terminal.append("3")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "Review the" not in out
+    assert "See where you disagree" not in out
     assert "  1. Ask your judge again" in out
-    assert "  2. Label more" in out and "Choose [1-3]:" in out
+    assert "  2. Mark more answers" in out and "Choose [1-3]:" in out
 
 
 def test_label_more_with_nothing_left_says_so(tmp_path, capsys, served):
     _reviewable(tmp_path)  # every answer labeled
     code, out, _ = run(capsys, tmp_path, "--label-more")
     assert code == 0 and served == []
-    assert ("Every saved answer is labeled. After your next eval run, run judgekeeper start "
+    assert ("Every saved answer is marked. After your next eval run, run judgekeeper start "
             "again.") in out
 
 
@@ -671,21 +671,22 @@ def test_review_with_no_disagreements_says_so(tmp_path, capsys, served):
     _reviewable(tmp_path, flip_pass=0, flip_fail=0)
     code, out, _ = run(capsys, tmp_path, "--review")
     assert code == 0 and served == []
-    assert "You and your judge agree on every answer you labeled: nothing to review." in out
+    assert "You and your judge agree on every answer you marked: nothing to review." in out
 
 
 def test_review_without_a_result_says_to_label_first(tmp_path, capsys, served):
     promptfoo_project(tmp_path, split(20, 16))
     code, out, _ = run(capsys, tmp_path, "--review")
     assert code == 2 and served == []
-    assert "There is no result to review yet: a review needs your labels." in out
+    assert "There is no result to review yet: a review needs your marks." in out
 
 
 def test_review_says_what_the_two_steps_are(tmp_path, capsys, served):
     ws, _ = _reviewable(tmp_path)
     code, out, _ = run(capsys, tmp_path, "--review")
     assert code == 0 and served == [("review", ws.dir)]
-    assert "Review the 5 answers where you and your judge disagree. Free: no AI call." in out
+    assert ("See where you disagree: the 5 answers where you and your judge disagree. Free: no "
+            "AI call.") in out
     assert "Step 1: look again at 10 answers" in out
     assert "Step 2: see what your judge said" in out
 
@@ -695,7 +696,7 @@ def test_a_finished_review_says_its_lines_again(tmp_path, capsys, served):
     _full_review(ws, flipped)
     code, out, _ = run(capsys, tmp_path, "--review")
     assert code == 0 and served == []
-    assert "you called 3 judge mistakes" in out
+    assert "your judge was wrong on 3 answers" in out
     assert ".judgekeeper/judge-mistakes.csv" in out
 
 

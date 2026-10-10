@@ -38,11 +38,11 @@ Three rules, each with its reason:
    page (127.0.0.1); the command keeps running while I label and prints a link that
    includes a token. The page opens only with that full link, and the link changes each
    time the command starts, so ask me to run `judgekeeper start` in my own terminal, or
-   start it in the background and give me the exact link it printed. Keys: 1 Correct, 2
-   Wrong, S skip, U undo. Stop here and wait until I tell you I am done.
-5. Tell me the result: first the two plain sentences judgekeeper prints (of the answers
-   I marked Correct, how many the judge passed; of those I marked Wrong, how many it
-   failed) and its verdict line, then TPR, TNR and kappa with their ranges, and every
+   start it in the background and give me the exact link it printed. Keys: ← Fail, →
+   Pass, S skip, U undo. Stop here and wait until I tell you I am done.
+5. Tell me the result: first the two plain sentences judgekeeper prints ("When you said
+   Pass, your judge also said Pass 83% of the time.", and the same for Fail) and its one
+   coloured line, then TPR, TNR and kappa with their ranges, and every
    flag, each in plain words. Never give one "agreement" or "accuracy" figure on its
    own: a judge that passes everything scores high on it and catches nothing. Point me
    to `.judgekeeper/result.html`.

@@ -115,7 +115,9 @@ def test_start_reads_a_real_folder_store_and_leaves_it_as_it_was(project, capsys
     assert found.tool == "mlflow" and found.metric == "helpful"
     assert found.judge == "helpful with openai:/gpt-4.1"
     assert len(found.pool.answers) == 4
-    assert "Your eval tool: MLflow (mlruns, experiment folder-store)" in out
+    lines = start.found_lines(found)
+    assert "  Eval tool       MLflow" in lines
+    assert "  Results file    mlruns (experiment folder-store)" in lines
     assert out.count(NOTE) == 1
     assert ALLOW not in os.environ
     assert _state(project / "mlruns") == before

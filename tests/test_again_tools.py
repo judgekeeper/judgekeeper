@@ -547,7 +547,7 @@ def test_a_trace_judge_is_up_to_thirty_calls(tmp_path, stubs, monkeypatch):
     monkeypatch.setattr(mf, "assessment_info", lambda ws, metric: _info(
         name="tone", instructions=True, trace=True, traces=_traces(ws)))
     p = make_plan(ws, PY)
-    assert "  36 labeled answers × 2 times × 30 calls each = up to 2,160 judge calls." in \
+    assert "  36 marked answers × 2 times × 30 calls each = up to 2,160 judge calls." in \
         plan_lines(p)
 
 

@@ -80,8 +80,8 @@ def test_yes_exports_checks_and_carries_on(tmp_path, capsys, export, terminal):
         assert call.env[name] == "1", name
     assert (tmp_path / "promptfoo-results.json").is_file()
     assert not (tmp_path / ".judgekeeper" / "promptfoo-latest.json").exists()
-    assert "Your eval tool: promptfoo (promptfoo-results.json" in out
-    assert "36 answers with a verdict" in out
+    assert "  Results file    promptfoo-results.json (saved" in out
+    assert "Its decisions   36 answers" in out
 
 
 def test_a_run_from_another_project_is_deleted(tmp_path, capsys, export, terminal):

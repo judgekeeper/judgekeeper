@@ -124,7 +124,7 @@ def test_mlflow_prints_nothing_of_its_own(folder_only):
                              "--no-browser"], capture_output=True, text=True, env=env,
                             stdin=subprocess.DEVNULL, timeout=300, check=False)
     out = result.stdout + result.stderr
-    assert "Your eval tool: MLflow (mlruns, experiment qa-folder)" in out, out
+    assert "  Results file    mlruns (experiment qa-folder)" in out, out
     assert "mlflow." not in out and "INFO" not in out and "WARNING" not in out, out
     assert "MLFLOW_DISABLE_AGENT_HINT" not in out
 
@@ -223,7 +223,7 @@ def test_two_stores_without_a_terminal_use_mlflow_db_and_name_the_other(two, cap
     assert ("Two MLflow stores found: mlflow.db (qa-db) and mlruns/ (qa-folder). Using "
             "mlflow.db.") in out
     assert f"For the other one: judgekeeper start {quote_arg(two / 'mlruns')}" in out
-    assert "Your eval tool: MLflow (mlflow.db, experiment qa-db)" in out
+    assert "  Results file    mlflow.db (experiment qa-db)" in out
 
 
 def test_two_stores_at_a_terminal_ask(two, capsys, monkeypatch):
@@ -246,7 +246,7 @@ def test_start_reads_the_store_it_is_given(two, capsys, name, experiment):
     assert found.root == two.resolve()  # .judgekeeper/ goes next to the store, not inside
     assert found.store == name
     assert "Two MLflow stores" not in out
-    assert f"Your eval tool: MLflow ({name}, experiment {experiment})" in out
+    assert f"  Results file    {name} (experiment {experiment})" in start.found_lines(found)
 
 
 def test_the_workspace_of_a_store_path_is_the_project(two):

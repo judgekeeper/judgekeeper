@@ -15,7 +15,7 @@ default-No question as asking the judge again (`again`):
   (that is how the answers were picked), with the warning that a judge changed after seeing
   mistakes on these answers will look better on them;
 - then a confirmation check: answers from the newest results the person never marked, half
-  from the new judge's passes and half from its fails, aiming at 10 Correct and 10 Wrong.
+  from the new judge's passes and half from its fails, aiming at 10 Pass and 10 Fail.
 
 When Fix your judge set answers aside for this result (fix.json), the new judge is also tested
 on those first, as a change is there (start_fix.new_judge_test): how many it fixed and broke.
@@ -30,25 +30,23 @@ new judge again asks nothing again: it shows the saved numbers and offers the co
 from __future__ import annotations
 
 import json
-import sys
-import webbrowser
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 from judgekeeper import targets, weighted
 from judgekeeper.fingerprint import utc_now
-from judgekeeper.start_label import FOLDER, Workspace
+from judgekeeper.start_label import FOLDER, Workspace, say_opened
 
 TITLE = "Try your new judge"
 COMMAND = "--try-new-judge"
 QUICK = 10
-QUICK_STATUS = [(0, f"A quick check needs {QUICK} of each.", False),
-                (QUICK, "Quick check ready. More makes the ranges narrower.", True),
-                (targets.ROUGH, "Quick check ready, as many as a rough check.", True)]
+QUICK_STATUS = [(0, "Mark a few more new answers to see the result.", False),
+                (QUICK, ("You can see the result now. Marking more answers narrows its "
+                         "ranges."), True)]
 WARNING = ("You changed your judge after seeing mistakes on these answers, so it will look "
            "better on them.")
-CONFIRM = f"Mark {QUICK} Correct and {QUICK} Wrong new answers to confirm?"
-FAIR_TEST_FAILED = "Couldn't run the fair test on the set-aside answers."
+CONFIRM = f"Mark {QUICK} Pass and {QUICK} Fail new answers to confirm?"
+FAIR_TEST_FAILED = "Couldn't run the fair test on the answers kept aside."
 NO_NEW = ("Your newest results hold the same judge as your last check, so there is no new "
           "judge to try.")
 
@@ -265,9 +263,9 @@ def lines(block: dict) -> list[str]:
     tail = " (close copy)" if block.get("close") else ""
     out = [*block["aside"]["lines"], ""] if block.get("aside") else []
     out.append(f"Your new judge vs your old judge, on your {block['counted']} marked answers:")
-    width = len("Of the answers you marked Correct, the judge passed:")
-    for key, marked, did in (("tnr", "Wrong", "failed"), ("tpr", "Correct", "passed")):
-        label = f"Of the answers you marked {marked}, the judge {did}:".ljust(width)
+    width = len("When you said Pass, the judge also said Pass:")
+    for key, said in (("tnr", "Fail"), ("tpr", "Pass")):
+        label = f"When you said {said}, the judge also said {said}:".ljust(width)
         out.append(f"  {label}  old {_share(old[key], old[f'{key}_interval'])}  ->  "
                    f"new {_share(now[key], now[f'{key}_interval'])}{tail}")
     if old.get("source") == "asked again":
@@ -295,7 +293,7 @@ def offer_confirmation(ws: Workspace, new: NewJudge, block: dict, talk, port: in
     from judgekeeper import start
 
     if not start._interactive() and not talk.yes:
-        talk.say(f"To confirm on new answers, mark {QUICK} Correct and {QUICK} Wrong: "
+        talk.say(f"To confirm on new answers, mark {QUICK} Pass and {QUICK} Fail: "
                  f"{talk.command(COMMAND)}")
         return 0
     if not talk.confirm(CONFIRM, default=True, with_yes=True, hint=CONFIRM):
@@ -321,8 +319,7 @@ def confirmation_workspace(ws: Workspace, new: NewJudge, block: dict, talk) -> W
                  "on new questions, then try again.")
         return None
     pool = Pool(answers=answers)
-    for count, did, label in ((pool.n_pass, "passed", "Correct"),
-                              (pool.n_fail, "failed", "Wrong")):
+    for count, did, label in ((pool.n_pass, "passed", "Pass"), (pool.n_fail, "failed", "Fail")):
         if count < QUICK:
             talk.say(f"Your new judge {did} only {count} of the answers you have not marked, "
                      f"so you may not reach {QUICK} {label}.")
@@ -335,8 +332,7 @@ def confirmation_page(cws: Workspace) -> str:
     from judgekeeper.start_page import label_page
 
     data = cws.data()
-    return label_page(data.get("description"), data.get("rule"),
-                      marks=((QUICK, "quick"), (targets.ROUGH, "rough")))
+    return label_page(data.get("description"), data.get("rule"), full=targets.ROUGH)
 
 
 def quick_status(session) -> dict:
@@ -364,12 +360,7 @@ def serve_confirmation(ws: Workspace, cws: Workspace, port: int, open_browser: b
         return result_html(_scrubbed(r), None if done else back)
 
     server = make_server(session, port, result=result, page=confirmation_page(cws))
-    print(f"Labeling page: {server.url}")  # not scrubbed: the token must stay whole
-    say(f"Every click is saved. Press Ctrl-C here to stop; run {command} {COMMAND} to "
-        "continue.")
-    sys.stdout.flush()
-    if open_browser:
-        webbrowser.open(server.url)
+    say_opened(server.url, open_browser, say, command, f" {COMMAND}")
     try:
         server.serve()
     except KeyboardInterrupt:
@@ -407,12 +398,12 @@ def finish_confirmation(ws: Workspace, cws: Workspace, session, say) -> dict:
 def confirmation_lines(c: dict) -> list[str]:
     n = c["labels"]["correct"] + c["labels"]["wrong"]
     check = ("quick check" if c["check"] == "quick" else
-             f"fewer than {QUICK} Correct or {QUICK} Wrong: the ranges are very wide")
+             f"fewer than {QUICK} Pass or {QUICK} Fail: the ranges are very wide")
     return [f"On {n} new answers you marked ({check}):",
-            (f"  Of the answers you marked Wrong, your new judge failed about "
-             f"{_share(c['tnr'], c['tnr_interval'])}."),
-            (f"  Of the answers you marked Correct, it passed about "
-             f"{_share(c['tpr'], c['tpr_interval'])}.")]
+            (f"  When you said Fail, your new judge also said Fail about "
+             f"{_share(c['tnr'], c['tnr_interval'])} of the time."),
+            (f"  When you said Pass, it also said Pass about "
+             f"{_share(c['tpr'], c['tpr_interval'])} of the time.")]
 
 
 __all__ = ["NO_NEW", "NewJudge", "View", "confirmation_page", "finish_confirmation", "lines",

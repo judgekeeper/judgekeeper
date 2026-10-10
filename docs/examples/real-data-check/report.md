@@ -12,7 +12,7 @@ With 50 labels per check (25 from each group), on 5 judges from 3 public dataset
 |---|---|---|---|---|
 | 25+25 labels | 50 | 96.0 | 94.6 (LLMBar × Claude Haiku 4.5, TNR) | 98.4 (LLMBar × Claude Haiku 4.5, TPR) |
 | 30+30 labels | 60 | 96.6 | 95.0 (LLMJudge × RMITIR-GPT4o, TPR) | 99.0 (LLMBar × Claude Haiku 4.5, TPR) |
-| start's rule (25 Correct + 25 Wrong) | 59 to 79 on average | 96.5 | 95.0 (MT-Bench × GPT-4, TNR) | 99.0 (LLMBar × Claude Haiku 4.5, TPR) |
+| start's rule (25 Pass + 25 Fail) | 59 to 79 on average | 96.5 | 95.0 (MT-Bench × GPT-4, TNR) | 99.0 (LLMBar × Claude Haiku 4.5, TPR) |
 
 A 96% range is expected to miss about 4 times in 100. With 1,000 checks, chance alone moves the share it holds by up to about 1.2 either way (95 times in 100).
 
@@ -32,7 +32,7 @@ The values from all of each dataset's human labels.
 
 Held in 100 checks, TPR / TNR / real pass rate, 1,000 checks each.
 
-| Judge | 25+25 labels | 30+30 labels | start's rule (25 Correct + 25 Wrong) |
+| Judge | 25+25 labels | 30+30 labels | start's rule (25 Pass + 25 Fail) |
 |---|---|---|---|
 | LLMBar × Claude Haiku 4.5 | 98.4 / 94.6 / 96.4 | 99.0 / 97.4 / 96.8 | 99.0 / 97.5 / 97.3 |
 | MT-Bench × GPT-4 | 96.0 / 95.7 / 96.5 | 95.9 / 97.0 / 97.4 | 95.7 / 95.0 / 95.5 |
@@ -46,7 +46,7 @@ Checks where a number could not be worked out: 0.
 
 Average width of the range (high end minus low end) and the median distance from the number to the value from all labels, TPR / TNR.
 
-| Judge | 25+25 labels | 30+30 labels | start's rule (25 Correct + 25 Wrong) |
+| Judge | 25+25 labels | 30+30 labels | start's rule (25 Pass + 25 Fail) |
 |---|---|---|---|
 | LLMBar × Claude Haiku 4.5 | width 0.15 / 0.22, error 0.02 / 0.04 | width 0.14 / 0.21, error 0.02 / 0.03 | width 0.14 / 0.21, error 0.02 / 0.04 |
 | MT-Bench × GPT-4 | width 0.18 / 0.33, error 0.03 / 0.05 | width 0.17 / 0.30, error 0.03 / 0.05 | width 0.17 / 0.30, error 0.03 / 0.05 |
@@ -70,7 +70,7 @@ judgekeeper weighs each group by its size in the pool, because a check labels as
 
 The first of the 1,000 checks with 25 + 25 labels for each judge, not picked by hand. Kappa has no range.
 
-| Judge | Marked Correct (of judge passes / fails) | TPR | TNR | Real pass rate | Kappa |
+| Judge | Marked Pass (of judge passes / fails) | TPR | TNR | Real pass rate | Kappa |
 |---|---|---|---|---|---|
 | LLMBar × Claude Haiku 4.5 | 21 of 25 / 0 of 25 | 1.00 (0.90 to 1.00), all labels 0.95 | 0.84 (0.71 to 0.94), all labels 0.87 | 0.45 (0.36 to 0.52), all labels 0.49 | 0.83, all labels 0.82 |
 | MT-Bench × GPT-4 | 16 of 25 / 7 of 25 | 0.82 (0.71 to 0.91), all labels 0.85 | 0.49 (0.36 to 0.65), all labels 0.56 | 0.52 (0.38 to 0.66), all labels 0.57 | 0.32, all labels 0.42 |
