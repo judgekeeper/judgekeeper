@@ -19,7 +19,8 @@ on its Why? box, which can take longer. It may also pass `switches`: a GET of on
 the session, the page and the result function (from labeling to the review of the
 disagreements) and sends the browser back to the page; a switch that returns None leaves them
 as they are. A session may answer POSTs to paths of its own (`posts`: path -> a function from
-the JSON body to the JSON answer), under the same token and Host rules.
+the JSON body to the JSON answer), under the same token and Host rules, and say what a body
+too big to read means on one (`too_long`: path -> the error).
 """
 
 from __future__ import annotations
@@ -300,6 +301,9 @@ def _handler(server: LabelServer):
                 return
             try:
                 length = int(self.headers.get("Content-Length") or 0)
+                too_long = getattr(server.session, "too_long", {})
+                if length > MAX_BODY and url.path in too_long:
+                    raise ValueError(too_long[url.path])
                 if not 0 < length <= MAX_BODY:
                     raise ValueError("expected a JSON body")
                 body = json.loads(self.rfile.read(length))

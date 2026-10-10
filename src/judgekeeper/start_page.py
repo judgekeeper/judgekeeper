@@ -1213,6 +1213,10 @@ FIX_BODY = """<main class="fix">
   });
   $("rc-save").addEventListener("click", function () {
     var button = $("rc-save");
+    if ($("rc-new").value.length > data.rule_change.max_paste) {
+      $("rc-status").textContent = "Too long to save. Paste only the new rule.";
+      return;
+    }
     button.disabled = true;
     postJSON("/fix/rule", {text: $("rc-new").value, how: how}).then(function (res) {
       button.disabled = false;

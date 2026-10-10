@@ -48,6 +48,7 @@ QUICK_STATUS = [(0, f"A quick check needs {QUICK} of each.", False),
 WARNING = ("You changed your judge after seeing mistakes on these answers, so it will look "
            "better on them.")
 CONFIRM = f"Mark {QUICK} Correct and {QUICK} Wrong new answers to confirm?"
+FAIR_TEST_FAILED = "Couldn't run the fair test on the set-aside answers."
 NO_NEW = ("Your newest results hold the same judge as your last check, so there is no new "
           "judge to try.")
 
@@ -222,7 +223,10 @@ def finish(ws: Workspace, view: View, plan, fresh, new: NewJudge) -> dict:
                                         "kappa", "interval_methods")},
         "confirmation": None, "notes": list(fresh.notes),
     }
-    aside = new_judge_test(ws, {i: v[0] for i, v in fresh.verdicts.items()}, new.change)
+    try:
+        aside = new_judge_test(ws, {i: v[0] for i, v in fresh.verdicts.items()}, new.change)
+    except Exception:  # noqa: BLE001 - the new judge's result stands without the fair test
+        aside = {"kind": "error", "lines": [FAIR_TEST_FAILED]}
     if aside is not None:
         block["aside"] = aside
     _write_json(fresh.folder / "new-judge.json", block)

@@ -559,3 +559,177 @@ def test_the_result_gets_a_fix_your_judge_card_with_the_latest_test(tmp_path, se
             "it fixed 6 and broke none.") in page
     lines = start_label.result_lines(r)
     assert "  Fix your judge:" in lines
+
+
+# After review: the search, one rule, markers, sizes, a failing fair test ------------------
+
+def _write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def test_the_promptfoo_config_wins_over_its_results_file(tmp_path):
+    from tests.start_projects import RUBRIC, promptfoo_data
+
+    _write(tmp_path / "promptfoo-results.json", json.dumps(promptfoo_data(split(2, 2)),
+                                                           indent=2))
+    _write(tmp_path / "promptfooconfig.yaml",
+           "tests:\n  - assert:\n      - type: llm-rubric\n        value: |\n"
+           "          Is polite and correct.\n          Second line of the rubric.\n")
+    assert start_fix_rule.locate_rule(tmp_path, RUBRIC, "promptfoo") == (
+        "promptfooconfig.yaml", 5, "Is polite and correct.")
+
+
+def test_the_deepeval_test_file_wins_over_its_runs(tmp_path):
+    from tests.start_projects import deepeval_data
+
+    data = json.dumps(deepeval_data(split(2, 2)), indent=2)
+    _write(tmp_path / ".deepeval" / ".latest_test_run.json", data)
+    _write(tmp_path / "a-run.json", data)  # a run copied out: read as results, never searched
+    _write(tmp_path / "tests" / "test_q.py",
+           'metric = GEval(\n    evaluation_steps=[\n        "Check each claim in the actual '
+           'output.",\n    ])\n')
+    rule = start.find_judge(tmp_path).rule
+    assert start_fix_rule.locate_rule(tmp_path, rule, "deepeval")[:2] == ("tests/test_q.py", 3)
+
+
+def test_the_inspect_task_wins_over_its_logs(tmp_path):
+    from tests.start_projects import inspect_data
+
+    log = json.dumps(inspect_data(split(2, 2)), indent=2)
+    _write(tmp_path / "logs" / "2026-10-02_support.json", log)
+    _write(tmp_path / "a-log.json", log)
+    _write(tmp_path / "mlruns" / "0" / "notes.txt",
+           "Grade the answer as C (correct) or I (incorrect).\n")
+    _write(tmp_path / "support_task.py",
+           'scorer = model_graded_qa(\n    instructions="Grade the answer as C (correct) or I '
+           '(incorrect).",\n)\n')
+    assert start_fix_rule.locate_rule(
+        tmp_path, "Grade the answer as C (correct) or I (incorrect).", "inspect")[:2] == (
+        "support_task.py", 2)
+
+
+def test_source_files_are_searched_before_others(tmp_path):
+    _write(tmp_path / "a-notes.html", "Be helpful to every customer.\n")
+    _write(tmp_path / "b" / "evals.py", "RULE = 'Be helpful to every customer.'\n")
+    assert start_fix_rule.locate_rule(tmp_path, "Be helpful to every customer.",
+                                      "records")[0] == "b/evals.py"
+
+
+def test_a_long_matched_line_is_cut(tmp_path):
+    _write(tmp_path / "evals.py", "RULE = 'Be helpful to every customer.' " + "x" * 300 + "\n")
+    line = start_fix_rule.locate_rule(tmp_path, "Be helpful to every customer.", "records")[2]
+    assert len(line) <= 120 and line.endswith("…")
+    assert line.startswith("RULE = 'Be helpful to every customer.' xxx")
+
+
+def test_a_failed_judge_call_has_no_rule_and_does_not_split_it(tmp_path):
+    from tests.start_projects import deepeval_project
+
+    path = deepeval_project(tmp_path, split(20, 16))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    md = data["testCases"][0]["metricsData"][0]
+    md.update(success=False, score=None, error="rate limited", verboseLogs=None)
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert start.find_judge(tmp_path).one_rule is True
+
+
+def test_deepeval_steps_it_wrote_itself_do_not_split_the_rule(tmp_path):
+    from tests.start_projects import deepeval_project
+
+    path = deepeval_project(tmp_path, split(20, 16))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for n, case in enumerate(data["testCases"]):
+        md = case["metricsData"][0]
+        md["verboseLogs"] = md["verboseLogs"].replace("Penalise any claim that is false.",
+                                                      f"Penalise false claim number {n}.")
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert start.find_judge(tmp_path).one_rule is True
+    # different criteria do split it
+    for n, case in enumerate(data["testCases"]):
+        md = case["metricsData"][0]
+        md["verboseLogs"] = md["verboseLogs"].replace("factually correct", f"correct {n}")
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert start.find_judge(tmp_path).one_rule is False
+
+
+@pytest.mark.parametrize("start_line, end_line", [
+    ("**NEW RULE START**", "**NEW RULE END**"),
+    ("`NEW RULE START`", "`NEW RULE END`"),
+    ("## NEW RULE START", "## NEW RULE END"),
+    ("NEW RULE START:", "NEW RULE END:"),
+    ("  new rule start  ", "New Rule End"),
+])
+def test_marker_lines_with_markdown_around_them(start_line, end_line):
+    reply = f"Here you go.\n{start_line}\nBe helpful and short.\n{end_line}\nDone."
+    assert start_fix_rule.new_rule_of(reply) == "Be helpful and short."
+
+
+def test_the_20000_characters_count_the_new_rule_not_the_whole_paste(tmp_path, seeded):
+    ws = too_easy_project(tmp_path)
+    fix = start_fix.Fix(ws)
+    chatter = "Some thoughts. " * 2000  # 30,000 characters around the rule
+    assert fix.save_rule(f"{chatter}\nNEW RULE START\nBe kind.\nNEW RULE END\n{chatter}",
+                         "pasted")["saved"]
+    with pytest.raises(ValueError, match="at most 20,000 characters"):
+        fix.save_rule("NEW RULE START\n" + "x" * 20_001 + "\nNEW RULE END", "pasted")
+    with pytest.raises(ValueError, match=r"^Too long to save\. Paste only the new rule\.$"):
+        fix.save_rule("x" * (start_fix_rule.MAX_PASTE + 1), "pasted")
+
+
+def test_a_paste_over_what_the_page_takes_says_too_long(tmp_path, seeded):
+    import socket
+
+    ws = too_easy_project(tmp_path)
+    fix = start_fix.Fix(ws)
+    server = label_mod.make_server(fix, port=0, page=start_fix.page_template(ws))
+    thread = threading.Thread(target=server.serve, daemon=True)
+    thread.start()
+    try:
+        with socket.create_connection(("127.0.0.1", server.port), timeout=5) as s:
+            s.sendall((f"POST /fix/rule?token={server.token} HTTP/1.1\r\n"
+                       f"Host: 127.0.0.1:{server.port}\r\nContent-Type: application/json\r\n"
+                       f"Content-Length: {label_mod.MAX_BODY + 1}\r\n\r\n").encode())
+            reply = s.recv(65536).decode()
+        assert reply.startswith(("HTTP/1.0 400", "HTTP/1.1 400"))
+        assert "Too long to save. Paste only the new rule." in reply
+        assert fix.state()["rule_change"]["max_paste"] == start_fix_rule.MAX_PASTE
+    finally:
+        server.stop()
+        thread.join(5)
+
+
+def test_a_failing_fair_test_leaves_the_new_judge_saved_and_shown(fixable, capsys,
+                                                                  monkeypatch):
+    start_fix.Fix(fixable)
+
+    def broken(self, new, change):
+        raise RuntimeError("the again folder is unreadable")
+
+    monkeypatch.setattr(start_fix.Fix, "test_new_judge", broken)
+    _new_run(fixable.root, verdicts=_fixed_judge())
+    code, out, _ = _try(capsys, fixable)
+    assert code == 0
+    assert "Couldn't run the fair test on the set-aside answers." in out
+    assert "Your new judge vs your old judge" in out
+    block = json.loads(fixable.result_json.read_text(encoding="utf-8"))["new_judge"]
+    assert block["new"]["tpr"] is not None
+    assert block["aside"] == {"kind": "error",
+                              "lines": ["Couldn't run the fair test on the set-aside answers."]}
+
+
+def test_an_inspect_template_without_instructions_names_template(tmp_path):
+    from tests.start_projects import inspect_data
+
+    data = inspect_data(split(20, 16))
+    data["eval"]["scorers"][0]["options"] = {
+        "template": "Grade it. Question: {question} Answer: {answer} {instructions}"}
+    _write(tmp_path / "logs" / "2026-10-02_support.json", json.dumps(data))
+    found = start.find_judge(tmp_path)
+    assert found.rule_field == "template"
+    hand = start_fix_rule.hand_over(tmp_path, {"tool": "inspect", "rule_field": "template"},
+                                    found.rule, "Grade it well. {question} {answer}", 15)
+    assert "the `template=` in `model_graded_qa(...)`" in hand["where"]
+    assert "instructions=" not in hand["where"] + hand["agent_prompt"]
+    inspect_project_rule = start_fix_rule.field("inspect", "instructions")
+    assert inspect_project_rule == "`instructions=` in `model_graded_qa(...)`"

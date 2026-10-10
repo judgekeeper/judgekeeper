@@ -23,11 +23,16 @@ from judgekeeper.start_label import ASKABLE
 CUT = 1500  # characters of each text in the prompt
 MAX_MISTAKES, MAX_UNCLEAR, MAX_KEEP = 20, 6, 6
 START, END = "NEW RULE START", "NEW RULE END"
-MAX_RULE = 20_000  # characters of a pasted rule
+MAX_RULE = 20_000  # characters of the new rule (between the lines)
+MAX_PASTE = 150_000  # characters of a whole paste: well under what the page can send
+TOO_LONG = "Too long to save. Paste only the new rule."
 BIG = 1.5  # times the old rule, plus BIG_EXTRA characters, is a big change
 BIG_EXTRA = 400
 COPIED = 8  # words in a row copied from an answer
 SEARCH_CHARS = 60  # of the rule, searched for in the project's files
+SOURCE = frozenset({".yaml", ".yml", ".py", ".js", ".ts", ".mjs", ".cjs", ".json", ".toml",
+                    ".txt", ".md"})  # searched first, with files named like a config
+LINE_SHOWN = 120  # characters of the matched line shown
 GRADE = "GRADE: $LETTER"  # the line Inspect's model_graded_qa reads its grade from
 
 PER_TEST = ("Your rule is different for each test, so judgekeeper can't write one prompt for it "
@@ -49,6 +54,7 @@ FIELDS = {
     "inspect": "`instructions=` in `model_graded_qa(...)`",
     "mlflow": "`instructions=` in `make_judge(...)`, or the text of `Guidelines(...)`",
 }
+INSPECT_TEMPLATE = "`template=` in `model_graded_qa(...)`"
 OWN_CODE = "where your code keeps the rule"
 NOTES = {
     "deepeval": ("If your GEval has only `criteria=`, add `evaluation_steps=` with these steps. "
@@ -175,10 +181,17 @@ def build_prompt(rule: str, tool: str, mistakes: list[dict], unclear: list[dict]
 
 # Paste back -------------------------------------------------------------------------------
 
+def _marker(words: str) -> str:
+    """A line holding only `words`, in any case, with markdown or a colon around them:
+    **NEW RULE START**, `NEW RULE START`, ## NEW RULE START, NEW RULE START:."""
+    return r"^[ \t#>*_`]*" + r"[ \t]+".join(words.split()) + r"[ \t*_`:]*$"
+
+
 def new_rule_of(text: str) -> str:
     """The text between the NEW RULE START and NEW RULE END lines (to the end when there is
     no end line); the whole text when there is no start line."""
-    m = re.search(rf"^\s*{START}\s*$(.*?)(?:^\s*{END}\s*$|\Z)", text, re.MULTILINE | re.DOTALL)
+    m = re.search(rf"{_marker(START)}(.*?)(?:{_marker(END)}|\Z)", text,
+                  re.MULTILINE | re.DOTALL | re.IGNORECASE)
     return (m.group(1) if m else text).strip()
 
 
@@ -234,7 +247,10 @@ def word_diff(old: str, new: str) -> list[list[str]]:
 
 # The hand-over ----------------------------------------------------------------------------
 
-def field(tool: str) -> str:
+def field(tool: str, rule_field: str | None = None) -> str:
+    """Where a tool keeps the rule; for Inspect, its template when the rule is that."""
+    if tool == "inspect" and rule_field == "template":
+        return INSPECT_TEMPLATE
     return FIELDS.get(tool, OWN_CODE)
 
 
@@ -255,14 +271,42 @@ def _needles(rule: str, tool: str) -> list[str]:
     return out
 
 
-def locate_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None:
-    """(file, line number, line) where the rule is probably written, or None. It only reads
-    the project's text files (start_fix._files): nothing is imported or run."""
+def _results_file(path: Path) -> bool:
+    """Whether judgekeeper reads `path` as an eval tool's results (find.classify_file)."""
+    from judgekeeper.find import classify_file
+
+    try:
+        return classify_file(path) is not None
+    except (OSError, ValueError):
+        return False
+
+
+def _source(path: Path) -> bool:
+    return path.suffix.lower() in SOURCE or "config" in path.name.lower()
+
+
+def _search_order(root: Path) -> list[Path]:
+    """The project's files (start_fix._files), source-like files first, never a file that
+    is an eval tool's results: those hold the rule too, but it is not set there."""
     from judgekeeper.start_fix import _files
 
+    files = list(_files(root))
+    ordered = [p for p in files if _source(p)] + [p for p in files if not _source(p)]
+    return [p for p in ordered if not _results_file(p)]
+
+
+def _shown(line: str) -> str:
+    line = line.strip()
+    return line if len(line) <= LINE_SHOWN else line[:LINE_SHOWN - 1] + "…"
+
+
+def locate_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None:
+    """(file, line number, line) where the rule is probably written, or None. It only reads
+    the project's text files: nothing is imported or run."""
     root = Path(root)
+    files = _search_order(root)
     for needle in _needles(rule, tool):
-        for path in _files(root):
+        for path in files:
             try:
                 data = path.read_bytes()
             except OSError:
@@ -271,7 +315,7 @@ def locate_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None
                 continue
             for n, line in enumerate(data.decode("utf-8", errors="replace").splitlines(), 1):
                 if needle in line:
-                    return path.relative_to(root).as_posix(), n, line.strip()
+                    return path.relative_to(root).as_posix(), n, _shown(line)
     return None
 
 
@@ -280,7 +324,7 @@ def hand_over(root: Path, data: dict, old: str, new: str, n_aside: int) -> dict:
     from judgekeeper.redact import scrub
 
     tool = data.get("tool") or ""
-    name = field(tool)
+    name = field(tool, data.get("rule_field"))
     the = name if name.startswith("the ") else f"the {name}"
     if name == OWN_CODE:
         the = "the judge's rule"

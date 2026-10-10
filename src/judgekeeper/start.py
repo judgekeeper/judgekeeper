@@ -552,6 +552,7 @@ class Found:
     # whether every verdict of the judge has the same rule (no rule per test)
     one_rule: bool = True
     task_file: str | None = None  # Inspect: the task file its newest log names
+    rule_field: str | None = None  # Inspect: "instructions" or "template", the rule's field
 
 
 PASS_OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt}
@@ -1034,7 +1035,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         fingerprint.update(model=saved.model, model_source=f"given in {settings.FILE}")
         models = [saved.model]
     rule = rule_of(records)
-    one_rule = len({rule_of([r]) for r in records}) <= 1
+    one_rule = len({k for k in (_rule_key(r, kind) for r in records) if k is not None}) <= 1
     rubric = rubric_line(rule)
     judge = _judge_name(kind, metric, rubric, models, judge_model is not None,
                         Path(newest.rel).name)
@@ -1051,7 +1052,32 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  store=newest.rel if kind == "mlflow" else None,
                  check=judge_check.check(pool, kind, score_judge=score_judge),
                  pass_mark=pass_mark_of(pool, kind, norm.pass_if, key), one_rule=one_rule,
-                 task_file=_task_file(newest.path) if kind == "inspect" else None)
+                 task_file=_task_file(newest.path) if kind == "inspect" else None,
+                 rule_field=_inspect_field(records) if kind == "inspect" and rule else None)
+
+
+def _rule_key(r, kind: str) -> str | None:
+    """What makes two verdicts' rules the same: the rule (None for a verdict with none, such
+    as a failed call); for a DeepEval GEval its criteria, since the steps DeepEval writes from
+    them differ from answer to answer, or the steps the person wrote when it has none."""
+    rule = rule_of([r])
+    if rule is None or kind != "deepeval":
+        return rule
+    return rule.split(GEVAL_PARTS)[0].strip()
+
+
+def _inspect_field(records) -> str:
+    """Which of model_graded_qa's options the rule is (rule_text): its instructions, unless
+    only its template was set."""
+    prompt = next((r.evaluator.get("prompt") for r in records if r.evaluator.get("prompt")),
+                  None)
+    try:
+        options = json.loads(prompt) if isinstance(prompt, str) else {}
+    except ValueError:
+        options = {}
+    text = options.get("instructions") if isinstance(options, dict) else None
+    default = isinstance(text, str) and text.startswith(DEFAULT_PROMPT.split("{")[0])
+    return "instructions" if isinstance(text, str) and not default else "template"
 
 
 def _task_file(path: Path) -> str | None:

@@ -80,7 +80,10 @@ STOPWORDS = frozenset((
     "those", "though", "through", "under", "until", "upon", "very", "want", "well", "were",
     "what", "when", "where", "whether", "which", "while", "will", "with", "within", "without",
     "would", "your", "yours", "yourself", "yourselves"))
-SEARCH_SKIP = {".venv", "venv", "node_modules", ".git", ".judgekeeper", "__pycache__"}
+# Folders never searched: environments, judgekeeper's own, and where eval tools keep their
+# results (DeepEval's runs, MLflow's folder store, Inspect's logs)
+SEARCH_SKIP = {".venv", "venv", "node_modules", ".git", ".judgekeeper", "__pycache__",
+               ".deepeval", "mlruns", "logs"}
 SEARCH_DEPTH = 4
 SEARCH_MAX_BYTES = 1_000_000
 SEARCH_MAX_FILES = 5000
@@ -450,6 +453,8 @@ class Fix:
         self.by_id: dict = {}  # nothing on this page is labeled
         self.posts = {"/fix/pass-mark": self._post_pass_mark, "/fix/prompt": self._post_prompt,
                       "/fix/rule": self._post_rule}
+        # a body too big for the server to read, on a path: what to say
+        self.too_long = {"/fix/rule": start_fix_rule.TOO_LONG}
         basis = start_review._basis(ws)
         saved = json.loads(self.out.read_text(encoding="utf-8")) if self.out.is_file() \
             else None
@@ -721,14 +726,18 @@ class Fix:
         in fix/rule.txt and rule.json unless a check blocks it: {"saved", "checks"}."""
         if how not in ("pasted", "written"):
             raise ValueError("how must be pasted or written")
-        if not isinstance(text, str) or len(text) > start_fix_rule.MAX_RULE:
-            raise ValueError(f"the rule must be text of at most {start_fix_rule.MAX_RULE:,} "
-                             "characters")
+        if not isinstance(text, str):
+            raise TypeError("the rule must be text")
+        if len(text) > start_fix_rule.MAX_PASTE:
+            raise ValueError(start_fix_rule.TOO_LONG)
         problem = self._rule_problem()
         if problem:
             raise ValueError(problem)
         old = start_fix_rule.rule_text(self.rule, self.tool)
         new = scrub(start_fix_rule.new_rule_of(text))
+        if len(new) > start_fix_rule.MAX_RULE:
+            raise ValueError(f"The new rule is too long: at most {start_fix_rule.MAX_RULE:,} "
+                             "characters.")
         outputs = [display(self.raw.get(i, {}).get("output")) for i in self.used_ids]
         found = start_fix_rule.checks(old, new, self.tool, outputs)
         if any(c["blocking"] for c in found):
@@ -753,7 +762,8 @@ class Fix:
             saved = {"rule": saved["new"], "how": saved["how"], "checks": saved["checks"],
                      "diff": start_fix_rule.word_diff(saved["old"], saved["new"]),
                      "hand_over": saved["hand_over"]}
-        return {"kind": "ok", "rule": old, "steps": self.tool == "deepeval", "saved": saved}
+        return {"kind": "ok", "rule": old, "steps": self.tool == "deepeval", "saved": saved,
+                "max_paste": start_fix_rule.MAX_PASTE}
 
     def _post_prompt(self, body: dict) -> dict:
         return {"prompt": self.prompt()}

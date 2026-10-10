@@ -216,6 +216,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "pass_mark": found.pass_mark,
         "one_rule": found.one_rule,
         **({"task_file": found.task_file} if found.task_file else {}),
+        **({"rule_field": found.rule_field} if found.rule_field else {}),
         "pool": {"answers": len(p.answers), "pass": p.n_pass, "fail": p.n_fail},
         "pool_sha256": pool_sha,
         "left_out": {"no_clear_verdict": p.n_unclear, "unmapped_values": p.unmapped,
