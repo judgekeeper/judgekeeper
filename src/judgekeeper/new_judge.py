@@ -33,7 +33,7 @@ import json
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from judgekeeper import targets, weighted
+from judgekeeper import weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.start_label import FOLDER, Workspace, say_opened
 
@@ -332,7 +332,7 @@ def confirmation_page(cws: Workspace) -> str:
     from judgekeeper.start_page import label_page
 
     data = cws.data()
-    return label_page(data.get("description"), data.get("rule"), full=targets.ROUGH)
+    return label_page(data.get("description"), data.get("rule"))
 
 
 def quick_status(session) -> dict:

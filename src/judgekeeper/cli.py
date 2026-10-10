@@ -446,7 +446,7 @@ def _parser() -> argparse.ArgumentParser:
                       help="after a result: open the page to mark more answers")
     then.add_argument("--fix", action="store_true",
                       help="after the review: what your judge gets wrong, and a fair test of "
-                           "a change on answers set aside (no AI call)")
+                           "a change on answers kept aside (no AI call)")
     st.add_argument("--test-pass-mark", action="store_true",
                     help="with --fix: test the pass mark that fits your marks best, in the "
                          "terminal (free)")

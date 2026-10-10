@@ -267,8 +267,9 @@ def _handler(server: LabelServer):
             if url.path == "/":
                 page, nonce = server.page()
                 csp = (f"default-src 'none'; script-src 'nonce-{nonce}'; "
-                       "style-src 'unsafe-inline'; connect-src 'self'; img-src 'none'; "
-                       "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+                       "style-src 'unsafe-inline'; font-src data:; connect-src 'self'; "
+                       "img-src 'none'; base-uri 'none'; form-action 'none'; "
+                       "frame-ancestors 'none'")
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
                            {"Content-Security-Policy": csp})
             elif url.path == "/state":
@@ -282,8 +283,9 @@ def _handler(server: LabelServer):
                            {"Location": f"/?token={server.token}"})
             elif url.path == "/result" and server.result is not None:
                 page = server.result(server.session, f"/?token={server.token}")
-                csp = ("default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; "
-                       "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+                csp = ("default-src 'none'; style-src 'unsafe-inline'; font-src data:; "
+                       "img-src 'none'; base-uri 'none'; form-action 'none'; "
+                       "frame-ancestors 'none'")
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
                            {"Content-Security-Policy": csp})
                 if server.session.summary()["done"]:

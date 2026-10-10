@@ -21,8 +21,13 @@ after you say yes, your own judge through your own tool, and key names only.
   2 still work); the review's first step uses ← Fail, N Not sure, → Pass. `start` opens with
   one block that names your eval tool, results file, what the judge checks, its model and
   its decisions, then "Next: in your browser, mark each answer Pass or Fail."
-- The labeling and result pages use the whole screen: a side panel with your progress, your
-  judge's rule and the keys; a result coloured by what it means.
+- A new look for the pages, made for a laptop screen: navy only, with the heading font
+  (Bricolage Grotesque, under the SIL Open Font License) embedded, so nothing is loaded from
+  outside. The labeling page shows each answer as a short chat on one card with Fail and Pass
+  under it; you can drag the card, click a dot at the top to go back to any answer, and the
+  first time it explains the task. The result draws its two numbers once, in under a second,
+  and shows them at once when your computer asks for less motion. The review and fix pages
+  have the task on the left and a panel on the right.
 - `judgekeeper start` never runs your app. Finding, labeling, the result and the review make
   no AI calls and need no API key. When there are too few answers, it prints the command that
   makes more with your own tool, and you run it.

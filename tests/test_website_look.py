@@ -419,7 +419,7 @@ def test_the_labeling_picture_uses_the_products_words():
     (mini,) = [el for el in _els(GUIDE) if "mini" in el.classes()]
     flat = _flat(mini)
     page = start_page.label_page(None, None)
-    for words in ("The question", "Your app's answer", "Your progress", "See your result →",
+    for words in ("The question", "Your app's answer", "See your result",
                   "Mark each answer Pass or Fail. What your judge decided stays hidden."):
         assert words in flat and words in page, words
     assert "Fail ←" in flat and "Pass →" in flat  # the keys the product shows

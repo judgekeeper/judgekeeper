@@ -199,7 +199,10 @@ def test_wheel_ships_templates_and_plugin_and_no_demo(tmp_path):
     names = set(zipfile.ZipFile(wheel).namelist())
     for needed in ("judgekeeper/templates/single.md", "judgekeeper/templates/pairwise.md",
                    "judgekeeper/pytest_plugin.py", "judgekeeper/label.py",
-                   "judgekeeper/schemas/records.schema.json"):
+                   "judgekeeper/schemas/records.schema.json",
+                   "judgekeeper/fonts/bricolage-grotesque-latin-600-normal.woff2",
+                   "judgekeeper/fonts/bricolage-grotesque-latin-800-normal.woff2",
+                   "judgekeeper/fonts/OFL-BricolageGrotesque.txt"):  # the page's font, OFL
         assert needed in names, needed
     for gone in ("judgekeeper/demo_data/", "judgekeeper/demo.py"):
         assert not any(name.startswith(gone) for name in names), gone
