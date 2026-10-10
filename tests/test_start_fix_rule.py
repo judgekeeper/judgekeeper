@@ -306,7 +306,7 @@ def test_the_hand_over_found_and_not_found(tmp_path):
         "In your eval's files, replace the `value:` of the llm-rubric assert with the text "
         "below. Change only this text, nothing else. Then run the eval.\n\nIs polite and short.")
     assert hand["last"] == ("Then run your eval and judgekeeper start: it offers Try your new "
-                            "judge on your marked answers, and tests it on the 15 set aside.")
+                            "judge on your marked answers, and tests it on the 15 kept aside.")
     (tmp_path / "promptfooconfig.yaml").write_text("x: 1\nvalue: Is polite.\n",
                                                    encoding="utf-8")
     hand = start_fix_rule.hand_over(tmp_path, {"tool": "promptfoo"}, "Is polite.",
@@ -446,8 +446,8 @@ def test_try_your_new_judge_tests_it_on_the_answers_set_aside(fixable, capsys):
     _new_run(fixable.root, verdicts=_fixed_judge())
     code, out, _ = _try(capsys, fixable)
     assert code == 0
-    sentence = ("Can't tell yet: on the 16 answers set aside it fixed 2 and broke 0. That is "
-                "too few to be sure. Mark more answers to find out.")
+    sentence = ("Can't tell yet: on the 16 answers kept aside, the change fixed 2 and broke 0. "
+                "That is too few to be sure. Mark more answers to find out.")
     assert sentence in out
     assert out.index(sentence) < out.index("Your new judge vs your old judge")
     assert "This test is small. The real check is on new answers" in out
@@ -464,7 +464,7 @@ def test_try_your_new_judge_tests_it_on_the_answers_set_aside(fixable, capsys):
 def test_without_a_split_there_is_no_test_on_answers_set_aside(fixable, capsys):
     _new_run(fixable.root, verdicts=_fixed_judge())
     _, out, _ = _try(capsys, fixable)
-    assert "set aside" not in out
+    assert "kept aside" not in out
     assert "aside" not in json.loads(fixable.result_json.read_text(encoding="utf-8"))["new_judge"]
     assert not (fixable.dir / "fix.json").exists()
 
@@ -511,7 +511,7 @@ def test_old_decisions_come_from_asking_again_when_there_are(fixable, capsys):
     fixable.fake.clear()  # the fake reads the newest results again: the new judge's
     _new_run(fixable.root, verdicts=_fixed_judge())
     _, out, _ = _try(capsys, fixable)
-    assert "it fixed 1 and broke 0" in out
+    assert "the change fixed 1 and broke 0" in out
 
 
 # Safety ---------------------------------------------------------------------------------
@@ -552,11 +552,11 @@ def test_the_result_gets_a_fix_your_judge_card_with_the_latest_test(tmp_path, se
     for key in ("tpr", "tnr", "kappa", "labels", "made_at"):
         assert r[key] == before[key]  # the main result never changes
     assert r["fix"]["tests"][0]["sentence"] == (
-        "On the 30 answers set aside, it did better: it fixed 6 and broke none.")
+        "On the 30 answers kept aside, the change did better: it fixed 6 and broke none.")
     page = ws.result_html.read_text(encoding="utf-8")
     assert "<h2>Fix your judge</h2>" in page
-    assert ("Latest test (pass mark 0.5 to 0.7): On the 30 answers set aside, it did better: "
-            "it fixed 6 and broke none.") in page
+    assert ("Latest test (pass mark 0.5 to 0.7): On the 30 answers kept aside, the change did "
+            "better: it fixed 6 and broke none.") in page
     lines = start_label.result_lines(r)
     assert "  Fix your judge:" in lines
 
@@ -716,12 +716,12 @@ def test_a_failing_fair_test_leaves_the_new_judge_saved_and_shown(fixable, capsy
     _new_run(fixable.root, verdicts=_fixed_judge())
     code, out, _ = _try(capsys, fixable)
     assert code == 0
-    assert "Couldn't run the fair test on the set-aside answers." in out
+    assert "Couldn't run the fair test on the answers kept aside." in out
     assert "Your new judge vs your old judge" in out
     block = json.loads(fixable.result_json.read_text(encoding="utf-8"))["new_judge"]
     assert block["new"]["tpr"] is not None
     assert block["aside"] == {"kind": "error",
-                              "lines": ["Couldn't run the fair test on the set-aside answers."]}
+                              "lines": ["Couldn't run the fair test on the answers kept aside."]}
 
 
 def test_an_inspect_template_without_instructions_names_template(tmp_path):

@@ -101,7 +101,7 @@ def test_the_plan_for_promptfoo_with_the_same_version(tmp_path, monkeypatch, no_
             "settings.") in lines
     assert ("  Your judge will use your OpenAI key (OPENAI_API_KEY, set in your shell)."
             in lines)
-    assert "  36 labeled answers × 2 times = 72 judge calls." in lines
+    assert "  36 marked answers × 2 times = 72 judge calls." in lines
     assert any(x.startswith("  About $") and x.endswith(
         "at OpenAI's prices from 2026-10-05; check your provider.") for x in lines)
     assert ("  Your app is not run. Nothing is written to promptfoo's database or shared."
@@ -119,7 +119,7 @@ def test_times_multiply_the_calls(tmp_path):
     ws = _checked(tmp_path)
     p = make_plan(ws, AgainOptions(times=3), dry=False)
     assert p.calls == 108
-    assert "  36 labeled answers × 3 times = 108 judge calls." in plan_lines(p)
+    assert "  36 marked answers × 3 times = 108 judge calls." in plan_lines(p)
 
 
 def test_tokens_come_from_tokens_used(tmp_path):
@@ -297,7 +297,7 @@ def test_g_eval_with_several_criteria(tmp_path):
     _edit(tmp_path, _rows(change))
     p = make_plan(ws, AgainOptions(), dry=False)
     assert p.calls == 36 * 2 * 6
-    assert "  36 labeled answers × 2 times × 6 calls each = 432 judge calls." in plan_lines(p)
+    assert "  36 marked answers × 2 times × 6 calls each = 432 judge calls." in plan_lines(p)
 
 
 def test_answer_relevance_mentions_its_embedding_calls(tmp_path):
@@ -321,7 +321,7 @@ def test_an_unknown_type_says_at_least(tmp_path):
 
     _edit(tmp_path, _rows(change))
     p = make_plan(ws, AgainOptions(), dry=False)
-    assert "  36 labeled answers × 2 times = at least 72 judge calls." in plan_lines(p)
+    assert "  36 marked answers × 2 times = at least 72 judge calls." in plan_lines(p)
 
 
 def test_the_cache_warning(tmp_path):
@@ -481,7 +481,7 @@ def test_ask_again_without_a_terminal_shows_the_plan_and_the_flag(tmp_path, caps
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
     code, out, _ = run(capsys, tmp_path, "--ask-again")
     assert code == start.EXIT_QUESTION
-    assert "Ask your judge again" in out and "36 labeled answers × 2 times" in out
+    assert "Ask your judge again" in out and "36 marked answers × 2 times" in out
     assert out.rstrip().endswith(f"To go ahead without a terminal: judgekeeper start "
                                  f"{quote_arg(tmp_path)} --ask-again --allow-calls 72")
     assert "What next?" not in out
@@ -505,26 +505,26 @@ def test_the_menu_line_and_choice(tmp_path, capsys, terminal, no_processes, monk
     terminal.append("1")  # then Enter at "Go ahead?": No
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "  1. Ask your judge again about your 36 labeled answers   (72 calls, about $" in out
+    assert "  1. Ask your judge again about your 36 marked answers   (72 calls, about $" in out
     assert "Go ahead? [y/N]" in out
     assert "Your judge was not called; nothing was spent." in out
 
 
 def test_the_menu_leaves_out_asking_a_judge_it_cannot_run(tmp_path, capsys, terminal):
     _checked(tmp_path, maker=table_project, labeled=10)
-    terminal.append("2")  # 1 Label more, 2 Nothing for now
+    terminal.append("2")  # 1 Mark more answers, 2 Nothing for now
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "Ask your judge again" not in out and "can't" not in out
-    assert "  1. Label more\n  2. Nothing for now" in out
+    assert "  1. Mark more answers\n  2. Nothing for now" in out
 
 
 def test_with_nothing_left_to_do_there_is_no_menu(tmp_path, capsys, terminal):
     _checked(tmp_path, maker=table_project)  # every answer labeled, no disagreement
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "Choose" not in out and "Label more" not in out
-    assert ("Every saved answer is labeled. After your next eval run, run judgekeeper start "
+    assert "Choose" not in out and "Mark more answers" not in out
+    assert ("Every saved answer is marked. After your next eval run, run judgekeeper start "
             "again.") in out
 
 
@@ -545,7 +545,7 @@ def test_times_in_the_flags(tmp_path, capsys, no_processes):
     _checked(tmp_path)
     _local_promptfoo(tmp_path, no_processes)
     code, out, _ = run(capsys, tmp_path, "--ask-again", "--times", "3")
-    assert code == 0 and "36 labeled answers × 3 times = 108 judge calls." in out
+    assert code == 0 and "36 marked answers × 3 times = 108 judge calls." in out
 
 
 def test_judge_command_in_the_flags(tmp_path, capsys):

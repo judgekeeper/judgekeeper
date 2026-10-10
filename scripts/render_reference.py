@@ -1,7 +1,8 @@
 """Render a docs/*.md page to website/*.html (every page in PAGES, or one: give the source
 and the target). Standard library only. It handles only the Markdown these pages use:
-headings, paragraphs, fenced code, tables, lists, `code`, **bold**, *italics* and links. A
-test renders each page again and compares, so the committed pages cannot fall behind."""
+headings, paragraphs, fenced code (a ```text fence is printed output, shown without a copy
+button), tables, lists, `code`, **bold**, *italics* and links. A test renders each page again
+and compares, so the committed pages cannot fall behind."""
 
 from __future__ import annotations
 
@@ -85,7 +86,8 @@ def render(markdown: str) -> str:
         if line.startswith("```"):
             end = lines.index("```", i + 1) if "```" in lines[i + 1:] else len(lines)
             code = "\n".join(lines[i + 1:end])
-            out.append(f"<pre><code>{html.escape(code, quote=False)}</code></pre>")
+            pre = '<pre class="output">' if line == "```text" else "<pre>"
+            out.append(f"{pre}<code>{html.escape(code, quote=False)}</code></pre>")
             i = end + 1
         elif m := re.match(r"(#{1,4}) (.+)", line):
             level, title = len(m[1]), m[2].strip()

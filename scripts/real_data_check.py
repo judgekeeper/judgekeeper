@@ -23,9 +23,9 @@ of what the judge said):
    graded 0 to 3 by NIST assessors and by each run. Pass: grade 2 or 3 on each side.
 
 One check: shuffle each group of the pool (the judge's passes, its fails), label n from each,
-count how many the person marked Correct, and call weighted.corrected. Three designs, CHECKS
+count how many the person marked Pass, and call weighted.corrected. Three designs, CHECKS
 checks each with a fixed seed: 25 + 25, 30 + 30, and start's stopping rule (BLOCK from each
-group at a time until TARGET Correct and TARGET Wrong). For each, how often the TPR, TNR and
+group at a time until TARGET Pass and TARGET Fail). For each, how often the TPR, TNR and
 real pass rate ranges held the value from all labels, their average width, the median error,
 and the plain rates over the same labels without the correction, for contrast.
 
@@ -58,7 +58,7 @@ SEED = 20261009
 CHECKS = 1000
 SIZES = (25, 30)
 BLOCK = 5  # from each group: start's blocks of 10, half from each
-TARGET = 25  # Correct and Wrong labels before start calls a check reliable
+TARGET = 25  # answers marked Pass, and Fail, before start calls a check reliable
 METRICS = ("tpr", "tnr", "real_pass_rate")
 DESIGNS = ("25+25", "30+30", "start_rule")
 DIGITS = 6  # the report's floats, so the same run gives the same file on every machine
@@ -273,7 +273,7 @@ def fixed_draw(rng: random.Random, passes: list[bool], fails: list[bool], n: int
 
 
 def start_rule_draw(rng: random.Random, passes: list[bool], fails: list[bool]):
-    """BLOCK from each shuffled group at a time until TARGET Correct and TARGET Wrong, or
+    """BLOCK from each shuffled group at a time until TARGET Pass and TARGET Fail, or
     until both groups run out."""
     p, f = passes[:], fails[:]
     rng.shuffle(p)
@@ -397,7 +397,7 @@ def _two(x) -> str:
 def _design_name(design: str, result: dict) -> str:
     if design == "start_rule":
         rule = result["settings"]["start_rule"]
-        return f"start's rule ({rule['target']} Correct + {rule['target']} Wrong)"
+        return f"start's rule ({rule['target']} Pass + {rule['target']} Fail)"
     return f"{design} labels"
 
 
@@ -486,7 +486,7 @@ def markdown(result: dict) -> str:
               (f"The first of the {s['checks']:,} checks with {s['sizes'][0]} + "
                f"{s['sizes'][0]} labels for each judge, not picked by hand. Kappa has no "
                "range."), "",
-              ("| Judge | Marked Correct (of judge passes / fails) | TPR | TNR | Real pass rate "
+              ("| Judge | Marked Pass (of judge passes / fails) | TPR | TNR | Real pass rate "
                "| Kappa |"), "|---|---|---|---|---|---|"]
     for p in pools.values():
         f, t = p["designs"]["25+25"]["first_check"], p["truth"]

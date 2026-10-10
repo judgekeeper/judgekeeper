@@ -13,8 +13,9 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
   when the results have them, never shown on a page) and pool-judge.jsonl (the judge's
   verdict on every pool answer, in the run-file format, each line with the full fingerprint).
   Written when labeling starts.
-- labels.csv: the person's labels (id, input, output, human_label, notes), written on every
-  click. A skipped answer has no label and the note "skipped".
+- labels.csv: the person's marks (id, input, output, human_label, notes), written on every
+  click. A skipped answer has no label and the note "skipped". The person reads "mark", "Pass"
+  and "Fail" everywhere; the file names and keys keep "label", "pass" and "fail".
 - anchors.jsonl and its manifest: the labeled answers as a frozen anchor set, so `judge`,
   `baseline` and `gate` work on them later (with the pool's trajectory, outcome and
   app_version, frozen too). Written with each result.
@@ -62,22 +63,22 @@ SAVED_NOTE = (f"Saved in {FOLDER}/. It holds your answers' text: commit it only 
 CORRECTED = "Corrected for picking half from the judge's passes and half from its fails."
 LEVELS = {  # verdict level: (colour, icon, second line)
     "gate": ("green", "tick", "Keep checking it after changes to its model or rule."),
-    "check": ("amber", "warn", "Close to good enough. Labeling more will make this surer."),
-    "not_gate": ("red", "cross", "Look at where it disagreed before relying on it."),
+    "check": ("amber", "warn", None),
+    "not_gate": ("red", "cross", None),
     None: ("grey", None, None),
 }
 MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August",
           "September", "October", "November", "December")
-VERDICTS = {
-    "gate": "It agrees with you often enough to use as a gate.",
-    "check": ("It agrees with you often, but check its fails and passes by hand before "
-              "relying on it."),
-    "not_gate": "It does not agree with you often enough to use as a gate.",
-    None: "Too few labels to tell yet. Label more for a rough check.",
+VERDICTS = {  # the one coloured line under the two sentences
+    "gate": "Your judge agrees with you often enough to use.",
+    "check": "Nearly there: look at where it disagrees with you before you rely on it.",
+    "not_gate": "Not good enough yet: look at where it disagrees with you.",
+    None: "Mark a few more answers to see your result.",
 }
-CHECKS = {"reliable": "reliable result", "rough": "rough check", "too_few": "too few labels"}
+MORE = "Marking more answers narrows this."
 ASKABLE = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools whose judge can be run again
-ALL_LABELED = "Every saved answer is labeled. Run your evals again for more answers, then:"
+ALL_LABELED = "Every saved answer is marked. Run your eval again for more answers, then:"
+SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 
 
 class Workspace:
@@ -258,12 +259,27 @@ def question_view(value):
     return display(value)
 
 
+def status_line(r: dict) -> str:
+    """How far along a check is, in the words the person reads (no targets, no numbers): the
+    line under the meters on the labeling page, and on the result when a range is still
+    wide. The counts behind it are targets.check's."""
+    if r["check"] == "too_few":
+        return VERDICTS[None]
+    if r["check"] == "reliable":
+        return "Your result is ready."
+    wide = r.get("wide") or {}
+    if not wide:
+        return "You can see your result now. Marking more answers narrows its ranges."
+    sides = " and ".join(SAID[key] for key in ("tpr", "tnr") if key in wide)
+    return f"Marking more answers narrows the range for the answers you marked {sides}."
+
+
 def progress_status(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f: int,
                     c_f: int) -> dict:
-    """The line under the meters on the labeling page (targets.line), and whether a result is
-    ready: from the labels in each group, as the result counts them."""
+    """The line under the meters on the labeling page (status_line), and whether a result is
+    ready: from the marks in each group, as the result counts them."""
     r = describe(weighted.corrected(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f))
-    return {"text": targets.line(r), "ready": r["check"] != "too_few"}
+    return {"text": status_line(r), "ready": r["check"] != "too_few"}
 
 
 def start_status(session: StartSession) -> dict:
@@ -304,7 +320,7 @@ class StartSession(LabelSession):
                 "skipped": sum(i["deferred"] for i in self.items)}
 
     def group_counts(self) -> dict:
-        """{"pass": [labeled, Correct], "fail": [...]}: the labels in each of the judge's
+        """{"pass": [marked, marked Pass], "fail": [...]}: the marks in each of the judge's
         groups."""
         counted = {"pass": [0, 0], "fail": [0, 0]}
         for item in self.items:
@@ -343,8 +359,9 @@ def _level(r: dict) -> str | None:
 
 
 def describe(corrected: dict) -> dict:
-    """The corrected numbers plus the label counts, how far along they are, and the verdict
-    (the thresholds of `report`, with wording that only says how often it agrees)."""
+    """The corrected numbers plus the mark counts (`labels`: correct is marked Pass, wrong is
+    marked Fail), how far along they are, and the one coloured line (`verdict`: the thresholds
+    of `report`, with wording that only says how often it agrees)."""
     g = corrected["groups"]
     correct = g["pass"]["correct"] + g["fail"]["correct"]
     wrong = g["pass"]["labeled"] + g["fail"]["labeled"] - correct
@@ -360,22 +377,32 @@ def _pct(x: float) -> str:
     return f"{x:.0%}"
 
 
+def marks_words(labels: dict) -> str:
+    """"12 Pass, 9 Fail"."""
+    return f"{labels['correct']} Pass, {labels['wrong']} Fail"
+
+
 def sentences(r: dict) -> list[str]:
+    """The two sentences of the result; before a result, the one line that says to mark more."""
     if r["check"] == "too_few":
-        labels = r["labels"]
-        return [(f"A rough check needs {ROUGH} you mark Correct and {ROUGH} you mark Wrong. "
-                 f"So far: {labels['correct']} Correct, {labels['wrong']} Wrong.")]
+        return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     out = []
-    for key, marked, did, does in (("tpr", "Correct", "passed", "passes"),
-                                   ("tnr", "Wrong", "failed", "fails")):
-        value, (lo, hi) = r[key], r[f"{key}_interval"]
+    for key, said in SAID.items():
+        value = r[key]
         if value is None:
-            out.append(f"How often your judge {does} the answers you mark {marked} is unknown "
-                       "yet: label more answers to find out.")
+            out.append(f"When you said {said}: no answers yet, so nothing to compare. Mark "
+                       "more answers to find out.")
         else:
-            out.append(f"Of the answers you marked {marked}, your judge {did} about "
-                       f"{_pct(value)} ({_pct(lo)} to {_pct(hi)}).")
+            out.append(f"When you said {said}, your judge also said {said} {_pct(value)} of "
+                       "the time.")
     return out
+
+
+def range_words(interval) -> str | None:
+    """"Probably between 66% and 93%. Marking more answers narrows this.", or None."""
+    if interval is None or interval[0] is None:
+        return None
+    return f"Probably between {_pct(interval[0])} and {_pct(interval[1])}. {MORE}"
 
 
 def _number(name: str, value, interval) -> str:
@@ -393,17 +420,13 @@ def pass_rate_line(r: dict) -> str:
     if r["real_pass_rate"] is None:
         return f"{line} How many should pass is unknown yet."
     lo, hi = r["real_pass_rate_interval"]
-    return (f"{line} From your labels, about {_pct(r['real_pass_rate'])} should pass "
-            f"({_pct(lo)}–{_pct(hi)}).")
+    return (f"{line} From your marks, about {_pct(r['real_pass_rate'])} should pass "
+            f"(probably between {_pct(lo)} and {_pct(hi)}).")
 
 
 def to_review(r: dict) -> int:
     """How many disagreements are left to review: none once the review is done."""
     return 0 if (r.get("review") or {}).get("done") else r.get("disagreements") or 0
-
-
-def disagreements_words(n: int) -> str:
-    return f"the {n} disagreement{'' if n == 1 else 's'}"
 
 
 def can_fix(r: dict) -> bool:
@@ -426,10 +449,9 @@ def all_labeled(r: dict) -> bool:
 def _next(r: dict) -> list[tuple[str, str]]:
     steps = []
     if r["check"] != "reliable" and not all_labeled(r):
-        steps.append(("Label more for a reliable result:", "judgekeeper start"))
+        steps.append(("Mark more answers:", "judgekeeper start"))
     if to_review(r):
-        steps.append((f"Review {disagreements_words(to_review(r))}:",
-                      "judgekeeper start --review"))
+        steps.append((f"See where you disagree ({to_review(r)}):", "judgekeeper start --review"))
     if can_fix(r):
         steps.append(("Fix your judge (free):", "judgekeeper start --fix"))
     if can_ask_again(r):
@@ -466,13 +488,15 @@ def _fix_lines(r: dict) -> list[str]:
 def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
     """The result as the terminal shows it."""
     labels = r["labels"]
-    title = (f"Your result ({CHECKS[r['check']]}: {labels['correct']} Correct, "
-             f"{labels['wrong']} Wrong)")
+    n = labels["correct"] + labels["wrong"]
+    title = (f"Your result, from the {_plural(n, 'answer', 'answers')} you marked "
+             f"({marks_words(labels)}):")
     lines = [title, ""]
     lines += sentences(r)
-    lines += [r["verdict"]]
+    if r["check"] != "too_few":
+        lines.append(r["verdict"])
     if r.get("wide"):
-        lines.append(targets.line(r))
+        lines.append(status_line(r))
     if r["check"] != "too_few":
         lines.append("")
         lines.append("  " + "   ".join([_number("TPR", r["tpr"], r["tpr_interval"]),
@@ -495,6 +519,10 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
     return lines
 
 
+def _plural(n: int, one: str, many: str) -> str:
+    return f"{n} {one if n == 1 else many}"
+
+
 def in_words(day: str) -> str:
     """"2026-10-05" as "5 October 2026"; anything else as it is."""
     try:
@@ -514,25 +542,23 @@ def _made_on(made_at: str | None) -> str | None:
 
 
 def _detail(r: dict) -> str | None:
-    """The verdict's second line: for a bad result, the weaker side first."""
+    """The coloured line's second line: for a bad result, the weaker side."""
     detail = LEVELS[r["verdict_level"]][2]
     tpr, tnr = r["tpr"], r["tnr"]
     if r["verdict_level"] != "not_gate" or tpr is None or tnr is None or tpr == tnr:
         return detail
-    side = ("It misses many answers you marked Wrong." if tnr < tpr
-            else "It fails many answers you marked Correct.")
-    return f"{side} {detail}"
+    return ("It passes many answers you marked Fail." if tnr < tpr
+            else "It fails many answers you marked Pass.")
 
 
 def still_needed(r: dict) -> str | None:
-    """"6 more Correct and 4 more Wrong." for a reliable result; with enough of each but a
-    range still too wide, the line that says so (targets.line); None once reliable."""
-    labels = r["labels"]
-    parts = [f"{RELIABLE - labels[k]} more {name}"
-             for k, name in (("correct", "Correct"), ("wrong", "Wrong")) if labels[k] < RELIABLE]
-    if parts:
-        return f"{' and '.join(parts)}."
-    return targets.line(r) if r.get("wide") else None
+    """Why marking more answers helps, while the result is not reliable: the range that is
+    still wide (status_line), else that more marks narrow the ranges; None once reliable."""
+    if r["check"] == "reliable":
+        return None
+    if r.get("wide"):
+        return status_line(r)
+    return "Marking more answers narrows the ranges."
 
 
 def _pass_rate(r: dict) -> list[tuple[str, bool]] | None:
@@ -544,33 +570,32 @@ def _pass_rate(r: dict) -> list[tuple[str, bool]] | None:
     if r["real_pass_rate"] is None:
         return parts + [(" How many should pass is unknown yet.", False)]
     lo, hi = r["real_pass_rate_interval"]
-    return parts + [(" From your labels, about ", False), (_pct(r["real_pass_rate"]), True),
-                    (f" should pass ({_pct(lo)} to {_pct(hi)}).", False)]
+    return parts + [(" From your marks, about ", False), (_pct(r["real_pass_rate"]), True),
+                    (f" should pass (probably between {_pct(lo)} and {_pct(hi)}).", False)]
 
 
 def page_content(r: dict) -> dict:
     """The result page's text and numbers (start_page.result_page lays them out)."""
     labels = r["labels"]
     n = labels["correct"] + labels["wrong"]
-    kind = [CHECKS[r["check"]].capitalize(),
-            f"{labels['correct']} marked Correct, {labels['wrong']} marked Wrong"
+    kind = [f"From the {_plural(n, 'answer', 'answers')} you marked: {marks_words(labels)}"
             + (f", {r['skipped']} skipped" if r.get("skipped") else "")]
     if _made_on(r.get("made_at")):
         kind.append(_made_on(r.get("made_at")))
 
     too_few = r["check"] == "too_few"
 
-    def tile(name, plain, value, interval, count):
+    def tile(name, plain, value, interval, count, as_pct=True):
         if too_few:
             return {"name": name, "plain": plain, "value": "–", "interval": None,
                     "mark": None, "line": count}
         known = value is not None
         span = known and interval is not None and interval[0] is not None
-        return {"name": name, "plain": plain,
-                "value": f"{value:.2f}" if known else "unknown",
+        shown = (_pct(value) if as_pct else f"{value:.2f}") if known else "unknown"
+        return {"name": name, "plain": plain, "value": shown,
                 "interval": (interval[0], interval[1]) if span else None,
                 "mark": value if known else None,
-                "line": f"{interval[0]:.2f} to {interval[1]:.2f} · {count}" if span else count}
+                "line": range_words(interval) if span else count}
 
     colour, icon, _ = LEVELS[r["verdict_level"]]
     judge = r.get("judge") or {}
@@ -588,17 +613,17 @@ def page_content(r: dict) -> dict:
     steps = []
     needed = still_needed(r)
     if needed and all_labeled(r):
-        steps.append({"title": "Make it a reliable result", "text": ALL_LABELED,
+        steps.append({"title": "Mark more answers", "text": ALL_LABELED,
                       "command": "judgekeeper start", "link": None, "button": None})
     elif needed:
-        steps.append({"title": "Make it a reliable result", "text": needed,
-                      "command": "judgekeeper start", "link": "/", "button": "Keep labeling"})
+        steps.append({"title": "Mark more answers", "text": needed,
+                      "command": "judgekeeper start", "link": "/", "button": "Mark more answers"})
     if to_review(r):
-        steps.append({"title": f"Review {disagreements_words(to_review(r))}",
+        steps.append({"title": f"See where you disagree ({to_review(r)})",
                       "text": ("Each answer where you and your judge disagree, with its "
                                "reason. Free."),
                       "command": "judgekeeper start --review", "link": "/review",
-                      "button": "Review them"})
+                      "button": "See where you disagree"})
     if can_fix(r):
         steps.append({"title": "Fix your judge",
                       "text": ("See what your judge gets wrong, and test a change on answers "
@@ -617,11 +642,11 @@ def page_content(r: dict) -> dict:
                                "is deleted:"),
                       "command": "judgekeeper start --new", "link": None, "button": None})
     if not (needed and all_labeled(r)):  # else the first step already says it
-        steps.append({"title": "Check again later", "text": "After your next eval run:",
+        steps.append({"title": "Check again after your next eval run", "text": "",
                       "command": "judgekeeper start", "link": None, "button": None})
     review = None
     if r.get("review"):
-        review = {"title": "Your review of the disagreements", "lines": _review_lines(r),
+        review = {"title": "Where you disagree", "lines": _review_lines(r),
                   "files": [f"{FOLDER}/{name}" for name in r["review"].get("files", [])]}
     fixed = None
     if r.get("fix"):
@@ -638,22 +663,24 @@ def page_content(r: dict) -> dict:
     checked = r.get("judge_check")
     judged = None
     if judge_check.lines(checked):
-        judged = {"title": judge_check.TITLE, "lines": judge_check.page_lines(checked),
-                  "files": [judge_check.CSV_PATH] if judge_check.has_rows(checked) else []}
+        judged = {"title": judge_check.TITLE, "lines": judge_check.page_lines(checked)
+                  + ([judge_check.LIST_LINE] if judge_check.has_rows(checked) else []),
+                  "files": []}
     return {
         "kind": " · ".join(kind),
         "sentences": sentences(r),
         "verdict": {"colour": colour, "icon": icon, "text": r["verdict"], "detail": _detail(r)},
-        "tiles": [tile("TPR", "Good answers it passed", r["tpr"], r["tpr_interval"],
-                       f"from {labels['correct']} Correct"),
-                  tile("TNR", "Bad answers it failed", r["tnr"], r["tnr_interval"],
-                       f"from {labels['wrong']} Wrong"),
-                  tile("kappa", "Agreement beyond chance", r["kappa"], None,
-                       f"from {n} labels · {KAPPA_GATE:g} or more is good")],
+        "tiles": [tile("TPR", "When you said Pass", r["tpr"], r["tpr_interval"],
+                       f"{labels['correct']} marked Pass so far"),
+                  tile("TNR", "When you said Fail", r["tnr"], r["tnr_interval"],
+                       f"{labels['wrong']} marked Fail so far"),
+                  tile("kappa", "How much you agree beyond luck", r["kappa"], None,
+                       f"from {n} answers · {KAPPA_GATE:g} or more is good", as_pct=False)],
         "pass_rate": None if too_few else _pass_rate(r),
         "corrected": None if too_few else (
-            "Numbers are corrected for picking half from the judge's passes and half from its "
-            "fails. The bar under each number shows how sure it is: narrower is surer."),
+            "judgekeeper showed you half of your judge's passes and half of its fails, and "
+            "corrects the numbers for that. The bar under each number is the range it is "
+            "probably in."),
         "judge": {"name": judge.get("metric") or judge.get("name"), "model": model,
                   "rule": judge.get("rule"), "source": source},
         "review": review,
@@ -749,6 +776,24 @@ def run_labeling(found, port: int, open_browser: bool, say,
     return serve_workspace(prepare(found, say), port, open_browser, say, command)
 
 
+def say_opened(url: str, open_browser: bool, say, command: str = "judgekeeper start",
+               more: str = "") -> None:
+    """What the terminal says once a page is served: that it opened (or its link), that every
+    click is saved, and how to stop and come back. `more` is added to the come-back command
+    (--review, say). The link is printed whole: it holds the token."""
+    from judgekeeper.textio import tick
+
+    if open_browser:
+        webbrowser.open(url)
+        say(f"{tick()} Opened in your browser. Every click is saved.")
+        print(f"  If it did not open, use this link: {url}")
+    else:
+        print(f"Open this link in your browser: {url}")
+        say("Every click is saved.")
+    say(f"  To stop: Ctrl-C. To carry on later: {command}{more}")
+    sys.stdout.flush()
+
+
 def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
                     command: str = "judgekeeper start") -> int:
     """Serve the labeling page until the last answer, Ctrl-C or 2 hours idle. `command`
@@ -762,11 +807,7 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
                          page=page_template(ws.data()),
                          switches={"/review": start_review.switch(ws, say, reviewed),
                                    "/fix": start_fix.switch(ws, say)})
-    print(f"Labeling page: {server.url}")  # not scrubbed: the token must stay whole
-    say(f"Every click is saved. Press Ctrl-C here to stop; run {command} to continue.")
-    sys.stdout.flush()
-    if open_browser:
-        webbrowser.open(server.url)
+    say_opened(server.url, open_browser, say, command)
     try:
         server.serve()
     except KeyboardInterrupt:
@@ -776,7 +817,8 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
         save_result(ws, session, say)  # nobody fetched the last result: make it here
     elif not summary["done"]:
         say("")
-        say(f"Stopped. {summary['n_labeled']} labeled; run {command} to continue.")
+        say(f"Stopped. You marked {_plural(summary['n_labeled'], 'answer', 'answers')}. To "
+            f"carry on later: {command}")
     if reviewed:
         start_review.finish(ws, say, command)
     return 0

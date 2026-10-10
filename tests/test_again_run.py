@@ -329,11 +329,11 @@ def test_steadiness_agreement_and_matches(fake, capsys):
     fake.flips = {(ids[0], 1), (ids[1], 1), (ids[2], 1), (ids[3], 0)}
     code, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
     assert code == 0
-    assert "Asked twice more, your judge changed its verdict on 4 of your 36 answers." in out
+    assert "Asked twice more, your judge changed its mind on 4 of your 36 answers." in out
     assert "Across all your answers that is about" in out
-    assert ("Of the answers you marked Correct, your judge passed about 100% before and about "
-            in out)
-    assert "Its first new verdict matched the saved one on 35 of 36 answers (97%)." in out
+    assert ("When you said Pass, your judge also said Pass about 100% of the time before and "
+            "about ") in out
+    assert "Its first new decision matched the saved one on 35 of 36 answers (97%)." in out
     block = json.loads(fake.ws.result_json.read_text(encoding="utf-8"))["again"]
     assert block["steadiness"]["changed"] == 4 and block["matches_saved"] == pytest.approx(35 / 36)
     assert block["status"] == "exact" and block["times"] == 2
@@ -385,7 +385,7 @@ def test_an_error_is_not_counted(fake, capsys):
     first = again.labeled_answers(fake.ws)[0]["id"]
     fake.errors = {first}
     _, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    assert "1 answer was not counted: the judge gave no clear verdict." in out
+    assert "1 answer was not counted: the judge gave no clear decision." in out
 
 
 def test_a_close_copy_says_why_once_and_so_on_every_line(fake, capsys):
@@ -399,7 +399,7 @@ def test_a_close_copy_says_why_once_and_so_on_every_line(fake, capsys):
     assert after.startswith("This was a close copy of your judge: promptfoo version not "
                             "recorded.\n")
     lines = [x for x in after.splitlines() if x.startswith((
-        "Asked twice", "Of the answers you", "Its first new verdict"))]
+        "Asked twice", "When you said", "Its first new decision"))]
     assert len(lines) == 4 and all(x.endswith(" (close copy)") for x in lines)
     page = fake.ws.result_html.read_text(encoding="utf-8")
     assert page.count("promptfoo version not recorded") == 1 and "(close copy)" in page

@@ -121,10 +121,11 @@ def test_the_page_shows_the_question_and_the_answer_as_written(workspace):
     server, thread, _ = _server(ws)
     try:
         page = " ".join(server.page()[0].split())
-        for needed in ("The question", "The answer", "white-space: pre-wrap", "17px",
-                       "Correct <kbd>1</kbd>", "Wrong <kbd>2</kbd>", "Skip <kbd>S</kbd>",
-                       "Undo <kbd>U</kbd>", "See my result", "#1E293B", "#10B981",
-                       "prefers-color-scheme: dark", "A rough check needs 15 of each."):
+        for needed in ("The question", "Your app's answer", "white-space: pre-wrap", "17px",
+                       "Fail <kbd>←</kbd>", "Pass <kbd>→</kbd>", "Skip <kbd>S</kbd>",
+                       "Undo <kbd>U</kbd>", "See your result", "#1E293B", "#10B981",
+                       "prefers-color-scheme: dark",
+                       "Mark a few more answers to see your result."):
             assert needed in page, needed
         data = _page_data(server)
         assert re.fullmatch(r"Question \d+\?", data["items"][0]["input"])
@@ -139,8 +140,8 @@ def test_clicks_are_written_to_labels_csv(workspace):
     server, thread, client = _server(ws)
     try:
         ids = [i["id"] for i in client.state()["items"]]
-        assert client.label(id=ids[0], label="pass")[0] == 200   # Correct
-        assert client.label(id=ids[1], label="fail")[0] == 200   # Wrong
+        assert client.label(id=ids[0], label="pass")[0] == 200   # Pass
+        assert client.label(id=ids[1], label="fail")[0] == 200   # Fail
         assert client.label(id=ids[2], deferred=True)[0] == 200  # Skip
         assert client.label(id=ids[3], label="pass")[0] == 200
         assert client.label(id=ids[3], label=None, deferred=False)[0] == 200  # Undo
@@ -214,9 +215,9 @@ def test_see_my_result_works_before_everything_is_labeled(workspace):
         assert resp.getheader("Content-Type").startswith("text/html")
         assert "script-src" not in resp.getheader("Content-Security-Policy")
         html = payload.decode()
-        assert "Too few labels to tell yet. Label more for a rough check." in html
+        assert "Mark a few more answers to see your result." in html
         assert "<script" not in html
-        assert "Keep labeling" in html
+        assert "Mark more answers</a>" in html
         assert thread.is_alive()  # answers are left: the person may go on
     finally:
         server.stop()
@@ -231,7 +232,7 @@ def test_after_the_last_answer_the_result_is_served_and_the_server_stops(tmp_pat
         assert client.label(id=item_id, label=group)[0] == 200
     resp, payload = client.request("GET", "/result")
     assert resp.status == 200
-    assert "It agrees with you often enough to use as a gate." in payload.decode()
+    assert "Your judge agrees with you often enough to use." in payload.decode()
     thread.join(timeout=5)
     assert not thread.is_alive()
 
@@ -246,12 +247,12 @@ def test_the_verdict_levels_use_the_report_thresholds():
     top = _result(100, 100, 20, 19, 20, 1)        # TPR 0.95, TNR 0.95, kappa 0.9
     middle = _result(100, 100, 20, 17, 20, 2)     # TPR 17/19 = 0.89, TNR 18/21 = 0.86
     bottom = _result(100, 100, 20, 14, 20, 6)     # TPR 0.7
-    too_few = _result(100, 100, 10, 9, 10, 1)     # 10 Correct, 10 Wrong
-    assert top["verdict"] == "It agrees with you often enough to use as a gate."
-    assert middle["verdict"] == ("It agrees with you often, but check its fails and passes by "
-                                 "hand before relying on it.")
-    assert bottom["verdict"] == "It does not agree with you often enough to use as a gate."
-    assert too_few["verdict"] == "Too few labels to tell yet. Label more for a rough check."
+    too_few = _result(100, 100, 10, 9, 10, 1)     # 10 Pass, 10 Fail
+    assert top["verdict"] == "Your judge agrees with you often enough to use."
+    assert middle["verdict"] == ("Nearly there: look at where it disagrees with you before you "
+                                 "rely on it.")
+    assert bottom["verdict"] == "Not good enough yet: look at where it disagrees with you."
+    assert too_few["verdict"] == "Mark a few more answers to see your result."
     assert [r["check"] for r in (top, too_few)] == ["rough", "too_few"]
     assert _result(100, 100, 50, 48, 50, 2)["check"] == "reliable"
 
@@ -261,25 +262,24 @@ def test_the_terminal_result():
     lines = start_label.result_lines(r, saved=".judgekeeper")
     tpr_lo, tpr_hi = r["tpr_interval"]
     tnr_lo, tnr_hi = r["tnr_interval"]
-    assert lines[0] == "Your result (rough check: 30 Correct, 20 Wrong)"
-    assert (f"Of the answers you marked Correct, your judge passed about 95% "
-            f"({tpr_lo:.0%} to {tpr_hi:.0%}).") in lines
-    assert (f"Of the answers you marked Wrong, your judge failed about 25% "
-            f"({tnr_lo:.0%} to {tnr_hi:.0%}).") in lines
+    assert lines[0] == "Your result, from the 50 answers you marked (30 Pass, 20 Fail):"
+    assert "When you said Pass, your judge also said Pass 95% of the time." in lines
+    assert "When you said Fail, your judge also said Fail 25% of the time." in lines
+    assert "Not good enough yet: look at where it disagrees with you." in lines
     assert (f"  TPR 0.95 ({tpr_lo:.2f}–{tpr_hi:.2f})   TNR 0.25 ({tnr_lo:.2f}–"
             f"{tnr_hi:.2f})   kappa 0.25") in lines
     lo, hi = r["real_pass_rate_interval"]
-    assert (f"  Your judge passes 90% of your app's answers. From your labels, about 76% should pass "
-            f"({lo:.0%}–{hi:.0%}).") in lines
+    assert (f"  Your judge passes 90% of your app's answers. From your marks, about 76% should "
+            f"pass (probably between {lo:.0%} and {hi:.0%}).") in lines
     assert ("  Corrected for picking half from the judge's passes and half from its fails."
             in lines)
-    assert "  Label more for a reliable result:  judgekeeper start" in lines
+    assert "  Mark more answers:  judgekeeper start" in lines
     assert "  Check again after your next eval run:  judgekeeper start" in lines
     assert lines[-2:] == ["", "Saved in .judgekeeper/ (result.html is the page you just saw)."]
 
 
-# 900 passes and 100 fails in the pool, 25 labeled in each group, 24 and 1 Correct: 25 marked
-# Correct and 25 Wrong, but the judge passes most answers, so the TNR range stays wide.
+# 900 passes and 100 fails in the pool, 25 marked in each group, 24 and 1 marked Pass: 25
+# marked Pass and 25 Fail, but the judge passes most answers, so the TNR range stays wide.
 LOPSIDED = (900, 100, 25, 24, 25, 1)
 
 
@@ -290,10 +290,10 @@ def test_twenty_five_of_each_with_a_wide_range_is_not_reliable_yet():
     width = r["tnr_interval"][1] - r["tnr_interval"][0]
     assert width > targets.MAX_WIDTH and r["wide"]["tnr"] == pytest.approx(width)
     lines = start_label.result_lines(r, saved=".judgekeeper")
-    assert lines[0] == "Your result (rough check: 25 Correct, 25 Wrong)"
-    assert (f"Not reliable yet: the range for answers you marked Wrong is still {width:.2f} "
-            "wide. Label more answers to narrow it.") in lines
-    assert "  Label more for a reliable result:  judgekeeper start" in lines
+    assert lines[0] == "Your result, from the 50 answers you marked (25 Pass, 25 Fail):"
+    assert "Marking more answers narrows the range for the answers you marked Fail." in lines
+    assert f"{width:.2f}" not in " ".join(lines)  # no number about the range in the words
+    assert "  Mark more answers:  judgekeeper start" in lines
 
 
 def test_a_reliable_result_has_both_ranges_narrow_enough():
@@ -302,20 +302,20 @@ def test_a_reliable_result_has_both_ranges_narrow_enough():
     for key in ("tpr", "tnr"):
         lo, hi = r[f"{key}_interval"]
         assert hi - lo <= targets.MAX_WIDTH
-    assert not any(line.startswith("Not reliable yet") for line in start_label.result_lines(r))
+    assert not any(line.startswith("Marking more answers narrows")
+                   for line in start_label.result_lines(r))
 
 
 def test_the_targets_are_the_shared_ones():
     assert (start_label.ROUGH, start_label.RELIABLE) == (targets.ROUGH, targets.RELIABLE)
 
 
-def test_too_few_labels_say_what_a_rough_check_needs():  # a rate is unknown only then
+def test_too_few_marks_say_to_mark_more():  # a rate is unknown only then
     r = _result(100, 100, 20, 15, 0, 0)
     text = "\n".join(start_label.result_lines(r, saved=".judgekeeper"))
     assert "None" not in text and "nan" not in text
-    assert ("A rough check needs 15 you mark Correct and 15 you mark Wrong. So far: 15 "
-            "Correct, 5 Wrong.") in text
-    assert "TNR" not in text  # no numbers before a rough check
+    assert "Mark a few more answers to see your result. So far: 15 Pass, 5 Fail." in text
+    assert "TNR" not in text  # no numbers before a result
 
 
 def test_the_word_trust_is_nowhere():
@@ -325,19 +325,17 @@ def test_the_word_trust_is_nowhere():
         texts += start_label.result_lines(r, saved=".judgekeeper")
         texts.append(start_label.result_html(r))
     for n_pass, n_fail in ((171, 41), (58, 2), (20, 2), (40, 0)):
-        pool = start.Pool(answers=[start.Answer(str(i), "q", "a", "pass" if i < n_pass else "fail",
-                                                "", None, None, "x")
-                                   for i in range(n_pass + n_fail)])
-        texts += start.intro_lines(pool)
+        texts.append(start.picking_line(n_pass, n_fail))
+    texts += start.NEXT
     assert not any("trust" in t.lower() for t in texts)
 
 
 def test_the_result_page_stands_alone():
     html = start_label.result_html(_result(900, 100, 25, 20, 25, 10))
-    for needed in ("Your result", "Of the answers you marked Correct", "TPR", "TNR", "kappa",
+    for needed in ("Your result", "When you said Pass", "TPR", "TNR", "kappa",
                    "What next", "judgekeeper start", "prefers-color-scheme: dark"):
         assert needed in html, needed
-    assert "<script" not in html and "Keep labeling" not in html
+    assert "<script" not in html and 'class="btn"' not in html
     assert not re.search(r"https?://(?!www\.w3\.org/2000/svg)", html)
     assert "<link" not in html and "@import" not in html
 
@@ -504,12 +502,14 @@ def test_start_labels_and_shows_the_result(tmp_path, capsys, clicker):
     promptfoo_project(tmp_path, split(20, 16))
     code, out, _ = _run(capsys, tmp_path, "--yes", "--port", "0")
     assert code == 0
-    assert "Labeling page: http://127.0.0.1:" in out
+    assert "Opened in your browser. Every click is saved." in out
+    assert "  If it did not open, use this link: http://127.0.0.1:" in out
+    assert "  To stop: Ctrl-C. To carry on later: judgekeeper start" in out
     assert len(clicker["opened"]) == 1
-    assert "Your result (rough check: 20 Correct, 16 Wrong)" in out
-    assert "It agrees with you often enough to use as a gate." in out
+    assert "Your result, from the 36 answers you marked (20 Pass, 16 Fail):" in out
+    assert "Your judge agrees with you often enough to use." in out
     assert "Saved in .judgekeeper/. It holds your answers' text" in out
-    assert "It agrees with you often enough to use as a gate." in clicker["page"]
+    assert "Your judge agrees with you often enough to use." in clicker["page"]
     assert (tmp_path / ".judgekeeper" / "result.html").is_file()
 
 
@@ -518,7 +518,8 @@ def test_no_browser_prints_the_link_only(tmp_path, capsys, clicker):
     code, out, _ = _run(capsys, tmp_path, "--yes", "--no-browser", "--port", "0")
     assert code == 0
     assert clicker["opened"] == []
-    assert "Labeling page: http://127.0.0.1:" in out
+    assert "Open this link in your browser: http://127.0.0.1:" in out
+    assert "Opened in your browser" not in out
 
 
 def test_ctrl_c_says_everything_is_saved(tmp_path, capsys, clicker):
@@ -526,8 +527,8 @@ def test_ctrl_c_says_everything_is_saved(tmp_path, capsys, clicker):
     clicker["stop_after"] = 5
     code, out, _ = _run(capsys, tmp_path, "--yes", "--no-browser", "--port", "0")
     assert code == 0
-    assert (f"Stopped. 5 labeled; run judgekeeper start {quote_arg(tmp_path)} --port 0 "
-            "--no-browser to continue.") in out
+    assert (f"Stopped. You marked 5 answers. To carry on later: judgekeeper start "
+            f"{quote_arg(tmp_path)} --port 0 --no-browser") in out
     assert "Your result" not in out
 
 
@@ -538,7 +539,7 @@ def test_a_person_is_asked_before_the_page_opens(tmp_path, capsys, clicker, monk
     monkeypatch.setattr(builtins, "input", lambda prompt="": print(prompt) or answers.pop(0))
     code, out, _ = _run(capsys, tmp_path, "--port", "0")
     assert code == 0
-    assert "Open the labeling page now? [Y/n]" in out
+    assert "Open it now? [Y/n]" in out
     assert not (tmp_path / ".judgekeeper").exists()
 
 
@@ -546,7 +547,7 @@ def test_without_a_terminal_the_page_needs_yes(tmp_path, capsys, clicker):
     promptfoo_project(tmp_path, split(20, 12))
     code, out, _ = _run(capsys, tmp_path)
     assert code == start.EXIT_QUESTION
-    assert (f"Open the labeling page? Run judgekeeper start {quote_arg(tmp_path)} --yes to open "
+    assert (f"Open it now? Run judgekeeper start {quote_arg(tmp_path)} --yes to open "
             "it.") in out
     assert not (tmp_path / ".judgekeeper").exists()
 

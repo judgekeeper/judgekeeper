@@ -155,22 +155,19 @@ judgekeeper --version</code></pre></div>
     <div class="code"><pre><code>judgekeeper start</code></pre></div>
     <div class="screen"><p class="bar"><i></i><i></i><i></i><span>What you will see, for a project with promptfoo results</span></p><pre class="output" data-output="start"><code>Looking in /Users/me/support-bot ...
 
-<span class="ok">&#x2713;</span> Your eval tool: promptfoo (results.json, saved 2026-10-03 14:12)
-<span class="ok">&#x2713;</span> Your judge: llm-rubric "is polite and correct" with openai:gpt-4.1-mini
-<span class="ok">&#x2713;</span> 212 answers with a verdict: the judge passed 171 and failed 41
+judgekeeper found your LLM-as-a-judge:
+
+  Eval tool       promptfoo
+  Results file    results.json (saved 3 Oct 2026, 14:12)
+  What it checks  "is polite and correct"
+  Judge model     openai:gpt-4.1-mini
+  Its decisions   212 answers: 171 passed, 41 failed
   <span class="ok">&#x2713;</span> Your judge made a real decision on every answer.
 
-You will label answers in your browser, one at a time: Correct or Wrong.
-You won&#39;t see what the judge said.
-judgekeeper picks half from the judge&#39;s passes and half from its fails, so
-you see enough of both.
-
-<span class="dim">  A rough check needs 15 you mark Correct and 15 you mark Wrong.
-  A reliable result needs 25 you mark Correct and 25 you mark Wrong.
-  Most people need 10 to 20 minutes.</span>
-
-<span class="em">Open the labeling page now? [Y/n]</span></code></pre></div>
-    <div class="donewhen"><p>You&#39;re done when it names <b>your judge</b> and asks to open the labeling page. Press Enter.</p><label class="tick"><input type="checkbox" data-step="3"> Mark step 3 done</label></div>
+Next: in your browser, mark each answer Pass or Fail.
+This shows how often your judge agrees with you.
+<span class="em">Open it now? [Y/n]</span></code></pre></div>
+    <div class="donewhen"><p>You&#39;re done when it names <b>your judge</b> and asks <b>Open it now?</b> Press Enter.</p><label class="tick"><input type="checkbox" data-step="3"> Mark step 3 done</label></div>
     <details class="help"><summary>Didn&#39;t work?</summary><dl>
       <dt><code data-said-by="start">No saved eval results found in</code> your folder</dt>
       <dd>Your eval tool has saved no results in this folder yet: run your eval once, then <code>judgekeeper start</code> again. If your judge saves its results its own way, go back to step 2.</dd>
@@ -178,7 +175,7 @@ you see enough of both.
       <dd>It found no file it can read as your judge&#39;s results. Pick one of the three ways it lists: give it your file&#39;s path, add the <code>record()</code> line, or have your coding agent write a table (<a href="#own-format">all three</a>).</dd>
       <dt><code data-said-by="start">No promptfoo results file in this folder.</code></dt>
       <dd>promptfoo kept your results in its own database. judgekeeper offers to run <code>promptfoo export</code> for you, which writes them to a file. It asks first.</dd>
-      <dt>It says <code data-said-by="start">a rough check needs at least</code> 30 answers</dt>
+      <dt>It says judgekeeper <code data-said-by="start">needs at least</code> 30 answers to show a result</dt>
       <dd>Your judge graded fewer than 30 answers. It prints the command that makes more with your own eval, naming your config, test file or task: run it (it calls your models, so it costs money), then <code>judgekeeper start</code> again. Or label the ones you have: the result says how unsure it is. A judge that failed only a few answers is not a reason to stop: labeling goes on, because your labels decide what is Wrong.</dd>
       <dt><code data-said-by="start">Saved results from more than one eval tool:</code> or <code data-said-by="start">These results hold more than one judge:</code></dt>
       <dd>It lists them and asks which one. Pick the judge you want to check.</dd>
@@ -188,48 +185,48 @@ you see enough of both.
 
 <section class="stop" id="label" aria-labelledby="label-title">
   <div class="head"><span class="n" aria-hidden="true">4</span><h2 id="label-title">Label</h2></div>
-  <p class="why">A page opens in your browser. It runs on your own computer and shows one answer at a time: is it correct?</p>
+  <p class="why">A page opens in your browser. It runs on your own computer and shows one answer at a time: does it pass your judge&#39;s rule?</p>
   <div class="trio">
-    <div class="mini" role="img" aria-label="A small picture of the labeling page: the question, the answer, the Correct and Wrong buttons, and your progress">
-      <div class="mbar"><i></i><i></i><i></i> judgekeeper · Is this answer correct? Your judge&#39;s verdict is hidden.</div>
+    <div class="mini" role="img" aria-label="A small picture of the labeling page: the question, the answer, the Fail and Pass buttons, and your progress">
+      <div class="mbar"><i></i><i></i><i></i> judgekeeper · Mark each answer Pass or Fail. What your judge decided stays hidden.</div>
       <div class="mbody">
         <div>
           <p class="cap">The question</p><div class="mq">Can I get a refund after 30 days?</div>
-          <p class="cap">The answer</p><div class="ma">Yes, refunds are always available, whenever you ask.</div>
-          <div class="mbtns"><span class="mc">&#x2713; Correct <kbd>1</kbd></span><span class="mw">&#x2715; Wrong <kbd>2</kbd></span></div>
+          <p class="cap">Your app&#39;s answer</p><div class="ma">Yes, refunds are always available, whenever you ask.</div>
+          <div class="mbtns"><span class="mw">&#x2715; Fail <kbd>←</kbd></span><span class="mc">&#x2713; Pass <kbd>→</kbd></span></div>
         </div>
         <div class="mside"><b>Your progress</b>
-          <div class="mm c"><span>Correct</span><span>19</span></div><div class="mt"><span style="width:76%"></span></div>
-          <div class="mm w"><span>Wrong</span><span>21</span></div><div class="mt"><span style="width:84%"></span></div>
-          <p class="mok">Rough check ready. A reliable result needs 25 of each.</p>
-          <span class="msee">See my result →</span></div>
+          <div class="mm c"><span>Pass</span><span>19</span></div><div class="mt"><span style="width:76%"></span></div>
+          <div class="mm w"><span>Fail</span><span>21</span></div><div class="mt"><span style="width:84%"></span></div>
+          <p class="mok">You can see your result now. Marking more answers narrows its ranges.</p>
+          <span class="msee">See your result →</span></div>
       </div>
     </div>
-    <p>Press <kbd>1</kbd> for Correct (this answer should pass) and <kbd>2</kbd> for Wrong (it should fail). <kbd>S</kbd> skips an answer you can&#39;t judge from the text, and <kbd>U</kbd> undoes the last one. Every click is saved at once, so you can stop at any time and run <code>judgekeeper start</code> later to carry on.</p>
-    <p>You never see what the judge said, so it can&#39;t sway you. The counts are your own: how many you marked Correct and how many Wrong. Half the answers are ones the judge passed and half it failed, so you see enough of both.</p>
-    <div class="donewhen"><p>You&#39;re done when it says <b>Rough check ready</b> (15 of each) or <b>Reliable result ready</b> (25 of each, and both ranges narrow enough). <b>Not reliable yet</b> means you have 25 of each but a range is still too wide: label more.</p><label class="tick"><input type="checkbox" data-step="4"> Mark step 4 done</label></div>
+    <p>Press <kbd>←</kbd> for Fail (this answer breaks your judge&#39;s rule) and <kbd>→</kbd> for Pass (it follows the rule). <kbd>S</kbd> skips an answer you can&#39;t tell from the text, and <kbd>U</kbd> undoes the last one. Every click is saved at once, so you can stop at any time and run <code>judgekeeper start</code> later to carry on.</p>
+    <p>You never see what the judge said, so it can&#39;t sway you. The counts are your own: how many you marked Pass and how many Fail. Half the answers are ones the judge passed and half it failed, so you see enough of both.</p>
+    <div class="donewhen"><p>You&#39;re done when the page says <b>You can see your result now</b>. Marking more answers makes the result&#39;s ranges narrower; it says so when a range is still wide.</p><label class="tick"><input type="checkbox" data-step="4"> Mark step 4 done</label></div>
   </div>
 </section>
 
 <section class="stop" id="result" aria-labelledby="result-title">
   <div class="head"><span class="n" aria-hidden="true">5</span><h2 id="result-title">Your result</h2></div>
-  <p class="why">Press <strong>See my result</strong> any time. It shows in the page and in the terminal, and it is saved as <code>.judgekeeper/result.html</code>, which opens without judgekeeper running.</p>
+  <p class="why">Press <strong>See your result</strong> any time. It shows in the page and in the terminal, and it is saved as <code>.judgekeeper/result.html</code>, which opens without judgekeeper running.</p>
   <div class="trio">
     <div class="rcard result-preview" style="margin:0 0 14px" data-illustration data-tpr="0.94 0.83 0.99" data-tnr="0.86 0.68 0.95" data-kappa="0.79" data-correct="19" data-wrong="21">
       <span class="tag-illustration">An illustration</span>
-      <p class="s">Of the answers you marked Correct, your judge passed about 94% (83% to 99%).</p>
-      <p class="s">Of the answers you marked Wrong, your judge failed about 86% (68% to 95%).</p>
-      <div class="vbox amber"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4.5M12 17.5v.1"/></svg><div>It agrees with you often, but check its fails and passes by hand before relying on it.<span>Close to good enough. Labeling more will make this surer.</span></div></div>
+      <p class="s">When you said Pass, your judge also said Pass 94% of the time.</p>
+      <p class="s">When you said Fail, your judge also said Fail 86% of the time.</p>
+      <div class="vbox amber"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4.5M12 17.5v.1"/></svg><div>Nearly there: look at where it disagrees with you before you rely on it.</div></div>
       <div class="tiles3">
-        <div class="num"><small>TPR</small><span class="plain">Good answers it passed</span><b>0.94</b><div class="bar1"><span style="left:83%;right:1%"></span><i style="left:94%"></i></div><em>0.83 to 0.99 · from 19 Correct</em></div>
-        <div class="num"><small>TNR</small><span class="plain">Bad answers it failed</span><b>0.86</b><div class="bar1"><span style="left:68%;right:5%"></span><i style="left:86%"></i></div><em>0.68 to 0.95 · from 21 Wrong</em></div>
-        <div class="num"><small>kappa</small><span class="plain">Agreement beyond chance</span><b>0.79</b><div class="bar1"><i style="left:79%"></i></div><em>from 40 labels · 0.6 or more is good</em></div>
+        <div class="num"><small>TPR</small><span class="plain">When you said Pass</span><b>94%</b><div class="bar1"><span style="left:83%;right:1%"></span><i style="left:94%"></i></div><em>Probably between 83% and 99%. Marking more answers narrows this.</em></div>
+        <div class="num"><small>TNR</small><span class="plain">When you said Fail</span><b>86%</b><div class="bar1"><span style="left:68%;right:5%"></span><i style="left:86%"></i></div><em>Probably between 68% and 95%. Marking more answers narrows this.</em></div>
+        <div class="num"><small>kappa</small><span class="plain">How much you agree beyond luck</span><b>0.79</b><div class="bar1"><i style="left:79%"></i></div><em>from 40 answers · 0.6 or more is good</em></div>
       </div>
     </div>
     <p>The two sentences are the answer. Each comes with the range it is likely to lie in. Then one line says whether your judge agrees with you often enough to use as a gate: an automatic check that can stop a release. Its colour means: green, often enough; amber, check by hand; red, not often enough.</p>
     <ul>
-      <li><strong>TPR</strong>: of the answers you marked Correct, the share the judge passed.</li>
-      <li><strong>TNR</strong>: of the answers you marked Wrong, the share the judge failed.</li>
+      <li><strong>TPR</strong>: of the answers you marked Pass, the share the judge passed.</li>
+      <li><strong>TNR</strong>: of the answers you marked Fail, the share the judge failed.</li>
       <li><strong>Kappa</strong>: how much the judge agrees with you beyond lucky guessing. 0 is no better than chance and 1 is perfect.</li>
     </ul>
     <p>The bar under each number shows how sure it is: narrower is surer. Because the page showed far more of the judge&#39;s fails than your results hold, the numbers are corrected for that picking, so they describe all of your app's answers.</p>

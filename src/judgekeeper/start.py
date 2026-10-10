@@ -65,7 +65,10 @@ EXIT_QUESTION = 8  # stopped at a question it cannot ask (no terminal); nothing 
 ROUGH = targets.ROUGH  # the label targets every command shares
 RELIABLE = targets.RELIABLE
 MIN_POOL = 2 * ROUGH  # a rough check needs ROUGH of each
-RUBRIC_WIDTH = 60
+RUBRIC_WIDTH = 70  # characters of the rule's first line shown in the first block
+COLUMN = 16  # the first block's label column
+MONTHS_SHORT = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov",
+                "Dec")
 GIVEN_BY_YOU = "given by you"
 POINT_ME = "Point me at the results: judgekeeper start path/to/results.json"
 PAIRWISE = ("These are A/B comparisons. judgekeeper start handles pass/fail answers for now; "
@@ -553,6 +556,9 @@ class Found:
     one_rule: bool = True
     task_file: str | None = None  # Inspect: the task file its newest log names
     rule_field: str | None = None  # Inspect: "instructions" or "template", the rule's field
+    models: list[str] = field(default_factory=list)  # the judge's model(s), as the results say
+    model_source: str | None = None  # None (the results), GIVEN_BY_YOU or judgekeeper.toml
+    experiment: str | None = None  # MLflow: the experiment read
 
 
 PASS_OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt}
@@ -951,9 +957,9 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         results = _choose_store(talk, root, results, experiment, store)
     newest = results[0]
     description = None
+    name = None
     if kind == "mlflow":
         name, runs = _mlflow_runs(talk, newest, experiment, metric)
-        talk.say(f"{tick()} Your eval tool: MLflow ({newest.rel}, experiment {name})")
         read_older = iter(runs[1:])
         first = runs[0] if runs else None
         if first is None:
@@ -986,7 +992,6 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             first, read_older = loaded[0], iter(loaded[1:])
         else:
             first = _read(newest)
-            talk.say(f"{tick()} Your eval tool: {find.NAMES[kind]} ({_where(newest)})")
             read_older = (_read(r) for r in results[1:])
     if kind in ("records", "mapped"):
         metrics = sorted({r.name for r in every.records if r.annotator_kind == LLM})
@@ -1005,41 +1010,29 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         if _identity(older.records, metric) == identity:
             used.append(older)
             pool = build_pool([(x.label, x.records) for x in used], metric, norm)
-    if kind == "records":
-        n = sum(r.annotator_kind == LLM and r.name == metric for x in used for r in x.records)
-        where = _folder_of(newest)
-        where = f" in {where}" if where.endswith("/") else f": {where}"
-        talk.say(f"{tick()} Your judge's saved records: {n} from judgekeeper.record() "
-                 f"({_plural(len(used), 'file', 'files')}{where})")
-    elif kind == "mapped":
-        lines = f" (its newest {_plural(len(used), 'line', 'lines')})" if " line " in \
-            first.label else ""
-        talk.say(f"{tick()} Your judge's results: {newest.rel}, read as {settings.FILE} "
-                 f"says{lines}")
-    elif len(used) > 1:
-        talk.say(f"  Fewer than {MIN_POOL} answers in the newest results, so older results "
-                 f"from the same judge were added: {', '.join(x.label for x in used[1:])}")
 
     records = [r for x in used for r in x.records
                if r.annotator_kind == LLM and r.name == metric]
     known, _ = _consensus([a.fingerprint for a in pool.answers]) if pool.answers else ({}, [])
     fingerprint = make_fingerprint(known).to_dict()
     models = sorted({str(r.evaluator["model"]) for r in records if r.evaluator.get("model")})
+    model_source = None
     if judge_model is not None:
         if models:
             raise StartError(f"{Path(first.label).name} already names the judge's model "
                              f"({', '.join(models)}): drop --judge-model")
-        fingerprint.update(model=judge_model, model_source=GIVEN_BY_YOU)
+        model_source = GIVEN_BY_YOU
+        fingerprint.update(model=judge_model, model_source=model_source)
         models = [judge_model]
     elif not models and saved is not None and saved.model:
-        fingerprint.update(model=saved.model, model_source=f"given in {settings.FILE}")
+        model_source = f"given in {settings.FILE}"
+        fingerprint.update(model=saved.model, model_source=model_source)
         models = [saved.model]
     rule = rule_of(records)
     one_rule = len({k for k in (_rule_key(r, kind) for r in records) if k is not None}) <= 1
     rubric = rubric_line(rule)
     judge = _judge_name(kind, metric, rubric, models, judge_model is not None,
                         Path(newest.rel).name)
-    talk.say(f"{tick()} Your judge: {judge}")
     versions = sorted({a.agent["app_version"] for a in pool.answers if "app_version" in a.agent})
     score_judge = (norm.pass_if is not None or kind == "deepeval"  # score and threshold
                    or (kind == "mapped" and (saved.map or {}).get("kind", "score") == "score")
@@ -1053,7 +1046,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  check=judge_check.check(pool, kind, score_judge=score_judge),
                  pass_mark=pass_mark_of(pool, kind, norm.pass_if, key), one_rule=one_rule,
                  task_file=_task_file(newest.path) if kind == "inspect" else None,
-                 rule_field=_inspect_field(records) if kind == "inspect" and rule else None)
+                 rule_field=_inspect_field(records) if kind == "inspect" and rule else None,
+                 models=models, model_source=model_source, experiment=name)
 
 
 def _rule_key(r, kind: str) -> str | None:
@@ -1206,10 +1200,83 @@ def say_check(talk: Talk, found: Found) -> None:
             talk.say(line)
 
 
-def _say_pool(talk: Talk, found: Found) -> None:
+def when_words(d) -> str:
+    """A date and time as the first block shows it: "3 Oct 2026, 10:00"."""
+    return f"{d.day} {MONTHS_SHORT[d.month - 1]} {d.year}, {d:%H:%M}"
+
+
+NOT_IN_FILE = "not in the file"
+NO_MODEL = "not named in the results (add --judge-model NAME)"
+
+
+def _tool_words(found: Found) -> str:
+    if found.tool == "table":
+        return f"a table ({Path(found.results[0].rel).name})"
+    if found.tool == "records":
+        return "your own code (judgekeeper.record())"
+    if found.tool == "mapped":
+        return f"your own format (read as {settings.FILE} says)"
+    return find.NAMES[found.tool]
+
+
+def _results_words(found: Found) -> str:
+    newest = found.results[0]
+    if found.tool == "mlflow":
+        return f"{newest.rel} (experiment {found.experiment})"
+    if found.tool == "records":
+        return f"{_folder_of(newest)} ({_plural(len(found.used), 'file', 'files')})"
+    return f"{newest.rel} (saved {when_words(newest.date())})"
+
+
+def _checks_words(found: Found) -> str:
+    line = rubric_line(found.rule)
+    value = f'"{line}"' if line else NOT_IN_FILE
+    if len(found.metrics) > 1:  # several judges in the results: say which one this is
+        value = f"{found.metric}: {value}"
+    return value
+
+
+def _model_words(found: Found) -> str:
+    if not found.models:
+        return NO_MODEL
+    model = ", ".join(found.models)
+    if found.model_source == GIVEN_BY_YOU:
+        return f"{model} (as you told me)"
+    if found.model_source:
+        return f"{model} ({found.model_source})"
+    return model
+
+
+def _pass_mark_words(pm: dict) -> str:
+    mark = f"{pm['mark']:g}"
+    words = {">=": f"{mark} or more", ">": f"more than {mark}", "<=": f"{mark} or less",
+             "<": f"less than {mark}"}
+    return f"score {words[pm['op']]}" if pm.get("op") in words else f"score {mark}"
+
+
+def found_lines(found: Found) -> list[str]:
+    """The first block `start` prints: what judgekeeper found, as a small table. The only
+    place inside judgekeeper that says "LLM-as-a-judge"; everywhere else it is "your judge"."""
     pool = found.pool
-    talk.say(f"{tick()} {_plural(len(pool.answers), 'answer', 'answers')} with a verdict: the "
-             f"judge passed {pool.n_pass} and failed {pool.n_fail}")
+    rows = [("Eval tool", _tool_words(found)), ("Results file", _results_words(found)),
+            ("What it checks", _checks_words(found)), ("Judge model", _model_words(found)),
+            ("Its decisions", (f"{_plural(len(pool.answers), 'answer', 'answers')}: "
+                               f"{pool.n_pass} passed, {pool.n_fail} failed"))]
+    if found.pass_mark:
+        rows.append(("Pass mark", _pass_mark_words(found.pass_mark)))
+    lines = ["judgekeeper found your LLM-as-a-judge:", ""]
+    lines += [f"  {name:<{COLUMN}}{value}" for name, value in rows]
+    if found.tool not in ("records", "mapped") and len(found.used) > 1:
+        lines.append(f"  Fewer than {MIN_POOL} answers in the newest results, so older results "
+                     f"from the same judge were added: {', '.join(found.used[1:])}")
+    return lines
+
+
+def say_found(talk: Talk, found: Found) -> None:
+    """The first block, then the judge check and the notes on the pool."""
+    pool = found.pool
+    for line in found_lines(found):
+        talk.say(line)
     if not pool.unmapped:  # else start stops below, and says why
         say_check(talk, found)
     if found.tool == "table":
@@ -1224,7 +1291,7 @@ def _say_pool(talk: Talk, found: Found) -> None:
         where = (f"{Path(found.used[0]).name} also holds" if len(found.used) == 1
                  else "These results also hold")
         talk.say(f"  {where} {_plural(pool.n_human, 'human label', 'human labels')}. "
-                 "judgekeeper start does not use them: you label the answers yourself.")
+                 "judgekeeper start does not use them: you mark the answers yourself.")
 
 
 def _head_value(found: Found, pattern: re.Pattern) -> str | None:
@@ -1317,80 +1384,72 @@ def picking_line(n_pass: int, n_fail: int) -> str:
             f"{within}{then}.")
 
 
-def intro_lines(pool: Pool) -> list[str]:
-    """What labeling is, how answers are picked, and the targets: about the person's labels,
-    and said to be out of reach when there are too few answers for them."""
-    n = len(pool.answers)
-    lines = ["You will label answers in your browser, one at a time: Correct or Wrong.",
-             "You won't see what the judge said.",
-             *textwrap.wrap(picking_line(pool.n_pass, pool.n_fail), width=74), ""]
-    for target, need in (("A rough check", ROUGH), ("A reliable result", RELIABLE)):
-        line = f"  {target} needs {need} you mark Correct and {need} you mark Wrong"
-        lines.append(f"{line}." if n >= 2 * need
-                     else f"{line}: that takes {2 * need} answers, and you have {n}.")
-    return lines + ["  Most people need 10 to 20 minutes."]
+NEXT = ("Next: in your browser, mark each answer Pass or Fail.",
+        "This shows how often your judge agrees with you.")
 
 
 def _label_anyway(talk: Talk, found: Found) -> bool:
     """Too few answers for a rough check: say so, and how to make more; then ask."""
     n = len(found.pool.answers)
     talk.say()
-    talk.say(f"You have {_plural(n, 'answer', 'answers')}; a rough check needs at least "
-             f"{MIN_POOL}.")
+    talk.say(f"You have {_plural(n, 'answer', 'answers')}. judgekeeper needs at least "
+             f"{MIN_POOL} to show a result.")
     if talk.yes and not _interactive():
-        talk.say("Labeling anyway, as you asked (--yes).")
+        talk.say("Going on anyway, as you asked (--yes).")
         return True
     talk.say()
     talk.say(f"Make more answers with your own eval, then run {talk.command()} again:")
     for line in more_answers(found):
         talk.say(line)
     talk.say()
-    question = f"Label the {n} you have anyway?"
-    return talk.confirm(f"{question} The result will say how unsure it is.",
+    question = f"Mark the {n} you have anyway?"
+    return talk.confirm(f"{question} The result will have wide ranges.",
                         default=False, with_yes=True,
                         hint=f"{question} Run {talk.command('--yes')} to say yes.")
 
 
 def _few_note(talk: Talk, pool: Pool) -> None:
-    """A judge that fails (or passes) few answers is the one most worth checking: go on. One
-    that fails (or passes) none was said with the judge check."""
+    """A judge that fails (or passes) few answers is the one most worth checking: go on, and
+    say when its few fails (or passes) come up. One that fails (or passes) none was said with
+    the judge check."""
     n = len(pool.answers)
     for count, did, too in ((pool.n_fail, "failed", "passes too much"),
                             (pool.n_pass, "passed", "fails too much")):
         if 0 < count < ROUGH:
             talk.say(f"Your judge {did} only {count} of {n} answers. That may mean it {too}: "
-                     "your labels will show it.")
+                     "your marks will show it.")
+    if min(pool.n_pass, pool.n_fail) < ROUGH:
+        for line in textwrap.wrap(picking_line(pool.n_pass, pool.n_fail), width=74):
+            talk.say(line)
 
 
 def label_found(talk: Talk, found: Found, port: int, open_browser: bool) -> int:
     """Say the pool and how labeling goes, then open the labeling page."""
     from judgekeeper import start_label
 
-    _say_pool(talk, found)
+    say_found(talk, found)
     if found.check is not None and judge_check.has_rows(found.check.block()):
         start_label.save_judge_check(start_label.Workspace(found.root), found)  # it is named
     pool = found.pool
     if not pool.answers:
         raise StartError("no answer has a clear pass or fail from the judge, so there is "
-                         "nothing to label")
+                         "nothing to mark")
     if len(pool.answers) < MIN_POOL:
         if not _label_anyway(talk, found):
             return EXIT_OK
     else:
         _few_note(talk, pool)
     talk.say()
-    for line in intro_lines(pool):
+    for line in NEXT:
         talk.say(line)
-    talk.say()
     if open_browser:
-        asked = "Open the labeling page now?"
-        hint = f"Open the labeling page? Run {talk.command('--yes')} to open it."
+        asked = "Open it now?"
+        hint = f"Open it now? Run {talk.command('--yes')} to open it."
     else:
-        asked = "Start the labeling page? It will print a link."
-        hint = (f"Start the labeling page? Run {talk.command('--yes')} to start it (it prints "
-                "a link).")
+        asked = "Start it now? It prints a link."
+        hint = f"Start it now? Run {talk.command('--yes')} to start it (it prints a link)."
     if not talk.confirm(asked, default=True, with_yes=True, hint=hint):
-        talk.say(f"OK. Run {talk.command()} when you're ready to label.")
+        talk.say(f"OK. Run {talk.command()} when you're ready.")
         return EXIT_OK
     return start_label.run_labeling(found, port=port, open_browser=open_browser, say=talk.say,
                                     command=talk.command())
@@ -1436,5 +1495,6 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         return stop.code
 
 
-__all__ = ["Answer", "Found", "Pool", "StartError", "Talk", "build_pool", "find_judge",
-           "intro_lines", "label_found", "more_answers", "picking_line", "run", "say_check"]
+__all__ = ["NEXT", "Answer", "Found", "Pool", "StartError", "Talk", "build_pool", "find_judge",
+           "found_lines", "label_found", "more_answers", "picking_line", "run", "say_check",
+           "say_found", "when_words"]

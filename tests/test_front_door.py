@@ -48,7 +48,9 @@ def _sections(path: Path) -> dict[str, str]:
 
 
 def _code_blocks(markdown: str) -> list[str]:
-    return re.findall(r"```\w*\n(.*?)```", markdown, flags=re.DOTALL)
+    """The fenced blocks that hold commands: a ```text block is printed output."""
+    return [code for lang, code in re.findall(r"```(\w*)\n(.*?)```", markdown, flags=re.DOTALL)
+            if lang != "text"]
 
 
 def _slug(heading: str) -> str:
@@ -578,7 +580,7 @@ def test_help_shows_three_groups(capsys):
     groups = _help_groups(_help(capsys))
     assert list(groups)[:3] == ["Start here", "Check again in CI", "Other inputs"]
     assert groups["Start here"] == [
-        "  start    find your judge's saved results and check them against your own labels",
+        "  start    find your judge's saved results and check them against your own marks",
         "  setup    results saved your own way? set the project up in one step, asked once",
     ]
     assert groups["Check again in CI"] == ["  init, judge, validate, baseline, gate, migrate"]

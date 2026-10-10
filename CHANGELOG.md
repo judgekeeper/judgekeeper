@@ -11,10 +11,16 @@ after you say yes, your own judge through your own tool, and key names only.
   DeepEval, Inspect AI, MLflow, or a CSV or JSONL file with input, output and verdict
   columns) and names your eval tool and your judge. It opens a page in your browser that
   shows one answer at a time, half from the judge's passes and half from its fails, without
-  what the judge said, and you mark each one Correct or Wrong. Then it shows how often your
+  what the judge said, and you mark each one Pass or Fail. Then it shows how often your
   judge agrees with you, corrected for that picking, in the terminal and on a page. Your
-  labels and the result are saved in `.judgekeeper/` in your project, so you can stop, carry
-  on, label more, and check again after your next eval run.
+  marks and the result are saved in `.judgekeeper/` in your project, so you can stop, carry
+  on, mark more answers, and check again after your next eval run.
+- Plain words everywhere a person reads: the pages and the terminal say Pass and Fail (never
+  Correct and Wrong), "mark" (never "label") and "your judge" (never "verdict"); no target
+  counts or time estimates on screen. The labeling page's keys are ← Fail and → Pass (1 and
+  2 still work); the review's first step uses ← Fail, N Not sure, → Pass. `start` opens with
+  one block that names your eval tool, results file, what the judge checks, its model and
+  its decisions, then "Next: in your browser, mark each answer Pass or Fail."
 - The labeling and result pages use the whole screen: a side panel with your progress, your
   judge's rule and the keys; a result coloured by what it means.
 - `judgekeeper start` never runs your app. Finding, labeling, the result and the review make

@@ -268,7 +268,8 @@ def test_set_aside_answers_never_reach_the_page_or_patterns_json(tmp_path):
     for i in fix.aside_ids:
         assert i not in shown
         assert raw[i]["output"] not in shown
-    assert "30 answers are set aside for the test and not shown here." in shown
+    assert ("judgekeeper kept 30 of your answers aside. They test whether a change really "
+            "helps, so they are not shown here.") in shown
 
 
 def test_the_page_lists_the_two_kinds_of_mistakes_with_the_why_text(tmp_path):
@@ -304,18 +305,16 @@ def test_too_easy_shows_from_three_mistakes():
     assert start_fix.pattern_lines(two) == []
     three = two + [_m("fail", "pass")]
     assert start_fix.pattern_lines(three) == [
-        ("2 of your judge's 3 mistakes are passes that should have failed: its rule may be "
-         "too easy.")]
+        "2 of its 3 mistakes are answers it passed but you failed. Its rule may be too easy."]
     strict = [_m("fail", "pass")] * 5 + [_m("pass", "fail")] * 2
     assert start_fix.pattern_lines(strict) == [
-        ("5 of your judge's 7 mistakes are fails that should have passed: its rule may be "
-         "too strict.")]
+        "5 of its 7 mistakes are answers it failed but you passed. Its rule may be too strict."]
 
 
 def test_near_the_pass_mark_needs_most_mistakes_within_a_tenth():
     near = [_m("pass", "fail", score=s) for s in (0.52, 0.55, 0.58, 0.9)]
     lines = start_fix.pattern_lines(near, mark=0.5)
-    assert ("3 of 4 mistakes sit close to the pass mark. Moving the pass mark may fix them."
+    assert ("3 of its 4 mistakes sit close to the pass mark. Moving the pass mark may fix them."
             in lines)
     half = [_m("pass", "fail", score=s) for s in (0.52, 0.55, 0.9, 0.95)]
     assert not any("close to the pass mark" in x for x in start_fix.pattern_lines(half, 0.5))
@@ -329,14 +328,14 @@ def _words(n):
 def test_length_needs_four_mistakes_on_one_side_and_half_again_as_long():
     agreed = [_m("pass", "pass", _words(120))] * 5
     long_fails = [_m("fail", "pass", _words(410))] * 4
-    assert ("Your judge's wrong fails are long answers (about 410 words, against 120)."
+    assert ("Its wrong fails are long answers (about 410 words, against 120)."
             in start_fix.pattern_lines(long_fails + agreed))
     three = [_m("fail", "pass", _words(410))] * 3
     assert not any("long answers" in x for x in start_fix.pattern_lines(three + agreed))
     short = [_m("fail", "pass", _words(170))] * 4
     assert not any("long answers" in x for x in start_fix.pattern_lines(short + agreed))
     passes = [_m("pass", "fail", _words(80))] * 4 + [_m("fail", "fail", _words(40))] * 5
-    assert ("Your judge's wrong passes are long answers (about 80 words, against 40)."
+    assert ("Its wrong passes are long answers (about 80 words, against 40)."
             in start_fix.pattern_lines(passes))
 
 
@@ -345,7 +344,8 @@ def test_words_that_stand_out_in_three_or_more_mistakes():
                 + [_m("pass", "fail", "A refund is possible.")])
     agreed = [_m("pass", "pass", "Thanks for asking about shipping.")] * 6
     lines = start_fix.pattern_lines(mistakes + agreed)
-    assert "Words in many mistakes: refund (4), policy (3), covers (3), warranty (3)." in lines
+    assert ("Words that show up in many of its mistakes: refund (4), policy (3), covers (3), "
+            "warranty (3).") in lines
     two = [_m("pass", "fail", "warranty")] * 2 + [_m("fail", "pass", "plain")]
     assert not any(x.startswith("Words") for x in start_fix.pattern_lines(two + agreed))
 
@@ -474,7 +474,7 @@ def test_the_page_suggests_a_mark_from_the_used_answers(tmp_path, seeded):
     assert section["kind"] == "suggest"
     assert section["lines"] == ["Your judge passes an answer when its score is 0.5 or more.",
                                 "On the answers judgekeeper used, 0.7 fits your marks best."]
-    assert section["button"] == "Test 0.7 on the 30 answers set aside"
+    assert section["button"] == "Test 0.7 on the 30 answers kept aside"
 
 
 def test_a_mark_that_already_fits_has_no_button(tmp_path):
@@ -516,13 +516,13 @@ def test_the_sign_test_p_values():
 
 def test_the_test_sentences():
     assert start_fix.test_sentence(15, 6, 0) == (
-        "On the 15 answers set aside, it did better: it fixed 6 and broke none.")
+        "On the 15 answers kept aside, the change did better: it fixed 6 and broke none.")
     assert start_fix.test_sentence(15, 0, 6) == (
-        "On the 15 answers set aside, it did worse: it fixed 0 and broke 6. Keep what you "
-        "have.")
+        "On the 15 answers kept aside, the change did worse: it fixed 0 and broke 6. Keep what "
+        "you have.")
     assert start_fix.test_sentence(15, 2, 0) == (
-        "Can't tell yet: on the 15 answers set aside it fixed 2 and broke 0. That is too few "
-        "to be sure. Mark more answers to find out.")
+        "Can't tell yet: on the 15 answers kept aside, the change fixed 2 and broke 0. That is "
+        "too few to be sure. Mark more answers to find out.")
     assert start_fix.test_sentence(15, 5, 0).startswith("Can't tell yet")
 
 
@@ -532,8 +532,8 @@ def test_the_pass_mark_test_on_the_set_aside_answers(tmp_path, seeded):
     result = fix.test_pass_mark(0.7)
     assert result["kind"] == "better"
     assert result["fixed"] == 6 and result["broke"] == 0
-    assert result["lines"][0] == ("On the 30 answers set aside, it did better: it fixed 6 and "
-                                  "broke none.")
+    assert result["lines"][0] == ("On the 30 answers kept aside, the change did better: it "
+                                  "fixed 6 and broke none.")
     assert result["lines"][1] == ("This test is small. The real check is on new answers, after "
                                   "your next eval run.")
     # The old -> new numbers, point values weighted by cell (no ranges): before the change
@@ -581,7 +581,7 @@ def test_too_few_set_aside_refuses_the_test(tmp_path):
     assert fails == 4
     section = fix.state()["pass_mark"]
     assert section["refusal"] == (
-        "Too few answers set aside to test a change fairly: it needs 5 you marked Pass and 5 "
+        "Too few answers kept aside to test a change fairly: it needs 5 you marked Pass and 5 "
         "you marked Fail (you have 4 Fail). Mark more answers first.")
     with pytest.raises(ValueError):
         fix.test_pass_mark(section["mark"])
@@ -872,7 +872,7 @@ def test_fix_before_a_result_says_to_label_first(tmp_path, capsys, served):
     promptfoo_project(tmp_path, split(20, 16))
     code, out, _ = run(capsys, tmp_path, "--fix")
     assert code == 2 and served == []
-    assert "There is no result yet to fix your judge with: it needs your labels." in out
+    assert "There is no result yet to fix your judge with: it needs your marks." in out
 
 
 def test_fix_before_the_review_is_done_says_to_review_first(tmp_path, capsys, served):
@@ -899,10 +899,10 @@ def test_fix_sets_answers_aside_once_and_opens_the_page(tmp_path, capsys, served
     ws = too_easy_project(tmp_path)
     code, out, _ = run(capsys, tmp_path, "--fix")
     assert code == 0 and served == [("fix", ws.dir)]
-    assert ("Setting aside 30 of your 100 marked answers. They are used only to test a "
-            "change, so the test is fair. They never go into a prompt.") in out
+    assert ("judgekeeper kept 30 of your 100 marked answers aside. They test whether a change "
+            "really helps, so they are not shown, and they never go into a prompt.") in out
     code, out, _ = run(capsys, tmp_path, "--fix")
-    assert "Setting aside" not in out
+    assert "marked answers aside" not in out
 
 
 def test_fix_without_a_browser_prints_the_patterns(tmp_path, capsys, served, seeded):
@@ -911,8 +911,8 @@ def test_fix_without_a_browser_prints_the_patterns(tmp_path, capsys, served, see
     assert code == 0 and served == []
     assert "Passed, but you said Fail: 14" in out
     assert "Failed, but you said Pass: 0" in out
-    assert ("14 of your judge's 14 mistakes are passes that should have failed: its rule may "
-            "be too easy.") in out
+    assert ("14 of its 14 mistakes are answers it passed but you failed. Its rule may be too "
+            "easy.") in out
     assert "On the answers judgekeeper used, 0.7 fits your marks best." in out
     assert "--no-browser --fix --test-pass-mark" in out
     assert "Saved in .judgekeeper/fix/" in out
@@ -922,7 +922,8 @@ def test_test_pass_mark_runs_the_free_test_in_the_terminal(tmp_path, capsys, ser
     too_easy_project(tmp_path)
     code, out, _ = run(capsys, tmp_path, "--fix", "--no-browser", "--test-pass-mark")
     assert code == 0 and served == []
-    assert "On the 30 answers set aside, it did better: it fixed 6 and broke none." in out
+    assert ("On the 30 answers kept aside, the change did better: it fixed 6 and broke none."
+            in out)
     assert "Set pass_mark=0.7 in your judgekeeper.record() line." in out
 
 
@@ -993,7 +994,7 @@ def test_after_a_new_pass_mark_label_more_marks_answers_from_the_next_run(tmp_pa
     monkeypatch.setattr(start_label, "serve_workspace", serve)
     code, out, _ = run(capsys, tmp_path, "--label-more")
     assert code == 0
-    assert "100 of your 100 labeled answers are in your latest results" in out
+    assert "100 of your 100 marked answers are in your latest results" in out
     assert "before and" in out and "now." in out
     assert len(opened) == 1 and question(110) in opened[0]
     assert ws.data()["pass_mark"]["mark"] == 0.7

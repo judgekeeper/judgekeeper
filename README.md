@@ -25,7 +25,7 @@ cd your-project
 judgekeeper start
 ```
 
-It reads the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV with input, output and verdict columns), opens a page where you mark answers Correct or Wrong without seeing what the judge said, and shows how often your judge agrees with you. Then it can review the disagreements with you, ask your judge again, or try your new judge on the answers you already marked. No AI calls unless you say yes. Then your own judge runs through your own tool; judgekeeper never sees your key, it only checks its name. It never runs your app. No judge yet, or want your own rule? See [Your own metric](https://www.judgekeeper.com/own-metric.html).
+It reads the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV with input, output and verdict columns), opens a page where you mark answers Pass or Fail without seeing what the judge said, and shows how often your judge agrees with you. Then it can review the disagreements with you, ask your judge again, or try your new judge on the answers you already marked. No AI calls unless you say yes. Then your own judge runs through your own tool; judgekeeper never sees your key, it only checks its name. It never runs your app. No judge yet, or want your own rule? See [Your own metric](https://www.judgekeeper.com/own-metric.html).
 
 Already have a table with one row per answer, the judge's verdict and your own label?
 

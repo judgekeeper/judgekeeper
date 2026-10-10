@@ -342,7 +342,7 @@ def hand_over(root: Path, data: dict, old: str, new: str, n_aside: int) -> dict:
              f"eval.\n\n{new}")
     if tool in ASKABLE:
         last = ("Then run your eval and judgekeeper start: it offers Try your new judge on your "
-                f"marked answers, and tests it on the {n_aside} set aside.")
+                f"marked answers, and tests it on the {n_aside} kept aside.")
     else:
         last = "Then run your eval and judgekeeper start to check it on new answers."
     return {"where": where, "notes": [NOTES[tool]] if tool in NOTES else [],

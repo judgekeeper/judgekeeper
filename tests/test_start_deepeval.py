@@ -108,7 +108,7 @@ def test_the_results_folder_wins_over_the_hidden_copies(tmp_path, capsys):
     _hidden_copies(tmp_path, data)
     code, out = run(capsys, tmp_path)
     assert code == 0
-    assert "Your eval tool: DeepEval (results/test_run_20261006_154129.json, saved " in out
+    assert "  Results file    results/test_run_20261006_154129.json (saved " in out
     assert ".deepeval" not in out  # the same run: nothing to say
     assert "repeats" not in out
 
@@ -119,7 +119,7 @@ def test_a_different_run_in_the_hidden_copy_is_named(tmp_path, capsys):
                    which=(".latest_test_run.json",))
     code, out = run(capsys, tmp_path)
     assert code == 0
-    assert "Your eval tool: DeepEval (results/test_run_20261006_154129.json" in out
+    assert "  Results file    results/test_run_20261006_154129.json" in out
     assert ("DeepEval's hidden copy .deepeval/.latest_test_run.json holds a different run. "
             "Using the newest file in your results folder, results/test_run_20261006_154129."
             "json; to use the other: judgekeeper start .deepeval/.latest_test_run.json") in out
@@ -131,14 +131,14 @@ def test_the_two_hidden_copies_count_once(tmp_path, capsys):
     assert len(found.readable("deepeval")) == 1
     code, out = run(capsys, tmp_path)
     assert code == 0 and "repeats" not in out
-    assert "32 answers with a verdict: the judge passed 20 and failed 12" in out
+    assert "Its decisions   32 answers: 20 passed, 12 failed" in out
 
 
 def test_the_hidden_copy_alone_is_read_as_before(tmp_path, capsys):
     _hidden_copies(tmp_path, deepeval_data(split(20, 12)), which=(".latest_test_run.json",))
     code, out = run(capsys, tmp_path)
     assert code == 0
-    assert "Your eval tool: DeepEval (.deepeval/.latest_test_run.json, saved " in out
+    assert "  Results file    .deepeval/.latest_test_run.json (saved " in out
 
 
 # The DEEPEVAL_RESULTS_FOLDER tip ------------------------------------------------------------
@@ -176,5 +176,5 @@ def test_no_tip_in_the_too_few_message_when_runs_are_kept(tmp_path, capsys):
     code = main(["start", str(tmp_path)])
     out = capsys.readouterr().out
     assert code == start.EXIT_QUESTION
-    assert "You have 16 answers; a rough check needs at least 30." in out
+    assert "You have 16 answers. judgekeeper needs at least 30 to show a result." in out
     assert TIP not in out

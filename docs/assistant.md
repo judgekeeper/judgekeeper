@@ -61,11 +61,11 @@ Three rules, each with its reason:
    page (127.0.0.1); the command keeps running while I label and prints a link that
    includes a token. The page opens only with that full link, and the link changes each
    time the command starts, so ask me to run `judgekeeper start` in my own terminal, or
-   start it in the background and give me the exact link it printed. Keys: 1 Correct, 2
-   Wrong, S skip, U undo. Stop here and wait until I tell you I am done.
-5. Tell me the result: first the two plain sentences judgekeeper prints (of the answers
-   I marked Correct, how many the judge passed; of those I marked Wrong, how many it
-   failed) and its verdict line, then TPR, TNR and kappa with their ranges, and every
+   start it in the background and give me the exact link it printed. Keys: ← Fail, →
+   Pass, S skip, U undo. Stop here and wait until I tell you I am done.
+5. Tell me the result: first the two plain sentences judgekeeper prints ("When you said
+   Pass, your judge also said Pass 83% of the time.", and the same for Fail) and its one
+   coloured line, then TPR, TNR and kappa with their ranges, and every
    flag, each in plain words. Never give one "agreement" or "accuracy" figure on its
    own: a judge that passes everything scores high on it and catches nothing. Point me
    to `.judgekeeper/result.html`.
@@ -89,8 +89,8 @@ The same text is in the file `docs/assistant-prompt.md`.
 1. The assistant installs judgekeeper in your project's environment and checks that it runs.
 2. It runs `judgekeeper start` and tells you what it found: your eval tool, your judge and how many answers it graded. If judgekeeper finds nothing it can read, the assistant runs `judgekeeper setup` and shows you its questions to answer. If your project has no judge yet, it says so and stops.
 3. It asks you to say in one sentence what pass means, so your labels follow your own rule.
-4. It starts the labeling page and gives you its link, or asks you to run `judgekeeper start` in your own terminal. The page runs on your own computer (127.0.0.1). You read each answer and press 1 for Correct or 2 for Wrong.
-5. It tells you the result in plain words: of the answers you marked Correct, how many the judge passed, and of the answers you marked Wrong, how many the judge failed.
+4. It starts the labeling page and gives you its link, or asks you to run `judgekeeper start` in your own terminal. The page runs on your own computer (127.0.0.1). You read each answer and press ← for Fail or → for Pass.
+5. It tells you the result in plain words: when you said Pass, how often your judge also said Pass; when you said Fail, how often it also said Fail.
 6. It tells you what you can do next: review the disagreements with you, ask your judge again, or try a changed judge. Asking the judge costs money, so judgekeeper shows the number of calls and a cost range first, and you answer its question yourself.
 
 **You do one thing yourself: the labels.** The assistant must never fill them in for you. The labels are the only part of the check that is not a model's opinion. If a model wrote them, the check would compare one model with another and prove nothing.

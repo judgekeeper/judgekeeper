@@ -262,7 +262,7 @@ def calls_line(p: Plan) -> str:
     each = set(p.calls_each)
     per = f" × {next(iter(each))} calls each" if len(each) == 1 and max(each) > 1 else ""
     note = f"{p.calls_note} " if p.calls_note else ""
-    line = (f"{_s(p.answers, 'labeled answer')} × {_s(p.times, 'time')}{per} = "
+    line = (f"{_s(p.answers, 'marked answer')} × {_s(p.times, 'time')}{per} = "
             f"{note}{p.calls:,} judge calls")
     if len(each) > 1:
         line += " (calls per answer differ by answer)"
@@ -294,7 +294,7 @@ def plan_lines(p: Plan, title: str = "Ask your judge again") -> list[str]:
 
 def menu_text(p: Plan) -> tuple[str, str]:
     """The menu's line for asking again, and its note in brackets."""
-    text = f"Ask your judge again about your {_s(p.labeled, 'labeled answer')}"
+    text = f"Ask your judge again about your {_s(p.labeled, 'marked answer')}"
     if p.status == CANT:
         return text, f"(can't: {p.short})"
     note = f"{p.calls_note} " if p.calls_note else ""

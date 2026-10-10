@@ -6,8 +6,8 @@ so the review has two steps:
 
 - Step A, "Look again": every disagreement mixed with as many answers the person and the
   judge agreed on (at least 3, half from each of the judge's groups where possible), in a
-  seeded random order, with the judge's verdict and the first label hidden. Correct, Wrong
-  or Not sure.
+  seeded random order, with the judge's verdict and the first mark hidden. Pass, Fail or
+  Not sure.
 - Step B, "See what your judge said": only the disagreements, each with both labels, the
   judge's verdict and its reason. The judge was wrong, I was wrong (saved as `slipped`), or
   The rule is unclear; after the first or the last, one optional line of why.
@@ -33,8 +33,6 @@ import csv
 import json
 import random
 import secrets
-import sys
-import webbrowser
 
 from judgekeeper import weighted
 from judgekeeper.fingerprint import utc_now
@@ -49,6 +47,7 @@ from judgekeeper.start_label import (
     display,
     question_view,
     result_html,
+    say_opened,
 )
 from judgekeeper.start_page import review_page
 from judgekeeper.table import guard_cell
@@ -56,7 +55,7 @@ from judgekeeper.table import guard_cell
 MIN_AGREED = 3
 SECOND = ("pass", "fail", "unsure")
 CHOICES = ("judge_wrong", "slipped", "rule_unclear")
-SAID = {"pass": "Correct", "fail": "Wrong"}
+SAID = {"pass": "Pass", "fail": "Fail"}
 VERDICT = {"pass": "Pass", "fail": "Fail"}
 COLUMNS = ("id", "input", "output", "your_label", "second_look_label", "judge_verdict",
            "judge_reason", "why")
@@ -181,7 +180,7 @@ class ReviewSession:
     # Clicks ------------------------------------------------------------------------------
 
     def update(self, body: dict) -> None:
-        """One click: {"id", "second": Correct, Wrong or Not sure, or None to undo} in step
+        """One click: {"id", "second": pass, fail or unsure, or None to undo} in step
         A, {"id", "choice": one of CHOICES or None} or {"id", "why": text} in step B."""
         item = self.by_id[body["id"]]
         before = dict(item)
@@ -271,7 +270,7 @@ class ReviewSession:
         for i in self.items:
             if i["second"] in ("pass", "fail"):
                 labels[i["id"]] = i["second"]
-        counted = {"pass": [0, 0], "fail": [0, 0]}  # labeled, Correct
+        counted = {"pass": [0, 0], "fail": [0, 0]}  # marked, marked Pass
         for item_id, label in labels.items():
             g = counted[groups[item_id]]
             g[0] += 1
@@ -332,7 +331,7 @@ class ReviewSession:
 
 
 def said(item: dict) -> list[tuple[str, bool]]:
-    """"You said: Wrong (and Wrong again on a second look)" as (text, bold) parts."""
+    """"You said: Fail (and Fail again on a second look)" as (text, bold) parts."""
     parts = [("You said: ", False), (SAID[item["first"]], True)]
     second = item["second"]
     if second == "unsure":
@@ -350,16 +349,16 @@ def review_lines(block: dict) -> list[str]:
     """The result's review lines: at most three."""
     cd, ca = block["changed_disagreements"], block["changed_agreed"]
     if cd + ca == 0:
-        first = (f"On a second look without the judge, you kept all {block['looked_again']} "
-                 "of your labels.")
+        first = (f"On a second look without your judge, you kept all {block['looked_again']} "
+                 "of your marks.")
     else:
         s = block["second_look"]
-        first = (f"On a second look without the judge, you changed {cd} of the "
+        first = (f"On a second look without your judge, you changed {cd} of the "
                  f"{_plural(block['disagreements'], 'disagreement')} and {ca} of the "
                  f"{_plural(block['agreed'], 'answer')} you had agreed on. With your "
-                 "second-look labels: of the answers that should pass, your judge passed "
-                 f"{_share(s['tpr'])}; of those that should fail, it failed "
-                 f"{_share(s['tnr'])}.")
+                 "second-look marks: when you said Pass, your judge also said Pass "
+                 f"{_share(s['tpr'])} of the time; when you said Fail, it also said Fail "
+                 f"{_share(s['tnr'])} of the time.")
     if ca >= SEVERAL:
         first += " You changed several answers on a second look: your rule may be unclear."
     lines = [first]
@@ -367,11 +366,11 @@ def review_lines(block: dict) -> list[str]:
         c = block["choices"]
         when = ("" if block["done"] else
                 f" ({block['chosen']} of {block['disagreements']} so far)")
-        lines.append(f"After seeing the judge{when}: you called "
-                     f"{_plural(c['judge_wrong'], 'judge mistake')} and "
-                     f"{_plural(c['rule_unclear'], 'unclear rule')}, and said you were wrong "
-                     f"on {_plural(c['slipped'], 'answer')}.")
-    lines.append("Your first labels stay the main result.")
+        lines.append(f"After seeing what your judge said{when}: your judge was wrong on "
+                     f"{_plural(c['judge_wrong'], 'answer')}, the rule is unclear on "
+                     f"{_plural(c['rule_unclear'], 'answer')}, and you were wrong on "
+                     f"{_plural(c['slipped'], 'answer')}.")
+    lines.append("Your first marks stay the main result.")
     return lines
 
 
@@ -418,7 +417,7 @@ def finish(ws: Workspace, say, command: str = "judgekeeper start") -> None:
     session = ReviewSession(ws)
     say("")
     if session.step() != "done":
-        say(f"Stopped. Every click is saved; run {command} --review to continue.")
+        say(f"Stopped. Every click is saved. To carry on later: {command} --review")
         return
     for line in review_lines(session.block()):
         say(line)
@@ -434,12 +433,7 @@ def serve_review(ws: Workspace, port: int, open_browser: bool, say,
     session = ReviewSession(ws)
     server = make_server(session, port, result=result_maker(ws, say), page=page_template(ws),
                          switches={"/fix": start_fix.switch(ws, say)})
-    print(f"Review page: {server.url}")  # not scrubbed: the token must stay whole
-    say(f"Every click is saved. Press Ctrl-C here to stop; run {command} --review to "
-        "continue.")
-    sys.stdout.flush()
-    if open_browser:
-        webbrowser.open(server.url)
+    say_opened(server.url, open_browser, say, command, " --review")
     try:
         server.serve()
     except KeyboardInterrupt:
@@ -452,7 +446,7 @@ def run(ws: Workspace, talk, port: int, open_browser: bool) -> int:
     """`judgekeeper start --review`, or the menu's review choice."""
     n = count(ws)
     if not n:
-        talk.say("You and your judge agree on every answer you labeled: nothing to review.")
+        talk.say("You and your judge agree on every answer you marked: nothing to review.")
         return 0
     session = ReviewSession(ws)
     if session.step() == "done":
@@ -465,14 +459,14 @@ def run(ws: Workspace, talk, port: int, open_browser: bool) -> int:
         return 0
     agreed = len(session.items) - len(session.disagreements())
     talk.say()
-    talk.say(f"Review the {_plural(n, 'answer')} where you and your judge disagree. Free: no "
-             "AI call.")
-    talk.say(f"  Step 1: look again at {len(session.items)} answers, with your judge's verdict "
+    talk.say(f"See where you disagree: the {_plural(n, 'answer')} where you and your judge "
+             "disagree. Free: no AI call.")
+    talk.say(f"  Step 1: look again at {len(session.items)} answers, with what your judge said "
              f"still hidden. {agreed} of them")
     talk.say("  are answers you and your judge agreed on, so being shown one does not mean "
              "you were wrong.")
     talk.say(f"  Step 2: see what your judge said on the {_plural(n, 'disagreement')}.")
-    talk.say(f"  Your labels in {FOLDER}/labels.csv stay as they are.")
+    talk.say(f"  Your marks in {FOLDER}/labels.csv stay as they are.")
     if session.step() == "b":
         talk.say(f"You looked again at all {len(session.items)} answers. Carrying on at step 2.")
     talk.say()

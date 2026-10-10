@@ -51,10 +51,11 @@ def test_start_finds_the_records_of_every_process(tmp_path, capsys, no_labeling)
     two_processes(tmp_path)
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "Your judge's saved records: 36 from judgekeeper.record() (2 files in " \
-           ".judgekeeper/records/)" in out
-    assert 'Your judge: Safe wording "Be polite." with claude-opus-5' in out
-    assert "36 answers with a verdict: the judge passed 20 and failed 16" in out
+    assert "  Eval tool       your own code (judgekeeper.record())" in out
+    assert "  Results file    .judgekeeper/records/ (2 files)" in out
+    assert '  What it checks  "Be polite."' in out
+    assert "  Judge model     claude-opus-5" in out
+    assert "Its decisions   36 answers: 20 passed, 16 failed" in out
     assert "older results" not in out
     (found,) = no_labeling
     assert found.tool == "records" and len(found.used) == 2
@@ -77,8 +78,8 @@ def test_several_judges_ask_which_and_metric_answers(tmp_path, capsys):
     assert "--metric 'Plain language'" in out or '--metric "Plain language"' in out
     code, out, _ = run(capsys, tmp_path, "--metric", "Plain language")
     assert code == 0
-    assert "Your judge's saved records: 36 from judgekeeper.record() (1 file in " in out
-    assert "Your judge: Plain language" in out
+    assert "  Results file    .judgekeeper/records/ (1 file)" in out
+    assert '  What it checks  Plain language: "' in out  # two judges: which one is said
 
 
 def test_a_changed_judge_leaves_the_older_records_out(tmp_path, capsys, no_labeling):
@@ -87,8 +88,8 @@ def test_a_changed_judge_leaves_the_older_records_out(tmp_path, capsys, no_label
                     tag=" v2", mtime=NOW - 60)
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "Your judge's saved records: 36 from judgekeeper.record() (1 file in " in out
-    assert 'Your judge: Safe wording "Be polite and brief."' in out
+    assert "  Results file    .judgekeeper/records/ (1 file)" in out
+    assert '  What it checks  "Be polite and brief."' in out
     (found,) = no_labeling
     assert found.used == [".judgekeeper/records/Safe-wording-2026-10-05-2.jsonl"]
 
@@ -124,7 +125,7 @@ def test_a_file_it_cannot_read_is_left_out_with_how_to_see_why(tmp_path, capsys)
            "score 'high' is not a number), so it was left out. To see every problem: " \
            "judgekeeper import records .judgekeeper/records/Safe-wording-2026-10-05-9.jsonl " \
            "--check" in out
-    assert "Your judge's saved records: 36 from judgekeeper.record()" in out
+    assert "  Eval tool       your own code (judgekeeper.record())" in out
 
 
 def test_records_and_another_tool_ask_which(tmp_path, capsys):
@@ -134,14 +135,15 @@ def test_records_and_another_tool_ask_which(tmp_path, capsys):
     assert code == start.EXIT_QUESTION
     assert "--tool records" in out
     code, out, _ = run(capsys, tmp_path, "--tool", "records")
-    assert code == 0 and "Your judge's saved records: 36" in out
+    assert code == 0 and "  Eval tool       your own code (judgekeeper.record())" in out
 
 
 def test_start_reads_one_records_file_named_on_the_command_line(tmp_path, capsys):
     path = records_project(tmp_path, split(20, 16))
     code, out, _ = run(capsys, path)
     assert code == 0
-    assert "Your judge's saved records: 36 from judgekeeper.record() (1 file" in out
+    assert "  Eval tool       your own code (judgekeeper.record())" in out
+    assert " (1 file)" in out
 
 
 def test_more_answers_come_from_running_the_eval_again(tmp_path):
