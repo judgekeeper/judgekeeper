@@ -549,7 +549,8 @@ def test_the_pass_mark_test_on_the_set_aside_answers(tmp_path, seeded):
     saved = json.loads((ws.dir / "fix.json").read_text(encoding="utf-8"))
     assert saved["tests"] == [{"kind": "pass_mark", "made_at": saved["tests"][0]["made_at"],
                                "change": "pass mark 0.5 to 0.7", "fixed": 6, "broke": 0,
-                               "p": 0.03125, "result": "better"}]
+                               "p": 0.03125, "result": "better",
+                               "sentence": result["lines"][0]}]
     kept = json.loads((ws.dir / "fix" / "pass-mark.json").read_text(encoding="utf-8"))
     assert kept["old_mark"] == 0.5 and kept["new_mark"] == 0.7 and kept["test"]["fixed"] == 6
 

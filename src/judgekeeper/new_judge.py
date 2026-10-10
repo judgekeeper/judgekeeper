@@ -17,6 +17,9 @@ default-No question as asking the judge again (`again`):
 - then a confirmation check: answers from the newest results the person never marked, half
   from the new judge's passes and half from its fails, aiming at 10 Correct and 10 Wrong.
 
+When Fix your judge set answers aside for this result (fix.json), the new judge is also tested
+on those first, as a change is there (start_fix.new_judge_test): how many it fixed and broke.
+
 Saved in `.judgekeeper/new-judge-<date>/`: `new-judge.json` (the numbers), `new-judge-<n>.jsonl`
 (one run file per time asked, every line with the full fingerprint), the tool's own output, and
 `confirm/` (the confirmation check, a check of its own). `result.json` gains a `new_judge`
@@ -45,6 +48,7 @@ QUICK_STATUS = [(0, f"A quick check needs {QUICK} of each.", False),
 WARNING = ("You changed your judge after seeing mistakes on these answers, so it will look "
            "better on them.")
 CONFIRM = f"Mark {QUICK} Correct and {QUICK} Wrong new answers to confirm?"
+FAIR_TEST_FAILED = "Couldn't run the fair test on the set-aside answers."
 NO_NEW = ("Your newest results hold the same judge as your last check, so there is no new "
           "judge to try.")
 
@@ -197,6 +201,7 @@ def finish(ws: Workspace, view: View, plan, fresh, new: NewJudge) -> dict:
     """Write the run files and new-judge.json, and put the block in result.json."""
     from judgekeeper.again import CLOSE
     from judgekeeper.again.fresh import write_files
+    from judgekeeper.start_fix import new_judge_test
     from judgekeeper.start_label import _write_json
 
     metric = view.data()["metric"]
@@ -218,6 +223,12 @@ def finish(ws: Workspace, view: View, plan, fresh, new: NewJudge) -> dict:
                                         "kappa", "interval_methods")},
         "confirmation": None, "notes": list(fresh.notes),
     }
+    try:
+        aside = new_judge_test(ws, {i: v[0] for i, v in fresh.verdicts.items()}, new.change)
+    except Exception:  # noqa: BLE001 - the new judge's result stands without the fair test
+        aside = {"kind": "error", "lines": [FAIR_TEST_FAILED]}
+    if aside is not None:
+        block["aside"] = aside
     _write_json(fresh.folder / "new-judge.json", block)
     save(ws, block)
     return block
@@ -252,7 +263,8 @@ def lines(block: dict) -> list[str]:
 
     old, now = block["old"], block["new"]
     tail = " (close copy)" if block.get("close") else ""
-    out = [f"Your new judge vs your old judge, on your {block['counted']} marked answers:"]
+    out = [*block["aside"]["lines"], ""] if block.get("aside") else []
+    out.append(f"Your new judge vs your old judge, on your {block['counted']} marked answers:")
     width = len("Of the answers you marked Correct, the judge passed:")
     for key, marked, did in (("tnr", "Wrong", "failed"), ("tpr", "Correct", "passed")):
         label = f"Of the answers you marked {marked}, the judge {did}:".ljust(width)
