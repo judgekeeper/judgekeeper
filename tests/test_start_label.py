@@ -123,8 +123,8 @@ def test_the_page_shows_the_question_and_the_answer_as_written(workspace):
         page = " ".join(server.page()[0].split())
         for needed in ("The question", "Your app's answer", "white-space: pre-wrap", "17px",
                        "Fail <kbd>←</kbd>", "Pass <kbd>→</kbd>", "Skip <kbd>S</kbd>",
-                       "Undo <kbd>U</kbd>", "See your result", "#1E293B", "#10B981",
-                       "prefers-color-scheme: dark",
+                       "Undo <kbd>U</kbd>", "See your result", "#0E1525", "#10B981",
+                       "Bricolage Grotesque",
                        "Mark a few more answers to see your result."):
             assert needed in page, needed
         data = _page_data(server)
@@ -214,6 +214,7 @@ def test_see_my_result_works_before_everything_is_labeled(workspace):
         assert resp.status == 200
         assert resp.getheader("Content-Type").startswith("text/html")
         assert "script-src" not in resp.getheader("Content-Security-Policy")
+        assert "font-src data:" in resp.getheader("Content-Security-Policy")
         html = payload.decode()
         assert "Mark a few more answers to see your result." in html
         assert "<script" not in html
@@ -333,7 +334,7 @@ def test_the_word_trust_is_nowhere():
 def test_the_result_page_stands_alone():
     html = start_label.result_html(_result(900, 100, 25, 20, 25, 10))
     for needed in ("Your result", "When you said Pass", "TPR", "TNR", "kappa",
-                   "What next", "judgekeeper start", "prefers-color-scheme: dark"):
+                   "What next", "judgekeeper start", "Bricolage Grotesque"):
         assert needed in html, needed
     assert "<script" not in html and 'class="btn"' not in html
     assert not re.search(r"https?://(?!www\.w3\.org/2000/svg)", html)

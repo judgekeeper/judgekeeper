@@ -120,6 +120,7 @@ def test_page_is_self_contained(tmp_path, serve):
         assert external not in page
     csp = resp.getheader("Content-Security-Policy")
     assert "default-src 'none'" in csp and "connect-src 'self'" in csp
+    assert "font-src data:" in csp  # the heading font is embedded in the page
     nonce = csp.split("'nonce-")[1].split("'")[0]
     assert f'nonce="{nonce}"' in page and client.server.token in page
 

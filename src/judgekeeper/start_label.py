@@ -398,6 +398,19 @@ def sentences(r: dict) -> list[str]:
     return out
 
 
+def statements(r: dict) -> list[dict]:
+    """The result's sentences for the page, each with the rate its ring draws to, the number
+    the page counts up to and its side ("pass" or "fail"); before a result, the one line."""
+    if r["check"] == "too_few":
+        return [{"text": sentences(r)[0], "rate": None, "pct": None, "side": None}]
+    out = []
+    for text, (key, said) in zip(sentences(r), SAID.items(), strict=True):
+        value = r[key]
+        out.append({"text": text, "rate": value, "pct": None if value is None else _pct(value),
+                    "side": said.lower()})
+    return out
+
+
 def range_words(interval) -> str | None:
     """"Probably between 66% and 93%. Marking more answers narrows this.", or None."""
     if interval is None or interval[0] is None:
@@ -627,7 +640,7 @@ def page_content(r: dict) -> dict:
     if can_fix(r):
         steps.append({"title": "Fix your judge",
                       "text": ("See what your judge gets wrong, and test a change on answers "
-                               "set aside. Free."),
+                               "kept aside. Free."),
                       "command": "judgekeeper start --fix", "link": "/fix",
                       "button": "Fix your judge"})
     if can_ask_again(r):
@@ -669,6 +682,7 @@ def page_content(r: dict) -> dict:
     return {
         "kind": " · ".join(kind),
         "sentences": sentences(r),
+        "statements": statements(r),
         "verdict": {"colour": colour, "icon": icon, "text": r["verdict"], "detail": _detail(r)},
         "tiles": [tile("TPR", "When you said Pass", r["tpr"], r["tpr_interval"],
                        f"{labels['correct']} marked Pass so far"),
@@ -702,7 +716,7 @@ def page_template(about: dict | None = None) -> str:
     """The labeling page for a check whose start.json is `about`: its description and its
     judge's rule are shown; nothing else from it is."""
     about = about or {}
-    return label_page(about.get("description"), about.get("rule"))
+    return label_page(about.get("description") or about.get("app_version"), about.get("rule"))
 
 
 def compute(ws: Workspace, session: StartSession) -> dict:

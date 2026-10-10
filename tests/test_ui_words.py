@@ -131,14 +131,12 @@ def test_older_results_added_are_said_under_the_block(tmp_path):
                          "the same judge were added: runs/test_run_20261002_090000.json")
 
 
-def test_the_terminal_says_the_block_then_next_then_the_question(tmp_path, capsys):
+def test_the_terminal_says_the_block_then_next_then_the_question(tmp_path, capsys, monkeypatch):
     promptfoo_project(tmp_path, split(30, 20))
     talk = start.Talk(yes=True, flags=(str(tmp_path),))
     found = start.find_judge(tmp_path, talk=talk)
     capsys.readouterr()
-    import judgekeeper.start_label as sl
-
-    sl.run_labeling = lambda *a, **k: 0  # the page is not opened here
+    monkeypatch.setattr(start_label, "run_labeling", lambda *a, **k: 0)  # the page is not opened
     start.label_found(talk, found, port=0, open_browser=True)
     out = capsys.readouterr().out
     assert out.index("judgekeeper found") < out.index("Its decisions") < out.index(

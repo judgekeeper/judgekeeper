@@ -501,7 +501,7 @@ def test_the_result_after_a_review_shows_the_lines_and_the_files(tmp_path):
     page = ws.result_html.read_text(encoding="utf-8")
     assert "your judge was wrong on 3 answers" in page
     assert "judge-mistakes.csv" in page and "rule-unclear.csv" in page
-    assert page.count("<p class=\"sentence\">") == 2  # the main sentences are unchanged
+    assert page.count('<div class="stmt">') == 2  # the main sentences are unchanged
 
 
 def test_the_live_result_page_has_a_review_button(tmp_path):

@@ -52,28 +52,30 @@ def test_the_rule_is_the_whole_text_and_the_rubric_line_its_first_line():
 
 # The labeling page -----------------------------------------------------------------------
 
-def test_the_labeling_page_has_the_progress_rule_and_keys_cards(tmp_path):
+def test_the_labeling_page_has_the_bar_the_rule_and_the_key_hints(tmp_path):
     page = _flat(start_label.page_template(_ws(tmp_path).data()))
     for needed in ("Mark each answer Pass or Fail. What your judge decided stays hidden.",
-                   "Your progress", "See your result →", "Your judge's rule",
-                   "Mark each answer by this rule.", "Keys",
+                   "See your result", "Your judge's rule", "Mark each answer by this rule.",
+                   "<kbd>←</kbd> or drag left: Fail", "<kbd>→</kbd> or drag right: Pass",
+                   "Click a dot at the top to go back to any answer, skipped ones too.",
                    ("Every click is saved. Close the tab any time; run "
                     "<code>judgekeeper start</code> to continue."),
-                   'aria-live="polite"'):
+                   'aria-live="polite"', '<span class="saved" id="saved">Saved</span>'):
         assert needed in page, needed
+    body = page.split("<main")[1].split("<script")[0]
     for gone in ("15", "25", "rough", "reliable", "Correct", "Wrong"):
-        assert gone not in page.split("<main>")[1].split("<script")[0], gone
-    # The whole rule, in quotes, inside a fold-out that starts open.
-    details = re.findall(r"<details[^>]*>", page)
-    assert details == ["<details open>"]
-    assert "&quot;Is polite and correct. Second line of the rubric.&quot;" in page
+        assert not re.search(rf"\b{gone}\b", body), gone
+    # The whole rule, in quotes, folded when long, with "Show all" to unfold it.
+    assert ('<p class="rule folded" id="rule">&quot;Is polite and correct. Second line of the '
+            'rubric.&quot;</p>') in page
+    assert 'id="show-all" type="button" hidden>Show all</button>' in page
     assert "…" not in page
 
 
 def test_the_rule_card_is_left_out_when_there_is_no_rule():
     for about in ({}, {"rule": None}, {"rule": ""}):
         page = start_label.page_template(about)
-        assert "Your judge's rule" not in page and "<details" not in page
+        assert "Your judge's rule" not in page and 'id="rule"' not in page
 
 
 def test_the_rule_is_set_as_text():
@@ -87,16 +89,17 @@ def test_the_rule_is_set_as_text():
 
 def test_the_description_line(tmp_path):
     page = start_label.page_template(_ws(tmp_path).data())
-    assert '<span id="about">support bot</span>' in page
-    assert '<span id="about"></span>' in start_label.page_template({})
+    assert '<span id="about" hidden>support bot</span>' in page  # the tag on the answer
+    assert '<span id="about" hidden></span>' in start_label.page_template({})
 
 
-def test_the_page_is_two_columns_on_a_laptop_and_one_on_a_phone():
+def test_the_page_is_three_columns_on_a_laptop():
     page = start_label.page_template({"rule": "Be kind."})
-    assert "@media (max-width: 760px)" in page
-    assert "grid-template-columns: minmax(0, 1fr) 320px" in page
-    assert "position: sticky" in page  # Pass and Fail stay on screen on a phone
-    assert "innerHTML" not in page and "clientWidth" not in page
+    # The rule, the card, the key hints; nothing is promised below 1024 px, so no phone layout.
+    assert ("grid-template-columns: minmax(200px, 300px) minmax(0, 720px) "
+            "minmax(200px, 300px)") in page
+    assert "@media (max-width" not in page
+    assert "innerHTML" not in page  # every text goes through textContent
 
 
 def test_the_rule_card_holds_no_reason_from_the_judge(tmp_path):
@@ -224,7 +227,7 @@ def test_the_number_boxes():
     html = _flat(start_label.result_html(r))
     lo, hi = r["tpr_interval"]
     for needed in ("When you said Pass", "When you said Fail", "How much you agree beyond luck",
-                   f"{r['tpr']:.0%}</div>", f"{r['tnr']:.0%}</div>", f"{r['kappa']:.2f}</div>",
+                   f"{r['tpr']:.0%}</b>", f"{r['tnr']:.0%}</b>", f"{r['kappa']:.2f}</b>",
                    (f"Probably between {lo:.0%} and {hi:.0%}. Marking more answers narrows "
                     "this."),
                    (f"Probably between {r['tnr_interval'][0]:.0%} and "
@@ -249,7 +252,7 @@ def test_an_unknown_rate_shows_a_dash_and_no_bar():  # only with too few labels
     html = start_label.result_html(r)
     tiles = re.findall(r'<div class="tile">.*?</div>\s*</div>', html, re.DOTALL)
     tnr = next(t for t in tiles if "When you said Fail" in t)
-    assert '<div class="val">–</div>' in tnr and "rangebar" not in tnr
+    assert '<b class="val">–</b>' in tnr and "rangebar" not in tnr
     assert "None" not in html and "nan" not in html
 
 
@@ -332,12 +335,15 @@ def test_dates_in_words():
     assert start_label.in_words("not a date") == "not a date"
 
 
-def test_both_pages_follow_the_computers_theme_and_hold_the_amber():
+def test_both_pages_are_navy_with_the_amber_and_respect_reduced_motion():
     for page in (start_label.page_template({}), start_label.result_html(_result(*CHECK))):
-        assert "prefers-color-scheme: dark" in page
-        assert "--care:" in page and "--care-bg:" in page
+        assert "--bg: #0E1525" in page and "--card: #182235" in page
+        assert "--amber: #FBBF24" in page and "--amber-bg:" in page
+        assert "--pass: #34D399" in page and "--fail: #F59E8B" in page
         assert ":focus-visible" in page
-        assert "@media (max-width: 760px)" in page
+        assert "@media (prefers-reduced-motion: reduce)" in page
+        assert "prefers-color-scheme" not in page  # navy only: no light theme
+        assert "transition: all" not in page
 
 
 # When labeling more or asking again cannot help ------------------------------------------
@@ -374,10 +380,11 @@ def test_a_judge_it_can_ask_again_is_offered(tool):
 
 def test_too_few_marks_show_no_numbers():
     r = _result(100, 100, 2, 1, 1, 0)  # 1 Pass, 2 Fail
-    body = _flat(start_label.result_html(r).split("<main>")[1])
+    body = _flat(start_label.result_html(r).split("<main")[1])
     assert "-0." not in body and "0.00" not in body and "%" not in body
     assert "Mark a few more answers to see your result. So far: 1 Pass, 2 Fail." in body
-    assert body.count('<div class="val">–</div>') == 3 and "rangebar" not in body
+    assert body.count('<b class="val">–</b>') == 3 and "rangebar" not in body
+    assert "ring" not in body and 'class="stmt"' not in body  # nothing to draw yet
     assert "judgekeeper showed you" not in body and 'class="facts"' not in body
     lines = start_label.result_lines(r)
     assert not any("TPR" in line or "%" in line for line in lines)
@@ -385,21 +392,21 @@ def test_too_few_marks_show_no_numbers():
 
 def test_the_result_links_start_hidden_until_a_rough_check():
     page = start_label.page_template({"rule": "x"})
-    links = re.findall(r'<a class="seelink see"[^>]*>', page)
-    assert len(links) == 2 and all(" hidden" in a for a in links)
+    links = re.findall(r'<a class="btn green see"[^>]*>', page)
+    assert len(links) == 1 and all(" hidden" in a for a in links)
     assert "a.hidden = !status.ready" in page  # the server says when: at 15 + 15
     assert "With so few" not in page
 
 
-def test_the_answer_box_does_not_stretch_to_fill_the_screen():
+def test_the_card_has_one_fixed_height_so_the_buttons_never_move():
     page = start_label.page_template({})
-    answer = re.search(r"#answer \{([^}]*)\}", page)[1]
-    assert "flex: 0 1 auto" in answer
-    assert ".choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }" in page
+    assert ".stack { position: relative; height: clamp(320px, 100vh - 300px, 440px); }" in page
+    assert ".decide { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px;" in page
+    assert ".scrollbox { flex: 1; min-height: 0; overflow: auto;" in page  # long answers scroll
 
 
 def test_each_number_box_leads_with_its_plain_name():
     html = start_label.result_html(_result(*CHECK))
     tile = re.findall(r'<div class="tile">.*?</div>\s*</div>', html, re.DOTALL)[0]
     assert tile.startswith('<div class="tile"><div class="lbl">When you said Pass '
-                           '<span class="abbr">TPR</span></div>')
+                           '<span class="abbr">TPR</span><b class="val">')
