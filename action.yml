@@ -109,6 +109,10 @@ runs:
         OUT: ${{ inputs.out-dir }}
       run: |
         set -euo pipefail
+        if ! [[ "$RUNS" =~ ^[0-9]+$ ]] || [ "$RUNS" -lt 3 ]; then
+          echo "::error title=judgekeeper::runs is $RUNS. The gate needs at least 3 runs to know the noise floor: with fewer it is always FLAKY, and with flaky-as: pass always green. Set runs to 3 or more."
+          exit 2
+        fi
         rm -rf "$OUT/runs"
         args=(judge "$ANCHORS" --runner "$RUNNER" --runs "$RUNS" --out "$OUT/runs")
         if [ -n "$MODEL" ]; then args+=(--model "$MODEL"); fi
