@@ -473,7 +473,7 @@ LABEL_BODY = """<div class="app">
   }
   $("dots").addEventListener("click", function (e) {
     var k = e.target.getAttribute && e.target.getAttribute("data-k");
-    if (k == null) { return; }
+    if (k == null || flying) { return; }
     walkingSkipped = false; open(+k);
   });
 
@@ -565,12 +565,20 @@ LABEL_BODY = """<div class="app">
   }
 
   // Pass or Fail: saved at once, with no card animation (people do this dozens of times).
-  function mark(value) {
+  // `after` runs once the mark is saved and the next answer is on screen.
+  function mark(value, after) {
     if (ended) { return false; }
     var it = items[pos];
     return send({label: value}, function () {
-      it.label = value; it.skipped = false; history.push(pos); next(); });
+      it.label = value; it.skipped = false; history.push(pos); next();
+      if (after) { after(); }
+    });
   }
+
+  // A card flying off after a drag is still its answer's mark: until it is saved, a key
+  // waits (queued) and then counts for the next answer, and a click does nothing, so one
+  // gesture marks one answer.
+  var flying = false, queued = null;
 
   function skip() {
     if (ended) { return; }
@@ -637,11 +645,20 @@ LABEL_BODY = """<div class="app">
     if (reduce || !c.animate) { if (!mark(value)) { render(); } return; }
     var dir = x > 0 ? 1 : -1, endX = dir * (window.innerWidth * 0.75);
     c.style.pointerEvents = "none";
+    flying = true;
     c.animate([{transform: "translateX(" + x + "px) rotate(" + tilt(x, c.offsetWidth || 1) +
                            "deg)", opacity: 1},
                {transform: "translateX(" + endX + "px) rotate(" + (dir * 18) + "deg)", opacity: 0}],
               {duration: flyDuration(x, endX, v), easing: "cubic-bezier(.2,.7,.4,1)",
-               fill: "forwards"}).finished.then(function () { if (!mark(value)) { render(); } });
+               fill: "forwards"}).finished.then(function () {
+                 function landed() {
+                   flying = false;
+                   var k = queued;
+                   queued = null;
+                   if (k) { byKey(k); }
+                 }
+                 if (!mark(value, landed)) { render(); landed(); }
+               });
   }
   // The spring's path is worked out up front (60 steps a second, at most 2 seconds) and
   // played as one animation, so it runs the same whatever the screen is doing.
@@ -666,18 +683,23 @@ LABEL_BODY = """<div class="app">
   }
 
   // Keys and buttons mark at once: only the pressed button flashes.
-  $("pass").addEventListener("click", function () { hit("pass"); mark("pass"); });
-  $("fail").addEventListener("click", function () { hit("fail"); mark("fail"); });
-  $("skip").addEventListener("click", skip);
-  $("undo").addEventListener("click", undo);
+  $("pass").addEventListener("click", function () {
+    if (!flying) { hit("pass"); mark("pass"); } });
+  $("fail").addEventListener("click", function () {
+    if (!flying) { hit("fail"); mark("fail"); } });
+  $("skip").addEventListener("click", function () { if (!flying) { skip(); } });
+  $("undo").addEventListener("click", function () { if (!flying) { undo(); } });
   // The keys: → Pass and ← Fail (shown), 1 Pass and 2 Fail (an old habit, still working).
   var KEYS = {arrowright: "pass", arrowleft: "fail", "1": "pass", "2": "fail"};
+  function byKey(k) {
+    if (KEYS[k]) { hit(KEYS[k]); mark(KEYS[k]); }
+    else if (k === "s") { skip(); } else if (k === "u") { undo(); }
+  }
   document.addEventListener("keydown", function (e) {
     if (e.ctrlKey || e.metaKey || e.altKey || !$("intro").hidden) { return; }
     var k = e.key.toLowerCase();
-    if (KEYS[k]) { hit(KEYS[k]); mark(KEYS[k]); }
-    else if (k === "s") { skip(); } else if (k === "u") { undo(); }
-    else { return; }
+    if (!KEYS[k] && k !== "s" && k !== "u") { return; }
+    if (flying) { queued = k; } else { byKey(k); }
     e.preventDefault();
   });
 
