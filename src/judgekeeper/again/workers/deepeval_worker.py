@@ -42,17 +42,26 @@ def build(m):
     from deepeval import metrics
 
     if m["kind"] == "geval":
+        import inspect
+
         from deepeval.metrics.g_eval import Rubric
-        from deepeval.test_case import SingleTurnParams
+        try:
+            from deepeval.test_case import SingleTurnParams as Params  # DeepEval 3.9.9 on
+        except ImportError:  # before 3.9.9: the same values, under their older name
+            from deepeval.test_case import LLMTestCaseParams as Params
 
         rubric = [Rubric(score_range=tuple(r), expected_outcome=o) for r, o in m["rubric"]]
+        extra = {}
+        accepts = inspect.signature(metrics.GEval).parameters
+        if "_include_g_eval_suffix" in accepts or any(
+                p.kind == p.VAR_KEYWORD for p in accepts.values()):
+            extra["_include_g_eval_suffix"] = m["suffix"]
         return metrics.GEval(
             name=m["name"], criteria=m["criteria"], evaluation_steps=m["steps"],
             rubric=rubric or None,
-            evaluation_params=[SingleTurnParams(f) for f in m["fields"]],
+            evaluation_params=[Params(f) for f in m["fields"]],
             model=judge_model(m.get("model")), threshold=m["threshold"],
-            strict_mode=m["strict"], async_mode=False,
-            _include_g_eval_suffix=m["suffix"])
+            strict_mode=m["strict"], async_mode=False, **extra)
     cls = getattr(metrics, m["class"])
     return cls(model=judge_model(m.get("model")), threshold=m.get("threshold", 0.5),
                strict_mode=m.get("strict", False), include_reason=False, async_mode=False)

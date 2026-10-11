@@ -121,6 +121,23 @@ def deepeval_ws(tmp_path, stubs):
     return ws
 
 
+def test_deepeval_before_399_is_asked_with_its_older_names(deepeval_ws, stubs, capsys,
+                                                           monkeypatch):
+    # DeepEval 3.0 to 3.9.7 has LLMTestCaseParams, not SingleTurnParams
+    import os
+    from pathlib import Path
+
+    test_case = Path(os.environ["PYTHONPATH"]) / "deepeval" / "test_case" / "__init__.py"
+    text = test_case.read_text(encoding="utf-8")
+    test_case.write_text(text.replace("class SingleTurnParams(str)",
+                                      "class LLMTestCaseParams(str)"), encoding="utf-8")
+    monkeypatch.setenv("CONFIDENT_API_KEY", "x" * 20)
+    code, out = ask(capsys, deepeval_ws, *FIELDS, "--allow-calls", 72)
+    assert code == 0, out
+    assert "ImportError" not in out and "SingleTurnParams" not in out
+    assert len(stubs("measure")) == 72
+
+
 def test_deepeval_measures_each_answer_directly(deepeval_ws, stubs, capsys,
                                                 monkeypatch):
     monkeypatch.setenv("CONFIDENT_API_KEY", "x" * 20)
