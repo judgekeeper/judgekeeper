@@ -764,23 +764,24 @@ class Fix:
         from judgekeeper.start_label import ASKABLE
 
         self.prompt()
-        data = self.data
+        data, root = self.data, self.workspace.root
+        safe = start_fix_rule.safe_path  # every path here comes from the project's files
         test_file = None
         if self.tool == "deepeval":
             for name in data.get("results_files") or []:
                 try:
-                    m = _TEST_FILE.search(_head(self.workspace.root / name))
+                    m = _TEST_FILE.search(_head(root / name))
                 except OSError:
                     m = None
                 if m:
-                    test_file = m[1].decode("utf-8", errors="replace")
+                    test_file = safe(root, m[1].decode("utf-8", errors="replace"))
                     break
-        results = (data.get("results_files") or [None])[0]
+        task_file = safe(root, data.get("task_file"))
+        results = safe(root, (data.get("results_files") or [None])[0])
         hint = start_fix_rule.tool_hint(
-            self.tool, test_file and quote_arg(test_file),
-            data.get("task_file") and quote_arg(data["task_file"]),
+            self.tool, test_file and quote_arg(test_file), task_file and quote_arg(task_file),
             results and quote_arg(self._from_here(results)))
-        found = start_fix_rule.locate_rule(self.workspace.root, self.rule, self.tool)
+        found = start_fix_rule.found_rule(root, self.rule, self.tool)
         return scrub(start_fix_rule.agent_loop_prompt(
             self.command, self._from_here(FOLDER, "fix"), start_fix_rule.place_words(found),
             hint, self.tool in ASKABLE))
@@ -809,6 +810,8 @@ class Fix:
                              "characters.")
         outputs = [display(self.raw.get(i, {}).get("output")) for i in self.used_ids]
         found = start_fix_rule.checks(old, new, self.tool, outputs)
+        if how == "agent" and not any(c["blocking"] for c in found):
+            found += start_fix_rule.agent_checks(old, new)
         if any(c["blocking"] for c in found):
             return {"saved": False, "checks": found}
         self.folder.mkdir(exist_ok=True)
@@ -975,7 +978,7 @@ def save_rule_file(fix: Fix, talk, text: str) -> int:
     _indented(talk, saved["new"])
     talk.say()
     hand = saved["hand_over"]
-    talk.say(f"Where it goes: {hand['where']}")
+    talk.say(f"Where it goes: {hand.get('where_short') or hand['where']}")  # no line text
     for note in hand["notes"]:
         talk.say(note)
     talk.say(hand["last"])

@@ -60,7 +60,9 @@ after you say yes, your own judge through your own tool, and key names only.
   and printed by `start --fix --no-browser`) gives one prompt, with no answer text in it,
   that has Claude Code, Cursor or Codex write the new rule, save it with
   `start --fix --rule-file`, put it in place, run your eval and Try your new judge, and tell
-  you the numbers, asking you before anything that costs money.
+  you the numbers, asking you before anything that costs money. The answers in the prompt
+  are marked as data, each between markers it can't close, so instructions hidden in an
+  answer are not followed as yours.
 - New: ask your judge again. Your own eval tool grades the answers you labeled again, with
   your own judge: promptfoo, DeepEval, Inspect AI, MLflow, or your own command
   (`--judge-command`). Your app is not run. First a plan, with no AI call: whether this is
