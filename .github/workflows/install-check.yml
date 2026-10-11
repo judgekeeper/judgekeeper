@@ -1,0 +1,85 @@
+# Installs judgekeeper fresh into a new project on Windows, Linux and macOS and runs the whole
+# `judgekeeper start` path against real promptfoo, DeepEval, Inspect AI and MLflow results, a
+# table, judgekeeper.record(), a results file in its own format and judges on Ollama
+# (scripts/install_check.py). Every judge is a fake one the script serves: no API call, no key.
+# It runs on pull requests that change the check, by hand (Actions > Install check > Run
+# workflow, `source` build or pypi:VERSION) and after every release, against the release on
+# PyPI. It is slow and uses outside tools, so it is not a required check for main.
+name: Install check
+
+on:
+  pull_request:
+    paths:
+      - scripts/install_check.py
+      - .github/workflows/install-check.yml
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "build (a wheel built from this checkout) or pypi:VERSION"
+        required: true
+        default: build
+        type: string
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  install-check:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        tool: [table, promptfoo, deepeval, inspect, mlflow, record, own-format,
+               promptfoo-ollama, inspect-ollama]
+        python: ["3.12"]
+        include:
+          - {os: ubuntu-latest, tool: table, python: "3.11"}
+          - {os: ubuntu-latest, tool: table, python: "3.14"}
+          - {os: windows-latest, tool: table, python: "3.11"}
+          - {os: windows-latest, tool: table, python: "3.14"}
+          - {os: macos-latest, tool: table, python: "3.11"}
+          - {os: macos-latest, tool: table, python: "3.14"}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      # promptfoo needs Node.js 22.22 or later.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        if: startsWith(matrix.tool, 'promptfoo')
+        with:
+          node-version: "22"
+      - name: Choose what to install
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_SOURCE: ${{ inputs.source }}
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          case "$EVENT" in
+            workflow_dispatch) source="$INPUT_SOURCE" ;;
+            workflow_run) source="pypi:${RELEASE_TAG#v}" ;;
+            *) source=build ;;
+          esac
+          if ! [[ "$source" =~ ^(build|pypi:[0-9][0-9A-Za-z.+!-]*)$ ]]; then
+            echo "source must be build or pypi:VERSION, not: $source"
+            exit 1
+          fi
+          echo "SOURCE=$source" >> "$GITHUB_ENV"
+      - name: Install the build tool
+        if: env.SOURCE == 'build'
+        run: python -m pip install --upgrade pip build
+      - name: Run the install check
+        shell: bash
+        env:
+          PYTHONUTF8: "1"
+          TOOL: ${{ matrix.tool }}
+        run: python scripts/install_check.py --tool "$TOOL" --source "$SOURCE" --work "$RUNNER_TEMP/install check"
