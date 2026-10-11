@@ -400,9 +400,26 @@ def test_a_second_result_moves_the_first_to_history(workspace):
     session = _label_everything(ws)
     start_label.save_result(ws, session, say=lambda line: None)
     first = ws.result_json.read_text(encoding="utf-8")
+    item = session.items[0]
+    session.update({"id": item["id"], "label": "fail" if item["label"] == "pass" else "pass"})
     start_label.save_result(ws, session, say=lambda line: None)
     history = sorted((ws.dir / "history").glob("result-*.json"))
     assert len(history) == 1 and history[0].read_text(encoding="utf-8") == first
+
+
+def test_no_new_marks_keep_the_saved_result(workspace):
+    # "See your result" or --label-more with nothing new: a new result would move the
+    # finished review and fix to history/
+    _, ws = workspace
+    session = _label_everything(ws)
+    start_label.save_result(ws, session, say=lambda line: None)
+    first = ws.result_json.read_bytes()
+    said = []
+    again = start_label.save_result(ws, start_label.StartSession(ws), say=said.append)
+    assert ws.result_json.read_bytes() == first
+    assert not (ws.dir / "history").exists()
+    assert again["made_at"] == json.loads(first)["made_at"]
+    assert any(line.startswith("Your result, from the") for line in said)
 
 
 def test_skipped_answers_are_not_in_the_anchors(workspace):

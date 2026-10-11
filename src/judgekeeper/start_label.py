@@ -802,13 +802,42 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     return r
 
 
+def marks_digest(ws: Workspace, session: StartSession) -> str:
+    """What a result is made from: the marks (answer and label, never a skip) and the judge's
+    verdicts."""
+    import hashlib
+
+    marks = sorted([i["id"], i["label"]] for i in session.items if i["label"])
+    verdicts = ws.pool_judge.read_bytes() if ws.pool_judge.is_file() else b""
+    return hashlib.sha256(json.dumps(marks).encode("utf-8") + b"\0" + verdicts).hexdigest()
+
+
+def _same_result(ws: Workspace, digest: str) -> dict | None:
+    """The saved result, when it was made from these same marks."""
+    try:
+        saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return saved if isinstance(saved, dict) and saved.get("marks_sha256") == digest else None
+
+
 def save_result(ws: Workspace, session: StartSession, say,
                 command: str = "judgekeeper start") -> dict:
     """Make a result from the labels so far: anchors, result.json and result.html (the last
     result moves to history/), and say it in the terminal. `command` (start.Talk.command) is
-    kept in it: every next command it shows starts with it."""
+    kept in it: every next command it shows starts with it. With no new marks since the saved
+    result, that result stays as it is (with its review, fix and asking again) and is said
+    again: a new one would move the finished review and fix to history/."""
+    digest = marks_digest(ws, session)
+    same = _same_result(ws, digest)
+    if same is not None:
+        say("")
+        for line in result_lines(same):
+            say(line)
+        return same
     r = compute(ws, session)
     r["command"] = command
+    r["marks_sha256"] = digest
     anchors = [{"id": i["id"], "input": session.raw[i["id"]].get("input", ""),
                 "output": session.raw[i["id"]].get("output", ""), "human_label": i["label"],
                 **{k: session.raw[i["id"]][k] for k in AGENT_FIELDS if k in session.raw[i["id"]]}}

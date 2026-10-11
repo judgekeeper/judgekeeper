@@ -194,6 +194,19 @@ def split(marks: list[dict], seed: int) -> tuple[list[str], list[str]]:
     return used, aside
 
 
+def resplit(marks: list[dict], seed: int, before: dict | None) -> tuple[list[str], list[str]]:
+    """`split`, after new marks: each answer of the earlier split keeps its side, so one
+    already shown on the page (used) never becomes kept aside, and only the new answers are
+    split."""
+    if not before:
+        return split(marks, seed)
+    old_used, old_aside = set(before.get("used_ids") or []), set(before.get("aside_ids") or [])
+    new = [m for m in marks if m["id"] not in old_used | old_aside]
+    used, aside = split(new, seed)
+    return ([m["id"] for m in marks if m["id"] in old_used] + used,
+            [m["id"] for m in marks if m["id"] in old_aside] + aside)
+
+
 def cell(m: dict) -> tuple[str, bool]:
     """The cell of a final mark: the judge's group, and whether the judge agrees with it."""
     return m["judge"], m["judge"] == m["final"]
@@ -467,7 +480,9 @@ class Fix:
         basis = start_review._basis(ws)
         saved = json.loads(self.out.read_text(encoding="utf-8")) if self.out.is_file() \
             else None
+        before = None  # the sides of an earlier split, kept for the answers it had
         if saved is not None and saved.get("basis") != basis:
+            before = saved
             _keep_old(ws)
             saved = None
         marks = final_marks(ws)
@@ -475,7 +490,7 @@ class Fix:
         self.new = saved is None
         if saved is None:
             seed = secrets.randbelow(2**31)
-            used, aside = split(marks, seed)
+            used, aside = resplit(marks, seed, before)
             saved = {"basis": basis, "seed": seed, "made_at": utc_now(), "used_ids": used,
                      "aside_ids": aside, "tests": []}
             _write_json(self.out, saved)

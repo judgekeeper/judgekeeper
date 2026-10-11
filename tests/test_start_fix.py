@@ -998,3 +998,20 @@ def test_after_a_new_pass_mark_label_more_marks_answers_from_the_next_run(tmp_pa
     assert "before and" in out and "now." in out
     assert len(opened) == 1 and question(110) in opened[0]
     assert ws.data()["pass_mark"]["mark"] == 0.7
+
+
+def test_after_new_marks_old_answers_keep_their_side():
+    def m(i, judge="pass", final="pass"):
+        return {"id": f"a{i}", "judge": judge, "final": final}
+
+    old = [m(i) for i in range(10)] + [m(10 + i, "fail", "fail") for i in range(10)]
+    used, aside = start_fix.split(old, 7)
+    before = {"used_ids": used, "aside_ids": aside}
+    new = [m(20 + i) for i in range(10)] + [m(30 + i, "pass", "fail") for i in range(4)]
+    used2, aside2 = start_fix.resplit(old + new, 99, before)
+    assert set(used) <= set(used2) and set(aside) <= set(aside2)  # shown answers stay shown
+    assert set(used2) | set(aside2) == {x["id"] for x in old + new}
+    assert not set(used2) & set(aside2)
+    fresh = [i for i in aside2 if i not in aside]
+    assert fresh and all(int(i[1:]) >= 20 for i in fresh)  # only new answers go aside
+    assert start_fix.resplit(old, 7, None) == start_fix.split(old, 7)
