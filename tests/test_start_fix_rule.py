@@ -21,7 +21,7 @@ from judgekeeper import again, keys, start, start_fix, start_fix_rule, start_lab
 from judgekeeper import label as label_mod
 from judgekeeper.start_label import StartSession, save_result
 from judgekeeper.start_review import ReviewSession
-from tests.start_projects import answer, promptfoo_project, question, split
+from tests.start_projects import answer, project_promptfoo, promptfoo_project, question, split
 from tests.test_again_run import FakePromptfoo
 from tests.test_label_server import Client
 from tests.test_new_judge import _meta, _new_run, run
@@ -523,9 +523,7 @@ def fixable(monkeypatch, tmp_path):
         if item["disagreement"]:
             review.update({"id": item["id"], "choice": "judge_wrong"})
     monkeypatch.setattr(start_fix.secrets, "randbelow", lambda n: 1234)
-    binary = tmp_path / "node_modules" / ".bin" / "promptfoo"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("", encoding="utf-8")
+    project_promptfoo(tmp_path)
     for name in keys.all_names():
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)

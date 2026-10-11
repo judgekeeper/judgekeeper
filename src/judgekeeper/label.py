@@ -30,15 +30,15 @@ from __future__ import annotations
 
 import csv
 import hmac
+import http.client
 import io
 import json
 import os
 import secrets
 import time
-import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 from judgekeeper.anchors import LABELS
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue
@@ -208,13 +208,14 @@ def open_page(folder: Path) -> str | None:
     except (OSError, ValueError, KeyError, TypeError):
         return None
     url = f"http://{HOST}:{port}/?token={token}"
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # never a proxy
+    conn = http.client.HTTPConnection(HOST, port, timeout=PROBE_TIMEOUT)  # never a proxy
     try:
-        with opener.open(f"http://{HOST}:{port}/state?token={token}",
-                         timeout=PROBE_TIMEOUT) as reply:
-            return url if reply.status == 200 else None
-    except (OSError, ValueError):
+        conn.request("GET", f"/state?{urlencode({'token': token})}")
+        return url if conn.getresponse().status == 200 else None
+    except (OSError, ValueError, http.client.HTTPException):
         return None
+    finally:
+        conn.close()
 
 
 class LabelServer:
