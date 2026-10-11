@@ -103,6 +103,8 @@ NOTHING = "Your judge agrees with every final mark you gave: nothing to fix."
 SIDES = (("pass", "fail", "Passed, but you said Fail"),
          ("fail", "pass", "Failed, but you said Pass"))
 SAID = {"pass": "Pass", "fail": "Fail"}
+MORE_ASIDE = ("Run your eval on more questions, then mark the new answers: {command} "
+              "--label-more.")
 HOW = ("pasted", "written", "agent")  # how a new rule came: an AI assistant, the person, an agent
 AGENT_SAYS = ("To fix your judge's rule with your coding agent (Claude Code, Cursor or Codex), "
               "paste this:")
@@ -535,9 +537,11 @@ class Fix:
 
     def aside_note(self) -> str:
         n = len(self.aside_ids)
-        return (f"judgekeeper kept {n} of your answers aside. "
+        note = (f"judgekeeper kept {n} of your answers aside. "
                 f"{'It tests' if n == 1 else 'They test'} whether a change really helps, so "
                 f"{'it is' if n == 1 else 'they are'} not shown here.")
+        short = self.aside_short()
+        return f"{note} {short}" if short else note
 
     def _item(self, m: dict) -> dict:
         raw = self.raw.get(m["id"], {})
@@ -568,8 +572,20 @@ class Fix:
         if short:
             return (f"Too few answers kept aside to test a change fairly: it needs {MIN_EACH} "
                     f"you marked Pass and {MIN_EACH} you marked Fail (you have "
-                    f"{' and '.join(short)}). Mark more answers first.")
+                    f"{' and '.join(short)}). {MORE_ASIDE.format(command=self.command)}")
         return None
+
+    def aside_short(self) -> str | None:
+        """Said when the answers are put aside: they are too few for the fair test, before
+        anyone rewrites the rule and runs the eval again for nothing; else None."""
+        finals = [self.marks[i]["final"] for i in self.aside_ids]
+        short = [f"{finals.count(v)} you marked {SAID[v]}" for v in ("pass", "fail")
+                 if finals.count(v) < MIN_EACH]
+        if not short:
+            return None
+        return (f"Only {' and '.join(short)} are kept aside; the fair test of a change needs "
+                f"{MIN_EACH} of each. {MORE_ASIDE.format(command=self.command)} Or go on "
+                "without the fair test.")
 
     def _weights(self, ids) -> dict:
         return cell_weights(list(self.marks.values()), [self.marks[i] for i in ids], self.pool)
@@ -883,9 +899,11 @@ class Fix:
 # The terminal -----------------------------------------------------------------------------
 
 def aside_line(fix: Fix) -> str:
-    return (f"judgekeeper kept {len(fix.aside_ids)} of your {len(fix.marks)} marked answers "
+    line = (f"judgekeeper kept {len(fix.aside_ids)} of your {len(fix.marks)} marked answers "
             "aside. They test whether a change really helps, so they are not shown, and they "
             "never go into a prompt.")
+    short = fix.aside_short()
+    return f"{line} {short}" if short else line
 
 
 def count_lines(fix: Fix) -> list[str]:

@@ -582,10 +582,17 @@ def test_too_few_set_aside_refuses_the_test(tmp_path):
     section = fix.state()["pass_mark"]
     assert section["refusal"] == (
         "Too few answers kept aside to test a change fairly: it needs 5 you marked Pass and 5 "
-        "you marked Fail (you have 4 Fail). Mark more answers first.")
+        "you marked Fail (you have 4 Fail). Run your eval on more questions, then mark the new "
+        "answers: judgekeeper start --label-more.")
     with pytest.raises(ValueError):
         fix.test_pass_mark(section["mark"])
     assert fix.state()["lists"]  # the patterns page still works
+    # said when the answers are put aside, before anyone rewrites the rule for nothing
+    short = ("Only 4 you marked Fail are kept aside; the fair test of a change needs 5 of each. "
+             "Run your eval on more questions, then mark the new answers: judgekeeper start "
+             "--label-more. Or go on without the fair test.")
+    assert fix.aside_short() == short
+    assert fix.aside_note().endswith(short) and start_fix.aside_line(fix).endswith(short)
 
 
 def test_the_fourth_test_on_one_split_is_refused(tmp_path, seeded):
