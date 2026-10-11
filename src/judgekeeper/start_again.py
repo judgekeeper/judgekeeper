@@ -200,7 +200,7 @@ def _no_result_yet(path: Path, ws: Workspace | None, talk, then: str, tool: str 
         tool = start.known_tool(path, tool)
     if tool in OWN_CODE:
         talk.say(f"{OWN_CODE[tool]}, so asking it again needs --judge-command: your judge as a "
-                 "command that reads one answer as JSON on stdin and prints its verdict.")
+                 "command that reads one answer as JSON on stdin and prints its decision.")
     return start.EXIT_USAGE
 
 

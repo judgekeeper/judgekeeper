@@ -211,7 +211,7 @@ def test_a_model_deepeval_will_not_build_by_name_stops(tmp_path, stubs, monkeypa
     monkeypatch.setenv("STUB_STRING_SUFFIX", " (Anthropic)")  # as with USE_ANTHROPIC_MODEL
     p = make_plan(ws, PY)
     assert p.status == "cant"
-    assert p.why == ("your DeepEval settings pick gpt-5.4 now, but your saved verdicts came "
+    assert p.why == ("your DeepEval settings pick gpt-5.4 now, but your saved decisions came "
                      "from gpt-4.1; built with that name, DeepEval reports gpt-4.1 (Anthropic)")
 
 
@@ -261,7 +261,7 @@ def test_a_judge_that_needs_more_than_a_name_stops(tmp_path, stubs, monkeypatch,
     ws = _deepeval_model(tmp_path, saved, monkeypatch)
     p = make_plan(ws, PY)
     assert p.status == "cant"
-    assert p.why == (f"your DeepEval settings pick gpt-5.4 now, but your saved verdicts came "
+    assert p.why == (f"your DeepEval settings pick gpt-5.4 now, but your saved decisions came "
                      f"from {saved}; {words}, so judgekeeper can't build it again")
     assert stubs("model") == [] and len(stubs("construct")) == 1
 
@@ -435,7 +435,7 @@ def test_inspect_classification():
     from judgekeeper.again import inspect as ins
 
     assert ins.cant_reason("match", {}, builtin=True) == (
-        "your judge is a rule (match), not a model, so asking again gives the same verdicts")
+        "your judge is a rule (match), not a model, so asking again gives the same decisions")
     assert "custom scorer" in ins.cant_reason("my_scorer", {}, builtin=False)
     assert "template file" in ins.cant_reason("model_graded_qa",
                                               {"template": "prompts/grade.txt"}, builtin=True)

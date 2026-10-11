@@ -372,7 +372,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         if picked != model and _on_ollama(model):
             return _ollama_cant(judge)
         if picked != model:
-            head = (f"your DeepEval settings pick {picked} now, but your saved verdicts came "
+            head = (f"your DeepEval settings pick {picked} now, but your saved decisions came "
                     f"from {model}")
             short = "your DeepEval settings pick another model"
             built, why_not = by_name(model)

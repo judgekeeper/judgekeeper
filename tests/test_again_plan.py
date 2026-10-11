@@ -494,7 +494,7 @@ def test_the_cache_warning(tmp_path):
     ws = _checked(tmp_path)
     _edit(tmp_path, lambda data: data.__setitem__("runtimeOptions", {"cache": True}))
     lines = plan_lines(make_plan(ws, AgainOptions(), dry=False))
-    assert ("  Your saved verdicts may be old replies from promptfoo's cache. judgekeeper turns "
+    assert ("  Your saved decisions may be old replies from promptfoo's cache. judgekeeper turns "
             "the cache off when it asks again.") in lines
 
 

@@ -11,6 +11,7 @@ import pytest
 
 from judgekeeper import own_format
 from judgekeeper.cli import main
+from judgekeeper.textio import quote_arg
 from tests.start_projects import own_format_project, promptfoo_project, split
 
 
@@ -103,12 +104,17 @@ def test_start_names_the_file_and_prints_the_prompt(tmp_path, capsys):
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
     assert "data/prompt_evals.jsonl looks like saved judge results in your own format." in out
-    assert ("To use it: turn it into a table with input, output and verdict columns (see "
+    setup = f"judgekeeper setup {quote_arg(tmp_path)}"
+    assert (f"To use it as it is, run {setup}: it asks how to read it and saves that in "
+            "judgekeeper.toml.") in out
+    assert ("Or turn it into a table with input, output and verdict columns (see "
             "www.judgekeeper.com/start.html#own-format), or ask your coding agent with the "
             "prompt below.") in out
     assert own_format.AGENT_PROMPT in out
-    assert out.index("looks like saved judge results") < out.index("To use it") < \
-        out.index(own_format.AGENT_PROMPT)
+    # setup first, then the table or the coding agent, then judgekeeper.record()
+    assert (out.index("looks like saved judge results") < out.index(setup)
+            < out.index("Or turn it into") < out.index(own_format.AGENT_PROMPT)
+            < out.index("judgekeeper.record() line"))
 
 
 def test_deepeval_says_measure_saves_nothing_and_never_run_your_eval_again(tmp_path, capsys):

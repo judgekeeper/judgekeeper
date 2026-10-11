@@ -465,7 +465,7 @@ def test_ask_again_before_labels_on_records_names_judge_command(tmp_path, capsys
     assert code == 2
     assert out.splitlines()[-1] == (
         "Your judge runs in your own code, so asking it again needs --judge-command: your "
-        "judge as a command that reads one answer as JSON on stdin and prints its verdict.")
+        "judge as a command that reads one answer as JSON on stdin and prints its decision.")
 
 
 def test_ask_again_at_a_terminal_needs_no_yes_to_label(tmp_path, capsys, terminal,

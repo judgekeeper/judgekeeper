@@ -16,6 +16,7 @@ import pytest
 
 from judgekeeper import again, find, start, start_again, start_label
 from judgekeeper.cli import main
+from judgekeeper.textio import quote_arg
 from tests.start_projects import promptfoo_project, records_project, split
 
 
@@ -151,7 +152,7 @@ def test_more_answers_come_from_running_the_eval_again(tmp_path):
     found = start.find_judge(tmp_path)
     assert start.more_answers(found) == [
         ("  Run your eval on more answers: each judgekeeper.record() call saves one more "
-         "verdict."),
+         "decision."),
         "  Running your eval again makes model calls, so it costs money."]
 
 
@@ -179,7 +180,7 @@ def test_nothing_found_offers_the_record_line(tmp_path, capsys):
     (tmp_path / "requirements.txt").write_text("deepeval\n", encoding="utf-8")
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
-    assert ("Or save your judge's verdicts from now on with one judgekeeper.record() line "
+    assert ("Or save your judge's decisions from now on with one judgekeeper.record() line "
             "where it runs: www.judgekeeper.com/assistant.html#add-the-record-line has a "
             "prompt that asks your coding agent to add it.") in out
 
@@ -209,9 +210,11 @@ def test_asking_again_on_records_ends_with_the_judge_command_way(tmp_path, capsy
     assert main(["start", str(tmp_path), "--ask-again"]) == 0
     lines = [line.strip() for line in capsys.readouterr().out.splitlines() if line.strip()]
     assert any("saved by judgekeeper.record()" in line for line in lines)
-    assert lines[-1] == again.WRAP
+    assert lines[-1] == again.WRAP.format(command=f"judgekeeper start {quote_arg(tmp_path)}",
+                                          flag="--ask-again")
     assert lines[-1].startswith("To ask your judge again yourself, wrap it as a command: "
-                                "judgekeeper start --ask-again --judge-command '...'")
+                                f"judgekeeper start {quote_arg(tmp_path)} --ask-again "
+                                "--judge-command '...'")
 
 
 def test_from_a_subfolder_start_finds_the_project_roots_records(tmp_path, capsys, no_labeling,
@@ -223,7 +226,7 @@ def test_from_a_subfolder_start_finds_the_project_roots_records(tmp_path, capsys
     monkeypatch.chdir(tmp_path / "app" / "evals")
     code, out, _ = run(capsys, ".")
     assert code == 0, out
-    assert ("Nothing to read here, but judgekeeper.record() saves your judge's verdicts at the "
+    assert ("Nothing to read here, but judgekeeper.record() saves your judge's decisions at the "
             f"project root: reading them in {tmp_path.resolve()}.") in out
     assert "  Eval tool       your own code (judgekeeper.record())" in out
     (found,) = no_labeling
@@ -249,7 +252,7 @@ def test_setup_from_a_subfolder_finds_the_project_roots_records(tmp_path, capsys
     code = main(["setup", "--yes"])
     out = capsys.readouterr().out
     assert code == 0, out
-    assert "judgekeeper.record() saves your judge's verdicts at the project root" in out
+    assert "judgekeeper.record() saves your judge's decisions at the project root" in out
     assert not (tmp_path / "app" / "judgekeeper.toml").exists()  # it would make app a root
     assert 'source = "records"' in (tmp_path / "judgekeeper.toml").read_text(encoding="utf-8")
     code, out, _ = run(capsys, ".")  # judgekeeper.toml says records: found at the root

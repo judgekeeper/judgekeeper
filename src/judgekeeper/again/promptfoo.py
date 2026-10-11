@@ -427,7 +427,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
 
     cached = any((c.get("metadata") or {}).get("cachedResponse") for j in judged for c in j[2])
     if cached or (newest.get("runtimeOptions") or {}).get("cache") is True:
-        notes.append("Your saved verdicts may be old replies from promptfoo's cache. "
+        notes.append("Your saved decisions may be old replies from promptfoo's cache. "
                      "judgekeeper turns the cache off when it asks again.")
     check = keys.check(model, "promptfoo", root, provider=provider, config=config,
                        key_env=key_env)
@@ -559,7 +559,7 @@ def run(ws, plan: Plan, talk) -> Fresh:
             judged.setdefault(r.target_id, {})[r.run or 1] = r
     fresh = Fresh(folder=folder, source={"kind": "promptfoo", "file": out.name})
     if cached:
-        fresh.notes.append(f"{cached} new verdicts came from promptfoo's cache, although the "
+        fresh.notes.append(f"{cached} new decisions came from promptfoo's cache, although the "
                            "cache was off.")
     for answer, _, comps, _, _ in plan.payload:
         item_id = answer["id"]

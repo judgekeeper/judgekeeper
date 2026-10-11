@@ -447,7 +447,7 @@ STRIPPED = {
     "vars": ("The inputs are missing from {f}. promptfoo leaves them out when "
              "PROMPTFOO_STRIP_TEST_VARS is on, in your environment or in the config's env: "
              "block. Turn it off and write the file again."),
-    "grading": ("The judge's verdicts are missing from {f}. promptfoo leaves them out when "
+    "grading": ("The judge's decisions are missing from {f}. promptfoo leaves them out when "
                 "PROMPTFOO_STRIP_GRADING_RESULT is on, in your environment or in the config's "
                 "env: block. Turn it off and write the file again."),
 }

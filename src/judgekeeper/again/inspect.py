@@ -54,7 +54,7 @@ def cant_reason(name: str, options: dict, builtin: bool) -> str | None:
     base = name.split("/")[-1]
     if base in RULES:
         return (f"your judge is a rule ({base}), not a model, so asking again gives the same "
-                "verdicts")
+                "decisions")
     if not builtin:
         return (f"your judge is a custom scorer ({name}): asking again would import your task "
                 "file, which runs your code")
@@ -77,7 +77,7 @@ def several_verdicts(metric: str, spec: dict) -> str | None:
     names = {s.get("name") for s in spec.get("scorers") or [] if isinstance(s, dict)}
     if not scorer or metric in names or scorer not in names:
         return None
-    return (f"your judge {scorer} gives several verdicts at once ({metric} is one of them); "
+    return (f"your judge {scorer} gives several decisions at once ({metric} is one of them); "
             "asking again about one of them is not supported yet")
 
 
@@ -146,7 +146,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     if scorer is None:
         several = several_verdicts(metric, spec)
         if several:
-            return cant("inspect", judge, several, short="your judge gives several verdicts at once")
+            return cant("inspect", judge, several,
+                        short="your judge gives several decisions at once")
         return cant("inspect", judge, f"your log no longer lists the scorer {metric}",
                     short="the scorer is not in your log")
     options = scorer.get("options") or {}

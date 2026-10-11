@@ -71,7 +71,7 @@ MONTHS_SHORT = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
                 "Dec")
 GIVEN_BY_YOU = "given by you"
 POINT_ME = "Point me at the results: judgekeeper start path/to/results.json"
-RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your judge's verdicts at "
+RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your judge's decisions at "
                  "the project root: reading them in {root}.")
 PAIRWISE = ("These are A/B comparisons. judgekeeper start handles pass/fail answers for now; "
             "see judgekeeper import.")
@@ -644,8 +644,11 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     how = (f"turn it into a table with input, output and verdict columns (see "
            f"{own_format.OWN_FORMAT_URL}), or ask your coding agent with the prompt below.")
     if own is not None:
+        setup = "judgekeeper setup" + ("" if talk.path == "." else f" {quote_arg(talk.path)}")
         talk.say(f"{own.rel} looks like saved judge results in your own format.")
-        talk.say(f"To use it: {how}")
+        talk.say(f"To use it as it is, run {setup}: it asks how to read it and saves that in "
+                 "judgekeeper.toml.")
+        talk.say(f"Or {how}")
     elif "deepeval" in signs:
         talk.say("If your judge saves its results in a format of its own: "
                  + how.replace("turn it into", "turn them into"))
@@ -656,7 +659,7 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
         for line in own_format.AGENT_PROMPT.splitlines():
             talk.say(line)
         talk.say()
-        talk.say("Or save your judge's verdicts from now on with one judgekeeper.record() line "
+        talk.say("Or save your judge's decisions from now on with one judgekeeper.record() line "
                  f"where it runs: {own_format.RECORD_URL} has a prompt that asks your coding "
                  "agent to add it.")
     talk.say("judgekeeper start reads the results that promptfoo, DeepEval, Inspect AI and "
@@ -824,7 +827,7 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
     counts = Counter(r.name for r in newest.records if r.annotator_kind == LLM)
     names = sorted(counts)
     if not names:
-        raise StartError(f"{newest.label} holds no verdicts from an LLM judge")
+        raise StartError(f"{newest.label} holds no decisions from an LLM judge")
     if metric is None and prefer in counts:
         return prefer
     if metric is not None:
@@ -1311,7 +1314,7 @@ def say_found(talk: Talk, found: Found) -> None:
     if pool.unmapped:  # stop: a result without those answers would be wrong
         if found.tool == "inspect" and "P" in pool.unmapped:  # model_graded_qa(partial_credit)
             raise StartError(PARTIAL.format(n=pool.n_unmapped.get(repr("P"), 0)))
-        raise StartError(str(unmapped_error(pool.unmapped)))
+        raise StartError(str(unmapped_error(pool.unmapped, what="decision")))
     if pool.n_human:
         where = (f"{Path(found.used[0]).name} also holds" if len(found.used) == 1
                  else "These results also hold")
@@ -1385,7 +1388,7 @@ def more_answers(found: Found) -> list[str]:
         return ["  Run your MLflow evaluation again on more data.", COSTS]
     if found.tool == "records":
         return [("  Run your eval on more answers: each judgekeeper.record() call saves one "
-                 "more verdict."), COSTS]
+                 "more decision."), COSTS]
     if found.tool == "mapped":
         return [f"  Run your eval on more answers: it adds them to {newest.rel}.", COSTS]
     return [f"  Add more rows to {newest.rel}."]
