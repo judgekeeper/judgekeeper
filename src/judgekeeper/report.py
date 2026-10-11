@@ -5,9 +5,9 @@ AB order and, for pairwise sets, also in BA order. Version 1 reports have no `sc
 field and no `items`. Imported results also carry `source.version`, `source.notes` (copied
 into `notes`) and `source.warnings` (copied into the verdict flags).
 
-These keys came later and change none of the keys the gate reads: `source`, `normaliser`,
-`errors`, `label_quality`, `notes`, `verdict.level`, `headline.tpr_ci` / `tnr_ci` /
-`n_positive` / `n_negative`, and `noise_floor.status`. With one run, the noise-floor numbers
+These keys are optional, and the gate does not read them: `source`, `normaliser`, `errors`,
+`label_quality`, `notes`, `verdict.level`, `headline.tpr_ci` / `tnr_ci` / `n_positive` /
+`n_negative`, and `noise_floor.status`. With one run, the noise-floor numbers
 are null and `noise_floor.status` says "unknown: one run supplied", never zero.
 """
 

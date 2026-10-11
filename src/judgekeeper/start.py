@@ -1255,8 +1255,7 @@ def _pass_mark_words(pm: dict) -> str:
 
 
 def found_lines(found: Found) -> list[str]:
-    """The first block `start` prints: what judgekeeper found, as a small table. The only
-    place inside judgekeeper that says "LLM-as-a-judge"; everywhere else it is "your judge"."""
+    """The first block `start` prints: what judgekeeper found, as a small table."""
     pool = found.pool
     rows = [("Eval tool", _tool_words(found)), ("Results file", _results_words(found)),
             ("What it checks", _checks_words(found)), ("Judge model", _model_words(found)),
@@ -1429,7 +1428,7 @@ def label_found(talk: Talk, found: Found, port: int, open_browser: bool) -> int:
 
     say_found(talk, found)
     if found.check is not None and judge_check.has_rows(found.check.block()):
-        start_label.save_judge_check(start_label.Workspace(found.root), found)  # it is named
+        start_label.save_judge_check(start_label.Workspace(found.root), found)
     pool = found.pool
     if not pool.answers:
         raise StartError("no answer has a clear pass or fail from the judge, so there is "

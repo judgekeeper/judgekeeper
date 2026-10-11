@@ -241,7 +241,7 @@ NOT_IN_SDIST = ("docs/", "tests/", "website/", "scripts/", "deploy/", ".github/"
 
 def test_sdist_holds_only_the_package_and_its_readme_licence_and_changelog(tmp_path):
     names = _build_sdist(ROOT, tmp_path)
-    top = {"README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"}
+    top = {"README.md", "LICENSE", "TRADEMARKS.md", "CHANGELOG.md", "pyproject.toml"}
     for name in names:
         assert name in top | SDIST_ALWAYS or name.startswith("src/judgekeeper/"), name
         assert not name.startswith(NOT_IN_SDIST), name
@@ -325,7 +325,7 @@ def test_older_changelog_entries_stay_as_they_were_written():
         assert needed in entry, needed
 
 
-def test_readme_and_guide_cover_the_launch_contract():
+def test_readme_and_guide_cover_install_and_start():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     guide = _guide()
     assert "\npip install judgekeeper\n" in readme
@@ -471,8 +471,10 @@ def test_actions_are_pinned_to_commit_hashes():
 
 def test_security_policy_and_dependabot_exist():
     policy = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
-    for needed in ("--callable", "--exec", "report"):
+    for needed in ("--callable", "--exec", "report", "judgekeeper start"):
         assert needed in policy, needed
+    for gone in ("judgekeeper label", "`template`"):  # commands that no longer exist
+        assert gone not in policy, gone
     import yaml
     config = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8"))
     assert {u["package-ecosystem"] for u in config["updates"]} >= {"github-actions", "pip"}

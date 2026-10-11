@@ -1,4 +1,4 @@
-"""judgekeeper: validate, monitor and migrate your LLM-as-a-judge."""
+"""judgekeeper: check your LLM-as-a-judge. See how often it agrees with human labels."""
 
 __version__ = "0.2.0"
 

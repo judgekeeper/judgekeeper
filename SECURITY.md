@@ -13,11 +13,13 @@ back within a week.
   written to a file, and any report or error text is scrubbed for them before it is written.
   The Anthropic and OpenAI runners do not follow redirects: a key is sent only to the
   endpoint you name.
-- `judgekeeper label` runs a local web server on 127.0.0.1 with a random token in the URL. It
-  does not listen on the network.
+- `judgekeeper start` opens its pages (marking answers, the review, fixing your judge, the
+  result) from a local web server on 127.0.0.1 with a random token in the URL. It does not
+  listen on the network.
 - Reports (`report.html`, `migration.html`, `gate.md`) escape the values they show, so a
-  hostile model response, item text or model id cannot inject markup. Spreadsheets written by
-  `template` and `label` neutralise cells that would run as formulas, the id column included.
+  hostile model response, item text or model id cannot inject markup. Spreadsheets that
+  `judgekeeper start` writes neutralise cells that would run as formulas, the id column
+  included.
   Text from input files is printed to the terminal without control characters.
 - A plain `http://` base URL to a host other than this machine gets a warning: the key would
   travel unencrypted.

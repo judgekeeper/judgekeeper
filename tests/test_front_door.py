@@ -205,7 +205,12 @@ def test_the_readme_is_one_screen_in_order():
     assert ("This project is maintained by one person and does not accept pull requests. Bug "
             "reports and ideas are welcome as [issues](https://github.com/judgekeeper/"
             "judgekeeper/issues).") in sections["Issues"]
-    assert "MIT" in sections["License"]
+    assert sections["License"].strip().splitlines()[-1] == (
+        "MIT, for the code. The name judgekeeper and the logo are not covered: see "
+        "[TRADEMARKS.md](https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md).")
+    assert ("The numbers are estimates from the answers you marked: how often your judge "
+            "agreed with you on those answers, not a promise about the next ones."
+            ) in sections["What you get"]
 
 
 def test_the_readme_has_no_jargon_no_demo_and_no_link_to_the_unused_pages_address():

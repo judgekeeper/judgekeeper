@@ -60,7 +60,7 @@ def test_the_prompt_holds_only_the_used_answers(tmp_path, seeded):
     assert raw[used_mistake]["output"] in prompt
 
 
-def test_the_prompt_reads_as_the_spec_says():
+def test_the_prompt_text():
     prompt = start_fix_rule.build_prompt(
         "Be helpful.", "records",
         [_item(1, why="it says nothing useful")], [_item(2, "fail", "pass", why="tone?")],

@@ -1,26 +1,21 @@
 """Fix your judge, after the review of the disagreements. No AI call and no key.
 
-The person's final mark for an answer is their second look (Pass or Fail) when they gave
-one in the review, else their first mark; "I was wrong" makes it the judge's verdict, and an
-answer they were not sure about on the second look is left out. A mistake is an answer whose
-final mark differs from the judge's saved verdict (not counting those marked "The rule is
-unclear", which have a box of their own). The main result keeps the first labels.
+The person's final mark for an answer is their second look in the review, else their first
+mark; "I was wrong" makes it the judge's verdict, and an answer they were not sure about on the
+second look is left out. A mistake is a final mark that differs from the judge's verdict (not
+counting those marked "The rule is unclear"). The main result keeps the first labels.
 
-The first time, about 30% of the answers with a final mark are set aside: ceil(30%) of each
-of four cells (the judge's pass or fail, times whether it agrees with the final mark), in a
-seeded shuffle; a cell of one answer stays in the rest, so a single mistake is still shown. They
-are used only to test a change, so the test is fair: nothing from them is shown or counted in a
-pattern, and they never go into a prompt. The page shows, from the rest:
+The first time, ceil(30%) of each of four cells (the judge's pass or fail, times whether it
+agrees with the final mark) is set aside in a seeded shuffle; a cell of one answer stays in the
+rest. The answers set aside only test a change: they are never shown, counted in a pattern or
+put in a prompt. The rest gives the mistakes and their patterns, and a change to test:
 
-- what the judge gets wrong: the two kinds of mistakes, each a list that folds open, and plain
-  patterns in them (too easy or too strict, close to the pass mark, long answers, words that
-  stand out), only when they are strong;
 - for a judge whose decisions are a score held against a pass mark: the pass mark that fits
-  the person's marks best, and a free test of it on the answers set aside.
+  the person's marks best.
 
-A test says how many of the set-aside answers the change fixed and broke, with an exact sign
-test on the two, and the two agreement numbers before and after, with no range. Rounding up per
-cell sets aside more of the few disagreements than of the many agreed answers, so the numbers on
+A test counts the set-aside answers the change fixed and broke, with an exact sign test on the
+two, and the agreement numbers before and after. Rounding up per cell sets aside more of the
+few disagreements than of the many agreed answers, so the numbers on
 either part weigh each answer by its cell (cell_weights), not only its group. After 3 tests on
 one split, the answers set aside no longer give a fair test.
 
