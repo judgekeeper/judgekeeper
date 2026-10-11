@@ -19,7 +19,6 @@
 <meta name="twitter:description" content="Check your LLM-as-a-judge: see how often it agrees with human labels, in one command.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-<link rel="preload" href="assets/fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
 <script src="assets/theme.js"></script>
@@ -42,7 +41,7 @@
 
 <section class="hero">
   <div class="wrap">
-    <div>
+    <div class="hero-text">
       <h1>Check your <span class="nobr">LLM&#8209;as&#8209;a&#8209;judge.</span></h1>
       <p class="lead">See how often it agrees with human labels, in one command.</p>
       <p>An <strong>LLM-as-a-judge</strong> is an AI model that grades the answers of another AI model. Teams use one because reading every answer by hand is slow.</p>
@@ -53,75 +52,84 @@
       <p class="small">Free and open source. Runs on your computer, inside your project. No account, no server.</p>
     </div>
 
-    <figure class="verdicts" id="vcard" aria-live="polite" aria-label="Two verdicts on one answer: the AI judge&#39;s and yours">
-      <p class="label">The question</p>
-      <p class="q" id="vq">How do I reset my password?</p>
-      <p class="label">Your app&#39;s answer</p>
-      <p class="a" id="va">Go to Settings, then Security, and choose Reset password. We will email you a link.</p>
-      <div class="pair">
-        <div class="slip pass" id="sj"><div class="who">The AI judge says</div><div class="v" id="vj">Pass</div></div>
-        <div class="slip pass" id="sy"><div class="who">You say</div><div class="v" id="vy">Correct</div></div>
+    <figure class="demo" id="demo" aria-labelledby="demo-tag">
+      <div class="demo-top"><p class="demo-tag" id="demo-tag">A demo with sample answers</p><p class="demo-count" id="demo-count" aria-hidden="true">1 of 4</p></div>
+      <div class="demo-card" id="demo-card">
+        <div class="ask"><p class="who">The question</p><p class="bubble" id="dq" tabindex="-1">How do I reset my password?</p></div>
+        <div class="reply"><p class="who">Your app&#39;s answer</p><p class="bubble" id="da">Go to Settings, then Security, and choose Reset password. We will email you a link.</p></div>
       </div>
-      <div class="outcome">
-        <span class="badge agree" id="vb"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>They agree</span>
-        <button class="next" id="vnext" type="button">Next answer</button>
+      <div class="demo-act">
+        <div class="marks" id="demo-marks" role="group" aria-label="Your mark">
+          <button class="mark fail" type="button" data-mark="Fail" aria-keyshortcuts="ArrowLeft"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>Fail <kbd aria-hidden="true">&larr;</kbd></button>
+          <button class="mark pass" type="button" data-mark="Pass" aria-keyshortcuts="ArrowRight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Pass <kbd aria-hidden="true">&rarr;</kbd></button>
+        </div>
+        <div class="said" id="demo-said" hidden>
+          <p class="said-line"><span>Your judge said <b id="dj">Pass</b></span><span class="badge agree" id="db">You agree</span></p>
+          <button class="next" type="button" id="dnext">Next answer</button>
+        </div>
       </div>
-      <p class="tally" id="vt">So far: the judge agrees with you on <b>1 of 1</b> answers. judgekeeper counts this for you, with how sure it is.</p>
-      <script type="application/json" id="verdict-examples">[
-  {"q": "How do I reset my password?", "a": "Go to Settings, then Security, and choose Reset password. We will email you a link.", "j": "Pass", "y": "Correct"},
-  {"q": "Can I get a refund after 30 days?", "a": "Yes, refunds are always available, whenever you ask.", "j": "Pass", "y": "Wrong"},
-  {"q": "Is my order shipped?", "a": "I can't see orders. Check the email we sent you, or your account page.", "j": "Fail", "y": "Correct"},
-  {"q": "What is the weight limit for carry-on bags?", "a": "7 kg on all our flights.", "j": "Pass", "y": "Correct"}
+      <p class="tally" id="dtally">Mark it first. Then you see what your judge said.</p>
+      <p class="sr-only" id="dlive" aria-live="polite"></p>
+      <script type="application/json" id="demo-examples">[
+  {"q": "How do I reset my password?", "a": "Go to Settings, then Security, and choose Reset password. We will email you a link.", "j": "Pass"},
+  {"q": "Can I get a refund after 30 days?", "a": "Yes, refunds are always available, whenever you ask.", "j": "Pass"},
+  {"q": "Is my order shipped?", "a": "I can't see orders. Check the email we sent you, or your account page.", "j": "Fail"},
+  {"q": "What is the weight limit for carry-on bags?", "a": "7 kg on all our flights.", "j": "Pass"}
 ]</script>
     </figure>
   </div>
 </section>
 
-<section class="band alt" id="how" aria-labelledby="how-title">
+<section class="band" id="how" aria-labelledby="how-title">
   <div class="wrap">
     <h2 id="how-title">How it works</h2>
-    <p class="intro">Three parts. judgekeeper is the third: it checks the judge against a person.</p>
-    <div class="roles">
-      <div class="role">
-        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg>
-        <h3>Your app answers</h3>
-        <p>Someone asks your AI app a question. It writes an answer.</p>
-      </div>
-      <div class="role">
-        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 7h14M7 7l-3 7h6zM17 7l-3 7h6z"/></svg>
-        <h3>An AI judge grades it</h3>
-        <p>A second AI model says pass or fail. It is fast and cheap, and sometimes wrong.</p>
-      </div>
-      <div class="role">
-        <svg class="ico shield" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" opacity=".35"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z"/></svg>
-        <h3>You check the judge</h3>
-        <p>You mark some of the same answers yourself. judgekeeper shows how often the judge agrees with you.</p>
-      </div>
+    <p class="intro">Your judge grades the answers your app writes. You mark some of the same answers without seeing what it said, and judgekeeper compares the two.</p>
+    <ol class="roles">
+      <li class="role"><h3>Your app answers</h3><p>A question comes in. Your app writes an answer.</p></li>
+      <li class="role"><h3>Your judge grades it</h3><p>Another AI model says Pass or Fail. It is fast and cheap, and sometimes wrong.</p></li>
+      <li class="role"><h3>You check your judge</h3><p>You mark the same answers. judgekeeper shows how often you agree.</p></li>
+    </ol>
+  </div>
+</section>
+
+<section class="band" id="look" aria-labelledby="look-title">
+  <div class="wrap">
+    <h2 id="look-title">What it looks like</h2>
+    <p class="intro">The real pages, run on sample data. They open in your browser and run on your computer.</p>
+  </div>
+  <div class="wrap wide">
+    <div class="shots">
+      <figure class="shot"><a href="assets/shots/label.webp"><img src="assets/shots/label.webp" width="1440" height="900" loading="lazy" alt="The marking page: a question, your app's answer, and equal Fail and Pass buttons. A row of dots at the top shows the answers marked so far."></a>
+        <figcaption><b>Mark</b> each answer Pass or Fail. <span class="sample">Sample data</span></figcaption></figure>
+      <figure class="shot"><a href="assets/shots/result.webp"><img src="assets/shots/result.webp" width="1440" height="900" loading="lazy" alt="The result page: two sentences that say how often your judge said Pass when you said Pass, and Fail when you said Fail."></a>
+        <figcaption><b>Your result</b> in two sentences. <span class="sample">Sample data</span></figcaption></figure>
+      <figure class="shot"><a href="assets/shots/fix.webp"><img src="assets/shots/fix.webp" width="1440" height="900" loading="lazy" alt="The Fix your judge page: what your judge gets wrong, and the panel to change its rule."></a>
+        <figcaption><b>Fix your judge</b>: see its mistakes, change its rule. <span class="sample">Sample data</span></figcaption></figure>
     </div>
   </div>
 </section>
 
 <section class="band" id="route" aria-labelledby="route-title">
   <div class="wrap">
-    <h2 id="route-title">The whole process, in six steps</h2>
-    <p class="intro">The Guide walks you through each step. Labeling takes the longest: most people need 10 to 20 minutes.</p>
+    <h2 id="route-title">Six steps</h2>
+    <p class="intro">The Guide walks you through each one.</p>
     <ol class="route">
       <li><a href="start.html#install"><span class="dot" aria-hidden="true">1</span><b>Install</b><span>Into your project, like pytest.</span></a></li>
-      <li><a href="start.html#connect"><span class="dot" aria-hidden="true">2</span><b>Connect</b><span>Most eval tools need nothing. Own format? One setup command.</span></a></li>
+      <li><a href="start.html#connect"><span class="dot" aria-hidden="true">2</span><b>Connect</b><span>promptfoo, DeepEval, Inspect AI, MLflow or a table: nothing to set up.</span></a></li>
       <li><a href="start.html#start"><span class="dot" aria-hidden="true">3</span><b>Start</b><span>One command finds your judge&#39;s results.</span></a></li>
-      <li><a href="start.html#label"><span class="dot" aria-hidden="true">4</span><b>Label</b><span>Correct or Wrong, in your browser.</span></a></li>
+      <li><a href="start.html#label"><span class="dot" aria-hidden="true">4</span><b>Mark</b><span>Pass or Fail, in your browser.</span></a></li>
       <li><a href="start.html#result"><span class="dot" aria-hidden="true">5</span><b>Result</b><span>How often your judge agrees with you.</span></a></li>
-      <li><a href="start.html#improve"><span class="dot" aria-hidden="true">6</span><b>Improve</b><span>See its mistakes, ask it again, try a new judge.</span></a></li>
+      <li><a href="start.html#improve"><span class="dot" aria-hidden="true">6</span><b>Improve</b><span>See its mistakes, fix its rule, test the new judge on your old marks.</span></a></li>
     </ol>
   </div>
 </section>
 
-<section class="band alt" id="install" aria-labelledby="install-title">
+<section class="band" id="install" aria-labelledby="install-title">
   <div class="wrap install-grid">
     <div>
-      <h2 id="install-title">Install it in your project</h2>
-      <p class="intro" style="margin-bottom:12px">judgekeeper is a developer tool, like pytest. It goes into your project&#39;s own Python environment, never onto the whole computer.</p>
-      <p class="small">You need Python 3.11 or newer. No Python? Get it from <a href="https://www.python.org/downloads/">python.org</a>, then come back.</p>
+      <h2 id="install-title">Install</h2>
+      <p class="intro">judgekeeper goes into your project&#39;s own Python environment, like pytest, never onto the whole computer.</p>
+      <p class="small">You need Python 3.11 or newer. No Python? Get it from <a href="https://www.python.org/downloads/">python.org</a>.</p>
     </div>
     <div>
       <div class="tabs" id="install-tabs">
@@ -146,35 +154,21 @@ judgekeeper --version</code></pre></div>
       </div>
       <div class="screen"><p class="bar"><i></i><i></i><i></i><span>What you will see</span></p><pre class="output" data-output="version"><code><span class="ok">&#x2713;</span> judgekeeper 0.2.0 is ready
 <span class="dim">Next: run judgekeeper start</span></code></pre></div>
-      <p class="small">Uses uv or Poetry? <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code>. No <code>.venv</code> yet, or something went wrong? <a href="start.html#install">The Guide shows how.</a></p>
+      <p class="small">Using uv or Poetry? <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code>. No <code>.venv</code> yet? <a href="start.html#install">The Guide shows how.</a></p>
     </div>
   </div>
 </section>
 
 <section class="band" id="get" aria-labelledby="get-title">
-  <div class="wrap get-grid">
-    <div>
-      <h2 id="get-title">What you get</h2>
-      <p class="intro" style="margin-bottom:18px">Plain sentences first, then the numbers. Every number comes with how sure it is.</p>
-      <ul class="points">
-        <li>How often your judge passes the answers you marked Correct, and fails the ones you marked Wrong.</li>
-        <li>Whether it agrees with you often enough to use as a gate, in one line.</li>
-        <li>Where it went wrong, so you can fix its rule.</li>
-        <li>Your labels and results stay on your computer, in your project.</li>
-      </ul>
-    </div>
-    <div class="rcard result-preview" data-illustration data-tpr="0.94 0.83 0.99" data-tnr="0.86 0.68 0.95" data-kappa="0.79" data-correct="19" data-wrong="21">
-      <span class="tag-illustration">An illustration</span>
-      <h3>Your result</h3>
-      <p class="s">When you said Pass, your judge also said Pass 94% of the time.</p>
-      <p class="s">When you said Fail, your judge also said Fail 86% of the time.</p>
-      <div class="vbox amber"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4.5M12 17.5v.1"/></svg><div>Nearly there: look at where it disagrees with you before you rely on it.</div></div>
-      <div class="tiles3">
-        <div class="num"><small>When you said Pass</small><b>94%</b><div class="bar1"><span style="left:83%;right:1%"></span><i style="left:94%"></i></div></div>
-        <div class="num"><small>When you said Fail</small><b>86%</b><div class="bar1"><span style="left:68%;right:5%"></span><i style="left:86%"></i></div></div>
-        <div class="num"><small>How much you agree beyond luck</small><b>0.79</b><div class="bar1"><i style="left:79%"></i></div></div>
-      </div>
-    </div>
+  <div class="wrap">
+    <h2 id="get-title">What you get</h2>
+    <ul class="points">
+      <li>Two plain sentences: when you said Pass, how often your judge said Pass too, and the same for Fail.</li>
+      <li>One line that says whether it agrees with you often enough to use.</li>
+      <li>Its mistakes, so you can fix its rule and test the fix on answers you already marked.</li>
+      <li>Everything stays on your computer, in your project.</li>
+    </ul>
+    <p class="small estimate">The numbers are estimates from the answers you marked: how often your judge agreed with you on those answers, not a promise about the next ones.</p>
   </div>
 </section>
 
@@ -183,7 +177,9 @@ judgekeeper --version</code></pre></div>
 <footer class="site-footer">
 <div class="wrap cols">
 <div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with your labels; it never decides for you.</p></div>
+<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with you; it never decides for you.</p>
+<p class="fine">Not affiliated with the tools and models it works with. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
+<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
 <div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
 <div><h2>More</h2><ul><li><a href="own-metric.html">No judge yet? Your own metric</a></li><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li><li><a href="tutorial.html">Advanced commands</a></li></ul></div>
 </div>

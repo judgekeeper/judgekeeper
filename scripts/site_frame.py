@@ -23,7 +23,7 @@ MORE = [("own-metric.html", "No judge yet? Your own metric"),
         ("setup.html", "Setup and API keys"),
         ("learn.html", "How it works, in depth"),
         ("tutorial.html", "Advanced commands")]
-FONTS = ("atkinson-hyperlegible-latin-400-normal.woff2", "bricolage-grotesque-latin-800-normal.woff2")
+FONTS = ("bricolage-grotesque-latin-800-normal.woff2",)  # body text uses the system font
 LOGO = ('<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
         '<path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>'
         '<path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>'
@@ -37,7 +37,7 @@ MOON = ('<svg class="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="fal
 
 
 def head_links() -> str:
-    """The icon, the two fonts every page shows first, the styles and the theme, which is set
+    """The icon, the heading font every page shows first, the styles and the theme, which is set
     before the page is drawn (assets/theme.js, not deferred) so it never flashes."""
     preload = "".join(f'<link rel="preload" href="assets/fonts/{f}" as="font" type="font/woff2" '
                       "crossorigin>\n" for f in FONTS)
@@ -71,7 +71,12 @@ def footer() -> str:
         '<footer class="site-footer">\n<div class="wrap cols">\n'
         f'<div><a class="brand" href="index.html">{LOGO}judgekeeper</a>\n'
         '<p class="fine">Free and open source, MIT license. It shows how often your judge '
-        "agrees with your labels; it never decides for you.</p></div>\n"
+        "agrees with you; it never decides for you.</p>\n"
+        '<p class="fine">Not affiliated with the tools and models it works with. Names belong '
+        f'to their owners: see <a href="{GITHUB}/blob/main/TRADEMARKS.md">the name and logo '
+        "note</a>.</p>\n"
+        '<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your '
+        "computer and sends nothing to us.</p></div>\n"
         f'<div><h2>Start here</h2><ul>{_links(START_HERE)}</ul></div>\n'
         f'<div><h2>More</h2><ul>{_links(MORE)}</ul></div>\n'
         "</div>\n</footer>")

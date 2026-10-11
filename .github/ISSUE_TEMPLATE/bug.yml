@@ -1,0 +1,61 @@
+name: Something went wrong
+description: judgekeeper did something you did not expect.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for telling us. Please never paste API keys, and never paste answers or data you are not allowed to share. Replace them with made-up text.
+  - type: textarea
+    id: ran
+    attributes:
+      label: What you ran
+      description: The command, and the folder you ran it in if it matters.
+      placeholder: judgekeeper start
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: saw
+    attributes:
+      label: What you saw
+      description: What judgekeeper printed or showed. Paste the text, not a picture of it, if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: judgekeeper version
+      description: What `judgekeeper --version` prints.
+      placeholder: judgekeeper 0.2.0
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Your computer
+      description: The system and its version, and the Python version.
+      placeholder: macOS 15, Python 3.13
+    validations:
+      required: true
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Your eval tool
+      options:
+        - promptfoo
+        - DeepEval
+        - Inspect AI
+        - MLflow
+        - A table (CSV or JSONL)
+        - judgekeeper.record() in my own code
+        - judgekeeper setup (my own results file)
+        - Other or none
+    validations:
+      required: true

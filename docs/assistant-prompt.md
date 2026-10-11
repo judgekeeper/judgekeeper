@@ -1,4 +1,4 @@
-Please check how often the AI judge in this project agrees with my own labels, using
+Please check how often the LLM-as-a-judge in this project agrees with my own labels, using
 judgekeeper. A judge is a model that grades another model's answers. judgekeeper reads
 the verdicts the judge already saved, shows me some of the same answers to label, and
 says how often the judge agrees with me. You do the typing; I do one thing myself: the

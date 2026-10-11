@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guide | judgekeeper</title>
-<meta name="description" content="Check your LLM-as-a-judge step by step: install judgekeeper in your project, run judgekeeper start, label answers in your browser, and see how often your judge agrees with you.">
+<meta name="description" content="Check your LLM-as-a-judge step by step: install judgekeeper in your project, run judgekeeper start, mark answers Pass or Fail in your browser, and see how often your judge agrees with you.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="Guide | judgekeeper">
-<meta property="og:description" content="Check your LLM-as-a-judge step by step: install judgekeeper in your project, run judgekeeper start, label answers in your browser, and see how often your judge agrees with you.">
+<meta property="og:description" content="Check your LLM-as-a-judge step by step: install judgekeeper in your project, run judgekeeper start, mark answers Pass or Fail in your browser, and see how often your judge agrees with you.">
 <meta property="og:url" content="https://www.judgekeeper.com/start.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
@@ -16,10 +16,9 @@
 <meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Guide | judgekeeper">
-<meta name="twitter:description" content="Check your LLM-as-a-judge step by step: install judgekeeper in your project, run judgekeeper start, label answers in your browser, and see how often your judge agrees with you.">
+<meta name="twitter:description" content="Check your LLM-as-a-judge step by step: install judgekeeper in your project, run judgekeeper start, mark answers Pass or Fail in your browser, and see how often your judge agrees with you.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-<link rel="preload" href="assets/fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
 <script src="assets/theme.js"></script>
@@ -45,26 +44,25 @@
     <li><a href="#install"><span class="n">1</span><span class="label">Install</span></a></li>
     <li><a href="#connect"><span class="n">2</span><span class="label">Connect your results</span></a></li>
     <li><a href="#start"><span class="n">3</span><span class="label">Start</span></a></li>
-    <li><a href="#label"><span class="n">4</span><span class="label">Label</span></a></li>
+    <li><a href="#label"><span class="n">4</span><span class="label">Mark</span></a></li>
     <li><a href="#result"><span class="n">5</span><span class="label">Your result</span></a></li>
     <li><a href="#improve"><span class="n">6</span><span class="label">Improve your judge</span></a>
-      <div class="sub"><a href="#review">Review the disagreements</a><a href="#ask-again">Ask your judge again</a><a href="#new-judge">Try your new judge</a></div></li>
+      <div class="sub"><a href="#review">See where you disagree</a><a href="#fix">Fix your judge</a><a href="#new-judge">Try your new judge</a></div></li>
   </ol>
   <p class="railnote">Ticked steps are remembered in this browser, so you can come back later.</p>
 </aside>
 
 <main id="main">
 <h1>Check your judge, step by step</h1>
-<p class="lede">Six steps. Each one says what to do, what you will see, and how you know it worked.</p>
+<p class="lede">Six steps. Each one says what to do, what you will see, and how you know it worked. Your judge is the AI that grades the answers your app writes, in your evals.</p>
 
 <div class="ready">
   <div><h2>You need</h2><ul>
     <li>Python 3.11 or newer</li>
-    <li>A project whose AI judge has graded some answers, with promptfoo, DeepEval, Inspect AI, MLflow or your own code</li>
-    <li>Time to label: most people need 10 to 20 minutes</li></ul></div>
+    <li>A project whose judge has graded some answers, with promptfoo, DeepEval, Inspect AI, MLflow, a table or your own code</li></ul></div>
   <div><h2>You will end with</h2><ul>
     <li>How often your judge agrees with you, in two plain sentences</li>
-    <li>The answers where it went wrong</li>
+    <li>The answers where it disagrees with you</li>
     <li>Everything saved in your project, on your computer</li></ul></div>
 </div>
 
@@ -78,7 +76,7 @@
 2. If `judgekeeper start` finds no results, run `judgekeeper setup` and show me its
    questions instead of answering them for me.
 3. Run `judgekeeper start --yes --no-browser` and give me the link it prints. I will
-   label the answers myself: never label them for me.</code></pre></div>
+   mark the answers myself: never mark them for me.</code></pre></div>
 </details>
 
 <section class="stop" id="install" aria-labelledby="install-title">
@@ -140,7 +138,7 @@ judgekeeper --version</code></pre></div>
       <div class="in"><p>Run this once in your project folder. It looks inside the file, asks only what it can&#39;t tell, shows 3 answers as it will read them, then asks once before it changes any file. It never edits your code. (<a href="#door-setup">More on setup</a>.)</p>
         <div class="code"><pre><code>judgekeeper setup</code></pre></div></div></details>
     <details><summary>My judge is code I wrote, and it saves nothing</summary>
-      <div class="in"><p>Add one line where your judge gives each verdict, in your eval code, then run your eval once. Or let your coding assistant add it: <a href="#door-record">More on record()</a> has the prompt.</p>
+      <div class="in"><p>Add one line where your judge decides on each answer, in your eval code, then run your eval once. Or let your coding assistant add it: <a href="#door-record">More on record()</a> has the prompt.</p>
         <div class="code"><pre><code>judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
                    judge="claude-opus-5", rule=criteria)</code></pre></div></div></details>
   </div>
@@ -176,7 +174,7 @@ This shows how often your judge agrees with you.
       <dt><code data-said-by="start">No promptfoo results file in this folder.</code></dt>
       <dd>promptfoo kept your results in its own database. judgekeeper offers to run <code>promptfoo export</code> for you, which writes them to a file. It asks first.</dd>
       <dt>It says judgekeeper <code data-said-by="start">needs at least</code> 30 answers to show a result</dt>
-      <dd>Your judge graded fewer than 30 answers. It prints the command that makes more with your own eval, naming your config, test file or task: run it (it calls your models, so it costs money), then <code>judgekeeper start</code> again. Or label the ones you have: the result says how unsure it is. A judge that failed only a few answers is not a reason to stop: labeling goes on, because your labels decide what is Wrong.</dd>
+      <dd>Your judge graded fewer than 30 answers. It prints the command that makes more with your own eval, naming your config, test file or task: run it (it calls your models, so it costs money), then <code>judgekeeper start</code> again. Or mark the ones you have: the result shows wider ranges with fewer answers. A judge that failed only a few answers is not a reason to stop: your marks decide what should fail.</dd>
       <dt><code data-said-by="start">Saved results from more than one eval tool:</code> or <code data-said-by="start">These results hold more than one judge:</code></dt>
       <dd>It lists them and asks which one. Pick the judge you want to check.</dd>
     </dl></details>
@@ -184,27 +182,14 @@ This shows how often your judge agrees with you.
 </section>
 
 <section class="stop" id="label" aria-labelledby="label-title">
-  <div class="head"><span class="n" aria-hidden="true">4</span><h2 id="label-title">Label</h2></div>
+  <div class="head"><span class="n" aria-hidden="true">4</span><h2 id="label-title">Mark</h2></div>
   <p class="why">A page opens in your browser. It runs on your own computer and shows one answer at a time: does it pass your judge&#39;s rule?</p>
   <div class="trio">
-    <div class="mini" role="img" aria-label="A small picture of the labeling page: the question, the answer, the Fail and Pass buttons, and your progress">
-      <div class="mbar"><i></i><i></i><i></i> judgekeeper · Mark each answer Pass or Fail. What your judge decided stays hidden.</div>
-      <div class="mbody">
-        <div>
-          <p class="cap">The question</p><div class="mq">Can I get a refund after 30 days?</div>
-          <p class="cap">Your app&#39;s answer</p><div class="ma">Yes, refunds are always available, whenever you ask.</div>
-          <div class="mbtns"><span class="mw">&#x2715; Fail <kbd>←</kbd></span><span class="mc">&#x2713; Pass <kbd>→</kbd></span></div>
-        </div>
-        <div class="mside"><b>Your progress</b>
-          <div class="mm c"><span>Pass</span><span>19</span></div><div class="mt"><span style="width:76%"></span></div>
-          <div class="mm w"><span>Fail</span><span>21</span></div><div class="mt"><span style="width:84%"></span></div>
-          <p class="mok">You can see your result now. Marking more answers narrows its ranges.</p>
-          <span class="msee">See your result →</span></div>
-      </div>
-    </div>
-    <p>Press <kbd>←</kbd> for Fail (this answer breaks your judge&#39;s rule) and <kbd>→</kbd> for Pass (it follows the rule). <kbd>S</kbd> skips an answer you can&#39;t tell from the text, and <kbd>U</kbd> undoes the last one. Every click is saved at once, so you can stop at any time and run <code>judgekeeper start</code> later to carry on.</p>
-    <p>You never see what the judge said, so it can&#39;t sway you. The counts are your own: how many you marked Pass and how many Fail. Half the answers are ones the judge passed and half it failed, so you see enough of both.</p>
-    <div class="donewhen"><p>You&#39;re done when the page says <b>You can see your result now</b>. Marking more answers makes the result&#39;s ranges narrower; it says so when a range is still wide.</p><label class="tick"><input type="checkbox" data-step="4"> Mark step 4 done</label></div>
+    <figure class="shot-wide"><a href="assets/shots/label.webp"><img src="assets/shots/label.webp" width="1440" height="900" loading="lazy" alt="The marking page: your judge's rule on the left, the question and your app's answer in the middle, equal Fail and Pass buttons under them, and a row of dots at the top for the answers marked so far."></a>
+      <figcaption>The marking page, part way through. <span class="sample">Sample data</span></figcaption></figure>
+    <p>Press <kbd>←</kbd> for Fail (this answer breaks your judge&#39;s rule) and <kbd>→</kbd> for Pass (it follows the rule), or drag the card. <kbd>S</kbd> skips an answer you can&#39;t tell from the text, and <kbd>U</kbd> undoes the last one. Every click is saved at once, so you can stop at any time and run <code>judgekeeper start</code> later to carry on.</p>
+    <p>What your judge decided stays hidden, so it can&#39;t sway you. The dots at the top are your marks so far: click one to go back to that answer. Half the answers are ones the judge passed and half it failed, so you see enough of both.</p>
+    <div class="donewhen"><p>You&#39;re done when the page shows <b>See your result</b>. Marking more answers narrows the result&#39;s ranges.</p><label class="tick"><input type="checkbox" data-step="4"> Mark step 4 done</label></div>
   </div>
 </section>
 
@@ -212,37 +197,32 @@ This shows how often your judge agrees with you.
   <div class="head"><span class="n" aria-hidden="true">5</span><h2 id="result-title">Your result</h2></div>
   <p class="why">Press <strong>See your result</strong> any time. It shows in the page and in the terminal, and it is saved as <code>.judgekeeper/result.html</code>, which opens without judgekeeper running.</p>
   <div class="trio">
-    <div class="rcard result-preview" style="margin:0 0 14px" data-illustration data-tpr="0.94 0.83 0.99" data-tnr="0.86 0.68 0.95" data-kappa="0.79" data-correct="19" data-wrong="21">
-      <span class="tag-illustration">An illustration</span>
-      <p class="s">When you said Pass, your judge also said Pass 94% of the time.</p>
-      <p class="s">When you said Fail, your judge also said Fail 86% of the time.</p>
-      <div class="vbox amber"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4.5M12 17.5v.1"/></svg><div>Nearly there: look at where it disagrees with you before you rely on it.</div></div>
-      <div class="tiles3">
-        <div class="num"><small>TPR</small><span class="plain">When you said Pass</span><b>94%</b><div class="bar1"><span style="left:83%;right:1%"></span><i style="left:94%"></i></div><em>Probably between 83% and 99%. Marking more answers narrows this.</em></div>
-        <div class="num"><small>TNR</small><span class="plain">When you said Fail</span><b>86%</b><div class="bar1"><span style="left:68%;right:5%"></span><i style="left:86%"></i></div><em>Probably between 68% and 95%. Marking more answers narrows this.</em></div>
-        <div class="num"><small>kappa</small><span class="plain">How much you agree beyond luck</span><b>0.79</b><div class="bar1"><i style="left:79%"></i></div><em>from 40 answers · 0.6 or more is good</em></div>
-      </div>
-    </div>
-    <p>The two sentences are the answer. Each comes with the range it is likely to lie in. Then one line says whether your judge agrees with you often enough to use as a gate: an automatic check that can stop a release. Its colour means: green, often enough; amber, check by hand; red, not often enough.</p>
+    <figure class="shot-wide"><a href="assets/shots/result.webp"><img src="assets/shots/result.webp" width="1440" height="900" loading="lazy" alt="The result page: When you said Pass, your judge also said Pass 86% of the time. When you said Fail, your judge also said Fail 83% of the time. Under them, one amber line and what to do next; on the right, the details with their ranges."></a>
+      <figcaption>The result page, after 40 answers. <span class="sample">Sample data</span></figcaption></figure>
+    <p>The two sentences are the answer. Then one line says whether your judge agrees with you often enough to use as a gate: an automatic check that can stop a release. Green: often enough. Amber: look at where it disagrees first. Red: not often enough yet.</p>
     <ul>
       <li><strong>TPR</strong>: of the answers you marked Pass, the share the judge passed.</li>
       <li><strong>TNR</strong>: of the answers you marked Fail, the share the judge failed.</li>
       <li><strong>Kappa</strong>: how much the judge agrees with you beyond lucky guessing. 0 is no better than chance and 1 is perfect.</li>
     </ul>
-    <p>The bar under each number shows how sure it is: narrower is surer. Because the page showed far more of the judge&#39;s fails than your results hold, the numbers are corrected for that picking, so they describe all of your app's answers.</p>
+    <p>The bar under each number is the range it is probably in: narrower means more answers back it. The numbers are estimates from the answers you marked, not a promise about the next ones. The page showed you far more of the judge&#39;s fails than your results hold, so the numbers are corrected for that, and describe all of your app&#39;s answers.</p>
     <div class="donewhen"><p>You&#39;re done when you have read the two sentences. That is your answer.</p><label class="tick"><input type="checkbox" data-step="5"> Mark step 5 done</label></div>
   </div>
 </section>
 
 <section class="stop" id="improve" aria-labelledby="improve-title">
   <div class="head"><span class="n" aria-hidden="true">6</span><h2 id="improve-title">Improve your judge</h2></div>
-  <p class="why">Run <code>judgekeeper start</code> again any time: it offers what fits next. Or go straight to one with its flag, such as <code>judgekeeper start --review</code>.</p>
+  <p class="why">Run <code>judgekeeper start</code> again any time: it offers what fits next. Or go straight to one with its flag. In this order:</p>
   <div class="fork">
-    <div><span class="cost free">Free</span><h3>Review the disagreements</h3><p>Look again without the judge&#39;s verdict, then see its reasons. Get a file of its mistakes to fix its rule with. (<a href="#review">Details</a>.)</p><code class="flag">--review</code></div>
-    <div><span class="cost paid">Costs a little, asks first</span><h3>Ask your judge again</h3><p>Your own judge grades your marked answers again. See if it changes its mind, and how it agrees with you today. (<a href="#ask-again">Details</a>.)</p><code class="flag">--ask-again</code></div>
-    <div><span class="cost paid">Costs a little, asks first</span><h3>Try your new judge</h3><p>Changed your judge&#39;s rule or model? Test the new judge on the answers you already marked. (<a href="#new-judge">Details</a>.)</p><code class="flag">--try-new-judge</code></div>
+    <div><span class="cost free">Free</span><h3>See where you disagree</h3><p>Look again at each answer where you and your judge disagree, with its decision hidden. Then see what it said, and why. (<a href="#review">Details</a>.)</p><code class="flag">--review</code></div>
+    <div><span class="cost free">Free</span><h3>Fix your judge</h3><p>See what your judge gets wrong, then change its rule with a prompt you copy into an AI assistant, or by hand. (<a href="#fix">Details</a>.)</p><code class="flag">--fix</code></div>
+    <div><span class="cost paid">Costs a little, asks first</span><h3>Try your new judge</h3><p>Test the new judge on the answers you already marked, side by side with the old one. (<a href="#new-judge">Details</a>.)</p><code class="flag">--try-new-judge</code></div>
   </div>
-  <div class="trio"><div class="donewhen"><p>You&#39;re done when you know what to fix next, or you decide your judge agrees with you often enough for now. After your next eval run, <a href="#again">check again</a>.</p><label class="tick"><input type="checkbox" data-step="6"> Mark step 6 done</label></div></div>
+  <div class="trio">
+    <figure class="shot-wide"><a href="assets/shots/fix.webp"><img src="assets/shots/fix.webp" width="1440" height="900" loading="lazy" alt="The Fix your judge page: what your judge gets wrong, in two lists (passed but you said Fail, failed but you said Pass) with your reasons, and on the right the Change the rule panel."></a>
+      <figcaption>Fix your judge, with the Change the rule panel. <span class="sample">Sample data</span></figcaption></figure>
+    <p class="note">A small local model can grade answers, but it usually can&#39;t rewrite a rule well. Use a capable assistant for this step.</p>
+    <div class="donewhen"><p>You&#39;re done when you know what to fix next, or you decide your judge agrees with you often enough for now. After your next eval run, <a href="#again">check again</a>.</p><label class="tick"><input type="checkbox" data-step="6"> Mark step 6 done</label></div></div>
 </section>
 
 <section id="details" aria-labelledby="details-title">
@@ -258,7 +238,7 @@ This shows how often your judge agrees with you.
       <li><strong>MLflow</strong>: the assessments in a local <code>mlruns/</code> folder or <code>mlflow.db</code>.</li>
       <li><strong>A table you made</strong>: a CSV or JSONL file with an <code>input</code>, an <code>output</code> and a <code>verdict</code> column.</li>
       <li><strong>Your judge&#39;s own results file</strong>, after <code>judgekeeper setup</code>: it reads <code>judgekeeper.toml</code> first (<a href="#own-format">below</a>).</li>
-      <li><strong><code>judgekeeper.record()</code></strong>: the verdicts it saved in <code>.judgekeeper/records/</code> (<a href="#door-record">below</a>).</li>
+      <li><strong><code>judgekeeper.record()</code></strong>: the decisions it saved in <code>.judgekeeper/records/</code> (<a href="#door-record">below</a>).</li>
     </ul>
     <p>It names your judge from the results: its name, the first line of its rubric and its model. Several tools or several judges? It asks which one. Too few answers? It says how many there are and prints the command that makes more with your own tool. You run that command, not judgekeeper. Your judge saves its results in a format of its own? See <a href="#own-format">below</a>.</p>
   </div></details></section>
@@ -273,41 +253,64 @@ This shows how often your judge agrees with you.
     </ul>
   </div></details></section>
 
-  <section id="review"><details class="detail"><summary><h3>Review the disagreements</h3></summary><div class="in">
-    <p>Free, with no AI call. A <strong>disagreement</strong> is an answer where your label and your judge&#39;s verdict differ.</p>
+  <section id="review"><details class="detail"><summary><h3>See where you disagree</h3></summary><div class="in">
+    <p>Free, with no AI call. A <strong>disagreement</strong> is an answer where your mark and what your judge decided differ.</p>
     <ol>
-      <li><strong>Look again.</strong> You see each disagreement again, mixed with as many answers you and the judge agreed on, and the judge&#39;s verdict is still hidden. Mark each one Correct, Wrong or Not sure.</li>
-      <li><strong>See what your judge said.</strong> For each disagreement you see the judge&#39;s verdict and its reason, and choose: <em>The judge was wrong</em>, <em>I was wrong</em> or <em>The rule is unclear</em>.</li>
+      <li><strong>Look again.</strong> You see each disagreement again, mixed with as many answers you and the judge agreed on, and what the judge decided is still hidden. Mark each one Fail, Not sure or Pass.</li>
+      <li><strong>See what your judge said.</strong> For each disagreement you see what your judge decided and its reason, and choose: <em>Your judge was wrong</em>, <em>I was wrong</em> or <em>The rule is unclear</em>, with an optional line of why.</li>
     </ol>
-    <p>The judge&#39;s mistakes go to <code>.judgekeeper/judge-mistakes.csv</code>: the answers to improve your judge&#39;s rule with. Unclear cases go to <code>rule-unclear.csv</code>. Your first labels stay the main result.</p>
+    <p>The judge&#39;s mistakes go to <code>.judgekeeper/judge-mistakes.csv</code>: the answers to improve your judge&#39;s rule with. Unclear cases go to <code>rule-unclear.csv</code>. Your first marks stay the main result.</p>
     <div class="code"><pre><code>judgekeeper start --review</code></pre></div>
   </div></details></section>
 
+  <section id="fix"><details class="detail"><summary><h3>Fix your judge</h3></summary><div class="in">
+    <p>Free, with no AI call, once you have looked at where you disagree. First judgekeeper keeps about a third of your marked answers aside: they test a change fairly later, so they are not shown. From the rest it shows what your judge gets wrong: the answers it passed but you failed, the answers it failed but you passed, your why for each, and words that show up in many of its mistakes.</p>
+    <p>To change the rule, copy the prompt it gives you into an AI assistant, or write the new rule yourself. judgekeeper never edits your files: it says where the new rule goes. For a judge that gives a score, it also finds the pass mark that fits your marks best, and tests it on the answers kept aside in one click.</p>
+    <p>Then run your eval once with the new rule, and <a href="#new-judge">try your new judge</a>: it tests the change on the answers kept aside.</p>
+    <p>A small local model can grade answers, but it usually can&#39;t rewrite a rule well. Use a capable assistant for this step.</p>
+    <div class="code"><pre><code>judgekeeper start --fix</code></pre></div>
+  </div></details></section>
+
   <section id="ask-again"><details class="detail"><summary><h3>Ask your judge again</h3></summary><div class="in">
-    <p>judgekeeper has your own eval tool grade the answers you labeled again, with your own judge. Your app is not run. It works with promptfoo, DeepEval, Inspect AI and MLflow, or with your own judge as a command (<code>--judge-command</code>).</p>
+    <p>judgekeeper has your own eval tool grade the answers you marked again, with your own judge. Your app is not run. It works with promptfoo, DeepEval, Inspect AI and MLflow, or with your own judge as a command (<code>--judge-command</code>).</p>
     <p>Before any call it shows a plan: your judge, and whether this is exactly your judge, a close copy (and what differs), or a judge it can&#39;t ask again (and why); which key your judge will use, by name only; how many judge calls, and a cost range at prices dated in judgekeeper; and what the run touches. Then it asks <code>Go ahead? [y/N]</code>. The answer is No unless you type y.</p>
-    <p>Then it shows how often your judge changed its verdict on the same answer, how well it agrees with you today next to your last result, and how often its new verdict matches the one it saved.</p>
+    <p>Then it shows how often your judge changed its decision on the same answer, how well it agrees with you today next to your last result, and how often its new decision matches the one it saved.</p>
     <div class="code"><pre><code>judgekeeper start --ask-again</code></pre></div>
   </div></details></section>
 
   <section id="new-judge"><details class="detail"><summary><h3>Try your new judge</h3></summary><div class="in">
     <p>You fixed your judge&#39;s rule or changed its model, and ran your eval once. <code>judgekeeper start</code> notices the new judge and offers to try it on the answers you already marked. You mark nothing new for this.</p>
     <p>It rebuilds the new judge from your newest results and has it grade your marked answers, never your new outputs. It shows the same plan and asks the same question as asking again. Then it shows your old judge and your new judge side by side, against the same marks.</p>
-    <p>A judge changed after you saw its mistakes on these answers will look better on them. So judgekeeper then offers a quick check: you mark 10 Correct and 10 Wrong answers from your newest results that you never marked. Its result shows the wide ranges that come with so few answers.</p>
+    <p>A judge changed after you saw its mistakes on these answers will look better on them. So judgekeeper then offers a quick check: you mark 10 Pass and 10 Fail answers from your newest results that you never marked. Its result shows the wide ranges that come with so few answers.</p>
     <p>Your main result stays your old judge&#39;s. To check the new judge from now on, run <code>judgekeeper start --new</code>: everything moves to <code>.judgekeeper/previous-&lt;date&gt;/</code>, and nothing is deleted.</p>
     <div class="code"><pre><code>judgekeeper start --try-new-judge</code></pre></div>
   </div></details></section>
 
   <section id="again"><details class="detail"><summary><h3>Running it again</h3></summary><div class="in">
-    <p>Your labels and results are saved in <code>.judgekeeper/</code> in your project folder. It holds your answers&#39; text, so commit it only if your data may live in your repository. Run <code>judgekeeper start</code> again and it carries on:</p>
+    <p>Your marks and results are saved in <code>.judgekeeper/</code> in your project folder. It holds your answers&#39; text, so commit it only if your data may live in your repository. Run <code>judgekeeper start</code> again and it carries on:</p>
     <ul>
       <li><strong>You stopped before the end</strong>: it asks <em>Continue?</em> and opens the page at the next answer.</li>
-      <li><strong>You have a result</strong>: it asks what next: review the answers where you and your judge disagree (free), ask your judge again, <em>Label more</em>, or nothing for now.</li>
+      <li><strong>You have a result</strong>: it asks what next: review the answers where you and your judge disagree (free), fix your judge, ask your judge again, <em>Mark more answers</em>, or nothing for now.</li>
       <li><strong>Your judge changed</strong>: when your newest results come from a new version of your judge, it also offers to try the new judge on the answers you already marked.</li>
-      <li><strong>You ran your eval again</strong>: it does a re-check. It finds the answers you labeled in the new results, says whether your judge changed, and shows the result next to the last one. If your app now writes different answers, your old labels no longer fit, and it offers to label the new results.</li>
+      <li><strong>You ran your eval again</strong>: it does a re-check. It finds the answers you marked in the new results, says whether your judge changed, and shows the result next to the last one. If your app now writes different answers, your old marks no longer fit, and it offers to mark the new results.</li>
       <li><strong>You want to start over</strong>: <code>judgekeeper start --new</code> moves everything to <code>.judgekeeper/previous-&lt;date&gt;/</code>. Nothing is deleted.</li>
     </ul>
-    <p>In a script, CI or a coding assistant, it never asks: it prints the flag that answers the question. Labeling needs a person. Every flag is in the <a href="reference.html#start-find-your-results-label-see-the-result">reference</a>.</p>
+    <p>In a script, CI or a coding assistant, it never asks: it prints the flag that answers the question. Marking needs a person. Every flag is in the <a href="reference.html#start-find-your-results-label-see-the-result">reference</a>.</p>
+  </div></details></section>
+
+  <section id="commands"><details class="detail"><summary><h3>Every start command, in plain words</h3></summary><div class="in">
+    <table class="plain cmds">
+      <thead><tr><th scope="col">Command</th><th scope="col">What it does</th><th scope="col">Costs money?</th></tr></thead>
+      <tbody>
+        <tr><td><code>judgekeeper start</code></td><td>Finds your judge, then opens what fits next: the marking page, your result, or what you can do now.</td><td>No</td></tr>
+        <tr><td><code>judgekeeper start --review</code></td><td>Look again at the answers where you and your judge disagree, then see its reasons.</td><td>No</td></tr>
+        <tr><td><code>judgekeeper start --fix</code></td><td>See what your judge gets wrong, and get a prompt to change its rule.</td><td>No</td></tr>
+        <tr><td><code>judgekeeper start --try-new-judge</code></td><td>After you change your judge&#39;s rule or model and run your eval again: the new judge grades the answers you already marked, next to the old one.</td><td>A little. It shows the cost and asks first</td></tr>
+        <tr><td><code>judgekeeper start --ask-again</code></td><td>Your judge grades the answers you marked again. Does it decide the same way twice?</td><td>A little. It shows the cost and asks first</td></tr>
+        <tr><td><code>judgekeeper start --label-more</code></td><td>Mark more answers. More marks narrow the ranges.</td><td>No</td></tr>
+        <tr><td><code>judgekeeper start --new</code></td><td>Start a fresh check. The old one moves to <code>.judgekeeper/previous-&lt;date&gt;/</code>; nothing is deleted.</td><td>No</td></tr>
+      </tbody>
+    </table>
   </div></details></section>
 
   <section id="own-format"><details class="detail"><summary><h3>Your judge saves results its own way</h3></summary><div class="in">
@@ -319,7 +322,7 @@ This shows how often your judge agrees with you.
     <p>It finds a recent JSON, JSONL or CSV file that seems to hold your judge&#39;s results, nested or flat, lists what one line holds, and says how it will read it: what one answer is, the input, the answer, the score or verdict and the reason. It asks only what it cannot tell, for example whether two answers per case (A and B) each count as an answer, and which judge to check. It shows 3 answers as it reads them. Then it asks once before it changes any file: it saves where your results are and how to read them in <code>judgekeeper.toml</code>, adds <code>.judgekeeper/</code> to <code>.gitignore</code> and judgekeeper to your dev requirements. It never edits your code. Then run <code>judgekeeper start</code>. Your results are somewhere else? <code>judgekeeper setup path/to/results.jsonl</code>.</p>
 
     <h4 id="door-record">2. One <code>judgekeeper.record()</code> line</h4>
-    <p>Your judge runs in your own code? Add one line right after it gives each verdict, in your eval code. Then run your eval once, and <code>judgekeeper start</code> finds the verdicts.</p>
+    <p>Your judge runs in your own code? Add one line right after it decides on each answer, in your eval code. Then run your eval once, and <code>judgekeeper start</code> finds what it decided.</p>
     <div class="code"><pre><code>import judgekeeper
 judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
                    reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")</code></pre></div>
@@ -369,7 +372,7 @@ so that judgekeeper can check my judge against my own labels:
     <p class="note"><code>judgekeeper start --agent-prompt</code> prints the same prompt in your terminal.</p>
 
     <h4 id="records-format">The records format</h4>
-    <p><code>judgekeeper.record()</code> and the snippets write judgekeeper&#39;s own format: one JSON line per verdict. It has a version and keeps fields it does not know, so files you write today still read later. <code>judgekeeper import records your-file.jsonl --check</code> checks a file and lists every problem with its line. The fields are in the <a href="reference.html#records-format-import-records">reference</a>, and the rules as a <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json">JSON Schema</a>.</p>
+    <p><code>judgekeeper.record()</code> and the snippets write judgekeeper&#39;s own format: one JSON line per decision. It has a version and keeps fields it does not know, so files you write today still read later. <code>judgekeeper import records your-file.jsonl --check</code> checks a file and lists every problem with its line. The fields are in the <a href="reference.html#records-format-import-records">reference</a>, and the rules as a <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json">JSON Schema</a>.</p>
   </div></details></section>
 
   <section id="other"><details class="detail"><summary><h3>No saved results? Check a judge with a table you make</h3></summary><div class="in">
@@ -377,7 +380,7 @@ so that judgekeeper can check my judge against my own labels:
     <ol class="steps">
       <li>
         <h4 id="step-collect">Collect answers from your app</h4>
-        <p>Save real answers in one file named <code>items.csv</code>. Each row is one answer: an <code>id</code>, the <code>input</code> your app got and the <code>output</code> it wrote. Take ordinary cases and hard ones, good answers and bad ones. A rough check needs 15 that should pass and 15 that should fail; a reliable result needs 25 of each, and more when the judge&#39;s ranges are still wide.</p>
+        <p>Save real answers in one file named <code>items.csv</code>. Each row is one answer: an <code>id</code>, the <code>input</code> your app got and the <code>output</code> it wrote. Take ordinary cases and hard ones, good answers and bad ones. Take some that should pass and some that should fail: the more of each, the narrower the result&#39;s ranges.</p>
         <p>This step has no command. You make the file in a spreadsheet. From Excel, save it as <strong>CSV UTF-8</strong>.</p>
         <p class="output-label">What the file looks like:</p>
         <pre class="output" data-file="tutorial/items.csv" data-rows="3"><code>id,input,output
@@ -385,14 +388,14 @@ q1,What is the capital of France?,Paris is the capital of France.
 q2,What is the capital of Japan?,The capital of Japan is Tokyo.</code></pre>
       </li>
       <li>
-        <h4 id="step-label">Label them</h4>
-        <p>You read each answer and say <em>pass</em> or <em>fail</em>. That mark is a <strong>human label</strong>. It is the one part no AI model may do for you: the labels are what the judge is checked against.</p>
+        <h4 id="step-label">Mark them</h4>
+        <p>You read each answer and say <em>pass</em> or <em>fail</em>. That mark is a <strong>human label</strong>. It is the one part no AI model may do for you: your marks are what the judge is checked against.</p>
         <p>This step has no command either. In the spreadsheet, add a <code>label</code> column and write <em>pass</em> or <em>fail</em> on every row.</p>
       </li>
       <li>
-        <h4 id="step-judge">Run your judge, or bring its verdicts</h4>
-        <p>A <strong>verdict</strong> is the judge&#39;s pass or fail on one answer. judgekeeper needs the judge&#39;s verdicts on the same answers you labeled.</p>
-        <p>If your tools already saved the verdicts, put them next to your labels in one table. Add a <code>verdict</code> column with what the judge said and save the sheet as <code>results.csv</code>. Then run:</p>
+        <h4 id="step-judge">Run your judge, or bring what it decided</h4>
+        <p>judgekeeper needs your judge&#39;s pass or fail on the same answers you marked.</p>
+        <p>If your tools already saved them, put them next to your marks in one table. Add a <code>verdict</code> column with what the judge said and save the sheet as <code>results.csv</code>. Then run:</p>
         <div class="code"><pre><code>judgekeeper check results.csv --judge verdict --human label</code></pre></div>
         <p class="output-label">What you see. This is the result for the small table in <a href="tutorial.html#step-check">Advanced commands</a>:</p>
         <pre class="output" data-output="check"><code>Of the answers people passed, the judge passed 100%. Of the answers people failed, the judge failed 33%. It is not trustworthy as a gate.
@@ -403,8 +406,8 @@ Not trustworthy as a gate: TPR 1.00, TNR 0.33, kappa 0.41 against human labels.
   - Too few labels for a rough check (7 labeled pass, 3 labeled fail): it needs 15 of each.
 wrote judgekeeper-report/report.json and judgekeeper-report/report.html</code></pre>
         <details class="callout">
-          <summary><strong>No saved verdicts?</strong> judgekeeper can run your judge.</summary>
-          <p style="margin-top:12px">Save your labeled answers as <code>anchors.jsonl</code>: one line per answer, such as <code>{"id": "q1", "input": "...", "output": "...", "human_label": "pass"}</code>. The first command runs the judge three times. The first time, it also seals <code>anchors.jsonl</code>, so nobody can change your labels later without it showing. The second compares the judge with your labels and prints the same kind of result.</p>
+          <summary><strong>Nothing saved?</strong> judgekeeper can run your judge.</summary>
+          <p style="margin-top:12px">Save your marked answers as <code>anchors.jsonl</code>: one line per answer, such as <code>{"id": "q1", "input": "...", "output": "...", "human_label": "pass"}</code>. The first command runs the judge three times. The first time, it also seals <code>anchors.jsonl</code>, so nobody can change your marks later without it showing. The second compares the judge with your marks and prints the same kind of result.</p>
           <div class="code"><pre><code>judgekeeper judge anchors.jsonl --callable my_judges:judge --runs 3 --out runs/mine
 judgekeeper validate anchors.jsonl runs/mine --out reports/mine</code></pre></div>
           <p class="note">Here <code>my_judges:judge</code> is your own Python function. For other kinds of judge, see <a href="learn.html#works">Works with what you already use</a>. <a href="tutorial.html#step-judges">Advanced commands</a> shows each command with its output.</p>
@@ -412,9 +415,9 @@ judgekeeper validate anchors.jsonl runs/mine --out reports/mine</code></pre></di
       </li>
       <li>
         <h4 id="step-read">Read the result</h4>
-        <p>The first line is the result in plain words, then one of three verdicts: <em>usable as a gate</em>, <em>usable with care</em> or <em>not trustworthy as a gate</em>. The second line gives the same result as TPR, TNR and kappa (<a href="#result">step 5</a> says what each means). The lines that start with a dash are <strong>flags</strong>: things to know before you rely on the judge. The last line names the full report. Open it in your browser:</p>
+        <p>The first line is the result in plain words, then one of three labels: <em>usable as a gate</em>, <em>usable with care</em> or <em>not trustworthy as a gate</em>. The second line gives the same result as TPR, TNR and kappa (<a href="#result">step 5</a> says what each means). The lines that start with a dash are <strong>flags</strong>: things to know before you rely on the judge. The last line names the full report. Open it in your browser:</p>
         <div class="code"><pre><code>open judgekeeper-report/report.html</code></pre></div>
-        <p><strong>What you see.</strong> One page with the same verdict, and every answer you and the judge disagree on, with the judge&#39;s own reason. On Windows, use <code>start</code> in place of <code>open</code>. On Linux, use <code>xdg-open</code>. <a href="examples/llmbar-haiku/report.html">See a real report</a>.</p>
+        <p><strong>What you see.</strong> One page with the same result, and every answer you and the judge disagree on, with the judge&#39;s own reason. On Windows, use <code>start</code> in place of <code>open</code>. On Linux, use <code>xdg-open</code>. <a href="examples/llmbar-haiku/report.html">See a real report</a>.</p>
       </li>
     </ol>
   </div></details></section>
@@ -425,7 +428,9 @@ judgekeeper validate anchors.jsonl runs/mine --out reports/mine</code></pre></di
 <footer class="site-footer">
 <div class="wrap cols">
 <div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with your labels; it never decides for you.</p></div>
+<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with you; it never decides for you.</p>
+<p class="fine">Not affiliated with the tools and models it works with. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
+<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
 <div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
 <div><h2>More</h2><ul><li><a href="own-metric.html">No judge yet? Your own metric</a></li><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li><li><a href="tutorial.html">Advanced commands</a></li></ul></div>
 </div>

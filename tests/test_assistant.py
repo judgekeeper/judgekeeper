@@ -201,7 +201,7 @@ def test_the_page_shows_the_skill_install_and_the_fallback():
 def test_the_page_says_what_the_human_does_and_what_is_out_of_scope():
     text = FENCE.sub("", _read(PAGE))
     flat = _flat(text)
-    assert "the labels" in flat
+    assert "the marks" in flat  # what the person does: mark each answer Pass or Fail
     for name in ("Claude Code", "Codex", "Cursor"):
         assert name in text, name
     works_with = text[text.index("## Works with"):]

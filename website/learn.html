@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How it works, in depth | judgekeeper</title>
-<meta name="description" content="Why an AI judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
+<meta name="description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="How it works, in depth | judgekeeper">
-<meta property="og:description" content="Why an AI judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
+<meta property="og:description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
 <meta property="og:url" content="https://www.judgekeeper.com/learn.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
@@ -16,10 +16,9 @@
 <meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="How it works, in depth | judgekeeper">
-<meta name="twitter:description" content="Why an AI judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
+<meta name="twitter:description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-<link rel="preload" href="assets/fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
 <script src="assets/theme.js"></script>
@@ -422,7 +421,7 @@ judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --prompt 
   <div class="wrap narrow">
     <p class="kicker">Numbers</p>
     <h2 id="real-data-title">Do the ranges hold on real data?</h2>
-    <p class="lead">Each number in a result comes with a range. In public datasets where a judge and people both decided on the same answers, we pretended a person labeled only a few of them, and counted how often the range held the value worked out from all of the dataset's human labels. No judge was called.</p>
+    <p class="lead">Each number in a result comes with a range. In public datasets where a judge and people both decided on the same answers, we pretended a person marked only a few of them, and counted how often the range held the value worked out from all of the dataset's human labels. No judge was called.</p>
     <ul>
       <li><strong>On real data.</strong> On <span data-realcheck="summary.25+25.judges" data-format="int">5</span> real judges from <span data-realcheck="summary.25+25.datasets" data-format="int">3</span> public datasets (LLMBar, MT-Bench and LLMJudge), with <span data-realcheck="summary.25+25.labels_mean.lowest" data-format="int">50</span> human labels per check, the ranges for how often the judge passed answers people passed (TPR) and how often it failed answers people failed (TNR) held that value in <span data-realcheck="summary.25+25.tpr_tnr.mean" data-format="per100">96.0</span> checks in 100 on average (lowest <span data-realcheck="summary.25+25.tpr_tnr.lowest" data-format="per100">94.6</span>, highest <span data-realcheck="summary.25+25.tpr_tnr.highest" data-format="per100">98.4</span>), over <span data-realcheck="settings.checks" data-format="count">1,000</span> checks per judge.</li>
       <li><strong>One of those checks.</strong> GPT-4 as the judge on MT-Bench, <span data-realcheck="summary.25+25.labels_mean.lowest" data-format="int">50</span> labels: TPR <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tpr.value">0.82</span> (range <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tpr.range.0">0.71</span> to <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tpr.range.1">0.91</span>), and the value from all <span data-realcheck="pools.mtbench-gpt4.truth.n" data-format="count">1,814</span> human labels is <span data-realcheck="pools.mtbench-gpt4.truth.tpr">0.85</span>; TNR <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tnr.value">0.49</span> (range <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tnr.range.0">0.36</span> to <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tnr.range.1">0.65</span>), and from all labels <span data-realcheck="pools.mtbench-gpt4.truth.tnr">0.56</span>.</li>
@@ -442,7 +441,7 @@ judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --prompt 
       <rect class="box" x="10" y="30" width="260" height="170" rx="14"/>
       <text x="30" y="62">Your computer or your CI</text>
       <text x="30" y="96" class="small">judgekeeper</text>
-      <text x="30" y="122" class="small">your examples and labels</text>
+      <text x="30" y="122" class="small">your examples and marks</text>
       <text x="30" y="148" class="small">your key, in an environment variable</text>
       <text x="30" y="174" class="small">reports, written to your disk</text>
       <rect class="box" x="450" y="30" width="260" height="80" rx="14"/>
@@ -469,8 +468,8 @@ judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --prompt 
     <p class="kicker">Questions</p>
     <h2 id="faq-title">Short, honest answers</h2>
     <details>
-      <summary>How many human labels do I need?</summary>
-      <p>Every command uses the same targets. A rough check needs <span data-const="judgekeeper.targets:ROUGH" data-format="int">15</span> labels of each kind: answers you mark Correct and Wrong in <code>judgekeeper start</code>, or answers people passed and failed in <code>check</code> and <code>validate</code>. A reliable result needs <span data-const="judgekeeper.targets:RELIABLE" data-format="int">25</span> of each, and both ranges, for TPR and for TNR, no wider than <span data-const="judgekeeper.targets:MAX_WIDTH">0.30</span>. When your judge passes most answers, the TNR range narrows more slowly, so the result says when it is not reliable yet and which range is still too wide.</p>
+      <summary>How many answers do I need to mark?</summary>
+      <p>judgekeeper shows a result once you have marked enough of each; marking more narrows the ranges.</p>
     </details>
     <details>
       <summary>Why TPR and TNR first, and not kappa?</summary>
@@ -500,7 +499,9 @@ judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --prompt 
 <footer class="site-footer">
 <div class="wrap cols">
 <div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with your labels; it never decides for you.</p></div>
+<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with you; it never decides for you.</p>
+<p class="fine">Not affiliated with the tools and models it works with. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
+<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
 <div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
 <div><h2>More</h2><ul><li><a href="own-metric.html">No judge yet? Your own metric</a></li><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li><li><a href="tutorial.html">Advanced commands</a></li></ul></div>
 </div>

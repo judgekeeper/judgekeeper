@@ -1,0 +1,29 @@
+name: An idea for a page
+description: Something on a judgekeeper page or the website you would change.
+labels: [enhancement]
+body:
+  - type: input
+    id: screen
+    attributes:
+      label: What screen
+      description: For example the marking page, the result, Fix your judge, the terminal, or a page of the website.
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: What you would change
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What was hard, slow or unclear for you.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: A screenshot
+      description: Optional. Drag a picture in here. Hide any answers or data you are not allowed to share.

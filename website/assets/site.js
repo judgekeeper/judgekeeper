@@ -2,9 +2,9 @@
   judgekeeper website behaviour. Plain JavaScript, no libraries, no network requests.
 
   Every page works without this file: all text is in the HTML. This file adds the theme
-  switch and the phone menu, copy buttons, the install tabs, the home page's two-verdicts
-  card, the Guide's rail and done ticks, the interactive numbers, the small toggles in
-  "It keeps checking" and the bar widths in the real result. What it keeps (the theme and
+  switch and the phone menu, copy buttons, the install tabs, the home page's demo, the
+  Guide's rail and done ticks, the interactive numbers, the small toggles in "It keeps
+  checking" and the bar widths in the real result. What it keeps (the theme and
   the ticked steps) stays in this browser, and every read or write is wrapped in try/catch.
 */
 (function () {
@@ -238,31 +238,104 @@
     });
   }
 
-  // Home: the two-verdicts card. An illustration: it never runs judgekeeper. The examples
-  // are the JSON in #verdict-examples; the first one is already in the HTML.
-  function setUpVerdicts() {
-    var card = $("#vcard"), next = $("#vnext");
-    if (!card || !next) return;
-    var examples = JSON.parse($("#verdict-examples").textContent), i = 0;
-    var tick = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-    var cross = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>';
-    function agrees(e) { return (e.j === "Pass") === (e.y === "Correct"); }
+  // Home: the demo, the labeling card in small. A demo with sample answers: it never runs
+  // judgekeeper. The order is the product's: you mark first, and only then the card shows
+  // what the judge said. The answers are the JSON in #demo-examples; the first one is
+  // already in the HTML. Keys: ← Fail and → Pass while the card is on screen.
+  function setUpDemo() {
+    var demo = $("#demo");
+    if (!demo) return;
+    var examples = JSON.parse($("#demo-examples").textContent);
+    var card = $("#demo-card"), marks = $("#demo-marks"), said = $("#demo-said");
+    var next = $("#dnext"), tally = $("#dtally"), live = $("#dlive");
+    var i = 0, agreed = 0, marked = 0, last = null;
+    var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     function show() {
-      var e = examples[i % examples.length], seen = (i % examples.length) + 1, agreed = 0;
-      $("#vq").textContent = e.q; $("#va").textContent = e.a;
-      $("#vj").textContent = e.j; $("#vy").textContent = e.y;
-      $("#sj").className = "slip " + (e.j === "Pass" ? "pass" : "fail");
-      $("#sy").className = "slip " + (e.y === "Correct" ? "pass" : "fail");
-      var badge = $("#vb");
-      badge.className = "badge " + (agrees(e) ? "agree" : "disagree");
-      badge.innerHTML = agrees(e) ? tick + "They agree" : cross + "They disagree";
-      for (var k = 0; k < seen; k++) if (agrees(examples[k])) agreed++;
-      $("#vt b").textContent = agreed + " of " + seen;
-      ["#sj", "#sy", "#vb"].forEach(function (id) {
-        var el = $(id); el.classList.remove("in"); void el.offsetWidth; el.classList.add("in");
-      });
+      var e = examples[i];
+      $("#dq").textContent = e.q;
+      $("#da").textContent = e.a;
+      $("#demo-count").textContent = (i + 1) + " of " + examples.length;
+      marks.hidden = false;
+      said.hidden = true;
     }
-    next.addEventListener("click", function () { i++; show(); });
+
+    function mark(yours, button) {
+      if (marks.hidden) return;
+      var judge = examples[i].j, agree = yours === judge;
+      last = yours;
+      marked++;
+      if (agree) agreed++;
+      if (button) { button.classList.add("hit"); setTimeout(function () { button.classList.remove("hit"); }, 140); }
+      var b = $("#dj"), badge = $("#db");
+      b.textContent = judge;
+      b.className = judge === "Pass" ? "pass" : "fail";
+      badge.className = "badge " + (agree ? "agree" : "disagree");
+      badge.textContent = agree ? "You agree" : "You disagree";
+      var end = i === examples.length - 1;
+      next.textContent = end ? "Start again" : "Next answer";
+      tally.innerHTML = "";
+      if (end) {
+        tally.appendChild(document.createTextNode("Your judge agreed with you on " + agreed + " of " + marked + ". On your own answers, judgekeeper does this count for you. "));
+        var link = document.createElement("a");
+        link.href = "start.html";
+        link.textContent = "Start with the Guide";
+        tally.appendChild(link);
+      } else {
+        tally.appendChild(document.createTextNode("So far: your judge agrees with you on "));
+        var count = document.createElement("b");
+        count.textContent = agreed + " of " + marked;
+        tally.appendChild(count);
+        tally.appendChild(document.createTextNode("."));
+      }
+      live.textContent = "Your judge said " + judge + ". " + badge.textContent + ". " + tally.textContent;
+      marks.hidden = true;
+      said.hidden = false;
+      if (!still) {
+        said.classList.add("enter");
+        void said.offsetWidth; // lay out the start, so the change animates
+        said.classList.remove("enter");
+      }
+      next.focus();
+    }
+
+    function advance() {
+      if (said.hidden) return;
+      var restart = i === examples.length - 1;
+      function swap() {
+        if (restart) { i = 0; agreed = 0; marked = 0; tally.textContent = "Mark it first. Then you see what your judge said."; }
+        else i++;
+        show();
+        live.textContent = "";
+        $("#dq").focus();
+      }
+      if (still) { swap(); return; }
+      card.className = "demo-card out-" + (last === "Pass" ? "pass" : "fail");
+      marks.hidden = true;
+      said.hidden = true;
+      setTimeout(function () {
+        swap();
+        card.className = "demo-card enter";
+        void card.offsetWidth;
+        card.className = "demo-card";
+      }, 160);
+    }
+
+    $all("[data-mark]", demo).forEach(function (button) {
+      button.addEventListener("click", function () { mark(button.getAttribute("data-mark"), button); });
+    });
+    next.addEventListener("click", advance);
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || marks.hidden) return;
+      var active = document.activeElement;
+      var free = !active || active === document.body || demo.contains(active);
+      var box = demo.getBoundingClientRect();
+      if (!free || box.bottom < 0 || box.top > window.innerHeight) return;
+      e.preventDefault();
+      var yours = e.key === "ArrowLeft" ? "Fail" : "Pass";
+      mark(yours, $('[data-mark="' + yours + '"]', demo));
+    });
   }
 
   // The Guide: done ticks kept in this browser, and the rail marks the step in view.
@@ -319,7 +392,7 @@
     setUpPanels();
     setUpTabs();
     setUpBars();
-    setUpVerdicts();
+    setUpDemo();
     setUpGuide();
     openLinkedDetails();
     window.addEventListener("hashchange", openLinkedDetails);

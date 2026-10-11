@@ -121,10 +121,12 @@ def test_the_version_line_on_the_site_is_real(monkeypatch, page):
 
 # The home page and the Guide ---------------------------------------------------------------
 
-def test_the_home_page_has_no_demo_and_sends_people_to_the_guide():
+def test_the_home_page_has_no_demo_but_its_hero_and_sends_people_to_the_guide():
     text = (WEBSITE / "index.html").read_text(encoding="utf-8")
-    for gone in ("demo", "See it work", "try-question", "screenshot"):
+    for gone in ("See it work", "try-question", "screenshot"):
         assert gone not in text.lower(), gone
+    hero = text[text.index('<section class="hero">'):text.index("</section>")]
+    assert "demo" not in text.replace(hero, "").lower()  # one small card with sample answers
     hrefs = [a.attrs.get("href") for a in _els("index.html") if a.tag == "a"]
     assert hrefs.count("start.html") >= 2  # the hero's button and the footer
 
@@ -144,8 +146,8 @@ def test_the_guide_is_six_steps_then_the_details():
     assert details.parent.tag == "main"
     ids = [el.attrs.get("id") for el in details.children
            if isinstance(el, Element) and el.tag == "section"]
-    assert ids == ["reads", "never", "review", "ask-again", "new-judge", "again", "own-format",
-                   "other"]
+    assert ids == ["reads", "never", "review", "fix", "ask-again", "new-judge", "again", "commands",
+                   "own-format", "other"]
     assert _codes(_by_id("start.html", "start")) == ["judgekeeper start"]
     reads = _flat(_by_id("start.html", "reads"))
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow", "input", "output", "verdict"):
@@ -157,17 +159,19 @@ def test_the_guide_is_six_steps_then_the_details():
                    ".env", "promptfoo export"):
         assert needed in never, needed
     for section, needed in (("review", ("--review", "judge-mistakes.csv", "Not sure",
-                                        "first labels stay the main result")),
+                                        "first marks stay the main result")),
+                            ("fix", ("--fix", "kept aside", "never edits your files",
+                                     "where the new rule goes", "can't rewrite a rule well")),
                             ("ask-again", ("--ask-again", "Go ahead? [y/N]", "by name only",
                                            "--judge-command", "Your app is not run")),
-                            ("new-judge", ("--try-new-judge", "10 Correct and 10 Wrong",
+                            ("new-judge", ("--try-new-judge", "10 Pass and 10 Fail",
                                            "look better on them", "--new",
                                            "never your new outputs"))):
         flat = _flat(_by_id("start.html", section))
         for words in needed:
             assert words in flat, (section, words)
     again = _flat(_by_id("start.html", "again"))
-    for needed in ("Continue?", "Label more", "ask your judge again", "re-check",
+    for needed in ("Continue?", "Mark more answers", "ask your judge again", "re-check",
                    "Your judge changed", "--new", "previous-"):
         assert needed in again, needed
     other = _by_id("start.html", "other")

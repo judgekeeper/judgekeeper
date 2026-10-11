@@ -1,6 +1,6 @@
 # Your own metric
 
-Bring your own metric. judgekeeper checks it against your labels and tells you when that check is out of date. This page shows how, from an empty folder to a checked metric, with two worked examples on one rule.
+Bring your own metric. judgekeeper checks it against your own marks and tells you when that check is out of date. This page shows how, from an empty folder to a checked metric, with two worked examples on one rule.
 
 - [1. The idea](#1-the-idea)
 - [2. How to write a rule](#2-how-to-write-a-rule)
@@ -42,7 +42,7 @@ Everything in this example is synthetic. The data is made up by `scripts/make_ow
 
 The files are in [`docs/examples/own-metric/`](examples/own-metric/): [`policy.md`](examples/own-metric/policy.md), the made-up refund policy; [`rule.md`](examples/own-metric/rule.md), the `init` template filled in, with `rubric_version: refund-policy-v1`; [`items.csv`](examples/own-metric/items.csv), 60 customer questions with a support reply each, in four slices (correct, wrong window, over-promise, polite but wrong); [`labels.csv`](examples/own-metric/labels.csv), the human labels as a table; [`anchors.jsonl`](examples/own-metric/anchors.jsonl), the same labeled items as the anchor set the judge runs on, sealed by [`anchors.manifest.json`](examples/own-metric/anchors.manifest.json); and [`function_judge.py`](examples/own-metric/function_judge.py), a judge that is a short Python function.
 
-The commands, in order, from that folder. With your own rule, you write the rule and label the items yourself (one JSON line per item in `anchors.jsonl`, with `id`, `input`, `output` and `human_label`; `judge` seals a new file the first time it reads it); the files here stand in for that.
+The commands, in order, from that folder. With your own rule, you write the rule and mark the items yourself (one JSON line per item in `anchors.jsonl`, with `id`, `input`, `output` and `human_label`; `judge` seals a new file the first time it reads it); the files here stand in for that.
 
 ```
 judgekeeper init --out rule.md                        # then fill in every FILL IN marker
@@ -92,7 +92,7 @@ On the same 60 items, then, the plain function is a weak judge of this rule and 
 
 ## 5. The same steps for any rule
 
-The refund rule is only one example. Your rule will be different, and the steps are the same: `init`, fill in the file, label real outputs, judge, validate, gate. Three more rules from other kinds of work, shown as the pass and fail lines of the template. Rule text only; no data or reports exist for these.
+The refund rule is only one example. Your rule will be different, and the steps are the same: `init`, fill in the file, mark real outputs, judge, validate, gate. Three more rules from other kinds of work, shown as the pass and fail lines of the template. Rule text only; no data or reports exist for these.
 
 **A health-information assistant must tell the user to see a doctor when a warning sign is mentioned.**
 
@@ -111,4 +111,4 @@ The refund rule is only one example. Your rule will be different, and the steps 
 
 ## 6. What judgekeeper does not do
 
-It does not write the rule for you. The rule is what you mean by good, and nobody else can say that. It does not label for you either: the labels are what the judge is checked against, and a label a model wrote proves nothing about the model. judgekeeper takes a rule and labels from you, runs the judge, and reports how often they agree.
+It does not write the rule for you. The rule is what you mean by good, and nobody else can say that. It does not mark answers for you either: your marks are what the judge is checked against, and a mark a model wrote says nothing about the model. judgekeeper takes a rule and your marks, runs the judge, and reports how often they agree.
