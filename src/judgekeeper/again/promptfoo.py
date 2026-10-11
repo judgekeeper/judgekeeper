@@ -73,6 +73,9 @@ URL_PREFIXES = ("http://", "https://", "ws://", "wss://", "webhook:")
 # baseURL, endpoint, proxy...) or a value that is an address or a file
 ADDRESS_KEY = re.compile(r"url|host|base|endpoint|proxy", re.IGNORECASE)
 ADDRESS_VALUES = ("http://", "https://", "ws://", "wss://", "file://")
+# Grader settings that run the user's code or read another server's reply
+CODE_KEYS = ("functionToolCallbacks", "responseParser")
+CODE_FILES = (".js", ".mjs", ".cjs", ".ts", ".py")  # a provider id that is a file's path
 VERSION = re.compile(r"\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?")
 CONFIG = ".judgekeeper-regrade.promptfoo.json"
 TESTS = ".judgekeeper-regrade.tests.json"
@@ -163,6 +166,23 @@ def _elsewhere(value) -> str | None:
     return None
 
 
+def _key(value, names) -> str | None:
+    """The first key at any depth of `value` that is one of `names`."""
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if k in names:
+                return str(k)
+            found = _key(v, names) if isinstance(v, dict | list) else None
+            if found:
+                return found
+    elif isinstance(value, list):
+        for v in value:
+            found = _key(v, names)
+            if found:
+                return found
+    return None
+
+
 def _graders(value):
     """Each provider setting in a grader: the grader, and every dict in it with an "id"."""
     if isinstance(value, dict):
@@ -192,8 +212,13 @@ def _grader_code(grader) -> str | None:
     None. A results file comes with a project someone else may have written: a grader that
     reads another key or talks to another server is not your judge as you know it."""
     for i in _ids(grader):
-        if _code([i]) or i.strip().lower().startswith(URL_PREFIXES):
+        plain = i.strip().lower()
+        if (_code([i]) or plain.startswith(URL_PREFIXES) or plain in ("http", "https")
+                or plain.split(":", 1)[0].endswith(CODE_FILES)):
             return i
+    found = _key(grader, CODE_KEYS)
+    if found:
+        return f"{found} in your grader's settings"
     if _transforms(grader):
         return "a transform in your grader's settings"
     for g in _graders(grader):

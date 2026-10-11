@@ -309,6 +309,31 @@ def test_a_grader_sent_to_another_server_or_key_is_refused(tmp_path, grader, sai
     assert f"({said}" in p.why and "in your grader's settings)" in p.why
 
 
+@pytest.mark.parametrize("grader, said", [
+    ({"id": OPENAI, "config": {"functionToolCallbacks": {"get_weather": "file://w.js"}}},
+     "functionToolCallbacks"),
+    ({"id": OPENAI, "config": {"functionToolCallbacks": {"get_weather": "(args) => 1"}}},
+     "functionToolCallbacks"),
+    ({"id": "http", "config": {"method": "POST"}}, "http"),
+    ({"id": "https"}, "https"),
+    ({"id": OPENAI, "config": {"responseParser": "json.output"}}, "responseParser"),
+    ({"id": "http", "config": {"url": "https://judge.example/grade"}}, "http"),
+    ("./graders/judge.js", "./graders/judge.js"),
+    ({"id": "graders/judge.py"}, "graders/judge.py"),
+    ({"id": "grader.mjs:grade"}, "grader.mjs:grade"),
+])
+def test_a_grader_that_runs_code_or_reads_another_reply_is_refused(tmp_path, grader, said):
+    ws = _checked(tmp_path)
+
+    def change(row):
+        row["testCase"]["options"]["provider"] = grader
+
+    _edit(tmp_path, _rows(change))
+    p = make_plan(ws, AgainOptions(), dry=False)
+    _can_t_as_own_code(p)
+    assert f"({said}" in p.why
+
+
 def test_a_grader_with_its_own_key_and_plain_settings_is_asked(tmp_path):
     ws = _checked(tmp_path)
 
