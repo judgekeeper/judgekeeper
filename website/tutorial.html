@@ -90,7 +90,7 @@ wrote reports/csv/report.json and reports/csv/report.html</code></pre>
   <p>This file is an <strong>anchor set</strong>: a fixed answer key. The first command that reads it seals it, as the next step shows.</p>
 
   <h2 id="step-judges">4. Run two judges, three times each</h2>
-  <p>Open <code>lazy_judge.py</code> and <code>careful_judge.py</code>; each is a few lines long. The lazy judge passes any answer that sounds confident. The careful judge knows the facts, but is unsure about one question and sometimes changes its mind, as real AI judges do.</p>
+  <p>Open <code>lazy_judge.py</code> and <code>careful_judge.py</code>; each is a few lines long. The lazy judge passes any answer that sounds confident. The careful judge knows the facts, but is unsure about one question and sometimes changes its mind, as real judges do.</p>
   <div class="code"><pre data-step="3"><code>judgekeeper judge anchors.jsonl --callable lazy_judge:judge --runs 3 --out runs/lazy</code></pre></div>
   <p class="output-label">It prints:</p>
   <pre class="output" data-step="3"><code>Sealed anchors.jsonl: 10 items (sha256 2e75fe64157b...). Commit anchors.manifest.json with it.

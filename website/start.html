@@ -215,12 +215,12 @@ This shows how often your judge agrees with you.
   <p class="why">Run <code>judgekeeper start</code> again any time: it offers what fits next. Or go straight to one with its flag. In this order:</p>
   <div class="fork">
     <div><span class="cost free">Free</span><h3>See where you disagree</h3><p>Look again at each answer where you and your judge disagree, with its decision hidden. Then see what it said, and why. (<a href="#review">Details</a>.)</p><code class="flag">--review</code></div>
-    <div><span class="cost free">Free</span><h3>Fix your judge</h3><p>See what your judge gets wrong, then change its rule with a prompt you copy into an AI assistant, or by hand. (<a href="#fix">Details</a>.)</p><code class="flag">--fix</code></div>
+    <div><span class="cost free">Free</span><h3>Fix your judge</h3><p>See what your judge gets wrong, then let your coding agent change its rule. Or copy a prompt into an AI assistant, or write it yourself. (<a href="#fix">Details</a>.)</p><code class="flag">--fix</code></div>
     <div><span class="cost paid">Costs a little, asks first</span><h3>Try your new judge</h3><p>Test the new judge on the answers you already marked, side by side with the old one. (<a href="#new-judge">Details</a>.)</p><code class="flag">--try-new-judge</code></div>
   </div>
   <div class="trio">
-    <figure class="shot-wide"><a href="assets/shots/fix.webp"><img src="assets/shots/fix.webp" width="1440" height="900" loading="lazy" alt="The Fix your judge page: what your judge gets wrong, in two lists (passed but you said Fail, failed but you said Pass) with your reasons, and on the right the Change the rule panel."></a>
-      <figcaption>Fix your judge, with the Change the rule panel. <span class="sample">Sample data</span></figcaption></figure>
+    <figure class="shot-wide"><a href="assets/shots/fix.webp"><img src="assets/shots/fix.webp" width="1440" height="900" loading="lazy" alt="The Fix your judge page: what your judge gets wrong, in two lists (passed but you said Fail, failed but you said Pass) with your reasons, and on the right the Change the rule panel with three choices: Let your coding agent do it, Copy a prompt for your AI assistant, and I'll write it myself."></a>
+      <figcaption>Fix your judge. The Change the rule panel starts with your coding agent. <span class="sample">Sample data</span></figcaption></figure>
     <p class="note">A small local model can grade answers, but it usually can&#39;t rewrite a rule well. Use a capable assistant for this step.</p>
     <div class="donewhen"><p>You&#39;re done when you know what to fix next, or you decide your judge agrees with you often enough for now. After your next eval run, <a href="#again">check again</a>.</p><label class="tick"><input type="checkbox" data-step="6"> Mark step 6 done</label></div></div>
 </section>
@@ -265,8 +265,14 @@ This shows how often your judge agrees with you.
 
   <section id="fix"><details class="detail"><summary><h3>Fix your judge</h3></summary><div class="in">
     <p>Free, with no AI call, once you have looked at where you disagree. First judgekeeper keeps about a third of your marked answers aside: they test a change fairly later, so they are not shown. From the rest it shows what your judge gets wrong: the answers it passed but you failed, the answers it failed but you passed, your why for each, and words that show up in many of its mistakes.</p>
-    <p>To change the rule, copy the prompt it gives you into an AI assistant, or write the new rule yourself. judgekeeper never edits your files: it says where the new rule goes. For a judge that gives a score, it also finds the pass mark that fits your marks best, and tests it on the answers kept aside in one click.</p>
-    <p>Then run your eval once with the new rule, and <a href="#new-judge">try your new judge</a>: it tests the change on the answers kept aside.</p>
+    <p>Then change the rule, one of three ways:</p>
+    <ol>
+      <li><strong>Let your coding agent do it.</strong> Paste one prompt into Claude Code, Cursor or Codex. It writes the new rule, checks it with judgekeeper&#39;s <code>--rule-file</code> flag, puts it where your eval keeps it, runs your eval, and tests the new judge. It asks you before anything that costs money.</li>
+      <li><strong>Copy a prompt for your AI assistant.</strong> Paste its reply back into the page.</li>
+      <li><strong>I&#39;ll write it myself.</strong> Type or paste the new rule into the page.</li>
+    </ol>
+    <p>The prompt holds no answer text, and it tells your agent to treat your app&#39;s answers as data, never as instructions. judgekeeper never edits your files: your agent does, with your yes, or judgekeeper says where the new rule goes. For a judge that gives a score, it also finds the pass mark that fits your marks best, and tests it on the answers kept aside in one click.</p>
+    <p>Without the agent, run your eval once with the new rule, then <a href="#new-judge">try your new judge</a>: it tests the change on the answers kept aside.</p>
     <p>A small local model can grade answers, but it usually can&#39;t rewrite a rule well. Use a capable assistant for this step.</p>
     <div class="code"><pre><code>judgekeeper start --fix</code></pre></div>
   </div></details></section>

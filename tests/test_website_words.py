@@ -1,8 +1,6 @@
 """Plain words on the website: no word that sounds like marketing copy, no time estimates and
-no "AI judge" ("your judge" or "the judge"; "LLM-as-a-judge" outside the tool).
-
-reference.html is left out for now: it is generated from docs/reference.md, which another
-change is rewriting.
+no "AI judge" ("your judge" or "the judge"; "LLM-as-a-judge" outside the tool). Every page,
+reference.html included.
 """
 
 from __future__ import annotations
@@ -20,7 +18,7 @@ NEVER = ("seamless", "seamlessly", "effortless", "effortlessly", "empower", "emp
          "delve", "harness", "streamline", "streamlines", "trusted", "proven")
 PHRASES = (r"in today's", r"whether you're", r"not just [^.]*?, it's", r"say goodbye to",
            r"take [^.]*? to the next level", r"peace of mind")
-CHECKED = [p for p in pages() if p.name != "reference.html"]
+CHECKED = pages()
 
 
 def _all_text(page: Path) -> str:
@@ -40,9 +38,8 @@ def _shown(page: Path) -> str:
                     for c in el.children if isinstance(c, str))
 
 
-def test_the_pages_checked_are_every_page_but_the_reference():
-    assert {p.name for p in CHECKED} == {p.name for p in pages()} - {"reference.html"}
-    assert (WEBSITE / "index.html") in CHECKED
+def test_the_pages_checked_are_every_page():
+    assert (WEBSITE / "index.html") in CHECKED and (WEBSITE / "reference.html") in CHECKED
 
 
 @pytest.mark.parametrize("page", CHECKED, ids=lambda p: p.name)
@@ -58,7 +55,7 @@ def test_no_word_from_the_never_use_list(page):
 def test_no_time_estimate_and_no_ai_judge(page):
     text = _shown(page)
     assert not re.search(r"\bminutes?\b", text, re.IGNORECASE)
-    assert not re.search(r"\bAI judge\b", text, re.IGNORECASE)
+    assert not re.search(r"\bAI judges?\b", text, re.IGNORECASE)
     assert not re.search(r"\bhow sure\b", text, re.IGNORECASE)
 
 
