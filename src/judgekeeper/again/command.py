@@ -6,9 +6,9 @@ themselves, so the plan says how many times."""
 from __future__ import annotations
 
 from judgekeeper import prices
-from judgekeeper.again import OWN, Plan, cant
+from judgekeeper.again import LOCAL_MODEL, OWN, Plan, Progress, cant, local_model
 from judgekeeper.again.fresh import AgainError, Fresh, new_folder
-from judgekeeper.custom import CustomRunner, exec_judge, split_command
+from judgekeeper.custom import EXEC_TIMEOUT, CustomRunner, exec_judge, split_command
 from judgekeeper.keys import provider_of
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser
@@ -32,7 +32,8 @@ def plan(ws, answers: list[dict], opts) -> Plan:
     tokens = [prices.tokens_from_text(f"{display(a['input'])}\n{display(a['output'])}")
               for a in answers]
     return Plan(tool="command", judge=judge, status=OWN,
-                why=f"This runs `{command}` {calls:,} times", model=model,
+                why=(f"This runs `{command}` {calls:,} times, waiting up to "
+                     f"{EXEC_TIMEOUT / 60:g} minutes for each answer"), model=model,
                 provider=provider_of(model), calls_each=[1] * len(answers), tokens=tokens,
                 cost_text=None if model else
                 "Cost unknown: name your command's model with --judge-model.",
@@ -66,10 +67,16 @@ def run(ws, plan: Plan, talk) -> Fresh:
                   source={"kind": "command", "file": command})
     answers = plan.payload_answers()
     got: dict[str, list] = {a["id"]: [] for a in answers}
+    if local_model(plan):
+        talk.say(LOCAL_MODEL)
+    progress = Progress(talk, len(answers) * plan.times)
+    asked = 0
     for _ in range(plan.times):
         for a in answers:
             got[a["id"]].append(runner.judge({"id": a["id"], "input": a["input"],
                                               "output": a["output"]}))
+            asked += 1
+            progress.count(asked)
     every = [j for judgments in got.values() for j in judgments]
     n_failed, first = _failed(every)
     if every and n_failed == len(every):

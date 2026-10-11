@@ -36,6 +36,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -117,6 +118,53 @@ def cant(tool: str, judge: str, why: str, short: str = "") -> Plan:
 # Processes -------------------------------------------------------------------------------------
 
 STOP_WAIT = 5  # seconds a stopped program gets to end before it is killed
+TICK = 1.0  # seconds between two looks at a running program's progress
+PROGRESS_EVERY = 5.0  # seconds between two progress lines at most
+STILL_EVERY = 30.0  # seconds between two "still asking" lines when nothing can be counted
+LOCAL_MODEL = ("A model on your computer can take minutes: the lines below show it is "
+               "working.")
+_progress = None  # called about every TICK seconds while run_process waits (watching)
+
+
+@contextmanager
+def watching(progress):
+    """While the block runs, run_process calls `progress()` about every TICK seconds."""
+    global _progress
+    before, _progress = _progress, progress
+    try:
+        yield
+    finally:
+        _progress = before
+
+
+class Progress:
+    """The lines that show the judge is being asked: "12 of 72 asked", when the count moves
+    on, at most every PROGRESS_EVERY seconds, and the last one; with no count (`total` None),
+    "Still asking your judge: 1 min 20 s so far." every STILL_EVERY seconds."""
+
+    def __init__(self, talk, total: int | None):
+        self.talk, self.total = talk, total
+        self.started = self.last_time = time.monotonic()
+        self.last = 0
+
+    def count(self, n: int) -> None:
+        now = time.monotonic()
+        if n > self.last and (n >= (self.total or 0) or now - self.last_time >= PROGRESS_EVERY):
+            self.last, self.last_time = n, now
+            self.talk.say(f"  {n:,} of {self.total:,} asked")
+
+    def tick(self) -> None:
+        now = time.monotonic()
+        if now - self.last_time >= STILL_EVERY:
+            self.last_time = now
+            minutes, seconds = divmod(int(now - self.started), 60)
+            spent = f"{minutes} min {seconds} s" if minutes else f"{seconds} s"
+            self.talk.say(f"  Still asking your judge: {spent} so far.")
+
+
+def local_model(plan) -> bool:
+    """Whether the plan's judge runs on the person's own computer (Ollama)."""
+    return plan.provider == "ollama" or str(plan.model or "").lower().startswith("ollama")
 
 
 def _own_group() -> dict:
@@ -189,9 +237,24 @@ def run_process(argv: list[str], cwd: Path, env: dict | None = None,
         return subprocess.CompletedProcess(argv, 127, "", str(e))
     except OSError as e:
         return subprocess.CompletedProcess(argv, 126, "", str(e))
+    end = None if timeout is None else time.monotonic() + timeout
     with _term_stops():
         try:
-            out, err = proc.communicate(timeout=timeout)
+            while True:
+                wait = None if _progress is None else TICK
+                if end is not None:
+                    wait = max(0.0, end - time.monotonic()) if wait is None else min(
+                        wait, max(0.0, end - time.monotonic()))
+                try:
+                    out, err = proc.communicate(timeout=wait)
+                    break
+                except subprocess.TimeoutExpired:
+                    if end is not None and time.monotonic() >= end:
+                        raise
+                    try:
+                        _progress()
+                    except Exception:  # noqa: BLE001, S110 - a progress line never stops it
+                        pass
         except subprocess.TimeoutExpired:
             stop_group(proc)
             proc.communicate()

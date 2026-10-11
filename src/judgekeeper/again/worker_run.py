@@ -36,8 +36,18 @@ def ask(ws, plan, talk, name: str, env: dict | None = None,
     job = {**plan.job, "mode": "run", "times": plan.times,
            "answers": [entry[1] for entry in plan.payload]}
     talk.say(f"Asking your judge {plan.calls:,} times through {name}. Ctrl-C stops it.")
-    proc = again.start_worker(plan.tool, plan.runner[0], job, ws.root, out, env=env, drop=drop,
-                              timeout=None)
+    if again.local_model(plan):
+        talk.say(again.LOCAL_MODEL)
+    progress = again.Progress(talk, len(plan.payload) * plan.times)
+
+    def look():  # one line per answer and time, as the worker writes them
+        if out.is_file():
+            progress.count(out.read_bytes().count(b'"id":'))
+
+    with again.watching(look):
+        proc = again.start_worker(plan.tool, plan.runner[0], job, ws.root, out, env=env,
+                                  drop=drop, timeout=None)
+    look()  # the last count, also when it ended before the first look
     lines = []
     if out.is_file():
         text = scrub(out.read_text(encoding="utf-8"))

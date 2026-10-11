@@ -444,7 +444,8 @@ def test_a_judge_command_is_tried_on_the_marked_answers(fake, capsys):
     command = f"{sys.executable} {FIXTURES / 'exec' / 'bare.py'}"
     code, out, _ = run(capsys, fake.root, "--try-new-judge", "--judge-command", command,
                        "--allow-calls", 36)
-    assert code == 0 and f"This runs `{command}` 36 times." in out
+    assert code == 0 and (f"This runs `{command}` 36 times, waiting up to 5 minutes for each "
+                          "answer.") in out
     assert "Your new judge vs your old judge" in out and _evals(fake) == 0
 
 

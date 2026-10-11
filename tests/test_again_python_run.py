@@ -129,6 +129,7 @@ def test_deepeval_measures_each_answer_directly(deepeval_ws, stubs, capsys,
     code, out = ask(capsys, deepeval_ws, *FIELDS, "--allow-calls", 72)
     assert code == 0
     assert "Asking your judge 72 times through DeepEval. Ctrl-C stops it." in out
+    assert "  72 of 72 asked" in out  # counted from the worker's lines as they come
     assert "Asked twice more, your judge changed its mind on 0 of your 36 answers." in out
     measures = stubs("measure")
     assert len(measures) == 72 and all(m["show_indicator"] is False for m in measures)

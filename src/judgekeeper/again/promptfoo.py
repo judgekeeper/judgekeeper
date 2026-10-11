@@ -528,7 +528,11 @@ def run(ws, plan: Plan, talk) -> Fresh:
     try:
         write_replacing(files[0], json.dumps(regrade_config(), indent=1))
         write_replacing(files[1], json.dumps(tests, indent=1, ensure_ascii=False))
-        proc = again.run_process(argv, cwd=root, env={**os.environ, **RUN_ENV})
+        if again.local_model(plan):
+            talk.say(again.LOCAL_MODEL)
+        progress = again.Progress(talk, None)  # promptfoo writes its results at the end
+        with again.watching(progress.tick):
+            proc = again.run_process(argv, cwd=root, env={**os.environ, **RUN_ENV})
     finally:
         for path in files:
             path.unlink(missing_ok=True)

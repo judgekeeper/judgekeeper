@@ -539,7 +539,8 @@ def test_the_plan_for_a_judge_command(tmp_path):
     assert p.status == "own"
     lines = plan_lines(p)
     assert "  Your judge: your command python judge.py" in lines
-    assert "  This is your own judge command. This runs `python judge.py` 72 times." in lines
+    assert ("  This is your own judge command. This runs `python judge.py` 72 times, waiting up "
+            "to 5 minutes for each answer.") in lines
     assert "  Cost unknown: name your command's model with --judge-model." in lines
 
 
@@ -717,5 +718,6 @@ def test_times_in_the_flags(tmp_path, capsys, no_processes):
 def test_judge_command_in_the_flags(tmp_path, capsys):
     _checked(tmp_path, maker=table_project)
     code, out, _ = run(capsys, tmp_path, "--ask-again", "--judge-command", "python judge.py")
-    assert code == start.EXIT_QUESTION and "This runs `python judge.py` 72 times." in out
+    assert code == start.EXIT_QUESTION and ("This runs `python judge.py` 72 times, waiting up "
+                                            "to 5 minutes for each answer.") in out
     assert "--allow-calls 72" in out

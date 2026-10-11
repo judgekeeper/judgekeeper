@@ -481,7 +481,9 @@ def test_the_judge_command_runs_through_exec(tmp_path, capsys, monkeypatch):
     code, out, _ = run(capsys, ws.root, "--ask-again", "--judge-command", command,
                        "--allow-calls", "72")
     assert code == 0
-    assert f"This runs `{command}` 72 times." in out
+    assert (f"This runs `{command}` 72 times, waiting up to 5 minutes for each "
+            "answer.") in out
+    assert "  72 of 72 asked" in out  # how far it got, as it goes
     assert "Asked twice more" in out
     _, records = read_run(_again_dir(ws) / "judge-again-1.jsonl")
     assert len(records) == 36
