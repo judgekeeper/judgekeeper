@@ -80,6 +80,10 @@ def test_a_sealed_set_that_changed_still_exits_3(tmp_path, capsys, command):
     captured = capsys.readouterr()
     assert "Sealed" not in captured.out
     assert "changed after it was frozen" in captured.err
+    # how to change it on purpose, step by step
+    assert ("If you changed it on purpose: move anchors.manifest.json out of the folder"
+            in " ".join(captured.err.split()))
+    assert "judgekeeper baseline set" in captured.err
     assert (tmp_path / "anchors.manifest.json").read_text(encoding="utf-8") == manifest
 
 
