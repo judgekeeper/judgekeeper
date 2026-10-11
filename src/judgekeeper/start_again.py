@@ -210,7 +210,7 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
             return _unfinished(ws, talk, port, open_browser, path, options)
         saved = ws.data()
         files = [f for f in saved.get("results_files") or [] if saved.get("tool") != "mlflow"]
-        if files and not any((ws.root / f).exists() for f in files):  # moved or deleted
+        if files and not any((ws.root / f).exists() for f in files) and not _any_results(ws):
             talk.say(f"Your results ({', '.join(files)}) are not here any more, but your last "
                      f"check is saved in {FOLDER}/. To check new results: "
                      f"{talk.command('--new')}")
@@ -221,6 +221,14 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
         return _again(ws, found, talk, port, open_browser, then, again_options)
     found = start.find_judge(path, talk=talk, **options)
     return start.label_found(talk, found, port, open_browser)
+
+
+def _any_results(ws: Workspace) -> bool:
+    """Whether the project folder holds any results start can read (find.search)."""
+    from judgekeeper import find
+
+    found = find.search(ws.root)
+    return any(found.readable(t) for t in find.TOOLS)
 
 
 def _quiet_found(path: Path, ws: Workspace, talk, options: dict):
