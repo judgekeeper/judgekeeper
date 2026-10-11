@@ -98,8 +98,25 @@ def test_the_page_is_three_columns_on_a_laptop():
     # The rule, the card, the key hints; nothing is promised below 1024 px, so no phone layout.
     assert ("grid-template-columns: minmax(200px, 300px) minmax(0, 720px) "
             "minmax(200px, 300px)") in page
-    assert "@media (max-width" not in page
+    # one query, for laptops up to 1200 px: narrower side columns; still no phone layout
+    assert re.findall(r"@media \(max-width: (\d+)px\)", page) == ["1200"]
     assert "innerHTML" not in page  # every text goes through textContent
+
+
+def test_at_1024_px_the_answer_gets_the_room():
+    page = start_label.page_template({"rule": "Be kind."})
+    assert ("grid-template-columns: minmax(160px, 220px) minmax(0, 1fr) "
+            "minmax(160px, 220px)") in page
+    assert '<main class="stage">' in page
+    no_rule = start_label.page_template({})  # a table: no rule to show
+    assert '<main class="stage no-rule">' in no_rule
+    assert ".stage.no-rule > .side.rule { display: none; }" in no_rule
+    assert ".mini { display: flex; gap: 14px; font-size: 13px; white-space: nowrap; }" in page
+
+
+def test_the_labeling_page_names_the_runs_command():
+    page = start_label.page_template({}, "judgekeeper start evals --port 8805")
+    assert "<code>judgekeeper start evals --port 8805</code> to continue." in page
 
 
 def test_the_rule_card_holds_no_reason_from_the_judge(tmp_path):

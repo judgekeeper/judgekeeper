@@ -798,11 +798,13 @@ def result_html(r: dict, back: str | None = None) -> str:
     return result_page(page_content(r), back)
 
 
-def page_template(about: dict | None = None) -> str:
+def page_template(about: dict | None = None, command: str = "judgekeeper start") -> str:
     """The labeling page for a check whose start.json is `about`: its description and its
-    judge's rule are shown; nothing else from it is."""
+    judge's rule are shown; nothing else from it is. `command`: what the person runs to
+    continue."""
     about = about or {}
-    return label_page(about.get("description") or about.get("app_version"), about.get("rule"))
+    return label_page(about.get("description") or about.get("app_version"), about.get("rule"),
+                      command)
 
 
 def compute(ws: Workspace, session: StartSession) -> dict:
@@ -937,7 +939,7 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
     made: list[bool] = []
     reviewed: list[bool] = []
     server = make_server(session, port, result=result_maker(ws, say, made, command),
-                         page=page_template(ws.data()),
+                         page=page_template(ws.data(), command),
                          switches={"/review": start_review.switch(ws, say, reviewed),
                                    "/fix": start_fix.switch(ws, say, command)}, lock=ws.dir)
     say_opened(server.url, open_browser, say, command)

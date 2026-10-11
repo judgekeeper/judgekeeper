@@ -240,6 +240,14 @@ LABEL_STYLE = """
 .stage { flex: 1; min-height: 0; display: grid; justify-content: center; gap: 28px;
   grid-template-columns: minmax(200px, 300px) minmax(0, 720px) minmax(200px, 300px);
   padding: 22px 28px 26px; align-items: start; overflow: auto; }
+/* No rule to show (a table, say): no empty column, the answer gets the room */
+.stage.no-rule { grid-template-columns: minmax(0, 760px) minmax(200px, 300px); }
+.stage.no-rule > .side.rule { display: none; }
+@media (max-width: 1200px) {
+  .stage { gap: 20px; padding: 18px 20px 22px;
+    grid-template-columns: minmax(160px, 220px) minmax(0, 1fr) minmax(160px, 220px); }
+  .stage.no-rule { grid-template-columns: minmax(0, 1fr) minmax(160px, 220px); }
+}
 .side .by-rule { margin: -2px 0 8px; }
 .how { margin-top: 22px; display: grid; gap: 9px; font-size: 13px; color: var(--muted); }
 .how div { display: flex; align-items: center; gap: 8px; }
@@ -287,7 +295,7 @@ LABEL_STYLE = """
 .big.pass { color: var(--pass); border-color: var(--pass-line); background: var(--pass-bg); }
 .big.fail.hit { background: rgba(245,158,139,.22); } .big.pass.hit { background: rgba(52,211,153,.22); }
 .big:disabled { opacity: .6; }
-.mini { display: flex; gap: 14px; font-size: 13px; }
+.mini { display: flex; gap: 14px; font-size: 13px; white-space: nowrap; }
 .scrim { position: fixed; inset: 0; background: rgba(6,10,20,.6); display: grid;
   place-items: center; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   z-index: 20; }
@@ -313,8 +321,8 @@ LABEL_BODY = """<div class="app">
     <a class="btn green see" href="#" hidden>See your result</a></div>
 </header>
 <div class="dots" id="dots" title="Click a dot to go back to that answer"></div>
-<main class="stage">
-<aside class="side">
+<main class="stage__STAGE_CLASS__">
+<aside class="side rule">
   __RULE_BLOCK__
 </aside>
 <section class="task" aria-label="The answer to mark">
@@ -341,7 +349,7 @@ LABEL_BODY = """<div class="app">
   </div>
   <p class="small ready" id="ready" aria-live="polite"></p>
   <p class="small note">Every click is saved. Close the tab any time; run
-    <code>judgekeeper start</code> to continue.</p>
+    <code>__COMMAND__</code> to continue.</p>
 </aside>
 </main>
 </div>
@@ -723,13 +731,18 @@ __RULE_FOLD__
 """
 
 
-def label_page(description: str | None, rule: str | None) -> str:
+def label_page(description: str | None, rule: str | None,
+               command: str = "judgekeeper start") -> str:
     """The labeling page. The line in the right column is the session's `status`, which the
     server sends with the data and after every mark: the page works out nothing itself. The
-    server fills in __DATA__, __TOKEN__ and __NONCE__."""
-    body = (LABEL_BODY.replace("__BRAND__", BRAND).replace("__LOGO__", LOGO)
+    server fills in __DATA__, __TOKEN__ and __NONCE__. `command` (start.Talk.command) is what
+    the person runs to continue."""
+    block = _rule_block(rule, BY_THIS_RULE)
+    body = (LABEL_BODY.replace("__COMMAND__", _text(command))
+            .replace("__STAGE_CLASS__", "" if block.strip() else " no-rule")
+            .replace("__BRAND__", BRAND).replace("__LOGO__", LOGO)
             .replace("__CROSS__", CROSS).replace("__TICK__", TICK)
-            .replace("__RULE_BLOCK__", _rule_block(rule, BY_THIS_RULE))
+            .replace("__RULE_BLOCK__", block)
             .replace("__RULE_FOLD__", RULE_FOLD)
             .replace("__ABOUT__", _text(description or "")))
     return _head("judgekeeper: mark answers", LABEL_STYLE) + body
