@@ -92,8 +92,8 @@ def pages() -> list[Path]:
 GENERATED_PAGES = {"reference.html", "own-metric.html", "assistant.html"}
 # The navigation bar every page carries, in order: (href, label). The theme switch sits next
 # to it.
-NAV = [("index.html", "Home"), ("start.html", "Guide"), ("reference.html", "Reference"),
-       ("https://github.com/judgekeeper/judgekeeper", "GitHub")]
+NAV = [("index.html", "Home"), ("start.html", "Guide"), ("docs.html", "Docs"),
+       ("reference.html", "Reference"), ("https://github.com/judgekeeper/judgekeeper", "GitHub")]
 # The footer's "More" column: every page outside the navigation, in this order.
 MORE = [("own-metric.html", "No judge yet? Your own metric"),
         ("assistant.html", "With a coding assistant"), ("setup.html", "Setup and API keys"),

@@ -73,7 +73,7 @@ def test_every_page_carries_the_frame_site_frame_writes():
         assert frame.footer() in text, f"{page.name}: run python scripts/site_frame.py"
 
 
-def test_the_navigation_is_home_guide_reference_github_and_the_theme_switch():
+def test_the_navigation_is_home_guide_docs_reference_github_and_the_theme_switch():
     for page in pages():
         (header,) = _all(parse(page), "header", "site-header")
         (nav,) = _all(header, "nav", "site-nav")
@@ -93,7 +93,7 @@ def test_every_page_has_the_footer_with_start_here_and_more():
         more = [(a.attrs["href"], a.text()) for a in _all(columns["More"], "a")]
         assert more == MORE, page.name
         assert [a.text() for a in _all(columns["Start here"], "a")] == [
-            "Guide", "Reference", "GitHub"]
+            "Guide", "Docs", "Reference", "GitHub"]
 
 
 def test_more_names_every_page_outside_the_navigation():
@@ -545,7 +545,7 @@ def test_the_tutorial_is_the_advanced_commands():
     assert h1.text() == "Advanced commands, step by step"
 
 
-ORDER = ["index.html", "start.html", "reference.html", "own-metric.html", "assistant.html",
+ORDER = ["index.html", "start.html", "docs.html", "reference.html", "own-metric.html", "assistant.html",
          "setup.html", "learn.html", "tutorial.html"]
 
 

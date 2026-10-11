@@ -52,7 +52,7 @@ SOURCE_ATTRS = ("data-report", "data-const", "data-exit", "data-tutorial", "data
 
 
 def test_site_has_its_pages():
-    for name in ("index.html", "start.html", "assistant.html", "learn.html",
+    for name in ("index.html", "start.html", "docs.html", "assistant.html", "learn.html",
                  "setup.html", "tutorial.html", "own-metric.html", "reference.html", "llms.txt",
                  "assets/style.css", "assets/site.js", "assets/theme.js", "assets/metrics.js",
                  "assets/logo.svg", "assets/social-preview.png"):
@@ -147,6 +147,8 @@ def _lookup(data, path: str, sep: str = "."):
 
 def render(value, fmt: str) -> str:
     """How a number is written on the site."""
+    if fmt == "str":  # a name such as the version
+        return str(value)
     if fmt == "2f":
         return f"{value:.2f}"
     if fmt == "1f":
@@ -416,7 +418,7 @@ SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url",
               "twitter:title", "twitter:description", "twitter:image"]
 SHARE_ALT = ("judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, "
              "in one command.")
-EIGHT_PAGES = {"index.html", "start.html", "assistant.html", "learn.html",
+NINE_PAGES = {"index.html", "start.html", "docs.html", "assistant.html", "learn.html",
               "reference.html", "setup.html", "tutorial.html", "own-metric.html"}
 
 
@@ -439,7 +441,7 @@ def _png_size(path: Path) -> tuple[int, int]:
 
 
 def test_every_page_has_the_share_preview_tags():
-    assert {p.relative_to(WEBSITE).as_posix() for p in pages()} == EIGHT_PAGES
+    assert {p.relative_to(WEBSITE).as_posix() for p in pages()} == NINE_PAGES
     for page in pages():
         name = page.relative_to(WEBSITE).as_posix()
         title, description, share = _head(page)

@@ -527,3 +527,29 @@ def test_the_tutorial_is_described_by_what_it_covers_not_as_every_command():
     for text in (tutorial[:tutorial.index('<h2 id="setup">')], line):
         assert not re.search(r"every (judgekeeper )?command", text, flags=re.IGNORECASE), text[:80]
     assert "main commands" in line and "main judgekeeper commands" in tutorial
+
+
+# The Docs page: one list of every page, and the places on GitHub the site does not show
+
+def test_the_docs_page_links_every_page_and_the_places_on_github():
+    hrefs = _hrefs(_main("docs.html"))
+    for page in pages():
+        if page.name not in {"docs.html", "index.html"}:
+            assert page.name in hrefs, page.name
+    blob = "https://github.com/judgekeeper/judgekeeper/blob/main/"
+    for tool in ("promptfoo", "deepeval", "inspect", "mlflow", "langfuse"):
+        assert f"{blob}docs/integrations/{tool}.md" in hrefs, tool
+        assert (ROOT / "docs" / "integrations" / f"{tool}.md").is_file(), tool
+    for needed in (f"{blob}CHANGELOG.md", f"{blob}SECURITY.md",
+                   f"{blob}skills/judgekeeper/SKILL.md", "https://pypi.org/project/judgekeeper/",
+                   "https://github.com/judgekeeper/judgekeeper/issues/new/choose",
+                   "https://github.com/judgekeeper/judgekeeper/security/advisories/new"):
+        assert needed in hrefs, needed
+    for path in ("CHANGELOG.md", "SECURITY.md", "skills/judgekeeper/SKILL.md"):
+        assert (ROOT / path).is_file(), path
+
+
+def test_the_docs_page_names_the_version_of_the_package():
+    version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "version"]
+    assert f"These docs are for judgekeeper {version}." in _flat(_main("docs.html"))
