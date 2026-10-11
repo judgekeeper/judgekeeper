@@ -2,8 +2,9 @@
 
 It writes one record (records format version 2, annotator_kind LLM) per call to
 `.judgekeeper/records/<name>-<date>-<process id>.jsonl` under the project root, one file per
-process. It never breaks the user's program: any error is caught, one warning goes to the
-`judgekeeper` logger once per process, and it returns nothing. `JUDGEKEEPER_RECORD=0` turns
+process. It never breaks the user's program: any error is caught, the first lost verdict is
+said on the `judgekeeper` logger and later ones are counted and said at exit, and it returns
+nothing. `JUDGEKEEPER_RECORD=0` turns
 it off. Standard library only, and `import judgekeeper` stays light.
 """
 
@@ -16,7 +17,10 @@ import os
 import subprocess
 import sys
 import threading
+from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
@@ -115,6 +119,35 @@ def test_a_score_and_a_pass_mark_give_the_verdict(project, score, label):
     assert (line["label"], line["score"]) == (label, score)
 
 
+@pytest.mark.parametrize("score, mark, want", [
+    (Decimal("0.8"), 0.5, 0.8), (Fraction(1, 4), 0.5, 0.25), ("0.8", "0.5", 0.8),
+    (" 7 ", 5, 7.0), (3, Decimal("2.5"), 3)])
+def test_any_real_number_is_a_score(project, score, mark, want):
+    judgekeeper.record("q", "a", score=score, pass_mark=mark)
+    line = only_record(project)
+    assert line["score"] == want and type(line["score"]) in (int, float)
+    assert line["label"] == ("pass" if want >= float(mark) else "fail")
+
+
+def test_numpy_numbers_and_bools(project):
+    np = pytest.importorskip("numpy")
+    judgekeeper.record("q1", "a", score=np.float32(0.75), pass_mark=np.float64(0.5))
+    judgekeeper.record("q2", "a", score=np.int64(2), pass_mark=np.int32(3))
+    judgekeeper.record("q3", "a", verdict=np.bool_(True))
+    first, second, third = lines(files(project)[0])
+    assert first["score"] == 0.75 and first["label"] == "pass"
+    assert first["metadata"]["pass_mark"] == 0.5
+    assert second["score"] == 2 and second["label"] == "fail"
+    assert third["label"] == "pass"
+    judgekeeper.record("q4", "a", score=np.bool_(True), pass_mark=0.5)  # a bool is no score
+    assert len(lines(files(project)[0])) == 3
+
+
+def test_any_mapping_is_metadata(project):
+    judgekeeper.record("q", "a", verdict="pass", metadata=MappingProxyType({"run": "nightly"}))
+    assert only_record(project)["metadata"] == {"run": "nightly"}
+
+
 def test_a_verdict_wins_over_score_and_pass_mark(project):
     judgekeeper.record("q", "a", verdict="fail", score=0.9, pass_mark=0.5)
     line = only_record(project)
@@ -170,10 +203,15 @@ def test_an_unwritable_folder_never_raises_and_warns_once(project, caplog):
     with caplog.at_level(logging.WARNING, logger="judgekeeper"):
         assert judgekeeper.record("q", "a", verdict="pass") is None
         assert judgekeeper.record("q2", "a2", verdict="fail") is None
+        assert judgekeeper.record("q3", "a3", verdict="fail") is None
     warnings = [r for r in caplog.records if r.name == "judgekeeper"]
     assert len(warnings) == 1
     assert "judgekeeper.record()" in warnings[0].getMessage()
     assert "goes on" in warnings[0].getMessage()
+    with caplog.at_level(logging.WARNING, logger="judgekeeper"):
+        recorder._say_lost()  # at exit: the later losses are not silent
+    assert caplog.records[-1].getMessage() == ("judgekeeper.record() could not save 2 more "
+                                               "verdicts.")
 
 
 def test_the_off_switch(project, monkeypatch):

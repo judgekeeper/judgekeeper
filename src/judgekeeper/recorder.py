@@ -13,8 +13,12 @@ safe across processes on Windows or network drives), worked out from the process
 call, so a forked child gets its own file. A lock per file keeps threads' lines whole; each
 line is written in one go and the file closed, so it is on disk at once.
 
-It never breaks the user's program: any error inside is caught, one warning goes to the
-`judgekeeper` logger once per process, and it returns nothing. `JUDGEKEEPER_RECORD=0` (or
+A score or pass mark may be any real number: an int or float, a numpy number, a Decimal, or
+text that reads as one ("0.8"); a numpy True or False is a bool. `metadata` may be any mapping.
+
+It never breaks the user's program: any error inside is caught and it returns nothing. The
+first verdict it can't save is said at once on the `judgekeeper` logger; later ones are
+counted, and the count is said when the program ends, so no loss is silent. `JUDGEKEEPER_RECORD=0` (or
 false, off, no) turns it off, for production. Standard library only, and nothing else of
 judgekeeper is imported, so `import judgekeeper` stays light.
 
@@ -25,13 +29,16 @@ coding agent to add the call.
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
 import math
+import numbers
 import os
 import re
 import threading
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 SCHEMA_VERSION = 2  # records.SCHEMA_VERSION, kept here so nothing else is imported
@@ -46,6 +53,7 @@ _lock = threading.Lock()  # guards the three below
 _file_locks: dict[str, threading.Lock] = {}
 _paths: dict[tuple[int, str], Path] = {}
 _warned: set[int] = set()  # the processes that have shown the warning
+_lost: dict[int, int] = {}  # per process: verdicts not saved after the first warning
 
 
 class _RecordError(ValueError):
@@ -75,8 +83,15 @@ def record(input=None, output=None, *, verdict=None, score=None, pass_mark=None,
         _warn(e)
 
 
+def _is_bool(value) -> bool:
+    """A bool, or numpy's (numpy.bool_), which is not a Python bool."""
+    return isinstance(value, bool) or getattr(getattr(value, "dtype", None), "kind", None) == "b"
+
+
 def _label(verdict, score, pass_mark):
     if verdict is not None:
+        if _is_bool(verdict):
+            verdict = bool(verdict)
         if isinstance(verdict, bool):
             return "pass" if verdict else "fail"
         if isinstance(verdict, str) and verdict.strip().lower() in ("pass", "fail"):
@@ -88,14 +103,26 @@ def _label(verdict, score, pass_mark):
 
 
 def _number(value, what: str):
-    if isinstance(value, bool) or not isinstance(value, int | float):
+    """`value` as a plain int or float (None for NaN): any real number, a numpy number, a
+    Decimal or numeric text; never a bool."""
+    if _is_bool(value):
         raise _RecordError(f"{what} must be a number")
-    return None if isinstance(value, float) and math.isnan(value) else value
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    try:
+        number = float(value.strip() if isinstance(value, str) else value)
+    except (TypeError, ValueError, OverflowError, AttributeError):
+        raise _RecordError(f"{what} must be a number") from None
+    if math.isnan(number):
+        return None
+    if math.isinf(number):
+        raise _RecordError(f"{what} must be a finite number")
+    return number
 
 
 def _line(input, output, verdict, score, pass_mark, reason, judge, rule, name, temperature,
           id, metadata) -> str:
-    if metadata is not None and not isinstance(metadata, dict):
+    if metadata is not None and not isinstance(metadata, Mapping):
         raise _RecordError("metadata must be a dict")
     score = None if score is None else _number(score, "score")
     meta = dict(metadata or {})
@@ -150,6 +177,7 @@ def _warn(error: Exception) -> None:
     try:
         with _lock:
             if os.getpid() in _warned:
+                _lost[os.getpid()] = _lost.get(os.getpid(), 0) + 1
                 return
             _warned.add(os.getpid())
         if isinstance(error, _RecordError):
@@ -159,9 +187,23 @@ def _warn(error: Exception) -> None:
         else:
             why = type(error).__name__  # its text may hold the user's data
         logger.warning("judgekeeper.record() could not save a verdict (%s). Your program goes "
-                       "on; this warning is shown once.", why)
+                       "on; any more it can't save are counted and said when it ends.", why)
     except Exception:  # noqa: BLE001, S110 - even a failed warning must not reach the program
         pass
+
+
+def _say_lost() -> None:
+    """At exit: how many more verdicts this process could not save, after the first."""
+    try:
+        n = _lost.pop(os.getpid(), 0)
+        if n:
+            logger.warning("judgekeeper.record() could not save %d more verdict%s.", n,
+                           "" if n == 1 else "s")
+    except Exception:  # noqa: BLE001, S110 - never into the user's program, even at exit
+        pass
+
+
+atexit.register(_say_lost)
 
 
 def _reset() -> None:
@@ -170,3 +212,4 @@ def _reset() -> None:
         _paths.clear()
         _file_locks.clear()
         _warned.clear()
+        _lost.clear()
