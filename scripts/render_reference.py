@@ -20,8 +20,8 @@ DOCS_URL = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/"
 PAGES = {  # source stem: (target page, title, description, who the page is for)
     "reference": ("reference.html", "Reference: every command and flag",
                   "Every judgekeeper command, file format, flag, exit code and config key.", ""),
-    "own-metric": ("own-metric.html", "Your own metric", ("Write your own rule, label real "
-                   "outputs, run any judge, and read how often it agrees with your labels."),
+    "own-metric": ("own-metric.html", "Your own metric", ("Write your own rule, mark real "
+                   "outputs, run any judge, and read how often it agrees with your marks."),
                    "when you have no judge yet, or want to write your own rule"),
     "assistant": ("assistant.html", "With a coding assistant",
                   "Hand the whole job to a coding assistant: install the skill or paste one prompt.",

@@ -293,7 +293,7 @@ def test_the_page_shows_three_other_rules_and_the_limits():
         assert topic in section, topic
     assert "different" in section
     limits = _section("does not do")
-    assert "rule" in limits and "label" in limits
+    assert "rule" in limits and "mark" in limits
 
 
 def test_the_page_is_rendered_and_current(tmp_path):

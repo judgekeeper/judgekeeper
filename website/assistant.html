@@ -19,7 +19,6 @@
 <meta name="twitter:description" content="Hand the whole job to a coding assistant: install the skill or paste one prompt.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-<link rel="preload" href="assets/fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
 <script src="assets/theme.js"></script>
@@ -40,16 +39,16 @@
 <main id="main" class="wrap narrow doc">
 <p class="newhere">New here? Start with the <a href="start.html">Guide</a>. This page is for handing the whole job to a coding assistant, with the skill or one prompt.</p>
 <h1 id="with-a-coding-assistant">With a coding assistant</h1>
-<p>You can hand the whole job to a coding assistant. It does the typing. You do one thing yourself: the labels.</p>
+<p>You can hand the whole job to a coding assistant. It does the typing. You do one thing yourself: you mark the answers Pass or Fail.</p>
 <p>A coding assistant is a tool that can read your project and run commands in it. There are two ways to tell it about judgekeeper. Pick one.</p>
 <h2 id="install-the-skill">Install the skill</h2>
 <p>A skill is a short instruction file. Your assistant loads it when the job calls for it. This one tells it how to use judgekeeper.</p>
 <div class="code"><pre><code>npx skills add judgekeeper/judgekeeper</code></pre></div>
 <p>No skills tool? Paste the prompt below instead. It tells the assistant the same things.</p>
-<p>After the install, ask your assistant: "Check how often my AI judge agrees with human labels."</p>
+<p>After the install, ask your assistant: "Check how often my LLM-as-a-judge agrees with me."</p>
 <h2 id="or-paste-the-prompt">Or paste the prompt</h2>
 <p>Open your assistant in your project folder. Copy all of this text and send it as your message. You do not need to install anything first. The prompt tells the assistant to do that.</p>
-<div class="code"><pre><code>Please check how often the AI judge in this project agrees with my own labels, using
+<div class="code"><pre><code>Please check how often the LLM-as-a-judge in this project agrees with my own labels, using
 judgekeeper. A judge is a model that grades another model's answers. judgekeeper reads
 the verdicts the judge already saved, shows me some of the same answers to label, and
 says how often the judge agrees with me. You do the typing; I do one thing myself: the
@@ -113,12 +112,12 @@ check by hand when nothing was saved; www.judgekeeper.com/tutorial.html shows ea
 <ol>
 <li>The assistant installs judgekeeper in your project's environment and checks that it runs.</li>
 <li>It runs <code>judgekeeper start</code> and tells you what it found: your eval tool, your judge and how many answers it graded. If judgekeeper finds nothing it can read, the assistant runs <code>judgekeeper setup</code> and shows you its questions to answer. If your project has no judge yet, it says so and stops.</li>
-<li>It asks you to say in one sentence what pass means, so your labels follow your own rule.</li>
-<li>It starts the labeling page and gives you its link, or asks you to run <code>judgekeeper start</code> in your own terminal. The page runs on your own computer (127.0.0.1). You read each answer and press ← for Fail or → for Pass.</li>
+<li>It asks you to say in one sentence what pass means, so your marks follow your own rule.</li>
+<li>It starts the marking page and gives you its link, or asks you to run <code>judgekeeper start</code> in your own terminal. The page runs on your own computer (127.0.0.1). You read each answer and press ← for Fail or → for Pass.</li>
 <li>It tells you the result in plain words: when you said Pass, how often your judge also said Pass; when you said Fail, how often it also said Fail.</li>
-<li>It tells you what you can do next: review the disagreements with you, ask your judge again, or try a changed judge. Asking the judge costs money, so judgekeeper shows the number of calls and a cost range first, and you answer its question yourself.</li>
+<li>It tells you what you can do next: see where you and your judge disagree, fix your judge's rule, or try a changed judge. Asking the judge costs money, so judgekeeper shows the number of calls and a cost range first, and you answer its question yourself.</li>
 </ol>
-<p><strong>You do one thing yourself: the labels.</strong> The assistant must never fill them in for you. The labels are the only part of the check that is not a model's opinion. If a model wrote them, the check would compare one model with another and prove nothing.</p>
+<p><strong>You do one thing yourself: the marks.</strong> The assistant must never fill them in for you. Your marks are the only part of the check that is not a model's opinion. If a model wrote them, the check would compare one model with another and prove nothing.</p>
 <p>The assistant also stops and asks you when it needs a key. A key is the password for a paid AI service. Keep it in an environment variable, which is a setting in your own terminal. Do not paste it into the chat.</p>
 <h2 id="add-the-record-line">Add the record() line</h2>
 <p>Your judge runs in your own code and saves nothing judgekeeper reads? One <code>judgekeeper.record()</code> line, right where the judge gives each verdict, saves it (<a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#record-save-your-own-judges-verdicts-with-one-line">what the line takes</a>). judgekeeper never edits your code. Paste this prompt into your assistant and it adds the line for you:</p>
@@ -158,7 +157,9 @@ so that judgekeeper can check my judge against my own labels:
 <footer class="site-footer">
 <div class="wrap cols">
 <div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with your labels; it never decides for you.</p></div>
+<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with you; it never decides for you.</p>
+<p class="fine">Not affiliated with the tools and models it works with. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
+<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
 <div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
 <div><h2>More</h2><ul><li><a href="own-metric.html">No judge yet? Your own metric</a></li><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li><li><a href="tutorial.html">Advanced commands</a></li></ul></div>
 </div>

@@ -132,13 +132,16 @@ def test_the_home_page_stays_short():
 
 
 def test_the_home_page_shows_only_the_install_and_sends_the_rest_to_the_guide():
-    """What judgekeeper is, the six steps, install, what you get. No demo and no examples."""
+    """What judgekeeper is, the six steps, install, what you get. No examples, and the only
+    demo is the small labeling card in the hero, with sample answers."""
     assert [argv for _, argv in commands(WEBSITE / "index.html")] == [["--version"],
                                                                      ["--version"]]
     assert "start.html#install" in _hrefs(_by_id("index.html", "install"))
     text = (WEBSITE / "index.html").read_text(encoding="utf-8")
-    for gone in ("demo", "examples.html", "See it work", "try-question", "Skip the"):
+    for gone in ("examples.html", "See it work", "try-question", "Skip the"):
         assert gone not in text, gone
+    hero = text[text.index('<section class="hero">'):text.index("</section>")]
+    assert "demo" not in text.replace(hero, "")
 
 
 # Install: inside the project, in the project's own environment
@@ -297,7 +300,7 @@ def test_use_it_on_your_app_has_four_steps_each_with_something_to_run_or_make():
     items = [li for li in steps.children if isinstance(li, Element)]
     heads = [next(h for h in li.iter() if h.tag == "h4").text() for li in items]
     assert len(heads) == 4
-    for head, needle in zip(heads, ("Collect", "Label", "judge", "Read"), strict=True):
+    for head, needle in zip(heads, ("Collect", "Mark", "judge", "Read"), strict=True):
         assert needle in head, head
     for li in items:
         if "This step has no command either" in li.text():  # the labels, typed in the sheet

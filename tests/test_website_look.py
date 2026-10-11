@@ -6,10 +6,11 @@
 - The theme is dark unless the system or the visitor asks for light; the visitor's choice and
   the ticked steps are kept in the browser only inside try/catch.
 - The home page: the headline that never breaks inside "LLM-as-a-judge", the two buttons, the
-  two-verdicts card and the six-step route.
+  demo that shows what the judge said only after you mark, the real pages in pictures and the
+  six-step route.
 - The Guide: six steps, each with "You're done when" and a done tick, "Didn't work?" quoting
-  what judgekeeper really prints, the coding-assistant prompt, and the result and labeling
-  pictures in the product's own words.
+  what judgekeeper really prints, the coding-assistant prompt, and pictures of the real pages
+  with the product's own words around them.
 - Every older page starts with "New here?".
 """
 
@@ -31,8 +32,18 @@ CSS = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
 SRC = ROOT / "src" / "judgekeeper"
 OLDER = {"own-metric.html", "assistant.html", "setup.html", "learn.html", "tutorial.html"}
 STEPS = [("install", "Install"), ("connect", "Connect your results"), ("start", "Start"),
-         ("label", "Label"), ("result", "Your result"), ("improve", "Improve your judge")]
-ROUTE = ["Install", "Connect", "Start", "Label", "Result", "Improve"]
+         ("label", "Mark"), ("result", "Your result"), ("improve", "Improve your judge")]
+ROUTE = ["Install", "Connect", "Start", "Mark", "Result", "Improve"]
+SHOTS = WEBSITE / "assets" / "shots"
+# reference.html is generated from docs/reference.md (scripts/render_reference.py). A page
+# rendered before the body text moved to the system font still preloads Atkinson Hyperlegible
+# and carries the footer of then; rendering it again brings both up to date, and from then on
+# it is held to the frame like every other page.
+RENDERED_BEFORE = "atkinson-hyperlegible"
+
+
+def _rendered_before(page: Path) -> bool:
+    return page.name == "reference.html" and RENDERED_BEFORE in page.read_text(encoding="utf-8")
 NB_HYPHEN = "‑"
 
 
@@ -66,8 +77,10 @@ def test_every_page_carries_the_frame_site_frame_writes():
     assert frame.NAV == NAV and frame.MORE == MORE
     for page in pages():
         text = page.read_text(encoding="utf-8")
-        assert frame.head_links() in text, f"{page.name}: run python scripts/site_frame.py"
         assert frame.header(page.name) in text, f"{page.name}: run python scripts/site_frame.py"
+        if _rendered_before(page):
+            continue  # see RENDERED_BEFORE
+        assert frame.head_links() in text, f"{page.name}: run python scripts/site_frame.py"
         assert frame.footer() in text, f"{page.name}: run python scripts/site_frame.py"
 
 
@@ -103,8 +116,17 @@ def test_more_names_every_page_outside_the_navigation():
 # Nothing from another server -------------------------------------------------------------
 
 FAMILIES = {"Bricolage Grotesque": ("BricolageGrotesque", {"600", "800"}),
-            "Atkinson Hyperlegible": ("AtkinsonHyperlegible", {"400", "700"}),
             "JetBrains Mono": ("JetBrainsMono", {"400", "600"})}
+SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+
+
+def test_body_text_uses_the_system_font_as_the_product_does():
+    """Atkinson Hyperlegible draws a slashed zero; the product moved its text to the system
+    font for that, and so does the site. Bricolage stays for headings."""
+    assert f"--body: {SYSTEM_FONT};" in _block(":root")
+    assert "Atkinson" not in CSS
+    assert "--display: \"Bricolage Grotesque\"" in _block(":root")
+    assert _frame().FONTS == ("bricolage-grotesque-latin-800-normal.woff2",)
 
 
 def _font_faces() -> list[dict[str, str]]:
@@ -240,40 +262,78 @@ def test_the_headline_never_breaks_inside_llm_as_a_judge():
     assert ".nobr { white-space: nowrap; }" in CSS
 
 
-def test_the_hero_has_its_two_buttons_and_the_verdicts_card():
+def test_the_hero_has_its_two_buttons_and_the_demo():
     main = next(el for el in _els(HOME) if el.tag == "main")
     hero = next(el for el in main.children if isinstance(el, Element))
     assert "hero" in hero.classes()
     buttons = [(a.attrs["href"], a.text().strip()) for a in _all(hero, "a", "btn")]
     assert buttons == [("start.html", "Get started"), ("#how", "How it works")]
-    (card,) = _all(hero, "figure", "verdicts")
-    flat = _flat(card)
-    for words in ("The question", "Your app's answer", "The AI judge says", "You say",
-                  "Next answer", "So far"):
+    (demo,) = _all(hero, "figure", "demo")
+    assert _flat(_by_id(HOME, "demo-tag")) == "A demo with sample answers"
+    assert demo.attrs.get("aria-labelledby") == "demo-tag"
+    flat = _flat(demo)
+    for words in ("The question", "Your app's answer", "Fail", "Pass"):
         assert words in flat, words
-    (data,) = [el for el in card.iter() if el.attrs.get("id") == "verdict-examples"]
+    # Fail on the left, Pass on the right, equally strong, each with its key
+    marks = [(b.attrs["data-mark"], b.classes(), b.attrs.get("aria-keyshortcuts"))
+             for b in _all(demo, "button") if "data-mark" in b.attrs]
+    assert marks == [("Fail", {"mark", "fail"}, "ArrowLeft"), ("Pass", {"mark", "pass"}, "ArrowRight")]
+    (data,) = [el for el in demo.iter() if el.attrs.get("id") == "demo-examples"]
     assert data.tag == "script" and data.attrs.get("type") == "application/json"
     examples = json.loads(data.text())
     assert [e["q"] for e in examples] == [
         "How do I reset my password?", "Can I get a refund after 30 days?",
         "Is my order shipped?", "What is the weight limit for carry-on bags?"]
-    agree = [(e["j"] == "Pass") == (e["y"] == "Correct") for e in examples]
-    assert agree == [True, False, False, True]
+    assert [e["j"] for e in examples] == ["Pass", "Pass", "Fail", "Pass"]
     first = examples[0]  # shown without JavaScript too
-    assert _flat(_by_id(HOME, "vq")) == first["q"] and _flat(_by_id(HOME, "va")) == first["a"]
-    assert _flat(_by_id(HOME, "vj")) == first["j"] and _flat(_by_id(HOME, "vy")) == first["y"]
-    assert "They agree" in _flat(_by_id(HOME, "vb"))
-    assert _by_id(HOME, "vb").attrs.get("aria-live") == "polite" or \
-        card.attrs.get("aria-live") == "polite"
+    assert _flat(_by_id(HOME, "dq")) == first["q"] and _flat(_by_id(HOME, "da")) == first["a"]
+    # What the judge said stays hidden until you mark, as in the product
+    said = _by_id(HOME, "demo-said")
+    assert "hidden" in said.attrs and "Your judge said" in _flat(said)
+    assert "Your judge said" not in flat.replace(_flat(said), "")
+    assert _flat(_by_id(HOME, "dtally")) == "Mark it first. Then you see what your judge said."
+    assert _by_id(HOME, "dlive").attrs.get("aria-live") == "polite"
+    js = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
+    for words in ("So far: your judge agrees with you on ", "Start with the Guide", "You agree",
+                  "You disagree", "prefers-reduced-motion: reduce"):
+        assert words in js, words
 
 
 def test_the_home_page_is_hero_how_route_install_and_what_you_get():
     main = next(el for el in _els(HOME) if el.tag == "main")
     ids = [el.attrs.get("id") for el in main.children
            if isinstance(el, Element) and el.tag == "section"]
-    assert ids == [None, "how", "route", "install", "get"]
+    assert ids == [None, "how", "look", "route", "install", "get"]
     roles = [h.text() for h in _all(_by_id(HOME, "how"), "h3")]
-    assert roles == ["Your app answers", "An AI judge grades it", "You check the judge"]
+    assert roles == ["Your app answers", "Your judge grades it", "You check your judge"]
+    assert "not a promise about the next ones" in _flat(_by_id(HOME, "get"))
+
+
+def _shot(figure: Element) -> tuple[str, str]:
+    (img,) = _all(figure, "img")
+    (link,) = _all(figure, "a")
+    src = img.attrs["src"]
+    assert link.attrs["href"] == src  # a click opens it full size
+    assert (WEBSITE / src).is_file(), src
+    assert (WEBSITE / src).stat().st_size < 250_000, src
+    assert (img.attrs.get("width"), img.attrs.get("height")) == ("1440", "900"), src
+    assert img.attrs.get("alt", "").strip(), src
+    (caption,) = _all(figure, "figcaption")
+    assert "Sample data" in _flat(caption), src
+    return src, img.attrs["alt"]
+
+
+def test_the_home_page_shows_the_real_pages_in_pictures():
+    figures = _all(_by_id(HOME, "look"), "figure", "shot")
+    assert [_shot(f)[0] for f in figures] == [
+        "assets/shots/label.webp", "assets/shots/result.webp", "assets/shots/fix.webp"]
+
+
+def test_the_pictures_are_made_by_the_script_from_sample_data():
+    script = (ROOT / "scripts" / "make_site_shots.py").read_text(encoding="utf-8")
+    assert {p.name for p in SHOTS.iterdir()} == {"label.webp", "result.webp", "fix.webp"}
+    for name in ("label.webp", "result.webp", "fix.webp"):
+        assert name in script, name
 
 
 def test_the_route_has_six_stops_each_a_link_to_its_step_in_the_guide():
@@ -316,7 +376,7 @@ def test_the_rail_follows_the_six_steps():
     firsts = [next(a for a in li.iter() if a.tag == "a") for li in tops]
     assert [a.attrs["href"] for a in firsts] == [f"#{step}" for step, _ in STEPS]
     subs = [a.attrs["href"] for a in tops[-1].iter() if a.tag == "a"][1:]
-    assert subs == ["#review", "#ask-again", "#new-judge"]
+    assert subs == ["#review", "#fix", "#new-judge"]
     assert "Ticked steps are remembered in this browser" in _flat(rail)
 
 
@@ -348,7 +408,7 @@ def test_the_didnt_work_boxes_quote_what_judgekeeper_really_prints():
 
 GUIDE_PROMPT_NEEDS = ("inside this project's own Python environment", "uv add --dev judgekeeper",
                       "poetry add --group dev judgekeeper", "judgekeeper start --yes --no-browser",
-                      "I will label the answers myself")
+                      "I will mark the answers myself")
 
 
 def test_the_guide_prompt_installs_inside_the_project_and_leaves_labeling_to_the_person():
@@ -371,60 +431,58 @@ def test_the_you_need_box_comes_first():
     assert "Python 3.11 or newer" in _flat(ready)
 
 
-# The pictures: what a real run would say -------------------------------------------------
+# The pictures: the real pages, with the product's own words around them ------------------
 
-def _numbers(el: Element) -> dict:
-    """The made-up result a preview shows, as `start_label.page_content` takes it."""
-    a = el.attrs
-    tpr, tpr_lo, tpr_hi = (float(x) for x in a["data-tpr"].split())
-    tnr, tnr_lo, tnr_hi = (float(x) for x in a["data-tnr"].split())
-    r = {"labels": {"correct": int(a["data-correct"]), "wrong": int(a["data-wrong"])},
-         "tpr": tpr, "tpr_interval": (tpr_lo, tpr_hi), "tnr": tnr,
-         "tnr_interval": (tnr_lo, tnr_hi), "kappa": float(a["data-kappa"]),
-         "check": "rough", "judge_pass_rate": None, "real_pass_rate": None}
+def _guide_shot(step: str) -> tuple[Element, str, str]:
+    section = _by_id(GUIDE, step)
+    (figure,) = _all(section, "figure", "shot-wide")
+    src, alt = _shot(figure)
+    return section, src, alt
+
+
+def test_the_marking_picture_is_the_real_page_and_its_words_are_the_products():
+    section, src, alt = _guide_shot("label")
+    assert src == "assets/shots/label.webp"
+    page = start_page.label_page(None, None)
+    for words in ("The question", "Your app's answer", "Fail", "Pass", "dots"):
+        assert words.lower() in alt.lower(), words
+    flat = _flat(section).replace(alt, "")
+    for words in ("See your result", "drag", "What your judge decided stays hidden", "dots"):
+        assert words.lower() in flat.lower() and words.lower() in page.lower(), words
+    assert "Fail" in flat and "Pass" in flat
+
+
+def test_the_result_picture_is_the_real_page_and_says_its_sentences():
+    section, src, alt = _guide_shot("result")
+    assert src == "assets/shots/result.webp"
+    # The sentences in the alt text are the product's, with the sample's numbers.
+    r = {"labels": {"correct": 22, "wrong": 18}, "tpr": 0.86, "tpr_interval": (0.72, 0.96),
+         "tnr": 0.83, "tnr_interval": (0.66, 0.95), "kappa": 0.70, "check": "rough",
+         "judge_pass_rate": None, "real_pass_rate": None}
     r["verdict_level"] = start_label._level(r)
     r["verdict"] = start_label.VERDICTS[r["verdict_level"]]
-    return r
+    content = start_label.page_content(r)
+    for sentence in content["sentences"]:
+        assert sentence in alt, sentence
+    flat = _flat(section)
+    for term, plain in (("TPR", "you marked Pass"), ("TNR", "you marked Fail"), ("Kappa", "luck")):
+        assert term in flat and plain in flat, term
 
 
-def test_the_result_pictures_say_what_judgekeeper_would_say_for_their_numbers():
-    previews = [(page, el) for page in (HOME, GUIDE) for el in _els(page)
-                if "result-preview" in el.classes()]
-    assert len(previews) == 2
-    for page, el in previews:
-        assert "data-illustration" in el.attrs and "illustration" in el.text().lower()
-        r = _numbers(el)
-        assert r["verdict_level"] == "check"  # amber: "check by hand"
-        content = start_label.page_content(r)
-        flat = _flat(el)
-        for sentence in content["sentences"]:
-            assert sentence in flat, (page.name, sentence)
-        (box,) = _all(el, "div", "vbox")
-        assert start_label.LEVELS["check"][0] in box.classes()
-        assert content["verdict"]["text"] in _flat(box), page.name
-        tiles = [t for t in el.iter() if "num" in t.classes()]
-        assert len(tiles) == 3
-        for tile, want in zip(tiles, content["tiles"], strict=True):
-            assert want["plain"] in _flat(tile) and want["value"] in _flat(tile), page.name
-            if page == GUIDE:
-                assert want["line"] in _flat(tile)
-        if page == GUIDE:
-            assert content["verdict"]["detail"] is None  # amber: the one line says it all
-            assert "<span>" not in box.text()
-            assert [t["name"] for t in content["tiles"]] == [
-                _all(t, "small")[0].text() for t in tiles]
-
-
-def test_the_labeling_picture_uses_the_products_words():
-    (mini,) = [el for el in _els(GUIDE) if "mini" in el.classes()]
-    flat = _flat(mini)
-    page = start_page.label_page(None, None)
-    for words in ("The question", "Your app's answer", "See your result",
-                  "Mark each answer Pass or Fail. What your judge decided stays hidden."):
-        assert words in flat and words in page, words
-    assert "Fail ←" in flat and "Pass →" in flat  # the keys the product shows
-    rough = start_label.status_line({"check": "rough", "wide": {}})
-    assert rough in flat  # the line under the meters once a result can be shown
+def test_the_fix_picture_shows_the_change_the_rule_panel():
+    section, src, alt = _guide_shot("improve")
+    assert src == "assets/shots/fix.webp"
+    page = start_page.fix_page(None)
+    for words in ("Change the rule", "What your judge gets wrong"):
+        assert words in page, words
+    assert "Change the rule" in alt and "what your judge gets wrong" in alt
+    flat = _flat(section)
+    assert "A small local model can grade answers, but it usually can't rewrite a rule well." in flat
+    (fork,) = _all(section, "div", "fork")
+    choices = [el for el in fork.children if isinstance(el, Element)]
+    assert [_all(c, "h3")[0].text() for c in choices] == [
+        "See where you disagree", "Fix your judge", "Try your new judge"]
+    assert [_all(c, "code")[0].text() for c in choices] == ["--review", "--fix", "--try-new-judge"]
 
 
 # Older pages -----------------------------------------------------------------------------

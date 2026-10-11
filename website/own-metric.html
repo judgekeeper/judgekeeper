@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Your own metric | judgekeeper</title>
-<meta name="description" content="Write your own rule, label real outputs, run any judge, and read how often it agrees with your labels.">
+<meta name="description" content="Write your own rule, mark real outputs, run any judge, and read how often it agrees with your marks.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="Your own metric | judgekeeper">
-<meta property="og:description" content="Write your own rule, label real outputs, run any judge, and read how often it agrees with your labels.">
+<meta property="og:description" content="Write your own rule, mark real outputs, run any judge, and read how often it agrees with your marks.">
 <meta property="og:url" content="https://www.judgekeeper.com/own-metric.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
@@ -16,10 +16,9 @@
 <meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Your own metric | judgekeeper">
-<meta name="twitter:description" content="Write your own rule, label real outputs, run any judge, and read how often it agrees with your labels.">
+<meta name="twitter:description" content="Write your own rule, mark real outputs, run any judge, and read how often it agrees with your marks.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-<link rel="preload" href="assets/fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
 <script src="assets/theme.js"></script>
@@ -40,7 +39,7 @@
 <main id="main" class="wrap narrow doc">
 <p class="newhere">New here? Start with the <a href="start.html">Guide</a>. This page is for when you have no judge yet, or want to write your own rule.</p>
 <h1 id="your-own-metric">Your own metric</h1>
-<p>Bring your own metric. judgekeeper checks it against your labels and tells you when that check is out of date. This page shows how, from an empty folder to a checked metric, with two worked examples on one rule.</p>
+<p>Bring your own metric. judgekeeper checks it against your own marks and tells you when that check is out of date. This page shows how, from an empty folder to a checked metric, with two worked examples on one rule.</p>
 <ul>
 <li><a href="#1-the-idea">1. The idea</a></li>
 <li><a href="#2-how-to-write-a-rule">2. How to write a rule</a></li>
@@ -69,7 +68,7 @@
 <p>One example rule, from a support team: a reply must state the refund window the policy gives and must not promise a refund the policy does not allow. It is one example of a rule, not what judgekeeper is for; your rule will be different.</p>
 <p>Everything in this example is synthetic. The data is made up by <code>scripts/make_own_metric_example.py</code>, which decides which replies break the policy, so the labels are known by construction. It is an illustration of the steps, not a benchmark of any model.</p>
 <p>The files are in [<code>docs/examples/own-metric/</code>](examples/own-metric/): [<code>policy.md</code>](examples/own-metric/policy.md), the made-up refund policy; [<code>rule.md</code>](examples/own-metric/rule.md), the <code>init</code> template filled in, with <code>rubric_version: refund-policy-v1</code>; [<code>items.csv</code>](examples/own-metric/items.csv), 60 customer questions with a support reply each, in four slices (correct, wrong window, over-promise, polite but wrong); [<code>labels.csv</code>](examples/own-metric/labels.csv), the human labels as a table; [<code>anchors.jsonl</code>](examples/own-metric/anchors.jsonl), the same labeled items as the anchor set the judge runs on, sealed by [<code>anchors.manifest.json</code>](examples/own-metric/anchors.manifest.json); and [<code>function_judge.py</code>](examples/own-metric/function_judge.py), a judge that is a short Python function.</p>
-<p>The commands, in order, from that folder. With your own rule, you write the rule and label the items yourself (one JSON line per item in <code>anchors.jsonl</code>, with <code>id</code>, <code>input</code>, <code>output</code> and <code>human_label</code>; <code>judge</code> seals a new file the first time it reads it); the files here stand in for that.</p>
+<p>The commands, in order, from that folder. With your own rule, you write the rule and mark the items yourself (one JSON line per item in <code>anchors.jsonl</code>, with <code>id</code>, <code>input</code>, <code>output</code> and <code>human_label</code>; <code>judge</code> seals a new file the first time it reads it); the files here stand in for that.</p>
 <pre><code>judgekeeper init --out rule.md                        # then fill in every FILL IN marker
 judgekeeper judge anchors.jsonl --callable function_judge:judge --prompt rule.md --model function_judge.py --runs 3 --out runs/
 judgekeeper validate anchors.jsonl runs/ --out function/</code></pre>
@@ -105,7 +104,7 @@ judgekeeper import deepeval deepeval/results/ --metric "Refund policy [GEval]" -
 <p>The model caught every wrong reply, including the polite ones the function let through. It failed one correct reply, in all three runs: a sale-item reply that gives the 14-day exchange window. Its reason says the window should be 30 days, which is the rule for unopened items, not sale items. A rule that spells out each case still leaves room for a judge to mix two of them up, and only labels show that. No item changed verdict between runs (0% flipped). The fingerprint records the provider and the model as DeepEval wrote them (<code>claude-haiku-4-5-20251001 (Anthropic)</code>); DeepEval stores no snapshot, temperature or rubric version, so the report flags the judge identity as incomplete, and <code>gate</code> would warn about those fields rather than block.</p>
 <p>On the same 60 items, then, the plain function is a weak judge of this rule and the model is a strong one. That is what the check is for: the rule did not change between the two, only the judge did, and the report shows how often each one agrees with the labels.</p>
 <h2 id="5-the-same-steps-for-any-rule">5. The same steps for any rule</h2>
-<p>The refund rule is only one example. Your rule will be different, and the steps are the same: <code>init</code>, fill in the file, label real outputs, judge, validate, gate. Three more rules from other kinds of work, shown as the pass and fail lines of the template. Rule text only; no data or reports exist for these.</p>
+<p>The refund rule is only one example. Your rule will be different, and the steps are the same: <code>init</code>, fill in the file, mark real outputs, judge, validate, gate. Three more rules from other kinds of work, shown as the pass and fail lines of the template. Rule text only; no data or reports exist for these.</p>
 <p><strong>A health-information assistant must tell the user to see a doctor when a warning sign is mentioned.</strong></p>
 <ul>
 <li>Pass: the user mentions a warning sign (chest pain, trouble breathing, a sudden severe headache, blood where there should be none), and the reply tells them to see a doctor or call emergency services before anything else.</li>
@@ -122,13 +121,15 @@ judgekeeper import deepeval deepeval/results/ --metric "Refund policy [GEval]" -
 <li>Fail: an agreed action is missing, an action has no owner or the wrong owner, or the summary invents an action the transcript does not contain.</li>
 </ul>
 <h2 id="6-what-judgekeeper-does-not-do">6. What judgekeeper does not do</h2>
-<p>It does not write the rule for you. The rule is what you mean by good, and nobody else can say that. It does not label for you either: the labels are what the judge is checked against, and a label a model wrote proves nothing about the model. judgekeeper takes a rule and labels from you, runs the judge, and reports how often they agree.</p>
+<p>It does not write the rule for you. The rule is what you mean by good, and nobody else can say that. It does not mark answers for you either: your marks are what the judge is checked against, and a mark a model wrote says nothing about the model. judgekeeper takes a rule and your marks, runs the judge, and reports how often they agree.</p>
 <p class="note">This page is generated from <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/own-metric.md">docs/own-metric.md</a> by <code>scripts/render_reference.py</code>.</p>
 </main>
 <footer class="site-footer">
 <div class="wrap cols">
 <div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with your labels; it never decides for you.</p></div>
+<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with you; it never decides for you.</p>
+<p class="fine">Not affiliated with the tools and models it works with. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
+<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
 <div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
 <div><h2>More</h2><ul><li><a href="own-metric.html">No judge yet? Your own metric</a></li><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li><li><a href="tutorial.html">Advanced commands</a></li></ul></div>
 </div>

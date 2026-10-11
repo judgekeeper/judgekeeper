@@ -1,6 +1,6 @@
 # With a coding assistant
 
-You can hand the whole job to a coding assistant. It does the typing. You do one thing yourself: the labels.
+You can hand the whole job to a coding assistant. It does the typing. You do one thing yourself: you mark the answers Pass or Fail.
 
 A coding assistant is a tool that can read your project and run commands in it. There are two ways to tell it about judgekeeper. Pick one.
 
@@ -14,14 +14,14 @@ npx skills add judgekeeper/judgekeeper
 
 No skills tool? Paste the prompt below instead. It tells the assistant the same things.
 
-After the install, ask your assistant: "Check how often my AI judge agrees with human labels."
+After the install, ask your assistant: "Check how often my LLM-as-a-judge agrees with me."
 
 ## Or paste the prompt
 
 Open your assistant in your project folder. Copy all of this text and send it as your message. You do not need to install anything first. The prompt tells the assistant to do that.
 
 ```
-Please check how often the AI judge in this project agrees with my own labels, using
+Please check how often the LLM-as-a-judge in this project agrees with my own labels, using
 judgekeeper. A judge is a model that grades another model's answers. judgekeeper reads
 the verdicts the judge already saved, shows me some of the same answers to label, and
 says how often the judge agrees with me. You do the typing; I do one thing myself: the
@@ -88,12 +88,12 @@ The same text is in the file `docs/assistant-prompt.md`.
 
 1. The assistant installs judgekeeper in your project's environment and checks that it runs.
 2. It runs `judgekeeper start` and tells you what it found: your eval tool, your judge and how many answers it graded. If judgekeeper finds nothing it can read, the assistant runs `judgekeeper setup` and shows you its questions to answer. If your project has no judge yet, it says so and stops.
-3. It asks you to say in one sentence what pass means, so your labels follow your own rule.
-4. It starts the labeling page and gives you its link, or asks you to run `judgekeeper start` in your own terminal. The page runs on your own computer (127.0.0.1). You read each answer and press ← for Fail or → for Pass.
+3. It asks you to say in one sentence what pass means, so your marks follow your own rule.
+4. It starts the marking page and gives you its link, or asks you to run `judgekeeper start` in your own terminal. The page runs on your own computer (127.0.0.1). You read each answer and press ← for Fail or → for Pass.
 5. It tells you the result in plain words: when you said Pass, how often your judge also said Pass; when you said Fail, how often it also said Fail.
-6. It tells you what you can do next: review the disagreements with you, ask your judge again, or try a changed judge. Asking the judge costs money, so judgekeeper shows the number of calls and a cost range first, and you answer its question yourself.
+6. It tells you what you can do next: see where you and your judge disagree, fix your judge's rule, or try a changed judge. Asking the judge costs money, so judgekeeper shows the number of calls and a cost range first, and you answer its question yourself.
 
-**You do one thing yourself: the labels.** The assistant must never fill them in for you. The labels are the only part of the check that is not a model's opinion. If a model wrote them, the check would compare one model with another and prove nothing.
+**You do one thing yourself: the marks.** The assistant must never fill them in for you. Your marks are the only part of the check that is not a model's opinion. If a model wrote them, the check would compare one model with another and prove nothing.
 
 The assistant also stops and asks you when it needs a key. A key is the password for a paid AI service. Keep it in an environment variable, which is a setting in your own terminal. Do not paste it into the chat.
 
