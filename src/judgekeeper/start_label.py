@@ -297,6 +297,12 @@ def question_view(value):
     return display(value)
 
 
+def _all_exact(r: dict) -> bool:
+    """Whether both ranges have no width: more marks can't change them."""
+    ends = [r.get(f"{k}_interval") or [None, None] for k in ("tpr", "tnr")]
+    return all(lo is not None and hi is not None and hi - lo <= 1e-12 for lo, hi in ends)
+
+
 def status_line(r: dict) -> str:
     """How far along a check is, in the words the person reads (no targets, no numbers): the
     line under the meters on the labeling page, and on the result when a range is still
@@ -306,6 +312,8 @@ def status_line(r: dict) -> str:
     if r["check"] == "reliable":
         return "Your result is ready."
     wide = r.get("wide") or {}
+    if not wide and _all_exact(r):  # a judge that passes (or fails) every answer
+        return "You can see your result now."
     if not wide:
         return "You can see your result now. Marking more answers narrows its ranges."
     sides = " and ".join(SAID[key] for key in ("tpr", "tnr") if key in wide)
@@ -391,10 +399,16 @@ class StartSession(LabelSession):
 
 # The result ------------------------------------------------------------------------------
 
+def plain(x: float | None) -> float | None:
+    """`x` rounded to 9 decimals, for comparing with a cut-off: 9/10 worked out in floating
+    point is 0.8999999999999999, which is 0.90."""
+    return None if x is None else round(x, 9)
+
+
 def _level(r: dict) -> str | None:
     if r["check"] == "too_few":
         return None
-    tpr, tnr, kappa = r["tpr"], r["tnr"], r["kappa"]
+    tpr, tnr, kappa = plain(r["tpr"]), plain(r["tnr"]), plain(r["kappa"])
     if kappa is None or tpr is None or tnr is None or kappa < KAPPA_GATE \
             or min(tpr, tnr) < RATE_GATE:
         return "not_gate"
@@ -467,11 +481,21 @@ def statements(r: dict) -> list[dict]:
     return out
 
 
+EXACT_RANGE = "exactly: marking more answers won't change it."
+
+
 def range_words(interval) -> str | None:
-    """"Probably between 66% and 93%. Marking more answers narrows this.", or None."""
+    """"Probably between 66% and 93%. Marking more answers narrows this.", or None. A range of
+    no width is exact ("100%, exactly: ..."): a judge that passes (or fails) every answer.
+    Ends that round to the same percent are shown with one decimal, never one point."""
     if interval is None or interval[0] is None:
         return None
-    return f"Probably between {_pct(interval[0])} and {_pct(interval[1])}. {MORE}"
+    lo, hi = interval
+    if hi - lo <= 1e-12:
+        return f"{_pct(lo)}, {EXACT_RANGE}"
+    if _pct(lo) == _pct(hi):
+        return f"Probably between {lo:.1%} and {hi:.1%}. {MORE}"
+    return f"Probably between {_pct(lo)} and {_pct(hi)}. {MORE}"
 
 
 def _number(name: str, value, interval) -> str:
@@ -629,7 +653,7 @@ def _detail(r: dict) -> str | None:
 def still_needed(r: dict) -> str | None:
     """Why marking more answers helps, while the result is not reliable: the range that is
     still wide (status_line), else that more marks narrow the ranges; None once reliable."""
-    if r["check"] == "reliable":
+    if r["check"] == "reliable" or not r.get("wide") and _all_exact(r):
         return None
     if r.get("wide"):
         return status_line(r)

@@ -248,8 +248,9 @@ def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: in
     keys = ("tpr", "tnr")
     methods = dict.fromkeys(keys, "jeffreys")
     if any(pool[g] > 0 and not xs for g, xs in by_group.items()):
-        for key in keys:
-            out[f"{key}_interval"] = [None, None]
+        for key in keys:  # a group of the judge with nothing counted: unknown, as in corrected
+            out[key], out[f"{key}_interval"] = None, [None, None]
+        out["kappa"] = None
     else:
         drawn = _general_draws(by_group, pool, draws, seed, jeffreys=False)
         again = None

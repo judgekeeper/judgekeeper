@@ -107,6 +107,7 @@ def _rate_flags(name: str, value: float | None) -> list[dict]:
     if value is None:
         return [_flag(f"no_{name.lower()}", f"{name} could not be measured: no human "
                                             "labels of that class were scored.")]
+    value = round(value, 9)  # 9/10 in floating point is 0.8999999999999999: 0.90
     if value < RATE_GATE:
         return [_flag(f"low_{name.lower()}", f"{name} is {_fmt(value)} (below {RATE_GATE:.2f}): "
                                              "not trustworthy as a gate.")]
@@ -214,6 +215,8 @@ def _verdict(headline: dict, nf: dict, pb: dict | None, n_runs: int, n_invalid: 
     flags += extra
 
     numbers = (f"TPR {_fmt(tpr)}, TNR {_fmt(tnr)}, kappa {_fmt(kappa)} against human labels.")
+    # compared with the cut-offs rounded to 9 decimals: 0.8999999999999999 is 0.90
+    tpr, tnr, kappa = (None if x is None else round(x, 9) for x in (tpr, tnr, kappa))
     rates_known = tpr is not None and tnr is not None
     if (kappa is None or kappa < KAPPA_GATE or not rates_known
             or min(tpr, tnr) < RATE_GATE):
