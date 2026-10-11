@@ -52,6 +52,10 @@ REFERENCE = "https://www.judgekeeper.com/reference.html#bring-your-own-judge"
 WRAP = ("To ask your judge again yourself, wrap it as a command: judgekeeper start --ask-again "
         f"--judge-command '...' (see {REFERENCE}).")
 EXACT, CLOSE, CANT, OWN = "exact", "close", "cant", "own"
+CHANGED = ("Your judge changed since your marks ({change}): this asks the judge in your newest "
+           "results, not the one you checked.")
+CHANGED_AFTER = ("Before is the judge you checked; now is the judge in your newest results: two "
+                 "different judges.")
 
 
 @dataclass
@@ -72,6 +76,7 @@ class Plan:
     why: str  # one sentence, no final full stop
     short: str = ""  # a few words, for the menu, when the judge can't be asked again
     plain: str = ""  # instead of "Your judge can't be asked again: <why>.", a whole sentence
+    changed: str = ""  # what changed in the judge since the marks, when it asks another one
     model: str | None = None
     provider: str | None = None
     key_lines: list[str] = field(default_factory=list)
@@ -437,9 +442,12 @@ def plan_lines(p: Plan, title: str = "Ask your judge again") -> list[str]:
     if p.status == CANT:
         said = p.plain or f"Your judge can't be asked again: {p.why}."
         return lines + [f"  {said}", f"  {WRAP}"]
-    lines.append({EXACT: f"  This is exactly your judge: {p.why}.",
-                  CLOSE: f"  This is a close copy of your judge: {p.why}.",
-                  OWN: f"  This is your own judge command. {p.why}."}[p.status])
+    if p.changed:  # never "exactly your judge" when it is not the judge that was checked
+        lines.append(f"  {CHANGED.format(change=p.changed)}")
+    else:
+        lines.append({EXACT: f"  This is exactly your judge: {p.why}.",
+                      CLOSE: f"  This is a close copy of your judge: {p.why}.",
+                      OWN: f"  This is your own judge command. {p.why}."}[p.status])
     lines += [f"  {x}" for x in (*p.key_lines, *p.notes)]
     lines += ["", f"  {calls_line(p)}"]
     lines.append(f"  {p.cost_text or prices.cost_line(p.model, p.provider, p.tokens * p.times)}")

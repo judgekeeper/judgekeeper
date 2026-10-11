@@ -121,7 +121,7 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
     if then == "fix":
         return start_fix.run(ws, talk, port, open_browser, test_pass_mark, rule_file)
     if then == "ask":
-        return _ask_again(ws, talk, again_options)
+        return _ask_again(ws, talk, again_options, _newest_judge(path, ws, talk, options))
     if ws is not None and new:
         move_to_previous(ws, talk.say)
     elif ws is not None and ws.start.is_file():
@@ -133,6 +133,24 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
         return _again(ws, found, talk, port, open_browser, then, again_options)
     found = start.find_judge(path, talk=talk, **options)
     return start.label_found(talk, found, port, open_browser)
+
+
+def _newest_judge(path: Path, ws: Workspace, talk, options: dict):
+    """A new_judge.NewJudge when the newest results hold a changed version of the checked
+    judge (the same tool and name), found without a word or a question; else None."""
+    from judgekeeper import new_judge, start
+
+    data = ws.data()
+    quiet = type(talk)(yes=True, quiet=True, flags=talk.flags, path=talk.path)
+    try:
+        found = start.find_judge(path, talk=quiet, prefer=data["metric"],
+                                 store=data.get("mlflow_store"), **options)
+    except Exception:  # noqa: BLE001 - not found now: the saved check is asked
+        return None
+    if (found.tool, found.metric) != (data["tool"], data["metric"]):
+        return None
+    change = judge_change(data["fingerprint"], found.fingerprint)
+    return new_judge.NewJudge(found, change) if change else None
 
 
 # Judges that run in the user's own code: asking them again needs --judge-command.
@@ -207,14 +225,21 @@ def _saved_verdicts(ws: Workspace) -> dict[str, str]:
 ASKED_NOTHING = "Your judge was not called; nothing was spent."
 
 
-def _ask_again(ws: Workspace, talk, again_options) -> int:
+def _ask_again(ws: Workspace, talk, again_options, new=None) -> int:
     """The plan for asking the judge again; then, after a yes (or --allow-calls), the calls
-    and the numbers."""
+    and the numbers. `new` (new_judge.NewJudge): the newest results hold another judge; when
+    they replaced the files the check was made from, it is that judge that is asked, and the
+    plan says so."""
     from judgekeeper import again
     from judgekeeper.again import fresh
 
     options = again_options or again.AgainOptions()
     plan = again.make_plan(ws, options, talk=talk, dry=True)
+    if new is not None and plan.status != again.CANT and set(new.found.used) & set(
+            ws.data().get("results_files") or []):
+        plan.judge, plan.changed = new.found.judge, new.change
+        plan.notes.append(f"To compare it with your marks: {talk.command('--try-new-judge')}. "
+                          f"To check it from now on: {talk.command('--new')}.")
     talk.say()
     for line in again.plan_lines(plan):
         talk.say(line)
@@ -338,7 +363,7 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
     if then == "fix":
         return start_fix.run(ws, talk, port, open_browser)
     if then == "ask":
-        return _ask_again(ws, talk, again_options)
+        return _ask_again(ws, talk, again_options, new)
     if then == "label":
         return _serve(ws, talk, port, open_browser)
     return 0

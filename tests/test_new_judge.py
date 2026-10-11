@@ -457,3 +457,24 @@ def test_the_view_shows_the_newest_results(fake):
     assert data["metric"] == "tone" and data["results_files"] == ["results.json"]
     assert data["fingerprint"] == found.fingerprint and view.root == fake.root
     assert Workspace(fake.root).data()["metric"] == "llm-rubric"  # the saved check is untouched
+
+
+def test_asking_again_after_the_rule_changed_names_the_judge_it_asks(fake, capsys):
+    # promptfoo -o results.json wrote the new rule over the results the check was made from:
+    # asking again asks that new judge, so it must never be called "exactly your judge"
+    _new_run(fake.root, same=36)
+    code, out, _ = run(capsys, fake.root, "--ask-again", "--allow-calls", 72)
+    assert code == 0, out
+    assert ("Your judge changed since your marks (the prompt changed): this asks the judge in "
+            "your newest results, not the one you checked.") in out
+    assert "This is exactly your judge" not in out
+    assert NEW_RUBRIC[:20] in out.split("Your judge:", 1)[1].splitlines()[0]
+    assert "--try-new-judge" in out and "--new" in out
+    assert ("Before is the judge you checked; now is the judge in your newest results: two "
+            "different judges.") in out
+
+
+def test_asking_again_the_unchanged_judge_says_nothing_of_a_change(fake, capsys):
+    code, out, _ = run(capsys, fake.root, "--ask-again", "--allow-calls", 72)
+    assert code == 0 and "This is exactly your judge" in out
+    assert "changed since your marks" not in out and "two different judges" not in out

@@ -214,6 +214,10 @@ def finish(ws, plan, fresh: Fresh, talk) -> dict:
     talk.say()
     for line in again_lines(block):
         talk.say(line)
+    if getattr(plan, "changed", ""):
+        from judgekeeper.again import CHANGED_AFTER
+
+        talk.say(CHANGED_AFTER)
     talk.say(f"Saved in {block['folder']}/. Your first marks and your result stay as they "
              "were.")
     return block
