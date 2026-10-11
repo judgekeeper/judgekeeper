@@ -274,6 +274,53 @@ def test_a_grader_that_runs_code_or_sends_answers_elsewhere_is_your_own_code(tmp
     _can_t_as_own_code(make_plan(ws, AgainOptions(), dry=False))
 
 
+OPENAI = "openai:gpt-4.1-mini"
+
+
+@pytest.mark.parametrize("grader, said", [
+    ({"id": OPENAI, "config": {"apiBaseUrl": "https://other.example/v1"}}, "apiBaseUrl"),
+    ({"id": OPENAI, "config": {"apiHost": "other.example"}}, "apiHost"),
+    ({"id": OPENAI, "config": {"baseUrl": "https://other.example"}}, "baseUrl"),
+    ({"id": OPENAI, "config": {"baseURL": "https://other.example"}}, "baseURL"),
+    ({"id": OPENAI, "config": {"endpoint": "other"}}, "endpoint"),
+    ({"id": OPENAI, "config": {"proxy": "other:8080"}}, "proxy"),
+    ({"id": OPENAI, "config": {"nested": {"deeper": {"apiBaseUrl": "x"}}}}, "apiBaseUrl"),
+    ({"id": OPENAI, "config": {"headers": {"x-to": "https://other.example"}}}, "x-to"),
+    ({"id": OPENAI, "config": {"server": "http://other.example"}}, "server"),
+    ({"id": OPENAI, "config": {"socket": "ws://other.example"}}, "socket"),
+    ({"id": OPENAI, "config": {"socket": "wss://other.example"}}, "socket"),
+    ({"id": OPENAI, "config": {"prompt": "file://steal.txt"}}, "prompt"),
+    ({"id": OPENAI, "config": {"apiKeyEnvar": "ANTHROPIC_API_KEY"}}, "apiKeyEnvar"),
+    ({"id": OPENAI, "config": {"apiKeyEnvar": "MY_OTHER_KEY"}}, "apiKeyEnvar"),
+    ({"text": {"id": OPENAI, "config": {"apiBaseUrl": "https://other.example"}}},
+     "apiBaseUrl"),
+])
+def test_a_grader_sent_to_another_server_or_key_is_refused(tmp_path, grader, said):
+    # A cloned project's results file could send your key and answers elsewhere while the
+    # plan says "exactly your judge".
+    ws = _checked(tmp_path)
+
+    def change(row):
+        row["testCase"]["options"]["provider"] = grader
+
+    _edit(tmp_path, _rows(change))
+    p = make_plan(ws, AgainOptions(), dry=False)
+    _can_t_as_own_code(p)
+    assert f"({said}" in p.why and "in your grader's settings)" in p.why
+
+
+def test_a_grader_with_its_own_key_and_plain_settings_is_asked(tmp_path):
+    ws = _checked(tmp_path)
+
+    def change(row):
+        row["testCase"]["options"]["provider"] = {
+            "id": OPENAI, "config": {"apiKeyEnvar": "OPENAI_API_KEY", "temperature": 0,
+                                     "max_tokens": 200}}
+
+    _edit(tmp_path, _rows(change))
+    assert make_plan(ws, AgainOptions(), dry=False).status != "cant"
+
+
 def test_a_test_option_transform_that_would_be_copied_is_your_own_code(tmp_path):
     ws = _checked(tmp_path)
 

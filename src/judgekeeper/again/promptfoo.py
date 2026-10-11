@@ -69,6 +69,10 @@ PROMPT_TYPES = {"factuality", "model-graded-factuality", "model-graded-closedqa"
 TEMPLATE_MARKS = ("{{", "{%", "{#")
 CODE_PREFIXES = ("exec:", "python:", "file://", "golang:", "ruby:", "javascript:")
 URL_PREFIXES = ("http://", "https://", "ws://", "wss://", "webhook:")
+# In a grader's settings: a key that points it at another server (apiBaseUrl, apiHost,
+# baseURL, endpoint, proxy...) or a value that is an address or a file
+ADDRESS_KEY = re.compile(r"url|host|base|endpoint|proxy", re.IGNORECASE)
+ADDRESS_VALUES = ("http://", "https://", "ws://", "wss://", "file://")
 VERSION = re.compile(r"\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?")
 CONFIG = ".judgekeeper-regrade.promptfoo.json"
 TESTS = ".judgekeeper-regrade.tests.json"
@@ -137,13 +141,65 @@ def _transforms(value) -> bool:
     return False
 
 
+def _elsewhere(value) -> str | None:
+    """The first key at any depth of a grader's settings that sends it to another server: a
+    key naming an address, or a value that is an address or a file. None when there is none.
+    The grader's own id is checked by _grader_code."""
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if ADDRESS_KEY.search(str(k)) or (
+                    isinstance(v, str) and v.strip().lower().startswith(ADDRESS_VALUES)):
+                return str(k)
+            found = _elsewhere(v) if isinstance(v, dict | list) else None
+            if found:
+                return found
+    elif isinstance(value, list):
+        for v in value:
+            if isinstance(v, str) and v.strip().lower().startswith(ADDRESS_VALUES):
+                return "a list"
+            found = _elsewhere(v) if isinstance(v, dict | list) else None
+            if found:
+                return found
+    return None
+
+
+def _graders(value):
+    """Each provider setting in a grader: the grader, and every dict in it with an "id"."""
+    if isinstance(value, dict):
+        if "id" in value:
+            yield value
+        for v in value.values():
+            if isinstance(v, dict | list):
+                yield from _graders(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _graders(v)
+
+
+def _other_key(grader: dict) -> str | None:
+    """apiKeyEnvar when it names a variable that is not the provider's own key."""
+    name = (grader.get("config") or {}).get("apiKeyEnvar") if isinstance(
+        grader.get("config"), dict) else None
+    if name is None:
+        return None
+    provider = keys.PROVIDERS.get(keys.provider_of(_grader_id(grader)) or "")
+    own = {n for alt in provider.keys for n in alt} if provider else set()
+    return None if name in own else f"apiKeyEnvar {name}"
+
+
 def _grader_code(grader) -> str | None:
-    """What in a grader runs the user's code or sends the answers elsewhere, or None."""
+    """What in a grader runs the user's code or sends the answers or the key elsewhere, or
+    None. A results file comes with a project someone else may have written: a grader that
+    reads another key or talks to another server is not your judge as you know it."""
     for i in _ids(grader):
         if _code([i]) or i.strip().lower().startswith(URL_PREFIXES):
             return i
     if _transforms(grader):
         return "a transform in your grader's settings"
+    for g in _graders(grader):
+        found = _elsewhere({k: v for k, v in g.items() if k != "id"}) or _other_key(g)
+        if found:
+            return f"{found} in your grader's settings"
     return None
 
 
