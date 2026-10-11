@@ -103,9 +103,11 @@ def _project(path: Path) -> Path:
 
 
 def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: bool,
-        then: str | None = None, again_options=None, test_pass_mark: bool = False) -> int:
+        then: str | None = None, again_options=None, test_pass_mark: bool = False,
+        rule_file: str | None = None) -> int:
     """`then` answers the menu after a result: "review", "fix", "ask", "try" or "label".
-    `test_pass_mark` (with "fix") tests the pass mark in the terminal."""
+    `test_pass_mark` (with "fix") tests the pass mark in the terminal; `rule_file` (with
+    "fix") saves the new rule in that file."""
     from judgekeeper import start, start_fix, start_review
 
     ws = Workspace(_project(path)) if path.exists() else None
@@ -117,7 +119,7 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
     if then == "review":
         return start_review.run(ws, talk, port, open_browser)
     if then == "fix":
-        return start_fix.run(ws, talk, port, open_browser, test_pass_mark)
+        return start_fix.run(ws, talk, port, open_browser, test_pass_mark, rule_file)
     if then == "ask":
         return _ask_again(ws, talk, again_options)
     if ws is not None and new:

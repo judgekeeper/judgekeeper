@@ -253,7 +253,6 @@ def test_a_provider_suffix_is_built_with_that_providers_class(tmp_path, stubs, m
 @pytest.mark.parametrize("saved, words", [
     ("my-deployment (Azure)", ("an Azure judge needs its endpoint and deployment as well as "
                                "its name")),
-    ("llama3 (Ollama)", "an Ollama judge needs more than its name"),
     ("my-model (Local Model)", "a Local Model judge needs more than its name"),
     ("anthropic.claude-3-5-sonnet-20240620-v1:0", "this judge needs more than its name"),
 ])
@@ -265,6 +264,35 @@ def test_a_judge_that_needs_more_than_a_name_stops(tmp_path, stubs, monkeypatch,
     assert p.why == (f"your DeepEval settings pick gpt-5.4 now, but your saved verdicts came "
                      f"from {saved}; {words}, so judgekeeper can't build it again")
     assert stubs("model") == [] and len(stubs("construct")) == 1
+
+
+def test_a_deepeval_judge_on_ollama_is_said_plainly(tmp_path, stubs, monkeypatch):
+    ws = _deepeval_model(tmp_path, "llama3.2:3b (Ollama)", monkeypatch)
+    p = make_plan(ws, PY)
+    assert p.status == "cant"
+    lines = plan_lines(p)
+    assert "  A DeepEval judge on Ollama can't be asked again yet." in lines
+    assert any("--judge-command" in x for x in lines)
+    assert not any("Your judge can't be asked again" in x for x in lines)
+    assert stubs("model") == []
+
+
+def test_a_deepeval_judge_on_ollama_never_shows_the_openai_error(tmp_path, stubs,
+                                                                 monkeypatch):
+    ws = _deepeval_model(tmp_path, "llama3.2:3b (Ollama)", monkeypatch)
+    monkeypatch.setattr(again, "run_worker", lambda *a, **k: {
+        "ok": False, "error": "OpenAI API key is not configured"})
+    lines = plan_lines(make_plan(ws, PY))
+    assert "  A DeepEval judge on Ollama can't be asked again yet." in lines
+    assert not any("OpenAI" in x for x in lines)
+
+
+def test_a_deepeval_judge_on_ollama_its_settings_pick_is_asked(tmp_path, stubs, monkeypatch):
+    ws = _deepeval_model(tmp_path, "llama3.2:3b (Ollama)", monkeypatch,
+                         picks="llama3.2:3b (Ollama)")
+    p = make_plan(ws, PY)
+    assert p.status == "close" and p.key_lines == ["Your judge runs on Ollama; it needs no key."]
+    assert "  Free: it runs on your computer." in plan_lines(p)
 
 
 @pytest.mark.parametrize("saved, spec", [

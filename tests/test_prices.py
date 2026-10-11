@@ -71,6 +71,18 @@ def test_the_menu_words_for_a_cost():
     assert cost_words(plan) == "about $0.46 to $2.30"
 
 
+def test_a_judge_on_ollama_is_free():
+    from judgekeeper.again import Plan, cost_words
+
+    for model, provider in (("ollama:chat:llama3.2:3b", None), ("ollama/llama3.2:3b", None),
+                            ("llama3.2:3b (Ollama)", "ollama")):
+        assert prices.cost_line(model, provider, [(1500, 200)]) == (
+            "Free: it runs on your computer.")
+        plan = Plan(tool="promptfoo", judge="j", status="exact", why="w", model=model,
+                    provider=provider, calls_each=[1], tokens=[(1500, 200)], times=1)
+        assert cost_words(plan) == "free"
+
+
 def test_an_unknown_model_has_no_cost():
     assert prices.estimate("my-own-model", [(1500, 200)]) is None
     assert prices.cost_line("my-own-model", None, [(1500, 200)]) == (

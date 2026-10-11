@@ -296,10 +296,12 @@ def test_the_guide_says_what_comes_after_the_first_result():
         assert needed in section, needed
 
 
-def test_the_skill_never_spends_for_the_person():
+def test_the_skill_spends_only_after_the_persons_yes():
     text = " ".join(SKILL.read_text(encoding="utf-8").split())
-    for needed in ("Run `--review` only with them", "Never answer a spending question",
-                   "`--allow-calls`", "`--try-new-judge`",
+    for needed in ("Run `--review` only with them",
+                   "Never run the eval or a judge call without the person's yes in this chat",
+                   "`--allow-calls N` only with the exact N judgekeeper printed",
+                   "`judgekeeper start --try-new-judge`",
                    "the person answers `Go ahead? [y/N]` themselves",
                    "into the project's own environment, never for the whole computer"):
         assert needed in text, needed

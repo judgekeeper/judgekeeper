@@ -858,7 +858,7 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
     server = make_server(session, port, result=result_maker(ws, say, made),
                          page=page_template(ws.data()),
                          switches={"/review": start_review.switch(ws, say, reviewed),
-                                   "/fix": start_fix.switch(ws, say)})
+                                   "/fix": start_fix.switch(ws, say, command)})
     say_opened(server.url, open_browser, say, command)
     try:
         server.serve()

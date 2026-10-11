@@ -67,6 +67,7 @@ class Plan:
     status: str  # EXACT, CLOSE, CANT or OWN
     why: str  # one sentence, no final full stop
     short: str = ""  # a few words, for the menu, when the judge can't be asked again
+    plain: str = ""  # instead of "Your judge can't be asked again: <why>.", a whole sentence
     model: str | None = None
     provider: str | None = None
     key_lines: list[str] = field(default_factory=list)
@@ -273,6 +274,10 @@ def calls_line(p: Plan) -> str:
 
 
 def cost_words(p: Plan) -> str:
+    from judgekeeper.keys import provider_of
+
+    if provider_of(p.model, p.provider) == "ollama":
+        return "free"
     if p.cost is None:
         return "cost unknown"
     return prices.amount(*p.cost)
@@ -282,7 +287,8 @@ def plan_lines(p: Plan, title: str = "Ask your judge again") -> list[str]:
     """The plan as the terminal shows it."""
     lines = [title, "", f"  Your judge: {p.judge}"]
     if p.status == CANT:
-        return lines + [f"  Your judge can't be asked again: {p.why}.", f"  {WRAP}"]
+        said = p.plain or f"Your judge can't be asked again: {p.why}."
+        return lines + [f"  {said}", f"  {WRAP}"]
     lines.append({EXACT: f"  This is exactly your judge: {p.why}.",
                   CLOSE: f"  This is a close copy of your judge: {p.why}.",
                   OWN: f"  This is your own judge command. {p.why}."}[p.status])

@@ -18,7 +18,9 @@ DeepEval's telemetry off and without CONFIDENT_API_KEY or DEEPEVAL_RESULTS_FOLDE
   "(Grok)", "(KIMI)") with that provider's model class. It is used only when DeepEval then
   reports exactly the saved name. A judge that needs more than a name (Azure, a local or
   Ollama server, a gateway, an AWS Bedrock id) stops the plan, as does a name DeepEval builds
-  as another model.
+  as another model. A judge on Ollama ("llama3.2:3b (Ollama)") works only when DeepEval's own
+  settings pick it; otherwise the plan says so plainly (OLLAMA), never the error DeepEval
+  gives for the model its settings pick instead.
 - Built-in metrics: always a close copy (options the file does not save; prompts that change
   between DeepEval versions).
 - Can't: DAG metrics, custom metric classes, conversational metrics, no `evaluationModel`;
@@ -82,6 +84,7 @@ BY_NAME = {"Anthropic": "AnthropicModel", "Gemini": "GeminiModel", "Deepseek": "
            "Grok": "GrokModel", "KIMI": "KimiModel"}
 _BEDROCK = re.compile(r"[a-z][a-z0-9-]*\.[a-z]")  # "anthropic.claude-...", "us.amazon.nova-..."
 NOT_CONFIRMED = "which fields your judge reads was not confirmed"
+OLLAMA = "A DeepEval judge on Ollama can't be asked again yet."
 WORKER_ENV = {"DEEPEVAL_TELEMETRY_OPT_OUT": "1"}
 WORKER_DROP = ("CONFIDENT_API_KEY", "DEEPEVAL_RESULTS_FOLDER")
 _RUBRIC = re.compile(r"(\d+)(?:-(\d+))?: (.*)\Z")
@@ -189,6 +192,17 @@ def by_name(model: str) -> tuple[dict | None, str]:
     if "/" in model or ":" in model or _BEDROCK.match(model):
         return None, "this judge needs more than its name"
     return {"name": model}, ""
+
+
+def _on_ollama(model: str) -> bool:
+    m = SUFFIX.search(str(model))
+    return bool(m) and m[1].strip().lower() == "ollama"
+
+
+def _ollama_cant(judge: str) -> Plan:
+    plan = cant("deepeval", judge, OLLAMA.rstrip("."), short="a judge on Ollama, not yet")
+    plan.plain = OLLAMA
+    return plan
 
 
 def metric_job(md: dict, fields, model: dict | None = None) -> dict:
@@ -346,6 +360,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 return cant("deepeval", judge, f"DeepEval is not installed in {python}. Use "
                             "--python to point at the Python you run your evals with",
                             short="DeepEval is not installed here")
+            if _on_ollama(model):
+                return _ollama_cant(judge)
             return cant("deepeval", judge, f"DeepEval could not build your judge in {python}: "
                         f"{out.get('error')}", short="DeepEval could not build your judge")
         version = out["version"]
@@ -353,6 +369,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         if turned:
             return cant("deepeval", judge, turned, short="your saved scores point the other way")
         picked = out["evaluation_model"]
+        if picked != model and _on_ollama(model):
+            return _ollama_cant(judge)
         if picked != model:
             head = (f"your DeepEval settings pick {picked} now, but your saved verdicts came "
                     f"from {model}")
