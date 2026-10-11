@@ -35,7 +35,7 @@ judgekeeper check results.csv --judge verdict --human label
 
 ## What you get
 
-First a plain sentence: of the answers people passed, how many the judge passed, and of the answers people failed, how many it failed. Then whether the judge is usable as a gate, with every warning, and a report you can open in a browser. A report from a real judge on a public dataset: [LLMBar judged by Claude Haiku 4.5](https://www.judgekeeper.com/examples/llmbar-haiku/report.html).
+First a plain sentence: of the answers people passed, how many the judge passed, and of the answers people failed, how many it failed. Then whether the judge is usable as a gate, with every warning, and a report you can open in a browser. A report from a real judge on a public dataset: [LLMBar judged by Claude Haiku 4.5](https://www.judgekeeper.com/examples/llmbar-haiku/report.html). The numbers are estimates from the answers you marked: how often your judge agreed with you on those answers, not a promise about the next ones.
 
 ## Numbers
 
@@ -64,4 +64,4 @@ This project is maintained by one person and does not accept pull requests. Bug 
 
 ## License
 
-MIT.
+MIT, for the code. The name judgekeeper and the logo are not covered: see [TRADEMARKS.md](https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md).

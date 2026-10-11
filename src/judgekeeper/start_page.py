@@ -2,41 +2,13 @@
 the result page.
 
 Each is one self-contained page: no fonts, scripts or images from anywhere else. The heading
-font (Bricolage Grotesque, 600 and 800, under the SIL Open Font License) is embedded as
-base64 from this package's `fonts/` folder; body text is the computer's own font. The look is
-navy only, made for a laptop or desktop screen (nothing is promised below 1024 px wide); a
-thin see-through bar at the top, cards on a dark blue background, Pass in green and Fail in
-coral at the same size and weight, so neither looks like the default.
+font (Bricolage Grotesque, under the SIL Open Font License) is embedded as base64 from this
+package's `fonts/` folder. Text reaches the pages through textContent. The labeling page and
+the first step of the review hold nothing the judge said; the fix page holds only the answers
+judgekeeper used, never those set aside.
 
-The labeling page shows one answer at a time as a short chat (the question on the left, your
-app's answer on the right) on a card of one fixed height, with Fail and Pass buttons under
-it. A card can be dragged: past 28% of its width, or with a quick flick, it flies off and the
-mark is saved; released early, it springs back. Keys and buttons mark at once with no card
-animation. A row of dots at the top holds the person's own marks; clicking a dot opens that
-answer again. The first time in a browser, a card explains the task. The page never holds
-anything the judge said: the page data is only ids, text and the person's own marks, set
-through textContent.
-
-The person reads "mark", "Pass" and "Fail" on every page, never "label", "Correct", "Wrong"
-or "verdict" (tests scan the pages' text for those); the saved files keep their names.
-
-The review page has the same look. Step A ("Look again") shows answers one at a time with
-Fail, Not sure and Pass in a side panel, and nothing the judge said and no first mark; step B
-("See what your judge said") shows each disagreement with both marks and the judge's decision
-and reason, with Your judge was wrong, I was wrong and The rule is unclear; after the first or
-the last, an optional one-line box asks why. Text goes through textContent.
-
-The fix page ("What your judge gets wrong") shows the judge's mistakes in two lists that open
-to the full answer and the judge's reason, the patterns in them, the answers whose rule is
-unclear, and in a side panel that stays in view the rule change, the judge's rule today and,
-for a judge that gives a score, the pass mark that fits best with a button that tests it. Its
-data holds only the answers judgekeeper used, never those kept aside.
-
-The result page is static HTML that runs no script and loads nothing, so the copy saved as
-`.judgekeeper/result.html` opens with no server. Its reveal (two rings that draw, two numbers
-that count up, cards that fade in, range bars that stretch) is CSS alone, plays once per page
-load and ends within a second; with reduced motion on, the final state shows at once. Every
-string in it is escaped.
+The result page runs no script and loads nothing, so the copy saved as
+`.judgekeeper/result.html` opens with no server. Every string in it is escaped.
 """
 
 from __future__ import annotations

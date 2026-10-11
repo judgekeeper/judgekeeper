@@ -27,7 +27,7 @@ with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, option
   Read as saved, with an in-memory mark (records.Mark) for `start`'s judge check.
 - A sample whose grader call failed (an HTTP 400, say) has `samples[].error` (a
   ModelGenerateError) and no scores, while the app's answer is fine. `import` reads no record
-  for it, as before; with `with_errors` (what `start` uses) it gives one record per scorer of
+  for it; with `with_errors` (what `start` uses) it gives one record per scorer of
   the eval, with no verdict, the error as its explanation and an "error" mark.
 - A human edit (`edit_score`, log/_score.py) appends to `history`: the first entry is the
   original score (no provenance), later ones carry `provenance.author`. The original value is
