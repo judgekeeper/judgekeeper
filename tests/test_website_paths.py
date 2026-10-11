@@ -108,8 +108,18 @@ def test_the_older_pages_link_back_to_the_guide():
 @pytest.mark.parametrize("page", ["index.html", "assistant.html"])
 def test_no_jargon_outside_quoted_output(page):
     """TPR, TNR and kappa appear on these pages only inside a <pre>: what a program printed,
-    or the prompt, which is shown word for word."""
-    assert not JARGON.search(_text_outside(_main(page), {"pre"})), page
+    or the prompt, which is shown word for word. The one exception is kappa in the home page's
+    real check, which says what kappa is in the same paragraph."""
+    main = _main(page)
+    check = [el for el in main.iter() if el.attrs.get("id") == "check"]
+    for section in check:
+        section.parent.children.remove(section)
+    assert not JARGON.search(_text_outside(main, {"pre"})), page
+    for section in check:
+        text = " ".join(_text_outside(section, set()).split())
+        assert re.findall(r"\b(TPR|TNR)\b", text) == []
+        assert "Kappa is how well it agrees with people once lucky guesses are taken away; " \
+            "1 is perfect." in text
 
 
 def test_the_guide_explains_each_term_in_one_line_where_the_result_is():
@@ -214,6 +224,21 @@ def test_the_guide_installs_inside_the_project():
     refused = next(v for k, v in help_box.items() if REFUSED in k)
     assert "not switched on" in refused
     assert "https://www.python.org/downloads/" in _hrefs(step)
+
+
+def test_making_the_environment_is_shown_outside_the_fold_and_linux_has_its_own_help():
+    step = _by_id("start.html", "install")
+    shown = " ".join(_flat(el) for el in step.iter() if el.tag == "p"
+                     and not any(a.tag == "details" for a in el.ancestors()))
+    for needed in (*CHECK.values(), *MAKE_VENV.values(), "No .venv yet?"):
+        assert needed in shown, needed
+    whole = " ".join(f"{k} {v}" for k, v in _help("install").items())
+    assert "On Linux, get Python 3.11 or newer from your package manager" in whole
+    assert "ensurepip is not available" in whole and "python3.12-venv" in whole
+    guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
+    for needed in ("on Linux, get Python 3.11 or newer from your package manager",
+                   "ensurepip is not available", "python3.12-venv"):
+        assert needed in guide, needed
 
 
 def test_the_home_page_install_has_two_tabs_and_the_python_line():
@@ -512,3 +537,29 @@ def test_the_tutorial_is_described_by_what_it_covers_not_as_every_command():
     for text in (tutorial[:tutorial.index('<h2 id="setup">')], line):
         assert not re.search(r"every (judgekeeper )?command", text, flags=re.IGNORECASE), text[:80]
     assert "main commands" in line and "main judgekeeper commands" in tutorial
+
+
+# The Docs page: one list of every page, and the places on GitHub the site does not show
+
+def test_the_docs_page_links_every_page_and_the_places_on_github():
+    hrefs = _hrefs(_main("docs.html"))
+    for page in pages():
+        if page.name not in {"docs.html", "index.html"}:
+            assert page.name in hrefs, page.name
+    blob = "https://github.com/judgekeeper/judgekeeper/blob/main/"
+    for tool in ("promptfoo", "deepeval", "inspect", "mlflow", "langfuse"):
+        assert f"{blob}docs/integrations/{tool}.md" in hrefs, tool
+        assert (ROOT / "docs" / "integrations" / f"{tool}.md").is_file(), tool
+    for needed in (f"{blob}CHANGELOG.md", f"{blob}SECURITY.md",
+                   f"{blob}skills/judgekeeper/SKILL.md", "https://pypi.org/project/judgekeeper/",
+                   "https://github.com/judgekeeper/judgekeeper/issues/new/choose",
+                   "https://github.com/judgekeeper/judgekeeper/security/advisories/new"):
+        assert needed in hrefs, needed
+    for path in ("CHANGELOG.md", "SECURITY.md", "skills/judgekeeper/SKILL.md"):
+        assert (ROOT / path).is_file(), path
+
+
+def test_the_docs_page_names_the_version_of_the_package():
+    version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "version"]
+    assert f"These docs are for judgekeeper {version}." in _flat(_main("docs.html"))

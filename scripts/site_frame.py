@@ -15,9 +15,10 @@ from pathlib import Path
 
 WEBSITE = Path(__file__).resolve().parent.parent / "website"
 GITHUB = "https://github.com/judgekeeper/judgekeeper"
-NAV = [("index.html", "Home"), ("start.html", "Guide"), ("reference.html", "Reference"),
-       (GITHUB, "GitHub")]
-START_HERE = [("start.html", "Guide"), ("reference.html", "Reference"), (GITHUB, "GitHub")]
+NAV = [("index.html", "Home"), ("start.html", "Guide"), ("docs.html", "Docs"),
+       ("reference.html", "Reference"), (GITHUB, "GitHub")]
+START_HERE = [("start.html", "Guide"), ("docs.html", "Docs"), ("reference.html", "Reference"),
+              (GITHUB, "GitHub")]
 MORE = [("own-metric.html", "No judge yet? Your own metric"),
         ("assistant.html", "With a coding assistant"),
         ("setup.html", "Setup and API keys"),

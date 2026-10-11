@@ -52,7 +52,7 @@ SOURCE_ATTRS = ("data-report", "data-const", "data-exit", "data-tutorial", "data
 
 
 def test_site_has_its_pages():
-    for name in ("index.html", "start.html", "assistant.html", "learn.html",
+    for name in ("index.html", "start.html", "docs.html", "assistant.html", "learn.html",
                  "setup.html", "tutorial.html", "own-metric.html", "reference.html", "llms.txt",
                  "assets/style.css", "assets/site.js", "assets/theme.js", "assets/metrics.js",
                  "assets/logo.svg", "assets/social-preview.png"):
@@ -147,6 +147,8 @@ def _lookup(data, path: str, sep: str = "."):
 
 def render(value, fmt: str) -> str:
     """How a number is written on the site."""
+    if fmt == "str":  # a name such as the version
+        return str(value)
     if fmt == "2f":
         return f"{value:.2f}"
     if fmt == "1f":
@@ -226,7 +228,8 @@ def test_exit_codes_match_the_code():
 
 
 NUMBER = re.compile(r"\d+\.\d+|\d+(?:\.\d+)?\s?%")
-NAMES = ("Claude Haiku 4.5", "Python 3.11 to 3.14", "Python 3.11")  # names, not measurements
+NAMES = ("Claude Haiku 4.5", "Python 3.11 to 3.14", "Python 3.11", "Python 3.10",
+         "Ubuntu 22.04")  # names, not measurements
 EXEMPT_TAGS = {"pre", "code", "script", "style", "svg"}
 
 
@@ -382,6 +385,22 @@ def test_the_reference_page_is_current(tmp_path):
     assert rendered == page, "run: python scripts/render_reference.py"
 
 
+def test_the_converter_formats_links_and_bold_that_hold_code():
+    spec = importlib.util.spec_from_file_location(
+        "render_reference", ROOT / "scripts" / "render_reference.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.inline("**`a.toml` first.** See [`b`](own-metric.md#x) and `[c](d)`.") == (
+        '<strong><code>a.toml</code> first.</strong> See '
+        '<a href="own-metric.html#x"><code>b</code></a> and <code>[c](d)</code>.')
+    # pages on the site stay on the site; other docs and example folders open on GitHub
+    assert module.link("reference.md#y") == "reference.html#y"
+    assert module.link("assistant.md") == "assistant.html"
+    assert module.link("integrations/mlflow.md").startswith("https://github.com/")
+    assert module.link("examples/own-metric/").endswith("/tree/main/docs/examples/own-metric/")
+    assert module.link("examples/own-metric/items.csv") == "examples/own-metric/items.csv"
+
+
 def test_the_reference_converter_is_small():
     lines = (ROOT / "scripts/render_reference.py").read_text(encoding="utf-8").splitlines()
     assert len(lines) <= 150
@@ -399,7 +418,7 @@ SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url",
               "twitter:title", "twitter:description", "twitter:image"]
 SHARE_ALT = ("judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, "
              "in one command.")
-EIGHT_PAGES = {"index.html", "start.html", "assistant.html", "learn.html",
+NINE_PAGES = {"index.html", "start.html", "docs.html", "assistant.html", "learn.html",
               "reference.html", "setup.html", "tutorial.html", "own-metric.html"}
 
 
@@ -422,7 +441,7 @@ def _png_size(path: Path) -> tuple[int, int]:
 
 
 def test_every_page_has_the_share_preview_tags():
-    assert {p.relative_to(WEBSITE).as_posix() for p in pages()} == EIGHT_PAGES
+    assert {p.relative_to(WEBSITE).as_posix() for p in pages()} == NINE_PAGES
     for page in pages():
         name = page.relative_to(WEBSITE).as_posix()
         title, description, share = _head(page)

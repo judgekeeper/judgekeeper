@@ -2,16 +2,19 @@
 
 # judgekeeper
 
+<p><a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/v/judgekeeper" alt="PyPI version"></a> <a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/pyversions/judgekeeper" alt="Python 3.11 to 3.14"></a> <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests on main"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/judgekeeper/judgekeeper" alt="MIT license"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"><img src="https://img.shields.io/pypi/status/judgekeeper" alt="Status: alpha"></a><br><a href="https://www.judgekeeper.com/">Website</a> · <a href="https://www.judgekeeper.com/start.html">Guide</a> · <a href="https://www.judgekeeper.com/docs.html">Docs</a> · <a href="https://www.judgekeeper.com/learn.html">How it works</a> · <a href="https://www.judgekeeper.com/reference.html">Reference</a> · <a href="https://pypi.org/project/judgekeeper/">PyPI</a></p>
+
 **Check your LLM-as-a-judge.**
 
 See how often it agrees with human labels, in one command.
 
 An LLM-as-a-judge is an AI model that grades the answers of another AI model. Teams use one because reading every answer by hand is slow.
 
+<p align="center"><img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/readme-label.png" width="720" alt="The marking page: a question, your app's answer, and equal Fail and Pass buttons. What your judge decided stays hidden."></p>
+
 ## Install
 
 You need Python 3.11 or newer.
-
 ```
 source .venv/bin/activate
 pip install judgekeeper
@@ -21,7 +24,6 @@ judgekeeper --version
 Run these in your project folder: judgekeeper is a tool for developers, like pytest, and goes inside your project's own Python environment. On Windows the first line is `.venv\Scripts\activate`. No `.venv` yet? Run `python3 -m venv .venv` first. With uv or Poetry: `uv add --dev judgekeeper` or `poetry add --group dev judgekeeper`, then `uv run judgekeeper start` or `poetry run judgekeeper start`. More help: [Install](https://www.judgekeeper.com/start.html#install).
 
 ## Use it on your own judge
-
 ```
 cd your-project
 judgekeeper start
@@ -30,7 +32,6 @@ judgekeeper start
 It reads the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV with input, output and verdict columns), opens a page where you mark answers Pass or Fail without seeing what the judge said, and shows how often your judge agrees with you. Then it can review the disagreements with you, have your coding agent fix your judge's rule, ask your judge again, or try your new judge on the answers you already marked. No AI calls unless you say yes. Then your own judge runs through your own tool; judgekeeper never sees your key, it only checks its name. It never runs your app. No judge yet, or want your own rule? See [Your own metric](https://www.judgekeeper.com/own-metric.html).
 
 Already have a table with one row per answer, the judge's verdict and your own label?
-
 ```
 judgekeeper check results.csv --judge verdict --human label
 ```
@@ -45,7 +46,7 @@ First a plain sentence: of the answers people passed, how many the judge passed,
 - **One of those checks:** GPT-4 as the judge on MT-Bench, 50 labels: TPR 0.82 (range 0.71 to 0.91), and the value from all 1,814 human labels is 0.85; TNR 0.49 (range 0.36 to 0.65), and from all labels 0.56.
 - **In simulation too:** the ranges held the true value at least 93.6 times in 100 in every tested case, and 96.2 on average. [Coverage check](https://www.judgekeeper.com/examples/coverage/coverage.md)
 - **A real judge, checked:** Claude Haiku 4.5 on LLMBar, 419 items: TPR 0.95, TNR 0.88, kappa (agreement after taking away lucky guesses) 0.83. [Report](https://www.judgekeeper.com/examples/llmbar-haiku/report.html)
-- Tested on Python 3.11 to 3.14 on Linux, and on Windows. [![CI](https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml)
+- Tested on Python 3.11 to 3.14 on Linux, and on Windows. [Test runs](https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml)
 
 ## When you need more
 

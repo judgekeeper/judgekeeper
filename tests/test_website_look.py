@@ -73,7 +73,7 @@ def test_every_page_carries_the_frame_site_frame_writes():
         assert frame.footer() in text, f"{page.name}: run python scripts/site_frame.py"
 
 
-def test_the_navigation_is_home_guide_reference_github_and_the_theme_switch():
+def test_the_navigation_is_home_guide_docs_reference_github_and_the_theme_switch():
     for page in pages():
         (header,) = _all(parse(page), "header", "site-header")
         (nav,) = _all(header, "nav", "site-nav")
@@ -93,7 +93,7 @@ def test_every_page_has_the_footer_with_start_here_and_more():
         more = [(a.attrs["href"], a.text()) for a in _all(columns["More"], "a")]
         assert more == MORE, page.name
         assert [a.text() for a in _all(columns["Start here"], "a")] == [
-            "Guide", "Reference", "GitHub"]
+            "Guide", "Docs", "Reference", "GitHub"]
 
 
 def test_more_names_every_page_outside_the_navigation():
@@ -288,14 +288,28 @@ def test_the_hero_has_its_two_buttons_and_the_demo():
         assert words in js, words
 
 
-def test_the_home_page_is_hero_how_route_install_and_what_you_get():
+def test_the_home_page_is_hero_check_how_route_install_and_what_you_get():
     main = next(el for el in _els(HOME) if el.tag == "main")
     ids = [el.attrs.get("id") for el in main.children
            if isinstance(el, Element) and el.tag == "section"]
-    assert ids == [None, "how", "look", "route", "install", "get"]
+    assert ids == [None, "check", "how", "look", "route", "install", "get"]
     roles = [h.text() for h in _all(_by_id(HOME, "how"), "h3")]
     assert roles == ["Your app answers", "Your judge grades it", "You check your judge"]
     assert "not a promise about the next ones" in _flat(_by_id(HOME, "get"))
+
+
+def test_the_real_check_under_the_hero_takes_every_number_from_the_report():
+    """The numbers themselves are compared with the report by tests/test_website.py."""
+    check = _by_id(HOME, "check")
+    numbers = [el.attrs["data-report"] for el in check.iter() if "data-report" in el.attrs]
+    for path in ("headline.kappa_mean", "slices[Natural].kappa_mean",
+                 "slices[Adversarial/GPTOut].kappa_mean", "anchors.n_items"):
+        assert path in numbers, path
+    flat = _flat(check)
+    assert "A judge that looks fine on average can be weak where it matters." in flat
+    assert "LLMBar by Princeton NLP, MIT license." in flat
+    hrefs = [a.attrs["href"] for a in _all(check, "a")]
+    assert "examples/llmbar-haiku/report.html" in hrefs
 
 
 def _shot(figure: Element) -> tuple[str, str]:
@@ -545,7 +559,7 @@ def test_the_tutorial_is_the_advanced_commands():
     assert h1.text() == "Advanced commands, step by step"
 
 
-ORDER = ["index.html", "start.html", "reference.html", "own-metric.html", "assistant.html",
+ORDER = ["index.html", "start.html", "docs.html", "reference.html", "own-metric.html", "assistant.html",
          "setup.html", "learn.html", "tutorial.html"]
 
 

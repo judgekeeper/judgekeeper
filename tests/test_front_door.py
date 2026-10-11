@@ -92,7 +92,8 @@ def test_the_readme_leads_with_the_message_and_the_supporting_line():
     assert lines[0].startswith('<p align="center"><img '), "the logo comes first"
     lines = [line for line in lines[1:] if line.strip()]
     assert lines[0] == "# judgekeeper"
-    first, second, third = [line for line in lines[1:] if line.strip()][:3]
+    assert lines[1].startswith("<p><a href=") and "img.shields.io" in lines[1], "badges next"
+    first, second, third = lines[2:5]
     assert first == f"**{MESSAGE}**"
     assert second == SUPPORT
     assert third == EXPLAINS
@@ -276,11 +277,29 @@ BADGE = BADGE_LINK + "/badge.svg"
 
 
 def test_the_readme_shows_the_ci_badge_and_where_it_is_tested():
+    text = README.read_text(encoding="utf-8")
+    top = text[:text.index("## Install")]
+    assert f'<a href="{BADGE_LINK}"><img src="{BADGE}?branch=main"' in top
     numbers = _sections(README)["Numbers"]
-    assert f"[![CI]({BADGE})]({BADGE_LINK})" in numbers
-    assert "Tested on Python 3.11 to 3.14 on Linux, and on Windows." in numbers
+    assert ("Tested on Python 3.11 to 3.14 on Linux, and on Windows. "
+            f"[Test runs]({BADGE_LINK})") in numbers
     assert (ROOT / ".github" / "workflows" / "ci.yml").is_file()
     assert (ROOT / ".github" / "workflows" / "windows.yml").is_file()
+
+
+def test_every_html_link_and_picture_in_the_readme_is_https_and_from_a_known_place():
+    """PyPI shows this README too: badges and pictures need full https addresses."""
+    text = README.read_text(encoding="utf-8")
+    targets = re.findall(r'(?:src|href)="([^"]+)"', text)
+    assert len(targets) >= 10
+    raw = "https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/"
+    for target in targets:
+        assert target.startswith(("https://www.judgekeeper.com/",
+                                  "https://github.com/judgekeeper/judgekeeper/", raw,
+                                  "https://img.shields.io/",
+                                  "https://pypi.org/project/judgekeeper/")), target
+        if target.startswith(raw):
+            assert (ROOT / target.removeprefix(raw)).is_file(), target
 
 
 def test_every_github_link_in_the_readme_is_a_file_in_the_repository():

@@ -58,25 +58,31 @@ def slug(text: str) -> str:
 
 
 def link(url: str) -> str:
+    if url.startswith("examples/") and url.endswith(("/", ".md")):  # GitHub shows these best
+        return DOCS_URL.replace("/blob/", "/tree/" if url.endswith("/") else "/blob/") + url
     if url.startswith(("#", "http://", "https://", "examples/")):
         return url  # examples/ is served next to the page (website/examples -> docs/examples)
+    stem, _, anchor = url.partition("#")
+    if stem.removesuffix(".md") in PAGES:  # a page that is on the site: stay on the site
+        return PAGES[stem.removesuffix(".md")][0] + (f"#{anchor}" if anchor else "")
     return DOCS_URL + url  # another file in docs/: link to it on GitHub
 
 
 def inline(text: str) -> str:
-    """Escape, then format everything outside `code` spans."""
-    out = []
-    for i, part in enumerate(re.split(r"(`[^`]*`)", text)):
-        if i % 2:
-            out.append(f"<code>{html.escape(part[1:-1])}</code>")
-            continue
-        part = html.escape(part, quote=False)
-        part = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", part)
-        part = re.sub(r"(?<![\w*])\*(?!\s)([^*]+?)(?<!\s)\*(?![\w*])", r"<em>\1</em>", part)
-        part = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)",
-                      lambda m: f'<a href="{html.escape(link(m[2]))}">{m[1]}</a>', part)
-        out.append(part)
-    return "".join(out)
+    """Escape and format the text. `code` spans are set aside first, so bold text and links
+    may hold code, and nothing inside code is formatted."""
+    codes: list[str] = []
+
+    def keep(m: re.Match) -> str:
+        codes.append(m[1])
+        return f"\0{len(codes) - 1}\0"
+
+    text = html.escape(re.sub(r"`([^`]*)`", keep, text), quote=False)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"(?<![\w*])\*(?!\s)([^*]+?)(?<!\s)\*(?![\w*])", r"<em>\1</em>", text)
+    text = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)",
+                  lambda m: f'<a href="{html.escape(link(m[2]))}">{m[1]}</a>', text)
+    return re.sub(r"\0(\d+)\0", lambda m: f"<code>{html.escape(codes[int(m[1])])}</code>", text)
 
 
 def render(markdown: str) -> str:
