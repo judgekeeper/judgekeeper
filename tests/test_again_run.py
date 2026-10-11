@@ -27,7 +27,7 @@ from judgekeeper.start_label import StartSession, save_result
 from judgekeeper.textio import quote_arg
 from tests import keyboard
 from tests.conftest import FIXTURES
-from tests.start_projects import promptfoo_project, split, table_project
+from tests.start_projects import project_promptfoo, promptfoo_project, split, table_project
 
 CONFIG = ".judgekeeper-regrade.promptfoo.json"
 TESTS = ".judgekeeper-regrade.tests.json"
@@ -136,9 +136,7 @@ def fake(monkeypatch, tmp_path):
     promptfoo, and a fake behind the one process function."""
     ws = _checked(tmp_path)
     _edit(tmp_path, _version)
-    binary = tmp_path / "node_modules" / ".bin" / "promptfoo"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("", encoding="utf-8")
+    project_promptfoo(tmp_path)
     fp = FakePromptfoo(ws)
     monkeypatch.setattr(again, "run_process", fp)
     monkeypatch.setattr(again, "which", lambda name: None)
@@ -201,8 +199,7 @@ def test_the_command_has_every_flag_and_setting_and_never_grader(fake, capsys):
     run(capsys, ws.root, "--ask-again", "--allow-calls", "72")
     (call,) = [c for c in fake.calls if "eval" in c.argv]
     argv = call.argv
-    assert argv[:4] == [str(ws.root / "node_modules" / ".bin" / "promptfoo"), "eval", "-c",
-                        CONFIG]
+    assert argv[:4] == [again.node_bin(ws.root, "promptfoo"), "eval", "-c", CONFIG]
     for flag in ("--no-cache", "--no-write", "--no-share", "--no-table", "--no-progress-bar"):
         assert flag in argv, flag
     assert argv[argv.index("--repeat") + 1] == "2"

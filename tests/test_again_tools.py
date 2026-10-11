@@ -539,6 +539,13 @@ def test_mlflow_judges(info, worker, status, words):
     assert got_status == status and words in why
 
 
+def test_without_the_worker_a_make_judge_is_not_refused():
+    # the menu's quick plan starts no worker: an unknown MLflow version is not "before 3.14"
+    assert mf.classify(_info(name="tone", instructions=True), {})[0] == "close"
+    assert mf.classify(_info(name="tone", instructions=True), {"version": "3.17.0"})[0] == (
+        "close")
+
+
 def test_the_mlflow_worker_dry_run(tmp_path, stubs, monkeypatch):
     monkeypatch.setenv("STUB_REGISTERED", "tone")
     out = again.run_worker("mlflow", sys.executable,

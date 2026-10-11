@@ -336,6 +336,20 @@ def test_the_review_page_has_the_task_left_and_the_panel_right():
     assert "Back to your result" in page and ".vs { display: grid; grid-template-columns: 1fr 1fr;" in page
 
 
+def test_a_key_pressed_while_the_next_answer_comes_is_kept():
+    # After Enter in the why box the box keeps the focus until the next answer is on
+    # screen: a choice key pressed then waits and counts for that answer.
+    page = start_page.review_page("support bot", "Be helpful.")
+    keys = page.split('document.addEventListener("keydown"')[-1].split("});")[0]
+    assert "if (moving) {" in keys and "queued = k;" in keys
+    assert keys.index("if (moving)") < keys.index('e.target === $("whybox")')
+    assert "if (moving) { return; }\n    moving = true;" in page  # goOn: Enter twice is once
+    assert "pos = i; render(); arrived(); return;" in page
+    arrived = page.split("function arrived() {")[1].split("}\n")[0]
+    assert "moving = false; queued = null;" in arrived
+    assert "function stay() { moving = false; queued = null; render(); }" in page
+
+
 def test_the_fix_page_has_the_lists_left_and_a_panel_that_stays_in_view_right():
     page = start_page.fix_page("support bot")
     left, right = page.split('<main class="body split fix">')[1].split('<div class="col stick">')

@@ -153,8 +153,7 @@ def _config(root: Path) -> Path | None:
 
 def _installed(root: Path) -> tuple[str, str] | None:
     """(command, version) of the project's promptfoo, else promptfoo on the PATH."""
-    local = root / "node_modules" / ".bin" / "promptfoo"
-    for command in ([str(local)] if local.exists() else []) + [again.which("promptfoo")]:
+    for command in (again.node_bin(root, "promptfoo"), again.which("promptfoo")):
         if not command:
             continue
         proc = again.run_process([command, "--version"], cwd=root, timeout=60)

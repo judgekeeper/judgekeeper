@@ -1072,6 +1072,9 @@ REVIEW_BODY = """<div class="app">
   var step = data.step, items = data.items, pos = data.start, busy = false, history = [];
   var FIELD = step === "a" ? "second" : "choice";
   var WHY = ["judge_wrong", "rule_unclear"], lastSummary = null;  // the choices that ask why
+  // After Enter in the why box, the next answer is on its way (moving): a key pressed then
+  // waits (queued) and counts for that answer once it is on screen.
+  var moving = false, queued = null;
   var $ = function (id) { return document.getElementById(id); };
   function setText(id, text) { $(id).textContent = text == null ? "" : String(text); }
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
@@ -1146,10 +1149,20 @@ __RULE_FOLD__
   function next() {
     for (var n = 1; n <= items.length; n++) {
       var i = (pos + n) % items.length;
-      if (!items[i][FIELD]) { pos = i; render(); return; }
+      if (!items[i][FIELD]) { pos = i; render(); arrived(); return; }
     }
     window.location.reload();
   }
+
+  // The next answer is on screen: a key pressed on the way counts for it now.
+  function arrived() {
+    var k = queued;
+    moving = false; queued = null;
+    if (k !== null) { byKey(k); }
+  }
+
+  // A failed save stays on this answer: a key pressed on the way is dropped.
+  function stay() { moving = false; queued = null; render(); }
 
   function post(change, then) {
     fetch(url("/label"), {
@@ -1158,14 +1171,14 @@ __RULE_FOLD__
     }).then(function (r) {
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
-      if (!res.ok) { setText("status", "Not saved: " + res.body.error); render(); return; }
+      if (!res.ok) { setText("status", "Not saved: " + res.body.error); stay(); return; }
       setText("status", "");
       lastSummary = res.body.summary;
       then(res.body.summary);
     }).catch(function () {
       setText("status", "Not saved: this page lost its link to judgekeeper. Is it still " +
         "running in your terminal? Your earlier clicks are saved.");
-      render();
+      stay();
     });
   }
 
@@ -1201,7 +1214,11 @@ __RULE_FOLD__
     post({id: it.id, why: text || null}, function () { it.why = text || null; then(); });
   }
 
-  function goOn() { saveWhy(function () { after(lastSummary); }); }
+  function goOn() {
+    if (moving) { return; }
+    moving = true;
+    saveWhy(function () { after(lastSummary); });
+  }
 
   function undo() {
     if (!history.length) { setText("status", "Nothing to undo."); return; }
@@ -1224,14 +1241,25 @@ __RULE_FOLD__
   // step B's: 1, 2, 3 in the order shown.
   var KEYS_A = {arrowleft: "fail", n: "unsure", arrowright: "pass", "1": "pass", "2": "fail",
                 "3": "unsure"};
-  document.addEventListener("keydown", function (e) {
-    if (e.ctrlKey || e.metaKey || e.altKey || e.target === $("whybox")) { return; }
-    var k = e.key.toLowerCase();
+  function isKey(k) {
+    return step === "a" && !!KEYS_A[k] || step === "b" && (k === "1" || k === "2" || k === "3")
+      || k === "u";
+  }
+  function byKey(k) {
     if (step === "a" && KEYS_A[k]) { choose(KEYS_A[k]); }
     else if (step === "b" && (k === "1" || k === "2" || k === "3")) {
       choose(buttons[+k - 1].getAttribute("data-value")); }
     else if (k === "u") { undo(); }
-    else { return; }
+  }
+  document.addEventListener("keydown", function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) { return; }
+    var k = e.key.toLowerCase();
+    if (moving) {  // also from the why box, which keeps the focus until the answer changes
+      if (isKey(k)) { queued = k; e.preventDefault(); }
+      return;
+    }
+    if (e.target === $("whybox") || !isKey(k)) { return; }
+    byKey(k);
     e.preventDefault();
   });
 
@@ -1378,7 +1406,7 @@ FIX_BODY = """<div class="app">
         <button class="btn" id="rc-copy" type="button">Copy</button>
       </div>
       <div id="rc-paste" hidden>
-        <label class="cap" for="rc-new">Paste the new rule here</label>
+        <label class="cap" for="rc-new" id="rc-new-label">Paste the new rule here</label>
         <textarea id="rc-new" spellcheck="false"
           placeholder="Paste the whole reply. judgekeeper takes the rule from between NEW RULE START and NEW RULE END."></textarea>
         <button class="btn green" id="rc-save" type="button">Save the new rule</button>
@@ -1562,7 +1590,7 @@ FIX_BODY = """<div class="app">
     } else { done(false); }
   }
 
-  var how = "pasted";
+  var how = "pasted", PASTE_LABEL = "Paste the new rule here";
   function renderRule() {
     var rc = data.rule_change;
     $("rc").hidden = !rc;
@@ -1607,7 +1635,6 @@ FIX_BODY = """<div class="app">
       $("rc-loop-box").hidden = false;
       $("rc-prompt").hidden = true;
       $("rc-paste").hidden = true;
-      copy(res.body.prompt, $("rc-loop-copy"));
     }).catch(function () { button.disabled = false; $("rc-status").textContent = LOST; });
   });
   $("rc-loop-copy").addEventListener("click", function () {
@@ -1625,6 +1652,7 @@ FIX_BODY = """<div class="app">
       $("rc-prompt").hidden = false;
       how = "pasted";
       $("rc-paste").hidden = false;
+      $("rc-new-label").textContent = PASTE_LABEL;
       $("rc-new").value = "";
       copy(res.body.prompt, $("rc-copy"));
     }).catch(function () { button.disabled = false; $("rc-status").textContent = LOST; });
@@ -1637,6 +1665,7 @@ FIX_BODY = """<div class="app">
     $("rc-loop-box").hidden = true;
     $("rc-prompt").hidden = true;
     $("rc-paste").hidden = false;
+    $("rc-new-label").textContent = "Change the rule here, or paste a new one";
     $("rc-new").value = data.rule_change.rule;
     $("rc-new").focus();
   });

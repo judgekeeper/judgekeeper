@@ -34,8 +34,7 @@ ANOTHER = ("That was your last promptfoo run, from another project. Find yours w
 
 
 def _promptfoo(root: Path) -> str | None:
-    local = root / "node_modules" / ".bin" / "promptfoo"
-    return str(local) if local.exists() else again.which("promptfoo")
+    return again.node_bin(root, "promptfoo") or again.which("promptfoo")
 
 
 def _prompts(config: dict) -> list[str]:

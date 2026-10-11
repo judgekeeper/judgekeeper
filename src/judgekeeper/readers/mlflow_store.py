@@ -38,7 +38,10 @@ or `expectation`, `rationale`, `metadata`, `overrides`, `valid`.
   judgekeeper's output while it reads (`quiet`).
 - Fingerprint: model from `source.source_id` (`openai:/gpt-4.1-mini` gives provider
   `openai`); `mlflow.assessment.scorerName`/`scorerVersion` metadata as the rubric version.
-  The judge's prompt is not saved with the assessment, and scorer tracing is off by default,
+  A `make_judge` (MLflow 3.14 and later) saves its instructions in the assessment's metadata
+  (`guideline`, or `instructions`): they are the judge's rule (`evaluator.rule`), so they are
+  hashed into the prompt hash and a changed rule is a new judge (judge_instructions). Other
+  judges' prompts are not saved with the assessment, and scorer tracing is off by default,
   so there is usually no trace of the judge's own call either: prompt unknown.
 """
 
@@ -376,6 +379,22 @@ def _value(feedback: dict) -> tuple:
     return None, None, None  # dict, list or None: no single verdict
 
 
+def judge_instructions(meta: dict) -> str | None:
+    """A make_judge's instructions in an assessment's metadata, or None. MLflow 3.16 saves
+    them as `guideline` (mlflow/genai/judges/instructions_judge, so its UI shows them), some
+    versions as `instructions`. A Guidelines judge's guideline is saved there too: a
+    make_judge's instructions always hold a template part such as {{ outputs }}."""
+    instructions = meta.get("instructions")
+    if instructions is None:
+        guideline = meta.get("guideline") if meta.get("guideline") is not None else meta.get(
+            "guidelines")
+        if isinstance(guideline, str) and "{{" in guideline:
+            instructions = guideline
+    if isinstance(instructions, str) and instructions.strip():
+        return instructions.strip()
+    return None
+
+
 def _model(source_id: str | None) -> dict:
     if not source_id or source_id == "default":
         return {}
@@ -470,6 +489,9 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
             if wanted and run not in wanted:
                 continue
             evaluator = _model(source.get("source_id"))
+            instructions = judge_instructions(meta)
+            if instructions:
+                evaluator["rule"] = instructions
             if meta.get(SCORER_NAME) or meta.get(SCORER_VERSION):
                 evaluator["version"] = "@".join(
                     str(x) for x in (meta.get(SCORER_NAME), meta.get(SCORER_VERSION)) if x)
@@ -525,8 +547,9 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     if NO_RUN in judged:
         humans.notes.append("Some judge assessments carry no MLflow run id (logged outside "
                             "mlflow.genai.evaluate): they form one run, listed last.")
-    humans.notes.append("MLflow does not save the judge's prompt with its assessments: prompt "
-                        "hash unknown.")
+    if not any(r.evaluator.get("rule") for recs in judged.values() for r in recs):
+        humans.notes.append("MLflow does not save the judge's prompt with its assessments: "
+                            "prompt hash unknown.")
     if left_out:
         what = "assessment" if left_out == 1 else "assessments"
         humans.notes.append(f"{left_out} span-level {what} (on one step inside a trace, not "

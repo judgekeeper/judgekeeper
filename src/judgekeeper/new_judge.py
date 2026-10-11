@@ -65,7 +65,7 @@ class View:
 
     def __init__(self, ws: Workspace, found):
         self.ws, self.found = ws, found
-        self.root, self.dir = ws.root, ws.dir
+        self.root, self.dir, self.start = ws.root, ws.dir, ws.start
 
     def data(self) -> dict:
         saved = self.ws.data()

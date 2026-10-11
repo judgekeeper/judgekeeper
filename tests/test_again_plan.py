@@ -16,7 +16,7 @@ from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, save_result
 from judgekeeper.textio import quote_arg
 from tests import keyboard
-from tests.start_projects import promptfoo_project, split, table_project
+from tests.start_projects import project_promptfoo, promptfoo_project, split, table_project
 
 
 def _quiet(line=""):
@@ -78,10 +78,8 @@ def no_processes(monkeypatch):
 
 
 def _local_promptfoo(root, procs, version="0.123.1"):
-    binary = root / "node_modules" / ".bin" / "promptfoo"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("", encoding="utf-8")
-    procs.versions[str(binary)] = version
+    binary = project_promptfoo(root)
+    procs.versions[binary] = version
     return binary
 
 
@@ -304,7 +302,7 @@ def test_a_version_that_is_not_a_version_is_never_downloaded(tmp_path, no_proces
     _local_promptfoo(tmp_path, no_processes, "0.120.0")
     no_processes.installed["npx"] = "/usr/bin/npx"
     p = make_plan(ws, AgainOptions())
-    assert not p.download and p.runner == [str(tmp_path / "node_modules" / ".bin" / "promptfoo")]
+    assert not p.download and p.runner == [again.node_bin(tmp_path, "promptfoo")]
     assert p.tool_version is None
     assert p.status == "close"
     assert "the promptfoo version in your results file can't be read" in p.why

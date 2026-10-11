@@ -117,18 +117,31 @@ def run_process(argv: list[str], cwd: Path, env: dict | None = None,
                 timeout: float | None = None):
     """The one place judgekeeper starts another program for asking again (tests replace it).
     Returns an object with returncode, stdout and stderr; a program that is not there gives
-    returncode 127."""
+    returncode 127, one that is there but cannot be started (on Windows, a file that is not a
+    program: WinError 193) 126."""
     try:
         return subprocess.run(argv, cwd=cwd, env=env, capture_output=True, encoding="utf-8",
                               errors="replace", timeout=timeout, check=False)
     except FileNotFoundError as e:
         return subprocess.CompletedProcess(argv, 127, "", str(e))
+    except OSError as e:
+        return subprocess.CompletedProcess(argv, 126, "", str(e))
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(argv, 124, "", f"timed out after {timeout:g}s")
 
 
 def which(name: str) -> str | None:
     return shutil.which(name)
+
+
+def node_bin(root: Path, name: str) -> str | None:
+    """The program `name` that npm installed in the project (node_modules/.bin), as it can be
+    started, else None. On Windows that is npm's `name.cmd` (then `name.exe`): the plain
+    `name` there is a shell script Windows cannot start (WinError 193). A `.cmd` is started
+    with its full path first in the argument list, never through a shell."""
+    folder = Path(root) / "node_modules" / ".bin"
+    names = (f"{name}.cmd", f"{name}.exe") if sys.platform == "win32" else (name,)
+    return next((str(folder / n) for n in names if (folder / n).is_file()), None)
 
 
 def user_python(root: Path, given: str | None) -> str:

@@ -44,6 +44,11 @@ COPIED = 8  # words in a row copied from an answer
 SEARCH_CHARS = 60  # of the rule, searched for in the project's files
 SOURCE = frozenset({".yaml", ".yml", ".py", ".js", ".ts", ".mjs", ".cjs", ".json", ".toml",
                     ".txt", ".md"})  # searched first, with files named like a config
+# Never searched: program output (a saved terminal, a log), not where a rule is set
+OUTPUT = frozenset({".log", ".out", ".err", ".stdout", ".stderr"})
+# A file holding these is judgekeeper's own output saved by the person: it prints the rule
+OWN_OUTPUT = ("judgekeeper found your LLM-as-a-judge", "Your result, from the",
+              "What it checks  ")
 LINE_SHOWN = 120  # characters of the matched line shown
 GRADE = "GRADE: $LETTER"  # the line Inspect's model_graded_qa reads its grade from
 
@@ -82,6 +87,7 @@ FIELDS = {
 }
 INSPECT_TEMPLATE = "`template=` in `model_graded_qa(...)`"
 OWN_CODE = "where your code keeps the rule"
+RECORD_RULE = "the rule {whose} code passes to judgekeeper.record() (rule=...)"
 NOTES = {
     "deepeval": ("If your GEval has only `criteria=`, add `evaluation_steps=` with these steps. "
                  "This also stops DeepEval writing new steps on every run."),
@@ -380,10 +386,11 @@ def _source(path: Path) -> bool:
 
 def _search_order(root: Path) -> list[Path]:
     """The project's files (start_fix._files), source-like files first, never a file that
-    is an eval tool's results: those hold the rule too, but it is not set there."""
+    is an eval tool's results or program output (OUTPUT): those hold the rule too, but it is
+    not set there."""
     from judgekeeper.start_fix import _files
 
-    files = list(_files(root))
+    files = [p for p in _files(root) if p.suffix.lower() not in OUTPUT]
     ordered = [p for p in files if _source(p)] + [p for p in files if not _source(p)]
     return [p for p in ordered if not _results_file(p)]
 
@@ -393,20 +400,29 @@ def _shown(line: str) -> str:
     return line if len(line) <= LINE_SHOWN else line[:LINE_SHOWN - 1] + "…"
 
 
+def _texts(files: list[Path]):
+    """(path, text) of each text file, never one holding judgekeeper's own output (OWN_OUTPUT):
+    a saved copy of what `start` printed holds the rule, but it is not set there."""
+    for path in files:
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        if b"\0" in data[:8192]:
+            continue
+        text = data.decode("utf-8", errors="replace")
+        if not any(mark in text for mark in OWN_OUTPUT):
+            yield path, text
+
+
 def locate_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None:
     """(file, line number, line) where the rule is probably written, or None. It only reads
     the project's text files: nothing is imported or run."""
     root = Path(root)
-    files = _search_order(root)
+    texts = list(_texts(_search_order(root)))
     for needle in _needles(rule, tool):
-        for path in files:
-            try:
-                data = path.read_bytes()
-            except OSError:
-                continue
-            if b"\0" in data[:8192]:
-                continue
-            for n, line in enumerate(data.decode("utf-8", errors="replace").splitlines(), 1):
+        for path, text in texts:
+            for n, line in enumerate(text.splitlines(), 1):
                 if needle in line:
                     return path.relative_to(root).as_posix(), n, _shown(line)
     return None
@@ -437,6 +453,11 @@ def hand_over(root: Path, data: dict, old: str, new: str, n_aside: int) -> dict:
         where = scrub(f"Probably in {found[0]}, line {found[1]}: {found[2]}")
         short = f"Probably in {file}, line {found[1]}."
         place = f"In {file} (probably line {found[1]}), replace {the}"
+    elif tool == "records":  # the rule is an argument in the person's own code
+        where = short = ("judgekeeper could not find where this rule is written. It is "
+                         f"{RECORD_RULE.format(whose='your')}. Change it there.")
+        place = (f"The judge's rule is {RECORD_RULE.format(whose='my')}. Change it there: "
+                 "replace it")
     else:
         task = safe_path(root, data.get("task_file")) if tool == "inspect" else None
         where = short = ("judgekeeper could not find where this rule is written. " + (
@@ -488,12 +509,15 @@ def tool_hint(tool: str, test_file: str | None = None, task_file: str | None = N
     return HINTS.get(tool, OWN_HINT)
 
 
-def place_words(found: tuple[str, int, str] | None) -> str:
+def place_words(found: tuple[str, int, str] | None, tool: str = "") -> str:
     """Where the rule probably is (found_rule), as the agent prompt's step 3 says it: the file
-    and line number, never the line's text."""
+    and line number, never the line's text. Not found: for judgekeeper.record(), the rule
+    the person's code passes to it."""
     from judgekeeper.textio import quote_arg
 
-    return f"probably in {quote_arg(found[0])}, line {found[1]}" if found else NOT_FOUND
+    if found:
+        return f"probably in {quote_arg(found[0])}, line {found[1]}"
+    return RECORD_RULE.format(whose="my") if tool == "records" else NOT_FOUND
 
 
 def agent_loop_prompt(command: str, folder: str, place: str, hint: str,

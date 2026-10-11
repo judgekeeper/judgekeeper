@@ -778,8 +778,8 @@ class Fix:
             results and quote_arg(self._from_here(results)))
         found = start_fix_rule.found_rule(root, self.rule, self.tool)
         return scrub(start_fix_rule.agent_loop_prompt(
-            self.command, self._from_here(FOLDER, "fix"), start_fix_rule.place_words(found),
-            hint, self.tool in ASKABLE))
+            self.command, self._from_here(FOLDER, "fix"),
+            start_fix_rule.place_words(found, self.tool), hint, self.tool in ASKABLE))
 
     def _saved_rule(self) -> dict | None:
         path = self.folder / "rule.json"

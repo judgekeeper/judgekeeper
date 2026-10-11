@@ -28,6 +28,7 @@ from tests import keyboard
 from tests.start_projects import (
     RUBRIC,
     answer,
+    project_promptfoo,
     promptfoo_data,
     promptfoo_project,
     question,
@@ -83,9 +84,7 @@ def fake(monkeypatch, tmp_path):
     """A checked promptfoo project, the project's own promptfoo, the fake behind the one
     process function, and a key set in the shell."""
     ws = _checked(tmp_path)
-    binary = tmp_path / "node_modules" / ".bin" / "promptfoo"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("", encoding="utf-8")
+    project_promptfoo(tmp_path)
     for name in keys.all_names():
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)

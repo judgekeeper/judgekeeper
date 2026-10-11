@@ -3,7 +3,8 @@
     python mlflow_worker.py job.json out.jsonl
 
 Standard library plus the user's installed MLflow. Mode "dry" writes MLflow's version, whether
-the job's judge is registered (`get_scorer`) and whether it is one of MLflow's built-in judges.
+the job's judge is registered (`get_scorer`) and whether it is one of MLflow's built-in judges
+(is_builtin).
 No judge is called and nothing is written to the store. Mode "run" gets the judge back and
 calls it directly, `judge(inputs=..., outputs=..., expectations=...)` (or `judge(trace=...)`
 for a judge that reads the whole trace), once per answer per time, and writes one line each:
@@ -31,6 +32,23 @@ def emit(path, record):
 
 def class_name(name):
     return "".join(part.capitalize() for part in str(name).split("_"))
+
+
+def is_builtin(scorers, name, instructions=None):
+    """Whether the judge `name` is one of MLflow's built-in judges: one has that name and,
+    when instructions were saved, they are its own (some built-in judges, such as Fluency,
+    save theirs too). A make_judge named like a built-in one (`correctness`) saved its own
+    instructions, so it is not."""
+    cls = getattr(scorers, class_name(name), None)
+    if not isinstance(cls, type):
+        return False
+    if not instructions:
+        return True
+    try:
+        own = cls().instructions
+    except Exception:  # noqa: BLE001 - no instructions of its own: not this judge
+        return False
+    return isinstance(own, str) and own.strip() == str(instructions).strip()
 
 
 def plain(value):
@@ -184,7 +202,7 @@ def main(job_path, out_path):
         registered = False
     emit(out_path, {"ok": True, "version": version,
                     "registered": registered,
-                    "builtin": hasattr(scorers, class_name(job["name"]))})
+                    "builtin": is_builtin(scorers, job["name"], job.get("instructions"))})
     return 0
 
 
