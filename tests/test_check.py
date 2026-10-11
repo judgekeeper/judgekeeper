@@ -225,3 +225,19 @@ def test_check_reads_column_names_typed_in_a_spreadsheet(tmp_path):
     assert r["headline"] == check_table(plain, out=tmp_path / "out2")["headline"]
     named = check_table(path, judge="Verdict", human="Label", out=tmp_path / "out3")
     assert named["headline"] == r["headline"]  # a column named as typed still works
+
+
+def test_a_link_in_the_output_folder_is_replaced_not_written_through(tmp_path):
+    outside = tmp_path / "outside.html"
+    outside.write_text("not judgekeeper's", encoding="utf-8")
+    out = tmp_path / "out"
+    out.mkdir()
+    try:
+        (out / "report.html").symlink_to(outside)
+        (out / "report.json").symlink_to(outside)
+    except OSError:
+        pytest.skip("this system does not let a test make links")
+    check_table(CSV, out=out)
+    assert outside.read_text(encoding="utf-8") == "not judgekeeper's"
+    assert not (out / "report.html").is_symlink() and not (out / "report.json").is_symlink()
+    assert (out / "report.json").read_text(encoding="utf-8").startswith("{")

@@ -337,9 +337,8 @@ def write_report(report: dict, out: Path) -> None:
     from judgekeeper.html_report import render_html
 
     out.mkdir(parents=True, exist_ok=True)
-    (out / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n",
-                                     encoding="utf-8")
-    (out / "report.html").write_text(render_html(report), encoding="utf-8")
+    write_replacing(out / "report.json", json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+    write_replacing(out / "report.html", render_html(report))
 
 
 TEMPLATE_COLUMNS = {SINGLE: ("id", "input", "output", "human_label", "notes"),

@@ -705,9 +705,8 @@ def cmd_validate(args) -> int:
         raise UsageError(str(e)) from None
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n",
-                                     encoding="utf-8")
-    (out / "report.html").write_text(render_html(report), encoding="utf-8")
+    write_replacing(out / "report.json", json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+    write_replacing(out / "report.html", render_html(report))
     _print_report(report, out)
     return EXIT_OK
 
@@ -868,9 +867,8 @@ def cmd_gate(args) -> int:
 
     out = Path(args.out) if args.out else Path(args.report).parent
     out.mkdir(parents=True, exist_ok=True)
-    (out / "gate.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
-                                   encoding="utf-8")
-    (out / "gate.md").write_text(render_markdown(result), encoding="utf-8")
+    write_replacing(out / "gate.json", json.dumps(result, indent=2, ensure_ascii=False) + "\n")
+    write_replacing(out / "gate.md", render_markdown(result))
     _say(f"{result['status']}: {result['reason']}")
     for w in result["warnings"]:
         _say(f"  warning: {w}")
@@ -904,7 +902,7 @@ def cmd_migrate(args) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     _write_json(out / "migration.json", migration)
-    (out / "migration.html").write_text(render_migration(migration), encoding="utf-8")
+    write_replacing(out / "migration.html", render_migration(migration))
     _say(f"{migration['status']}: {scrub(migration['verdict'])}")
     print(f"wrote {out / 'migration.json'} and {out / 'migration.html'}")
     if args.rebase:
