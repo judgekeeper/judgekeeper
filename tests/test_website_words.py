@@ -65,3 +65,13 @@ def test_the_test_finds_a_word_when_there_is_one(tmp_path):
     text = _all_text(page)
     assert re.search(r"(?<![\w-])robust(?![\w-])", text, re.IGNORECASE)
     assert "seamless" in text
+
+
+@pytest.mark.parametrize("page", [*CHECKED, WEBSITE / "errors/404.html"], ids=lambda p: p.name)
+def test_no_raw_markdown_in_what_a_page_shows(page):
+    """A link or bold text the page generator missed shows as `[text](link)` or `**text**`."""
+    hidden = {"pre", "code", "script", "style"}
+    text = " ".join(c for el in parse(page).iter()
+                    if not hidden & {el.tag, *(a.tag for a in el.ancestors())}
+                    for c in el.children if isinstance(c, str))
+    assert "](" not in text and "**" not in text, page.name

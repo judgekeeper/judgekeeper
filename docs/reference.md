@@ -196,17 +196,19 @@ For a project whose judge saves its results its own way, and to set any project 
 1. **It finds what there is.** Results `start` reads as they are (promptfoo, DeepEval, Inspect AI, MLflow, a table, `judgekeeper.record()` files): it names the tool and the judge, and saves them. Else a results file in a format of its own: a recent JSON, JSONL or CSV file whose items hold a score-like key with an input-like and an output-like key, at any depth.
 2. **It maps that file.** It lists every nested path with an example value (cut to 60 characters), such as `cases[].A.output` and `cases[].A.scores.<criterion>.score`, and says how it reads it: what one answer is (the list that holds the answers), the input, the answer, the score or verdict, the reason, the id and the judge's model, from key names (`input`, `question`, `prompt`; `output`, `answer`, `response`, `actual_output`; `score`, `verdict`, `label`, `grade`; `reason`, `explanation`) and value types. Every criterion under the scores is a judge (`judges: safe_wording, helpful`). A pass mark and a judge's model that the file states, for each answer or for the whole run (`pass_mark`, `threshold`; `judge_model`, `judge.model`), are read, and it says where they came from (`0.7 (judge.pass_mark in the file)`); a run's own pass mark is used for its answers. Otherwise scores between 0 and 1 get the pass mark 0.5.
 3. **It asks only what it cannot tell.** Several answers per item (A and B): "Count each as its own answer?" (No: which one). Several criteria: "Which judge do you want to check?" (or all, one at a time; `--metric` answers, `--metric all` for every judge). Scores outside 0 to 1, with no pass mark in the file: the pass mark. Answers with an error or a score made by a rule (a reason starting "Rule"): "Leave them out?". First, at a terminal, "Is this right?" (without a terminal only when a guess was made from value types alone). After No: "Which part is wrong?", a numbered list (what one answer is, the input, the answer, the score, the reason, the id, the judge's model, the pass mark, none of these fit); you choose that part from the file's paths, or type the pass mark, and it shows how it reads the file again. Then it shows 3 answers as it will read them.
-4. **One question for every file change:**
-   ```
-   Set up judgekeeper in this project?
-     • save judgekeeper.toml (where your judge's results are and how to read them)
-     • add .judgekeeper/ to .gitignore (your answers stay off Git)
-     • add judgekeeper to requirements-dev.txt
-   [Y/n]
-   ```
-   - `judgekeeper.toml`: a `[start]` table (below). An existing file keeps every other table and line; only `[start]` is added or replaced.
-   - `.gitignore`: only in a Git repository, and only when no `.judgekeeper` line is there. The lines are `.judgekeeper/*`, `!.judgekeeper/baseline.json` and `!.judgekeeper/migrations/`, so your answers and labels stay off Git while a [gate baseline](#gate-ci-on-the-judge) can still be committed.
-   - The requirements line goes to the first that exists: `pyproject.toml`'s `[dependency-groups] dev` or `[project.optional-dependencies] dev`, then `requirements-dev.txt`, then `requirements-dev.in`; only when judgekeeper is not listed anywhere; never into the main requirements. With none of them, the list says "judgekeeper is not listed in your project's requirements; add it so teammates get it" and changes nothing. A `pyproject.toml` list in a shape judgekeeper does not edit is left alone, with a message.
+4. **One question for every file change.** It shows:
+
+```text
+Set up judgekeeper in this project?
+  • save judgekeeper.toml (where your judge's results are and how to read them)
+  • add .judgekeeper/ to .gitignore (your answers stay off Git)
+  • add judgekeeper to requirements-dev.txt
+[Y/n]
+```
+
+- `judgekeeper.toml`: a `[start]` table (below). An existing file keeps every other table and line; only `[start]` is added or replaced.
+- `.gitignore`: only in a Git repository, and only when no `.judgekeeper` line is there. The lines are `.judgekeeper/*`, `!.judgekeeper/baseline.json` and `!.judgekeeper/migrations/`, so your answers and labels stay off Git while a [gate baseline](#gate-ci-on-the-judge) can still be committed.
+- The requirements line goes to the first that exists: `pyproject.toml`'s `[dependency-groups] dev` or `[project.optional-dependencies] dev`, then `requirements-dev.txt`, then `requirements-dev.in`; only when judgekeeper is not listed anywhere; never into the main requirements. With none of them, the list says "judgekeeper is not listed in your project's requirements; add it so teammates get it" and changes nothing. A `pyproject.toml` list in a shape judgekeeper does not edit is left alone, with a message.
 
 When a file cannot be mapped (no answers or no scores in it), or you say none of the parts fit, it prints the prompt for your coding agent that writes a table instead, and the `judgekeeper.record()` way. Nothing found at all: it says the three ways in (`setup` with a file, one [`record()` line](#record-save-your-own-judges-verdicts-with-one-line), or the coding-agent prompt). Run again, it says what `judgekeeper.toml` holds and asks before changing it (default No).
 

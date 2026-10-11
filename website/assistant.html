@@ -121,7 +121,7 @@ check by hand when nothing was saved; www.judgekeeper.com/tutorial.html shows ea
 <p><strong>You do one thing yourself: the marks.</strong> The assistant must never fill them in for you. Your marks are the only part of the check that is not a model's opinion. If a model wrote them, the check would compare one model with another and prove nothing.</p>
 <p>The assistant also stops and asks you when it needs a key. A key is the password for a paid AI service. Keep it in an environment variable, which is a setting in your own terminal. Do not paste it into the chat.</p>
 <h2 id="add-the-record-line">Add the record() line</h2>
-<p>Your judge runs in your own code and saves nothing judgekeeper reads? One <code>judgekeeper.record()</code> line, right where the judge gives each verdict, saves it (<a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#record-save-your-own-judges-verdicts-with-one-line">what the line takes</a>). judgekeeper never edits your code. Paste this prompt into your assistant and it adds the line for you:</p>
+<p>Your judge runs in your own code and saves nothing judgekeeper reads? One <code>judgekeeper.record()</code> line, right where the judge gives each verdict, saves it (<a href="reference.html#record-save-your-own-judges-verdicts-with-one-line">what the line takes</a>). judgekeeper never edits your code. Paste this prompt into your assistant and it adds the line for you:</p>
 <div class="code"><pre><code>In this project, my LLM judge runs in my own code. Please add the judgekeeper.record() line,
 so that judgekeeper can check my judge against my own labels:
 

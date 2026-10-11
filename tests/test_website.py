@@ -382,6 +382,22 @@ def test_the_reference_page_is_current(tmp_path):
     assert rendered == page, "run: python scripts/render_reference.py"
 
 
+def test_the_converter_formats_links_and_bold_that_hold_code():
+    spec = importlib.util.spec_from_file_location(
+        "render_reference", ROOT / "scripts" / "render_reference.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.inline("**`a.toml` first.** See [`b`](own-metric.md#x) and `[c](d)`.") == (
+        '<strong><code>a.toml</code> first.</strong> See '
+        '<a href="own-metric.html#x"><code>b</code></a> and <code>[c](d)</code>.')
+    # pages on the site stay on the site; other docs and example folders open on GitHub
+    assert module.link("reference.md#y") == "reference.html#y"
+    assert module.link("assistant.md") == "assistant.html"
+    assert module.link("integrations/mlflow.md").startswith("https://github.com/")
+    assert module.link("examples/own-metric/").endswith("/tree/main/docs/examples/own-metric/")
+    assert module.link("examples/own-metric/items.csv") == "examples/own-metric/items.csv"
+
+
 def test_the_reference_converter_is_small():
     lines = (ROOT / "scripts/render_reference.py").read_text(encoding="utf-8").splitlines()
     assert len(lines) <= 150
