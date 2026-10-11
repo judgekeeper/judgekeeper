@@ -222,7 +222,8 @@ def test_mlflow_store(tmp_path, capsys):
 
 def test_mlflow_without_the_extra_says_how_to_read_it(tmp_path, capsys, monkeypatch):
     monkeypatch.setitem(__import__("sys").modules, "mlflow", None)
-    (tmp_path / "mlruns").mkdir()
+    (tmp_path / "mlruns" / "0").mkdir(parents=True)
+    (tmp_path / "mlruns" / "0" / "meta.yaml").write_text("name: Default\n", encoding="utf-8")
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
     assert ('MLflow found (mlruns/). To read it, add the extra in your project\'s environment: '
@@ -569,3 +570,15 @@ def test_column_names_ignore_case_and_spaces(tmp_path, capsys, header):
     assert code == 0, out
     assert "  Eval tool       a table (results.csv)" in out
     assert "  Its decisions   32 answers: 16 passed, 16 failed" in out
+
+
+def test_an_mlruns_folder_of_artifacts_only_is_not_a_store(tmp_path):
+    # With mlflow.db, MLflow keeps logged artifacts in ./mlruns/<experiment>/<run>/artifacts
+    (tmp_path / "mlruns" / "1" / "a1b2" / "artifacts").mkdir(parents=True)
+    (tmp_path / "mlruns" / "1" / "a1b2" / "artifacts" / "notes.txt").write_text(
+        "x", encoding="utf-8")
+    (tmp_path / "mlruns" / ".trash").mkdir()  # made by reading it as a store once
+    assert not find.is_mlflow_folder(tmp_path / "mlruns")
+    assert not find.search(tmp_path).readable("mlflow")
+    (tmp_path / "mlruns" / "1" / "meta.yaml").write_text("name: qa\n", encoding="utf-8")
+    assert find.is_mlflow_folder(tmp_path / "mlruns")

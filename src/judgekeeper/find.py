@@ -168,12 +168,12 @@ def is_records(columns) -> bool:
 
 
 def is_mlflow_folder(path: Path) -> bool:
-    """Whether `path` is an MLflow folder store (`mlruns/`): named mlruns, or holding what
-    MLflow writes there (`.trash`, an experiment folder with meta.yaml)."""
+    """Whether `path` is an MLflow folder store (`mlruns/`): it holds an experiment folder
+    with meta.yaml. Its name is not enough: with an `mlflow.db` store, MLflow keeps logged
+    artifacts in `./mlruns/<experiment>/<run>/artifacts`, a folder of the same name with no
+    meta.yaml, which is not a store (and `.trash` is made by reading one)."""
     if not path.is_dir():
         return False
-    if path.name == "mlruns" or (path / ".trash").is_dir():
-        return True
     try:
         return any(d.is_dir() and d.name.isdigit() and (d / "meta.yaml").is_file()
                    for d in path.iterdir())
@@ -331,8 +331,9 @@ class _Walk:
                     if entry.name == HIDDEN_KEPT:
                         self.sign("deepeval", self.rel(sub) + "/")
                     if entry.name == "mlruns":
-                        self.add("mlflow", sub)
-                        self.sign("mlflow", self.rel(sub) + "/")
+                        if is_mlflow_folder(sub):  # else only mlflow.db's artifacts
+                            self.add("mlflow", sub)
+                            self.sign("mlflow", self.rel(sub) + "/")
                     elif _walked(entry.name) and self.depth(sub) <= MAX_DEPTH:
                         queue.append(sub)
                 elif entry.is_file(follow_symlinks=False):
