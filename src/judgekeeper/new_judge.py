@@ -36,6 +36,7 @@ from pathlib import Path
 from judgekeeper import weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.start_label import FOLDER, Workspace, say_opened
+from judgekeeper.textio import write_replacing
 
 TITLE = "Try your new judge"
 COMMAND = "--try-new-judge"
@@ -244,7 +245,7 @@ def save(ws: Workspace, block: dict) -> None:
         _write_json(target, old)
     r["new_judge"] = block
     _write_json(ws.result_json, r)
-    ws.result_html.write_text(result_html(_scrubbed(r)), encoding="utf-8")
+    write_replacing(ws.result_html, result_html(_scrubbed(r)))
 
 
 def _share(value, interval) -> str:
@@ -388,7 +389,7 @@ def finish_confirmation(ws: Workspace, cws: Workspace, session, say) -> dict:
     _write_json(ws.root / block["folder"] / "new-judge.json", block)
     save(ws, block)
     main["new_judge"] = block
-    cws.result_html.write_text(result_html(_scrubbed(main)), encoding="utf-8")
+    write_replacing(cws.result_html, result_html(_scrubbed(main)))
     say("")
     for line in confirmation_lines(confirmation):
         say(line)

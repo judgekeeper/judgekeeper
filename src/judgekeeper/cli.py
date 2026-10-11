@@ -64,7 +64,15 @@ from judgekeeper.settings import SettingsError
 from judgekeeper.start import StartError
 from judgekeeper.table import TableError
 from judgekeeper.templates import DEFAULT_OUT, ExistsError, next_steps, write_starter
-from judgekeeper.textio import describe_os_error, is_windows, lenient_streams, quote_arg, tick
+from judgekeeper.textio import (
+    decode_utf8,
+    describe_os_error,
+    is_windows,
+    lenient_streams,
+    quote_arg,
+    tick,
+    write_replacing,
+)
 
 EXIT_OK = 0
 EXIT_FAILURE = 1
@@ -429,7 +437,7 @@ def _parser() -> argparse.ArgumentParser:
     then = st.add_mutually_exclusive_group()
     then.add_argument("--new", action="store_true",
                       help="start a new check: move what is saved in .judgekeeper/ (except "
-                           "baseline.json and records/) to .judgekeeper/previous-<date>/; "
+                           ".gitignore, baseline.json and records/) to .judgekeeper/previous-<date>/; "
                            "nothing is deleted")
     then.add_argument("--review", action="store_true",
                       help="after a result: review the answers where you and your judge "
@@ -815,7 +823,8 @@ def cmd_baseline(args) -> int:
     if args.baseline_command == "set":
         load_report(args.report)
         path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(args.report, path)
+        text = decode_utf8(Path(args.report).read_bytes(), args.report, UsageError)
+        write_replacing(path, text, newline="")
         print(f"baseline set: {path} (commit it)")
         return EXIT_OK
     if not path.is_file():
@@ -876,7 +885,7 @@ def _config(args, loader, default):
 
 
 def _write_json(path: Path, data: dict) -> None:
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_replacing(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
 def cmd_migrate(args) -> int:

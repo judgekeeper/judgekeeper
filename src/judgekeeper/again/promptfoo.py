@@ -9,8 +9,14 @@ again to rebuild the judge, and says:
 - a close copy: the file records no promptfoo version, or the grader is promptfoo's default,
   which the file never records (named "probably", from the key names present);
 - can't: the grader was set with `--grader` (saved without its name), its settings hold a
-  secret promptfoo hid (`[REDACTED]`), or the judge runs the user's own code (a `file://`,
-  `exec:` or `python:` grader or rubric).
+  secret promptfoo hid (`[REDACTED]`), or the judge runs the user's own code: a `file://`,
+  `exec:` or `python:` grader or rubric, a `transform` or `contextTransform` on the
+  assertion, a `transform...` option on the test or in the grader's settings (JavaScript
+  promptfoo runs), or a grader that is a URL (`https://`, `webhook:`), which gets the answers.
+
+A version from the results file is used only when it reads as one (`1.2.3`, `1.2.3-beta.1`):
+it goes into `npx promptfoo@<version>`, so anything else (an npm alias, a git URL, shell
+characters) is said to be unreadable and never downloaded.
 
 Answers are left out, and listed, when they are empty (promptfoo would call the provider
 instead), or when a prompt-using judge type (factuality, closedqa, g-eval, answer-relevance,
@@ -32,6 +38,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 from judgekeeper import again, find, keys, prices
@@ -50,6 +57,7 @@ from judgekeeper.readers.promptfoo import (
 from judgekeeper.records import LLM, derive_record_id
 from judgekeeper.redact import scrub
 from judgekeeper.table import make_fingerprint
+from judgekeeper.textio import write_replacing
 
 CALLS = {"llm-rubric": 1, "factuality": 1, "model-graded-factuality": 1,
          "model-graded-closedqa": 1, "context-recall": 1, "context-relevance": 1,
@@ -60,6 +68,8 @@ PROMPT_TYPES = {"factuality", "model-graded-factuality", "model-graded-closedqa"
                 "context-relevance"}
 TEMPLATE_MARKS = ("{{", "{%", "{#")
 CODE_PREFIXES = ("exec:", "python:", "file://", "golang:", "ruby:", "javascript:")
+URL_PREFIXES = ("http://", "https://", "ws://", "wss://", "webhook:")
+VERSION = re.compile(r"\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?")
 CONFIG = ".judgekeeper-regrade.promptfoo.json"
 TESTS = ".judgekeeper-regrade.tests.json"
 RUN_ENV = {"PROMPTFOO_CACHE_ENABLED": "false", "PROMPTFOO_DISABLE_TELEMETRY": "1",
@@ -99,6 +109,42 @@ def _code(values) -> bool:
         elif isinstance(v, str) and ("file://" in v or v.startswith(CODE_PREFIXES)):
             return True
     return False
+
+
+def _ids(value):
+    """The provider ids in a grader: the grader itself when it is text, else every "id"."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for k, v in value.items():
+            if k == "id" and isinstance(v, str):
+                yield v
+            elif isinstance(v, dict | list):
+                yield from _ids(v)
+    elif isinstance(value, list):
+        for v in value:
+            if isinstance(v, dict):
+                yield from _ids(v)
+
+
+def _transforms(value) -> bool:
+    """Whether a key anywhere in `value` starts with "transform" (JavaScript promptfoo runs)."""
+    if isinstance(value, dict):
+        return any(str(k).lower().startswith("transform") or _transforms(v)
+                   for k, v in value.items())
+    if isinstance(value, list):
+        return any(_transforms(v) for v in value)
+    return False
+
+
+def _grader_code(grader) -> str | None:
+    """What in a grader runs the user's code or sends the answers elsewhere, or None."""
+    for i in _ids(grader):
+        if _code([i]) or i.strip().lower().startswith(URL_PREFIXES):
+            return i
+    if _transforms(grader):
+        return "a transform in your grader's settings"
+    return None
 
 
 def _config(root: Path) -> Path | None:
@@ -184,6 +230,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     metric = data["metric"]
     newest = json.loads((root / data["results_files"][0]).read_text(encoding="utf-8"))
     version = (newest.get("metadata") or {}).get("promptfooVersion")
+    unreadable = bool(version) and not (isinstance(version, str) and VERSION.fullmatch(version))
+    if unreadable:
+        version = None
     if new:
         matched, no_test = _new_rows(ws, answers, metric)
     else:
@@ -228,15 +277,19 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             return cant("promptfoo", judge,
                         "your grader's settings hold a secret written in the config, which "
                         "promptfoo hides in the results", short="your grader holds a secret")
-        if _code([_grader_id(g)]):
-            return cant("promptfoo", judge, f"your judge runs your own code ({_grader_id(g)})",
+        own = _grader_code(g)
+        if own:
+            return cant("promptfoo", judge, f"your judge runs your own code ({own})",
                         short="your judge is your own code")
     for _, _, comps, test_opts, default_test in judged:
         for c in comps:
             a = c["assertion"]
-            if _code([a.get("value"), a.get("rubricPrompt"), a.get("transform"),
-                      a.get("contextTransform"), test_opts.get("rubricPrompt"),
-                      _options(default_test).get("rubricPrompt")]):
+            if (a.get("transform") or a.get("contextTransform")
+                    or any(str(k).lower().startswith("transform") for k in test_opts
+                           if k not in DROPPED_OPTIONS)
+                    or _code([a.get("value"), a.get("rubricPrompt"),
+                              test_opts.get("rubricPrompt"),
+                              _options(default_test).get("rubricPrompt")])):
                 return cant("promptfoo", judge,
                             "your judge runs your own code (a file:// rubric or transform)",
                             short="your judge is your own code")
@@ -262,7 +315,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                      "first is named here.")
     status, why = EXACT, NEW_WHY if new else EXACT_WHY
     runner, download = [], False
-    if not version:
+    if unreadable:
+        reasons.append("the promptfoo version in your results file can't be read")
+    elif not version:
         reasons.append("promptfoo version not recorded")
     if dry:
         installed = _installed(root)
@@ -391,8 +446,8 @@ def run(ws, plan: Plan, talk) -> Fresh:
              "done.")
     files = (root / CONFIG, root / TESTS)
     try:
-        files[0].write_text(json.dumps(regrade_config(), indent=1), encoding="utf-8")
-        files[1].write_text(json.dumps(tests, indent=1, ensure_ascii=False), encoding="utf-8")
+        write_replacing(files[0], json.dumps(regrade_config(), indent=1))
+        write_replacing(files[1], json.dumps(tests, indent=1, ensure_ascii=False))
         proc = again.run_process(argv, cwd=root, env={**os.environ, **RUN_ENV})
     finally:
         for path in files:
@@ -403,7 +458,7 @@ def run(ws, plan: Plan, talk) -> Fresh:
                          + (scrub(tail[-1]) if tail else f"exit code {proc.returncode}"))
 
     text = out.read_text(encoding="utf-8")
-    out.write_text(scrub(text), encoding="utf-8")  # a key that leaked into a reason, scrubbed
+    write_replacing(out, scrub(text))  # a key that leaked into a reason, scrubbed
     new = json.loads(text)
     prompts: dict[str, list] = {}
     cached = 0

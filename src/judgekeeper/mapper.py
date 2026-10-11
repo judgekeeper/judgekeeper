@@ -31,7 +31,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import jsonl_lines, read_utf8
 
 SIDE, JUDGE = "{side}", "{judge}"
 CRITERION = "<criterion>"
@@ -138,7 +138,7 @@ def load_numbered(path: str | Path) -> list[tuple[int, object]]:
             raise MapError(f"{path.name} is not JSON ({e})") from None
         return list(enumerate(doc, 1)) if isinstance(doc, list) else [(1, doc)]
     units = []
-    for n, line in enumerate(text.splitlines(), 1):
+    for n, line in enumerate(jsonl_lines(text), 1):
         if line.strip():
             try:
                 units.append((n, json.loads(line)))

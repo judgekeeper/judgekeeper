@@ -161,7 +161,7 @@ def test_new_keeps_the_records(tmp_path, capsys):
     (tmp_path / ".judgekeeper" / "baseline.json").write_text("{}", encoding="utf-8")
     moved = start_again.move_to_previous(start_label.Workspace(tmp_path), lambda line: None)
     kept = sorted(p.name for p in (tmp_path / ".judgekeeper").iterdir())
-    assert kept == ["baseline.json", moved.name, "records"]
+    assert kept == [".gitignore", "baseline.json", moved.name, "records"]
     assert len(list((tmp_path / ".judgekeeper" / "records").glob("*.jsonl"))) == 2
     assert not (moved / "records").exists()
 

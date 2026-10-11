@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from judgekeeper import label as label_mod
+from judgekeeper import textio
 from judgekeeper.label import LabelError, LabelServer, LabelSession
 
 # A page as the caller passes it: the server fills in the nonce, the token and the data.
@@ -189,7 +190,7 @@ def test_writes_are_atomic(tmp_path, serve, monkeypatch):
         calls.append((Path(src), Path(dst)))
         raise OSError("disk full")
 
-    monkeypatch.setattr(label_mod.os, "replace", replace)
+    monkeypatch.setattr(textio.os, "replace", replace)
     status, body = client.label(id="it1", label="fail")
     assert status == 500 and "disk full" in body["error"]
     assert out.read_bytes() == before  # the old file is intact
@@ -197,7 +198,7 @@ def test_writes_are_atomic(tmp_path, serve, monkeypatch):
     assert dst == out and src.parent == out.parent and src != out
     assert sorted(p.name for p in tmp_path.iterdir()) == ["items.jsonl", "labels.csv"]
 
-    monkeypatch.setattr(label_mod.os, "replace", real_replace)
+    monkeypatch.setattr(textio.os, "replace", real_replace)
     status, _ = client.label(id="it1", label="fail")
     assert status == 200
     assert [r["human_label"] for r in _read(out)][:2] == ["pass", "fail"]

@@ -30,6 +30,7 @@ step B counts. Step B choices change no number.
 from __future__ import annotations
 
 import csv
+import io
 import json
 import random
 import secrets
@@ -51,6 +52,7 @@ from judgekeeper.start_label import (
 )
 from judgekeeper.start_page import review_page
 from judgekeeper.table import guard_cell
+from judgekeeper.textio import jsonl_lines, write_replacing
 
 MIN_AGREED = 3
 SECOND = ("pass", "fail", "unsure")
@@ -156,7 +158,7 @@ class ReviewSession:
         self.basis = basis
         self.by_id = {i["id"]: i for i in self.items}
         self.raw = {}
-        for line in ws.pool.read_text(encoding="utf-8").splitlines():
+        for line in jsonl_lines(ws.pool.read_text(encoding="utf-8")):
             if line.strip():
                 row = json.loads(line)
                 self.raw[row["id"]] = row
@@ -246,20 +248,21 @@ class ReviewSession:
         else:
             r.pop("review", None)
         _write_json(ws.result_json, r)
-        ws.result_html.write_text(result_html(_scrubbed(r)), encoding="utf-8")
+        write_replacing(ws.result_html, result_html(_scrubbed(r)))
 
     def _write_rows(self, path, choice: str) -> None:
-        with path.open("w", encoding="utf-8", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(COLUMNS)
-            for i in self.disagreements():
-                if i["choice"] != choice:
-                    continue
-                raw = self.raw.get(i["id"], {})
-                w.writerow([guard_cell(scrub(v)) for v in (
-                    i["id"], display(raw.get("input")), display(raw.get("output")), i["first"],
-                    i["second"] or "", i["judge"], self.reasons.get(i["id"], ""),
-                    i.get("why") or "")])
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(COLUMNS)
+        for i in self.disagreements():
+            if i["choice"] != choice:
+                continue
+            raw = self.raw.get(i["id"], {})
+            w.writerow([guard_cell(scrub(v)) for v in (
+                i["id"], display(raw.get("input")), display(raw.get("output")), i["first"],
+                i["second"] or "", i["judge"], self.reasons.get(i["id"], ""),
+                i.get("why") or "")])
+        write_replacing(path, buf.getvalue(), newline="")
 
     def block(self) -> dict:
         """The `review` block of result.json."""

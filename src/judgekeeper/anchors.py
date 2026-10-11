@@ -19,7 +19,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import jsonl_lines, read_utf8, write_replacing
 
 PAIRWISE = "pairwise"
 SINGLE = "single"
@@ -87,7 +87,7 @@ def load_anchors(path: str | Path) -> list[dict]:
     if not path.is_file():
         raise AnchorError(f"anchor file not found: {path}")
     items = []
-    for n, line in enumerate(read_utf8(path, AnchorError).splitlines(), 1):
+    for n, line in enumerate(jsonl_lines(read_utf8(path, AnchorError)), 1):
         if not line.strip():
             continue
         try:
@@ -128,8 +128,7 @@ def build_manifest(items: list[dict]) -> dict:
 def freeze(path: str | Path) -> dict:
     items = load_anchors(path)
     manifest = build_manifest(items)
-    manifest_path_for(path).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8",
-                                       newline="\n")
+    write_replacing(manifest_path_for(path), json.dumps(manifest, indent=2) + "\n", newline="\n")
     return manifest
 
 

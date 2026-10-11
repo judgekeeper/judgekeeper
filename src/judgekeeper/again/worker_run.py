@@ -23,6 +23,7 @@ import json
 from judgekeeper import again
 from judgekeeper.again.fresh import AgainError, Fresh, new_folder
 from judgekeeper.redact import scrub
+from judgekeeper.textio import jsonl_lines, write_replacing
 
 
 def ask(ws, plan, talk, name: str, env: dict | None = None,
@@ -40,8 +41,8 @@ def ask(ws, plan, talk, name: str, env: dict | None = None,
     lines = []
     if out.is_file():
         text = scrub(out.read_text(encoding="utf-8"))
-        out.write_text(text, encoding="utf-8")
-        lines = [json.loads(x) for x in text.splitlines() if x.strip()]
+        write_replacing(out, text)
+        lines = [json.loads(x) for x in jsonl_lines(text) if x.strip()]
     done = next((x for x in reversed(lines) if x.get("done")), None)
     if done is None:
         failed = next((x for x in reversed(lines) if "id" not in x and x.get("error")), None)

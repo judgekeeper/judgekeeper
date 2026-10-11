@@ -29,9 +29,7 @@ import csv
 import hmac
 import io
 import json
-import os
 import secrets
-import tempfile
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -51,7 +49,7 @@ from judgekeeper.table import (
     sheet_id,
     unguard_cell,
 )
-from judgekeeper.textio import describe_os_error, unwritable_file
+from judgekeeper.textio import describe_os_error, unwritable_file, write_replacing
 
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -167,15 +165,7 @@ class LabelSession:
             w.writerow([guard_cell(i["id"]), *(guard_cell(i[c]) for c in self.columns[1:-2]),
                         i["label"] or "", guard_cell(i["note"])])
         self.out.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(prefix=f".{self.out.name}.", suffix=".tmp",
-                                   dir=self.out.parent)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
-                f.write(buf.getvalue())
-            os.replace(tmp, self.out)
-        except BaseException:
-            Path(tmp).unlink(missing_ok=True)
-            raise
+        write_replacing(self.out, buf.getvalue(), newline="")
 
 def _json_for_html(data) -> str:
     """JSON that is safe inside a <script> element: no <, > or & characters at all."""

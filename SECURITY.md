@@ -24,9 +24,26 @@ back within a week.
 - `judgekeeper` has no runtime dependencies. The optional extras (`anthropic`, `openai`,
   `inspect`, `mlflow`) are the provider and platform SDKs.
 
+- `judgekeeper start` does not write through links. If `.judgekeeper/`, or anything in it,
+  is a link (a symlink, which a cloned repository can hold), it stops before writing and says
+  which. Every file there is written as a new file that replaces the old one. The first time
+  a check starts in it, the folder gets its own `.gitignore`, so your answers stay off Git.
+
 ## Things that run your own code, by design
 
 `--callable module:function` imports and calls a Python function you name, and `--exec` runs a
 command you give. Both exist so that any judge can be measured. They run with your
 permissions, like any script you run yourself, so point them only at code you trust. This is
 not a vulnerability.
+
+Asking your judge again runs your project's own Python and eval tool, from the project
+folder. Run it only in projects you trust, as you would run their tests. It happens when
+you pick "Ask your judge again" or "Try your new judge" (`--ask-again`, `--try-new-judge`),
+already while the plan is made, before the "Go ahead?" question: judgekeeper runs the
+project's `node_modules/.bin/promptfoo` (or promptfoo on your PATH) to read its version, and
+for DeepEval, Inspect AI and MLflow a small script with the project's `.venv` Python (or the
+one you name with `--python`). Those tools load the project's `.env` and config as they do
+when you run your evals. judgekeeper treats a promptfoo judge that runs code of its own (a
+`file://` or `exec:` grader or rubric, a `transform`, or a grader that is a URL) as one it
+cannot ask again, and uses a promptfoo version from a results file only when it reads as a
+plain version number.

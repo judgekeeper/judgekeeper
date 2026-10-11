@@ -59,7 +59,7 @@ from judgekeeper.table import (
     write_anchor_file,
     write_runs_and_report,
 )
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import jsonl_lines, read_utf8
 
 SCHEMA_VERSION = 2
 LLM, HUMAN, CODE = "LLM", "HUMAN", "CODE"
@@ -425,7 +425,7 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
         return rows, True
     if suffix in (".jsonl", ".ndjson", ".json"):
         rows = []
-        for n, line in enumerate(read_utf8(path, RecordsError).splitlines(), 1):
+        for n, line in enumerate(jsonl_lines(read_utf8(path, RecordsError)), 1):
             if not line.strip():
                 continue
             try:

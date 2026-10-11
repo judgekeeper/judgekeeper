@@ -61,6 +61,7 @@ from judgekeeper.start_label import (
     question_view,
     say_opened,
 )
+from judgekeeper.textio import jsonl_lines, write_replacing
 
 ASIDE_TENTHS = 3  # of each cell set aside, rounded up
 MIN_EACH = 5  # set-aside answers marked Pass, and Fail, a test needs
@@ -484,7 +485,7 @@ class Fix:
         self.tool = data.get("tool") or ""
         self.one_rule = data.get("one_rule", True)  # checks made before it was kept: one
         self.raw = {}
-        for line in ws.pool.read_text(encoding="utf-8").splitlines():
+        for line in jsonl_lines(ws.pool.read_text(encoding="utf-8")):
             if line.strip():
                 row = json.loads(line)
                 self.raw[row["id"]] = row
@@ -666,7 +667,7 @@ class Fix:
         r["fix"] = {"counts": self.counts(), "used": len(self.used_ids),
                     "aside": len(self.aside_ids), "tests": self.saved["tests"]}
         _write_json(ws.result_json, r)
-        ws.result_html.write_text(result_html(_scrubbed(r)), encoding="utf-8")
+        write_replacing(ws.result_html, result_html(_scrubbed(r)))
 
     def _old_decisions(self) -> dict[str, str]:
         """The old judge's decisions asked again, when that was done for this result: from
@@ -720,7 +721,7 @@ class Fix:
         text = scrub(start_fix_rule.build_prompt(self.rule, self.tool, mistakes(rows),
                                                  unclear(rows), agreed))
         self.folder.mkdir(exist_ok=True)
-        (self.folder / "prompt.txt").write_text(text, encoding="utf-8")
+        write_replacing(self.folder / "prompt.txt", text)
         return text
 
     def _saved_rule(self) -> dict | None:
@@ -749,7 +750,7 @@ class Fix:
         if any(c["blocking"] for c in found):
             return {"saved": False, "checks": found}
         self.folder.mkdir(exist_ok=True)
-        (self.folder / "rule.txt").write_text(new + "\n", encoding="utf-8")
+        write_replacing(self.folder / "rule.txt", new + "\n")
         hand = start_fix_rule.hand_over(self.workspace.root, self.data, self.rule, new,
                                         len(self.aside_ids))
         _write_json(self.folder / "rule.json", {

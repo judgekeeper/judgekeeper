@@ -71,6 +71,7 @@ def offer(talk, root: Path) -> str:
     """Offer to export promptfoo's last run. Returns "done" (promptfoo-results.json is now in
     the project), "stop" (said what to do instead) or "commands" (print the commands)."""
     from judgekeeper.start import _interactive
+    from judgekeeper.start_label import Workspace, make_folder
 
     if not _interactive() or not talk.confirm(QUESTION, default=True, with_yes=False,
                                               hint=QUESTION):
@@ -79,7 +80,7 @@ def offer(talk, root: Path) -> str:
     if command is None:
         talk.say("promptfoo was not found here, so judgekeeper can't run the export for you.")
         return "commands"
-    (root / ".judgekeeper").mkdir(exist_ok=True)
+    make_folder(Workspace(root))
     out = root / LATEST
     proc = again.run_process([command, "export", "eval", "latest", "-o", LATEST], cwd=root,
                              env={**os.environ, **ENV}, timeout=300)

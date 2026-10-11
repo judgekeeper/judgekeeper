@@ -39,6 +39,7 @@ from pathlib import Path
 
 from judgekeeper import prices
 from judgekeeper.redact import scrub
+from judgekeeper.textio import jsonl_lines
 
 TIMES = 2
 ALWAYS_ASK_ABOVE = 1000
@@ -172,7 +173,7 @@ def run_worker(tool: str, python: str, job: dict, cwd: Path, env: dict | None = 
     with tempfile.TemporaryDirectory(prefix="judgekeeper-") as tmp:
         out_path = Path(tmp) / "out.jsonl"
         proc = start_worker(tool, python, job, cwd, out_path, env=env, drop=drop)
-        lines = (out_path.read_text(encoding="utf-8").splitlines()
+        lines = (jsonl_lines(out_path.read_text(encoding="utf-8"))
                  if out_path.is_file() else [])
     lines = [x for x in lines if x.strip()]
     if lines:
@@ -188,7 +189,7 @@ def labeled_answers(ws) -> list[dict]:
     from judgekeeper.start_review import labeled
 
     raw = {}
-    for line in ws.pool.read_text(encoding="utf-8").splitlines():
+    for line in jsonl_lines(ws.pool.read_text(encoding="utf-8")):
         if line.strip():
             row = json.loads(line)
             raw[row["id"]] = row

@@ -26,14 +26,23 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
 - review.json, judge-mistakes.csv and rule-unclear.csv: the review of the disagreements
   (start_review.py).
 - fix.json and fix/: fixing the judge after the review (start_fix.py).
+- .gitignore: written when a first check starts in the folder, if there is none, so the
+  answers stay off Git (all but baseline.json and migrations/). Never overwritten.
 Every string from a results file is scrubbed of credentials before it is written. Nothing is
-written anywhere else, and the user's .gitignore is never touched.
+written anywhere else, and the user's own .gitignore is never touched.
+
+A cloned project controls `.judgekeeper/`. Before anything is written there, a link in it
+(or the folder itself being one) stops `start` (`refuse_links`): writing through it would
+change a file outside the project. Every file is written as a new file renamed over the old
+one (`write_replacing`), which replaces a link instead of following it.
 """
 
 from __future__ import annotations
 
 import csv
+import io
 import json
+import os
 import random
 import secrets
 import sys
@@ -52,12 +61,17 @@ from judgekeeper.report import KAPPA_GATE, RATE_CARE, RATE_GATE
 from judgekeeper.runners.base import Judgment
 from judgekeeper.start_page import label_page, result_page
 from judgekeeper.table import guard_cell, write_anchor_file
+from judgekeeper.textio import jsonl_lines, link_in, write_replacing
 
 FOLDER = ".judgekeeper"
 SKIPPED = "skipped"
 BLOCK = 10
 ROUGH = targets.ROUGH
 RELIABLE = targets.RELIABLE
+GITIGNORE = ("# judgekeeper's files hold your app's answers. Commit them only if your data "
+             "may live here.\n*\n!.gitignore\n!baseline.json\n!migrations/\n!migrations/*\n")
+LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
+        "Remove it, then run judgekeeper start again.")
 SAVED_NOTE = (f"Saved in {FOLDER}/. It holds your answers' text: commit it only if your data "
               "may live in your repo.")
 CORRECTED = "Corrected for picking half from the judge's passes and half from its fails."
@@ -106,14 +120,37 @@ class Workspace:
         return json.loads(self.start.read_text(encoding="utf-8"))
 
 
+def refuse_links(ws: Workspace) -> None:
+    """Stop (StartError) when `ws.dir`, or anything in it, is a link."""
+    from judgekeeper.start import StartError
+
+    link = link_in(ws.dir)
+    if link is not None:
+        try:
+            shown = link.relative_to(ws.root).as_posix()
+        except ValueError:
+            shown = str(link)
+        raise StartError(LINK.format(path=shown, kind="folder" if link.is_dir() else "file"))
+
+
+def make_folder(ws: Workspace) -> None:
+    """Make `ws.dir` (after `refuse_links`), with its .gitignore when a first check starts in
+    the project's own folder and it has none."""
+    refuse_links(ws)
+    ws.dir.mkdir(parents=True, exist_ok=True)
+    gitignore = ws.dir / ".gitignore"
+    if (ws.dir == ws.root / FOLDER and not ws.start.is_file()
+            and not os.path.lexists(gitignore)):
+        write_replacing(gitignore, GITIGNORE)
+
+
 def _scrubbed(value):
     """`value` with every string in it scrubbed of credentials."""
     return scrub_value(value)
 
 
 def _write_json(path: Path, data) -> None:
-    path.write_text(json.dumps(_scrubbed(data), indent=2, ensure_ascii=False) + "\n",
-                    encoding="utf-8")
+    write_replacing(path, json.dumps(_scrubbed(data), indent=2, ensure_ascii=False) + "\n")
 
 
 # The queue -------------------------------------------------------------------------------
@@ -148,15 +185,16 @@ def save_judge_check(ws: Workspace, found) -> None:
     check = found.check
     if check is None:
         return
-    ws.dir.mkdir(parents=True, exist_ok=True)
+    make_folder(ws)
     _write_json(ws.judge_check_json, check.to_json())
-    with ws.judge_check_csv.open("w", encoding="utf-8", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(judge_check.CSV_COLUMNS)
-        for x in check.findings:
-            w.writerow([guard_cell(scrub(v) or "") for v in (
-                x.id, x.problem, x.tool_counted_as or "", x.judge_decision, x.judge_reason,
-                display(x.input), display(x.output))])
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(judge_check.CSV_COLUMNS)
+    for x in check.findings:
+        w.writerow([guard_cell(scrub(v) or "") for v in (
+            x.id, x.problem, x.tool_counted_as or "", x.judge_decision, x.judge_reason,
+            display(x.input), display(x.output))])
+    write_replacing(ws.judge_check_csv, buf.getvalue(), newline="")
 
 
 def prepare(found, say, ws: Workspace | None = None) -> Workspace:
@@ -169,6 +207,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     from judgekeeper.start import StartError
 
     ws = ws or Workspace(found.root)
+    refuse_links(ws)
     answers = {a.id: a for a in found.pool.answers}
     old = ws.data() if ws.start.is_file() else None
     groups = {a.id: a.verdict for a in found.pool.answers}
@@ -181,7 +220,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         seed = secrets.randbelow(2**31)
         queue, started = build_queue(found.pool.answers, seed), None
     first = old is None
-    ws.dir.mkdir(parents=True, exist_ok=True)
+    make_folder(ws)
 
     given = found.fingerprint.get("model_source") is not None
     pool, records = [], []
@@ -192,8 +231,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         records.append(judgment_to_record(a.id, Judgment(
             verdict=a.verdict, raw_score=a.score, rationale=a.reason), fp))
     pool = _scrubbed(pool)
-    ws.pool.write_text("".join(json.dumps(p, ensure_ascii=False) + "\n" for p in pool),
-                       encoding="utf-8")
+    write_replacing(ws.pool, "".join(json.dumps(p, ensure_ascii=False) + "\n" for p in pool))
     pool_sha = canonical_hash(pool)
     source = {"kind": found.tool, "file": ", ".join(found.used), "metric": found.metric}
     write_run(ws.pool_judge, 1, pool_sha, JudgeFingerprint.from_dict(found.fingerprint),
@@ -301,7 +339,7 @@ class StartSession(LabelSession):
         self.pool = data.get("pool", {})
         self.status = status or start_status
         super().__init__(ws.pool, ws.labels)
-        raw = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()
+        raw = [json.loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
                if line.strip()]
         self.raw = {r["id"]: r for r in raw}
         for item in self.items:
@@ -764,7 +802,7 @@ def save_result(ws: Workspace, session: StartSession, say) -> dict:
             n += 1
         ws.result_json.replace(target)
     _write_json(ws.result_json, r)
-    ws.result_html.write_text(result_html(_scrubbed(r)), encoding="utf-8")
+    write_replacing(ws.result_html, result_html(_scrubbed(r)))
     say("")
     for line in result_lines(r):
         say(line)

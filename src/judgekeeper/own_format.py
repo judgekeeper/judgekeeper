@@ -21,6 +21,7 @@ from pathlib import Path
 
 from judgekeeper import find
 from judgekeeper.mapper import SCORE_WORDS, _words
+from judgekeeper.textio import jsonl_lines
 
 OWN_FORMAT_URL = "www.judgekeeper.com/start.html#own-format"
 INSTALL_URL = "www.judgekeeper.com/start.html#install"
@@ -106,7 +107,7 @@ def _sample(path: Path):
     head = find._head(path).decode("utf-8", errors="replace").removeprefix("﻿")
     if suffix == ".jsonl":
         rows = []
-        for line in head.splitlines()[:JSONL_LINES]:
+        for line in jsonl_lines(head)[:JSONL_LINES]:
             try:
                 rows.append(json.loads(line))
             except ValueError:

@@ -14,8 +14,9 @@ decides what happens.
 |                                     | and --label-more answer                                |
 | a result, and new verdicts from the | a re-check: the saved labels against the new verdicts, |
 | same tool and judge name            | with the new pool's group sizes, next to the last one  |
-| anything, with --new                | moves it all (except baseline.json and records/) to    |
-|                                     | previous-<date>/ and starts fresh; deletes nothing     |
+| anything, with --new                | moves it all (except .gitignore, baseline.json and     |
+|                                     | records/) to previous-<date>/ and starts fresh;        |
+|                                     | deletes nothing                                        |
 
 A re-check finds the labeled answers in the new results by exact input and output (and the
 agent's steps, when the results keep them), and says when the judge or the app's version
@@ -45,11 +46,13 @@ from judgekeeper.start_label import (
     compute,
     marks_words,
     prepare,
+    refuse_links,
     save_result,
 )
 
-# Not part of a check: baseline.json (set by `baseline set`) and records/ (judgekeeper.record())
-KEPT = ("baseline.json", "records")
+# Not part of a check: .gitignore, baseline.json (set by `baseline set`) and records/
+# (judgekeeper.record())
+KEPT = (".gitignore", "baseline.json", "records")
 PREVIOUS = "previous-"
 
 
@@ -106,6 +109,8 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
     from judgekeeper import start, start_fix, start_review
 
     ws = Workspace(_project(path)) if path.exists() else None
+    if ws is not None:
+        refuse_links(ws)
     has_result = ws is not None and ws.result_json.is_file() and ws.start.is_file()
     if then in BEFORE and not has_result:
         return _no_result_yet(path, ws, talk, then, options.get("tool"))
