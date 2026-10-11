@@ -309,11 +309,17 @@ def _guide() -> str:
 def test_changelog_entry_says_what_changed():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entry = text[text.index(f"## {VERSION}"):text.index("## 0.1.3")]
-    assert f"## {VERSION} (unreleased)" in entry
+    assert f"## {VERSION} (2026-10-12)" in entry
     flat = " ".join(entry.split())
     for needed in ("Removed: `judgekeeper demo`", "`judgekeeper demo --try`",
-                   '"See it work"', "`judgekeeper --version`", "does not accept pull requests"):
+                   '"See it work"', "`judgekeeper --version`", "does not accept pull requests",
+                   "A new look for the pages", "Let your coding agent do it", "--rule-file",
+                   "whether your judge actually judged", "its own `.gitignore`",
+                   "is a link", "only in a project you trust", "TRADEMARKS.md"):
         assert needed in flat, needed
+    # The person's marks are Pass and Fail in this release's words.
+    for old in ("10 Correct", "15 Correct", "you mark Correct", "you mark Wrong"):
+        assert old not in flat, old
 
 
 def test_older_changelog_entries_stay_as_they_were_written():

@@ -2,7 +2,7 @@
 
 It knows the three wrong facts in the tutorial answers and fails them. On one question,
 "How many continents are there?", it is unsure: each time it sees that question it
-fails it 40% of the time. Real AI judges behave like this. Ask the same question
+fails it 40% of the time. Real judges behave like this. Ask the same question
 twice and you can get two different verdicts.
 
 The randomness uses a fixed seed (15), so everyone who runs the tutorial gets the same

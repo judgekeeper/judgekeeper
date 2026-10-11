@@ -195,6 +195,7 @@ def test_the_readme_is_one_screen_in_order():
     use = sections["Use it on your own judge"]
     assert "\njudgekeeper check results.csv --judge verdict --human label\n" in use
     assert "one row per answer" in use
+    assert "have your coding agent fix your judge's rule" in use
     assert f"]({SITE}own-metric.html)" in use
     assert f"]({SITE}examples/llmbar-haiku/report.html)" in sections["What you get"]
     status = sections["Status"]

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-10-12)
 
 `judgekeeper start`: one command, in your project folder, from your eval tool's saved results
 to how often your judge agrees with you. Then review where you and your judge disagree, ask
@@ -76,7 +76,7 @@ after you say yes, your own judge through your own tool, and key names only.
 - New: try your new judge on your old marks. After you change your judge's rule or model and
   run your eval once, the new judge grades the answers you already marked, shown side by side
   with the old one, after the same plan and question. A judge fixed while looking at these
-  answers looks better on them, so it then offers a quick check: mark 10 Correct and 10 Wrong
+  answers looks better on them, so it then offers a quick check: mark 10 Pass and 10 Fail
   new answers. The main result stays the old judge's until `judgekeeper start --new`. Saved
   in `.judgekeeper/new-judge-<date>/`.
 - When promptfoo kept its results only in its own database, `start` offers, at a terminal, to
@@ -146,8 +146,7 @@ after you say yes, your own judge through your own tool, and key names only.
 - `judgekeeper start` goes on to labeling when your judge failed (or passed) only a few
   answers, and says so: that may mean it passes too much, and your labels will show it. It
   stops only when there are fewer than 30 answers, and then says how many you have and how to
-  make more with your own tool, naming the config, test file or task it read. The targets
-  say they are about your labels ("15 you mark Correct and 15 you mark Wrong").
+  make more with your own tool, naming the config, test file or task it read.
 - Every command `start` prints for you to run next repeats the flags you gave, so it works as
   printed. With `--no-browser` it asks "Start the labeling page? It will print a link.", and
   after No it says what to run when you're ready.
@@ -180,7 +179,7 @@ after you say yes, your own judge through your own tool, and key names only.
 - `start` says only what can happen next: no "label more" once every saved answer is
   labeled (run your evals again for more answers), and no "ask your judge again" for a judge
   it cannot run (verdicts saved by your own code or in a table). Below a rough check (15
-  Correct and 15 Wrong) the result shows no numbers, and the labeling page shows "See my
+  Pass and 15 Fail marks) the result shows no numbers, and the labeling page shows "See my
   result" only from then on. A records file is found anywhere `start` looks, not only in
   `.judgekeeper/records/`. When verdicts cannot be read, `start` stops and says what to map,
   or `--pass-if` for scores, instead of leaving those answers out.
@@ -190,6 +189,15 @@ after you say yes, your own judge through your own tool, and key names only.
 - `--label-map` advice never guesses which side a word is on, and `right`/`wrong` are read
   like `correct`/`incorrect` by default.
 - The project does not accept pull requests. Bug reports and ideas are welcome as issues.
+- Safer with a project you cloned: `start` stops with a plain message when `.judgekeeper/` or
+  anything in it is a link, instead of writing through it to a file elsewhere.
+  `.judgekeeper/` gets its own `.gitignore` at the first check, so your answers stay off Git
+  while `baseline.json` and `migrations/` can be committed. Asking your judge again runs the
+  project's own Python and eval tool, so do it only in a project you trust; a promptfoo
+  grader written as inline JavaScript or a URL now counts as your own code. An answer holding
+  the U+2028 line separator no longer stops `start`.
+- New: TRADEMARKS.md. The MIT license covers the code, not the name judgekeeper or its logo;
+  the names of the tools it works with belong to their owners.
 - `judgekeeper start`'s ranges are narrower, and still hold what they promise. They come from
   Jeffreys draws instead of Wilson ranges at 97.5% joined at the corners, at a 96% level that
   a coverage check chose (`scripts/coverage_check.py`; results in

@@ -35,15 +35,6 @@ STEPS = [("install", "Install"), ("connect", "Connect your results"), ("start", 
          ("label", "Mark"), ("result", "Your result"), ("improve", "Improve your judge")]
 ROUTE = ["Install", "Connect", "Start", "Mark", "Result", "Improve"]
 SHOTS = WEBSITE / "assets" / "shots"
-# reference.html is generated from docs/reference.md (scripts/render_reference.py). A page
-# rendered before the body text moved to the system font still preloads Atkinson Hyperlegible
-# and carries the footer of then; rendering it again brings both up to date, and from then on
-# it is held to the frame like every other page.
-RENDERED_BEFORE = "atkinson-hyperlegible"
-
-
-def _rendered_before(page: Path) -> bool:
-    return page.name == "reference.html" and RENDERED_BEFORE in page.read_text(encoding="utf-8")
 NB_HYPHEN = "‑"
 
 
@@ -78,8 +69,6 @@ def test_every_page_carries_the_frame_site_frame_writes():
     for page in pages():
         text = page.read_text(encoding="utf-8")
         assert frame.header(page.name) in text, f"{page.name}: run python scripts/site_frame.py"
-        if _rendered_before(page):
-            continue  # see RENDERED_BEFORE
         assert frame.head_links() in text, f"{page.name}: run python scripts/site_frame.py"
         assert frame.footer() in text, f"{page.name}: run python scripts/site_frame.py"
 
@@ -327,6 +316,11 @@ def test_the_home_page_shows_the_real_pages_in_pictures():
     figures = _all(_by_id(HOME, "look"), "figure", "shot")
     assert [_shot(f)[0] for f in figures] == [
         "assets/shots/label.webp", "assets/shots/result.webp", "assets/shots/fix.webp"]
+    # The marking page large, across the whole width; the other two side by side below it.
+    assert ["big" in f.classes() for f in figures] == [True, False, False]
+    assert "grid-column: 1 / -1" in _block(".shot.big")
+    assert not re.search(r"\.big\b[^{]*\{[^}]*max-width", CSS)  # nothing narrows it
+    assert "repeat(2, minmax(0, 1fr))" in _block(".shots")
 
 
 def test_the_pictures_are_made_by_the_script_from_sample_data():
@@ -483,6 +477,37 @@ def test_the_fix_picture_shows_the_change_the_rule_panel():
     assert [_all(c, "h3")[0].text() for c in choices] == [
         "See where you disagree", "Fix your judge", "Try your new judge"]
     assert [_all(c, "code")[0].text() for c in choices] == ["--review", "--fix", "--try-new-judge"]
+    fix_card = _flat(choices[1])
+    assert fix_card.index("coding agent") < fix_card.index("AI assistant") < fix_card.index(
+        "yourself")
+
+
+FIX_WAYS = ["Let your coding agent do it", "Copy a prompt for your AI assistant",
+            "I'll write it myself"]
+
+
+def test_fix_your_judge_leads_with_the_coding_agent_in_the_products_words():
+    page = start_page.fix_page(None)
+    where = [page.index(way) for way in FIX_WAYS]  # the page's own buttons, in this order
+    assert where == sorted(where)
+    section = _by_id(GUIDE, "fix")
+    (ways,) = _all(section, "ol")
+    assert [_all(li, "strong")[0].text().rstrip(".") for li in ways.children
+            if isinstance(li, Element)] == FIX_WAYS
+    flat = _flat(section)
+    for words in ("Claude Code, Cursor or Codex", "asks you before anything that costs money",
+                  ("The prompt holds no answer text, and it tells your agent to treat your "
+                   "app's answers as data, never as instructions."),
+                  "judgekeeper never edits your files",
+                  ("A small local model can grade answers, but it usually can't rewrite a rule "
+                   "well."), "--rule-file"):
+        assert words in flat, words
+    _parser().parse_args(["start", "--fix", "--rule-file", "new-rule.txt"])  # a real flag
+
+
+def test_llms_txt_names_fix_your_judge_and_the_rule_file():
+    llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
+    assert "fixing your judge's rule" in llms and "`--rule-file`" in llms
 
 
 # Older pages -----------------------------------------------------------------------------
@@ -500,6 +525,14 @@ def test_the_setup_page_says_first_that_start_needs_no_key():
     main = next(el for el in _els(WEBSITE / "setup.html") if el.tag == "main")
     first = _flat(next(el for el in main.iter() if el.tag == "p"))
     assert "only when you ask your judge again" in first
+
+
+def test_the_llmbar_result_names_the_datasets_makers_and_licence():
+    section = _by_id(WEBSITE / "learn.html", "result")
+    assert "LLMBar by Princeton NLP, MIT license: https://github.com/princeton-nlp/LLMBar" in (
+        _flat(section))
+    assert "https://github.com/princeton-nlp/LLMBar" in [
+        a.attrs.get("href") for a in _all(section, "a")]
 
 
 def test_the_tutorial_is_the_advanced_commands():

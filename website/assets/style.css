@@ -182,8 +182,9 @@ html:not(.js) .demo-act { display: none; }
 .role p { margin: 0; color: var(--ink-2); }
 
 /* Home: the real pages, in pictures */
-.shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.shots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 32px; }
 .shot { margin: 0; }
+.shot.big { grid-column: 1 / -1; }
 .shot a { display: block; border-radius: 12px; }
 .shot img { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--rule); box-shadow: var(--shadow); background: var(--sheet); }
 .shot figcaption { margin-top: 12px; color: var(--ink-2); font-size: 0.95rem; }
