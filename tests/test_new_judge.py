@@ -299,7 +299,7 @@ def test_the_will_look_better_line_is_always_shown(fake, capsys):
     assert ("You changed your judge after seeing mistakes on these answers, so it will look "
             "better on them.") in out
     assert ("To confirm on new answers, mark 10 Pass and 10 Fail: judgekeeper start "
-            f"{quote_arg(fake.root)} --try-new-judge") in out  # no terminal: the question as a command
+            f"{quote_arg(fake.root)} --try-new-judge --yes") in out  # run as printed, it opens
 
 
 def test_old_numbers_from_asking_again_are_used_and_said(fake, capsys):
@@ -447,6 +447,9 @@ def test_a_judge_command_is_tried_on_the_marked_answers(fake, capsys):
     assert code == 0 and (f"This runs `{command}` 36 times, waiting up to 5 minutes for each "
                           "answer.") in out
     assert "Your new judge vs your old judge" in out and _evals(fake) == 0
+    # tried with a judge command: the same judge counts as tried, not asked all over again
+    found = start.find_judge(fake.root)
+    assert new_judge.tried(fake, new_judge.NewJudge(found, "the prompt changed")) is not None
 
 
 def test_the_view_shows_the_newest_results(fake):

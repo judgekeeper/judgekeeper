@@ -48,9 +48,10 @@ from judgekeeper.textio import jsonl_lines
 TIMES = 2
 ALWAYS_ASK_ABOVE = 1000
 WORKER_TIMEOUT = 300
+NEEDS_COMMAND = "needs --judge-command"  # the menu's note for a judge only your code can run
 REFERENCE = "https://www.judgekeeper.com/reference.html#bring-your-own-judge"
-WRAP = ("To ask your judge again yourself, wrap it as a command: judgekeeper start --ask-again "
-        f"--judge-command '...' (see {REFERENCE}).")
+WRAP = ("To ask your judge again yourself, wrap it as a command: {command} {flag} "
+        "--judge-command '...' (see " + REFERENCE + ").")
 EXACT, CLOSE, CANT, OWN = "exact", "close", "cant", "own"
 CHANGED = ("Your judge changed since your marks ({change}): this asks the judge in your newest "
            "results, not the one you checked.")
@@ -388,18 +389,17 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
                                           new=new is not None)
         elif data["tool"] == "mapped":
             plan = cant("mapped", data["judge"],
-                        "your judge's verdicts are in your own results file, and judgekeeper "
-                        "can't run the judge that made them",
-                        short="your judge's verdicts are in your own results file")
+                        "your judge's decisions are in your own results file, and judgekeeper "
+                        "can't run the judge that made them", short=NEEDS_COMMAND)
         elif data["tool"] == "records":
             plan = cant("records", data["judge"],
-                        "your judge's verdicts were saved by judgekeeper.record() in your own "
+                        "your judge's decisions were saved by judgekeeper.record() in your own "
                         "code, and judgekeeper can't run the judge that made them",
-                        short="your judge's verdicts were saved by judgekeeper.record()")
+                        short=NEEDS_COMMAND)
         else:
             plan = cant(data["tool"], data["judge"],
-                        "your judge's verdicts are a table, and judgekeeper can't run the "
-                        "judge that made them", short="your judge's verdicts are a table")
+                        "your judge's decisions are a table, and judgekeeper can't run the "
+                        "judge that made them", short=NEEDS_COMMAND)
     except (OSError, ValueError, KeyError, RecordsError) as e:
         plan = cant(data["tool"], data["judge"],
                     f"your saved results could not be read again ({scrub(str(e))})",
@@ -436,12 +436,14 @@ def cost_words(p: Plan) -> str:
     return prices.amount(*p.cost)
 
 
-def plan_lines(p: Plan, title: str = "Ask your judge again") -> list[str]:
-    """The plan as the terminal shows it."""
+def plan_lines(p: Plan, title: str = "Ask your judge again", command: str = "judgekeeper start",
+               flag: str = "--ask-again") -> list[str]:
+    """The plan as the terminal shows it. `command` (start.Talk.command) and `flag` make the
+    hint for a judge that can't be asked: run as printed, it is the same step again."""
     lines = [title, "", f"  Your judge: {p.judge}"]
     if p.status == CANT:
         said = p.plain or f"Your judge can't be asked again: {p.why}."
-        return lines + [f"  {said}", f"  {WRAP}"]
+        return lines + [f"  {said}", f"  {WRAP.format(command=command, flag=flag)}"]
     if p.changed:  # never "exactly your judge" when it is not the judge that was checked
         lines.append(f"  {CHANGED.format(change=p.changed)}")
     else:

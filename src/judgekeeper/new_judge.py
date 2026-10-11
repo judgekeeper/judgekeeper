@@ -83,8 +83,9 @@ def tried(ws: Workspace, new: NewJudge) -> dict | None:
     if not ws.result_json.is_file():
         return None
     block = json.loads(ws.result_json.read_text(encoding="utf-8")).get("new_judge")
-    if not block or (block.get("tool"), block.get("metric")) != (new.found.tool,
-                                                                 new.found.metric):
+    # the results' tool: a judge asked through --judge-command was saved as "command"
+    tool = block.get("found_tool") or block.get("tool") if block else None
+    if not block or (tool, block.get("metric")) != (new.found.tool, new.found.metric):
         return None
     if judge_change(block.get("found_fingerprint") or {}, new.found.fingerprint) is not None:
         return None
@@ -151,7 +152,7 @@ def run(ws: Workspace, new: NewJudge, talk, opts, port: int, open_browser: bool)
     view = View(ws, new.found)
     plan = again.make_plan(ws, opts, talk=talk, dry=True, new=view)
     talk.say()
-    for line in again.plan_lines(plan, TITLE):
+    for line in again.plan_lines(plan, TITLE, talk.command(), COMMAND):
         talk.say(line)
     if plan.status == again.CANT:
         return 0
@@ -217,7 +218,7 @@ def finish(ws: Workspace, view: View, plan, fresh, new: NewJudge) -> dict:
         "asked": plan.answers, "counted": len(counted),
         "not_counted": [{"id": i, "why": w} for i, w in fresh.not_counted.items()],
         "fingerprint": fresh.fingerprint, "found_fingerprint": new.found.fingerprint,
-        "close": plan.status == CLOSE, "old": _old_numbers(r),
+        "found_tool": new.found.tool, "close": plan.status == CLOSE, "old": _old_numbers(r),
         "too_few": r.get("check") == "too_few",
         "new": {k: numbers[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval",
                                         "kappa", "interval_methods")},
@@ -300,7 +301,7 @@ def offer_confirmation(ws: Workspace, new: NewJudge, block: dict, talk, port: in
 
     if not start._interactive() and not talk.yes:
         talk.say(f"To confirm on new answers, mark {QUICK} Pass and {QUICK} Fail: "
-                 f"{talk.command(COMMAND)}")
+                 f"{talk.command(COMMAND, '--yes')}")  # --yes: run as printed, it opens it
         return 0
     if not talk.confirm(CONFIRM, default=True, with_yes=True, hint=CONFIRM):
         return 0

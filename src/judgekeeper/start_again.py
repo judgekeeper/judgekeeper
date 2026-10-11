@@ -248,7 +248,7 @@ def _ask_again(ws: Workspace, talk, again_options, new=None) -> int:
         plan.notes.append(f"To compare it with your marks: {talk.command('--try-new-judge')}. "
                           f"To check it from now on: {talk.command('--new')}.")
     talk.say()
-    for line in again.plan_lines(plan):
+    for line in again.plan_lines(plan, command=talk.command()):
         talk.say(line)
     if plan.status == again.CANT:
         return 0

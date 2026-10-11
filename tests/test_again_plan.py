@@ -561,10 +561,15 @@ def test_a_table_cant_be_asked_again_without_a_command(tmp_path):
     ws = _checked(tmp_path, maker=table_project)
     p = make_plan(ws, AgainOptions(), dry=False)
     assert p.status == "cant"
-    assert p.short == "your judge's verdicts are a table"
+    assert p.short == "needs --judge-command" and "decisions are a table" in p.why
     lines = plan_lines(p)
     assert any("judgekeeper start --ask-again --judge-command" in x for x in lines)
     assert any("reference.html#bring-your-own-judge" in x for x in lines)
+    # in Try your new judge, with the person's own flags: run as printed, the same step
+    lines = plan_lines(p, "Try your new judge", "judgekeeper start evals --port 8805",
+                       "--try-new-judge")
+    assert any("judgekeeper start evals --port 8805 --try-new-judge --judge-command '...'" in x
+               for x in lines)
 
 
 # The spending question -----------------------------------------------------------------------
