@@ -86,9 +86,11 @@ def shown_folder(ws: Workspace) -> str:
     if folder == here:
         return FOLDER
     try:
-        return Path(os.path.relpath(folder, Path.cwd().resolve())).as_posix()
+        rel = Path(os.path.relpath(folder, Path.cwd().resolve()))
     except ValueError:  # another drive on Windows
         return folder.as_posix()
+    # a folder nearby as ../elsewhere/.judgekeeper; one far away as its whole path
+    return rel.as_posix() if rel.parts.count("..") <= 2 else folder.as_posix()
 CORRECTED = "Corrected for picking half from the judge's passes and half from its fails."
 LEVELS = {  # verdict level: (colour, icon, second line)
     "gate": ("green", "tick", "Keep checking it after changes to its model or rule."),

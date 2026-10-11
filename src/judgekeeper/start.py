@@ -1319,8 +1319,9 @@ def unknown_values(values) -> str:
     example = (f'--label-map "{words[0]}=pass,{words[1]}=fail"' if len(words) > 1
                else f'--label-map "{words[0]}=pass" or --label-map "{words[0]}=fail"')
     tail = f" Numbers need --pass-if, e.g. {PASS_IF_EXAMPLE}" if numbers else ""
+    which = "each one means" if len(words) > 1 else "it means"
     return (f"judgekeeper can't tell which of these values mean Pass and Fail: {shown}. Map them "
-            f"with {example}, whichever each one means.{tail}")
+            f"with {example}, whichever {which}.{tail}")
 
 
 def found_lines(found: Found) -> list[str]:

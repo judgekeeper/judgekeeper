@@ -445,7 +445,8 @@ def test_secrets_in_the_results_are_scrubbed_in_every_saved_file(tmp_path):
         assert secret not in path.read_text(encoding="utf-8"), path.name
 
 
-def test_the_first_save_says_what_the_folder_holds_once(tmp_path):
+def test_the_first_save_says_what_the_folder_holds_once(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # run in the project: the folder is .judgekeeper here
     found = _found(tmp_path)
     said = []
     start_label.prepare(found, say=said.append)
@@ -528,7 +529,9 @@ def test_start_labels_and_shows_the_result(tmp_path, capsys, clicker):
     assert len(clicker["opened"]) == 1
     assert "Your result, from the 36 answers you marked (20 Pass, 16 Fail):" in out
     assert "Your judge agrees with you often enough to use." in out
-    assert "Saved in .judgekeeper/. It holds your answers' text" in out
+    # run from elsewhere: the folder's whole path
+    assert (f"Saved in {(tmp_path / '.judgekeeper').resolve().as_posix()}/. It holds your "
+            "answers' text") in out
     assert "Your judge agrees with you often enough to use." in clicker["page"]
     assert (tmp_path / ".judgekeeper" / "result.html").is_file()
 

@@ -541,7 +541,9 @@ def test_the_plan_for_a_judge_command(tmp_path):
     assert "  Your judge: your command python judge.py" in lines
     assert ("  This is your own judge command. This runs `python judge.py` 72 times, waiting up "
             "to 5 minutes for each answer.") in lines
-    assert "  Cost unknown: name your command's model with --judge-model." in lines
+    # the results name the judge's model: the cost is worked out from it, no --judge-model
+    assert p.model and p.cost_text is None
+    assert not any("--judge-model" in x for x in lines)
 
 
 def test_a_judge_command_with_a_model_has_a_cost(tmp_path):
