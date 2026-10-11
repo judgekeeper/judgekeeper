@@ -12,10 +12,13 @@ that stays silent for CONNECTION_TIMEOUT seconds is dropped. The server stops on
 after IDLE_TIMEOUT seconds without a request.
 
 The caller passes the page (start_page.py) and a `result` function: GET /result answers with
-the result page, a static HTML page that runs no script. Once every item is labeled or
-deferred, the server stops right after serving that page, or RESULT_WAIT seconds after the
-last item if nobody fetches it; not after a click the session's `asks_why` says leaves the page
-on its Why? box, which can take longer. It may also pass `switches`: a GET of one of their paths swaps
+the result page, a static HTML page that runs no script. Once every item is labeled, none
+deferred (finished), the server stops right after serving that page, or RESULT_WAIT seconds
+after the last item if nobody fetches it; not after a click the session's `asks_why` says
+leaves the page on its Why? box, which can take longer. While an item is deferred, the page
+offers to look at it again, so the server keeps serving (until Ctrl-C or IDLE_TIMEOUT), also
+after the result page; the page asking again (GET /, /state) or a label taken back (undo)
+stops the RESULT_WAIT count. It may also pass `switches`: a GET of one of their paths swaps
 the session, the page and the result function (from labeling to the review of the
 disagreements) and sends the browser back to the page; a switch that returns None leaves them
 as they are. A session may answer POSTs to paths of its own (`posts`: path -> a function from
@@ -207,6 +210,12 @@ class LabelServer:
     def stop(self) -> None:
         self._stopped = True
 
+    def finished(self) -> bool:
+        """Every item labeled, none deferred: nothing is left for the page to offer."""
+        items = getattr(self.session, "items", [])
+        return self.session.summary()["done"] and not any(
+            isinstance(i, dict) and i.get("deferred") for i in items)
+
     def page(self) -> tuple[str, str]:
         """The page and the nonce its script runs under."""
         nonce = secrets.token_urlsafe(16)
@@ -254,6 +263,8 @@ def _handler(server: LabelServer):
             url = urlsplit(self.path)
             if not self._allowed(url):
                 return
+            if url.path in ("/", "/state"):
+                server.done_at = None  # the page is open and asking: keep serving it
             if url.path == "/":
                 page, nonce = server.page()
                 csp = (f"default-src 'none'; script-src 'nonce-{nonce}'; "
@@ -278,7 +289,7 @@ def _handler(server: LabelServer):
                        "frame-ancestors 'none'")
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
                            {"Content-Security-Policy": csp})
-                if server.session.summary()["done"]:
+                if server.finished():
                     server.stop()  # nothing left to label: the page holds the result
             else:
                 self._json(404, {"error": "not found"})
@@ -328,11 +339,13 @@ def _handler(server: LabelServer):
                 return
             summary = server.session.summary()
             self._json(200, {"summary": summary})
-            if server.result is not None and summary["done"]:
+            if server.result is not None and server.finished():
                 if getattr(server.session, "asks_why", lambda body: False)(body):
                     server.done_at = None  # the page waits for a why; its GET /result stops
                 elif server.done_at is None:
                     server.done_at = time.monotonic()
+            else:  # a skip, or a label taken back: the page goes on
+                server.done_at = None
 
     return Handler
 
