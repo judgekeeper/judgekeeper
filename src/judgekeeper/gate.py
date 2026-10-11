@@ -326,7 +326,7 @@ def evaluate(report: dict, baseline: dict | None = None, config: GateConfig | No
     too_few = next((f["message"] for f in (report.get("verdict") or {}).get("flags", [])
                     if f.get("code") == "too_few_labels"), None)
     if too_few:
-        warnings.append(f"{too_few} The numbers it passes on are not reliable yet.")
+        warnings.append(f"{too_few} The result is not reliable yet.")
     if not failed:
         status = PASS
         reason = "The judge clears every absolute threshold"

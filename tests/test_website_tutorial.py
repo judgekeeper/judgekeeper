@@ -137,7 +137,7 @@ def test_the_headline_verdicts(tutorial):
     lazy, careful = _report(work, "lazy"), _report(work, "careful")
     assert lazy["verdict"]["level"] == "not_trustworthy"
     assert f"{lazy['headline']['tnr_mean']:.2f}" == "0.67"
-    assert careful["verdict"]["level"] == "usable"
+    assert careful["verdict"]["level"] == "usable_with_care"  # ten answers: too few labels
     flipped = [row for row in careful["noise_floor"]["per_item"] if row["flip_rate"] > 0]
     assert len(flipped) == 1 and flipped[0]["id"] == "q7"
     assert _report(work, "csv")["verdict"]["level"] == "not_trustworthy"
