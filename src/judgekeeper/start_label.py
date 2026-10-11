@@ -420,9 +420,22 @@ def marks_words(labels: dict) -> str:
     return f"{labels['correct']} Pass, {labels['wrong']} Fail"
 
 
+def short_words(labels: dict) -> str:
+    """The kinds still under ROUGH marks: "3 Fail", or "9 Pass and 3 Fail"."""
+    said = [f"{labels[k]} {word}" for k, word in (("correct", "Pass"), ("wrong", "Fail"))
+            if labels[k] < ROUGH]
+    return " and ".join(said)
+
+
 def sentences(r: dict) -> list[str]:
-    """The two sentences of the result; before a result, the one line that says to mark more."""
+    """The two sentences of the result; before a result, the one line that says to mark more,
+    or, when every answer is marked and still a kind is short, why there is no result (the one
+    place a count is said: it explains a stop, it is not a target)."""
     if r["check"] == "too_few":
+        if all_labeled(r):
+            return [(f"You've marked every answer. A result needs at least {ROUGH} you mark "
+                     f"Pass and {ROUGH} you mark Fail; you have {short_words(r['labels'])}. Run "
+                     "your eval on more questions, then judgekeeper start --label-more.")]
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     out = []
     for key, said in SAID.items():

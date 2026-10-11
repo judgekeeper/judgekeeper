@@ -176,5 +176,8 @@ def test_no_tip_in_the_too_few_message_when_runs_are_kept(tmp_path, capsys):
     code = main(["start", str(tmp_path)])
     out = capsys.readouterr().out
     assert code == start.EXIT_QUESTION
-    assert "You have 16 answers. judgekeeper needs at least 30 to show a result." in out
+    assert ("You have 16 answers. judgekeeper needs at least 15 answers you mark Pass "
+            "and 15 you mark Fail to show a result. Make more answers with your eval "
+            "first, or mark these now: your marks are kept and count when you add "
+            "more.") in out
     assert TIP not in out

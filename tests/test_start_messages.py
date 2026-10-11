@@ -160,19 +160,24 @@ def test_too_few_answers_says_the_real_count(tmp_path, capsys, terminal):
     promptfoo_project(tmp_path, split(20, 2))
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "You have 22 answers. judgekeeper needs at least 30 to show a result." in out
+    assert ("You have 22 answers. judgekeeper needs at least 15 answers you mark Pass "
+            "and 15 you mark Fail to show a result. Make more answers with your eval "
+            "first, or mark these now: your marks are kept and count when you add "
+            "more.") in out
     assert "with some the judge failed" not in out and "too few for a result" not in out
     assert "Make more answers with your own eval, then run judgekeeper start" in out
-    assert "Mark the 22 you have anyway? The result will have wide ranges. [y/N]" in out
+    assert "Mark the 22 you have now? [y/N]" in out
+    assert "wide ranges" not in out
 
 
 def test_too_few_with_yes_says_one_line_and_goes_on(tmp_path, capsys, no_labeling):
     promptfoo_project(tmp_path, split(20, 2))
     code, out, _ = run(capsys, tmp_path, "--yes")
     assert code == 0 and no_labeling
-    assert out.count("needs at least 30 to show a result") == 1
+    assert out.count("needs at least 15 answers you mark Pass") == 1
     assert "Going on anyway, as you asked (--yes)." in out
-    assert "Make more answers" not in out and "Mark the 22" not in out
+    assert "Make more answers with your own eval, then run" not in out
+    assert "Mark the 22" not in out
     assert "Next: in your browser, mark each answer Pass or Fail." in out
 
 
@@ -302,9 +307,9 @@ def test_the_too_few_hint_keeps_your_flags(tmp_path, capsys, monkeypatch, no_lab
     table_project(tmp_path / "proj", ["good"] * 20 + ["bad"] * 2)
     code, out, _ = run(capsys, "proj", "--label-map", "good=pass,bad=fail", "--port", "8999")
     assert code == QUESTION
-    assert ("Mark the 22 you have anyway? Run judgekeeper start proj --label-map "
+    assert ("Mark the 22 you have now? Run judgekeeper start proj --label-map "
             "good=pass,bad=fail --port 8999 --yes to say yes.") in out
-    code, _, _ = follow(capsys, out, "Mark the 22 you have anyway?")
+    code, _, _ = follow(capsys, out, "Mark the 22 you have now?")
     assert code == 0
     assert no_labeling[-1]["port"] == 8999
 

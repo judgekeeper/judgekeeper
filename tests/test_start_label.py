@@ -254,6 +254,8 @@ def test_the_verdict_levels_use_the_report_thresholds():
                                  "rely on it.")
     assert bottom["verdict"] == "Not good enough yet: look at where it disagrees with you."
     assert too_few["verdict"] == "Mark a few more answers to see your result."
+    assert start_label.sentences(too_few) == [
+        "Mark a few more answers to see your result. So far: 10 Pass, 10 Fail."]
     assert [r["check"] for r in (top, too_few)] == ["rough", "too_few"]
     assert _result(100, 100, 50, 48, 50, 2)["check"] == "reliable"
 
@@ -566,3 +568,18 @@ def test_a_port_in_use_is_a_usage_error(tmp_path, capsys, monkeypatch):
     finally:
         busy.close()
     assert code == 2 and "try --port" in err
+
+
+@pytest.mark.parametrize("correct, wrong, have", [(20, 4, "4 Fail"), (3, 30, "3 Pass"),
+                                                  (9, 2, "9 Pass and 2 Fail")])
+def test_every_answer_marked_but_a_kind_short_says_why_there_is_no_result(correct, wrong,
+                                                                          have):
+    r = {"check": "too_few", "left": 0, "labels": {"correct": correct, "wrong": wrong}}
+    line = (f"You've marked every answer. A result needs at least 15 you mark Pass and 15 you "
+            f"mark Fail; you have {have}. Run your eval on more questions, then judgekeeper "
+            "start --label-more.")
+    assert start_label.sentences(r) == [line]
+    assert start_label.statements(r)[0]["text"] == line  # the page
+    assert line in start_label.result_lines({**r, "wide": {}})  # the terminal
+    r["left"] = 3  # answers still to mark: mark more, as before
+    assert start_label.sentences(r)[0].startswith("Mark a few more answers")

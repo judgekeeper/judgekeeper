@@ -1392,8 +1392,10 @@ def _label_anyway(talk: Talk, found: Found) -> bool:
     """Too few answers for a rough check: say so, and how to make more; then ask."""
     n = len(found.pool.answers)
     talk.say()
-    talk.say(f"You have {_plural(n, 'answer', 'answers')}. judgekeeper needs at least "
-             f"{MIN_POOL} to show a result.")
+    talk.say(f"You have {_plural(n, 'answer', 'answers')}. judgekeeper needs at least {ROUGH} "
+             f"answers you mark Pass and {ROUGH} you mark Fail to show a result. Make more "
+             "answers with your eval first, or mark these now: your marks are kept and count "
+             "when you add more.")
     if talk.yes and not _interactive():
         talk.say("Going on anyway, as you asked (--yes).")
         return True
@@ -1402,9 +1404,8 @@ def _label_anyway(talk: Talk, found: Found) -> bool:
     for line in more_answers(found):
         talk.say(line)
     talk.say()
-    question = f"Mark the {n} you have anyway?"
-    return talk.confirm(f"{question} The result will have wide ranges.",
-                        default=False, with_yes=True,
+    question = f"Mark the {n} you have now?"
+    return talk.confirm(question, default=False, with_yes=True,
                         hint=f"{question} Run {talk.command('--yes')} to say yes.")
 
 
