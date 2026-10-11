@@ -340,8 +340,14 @@ class _Walk:
                     self.file(entry)
 
 
+# judgekeeper's own output folders: the `check` command's report (anchors.jsonl looks like a
+# table) and 0.1.3's demo data. They are never "your LLM-as-a-judge" or "your own format".
+OWN_FOLDERS = ("judgekeeper-report",)
+OWN_PREFIXES = ("judgekeeper-demo",)
+
+
 def _walked(name: str) -> bool:
-    if name in SKIP_DIRS:
+    if name in SKIP_DIRS or name in OWN_FOLDERS or name.startswith(OWN_PREFIXES):
         return False
     return not name.startswith(".") or name == HIDDEN_KEPT
 

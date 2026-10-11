@@ -582,3 +582,19 @@ def test_an_mlruns_folder_of_artifacts_only_is_not_a_store(tmp_path):
     assert not find.search(tmp_path).readable("mlflow")
     (tmp_path / "mlruns" / "1" / "meta.yaml").write_text("name: qa\n", encoding="utf-8")
     assert find.is_mlflow_folder(tmp_path / "mlruns")
+
+
+@pytest.mark.parametrize("folder", ["judgekeeper-report", "judgekeeper-demo-2026-10-01",
+                                    "judgekeeper-demo"])
+def test_judgekeepers_own_folders_are_never_your_judge(tmp_path, capsys, folder):
+    # the check command's report (anchors.jsonl looks like a table) and 0.1.3's demo data
+    table_project(tmp_path / folder, split(16, 16), name="anchors.csv")
+    (tmp_path / folder / "own.jsonl").write_text(
+        json.dumps({"input": "q", "output": "a", "score": 1}) + "\n", encoding="utf-8")
+    found = find.search(tmp_path)
+    assert not found.readable("table"), folder
+    from judgekeeper import own_format
+
+    assert own_format.search(tmp_path) is None
+    table_project(tmp_path, split(16, 16), name="results.csv")  # the person's own, still found
+    assert [r.rel for r in find.search(tmp_path).readable("table")] == ["results.csv"]
