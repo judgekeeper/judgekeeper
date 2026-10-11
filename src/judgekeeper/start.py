@@ -35,7 +35,7 @@ from pathlib import Path
 from judgekeeper import find, judge_check, settings, targets
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.metrics import ERROR
-from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map, unmapped_error
+from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map
 from judgekeeper.readers import read_deepeval, read_inspect, read_mlflow, read_promptfoo
 from judgekeeper.readers.inspect_logs import DEFAULT_PROMPT
 from judgekeeper.readers.promptfoo import is_stripped_warning
@@ -56,7 +56,7 @@ from judgekeeper.records import (
 )
 from judgekeeper.redact import printable, scrub
 from judgekeeper.table import _blank, make_fingerprint, read_table
-from judgekeeper.textio import quote_arg, tick
+from judgekeeper.textio import quote_arg, read_utf8, tick
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -71,6 +71,8 @@ MONTHS_SHORT = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
                 "Dec")
 GIVEN_BY_YOU = "given by you"
 POINT_ME = "Point me at the results: judgekeeper start path/to/results.json"
+RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your judge's decisions at "
+                 "the project root: reading them in {root}.")
 PAIRWISE = ("These are A/B comparisons. judgekeeper start handles pass/fail answers for now; "
             "see judgekeeper import.")
 HUMAN_COLUMNS = ("human_label", "label")
@@ -228,6 +230,7 @@ class Answer:
 class Pool:
     answers: list[Answer] = field(default_factory=list)
     unmapped: list = field(default_factory=list)
+    n_unmapped: dict = field(default_factory=dict)  # how many verdicts had each unmapped value
     n_merged: int = 0
     n_human: int = 0
     left: dict = field(default_factory=dict)  # answer id: (judge_check kind, its record)
@@ -296,6 +299,8 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                 except UnmappedValue as e:
                     if e.value not in pool.unmapped:
                         pool.unmapped.append(e.value)
+                    key = repr(e.value)
+                    pool.n_unmapped[key] = pool.n_unmapped.get(key, 0) + 1
                     continue
                 if v.verdict == ERROR:
                     kind = judge_check.EMPTY
@@ -331,6 +336,8 @@ def read_results_table(path: Path) -> RecordList:
     column, when there is one, as human records (counted, not used). A `model` (or
     `judge_model`) column names the judge's model, an `app_version` column the app's."""
     rows = read_table(path)
+    if not rows:  # a header and nothing under it
+        raise StartError(f"{path.name} has no rows")
     columns = list(dict.fromkeys(k for row in rows for k in row))
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
@@ -376,6 +383,16 @@ def _read(result: find.Result) -> Loaded:
     if stripped:
         raise StartError(stripped[0])
     return Loaded(result.rel, records)
+
+
+def _readable(talk: Talk, results: list[find.Result]):
+    """Each of `results` read (_read), newest first; one that can't be read is said and
+    left out."""
+    for r in results:
+        try:
+            yield _read(r)
+        except RecordsError as e:
+            talk.say(f"{e} It is left out.")
 
 
 def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
@@ -481,12 +498,16 @@ def _no_experiment(experiment: str, stores: list[tuple[find.Result, list[str]]])
 
 def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                        metric: str | None, uri: str) -> tuple[str, list[Loaded]]:
-    from judgekeeper.readers.mlflow_store import TracesMissing, experiments_with_traces
+    from judgekeeper.readers.mlflow_store import (
+        JudgeCallsFailed,
+        TracesMissing,
+        experiments_with_traces,
+    )
 
     if experiment is not None:
         try:
             found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
-        except TracesMissing as e:
+        except (TracesMissing, JudgeCallsFailed) as e:
             raise StartError(str(e)) from None
         except RecordsError as e:
             if not str(e).startswith("no MLflow experiment named"):
@@ -499,7 +520,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         for exp in MlflowClient(tracking_uri=uri).search_experiments():
             try:
                 runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
-            except TracesMissing as e:
+            except (TracesMissing, JudgeCallsFailed) as e:
                 missing.append(str(e))
                 continue
             except RecordsError:  # an experiment with no traces
@@ -560,6 +581,8 @@ class Found:
     models: list[str] = field(default_factory=list)  # the judge's model(s), as the results say
     model_source: str | None = None  # None (the results), GIVEN_BY_YOU or judgekeeper.toml
     experiment: str | None = None  # MLflow: the experiment read
+    stopped: list[str] = field(default_factory=list)  # Inspect: runs that stopped early
+    label_map: str | dict | None = None  # --label-map as given, kept in start.json
 
 
 PASS_OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt}
@@ -633,8 +656,11 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     how = (f"turn it into a table with input, output and verdict columns (see "
            f"{own_format.OWN_FORMAT_URL}), or ask your coding agent with the prompt below.")
     if own is not None:
+        setup = "judgekeeper setup" + ("" if talk.path == "." else f" {quote_arg(talk.path)}")
         talk.say(f"{own.rel} looks like saved judge results in your own format.")
-        talk.say(f"To use it: {how}")
+        talk.say(f"To use it as it is, run {setup}: it asks how to read it and saves that in "
+                 "judgekeeper.toml.")
+        talk.say(f"Or {how}")
     elif "deepeval" in signs:
         talk.say("If your judge saves its results in a format of its own: "
                  + how.replace("turn it into", "turn them into"))
@@ -645,7 +671,7 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
         for line in own_format.AGENT_PROMPT.splitlines():
             talk.say(line)
         talk.say()
-        talk.say("Or save your judge's verdicts from now on with one judgekeeper.record() line "
+        talk.say("Or save your judge's decisions from now on with one judgekeeper.record() line "
                  f"where it runs: {own_format.RECORD_URL} has a prompt that asks your coding "
                  "agent to add it.")
     talk.say("judgekeeper start reads the results that promptfoo, DeepEval, Inspect AI and "
@@ -695,6 +721,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         return path.parent, "mlflow", [find.Result("mlflow", path, path.name)], {}
     if path.is_file():
         kind = tool or find.classify_file(path)
+        if kind is None and path.suffix.lower() in find.TABLE_SUFFIXES:
+            read_utf8(path, StartError)  # not UTF-8 (a UTF-16 export): how to save it again
         if kind is None:
             raise StartError(f"{path.name} is not a results file judgekeeper start can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "
@@ -712,6 +740,12 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     for big in found.too_big():
         talk.say(big.too_big_message())
     available = [t for t in find.TOOLS if found.readable(t)]
+    if "records" not in available and (tool == "records" or tool is None and not available):
+        above = find.records_above(root)
+        if above is not None:  # record() saves at the project root, from any subfolder
+            talk.say(RECORDS_ABOVE.format(root=above))
+            talk.say()
+            return _locate(talk, above, tool)
     if tool is not None:
         if tool not in available:
             if any(r.tool == tool for r in found.too_big()):
@@ -807,7 +841,7 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
     counts = Counter(r.name for r in newest.records if r.annotator_kind == LLM)
     names = sorted(counts)
     if not names:
-        raise StartError(f"{newest.label} holds no verdicts from an LLM judge")
+        raise StartError(f"{newest.label} holds no decisions from an LLM judge")
     if metric is None and prefer in counts:
         return prefer
     if metric is not None:
@@ -992,8 +1026,17 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                 newest = results[0]
             first, read_older = loaded[0], iter(loaded[1:])
         else:
-            first = _read(newest)
-            read_older = (_read(r) for r in results[1:])
+            first, rest = None, list(results)
+            while first is None:  # a log that can't be read never hides a good one beside it
+                newest = rest.pop(0)
+                try:
+                    first = _read(newest)
+                except RecordsError as e:
+                    if not rest:
+                        raise StartError(str(e)) from None
+                    talk.say(f"{e} It is left out.")
+            results = [newest, *rest]
+            read_older = _readable(talk, rest)
     if kind in ("records", "mapped"):
         metrics = sorted({r.name for r in every.records if r.annotator_kind == LLM})
     else:
@@ -1048,7 +1091,10 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  pass_mark=pass_mark_of(pool, kind, norm.pass_if, key), one_rule=one_rule,
                  task_file=_task_file(newest.path) if kind == "inspect" else None,
                  rule_field=_inspect_field(records) if kind == "inspect" and rule else None,
-                 models=models, model_source=model_source, experiment=name)
+                 models=models, model_source=model_source, experiment=name,
+                 stopped=[n for x in used for n in x.records.notes
+                          if n.startswith("Your Inspect run stopped early")],
+                 label_map=label_map or None)
 
 
 def _rule_key(r, kind: str) -> str | None:
@@ -1207,6 +1253,8 @@ def when_words(d) -> str:
 
 
 NOT_IN_FILE = "not in the file"
+PARTIAL = ("Inspect gave partial credit (P) on {n} answers: should they count as Pass or Fail? "
+           "Run again with --label-map P=pass or --label-map P=fail.")
 NO_MODEL = "not named in the results (add --judge-model NAME)"
 
 
@@ -1255,6 +1303,27 @@ def _pass_mark_words(pm: dict) -> str:
     return f"score {words[pm['op']]}" if pm.get("op") in words else f"score {mark}"
 
 
+def unknown_values(values) -> str:
+    """What to do about decisions judgekeeper can't read as Pass or Fail, in plain words: never
+    a guess, since a wrong one would turn fails into passes."""
+    from judgekeeper.normalise import PASS_IF_EXAMPLE, _numeric
+
+    seen = list(dict.fromkeys(values))
+    shown = ", ".join(str(v) for v in seen[:10]) + (f" and {len(seen) - 10} more"
+                                                     if len(seen) > 10 else "")
+    numbers = [v for v in seen if _numeric(v)]
+    if len(numbers) == len(seen):
+        return (f"Your judge's decisions are numbers ({shown}): say which scores pass with "
+                f"--pass-if, e.g. {PASS_IF_EXAMPLE}")
+    words = [str(v) for v in seen if not _numeric(v)]
+    example = (f'--label-map "{words[0]}=pass,{words[1]}=fail"' if len(words) > 1
+               else f'--label-map "{words[0]}=pass" or --label-map "{words[0]}=fail"')
+    tail = f" Numbers need --pass-if, e.g. {PASS_IF_EXAMPLE}" if numbers else ""
+    which = "each one means" if len(words) > 1 else "it means"
+    return (f"judgekeeper can't tell which of these values mean Pass and Fail: {shown}. Map them "
+            f"with {example}, whichever {which}.{tail}")
+
+
 def found_lines(found: Found) -> list[str]:
     """The first block `start` prints: what judgekeeper found, as a small table."""
     pool = found.pool
@@ -1262,10 +1331,13 @@ def found_lines(found: Found) -> list[str]:
             ("What it checks", _checks_words(found)), ("Judge model", _model_words(found)),
             ("Its decisions", (f"{_plural(len(pool.answers), 'answer', 'answers')}: "
                                f"{pool.n_pass} passed, {pool.n_fail} failed"))]
+    if pool.unmapped:  # start stops on them, and says so: no count of what it could read
+        rows.pop()
     if found.pass_mark:
         rows.append(("Pass mark", _pass_mark_words(found.pass_mark)))
     lines = ["judgekeeper found your LLM-as-a-judge:", ""]
     lines += [f"  {name:<{COLUMN}}{value}" for name, value in rows]
+    lines += [f"  ! {note}" for note in found.stopped]  # the eval run itself did not finish
     if found.tool not in ("records", "mapped") and len(found.used) > 1:
         lines.append(f"  Fewer than {MIN_POOL} answers in the newest results, so older results "
                      f"from the same judge were added: {', '.join(found.used[1:])}")
@@ -1286,7 +1358,9 @@ def say_found(talk: Talk, found: Found) -> None:
                          if pool.n_merged != 1 else
                          "1 repeat of the same answer was merged."))
     if pool.unmapped:  # stop: a result without those answers would be wrong
-        raise StartError(str(unmapped_error(pool.unmapped)))
+        if found.tool == "inspect" and "P" in pool.unmapped:  # model_graded_qa(partial_credit)
+            raise StartError(PARTIAL.format(n=pool.n_unmapped.get(repr("P"), 0)))
+        raise StartError(unknown_values(pool.unmapped))
     if pool.n_human:
         where = (f"{Path(found.used[0]).name} also holds" if len(found.used) == 1
                  else "These results also hold")
@@ -1360,7 +1434,7 @@ def more_answers(found: Found) -> list[str]:
         return ["  Run your MLflow evaluation again on more data.", COSTS]
     if found.tool == "records":
         return [("  Run your eval on more answers: each judgekeeper.record() call saves one "
-                 "more verdict."), COSTS]
+                 "more decision."), COSTS]
     if found.tool == "mapped":
         return [f"  Run your eval on more answers: it adds them to {newest.rel}.", COSTS]
     return [f"  Add more rows to {newest.rel}."]
@@ -1392,8 +1466,10 @@ def _label_anyway(talk: Talk, found: Found) -> bool:
     """Too few answers for a rough check: say so, and how to make more; then ask."""
     n = len(found.pool.answers)
     talk.say()
-    talk.say(f"You have {_plural(n, 'answer', 'answers')}. judgekeeper needs at least "
-             f"{MIN_POOL} to show a result.")
+    talk.say(f"You have {_plural(n, 'answer', 'answers')}. judgekeeper needs at least {ROUGH} "
+             f"answers you mark Pass and {ROUGH} you mark Fail to show a result. Make more "
+             "answers with your eval first, or mark these now: your marks are kept and count "
+             "when you add more.")
     if talk.yes and not _interactive():
         talk.say("Going on anyway, as you asked (--yes).")
         return True
@@ -1402,9 +1478,8 @@ def _label_anyway(talk: Talk, found: Found) -> bool:
     for line in more_answers(found):
         talk.say(line)
     talk.say()
-    question = f"Mark the {n} you have anyway?"
-    return talk.confirm(f"{question} The result will have wide ranges.",
-                        default=False, with_yes=True,
+    question = f"Mark the {n} you have now?"
+    return talk.confirm(question, default=False, with_yes=True,
                         hint=f"{question} Run {talk.command('--yes')} to say yes.")
 
 

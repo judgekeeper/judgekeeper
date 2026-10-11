@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import builtins
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -27,7 +28,7 @@ from judgekeeper.start_label import StartSession, save_result
 from judgekeeper.textio import quote_arg
 from tests import keyboard
 from tests.conftest import FIXTURES
-from tests.start_projects import promptfoo_project, split, table_project
+from tests.start_projects import project_promptfoo, promptfoo_project, split, table_project
 
 CONFIG = ".judgekeeper-regrade.promptfoo.json"
 TESTS = ".judgekeeper-regrade.tests.json"
@@ -136,9 +137,7 @@ def fake(monkeypatch, tmp_path):
     promptfoo, and a fake behind the one process function."""
     ws = _checked(tmp_path)
     _edit(tmp_path, _version)
-    binary = tmp_path / "node_modules" / ".bin" / "promptfoo"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("", encoding="utf-8")
+    project_promptfoo(tmp_path)
     fp = FakePromptfoo(ws)
     monkeypatch.setattr(again, "run_process", fp)
     monkeypatch.setattr(again, "which", lambda name: None)
@@ -201,8 +200,7 @@ def test_the_command_has_every_flag_and_setting_and_never_grader(fake, capsys):
     run(capsys, ws.root, "--ask-again", "--allow-calls", "72")
     (call,) = [c for c in fake.calls if "eval" in c.argv]
     argv = call.argv
-    assert argv[:4] == [str(ws.root / "node_modules" / ".bin" / "promptfoo"), "eval", "-c",
-                        CONFIG]
+    assert argv[:4] == [again.node_bin(ws.root, "promptfoo"), "eval", "-c", CONFIG]
     for flag in ("--no-cache", "--no-write", "--no-share", "--no-table", "--no-progress-bar"):
         assert flag in argv, flag
     assert argv[argv.index("--repeat") + 1] == "2"
@@ -483,7 +481,9 @@ def test_the_judge_command_runs_through_exec(tmp_path, capsys, monkeypatch):
     code, out, _ = run(capsys, ws.root, "--ask-again", "--judge-command", command,
                        "--allow-calls", "72")
     assert code == 0
-    assert f"This runs `{command}` 72 times." in out
+    assert (f"This runs `{command}` 72 times, waiting up to 5 minutes for each "
+            "answer.") in out
+    assert "  72 of 72 asked" in out  # how far it got, as it goes
     assert "Asked twice more" in out
     _, records = read_run(_again_dir(ws) / "judge-again-1.jsonl")
     assert len(records) == 36
@@ -496,6 +496,29 @@ def test_a_judge_command_that_fails_is_not_counted(tmp_path, capsys):
     code, out, _ = run(capsys, ws.root, "--ask-again", "--judge-command", command,
                        "--allow-calls", "72")
     assert code == 0 and "not counted" in out
+    assert re.search(r"Your judge command failed on \d+ of 72 calls; those answers are not "
+                     r"counted\. First error: ", out), out
+
+
+@pytest.mark.parametrize("command", [
+    "{python} -c \"import sys; sys.exit(3)\"",  # a non-zero exit
+    "{python} -c \"print('no verdict here')\"",  # output it can't read
+    "{missing}",  # a program that is not there
+])
+def test_a_judge_command_that_always_fails_says_why_and_keeps_the_saved_numbers(
+        tmp_path, capsys, command):
+    ws = _checked(tmp_path, maker=table_project)
+    run(capsys, ws.root, "--ask-again", "--judge-command", f"{sys.executable} {EXEC / 'bare.py'}",
+        "--allow-calls", "72")  # the saved "asked again" numbers
+    before = json.loads(ws.result_json.read_text(encoding="utf-8"))["again"]
+    folders = sorted((ws.dir / "again").iterdir())
+    command = command.format(python=sys.executable, missing=tmp_path / "no-such-judge")
+    code, out, _ = run(capsys, ws.root, "--ask-again", "--judge-command", command,
+                       "--allow-calls", "72")
+    assert code == 1
+    assert "Your judge command failed on every call (72 of 72). First error: " in out
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["again"] == before
+    assert sorted((ws.dir / "again").iterdir()) == folders
 
 
 # Next lines ----------------------------------------------------------------------------------

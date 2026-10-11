@@ -210,3 +210,64 @@ def test_three_column_csv_in_one_command(tmp_path, monkeypatch):
             encoding="utf-8")
     assert main(["check", "results.csv"]) == 0
     assert (tmp_path / "judgekeeper-report" / "report.html").is_file()
+
+
+def test_check_reads_column_names_typed_in_a_spreadsheet(tmp_path):
+    path = tmp_path / "labels.csv"
+    path.write_text("ID, Input ,Output,Verdict,Label\n"
+                    + "".join(f"q{i},question {i},answer {i},{'pass' if i % 2 else 'fail'},"
+                              f"{'pass' if i % 2 else 'fail'}\n" for i in range(20)),
+                    encoding="utf-8")
+    r = check_table(path, out=tmp_path / "out")
+    plain = tmp_path / "plain.csv"
+    plain.write_text(path.read_text(encoding="utf-8").replace(
+        "ID, Input ,Output,Verdict,Label", "id,input,output,verdict,label"), encoding="utf-8")
+    assert r["headline"] == check_table(plain, out=tmp_path / "out2")["headline"]
+    named = check_table(path, judge="Verdict", human="Label", out=tmp_path / "out3")
+    assert named["headline"] == r["headline"]  # a column named as typed still works
+
+
+def test_a_link_in_the_output_folder_is_replaced_not_written_through(tmp_path):
+    outside = tmp_path / "outside.html"
+    outside.write_text("not judgekeeper's", encoding="utf-8")
+    out = tmp_path / "out"
+    out.mkdir()
+    try:
+        (out / "report.html").symlink_to(outside)
+        (out / "report.json").symlink_to(outside)
+    except OSError:
+        pytest.skip("this system does not let a test make links")
+    check_table(CSV, out=out)
+    assert outside.read_text(encoding="utf-8") == "not judgekeeper's"
+    assert not (out / "report.html").is_symlink() and not (out / "report.json").is_symlink()
+    assert (out / "report.json").read_text(encoding="utf-8").startswith("{")
+
+
+def _few_labels(tmp_path):
+    """10 answers, 3 runs, the judge agreeing with every label: too few labels to tell."""
+    rows = [{"id": f"q{i}", "input": f"question {i}", "output": f"answer {i}", "run": run,
+             "verdict": "pass" if i % 2 else "fail", "label": "pass" if i % 2 else "fail"}
+            for run in (1, 2, 3) for i in range(10)]
+    return check_table(rows, out=tmp_path / "few")
+
+
+def test_too_few_labels_never_say_usable_as_a_gate(tmp_path):
+    from judgekeeper.report import plain_summary
+
+    r = _few_labels(tmp_path)
+    assert any(f["code"] == "too_few_labels" for f in r["verdict"]["flags"])
+    assert r["verdict"]["level"] == "usable_with_care"  # amber on the page, never green
+    assert r["verdict"]["summary"].startswith(
+        "Too few labels to tell whether it is usable as a gate: TPR 1.00")
+    said = plain_summary(r)
+    assert "It is usable as a gate." not in said and "usable with care" not in said
+    assert said.endswith("Too few labels to tell whether it is usable as a gate.")
+
+
+def test_the_gate_passes_with_too_few_labels_only_with_a_warning(tmp_path):
+    from judgekeeper.gate import evaluate
+
+    result = evaluate(_few_labels(tmp_path))
+    assert result["status"] == "PASS"
+    assert "too few labels to rely on it yet" in result["reason"]
+    assert any(w.startswith("Too few labels for a rough check") for w in result["warnings"])

@@ -28,6 +28,7 @@ judge.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from judgekeeper import again, keys, prices
@@ -53,7 +54,7 @@ def cant_reason(name: str, options: dict, builtin: bool) -> str | None:
     base = name.split("/")[-1]
     if base in RULES:
         return (f"your judge is a rule ({base}), not a model, so asking again gives the same "
-                "verdicts")
+                "decisions")
     if not builtin:
         return (f"your judge is a custom scorer ({name}): asking again would import your task "
                 "file, which runs your code")
@@ -76,7 +77,7 @@ def several_verdicts(metric: str, spec: dict) -> str | None:
     names = {s.get("name") for s in spec.get("scorers") or [] if isinstance(s, dict)}
     if not scorer or metric in names or scorer not in names:
         return None
-    return (f"your judge {scorer} gives several verdicts at once ({metric} is one of them); "
+    return (f"your judge {scorer} gives several decisions at once ({metric} is one of them); "
             "asking again about one of them is not supported yet")
 
 
@@ -126,6 +127,13 @@ def _targets(root, files: list[str]) -> tuple[dict, dict]:
     return by_input, by_id
 
 
+MIN_VERSION = (0, 3, 242)  # the first Inspect AI whose score_async takes model_roles
+
+
+def _version(text: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in re.findall(r"\d+", str(text))[:3])
+
+
 def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> Plan:
     data = ws.data()
     root, metric = ws.root, data["metric"]
@@ -138,7 +146,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     if scorer is None:
         several = several_verdicts(metric, spec)
         if several:
-            return cant("inspect", judge, several, short="your judge gives several verdicts at once")
+            return cant("inspect", judge, several,
+                        short="your judge gives several decisions at once")
         return cant("inspect", judge, f"your log no longer lists the scorer {metric}",
                     short="the scorer is not in your log")
     options = scorer.get("options") or {}
@@ -155,6 +164,12 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             return cant("inspect", judge, f"Inspect AI could not load your scorer in {python}: "
                         f"{out.get('error')}", short="Inspect AI could not load your scorer")
         installed, builtin, loads_env = out["version"], out["builtin"], out.get("dotenv", False)
+        if installed and _version(installed) < MIN_VERSION:  # score_async has no model_roles
+            return cant("inspect", judge, (
+                f"asking your judge again needs Inspect AI {'.'.join(map(str, MIN_VERSION))} "
+                f"or newer, and your Python has {installed}. Update it with pip install -U "
+                "inspect-ai, or use --python to point at another Python"),
+                short=f"needs Inspect AI {'.'.join(map(str, MIN_VERSION))} or newer")
     reason = cant_reason(metric, options, builtin)
     if reason:
         return cant("inspect", judge, reason, short=reason.split(" (")[0].split(":")[0])

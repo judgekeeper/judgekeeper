@@ -215,6 +215,19 @@ def _error(message: str) -> None:
     _say(f"error: {scrub(message)}", file=sys.stderr)
 
 
+def _port(value: str) -> int:
+    """--port: a port number from 1 to 65535, or 0 for any free one (the link says which),
+    checked before anything is read or written."""
+    try:
+        port = int(value)
+    except ValueError:
+        port = -1
+    if not 0 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a port: give a number from 1 to "
+                                         "65535 (or 0 for any free port)")
+    return port
+
+
 def _times(value: str) -> int:
     """`start --times`: 1 to 5."""
     try:
@@ -430,7 +443,7 @@ def _parser() -> argparse.ArgumentParser:
     _normaliser_args(st)
     st.add_argument("--judge-model", metavar="NAME",
                     help="the judge's model, when the results do not record it")
-    st.add_argument("--port", type=int, default=8765,
+    st.add_argument("--port", type=_port, default=8765,
                     help="port on 127.0.0.1 for the page that opens (default 8765)")
     st.add_argument("--no-browser", action="store_true",
                     help="print the page's link instead of opening a browser")
@@ -705,9 +718,8 @@ def cmd_validate(args) -> int:
         raise UsageError(str(e)) from None
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n",
-                                     encoding="utf-8")
-    (out / "report.html").write_text(render_html(report), encoding="utf-8")
+    write_replacing(out / "report.json", json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+    write_replacing(out / "report.html", render_html(report))
     _print_report(report, out)
     return EXIT_OK
 
@@ -868,9 +880,8 @@ def cmd_gate(args) -> int:
 
     out = Path(args.out) if args.out else Path(args.report).parent
     out.mkdir(parents=True, exist_ok=True)
-    (out / "gate.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
-                                   encoding="utf-8")
-    (out / "gate.md").write_text(render_markdown(result), encoding="utf-8")
+    write_replacing(out / "gate.json", json.dumps(result, indent=2, ensure_ascii=False) + "\n")
+    write_replacing(out / "gate.md", render_markdown(result))
     _say(f"{result['status']}: {result['reason']}")
     for w in result["warnings"]:
         _say(f"  warning: {w}")
@@ -904,7 +915,7 @@ def cmd_migrate(args) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     _write_json(out / "migration.json", migration)
-    (out / "migration.html").write_text(render_migration(migration), encoding="utf-8")
+    write_replacing(out / "migration.html", render_migration(migration))
     _say(f"{migration['status']}: {scrub(migration['verdict'])}")
     print(f"wrote {out / 'migration.json'} and {out / 'migration.html'}")
     if args.rebase:

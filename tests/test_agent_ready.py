@@ -106,7 +106,7 @@ def test_dict_valued_scores_are_one_judge_per_key(tmp_path):
 
 def test_asking_again_about_one_key_of_a_dict_score_says_why_not():
     spec = {"scorers": [{"name": "rubric", "options": {}}]}
-    assert "several verdicts at once" in again_inspect.several_verdicts("rubric.tone", spec)
+    assert "several decisions at once" in again_inspect.several_verdicts("rubric.tone", spec)
     assert again_inspect.several_verdicts("model_graded_qa", spec) is None
     assert again_inspect.several_verdicts("other.tone", spec) is None
 

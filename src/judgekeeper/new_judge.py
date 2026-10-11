@@ -65,7 +65,7 @@ class View:
 
     def __init__(self, ws: Workspace, found):
         self.ws, self.found = ws, found
-        self.root, self.dir = ws.root, ws.dir
+        self.root, self.dir, self.start = ws.root, ws.dir, ws.start
 
     def data(self) -> dict:
         saved = self.ws.data()
@@ -83,8 +83,9 @@ def tried(ws: Workspace, new: NewJudge) -> dict | None:
     if not ws.result_json.is_file():
         return None
     block = json.loads(ws.result_json.read_text(encoding="utf-8")).get("new_judge")
-    if not block or (block.get("tool"), block.get("metric")) != (new.found.tool,
-                                                                 new.found.metric):
+    # the results' tool: a judge asked through --judge-command was saved as "command"
+    tool = block.get("found_tool") or block.get("tool") if block else None
+    if not block or (tool, block.get("metric")) != (new.found.tool, new.found.metric):
         return None
     if judge_change(block.get("found_fingerprint") or {}, new.found.fingerprint) is not None:
         return None
@@ -151,7 +152,7 @@ def run(ws: Workspace, new: NewJudge, talk, opts, port: int, open_browser: bool)
     view = View(ws, new.found)
     plan = again.make_plan(ws, opts, talk=talk, dry=True, new=view)
     talk.say()
-    for line in again.plan_lines(plan, TITLE):
+    for line in again.plan_lines(plan, TITLE, talk.command(), COMMAND):
         talk.say(line)
     if plan.status == again.CANT:
         return 0
@@ -217,7 +218,8 @@ def finish(ws: Workspace, view: View, plan, fresh, new: NewJudge) -> dict:
         "asked": plan.answers, "counted": len(counted),
         "not_counted": [{"id": i, "why": w} for i, w in fresh.not_counted.items()],
         "fingerprint": fresh.fingerprint, "found_fingerprint": new.found.fingerprint,
-        "close": plan.status == CLOSE, "old": _old_numbers(r),
+        "found_tool": new.found.tool, "close": plan.status == CLOSE, "old": _old_numbers(r),
+        "too_few": r.get("check") == "too_few",
         "new": {k: numbers[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval",
                                         "kappa", "interval_methods")},
         "confirmation": None, "notes": list(fresh.notes),
@@ -265,7 +267,11 @@ def lines(block: dict) -> list[str]:
     out = [*block["aside"]["lines"], ""] if block.get("aside") else []
     out.append(f"Your new judge vs your old judge, on your {block['counted']} marked answers:")
     width = len("When you said Pass, the judge also said Pass:")
-    for key, said in (("tnr", "Fail"), ("tpr", "Pass")):
+    if block.get("too_few"):  # the result hides these numbers: so does this
+        from judgekeeper.again.fresh import TOO_FEW_NUMBERS
+
+        out.append(f"  {TOO_FEW_NUMBERS}")
+    for key, said in (() if block.get("too_few") else (("tnr", "Fail"), ("tpr", "Pass"))):
         label = f"When you said {said}, the judge also said {said}:".ljust(width)
         out.append(f"  {label}  old {_share(old[key], old[f'{key}_interval'])}  ->  "
                    f"new {_share(now[key], now[f'{key}_interval'])}{tail}")
@@ -295,7 +301,7 @@ def offer_confirmation(ws: Workspace, new: NewJudge, block: dict, talk, port: in
 
     if not start._interactive() and not talk.yes:
         talk.say(f"To confirm on new answers, mark {QUICK} Pass and {QUICK} Fail: "
-                 f"{talk.command(COMMAND)}")
+                 f"{talk.command(COMMAND, '--yes')}")  # --yes: run as printed, it opens it
         return 0
     if not talk.confirm(CONFIRM, default=True, with_yes=True, hint=CONFIRM):
         return 0
@@ -360,7 +366,8 @@ def serve_confirmation(ws: Workspace, cws: Workspace, port: int, open_browser: b
         made.append(done)
         return result_html(_scrubbed(r), None if done else back)
 
-    server = make_server(session, port, result=result, page=confirmation_page(cws))
+    server = make_server(session, port, result=result, page=confirmation_page(cws),
+                         lock=ws.dir)
     say_opened(server.url, open_browser, say, command, f" {COMMAND}")
     try:
         server.serve()

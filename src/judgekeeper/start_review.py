@@ -391,7 +391,16 @@ def files_lines(ws: Workspace) -> list[str]:
 
 def page_template(ws: Workspace) -> str:
     about = ws.data()
-    return review_page(about.get("description"), about.get("rule"))
+    return review_page(about.get("description"), about.get("rule"), _command(ws))
+
+
+def _command(ws: Workspace) -> str:
+    """The command of the run that made the result (start_label.save_result keeps it)."""
+    try:
+        r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "judgekeeper start"
+    return r.get("command") or "judgekeeper start" if isinstance(r, dict) else "judgekeeper start"
 
 
 def result_maker(ws: Workspace, say):
@@ -422,10 +431,15 @@ def finish(ws: Workspace, say, command: str = "judgekeeper start") -> None:
     if session.step() != "done":
         say(f"Stopped. Every click is saved. To carry on later: {command} --review")
         return
+    from judgekeeper import start_fix
+
     for line in review_lines(session.block()):
         say(line)
     for line in files_lines(ws):
         say(line)
+    if start_fix.ready(ws):
+        say("")
+        say(f"Next: {command} --fix")
 
 
 def serve_review(ws: Workspace, port: int, open_browser: bool, say,
@@ -435,7 +449,7 @@ def serve_review(ws: Workspace, port: int, open_browser: bool, say,
 
     session = ReviewSession(ws)
     server = make_server(session, port, result=result_maker(ws, say), page=page_template(ws),
-                         switches={"/fix": start_fix.switch(ws, say, command)})
+                         switches={"/fix": start_fix.switch(ws, say, command)}, lock=ws.dir)
     say_opened(server.url, open_browser, say, command, " --review")
     try:
         server.serve()

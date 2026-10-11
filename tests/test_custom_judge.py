@@ -259,3 +259,11 @@ def test_cli_one_judge_source_only(tmp_path):
     assert main(["judge", str(anchors), "--out", str(tmp_path / "r")]) == 2
     assert main(["judge", str(anchors), "--runner", "replay", "--callable", "a:b",
                  "--out", str(tmp_path / "r")]) == 2
+
+
+@pytest.mark.parametrize("judge", ["my_judge", None, 42, {"model": "x"}])
+def test_a_judge_that_is_not_a_function_stops_at_once(tmp_path, judge):
+    out = tmp_path / "out"
+    with pytest.raises(TypeError, match="^judge must be a function$"):
+        check_judge(judge, _single(tmp_path), runs=3, out=out)
+    assert not out.exists()  # nothing written

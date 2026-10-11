@@ -254,6 +254,8 @@ def test_the_verdict_levels_use_the_report_thresholds():
                                  "rely on it.")
     assert bottom["verdict"] == "Not good enough yet: look at where it disagrees with you."
     assert too_few["verdict"] == "Mark a few more answers to see your result."
+    assert start_label.sentences(too_few) == [
+        "Mark a few more answers to see your result. So far: 10 Pass, 10 Fail."]
     assert [r["check"] for r in (top, too_few)] == ["rough", "too_few"]
     assert _result(100, 100, 50, 48, 50, 2)["check"] == "reliable"
 
@@ -398,9 +400,26 @@ def test_a_second_result_moves_the_first_to_history(workspace):
     session = _label_everything(ws)
     start_label.save_result(ws, session, say=lambda line: None)
     first = ws.result_json.read_text(encoding="utf-8")
+    item = session.items[0]
+    session.update({"id": item["id"], "label": "fail" if item["label"] == "pass" else "pass"})
     start_label.save_result(ws, session, say=lambda line: None)
     history = sorted((ws.dir / "history").glob("result-*.json"))
     assert len(history) == 1 and history[0].read_text(encoding="utf-8") == first
+
+
+def test_no_new_marks_keep_the_saved_result(workspace):
+    # "See your result" or --label-more with nothing new: a new result would move the
+    # finished review and fix to history/
+    _, ws = workspace
+    session = _label_everything(ws)
+    start_label.save_result(ws, session, say=lambda line: None)
+    first = ws.result_json.read_bytes()
+    said = []
+    again = start_label.save_result(ws, start_label.StartSession(ws), say=said.append)
+    assert ws.result_json.read_bytes() == first
+    assert not (ws.dir / "history").exists()
+    assert again["made_at"] == json.loads(first)["made_at"]
+    assert any(line.startswith("Your result, from the") for line in said)
 
 
 def test_skipped_answers_are_not_in_the_anchors(workspace):
@@ -426,7 +445,8 @@ def test_secrets_in_the_results_are_scrubbed_in_every_saved_file(tmp_path):
         assert secret not in path.read_text(encoding="utf-8"), path.name
 
 
-def test_the_first_save_says_what_the_folder_holds_once(tmp_path):
+def test_the_first_save_says_what_the_folder_holds_once(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # run in the project: the folder is .judgekeeper here
     found = _found(tmp_path)
     said = []
     start_label.prepare(found, say=said.append)
@@ -509,7 +529,9 @@ def test_start_labels_and_shows_the_result(tmp_path, capsys, clicker):
     assert len(clicker["opened"]) == 1
     assert "Your result, from the 36 answers you marked (20 Pass, 16 Fail):" in out
     assert "Your judge agrees with you often enough to use." in out
-    assert "Saved in .judgekeeper/. It holds your answers' text" in out
+    # run from elsewhere: the folder's whole path
+    assert (f"Saved in {(tmp_path / '.judgekeeper').resolve().as_posix()}/. It holds your "
+            "answers' text") in out
     assert "Your judge agrees with you often enough to use." in clicker["page"]
     assert (tmp_path / ".judgekeeper" / "result.html").is_file()
 
@@ -566,3 +588,18 @@ def test_a_port_in_use_is_a_usage_error(tmp_path, capsys, monkeypatch):
     finally:
         busy.close()
     assert code == 2 and "try --port" in err
+
+
+@pytest.mark.parametrize("correct, wrong, have", [(20, 4, "4 Fail"), (3, 30, "3 Pass"),
+                                                  (9, 2, "9 Pass and 2 Fail")])
+def test_every_answer_marked_but_a_kind_short_says_why_there_is_no_result(correct, wrong,
+                                                                          have):
+    r = {"check": "too_few", "left": 0, "labels": {"correct": correct, "wrong": wrong}}
+    line = (f"You've marked every answer. A result needs at least 15 you mark Pass and 15 you "
+            f"mark Fail; you have {have}. Run your eval on more questions, then judgekeeper "
+            "start --label-more.")
+    assert start_label.sentences(r) == [line]
+    assert start_label.statements(r)[0]["text"] == line  # the page
+    assert line in start_label.result_lines({**r, "wide": {}})  # the terminal
+    r["left"] = 3  # answers still to mark: mark more, as before
+    assert start_label.sentences(r)[0].startswith("Mark a few more answers")

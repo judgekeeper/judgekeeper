@@ -21,7 +21,7 @@ from judgekeeper import again, keys, start, start_fix, start_fix_rule, start_lab
 from judgekeeper import label as label_mod
 from judgekeeper.start_label import StartSession, save_result
 from judgekeeper.start_review import ReviewSession
-from tests.start_projects import answer, promptfoo_project, question, split
+from tests.start_projects import answer, project_promptfoo, promptfoo_project, question, split
 from tests.test_again_run import FakePromptfoo
 from tests.test_label_server import Client
 from tests.test_new_judge import _meta, _new_run, run
@@ -449,6 +449,25 @@ def test_the_fix_page_holds_the_rule_section(tmp_path):
         assert needed in page, needed
 
 
+def test_writing_it_yourself_says_the_box_holds_todays_rule(tmp_path):
+    page = start_fix.page_template(too_easy_project(tmp_path))
+    self_click = page.split('$("rc-self").addEventListener')[1].split("});")[0]
+    assert '$("rc-new-label").textContent = "Change the rule here, or paste a new one";' in (
+        self_click)
+    assert "$(\"rc-new\").value = data.rule_change.rule;" in self_click
+    ask_click = page.split('$("rc-ask").addEventListener')[1].split("$(\"rc-copy\")")[0]
+    assert '$("rc-new-label").textContent = PASTE_LABEL;' in ask_click
+
+
+def test_the_coding_agent_prompt_is_copied_only_on_copy(tmp_path):
+    page = start_fix.page_template(too_easy_project(tmp_path))
+    opening = page.split('$("rc-loop").addEventListener')[1].split(
+        '$("rc-loop-copy").addEventListener')[0]
+    assert "/fix/agent-prompt" in opening and "copy(" not in opening
+    on_copy = page.split('$("rc-loop-copy").addEventListener')[1].split("});")[0]
+    assert 'copy($("rc-loop-text").textContent, $("rc-loop-copy"));' in on_copy
+
+
 def test_the_page_asks_for_the_prompt_and_saves_the_rule(tmp_path, seeded):
     ws = too_easy_project(tmp_path)
     fix = start_fix.Fix(ws)
@@ -504,9 +523,7 @@ def fixable(monkeypatch, tmp_path):
         if item["disagreement"]:
             review.update({"id": item["id"], "choice": "judge_wrong"})
     monkeypatch.setattr(start_fix.secrets, "randbelow", lambda n: 1234)
-    binary = tmp_path / "node_modules" / ".bin" / "promptfoo"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("", encoding="utf-8")
+    project_promptfoo(tmp_path)
     for name in keys.all_names():
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
@@ -710,6 +727,51 @@ def test_source_files_are_searched_before_others(tmp_path):
     _write(tmp_path / "b" / "evals.py", "RULE = 'Be helpful to every customer.'\n")
     assert start_fix_rule.locate_rule(tmp_path, "Be helpful to every customer.",
                                       "records")[0] == "b/evals.py"
+
+
+RECORD_RULE = "Pass when the reply is polite and answers the customer's question."
+FIRST_BLOCK = f"""Looking in /home/me/bot ...
+
+judgekeeper found your LLM-as-a-judge:
+
+  Eval tool       your own code (judgekeeper.record())
+  Results file    .judgekeeper/records (1 file)
+  What it checks  "{RECORD_RULE}"
+  Judge model     my-judge-1
+"""
+
+
+def test_a_saved_copy_of_judgekeepers_output_is_never_where_the_rule_goes(tmp_path):
+    _write(tmp_path / "serve.log", FIRST_BLOCK)
+    _write(tmp_path / "app.py", f"judgekeeper.record(q, a, verdict=v, rule={RECORD_RULE!r})\n")
+    assert start_fix_rule.locate_rule(tmp_path, RECORD_RULE, "records")[:2] == ("app.py", 1)
+
+
+def test_with_only_judgekeepers_output_the_rule_is_not_found_and_that_is_said(tmp_path):
+    _write(tmp_path / "serve.log", FIRST_BLOCK)
+    _write(tmp_path / "notes" / "run.txt", FIRST_BLOCK)  # a source-like name: its text says
+    _write(tmp_path / "a-result.md", f"Your result, from the 40 answers\n{RECORD_RULE}\n")
+    assert start_fix_rule.locate_rule(tmp_path, RECORD_RULE, "records") is None
+    hand = start_fix_rule.hand_over(tmp_path, {"tool": "records"}, RECORD_RULE, "Be kind.", 15)
+    assert hand["where"] == hand["where_short"] == (
+        "judgekeeper could not find where this rule is written. It is the rule your code "
+        "passes to judgekeeper.record() (rule=...). Change it there.")
+    assert hand["agent_prompt"].startswith(
+        "The judge's rule is the rule my code passes to judgekeeper.record() (rule=...). "
+        "Change it there: replace it with the text below. Change only this text, nothing "
+        "else.")
+    assert "serve.log" not in json.dumps(hand)
+    assert start_fix_rule.place_words(None, "records") == (
+        "the rule my code passes to judgekeeper.record() (rule=...)")
+    assert start_fix_rule.place_words(None, "promptfoo") == (
+        "where my eval keeps the judge's rule")
+
+
+@pytest.mark.parametrize("name", ["serve.log", "run.out", "run.err", "app.stdout",
+                                  "app.stderr", "LOGS.LOG"])
+def test_program_output_files_are_never_searched(tmp_path, name):
+    _write(tmp_path / name, f"RULE = {RECORD_RULE!r}\n")
+    assert start_fix_rule.locate_rule(tmp_path, RECORD_RULE, "records") is None
 
 
 def test_a_long_matched_line_is_cut(tmp_path):
@@ -922,7 +984,9 @@ def test_the_agent_prompt_of_a_project_holds_no_answer_text(tmp_path, seeded, mo
     assert "Read .judgekeeper/fix/prompt.txt." in text
     assert "Run: judgekeeper start --port 8791 --fix --rule-file " in text
     assert "6. Tell me in plain words what it printed." in text  # records: not askable
-    assert "(where my eval keeps the judge's rule)" in text
+    # records: the rule is the one the person's code passes to judgekeeper.record()
+    assert ("Put the new rule where that command says (the rule my code passes to "
+            "judgekeeper.record() (rule=...)).") in text
 
 
 def test_the_agent_prompt_says_where_the_rule_probably_is(fixable, monkeypatch):

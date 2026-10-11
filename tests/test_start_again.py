@@ -124,8 +124,9 @@ def test_the_same_results_offer_to_label_more(tmp_path, capsys, served, terminal
     assert code == 0
     assert "  Results file    results.json (saved" in out
     labels = [q["group"] for q in queue[:20]]
-    assert (f"Your last result ({made}), from the 20 answers you marked ({labels.count('pass')} "
-            f"Pass, {labels.count('fail')} Fail).") in out
+    assert made and "Your last result" not in out  # 20 marks: too few for a result
+    assert (f"You marked 20 answers ({labels.count('pass')} Pass, {labels.count('fail')} "
+            "Fail): not enough of each kind for a result yet.") in out
     assert "  1. Ask your judge again about your 20 marked answers" in out
     assert "  2. Mark more answers" in out
     assert len(served) == 1 and ws.data()["queue"] == queue
@@ -214,8 +215,9 @@ def test_changed_answers_offer_to_label_the_latest_results(tmp_path, capsys, ser
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "0 of your 36 marked answers are in your latest results (2026-10-09)." in out
-    assert ("your app gives different answers now, so your old marks do not apply to them."
-            in out)
+    assert ("Too few of them are in your latest results to compare: 36 of your marked "
+            "answers are not there (your eval ran on other questions, or your app's answers "
+            "changed).") in out
     assert "Mark your latest results instead? [Y/n]" in out
     (previous,) = ws.dir.glob("previous-*")
     assert {p.name: p.read_bytes() for p in previous.iterdir() if p.is_file()} == old
@@ -237,9 +239,13 @@ def test_labeled_answers_the_judge_did_not_judge_are_not_called_changed(tmp_path
     assert "30 of your 36 marked answers are in your latest results (2026-10-09)." in out
     assert ("6 of your marked answers are left out now: your judge made no real decision on "
             "them.") in out
-    assert "your app gives different answers now" not in out
-    assert "Too few of them are left to compare." in out
-    assert code == start.EXIT_QUESTION and served == []  # asks before labeling the new results
+    assert "not there" not in out
+    assert ("Too few of them are left to compare: your judge made no real decision on 6 of "
+            "them. Fix that (see the judge check above), run your eval again, then judgekeeper "
+            "start. Your marks stay as they are.") in out
+    # never offers to mark again answers that are already marked
+    assert "Mark your latest results instead" not in out
+    assert code == 0 and served == []
 
 
 def test_a_labeled_answer_left_out_and_others_changed(tmp_path, capsys, served):
@@ -255,8 +261,9 @@ def test_a_labeled_answer_left_out_and_others_changed(tmp_path, capsys, served):
     _, out, _ = run(capsys, tmp_path)
     assert ("1 of your marked answers is left out now: your judge made no real decision on "
             "it.") in out
-    assert ("Too few of them came back unchanged to compare: your app gives different answers "
-            "now, so your old marks do not apply to them.") in out
+    assert ("Too few of them are in your latest results to compare: 16 of your marked answers "
+            "are not there (your eval ran on other questions, or your app's answers "
+            "changed).") in out
 
 
 def test_changed_answers_without_a_terminal_need_yes(tmp_path, capsys, served):
@@ -330,3 +337,115 @@ def test_an_unknown_new_prompt_is_not_called_a_change():
     assert judge_change({"prompt_hash": "abc"}, {"prompt_hash": None}) == \
         "the prompt was recorded, now not recorded"
     assert judge_change({"prompt_hash": "abc"}, {"prompt_hash": "def"}) == "the prompt changed"
+
+
+def test_coming_back_without_a_result_never_says_your_last_result(tmp_path, capsys, served,
+                                                                  terminal):
+    _checked(tmp_path, n_pass=24, n_fail=12)  # every answer marked, 12 Fail: too few
+    terminal.append("2")
+    _, out, _ = run(capsys, tmp_path)
+    assert "Your last result" not in out
+    assert ("You marked 36 answers (24 Pass, 12 Fail): not enough of each kind for a result "
+            "yet.") in out
+
+
+def test_too_few_marks_hide_the_asked_again_numbers_as_the_result_does():
+    from judgekeeper.again.fresh import TOO_FEW_NUMBERS, again_lines
+
+    block = {"status": "exact", "counted": 36, "times": 1, "steadiness": None,
+             "today": {"tpr": 0.86, "tnr": 0.25}, "before": {"tpr": 0.83, "tnr": 0.25},
+             "matches_saved": None, "too_few": True, "why": "", "not_counted": [],
+             "judge_change": None, "notes": [], "asked": 36}
+    lines = again_lines(block)
+    assert TOO_FEW_NUMBERS in lines and not any("before and" in x for x in lines)
+    lines = again_lines({**block, "too_few": False})
+    assert any("of the time before and about 86% now" in x for x in lines)
+
+
+@pytest.mark.parametrize("name, text", [
+    ("result.json", '{"made_at": "2026'), ("result.json", "[]"),
+    ("start.json", '{"tool": "promptfoo"}'), ("pool.jsonl", "{not json\n"),
+    ("labels.csv", None),
+])
+def test_a_damaged_saved_file_is_named_with_the_way_out(tmp_path, capsys, name, text):
+    ws = _checked(tmp_path)
+    path = ws.dir / name
+    if text is None:
+        path.write_bytes("id,human_label\nq1,pass\n".encode("utf-16"))
+    else:
+        path.write_text(text, encoding="utf-8")
+    for flag in ([], ["--review"], ["--fix"]):
+        code, out, err = run(capsys, tmp_path, *flag)
+        assert code == 2, (flag, out, err)
+        assert f"judgekeeper can't read .judgekeeper/{name} (" in out
+        assert "--new: your last one moves to .judgekeeper/previous-<date>/" in out
+        assert "Traceback" not in out + err
+
+
+@pytest.mark.parametrize("name, text", [("review.json", '{"items": '),
+                                        ("review.json", '{"basis": 1}'),
+                                        ("fix.json", "[1, 2]")])
+def test_a_damaged_review_or_fix_never_blocks_start(tmp_path, capsys, served, terminal, name,
+                                                    text):
+    ws = _checked(tmp_path)
+    (ws.dir / name).write_text(text, encoding="utf-8")
+    terminal.append("2")
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0, out
+    step = "review" if name == "review.json" else "fix"
+    assert (f".judgekeeper/{name} was damaged (") in out
+    assert "so it was moved to .judgekeeper/history/damaged-" in out
+    assert f"the {step} starts again." in out
+    assert not (ws.dir / name).exists()
+    assert list(ws.history.glob(f"damaged-*/{name}"))
+
+
+@pytest.mark.parametrize("gone", [True, False])
+def test_missing_marks_are_never_called_agreement(tmp_path, capsys, gone):
+    ws = _checked(tmp_path)
+    copy = ws.history / "check-2026-10-01T09-00-00Z"
+    copy.mkdir(parents=True)
+    copy.joinpath("labels.csv").write_bytes(ws.labels.read_bytes())
+    if gone:
+        ws.labels.unlink()
+    else:
+        ws.labels.write_text("", encoding="utf-8")
+    for flag in ([], ["--review"], ["--fix"]):
+        code, out, _ = run(capsys, tmp_path, *flag)
+        assert code == 2
+        assert (f"Your marks are missing: .judgekeeper/labels.csv is "
+                f"{'gone' if gone else 'empty'}, but your last result was made from 36 marked "
+                "answers. A copy from earlier is in .judgekeeper/history/"
+                "check-2026-10-01T09-00-00Z/labels.csv: copy it back to "
+                ".judgekeeper/labels.csv.") in out
+        assert "agree on every" not in out and "agrees with every" not in out
+
+
+def test_results_that_changed_under_unfinished_marking_are_said(tmp_path, capsys, served):
+    _checked(tmp_path, labeled=12, result=False)
+    _rewrite(tmp_path, split(20, 16), tag=" (v2)")  # the eval ran again: every answer is new
+    _, out, _ = run(capsys, tmp_path)
+    assert ("Your results changed since you started marking: 36 of the 36 answers you are "
+            "marking are no longer in them. Carry on with the saved answers, or start on the "
+            f"new ones with judgekeeper start {quote_arg(tmp_path)} --new.") in out
+
+
+def test_unchanged_results_under_unfinished_marking_say_nothing_of_it(tmp_path, capsys,
+                                                                     served):
+    _checked(tmp_path, labeled=12, result=False)
+    _, out, _ = run(capsys, tmp_path)
+    assert "Your results changed" not in out and "You marked 12 answers." in out
+
+
+def test_a_result_whose_results_file_is_gone_still_shows_the_menu(tmp_path, capsys, served,
+                                                                  terminal):
+    ws = _checked(tmp_path)
+    (tmp_path / "results.json").unlink()
+    terminal.append("2")
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0, out
+    assert ("Your results (results.json) are not here any more, but your last check is saved "
+            "in .judgekeeper/. To check new results: judgekeeper start "
+            f"{quote_arg(tmp_path)} --new") in out
+    assert "Your last result (" in out and "No saved eval results found" not in out
+    assert ws.result_json.is_file()

@@ -1,12 +1,17 @@
 """`baseline` and `gate` commands: files written, default paths, exit codes."""
 
 import json
+import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from judgekeeper.cli import main
+
+ROOT = Path(__file__).resolve().parent.parent
 
 GATE = Path(__file__).parent / "fixtures" / "gate"
 
@@ -207,3 +212,35 @@ def test_gate_md_escapes_a_hostile_anchor_hash(work):
     md = (work / "pass" / "gate.md").read_text(encoding="utf-8")
     assert not [line for line in md.splitlines() if line.startswith("#") and "INJECTED" in line]
     assert "[click](" not in md
+
+
+def _judge_step() -> str:
+    """The bash script of action.yml's "Judge the anchor set" step."""
+    import textwrap
+
+    text = (ROOT / "action.yml").read_text(encoding="utf-8")
+    step = text.split("- name: Judge the anchor set", 1)[1].split("\n    - name:", 1)[0]
+    return textwrap.dedent(step.split("run: |\n", 1)[1])
+
+
+@pytest.mark.skipif(shutil.which("bash") is None or sys.platform == "win32",
+                    reason="runs the action's bash step")
+@pytest.mark.parametrize("runs, refused", [("1", True), ("2", True), ("x", True),
+                                           ("3", False), ("5", False)])
+def test_the_action_refuses_fewer_than_3_runs_before_any_judge_call(tmp_path, runs, refused):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "judgekeeper"
+    fake.write_text(f"#!/bin/sh\necho called >> {tmp_path / 'called'}\n", encoding="utf-8")
+    fake.chmod(0o755)
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+           "ANCHORS": "anchors.jsonl", "RUNNER": "replay", "MODEL": "", "PROMPT": "",
+           "FIXTURE": "", "BASE_URL": "", "API_KEY_ENV": "", "RUNS": runs,
+           "OUT": str(tmp_path / "out")}
+    proc = subprocess.run(["bash", "-c", _judge_step()], env=env, capture_output=True,
+                          text=True, check=False)
+    if refused:
+        assert proc.returncode == 2 and not (tmp_path / "called").exists()
+        assert f"runs is {runs}. The gate needs at least 3 runs" in proc.stdout
+    else:
+        assert proc.returncode == 0 and (tmp_path / "called").exists(), proc.stderr

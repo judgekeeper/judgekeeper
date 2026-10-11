@@ -193,12 +193,13 @@ def test_a_released_card_springs_back_without_overshooting():
 
 def test_keys_and_buttons_mark_at_once_and_only_a_drag_animates():
     script = _script(start_page.label_page(None, None))
-    keys = script[script.index('document.addEventListener("keydown"'):]
+    keys = script[script.index("function byKey(k)"):]
     keys = keys[:keys.index("});") + 3]
     assert "mark(KEYS[k])" in keys and "hit(KEYS[k])" in keys
     assert "animate" not in keys and "flyOut" not in keys
     assert 'var KEYS = {arrowright: "pass", arrowleft: "fail", "1": "pass", "2": "fail"};' in script
-    assert '$("pass").addEventListener("click", function () { hit("pass"); mark("pass"); });' in script
+    assert ('$("pass").addEventListener("click", function () {\n'
+            '    if (!flying) { hit("pass"); mark("pass"); } });') in script
     # The card's own animation runs only when a drag commits.
     assert script.count("flyOut(") == 2  # defined, and called once: from the drag's end
     assert "if (value) { flyOut(c, dx, v, value); } else { springBack(c, dx, v, set); }" in script
@@ -212,7 +213,7 @@ def test_clicking_a_dot_opens_that_answer():
     assert 'b.setAttribute("data-k", String(k));' in script
     assert ('$("dots").addEventListener("click", function (e) {\n'
             '    var k = e.target.getAttribute && e.target.getAttribute("data-k");\n'
-            '    if (k == null) { return; }\n'
+            '    if (k == null || flying) { return; }\n'
             '    walkingSkipped = false; open(+k);') in script
     assert "function open(index) { ended = false; pos = index; render(); }" in script
     # Over 60 answers, a window of dots with "+N" for the rest.
@@ -336,6 +337,20 @@ def test_the_review_page_has_the_task_left_and_the_panel_right():
     assert "Back to your result" in page and ".vs { display: grid; grid-template-columns: 1fr 1fr;" in page
 
 
+def test_a_key_pressed_while_the_next_answer_comes_is_kept():
+    # After Enter in the why box the box keeps the focus until the next answer is on
+    # screen: a choice key pressed then waits and counts for that answer.
+    page = start_page.review_page("support bot", "Be helpful.")
+    keys = page.split('document.addEventListener("keydown"')[-1].split("});")[0]
+    assert "if (moving) {" in keys and "queued = k;" in keys
+    assert keys.index("if (moving)") < keys.index('e.target === $("whybox")')
+    assert "if (moving) { return; }\n    moving = true;" in page  # goOn: Enter twice is once
+    assert "pos = i; render(); arrived(); return;" in page
+    arrived = page.split("function arrived() {")[1].split("}\n")[0]
+    assert "moving = false; queued = null;" in arrived
+    assert "function stay() { moving = false; queued = null; render(); }" in page
+
+
 def test_the_fix_page_has_the_lists_left_and_a_panel_that_stays_in_view_right():
     page = start_page.fix_page("support bot")
     left, right = page.split('<main class="body split fix">')[1].split('<div class="col stick">')
@@ -346,3 +361,26 @@ def test_the_fix_page_has_the_lists_left_and_a_panel_that_stays_in_view_right():
         assert needed in right, needed
     assert ".stick { position: sticky; top: calc(var(--hdr) + 20px);" in page
     assert "support bot" not in page  # the fix page is about the judge, not the app
+
+
+def test_one_gesture_marks_one_answer():
+    # A key or click while a dragged card flies off used to mark the answer on screen, and the
+    # drag's mark then landed on the next answer: two marks swapped.
+    script = _script(start_page.label_page(None, None))
+    fly = script[script.index("function flyOut("):script.index("function springPath(")]
+    assert "flying = true;" in fly
+    assert "if (!mark(value, landed)) { render(); landed(); }" in fly
+    landed = fly[fly.index("function landed() {"):]
+    assert "flying = false;" in landed and "if (k) { byKey(k); }" in landed
+    keys = script[script.index('document.addEventListener("keydown"'):]
+    keys = keys[:keys.index("});") + 3]
+    assert "if (flying) { queued = k; } else { byKey(k); }" in keys
+    for button in ("pass", "fail"):
+        assert (f'$("{button}").addEventListener("click", function () {{\n'
+                f'    if (!flying) {{ hit("{button}"); mark("{button}"); }} }});') in script
+    assert '$("skip").addEventListener("click", function () { if (!flying) { skip(); } });' in (
+        script)
+    assert '$("undo").addEventListener("click", function () { if (!flying) { undo(); } });' in (
+        script)
+    mark = script[script.index("function mark(value, after)"):]
+    assert "next();\n      if (after) { after(); }" in mark[:mark.index("\n  }")]

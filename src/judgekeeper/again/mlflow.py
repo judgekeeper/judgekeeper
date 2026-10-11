@@ -60,6 +60,39 @@ def _version(text: str | None) -> tuple[int, ...]:
     return tuple(int(x) for x in re.findall(r"\d+", text or "")[:3])
 
 
+def here(info: dict, instructions: str | None) -> dict:
+    """What the dry worker would say about the judge's version and built-in judges, from the
+    MLflow in judgekeeper's own Python (usually the same): {} without it. Never whether it is
+    registered, which needs the store. For the menu's quick plan, which starts no worker, so
+    its line says what the plan will."""
+    from judgekeeper.readers.mlflow_store import quiet
+
+    with quiet():
+        try:
+            import mlflow
+            from mlflow.genai import scorers
+        except ImportError:
+            return {}
+        builtin = is_builtin(scorers, info.get("name"), instructions)
+    return {"version": getattr(mlflow, "__version__", None), "builtin": builtin}
+
+
+def is_builtin(scorers, name, instructions=None) -> bool:
+    """The worker's is_builtin (workers/mlflow_worker.py, which runs on its own): one of
+    MLflow's built-in judges has this name and, when instructions were saved, they are its
+    own."""
+    cls = getattr(scorers, "".join(part.capitalize() for part in str(name).split("_")), None)
+    if not isinstance(cls, type):
+        return False
+    if not instructions:
+        return True
+    try:
+        own = cls().instructions
+    except Exception:  # noqa: BLE001 - no instructions of its own: not this judge
+        return False
+    return isinstance(own, str) and own.strip() == str(instructions).strip()
+
+
 def classify(info: dict, worker: dict) -> tuple[str, str]:
     """(status, why) for an MLflow judge, from one of its assessments (`info`) and what the
     worker found in the user's Python."""
@@ -86,7 +119,7 @@ def classify(info: dict, worker: dict) -> tuple[str, str]:
         return EXACT, (f"MLflow's built-in {info.get('name')} judge with the model saved with "
                        "your assessments")
     if info.get("instructions"):
-        if _version(worker.get("version")) >= (3, 14):
+        if worker.get("version") is None or _version(worker.get("version")) >= (3, 14):
             return CLOSE, ("an unregistered make_judge: its instructions and model are saved; "
                            "its output type and temperature are not saved")
         return CANT, "a make_judge from MLflow before 3.14 does not save its instructions"
@@ -98,11 +131,13 @@ def judge_meta(meta: dict) -> dict:
     instructions (a make_judge's, whose text holds template variables such as
     {{ outputs }}), trace (the instructions read the whole trace), text}. MLflow saves a
     list of guidelines joined by line breaks, so each line is one guideline."""
+    from judgekeeper.readers.mlflow_store import judge_instructions
+
     guideline = meta.get("guideline") if meta.get("guideline") is not None else meta.get(
         "guidelines")
-    instructions = meta.get("instructions")
-    if instructions is None and isinstance(guideline, str) and "{{" in guideline:
-        instructions, guideline = guideline, None
+    instructions = judge_instructions(meta)
+    if instructions is not None and meta.get("instructions") is None:  # saved as `guideline`
+        guideline = None
     count, text = None, None
     if isinstance(guideline, list) and guideline:
         count, text = len(guideline), guideline[0] if len(guideline) == 1 else None
@@ -200,12 +235,16 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         return cant("mlflow", judge, 'reading MLflow needs pip install "judgekeeper[mlflow]"',
                     short="the mlflow extra is not installed")
     python = again.user_python(root, opts.python)
+    saved = info.get("text") if info.get("instructions") else None
     worker = {}
-    if dry:
+    if not dry:  # the menu's quick plan starts no worker
+        worker = here(info, saved)
+    else:
         worker = again.run_worker("mlflow", python, {
             "mode": "dry", "name": info.get("scorer_name") or info.get("name"),
             "version": info.get("scorer_version"), "uri": info.get("uri"),
-            "experiment": info.get("experiment")}, root, env=worker_env(info.get("uri")))
+            "experiment": info.get("experiment"), "instructions": saved}, root,
+            env=worker_env(info.get("uri")))
         if not worker.get("ok"):
             if worker.get("missing"):
                 return cant("mlflow", judge, f"MLflow is not installed in {python}. Use "
@@ -215,10 +254,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                         f"{worker.get('error')}", short="MLflow could not load your judge")
     status, why = classify(info, worker)
     if status == CANT:
-        return cant("mlflow", judge, why, short=why.split(".")[0].split(",")[0])
+        return cant("mlflow", judge, why, short=re.split(r"[.,](?:\s|$)", why)[0])
     version = worker.get("version")
     if status == EXACT:
-        confirmed = bool(version) and talk is not None and talk.ask_yes(
+        confirmed = dry and bool(version) and talk is not None and talk.ask_yes(
             f"Is MLflow {version} the version you ran your eval with?")
         if not confirmed:
             status, why = CLOSE, f"{why}; the MLflow version was not confirmed"

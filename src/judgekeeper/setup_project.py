@@ -46,7 +46,7 @@ NOT_LISTED = ("judgekeeper is not listed in your project's requirements; add it 
               "get it")
 GITIGNORE = ("# judgekeeper: your answers and labels stay off Git; a gate baseline is shared",
              ".judgekeeper/*", "!.judgekeeper/baseline.json", "!.judgekeeper/migrations/")
-RECORD_DOOR = ("Or save your judge's verdicts from now on with one judgekeeper.record() line "
+RECORD_DOOR = ("Or save your judge's decisions from now on with one judgekeeper.record() line "
                f"where it runs: {own_format.RECORD_URL} has a prompt that asks your coding "
                "agent to add it.")
 NEXT = "Next: judgekeeper start"
@@ -238,7 +238,7 @@ def _how(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
     each = f"each item of {g.each}" if g.each else "each line or row"
     answer = mapper.shown(g.output) + (f" ({' and '.join(g.sides)})" if g.sides else "")
     score = mapper.shown(g.score) + (f" (judges: {', '.join(g.judges)})" if g.judges else "")
-    label = "score:" if g.kind == "score" else "verdict:"
+    label = "score:" if g.kind == "score" else "decision:"
     lines = [f"  one answer:      {each}", f"  input:           {mapper.shown(g.input)}",
              f"  answer:          {answer}", f"  {label:<17}{score}"]
     if g.reason:
@@ -361,7 +361,7 @@ def _example_lines(records, m: dict) -> list[str]:
         if r.score is not None and m.get("pass_mark") is not None:
             verdict = (f"{r.name}: {r.score:g}, {r.label} (pass mark {m['pass_mark']:g})")
         else:
-            verdict = f"{r.name}: {r.label if r.label is not None else 'no verdict'}"
+            verdict = f"{r.name}: {r.label if r.label is not None else 'no decision'}"
         reason = f" Reason: {_plain(r.explanation)}" if r.explanation else ""
         out.append(f"     {verdict}.{reason}")
     return out
@@ -416,7 +416,9 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     sides = list(g.sides)
     if len(sides) > 1 and not talk.confirm(
             f"Each item has {len(sides)} answers ({' and '.join(sides)}). Count each as its "
-            "own answer?", default=True, with_yes=True, hint="Count each as its own answer?"):
+            "own answer?", default=True, with_yes=True,
+            hint="Count each as its own answer? Run judgekeeper setup --yes to count each as its "
+                 "own answer, or run it in a terminal to choose one."):
         sides = [sides[talk.choose("Which one do you want to check?", sides,
                                    "Run judgekeeper setup in a terminal to choose one.")]]
     judge = _choose_judge(talk, units, g, metric)
@@ -436,7 +438,8 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     if left and talk.confirm(
             f"{left} answers have an error or a score made by a rule (a reason starting "
             '"Rule"), not by your judge. Leave them out?', default=True, with_yes=True,
-            hint="Leave them out?"):
+            hint="Leave them out? Run judgekeeper setup --yes to leave them out, or run it in a "
+                 "terminal to answer."):
         m["leave_out"] = True
     saved = settings.StartSettings(source="map", file=rel, judge=judge, pass_mark=mark
                                    if g.kind == "score" else None, model=judge_model, map=m)
@@ -468,7 +471,7 @@ def _doors(talk: Talk, root: Path) -> None:
     talk.say("Three ways on:")
     talk.say("  1. Your judge saves its results in a file of its own: judgekeeper setup "
              "path/to/results.jsonl (no code change).")
-    talk.say("  2. Save your judge's verdicts from now on with one judgekeeper.record() line "
+    talk.say("  2. Save your judge's decisions from now on with one judgekeeper.record() line "
              f"where it runs: {own_format.RECORD_URL} has a prompt that asks your coding "
              "agent to add it.")
     talk.say("  3. Ask your coding agent to turn your results into judgekeeper's table: "
@@ -525,8 +528,18 @@ def run(path: str | Path = ".", yes: bool = False, metric: str | None = None,
         return stop.code
 
 
+RECORDS_ROOT = ("Nothing to read here, but judgekeeper.record() saves your judge's decisions at "
+                "the project root, so judgekeeper is set up there: {root}")
+
+
 def _run(talk: Talk, path: Path, metric, judge_model) -> int:
     root, file = _root_and_file(path)
+    above = find.records_above(root) if file is None and not any(
+        find.search(root).readable(t) for t in find.TOOLS) else None
+    if above is not None:  # record() saves at the project root: set up there, beside them
+        talk.say(RECORDS_ROOT.format(root=above))
+        talk.say()
+        root = above
     try:
         current = settings.load(root)
     except settings.SettingsError as e:

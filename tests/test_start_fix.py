@@ -582,10 +582,17 @@ def test_too_few_set_aside_refuses_the_test(tmp_path):
     section = fix.state()["pass_mark"]
     assert section["refusal"] == (
         "Too few answers kept aside to test a change fairly: it needs 5 you marked Pass and 5 "
-        "you marked Fail (you have 4 Fail). Mark more answers first.")
+        "you marked Fail (you have 4 Fail). Run your eval on more questions, then mark the new "
+        "answers: judgekeeper start --label-more.")
     with pytest.raises(ValueError):
         fix.test_pass_mark(section["mark"])
     assert fix.state()["lists"]  # the patterns page still works
+    # said when the answers are put aside, before anyone rewrites the rule for nothing
+    short = ("Only 4 you marked Fail are kept aside; the fair test of a change needs 5 of each. "
+             "Run your eval on more questions, then mark the new answers: judgekeeper start "
+             "--label-more. Or go on without the fair test.")
+    assert fix.aside_short() == short
+    assert fix.aside_note().endswith(short) and start_fix.aside_line(fix).endswith(short)
 
 
 def test_the_fourth_test_on_one_split_is_refused(tmp_path, seeded):
@@ -998,3 +1005,20 @@ def test_after_a_new_pass_mark_label_more_marks_answers_from_the_next_run(tmp_pa
     assert "before and" in out and "now." in out
     assert len(opened) == 1 and question(110) in opened[0]
     assert ws.data()["pass_mark"]["mark"] == 0.7
+
+
+def test_after_new_marks_old_answers_keep_their_side():
+    def m(i, judge="pass", final="pass"):
+        return {"id": f"a{i}", "judge": judge, "final": final}
+
+    old = [m(i) for i in range(10)] + [m(10 + i, "fail", "fail") for i in range(10)]
+    used, aside = start_fix.split(old, 7)
+    before = {"used_ids": used, "aside_ids": aside}
+    new = [m(20 + i) for i in range(10)] + [m(30 + i, "pass", "fail") for i in range(4)]
+    used2, aside2 = start_fix.resplit(old + new, 99, before)
+    assert set(used) <= set(used2) and set(aside) <= set(aside2)  # shown answers stay shown
+    assert set(used2) | set(aside2) == {x["id"] for x in old + new}
+    assert not set(used2) & set(aside2)
+    fresh = [i for i in aside2 if i not in aside]
+    assert fresh and all(int(i[1:]) >= 20 for i in fresh)  # only new answers go aside
+    assert start_fix.resplit(old, 7, None) == start_fix.split(old, 7)

@@ -71,6 +71,19 @@ def promptfoo_data(verdicts, model: str | None = MODEL, rubric: str = RUBRIC,
     return data
 
 
+def project_promptfoo(root: Path) -> str:
+    """The project's own promptfoo, as npm installs it: `node_modules/.bin/promptfoo` (a shell
+    script) and `promptfoo.cmd` next to it. Returns the path judgekeeper starts on this
+    computer (again.node_bin): the `.cmd` on Windows, else the plain file."""
+    from judgekeeper import again
+
+    folder = root / "node_modules" / ".bin"
+    folder.mkdir(parents=True, exist_ok=True)
+    for name in ("promptfoo", "promptfoo.cmd"):
+        (folder / name).write_text("", encoding="utf-8")
+    return again.node_bin(root, "promptfoo")
+
+
 def promptfoo_project(root: Path, verdicts, name: str = "results.json", config: bool = True,
                       **kwargs) -> Path:
     if config:

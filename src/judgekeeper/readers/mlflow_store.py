@@ -13,7 +13,11 @@ or `expectation`, `rationale`, `metadata`, `overrides`, `valid`.
 - Traces come from `MlflowClient.search_traces`, the paged call behind `mlflow.search_traces`,
   one page of 100 at a time, scoped with `locations` where it takes that parameter (MLflow
   3.16 deprecates `experiment_ids`) and `experiment_ids` otherwise.
-- `source_type` LLM_JUDGE is the judge, HUMAN the human, CODE ignored. Only feedback counts;
+- `source_type` LLM_JUDGE is the judge, HUMAN the human, CODE ignored, except a judge call
+  that failed: `mlflow.genai.evaluate` saves it as a CODE assessment named after the scorer,
+  with error code SCORER_ERROR. Where that name is also an LLM judge's, it is that judge's
+  failed call (its error text kept, so the judge check counts "calls failed"); when every
+  call of a judge failed, that is the error, with MLflow's first error text. Only feedback counts;
   expectations (ground truth) are not verdicts. A judge assessment with `feedback.error` has
   no verdict; its error text is the explanation, and an in-memory mark (records.Mark) tells
   `start`'s judge check the judge's call failed.
@@ -38,7 +42,10 @@ or `expectation`, `rationale`, `metadata`, `overrides`, `valid`.
   judgekeeper's output while it reads (`quiet`).
 - Fingerprint: model from `source.source_id` (`openai:/gpt-4.1-mini` gives provider
   `openai`); `mlflow.assessment.scorerName`/`scorerVersion` metadata as the rubric version.
-  The judge's prompt is not saved with the assessment, and scorer tracing is off by default,
+  A `make_judge` (MLflow 3.14 and later) saves its instructions in the assessment's metadata
+  (`guideline`, or `instructions`): they are the judge's rule (`evaluator.rule`), so they are
+  hashed into the prompt hash and a changed rule is a new judge (judge_instructions). Other
+  judges' prompts are not saved with the assessment, and scorer tracing is off by default,
   so there is usually no trace of the judge's own call either: prompt unknown.
 """
 
@@ -80,6 +87,7 @@ SCORER_VERSION = "mlflow.assessment.scorerVersion"
 TRACE_SOURCE_RUN = "mlflow.sourceRun"
 TRACE_INPUTS = "mlflow.traceInputs"
 TRACE_OUTPUTS = "mlflow.traceOutputs"
+SCORER_ERROR = "SCORER_ERROR"  # how mlflow.genai.evaluate saves a scorer that raised
 PAGE_SIZE = 100
 NO_RUN = "(no run)"
 BIG_STORE = 1_000_000_000  # bytes: a store this big gets a line before it is copied
@@ -376,6 +384,22 @@ def _value(feedback: dict) -> tuple:
     return None, None, None  # dict, list or None: no single verdict
 
 
+def judge_instructions(meta: dict) -> str | None:
+    """A make_judge's instructions in an assessment's metadata, or None. MLflow 3.16 saves
+    them as `guideline` (mlflow/genai/judges/instructions_judge, so its UI shows them), some
+    versions as `instructions`. A Guidelines judge's guideline is saved there too: a
+    make_judge's instructions always hold a template part such as {{ outputs }}."""
+    instructions = meta.get("instructions")
+    if instructions is None:
+        guideline = meta.get("guideline") if meta.get("guideline") is not None else meta.get(
+            "guidelines")
+        if isinstance(guideline, str) and "{{" in guideline:
+            instructions = guideline
+    if isinstance(instructions, str) and instructions.strip():
+        return instructions.strip()
+    return None
+
+
 def _model(source_id: str | None) -> dict:
     if not source_id or source_id == "default":
         return {}
@@ -405,6 +429,36 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     return files
 
 
+class JudgeCallsFailed(RecordsError):
+    """Every call of the experiment's judge failed: MLflow saved only errors."""
+
+
+def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, experiment) -> None:
+    """The failed calls (SCORER_ERROR) of each LLM judge, as its verdicts with no decision:
+    the same judge (evaluator) as its other verdicts, MLflow's error text as the
+    explanation. With no LLM judge verdict at all, every call failed: RecordsError."""
+    evaluators: dict[tuple, dict] = {}
+    for run, recs in judged.items():
+        for r in recs:
+            evaluators.setdefault((run, r.name), r.evaluator)
+            evaluators.setdefault((None, r.name), r.evaluator)
+    gone = [f for f in failed if not wanted or f[0] in wanted]
+    if not judged and gone:
+        names = sorted({str(f[1]["name"]) for f in gone})
+        first = " ".join(str(gone[0][2]).split())[:300]
+        raise JudgeCallsFailed(
+            f"MLflow experiment {experiment!r}: every call of your judge "
+            f"{', '.join(names)} failed ({len(gone)} saved as errors). First error: {first}")
+    for run, fields, error in gone:
+        evaluator = evaluators.get((run, fields["name"])) or evaluators.get((None,
+                                                                             fields["name"]))
+        if evaluator is None:
+            continue  # a code scorer that failed: not a judge's call
+        judged.setdefault(run, RecordList()).append(ScoreRecord(
+            annotator_kind=LLM, explanation=error, evaluator=dict(evaluator), label=None,
+            score=None, metadata={}, mark=Mark(problem="error"), **fields))
+
+
 class TracesMissing(RecordsError):
     """The experiment's traces are listed, but the files that hold them are not there."""
 
@@ -428,6 +482,7 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
 
     judged: dict[str, RecordList] = {}
     humans = RecordList()
+    failed: list[tuple[str, dict, str]] = []  # (run, record fields, error) of SCORER_ERROR
     on_spans: list[tuple[str | None, ScoreRecord]] = []  # (run, record) of span assessments
     missing_ids = 0
     n_traces = 0
@@ -451,6 +506,14 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
             label, score, error = _value(feedback)
             meta = d.get("metadata") or {}
             span = d.get("span_id")
+            if kind == CODE and (feedback.get("error") or {}).get("error_code") == SCORER_ERROR:
+                run = meta.get(SOURCE_RUN_ID) or trace_run or NO_RUN
+                if not span or span == root:
+                    failed.append((run, {
+                        "target_id": item_id, "name": d.get("assessment_name"),
+                        "input": request, "output": response,
+                        "created_at": d.get("create_time")}, error))
+                continue
             common = {"target_id": item_id, "name": d.get("assessment_name"),
                       "label": label, "score": score, "input": request, "output": response,
                       "created_at": d.get("create_time"),
@@ -470,6 +533,9 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
             if wanted and run not in wanted:
                 continue
             evaluator = _model(source.get("source_id"))
+            instructions = judge_instructions(meta)
+            if instructions:
+                evaluator["rule"] = instructions
             if meta.get(SCORER_NAME) or meta.get(SCORER_VERSION):
                 evaluator["version"] = "@".join(
                     str(x) for x in (meta.get(SCORER_NAME), meta.get(SCORER_VERSION)) if x)
@@ -493,6 +559,7 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
             "evaluation again on this computer, or point judgekeeper at a store that has them.")
     if n_traces == 0:
         raise RecordsError(f"MLflow experiment {exp.name!r} has no traces")
+    _add_failed(judged, failed, wanted, exp.name)
     on_traces = {r.name for recs in judged.values() for r in recs}
     left_out = 0
     for run, record in on_spans:
@@ -525,8 +592,9 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     if NO_RUN in judged:
         humans.notes.append("Some judge assessments carry no MLflow run id (logged outside "
                             "mlflow.genai.evaluate): they form one run, listed last.")
-    humans.notes.append("MLflow does not save the judge's prompt with its assessments: prompt "
-                        "hash unknown.")
+    if not any(r.evaluator.get("rule") for recs in judged.values() for r in recs):
+        humans.notes.append("MLflow does not save the judge's prompt with its assessments: "
+                            "prompt hash unknown.")
     if left_out:
         what = "assessment" if left_out == 1 else "assessments"
         humans.notes.append(f"{left_out} span-level {what} (on one step inside a trace, not "

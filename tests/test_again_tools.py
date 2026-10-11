@@ -211,7 +211,7 @@ def test_a_model_deepeval_will_not_build_by_name_stops(tmp_path, stubs, monkeypa
     monkeypatch.setenv("STUB_STRING_SUFFIX", " (Anthropic)")  # as with USE_ANTHROPIC_MODEL
     p = make_plan(ws, PY)
     assert p.status == "cant"
-    assert p.why == ("your DeepEval settings pick gpt-5.4 now, but your saved verdicts came "
+    assert p.why == ("your DeepEval settings pick gpt-5.4 now, but your saved decisions came "
                      "from gpt-4.1; built with that name, DeepEval reports gpt-4.1 (Anthropic)")
 
 
@@ -261,7 +261,7 @@ def test_a_judge_that_needs_more_than_a_name_stops(tmp_path, stubs, monkeypatch,
     ws = _deepeval_model(tmp_path, saved, monkeypatch)
     p = make_plan(ws, PY)
     assert p.status == "cant"
-    assert p.why == (f"your DeepEval settings pick gpt-5.4 now, but your saved verdicts came "
+    assert p.why == (f"your DeepEval settings pick gpt-5.4 now, but your saved decisions came "
                      f"from {saved}; {words}, so judgekeeper can't build it again")
     assert stubs("model") == [] and len(stubs("construct")) == 1
 
@@ -392,6 +392,20 @@ def test_the_inspect_plan(tmp_path, stubs):
     assert all(0 < inp and out == 200 for inp, out in p.tokens)
 
 
+@pytest.mark.parametrize("version", ["0.3.240", "0.3.241"])
+def test_inspect_before_0_3_242_says_which_version_is_needed(tmp_path, stubs, monkeypatch,
+                                                             version):
+    ws = _checked(tmp_path, inspect_project)
+    monkeypatch.setenv("STUB_VERSION", version)
+    p = make_plan(ws, PY)
+    assert p.status == "cant"
+    assert p.why.startswith(f"asking your judge again needs Inspect AI 0.3.242 or newer, and "
+                            f"your Python has {version}")
+    assert "exactly your judge" not in " ".join(plan_lines(p))
+    monkeypatch.setenv("STUB_VERSION", "0.3.242")
+    assert make_plan(ws, PY).status != "cant"
+
+
 def test_another_inspect_version_is_a_close_copy_until_the_prompts_match(tmp_path, stubs,
                                                                          monkeypatch):
     ws = _checked(tmp_path, inspect_project)
@@ -421,7 +435,7 @@ def test_inspect_classification():
     from judgekeeper.again import inspect as ins
 
     assert ins.cant_reason("match", {}, builtin=True) == (
-        "your judge is a rule (match), not a model, so asking again gives the same verdicts")
+        "your judge is a rule (match), not a model, so asking again gives the same decisions")
     assert "custom scorer" in ins.cant_reason("my_scorer", {}, builtin=False)
     assert "template file" in ins.cant_reason("model_graded_qa",
                                               {"template": "prompts/grade.txt"}, builtin=True)
@@ -537,6 +551,13 @@ def _traces(ws) -> dict:
 def test_mlflow_judges(info, worker, status, words):
     got_status, why = mf.classify(info, {"version": "3.16.1", **worker})
     assert got_status == status and words in why
+
+
+def test_without_the_worker_a_make_judge_is_not_refused():
+    # the menu's quick plan starts no worker: an unknown MLflow version is not "before 3.14"
+    assert mf.classify(_info(name="tone", instructions=True), {})[0] == "close"
+    assert mf.classify(_info(name="tone", instructions=True), {"version": "3.17.0"})[0] == (
+        "close")
 
 
 def test_the_mlflow_worker_dry_run(tmp_path, stubs, monkeypatch):

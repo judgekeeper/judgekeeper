@@ -41,11 +41,14 @@ def check(correct: int, wrong: int, tpr_interval, tnr_interval) -> dict:
     if least < RELIABLE:
         return {"check": "rough", "wide": {}}
     wide = {}
+    exact = False  # a range of no width: exact, but no sign that the marks are enough
     for key, interval in (("tpr", tpr_interval), ("tnr", tnr_interval)):
         width = _width(interval)
         if width is None or width > MAX_WIDTH + EPS:
             wide[key] = width
-    return {"check": "rough" if wide else "reliable", "wide": wide}
+        elif width <= EPS:
+            exact = True
+    return {"check": "rough" if wide or exact else "reliable", "wide": wide}
 
 
 def line(result: dict, names: tuple[str, str] = START_NAMES) -> str:

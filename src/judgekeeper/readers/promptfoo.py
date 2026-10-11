@@ -70,7 +70,7 @@ DEFAULT_GRADER = ("default grader model not recorded by promptfoo: {n} judgments
 SET_GRADER = ("{n} judgments were graded by a grader set with --grader (provider unknown): "
               "promptfoo saves only its model name.")
 CACHED = ("{n} judgments in {file} came from promptfoo's cache: they may be old replies, not "
-          "fresh verdicts.")
+          "fresh decisions.")
 
 
 # How promptfoo words a grader failure (graderFail callers in src/matchers/rubric.ts,
@@ -101,7 +101,7 @@ STRIPPED = ("The {what} are missing from {file}. promptfoo leaves them out when 
             "file again.")
 STRIP_SETTINGS = {"output": ("answers", "PROMPTFOO_STRIP_RESPONSE_OUTPUT"),
                   "vars": ("inputs", "PROMPTFOO_STRIP_TEST_VARS"),
-                  "grading": ("judge's verdicts", "PROMPTFOO_STRIP_GRADING_RESULT")}
+                  "grading": ("judge's decisions", "PROMPTFOO_STRIP_GRADING_RESULT")}
 
 
 def _stripped(rows: list[dict]) -> list[str]:

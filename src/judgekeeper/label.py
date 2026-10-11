@@ -12,10 +12,13 @@ that stays silent for CONNECTION_TIMEOUT seconds is dropped. The server stops on
 after IDLE_TIMEOUT seconds without a request.
 
 The caller passes the page (start_page.py) and a `result` function: GET /result answers with
-the result page, a static HTML page that runs no script. Once every item is labeled or
-deferred, the server stops right after serving that page, or RESULT_WAIT seconds after the
-last item if nobody fetches it; not after a click the session's `asks_why` says leaves the page
-on its Why? box, which can take longer. It may also pass `switches`: a GET of one of their paths swaps
+the result page, a static HTML page that runs no script. Once every item is labeled, none
+deferred (finished), the server stops right after serving that page, or RESULT_WAIT seconds
+after the last item if nobody fetches it; not after a click the session's `asks_why` says
+leaves the page on its Why? box, which can take longer. While an item is deferred, the page
+offers to look at it again, so the server keeps serving (until Ctrl-C or IDLE_TIMEOUT), also
+after the result page; the page asking again (GET /, /state) or a label taken back (undo)
+stops the RESULT_WAIT count. It may also pass `switches`: a GET of one of their paths swaps
 the session, the page and the result function (from labeling to the review of the
 disagreements) and sends the browser back to the page; a switch that returns None leaves them
 as they are. A session may answer POSTs to paths of its own (`posts`: path -> a function from
@@ -27,13 +30,15 @@ from __future__ import annotations
 
 import csv
 import hmac
+import http.client
 import io
 import json
+import os
 import secrets
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 from judgekeeper.anchors import LABELS
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue
@@ -127,7 +132,10 @@ class LabelSession:
             item["note"] = unguard_cell(_text(row.get("notes")))
 
     def update(self, body: dict) -> None:
-        """Apply one change: {"id", "label"?: label | None, "deferred"?: bool, "note"?: str}."""
+        """Apply one change: {"id", "label"?: label | None, "deferred"?: bool, "note"?: str}.
+        The sheet on disk is read again first, so marks another page wrote are kept, not
+        written over from memory."""
+        self._reread()
         item = self.by_id[body["id"]]
         before = dict(item)
         try:
@@ -136,6 +144,15 @@ class LabelSession:
         except BaseException:
             item.update(before)  # memory matches the file on disk
             raise
+
+    def _reread(self) -> None:
+        """The labels and notes on disk, over the ones in memory (_resume); a sheet that can't
+        be read now leaves memory as it is, and the write says what is wrong."""
+        if self.out.is_file() and self.out.resolve() != self.items_path.resolve():
+            try:
+                self._resume()
+            except (LabelError, OSError):
+                pass
 
     def _apply(self, item: dict, body: dict) -> None:
         if "label" in body:
@@ -174,6 +191,33 @@ def _json_for_html(data) -> str:
             .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
 
 
+LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
+ALREADY_OPEN = ("judgekeeper is already open for this project: {url} (or stop it with Ctrl-C "
+                "in its terminal).")
+PROBE_TIMEOUT = 2  # seconds to wait for the page named in the lock to answer
+
+
+def open_page(folder: Path) -> str | None:
+    """The link of the page judgekeeper serves for this project now (its lock in `folder`),
+    when that page answers with its token; else None, and a lock nobody answers is stale.
+    Asking the page, not the process, works the same everywhere: on Windows a process can't be
+    looked at without the standard library's os.kill, which ends it."""
+    try:
+        lock = json.loads((Path(folder) / LOCK).read_text(encoding="utf-8"))
+        port, token = int(lock["port"]), str(lock["token"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    url = f"http://{HOST}:{port}/?token={token}"
+    conn = http.client.HTTPConnection(HOST, port, timeout=PROBE_TIMEOUT)  # never a proxy
+    try:
+        conn.request("GET", f"/state?{urlencode({'token': token})}")
+        return url if conn.getresponse().status == 200 else None
+    except (OSError, ValueError, http.client.HTTPException):
+        return None
+    finally:
+        conn.close()
+
+
 class LabelServer:
     def __init__(self, session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
                  page: str, switches: dict | None = None):
@@ -192,6 +236,25 @@ class LabelServer:
         self.url = f"http://{HOST}:{self.port}/?token={self.token}"
         self.last_request = time.monotonic()
         self._stopped = False
+        self.lock: Path | None = None  # the lock file this server wrote (make_server)
+
+    def hold(self, folder: Path) -> None:
+        """Write the project's lock: this process, port and token (the token stays on this
+        computer, in .judgekeeper/, as the labels do)."""
+        self.lock = Path(folder) / LOCK
+        write_replacing(self.lock, json.dumps({"pid": os.getpid(), "port": self.port,
+                                               "token": self.token}))
+
+    def release(self) -> None:
+        """Remove the lock, when it is still this server's."""
+        if self.lock is None:
+            return
+        try:
+            if json.loads(self.lock.read_text(encoding="utf-8")).get("token") == self.token:
+                self.lock.unlink()
+        except (OSError, ValueError):
+            pass
+        self.lock = None
 
     def serve(self, idle_timeout: float | None = None) -> None:
         """Handle requests until stop(), Ctrl-C, or idle_timeout seconds without a request."""
@@ -203,9 +266,16 @@ class LabelServer:
                     break
         finally:
             self.httpd.server_close()
+            self.release()
 
     def stop(self) -> None:
         self._stopped = True
+
+    def finished(self) -> bool:
+        """Every item labeled, none deferred: nothing is left for the page to offer."""
+        items = getattr(self.session, "items", [])
+        return self.session.summary()["done"] and not any(
+            isinstance(i, dict) and i.get("deferred") for i in items)
 
     def page(self) -> tuple[str, str]:
         """The page and the nonce its script runs under."""
@@ -254,6 +324,8 @@ def _handler(server: LabelServer):
             url = urlsplit(self.path)
             if not self._allowed(url):
                 return
+            if url.path in ("/", "/state"):
+                server.done_at = None  # the page is open and asking: keep serving it
             if url.path == "/":
                 page, nonce = server.page()
                 csp = (f"default-src 'none'; script-src 'nonce-{nonce}'; "
@@ -272,13 +344,19 @@ def _handler(server: LabelServer):
                 self._send(303, b"", "text/plain; charset=utf-8",
                            {"Location": f"/?token={server.token}"})
             elif url.path == "/result" and server.result is not None:
-                page = server.result(server.session, f"/?token={server.token}")
+                try:
+                    page = server.result(server.session, f"/?token={server.token}")
+                except OSError as e:  # .judgekeeper/ can't be written: say it, as /label does
+                    self._send(500, (f"Not saved: {describe_os_error(e) or e}. Your marks are "
+                                     "saved; try again once the folder can be written."
+                                     ).encode(), "text/plain; charset=utf-8")
+                    return
                 csp = ("default-src 'none'; style-src 'unsafe-inline'; font-src data:; "
                        "img-src 'none'; base-uri 'none'; form-action 'none'; "
                        "frame-ancestors 'none'")
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
                            {"Content-Security-Policy": csp})
-                if server.session.summary()["done"]:
+                if server.finished():
                     server.stop()  # nothing left to label: the page holds the result
             else:
                 self._json(404, {"error": "not found"})
@@ -328,23 +406,39 @@ def _handler(server: LabelServer):
                 return
             summary = server.session.summary()
             self._json(200, {"summary": summary})
-            if server.result is not None and summary["done"]:
+            if server.result is not None and server.finished():
                 if getattr(server.session, "asks_why", lambda body: False)(body):
                     server.done_at = None  # the page waits for a why; its GET /result stops
                 elif server.done_at is None:
                     server.done_at = time.monotonic()
+            else:  # a skip, or a label taken back: the page goes on
+                server.done_at = None
 
     return Handler
 
 
 def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
-                page: str, switches: dict | None = None) -> LabelServer:
-    """A server for `session`, or a LabelError that says why there cannot be one."""
+                page: str, switches: dict | None = None,
+                lock: Path | None = None) -> LabelServer:
+    """A server for `session`, or a LabelError that says why there cannot be one. With `lock`
+    (the project's .judgekeeper/), one server per project: when its page is already open,
+    that is the error, with its link; else this server holds the lock until it stops. Two
+    pages on one project would each write their marks over the other's."""
+    if lock is not None:
+        url = open_page(lock)
+        if url:
+            raise LabelError(ALREADY_OPEN.format(url=url))
     # Labels are written on the first click: say now if they cannot be, not in the page.
     unwritable = unwritable_file(session.out)
     if unwritable:
         raise LabelError(unwritable)
     try:
-        return LabelServer(session, port, result=result, page=page, switches=switches)
+        server = LabelServer(session, port, result=result, page=page, switches=switches)
     except OSError as e:
         raise LabelError(f"cannot listen on {HOST}:{port} ({e.strerror}); try --port") from None
+    if lock is not None:
+        try:
+            server.hold(lock)
+        except OSError:
+            pass  # no lock: the labels' own write still says when it can't save
+    return server

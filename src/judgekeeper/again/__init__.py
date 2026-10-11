@@ -31,9 +31,13 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -44,10 +48,15 @@ from judgekeeper.textio import jsonl_lines
 TIMES = 2
 ALWAYS_ASK_ABOVE = 1000
 WORKER_TIMEOUT = 300
+NEEDS_COMMAND = "needs --judge-command"  # the menu's note for a judge only your code can run
 REFERENCE = "https://www.judgekeeper.com/reference.html#bring-your-own-judge"
-WRAP = ("To ask your judge again yourself, wrap it as a command: judgekeeper start --ask-again "
-        f"--judge-command '...' (see {REFERENCE}).")
+WRAP = ("To ask your judge again yourself, wrap it as a command: {command} {flag} "
+        "--judge-command '...' (see " + REFERENCE + ").")
 EXACT, CLOSE, CANT, OWN = "exact", "close", "cant", "own"
+CHANGED = ("Your judge changed since your marks ({change}): this asks the judge in your newest "
+           "results, not the one you checked.")
+CHANGED_AFTER = ("Before is the judge you checked; now is the judge in your newest results: two "
+                 "different judges.")
 
 
 @dataclass
@@ -68,6 +77,7 @@ class Plan:
     why: str  # one sentence, no final full stop
     short: str = ""  # a few words, for the menu, when the judge can't be asked again
     plain: str = ""  # instead of "Your judge can't be asked again: <why>.", a whole sentence
+    changed: str = ""  # what changed in the judge since the marks, when it asks another one
     model: str | None = None
     provider: str | None = None
     key_lines: list[str] = field(default_factory=list)
@@ -113,22 +123,166 @@ def cant(tool: str, judge: str, why: str, short: str = "") -> Plan:
 
 # Processes -------------------------------------------------------------------------------------
 
+STOP_WAIT = 5  # seconds a stopped program gets to end before it is killed
+TICK = 1.0  # seconds between two looks at a running program's progress
+PROGRESS_EVERY = 5.0  # seconds between two progress lines at most
+STILL_EVERY = 30.0  # seconds between two "still asking" lines when nothing can be counted
+LOCAL_MODEL = ("A model on your computer can take minutes: the lines below show it is "
+               "working.")
+_progress = None  # called about every TICK seconds while run_process waits (watching)
+
+
+@contextmanager
+def watching(progress):
+    """While the block runs, run_process calls `progress()` about every TICK seconds."""
+    global _progress
+    before, _progress = _progress, progress
+    try:
+        yield
+    finally:
+        _progress = before
+
+
+class Progress:
+    """The lines that show the judge is being asked: "12 of 72 asked", when the count moves
+    on, at most every PROGRESS_EVERY seconds, and the last one; with no count (`total` None),
+    "Still asking your judge: 1 min 20 s so far." every STILL_EVERY seconds."""
+
+    def __init__(self, talk, total: int | None):
+        self.talk, self.total = talk, total
+        self.started = self.last_time = time.monotonic()
+        self.last = 0
+
+    def count(self, n: int) -> None:
+        now = time.monotonic()
+        if n > self.last and (n >= (self.total or 0) or now - self.last_time >= PROGRESS_EVERY):
+            self.last, self.last_time = n, now
+            self.talk.say(f"  {n:,} of {self.total:,} asked")
+
+    def tick(self) -> None:
+        now = time.monotonic()
+        if now - self.last_time >= STILL_EVERY:
+            self.last_time = now
+            minutes, seconds = divmod(int(now - self.started), 60)
+            spent = f"{minutes} min {seconds} s" if minutes else f"{seconds} s"
+            self.talk.say(f"  Still asking your judge: {spent} so far.")
+
+
+def local_model(plan) -> bool:
+    """Whether the plan's judge runs on the person's own computer (Ollama)."""
+    return plan.provider == "ollama" or str(plan.model or "").lower().startswith("ollama")
+
+
+def _own_group() -> dict:
+    """Start a program in its own process group, so it and every program it starts (a
+    worker's model calls, promptfoo's node) can be stopped together."""
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
+
+def stop_group(proc) -> None:
+    """Stop a program started with _own_group and everything it started: on Windows the
+    whole tree (taskkill /T); elsewhere its process group, SIGTERM, then SIGKILL after
+    STOP_WAIT seconds."""
+    if proc.poll() is not None:
+        return
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True,
+                           check=False)
+        else:
+            os.killpg(proc.pid, signal.SIGTERM)
+            try:
+                proc.wait(timeout=STOP_WAIT)
+            except subprocess.TimeoutExpired:
+                os.killpg(proc.pid, signal.SIGKILL)
+    except OSError:
+        pass
+    try:
+        proc.kill()  # whatever is left of the program itself
+    except OSError:
+        pass
+
+
+class _Terminated(KeyboardInterrupt):
+    """SIGTERM while a program runs: stopped like Ctrl-C."""
+
+
+@contextmanager
+def _term_stops():
+    """While the block runs, SIGTERM (what agents, editors and CI send to stop a command)
+    raises _Terminated, so the program it waits for is stopped too, not left running and
+    spending. Only in the main thread, where Python allows a handler."""
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def stop(signum, frame):
+        raise _Terminated()
+
+    before = signal.signal(signal.SIGTERM, stop)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, before)
+
+
 def run_process(argv: list[str], cwd: Path, env: dict | None = None,
                 timeout: float | None = None):
     """The one place judgekeeper starts another program for asking again (tests replace it).
     Returns an object with returncode, stdout and stderr; a program that is not there gives
-    returncode 127."""
+    returncode 127, one that is there but cannot be started (on Windows, a file that is not a
+    program: WinError 193) 126. The program runs in its own process group: on Ctrl-C,
+    SIGTERM, a timeout or any error, it and everything it started are stopped (stop_group)."""
     try:
-        return subprocess.run(argv, cwd=cwd, env=env, capture_output=True, encoding="utf-8",
-                              errors="replace", timeout=timeout, check=False)
+        proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, encoding="utf-8", errors="replace",
+                                **_own_group())
     except FileNotFoundError as e:
         return subprocess.CompletedProcess(argv, 127, "", str(e))
-    except subprocess.TimeoutExpired:
-        return subprocess.CompletedProcess(argv, 124, "", f"timed out after {timeout:g}s")
+    except OSError as e:
+        return subprocess.CompletedProcess(argv, 126, "", str(e))
+    end = None if timeout is None else time.monotonic() + timeout
+    with _term_stops():
+        try:
+            while True:
+                wait = None if _progress is None else TICK
+                if end is not None:
+                    wait = max(0.0, end - time.monotonic()) if wait is None else min(
+                        wait, max(0.0, end - time.monotonic()))
+                try:
+                    out, err = proc.communicate(timeout=wait)
+                    break
+                except subprocess.TimeoutExpired:
+                    if end is not None and time.monotonic() >= end:
+                        raise
+                    try:
+                        _progress()
+                    except Exception:  # noqa: BLE001, S110 - a progress line never stops it
+                        pass
+        except subprocess.TimeoutExpired:
+            stop_group(proc)
+            proc.communicate()
+            return subprocess.CompletedProcess(argv, 124, "", f"timed out after {timeout:g}s")
+        except BaseException:
+            stop_group(proc)
+            raise
+    return subprocess.CompletedProcess(argv, proc.returncode, out, err)
 
 
 def which(name: str) -> str | None:
     return shutil.which(name)
+
+
+def node_bin(root: Path, name: str) -> str | None:
+    """The program `name` that npm installed in the project (node_modules/.bin), as it can be
+    started, else None. On Windows that is npm's `name.cmd` (then `name.exe`): the plain
+    `name` there is a shell script Windows cannot start (WinError 193). A `.cmd` is started
+    with its full path first in the argument list, never through a shell."""
+    folder = Path(root) / "node_modules" / ".bin"
+    names = (f"{name}.cmd", f"{name}.exe") if sys.platform == "win32" else (name,)
+    return next((str(folder / n) for n in names if (folder / n).is_file()), None)
 
 
 def user_python(root: Path, given: str | None) -> str:
@@ -235,18 +389,17 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
                                           new=new is not None)
         elif data["tool"] == "mapped":
             plan = cant("mapped", data["judge"],
-                        "your judge's verdicts are in your own results file, and judgekeeper "
-                        "can't run the judge that made them",
-                        short="your judge's verdicts are in your own results file")
+                        "your judge's decisions are in your own results file, and judgekeeper "
+                        "can't run the judge that made them", short=NEEDS_COMMAND)
         elif data["tool"] == "records":
             plan = cant("records", data["judge"],
-                        "your judge's verdicts were saved by judgekeeper.record() in your own "
+                        "your judge's decisions were saved by judgekeeper.record() in your own "
                         "code, and judgekeeper can't run the judge that made them",
-                        short="your judge's verdicts were saved by judgekeeper.record()")
+                        short=NEEDS_COMMAND)
         else:
             plan = cant(data["tool"], data["judge"],
-                        "your judge's verdicts are a table, and judgekeeper can't run the "
-                        "judge that made them", short="your judge's verdicts are a table")
+                        "your judge's decisions are a table, and judgekeeper can't run the "
+                        "judge that made them", short=NEEDS_COMMAND)
     except (OSError, ValueError, KeyError, RecordsError) as e:
         plan = cant(data["tool"], data["judge"],
                     f"your saved results could not be read again ({scrub(str(e))})",
@@ -283,15 +436,20 @@ def cost_words(p: Plan) -> str:
     return prices.amount(*p.cost)
 
 
-def plan_lines(p: Plan, title: str = "Ask your judge again") -> list[str]:
-    """The plan as the terminal shows it."""
+def plan_lines(p: Plan, title: str = "Ask your judge again", command: str = "judgekeeper start",
+               flag: str = "--ask-again") -> list[str]:
+    """The plan as the terminal shows it. `command` (start.Talk.command) and `flag` make the
+    hint for a judge that can't be asked: run as printed, it is the same step again."""
     lines = [title, "", f"  Your judge: {p.judge}"]
     if p.status == CANT:
         said = p.plain or f"Your judge can't be asked again: {p.why}."
-        return lines + [f"  {said}", f"  {WRAP}"]
-    lines.append({EXACT: f"  This is exactly your judge: {p.why}.",
-                  CLOSE: f"  This is a close copy of your judge: {p.why}.",
-                  OWN: f"  This is your own judge command. {p.why}."}[p.status])
+        return lines + [f"  {said}", f"  {WRAP.format(command=command, flag=flag)}"]
+    if p.changed:  # never "exactly your judge" when it is not the judge that was checked
+        lines.append(f"  {CHANGED.format(change=p.changed)}")
+    else:
+        lines.append({EXACT: f"  This is exactly your judge: {p.why}.",
+                      CLOSE: f"  This is a close copy of your judge: {p.why}.",
+                      OWN: f"  This is your own judge command. {p.why}."}[p.status])
     lines += [f"  {x}" for x in (*p.key_lines, *p.notes)]
     lines += ["", f"  {calls_line(p)}"]
     lines.append(f"  {p.cost_text or prices.cost_line(p.model, p.provider, p.tokens * p.times)}")

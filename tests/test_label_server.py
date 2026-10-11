@@ -379,18 +379,54 @@ def _result(session, back):
 def test_with_a_result_it_stops_after_serving_it(tmp_path):
     _, thread, client = _serve_until_done(tmp_path, result=_result)
     assert client.label(id="it0", label="pass")[0] == 200
-    assert client.label(id="it1", deferred=True)[0] == 200
+    assert client.label(id="it1", label="pass")[0] == 200
     assert thread.is_alive(), "two of three: still serving"
     status, body = client.label(id="it2", label="fail")
     assert status == 200 and body["summary"]["done"]
     thread.join(timeout=0.5)
     assert thread.is_alive(), "done, but the page has not fetched the result yet"
     resp, payload = client.request("GET", "/result")
-    assert resp.status == 200 and payload.decode() == "<!doctype html><p>2 labeled</p>"
+    assert resp.status == 200 and payload.decode() == "<!doctype html><p>3 labeled</p>"
     assert resp.getheader("Content-Type") == "text/html; charset=utf-8"
     thread.join(timeout=5)
     assert not thread.is_alive()
-    assert [r["human_label"] for r in _read(tmp_path / "labels.csv")] == ["pass", "", "fail"]
+    assert [r["human_label"] for r in _read(tmp_path / "labels.csv")] == ["pass", "pass",
+                                                                          "fail"]
+
+
+def test_a_skipped_answer_keeps_the_page_working(tmp_path, monkeypatch):
+    # "You skipped 1 answer. Look at it again?" stays on screen as long as the person reads:
+    # the server must still save the answer, also after the result page.
+    monkeypatch.setattr(label_mod, "RESULT_WAIT", 0.1)
+    _, thread, client = _serve_until_done(tmp_path, result=_result)
+    client.label(id="it0", label="pass")
+    client.label(id="it1", deferred=True)
+    _, body = client.label(id="it2", label="fail")
+    assert body["summary"]["done"]
+    thread.join(timeout=0.6)  # well past RESULT_WAIT
+    assert thread.is_alive()
+    assert client.request("GET", "/result")[0].status == 200
+    thread.join(timeout=0.3)
+    assert thread.is_alive(), "a skipped answer is left: See your result keeps the page"
+    assert client.label(id="it1", label="pass")[0] == 200  # Look at it again: saved
+    assert [r["human_label"] for r in _read(tmp_path / "labels.csv")] == ["pass", "pass",
+                                                                          "fail"]
+    assert client.request("GET", "/result")[0].status == 200
+    thread.join(timeout=5)
+    assert not thread.is_alive(), "nothing left: the result page ends it"
+
+
+def test_taking_back_the_last_label_stops_the_count(tmp_path, monkeypatch):
+    monkeypatch.setattr(label_mod, "RESULT_WAIT", 0.3)
+    server, thread, client = _serve_until_done(tmp_path, result=_result)
+    for n in range(3):
+        client.label(id=f"it{n}", label="pass")
+    client.label(id="it2", label=None)  # undo
+    thread.join(timeout=0.8)
+    assert thread.is_alive()
+    assert client.label(id="it2", label="fail")[0] == 200
+    server.stop()
+    thread.join(timeout=5)
 
 
 def test_a_result_before_the_end_keeps_serving(tmp_path):
@@ -428,6 +464,21 @@ def test_without_a_result_there_is_no_result_page(tmp_path):
     server, thread, client = _serve_until_done(tmp_path)
     try:
         assert client.request("GET", "/result")[0].status == 404
+    finally:
+        server.stop()
+        thread.join(timeout=5)
+
+
+def test_a_result_that_cant_be_saved_is_said_plainly(tmp_path):
+    def result(session, back):
+        raise PermissionError(13, "Permission denied", str(tmp_path / ".judgekeeper"))
+
+    server, thread, client = _serve_until_done(tmp_path, result=result)
+    try:
+        resp, payload = client.request("GET", "/result")
+        assert resp.status == 500 and payload.decode().startswith("Not saved: ")
+        assert "Traceback" not in payload.decode()
+        assert client.label(id="it0", label="pass")[0] == 200  # the page still works
     finally:
         server.stop()
         thread.join(timeout=5)

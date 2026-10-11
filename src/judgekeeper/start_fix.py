@@ -95,7 +95,7 @@ SEARCH_MAX_FILES = 5000
 _NUMBER = r"[-+]?(?:\d+\.?\d*|\.\d+)"
 
 SMALL = "This test is small. The real check is on new answers, after your next eval run."
-NEXT_RUN = "Mark more answers from your next eval run: judgekeeper start --label-more"
+NEXT_RUN = "Mark more answers from your next eval run: {command} --label-more"
 NO_FOLLOW = ("Your judge's decisions don't follow its scores, so moving the pass mark can't be "
              "tested.")
 FITS = "Your pass mark already fits your marks best."
@@ -103,6 +103,8 @@ NOTHING = "Your judge agrees with every final mark you gave: nothing to fix."
 SIDES = (("pass", "fail", "Passed, but you said Fail"),
          ("fail", "pass", "Failed, but you said Pass"))
 SAID = {"pass": "Pass", "fail": "Fail"}
+MORE_ASIDE = ("Run your eval on more questions, then mark the new answers: {command} "
+              "--label-more.")
 HOW = ("pasted", "written", "agent")  # how a new rule came: an AI assistant, the person, an agent
 AGENT_SAYS = ("To fix your judge's rule with your coding agent (Claude Code, Cursor or Codex), "
               "paste this:")
@@ -192,6 +194,19 @@ def split(marks: list[dict], seed: int) -> tuple[list[str], list[str]]:
             aside += ids[:n]
             used += ids[n:]
     return used, aside
+
+
+def resplit(marks: list[dict], seed: int, before: dict | None) -> tuple[list[str], list[str]]:
+    """`split`, after new marks: each answer of the earlier split keeps its side, so one
+    already shown on the page (used) never becomes kept aside, and only the new answers are
+    split."""
+    if not before:
+        return split(marks, seed)
+    old_used, old_aside = set(before.get("used_ids") or []), set(before.get("aside_ids") or [])
+    new = [m for m in marks if m["id"] not in old_used | old_aside]
+    used, aside = split(new, seed)
+    return ([m["id"] for m in marks if m["id"] in old_used] + used,
+            [m["id"] for m in marks if m["id"] in old_aside] + aside)
 
 
 def cell(m: dict) -> tuple[str, bool]:
@@ -467,7 +482,9 @@ class Fix:
         basis = start_review._basis(ws)
         saved = json.loads(self.out.read_text(encoding="utf-8")) if self.out.is_file() \
             else None
+        before = None  # the sides of an earlier split, kept for the answers it had
         if saved is not None and saved.get("basis") != basis:
+            before = saved
             _keep_old(ws)
             saved = None
         marks = final_marks(ws)
@@ -475,7 +492,7 @@ class Fix:
         self.new = saved is None
         if saved is None:
             seed = secrets.randbelow(2**31)
-            used, aside = split(marks, seed)
+            used, aside = resplit(marks, seed, before)
             saved = {"basis": basis, "seed": seed, "made_at": utc_now(), "used_ids": used,
                      "aside_ids": aside, "tests": []}
             _write_json(self.out, saved)
@@ -520,9 +537,11 @@ class Fix:
 
     def aside_note(self) -> str:
         n = len(self.aside_ids)
-        return (f"judgekeeper kept {n} of your answers aside. "
+        note = (f"judgekeeper kept {n} of your answers aside. "
                 f"{'It tests' if n == 1 else 'They test'} whether a change really helps, so "
                 f"{'it is' if n == 1 else 'they are'} not shown here.")
+        short = self.aside_short()
+        return f"{note} {short}" if short else note
 
     def _item(self, m: dict) -> dict:
         raw = self.raw.get(m["id"], {})
@@ -553,8 +572,20 @@ class Fix:
         if short:
             return (f"Too few answers kept aside to test a change fairly: it needs {MIN_EACH} "
                     f"you marked Pass and {MIN_EACH} you marked Fail (you have "
-                    f"{' and '.join(short)}). Mark more answers first.")
+                    f"{' and '.join(short)}). {MORE_ASIDE.format(command=self.command)}")
         return None
+
+    def aside_short(self) -> str | None:
+        """Said when the answers are put aside: they are too few for the fair test, before
+        anyone rewrites the rule and runs the eval again for nothing; else None."""
+        finals = [self.marks[i]["final"] for i in self.aside_ids]
+        short = [f"{finals.count(v)} you marked {SAID[v]}" for v in ("pass", "fail")
+                 if finals.count(v) < MIN_EACH]
+        if not short:
+            return None
+        return (f"Only {' and '.join(short)} are kept aside; the fair test of a change needs "
+                f"{MIN_EACH} of each. {MORE_ASIDE.format(command=self.command)} Or go on "
+                "without the fair test.")
 
     def _weights(self, ids) -> dict:
         return cell_weights(list(self.marks.values()), [self.marks[i] for i in ids], self.pool)
@@ -616,7 +647,8 @@ class Fix:
         found = name and locate(self.workspace.root, name, old_mark)
         if found:  # a line of the person's own file: scrubbed before it is saved or shown
             hand_over.append(scrub(f"Probably in {found[0]}, line {found[1]}: {found[2]}"))
-        test.update(hand_over=hand_over + [NEXT_RUN], old_mark=old_mark, new_mark=mark)
+        test.update(hand_over=hand_over + [NEXT_RUN.format(command=self.command)],
+                    old_mark=old_mark, new_mark=mark)
         self._record(f"pass mark {_mark(old_mark)} to {_mark(mark)}", "pass_mark", test)
         _write_json(self.folder / "pass-mark.json", {
             "made_at": utc_now(), "old_mark": old_mark, "new_mark": mark, "op": op,
@@ -778,8 +810,8 @@ class Fix:
             results and quote_arg(self._from_here(results)))
         found = start_fix_rule.found_rule(root, self.rule, self.tool)
         return scrub(start_fix_rule.agent_loop_prompt(
-            self.command, self._from_here(FOLDER, "fix"), start_fix_rule.place_words(found),
-            hint, self.tool in ASKABLE))
+            self.command, self._from_here(FOLDER, "fix"),
+            start_fix_rule.place_words(found, self.tool), hint, self.tool in ASKABLE))
 
     def _saved_rule(self) -> dict | None:
         path = self.folder / "rule.json"
@@ -867,9 +899,11 @@ class Fix:
 # The terminal -----------------------------------------------------------------------------
 
 def aside_line(fix: Fix) -> str:
-    return (f"judgekeeper kept {len(fix.aside_ids)} of your {len(fix.marks)} marked answers "
+    line = (f"judgekeeper kept {len(fix.aside_ids)} of your {len(fix.marks)} marked answers "
             "aside. They test whether a change really helps, so they are not shown, and they "
             "never go into a prompt.")
+    short = fix.aside_short()
+    return f"{line} {short}" if short else line
 
 
 def count_lines(fix: Fix) -> list[str]:
@@ -1042,7 +1076,8 @@ def serve_fix(ws: Workspace, port: int, open_browser: bool, say,
 
     fix = Fix(ws, command)
     server = make_server(fix, port, result=start_review.result_maker(ws, say),
-                         page=page_template(ws), switches={"/fix": switch(ws, say, command)})
+                         page=page_template(ws), switches={"/fix": switch(ws, say, command)},
+                         lock=ws.dir)
     say_opened(server.url, open_browser, say, command, " --fix")
     try:
         server.serve()

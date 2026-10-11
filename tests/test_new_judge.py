@@ -28,6 +28,7 @@ from tests import keyboard
 from tests.start_projects import (
     RUBRIC,
     answer,
+    project_promptfoo,
     promptfoo_data,
     promptfoo_project,
     question,
@@ -83,9 +84,7 @@ def fake(monkeypatch, tmp_path):
     """A checked promptfoo project, the project's own promptfoo, the fake behind the one
     process function, and a key set in the shell."""
     ws = _checked(tmp_path)
-    binary = tmp_path / "node_modules" / ".bin" / "promptfoo"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("", encoding="utf-8")
+    project_promptfoo(tmp_path)
     for name in keys.all_names():
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
@@ -300,7 +299,7 @@ def test_the_will_look_better_line_is_always_shown(fake, capsys):
     assert ("You changed your judge after seeing mistakes on these answers, so it will look "
             "better on them.") in out
     assert ("To confirm on new answers, mark 10 Pass and 10 Fail: judgekeeper start "
-            f"{quote_arg(fake.root)} --try-new-judge") in out  # no terminal: the question as a command
+            f"{quote_arg(fake.root)} --try-new-judge --yes") in out  # run as printed, it opens
 
 
 def test_old_numbers_from_asking_again_are_used_and_said(fake, capsys):
@@ -445,8 +444,12 @@ def test_a_judge_command_is_tried_on_the_marked_answers(fake, capsys):
     command = f"{sys.executable} {FIXTURES / 'exec' / 'bare.py'}"
     code, out, _ = run(capsys, fake.root, "--try-new-judge", "--judge-command", command,
                        "--allow-calls", 36)
-    assert code == 0 and f"This runs `{command}` 36 times." in out
+    assert code == 0 and (f"This runs `{command}` 36 times, waiting up to 5 minutes for each "
+                          "answer.") in out
     assert "Your new judge vs your old judge" in out and _evals(fake) == 0
+    # tried with a judge command: the same judge counts as tried, not asked all over again
+    found = start.find_judge(fake.root)
+    assert new_judge.tried(fake, new_judge.NewJudge(found, "the prompt changed")) is not None
 
 
 def test_the_view_shows_the_newest_results(fake):
@@ -457,3 +460,24 @@ def test_the_view_shows_the_newest_results(fake):
     assert data["metric"] == "tone" and data["results_files"] == ["results.json"]
     assert data["fingerprint"] == found.fingerprint and view.root == fake.root
     assert Workspace(fake.root).data()["metric"] == "llm-rubric"  # the saved check is untouched
+
+
+def test_asking_again_after_the_rule_changed_names_the_judge_it_asks(fake, capsys):
+    # promptfoo -o results.json wrote the new rule over the results the check was made from:
+    # asking again asks that new judge, so it must never be called "exactly your judge"
+    _new_run(fake.root, same=36)
+    code, out, _ = run(capsys, fake.root, "--ask-again", "--allow-calls", 72)
+    assert code == 0, out
+    assert ("Your judge changed since your marks (the prompt changed): this asks the judge in "
+            "your newest results, not the one you checked.") in out
+    assert "This is exactly your judge" not in out
+    assert NEW_RUBRIC[:20] in out.split("Your judge:", 1)[1].splitlines()[0]
+    assert "--try-new-judge" in out and "--new" in out
+    assert ("Before is the judge you checked; now is the judge in your newest results: two "
+            "different judges.") in out
+
+
+def test_asking_again_the_unchanged_judge_says_nothing_of_a_change(fake, capsys):
+    code, out, _ = run(capsys, fake.root, "--ask-again", "--allow-calls", 72)
+    assert code == 0 and "This is exactly your judge" in out
+    assert "changed since your marks" not in out and "two different judges" not in out

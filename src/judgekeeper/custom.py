@@ -229,6 +229,8 @@ def check_judge(judge: Callable[[dict], Any], anchors, runs: int = 3,
     from judgekeeper.report import build_report
     from judgekeeper.table import make_fingerprint, write_report
 
+    if not callable(judge):  # before any file is written or call is counted
+        raise TypeError("judge must be a function")
     if runs < 1:
         raise ValueError("runs must be at least 1")
     out = Path(out) if out is not None else Path(tempfile.mkdtemp(prefix="judgekeeper-judge-"))

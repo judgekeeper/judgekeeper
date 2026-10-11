@@ -16,7 +16,7 @@ from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, save_result
 from judgekeeper.textio import quote_arg
 from tests import keyboard
-from tests.start_projects import promptfoo_project, split, table_project
+from tests.start_projects import project_promptfoo, promptfoo_project, split, table_project
 
 
 def _quiet(line=""):
@@ -78,10 +78,8 @@ def no_processes(monkeypatch):
 
 
 def _local_promptfoo(root, procs, version="0.123.1"):
-    binary = root / "node_modules" / ".bin" / "promptfoo"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("", encoding="utf-8")
-    procs.versions[str(binary)] = version
+    binary = project_promptfoo(root)
+    procs.versions[binary] = version
     return binary
 
 
@@ -276,6 +274,78 @@ def test_a_grader_that_runs_code_or_sends_answers_elsewhere_is_your_own_code(tmp
     _can_t_as_own_code(make_plan(ws, AgainOptions(), dry=False))
 
 
+OPENAI = "openai:gpt-4.1-mini"
+
+
+@pytest.mark.parametrize("grader, said", [
+    ({"id": OPENAI, "config": {"apiBaseUrl": "https://other.example/v1"}}, "apiBaseUrl"),
+    ({"id": OPENAI, "config": {"apiHost": "other.example"}}, "apiHost"),
+    ({"id": OPENAI, "config": {"baseUrl": "https://other.example"}}, "baseUrl"),
+    ({"id": OPENAI, "config": {"baseURL": "https://other.example"}}, "baseURL"),
+    ({"id": OPENAI, "config": {"endpoint": "other"}}, "endpoint"),
+    ({"id": OPENAI, "config": {"proxy": "other:8080"}}, "proxy"),
+    ({"id": OPENAI, "config": {"nested": {"deeper": {"apiBaseUrl": "x"}}}}, "apiBaseUrl"),
+    ({"id": OPENAI, "config": {"headers": {"x-to": "https://other.example"}}}, "x-to"),
+    ({"id": OPENAI, "config": {"server": "http://other.example"}}, "server"),
+    ({"id": OPENAI, "config": {"socket": "ws://other.example"}}, "socket"),
+    ({"id": OPENAI, "config": {"socket": "wss://other.example"}}, "socket"),
+    ({"id": OPENAI, "config": {"prompt": "file://steal.txt"}}, "prompt"),
+    ({"id": OPENAI, "config": {"apiKeyEnvar": "ANTHROPIC_API_KEY"}}, "apiKeyEnvar"),
+    ({"id": OPENAI, "config": {"apiKeyEnvar": "MY_OTHER_KEY"}}, "apiKeyEnvar"),
+    ({"text": {"id": OPENAI, "config": {"apiBaseUrl": "https://other.example"}}},
+     "apiBaseUrl"),
+])
+def test_a_grader_sent_to_another_server_or_key_is_refused(tmp_path, grader, said):
+    # A cloned project's results file could send your key and answers elsewhere while the
+    # plan says "exactly your judge".
+    ws = _checked(tmp_path)
+
+    def change(row):
+        row["testCase"]["options"]["provider"] = grader
+
+    _edit(tmp_path, _rows(change))
+    p = make_plan(ws, AgainOptions(), dry=False)
+    _can_t_as_own_code(p)
+    assert f"({said}" in p.why and "in your grader's settings)" in p.why
+
+
+@pytest.mark.parametrize("grader, said", [
+    ({"id": OPENAI, "config": {"functionToolCallbacks": {"get_weather": "file://w.js"}}},
+     "functionToolCallbacks"),
+    ({"id": OPENAI, "config": {"functionToolCallbacks": {"get_weather": "(args) => 1"}}},
+     "functionToolCallbacks"),
+    ({"id": "http", "config": {"method": "POST"}}, "http"),
+    ({"id": "https"}, "https"),
+    ({"id": OPENAI, "config": {"responseParser": "json.output"}}, "responseParser"),
+    ({"id": "http", "config": {"url": "https://judge.example/grade"}}, "http"),
+    ("./graders/judge.js", "./graders/judge.js"),
+    ({"id": "graders/judge.py"}, "graders/judge.py"),
+    ({"id": "grader.mjs:grade"}, "grader.mjs:grade"),
+])
+def test_a_grader_that_runs_code_or_reads_another_reply_is_refused(tmp_path, grader, said):
+    ws = _checked(tmp_path)
+
+    def change(row):
+        row["testCase"]["options"]["provider"] = grader
+
+    _edit(tmp_path, _rows(change))
+    p = make_plan(ws, AgainOptions(), dry=False)
+    _can_t_as_own_code(p)
+    assert f"({said}" in p.why
+
+
+def test_a_grader_with_its_own_key_and_plain_settings_is_asked(tmp_path):
+    ws = _checked(tmp_path)
+
+    def change(row):
+        row["testCase"]["options"]["provider"] = {
+            "id": OPENAI, "config": {"apiKeyEnvar": "OPENAI_API_KEY", "temperature": 0,
+                                     "max_tokens": 200}}
+
+    _edit(tmp_path, _rows(change))
+    assert make_plan(ws, AgainOptions(), dry=False).status != "cant"
+
+
 def test_a_test_option_transform_that_would_be_copied_is_your_own_code(tmp_path):
     ws = _checked(tmp_path)
 
@@ -304,7 +374,7 @@ def test_a_version_that_is_not_a_version_is_never_downloaded(tmp_path, no_proces
     _local_promptfoo(tmp_path, no_processes, "0.120.0")
     no_processes.installed["npx"] = "/usr/bin/npx"
     p = make_plan(ws, AgainOptions())
-    assert not p.download and p.runner == [str(tmp_path / "node_modules" / ".bin" / "promptfoo")]
+    assert not p.download and p.runner == [again.node_bin(tmp_path, "promptfoo")]
     assert p.tool_version is None
     assert p.status == "close"
     assert "the promptfoo version in your results file can't be read" in p.why
@@ -424,7 +494,7 @@ def test_the_cache_warning(tmp_path):
     ws = _checked(tmp_path)
     _edit(tmp_path, lambda data: data.__setitem__("runtimeOptions", {"cache": True}))
     lines = plan_lines(make_plan(ws, AgainOptions(), dry=False))
-    assert ("  Your saved verdicts may be old replies from promptfoo's cache. judgekeeper turns "
+    assert ("  Your saved decisions may be old replies from promptfoo's cache. judgekeeper turns "
             "the cache off when it asks again.") in lines
 
 
@@ -469,8 +539,11 @@ def test_the_plan_for_a_judge_command(tmp_path):
     assert p.status == "own"
     lines = plan_lines(p)
     assert "  Your judge: your command python judge.py" in lines
-    assert "  This is your own judge command. This runs `python judge.py` 72 times." in lines
-    assert "  Cost unknown: name your command's model with --judge-model." in lines
+    assert ("  This is your own judge command. This runs `python judge.py` 72 times, waiting up "
+            "to 5 minutes for each answer.") in lines
+    # the results name the judge's model: the cost is worked out from it, no --judge-model
+    assert p.model and p.cost_text is None
+    assert not any("--judge-model" in x for x in lines)
 
 
 def test_a_judge_command_with_a_model_has_a_cost(tmp_path):
@@ -490,10 +563,15 @@ def test_a_table_cant_be_asked_again_without_a_command(tmp_path):
     ws = _checked(tmp_path, maker=table_project)
     p = make_plan(ws, AgainOptions(), dry=False)
     assert p.status == "cant"
-    assert p.short == "your judge's verdicts are a table"
+    assert p.short == "needs --judge-command" and "decisions are a table" in p.why
     lines = plan_lines(p)
     assert any("judgekeeper start --ask-again --judge-command" in x for x in lines)
     assert any("reference.html#bring-your-own-judge" in x for x in lines)
+    # in Try your new judge, with the person's own flags: run as printed, the same step
+    lines = plan_lines(p, "Try your new judge", "judgekeeper start evals --port 8805",
+                       "--try-new-judge")
+    assert any("judgekeeper start evals --port 8805 --try-new-judge --judge-command '...'" in x
+               for x in lines)
 
 
 # The spending question -----------------------------------------------------------------------
@@ -647,5 +725,18 @@ def test_times_in_the_flags(tmp_path, capsys, no_processes):
 def test_judge_command_in_the_flags(tmp_path, capsys):
     _checked(tmp_path, maker=table_project)
     code, out, _ = run(capsys, tmp_path, "--ask-again", "--judge-command", "python judge.py")
-    assert code == start.EXIT_QUESTION and "This runs `python judge.py` 72 times." in out
+    assert code == start.EXIT_QUESTION and ("This runs `python judge.py` 72 times, waiting up "
+                                            "to 5 minutes for each answer.") in out
     assert "--allow-calls 72" in out
+
+
+def test_a_judge_command_uses_the_model_the_results_name(tmp_path):
+    # never "name your command's model with --judge-model" when the results already do: that
+    # flag is then refused
+    ws = _checked(tmp_path, maker=table_project, model="gpt-4.1-mini")
+    p = make_plan(ws, AgainOptions(judge_command="python judge.py"), dry=False)
+    assert p.model == "gpt-4.1-mini" and p.cost_text is None
+    assert not any("--judge-model" in x for x in plan_lines(p))
+    plain = _checked(tmp_path / "no-model", maker=table_project)
+    p = make_plan(plain, AgainOptions(judge_command="python judge.py"), dry=False)
+    assert p.cost_text == "Cost unknown: name your command's model with --judge-model."

@@ -314,3 +314,40 @@ def test_a_re_check_keeps_the_chosen_store(two, capsys):
     again = start.find_judge(two, store="mlruns", talk=start.Talk())
     assert again.store == "mlruns"
     assert "Two MLflow stores" not in capsys.readouterr().out
+
+
+ARTIFACTS = r"""
+import os, sys
+os.environ["MLFLOW_DISABLE_AGENT_HINT"] = "1"
+os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
+import mlflow
+from mlflow.entities import AssessmentSource
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")  # artifacts go to ./mlruns, MLflow's default
+mlflow.set_experiment("qa")
+judge = AssessmentSource(source_type="LLM_JUDGE", source_id="openai:/gpt-4.1-mini")
+
+@mlflow.trace(name="app")
+def app(question):
+    return f"answer to {question}"
+
+with mlflow.start_run():
+    mlflow.log_text("an artifact", "notes.txt")
+    for i, question in enumerate(["one", "two", "three", "four"]):
+        app(question)
+        mlflow.flush_trace_async_logging()
+        trace_id = mlflow.get_last_active_trace_id()
+        mlflow.log_feedback(trace_id=trace_id, name="helpful", value=i % 2 == 0, source=judge)
+"""
+
+
+def test_mlflow_db_with_logged_artifacts_is_one_store(tmp_path, capsys):
+    pytest.importorskip("mlflow")
+    (tmp_path / "make.py").write_text(ARTIFACTS, encoding="utf-8")
+    subprocess.run([sys.executable, "make.py"], check=True, cwd=tmp_path, capture_output=True)
+    (tmp_path / "make.py").unlink()
+    assert any((tmp_path / "mlruns").rglob("notes.txt"))  # the artifact, next to mlflow.db
+    _, said = run(capsys, tmp_path, "--no-browser")
+    assert "Eval tool       MLflow" in said and "mlflow.db (experiment qa)" in said, said
+    for unwanted in ("Malformed experiment", "Traceback", "Two MLflow stores"):
+        assert unwanted not in said, unwanted

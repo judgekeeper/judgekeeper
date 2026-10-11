@@ -88,7 +88,11 @@ def _load(path: Path) -> dict:
     except ImportError:
         read_eval_log = None
     if read_eval_log is not None:
-        return read_eval_log(str(path)).model_dump(mode="json")
+        try:
+            return read_eval_log(str(path)).model_dump(mode="json")
+        except Exception as e:  # noqa: BLE001 - a log cut short, empty or not Inspect's
+            raise RecordsError(f"{path.name} can't be read: it may be cut short, or not an "
+                               f"Inspect AI log ({type(e).__name__})") from None
     if path.suffix.lower() == ".eval":
         raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path))
     try:
@@ -204,6 +208,25 @@ def _human_edit(score: dict) -> tuple[dict, dict] | None:
     return history[0], edits[-1]
 
 
+STOPPED = "Your Inspect run stopped early"  # how its note starts
+
+
+def stopped_early(data: dict) -> str | None:
+    """A note when the log's run did not finish (status error or cancelled): how far it got
+    and its error, in one line; else None."""
+    status = data.get("status")
+    if status not in ("error", "cancelled"):
+        return None
+    done = len(data.get("samples") or [])
+    total = ((data.get("results") or {}).get("total_samples")
+             or ((data.get("eval") or {}).get("dataset") or {}).get("samples"))
+    far = f"{done} of {total} samples" if isinstance(total, int) and total else f"{done} samples"
+    if status == "cancelled":
+        return f"{STOPPED} ({far}): it was cancelled."
+    error = " ".join(str((data.get("error") or {}).get("message") or "an error").split())
+    return f"{STOPPED} ({far}): {error[:300]}"
+
+
 def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
     """ScoreRecords from one Inspect AI log: one LLM record per scorer per sample and epoch.
     `with_errors`: also one record per scorer for a sample that errored before it was scored
@@ -223,6 +246,9 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
                       for s in spec.get("scorers") or [] if isinstance(s, dict)}
 
     records = RecordList(version=data.get("version"), label_map=DEFAULT_LABELS)
+    stopped = stopped_early(data)
+    if stopped:
+        records.notes.append(stopped)
     for sample in samples:
         item_id = str(sample.get("id"))
         epoch = sample.get("epoch")

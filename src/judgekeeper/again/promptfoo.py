@@ -69,6 +69,13 @@ PROMPT_TYPES = {"factuality", "model-graded-factuality", "model-graded-closedqa"
 TEMPLATE_MARKS = ("{{", "{%", "{#")
 CODE_PREFIXES = ("exec:", "python:", "file://", "golang:", "ruby:", "javascript:")
 URL_PREFIXES = ("http://", "https://", "ws://", "wss://", "webhook:")
+# In a grader's settings: a key that points it at another server (apiBaseUrl, apiHost,
+# baseURL, endpoint, proxy...) or a value that is an address or a file
+ADDRESS_KEY = re.compile(r"url|host|base|endpoint|proxy", re.IGNORECASE)
+ADDRESS_VALUES = ("http://", "https://", "ws://", "wss://", "file://")
+# Grader settings that run the user's code or read another server's reply
+CODE_KEYS = ("functionToolCallbacks", "responseParser")
+CODE_FILES = (".js", ".mjs", ".cjs", ".ts", ".py")  # a provider id that is a file's path
 VERSION = re.compile(r"\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?")
 CONFIG = ".judgekeeper-regrade.promptfoo.json"
 TESTS = ".judgekeeper-regrade.tests.json"
@@ -137,13 +144,87 @@ def _transforms(value) -> bool:
     return False
 
 
+def _elsewhere(value) -> str | None:
+    """The first key at any depth of a grader's settings that sends it to another server: a
+    key naming an address, or a value that is an address or a file. None when there is none.
+    The grader's own id is checked by _grader_code."""
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if ADDRESS_KEY.search(str(k)) or (
+                    isinstance(v, str) and v.strip().lower().startswith(ADDRESS_VALUES)):
+                return str(k)
+            found = _elsewhere(v) if isinstance(v, dict | list) else None
+            if found:
+                return found
+    elif isinstance(value, list):
+        for v in value:
+            if isinstance(v, str) and v.strip().lower().startswith(ADDRESS_VALUES):
+                return "a list"
+            found = _elsewhere(v) if isinstance(v, dict | list) else None
+            if found:
+                return found
+    return None
+
+
+def _key(value, names) -> str | None:
+    """The first key at any depth of `value` that is one of `names`."""
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if k in names:
+                return str(k)
+            found = _key(v, names) if isinstance(v, dict | list) else None
+            if found:
+                return found
+    elif isinstance(value, list):
+        for v in value:
+            found = _key(v, names)
+            if found:
+                return found
+    return None
+
+
+def _graders(value):
+    """Each provider setting in a grader: the grader, and every dict in it with an "id"."""
+    if isinstance(value, dict):
+        if "id" in value:
+            yield value
+        for v in value.values():
+            if isinstance(v, dict | list):
+                yield from _graders(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _graders(v)
+
+
+def _other_key(grader: dict) -> str | None:
+    """apiKeyEnvar when it names a variable that is not the provider's own key."""
+    name = (grader.get("config") or {}).get("apiKeyEnvar") if isinstance(
+        grader.get("config"), dict) else None
+    if name is None:
+        return None
+    provider = keys.PROVIDERS.get(keys.provider_of(_grader_id(grader)) or "")
+    own = {n for alt in provider.keys for n in alt} if provider else set()
+    return None if name in own else f"apiKeyEnvar {name}"
+
+
 def _grader_code(grader) -> str | None:
-    """What in a grader runs the user's code or sends the answers elsewhere, or None."""
+    """What in a grader runs the user's code or sends the answers or the key elsewhere, or
+    None. A results file comes with a project someone else may have written: a grader that
+    reads another key or talks to another server is not your judge as you know it."""
     for i in _ids(grader):
-        if _code([i]) or i.strip().lower().startswith(URL_PREFIXES):
+        plain = i.strip().lower()
+        if (_code([i]) or plain.startswith(URL_PREFIXES) or plain in ("http", "https")
+                or plain.split(":", 1)[0].endswith(CODE_FILES)):
             return i
+    found = _key(grader, CODE_KEYS)
+    if found:
+        return f"{found} in your grader's settings"
     if _transforms(grader):
         return "a transform in your grader's settings"
+    for g in _graders(grader):
+        found = _elsewhere({k: v for k, v in g.items() if k != "id"}) or _other_key(g)
+        if found:
+            return f"{found} in your grader's settings"
     return None
 
 
@@ -153,8 +234,7 @@ def _config(root: Path) -> Path | None:
 
 def _installed(root: Path) -> tuple[str, str] | None:
     """(command, version) of the project's promptfoo, else promptfoo on the PATH."""
-    local = root / "node_modules" / ".bin" / "promptfoo"
-    for command in ([str(local)] if local.exists() else []) + [again.which("promptfoo")]:
+    for command in (again.node_bin(root, "promptfoo"), again.which("promptfoo")):
         if not command:
             continue
         proc = again.run_process([command, "--version"], cwd=root, timeout=60)
@@ -347,7 +427,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
 
     cached = any((c.get("metadata") or {}).get("cachedResponse") for j in judged for c in j[2])
     if cached or (newest.get("runtimeOptions") or {}).get("cache") is True:
-        notes.append("Your saved verdicts may be old replies from promptfoo's cache. "
+        notes.append("Your saved decisions may be old replies from promptfoo's cache. "
                      "judgekeeper turns the cache off when it asks again.")
     check = keys.check(model, "promptfoo", root, provider=provider, config=config,
                        key_env=key_env)
@@ -448,7 +528,11 @@ def run(ws, plan: Plan, talk) -> Fresh:
     try:
         write_replacing(files[0], json.dumps(regrade_config(), indent=1))
         write_replacing(files[1], json.dumps(tests, indent=1, ensure_ascii=False))
-        proc = again.run_process(argv, cwd=root, env={**os.environ, **RUN_ENV})
+        if again.local_model(plan):
+            talk.say(again.LOCAL_MODEL)
+        progress = again.Progress(talk, None)  # promptfoo writes its results at the end
+        with again.watching(progress.tick):
+            proc = again.run_process(argv, cwd=root, env={**os.environ, **RUN_ENV})
     finally:
         for path in files:
             path.unlink(missing_ok=True)
@@ -475,7 +559,7 @@ def run(ws, plan: Plan, talk) -> Fresh:
             judged.setdefault(r.target_id, {})[r.run or 1] = r
     fresh = Fresh(folder=folder, source={"kind": "promptfoo", "file": out.name})
     if cached:
-        fresh.notes.append(f"{cached} new verdicts came from promptfoo's cache, although the "
+        fresh.notes.append(f"{cached} new decisions came from promptfoo's cache, although the "
                            "cache was off.")
     for answer, _, comps, _, _ in plan.payload:
         item_id = answer["id"]

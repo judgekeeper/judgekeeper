@@ -56,7 +56,9 @@ PROMPTFOO_CONFIGS = ("promptfooconfig.yaml", "promptfooconfig.yml", "promptfooco
 # DeepEval's hidden copies of its newest run, rewritten on every run: the full run, and the
 # run under a "testRunData" key (deepeval/test_run/test_run.py, DeepEval 4.2).
 DEEPEVAL_COPIES = (".latest_run_full.json", ".latest_test_run.json")
-DEEPEVAL_RUN = re.compile(r"test_run_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.json")
+# A run DeepEval saved in its results folder: test_run_<date>_<time>.json, or before 3.9.9
+# only <date>_<time>, with no .json (read when its content is a DeepEval run)
+DEEPEVAL_RUN = re.compile(r"(?:test_run_)?(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})(?:\.json)?")
 VERDICT_COLUMNS = ("verdict", "judge_verdict", "judge")
 TABLE_SUFFIXES = (".csv", ".tsv", ".jsonl")
 RESULTS_VARS = {"deepeval": "DEEPEVAL_RESULTS_FOLDER", "inspect": "INSPECT_LOG_DIR"}
@@ -137,20 +139,25 @@ def sniff_json(head: bytes) -> str | None:
 
 
 def table_columns(path: Path) -> list[str]:
-    """The column names of a CSV, TSV or JSONL file, from its first line only."""
-    from judgekeeper.table import _delimiter
+    """The column names of a CSV, TSV or JSONL file, from its first line only, judgekeeper's
+    own written as it knows them (table.column_name: "Input " is input)."""
+    from judgekeeper.table import _delimiter, column_name
 
     text = _head(path).decode("utf-8", errors="replace").removeprefix("﻿")
     first = text.split("\n", 1)[0].rstrip("\r")
+    if path.suffix.lower() == ".jsonl" and "\n" not in text:  # a first line over HEAD_BYTES
+        with path.open("rb") as f:
+            first = f.readline(MAX_BYTES).decode("utf-8", errors="replace")
+        first = first.removeprefix("﻿").rstrip("\r\n")
     if path.suffix.lower() == ".jsonl":
         try:
             row = json.loads(first)
         except ValueError:
             return []
-        return list(row) if isinstance(row, dict) else []
+        return [column_name(c) for c in row] if isinstance(row, dict) else []
     try:
-        return next(csv.reader(io.StringIO(first),
-                               delimiter=_delimiter(first, path.suffix.lower())), [])
+        return [column_name(c) for c in next(csv.reader(
+            io.StringIO(first), delimiter=_delimiter(first, path.suffix.lower())), [])]
     except csv.Error:
         return []
 
@@ -167,12 +174,12 @@ def is_records(columns) -> bool:
 
 
 def is_mlflow_folder(path: Path) -> bool:
-    """Whether `path` is an MLflow folder store (`mlruns/`): named mlruns, or holding what
-    MLflow writes there (`.trash`, an experiment folder with meta.yaml)."""
+    """Whether `path` is an MLflow folder store (`mlruns/`): it holds an experiment folder
+    with meta.yaml. Its name is not enough: with an `mlflow.db` store, MLflow keeps logged
+    artifacts in `./mlruns/<experiment>/<run>/artifacts`, a folder of the same name with no
+    meta.yaml, which is not a store (and `.trash` is made by reading one)."""
     if not path.is_dir():
         return False
-    if path.name == "mlruns" or (path / ".trash").is_dir():
-        return True
     try:
         return any(d.is_dir() and d.name.isdigit() and (d / "meta.yaml").is_file()
                    for d in path.iterdir())
@@ -195,6 +202,8 @@ def classify_file(path: Path) -> str | None:
         if DEEPEVAL_RUN.fullmatch(path.name) or path.name in DEEPEVAL_COPIES:
             return "deepeval"
         return sniff_json(_head(path))
+    if not suffix and DEEPEVAL_RUN.fullmatch(path.name) and sniff_json(_head(path)) == "deepeval":
+        return "deepeval"  # DeepEval before 3.9.9: results/<date>_<time>
     return None
 
 
@@ -295,6 +304,9 @@ class _Walk:
             self.add("mlflow", path, size)
         elif suffix == ".eval":
             self.add("inspect", path, size)
+        elif (not suffix and DEEPEVAL_RUN.fullmatch(name)
+              and sniff_json(_head(path)) == "deepeval"):  # DeepEval before 3.9.9
+            self.add("deepeval", path, size)
         elif suffix == ".json":
             if DEEPEVAL_RUN.fullmatch(name) or name in DEEPEVAL_COPIES:
                 self.add("deepeval", path, size)
@@ -304,6 +316,11 @@ class _Walk:
                 if tool:
                     self.add(tool, path, size)
         elif suffix in TABLE_SUFFIXES and depth <= TABLE_DEPTH:
+            if _head(path)[:2] in (b"\xff\xfe", b"\xfe\xff"):  # UTF-16: not read, but said
+                from judgekeeper.textio import not_utf8_message
+
+                self.search.notes.append(not_utf8_message(self.rel(path)))
+                return
             columns = table_columns(path)
             if suffix == ".jsonl" and is_records(columns):  # record()'s format, moved
                 self.add("records", path, size)
@@ -330,16 +347,23 @@ class _Walk:
                     if entry.name == HIDDEN_KEPT:
                         self.sign("deepeval", self.rel(sub) + "/")
                     if entry.name == "mlruns":
-                        self.add("mlflow", sub)
-                        self.sign("mlflow", self.rel(sub) + "/")
+                        if is_mlflow_folder(sub):  # else only mlflow.db's artifacts
+                            self.add("mlflow", sub)
+                            self.sign("mlflow", self.rel(sub) + "/")
                     elif _walked(entry.name) and self.depth(sub) <= MAX_DEPTH:
                         queue.append(sub)
                 elif entry.is_file(follow_symlinks=False):
                     self.file(entry)
 
 
+# judgekeeper's own output folders: the `check` command's report (anchors.jsonl looks like a
+# table) and 0.1.3's demo data. They are never "your LLM-as-a-judge" or "your own format".
+OWN_FOLDERS = ("judgekeeper-report",)
+OWN_PREFIXES = ("judgekeeper-demo",)
+
+
 def _walked(name: str) -> bool:
-    if name in SKIP_DIRS:
+    if name in SKIP_DIRS or name in OWN_FOLDERS or name.startswith(OWN_PREFIXES):
         return False
     return not name.startswith(".") or name == HIDDEN_KEPT
 
@@ -366,6 +390,26 @@ def _tracking_store(root: Path, uri: str | None) -> Path | None:
         if uri.startswith(prefix) and (prefix or "://" not in uri):
             path = _inside(root, uri[len(prefix):])
             return path if path is not None and path.exists() else None
+    return None
+
+
+def records_above(folder: str | Path) -> Path | None:
+    """The project root above `folder` whose .judgekeeper/records/ holds files that
+    judgekeeper.record() wrote, found by record()'s own rule (recorder.project_root), when that
+    is not `folder` itself; else None. record() saves there from any subfolder."""
+    from judgekeeper.recorder import project_root
+
+    folder = Path(folder).resolve()
+    root = project_root(folder)
+    if root == folder:
+        return None
+    records = root / RECORDS_DIR
+    try:
+        if records.is_dir() and not records.is_symlink() and any(
+                p.suffix == ".jsonl" and p.is_file() for p in records.iterdir()):
+            return root
+    except OSError:
+        return None
     return None
 
 

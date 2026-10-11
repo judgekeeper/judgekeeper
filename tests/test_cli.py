@@ -3,6 +3,8 @@ sequences in anything it prints."""
 
 import json
 
+import pytest
+
 from judgekeeper.anchors import freeze
 from judgekeeper.cli import main
 
@@ -201,3 +203,11 @@ def test_ctrl_c_stops_with_one_line_and_no_traceback(monkeypatch, capsys):
     assert "Traceback" not in out.out + out.err
     assert out.out == "\nStopped.\n"
 
+
+
+@pytest.mark.parametrize("port", ["99999", "-1", "65536", "eighty"])
+def test_a_port_out_of_range_is_a_usage_error_before_anything_is_written(tmp_path, capsys,
+                                                                          port):
+    assert main(["start", str(tmp_path), "--port", port]) == 2
+    assert "is not a port: give a number from 1 to 65535" in capsys.readouterr().err
+    assert not (tmp_path / ".judgekeeper").exists()

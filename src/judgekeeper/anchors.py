@@ -156,6 +156,11 @@ def load_verified(path: str | Path) -> tuple[list[dict], dict]:
         raise AnchorHashMismatch(
             f"anchor set {path} does not match {mpath}: "
             f"manifest sha256 {manifest.get('sha256')}, actual {actual}. "
-            "The anchor set changed after it was frozen."
+            "The anchor set changed after it was frozen. If you changed it on purpose: move "
+            f"{mpath.name} out of the folder (keep it, it records the old set), run judgekeeper "
+            "judge again, which seals the changed set and judges it afresh (runs judged on the "
+            "old set no longer match it), and if you gate against a baseline, set it again from "
+            "the new report: judgekeeper baseline set <new report.json>. Otherwise put the old "
+            "file back."
         )
     return items, manifest

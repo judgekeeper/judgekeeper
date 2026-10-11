@@ -60,6 +60,76 @@ def _stamp() -> str:
     return utc_now().replace(":", "-")
 
 
+DAMAGED = ("judgekeeper can't read {path} ({why}). To start a new check, run {command} --new: "
+           "your last one moves to {folder}/previous-<date>/ and nothing is deleted.")
+STEP_DAMAGED = ("{path} was damaged ({why}), so it was moved to {moved}/: the {step} starts "
+                "again.")
+
+
+def _why(e: Exception) -> str:
+    return "not readable JSON" if isinstance(e, ValueError) else "not what judgekeeper saved"
+
+
+def _json_dict(path: Path, needs: tuple[str, ...] = ()) -> dict:
+    """A JSON object judgekeeper saved, with the keys `needs`; ValueError or TypeError if not."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or any(k not in data for k in needs):
+        raise TypeError(path.name)
+    return data
+
+
+def saved_problem(ws: Workspace, talk) -> str | None:
+    """Why the check saved in .judgekeeper/ can't be used, in one line with the way out, or
+    None. A damaged review.json or fix.json never blocks start: it is moved to history/ (said)
+    and that step starts again. Marks that are gone while a result was made from them are
+    said, with where a copy is (history/check-*, previous-*)."""
+    folder = f"{FOLDER}"
+    for path, needs in ((ws.start, ("queue", "pool")), (ws.result_json, ())):
+        if path.is_file():
+            try:
+                _json_dict(path, needs)
+            except (ValueError, TypeError) as e:
+                return DAMAGED.format(path=f"{folder}/{path.name}", why=_why(e),
+                                      command=talk.command(), folder=folder)
+    try:
+        if ws.pool.is_file():
+            for line in ws.pool.read_text(encoding="utf-8").splitlines():
+                if line.strip() and not isinstance(json.loads(line), dict):
+                    raise TypeError(ws.pool.name)
+        if ws.labels.is_file():
+            ws.labels.read_bytes().decode("utf-8")
+    except (ValueError, TypeError) as e:
+        name = ws.labels.name if isinstance(e, UnicodeDecodeError) else ws.pool.name
+        return DAMAGED.format(path=f"{folder}/{name}", why=_why(e), command=talk.command(),
+                              folder=folder)
+    for path, needs, step in ((ws.review, ("items",), "review"),
+                              (ws.dir / "fix.json", ("used_ids", "aside_ids"), "fix")):
+        if path.is_file():
+            try:
+                data = _json_dict(path, needs)
+                if not isinstance(data[needs[0]], list):
+                    raise TypeError(path.name)
+            except (ValueError, TypeError) as e:
+                moved = ws.history / f"damaged-{_stamp()}"
+                moved.mkdir(parents=True, exist_ok=True)
+                path.replace(moved / path.name)
+                talk.say(STEP_DAMAGED.format(path=f"{folder}/{path.name}", why=_why(e),
+                                             moved=f"{folder}/history/{moved.name}", step=step))
+    if ws.result_json.is_file():
+        made = sum((_json_dict(ws.result_json).get("labels") or {}).values())
+        if made and not _labels(ws):
+            gone = "empty" if ws.labels.is_file() else "gone"
+            copies = sorted([*ws.history.glob("check-*/labels.csv"),
+                             *ws.dir.glob(f"{PREVIOUS}*/labels.csv")], reverse=True)
+            copy = (f" A copy from earlier is in {folder}/"
+                    f"{copies[0].relative_to(ws.dir).as_posix()}: copy it back to "
+                    f"{folder}/labels.csv." if copies else "")
+            return (f"Your marks are missing: {folder}/labels.csv is {gone}, but your last "
+                    f"result was made from {made} marked answers.{copy} Or start a new check: "
+                    f"{talk.command('--new')}.")
+    return None
+
+
 def move_to_previous(ws: Workspace, say) -> Path | None:
     """Move everything in `.judgekeeper/` except baseline.json, records/ and earlier
     previous-<date>/ folders into a new previous-<date>/ folder. Nothing is deleted."""
@@ -113,6 +183,17 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
     ws = Workspace(_project(path)) if path.exists() else None
     if ws is not None:
         refuse_links(ws)
+        problem = None if new or not ws.start.is_file() else saved_problem(ws, talk)
+        if problem:
+            talk.say(problem)
+            return start.EXIT_USAGE
+        if not new and options.get("label_map") is None and ws.start.is_file():
+            try:  # the --label-map the check was made with, unless another is given
+                saved_map = json.loads(ws.start.read_text(encoding="utf-8")).get("label_map")
+            except (OSError, ValueError):
+                saved_map = None
+            if saved_map:
+                options = {**options, "label_map": saved_map}
     has_result = ws is not None and ws.result_json.is_file() and ws.start.is_file()
     if then in BEFORE and not has_result:
         return _no_result_yet(path, ws, talk, then, options.get("tool"))
@@ -121,18 +202,61 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
     if then == "fix":
         return start_fix.run(ws, talk, port, open_browser, test_pass_mark, rule_file)
     if then == "ask":
-        return _ask_again(ws, talk, again_options)
+        return _ask_again(ws, talk, again_options, _newest_judge(path, ws, talk, options))
     if ws is not None and new:
         move_to_previous(ws, talk.say)
     elif ws is not None and ws.start.is_file():
         if not ws.result_json.is_file():
-            return _unfinished(ws, talk, port, open_browser)
+            return _unfinished(ws, talk, port, open_browser, path, options)
+        saved = ws.data()
+        files = [f for f in saved.get("results_files") or [] if saved.get("tool") != "mlflow"]
+        if files and not any((ws.root / f).exists() for f in files) and not _any_results(ws):
+            talk.say(f"Your results ({', '.join(files)}) are not here any more, but your last "
+                     f"check is saved in {FOLDER}/. To check new results: "
+                     f"{talk.command('--new')}")
+            return _menu(ws, talk, then, port, open_browser, again_options)
         found = start.find_judge(path, talk=talk, prefer=ws.data()["metric"],
                                  store=ws.data().get("mlflow_store"), **options)
         start.say_found(talk, found)
         return _again(ws, found, talk, port, open_browser, then, again_options)
     found = start.find_judge(path, talk=talk, **options)
     return start.label_found(talk, found, port, open_browser)
+
+
+def _any_results(ws: Workspace) -> bool:
+    """Whether the project folder holds any results start can read (find.search)."""
+    from judgekeeper import find
+
+    found = find.search(ws.root)
+    return any(found.readable(t) for t in find.TOOLS)
+
+
+def _quiet_found(path: Path, ws: Workspace, talk, options: dict):
+    """The judge in the newest results, found without a word or a question, when it is the
+    checked judge's tool and name; else None."""
+    from judgekeeper import start
+
+    data = ws.data()
+    quiet = type(talk)(yes=True, quiet=True, flags=talk.flags, path=talk.path)
+    try:
+        found = start.find_judge(path, talk=quiet, prefer=data["metric"],
+                                 store=data.get("mlflow_store"), **options)
+    except Exception:  # noqa: BLE001 - not found now: the saved check stands
+        return None
+    return found if (found.tool, found.metric) == (data["tool"], data["metric"]) else None
+
+
+def _newest_judge(path: Path, ws: Workspace, talk, options: dict):
+    """A new_judge.NewJudge when the newest results hold a changed version of the checked
+    judge (the same tool and name), found without a word or a question; else None."""
+    from judgekeeper import new_judge
+
+    data = ws.data()
+    found = _quiet_found(path, ws, talk, options)
+    if found is None:
+        return None
+    change = judge_change(data["fingerprint"], found.fingerprint)
+    return new_judge.NewJudge(found, change) if change else None
 
 
 # Judges that run in the user's own code: asking them again needs --judge-command.
@@ -175,7 +299,7 @@ def _no_result_yet(path: Path, ws: Workspace | None, talk, then: str, tool: str 
         tool = start.known_tool(path, tool)
     if tool in OWN_CODE:
         talk.say(f"{OWN_CODE[tool]}, so asking it again needs --judge-command: your judge as a "
-                 "command that reads one answer as JSON on stdin and prints its verdict.")
+                 "command that reads one answer as JSON on stdin and prints its decision.")
     return start.EXIT_USAGE
 
 
@@ -185,10 +309,19 @@ def _serve(ws: Workspace, talk, port: int, open_browser: bool) -> int:
     return start_label.serve_workspace(ws, port, open_browser, talk.say, talk.command())
 
 
-def _unfinished(ws: Workspace, talk, port: int, open_browser: bool) -> int:
+def _unfinished(ws: Workspace, talk, port: int, open_browser: bool, path: Path | None = None,
+                options: dict | None = None) -> int:
     data = ws.data()
     talk.say(f"Carrying on with {', '.join(data['results_files'])}: your judge passed "
              f"{data['pool']['pass']} and failed {data['pool']['fail']}.")
+    found = _quiet_found(path, ws, talk, options or {}) if path is not None else None
+    queued = {q["id"] for q in data.get("queue") or []}
+    gone = len(queued - {a.id for a in found.pool.answers}) if found is not None else 0
+    if gone:  # the eval ran again under an unfinished marking
+        talk.say(f"Your results changed since you started marking: {gone} of the "
+                 f"{len(queued)} answers you are marking {'is' if gone == 1 else 'are'} no "
+                 "longer in them. Carry on with the saved answers, or start on the new ones "
+                 f"with {talk.command('--new')}.")
     n = len(_labels(ws))
     marked = f"You marked {n} answer{'' if n == 1 else 's'}."
     if not talk.confirm(f"{marked} Carry on?", default=True, with_yes=True,
@@ -207,16 +340,23 @@ def _saved_verdicts(ws: Workspace) -> dict[str, str]:
 ASKED_NOTHING = "Your judge was not called; nothing was spent."
 
 
-def _ask_again(ws: Workspace, talk, again_options) -> int:
+def _ask_again(ws: Workspace, talk, again_options, new=None) -> int:
     """The plan for asking the judge again; then, after a yes (or --allow-calls), the calls
-    and the numbers."""
+    and the numbers. `new` (new_judge.NewJudge): the newest results hold another judge; when
+    they replaced the files the check was made from, it is that judge that is asked, and the
+    plan says so."""
     from judgekeeper import again
     from judgekeeper.again import fresh
 
     options = again_options or again.AgainOptions()
     plan = again.make_plan(ws, options, talk=talk, dry=True)
+    if new is not None and plan.status != again.CANT and set(new.found.used) & set(
+            ws.data().get("results_files") or []):
+        plan.judge, plan.changed = new.found.judge, new.change
+        plan.notes.append(f"To compare it with your marks: {talk.command('--try-new-judge')}. "
+                          f"To check it from now on: {talk.command('--new')}.")
     talk.say()
-    for line in again.plan_lines(plan):
+    for line in again.plan_lines(plan, command=talk.command()):
         talk.say(line)
     if plan.status == again.CANT:
         return 0
@@ -297,8 +437,12 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
     labels = {"correct": 0, "wrong": 0, **last.get("labels", {})}
     marked = labels["correct"] + labels["wrong"]
     talk.say()
-    talk.say(f"Your last result ({last['made_at'][:10]}), from the {marked} "
-             f"answer{'' if marked == 1 else 's'} you marked ({marks_words(labels)}).")
+    if last.get("check") == "too_few":  # marks, but no result: never "your last result"
+        talk.say(f"You marked {marked} answer{'' if marked == 1 else 's'} "
+                 f"({marks_words(labels)}): not enough of each kind for a result yet.")
+    else:
+        talk.say(f"Your last result ({last['made_at'][:10]}), from the {marked} "
+                 f"answer{'' if marked == 1 else 's'} you marked ({marks_words(labels)}).")
     n = start_review.count(ws)
     options = []  # (answer, text, note, flag)
     if new is not None and then is None:
@@ -338,7 +482,7 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
     if then == "fix":
         return start_fix.run(ws, talk, port, open_browser)
     if then == "ask":
-        return _ask_again(ws, talk, again_options)
+        return _ask_again(ws, talk, again_options, new)
     if then == "label":
         return _serve(ws, talk, port, open_browser)
     return 0
@@ -477,11 +621,15 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
         talk.say(f"Your app changed since your last check: {app}.")
     kept = list(back.values())
     if min(kept.count("pass"), kept.count("fail")) < ROUGH and len(back) < len(labels):
-        if len(back) + left < len(labels):  # some are gone, not only left out
-            talk.say("Too few of them came back unchanged to compare: your app gives "
-                     "different answers now, so your old marks do not apply to them.")
-        else:
-            talk.say("Too few of them are left to compare.")
+        missing = len(labels) - len(back) - left
+        if not missing:  # all there, but the judge made no decision on too many: not a re-mark
+            talk.say(f"Too few of them are left to compare: your judge made no real decision "
+                     f"on {left} of them. Fix that (see the judge check above), run your eval "
+                     "again, then judgekeeper start. Your marks stay as they are.")
+            return 0
+        talk.say(f"Too few of them are in your latest results to compare: {missing} of your "
+                 f"marked answers {'is' if missing == 1 else 'are'} not there (your eval ran on "
+                 "other questions, or your app's answers changed).")
         if not talk.confirm("Mark your latest results instead?", default=True, with_yes=True,
                             hint=f"Mark your latest results instead? Run "
                                  f"{talk.command('--yes')} to mark them."):
@@ -507,5 +655,5 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
     for key, said in (("tpr", "Pass"), ("tnr", "Fail")):
         talk.say(f"When you said {said}, your judge also said {said} {_share(last[key])} of "
                  f"the time before and {_share(now[key])} now.")
-    save_result(ws, session, talk.say)
+    save_result(ws, session, talk.say, talk.command())
     return 0

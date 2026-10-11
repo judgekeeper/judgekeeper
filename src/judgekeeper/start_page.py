@@ -240,6 +240,14 @@ LABEL_STYLE = """
 .stage { flex: 1; min-height: 0; display: grid; justify-content: center; gap: 28px;
   grid-template-columns: minmax(200px, 300px) minmax(0, 720px) minmax(200px, 300px);
   padding: 22px 28px 26px; align-items: start; overflow: auto; }
+/* No rule to show (a table, say): no empty column, the answer gets the room */
+.stage.no-rule { grid-template-columns: minmax(0, 760px) minmax(200px, 300px); }
+.stage.no-rule > .side.rule { display: none; }
+@media (max-width: 1200px) {
+  .stage { gap: 20px; padding: 18px 20px 22px;
+    grid-template-columns: minmax(160px, 220px) minmax(0, 1fr) minmax(160px, 220px); }
+  .stage.no-rule { grid-template-columns: minmax(0, 1fr) minmax(160px, 220px); }
+}
 .side .by-rule { margin: -2px 0 8px; }
 .how { margin-top: 22px; display: grid; gap: 9px; font-size: 13px; color: var(--muted); }
 .how div { display: flex; align-items: center; gap: 8px; }
@@ -287,7 +295,7 @@ LABEL_STYLE = """
 .big.pass { color: var(--pass); border-color: var(--pass-line); background: var(--pass-bg); }
 .big.fail.hit { background: rgba(245,158,139,.22); } .big.pass.hit { background: rgba(52,211,153,.22); }
 .big:disabled { opacity: .6; }
-.mini { display: flex; gap: 14px; font-size: 13px; }
+.mini { display: flex; gap: 14px; font-size: 13px; white-space: nowrap; }
 .scrim { position: fixed; inset: 0; background: rgba(6,10,20,.6); display: grid;
   place-items: center; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   z-index: 20; }
@@ -313,8 +321,8 @@ LABEL_BODY = """<div class="app">
     <a class="btn green see" href="#" hidden>See your result</a></div>
 </header>
 <div class="dots" id="dots" title="Click a dot to go back to that answer"></div>
-<main class="stage">
-<aside class="side">
+<main class="stage__STAGE_CLASS__">
+<aside class="side rule">
   __RULE_BLOCK__
 </aside>
 <section class="task" aria-label="The answer to mark">
@@ -341,7 +349,7 @@ LABEL_BODY = """<div class="app">
   </div>
   <p class="small ready" id="ready" aria-live="polite"></p>
   <p class="small note">Every click is saved. Close the tab any time; run
-    <code>judgekeeper start</code> to continue.</p>
+    <code>__COMMAND__</code> to continue.</p>
 </aside>
 </main>
 </div>
@@ -473,7 +481,7 @@ LABEL_BODY = """<div class="app">
   }
   $("dots").addEventListener("click", function (e) {
     var k = e.target.getAttribute && e.target.getAttribute("data-k");
-    if (k == null) { return; }
+    if (k == null || flying) { return; }
     walkingSkipped = false; open(+k);
   });
 
@@ -565,12 +573,20 @@ LABEL_BODY = """<div class="app">
   }
 
   // Pass or Fail: saved at once, with no card animation (people do this dozens of times).
-  function mark(value) {
+  // `after` runs once the mark is saved and the next answer is on screen.
+  function mark(value, after) {
     if (ended) { return false; }
     var it = items[pos];
     return send({label: value}, function () {
-      it.label = value; it.skipped = false; history.push(pos); next(); });
+      it.label = value; it.skipped = false; history.push(pos); next();
+      if (after) { after(); }
+    });
   }
+
+  // A card flying off after a drag is still its answer's mark: until it is saved, a key
+  // waits (queued) and then counts for the next answer, and a click does nothing, so one
+  // gesture marks one answer.
+  var flying = false, queued = null;
 
   function skip() {
     if (ended) { return; }
@@ -637,11 +653,20 @@ LABEL_BODY = """<div class="app">
     if (reduce || !c.animate) { if (!mark(value)) { render(); } return; }
     var dir = x > 0 ? 1 : -1, endX = dir * (window.innerWidth * 0.75);
     c.style.pointerEvents = "none";
+    flying = true;
     c.animate([{transform: "translateX(" + x + "px) rotate(" + tilt(x, c.offsetWidth || 1) +
                            "deg)", opacity: 1},
                {transform: "translateX(" + endX + "px) rotate(" + (dir * 18) + "deg)", opacity: 0}],
               {duration: flyDuration(x, endX, v), easing: "cubic-bezier(.2,.7,.4,1)",
-               fill: "forwards"}).finished.then(function () { if (!mark(value)) { render(); } });
+               fill: "forwards"}).finished.then(function () {
+                 function landed() {
+                   flying = false;
+                   var k = queued;
+                   queued = null;
+                   if (k) { byKey(k); }
+                 }
+                 if (!mark(value, landed)) { render(); landed(); }
+               });
   }
   // The spring's path is worked out up front (60 steps a second, at most 2 seconds) and
   // played as one animation, so it runs the same whatever the screen is doing.
@@ -666,18 +691,23 @@ LABEL_BODY = """<div class="app">
   }
 
   // Keys and buttons mark at once: only the pressed button flashes.
-  $("pass").addEventListener("click", function () { hit("pass"); mark("pass"); });
-  $("fail").addEventListener("click", function () { hit("fail"); mark("fail"); });
-  $("skip").addEventListener("click", skip);
-  $("undo").addEventListener("click", undo);
+  $("pass").addEventListener("click", function () {
+    if (!flying) { hit("pass"); mark("pass"); } });
+  $("fail").addEventListener("click", function () {
+    if (!flying) { hit("fail"); mark("fail"); } });
+  $("skip").addEventListener("click", function () { if (!flying) { skip(); } });
+  $("undo").addEventListener("click", function () { if (!flying) { undo(); } });
   // The keys: → Pass and ← Fail (shown), 1 Pass and 2 Fail (an old habit, still working).
   var KEYS = {arrowright: "pass", arrowleft: "fail", "1": "pass", "2": "fail"};
+  function byKey(k) {
+    if (KEYS[k]) { hit(KEYS[k]); mark(KEYS[k]); }
+    else if (k === "s") { skip(); } else if (k === "u") { undo(); }
+  }
   document.addEventListener("keydown", function (e) {
     if (e.ctrlKey || e.metaKey || e.altKey || !$("intro").hidden) { return; }
     var k = e.key.toLowerCase();
-    if (KEYS[k]) { hit(KEYS[k]); mark(KEYS[k]); }
-    else if (k === "s") { skip(); } else if (k === "u") { undo(); }
-    else { return; }
+    if (!KEYS[k] && k !== "s" && k !== "u") { return; }
+    if (flying) { queued = k; } else { byKey(k); }
     e.preventDefault();
   });
 
@@ -701,13 +731,18 @@ __RULE_FOLD__
 """
 
 
-def label_page(description: str | None, rule: str | None) -> str:
+def label_page(description: str | None, rule: str | None,
+               command: str = "judgekeeper start") -> str:
     """The labeling page. The line in the right column is the session's `status`, which the
     server sends with the data and after every mark: the page works out nothing itself. The
-    server fills in __DATA__, __TOKEN__ and __NONCE__."""
-    body = (LABEL_BODY.replace("__BRAND__", BRAND).replace("__LOGO__", LOGO)
+    server fills in __DATA__, __TOKEN__ and __NONCE__. `command` (start.Talk.command) is what
+    the person runs to continue."""
+    block = _rule_block(rule, BY_THIS_RULE)
+    body = (LABEL_BODY.replace("__COMMAND__", _text(command))
+            .replace("__STAGE_CLASS__", "" if block.strip() else " no-rule")
+            .replace("__BRAND__", BRAND).replace("__LOGO__", LOGO)
             .replace("__CROSS__", CROSS).replace("__TICK__", TICK)
-            .replace("__RULE_BLOCK__", _rule_block(rule, BY_THIS_RULE))
+            .replace("__RULE_BLOCK__", block)
             .replace("__RULE_FOLD__", RULE_FOLD)
             .replace("__ABOUT__", _text(description or "")))
     return _head("judgekeeper: mark answers", LABEL_STYLE) + body
@@ -1048,7 +1083,7 @@ REVIEW_BODY = """<div class="app">
   </section>
   __RULE_CARD__
   <p class="small">Every click is saved. Your first marks stay as you gave them. Close the tab
-    any time; run <code>judgekeeper start --review</code> to continue.</p>
+    any time; run <code>__COMMAND__ --review</code> to continue.</p>
 </div>
 </main>
 </div>
@@ -1072,6 +1107,9 @@ REVIEW_BODY = """<div class="app">
   var step = data.step, items = data.items, pos = data.start, busy = false, history = [];
   var FIELD = step === "a" ? "second" : "choice";
   var WHY = ["judge_wrong", "rule_unclear"], lastSummary = null;  // the choices that ask why
+  // After Enter in the why box, the next answer is on its way (moving): a key pressed then
+  // waits (queued) and counts for that answer once it is on screen.
+  var moving = false, queued = null;
   var $ = function (id) { return document.getElementById(id); };
   function setText(id, text) { $(id).textContent = text == null ? "" : String(text); }
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
@@ -1146,10 +1184,20 @@ __RULE_FOLD__
   function next() {
     for (var n = 1; n <= items.length; n++) {
       var i = (pos + n) % items.length;
-      if (!items[i][FIELD]) { pos = i; render(); return; }
+      if (!items[i][FIELD]) { pos = i; render(); arrived(); return; }
     }
     window.location.reload();
   }
+
+  // The next answer is on screen: a key pressed on the way counts for it now.
+  function arrived() {
+    var k = queued;
+    moving = false; queued = null;
+    if (k !== null) { byKey(k); }
+  }
+
+  // A failed save stays on this answer: a key pressed on the way is dropped.
+  function stay() { moving = false; queued = null; render(); }
 
   function post(change, then) {
     fetch(url("/label"), {
@@ -1158,14 +1206,14 @@ __RULE_FOLD__
     }).then(function (r) {
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
-      if (!res.ok) { setText("status", "Not saved: " + res.body.error); render(); return; }
+      if (!res.ok) { setText("status", "Not saved: " + res.body.error); stay(); return; }
       setText("status", "");
       lastSummary = res.body.summary;
       then(res.body.summary);
     }).catch(function () {
       setText("status", "Not saved: this page lost its link to judgekeeper. Is it still " +
         "running in your terminal? Your earlier clicks are saved.");
-      render();
+      stay();
     });
   }
 
@@ -1201,7 +1249,11 @@ __RULE_FOLD__
     post({id: it.id, why: text || null}, function () { it.why = text || null; then(); });
   }
 
-  function goOn() { saveWhy(function () { after(lastSummary); }); }
+  function goOn() {
+    if (moving) { return; }
+    moving = true;
+    saveWhy(function () { after(lastSummary); });
+  }
 
   function undo() {
     if (!history.length) { setText("status", "Nothing to undo."); return; }
@@ -1224,14 +1276,25 @@ __RULE_FOLD__
   // step B's: 1, 2, 3 in the order shown.
   var KEYS_A = {arrowleft: "fail", n: "unsure", arrowright: "pass", "1": "pass", "2": "fail",
                 "3": "unsure"};
-  document.addEventListener("keydown", function (e) {
-    if (e.ctrlKey || e.metaKey || e.altKey || e.target === $("whybox")) { return; }
-    var k = e.key.toLowerCase();
+  function isKey(k) {
+    return step === "a" && !!KEYS_A[k] || step === "b" && (k === "1" || k === "2" || k === "3")
+      || k === "u";
+  }
+  function byKey(k) {
     if (step === "a" && KEYS_A[k]) { choose(KEYS_A[k]); }
     else if (step === "b" && (k === "1" || k === "2" || k === "3")) {
       choose(buttons[+k - 1].getAttribute("data-value")); }
     else if (k === "u") { undo(); }
-    else { return; }
+  }
+  document.addEventListener("keydown", function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) { return; }
+    var k = e.key.toLowerCase();
+    if (moving) {  // also from the why box, which keeps the focus until the answer changes
+      if (isKey(k)) { queued = k; e.preventDefault(); }
+      return;
+    }
+    if (e.target === $("whybox") || !isKey(k)) { return; }
+    byKey(k);
     e.preventDefault();
   });
 
@@ -1243,10 +1306,13 @@ __RULE_FOLD__
 """
 
 
-def review_page(description: str | None, rule: str | None) -> str:
+def review_page(description: str | None, rule: str | None,
+                command: str = "judgekeeper start") -> str:
     """The review page, both steps: the page data says which one to show. The server fills
-    in __DATA__, __TOKEN__ and __NONCE__."""
-    body = (REVIEW_BODY.replace("__BRAND__", BRAND).replace("__CROSS__", CROSS)
+    in __DATA__, __TOKEN__ and __NONCE__. `command` (start.Talk.command) is what the person
+    runs to continue."""
+    body = (REVIEW_BODY.replace("__COMMAND__", _text(command))
+            .replace("__BRAND__", BRAND).replace("__CROSS__", CROSS)
             .replace("__TICK__", TICK).replace("__QUESTION__", QUESTION)
             .replace("__RULE_CARD__", _rule_card(rule, BY_THIS_RULE))
             .replace("__RULE_FOLD__", RULE_FOLD)
@@ -1378,7 +1444,7 @@ FIX_BODY = """<div class="app">
         <button class="btn" id="rc-copy" type="button">Copy</button>
       </div>
       <div id="rc-paste" hidden>
-        <label class="cap" for="rc-new">Paste the new rule here</label>
+        <label class="cap" for="rc-new" id="rc-new-label">Paste the new rule here</label>
         <textarea id="rc-new" spellcheck="false"
           placeholder="Paste the whole reply. judgekeeper takes the rule from between NEW RULE START and NEW RULE END."></textarea>
         <button class="btn green" id="rc-save" type="button">Save the new rule</button>
@@ -1562,7 +1628,7 @@ FIX_BODY = """<div class="app">
     } else { done(false); }
   }
 
-  var how = "pasted";
+  var how = "pasted", PASTE_LABEL = "Paste the new rule here";
   function renderRule() {
     var rc = data.rule_change;
     $("rc").hidden = !rc;
@@ -1607,7 +1673,6 @@ FIX_BODY = """<div class="app">
       $("rc-loop-box").hidden = false;
       $("rc-prompt").hidden = true;
       $("rc-paste").hidden = true;
-      copy(res.body.prompt, $("rc-loop-copy"));
     }).catch(function () { button.disabled = false; $("rc-status").textContent = LOST; });
   });
   $("rc-loop-copy").addEventListener("click", function () {
@@ -1625,6 +1690,7 @@ FIX_BODY = """<div class="app">
       $("rc-prompt").hidden = false;
       how = "pasted";
       $("rc-paste").hidden = false;
+      $("rc-new-label").textContent = PASTE_LABEL;
       $("rc-new").value = "";
       copy(res.body.prompt, $("rc-copy"));
     }).catch(function () { button.disabled = false; $("rc-status").textContent = LOST; });
@@ -1637,6 +1703,7 @@ FIX_BODY = """<div class="app">
     $("rc-loop-box").hidden = true;
     $("rc-prompt").hidden = true;
     $("rc-paste").hidden = false;
+    $("rc-new-label").textContent = "Change the rule here, or paste a new one";
     $("rc-new").value = data.rule_change.rule;
     $("rc-new").focus();
   });

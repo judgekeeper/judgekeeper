@@ -473,3 +473,14 @@ def test_the_change_list_without_a_terminal_names_each_change_once(tmp_path, cap
     bullets = _bullets(out)
     assert len(bullets) == 3 and len(set(bullets)) == 3
     assert sum("requirements-dev.txt" in line for line in out.splitlines()) == 1
+
+
+def test_without_a_terminal_setup_says_which_flag_answers_it(tmp_path, capsys, monkeypatch):
+    from tests.start_projects import own_format_project
+
+    monkeypatch.chdir(tmp_path)
+    own_format_project(tmp_path)  # each case has two answers, A and B
+    code = main(["setup"])
+    out = capsys.readouterr().out
+    assert code == 8, out
+    assert "Run judgekeeper setup --yes to count each as its own answer" in out

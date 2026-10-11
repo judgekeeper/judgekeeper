@@ -222,7 +222,8 @@ def test_mlflow_store(tmp_path, capsys):
 
 def test_mlflow_without_the_extra_says_how_to_read_it(tmp_path, capsys, monkeypatch):
     monkeypatch.setitem(__import__("sys").modules, "mlflow", None)
-    (tmp_path / "mlruns").mkdir()
+    (tmp_path / "mlruns" / "0").mkdir(parents=True)
+    (tmp_path / "mlruns" / "0" / "meta.yaml").write_text("name: Default\n", encoding="utf-8")
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
     assert ('MLflow found (mlruns/). To read it, add the extra in your project\'s environment: '
@@ -446,7 +447,7 @@ STRIPPED = {
     "vars": ("The inputs are missing from {f}. promptfoo leaves them out when "
              "PROMPTFOO_STRIP_TEST_VARS is on, in your environment or in the config's env: "
              "block. Turn it off and write the file again."),
-    "grading": ("The judge's verdicts are missing from {f}. promptfoo leaves them out when "
+    "grading": ("The judge's decisions are missing from {f}. promptfoo leaves them out when "
                 "PROMPTFOO_STRIP_GRADING_RESULT is on, in your environment or in the config's "
                 "env: block. Turn it off and write the file again."),
 }
@@ -549,3 +550,91 @@ def test_a_records_file_outside_the_records_folder_is_found(tmp_path):
     found = find.search(tmp_path)
     assert [r.path.name for r in found.results.get("records", [])] == ["judge-results.jsonl"]
     assert "table" not in found.results
+
+
+def _spreadsheet_header(path, header):
+    """A table whose header is typed as in Sheets or Excel."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines[0] = header
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize("header", ["Input,Output,Verdict", " input , OUTPUT ,Verdict ",
+                                    "INPUT,Output,Judge_Verdict"])
+def test_column_names_ignore_case_and_spaces(tmp_path, capsys, header):
+    table_project(tmp_path, split(16, 16), name="results.csv")
+    path = tmp_path / "results.csv"
+    assert path.read_text(encoding="utf-8").splitlines()[0] == "input,output,verdict"
+    _spreadsheet_header(path, header)
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0, out
+    assert "  Eval tool       a table (results.csv)" in out
+    assert "  Its decisions   32 answers: 16 passed, 16 failed" in out
+
+
+def test_an_mlruns_folder_of_artifacts_only_is_not_a_store(tmp_path):
+    # With mlflow.db, MLflow keeps logged artifacts in ./mlruns/<experiment>/<run>/artifacts
+    (tmp_path / "mlruns" / "1" / "a1b2" / "artifacts").mkdir(parents=True)
+    (tmp_path / "mlruns" / "1" / "a1b2" / "artifacts" / "notes.txt").write_text(
+        "x", encoding="utf-8")
+    (tmp_path / "mlruns" / ".trash").mkdir()  # made by reading it as a store once
+    assert not find.is_mlflow_folder(tmp_path / "mlruns")
+    assert not find.search(tmp_path).readable("mlflow")
+    (tmp_path / "mlruns" / "1" / "meta.yaml").write_text("name: qa\n", encoding="utf-8")
+    assert find.is_mlflow_folder(tmp_path / "mlruns")
+
+
+@pytest.mark.parametrize("folder", ["judgekeeper-report", "judgekeeper-demo-2026-10-01",
+                                    "judgekeeper-demo"])
+def test_judgekeepers_own_folders_are_never_your_judge(tmp_path, capsys, folder):
+    # the check command's report (anchors.jsonl looks like a table) and 0.1.3's demo data
+    table_project(tmp_path / folder, split(16, 16), name="anchors.csv")
+    (tmp_path / folder / "own.jsonl").write_text(
+        json.dumps({"input": "q", "output": "a", "score": 1}) + "\n", encoding="utf-8")
+    found = find.search(tmp_path)
+    assert not found.readable("table"), folder
+    from judgekeeper import own_format
+
+    assert own_format.search(tmp_path) is None
+    table_project(tmp_path, split(16, 16), name="results.csv")  # the person's own, still found
+    assert [r.rel for r in find.search(tmp_path).readable("table")] == ["results.csv"]
+
+
+def test_an_inspect_run_that_stopped_early_says_so(tmp_path, capsys):
+    from tests.start_projects import inspect_data
+
+    data = inspect_data(split(16, 16))
+    data["status"] = "error"
+    data["error"] = {"message": "TypeError: unsupported operand type(s) for +: 'float' and "
+                                "'Timeout'"}
+    data.setdefault("results", {})["total_samples"] = 40
+    path = tmp_path / "logs" / "2026-10-02_support.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+    _, out, _ = run(capsys, tmp_path)
+    assert ("  ! Your Inspect run stopped early (32 of 40 samples): TypeError: unsupported "
+            "operand type(s) for +: 'float' and 'Timeout'") in out
+    from judgekeeper.readers.inspect_logs import stopped_early
+
+    assert stopped_early({"status": "cancelled", "samples": [1, 2]}) == (
+        "Your Inspect run stopped early (2 samples): it was cancelled.")
+    assert stopped_early({"status": "success", "samples": [1]}) is None
+
+
+def test_inspects_partial_credit_says_how_to_count_it_and_is_remembered(tmp_path, capsys,
+                                                                       monkeypatch):
+    from judgekeeper import start_label
+    from tests.start_projects import inspect_project
+
+    monkeypatch.setattr(start_label, "serve_workspace", lambda *a, **k: 0)  # no page
+
+    inspect_project(tmp_path, [True] * 16 + [False] * 16 + ["P"] * 3)
+    code, out, err = run(capsys, tmp_path)
+    assert code == 2
+    assert ("Inspect gave partial credit (P) on 3 answers: should they count as Pass or Fail? "
+            "Run again with --label-map P=pass or --label-map P=fail.") in out + err
+    found = start.find_judge(tmp_path, label_map="P=fail")
+    ws = start_label.prepare(found, say=lambda line="": None)
+    assert ws.data()["label_map"] == "P=fail"
+    code, out, err = run(capsys, tmp_path)  # no --label-map: the saved one is used
+    assert "partial credit" not in out + err and "unmapped" not in out + err

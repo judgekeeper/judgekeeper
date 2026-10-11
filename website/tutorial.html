@@ -121,23 +121,25 @@ Not trustworthy as a gate: TPR 0.86, TNR 0.67, kappa 0.52 against human labels.
 wrote reports/lazy/report.json and reports/lazy/report.html</code></pre>
   <div class="code"><pre data-step="6"><code>judgekeeper validate anchors.jsonl runs/careful --out reports/careful</code></pre></div>
   <p class="output-label">It prints:</p>
-  <pre class="output" data-step="6"><code>Of the answers people passed, the judge passed 95%. Of the answers people failed, the judge failed 100%. It is usable as a gate.
-Usable as a gate: TPR 0.95, TNR 1.00, kappa 0.93 against human labels. Read the flags below before relying on it.
+  <pre class="output" data-step="6"><code>Of the answers people passed, the judge passed 95%. Of the answers people failed, the judge failed 100%. Too few labels to tell whether it is usable as a gate.
+Too few labels to tell whether it is usable as a gate: TPR 0.95, TNR 1.00, kappa 0.93 against human labels. Read the flags below before relying on it.
   - judge identity incomplete: provider, model, snapshot, endpoint, prompt_hash, rubric_version, temperature
   - Too few labels for a rough check (7 labeled pass, 3 labeled fail): it needs 15 of each.
 wrote reports/careful/report.json and reports/careful/report.html</code></pre>
-  <p><strong>What it means.</strong> The lazy judge passed the wrong answer about Saturn, because it sounds sure of itself. Its TNR is <span data-tutorial="lazy:headline.tnr_mean">0.67</span> and kappa <span data-tutorial="lazy:headline.kappa_mean">0.52</span>: not trustworthy. The careful judge caught every wrong answer (TNR <span data-tutorial="careful:headline.tnr_mean">1.00</span>), so it is usable as a gate. Open <code>reports/careful/report.html</code> and find the noise section: the careful judge changed its verdict on <span data-tutorial="careful:noise_floor.items_flipped_fraction" data-format="pct0">10%</span> of the answers, the continents question (q7), between runs. That is why judgekeeper runs a judge more than once.</p>
+  <p><strong>What it means.</strong> The lazy judge passed the wrong answer about Saturn, because it sounds sure of itself. Its TNR is <span data-tutorial="lazy:headline.tnr_mean">0.67</span> and kappa <span data-tutorial="lazy:headline.kappa_mean">0.52</span>: not trustworthy. The careful judge caught every wrong answer (TNR <span data-tutorial="careful:headline.tnr_mean">1.00</span>). Ten answers are too few labels to say it is usable as a gate: a real check needs at least 15 of each kind. Open <code>reports/careful/report.html</code> and find the noise section: the careful judge changed its verdict on <span data-tutorial="careful:noise_floor.items_flipped_fraction" data-format="pct0">10%</span> of the answers, the continents question (q7), between runs. That is why judgekeeper runs a judge more than once.</p>
 
   <h2 id="step-gate">6. Gate on the result</h2>
   <p>A <strong>gate</strong> is an automatic check that can stop a release. In CI it fails the build when the judge is not good enough, using the command's <strong>exit code</strong>: 0 means pass, anything else stops the build.</p>
   <div class="code"><pre data-step="7"><code>judgekeeper gate reports/lazy/report.json --out gates/lazy</code></pre></div>
   <p class="output-label">It prints, and exits with code 1:</p>
   <pre class="output" data-step="7" data-exit-code="1"><code>FAIL: Kappa mean 0.52 is below the 0.60 threshold; TNR mean 0.67 is below the 0.80 threshold.
+  warning: Too few labels for a rough check (7 labeled pass, 3 labeled fail): it needs 15 of each. The result is not reliable yet.
   no baseline: absolute thresholds only
 wrote gates/lazy/gate.json and gates/lazy/gate.md (exit 1)</code></pre>
   <div class="code"><pre data-step="8"><code>judgekeeper gate reports/careful/report.json --out gates/careful</code></pre></div>
   <p class="output-label">It prints, and exits with code 0:</p>
-  <pre class="output" data-step="8"><code>PASS: The judge clears every absolute threshold; no baseline to compare against.
+  <pre class="output" data-step="8"><code>PASS: The judge clears every absolute threshold; no baseline to compare against. But there are too few labels to rely on it yet: see the warning.
+  warning: Too few labels for a rough check (7 labeled pass, 3 labeled fail): it needs 15 of each. The result is not reliable yet.
   no baseline: absolute thresholds only
 wrote gates/careful/gate.json and gates/careful/gate.md (exit 0)</code></pre>
   <p><strong>What it means.</strong> The lazy judge would stop the build; the careful one lets it through. With a saved <strong>baseline</strong> (an earlier report you trust, set with <code>judgekeeper baseline set reports/careful/report.json</code>), the gate also fails when the judge gets worse than before by more than its own noise.</p>

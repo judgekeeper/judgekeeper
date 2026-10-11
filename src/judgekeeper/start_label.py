@@ -72,8 +72,25 @@ GITIGNORE = ("# judgekeeper's files hold your app's answers. Commit them only if
              "may live here.\n*\n!.gitignore\n!baseline.json\n!migrations/\n!migrations/*\n")
 LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
         "Remove it, then run judgekeeper start again.")
-SAVED_NOTE = (f"Saved in {FOLDER}/. It holds your answers' text: commit it only if your data "
+SAVED_NOTE = ("Saved in {folder}/. It holds your answers' text: commit it only if your data "
               "may live in your repo.")
+
+
+def shown_folder(ws: Workspace) -> str:
+    """The workspace folder as the person finds it from where they ran start: .judgekeeper
+    here, else its path (next to a results file given from elsewhere, or a link's target)."""
+    import os
+
+    here = Path.cwd().resolve() / FOLDER
+    folder = ws.dir.resolve()
+    if folder == here:
+        return FOLDER
+    try:
+        rel = Path(os.path.relpath(folder, Path.cwd().resolve()))
+    except ValueError:  # another drive on Windows
+        return folder.as_posix()
+    # a folder nearby as ../elsewhere/.judgekeeper; one far away as its whole path
+    return rel.as_posix() if rel.parts.count("..") <= 2 else folder.as_posix()
 CORRECTED = "Corrected for picking half from the judge's passes and half from its fails."
 LEVELS = {  # verdict level: (colour, icon, second line)
     "gate": ("green", "tick", "Keep checking it after changes to its model or rule."),
@@ -256,6 +273,8 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "one_rule": found.one_rule,
         **({"task_file": found.task_file} if found.task_file else {}),
         **({"rule_field": found.rule_field} if found.rule_field else {}),
+        # --label-map as given: later runs without it read the results the same way
+        **({"label_map": found.label_map} if getattr(found, "label_map", None) else {}),
         "pool": {"answers": len(p.answers), "pass": p.n_pass, "fail": p.n_fail},
         "pool_sha256": pool_sha,
         "left_out": {"no_clear_verdict": p.n_unclear, "unmapped_values": p.unmapped,
@@ -267,7 +286,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "updated_at": utc_now(),
     })
     if first:
-        say(SAVED_NOTE)
+        say(SAVED_NOTE.format(folder=shown_folder(ws)))
     return ws
 
 
@@ -297,6 +316,12 @@ def question_view(value):
     return display(value)
 
 
+def _all_exact(r: dict) -> bool:
+    """Whether both ranges have no width: more marks can't change them."""
+    ends = [r.get(f"{k}_interval") or [None, None] for k in ("tpr", "tnr")]
+    return all(lo is not None and hi is not None and hi - lo <= 1e-12 for lo, hi in ends)
+
+
 def status_line(r: dict) -> str:
     """How far along a check is, in the words the person reads (no targets, no numbers): the
     line under the meters on the labeling page, and on the result when a range is still
@@ -306,6 +331,8 @@ def status_line(r: dict) -> str:
     if r["check"] == "reliable":
         return "Your result is ready."
     wide = r.get("wide") or {}
+    if not wide and _all_exact(r):  # a judge that passes (or fails) every answer
+        return "You can see your result now."
     if not wide:
         return "You can see your result now. Marking more answers narrows its ranges."
     sides = " and ".join(SAID[key] for key in ("tpr", "tnr") if key in wide)
@@ -343,6 +370,11 @@ class StartSession(LabelSession):
                if line.strip()]
         self.raw = {r["id"]: r for r in raw}
         for item in self.items:
+            item["deferred"] = item["note"] == SKIPPED
+
+    def _resume(self) -> None:
+        super()._resume()
+        for item in self.items:  # a skip is saved as its note
             item["deferred"] = item["note"] == SKIPPED
 
     def _apply(self, item: dict, body: dict) -> None:
@@ -386,10 +418,16 @@ class StartSession(LabelSession):
 
 # The result ------------------------------------------------------------------------------
 
+def plain(x: float | None) -> float | None:
+    """`x` rounded to 9 decimals, for comparing with a cut-off: 9/10 worked out in floating
+    point is 0.8999999999999999, which is 0.90."""
+    return None if x is None else round(x, 9)
+
+
 def _level(r: dict) -> str | None:
     if r["check"] == "too_few":
         return None
-    tpr, tnr, kappa = r["tpr"], r["tnr"], r["kappa"]
+    tpr, tnr, kappa = plain(r["tpr"]), plain(r["tnr"]), plain(r["kappa"])
     if kappa is None or tpr is None or tnr is None or kappa < KAPPA_GATE \
             or min(tpr, tnr) < RATE_GATE:
         return "not_gate"
@@ -420,9 +458,22 @@ def marks_words(labels: dict) -> str:
     return f"{labels['correct']} Pass, {labels['wrong']} Fail"
 
 
+def short_words(labels: dict) -> str:
+    """The kinds still under ROUGH marks: "3 Fail", or "9 Pass and 3 Fail"."""
+    said = [f"{labels[k]} {word}" for k, word in (("correct", "Pass"), ("wrong", "Fail"))
+            if labels[k] < ROUGH]
+    return " and ".join(said)
+
+
 def sentences(r: dict) -> list[str]:
-    """The two sentences of the result; before a result, the one line that says to mark more."""
+    """The two sentences of the result; before a result, the one line that says to mark more,
+    or, when every answer is marked and still a kind is short, why there is no result (the one
+    place a count is said: it explains a stop, it is not a target)."""
     if r["check"] == "too_few":
+        if all_labeled(r):
+            return [(f"You've marked every answer. A result needs at least {ROUGH} you mark "
+                     f"Pass and {ROUGH} you mark Fail; you have {short_words(r['labels'])}. Run "
+                     f"your eval on more questions, then {command_of(r, '--label-more')}.")]
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     out = []
     for key, said in SAID.items():
@@ -449,11 +500,21 @@ def statements(r: dict) -> list[dict]:
     return out
 
 
+EXACT_RANGE = "exactly: marking more answers won't change it."
+
+
 def range_words(interval) -> str | None:
-    """"Probably between 66% and 93%. Marking more answers narrows this.", or None."""
+    """"Probably between 66% and 93%. Marking more answers narrows this.", or None. A range of
+    no width is exact ("100%, exactly: ..."): a judge that passes (or fails) every answer.
+    Ends that round to the same percent are shown with one decimal, never one point."""
     if interval is None or interval[0] is None:
         return None
-    return f"Probably between {_pct(interval[0])} and {_pct(interval[1])}. {MORE}"
+    lo, hi = interval
+    if hi - lo <= 1e-12:
+        return f"{_pct(lo)}, {EXACT_RANGE}"
+    if _pct(lo) == _pct(hi):
+        return f"Probably between {lo:.1%} and {hi:.1%}. {MORE}"
+    return f"Probably between {_pct(lo)} and {_pct(hi)}. {MORE}"
 
 
 def _number(name: str, value, interval) -> str:
@@ -497,19 +558,25 @@ def all_labeled(r: dict) -> bool:
     return r.get("left") == 0
 
 
+def command_of(r: dict, *extra: str) -> str:
+    """The command the person runs next: `judgekeeper start` with the path and flags of the
+    run that made the result (start.Talk.command, kept in it), then `extra`."""
+    return " ".join((r.get("command") or "judgekeeper start", *extra))
+
+
 def _next(r: dict) -> list[tuple[str, str]]:
     steps = []
     if r["check"] != "reliable" and not all_labeled(r):
-        steps.append(("Mark more answers:", "judgekeeper start"))
+        steps.append(("Mark more answers:", command_of(r)))
     if to_review(r):
-        steps.append((f"See where you disagree ({to_review(r)}):", "judgekeeper start --review"))
+        steps.append((f"See where you disagree ({to_review(r)}):", command_of(r, "--review")))
     if can_fix(r):
-        steps.append(("Fix your judge (free):", "judgekeeper start --fix"))
+        steps.append(("Fix your judge (free):", command_of(r, "--fix")))
     if can_ask_again(r):
-        steps.append(("Ask your judge again:", "judgekeeper start --ask-again"))
+        steps.append(("Ask your judge again:", command_of(r, "--ask-again")))
     if r.get("new_judge"):
-        steps.append(("Check your new judge from now on:", "judgekeeper start --new"))
-    return steps + [("Check again after your next eval run:", "judgekeeper start")]
+        steps.append(("Check your new judge from now on:", command_of(r, "--new")))
+    return steps + [("Check again after your next eval run:", command_of(r))]
 
 
 def _again_lines(r: dict) -> list[str]:
@@ -605,7 +672,7 @@ def _detail(r: dict) -> str | None:
 def still_needed(r: dict) -> str | None:
     """Why marking more answers helps, while the result is not reliable: the range that is
     still wide (status_line), else that more marks narrow the ranges; None once reliable."""
-    if r["check"] == "reliable":
+    if r["check"] == "reliable" or not r.get("wide") and _all_exact(r):
         return None
     if r.get("wide"):
         return status_line(r)
@@ -665,36 +732,36 @@ def page_content(r: dict) -> dict:
     needed = still_needed(r)
     if needed and all_labeled(r):
         steps.append({"title": "Mark more answers", "text": ALL_LABELED,
-                      "command": "judgekeeper start", "link": None, "button": None})
+                      "command": command_of(r), "link": None, "button": None})
     elif needed:
         steps.append({"title": "Mark more answers", "text": needed,
-                      "command": "judgekeeper start", "link": "/", "button": "Mark more answers"})
+                      "command": command_of(r), "link": "/", "button": "Mark more answers"})
     if to_review(r):
         steps.append({"title": f"See where you disagree ({to_review(r)})",
                       "text": ("Each answer where you and your judge disagree, with its "
                                "reason. Free."),
-                      "command": "judgekeeper start --review", "link": "/review",
+                      "command": command_of(r, "--review"), "link": "/review",
                       "button": "See where you disagree"})
     if can_fix(r):
         steps.append({"title": "Fix your judge",
                       "text": ("See what your judge gets wrong, and test a change on answers "
                                "kept aside. Free."),
-                      "command": "judgekeeper start --fix", "link": "/fix",
+                      "command": command_of(r, "--fix"), "link": "/fix",
                       "button": "Fix your judge"})
     if can_ask_again(r):
         steps.append({"title": "Ask your judge again",
                       "text": ("How often it changes its mind, and how well it agrees with "
                                "you today. It asks before any call:"),
-                      "command": "judgekeeper start --ask-again", "link": None,
+                      "command": command_of(r, "--ask-again"), "link": None,
                       "button": None})
     if r.get("new_judge"):
         steps.append({"title": "Check your new judge from now on",
                       "text": ("Your last check moves to .judgekeeper/previous-<date>/; nothing "
                                "is deleted:"),
-                      "command": "judgekeeper start --new", "link": None, "button": None})
+                      "command": command_of(r, "--new"), "link": None, "button": None})
     if not (needed and all_labeled(r)):  # else the first step already says it
         steps.append({"title": "Check again after your next eval run", "text": "",
-                      "command": "judgekeeper start", "link": None, "button": None})
+                      "command": command_of(r), "link": None, "button": None})
     review = None
     if r.get("review"):
         review = {"title": "Where you disagree", "lines": _review_lines(r),
@@ -750,11 +817,13 @@ def result_html(r: dict, back: str | None = None) -> str:
     return result_page(page_content(r), back)
 
 
-def page_template(about: dict | None = None) -> str:
+def page_template(about: dict | None = None, command: str = "judgekeeper start") -> str:
     """The labeling page for a check whose start.json is `about`: its description and its
-    judge's rule are shown; nothing else from it is."""
+    judge's rule are shown; nothing else from it is. `command`: what the person runs to
+    continue."""
     about = about or {}
-    return label_page(about.get("description") or about.get("app_version"), about.get("rule"))
+    return label_page(about.get("description") or about.get("app_version"), about.get("rule"),
+                      command)
 
 
 def compute(ws: Workspace, session: StartSession) -> dict:
@@ -778,10 +847,42 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     return r
 
 
-def save_result(ws: Workspace, session: StartSession, say) -> dict:
+def marks_digest(ws: Workspace, session: StartSession) -> str:
+    """What a result is made from: the marks (answer and label, never a skip) and the judge's
+    verdicts."""
+    import hashlib
+
+    marks = sorted([i["id"], i["label"]] for i in session.items if i["label"])
+    verdicts = ws.pool_judge.read_bytes() if ws.pool_judge.is_file() else b""
+    return hashlib.sha256(json.dumps(marks).encode("utf-8") + b"\0" + verdicts).hexdigest()
+
+
+def _same_result(ws: Workspace, digest: str) -> dict | None:
+    """The saved result, when it was made from these same marks."""
+    try:
+        saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return saved if isinstance(saved, dict) and saved.get("marks_sha256") == digest else None
+
+
+def save_result(ws: Workspace, session: StartSession, say,
+                command: str = "judgekeeper start") -> dict:
     """Make a result from the labels so far: anchors, result.json and result.html (the last
-    result moves to history/), and say it in the terminal."""
+    result moves to history/), and say it in the terminal. `command` (start.Talk.command) is
+    kept in it: every next command it shows starts with it. With no new marks since the saved
+    result, that result stays as it is (with its review, fix and asking again) and is said
+    again: a new one would move the finished review and fix to history/."""
+    digest = marks_digest(ws, session)
+    same = _same_result(ws, digest)
+    if same is not None:
+        say("")
+        for line in result_lines(same, shown_folder(ws)):
+            say(line)
+        return same
     r = compute(ws, session)
+    r["command"] = command
+    r["marks_sha256"] = digest
     anchors = [{"id": i["id"], "input": session.raw[i["id"]].get("input", ""),
                 "output": session.raw[i["id"]].get("output", ""), "human_label": i["label"],
                 **{k: session.raw[i["id"]][k] for k in AGENT_FIELDS if k in session.raw[i["id"]]}}
@@ -804,16 +905,17 @@ def save_result(ws: Workspace, session: StartSession, say) -> dict:
     _write_json(ws.result_json, r)
     write_replacing(ws.result_html, result_html(_scrubbed(r)))
     say("")
-    for line in result_lines(r):
+    for line in result_lines(r, shown_folder(ws)):
         say(line)
     return r
 
 
-def result_maker(ws: Workspace, say, made: list | None = None):
+def result_maker(ws: Workspace, say, made: list | None = None,
+                 command: str = "judgekeeper start"):
     """The server's result function: each call makes and saves a new result."""
 
     def make(session: StartSession, back: str) -> str:
-        r = save_result(ws, session, say)
+        r = save_result(ws, session, say, command)
         done = session.summary()["done"]
         if made is not None:
             made.append(done)
@@ -855,10 +957,10 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
     session = StartSession(ws)
     made: list[bool] = []
     reviewed: list[bool] = []
-    server = make_server(session, port, result=result_maker(ws, say, made),
-                         page=page_template(ws.data()),
+    server = make_server(session, port, result=result_maker(ws, say, made, command),
+                         page=page_template(ws.data(), command),
                          switches={"/review": start_review.switch(ws, say, reviewed),
-                                   "/fix": start_fix.switch(ws, say, command)})
+                                   "/fix": start_fix.switch(ws, say, command)}, lock=ws.dir)
     say_opened(server.url, open_browser, say, command)
     try:
         server.serve()
@@ -866,7 +968,7 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
         pass
     summary = session.summary()
     if summary["done"] and not any(made):
-        save_result(ws, session, say)  # nobody fetched the last result: make it here
+        save_result(ws, session, say, command)  # nobody fetched the last result: make it
     elif not summary["done"]:
         say("")
         say(f"Stopped. You marked {_plural(summary['n_labeled'], 'answer', 'answers')}. To "

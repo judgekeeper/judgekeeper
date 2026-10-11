@@ -410,13 +410,17 @@ def test_too_few_prints_the_promptfoo_command_and_asks(tmp_path, capsys, termina
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "  Its decisions   22 answers: 20 passed, 2 failed" in out
-    assert "You have 22 answers. judgekeeper needs at least 30 to show a result." in out
+    assert ("You have 22 answers. judgekeeper needs at least 15 answers you mark Pass "
+            "and 15 you mark Fail to show a result. Make more answers with your eval "
+            "first, or mark these now: your marks are kept and count when you add "
+            "more.") in out
     assert (f"Make more answers with your own eval, then run judgekeeper start "
             f"{textio.quote_arg(tmp_path)} again:") in out
     assert ("  Add more tests to promptfooconfig.yaml, then run: promptfoo eval -o "
             "results.json") in out
     assert "  Running your eval again makes model calls, so it costs money." in out
-    assert "Mark the 22 you have anyway? The result will have wide ranges. [y/N]" in out
+    assert "Mark the 22 you have now? [y/N]" in out
+    assert "wide ranges" not in out
     assert "Next: in your browser" not in out
 
 
@@ -466,7 +470,7 @@ def test_without_a_terminal_too_few_stops_with_the_flag(tmp_path, capsys):
     promptfoo_project(tmp_path, split(20, 2))
     code, out, _ = run(capsys, tmp_path, yes=False)
     assert code == start.EXIT_QUESTION
-    assert (f"Mark the 22 you have anyway? Run judgekeeper start {textio.quote_arg(tmp_path)} "
+    assert (f"Mark the 22 you have now? Run judgekeeper start {textio.quote_arg(tmp_path)} "
             "--yes to say yes.") in out
 
 
