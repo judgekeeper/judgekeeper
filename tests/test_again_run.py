@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import builtins
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -493,6 +494,29 @@ def test_a_judge_command_that_fails_is_not_counted(tmp_path, capsys):
     code, out, _ = run(capsys, ws.root, "--ask-again", "--judge-command", command,
                        "--allow-calls", "72")
     assert code == 0 and "not counted" in out
+    assert re.search(r"Your judge command failed on \d+ of 72 calls; those answers are not "
+                     r"counted\. First error: ", out), out
+
+
+@pytest.mark.parametrize("command", [
+    "{python} -c \"import sys; sys.exit(3)\"",  # a non-zero exit
+    "{python} -c \"print('no verdict here')\"",  # output it can't read
+    "{missing}",  # a program that is not there
+])
+def test_a_judge_command_that_always_fails_says_why_and_keeps_the_saved_numbers(
+        tmp_path, capsys, command):
+    ws = _checked(tmp_path, maker=table_project)
+    run(capsys, ws.root, "--ask-again", "--judge-command", f"{sys.executable} {EXEC / 'bare.py'}",
+        "--allow-calls", "72")  # the saved "asked again" numbers
+    before = json.loads(ws.result_json.read_text(encoding="utf-8"))["again"]
+    folders = sorted((ws.dir / "again").iterdir())
+    command = command.format(python=sys.executable, missing=tmp_path / "no-such-judge")
+    code, out, _ = run(capsys, ws.root, "--ask-again", "--judge-command", command,
+                       "--allow-calls", "72")
+    assert code == 1
+    assert "Your judge command failed on every call (72 of 72). First error: " in out
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["again"] == before
+    assert sorted((ws.dir / "again").iterdir()) == folders
 
 
 # Next lines ----------------------------------------------------------------------------------

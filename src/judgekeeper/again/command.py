@@ -7,11 +7,12 @@ from __future__ import annotations
 
 from judgekeeper import prices
 from judgekeeper.again import OWN, Plan, cant
-from judgekeeper.again.fresh import Fresh, new_folder
+from judgekeeper.again.fresh import AgainError, Fresh, new_folder
 from judgekeeper.custom import CustomRunner, exec_judge, split_command
 from judgekeeper.keys import provider_of
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser
+from judgekeeper.redact import scrub
 from judgekeeper.start_label import display
 from judgekeeper.table import make_fingerprint
 
@@ -39,8 +40,21 @@ def plan(ws, answers: list[dict], opts) -> Plan:
                                "as JSON on stdin.")], payload=list(answers), runner=[command])
 
 
+MAX_ERROR_SHOWN = 300  # characters of the first error, on one line (as `judge --exec`)
+
+
+def _failed(judgments) -> tuple[int, str]:
+    """How many calls gave no clear verdict, and the first one's error on one line."""
+    bad = [j for j in judgments if j.verdict in (ERROR, None)]
+    first = next((j.error or j.rationale for j in bad if j.error or j.rationale),
+                 "no clear verdict in its output")
+    return len(bad), " ".join(scrub(str(first)).split())[:MAX_ERROR_SHOWN]
+
+
 def run(ws, plan: Plan, talk) -> Fresh:
-    """Run the command once per answer per time: {id, input, output} as JSON on stdin."""
+    """Run the command once per answer per time: {id, input, output} as JSON on stdin. When
+    every call fails, nothing is counted (AgainError): the saved numbers stay as they were.
+    When some fail, it says how many and the first error."""
     command = plan.runner[0]
     known = {"model": plan.model} if plan.model else {}
     fingerprint = make_fingerprint(known)
@@ -56,6 +70,14 @@ def run(ws, plan: Plan, talk) -> Fresh:
         for a in answers:
             got[a["id"]].append(runner.judge({"id": a["id"], "input": a["input"],
                                               "output": a["output"]}))
+    every = [j for judgments in got.values() for j in judgments]
+    n_failed, first = _failed(every)
+    if every and n_failed == len(every):
+        raise AgainError(f"Your judge command failed on every call ({n_failed} of "
+                         f"{len(every)}). First error: {first}")
+    if n_failed:
+        talk.say(f"Your judge command failed on {n_failed} of {len(every)} calls; those "
+                 f"answers are not counted. First error: {first}")
     for item_id, judgments in got.items():
         if any(j.verdict in (ERROR, None) for j in judgments):
             fresh.not_counted[item_id] = "no clear verdict"
