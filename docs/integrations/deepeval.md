@@ -2,6 +2,8 @@
 
 judgekeeper reads the JSON files DeepEval already writes. Your test code does not change.
 
+Tested with DeepEval 3.9.9 to 4.2.8. With an older DeepEval, reading, marking and the review work; asking your judge again and trying a new judge need DeepEval 3.9.9 or newer.
+
 ## Produce the files
 
 DeepEval has no `--output-file` flag. It writes results in two places:

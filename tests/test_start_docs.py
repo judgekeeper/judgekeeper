@@ -102,7 +102,7 @@ def test_the_start_output_on_the_site_is_real(tmp_path, monkeypatch, capsys, utc
         assert block == screen
 
 
-@pytest.mark.parametrize("page", ["index.html", "start.html"])
+@pytest.mark.parametrize("page", ["index.html", "start.html", "tutorial.html"])
 def test_the_version_line_on_the_site_is_real(monkeypatch, page):
     class Terminal(io.StringIO):
         encoding = "utf-8"
@@ -326,3 +326,36 @@ def test_the_own_format_section_shows_the_three_doors_in_order():
     assert "reference.html#record-save-your-own-judges-verdicts-with-one-line" in hrefs
     assert "https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json" in \
         hrefs
+
+
+def test_see_your_result_shows_once_there_are_enough_marks():
+    """The page shows the button only once there are enough marks of each kind."""
+    step = _flat(_by_id("start.html", "result"))
+    reference = " ".join(REFERENCE.read_text(encoding="utf-8").split())
+    for text in (step, reference):
+        assert "See your result" in text
+        assert "any time" not in text.split("See your result", 1)[1][:80]
+    assert "once you have marked enough answers of each kind" in step
+    assert "appears once there are enough marks of each kind" in reference
+
+
+# The eval tool versions judgekeeper was tested with, on the tool's page and in the reference.
+TESTED = {"promptfoo": "promptfoo 0.120 to 0.124",
+          "deepeval": "DeepEval 3.9.9 to 4.2.8",
+          "inspect": "Inspect AI 0.3.242 to 0.3.278",
+          "mlflow": "MLflow 3.10 or newer"}
+
+
+@pytest.mark.parametrize("tool", sorted(TESTED))
+def test_the_docs_say_which_tool_versions_were_tested(tool):
+    page = " ".join((ROOT / "docs" / "integrations" / f"{tool}.md").read_text(
+        encoding="utf-8").split())
+    reference = " ".join(REFERENCE.read_text(encoding="utf-8").split())
+    for text in (page, reference):
+        assert f"Tested with {TESTED[tool]}" in text, tool
+    if tool == "deepeval":
+        assert "need DeepEval 3.9.9 or newer" in page
+    if tool == "inspect":
+        assert "need Inspect AI 0.3.242 or newer" in page
+    if tool == "mlflow":
+        assert "3.10 is the oldest tested" in page

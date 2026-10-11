@@ -10,13 +10,15 @@ An LLM-as-a-judge is an AI model that grades the answers of another AI model. Te
 
 ## Install
 
+You need Python 3.11 or newer.
+
 ```
 source .venv/bin/activate
 pip install judgekeeper
 judgekeeper --version
 ```
 
-Run these in your project folder: judgekeeper is a tool for developers, like pytest, and goes inside your project's own Python environment. On Windows the first line is `.venv\Scripts\activate`. No `.venv` yet? Run `python3 -m venv .venv` first. With uv or Poetry: `uv add --dev judgekeeper` or `poetry add --group dev judgekeeper`. More help: [Install](https://www.judgekeeper.com/start.html#install).
+Run these in your project folder: judgekeeper is a tool for developers, like pytest, and goes inside your project's own Python environment. On Windows the first line is `.venv\Scripts\activate`. No `.venv` yet? Run `python3 -m venv .venv` first. With uv or Poetry: `uv add --dev judgekeeper` or `poetry add --group dev judgekeeper`, then `uv run judgekeeper start` or `poetry run judgekeeper start`. More help: [Install](https://www.judgekeeper.com/start.html#install).
 
 ## Use it on your own judge
 

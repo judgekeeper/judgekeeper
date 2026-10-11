@@ -75,13 +75,14 @@
    install it for the whole computer.
 2. If `judgekeeper start` finds no results, run `judgekeeper setup` and show me its
    questions instead of answering them for me.
-3. Run `judgekeeper start --yes --no-browser` and give me the link it prints. I will
-   mark the answers myself: never mark them for me.</code></pre></div>
+3. Run `judgekeeper start --yes --no-browser` in the background, since it keeps
+   running while I mark, and give me the link it prints. I will mark the answers
+   myself: never mark them for me.</code></pre></div>
 </details>
 
 <section class="stop" id="install" aria-labelledby="install-title">
   <div class="head"><span class="n" aria-hidden="true">1</span><h2 id="install-title">Install</h2></div>
-  <p class="why">judgekeeper is a tool for developers, like pytest. Install it inside your project, in the project&#39;s own Python environment, not on your computer as a whole.</p>
+  <p class="why">judgekeeper is a tool for developers, like pytest. Install it inside your project, in the project&#39;s own Python environment, not on your computer as a whole. You need Python 3.11 or newer.</p>
   <div class="trio">
     <div class="tabs" id="install-tabs">
       <div role="tablist" aria-label="Your computer">
@@ -107,11 +108,13 @@ judgekeeper --version</code></pre></div>
     <div class="donewhen"><p>You&#39;re done when the first line ends in <b>is ready</b>.</p><label class="tick"><input type="checkbox" data-step="1"> Mark step 1 done</label></div>
     <details class="help"><summary>Didn&#39;t work?</summary><dl>
       <dt>Not sure which Python you have</dt>
-      <dd>Run <code>python3 --version</code> (on Windows <code>py --version</code>, or <code>python --version</code> when Python is on the PATH). You need <code>Python 3.11</code> or a higher number, such as <code>Python 3.13.2</code>. Command not found, or a lower number? Install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new terminal.</dd>
+      <dd>Run <code>python3 --version</code> (on Windows <code>py --version</code>, or <code>python --version</code> when Python is on the PATH). You need <code>Python 3.11</code> or a higher number, such as <code>Python 3.13.2</code>. Command not found, or a lower number? Install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new terminal. A <code>.venv</code> you made before keeps its old Python: delete it and make it again.</dd>
+      <dt><code>Could not find a version that satisfies the requirement judgekeeper (from versions: none)</code></dt>
+      <dd>Your Python is too old: judgekeeper needs Python 3.11 or newer. Install a newer Python, delete <code>.venv</code>, and make it again (<code>python3.12 -m venv .venv</code>, on Windows <code>py -3.12 -m venv .venv</code>).</dd>
       <dt>No <code>.venv</code> folder in your project (<code>no such file or directory</code>, or on Windows <code>cannot find the path</code>)</dt>
       <dd>An <strong>environment</strong> (a virtual environment) is a folder in your project that holds its own Python and what the project needs. Make one with <code>python3 -m venv .venv</code> (on Windows <code>py -m venv .venv</code>), then run the activate line again. The start of the line then reads <code>(.venv)</code>. If your project keeps its environment in another folder, such as <code>venv</code>, use that name.</dd>
       <dt>Your project uses uv or Poetry</dt>
-      <dd>Add judgekeeper as a dev tool instead: <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code>.</dd>
+      <dd>Add judgekeeper as a dev tool instead: <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code>. Then put <code>uv run</code> or <code>poetry run</code> in front of each command: <code>uv run judgekeeper start</code>. uv or Poetry refuses because your project also allows an older Python than judgekeeper needs? Use <code>uv add --dev "judgekeeper; python_version &gt;= '3.11'"</code> or <code>poetry add --group dev judgekeeper --python "&gt;=3.11"</code>.</dd>
       <dt><code>error: externally-managed-environment</code></dt>
       <dd>Your project&#39;s environment is not switched on, so pip tried to install into the Python of your whole computer, which Homebrew, another program or the system protects. It is not about judgekeeper. Run the activate line, check that the line starts with <code>(.venv)</code>, then install again.</dd>
       <dt><code>pip: command not found</code> (a Mac may say <code>zsh: command not found: pip</code>)</dt>
@@ -123,7 +126,7 @@ judgekeeper --version</code></pre></div>
       <dt>The judgekeeper command is not found</dt>
       <dd>With your project&#39;s environment switched on, run <code>python -m judgekeeper --version</code>. It does the same thing. Put <code>python -m</code> in front of every <code>judgekeeper</code> command, or with uv or Poetry put <code>uv run</code> or <code>poetry run</code> in front.</dd>
       <dt>It also says <code data-said-by="cli">judgekeeper is installed outside a project</code></dt>
-      <dd>Your project&#39;s environment was not switched on when you installed. Switch it on, install again, and check again.</dd>
+      <dd>judgekeeper is installed for your whole computer, not in this project. Either your project&#39;s environment was off when you installed it, or it was installed as a tool for your whole computer. Switch your project&#39;s environment on, install judgekeeper there, and check again.</dd>
     </dl></details>
   </div>
 </section>
@@ -195,7 +198,7 @@ This shows how often your judge agrees with you.
 
 <section class="stop" id="result" aria-labelledby="result-title">
   <div class="head"><span class="n" aria-hidden="true">5</span><h2 id="result-title">Your result</h2></div>
-  <p class="why">Press <strong>See your result</strong> any time. It shows in the page and in the terminal, and it is saved as <code>.judgekeeper/result.html</code>, which opens without judgekeeper running.</p>
+  <p class="why"><strong>See your result</strong> appears once you have marked enough answers of each kind. Press it: it shows in the page and in the terminal, and it is saved as <code>.judgekeeper/result.html</code>, which opens without judgekeeper running.</p>
   <div class="trio">
     <figure class="shot-wide"><a href="assets/shots/result.webp"><img src="assets/shots/result.webp" width="1440" height="900" loading="lazy" alt="The result page: When you said Pass, your judge also said Pass 86% of the time. When you said Fail, your judge also said Fail 83% of the time. Under them, one amber line and what to do next; on the right, the details with their ranges."></a>
       <figcaption>The result page, after 40 answers. <span class="sample">Sample data</span></figcaption></figure>

@@ -22,10 +22,14 @@ SKILL = ROOT / "skills" / "judgekeeper" / "SKILL.md"
 PLACEHOLDER = re.compile(r"<[a-z]|\[--|\.\.\.")  # syntax lines such as import <tool>
 FENCE = re.compile(r"^```\w*\n(.*?)^```$", flags=re.DOTALL | re.MULTILINE)
 SKILL_DESCRIPTION = (
-    "Check whether a project's LLM-as-judge agrees with human labels (TPR, TNR, kappa, "
+    "Check how often a project's LLM-as-a-judge agrees with human labels (TPR, TNR, kappa, "
     "run-to-run noise, position bias) using judgekeeper, and gate CI on it. Use when a project "
-    "grades outputs with an LLM judge, eval framework or rubric model and the user asks if the "
-    "judge can be trusted, wants human labels, or wants a judge check in CI.")
+    "grades outputs with an LLM judge, eval framework or rubric model and the user asks how "
+    "often the judge agrees with people, wants human labels, or wants a judge check in CI.")
+# The spending rule, the same in the prompt, the skill and the prompt `start --fix` gives: no
+# call before the person's yes; after it, exactly the --allow-calls number judgekeeper printed.
+SPEND_RULE = ("only after my yes in this chat, run it again with `--allow-calls` and exactly "
+              "the number judgekeeper printed: never a bigger number, never before my yes")
 
 
 def _read(path) -> str:
@@ -151,7 +155,8 @@ def test_the_prompt_follows_todays_path():
     assert "show me its questions instead of answering them for me" in flat
     assert "there is no judge" in flat
     assert "stop and ask" in flat
-    assert "never pass `--allow-calls`" in flat and "i answer that question myself" in flat
+    assert SPEND_RULE in flat and "at my own terminal i answer that question myself" in flat
+    assert "never pass `--allow-calls`" not in flat
     # The older commands only as a short note at the end, never as steps.
     advanced = flat[flat.index("advanced, only if i ask"):]
     assert "tutorial.html" in advanced
@@ -246,6 +251,9 @@ def _skill_body() -> str:
 def test_the_skill_keeps_its_description():
     head = _read(SKILL).split("\n---\n", 1)[0]
     assert f"description: {SKILL_DESCRIPTION}" in head.splitlines()
+    # `npx skills add` prints the description word for word: the site's words apply to it.
+    assert "LLM-as-a-judge" in SKILL_DESCRIPTION and "LLM-as-judge" not in SKILL_DESCRIPTION
+    assert "trust" not in SKILL_DESCRIPTION.lower()
 
 
 def test_the_skill_installs_first_and_names_no_demo():

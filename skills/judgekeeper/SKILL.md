@@ -1,6 +1,6 @@
 ---
 name: judgekeeper
-description: Check whether a project's LLM-as-judge agrees with human labels (TPR, TNR, kappa, run-to-run noise, position bias) using judgekeeper, and gate CI on it. Use when a project grades outputs with an LLM judge, eval framework or rubric model and the user asks if the judge can be trusted, wants human labels, or wants a judge check in CI.
+description: Check how often a project's LLM-as-a-judge agrees with human labels (TPR, TNR, kappa, run-to-run noise, position bias) using judgekeeper, and gate CI on it. Use when a project grades outputs with an LLM judge, eval framework or rubric model and the user asks how often the judge agrees with people, wants human labels, or wants a judge check in CI.
 ---
 
 # judgekeeper: check an LLM judge against human labels
@@ -9,7 +9,7 @@ judgekeeper checks the project's LLM-as-a-judge: how often it agrees with the pe
 labels. It reads the verdicts the judge already saved; the person labels some of the same
 answers; it reports how often the judge agrees. You do the typing; the person does the
 labeling. They may write little code, so say what you are doing in plain words. Full flags:
-`judgekeeper <command> --help` or `docs/reference.md`.
+`judgekeeper <command> --help` or https://www.judgekeeper.com/reference.html.
 
 ## Rules
 
@@ -109,7 +109,11 @@ Do its six steps, and stop where they say:
 
 ## 5. Gate CI
 
-Only when the human asks for it. Record the baseline once and commit it:
+Only when the human asks for it. `gate` reads a report `start` does not write: `judge` and
+`validate` make it from the marked answers `start` saved, `.judgekeeper/anchors.jsonl`, and
+judging calls the judge's model, so say how many calls and wait for their yes. Steps:
+https://www.judgekeeper.com/reference.html#gate-ci-on-the-judge. Then record the baseline once
+from that report and commit it:
 ```
 judgekeeper baseline set reports/judge/report.json
 judgekeeper gate reports/judge/report.json

@@ -68,7 +68,7 @@ h2 { font-size: clamp(1.6rem, 3.2vw, 2.3rem); margin: 0 0 0.4em; }
 h3 { font-size: 1.2rem; margin: 0 0 0.4em; letter-spacing: -0.01em; font-weight: 600; }
 h4 { font-size: 1.08rem; margin: 0 0 0.4em; letter-spacing: -0.01em; }
 p { margin: 0 0 1em; line-height: 1.6; }
-code, pre, kbd { font-family: var(--mono); font-size: 0.88em; }
+code, pre, kbd { font-family: var(--mono); font-size: 0.88em; font-variant-ligatures: none; }
 :not(pre) > code { background: var(--tint); border-radius: 5px; padding: 1px 5px; overflow-wrap: anywhere; color: var(--ink); }
 kbd { border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; background: var(--sheet); }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
@@ -134,7 +134,7 @@ section.alt { background: var(--sheet); }
 .hero h1 { font-size: clamp(2.6rem, 5.2vw, 4.1rem); line-height: 1.02; letter-spacing: -0.03em; margin: 0 0 18px; }
 .hero .lead { margin-bottom: 14px; }
 .hero .lead + p { color: var(--ink-2); max-width: 32em; }
-.hero .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 26px 0 16px; }
+.hero .actions, .notfound .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 26px 0 16px; }
 .demo { margin: 0; background: var(--sheet); border: 1px solid var(--rule); border-radius: 20px; padding: 20px 22px 18px; box-shadow: var(--shadow); }
 .demo-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .demo-tag, .demo-count { margin: 0; font-size: 0.82rem; color: var(--ink-3); }
@@ -325,7 +325,11 @@ pre.output .em { color: #FFFFFF; font-weight: 600; }
 .site-footer a:hover { color: var(--ink); text-decoration: underline; }
 .site-footer .brand { margin: 0; }
 .site-footer .fine { color: var(--ink-3); font-size: 0.9rem; margin: 10px 0 0; max-width: 28em; }
+/* A link inside a sentence is underlined: its colour alone is too close to the text's. */
+.site-footer .fine a { text-decoration: underline; }
 main + .site-footer, .guide + .site-footer { margin-top: 0; }
+/* The page for a wrong address is short: it fills the screen, so the footer sits at the bottom. */
+.notfound { min-height: 60vh; padding-top: 24px; }
 .doc + .site-footer, main.wrap + .site-footer { margin-top: 56px; }
 
 /* Cards, grids and the interactive parts of "How it works, in depth" */

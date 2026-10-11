@@ -82,9 +82,10 @@ def parse(path: Path) -> Element:
 
 
 def pages() -> list[Path]:
-    """Every HTML page of the site (the example reports are linked, not part of website/)."""
-    return sorted(p for p in WEBSITE.rglob("*.html") if "examples" not in p.relative_to(
-        WEBSITE).parts)
+    """Every HTML page of the site (the example reports are linked, not part of website/; the
+    page for a wrong address, errors/404.html, has tests of its own)."""
+    return sorted(p for p in WEBSITE.rglob("*.html")
+                  if not {"examples", "errors"} & set(p.relative_to(WEBSITE).parts))
 
 
 # reference, own-metric and assistant come from docs/*.md (scripts/render_reference.py).

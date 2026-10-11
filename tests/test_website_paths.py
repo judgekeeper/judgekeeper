@@ -292,6 +292,56 @@ def test_the_guide_and_the_readme_show_the_same_install():
     assert "](https://www.judgekeeper.com/start.html#install)" in readme
 
 
+OLD_PYTHON = ("Could not find a version that satisfies the requirement judgekeeper "
+              "(from versions: none)")  # what pip says when the environment's Python is older
+REMAKE = "python3.12 -m venv .venv"
+UV_OLDER_PYTHONS = "uv add --dev \"judgekeeper; python_version >= '3.11'\""
+UV_RUN = "uv run judgekeeper start"
+
+
+def _install_texts() -> dict[str, str]:
+    """The README's Install section, the Guide's install step (start.html) and guide.md's."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    guide = GUIDE.read_text(encoding="utf-8")
+    return {"README.md": readme[readme.index("## Install"):readme.index("## Use it")],
+            "start.html": _flat(_by_id("start.html", "install")),
+            "guide.md": guide[guide.index("## 0. The core"):guide.index(
+                "See a real report without installing")]}
+
+
+def test_the_python_version_is_next_to_the_first_install_command():
+    for name, text in _install_texts().items():
+        flat = " ".join(text.split())
+        assert "Python 3.11 or newer" in flat, name
+        first = flat.index("pip install judgekeeper")
+        assert flat.index("Python 3.11 or newer") < first + 400, name
+
+
+def test_didnt_work_explains_an_older_python_and_a_project_that_allows_one():
+    help_box = _help("install")
+    (older,) = [v for k, v in help_box.items() if OLD_PYTHON in k]
+    assert "needs Python 3.11 or newer" in older and "delete" in older and REMAKE in older
+    (dev,) = [v for k, v in help_box.items() if "uv or Poetry" in k]
+    assert UV_OLDER_PYTHONS in dev and UV_RUN in dev
+    guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
+    for needed in (OLD_PYTHON, "needs Python 3.11 or newer", REMAKE, UV_OLDER_PYTHONS, UV_RUN):
+        assert needed in guide, needed
+
+
+def test_the_uv_line_shows_how_to_run_it():
+    for name, text in _install_texts().items():
+        assert UV_RUN in " ".join(text.split()), name
+
+
+def test_installed_outside_a_project_does_not_blame_the_environment_alone():
+    """Someone who installed it as a tool for the whole computer had nothing to switch on."""
+    (outside,) = [v for k, v in _help("install").items() if "installed outside a project" in k]
+    assert "not switched on" not in outside
+    assert "for your whole computer" in outside
+    guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
+    assert "installed outside a project, the environment was not switched on" not in guide
+
+
 # Use it on your app
 
 def test_use_it_on_your_app_has_four_steps_each_with_something_to_run_or_make():

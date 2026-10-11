@@ -37,13 +37,29 @@
     label();
   }
 
-  // On a phone the navigation folds behind a Menu button.
+  // On a phone the navigation folds behind a Menu button. The menu comes before the button in
+  // the page, so Tab on the open button goes to the menu's first link; Escape closes the menu
+  // and puts the focus back on the button.
   function setUpMenu() {
     var button = $(".menu-btn"), nav = $("#site-nav");
     if (!button || !nav) return;
+    function isOpen() { return nav.classList.contains("open"); }
     button.addEventListener("click", function () {
       var open = nav.classList.toggle("open");
       button.setAttribute("aria-expanded", String(open));
+    });
+    button.addEventListener("keydown", function (e) {
+      var first = nav.querySelector("a");
+      if (e.key === "Tab" && !e.shiftKey && isOpen() && first) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape" || !isOpen()) return;
+      nav.classList.remove("open");
+      button.setAttribute("aria-expanded", "false");
+      button.focus();
     });
   }
 
@@ -381,6 +397,10 @@
     for (var el = target; el; el = el.parentElement) {
       if (el.tagName === "DETAILS") el.open = true;
     }
+    // A section that is one fold-out (the Guide's Details) opens it too. Only that fold: a
+    // link to a step leaves the step's "Didn't work?" closed.
+    var fold = target.querySelector(":scope > details");
+    if (fold) fold.open = true;
     target.scrollIntoView();
   }
 
