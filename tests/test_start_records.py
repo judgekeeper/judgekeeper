@@ -212,3 +212,45 @@ def test_asking_again_on_records_ends_with_the_judge_command_way(tmp_path, capsy
     assert lines[-1] == again.WRAP
     assert lines[-1].startswith("To ask your judge again yourself, wrap it as a command: "
                                 "judgekeeper start --ask-again --judge-command '...'")
+
+
+def test_from_a_subfolder_start_finds_the_project_roots_records(tmp_path, capsys, no_labeling,
+                                                                monkeypatch):
+    # record() saves at the project root from any subfolder (recorder.project_root)
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'app'\n", encoding="utf-8")
+    two_processes(tmp_path)
+    (tmp_path / "app" / "evals").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path / "app" / "evals")
+    code, out, _ = run(capsys, ".")
+    assert code == 0, out
+    assert ("Nothing to read here, but judgekeeper.record() saves your judge's verdicts at the "
+            f"project root: reading them in {tmp_path.resolve()}.") in out
+    assert "  Eval tool       your own code (judgekeeper.record())" in out
+    (found,) = no_labeling
+    assert found.root == tmp_path.resolve()
+    assert find.records_above(tmp_path) is None  # at the root itself: the normal search
+
+
+def test_from_a_subfolder_with_its_own_results_those_win(tmp_path, capsys, no_labeling,
+                                                       monkeypatch):
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'app'\n", encoding="utf-8")
+    two_processes(tmp_path)
+    promptfoo_project(tmp_path / "app", split(16, 16))
+    monkeypatch.chdir(tmp_path / "app")
+    _, out, _ = run(capsys, ".")
+    assert "Nothing to read here" not in out and "  Eval tool       promptfoo" in out
+
+
+def test_setup_from_a_subfolder_finds_the_project_roots_records(tmp_path, capsys, monkeypatch):
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'app'\n", encoding="utf-8")
+    two_processes(tmp_path)
+    (tmp_path / "app").mkdir()
+    monkeypatch.chdir(tmp_path / "app")
+    code = main(["setup", "--yes"])
+    out = capsys.readouterr().out
+    assert code == 0, out
+    assert "judgekeeper.record() saves your judge's verdicts at the project root" in out
+    assert not (tmp_path / "app" / "judgekeeper.toml").exists()  # it would make app a root
+    assert 'source = "records"' in (tmp_path / "judgekeeper.toml").read_text(encoding="utf-8")
+    code, out, _ = run(capsys, ".")  # judgekeeper.toml says records: found at the root
+    assert code == 0 and "  Eval tool       your own code (judgekeeper.record())" in out, out

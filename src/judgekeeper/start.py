@@ -71,6 +71,8 @@ MONTHS_SHORT = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
                 "Dec")
 GIVEN_BY_YOU = "given by you"
 POINT_ME = "Point me at the results: judgekeeper start path/to/results.json"
+RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your judge's verdicts at "
+                 "the project root: reading them in {root}.")
 PAIRWISE = ("These are A/B comparisons. judgekeeper start handles pass/fail answers for now; "
             "see judgekeeper import.")
 HUMAN_COLUMNS = ("human_label", "label")
@@ -716,6 +718,12 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     for big in found.too_big():
         talk.say(big.too_big_message())
     available = [t for t in find.TOOLS if found.readable(t)]
+    if "records" not in available and (tool == "records" or tool is None and not available):
+        above = find.records_above(root)
+        if above is not None:  # record() saves at the project root, from any subfolder
+            talk.say(RECORDS_ABOVE.format(root=above))
+            talk.say()
+            return _locate(talk, above, tool)
     if tool is not None:
         if tool not in available:
             if any(r.tool == tool for r in found.too_big()):

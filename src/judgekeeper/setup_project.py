@@ -525,8 +525,18 @@ def run(path: str | Path = ".", yes: bool = False, metric: str | None = None,
         return stop.code
 
 
+RECORDS_ROOT = ("Nothing to read here, but judgekeeper.record() saves your judge's verdicts at "
+                "the project root, so judgekeeper is set up there: {root}")
+
+
 def _run(talk: Talk, path: Path, metric, judge_model) -> int:
     root, file = _root_and_file(path)
+    above = find.records_above(root) if file is None and not any(
+        find.search(root).readable(t) for t in find.TOOLS) else None
+    if above is not None:  # record() saves at the project root: set up there, beside them
+        talk.say(RECORDS_ROOT.format(root=above))
+        talk.say()
+        root = above
     try:
         current = settings.load(root)
     except settings.SettingsError as e:

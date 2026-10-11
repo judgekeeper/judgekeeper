@@ -377,6 +377,26 @@ def _tracking_store(root: Path, uri: str | None) -> Path | None:
     return None
 
 
+def records_above(folder: str | Path) -> Path | None:
+    """The project root above `folder` whose .judgekeeper/records/ holds files that
+    judgekeeper.record() wrote, found by record()'s own rule (recorder.project_root), when that
+    is not `folder` itself; else None. record() saves there from any subfolder."""
+    from judgekeeper.recorder import project_root
+
+    folder = Path(folder).resolve()
+    root = project_root(folder)
+    if root == folder:
+        return None
+    records = root / RECORDS_DIR
+    try:
+        if records.is_dir() and not records.is_symlink() and any(
+                p.suffix == ".jsonl" and p.is_file() for p in records.iterdir()):
+            return root
+    except OSError:
+        return None
+    return None
+
+
 def search(root: str | Path) -> Search:
     """Every tool sign and saved result in `root`; see the module docstring for the rules."""
     root = Path(root).resolve()
