@@ -481,12 +481,16 @@ def _no_experiment(experiment: str, stores: list[tuple[find.Result, list[str]]])
 
 def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                        metric: str | None, uri: str) -> tuple[str, list[Loaded]]:
-    from judgekeeper.readers.mlflow_store import TracesMissing, experiments_with_traces
+    from judgekeeper.readers.mlflow_store import (
+        JudgeCallsFailed,
+        TracesMissing,
+        experiments_with_traces,
+    )
 
     if experiment is not None:
         try:
             found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
-        except TracesMissing as e:
+        except (TracesMissing, JudgeCallsFailed) as e:
             raise StartError(str(e)) from None
         except RecordsError as e:
             if not str(e).startswith("no MLflow experiment named"):
@@ -499,7 +503,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         for exp in MlflowClient(tracking_uri=uri).search_experiments():
             try:
                 runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
-            except TracesMissing as e:
+            except (TracesMissing, JudgeCallsFailed) as e:
                 missing.append(str(e))
                 continue
             except RecordsError:  # an experiment with no traces

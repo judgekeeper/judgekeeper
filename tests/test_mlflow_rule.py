@@ -11,6 +11,7 @@ The store is made by the installed MLflow in another process (skipped without it
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -51,6 +52,7 @@ judge = make_judge(name="sum_check", instructions=sys.argv[1], model="openai:/gp
 data = [{"inputs": {"question": f"What is {i} + {i}?"},
          "outputs": f"It is {2 * i if i % 3 else 'wrong'}."} for i in range(1, 25)]
 mlflow.genai.evaluate(data=data, scorers=[judge])
+mlflow.flush_trace_async_logging()  # traces are written in the background
 """
 
 
@@ -198,3 +200,70 @@ def test_the_menu_says_what_asking_again_will_do(tmp_path, stores, monkeypatch):
     ws = _checked(_project(tmp_path, stores))
     _, note = again.menu_text(again.make_plan(ws, AgainOptions(), dry=False))
     assert "can't" not in note and "calls" in note, note
+
+
+# Failed judge calls ------------------------------------------------------------------------
+
+FAILING = r"""
+import os, sys
+os.environ["MLFLOW_DISABLE_AGENT_HINT"] = "1"
+os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
+os.environ["MLFLOW_GENAI_EVAL_SKIP_TRACE_VALIDATION"] = "true"
+from pathlib import Path
+import mlflow
+from mlflow.entities import AssessmentSource, Feedback
+from mlflow.genai.scorers import scorer
+
+failing = set(int(x) for x in sys.argv[1].split(",") if x)
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.create_experiment("quiz", artifact_location=Path(sys.argv[2]).resolve().as_uri())
+mlflow.set_experiment("quiz")
+judge = AssessmentSource(source_type="LLM_JUDGE", source_id="openai:/gpt-4.1-mini")
+
+@scorer
+def sum_check(inputs, outputs):
+    n = int(inputs["question"].split()[2])
+    if n in failing:
+        raise RuntimeError(f"rate limit reached for question {n}")
+    return Feedback(value="wrong" not in outputs, rationale="checked", source=judge)
+
+data = [{"inputs": {"question": f"What is {i} + {i}?"},
+         "outputs": f"It is {2 * i if i % 3 else 'wrong'}."} for i in range(1, 25)]
+mlflow.genai.evaluate(data=data, scorers=[sum_check])
+mlflow.flush_trace_async_logging()  # traces are written in the background
+"""
+
+
+@pytest.fixture(scope="module")
+def failing_stores(tmp_path_factory):
+    """mlflow.db where 5 of 24 judge calls failed ("some"), and where all failed ("all")."""
+    pytest.importorskip("mlflow")
+    out = tmp_path_factory.mktemp("failing")
+    for name, which in (("some", "2,5,8,11,14"), ("all", ",".join(map(str, range(1, 25))))):
+        build = tmp_path_factory.mktemp(f"build-{name}")
+        (build / "make.py").write_text(FAILING, encoding="utf-8")
+        subprocess.run([sys.executable, "make.py", which, str(out / f"artifacts-{name}")],
+                       check=True, cwd=build, capture_output=True)
+        shutil.copy2(build / "mlflow.db", out / f"{name}.db")
+    return out
+
+
+def test_failed_judge_calls_are_counted(tmp_path, failing_stores, capsys):
+    shutil.copy2(failing_stores / "some.db", tmp_path / "mlflow.db")
+    _, out, _ = run(capsys, tmp_path, "--no-browser")
+    assert "Its decisions   19 answers" in out, out
+    assert "Your judge made a real decision on every answer" not in out
+    assert re.search(r"5 calls failed", out), out
+    found = start.find_judge(tmp_path)
+    errors = [r for r in found.pool.answers if r.verdict not in ("pass", "fail")]
+    assert not errors  # failed calls give no decision: they are not in the pool
+
+
+def test_every_judge_call_failed_says_why(tmp_path, failing_stores, capsys):
+    shutil.copy2(failing_stores / "all.db", tmp_path / "mlflow.db")
+    code, out, err = run(capsys, tmp_path, "--no-browser")
+    said = out + err
+    assert code != 0
+    assert "every call of your judge sum_check failed (24 saved as errors)" in said, said
+    assert "First error: SCORER_ERROR: rate limit reached for question" in said
+    assert "has no judge assessments" not in said
