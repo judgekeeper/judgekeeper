@@ -80,6 +80,27 @@
   </div>
 </section>
 
+<section class="band" id="check" aria-labelledby="check-title">
+  <div class="wrap check">
+    <div>
+      <h2 id="check-title">One real check</h2>
+      <p class="intro">We ran Claude Haiku 4.5 as a judge on <span data-report="anchors.n_items" data-format="int">419</span> questions from LLMBar, a public set where people already chose the better answer: <span data-report="n_runs" data-format="int">3</span> runs, in both answer orders. Kappa is how well it agrees with people once lucky guesses are taken away; 1 is perfect.</p>
+      <p>A judge that looks fine on average can be weak where it matters.</p>
+      <p class="check-links"><a href="examples/llmbar-haiku/report.html">Open the full report</a> <a href="learn.html#result">How to read it</a></p>
+    </div>
+    <table class="plain check-table">
+      <caption>Claude Haiku 4.5 on LLMBar</caption>
+      <thead><tr><th scope="col">Questions</th><th scope="col" class="n">Answers</th><th scope="col" class="n">Kappa</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">All</th><td class="n" data-report="anchors.n_items" data-format="int">419</td><td class="n k" data-report="headline.kappa_mean">0.83</td></tr>
+        <tr><th scope="row">Ordinary questions</th><td class="n" data-report="slices[Natural].n" data-format="int">100</td><td class="n k" data-report="slices[Natural].kappa_mean">0.94</td></tr>
+        <tr class="weak"><th scope="row">The hardest ones</th><td class="n" data-report="slices[Adversarial/GPTOut].n" data-format="int">47</td><td class="n k" data-report="slices[Adversarial/GPTOut].kappa_mean">0.56</td></tr>
+      </tbody>
+    </table>
+    <p class="small credit"><a href="https://github.com/princeton-nlp/LLMBar">LLMBar</a> by Princeton NLP, MIT license. Ordinary questions are its Natural group; the hardest ones, its Adversarial/GPTOut group.</p>
+  </div>
+</section>
+
 <section class="band" id="how" aria-labelledby="how-title">
   <div class="wrap">
     <h2 id="how-title">How it works</h2>

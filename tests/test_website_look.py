@@ -288,14 +288,28 @@ def test_the_hero_has_its_two_buttons_and_the_demo():
         assert words in js, words
 
 
-def test_the_home_page_is_hero_how_route_install_and_what_you_get():
+def test_the_home_page_is_hero_check_how_route_install_and_what_you_get():
     main = next(el for el in _els(HOME) if el.tag == "main")
     ids = [el.attrs.get("id") for el in main.children
            if isinstance(el, Element) and el.tag == "section"]
-    assert ids == [None, "how", "look", "route", "install", "get"]
+    assert ids == [None, "check", "how", "look", "route", "install", "get"]
     roles = [h.text() for h in _all(_by_id(HOME, "how"), "h3")]
     assert roles == ["Your app answers", "Your judge grades it", "You check your judge"]
     assert "not a promise about the next ones" in _flat(_by_id(HOME, "get"))
+
+
+def test_the_real_check_under_the_hero_takes_every_number_from_the_report():
+    """The numbers themselves are compared with the report by tests/test_website.py."""
+    check = _by_id(HOME, "check")
+    numbers = [el.attrs["data-report"] for el in check.iter() if "data-report" in el.attrs]
+    for path in ("headline.kappa_mean", "slices[Natural].kappa_mean",
+                 "slices[Adversarial/GPTOut].kappa_mean", "anchors.n_items"):
+        assert path in numbers, path
+    flat = _flat(check)
+    assert "A judge that looks fine on average can be weak where it matters." in flat
+    assert "LLMBar by Princeton NLP, MIT license." in flat
+    hrefs = [a.attrs["href"] for a in _all(check, "a")]
+    assert "examples/llmbar-haiku/report.html" in hrefs
 
 
 def _shot(figure: Element) -> tuple[str, str]:

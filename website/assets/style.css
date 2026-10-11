@@ -127,6 +127,17 @@ section.band { padding: 72px 0; }
 section.alt { background: var(--sheet); }
 .band h2 { margin: 0 0 10px; }
 .intro { color: var(--ink-2); max-width: 36em; margin: 0 0 32px; }
+.check { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 400px); gap: 20px 56px; align-items: start; }
+.check .intro { margin-bottom: 14px; }
+.check-links { display: flex; flex-wrap: wrap; gap: 8px 22px; font-weight: 700; margin-bottom: 0; }
+.check .credit { grid-column: 1 / -1; margin: 0; }
+.check-table { font-size: 1rem; }
+.check-table caption { caption-side: top; text-align: left; font-weight: 700; color: var(--ink-2); padding: 0 6px 8px; }
+.check-table th[scope="row"] { color: var(--ink); font-weight: 400; }
+.check-table .n { text-align: right; font-variant-numeric: tabular-nums; }
+.check-table td.n { font-family: var(--mono); }
+.check-table .k { font-weight: 700; }
+.check-table tr.weak .k { color: var(--care); background: var(--care-bg); }
 .kicker { font-size: 0.95rem; font-weight: 600; color: var(--ink-3); margin-bottom: 6px; }
 
 /* Home: the hero and its demo, the labeling card in small */
@@ -460,6 +471,7 @@ main.wrap > h1:first-of-type, .doc > h1 { margin-top: 0.6em; }
   .demo { padding: 16px; }
   .demo-card { min-height: 0; }
   .roles, .shots, .points { grid-template-columns: 1fr; gap: 24px; }
+  .check { grid-template-columns: 1fr; }
   .route { grid-template-columns: 1fr; gap: 14px; }
   .route::before { left: 21px; right: auto; top: 8px; bottom: 8px; width: 3px; height: auto; }
   .route a { display: grid; grid-template-columns: 44px 1fr; column-gap: 14px; text-align: left; }

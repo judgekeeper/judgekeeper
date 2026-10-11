@@ -108,8 +108,18 @@ def test_the_older_pages_link_back_to_the_guide():
 @pytest.mark.parametrize("page", ["index.html", "assistant.html"])
 def test_no_jargon_outside_quoted_output(page):
     """TPR, TNR and kappa appear on these pages only inside a <pre>: what a program printed,
-    or the prompt, which is shown word for word."""
-    assert not JARGON.search(_text_outside(_main(page), {"pre"})), page
+    or the prompt, which is shown word for word. The one exception is kappa in the home page's
+    real check, which says what kappa is in the same paragraph."""
+    main = _main(page)
+    check = [el for el in main.iter() if el.attrs.get("id") == "check"]
+    for section in check:
+        section.parent.children.remove(section)
+    assert not JARGON.search(_text_outside(main, {"pre"})), page
+    for section in check:
+        text = " ".join(_text_outside(section, set()).split())
+        assert re.findall(r"\b(TPR|TNR)\b", text) == []
+        assert "Kappa is how well it agrees with people once lucky guesses are taken away; " \
+            "1 is perfect." in text
 
 
 def test_the_guide_explains_each_term_in_one_line_where_the_result_is():
