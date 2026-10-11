@@ -226,7 +226,8 @@ def test_exit_codes_match_the_code():
 
 
 NUMBER = re.compile(r"\d+\.\d+|\d+(?:\.\d+)?\s?%")
-NAMES = ("Claude Haiku 4.5", "Python 3.11 to 3.14", "Python 3.11")  # names, not measurements
+NAMES = ("Claude Haiku 4.5", "Python 3.11 to 3.14", "Python 3.11", "Python 3.10",
+         "Ubuntu 22.04")  # names, not measurements
 EXEMPT_TAGS = {"pre", "code", "script", "style", "svg"}
 
 

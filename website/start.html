@@ -84,6 +84,7 @@
   <div class="head"><span class="n" aria-hidden="true">1</span><h2 id="install-title">Install</h2></div>
   <p class="why">judgekeeper is a tool for developers, like pytest. Install it inside your project, in the project&#39;s own Python environment, not on your computer as a whole. You need Python 3.11 or newer.</p>
   <div class="trio">
+    <p class="first">First check <code>python3 --version</code> (Windows: <code>py --version</code>): it should say Python 3.11 or newer. No <code>.venv</code> yet? First run <code>python3 -m venv .venv</code> (Windows: <code>py -m venv .venv</code>).</p>
     <div class="tabs" id="install-tabs">
       <div role="tablist" aria-label="Your computer">
         <button role="tab" type="button" id="tab-mac" aria-controls="panel-mac" aria-selected="true">Mac and Linux</button>
@@ -108,11 +109,13 @@ judgekeeper --version</code></pre></div>
     <div class="donewhen"><p>You&#39;re done when the first line ends in <b>is ready</b>.</p><label class="tick"><input type="checkbox" data-step="1"> Mark step 1 done</label></div>
     <details class="help"><summary>Didn&#39;t work?</summary><dl>
       <dt>Not sure which Python you have</dt>
-      <dd>Run <code>python3 --version</code> (on Windows <code>py --version</code>, or <code>python --version</code> when Python is on the PATH). You need <code>Python 3.11</code> or a higher number, such as <code>Python 3.13.2</code>. Command not found, or a lower number? Install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new terminal. A <code>.venv</code> you made before keeps its old Python: delete it and make it again.</dd>
+      <dd>Run <code>python3 --version</code> (on Windows <code>py --version</code>, or <code>python --version</code> when Python is on the PATH). You need <code>Python 3.11</code> or a higher number, such as <code>Python 3.13.2</code>. Command not found, or a lower number? On a Mac or Windows, install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new terminal. On Linux, get Python 3.11 or newer from your package manager (Ubuntu 22.04 comes with Python 3.10, which is too old). A <code>.venv</code> you made before keeps its old Python: delete it and make it again.</dd>
       <dt><code>Could not find a version that satisfies the requirement judgekeeper (from versions: none)</code></dt>
       <dd>Your Python is too old: judgekeeper needs Python 3.11 or newer. Install a newer Python, delete <code>.venv</code>, and make it again (<code>python3.12 -m venv .venv</code>, on Windows <code>py -3.12 -m venv .venv</code>).</dd>
-      <dt>No <code>.venv</code> folder in your project (<code>no such file or directory</code>, or on Windows <code>cannot find the path</code>)</dt>
+      <dt>No <code>.venv</code> folder in your project (on a Mac or Linux: <code>no such file or directory</code>)</dt>
       <dd>An <strong>environment</strong> (a virtual environment) is a folder in your project that holds its own Python and what the project needs. Make one with <code>python3 -m venv .venv</code> (on Windows <code>py -m venv .venv</code>), then run the activate line again. The start of the line then reads <code>(.venv)</code>. If your project keeps its environment in another folder, such as <code>venv</code>, use that name.</dd>
+      <dt><code>ensurepip is not available</code> when you make <code>.venv</code> on Linux</dt>
+      <dd>On Debian and Ubuntu, the part of Python that makes environments is a package of its own. Install the one for your Python, such as <code>python3.12-venv</code> (<code>sudo apt install python3.12-venv</code>), delete the half-made <code>.venv</code>, and make it again.</dd>
       <dt>Your project uses uv or Poetry</dt>
       <dd>Add judgekeeper as a dev tool instead: <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code>. Then put <code>uv run</code> or <code>poetry run</code> in front of each command: <code>uv run judgekeeper start</code>. uv or Poetry refuses because your project also allows an older Python than judgekeeper needs? Use <code>uv add --dev "judgekeeper; python_version &gt;= '3.11'"</code> or <code>poetry add --group dev judgekeeper --python "&gt;=3.11"</code>.</dd>
       <dt><code>error: externally-managed-environment</code></dt>

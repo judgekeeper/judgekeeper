@@ -216,6 +216,21 @@ def test_the_guide_installs_inside_the_project():
     assert "https://www.python.org/downloads/" in _hrefs(step)
 
 
+def test_making_the_environment_is_shown_outside_the_fold_and_linux_has_its_own_help():
+    step = _by_id("start.html", "install")
+    shown = " ".join(_flat(el) for el in step.iter() if el.tag == "p"
+                     and not any(a.tag == "details" for a in el.ancestors()))
+    for needed in (*CHECK.values(), *MAKE_VENV.values(), "No .venv yet?"):
+        assert needed in shown, needed
+    whole = " ".join(f"{k} {v}" for k, v in _help("install").items())
+    assert "On Linux, get Python 3.11 or newer from your package manager" in whole
+    assert "ensurepip is not available" in whole and "python3.12-venv" in whole
+    guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
+    for needed in ("on Linux, get Python 3.11 or newer from your package manager",
+                   "ensurepip is not available", "python3.12-venv"):
+        assert needed in guide, needed
+
+
 def test_the_home_page_install_has_two_tabs_and_the_python_line():
     assert _tab_labels("index.html") == ["Mac and Linux", "Windows"]
     for key in ("mac", "win"):

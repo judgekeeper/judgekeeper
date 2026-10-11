@@ -74,7 +74,7 @@ Run these in your project folder. judgekeeper is a tool for developers, like pyt
 
 judgekeeper is a tool for developers, like pytest: install it inside your project, in the project's own Python environment, never on your computer as a whole. Linux follows the Mac lines.
 
-1. Check Python. Mac: `python3 --version`. Windows: `py --version` (`python --version` works too when Python is on the PATH). You should see `Python 3.11` or a higher number. If you see "command not found" or a lower number, install Python from https://www.python.org/downloads/ and open a new terminal. A `.venv` you made before keeps its old Python: delete it and make it again.
+1. Check Python. Mac: `python3 --version`. Windows: `py --version` (`python --version` works too when Python is on the PATH). You should see `Python 3.11` or a higher number. If you see "command not found" or a lower number: on a Mac or Windows, install Python from https://www.python.org/downloads/ and open a new terminal; on Linux, get Python 3.11 or newer from your package manager (Ubuntu 22.04 comes with Python 3.10, which is too old). A `.venv` you made before keeps its old Python: delete it and make it again.
 2. Go to your project and switch on its environment. The start of the line then reads `(.venv)`.
 3. Install: `pip install judgekeeper`. A line near the end starts with `Successfully installed`. Your project uses uv or Poetry? Run `uv add --dev judgekeeper` or `poetry add --group dev judgekeeper` instead, then put `uv run` or `poetry run` in front of each command: `uv run judgekeeper start`.
 4. Run `judgekeeper --version`. It says judgekeeper is ready. If it also says it is installed outside a project, judgekeeper is installed for your whole computer: either the environment was off when you installed it (go back to step 2), or it was installed as a tool for your whole computer. Install it in your project's environment instead.
@@ -98,6 +98,7 @@ No `.venv` folder in your project yet? Make one first with `python3 -m venv .ven
 If something goes wrong:
 
 - `Could not find a version that satisfies the requirement judgekeeper (from versions: none)`: your Python is too old. judgekeeper needs Python 3.11 or newer. Install a newer Python, delete `.venv`, and make it again (`python3.12 -m venv .venv`; Windows: `py -3.12 -m venv .venv`).
+- `ensurepip is not available` when you make `.venv` on Linux: on Debian and Ubuntu, the part of Python that makes environments is a package of its own. Install the one for your Python, such as `python3.12-venv` (`sudo apt install python3.12-venv`), delete the half-made `.venv`, and make it again.
 - uv or Poetry refuses because your project also allows an older Python than judgekeeper needs: use `uv add --dev "judgekeeper; python_version >= '3.11'"` or `poetry add --group dev judgekeeper --python ">=3.11"`.
 - `error: externally-managed-environment`: your project's environment is not switched on, so pip tried to install into the Python of your whole computer, which Homebrew or the system protects. It is not about judgekeeper. Run step 2, then install again.
 - `pip: command not found` (a Mac may print `zsh: command not found: pip`): outside an environment, a Mac names the command `pip3`. Switch on your project's environment (step 2): inside it, `pip` works.

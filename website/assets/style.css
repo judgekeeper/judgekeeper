@@ -275,6 +275,7 @@ pre.output .em { color: #FFFFFF; font-weight: 600; }
 .stop .why { color: var(--ink-2); margin: 4px 0 18px 54px; max-width: 40em; }
 .trio { margin-left: 54px; }
 .trio > p:not(.boxlabel) { max-width: 42em; }
+.trio > p.first { margin: 0 0 14px; }
 .doors { margin-left: 54px; }
 .doors details, .detail { border: 1px solid var(--rule); border-radius: 12px; background: var(--sheet); margin-bottom: 8px; }
 .doors summary, .detail summary { cursor: pointer; padding: 14px 16px; font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
