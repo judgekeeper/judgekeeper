@@ -124,8 +124,9 @@ def test_the_same_results_offer_to_label_more(tmp_path, capsys, served, terminal
     assert code == 0
     assert "  Results file    results.json (saved" in out
     labels = [q["group"] for q in queue[:20]]
-    assert (f"Your last result ({made}), from the 20 answers you marked ({labels.count('pass')} "
-            f"Pass, {labels.count('fail')} Fail).") in out
+    assert made and "Your last result" not in out  # 20 marks: too few for a result
+    assert (f"You marked 20 answers ({labels.count('pass')} Pass, {labels.count('fail')} "
+            "Fail): not enough of each kind for a result yet.") in out
     assert "  1. Ask your judge again about your 20 marked answers" in out
     assert "  2. Mark more answers" in out
     assert len(served) == 1 and ws.data()["queue"] == queue
@@ -330,3 +331,26 @@ def test_an_unknown_new_prompt_is_not_called_a_change():
     assert judge_change({"prompt_hash": "abc"}, {"prompt_hash": None}) == \
         "the prompt was recorded, now not recorded"
     assert judge_change({"prompt_hash": "abc"}, {"prompt_hash": "def"}) == "the prompt changed"
+
+
+def test_coming_back_without_a_result_never_says_your_last_result(tmp_path, capsys, served,
+                                                                  terminal):
+    _checked(tmp_path, n_pass=24, n_fail=12)  # every answer marked, 12 Fail: too few
+    terminal.append("2")
+    _, out, _ = run(capsys, tmp_path)
+    assert "Your last result" not in out
+    assert ("You marked 36 answers (24 Pass, 12 Fail): not enough of each kind for a result "
+            "yet.") in out
+
+
+def test_too_few_marks_hide_the_asked_again_numbers_as_the_result_does():
+    from judgekeeper.again.fresh import TOO_FEW_NUMBERS, again_lines
+
+    block = {"status": "exact", "counted": 36, "times": 1, "steadiness": None,
+             "today": {"tpr": 0.86, "tnr": 0.25}, "before": {"tpr": 0.83, "tnr": 0.25},
+             "matches_saved": None, "too_few": True, "why": "", "not_counted": [],
+             "judge_change": None, "notes": [], "asked": 36}
+    lines = again_lines(block)
+    assert TOO_FEW_NUMBERS in lines and not any("before and" in x for x in lines)
+    lines = again_lines({**block, "too_few": False})
+    assert any("of the time before and about 86% now" in x for x in lines)

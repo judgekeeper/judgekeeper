@@ -113,6 +113,13 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
     ws = Workspace(_project(path)) if path.exists() else None
     if ws is not None:
         refuse_links(ws)
+        if not new and options.get("label_map") is None and ws.start.is_file():
+            try:  # the --label-map the check was made with, unless another is given
+                saved_map = json.loads(ws.start.read_text(encoding="utf-8")).get("label_map")
+            except (OSError, ValueError):
+                saved_map = None
+            if saved_map:
+                options = {**options, "label_map": saved_map}
     has_result = ws is not None and ws.result_json.is_file() and ws.start.is_file()
     if then in BEFORE and not has_result:
         return _no_result_yet(path, ws, talk, then, options.get("tool"))
@@ -322,8 +329,12 @@ def _menu(ws: Workspace, talk, then: str | None, port: int, open_browser: bool,
     labels = {"correct": 0, "wrong": 0, **last.get("labels", {})}
     marked = labels["correct"] + labels["wrong"]
     talk.say()
-    talk.say(f"Your last result ({last['made_at'][:10]}), from the {marked} "
-             f"answer{'' if marked == 1 else 's'} you marked ({marks_words(labels)}).")
+    if last.get("check") == "too_few":  # marks, but no result: never "your last result"
+        talk.say(f"You marked {marked} answer{'' if marked == 1 else 's'} "
+                 f"({marks_words(labels)}): not enough of each kind for a result yet.")
+    else:
+        talk.say(f"Your last result ({last['made_at'][:10]}), from the {marked} "
+                 f"answer{'' if marked == 1 else 's'} you marked ({marks_words(labels)}).")
     n = start_review.count(ws)
     options = []  # (answer, text, note, flag)
     if new is not None and then is None:

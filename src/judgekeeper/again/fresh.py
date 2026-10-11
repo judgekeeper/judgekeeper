@@ -69,6 +69,10 @@ def new_folder(ws) -> Path:
     return folder
 
 
+TOO_FEW_NUMBERS = ("How often it agrees with you is not shown: a result needs at least 15 "
+                   "answers you mark Pass and 15 you mark Fail.")
+
+
 def _share(value) -> str:
     return "an unknown share" if value is None else f"about {value:.0%}"
 
@@ -138,6 +142,7 @@ def numbers(ws, plan, fresh: Fresh) -> dict:
         "today": {k: today[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval", "kappa",
                                         "interval_methods", "level", "draws", "seed")},
         "before": {"tpr": last.get("tpr"), "tnr": last.get("tnr")},
+        "too_few": last.get("check") == "too_few",  # the result hides its numbers: so do these
         "matches_saved": matches,
         "matches_count": sum(fresh.verdicts[a["id"]][0] == a["verdict"] for a in counted),
         "judge_change": change, "notes": list(fresh.notes),
@@ -163,9 +168,13 @@ def again_lines(block: dict) -> list[str]:
                      f"changed its mind on {steady['changed']} of your {n} answers."
                      f"{across}{tail}")
     today, before = block["today"], block["before"]
-    for key, said in (("tpr", "Pass"), ("tnr", "Fail")):
-        lines.append(f"When you said {said}, your judge also said {said} {_share(before[key])} "
-                     f"of the time before and {_share(today[key])} now.{tail}")
+    if block.get("too_few"):
+        lines.append(TOO_FEW_NUMBERS)
+    else:
+        for key, said in (("tpr", "Pass"), ("tnr", "Fail")):
+            lines.append(f"When you said {said}, your judge also said {said} "
+                         f"{_share(before[key])} of the time before and {_share(today[key])} "
+                         f"now.{tail}")
     if block["matches_saved"] is not None:
         lines.append(f"Its first new decision matched the saved one on {block['matches_count']} "
                      f"of {n} answers ({_pct(block['matches_saved'])}).{tail}")

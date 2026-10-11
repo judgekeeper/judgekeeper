@@ -619,3 +619,22 @@ def test_an_inspect_run_that_stopped_early_says_so(tmp_path, capsys):
     assert stopped_early({"status": "cancelled", "samples": [1, 2]}) == (
         "Your Inspect run stopped early (2 samples): it was cancelled.")
     assert stopped_early({"status": "success", "samples": [1]}) is None
+
+
+def test_inspects_partial_credit_says_how_to_count_it_and_is_remembered(tmp_path, capsys,
+                                                                       monkeypatch):
+    from judgekeeper import start_label
+    from tests.start_projects import inspect_project
+
+    monkeypatch.setattr(start_label, "serve_workspace", lambda *a, **k: 0)  # no page
+
+    inspect_project(tmp_path, [True] * 16 + [False] * 16 + ["P"] * 3)
+    code, out, err = run(capsys, tmp_path)
+    assert code == 2
+    assert ("Inspect gave partial credit (P) on 3 answers: should they count as Pass or Fail? "
+            "Run again with --label-map P=pass or --label-map P=fail.") in out + err
+    found = start.find_judge(tmp_path, label_map="P=fail")
+    ws = start_label.prepare(found, say=lambda line="": None)
+    assert ws.data()["label_map"] == "P=fail"
+    code, out, err = run(capsys, tmp_path)  # no --label-map: the saved one is used
+    assert "partial credit" not in out + err and "unmapped" not in out + err

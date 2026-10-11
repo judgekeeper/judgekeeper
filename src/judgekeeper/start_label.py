@@ -256,6 +256,8 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "one_rule": found.one_rule,
         **({"task_file": found.task_file} if found.task_file else {}),
         **({"rule_field": found.rule_field} if found.rule_field else {}),
+        # --label-map as given: later runs without it read the results the same way
+        **({"label_map": found.label_map} if getattr(found, "label_map", None) else {}),
         "pool": {"answers": len(p.answers), "pass": p.n_pass, "fail": p.n_fail},
         "pool_sha256": pool_sha,
         "left_out": {"no_clear_verdict": p.n_unclear, "unmapped_values": p.unmapped,

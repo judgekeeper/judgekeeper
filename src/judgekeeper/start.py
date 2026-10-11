@@ -230,6 +230,7 @@ class Answer:
 class Pool:
     answers: list[Answer] = field(default_factory=list)
     unmapped: list = field(default_factory=list)
+    n_unmapped: dict = field(default_factory=dict)  # how many verdicts had each unmapped value
     n_merged: int = 0
     n_human: int = 0
     left: dict = field(default_factory=dict)  # answer id: (judge_check kind, its record)
@@ -298,6 +299,8 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                 except UnmappedValue as e:
                     if e.value not in pool.unmapped:
                         pool.unmapped.append(e.value)
+                    key = repr(e.value)
+                    pool.n_unmapped[key] = pool.n_unmapped.get(key, 0) + 1
                     continue
                 if v.verdict == ERROR:
                     kind = judge_check.EMPTY
@@ -567,6 +570,7 @@ class Found:
     model_source: str | None = None  # None (the results), GIVEN_BY_YOU or judgekeeper.toml
     experiment: str | None = None  # MLflow: the experiment read
     stopped: list[str] = field(default_factory=list)  # Inspect: runs that stopped early
+    label_map: str | dict | None = None  # --label-map as given, kept in start.json
 
 
 PASS_OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt}
@@ -1063,7 +1067,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  rule_field=_inspect_field(records) if kind == "inspect" and rule else None,
                  models=models, model_source=model_source, experiment=name,
                  stopped=[n for x in used for n in x.records.notes
-                          if n.startswith("Your Inspect run stopped early")])
+                          if n.startswith("Your Inspect run stopped early")],
+                 label_map=label_map or None)
 
 
 def _rule_key(r, kind: str) -> str | None:
@@ -1222,6 +1227,8 @@ def when_words(d) -> str:
 
 
 NOT_IN_FILE = "not in the file"
+PARTIAL = ("Inspect gave partial credit (P) on {n} answers: should they count as Pass or Fail? "
+           "Run again with --label-map P=pass or --label-map P=fail.")
 NO_MODEL = "not named in the results (add --judge-model NAME)"
 
 
@@ -1302,6 +1309,8 @@ def say_found(talk: Talk, found: Found) -> None:
                          if pool.n_merged != 1 else
                          "1 repeat of the same answer was merged."))
     if pool.unmapped:  # stop: a result without those answers would be wrong
+        if found.tool == "inspect" and "P" in pool.unmapped:  # model_graded_qa(partial_credit)
+            raise StartError(PARTIAL.format(n=pool.n_unmapped.get(repr("P"), 0)))
         raise StartError(str(unmapped_error(pool.unmapped)))
     if pool.n_human:
         where = (f"{Path(found.used[0]).name} also holds" if len(found.used) == 1

@@ -218,6 +218,7 @@ def finish(ws: Workspace, view: View, plan, fresh, new: NewJudge) -> dict:
         "not_counted": [{"id": i, "why": w} for i, w in fresh.not_counted.items()],
         "fingerprint": fresh.fingerprint, "found_fingerprint": new.found.fingerprint,
         "close": plan.status == CLOSE, "old": _old_numbers(r),
+        "too_few": r.get("check") == "too_few",
         "new": {k: numbers[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval",
                                         "kappa", "interval_methods")},
         "confirmation": None, "notes": list(fresh.notes),
@@ -265,7 +266,11 @@ def lines(block: dict) -> list[str]:
     out = [*block["aside"]["lines"], ""] if block.get("aside") else []
     out.append(f"Your new judge vs your old judge, on your {block['counted']} marked answers:")
     width = len("When you said Pass, the judge also said Pass:")
-    for key, said in (("tnr", "Fail"), ("tpr", "Pass")):
+    if block.get("too_few"):  # the result hides these numbers: so does this
+        from judgekeeper.again.fresh import TOO_FEW_NUMBERS
+
+        out.append(f"  {TOO_FEW_NUMBERS}")
+    for key, said in (() if block.get("too_few") else (("tnr", "Fail"), ("tpr", "Pass"))):
         label = f"When you said {said}, the judge also said {said}:".ljust(width)
         out.append(f"  {label}  old {_share(old[key], old[f'{key}_interval'])}  ->  "
                    f"new {_share(now[key], now[f'{key}_interval'])}{tail}")
