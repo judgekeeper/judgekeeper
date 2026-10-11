@@ -416,7 +416,9 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     sides = list(g.sides)
     if len(sides) > 1 and not talk.confirm(
             f"Each item has {len(sides)} answers ({' and '.join(sides)}). Count each as its "
-            "own answer?", default=True, with_yes=True, hint="Count each as its own answer?"):
+            "own answer?", default=True, with_yes=True,
+            hint="Count each as its own answer? Run judgekeeper setup --yes to count each as its "
+                 "own answer, or run it in a terminal to choose one."):
         sides = [sides[talk.choose("Which one do you want to check?", sides,
                                    "Run judgekeeper setup in a terminal to choose one.")]]
     judge = _choose_judge(talk, units, g, metric)
@@ -436,7 +438,8 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     if left and talk.confirm(
             f"{left} answers have an error or a score made by a rule (a reason starting "
             '"Rule"), not by your judge. Leave them out?', default=True, with_yes=True,
-            hint="Leave them out?"):
+            hint="Leave them out? Run judgekeeper setup --yes to leave them out, or run it in a "
+                 "terminal to answer."):
         m["leave_out"] = True
     saved = settings.StartSettings(source="map", file=rel, judge=judge, pass_mark=mark
                                    if g.kind == "score" else None, model=judge_model, map=m)
