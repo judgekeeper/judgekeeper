@@ -726,3 +726,15 @@ def test_judge_command_in_the_flags(tmp_path, capsys):
     assert code == start.EXIT_QUESTION and ("This runs `python judge.py` 72 times, waiting up "
                                             "to 5 minutes for each answer.") in out
     assert "--allow-calls 72" in out
+
+
+def test_a_judge_command_uses_the_model_the_results_name(tmp_path):
+    # never "name your command's model with --judge-model" when the results already do: that
+    # flag is then refused
+    ws = _checked(tmp_path, maker=table_project, model="gpt-4.1-mini")
+    p = make_plan(ws, AgainOptions(judge_command="python judge.py"), dry=False)
+    assert p.model == "gpt-4.1-mini" and p.cost_text is None
+    assert not any("--judge-model" in x for x in plan_lines(p))
+    plain = _checked(tmp_path / "no-model", maker=table_project)
+    p = make_plan(plain, AgainOptions(judge_command="python judge.py"), dry=False)
+    assert p.cost_text == "Cost unknown: name your command's model with --judge-model."

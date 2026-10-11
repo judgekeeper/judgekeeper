@@ -513,11 +513,15 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
         talk.say(f"Your app changed since your last check: {app}.")
     kept = list(back.values())
     if min(kept.count("pass"), kept.count("fail")) < ROUGH and len(back) < len(labels):
-        if len(back) + left < len(labels):  # some are gone, not only left out
-            talk.say("Too few of them came back unchanged to compare: your app gives "
-                     "different answers now, so your old marks do not apply to them.")
-        else:
-            talk.say("Too few of them are left to compare.")
+        missing = len(labels) - len(back) - left
+        if not missing:  # all there, but the judge made no decision on too many: not a re-mark
+            talk.say(f"Too few of them are left to compare: your judge made no real decision "
+                     f"on {left} of them. Fix that (see the judge check above), run your eval "
+                     "again, then judgekeeper start. Your marks stay as they are.")
+            return 0
+        talk.say(f"Too few of them are in your latest results to compare: {missing} of your "
+                 f"marked answers {'is' if missing == 1 else 'are'} not there (your eval ran on "
+                 "other questions, or your app's answers changed).")
         if not talk.confirm("Mark your latest results instead?", default=True, with_yes=True,
                             hint=f"Mark your latest results instead? Run "
                                  f"{talk.command('--yes')} to mark them."):

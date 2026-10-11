@@ -27,7 +27,8 @@ def plan(ws, answers: list[dict], opts) -> Plan:
                                       f"command: {e}", short="the command cannot be read")
     if not argv:
         return cant("command", judge, "--judge-command is empty", short="no command")
-    model = opts.judge_model
+    # the model the results name (a table's model column), else the one given with --judge-model
+    model = opts.judge_model or (ws.data().get("fingerprint") or {}).get("model")
     calls = len(answers) * opts.times
     tokens = [prices.tokens_from_text(f"{display(a['input'])}\n{display(a['output'])}")
               for a in answers]

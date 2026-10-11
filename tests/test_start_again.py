@@ -215,8 +215,9 @@ def test_changed_answers_offer_to_label_the_latest_results(tmp_path, capsys, ser
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert "0 of your 36 marked answers are in your latest results (2026-10-09)." in out
-    assert ("your app gives different answers now, so your old marks do not apply to them."
-            in out)
+    assert ("Too few of them are in your latest results to compare: 36 of your marked "
+            "answers are not there (your eval ran on other questions, or your app's answers "
+            "changed).") in out
     assert "Mark your latest results instead? [Y/n]" in out
     (previous,) = ws.dir.glob("previous-*")
     assert {p.name: p.read_bytes() for p in previous.iterdir() if p.is_file()} == old
@@ -238,9 +239,13 @@ def test_labeled_answers_the_judge_did_not_judge_are_not_called_changed(tmp_path
     assert "30 of your 36 marked answers are in your latest results (2026-10-09)." in out
     assert ("6 of your marked answers are left out now: your judge made no real decision on "
             "them.") in out
-    assert "your app gives different answers now" not in out
-    assert "Too few of them are left to compare." in out
-    assert code == start.EXIT_QUESTION and served == []  # asks before labeling the new results
+    assert "not there" not in out
+    assert ("Too few of them are left to compare: your judge made no real decision on 6 of "
+            "them. Fix that (see the judge check above), run your eval again, then judgekeeper "
+            "start. Your marks stay as they are.") in out
+    # never offers to mark again answers that are already marked
+    assert "Mark your latest results instead" not in out
+    assert code == 0 and served == []
 
 
 def test_a_labeled_answer_left_out_and_others_changed(tmp_path, capsys, served):
@@ -256,8 +261,9 @@ def test_a_labeled_answer_left_out_and_others_changed(tmp_path, capsys, served):
     _, out, _ = run(capsys, tmp_path)
     assert ("1 of your marked answers is left out now: your judge made no real decision on "
             "it.") in out
-    assert ("Too few of them came back unchanged to compare: your app gives different answers "
-            "now, so your old marks do not apply to them.") in out
+    assert ("Too few of them are in your latest results to compare: 16 of your marked answers "
+            "are not there (your eval ran on other questions, or your app's answers "
+            "changed).") in out
 
 
 def test_changed_answers_without_a_terminal_need_yes(tmp_path, capsys, served):
