@@ -360,7 +360,8 @@ def serve_confirmation(ws: Workspace, cws: Workspace, port: int, open_browser: b
         made.append(done)
         return result_html(_scrubbed(r), None if done else back)
 
-    server = make_server(session, port, result=result, page=confirmation_page(cws))
+    server = make_server(session, port, result=result, page=confirmation_page(cws),
+                         lock=ws.dir)
     say_opened(server.url, open_browser, say, command, f" {COMMAND}")
     try:
         server.serve()

@@ -449,7 +449,7 @@ def serve_review(ws: Workspace, port: int, open_browser: bool, say,
 
     session = ReviewSession(ws)
     server = make_server(session, port, result=result_maker(ws, say), page=page_template(ws),
-                         switches={"/fix": start_fix.switch(ws, say, command)})
+                         switches={"/fix": start_fix.switch(ws, say, command)}, lock=ws.dir)
     say_opened(server.url, open_browser, say, command, " --review")
     try:
         server.serve()

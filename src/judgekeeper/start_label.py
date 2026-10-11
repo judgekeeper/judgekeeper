@@ -345,6 +345,11 @@ class StartSession(LabelSession):
         for item in self.items:
             item["deferred"] = item["note"] == SKIPPED
 
+    def _resume(self) -> None:
+        super()._resume()
+        for item in self.items:  # a skip is saved as its note
+            item["deferred"] = item["note"] == SKIPPED
+
     def _apply(self, item: dict, body: dict) -> None:
         super()._apply(item, body)
         if item["deferred"]:
@@ -881,7 +886,7 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
     server = make_server(session, port, result=result_maker(ws, say, made, command),
                          page=page_template(ws.data()),
                          switches={"/review": start_review.switch(ws, say, reviewed),
-                                   "/fix": start_fix.switch(ws, say, command)})
+                                   "/fix": start_fix.switch(ws, say, command)}, lock=ws.dir)
     say_opened(server.url, open_browser, say, command)
     try:
         server.serve()

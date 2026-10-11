@@ -32,8 +32,10 @@ import csv
 import hmac
 import io
 import json
+import os
 import secrets
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -130,7 +132,10 @@ class LabelSession:
             item["note"] = unguard_cell(_text(row.get("notes")))
 
     def update(self, body: dict) -> None:
-        """Apply one change: {"id", "label"?: label | None, "deferred"?: bool, "note"?: str}."""
+        """Apply one change: {"id", "label"?: label | None, "deferred"?: bool, "note"?: str}.
+        The sheet on disk is read again first, so marks another page wrote are kept, not
+        written over from memory."""
+        self._reread()
         item = self.by_id[body["id"]]
         before = dict(item)
         try:
@@ -139,6 +144,15 @@ class LabelSession:
         except BaseException:
             item.update(before)  # memory matches the file on disk
             raise
+
+    def _reread(self) -> None:
+        """The labels and notes on disk, over the ones in memory (_resume); a sheet that can't
+        be read now leaves memory as it is, and the write says what is wrong."""
+        if self.out.is_file() and self.out.resolve() != self.items_path.resolve():
+            try:
+                self._resume()
+            except (LabelError, OSError):
+                pass
 
     def _apply(self, item: dict, body: dict) -> None:
         if "label" in body:
@@ -177,6 +191,32 @@ def _json_for_html(data) -> str:
             .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
 
 
+LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
+ALREADY_OPEN = ("judgekeeper is already open for this project: {url} (or stop it with Ctrl-C "
+                "in its terminal).")
+PROBE_TIMEOUT = 2  # seconds to wait for the page named in the lock to answer
+
+
+def open_page(folder: Path) -> str | None:
+    """The link of the page judgekeeper serves for this project now (its lock in `folder`),
+    when that page answers with its token; else None, and a lock nobody answers is stale.
+    Asking the page, not the process, works the same everywhere: on Windows a process can't be
+    looked at without the standard library's os.kill, which ends it."""
+    try:
+        lock = json.loads((Path(folder) / LOCK).read_text(encoding="utf-8"))
+        port, token = int(lock["port"]), str(lock["token"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    url = f"http://{HOST}:{port}/?token={token}"
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # never a proxy
+    try:
+        with opener.open(f"http://{HOST}:{port}/state?token={token}",
+                         timeout=PROBE_TIMEOUT) as reply:
+            return url if reply.status == 200 else None
+    except (OSError, ValueError):
+        return None
+
+
 class LabelServer:
     def __init__(self, session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
                  page: str, switches: dict | None = None):
@@ -195,6 +235,25 @@ class LabelServer:
         self.url = f"http://{HOST}:{self.port}/?token={self.token}"
         self.last_request = time.monotonic()
         self._stopped = False
+        self.lock: Path | None = None  # the lock file this server wrote (make_server)
+
+    def hold(self, folder: Path) -> None:
+        """Write the project's lock: this process, port and token (the token stays on this
+        computer, in .judgekeeper/, as the labels do)."""
+        self.lock = Path(folder) / LOCK
+        write_replacing(self.lock, json.dumps({"pid": os.getpid(), "port": self.port,
+                                               "token": self.token}))
+
+    def release(self) -> None:
+        """Remove the lock, when it is still this server's."""
+        if self.lock is None:
+            return
+        try:
+            if json.loads(self.lock.read_text(encoding="utf-8")).get("token") == self.token:
+                self.lock.unlink()
+        except (OSError, ValueError):
+            pass
+        self.lock = None
 
     def serve(self, idle_timeout: float | None = None) -> None:
         """Handle requests until stop(), Ctrl-C, or idle_timeout seconds without a request."""
@@ -206,6 +265,7 @@ class LabelServer:
                     break
         finally:
             self.httpd.server_close()
+            self.release()
 
     def stop(self) -> None:
         self._stopped = True
@@ -351,13 +411,27 @@ def _handler(server: LabelServer):
 
 
 def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
-                page: str, switches: dict | None = None) -> LabelServer:
-    """A server for `session`, or a LabelError that says why there cannot be one."""
+                page: str, switches: dict | None = None,
+                lock: Path | None = None) -> LabelServer:
+    """A server for `session`, or a LabelError that says why there cannot be one. With `lock`
+    (the project's .judgekeeper/), one server per project: when its page is already open,
+    that is the error, with its link; else this server holds the lock until it stops. Two
+    pages on one project would each write their marks over the other's."""
+    if lock is not None:
+        url = open_page(lock)
+        if url:
+            raise LabelError(ALREADY_OPEN.format(url=url))
     # Labels are written on the first click: say now if they cannot be, not in the page.
     unwritable = unwritable_file(session.out)
     if unwritable:
         raise LabelError(unwritable)
     try:
-        return LabelServer(session, port, result=result, page=page, switches=switches)
+        server = LabelServer(session, port, result=result, page=page, switches=switches)
     except OSError as e:
         raise LabelError(f"cannot listen on {HOST}:{port} ({e.strerror}); try --port") from None
+    if lock is not None:
+        try:
+            server.hold(lock)
+        except OSError:
+            pass  # no lock: the labels' own write still says when it can't save
+    return server

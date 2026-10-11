@@ -1043,7 +1043,8 @@ def serve_fix(ws: Workspace, port: int, open_browser: bool, say,
 
     fix = Fix(ws, command)
     server = make_server(fix, port, result=start_review.result_maker(ws, say),
-                         page=page_template(ws), switches={"/fix": switch(ws, say, command)})
+                         page=page_template(ws), switches={"/fix": switch(ws, say, command)},
+                         lock=ws.dir)
     say_opened(server.url, open_browser, say, command, " --fix")
     try:
         server.serve()
