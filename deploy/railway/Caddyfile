@@ -4,11 +4,8 @@
 	auto_https off
 }
 
-:{$PORT:8080} {
-	root * /srv
-	encode zstd gzip
-	file_server
-
+# The security headers, for every response: the pages and the page for a wrong address.
+(security) {
 	header {
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
@@ -18,5 +15,22 @@
 		# two style attributes and each report.html carries its own <style> block.
 		Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 		-Server
+	}
+}
+
+:{$PORT:8080} {
+	root * /srv
+	encode zstd gzip
+	import security
+	# /start finds start.html.
+	try_files {path} {path}.html
+	file_server
+
+	# A wrong address gets the site's own page, with its 404 status. Its links start at the
+	# root, so it works at any depth.
+	handle_errors 404 {
+		import security
+		rewrite * /errors/404.html
+		file_server
 	}
 }

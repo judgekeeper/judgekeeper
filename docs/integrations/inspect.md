@@ -2,6 +2,8 @@
 
 judgekeeper reads Inspect AI eval logs. Your task does not change.
 
+Tested with Inspect AI 0.3.242 to 0.3.278. Asking your judge again and trying a new judge need Inspect AI 0.3.242 or newer.
+
 ## Produce the log
 
 ```

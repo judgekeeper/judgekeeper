@@ -2,6 +2,8 @@
 
 judgekeeper reads the results file promptfoo already writes. Your promptfoo config does not change.
 
+Tested with promptfoo 0.120 to 0.124.
+
 ## Produce the file
 
 ```

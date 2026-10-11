@@ -401,7 +401,10 @@ def test_the_didnt_work_boxes_quote_what_judgekeeper_really_prints():
 
 
 GUIDE_PROMPT_NEEDS = ("inside this project's own Python environment", "uv add --dev judgekeeper",
-                      "poetry add --group dev judgekeeper", "judgekeeper start --yes --no-browser",
+                      "poetry add --group dev judgekeeper",
+                      # It keeps running while the person marks: in the foreground an agent
+                      # would wait, or stop it, and the link would go dead.
+                      "Run `judgekeeper start --yes --no-browser` in the background",
                       "I will mark the answers myself")
 
 
@@ -554,3 +557,46 @@ def test_the_sitemap_and_llms_txt_list_the_pages_in_the_new_order():
     llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
     found = [u for u in re.findall(r"\]\((https://www\.judgekeeper\.com/[^)]*)\)", llms)]
     assert found == urls
+
+
+# Small behaviours of site.js and the footer (the tests run no JavaScript: checked in Chrome) --
+
+SITE_JS = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
+
+
+def _function(name: str) -> str:
+    start = SITE_JS.index(f"function {name}(")
+    return SITE_JS[start:SITE_JS.index("\n  }\n", start)]
+
+
+def test_a_link_to_a_section_opens_the_fold_inside_it():
+    """The Guide's Details links point at a section that holds its fold, not into the fold."""
+    opener = _function("openLinkedDetails")
+    assert 'target.querySelector(":scope > details")' in opener
+    for target in ("review", "fix", "new-judge", "again", "own-format"):
+        section = _by_id(GUIDE, target)
+        assert section.tag == "section", target
+        assert next(c.tag for c in section.children if isinstance(c, Element)) == "details"
+    # Only the fold that is the section itself: a link to a step leaves "Didn't work?" shut.
+    for step, _ in STEPS:
+        section = _by_id(GUIDE, step)
+        assert "details" not in [c.tag for c in section.children if isinstance(c, Element)]
+
+
+def test_the_phone_menu_takes_the_keyboard_to_its_links_and_closes_on_escape():
+    menu = _function("setUpMenu")
+    assert '"Escape"' in menu and '"Tab"' in menu
+    assert "button.focus()" in menu
+    assert 'nav.querySelector("a")' in menu
+
+
+def test_the_footer_link_in_running_text_is_underlined():
+    """Its colour is close to the text around it, so the underline shows it is a link."""
+    rule = re.search(r"\.site-footer \.fine a \{([^}]*)\}", CSS)
+    assert rule and "text-decoration: underline" in rule.group(1)
+
+
+def test_code_shows_the_characters_you_type():
+    """The code font joins >= into one sign; a command must show the two characters."""
+    rule = re.search(r"^code, pre, kbd \{([^}]*)\}", CSS, flags=re.MULTILINE)
+    assert rule and "font-variant-ligatures: none" in rule.group(1)

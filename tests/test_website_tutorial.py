@@ -36,6 +36,9 @@ def _steps() -> list[dict]:
         if "output" in el.classes():
             entry["output"] = el.text()
             entry["exit"] = int(el.attrs.get("data-exit-code", "0"))
+            # data-output="version": what a terminal shows, which is not what a pipe gets;
+            # tests/test_start_docs.py checks it against the terminal lines.
+            entry["terminal"] = el.attrs.get("data-output") == "version"
         else:
             (line,) = command_lines(el.text())
             entry["line"] = line
@@ -84,6 +87,18 @@ def test_the_tutorial_has_every_step():
         assert any(needed in line for line in lines), needed
 
 
+def test_the_version_step_shows_what_a_terminal_prints():
+    (step,) = [s for s in _steps() if s["line"] == "judgekeeper --version"]
+    assert step["terminal"]
+
+
+def test_the_seal_line_is_named_by_its_words_not_its_place():
+    """At a terminal the seal line comes first; through a pipe it comes last."""
+    text = " ".join(PAGE.read_text(encoding="utf-8").split())
+    assert "The first line is the seal" not in text
+    assert "The line that starts with <code>Sealed</code> is the seal." in text
+
+
 def test_the_first_judge_run_seals_the_downloaded_anchor_set(tutorial):
     work, results = tutorial
     assert not (WEBSITE / "tutorial" / "anchors.manifest.json").exists()  # the reader seals it
@@ -101,6 +116,8 @@ def test_every_step_prints_what_the_page_shows(tutorial):
             continue
         assert proc.returncode == step["exit"], (step["line"], proc.stdout)
         assert "output" in step, f"step {step['step']} shows no output"
+        if step["terminal"]:
+            continue
         shown = [line.rstrip() for line in step["output"].strip("\n").splitlines()]
         real = [line.rstrip() for line in as_shown(proc.stdout).strip("\n").splitlines()]
         assert shown == real, f"step {step['step']}: {step['line']}"

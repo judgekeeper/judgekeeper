@@ -171,3 +171,23 @@ def test_it_never_shows_an_install_outside_a_project():
                     "py -m pip install judgekeeper"):
         assert outside not in body, outside
     assert "with the project's virtual environment active, `pip install judgekeeper`" in body
+
+
+def test_full_flags_point_to_the_published_reference():
+    """The agent runs in the person's project, which has no docs/ folder."""
+    body = _body()
+    assert "https://www.judgekeeper.com/reference.html" in body
+    assert "docs/reference.md" not in body
+
+
+def test_gate_ci_says_where_the_report_it_gates_on_comes_from():
+    """`start` writes no report.json that `gate` reads: the report comes from judging the
+    anchor set `start` saved and validating it, which calls the judge's model."""
+    body = _body()
+    gate = body[body.index("## 5. Gate CI"):body.index("Advanced, only if the person asks:")]
+    assert ".judgekeeper/anchors.jsonl" in gate
+    assert "https://www.judgekeeper.com/reference.html#gate-ci-on-the-judge" in gate
+    assert "calls the judge's model" in gate
+    report = re.search(r"judgekeeper baseline set (\S+)", gate).group(1)
+    assert f"judgekeeper gate {report}" in gate
+    assert report != ".judgekeeper/result.json"

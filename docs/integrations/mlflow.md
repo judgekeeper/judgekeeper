@@ -2,6 +2,8 @@
 
 judgekeeper reads the judge and human assessments MLflow already stores on your traces, from the tracking store itself. No export step, and nothing in your setup changes.
 
+Tested with MLflow 3.10 or newer. `judgekeeper[mlflow]` allows MLflow 3.1, but 3.10 is the oldest tested.
+
 ## How scores get there
 
 `mlflow.genai.evaluate(data=..., predict_fn=..., scorers=[...])` runs your app and your scorers and logs one `Feedback` assessment per scorer per trace. An LLM judge's assessment has `source.source_type` `LLM_JUDGE` and `source.source_id` set to the model (`openai:/gpt-4.1-mini`). Run the evaluation three times to measure the judge's run-to-run noise: each MLflow run is one judgekeeper run.

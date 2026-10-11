@@ -69,7 +69,8 @@
   <p>Start by checking that judgekeeper is installed.</p>
   <div class="code"><pre data-step="1"><code>judgekeeper --version</code></pre></div>
   <p class="output-label">It prints:</p>
-  <pre class="output" data-step="1"><code>judgekeeper 0.2.0</code></pre>
+  <pre class="output" data-step="1" data-output="version"><code>✓ judgekeeper 0.2.0 is ready
+Next: run judgekeeper start</code></pre>
   <p><strong>What it means.</strong> It is installed, and this is its version. It wrote no files.</p>
 
   <h2 id="step-check">2. Check a spreadsheet</h2>
@@ -105,7 +106,7 @@ wrote runs/careful/run-01.jsonl (10 judgments)
 wrote runs/careful/run-02.jsonl (10 judgments)
 wrote runs/careful/run-03.jsonl (10 judgments)</code></pre>
   <p><strong>What it means.</strong> <code>--callable lazy_judge:judge</code> means "the function <code>judge</code> in the file <code>lazy_judge.py</code>". Each run is one full pass over the ten answers. A judge that calls a real model works the same way.</p>
-  <p>The first line is the seal. judgekeeper stored a hash, a fingerprint of <code>anchors.jsonl</code>, in <code>anchors.manifest.json</code>. If anyone changes a label, every later command notices and stops.</p>
+  <p>The line that starts with <code>Sealed</code> is the seal. judgekeeper stored a hash, a fingerprint of <code>anchors.jsonl</code>, in <code>anchors.manifest.json</code>. If anyone changes a label, every later command notices and stops.</p>
 
   <h2 id="step-validate">5. Compare each judge with the person</h2>
   <div class="code"><pre data-step="5"><code>judgekeeper validate anchors.jsonl runs/lazy --out reports/lazy</code></pre></div>

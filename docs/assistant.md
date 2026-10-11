@@ -38,8 +38,10 @@ Three rules, each with its reason:
   it myself.
 - Judge calls cost money. Labeling and the result make none. Before any call,
   judgekeeper's plan shows the number of judge calls and a cost range, and it asks
-  `Go ahead? [y/N]`: show me the plan and wait for my yes. I answer that question
-  myself; never pass `--allow-calls`.
+  `Go ahead? [y/N]`: show me the plan and wait for my yes. At my own terminal I answer
+  that question myself. Otherwise, only after my yes in this chat, run it again with
+  `--allow-calls` and exactly the number judgekeeper printed: never a bigger number,
+  never before my yes.
 
 1. Install it inside this project's own Python environment, never for the whole
    computer: with the project's virtual environment active, run
@@ -51,10 +53,9 @@ Three rules, each with its reason:
    answers its question. If it found several tools or judges, ask me which one. If it
    finds no results it can read, run `judgekeeper setup` and show me its questions
    instead of answering them for me; it asks once before it changes any file. If the
-   judge is code that saves nothing,
-   www.judgekeeper.com/assistant.html#add-the-record-line has a prompt that adds one
-   line: show me the diff and wait for my yes. If there is no judge at all, say so and
-   stop.
+   judge is code that saves nothing, www.judgekeeper.com/assistant.html#add-the-record-line
+   has a prompt that adds one line: show me the diff and wait for my yes. If there is no
+   judge at all, say so and stop.
 3. Ask me to say in one sentence what pass means before I label: my labels must follow
    my rule, not the judge's.
 4. Open the labeling page for me: `judgekeeper start --yes --no-browser`. It is a local
