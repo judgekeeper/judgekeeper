@@ -60,6 +60,76 @@ def _stamp() -> str:
     return utc_now().replace(":", "-")
 
 
+DAMAGED = ("judgekeeper can't read {path} ({why}). To start a new check, run {command} --new: "
+           "your last one moves to {folder}/previous-<date>/ and nothing is deleted.")
+STEP_DAMAGED = ("{path} was damaged ({why}), so it was moved to {moved}/: the {step} starts "
+                "again.")
+
+
+def _why(e: Exception) -> str:
+    return "not readable JSON" if isinstance(e, ValueError) else "not what judgekeeper saved"
+
+
+def _json_dict(path: Path, needs: tuple[str, ...] = ()) -> dict:
+    """A JSON object judgekeeper saved, with the keys `needs`; ValueError or TypeError if not."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or any(k not in data for k in needs):
+        raise TypeError(path.name)
+    return data
+
+
+def saved_problem(ws: Workspace, talk) -> str | None:
+    """Why the check saved in .judgekeeper/ can't be used, in one line with the way out, or
+    None. A damaged review.json or fix.json never blocks start: it is moved to history/ (said)
+    and that step starts again. Marks that are gone while a result was made from them are
+    said, with where a copy is (history/check-*, previous-*)."""
+    folder = f"{FOLDER}"
+    for path, needs in ((ws.start, ("queue", "pool")), (ws.result_json, ())):
+        if path.is_file():
+            try:
+                _json_dict(path, needs)
+            except (ValueError, TypeError) as e:
+                return DAMAGED.format(path=f"{folder}/{path.name}", why=_why(e),
+                                      command=talk.command(), folder=folder)
+    try:
+        if ws.pool.is_file():
+            for line in ws.pool.read_text(encoding="utf-8").splitlines():
+                if line.strip() and not isinstance(json.loads(line), dict):
+                    raise TypeError(ws.pool.name)
+        if ws.labels.is_file():
+            ws.labels.read_bytes().decode("utf-8")
+    except (ValueError, TypeError) as e:
+        name = ws.labels.name if isinstance(e, UnicodeDecodeError) else ws.pool.name
+        return DAMAGED.format(path=f"{folder}/{name}", why=_why(e), command=talk.command(),
+                              folder=folder)
+    for path, needs, step in ((ws.review, ("items",), "review"),
+                              (ws.dir / "fix.json", ("used_ids", "aside_ids"), "fix")):
+        if path.is_file():
+            try:
+                data = _json_dict(path, needs)
+                if not isinstance(data[needs[0]], list):
+                    raise TypeError(path.name)
+            except (ValueError, TypeError) as e:
+                moved = ws.history / f"damaged-{_stamp()}"
+                moved.mkdir(parents=True, exist_ok=True)
+                path.replace(moved / path.name)
+                talk.say(STEP_DAMAGED.format(path=f"{folder}/{path.name}", why=_why(e),
+                                             moved=f"{folder}/history/{moved.name}", step=step))
+    if ws.result_json.is_file():
+        made = sum((_json_dict(ws.result_json).get("labels") or {}).values())
+        if made and not _labels(ws):
+            gone = "empty" if ws.labels.is_file() else "gone"
+            copies = sorted([*ws.history.glob("check-*/labels.csv"),
+                             *ws.dir.glob(f"{PREVIOUS}*/labels.csv")], reverse=True)
+            copy = (f" A copy from earlier is in {folder}/"
+                    f"{copies[0].relative_to(ws.dir).as_posix()}: copy it back to "
+                    f"{folder}/labels.csv." if copies else "")
+            return (f"Your marks are missing: {folder}/labels.csv is {gone}, but your last "
+                    f"result was made from {made} marked answers.{copy} Or start a new check: "
+                    f"{talk.command('--new')}.")
+    return None
+
+
 def move_to_previous(ws: Workspace, say) -> Path | None:
     """Move everything in `.judgekeeper/` except baseline.json, records/ and earlier
     previous-<date>/ folders into a new previous-<date>/ folder. Nothing is deleted."""
@@ -113,6 +183,10 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
     ws = Workspace(_project(path)) if path.exists() else None
     if ws is not None:
         refuse_links(ws)
+        problem = None if new or not ws.start.is_file() else saved_problem(ws, talk)
+        if problem:
+            talk.say(problem)
+            return start.EXIT_USAGE
         if not new and options.get("label_map") is None and ws.start.is_file():
             try:  # the --label-map the check was made with, unless another is given
                 saved_map = json.loads(ws.start.read_text(encoding="utf-8")).get("label_map")
@@ -133,7 +207,7 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
         move_to_previous(ws, talk.say)
     elif ws is not None and ws.start.is_file():
         if not ws.result_json.is_file():
-            return _unfinished(ws, talk, port, open_browser)
+            return _unfinished(ws, talk, port, open_browser, path, options)
         found = start.find_judge(path, talk=talk, prefer=ws.data()["metric"],
                                  store=ws.data().get("mlflow_store"), **options)
         start.say_found(talk, found)
@@ -142,19 +216,29 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
     return start.label_found(talk, found, port, open_browser)
 
 
-def _newest_judge(path: Path, ws: Workspace, talk, options: dict):
-    """A new_judge.NewJudge when the newest results hold a changed version of the checked
-    judge (the same tool and name), found without a word or a question; else None."""
-    from judgekeeper import new_judge, start
+def _quiet_found(path: Path, ws: Workspace, talk, options: dict):
+    """The judge in the newest results, found without a word or a question, when it is the
+    checked judge's tool and name; else None."""
+    from judgekeeper import start
 
     data = ws.data()
     quiet = type(talk)(yes=True, quiet=True, flags=talk.flags, path=talk.path)
     try:
         found = start.find_judge(path, talk=quiet, prefer=data["metric"],
                                  store=data.get("mlflow_store"), **options)
-    except Exception:  # noqa: BLE001 - not found now: the saved check is asked
+    except Exception:  # noqa: BLE001 - not found now: the saved check stands
         return None
-    if (found.tool, found.metric) != (data["tool"], data["metric"]):
+    return found if (found.tool, found.metric) == (data["tool"], data["metric"]) else None
+
+
+def _newest_judge(path: Path, ws: Workspace, talk, options: dict):
+    """A new_judge.NewJudge when the newest results hold a changed version of the checked
+    judge (the same tool and name), found without a word or a question; else None."""
+    from judgekeeper import new_judge
+
+    data = ws.data()
+    found = _quiet_found(path, ws, talk, options)
+    if found is None:
         return None
     change = judge_change(data["fingerprint"], found.fingerprint)
     return new_judge.NewJudge(found, change) if change else None
@@ -210,10 +294,19 @@ def _serve(ws: Workspace, talk, port: int, open_browser: bool) -> int:
     return start_label.serve_workspace(ws, port, open_browser, talk.say, talk.command())
 
 
-def _unfinished(ws: Workspace, talk, port: int, open_browser: bool) -> int:
+def _unfinished(ws: Workspace, talk, port: int, open_browser: bool, path: Path | None = None,
+                options: dict | None = None) -> int:
     data = ws.data()
     talk.say(f"Carrying on with {', '.join(data['results_files'])}: your judge passed "
              f"{data['pool']['pass']} and failed {data['pool']['fail']}.")
+    found = _quiet_found(path, ws, talk, options or {}) if path is not None else None
+    queued = {q["id"] for q in data.get("queue") or []}
+    gone = len(queued - {a.id for a in found.pool.answers}) if found is not None else 0
+    if gone:  # the eval ran again under an unfinished marking
+        talk.say(f"Your results changed since you started marking: {gone} of the "
+                 f"{len(queued)} answers you are marking {'is' if gone == 1 else 'are'} no "
+                 "longer in them. Carry on with the saved answers, or start on the new ones "
+                 f"with {talk.command('--new')}.")
     n = len(_labels(ws))
     marked = f"You marked {n} answer{'' if n == 1 else 's'}."
     if not talk.confirm(f"{marked} Carry on?", default=True, with_yes=True,

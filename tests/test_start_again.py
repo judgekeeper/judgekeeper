@@ -360,3 +360,78 @@ def test_too_few_marks_hide_the_asked_again_numbers_as_the_result_does():
     assert TOO_FEW_NUMBERS in lines and not any("before and" in x for x in lines)
     lines = again_lines({**block, "too_few": False})
     assert any("of the time before and about 86% now" in x for x in lines)
+
+
+@pytest.mark.parametrize("name, text", [
+    ("result.json", '{"made_at": "2026'), ("result.json", "[]"),
+    ("start.json", '{"tool": "promptfoo"}'), ("pool.jsonl", "{not json\n"),
+    ("labels.csv", None),
+])
+def test_a_damaged_saved_file_is_named_with_the_way_out(tmp_path, capsys, name, text):
+    ws = _checked(tmp_path)
+    path = ws.dir / name
+    if text is None:
+        path.write_bytes("id,human_label\nq1,pass\n".encode("utf-16"))
+    else:
+        path.write_text(text, encoding="utf-8")
+    for flag in ([], ["--review"], ["--fix"]):
+        code, out, err = run(capsys, tmp_path, *flag)
+        assert code == 2, (flag, out, err)
+        assert f"judgekeeper can't read .judgekeeper/{name} (" in out
+        assert "--new: your last one moves to .judgekeeper/previous-<date>/" in out
+        assert "Traceback" not in out + err
+
+
+@pytest.mark.parametrize("name, text", [("review.json", '{"items": '),
+                                        ("review.json", '{"basis": 1}'),
+                                        ("fix.json", "[1, 2]")])
+def test_a_damaged_review_or_fix_never_blocks_start(tmp_path, capsys, served, terminal, name,
+                                                    text):
+    ws = _checked(tmp_path)
+    (ws.dir / name).write_text(text, encoding="utf-8")
+    terminal.append("2")
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0, out
+    step = "review" if name == "review.json" else "fix"
+    assert (f".judgekeeper/{name} was damaged (") in out
+    assert "so it was moved to .judgekeeper/history/damaged-" in out
+    assert f"the {step} starts again." in out
+    assert not (ws.dir / name).exists()
+    assert list(ws.history.glob(f"damaged-*/{name}"))
+
+
+@pytest.mark.parametrize("gone", [True, False])
+def test_missing_marks_are_never_called_agreement(tmp_path, capsys, gone):
+    ws = _checked(tmp_path)
+    copy = ws.history / "check-2026-10-01T09-00-00Z"
+    copy.mkdir(parents=True)
+    copy.joinpath("labels.csv").write_bytes(ws.labels.read_bytes())
+    if gone:
+        ws.labels.unlink()
+    else:
+        ws.labels.write_text("", encoding="utf-8")
+    for flag in ([], ["--review"], ["--fix"]):
+        code, out, _ = run(capsys, tmp_path, *flag)
+        assert code == 2
+        assert (f"Your marks are missing: .judgekeeper/labels.csv is "
+                f"{'gone' if gone else 'empty'}, but your last result was made from 36 marked "
+                "answers. A copy from earlier is in .judgekeeper/history/"
+                "check-2026-10-01T09-00-00Z/labels.csv: copy it back to "
+                ".judgekeeper/labels.csv.") in out
+        assert "agree on every" not in out and "agrees with every" not in out
+
+
+def test_results_that_changed_under_unfinished_marking_are_said(tmp_path, capsys, served):
+    _checked(tmp_path, labeled=12, result=False)
+    _rewrite(tmp_path, split(20, 16), tag=" (v2)")  # the eval ran again: every answer is new
+    _, out, _ = run(capsys, tmp_path)
+    assert ("Your results changed since you started marking: 36 of the 36 answers you are "
+            "marking are no longer in them. Carry on with the saved answers, or start on the "
+            f"new ones with judgekeeper start {quote_arg(tmp_path)} --new.") in out
+
+
+def test_unchanged_results_under_unfinished_marking_say_nothing_of_it(tmp_path, capsys,
+                                                                     served):
+    _checked(tmp_path, labeled=12, result=False)
+    _, out, _ = run(capsys, tmp_path)
+    assert "Your results changed" not in out and "You marked 12 answers." in out
