@@ -34,7 +34,9 @@ judgekeeper = "judgekeeper.cli:main"
 
 [project.urls]
 Homepage = "https://www.judgekeeper.com"
+Documentation = "https://www.judgekeeper.com/docs.html"
 Source = "https://github.com/judgekeeper/judgekeeper"
+Issues = "https://github.com/judgekeeper/judgekeeper/issues"
 Changelog = "https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"
 
 [project.entry-points.pytest11]
