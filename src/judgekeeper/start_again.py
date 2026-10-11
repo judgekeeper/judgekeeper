@@ -208,6 +208,13 @@ def run(path: Path, talk, options: dict, port: int, open_browser: bool, new: boo
     elif ws is not None and ws.start.is_file():
         if not ws.result_json.is_file():
             return _unfinished(ws, talk, port, open_browser, path, options)
+        saved = ws.data()
+        files = [f for f in saved.get("results_files") or [] if saved.get("tool") != "mlflow"]
+        if files and not any((ws.root / f).exists() for f in files):  # moved or deleted
+            talk.say(f"Your results ({', '.join(files)}) are not here any more, but your last "
+                     f"check is saved in {FOLDER}/. To check new results: "
+                     f"{talk.command('--new')}")
+            return _menu(ws, talk, then, port, open_browser, again_options)
         found = start.find_judge(path, talk=talk, prefer=ws.data()["metric"],
                                  store=ws.data().get("mlflow_store"), **options)
         start.say_found(talk, found)

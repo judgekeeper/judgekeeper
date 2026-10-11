@@ -435,3 +435,17 @@ def test_unchanged_results_under_unfinished_marking_say_nothing_of_it(tmp_path, 
     _checked(tmp_path, labeled=12, result=False)
     _, out, _ = run(capsys, tmp_path)
     assert "Your results changed" not in out and "You marked 12 answers." in out
+
+
+def test_a_result_whose_results_file_is_gone_still_shows_the_menu(tmp_path, capsys, served,
+                                                                  terminal):
+    ws = _checked(tmp_path)
+    (tmp_path / "results.json").unlink()
+    terminal.append("2")
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0, out
+    assert ("Your results (results.json) are not here any more, but your last check is saved "
+            "in .judgekeeper/. To check new results: judgekeeper start "
+            f"{quote_arg(tmp_path)} --new") in out
+    assert "Your last result (" in out and "No saved eval results found" not in out
+    assert ws.result_json.is_file()
