@@ -1048,7 +1048,7 @@ REVIEW_BODY = """<div class="app">
   </section>
   __RULE_CARD__
   <p class="small">Every click is saved. Your first marks stay as you gave them. Close the tab
-    any time; run <code>judgekeeper start --review</code> to continue.</p>
+    any time; run <code>__COMMAND__ --review</code> to continue.</p>
 </div>
 </main>
 </div>
@@ -1271,10 +1271,13 @@ __RULE_FOLD__
 """
 
 
-def review_page(description: str | None, rule: str | None) -> str:
+def review_page(description: str | None, rule: str | None,
+                command: str = "judgekeeper start") -> str:
     """The review page, both steps: the page data says which one to show. The server fills
-    in __DATA__, __TOKEN__ and __NONCE__."""
-    body = (REVIEW_BODY.replace("__BRAND__", BRAND).replace("__CROSS__", CROSS)
+    in __DATA__, __TOKEN__ and __NONCE__. `command` (start.Talk.command) is what the person
+    runs to continue."""
+    body = (REVIEW_BODY.replace("__COMMAND__", _text(command))
+            .replace("__BRAND__", BRAND).replace("__CROSS__", CROSS)
             .replace("__TICK__", TICK).replace("__QUESTION__", QUESTION)
             .replace("__RULE_CARD__", _rule_card(rule, BY_THIS_RULE))
             .replace("__RULE_FOLD__", RULE_FOLD)

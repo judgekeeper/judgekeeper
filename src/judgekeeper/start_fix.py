@@ -95,7 +95,7 @@ SEARCH_MAX_FILES = 5000
 _NUMBER = r"[-+]?(?:\d+\.?\d*|\.\d+)"
 
 SMALL = "This test is small. The real check is on new answers, after your next eval run."
-NEXT_RUN = "Mark more answers from your next eval run: judgekeeper start --label-more"
+NEXT_RUN = "Mark more answers from your next eval run: {command} --label-more"
 NO_FOLLOW = ("Your judge's decisions don't follow its scores, so moving the pass mark can't be "
              "tested.")
 FITS = "Your pass mark already fits your marks best."
@@ -616,7 +616,8 @@ class Fix:
         found = name and locate(self.workspace.root, name, old_mark)
         if found:  # a line of the person's own file: scrubbed before it is saved or shown
             hand_over.append(scrub(f"Probably in {found[0]}, line {found[1]}: {found[2]}"))
-        test.update(hand_over=hand_over + [NEXT_RUN], old_mark=old_mark, new_mark=mark)
+        test.update(hand_over=hand_over + [NEXT_RUN.format(command=self.command)],
+                    old_mark=old_mark, new_mark=mark)
         self._record(f"pass mark {_mark(old_mark)} to {_mark(mark)}", "pass_mark", test)
         _write_json(self.folder / "pass-mark.json", {
             "made_at": utc_now(), "old_mark": old_mark, "new_mark": mark, "op": op,

@@ -507,5 +507,5 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
     for key, said in (("tpr", "Pass"), ("tnr", "Fail")):
         talk.say(f"When you said {said}, your judge also said {said} {_share(last[key])} of "
                  f"the time before and {_share(now[key])} now.")
-    save_result(ws, session, talk.say)
+    save_result(ws, session, talk.say, talk.command())
     return 0

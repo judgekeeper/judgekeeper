@@ -435,7 +435,7 @@ def sentences(r: dict) -> list[str]:
         if all_labeled(r):
             return [(f"You've marked every answer. A result needs at least {ROUGH} you mark "
                      f"Pass and {ROUGH} you mark Fail; you have {short_words(r['labels'])}. Run "
-                     "your eval on more questions, then judgekeeper start --label-more.")]
+                     f"your eval on more questions, then {command_of(r, '--label-more')}.")]
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     out = []
     for key, said in SAID.items():
@@ -510,19 +510,25 @@ def all_labeled(r: dict) -> bool:
     return r.get("left") == 0
 
 
+def command_of(r: dict, *extra: str) -> str:
+    """The command the person runs next: `judgekeeper start` with the path and flags of the
+    run that made the result (start.Talk.command, kept in it), then `extra`."""
+    return " ".join((r.get("command") or "judgekeeper start", *extra))
+
+
 def _next(r: dict) -> list[tuple[str, str]]:
     steps = []
     if r["check"] != "reliable" and not all_labeled(r):
-        steps.append(("Mark more answers:", "judgekeeper start"))
+        steps.append(("Mark more answers:", command_of(r)))
     if to_review(r):
-        steps.append((f"See where you disagree ({to_review(r)}):", "judgekeeper start --review"))
+        steps.append((f"See where you disagree ({to_review(r)}):", command_of(r, "--review")))
     if can_fix(r):
-        steps.append(("Fix your judge (free):", "judgekeeper start --fix"))
+        steps.append(("Fix your judge (free):", command_of(r, "--fix")))
     if can_ask_again(r):
-        steps.append(("Ask your judge again:", "judgekeeper start --ask-again"))
+        steps.append(("Ask your judge again:", command_of(r, "--ask-again")))
     if r.get("new_judge"):
-        steps.append(("Check your new judge from now on:", "judgekeeper start --new"))
-    return steps + [("Check again after your next eval run:", "judgekeeper start")]
+        steps.append(("Check your new judge from now on:", command_of(r, "--new")))
+    return steps + [("Check again after your next eval run:", command_of(r))]
 
 
 def _again_lines(r: dict) -> list[str]:
@@ -678,36 +684,36 @@ def page_content(r: dict) -> dict:
     needed = still_needed(r)
     if needed and all_labeled(r):
         steps.append({"title": "Mark more answers", "text": ALL_LABELED,
-                      "command": "judgekeeper start", "link": None, "button": None})
+                      "command": command_of(r), "link": None, "button": None})
     elif needed:
         steps.append({"title": "Mark more answers", "text": needed,
-                      "command": "judgekeeper start", "link": "/", "button": "Mark more answers"})
+                      "command": command_of(r), "link": "/", "button": "Mark more answers"})
     if to_review(r):
         steps.append({"title": f"See where you disagree ({to_review(r)})",
                       "text": ("Each answer where you and your judge disagree, with its "
                                "reason. Free."),
-                      "command": "judgekeeper start --review", "link": "/review",
+                      "command": command_of(r, "--review"), "link": "/review",
                       "button": "See where you disagree"})
     if can_fix(r):
         steps.append({"title": "Fix your judge",
                       "text": ("See what your judge gets wrong, and test a change on answers "
                                "kept aside. Free."),
-                      "command": "judgekeeper start --fix", "link": "/fix",
+                      "command": command_of(r, "--fix"), "link": "/fix",
                       "button": "Fix your judge"})
     if can_ask_again(r):
         steps.append({"title": "Ask your judge again",
                       "text": ("How often it changes its mind, and how well it agrees with "
                                "you today. It asks before any call:"),
-                      "command": "judgekeeper start --ask-again", "link": None,
+                      "command": command_of(r, "--ask-again"), "link": None,
                       "button": None})
     if r.get("new_judge"):
         steps.append({"title": "Check your new judge from now on",
                       "text": ("Your last check moves to .judgekeeper/previous-<date>/; nothing "
                                "is deleted:"),
-                      "command": "judgekeeper start --new", "link": None, "button": None})
+                      "command": command_of(r, "--new"), "link": None, "button": None})
     if not (needed and all_labeled(r)):  # else the first step already says it
         steps.append({"title": "Check again after your next eval run", "text": "",
-                      "command": "judgekeeper start", "link": None, "button": None})
+                      "command": command_of(r), "link": None, "button": None})
     review = None
     if r.get("review"):
         review = {"title": "Where you disagree", "lines": _review_lines(r),
@@ -791,10 +797,13 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     return r
 
 
-def save_result(ws: Workspace, session: StartSession, say) -> dict:
+def save_result(ws: Workspace, session: StartSession, say,
+                command: str = "judgekeeper start") -> dict:
     """Make a result from the labels so far: anchors, result.json and result.html (the last
-    result moves to history/), and say it in the terminal."""
+    result moves to history/), and say it in the terminal. `command` (start.Talk.command) is
+    kept in it: every next command it shows starts with it."""
     r = compute(ws, session)
+    r["command"] = command
     anchors = [{"id": i["id"], "input": session.raw[i["id"]].get("input", ""),
                 "output": session.raw[i["id"]].get("output", ""), "human_label": i["label"],
                 **{k: session.raw[i["id"]][k] for k in AGENT_FIELDS if k in session.raw[i["id"]]}}
@@ -822,11 +831,12 @@ def save_result(ws: Workspace, session: StartSession, say) -> dict:
     return r
 
 
-def result_maker(ws: Workspace, say, made: list | None = None):
+def result_maker(ws: Workspace, say, made: list | None = None,
+                 command: str = "judgekeeper start"):
     """The server's result function: each call makes and saves a new result."""
 
     def make(session: StartSession, back: str) -> str:
-        r = save_result(ws, session, say)
+        r = save_result(ws, session, say, command)
         done = session.summary()["done"]
         if made is not None:
             made.append(done)
@@ -868,7 +878,7 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
     session = StartSession(ws)
     made: list[bool] = []
     reviewed: list[bool] = []
-    server = make_server(session, port, result=result_maker(ws, say, made),
+    server = make_server(session, port, result=result_maker(ws, say, made, command),
                          page=page_template(ws.data()),
                          switches={"/review": start_review.switch(ws, say, reviewed),
                                    "/fix": start_fix.switch(ws, say, command)})
@@ -879,7 +889,7 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
         pass
     summary = session.summary()
     if summary["done"] and not any(made):
-        save_result(ws, session, say)  # nobody fetched the last result: make it here
+        save_result(ws, session, say, command)  # nobody fetched the last result: make it
     elif not summary["done"]:
         say("")
         say(f"Stopped. You marked {_plural(summary['n_labeled'], 'answer', 'answers')}. To "
