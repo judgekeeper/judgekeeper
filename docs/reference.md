@@ -282,7 +282,7 @@ The verdict:
 | otherwise, TPR or TNR below 0.90 | "usable with care" |
 | otherwise | "usable as a gate" |
 
-The lower of the two rates decides: TPR 0.95 with TNR 0.85 is "usable with care". A rate that could not be measured (no human labels of that class) also gives "not trustworthy as a gate".
+The lower of the two rates decides: TPR 0.95 with TNR 0.85 is "usable with care". A rate that could not be measured (no human labels of that class) also gives "not trustworthy as a gate". With too few labels (the `too_few_labels` flag below), a verdict that would be "usable as a gate" or "usable with care" reads "too few labels to tell whether it is usable as a gate" (level `usable_with_care`), and `gate` can still pass but says so in its reason and warnings.
 
 Flags: position bias above 0.10, more than 10% of items flipping between runs ("noisy, use majority of runs"), one run only (noise floor unknown), judge errors above 2% of judgments, an incomplete judge fingerprint ("judge identity incomplete: <fields>"), and the label targets every command shares: `too_few_labels` (fewer than 15 labeled pass or 15 labeled fail, or A and B), `rough_check` (fewer than 25 of either) or `not_reliable_yet` (25 of each, but the 95% Wilson range of TPR or TNR still wider than 0.30, naming which). `label_quality` in `report.json` holds `n_labeled`, `per_class` (the count of each label), `check` (`too_few`, `rough` or `reliable`) and `wide` (the range, `tpr` or `tnr`, that keeps it from reliable, with its width). `report.json` keys read by `gate` are stable; later versions added `source`, `normaliser`, `errors`, `label_quality`, `notes`, `fingerprint_unknown`, `verdict.level`, `headline.tpr_ci`/`tnr_ci` and `noise_floor.status`.
 

@@ -222,6 +222,8 @@ def _verdict(headline: dict, nf: dict, pb: dict | None, n_runs: int, n_invalid: 
         level, summary = WITH_CARE, f"Usable with care: {numbers}"
     else:
         level, summary = TRUSTWORTHY, f"Usable as a gate: {numbers}"
+    if level != NOT_TRUSTWORTHY and quality["check"] == "too_few":  # no claim on so little
+        level, summary = WITH_CARE, f"{TOO_FEW_TO_TELL}: {numbers}"
     if level != NOT_TRUSTWORTHY and flags:
         summary += " Read the flags below before relying on it."
     return {"summary": summary, "level": level, "flags": flags}
@@ -443,6 +445,7 @@ def report_from_runs(anchors_path: str | Path, items: list[dict], manifest: dict
 
 _PLAIN_VERDICT = {TRUSTWORTHY: "It is usable as a gate.", WITH_CARE: "It is usable with care.",
                   NOT_TRUSTWORTHY: "It is not trustworthy as a gate."}
+TOO_FEW_TO_TELL = "Too few labels to tell whether it is usable as a gate"
 
 
 def plain_summary(report: dict) -> str:
@@ -471,5 +474,9 @@ def plain_summary(report: dict) -> str:
                  f"Of the answers people passed, the judge passed {passed}.")
         second = ("No answers that people failed were in this set." if failed is None else
                   f"Of the answers people failed, the judge failed {failed}.")
-    parts = [first, second, _PLAIN_VERDICT.get(report["verdict"].get("level"))]
+    verdict = _PLAIN_VERDICT.get(report["verdict"].get("level"))
+    if report["verdict"].get("level") != NOT_TRUSTWORTHY and (
+            report.get("label_quality") or {}).get("check") == "too_few":
+        verdict = f"{TOO_FEW_TO_TELL}."
+    parts = [first, second, verdict]
     return " ".join(p for p in parts if p)

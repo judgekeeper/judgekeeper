@@ -241,3 +241,33 @@ def test_a_link_in_the_output_folder_is_replaced_not_written_through(tmp_path):
     assert outside.read_text(encoding="utf-8") == "not judgekeeper's"
     assert not (out / "report.html").is_symlink() and not (out / "report.json").is_symlink()
     assert (out / "report.json").read_text(encoding="utf-8").startswith("{")
+
+
+def _few_labels(tmp_path):
+    """10 answers, 3 runs, the judge agreeing with every label: too few labels to tell."""
+    rows = [{"id": f"q{i}", "input": f"question {i}", "output": f"answer {i}", "run": run,
+             "verdict": "pass" if i % 2 else "fail", "label": "pass" if i % 2 else "fail"}
+            for run in (1, 2, 3) for i in range(10)]
+    return check_table(rows, out=tmp_path / "few")
+
+
+def test_too_few_labels_never_say_usable_as_a_gate(tmp_path):
+    from judgekeeper.report import plain_summary
+
+    r = _few_labels(tmp_path)
+    assert any(f["code"] == "too_few_labels" for f in r["verdict"]["flags"])
+    assert r["verdict"]["level"] == "usable_with_care"  # amber on the page, never green
+    assert r["verdict"]["summary"].startswith(
+        "Too few labels to tell whether it is usable as a gate: TPR 1.00")
+    said = plain_summary(r)
+    assert "It is usable as a gate." not in said and "usable with care" not in said
+    assert said.endswith("Too few labels to tell whether it is usable as a gate.")
+
+
+def test_the_gate_passes_with_too_few_labels_only_with_a_warning(tmp_path):
+    from judgekeeper.gate import evaluate
+
+    result = evaluate(_few_labels(tmp_path))
+    assert result["status"] == "PASS"
+    assert "too few labels to rely on it yet" in result["reason"]
+    assert any(w.startswith("Too few labels for a rough check") for w in result["warnings"])

@@ -323,11 +323,17 @@ def evaluate(report: dict, baseline: dict | None = None, config: GateConfig | No
         warnings.append(f"{flipped:.0%} of items flipped verdict between identical runs (above "
                         f"{cfg.flip_rate_max:.0%}).")
 
+    too_few = next((f["message"] for f in (report.get("verdict") or {}).get("flags", [])
+                    if f.get("code") == "too_few_labels"), None)
+    if too_few:
+        warnings.append(f"{too_few} The numbers it passes on are not reliable yet.")
     if not failed:
         status = PASS
         reason = "The judge clears every absolute threshold"
         reason += (" and is within the noise band of the baseline." if compare_to is not None
                    else "; no baseline to compare against.")
+        if too_few:
+            reason += " But there are too few labels to rely on it yet: see the warning."
     elif noisy or all(c["passed_best"] for c in failed):
         status = FLAKY
         why = "; ".join(_describe(c) for c in failed)
