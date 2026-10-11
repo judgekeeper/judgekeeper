@@ -137,8 +137,9 @@ def sniff_json(head: bytes) -> str | None:
 
 
 def table_columns(path: Path) -> list[str]:
-    """The column names of a CSV, TSV or JSONL file, from its first line only."""
-    from judgekeeper.table import _delimiter
+    """The column names of a CSV, TSV or JSONL file, from its first line only, judgekeeper's
+    own written as it knows them (table.column_name: "Input " is input)."""
+    from judgekeeper.table import _delimiter, column_name
 
     text = _head(path).decode("utf-8", errors="replace").removeprefix("﻿")
     first = text.split("\n", 1)[0].rstrip("\r")
@@ -147,10 +148,10 @@ def table_columns(path: Path) -> list[str]:
             row = json.loads(first)
         except ValueError:
             return []
-        return list(row) if isinstance(row, dict) else []
+        return [column_name(c) for c in row] if isinstance(row, dict) else []
     try:
-        return next(csv.reader(io.StringIO(first),
-                               delimiter=_delimiter(first, path.suffix.lower())), [])
+        return [column_name(c) for c in next(csv.reader(
+            io.StringIO(first), delimiter=_delimiter(first, path.suffix.lower())), [])]
     except csv.Error:
         return []
 

@@ -31,6 +31,40 @@ FINGERPRINT_KEYS = ("provider", "model", "snapshot", "endpoint", "prompt", "prom
                     "rubric_version", "temperature")
 
 
+# The column names judgekeeper looks for. In a file they match ignoring case and the spaces
+# around them, as a spreadsheet's header is often typed ("Input", " Verdict").
+KNOWN_COLUMNS = frozenset({
+    "id", "run", "input", "output", "output_a", "output_b", "verdict", "judge_verdict",
+    "judge", "label", "human_label", "reason", "notes", "score", "model", "judge_model",
+    "app_version"})
+
+
+def column_name(name):
+    """`name` as judgekeeper knows it ("Input " is input); any other name as it is."""
+    if isinstance(name, str):
+        plain = name.strip().lower()
+        if plain in KNOWN_COLUMNS:
+            return plain
+    return name
+
+
+def _known_names(row: dict) -> dict:
+    """The row with judgekeeper's own column names written as it knows them; when a file has
+    both "input" and "Input", the one already named input is kept."""
+    if all(column_name(k) == k for k in row):
+        return row
+    out = {}
+    for k, v in row.items():
+        name = column_name(k)
+        if name in out and name != k:
+            out.setdefault(k, v)
+        elif name != k and name in row:
+            out[k] = v
+        else:
+            out[name] = v
+    return out
+
+
 class TableError(Exception):
     """The table cannot be read as judgments: a usage error."""
 
@@ -65,8 +99,8 @@ def read_table(path: str | Path) -> list[dict]:
     suffix = path.suffix.lower()
     if suffix in (".csv", ".tsv"):
         text = read_utf8(path, TableError)
-        return list(csv.DictReader(io.StringIO(text, newline=""),
-                                   delimiter=_delimiter(text, suffix)))
+        return [_known_names(r) for r in csv.DictReader(io.StringIO(text, newline=""),
+                                                         delimiter=_delimiter(text, suffix))]
     if suffix in (".jsonl", ".ndjson", ".json"):
         rows = []
         for n, line in enumerate(jsonl_lines(read_utf8(path, TableError)), 1):
@@ -78,7 +112,7 @@ def read_table(path: str | Path) -> list[dict]:
                 raise TableError(f"{path}: line {n}: invalid JSON ({e.msg})") from None
             if not isinstance(row, dict):
                 raise TableError(f"{path}: line {n}: each line must be a JSON object")
-            rows.append(row)
+            rows.append(_known_names(row))
         return rows
     raise TableError(f"{path}: expected a .csv, .tsv or .jsonl file")
 
@@ -169,6 +203,8 @@ def check_table(data, judge: str = "verdict", human: str = "label", id: str | No
 
     def col(name: str | None, default: str, required: bool = False) -> str | None:
         name = name or (default if default in columns else None)
+        if name is not None and name not in columns and column_name(name) in columns:
+            name = column_name(name)  # --judge Verdict: the file's verdict column
         if name is not None and name not in columns:
             raise TableError(f"no column {name!r}; columns are: {', '.join(columns)}")
         if required and name is None:

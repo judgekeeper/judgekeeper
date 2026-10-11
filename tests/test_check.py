@@ -210,3 +210,18 @@ def test_three_column_csv_in_one_command(tmp_path, monkeypatch):
             encoding="utf-8")
     assert main(["check", "results.csv"]) == 0
     assert (tmp_path / "judgekeeper-report" / "report.html").is_file()
+
+
+def test_check_reads_column_names_typed_in_a_spreadsheet(tmp_path):
+    path = tmp_path / "labels.csv"
+    path.write_text("ID, Input ,Output,Verdict,Label\n"
+                    + "".join(f"q{i},question {i},answer {i},{'pass' if i % 2 else 'fail'},"
+                              f"{'pass' if i % 2 else 'fail'}\n" for i in range(20)),
+                    encoding="utf-8")
+    r = check_table(path, out=tmp_path / "out")
+    plain = tmp_path / "plain.csv"
+    plain.write_text(path.read_text(encoding="utf-8").replace(
+        "ID, Input ,Output,Verdict,Label", "id,input,output,verdict,label"), encoding="utf-8")
+    assert r["headline"] == check_table(plain, out=tmp_path / "out2")["headline"]
+    named = check_table(path, judge="Verdict", human="Label", out=tmp_path / "out3")
+    assert named["headline"] == r["headline"]  # a column named as typed still works

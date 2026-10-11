@@ -549,3 +549,23 @@ def test_a_records_file_outside_the_records_folder_is_found(tmp_path):
     found = find.search(tmp_path)
     assert [r.path.name for r in found.results.get("records", [])] == ["judge-results.jsonl"]
     assert "table" not in found.results
+
+
+def _spreadsheet_header(path, header):
+    """A table whose header is typed as in Sheets or Excel."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines[0] = header
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize("header", ["Input,Output,Verdict", " input , OUTPUT ,Verdict ",
+                                    "INPUT,Output,Judge_Verdict"])
+def test_column_names_ignore_case_and_spaces(tmp_path, capsys, header):
+    table_project(tmp_path, split(16, 16), name="results.csv")
+    path = tmp_path / "results.csv"
+    assert path.read_text(encoding="utf-8").splitlines()[0] == "input,output,verdict"
+    _spreadsheet_header(path, header)
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0, out
+    assert "  Eval tool       a table (results.csv)" in out
+    assert "  Its decisions   32 answers: 16 passed, 16 failed" in out
