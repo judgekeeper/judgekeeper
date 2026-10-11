@@ -31,9 +31,12 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -113,21 +116,90 @@ def cant(tool: str, judge: str, why: str, short: str = "") -> Plan:
 
 # Processes -------------------------------------------------------------------------------------
 
+STOP_WAIT = 5  # seconds a stopped program gets to end before it is killed
+
+
+def _own_group() -> dict:
+    """Start a program in its own process group, so it and every program it starts (a
+    worker's model calls, promptfoo's node) can be stopped together."""
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
+
+def stop_group(proc) -> None:
+    """Stop a program started with _own_group and everything it started: on Windows the
+    whole tree (taskkill /T); elsewhere its process group, SIGTERM, then SIGKILL after
+    STOP_WAIT seconds."""
+    if proc.poll() is not None:
+        return
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True,
+                           check=False)
+        else:
+            os.killpg(proc.pid, signal.SIGTERM)
+            try:
+                proc.wait(timeout=STOP_WAIT)
+            except subprocess.TimeoutExpired:
+                os.killpg(proc.pid, signal.SIGKILL)
+    except OSError:
+        pass
+    try:
+        proc.kill()  # whatever is left of the program itself
+    except OSError:
+        pass
+
+
+class _Terminated(KeyboardInterrupt):
+    """SIGTERM while a program runs: stopped like Ctrl-C."""
+
+
+@contextmanager
+def _term_stops():
+    """While the block runs, SIGTERM (what agents, editors and CI send to stop a command)
+    raises _Terminated, so the program it waits for is stopped too, not left running and
+    spending. Only in the main thread, where Python allows a handler."""
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def stop(signum, frame):
+        raise _Terminated()
+
+    before = signal.signal(signal.SIGTERM, stop)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, before)
+
+
 def run_process(argv: list[str], cwd: Path, env: dict | None = None,
                 timeout: float | None = None):
     """The one place judgekeeper starts another program for asking again (tests replace it).
     Returns an object with returncode, stdout and stderr; a program that is not there gives
     returncode 127, one that is there but cannot be started (on Windows, a file that is not a
-    program: WinError 193) 126."""
+    program: WinError 193) 126. The program runs in its own process group: on Ctrl-C,
+    SIGTERM, a timeout or any error, it and everything it started are stopped (stop_group)."""
     try:
-        return subprocess.run(argv, cwd=cwd, env=env, capture_output=True, encoding="utf-8",
-                              errors="replace", timeout=timeout, check=False)
+        proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, encoding="utf-8", errors="replace",
+                                **_own_group())
     except FileNotFoundError as e:
         return subprocess.CompletedProcess(argv, 127, "", str(e))
     except OSError as e:
         return subprocess.CompletedProcess(argv, 126, "", str(e))
-    except subprocess.TimeoutExpired:
-        return subprocess.CompletedProcess(argv, 124, "", f"timed out after {timeout:g}s")
+    with _term_stops():
+        try:
+            out, err = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            stop_group(proc)
+            proc.communicate()
+            return subprocess.CompletedProcess(argv, 124, "", f"timed out after {timeout:g}s")
+        except BaseException:
+            stop_group(proc)
+            raise
+    return subprocess.CompletedProcess(argv, proc.returncode, out, err)
 
 
 def which(name: str) -> str | None:
