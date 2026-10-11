@@ -1,4 +1,4 @@
-"""judgekeeper: check your LLM-as-a-judge. See how often it agrees with human labels."""
+"""Check your LLM-as-a-judge: see how often it agrees with human labels."""
 
 __version__ = "0.2.0"
 
