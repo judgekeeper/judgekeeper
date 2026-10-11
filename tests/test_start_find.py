@@ -598,3 +598,24 @@ def test_judgekeepers_own_folders_are_never_your_judge(tmp_path, capsys, folder)
     assert own_format.search(tmp_path) is None
     table_project(tmp_path, split(16, 16), name="results.csv")  # the person's own, still found
     assert [r.rel for r in find.search(tmp_path).readable("table")] == ["results.csv"]
+
+
+def test_an_inspect_run_that_stopped_early_says_so(tmp_path, capsys):
+    from tests.start_projects import inspect_data
+
+    data = inspect_data(split(16, 16))
+    data["status"] = "error"
+    data["error"] = {"message": "TypeError: unsupported operand type(s) for +: 'float' and "
+                                "'Timeout'"}
+    data.setdefault("results", {})["total_samples"] = 40
+    path = tmp_path / "logs" / "2026-10-02_support.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+    _, out, _ = run(capsys, tmp_path)
+    assert ("  ! Your Inspect run stopped early (32 of 40 samples): TypeError: unsupported "
+            "operand type(s) for +: 'float' and 'Timeout'") in out
+    from judgekeeper.readers.inspect_logs import stopped_early
+
+    assert stopped_early({"status": "cancelled", "samples": [1, 2]}) == (
+        "Your Inspect run stopped early (2 samples): it was cancelled.")
+    assert stopped_early({"status": "success", "samples": [1]}) is None

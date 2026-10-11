@@ -566,6 +566,7 @@ class Found:
     models: list[str] = field(default_factory=list)  # the judge's model(s), as the results say
     model_source: str | None = None  # None (the results), GIVEN_BY_YOU or judgekeeper.toml
     experiment: str | None = None  # MLflow: the experiment read
+    stopped: list[str] = field(default_factory=list)  # Inspect: runs that stopped early
 
 
 PASS_OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt}
@@ -1060,7 +1061,9 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  pass_mark=pass_mark_of(pool, kind, norm.pass_if, key), one_rule=one_rule,
                  task_file=_task_file(newest.path) if kind == "inspect" else None,
                  rule_field=_inspect_field(records) if kind == "inspect" and rule else None,
-                 models=models, model_source=model_source, experiment=name)
+                 models=models, model_source=model_source, experiment=name,
+                 stopped=[n for x in used for n in x.records.notes
+                          if n.startswith("Your Inspect run stopped early")])
 
 
 def _rule_key(r, kind: str) -> str | None:
@@ -1278,6 +1281,7 @@ def found_lines(found: Found) -> list[str]:
         rows.append(("Pass mark", _pass_mark_words(found.pass_mark)))
     lines = ["judgekeeper found your LLM-as-a-judge:", ""]
     lines += [f"  {name:<{COLUMN}}{value}" for name, value in rows]
+    lines += [f"  ! {note}" for note in found.stopped]  # the eval run itself did not finish
     if found.tool not in ("records", "mapped") and len(found.used) > 1:
         lines.append(f"  Fewer than {MIN_POOL} answers in the newest results, so older results "
                      f"from the same judge were added: {', '.join(found.used[1:])}")
