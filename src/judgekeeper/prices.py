@@ -92,6 +92,9 @@ def money(x: float) -> str:
     return "less than $0.01" if x < 0.01 else f"${x:,.2f}"
 
 
+FREE = "Free: it runs on your computer."
+
+
 def amount(low: float, high: float) -> str:
     """A cost range in words: "less than $0.01", "up to $0.02" or "about $0.50 to $2.50"."""
     if high < 0.01:
@@ -103,8 +106,10 @@ def amount(low: float, high: float) -> str:
 
 def cost_line(model: str | None, provider: str | None,
               tokens: list[tuple[int, int]]) -> str:
-    from judgekeeper.keys import PROVIDERS
+    from judgekeeper.keys import PROVIDERS, provider_of
 
+    if provider_of(model, provider) == "ollama":
+        return FREE
     est = estimate(model, tokens)
     if est is None:
         return f"Cost unknown for this model ({model})."

@@ -179,6 +179,21 @@ def test_ollama_needs_no_key(clean, tmp_path):
     assert k.ok and k.lines == ["Your judge runs on Ollama; it needs no key."]
 
 
+@pytest.mark.parametrize("model, tool", [("ollama/llama3.2:3b", "inspect"),
+                                         ("ollama:chat:llama3.2:3b", "promptfoo"),
+                                         ("llama3.2:3b (Ollama)", "deepeval")])
+def test_ollama_in_each_tools_own_form_needs_no_key(clean, tmp_path, model, tool):
+    k = check(model, tool, tmp_path)
+    assert k.provider == "ollama"
+    assert k.ok and k.lines == ["Your judge runs on Ollama; it needs no key."]
+
+
+def test_a_colon_after_the_slash_keeps_the_provider():
+    assert provider_of("openai/gpt-4o:2024") == "openai"
+    assert provider_of("mystery/model:3b") is None
+    assert provider_of("gpt-4o:custom") is None
+
+
 def test_an_unknown_provider_is_said(clean, tmp_path):
     k = check("mystery-model", "inspect", tmp_path)
     assert k.ok and k.provider is None

@@ -1384,11 +1384,20 @@ FIX_BODY = """<div class="app">
     <h3 id="rc-title">Change the rule</h3>
     <p id="rc-text" hidden></p>
     <div class="col" id="rc-do" hidden>
-      <p>Change your judge's rule with any AI assistant, or yourself. judgekeeper never edits
-        your files: it says where the new rule goes.</p>
+      <p>Change your judge's rule with your coding agent, any AI assistant, or yourself.
+        judgekeeper never edits your files: it says where the new rule goes.</p>
       <div class="row">
-        <button class="btn primary" id="rc-ask" type="button">Copy a prompt for your AI assistant</button>
+        <button class="btn primary" id="rc-loop" type="button">Let your coding agent do it</button>
+        <button class="btn" id="rc-ask" type="button">Copy a prompt for your AI assistant</button>
         <button class="btn" id="rc-self" type="button">I'll write it myself</button>
+      </div>
+      <div id="rc-loop-box" hidden>
+        <p class="small">Paste this into your coding agent (Claude Code, Cursor or Codex).</p>
+        <pre class="box" id="rc-loop-text"></pre>
+        <button class="btn" id="rc-loop-copy" type="button">Copy</button>
+        <p class="small">It reads your mistakes from a file in .judgekeeper/, so your answers are
+          not in this text. It asks you before anything that costs money.</p>
+        <p class="small">When your agent has saved the new rule, reload this page to see it.</p>
       </div>
       <div id="rc-prompt" hidden>
         <p class="small">Paste this into any AI assistant. It holds only the answers judgekeeper
@@ -1405,6 +1414,7 @@ FIX_BODY = """<div class="app">
       <div class="checks" id="rc-checks" aria-live="polite"></div>
       <div id="rc-saved" hidden>
         <h4>Your new rule, against the old one</h4>
+        <p class="small" id="rc-how" hidden>Your coding agent wrote this rule.</p>
         <p class="diff box" id="rc-diff"></p>
         <h4>Where it goes</h4>
         <ul id="rc-where"></ul>
@@ -1591,6 +1601,7 @@ FIX_BODY = """<div class="app">
     var saved = rc.saved;
     $("rc-saved").hidden = !saved;
     if (!saved) { return; }
+    $("rc-how").hidden = saved.how !== "agent";
     showChecks(saved.checks);
     var diff = $("rc-diff");
     diff.textContent = "";
@@ -1613,6 +1624,23 @@ FIX_BODY = """<div class="app">
     checks.forEach(function (c) { box.appendChild(el("p", c.blocking ? "block" : null, c.text)); });
   }
 
+  $("rc-loop").addEventListener("click", function () {
+    var button = $("rc-loop");
+    button.disabled = true;
+    postJSON("/fix/agent-prompt", {}).then(function (res) {
+      button.disabled = false;
+      if (!res.ok) { $("rc-status").textContent = res.body.error; return; }
+      $("rc-status").textContent = "";
+      $("rc-loop-text").textContent = res.body.prompt;
+      $("rc-loop-box").hidden = false;
+      $("rc-prompt").hidden = true;
+      $("rc-paste").hidden = true;
+      copy(res.body.prompt, $("rc-loop-copy"));
+    }).catch(function () { button.disabled = false; $("rc-status").textContent = LOST; });
+  });
+  $("rc-loop-copy").addEventListener("click", function () {
+    copy($("rc-loop-text").textContent, $("rc-loop-copy"));
+  });
   $("rc-ask").addEventListener("click", function () {
     var button = $("rc-ask");
     button.disabled = true;
@@ -1621,6 +1649,7 @@ FIX_BODY = """<div class="app">
       if (!res.ok) { $("rc-status").textContent = res.body.error; return; }
       $("rc-status").textContent = "";
       $("rc-prompt-text").textContent = res.body.prompt;
+      $("rc-loop-box").hidden = true;
       $("rc-prompt").hidden = false;
       how = "pasted";
       $("rc-paste").hidden = false;
@@ -1633,6 +1662,7 @@ FIX_BODY = """<div class="app">
   });
   $("rc-self").addEventListener("click", function () {
     how = "written";
+    $("rc-loop-box").hidden = true;
     $("rc-prompt").hidden = true;
     $("rc-paste").hidden = false;
     $("rc-new").value = data.rule_change.rule;

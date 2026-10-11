@@ -106,7 +106,8 @@ REPEATED = (("tool", "--tool"), ("metric", "--metric"), ("experiment", "--experi
             ("judge_model", "--judge-model"), ("times", "--times"), ("python", "--python"),
             ("fields", "--fields"), ("judge_command", "--judge-command"))
 NOT_REPEATED = frozenset({"new", "review", "fix", "test_pass_mark", "ask_again",
-                          "try_new_judge", "label_more", "yes", "allow_calls", "agent_prompt"})
+                          "try_new_judge", "label_more", "yes", "allow_calls", "agent_prompt",
+                          "rule_file"})
 DEFAULT_PORT = 8765
 
 
@@ -1463,13 +1464,15 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         new: bool = False, review: bool = False, label_more: bool = False,
         ask_again: bool = False, try_new_judge: bool = False, fix: bool = False,
         test_pass_mark: bool = False, times: int | None = None,
-        python: str | None = None,
+        python: str | None = None, rule_file: str | None = None,
         fields: str | None = None, judge_command: str | None = None,
         allow_calls: int | None = None) -> int:
     """`judgekeeper start`: say what was found, then open the labeling page and make the
     result. What is already saved in `.judgekeeper/` decides where it starts (start_again).
     `review`, `fix`, `ask_again`, `try_new_judge` and `label_more` answer the menu shown
-    after a result (`test_pass_mark`, with `fix`, tests the pass mark in the terminal); `times` (default 2, or 1 when trying a new judge), `python`, `fields`,
+    after a result (`test_pass_mark`, with `fix`, tests the pass mark in the terminal;
+    `rule_file`, with `fix`, saves the new rule in that file); `times` (default 2, or 1 when
+    trying a new judge), `python`, `fields`,
     `judge_command` and `allow_calls` shape asking the judge again. Returns the exit code."""
     from judgekeeper import start_again
     from judgekeeper.again import AgainOptions
@@ -1490,7 +1493,8 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
                 else "try" if try_new_judge else "label" if label_more else None)
         return start_again.run(Path(path), talk, options, port=port,
                                open_browser=not no_browser, new=new, then=then,
-                               again_options=again_options, test_pass_mark=test_pass_mark)
+                               again_options=again_options, test_pass_mark=test_pass_mark,
+                               rule_file=rule_file)
     except Stop as stop:
         return stop.code
 
