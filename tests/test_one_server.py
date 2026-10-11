@@ -94,7 +94,7 @@ def test_a_lock_nobody_answers_is_ignored(ws):
 def test_a_second_start_says_where_the_page_is_and_stops(ws, tmp_path, capsys):
     server, thread = _serving(ws)
     try:
-        code = main(["start", str(tmp_path), "--no-browser", "--yes", "--port", "0"])
+        code = main(["start", str(tmp_path), "--no-browser", "--yes", "--port", "8806"])
         out, err = capsys.readouterr()
     finally:
         server.stop()

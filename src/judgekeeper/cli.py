@@ -215,6 +215,19 @@ def _error(message: str) -> None:
     _say(f"error: {scrub(message)}", file=sys.stderr)
 
 
+def _port(value: str) -> int:
+    """--port: a port number from 1 to 65535, or 0 for any free one (the link says which),
+    checked before anything is read or written."""
+    try:
+        port = int(value)
+    except ValueError:
+        port = -1
+    if not 0 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a port: give a number from 1 to "
+                                         "65535 (or 0 for any free port)")
+    return port
+
+
 def _times(value: str) -> int:
     """`start --times`: 1 to 5."""
     try:
@@ -430,7 +443,7 @@ def _parser() -> argparse.ArgumentParser:
     _normaliser_args(st)
     st.add_argument("--judge-model", metavar="NAME",
                     help="the judge's model, when the results do not record it")
-    st.add_argument("--port", type=int, default=8765,
+    st.add_argument("--port", type=_port, default=8765,
                     help="port on 127.0.0.1 for the page that opens (default 8765)")
     st.add_argument("--no-browser", action="store_true",
                     help="print the page's link instead of opening a browser")
