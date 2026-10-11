@@ -467,3 +467,18 @@ def test_without_a_result_there_is_no_result_page(tmp_path):
     finally:
         server.stop()
         thread.join(timeout=5)
+
+
+def test_a_result_that_cant_be_saved_is_said_plainly(tmp_path):
+    def result(session, back):
+        raise PermissionError(13, "Permission denied", str(tmp_path / ".judgekeeper"))
+
+    server, thread, client = _serve_until_done(tmp_path, result=result)
+    try:
+        resp, payload = client.request("GET", "/result")
+        assert resp.status == 500 and payload.decode().startswith("Not saved: ")
+        assert "Traceback" not in payload.decode()
+        assert client.label(id="it0", label="pass")[0] == 200  # the page still works
+    finally:
+        server.stop()
+        thread.join(timeout=5)

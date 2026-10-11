@@ -145,6 +145,10 @@ def table_columns(path: Path) -> list[str]:
 
     text = _head(path).decode("utf-8", errors="replace").removeprefix("﻿")
     first = text.split("\n", 1)[0].rstrip("\r")
+    if path.suffix.lower() == ".jsonl" and "\n" not in text:  # a first line over HEAD_BYTES
+        with path.open("rb") as f:
+            first = f.readline(MAX_BYTES).decode("utf-8", errors="replace")
+        first = first.removeprefix("﻿").rstrip("\r\n")
     if path.suffix.lower() == ".jsonl":
         try:
             row = json.loads(first)
@@ -312,6 +316,11 @@ class _Walk:
                 if tool:
                     self.add(tool, path, size)
         elif suffix in TABLE_SUFFIXES and depth <= TABLE_DEPTH:
+            if _head(path)[:2] in (b"\xff\xfe", b"\xfe\xff"):  # UTF-16: not read, but said
+                from judgekeeper.textio import not_utf8_message
+
+                self.search.notes.append(not_utf8_message(self.rel(path)))
+                return
             columns = table_columns(path)
             if suffix == ".jsonl" and is_records(columns):  # record()'s format, moved
                 self.add("records", path, size)

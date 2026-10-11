@@ -26,6 +26,8 @@ from judgekeeper.runners.base import Judgment
 from judgekeeper.textio import jsonl_lines, read_utf8, write_replacing
 
 ID_LENGTH = 16
+# A long answer or a RAG context fills one cell: Python's csv stops at 131,072 characters
+csv.field_size_limit(2**31 - 1)  # the largest every platform takes (a C long on Windows)
 _MAX_LISTED = 20
 FINGERPRINT_KEYS = ("provider", "model", "snapshot", "endpoint", "prompt", "prompt_hash",
                     "rubric_version", "temperature")

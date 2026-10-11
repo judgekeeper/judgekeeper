@@ -72,8 +72,23 @@ GITIGNORE = ("# judgekeeper's files hold your app's answers. Commit them only if
              "may live here.\n*\n!.gitignore\n!baseline.json\n!migrations/\n!migrations/*\n")
 LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
         "Remove it, then run judgekeeper start again.")
-SAVED_NOTE = (f"Saved in {FOLDER}/. It holds your answers' text: commit it only if your data "
+SAVED_NOTE = ("Saved in {folder}/. It holds your answers' text: commit it only if your data "
               "may live in your repo.")
+
+
+def shown_folder(ws: Workspace) -> str:
+    """The workspace folder as the person finds it from where they ran start: .judgekeeper
+    here, else its path (next to a results file given from elsewhere, or a link's target)."""
+    import os
+
+    here = Path.cwd().resolve() / FOLDER
+    folder = ws.dir.resolve()
+    if folder == here:
+        return FOLDER
+    try:
+        return Path(os.path.relpath(folder, Path.cwd().resolve())).as_posix()
+    except ValueError:  # another drive on Windows
+        return folder.as_posix()
 CORRECTED = "Corrected for picking half from the judge's passes and half from its fails."
 LEVELS = {  # verdict level: (colour, icon, second line)
     "gate": ("green", "tick", "Keep checking it after changes to its model or rule."),
@@ -269,7 +284,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "updated_at": utc_now(),
     })
     if first:
-        say(SAVED_NOTE)
+        say(SAVED_NOTE.format(folder=shown_folder(ws)))
     return ws
 
 
@@ -860,7 +875,7 @@ def save_result(ws: Workspace, session: StartSession, say,
     same = _same_result(ws, digest)
     if same is not None:
         say("")
-        for line in result_lines(same):
+        for line in result_lines(same, shown_folder(ws)):
             say(line)
         return same
     r = compute(ws, session)
@@ -888,7 +903,7 @@ def save_result(ws: Workspace, session: StartSession, say,
     _write_json(ws.result_json, r)
     write_replacing(ws.result_html, result_html(_scrubbed(r)))
     say("")
-    for line in result_lines(r):
+    for line in result_lines(r, shown_folder(ws)):
         say(line)
     return r
 

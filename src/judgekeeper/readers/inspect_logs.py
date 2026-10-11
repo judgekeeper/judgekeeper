@@ -88,7 +88,11 @@ def _load(path: Path) -> dict:
     except ImportError:
         read_eval_log = None
     if read_eval_log is not None:
-        return read_eval_log(str(path)).model_dump(mode="json")
+        try:
+            return read_eval_log(str(path)).model_dump(mode="json")
+        except Exception as e:  # noqa: BLE001 - a log cut short, empty or not Inspect's
+            raise RecordsError(f"{path.name} can't be read: it may be cut short, or not an "
+                               f"Inspect AI log ({type(e).__name__})") from None
     if path.suffix.lower() == ".eval":
         raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path))
     try:

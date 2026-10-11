@@ -35,7 +35,7 @@ from pathlib import Path
 from judgekeeper import find, judge_check, settings, targets
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.metrics import ERROR
-from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map, unmapped_error
+from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map
 from judgekeeper.readers import read_deepeval, read_inspect, read_mlflow, read_promptfoo
 from judgekeeper.readers.inspect_logs import DEFAULT_PROMPT
 from judgekeeper.readers.promptfoo import is_stripped_warning
@@ -56,7 +56,7 @@ from judgekeeper.records import (
 )
 from judgekeeper.redact import printable, scrub
 from judgekeeper.table import _blank, make_fingerprint, read_table
-from judgekeeper.textio import quote_arg, tick
+from judgekeeper.textio import quote_arg, read_utf8, tick
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -336,6 +336,8 @@ def read_results_table(path: Path) -> RecordList:
     column, when there is one, as human records (counted, not used). A `model` (or
     `judge_model`) column names the judge's model, an `app_version` column the app's."""
     rows = read_table(path)
+    if not rows:  # a header and nothing under it
+        raise StartError(f"{path.name} has no rows")
     columns = list(dict.fromkeys(k for row in rows for k in row))
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
@@ -381,6 +383,16 @@ def _read(result: find.Result) -> Loaded:
     if stripped:
         raise StartError(stripped[0])
     return Loaded(result.rel, records)
+
+
+def _readable(talk: Talk, results: list[find.Result]):
+    """Each of `results` read (_read), newest first; one that can't be read is said and
+    left out."""
+    for r in results:
+        try:
+            yield _read(r)
+        except RecordsError as e:
+            talk.say(f"{e} It is left out.")
 
 
 def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
@@ -709,6 +721,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         return path.parent, "mlflow", [find.Result("mlflow", path, path.name)], {}
     if path.is_file():
         kind = tool or find.classify_file(path)
+        if kind is None and path.suffix.lower() in find.TABLE_SUFFIXES:
+            read_utf8(path, StartError)  # not UTF-8 (a UTF-16 export): how to save it again
         if kind is None:
             raise StartError(f"{path.name} is not a results file judgekeeper start can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "
@@ -1012,8 +1026,17 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                 newest = results[0]
             first, read_older = loaded[0], iter(loaded[1:])
         else:
-            first = _read(newest)
-            read_older = (_read(r) for r in results[1:])
+            first, rest = None, list(results)
+            while first is None:  # a log that can't be read never hides a good one beside it
+                newest = rest.pop(0)
+                try:
+                    first = _read(newest)
+                except RecordsError as e:
+                    if not rest:
+                        raise StartError(str(e)) from None
+                    talk.say(f"{e} It is left out.")
+            results = [newest, *rest]
+            read_older = _readable(talk, rest)
     if kind in ("records", "mapped"):
         metrics = sorted({r.name for r in every.records if r.annotator_kind == LLM})
     else:
@@ -1280,6 +1303,26 @@ def _pass_mark_words(pm: dict) -> str:
     return f"score {words[pm['op']]}" if pm.get("op") in words else f"score {mark}"
 
 
+def unknown_values(values) -> str:
+    """What to do about decisions judgekeeper can't read as Pass or Fail, in plain words: never
+    a guess, since a wrong one would turn fails into passes."""
+    from judgekeeper.normalise import PASS_IF_EXAMPLE, _numeric
+
+    seen = list(dict.fromkeys(values))
+    shown = ", ".join(str(v) for v in seen[:10]) + (f" and {len(seen) - 10} more"
+                                                     if len(seen) > 10 else "")
+    numbers = [v for v in seen if _numeric(v)]
+    if len(numbers) == len(seen):
+        return (f"Your judge's decisions are numbers ({shown}): say which scores pass with "
+                f"--pass-if, e.g. {PASS_IF_EXAMPLE}")
+    words = [str(v) for v in seen if not _numeric(v)]
+    example = (f'--label-map "{words[0]}=pass,{words[1]}=fail"' if len(words) > 1
+               else f'--label-map "{words[0]}=pass" or --label-map "{words[0]}=fail"')
+    tail = f" Numbers need --pass-if, e.g. {PASS_IF_EXAMPLE}" if numbers else ""
+    return (f"judgekeeper can't tell which of these values mean Pass and Fail: {shown}. Map them "
+            f"with {example}, whichever each one means.{tail}")
+
+
 def found_lines(found: Found) -> list[str]:
     """The first block `start` prints: what judgekeeper found, as a small table."""
     pool = found.pool
@@ -1287,6 +1330,8 @@ def found_lines(found: Found) -> list[str]:
             ("What it checks", _checks_words(found)), ("Judge model", _model_words(found)),
             ("Its decisions", (f"{_plural(len(pool.answers), 'answer', 'answers')}: "
                                f"{pool.n_pass} passed, {pool.n_fail} failed"))]
+    if pool.unmapped:  # start stops on them, and says so: no count of what it could read
+        rows.pop()
     if found.pass_mark:
         rows.append(("Pass mark", _pass_mark_words(found.pass_mark)))
     lines = ["judgekeeper found your LLM-as-a-judge:", ""]
@@ -1314,7 +1359,7 @@ def say_found(talk: Talk, found: Found) -> None:
     if pool.unmapped:  # stop: a result without those answers would be wrong
         if found.tool == "inspect" and "P" in pool.unmapped:  # model_graded_qa(partial_credit)
             raise StartError(PARTIAL.format(n=pool.n_unmapped.get(repr("P"), 0)))
-        raise StartError(str(unmapped_error(pool.unmapped, what="decision")))
+        raise StartError(unknown_values(pool.unmapped))
     if pool.n_human:
         where = (f"{Path(found.used[0]).name} also holds" if len(found.used) == 1
                  else "These results also hold")
