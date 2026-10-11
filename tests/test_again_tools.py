@@ -392,6 +392,20 @@ def test_the_inspect_plan(tmp_path, stubs):
     assert all(0 < inp and out == 200 for inp, out in p.tokens)
 
 
+@pytest.mark.parametrize("version", ["0.3.240", "0.3.241"])
+def test_inspect_before_0_3_242_says_which_version_is_needed(tmp_path, stubs, monkeypatch,
+                                                             version):
+    ws = _checked(tmp_path, inspect_project)
+    monkeypatch.setenv("STUB_VERSION", version)
+    p = make_plan(ws, PY)
+    assert p.status == "cant"
+    assert p.why.startswith(f"asking your judge again needs Inspect AI 0.3.242 or newer, and "
+                            f"your Python has {version}")
+    assert "exactly your judge" not in " ".join(plan_lines(p))
+    monkeypatch.setenv("STUB_VERSION", "0.3.242")
+    assert make_plan(ws, PY).status != "cant"
+
+
 def test_another_inspect_version_is_a_close_copy_until_the_prompts_match(tmp_path, stubs,
                                                                          monkeypatch):
     ws = _checked(tmp_path, inspect_project)
