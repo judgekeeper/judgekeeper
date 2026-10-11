@@ -34,6 +34,7 @@ from pathlib import Path
 os.environ["MLFLOW_DISABLE_AGENT_HINT"] = "1"
 os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
 os.environ["MLFLOW_GENAI_EVAL_SKIP_TRACE_VALIDATION"] = "true"
+os.environ["MLFLOW_GENAI_EVAL_MAX_WORKERS"] = "1"  # one writer for SQLite
 import mlflow
 from mlflow.entities import AssessmentSource, Feedback
 from mlflow.genai.judges import instructions_judge, make_judge
@@ -51,8 +52,27 @@ mlflow.set_experiment("quiz")
 judge = make_judge(name="sum_check", instructions=sys.argv[1], model="openai:/gpt-4.1-mini")
 data = [{"inputs": {"question": f"What is {i} + {i}?"},
          "outputs": f"It is {2 * i if i % 3 else 'wrong'}."} for i in range(1, 25)]
-mlflow.genai.evaluate(data=data, scorers=[judge])
-mlflow.flush_trace_async_logging()  # traces are written in the background
+
+def wait_until_saved(run_id, scorer, expected=24, limit=60):
+    # MLflow saves traces and assessments in the background: wait until every trace of the
+    # run has its assessment from `scorer`, or stop and say how many are there.
+    import inspect, time
+    scope = ("locations" if "locations" in inspect.signature(mlflow.search_traces).parameters
+             else "experiment_ids")
+    exp = mlflow.get_experiment_by_name("quiz").experiment_id
+    deadline = time.monotonic() + limit
+    while True:
+        mlflow.flush_trace_async_logging()
+        traces = mlflow.search_traces(**{scope: [exp]}, run_id=run_id, return_type="list")
+        done = [t for t in traces if any(a.name == scorer for a in t.info.assessments or [])]
+        if len(done) >= expected:
+            return
+        if time.monotonic() > deadline:
+            raise SystemExit(f"after {limit} s, {len(done)} of {expected} traces saved")
+        time.sleep(0.3)
+
+result = mlflow.genai.evaluate(data=data, scorers=[judge])
+wait_until_saved(result.run_id, "sum_check")
 """
 
 
@@ -209,6 +229,7 @@ import os, sys
 os.environ["MLFLOW_DISABLE_AGENT_HINT"] = "1"
 os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
 os.environ["MLFLOW_GENAI_EVAL_SKIP_TRACE_VALIDATION"] = "true"
+os.environ["MLFLOW_GENAI_EVAL_MAX_WORKERS"] = "1"  # one writer for SQLite
 from pathlib import Path
 import mlflow
 from mlflow.entities import AssessmentSource, Feedback
@@ -224,13 +245,32 @@ judge = AssessmentSource(source_type="LLM_JUDGE", source_id="openai:/gpt-4.1-min
 def sum_check(inputs, outputs):
     n = int(inputs["question"].split()[2])
     if n in failing:
-        raise RuntimeError(f"rate limit reached for question {n}")
+        raise RuntimeError(f"the judge gave no reply for question {n}")
     return Feedback(value="wrong" not in outputs, rationale="checked", source=judge)
 
 data = [{"inputs": {"question": f"What is {i} + {i}?"},
          "outputs": f"It is {2 * i if i % 3 else 'wrong'}."} for i in range(1, 25)]
-mlflow.genai.evaluate(data=data, scorers=[sum_check])
-mlflow.flush_trace_async_logging()  # traces are written in the background
+
+def wait_until_saved(run_id, scorer, expected=24, limit=60):
+    # MLflow saves traces and assessments in the background: wait until every trace of the
+    # run has its assessment from `scorer`, or stop and say how many are there.
+    import inspect, time
+    scope = ("locations" if "locations" in inspect.signature(mlflow.search_traces).parameters
+             else "experiment_ids")
+    exp = mlflow.get_experiment_by_name("quiz").experiment_id
+    deadline = time.monotonic() + limit
+    while True:
+        mlflow.flush_trace_async_logging()
+        traces = mlflow.search_traces(**{scope: [exp]}, run_id=run_id, return_type="list")
+        done = [t for t in traces if any(a.name == scorer for a in t.info.assessments or [])]
+        if len(done) >= expected:
+            return
+        if time.monotonic() > deadline:
+            raise SystemExit(f"after {limit} s, {len(done)} of {expected} traces saved")
+        time.sleep(0.3)
+
+result = mlflow.genai.evaluate(data=data, scorers=[sum_check])
+wait_until_saved(result.run_id, "sum_check")
 """
 
 
@@ -265,5 +305,5 @@ def test_every_judge_call_failed_says_why(tmp_path, failing_stores, capsys):
     said = out + err
     assert code != 0
     assert "every call of your judge sum_check failed (24 saved as errors)" in said, said
-    assert "First error: SCORER_ERROR: rate limit reached for question" in said
+    assert "First error: SCORER_ERROR: the judge gave no reply for question" in said
     assert "has no judge assessments" not in said
