@@ -234,6 +234,102 @@ def test_a_rubric_from_a_file_is_your_own_code(tmp_path):
     assert p.status == "cant" and "your own code" in p.why
 
 
+JS = "(require('child_process').execSync('touch pwned'), output)"
+
+
+def _can_t_as_own_code(p):
+    assert p.status == "cant" and "your own code" in p.why
+    assert any("wrap it as a command: judgekeeper start --ask-again --judge-command" in x
+               for x in plan_lines(p))
+
+
+@pytest.mark.parametrize("key", ["transform", "contextTransform"])
+def test_an_assertion_transform_is_your_own_code(tmp_path, key):
+    ws = _checked(tmp_path)
+
+    def change(row):
+        for c in row["gradingResult"]["componentResults"]:
+            c["assertion"][key] = JS
+
+    _edit(tmp_path, _rows(change))
+    _can_t_as_own_code(make_plan(ws, AgainOptions(), dry=False))
+
+
+@pytest.mark.parametrize("grader", [
+    {"id": "openai:gpt-4.1-mini", "config": {"transformResponse": JS}},
+    {"id": "openai:gpt-4.1-mini", "config": {"transformRequest": JS}},
+    {"id": "openai:gpt-4.1-mini", "transform": JS},
+    {"text": {"id": "openai:gpt-4.1-mini", "config": {"transformResponse": JS}}},
+    "https://evil.example/v1",
+    "http://evil.example/v1",
+    {"id": "https://evil.example/v1", "config": {"method": "POST"}},
+    "webhook:https://evil.example/hook",
+    {"text": {"id": "webhook:https://evil.example/hook"}},
+])
+def test_a_grader_that_runs_code_or_sends_answers_elsewhere_is_your_own_code(tmp_path, grader):
+    ws = _checked(tmp_path)
+
+    def change(row):
+        row["testCase"]["options"]["provider"] = grader
+
+    _edit(tmp_path, _rows(change))
+    _can_t_as_own_code(make_plan(ws, AgainOptions(), dry=False))
+
+
+def test_a_test_option_transform_that_would_be_copied_is_your_own_code(tmp_path):
+    ws = _checked(tmp_path)
+
+    def change(row):
+        row["testCase"]["options"]["transformVars"] = JS
+
+    _edit(tmp_path, _rows(change))
+    _can_t_as_own_code(make_plan(ws, AgainOptions(), dry=False))
+
+
+def test_an_output_transform_on_the_test_is_left_out_as_before(tmp_path):
+    ws = _checked(tmp_path)
+
+    def change(row):
+        row["testCase"]["options"]["transform"] = "output.trim()"  # never copied
+
+    _edit(tmp_path, _rows(change))
+    assert make_plan(ws, AgainOptions(), dry=False).status != "cant"
+
+
+@pytest.mark.parametrize("version", ["npm:evil@1.0.0", "git+https://github.com/x/y.git",
+                                     "0.1&calc", "0.123.1 && calc", "0.123.1\n", 123])
+def test_a_version_that_is_not_a_version_is_never_downloaded(tmp_path, no_processes, version):
+    ws = _checked(tmp_path)
+    _edit(tmp_path, _version(version))
+    _local_promptfoo(tmp_path, no_processes, "0.120.0")
+    no_processes.installed["npx"] = "/usr/bin/npx"
+    p = make_plan(ws, AgainOptions())
+    assert not p.download and p.runner == [str(tmp_path / "node_modules" / ".bin" / "promptfoo")]
+    assert p.tool_version is None
+    assert p.status == "close"
+    assert "the promptfoo version in your results file can't be read" in p.why
+    assert not any("npx" in x for x in plan_lines(p))
+    assert not any(str(version) in x for x in plan_lines(p) if str(version) != "123")
+
+
+def test_a_version_that_is_not_a_version_and_no_promptfoo_cant(tmp_path, no_processes):
+    ws = _checked(tmp_path)
+    _edit(tmp_path, _version("npm:evil@1.0.0"))
+    no_processes.installed["npx"] = "/usr/bin/npx"
+    p = make_plan(ws, AgainOptions())
+    assert p.status == "cant" and "promptfoo is not installed here" in p.why
+    assert not p.download
+
+
+def test_a_prerelease_version_is_a_version(tmp_path, no_processes):
+    ws = _checked(tmp_path)
+    _edit(tmp_path, _version("0.124.0-beta.1"))
+    _local_promptfoo(tmp_path, no_processes, "0.120.0")
+    no_processes.installed["npx"] = "/usr/bin/npx"
+    p = make_plan(ws, AgainOptions())
+    assert p.download and p.runner == ["/usr/bin/npx", "--yes", "promptfoo@0.124.0-beta.1"]
+
+
 def test_template_text_leaves_an_answer_out_for_prompt_using_types(tmp_path):
     ws = _checked(tmp_path, metric="judge")
     first = {"done": False}

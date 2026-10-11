@@ -208,7 +208,8 @@ def test_a_changed_prompt_is_said_too(tmp_path, capsys, served):
 
 def test_changed_answers_offer_to_label_the_latest_results(tmp_path, capsys, served, terminal):
     ws = _checked(tmp_path, n_pass=20, n_fail=16)
-    old = {p.name: p.read_bytes() for p in ws.dir.iterdir() if p.is_file()}
+    old = {p.name: p.read_bytes() for p in ws.dir.iterdir()
+           if p.is_file() and p.name != ".gitignore"}  # it stays
     _rewrite(tmp_path, split(20, 16), tag=" (new wording)")  # every answer is new text
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
@@ -300,7 +301,8 @@ def test_new_moves_everything_but_the_baseline_and_deletes_nothing(tmp_path, cap
     (previous,) = ws.dir.glob("previous-*")
     moved = {p.relative_to(previous).as_posix(): p.read_bytes()
              for p in previous.rglob("*") if p.is_file()}
-    assert moved == {k: v for k, v in before.items() if k != "baseline.json"}
+    assert moved == {k: v for k, v in before.items() if k not in ("baseline.json", ".gitignore")}
+    assert (ws.dir / ".gitignore").is_file()
     assert (ws.dir / "baseline.json").read_text(encoding="utf-8") == "{}"
     assert f"Moved your last check to .judgekeeper/{previous.name}/. Nothing was deleted." in out
     assert "Its decisions   36 answers" in out and len(served) == 1

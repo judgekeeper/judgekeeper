@@ -23,7 +23,7 @@ from judgekeeper.judgments import judgment_to_record, write_run
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser, UnmappedValue, unmapped_error
 from judgekeeper.runners.base import Judgment
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import jsonl_lines, read_utf8, write_replacing
 
 ID_LENGTH = 16
 _MAX_LISTED = 20
@@ -69,7 +69,7 @@ def read_table(path: str | Path) -> list[dict]:
                                    delimiter=_delimiter(text, suffix)))
     if suffix in (".jsonl", ".ndjson", ".json"):
         rows = []
-        for n, line in enumerate(read_utf8(path, TableError).splitlines(), 1):
+        for n, line in enumerate(jsonl_lines(read_utf8(path, TableError)), 1):
             if not line.strip():
                 continue
             try:
@@ -144,8 +144,8 @@ def _run_key(value) -> tuple:
 
 def write_anchor_file(path: Path, items: list[dict]) -> dict:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(json.dumps(i, ensure_ascii=False) + "\n" for i in items),
-                    encoding="utf-8", newline="\n")  # the same bytes on every system
+    write_replacing(path, "".join(json.dumps(i, ensure_ascii=False) + "\n" for i in items),
+                    newline="\n")  # the same bytes on every system
     return freeze(path)
 
 

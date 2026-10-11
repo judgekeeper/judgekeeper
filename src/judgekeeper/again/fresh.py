@@ -26,6 +26,7 @@ from judgekeeper.fingerprint import JudgeFingerprint, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
 from judgekeeper.metrics import ERROR
 from judgekeeper.runners.base import Judgment
+from judgekeeper.textio import write_replacing
 
 TIMES_WORDS = {1: "once", 2: "twice", 3: "three times", 4: "four times", 5: "five times"}
 NOT_COUNTED = {  # key: (one answer, several answers)
@@ -200,7 +201,7 @@ def save(ws, block: dict) -> None:
         _write_json(target, r["again"])
     r["again"] = block
     _write_json(ws.result_json, r)
-    ws.result_html.write_text(result_html(_scrubbed(r)), encoding="utf-8")
+    write_replacing(ws.result_html, result_html(_scrubbed(r)))
 
 
 def finish(ws, plan, fresh: Fresh, talk) -> dict:

@@ -24,7 +24,7 @@ from pathlib import Path
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.redact import scrub, scrub_fingerprint
 from judgekeeper.runners.base import Judgment
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import jsonl_lines, read_utf8, write_replacing
 
 # Fields of a judgment line that hold text from the model or the provider.
 FREE_TEXT_FIELDS = ("rationale", "rationale_ba", "error", "error_ba")
@@ -111,14 +111,14 @@ def write_run(path: Path, run: int, anchors_sha256: str, fp: JudgeFingerprint,
         header["normaliser"] = normaliser
     lines = [json.dumps(header, ensure_ascii=False)]
     lines += [json.dumps(_scrubbed(r, seen), ensure_ascii=False) for r in records]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_replacing(path, "\n".join(lines) + "\n")
 
 
 def read_run(path: str | Path) -> tuple[dict, dict[str, dict]]:
     """Return (header, {item_id: record})."""
     path = Path(path)
     rows = []
-    for n, line in enumerate(read_utf8(path, JudgmentsError).splitlines(), 1):
+    for n, line in enumerate(jsonl_lines(read_utf8(path, JudgmentsError)), 1):
         if not line.strip():
             continue
         try:
