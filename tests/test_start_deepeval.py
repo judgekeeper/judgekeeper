@@ -181,3 +181,16 @@ def test_no_tip_in_the_too_few_message_when_runs_are_kept(tmp_path, capsys):
             "first, or mark these now: your marks are kept and count when you add "
             "more.") in out
     assert TIP not in out
+
+
+def test_deepeval_before_399_names_its_runs_without_test_run_or_json(tmp_path, capsys):
+    # DeepEval 3.0 to 3.9.7 saves each run in DEEPEVAL_RESULTS_FOLDER as <date>_<time>
+    deepeval_project(tmp_path, split(16, 16), name="results/20261011_010559")
+    _, out = run(capsys, tmp_path)
+    assert "  Eval tool       DeepEval" in out, out
+    assert "  Results file    results/20261011_010559" in out
+    assert "DeepEval saves results only when" not in out
+    _, out = run(capsys, tmp_path / "results" / "20261011_010559")
+    assert "not a results file" not in out and "  Eval tool       DeepEval" in out
+    (tmp_path / "results" / "20261011_010600").write_text("not a run", encoding="utf-8")
+    assert find.classify_file(tmp_path / "results" / "20261011_010600") is None

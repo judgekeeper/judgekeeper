@@ -56,7 +56,9 @@ PROMPTFOO_CONFIGS = ("promptfooconfig.yaml", "promptfooconfig.yml", "promptfooco
 # DeepEval's hidden copies of its newest run, rewritten on every run: the full run, and the
 # run under a "testRunData" key (deepeval/test_run/test_run.py, DeepEval 4.2).
 DEEPEVAL_COPIES = (".latest_run_full.json", ".latest_test_run.json")
-DEEPEVAL_RUN = re.compile(r"test_run_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.json")
+# A run DeepEval saved in its results folder: test_run_<date>_<time>.json, or before 3.9.9
+# only <date>_<time>, with no .json (read when its content is a DeepEval run)
+DEEPEVAL_RUN = re.compile(r"(?:test_run_)?(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})(?:\.json)?")
 VERDICT_COLUMNS = ("verdict", "judge_verdict", "judge")
 TABLE_SUFFIXES = (".csv", ".tsv", ".jsonl")
 RESULTS_VARS = {"deepeval": "DEEPEVAL_RESULTS_FOLDER", "inspect": "INSPECT_LOG_DIR"}
@@ -196,6 +198,8 @@ def classify_file(path: Path) -> str | None:
         if DEEPEVAL_RUN.fullmatch(path.name) or path.name in DEEPEVAL_COPIES:
             return "deepeval"
         return sniff_json(_head(path))
+    if not suffix and DEEPEVAL_RUN.fullmatch(path.name) and sniff_json(_head(path)) == "deepeval":
+        return "deepeval"  # DeepEval before 3.9.9: results/<date>_<time>
     return None
 
 
@@ -296,6 +300,9 @@ class _Walk:
             self.add("mlflow", path, size)
         elif suffix == ".eval":
             self.add("inspect", path, size)
+        elif (not suffix and DEEPEVAL_RUN.fullmatch(name)
+              and sniff_json(_head(path)) == "deepeval"):  # DeepEval before 3.9.9
+            self.add("deepeval", path, size)
         elif suffix == ".json":
             if DEEPEVAL_RUN.fullmatch(name) or name in DEEPEVAL_COPIES:
                 self.add("deepeval", path, size)
