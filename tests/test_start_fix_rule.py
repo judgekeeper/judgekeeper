@@ -739,3 +739,303 @@ def test_an_inspect_template_without_instructions_names_template(tmp_path):
     assert "instructions=" not in hand["where"] + hand["agent_prompt"]
     inspect_project_rule = start_fix_rule.field("inspect", "instructions")
     assert inspect_project_rule == "`instructions=` in `model_graded_qa(...)`"
+
+
+# Your coding agent does it ----------------------------------------------------------------
+
+AGENT = start_fix_rule.agent_loop_prompt
+
+
+def test_the_agent_prompt_reads_as_the_spec_says():
+    text = AGENT("judgekeeper start", ".judgekeeper/fix",
+                 "probably in promptfooconfig.yaml, line 9", "for example npx promptfoo eval",
+                 askable=True)
+    assert text.startswith(
+        "judgekeeper found where my LLM judge disagrees with me. Please fix the judge's rule, "
+        "step by step. Stop and ask me wherever a step says so.\n\n1. Read "
+        ".judgekeeper/fix/prompt.txt.")
+    assert ("Write the new rule as it asks into .judgekeeper/fix/agent-rule.txt. Keep the rule "
+            "general: don't copy text from the answers.") in text
+    assert ("2. Run: judgekeeper start --fix --rule-file .judgekeeper/fix/agent-rule.txt\n"
+            "   It checks the rule.") in text
+    assert ("3. Put the new rule where that command says (probably in promptfooconfig.yaml, "
+            "line 9). Change only the rule, nothing else.") in text
+    assert ("4. Ask me before you run my eval: it calls my judge's model, which may cost money. "
+            "Then run it the way this project runs it (for example npx promptfoo eval).") in text
+    assert "5. Run: judgekeeper start --try-new-judge --no-browser\n" in text
+    assert ("Only after I say yes, run it again with the --allow-calls number it "
+            "printed.") in text
+    assert ("6. Tell me in plain words what it says: how many of the answers kept aside the new "
+            "rule fixed and broke, and the old and new numbers on my marked answers.") in text
+    assert "If it broke more than it fixed, say so and offer to put the old rule back." in text
+    assert "7." not in text
+
+
+def test_a_judge_that_cannot_be_asked_again_is_checked_on_new_answers():
+    text = AGENT("judgekeeper start", ".judgekeeper/fix", start_fix_rule.NOT_FOUND,
+                 start_fix_rule.tool_hint("records"), askable=False)
+    assert "--try-new-judge" not in text and "--allow-calls" not in text
+    assert ("5. Run: judgekeeper start\n   It checks my new judge on new answers.\n"
+            "6. Tell me in plain words what it printed.") in text
+    assert "(where my eval keeps the judge's rule)" in text
+    assert "(the code that runs my judge)" in text
+
+
+def test_the_agent_prompt_repeats_the_persons_flags():
+    text = AGENT("judgekeeper start my-app --label-map labels.json --port 8791 --no-browser",
+                 "my-app/.judgekeeper/fix", start_fix_rule.NOT_FOUND, "x", askable=True)
+    assert ("Run: judgekeeper start my-app --label-map labels.json --port 8791 --no-browser "
+            "--fix --rule-file my-app/.judgekeeper/fix/agent-rule.txt") in text
+    assert ("Run: judgekeeper start my-app --label-map labels.json --port 8791 --no-browser "
+            "--try-new-judge\n") in text  # --no-browser once
+    assert "Read my-app/.judgekeeper/fix/prompt.txt." in text
+
+
+@pytest.mark.parametrize("tool, test_file, task_file, hint", [
+    ("promptfoo", None, None, "for example npx promptfoo eval"),
+    ("deepeval", "tests/test_bot.py", None, "for example deepeval test run tests/test_bot.py"),
+    ("deepeval", None, None, "for example deepeval test run with my test file"),
+    ("inspect", None, "tasks/qa.py", "for example inspect eval tasks/qa.py"),
+    ("inspect", None, None, "for example inspect eval with my task file"),
+    ("mlflow", None, None, "the script that runs my MLflow evaluation"),
+    ("table", None, None, "the code that runs my judge"),
+    ("records", None, None, "the code that runs my judge"),
+    ("mapped", None, None, "the code that runs my judge"),
+])
+def test_the_tool_hint(tool, test_file, task_file, hint):
+    assert start_fix_rule.tool_hint(tool, test_file, task_file) == hint
+
+
+def test_the_promptfoo_hint_saves_where_judgekeeper_reads():
+    # a plain `promptfoo eval` saves no results file: the agent's run would not be found
+    assert start_fix_rule.tool_hint("promptfoo", results_file="out/results.json") == (
+        "for example npx promptfoo eval -o out/results.json")
+
+
+def test_the_agent_prompt_of_a_project_holds_no_answer_text(tmp_path, seeded, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ws = too_easy_project(tmp_path)
+    fix = start_fix.Fix(ws, "judgekeeper start --port 8791")
+    text = fix.agent_prompt()
+    assert (ws.dir / "fix" / "prompt.txt").is_file()  # what the agent reads
+    for raw in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines()):
+        assert raw["output"] not in text and raw["input"] not in text
+    assert "Read .judgekeeper/fix/prompt.txt." in text
+    assert "Run: judgekeeper start --port 8791 --fix --rule-file " in text
+    assert "6. Tell me in plain words what it printed." in text  # records: not askable
+    assert "(where my eval keeps the judge's rule)" in text
+
+
+def test_the_agent_prompt_says_where_the_rule_probably_is(fixable, monkeypatch):
+    monkeypatch.chdir(fixable.root)
+    from tests.start_projects import RUBRIC
+
+    _write(fixable.root / "promptfooconfig.yaml",
+           f"tests:\n  - assert:\n      - type: llm-rubric\n        value: |\n"
+           f"          {RUBRIC.splitlines()[0]}\n")
+    text = start_fix.Fix(fixable).agent_prompt()
+    assert "(probably in promptfooconfig.yaml, line 5)" in text
+    assert "(for example npx promptfoo eval -o results.json)" in text
+    assert "5. Run: judgekeeper start --try-new-judge --no-browser" in text
+
+
+def test_the_agent_prompt_names_the_deepeval_test_file(tmp_path, seeded, monkeypatch):
+    from tests.start_projects import deepeval_project
+
+    monkeypatch.chdir(tmp_path)
+    deepeval_project(tmp_path, split(20, 16))  # its run names "testFile": test_support.py
+    ws = start_label.prepare(start.find_judge(tmp_path), say=_quiet)
+    _mark_all(ws, lambda i, g: "pass" if i % 3 else "fail")
+    text = start_fix.Fix(ws).agent_prompt()
+    assert "(for example deepeval test run test_support.py)" in text
+
+
+# --rule-file ------------------------------------------------------------------------------
+
+def _rule_file(capsys, root, text, *flags):
+    path = root / "agent-rule.txt"
+    path.write_text(text, encoding="utf-8")
+    return run(capsys, root, "--fix", "--rule-file", path, *flags)
+
+
+def test_a_rule_file_is_checked_saved_and_said(tmp_path, seeded, capsys):
+    ws = too_easy_project(tmp_path)
+    code, out, _ = _rule_file(capsys, tmp_path, "NEW RULE START\nBe helpful and say no to "
+                              "refunds after 30 days.\nNEW RULE END\n")
+    assert code == 0
+    meta = json.loads((ws.dir / "fix" / "rule.json").read_text(encoding="utf-8"))
+    assert meta["how"] == "agent"
+    assert meta["new"] == "Be helpful and say no to refunds after 30 days."
+    assert "Saved. Your judge's rule now:\n  Be helpful.\n" in out
+    assert "The new rule:\n  Be helpful and say no to refunds after 30 days.\n" in out
+    assert "Where it goes: judgekeeper could not find where this rule is written." in out
+    assert "Then run your eval and judgekeeper start to check it on new answers." in out
+    assert "Open this link" not in out and "http://" not in out  # no page, no server
+    section = start_fix.Fix(ws).state()["rule_change"]
+    assert section["saved"]["how"] == "agent"
+
+
+def test_a_blocked_rule_file_exits_1_and_writes_nothing(tmp_path, seeded, capsys):
+    ws = too_easy_project(tmp_path)
+    code, out, _ = _rule_file(capsys, tmp_path, "   \n")
+    assert code == 1
+    assert "Checks:\n  The new rule is empty.\n" in out
+    assert "The new rule was not saved." in out
+    assert not (ws.dir / "fix" / "rule.txt").exists()
+    assert not (ws.dir / "fix" / "rule.json").exists()
+
+
+def test_a_rule_file_for_a_rule_per_test_exits_1(tmp_path, seeded, capsys):
+    ws = too_easy_project(tmp_path)
+    _fix_with(ws, one_rule=False)
+    code, out, _ = _rule_file(capsys, tmp_path, "Be kind.")
+    assert code == 1 and "Your rule is different for each test" in out
+    assert not (ws.dir / "fix" / "rule.json").exists()
+
+
+def test_a_missing_rule_file_is_a_usage_error_naming_it(tmp_path, seeded, capsys):
+    too_easy_project(tmp_path)
+    code, _, err = run(capsys, tmp_path, "--fix", "--rule-file", tmp_path / "nope.txt")
+    assert code == 2
+    assert "judgekeeper start: error: can't read --rule-file" in err and "nope.txt" in err
+
+
+def test_rule_file_works_only_with_fix(tmp_path, capsys):
+    code, _, err = run(capsys, tmp_path, "--rule-file", tmp_path / "x.txt")
+    assert code == 2 and "--rule-file works only with --fix" in err
+
+
+# The prompt pasted back ---------------------------------------------------------------------
+
+# The start of a real reply from llama3.2:3b, a small local model, to judgekeeper's prompt: a
+# new first line, then the prompt's MISTAKES list came back, with no end line.
+ECHOED = """NEW RULE START
+
+Pass if the answer clearly states the solution to the math problem or clearly states the \
+calculation result.
+
+MISTAKES (the person is right):
+[M1] Judge said PASS, person said FAIL. Person's note: "The sum in the answer is wrong.". \
+Judge's reason: "the answer does not clearly state the correct calculation".
+     Question: "question: Question 24: what is 23 + 5?
+answer: Question 24: what is 23 + 5? Happy to help! 23 + 5 = 38." Answer: "Question 24: what \
+is 23 + 5? Happy to help! 23 + 5 = 38."
+[M2] Judge said FAIL, person said PASS. Person's note: "The sum is right.". Judge's reason: \
+"the answer does not clearly reply to the question".
+"""
+
+
+@pytest.mark.parametrize("how", ["pasted", "written", "agent"])
+def test_the_prompt_pasted_back_is_blocked(tmp_path, seeded, how):
+    ws = too_easy_project(tmp_path)
+    out = start_fix.Fix(ws).save_rule(ECHOED, how)
+    assert out == {"saved": False, "checks": [{
+        "text": "This looks like judgekeeper's prompt, not a new rule. Paste only the new rule.",
+        "blocking": True}]}
+    assert not (ws.dir / "fix" / "rule.txt").exists()
+
+
+@pytest.mark.parametrize("line", ["THE RULE NOW (keep it):", "MISTAKES (the person is right):",
+                                  "KEEP THESE RIGHT (the judge and the person agreed):",
+                                  "THE RULE DOES NOT DECIDE THESE:", "[M1] Judge said PASS",
+                                  "  [U1] Both said FAIL.", "[K1] Both said PASS."])
+def test_each_line_of_the_prompt_is_caught(line):
+    found = start_fix_rule.checks("Be kind.", f"Be kind.\n{line}", "promptfoo", [])
+    assert [c["text"] for c in found] == [start_fix_rule.ECHO]
+
+
+def test_a_rule_that_mentions_mistakes_is_not_caught():
+    found = start_fix_rule.checks("Be kind.", "Be kind. Mistakes in sums [M1 style] fail.",
+                                  "promptfoo", [])
+    assert found == []
+
+
+# The page -----------------------------------------------------------------------------------
+
+def test_the_page_offers_the_coding_agent_first(tmp_path):
+    page = start_fix.page_template(too_easy_project(tmp_path))
+    buttons = [page.index(x) for x in ("Let your coding agent do it",
+                                       "Copy a prompt for your AI assistant",
+                                       "I'll write it myself")]
+    assert buttons == sorted(buttons)
+    assert 'class="btn primary" id="rc-loop"' in page
+    assert 'class="btn" id="rc-ask"' in page
+    for needed in ("/fix/agent-prompt",
+                   ("It reads your mistakes from a file in .judgekeeper/, so your answers are\n"
+                    "          not in this text. It asks you before anything that costs money."),
+                   "When your agent has saved the new rule, reload this page to see it.",
+                   "Your coding agent wrote this rule."):
+        assert needed in page, needed
+
+
+def test_the_page_gives_the_agent_prompt_and_shows_its_rule(tmp_path, seeded, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ws = too_easy_project(tmp_path)
+    fix = start_fix.Fix(ws, "judgekeeper start --port 8791")
+    server = label_mod.make_server(fix, port=0, page=start_fix.page_template(ws),
+                                   result=start_review.result_maker(ws, say=_quiet))
+    thread = threading.Thread(target=server.serve, daemon=True)
+    thread.start()
+    client = Client(server)
+    try:
+        resp, payload = client.request("POST", "/fix/agent-prompt", {})
+        assert resp.status == 200
+        prompt = json.loads(payload)["prompt"]
+        assert "Run: judgekeeper start --port 8791 --fix --rule-file" in prompt
+        assert (ws.dir / "fix" / "prompt.txt").is_file()
+        resp, _ = client.request("POST", "/fix/agent-prompt", {}, token=False)
+        assert resp.status == 403
+        # the agent saves its rule from another process; a reload shows it
+        start_fix.Fix(ws).save_rule("Be kind and exact.", "agent")
+        resp, payload = client.request("GET", "/state")
+        saved = json.loads(payload)["rule_change"]["saved"]
+        assert saved["how"] == "agent" and saved["rule"] == "Be kind and exact."
+    finally:
+        server.stop()
+        thread.join(5)
+
+
+# The terminal -------------------------------------------------------------------------------
+
+def test_fix_in_the_terminal_prints_the_agent_prompt(tmp_path, seeded, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ws = too_easy_project(tmp_path)
+    code, out, _ = run(capsys, ".", "--fix", "--no-browser", "--port", "8791")
+    assert code == 0
+    said = ("To fix your judge's rule with your coding agent (Claude Code, Cursor or Codex), "
+            "paste this:")
+    assert said in out
+    assert out.index("Failed, but you said Pass") < out.index(said)
+    assert ("2. Run: judgekeeper start --port 8791 --no-browser --fix --rule-file "
+            ".judgekeeper/fix/agent-rule.txt") in out
+    assert (ws.dir / "fix" / "prompt.txt").is_file()
+
+
+def test_fix_in_the_terminal_says_why_there_is_no_agent_prompt(tmp_path, seeded, capsys,
+                                                               monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _fix_with(too_easy_project(tmp_path), one_rule=False)
+    _, out, _ = run(capsys, ".", "--fix", "--no-browser")
+    assert "Your rule is different for each test" in out
+    assert "paste this:" not in out
+
+
+# fix.json is read again before every write ---------------------------------------------------
+
+def test_two_fix_sessions_keep_each_others_tests(tmp_path, seeded):
+    ws = too_easy_project(tmp_path)
+    page, agent = start_fix.Fix(ws), start_fix.Fix(ws)  # the open page; a --try-new-judge run
+    mark = page.pass_mark_section()["mark"]
+    page.test_pass_mark(mark)
+    new = {i: "fail" for i in agent.aside_ids}
+    agent.test_new_judge(new, "Be strict.")
+    tests = json.loads((ws.dir / "fix.json").read_text(encoding="utf-8"))["tests"]
+    assert [t["kind"] for t in tests] == ["pass_mark", "rule"]
+    # and the page, writing after them, keeps both
+    page._record("another", "rule", {"fixed": 0, "broke": 0, "p": 1.0, "kind": "unsure",
+                                     "lines": ["x"]})
+    tests = json.loads((ws.dir / "fix.json").read_text(encoding="utf-8"))["tests"]
+    assert [t["kind"] for t in tests] == ["pass_mark", "rule", "rule"]
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert len(r["fix"]["tests"]) == 3
+    assert page.refusal() is not None and "3 changes" in page.refusal()

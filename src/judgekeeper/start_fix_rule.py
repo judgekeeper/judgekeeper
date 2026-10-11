@@ -9,6 +9,11 @@ Then the hand-over: where the rule probably is in the person's own files (a read
 nothing is imported or run), what to change there, and a prompt for a coding agent.
 judgekeeper never edits those files. The new rule is tested inside "Try your new judge", on
 the answers set aside (start_fix.Fix.test_new_judge).
+
+Or the person's coding agent does the whole loop (agent_loop_prompt): a prompt with no answer
+text, only paths and commands, that has the agent read fix/prompt.txt, save its rule with
+`judgekeeper start --fix --rule-file`, put it in place, and run the eval and Try your new
+judge after the person's yes.
 """
 
 from __future__ import annotations
@@ -46,6 +51,10 @@ COPIES = "It copies text from your answers, so it may only fix these answers."
 ASK = ("Make the smallest change that fixes as many mistakes as you can without breaking the\n"
        "KEEP items. Add general guidance only: do not copy text from the answers and do not\n"
        "mention specific answers.")
+ECHO = "This looks like judgekeeper's prompt, not a new rule. Paste only the new rule."
+# Lines of judgekeeper's own prompt: a rule holding one is the prompt pasted back
+PROMPT_LINES = ("THE RULE NOW", "MISTAKES (the person is right)", "KEEP THESE RIGHT",
+                "THE RULE DOES NOT DECIDE THESE", "[M1]", "[U1]", "[K1]")
 HAND_WRITTEN = ("You wrote this rule after seeing all your disagreements, so this test may look "
                 "better than it is.")
 FIELDS = {
@@ -203,12 +212,20 @@ def _runs(words: list[str]) -> set[tuple[str, ...]]:
     return {tuple(words[i:i + COPIED]) for i in range(len(words) - COPIED + 1)}
 
 
+def echoes_prompt(new: str) -> bool:
+    """Whether the new rule holds a line of judgekeeper's own prompt (its headings, or the
+    first mistake, unclear or kept item)."""
+    return any(line.strip().startswith(PROMPT_LINES) for line in new.splitlines())
+
+
 def checks(old: str, new: str, tool: str, outputs: list[str]) -> list[dict]:
-    """The problems with a new rule, each {"text", "blocking"}: an empty rule and a dropped
-    template part block saving it; a big change and text copied from the used answers are
-    said."""
+    """The problems with a new rule, each {"text", "blocking"}: an empty rule, judgekeeper's
+    prompt pasted back and a dropped template part block saving it; a big change and text
+    copied from the used answers are said."""
     if not new.strip():
         return [{"text": EMPTY, "blocking": True}]
+    if echoes_prompt(new):
+        return [{"text": ECHO, "blocking": True}]
     out = [{"text": DROPPED.format(part=p), "blocking": True}
            for p in placeholders(old, tool) if not _same_part(p, new)]
     if len(new) > BIG * len(old) + BIG_EXTRA:
@@ -349,5 +366,80 @@ def hand_over(root: Path, data: dict, old: str, new: str, n_aside: int) -> dict:
             "agent_prompt": agent, "last": last}
 
 
-__all__ = ["build_prompt", "checks", "field", "hand_over", "locate_rule", "new_rule_of",
-           "placeholders", "rule_text", "word_diff"]
+# Your coding agent does it ----------------------------------------------------------------
+
+AGENT_FILE = "agent-rule.txt"
+HINTS = {"promptfoo": "for example npx promptfoo eval",
+         "mlflow": "the script that runs my MLflow evaluation"}
+# promptfoo saves a results file only when asked (-o, or outputPath in its config)
+OWN_HINT = "the code that runs my judge"
+NOT_FOUND = "where my eval keeps the judge's rule"
+AGENT_INTRO = ("judgekeeper found where my LLM judge disagrees with me. Please fix the judge's "
+               "rule, step by step. Stop and ask me wherever a step says so.")
+
+
+def tool_hint(tool: str, test_file: str | None = None, task_file: str | None = None,
+              results_file: str | None = None) -> str:
+    """How the person's eval is probably run, for the agent prompt's step 4. For promptfoo,
+    with -o and the results file judgekeeper read: a plain `promptfoo eval` saves none."""
+    if tool == "promptfoo" and results_file:
+        return f"for example npx promptfoo eval -o {results_file}"
+    if tool == "deepeval":
+        return (f"for example deepeval test run {test_file}" if test_file else
+                "for example deepeval test run with my test file")
+    if tool == "inspect":
+        return (f"for example inspect eval {task_file}" if task_file else
+                "for example inspect eval with my task file")
+    return HINTS.get(tool, OWN_HINT)
+
+
+def place_words(found: tuple[str, int, str] | None) -> str:
+    """Where the rule probably is (locate_rule), as the agent prompt's step 3 says it."""
+    return f"probably in {found[0]}, line {found[1]}" if found else NOT_FOUND
+
+
+def agent_loop_prompt(command: str, folder: str, place: str, hint: str,
+                      askable: bool) -> str:
+    """The prompt for the person's coding agent: the whole loop, with no answer text in it.
+    `command` is `judgekeeper start` with the person's own flags (start.Talk.command),
+    `folder` the path of .judgekeeper/fix as the agent will use it, `place` and `hint` from
+    place_words and tool_hint; `askable`: whether the judge can be asked again (Try your new
+    judge), else `judgekeeper start` checks it on new answers."""
+    from judgekeeper.textio import quote_arg
+
+    rule_file = quote_arg(f"{folder}/{AGENT_FILE}")
+    browser = "" if "--no-browser" in command.split() else " --no-browser"
+    steps = [
+        (f"Read {folder}/prompt.txt. It holds my judge's rule now, the mistakes I marked and "
+         f"how to write a new rule. Write the new rule as it asks into {folder}/{AGENT_FILE}. "
+         "Keep the rule general: don't copy text from the answers."),
+        (f"Run: {command} --fix --rule-file {rule_file}\n"
+         "It checks the rule. If it says the rule can't be saved, change the rule and run it "
+         "again. Show me the old rule and the new one."),
+        (f"Put the new rule where that command says ({place}). Change only the rule, nothing "
+         "else."),
+        ("Ask me before you run my eval: it calls my judge's model, which may cost money. Then "
+         f"run it the way this project runs it ({hint})."),
+    ]
+    if askable:
+        steps += [
+            (f"Run: {command} --try-new-judge{browser}\n"
+             "It prints how many judge calls it would make, and stops. Show me that and ask me. "
+             "Only after I say yes, run it again with the --allow-calls number it printed."),
+            ("Tell me in plain words what it says: how many of the answers kept aside the new "
+             "rule fixed and broke, and the old and new numbers on my marked answers. If it "
+             "broke more than it fixed, say so and offer to put the old rule back."),
+        ]
+    else:
+        steps += [f"Run: {command}\nIt checks my new judge on new answers.",
+                  "Tell me in plain words what it printed."]
+    lines = [AGENT_INTRO, ""]
+    for n, text in enumerate(steps, 1):
+        first, *rest = text.split("\n")
+        lines += [f"{n}. {first}", *(f"   {x}" for x in rest)]
+    return "\n".join(lines) + "\n"
+
+
+__all__ = ["agent_loop_prompt", "build_prompt", "checks", "echoes_prompt", "field",
+           "hand_over", "locate_rule", "new_rule_of", "place_words", "placeholders",
+           "rule_text", "tool_hint", "word_diff"]

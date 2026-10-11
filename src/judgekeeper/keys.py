@@ -125,9 +125,11 @@ def provider_of(model: str | None, provider: str | None = None) -> str | None:
     m = SUFFIX.search(model)
     if m:
         return ALIASES.get(m[1].lower().replace(" ", ""))
-    for sep in (":/", ":", "/"):
-        if sep in model:
-            return ALIASES.get(model.split(sep, 1)[0].lower())
+    for sep in (":/", ":", "/"):  # Inspect's "ollama/llama3.2:3b" has a colon after the slash
+        if sep in model and model.split(sep, 1)[0].lower() in ALIASES:
+            return ALIASES[model.split(sep, 1)[0].lower()]
+    if any(sep in model for sep in (":", "/")):
+        return None
     for prefix, name in BARE:
         if model.lower().startswith(prefix):
             return name

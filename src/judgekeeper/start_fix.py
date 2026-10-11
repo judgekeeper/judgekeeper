@@ -24,14 +24,17 @@ cell sets aside more of the few disagreements than of the many agreed answers, s
 either part weigh each answer by its cell (cell_weights), not only its group. After 3 tests on
 one split, the answers set aside no longer give a fair test.
 
-- for a judge with one rule: changing it, with a prompt for any AI assistant (start_fix_rule).
-  A new judge is then tested on the answers set aside inside Try your new judge
+- for a judge with one rule: changing it, with a prompt for the person's coding agent or any
+  AI assistant (start_fix_rule); `--fix --rule-file` saves a rule from a file, as the coding
+  agent does. A new judge is then tested on the answers set aside inside Try your new judge
   (new_judge_test).
 
 `.judgekeeper/` gains fix.json (the result it is of, the seed, the two parts, the tests) and
 fix/ (patterns.json: the counts and the pattern lines; pass-mark.json: the pass-mark test;
 prompt.txt, rule.txt and rule.json: the prompt, the new rule, its checks and hand-over), and
-result.json a `fix` block. A new result moves fix.json and fix/ to history/fix-<date>/.
+result.json a `fix` block. A new result moves fix.json and fix/ to history/fix-<date>/. The page
+and a `--rule-file` or `--try-new-judge` run may work at once: each test re-reads fix.json and
+adds only itself.
 judgekeeper never edits the person's own files: it only says where the pass mark or the rule
 probably is.
 """
@@ -46,6 +49,7 @@ import random
 import re
 import secrets
 import statistics
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -61,7 +65,7 @@ from judgekeeper.start_label import (
     question_view,
     say_opened,
 )
-from judgekeeper.textio import jsonl_lines, write_replacing
+from judgekeeper.textio import jsonl_lines, quote_arg, write_replacing
 
 ASIDE_TENTHS = 3  # of each cell set aside, rounded up
 MIN_EACH = 5  # set-aside answers marked Pass, and Fail, a test needs
@@ -104,6 +108,9 @@ NOTHING = "Your judge agrees with every final mark you gave: nothing to fix."
 SIDES = (("pass", "fail", "Passed, but you said Fail"),
          ("fail", "pass", "Failed, but you said Pass"))
 SAID = {"pass": "Pass", "fail": "Fail"}
+HOW = ("pasted", "written", "agent")  # how a new rule came: an AI assistant, the person, an agent
+AGENT_SAYS = ("To fix your judge's rule with your coding agent (Claude Code, Cursor or Codex), "
+              "paste this:")
 
 
 def _plural(n: int, word: str, many: str | None = None) -> str:
@@ -452,13 +459,14 @@ class Fix:
     """The fix of one result: the split (made once), the patterns, the pass mark and its
     test. The page gets only the used answers; the set-aside ones only as counts."""
 
-    def __init__(self, ws: Workspace):
+    def __init__(self, ws: Workspace, command: str = "judgekeeper start"):
         self.workspace = ws
+        self.command = command  # start.Talk.command: the person's own flags, for the agent
         self.out = ws.dir / "fix.json"
         self.folder = ws.dir / "fix"
         self.by_id: dict = {}  # nothing on this page is labeled
         self.posts = {"/fix/pass-mark": self._post_pass_mark, "/fix/prompt": self._post_prompt,
-                      "/fix/rule": self._post_rule}
+                      "/fix/agent-prompt": self._post_agent_prompt, "/fix/rule": self._post_rule}
         # a body too big for the server to read, on a path: what to say
         self.too_long = {"/fix/rule": start_fix_rule.TOO_LONG}
         basis = start_review._basis(ws)
@@ -540,7 +548,7 @@ class Fix:
         """Why no change can be tested on this split (on `ids` of it, by default all the
         answers set aside), or None."""
         n = len(self.aside_ids)
-        tests = len(self.saved["tests"])
+        tests = len(self._reread()["tests"])
         if tests >= MAX_TESTS:
             return (f"You have tested {tests} changes on the same {n} answers, so they no "
                     "longer give a fair test. Mark new answers to test more.")
@@ -649,7 +657,20 @@ class Fix:
                 "p": sign_test(fixed, broke),
                 "lines": [test_sentence(n, fixed, broke), SMALL], "numbers": numbers}
 
+    def _reread(self) -> dict:
+        """fix.json as it is on disk now: another process (the page, `--rule-file`, Try your
+        new judge) may have added a test since this one read it."""
+        try:
+            on_disk = json.loads(self.out.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return self.saved
+        if on_disk.get("basis") == self.saved["basis"] and isinstance(on_disk.get("tests"),
+                                                                       list):
+            self.saved["tests"] = on_disk["tests"]
+        return self.saved
+
     def _record(self, change: str, kind: str, test: dict) -> None:
+        self._reread()
         self.saved["tests"].append({"kind": kind, "made_at": utc_now(), "change": change,
                                     "fixed": test["fixed"], "broke": test["broke"],
                                     "p": test["p"], "result": test["kind"],
@@ -724,15 +745,56 @@ class Fix:
         write_replacing(self.folder / "prompt.txt", text)
         return text
 
+    def _from_here(self, *parts: str) -> str:
+        """A path in the project as the person's coding agent finds it from where `start`
+        ran."""
+        root = self.workspace.root.resolve()
+        try:
+            rel = Path(os.path.relpath(root, Path.cwd().resolve()))
+        except ValueError:  # another drive on Windows
+            rel = root
+        return rel.joinpath(*parts).as_posix()
+
+    def agent_prompt(self) -> str:
+        """The prompt for the person's coding agent (start_fix_rule.agent_loop_prompt). It
+        writes fix/prompt.txt first: the agent reads the mistakes from there, so no answer is
+        in this text."""
+        from judgekeeper.find import _head
+        from judgekeeper.start import _TEST_FILE
+        from judgekeeper.start_label import ASKABLE
+
+        self.prompt()
+        data = self.data
+        test_file = None
+        if self.tool == "deepeval":
+            for name in data.get("results_files") or []:
+                try:
+                    m = _TEST_FILE.search(_head(self.workspace.root / name))
+                except OSError:
+                    m = None
+                if m:
+                    test_file = m[1].decode("utf-8", errors="replace")
+                    break
+        results = (data.get("results_files") or [None])[0]
+        hint = start_fix_rule.tool_hint(
+            self.tool, test_file and quote_arg(test_file),
+            data.get("task_file") and quote_arg(data["task_file"]),
+            results and quote_arg(self._from_here(results)))
+        found = start_fix_rule.locate_rule(self.workspace.root, self.rule, self.tool)
+        return scrub(start_fix_rule.agent_loop_prompt(
+            self.command, self._from_here(FOLDER, "fix"), start_fix_rule.place_words(found),
+            hint, self.tool in ASKABLE))
+
     def _saved_rule(self) -> dict | None:
         path = self.folder / "rule.json"
         return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
     def save_rule(self, text: str, how: str) -> dict:
-        """Check the new rule (pasted from an AI assistant, or written by hand) and save it
-        in fix/rule.txt and rule.json unless a check blocks it: {"saved", "checks"}."""
-        if how not in ("pasted", "written"):
-            raise ValueError("how must be pasted or written")
+        """Check the new rule (pasted from an AI assistant, written by hand, or from the file
+        the person's coding agent wrote) and save it in fix/rule.txt and rule.json unless a
+        check blocks it: {"saved", "checks"}."""
+        if how not in HOW:
+            raise ValueError("how must be pasted, written or agent")
         if not isinstance(text, str):
             raise TypeError("the rule must be text")
         if len(text) > start_fix_rule.MAX_PASTE:
@@ -774,6 +836,9 @@ class Fix:
 
     def _post_prompt(self, body: dict) -> dict:
         return {"prompt": self.prompt()}
+
+    def _post_agent_prompt(self, body: dict) -> dict:
+        return {"prompt": self.agent_prompt()}
 
     def _post_rule(self, body: dict) -> dict:
         result = self.save_rule(body.get("text"), body.get("how"))
@@ -853,8 +918,67 @@ def _terminal(fix: Fix, talk, test: bool) -> int:
         elif section.get("button") or section.get("test"):
             for line in test_lines(fix.test_pass_mark(section["mark"])):
                 talk.say(line)
+    else:
+        talk.say()
+        problem = fix._rule_problem()
+        if problem:
+            talk.say(problem)
+        else:
+            talk.say(AGENT_SAYS)
+            talk.say()
+            for line in fix.agent_prompt().splitlines():
+                talk.say(line)
     talk.say()
     talk.say(f"Saved in {FOLDER}/fix/.")
+    return 0
+
+
+def _indented(talk, text: str) -> None:
+    for line in text.splitlines() or [""]:
+        talk.say(f"  {line}" if line.strip() else "")
+
+
+def read_rule_file(path: str | Path) -> str:
+    """The text of `--rule-file`; ValueError (what to say) when it can't be read."""
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        why = "it is not UTF-8 text"
+    except OSError as e:
+        why = e.strerror or str(e)
+    raise ValueError(f"judgekeeper start: error: can't read --rule-file {quote_arg(path)}: "
+                     f"{why}")
+
+
+def save_rule_file(fix: Fix, talk, text: str) -> int:
+    """`--fix --rule-file PATH`: check the rule the person's coding agent wrote (`text`) and
+    save it as a pasted one is, then say where it goes. No page, no server, no AI call."""
+    try:
+        result = fix.save_rule(text, "agent")
+    except ValueError as e:
+        talk.say(f"The new rule was not saved: {e}")
+        return 1
+    talk.say()
+    if result["checks"]:
+        talk.say("Checks:")
+        for c in result["checks"]:
+            talk.say(f"  {c['text']}")
+    if not result["saved"]:
+        talk.say("The new rule was not saved. Change it and run this again.")
+        return 1
+    saved = fix._saved_rule()
+    talk.say()
+    talk.say("Saved. Your judge's rule now:")
+    _indented(talk, saved["old"])
+    talk.say()
+    talk.say("The new rule:")
+    _indented(talk, saved["new"])
+    talk.say()
+    hand = saved["hand_over"]
+    talk.say(f"Where it goes: {hand['where']}")
+    for note in hand["notes"]:
+        talk.say(note)
+    talk.say(hand["last"])
     return 0
 
 
@@ -864,14 +988,15 @@ def page_template(ws: Workspace) -> str:
     return fix_page(ws.data().get("description"))
 
 
-def switch(ws: Workspace, say):
+def switch(ws: Workspace, say, command: str = "judgekeeper start"):
     """For the labeling and review servers: the fix's session, page and result function, or
-    None while there is nothing to fix."""
+    None while there is nothing to fix. `command` (start.Talk.command) goes into the agent
+    prompt."""
 
     def go():
         if not ready(ws):
             return None
-        fix = Fix(ws)
+        fix = Fix(ws, command)
         if fix.new:
             say(aside_line(fix))
         return fix, page_template(ws), start_review.result_maker(ws, say)
@@ -917,9 +1042,9 @@ def serve_fix(ws: Workspace, port: int, open_browser: bool, say,
     """Serve the fix page until Ctrl-C or 2 hours idle."""
     from judgekeeper.label import make_server
 
-    fix = Fix(ws)
+    fix = Fix(ws, command)
     server = make_server(fix, port, result=start_review.result_maker(ws, say),
-                         page=page_template(ws), switches={"/fix": switch(ws, say)})
+                         page=page_template(ws), switches={"/fix": switch(ws, say, command)})
     say_opened(server.url, open_browser, say, command, " --fix")
     try:
         server.serve()
@@ -929,8 +1054,10 @@ def serve_fix(ws: Workspace, port: int, open_browser: bool, say,
     return 0
 
 
-def run(ws: Workspace, talk, port: int, open_browser: bool, test: bool = False) -> int:
-    """`judgekeeper start --fix`, or the menu's choice."""
+def run(ws: Workspace, talk, port: int, open_browser: bool, test: bool = False,
+        rule_file: str | Path | None = None) -> int:
+    """`judgekeeper start --fix`, or the menu's choice; with `rule_file`, save the rule in it
+    (save_rule_file)."""
     from judgekeeper import start
 
     if not start_review.count(ws):
@@ -942,14 +1069,23 @@ def run(ws: Workspace, talk, port: int, open_browser: bool, test: bool = False) 
     if not ready(ws):
         talk.say(NOTHING)
         return 0
-    fix = Fix(ws)
+    text = None
+    if rule_file is not None:
+        try:
+            text = read_rule_file(rule_file)
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return start.EXIT_USAGE
+    fix = Fix(ws, talk.command())
     if fix.new:
         talk.say()
         talk.say(aside_line(fix))
+    if text is not None:
+        return save_rule_file(fix, talk, text)
     if test or not open_browser:
         return _terminal(fix, talk, test)
     return serve_fix(ws, port, open_browser, talk.say, talk.command())
 
 
-__all__ = ["Fix", "final_marks", "pattern_lines", "ready", "run", "serve_fix", "sign_test",
-           "split", "switch", "test_sentence"]
+__all__ = ["Fix", "final_marks", "pattern_lines", "ready", "run", "save_rule_file", "serve_fix",
+           "sign_test", "split", "switch", "test_sentence"]

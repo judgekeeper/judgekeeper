@@ -458,6 +458,9 @@ def _parser() -> argparse.ArgumentParser:
     st.add_argument("--test-pass-mark", action="store_true",
                     help="with --fix: test the pass mark that fits your marks best, in the "
                          "terminal (free)")
+    st.add_argument("--rule-file", metavar="PATH",
+                    help="with --fix: check the new rule in this file (as your coding agent "
+                         "writes it), save it and say where it goes; no page (free)")
     st.add_argument("--times", type=_times, default=None, metavar="N",
                     help="asking again: how many times to ask about each answer, 1 to 5 "
                          "(default 2; 1 with --try-new-judge)")
@@ -793,16 +796,17 @@ def cmd_start(args) -> int:
 
         print(AGENT_PROMPT)
         return 0
-    if args.test_pass_mark and not args.fix:
-        print("judgekeeper start: error: --test-pass-mark works only with --fix",
-              file=sys.stderr)
-        return EXIT_USAGE
+    for flag, given in (("--test-pass-mark", args.test_pass_mark),
+                        ("--rule-file", args.rule_file is not None)):
+        if given and not args.fix:
+            print(f"judgekeeper start: error: {flag} works only with --fix", file=sys.stderr)
+            return EXIT_USAGE
     return run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
                tracking_uri=args.tracking_uri, pass_if=args.pass_if, label_map=args.label_map, judge_model=args.judge_model,
                yes=args.yes, port=args.port, no_browser=args.no_browser, new=args.new,
                review=args.review, label_more=args.label_more, ask_again=args.ask_again,
                try_new_judge=args.try_new_judge, fix=args.fix,
-               test_pass_mark=args.test_pass_mark,
+               test_pass_mark=args.test_pass_mark, rule_file=args.rule_file,
                times=args.times, python=args.python, fields=args.fields,
                judge_command=args.judge_command, allow_calls=args.allow_calls)
 
