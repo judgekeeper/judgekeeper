@@ -1,9 +1,10 @@
 """Command-line entry point.
 
 `judgekeeper` with no command (front.py) finds the judge, checks it for free and ends with one
-`Next:` line; `judgekeeper start` marks answers on a page. Exit codes: 0 success, 1 runtime
-failure, 2 usage error, 3 the person is needed (`judgekeeper`: its Next: line says what to
-ask), 8 stopped at a question (`start`, below), 130 Ctrl-C.
+`Next:` line; `judgekeeper mark` (mark.py) opens the page to mark answers on, and prints the
+result once there are enough marks; `judgekeeper start` marks answers on a page. Exit codes: 0
+success, 1 runtime failure, 2 usage error, 3 the person is needed (`judgekeeper` and `mark`:
+the Next: line says what to ask), 8 stopped at a question (`start`, below), 130 Ctrl-C.
 
 Everything printed as an error goes through redact.scrub. A failure with no better message
 prints one scrubbed line; --debug adds the traceback, also scrubbed. A path that cannot be
@@ -51,6 +52,7 @@ ABOUT = ("Run judgekeeper in your project: it finds your eval tool's saved resul
          "judge that made them, checks them for free (no AI call), and ends with one Next: "
          "line saying what to do.")
 COMMANDS_HELP = (
+    ("mark", "open a page to mark answers Pass or Fail, then see how often your judge agrees"),
     ("start", "mark answers Pass or Fail on a page, and see how often your judge agrees"),
 )
 HELP_WIDTH = 100
@@ -181,6 +183,42 @@ def _parser() -> argparse.ArgumentParser:
                         help=argparse.SUPPRESS)
     sub = p.add_subparsers(dest="command", metavar="command", parser_class=_Parser)
 
+    mk = sub.add_parser("mark", parents=[common],
+                        help="open a page to mark answers Pass or Fail; with enough marks, "
+                             "the result")
+    mk.add_argument("path", nargs="?", default=".", metavar="PATH",
+                    help="your project folder (default: this folder), one results file, or "
+                         "an MLflow store (mlflow.db or an mlruns/ folder)")
+    mk.add_argument("--tool", choices=TOOLS,
+                    help="which eval tool's results to read when several are found")
+    mk.add_argument("--metric", metavar="NAME",
+                    help="the judge to look at when the results hold several")
+    mk.add_argument("--experiment", metavar="NAME_OR_ID",
+                    help="MLflow: the experiment to read, when several have judge results")
+    mk.add_argument("--tracking-uri", metavar="URI",
+                    help="MLflow: the local store to read (mlflow.db, sqlite:///..., an "
+                         "mlruns/ folder or file:...)")
+    _normaliser_args(mk)
+    mk.add_argument("--judge-model", metavar="NAME",
+                    help="the judge's model, when the results do not record it")
+    mk.add_argument("--fields", metavar="LIST",
+                    help="a DeepEval GEval judge: the parts it reads, e.g. input,actual_output")
+    mk.add_argument("--yes", action="store_true",
+                    help="without a terminal: the person said yes to the question judgekeeper "
+                         "printed")
+    mk.add_argument("--port", type=_port, default=8765,
+                    help="port on 127.0.0.1 for the page (default 8765)")
+    mk.add_argument("--no-browser", action="store_true",
+                    help="print the page's link without opening a browser")
+    what = mk.add_mutually_exclusive_group()
+    what.add_argument("--new", action="store_true",
+                      help="start over: your marks move to .judgekeeper/previous-<date>/ "
+                           "(asked first; nothing is deleted)")
+    what.add_argument("--wait", action="store_true",
+                      help="serve the page in this terminal until Ctrl-C, instead of in the "
+                           "background")
+    what.add_argument("--stop", action="store_true", help="close the open page")
+
     st = sub.add_parser("start", parents=[common],
                         help="find your judge's saved results and check them against your own "
                              "labels")
@@ -286,6 +324,16 @@ def cmd_start(args) -> int:
                judge_command=args.judge_command, allow_calls=args.allow_calls)
 
 
+def cmd_mark(args) -> int:
+    from judgekeeper import mark
+
+    return mark.run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
+                    tracking_uri=args.tracking_uri, pass_if=args.pass_if,
+                    label_map=args.label_map, judge_model=args.judge_model,
+                    fields=args.fields, yes=args.yes, port=args.port,
+                    no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop)
+
+
 def cmd_front(args) -> int:
     from judgekeeper import front
 
@@ -295,7 +343,7 @@ def cmd_front(args) -> int:
                      fields=args.fields, yes=args.yes)
 
 
-COMMANDS = {"start": cmd_start, None: cmd_front}
+COMMANDS = {"mark": cmd_mark, "start": cmd_start, None: cmd_front}
 
 
 def _command(args_list: list[str]) -> str | None:
