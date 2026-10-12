@@ -284,7 +284,8 @@ def test_without_a_terminal_each_answer_question_takes_yes(tmp_path, capsys, mon
     assert code == 3, out
     assert out.splitlines()[-1] == (
         'Next: ask the person: "Each item has 2 answers (A and B). Count each as its own '
-        'answer?" If they say yes, run `judgekeeper --yes`.')
+        'answer, and save how to read data/prompt_evals.jsonl in judgekeeper.toml?" If they '
+        'say yes, run `judgekeeper --yes`.')
 
 
 # Eval tools and records are read as they are ----------------------------------------------

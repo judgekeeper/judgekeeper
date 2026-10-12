@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import builtins
 import json
+import re
+import shlex
 import tomllib
 
 import pytest
@@ -22,6 +24,7 @@ from tests.start_projects import (
     flat_jsonl,
     inspect_project,
     nested_runs_project,
+    own_format_project,
     promptfoo_data,
     promptfoo_project,
     records_project,
@@ -357,6 +360,37 @@ def test_own_format_questions_take_their_flag(here, capsys):
     assert code == 0, out
     saved = tomllib.loads((here / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
     assert saved["judge"] == "Safe wording" and saved["map"]["sides"] == ["A", "B"]
+
+
+@pytest.mark.parametrize("make", [
+    lambda root: nested_runs_project(root),
+    lambda root: own_format_project(root, cases=40)])
+def test_following_each_next_line_saves_only_after_the_save_question(here, capsys, make):
+    """--yes answers only a question the person was shown: judgekeeper.toml is written only
+    after a run whose printed question named it."""
+    make(here)
+    argv: list[str] = []
+    asked_save = False
+    for _ in range(6):
+        code, out, _ = run(capsys, *argv)
+        assert asked_save or not (here / "judgekeeper.toml").exists(), out
+        if code == 0:
+            break
+        assert code == 3, out
+        line = assert_one_next_at_the_end(out)
+        asked_save = asked_save or "judgekeeper.toml" in line
+        command = re.search(r"`(judgekeeper [^`]*)`", line)[1]
+        argv = ["Safe wording" if a == "NAME" else a for a in shlex.split(command)[1:]]
+    assert code == 0 and asked_save, out
+    assert assert_one_next_at_the_end(out) == START
+
+
+def test_the_save_question_is_asked_with_the_first_yes_no_question(here, capsys):
+    nested_runs_project(here)
+    code, out, _ = run(capsys)
+    assert code == 3
+    assert ('"Each item has 2 answers (A and B). Count each as its own answer, and save how '
+            'to read history/evals.jsonl in judgekeeper.toml?"') in assert_one_next_at_the_end(out)
 
 
 def test_promptfoo_results_from_another_project(here, capsys):

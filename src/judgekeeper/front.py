@@ -11,7 +11,8 @@ a file says.
 Finding is start.find_judge, with FrontTalk in place of start.Talk. At a terminal a question
 is asked inline. Without one, it is printed in plain words with a `Next:` line naming the flag
 that answers it, and the exit code is 3; `--yes` says the person answered yes to the yes/no
-question printed. judgekeeper.toml is written only for what had to be asked (which tool,
+question printed. When an own format's map will be saved, its save question is printed with
+the first yes/no question, as one, so `--yes` never saves unasked. judgekeeper.toml is written only for what had to be asked (which tool,
 which judge, which MLflow store or experiment, how to read an own format), after a yes.
 
 No AI call and no key. Exit codes: 0 found and checked (or `Next: nothing`), 3 the person is
@@ -43,6 +44,7 @@ FOUND_NEXT = "run `{command}` and mark each answer Pass or Fail on the page it o
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
+SAVE_MAP_TOO = "{question}, and save how to read {file} in judgekeeper.toml?"
 READS = ("judgekeeper reads the results that promptfoo, DeepEval, Inspect AI and MLflow save, "
          "a CSV or JSONL file with input, output and verdict columns, or what "
          "judgekeeper.record() saves.")
@@ -63,6 +65,7 @@ class FrontTalk(start.Talk):
         super().__init__(yes=yes, path=path)
         self.answers: dict[str, str] = {}  # what the person chose at a terminal: flag -> value
         self.store: str | None = None  # the MLflow store chosen at a terminal
+        self.saving: str | None = None  # the own-format file whose map is saved at the end
         self.refresh()
 
     def refresh(self) -> None:
@@ -106,6 +109,8 @@ class FrontTalk(start.Talk):
             return super().confirm(question, default, hint, with_yes)
         if self.yes:  # the person said yes to the question printed last time
             return True
+        if self.saving is not None and question != SAVE_MAP.format(file=self.saving):
+            question = SAVE_MAP_TOO.format(question=question.rstrip("?"), file=self.saving)
         self.say(question)
         raise self.stop(EXIT_QUESTION, f'ask the person: "{question}" If they say yes, run '
                                        f"`{self.command('--yes')}`.")
@@ -162,6 +167,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
             return path, None
         file, here = path.resolve(), Path.cwd().resolve()
         root = here if file.is_relative_to(here) else project_root(file.parent)
+        _will_save(talk, root, file)
         return root, own_map.map_file(talk, root, file, o["metric"], o["judge_model"],
                                       o["pass_if"], found=False)
     root = path.resolve()
@@ -175,8 +181,14 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     own = own_format.search(root)
     if own is None:
         raise _nothing_found(talk, root, search.signs)
+    _will_save(talk, root, own.path)
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
+
+
+def _will_save(talk: FrontTalk, root: Path, file: Path) -> None:
+    """The map of `file` is saved at the end: its path as own_map and judgekeeper.toml name it."""
+    talk.saving = file.relative_to(root).as_posix() if file.is_relative_to(root) else str(file)
 
 
 def _find(talk: FrontTalk, path: Path, saved) -> start.Found:
