@@ -43,7 +43,7 @@ VALUE_WIDTH = 40  # characters of a judge's decision value shown
 JUDGE_FILE = "judge.json"
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
 LABEL_MAP = '"VALUE=pass,VALUE=fail"'
-FOUND_NEXT = "run `{command}` and mark each answer Pass or Fail on the page it opens."
+FOUND_NEXT = "run `{command}`, then give the person the link it prints."
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
@@ -159,14 +159,20 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
 # Finding -----------------------------------------------------------------------------------
 
 def _run(talk: FrontTalk, path: Path) -> int:
+    found, saved = find_found(talk, path)
+    return _say(talk, found, saved)
+
+
+def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.StartSettings | None]:
+    """(the judge found, the [start] table of an own-format file mapped now or None), asking
+    what must be asked; `judgekeeper mark` finds the same way."""
     uri = talk.options["tracking_uri"]
     if uri is not None and str(uri).startswith(start.SERVERS):
         raise _tracking_server(talk, path, str(uri))
     if not path.exists():
         raise StartError(f"file or folder not found: {path}")
     where, saved = _own_format(talk, path)
-    found = _find(talk, where, saved)
-    return _say(talk, found, saved)
+    return _find(talk, where, saved), saved
 
 
 def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettings | None]:
@@ -480,14 +486,14 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         raise talk.stop(EXIT_QUESTION, (
             "ask the person whether to make more answers with their eval first (that makes "
             f"model calls), then run `{talk.command()}` again; or to mark these {n} now: run "
-            f"`{_start_command(talk, saved, '--yes')}`."))
+            f"`{_start_command(talk, saved)}`."))
     talk.say()
     talk.say("Next: " + FOUND_NEXT.format(command=_start_command(talk, saved)))
     return EXIT_OK
 
 
-def _start_command(talk: FrontTalk, saved: bool, *extra: str) -> str:
-    """`judgekeeper start` with the flags given, and the answers given at a terminal unless
+def answered(talk: FrontTalk, saved: bool) -> tuple[str, dict]:
+    """(the path, the options): the flags given, and the answers given at a terminal unless
     judgekeeper.toml keeps them now."""
     options = dict(talk.options)
     path = talk.path
@@ -495,8 +501,15 @@ def _start_command(talk: FrontTalk, saved: bool, *extra: str) -> str:
         options.update({ASKED[f]: v for f, v in talk.answers.items() if f in ASKED})
         if talk.store is not None:
             path = str(Path(path) / talk.store) if path != "." else talk.store
+    return path, options
+
+
+def _start_command(talk: FrontTalk, saved: bool, *extra: str) -> str:
+    """`judgekeeper mark` with the flags given, and the answers given at a terminal unless
+    judgekeeper.toml keeps them now."""
+    path, options = answered(talk, saved)
     flags = start.repeated_flags(path, **options)
-    return " ".join(("judgekeeper start", *flags, *extra))
+    return " ".join(("judgekeeper mark", *flags, *extra))
 
 
 def _to_save(talk: FrontTalk, found: start.Found,
@@ -550,5 +563,5 @@ def _save(talk: FrontTalk, found: start.Found, new: settings.StartSettings,
     return True
 
 
-__all__ = ["EXIT_NEEDS_YOU", "FrontTalk", "check_lines", "found_line", "judge_line", "run",
-           "tool_version"]
+__all__ = ["EXIT_NEEDS_YOU", "FrontTalk", "answered", "check_lines", "find_found", "found_line",
+           "judge_line", "run", "tool_version"]

@@ -83,7 +83,7 @@ def test_nested_runs_asks_four_questions_and_one_yes(tmp_path, capsys, terminal)
     code, out = check(capsys, tmp_path)
     assert code == 0, out
     assert len(asked) == 5
-    assert "Is this right?" in asked[0]
+    assert "Is this how judgekeeper should read " in asked[0]
     assert "Count each as its own answer?" in asked[1]
     assert "Which judge do you want to check?" in out
     assert "Leave them out?" in asked[3]
@@ -93,7 +93,7 @@ def test_nested_runs_asks_four_questions_and_one_yes(tmp_path, capsys, terminal)
     assert "Question " not in out and "Answer " not in out  # paths, never values
     assert "Found your results: your own format (history/evals.jsonl, 3 lines, 42 answers)" \
         in out
-    assert "Next: run `judgekeeper start " in out
+    assert "Next: run `judgekeeper mark " in out
 
 
 def test_nested_runs_files_after_the_yes(tmp_path, capsys, terminal):
@@ -180,7 +180,7 @@ def test_a_flat_file_with_one_judge_asks_only_whether_it_is_right_and_the_yes(
     flat_jsonl(tmp_path / "evals" / "graded.jsonl")
     answers += ["", ""]
     code, _ = check(capsys, tmp_path)
-    assert code == 0 and len(asked) == 2 and "Is this right?" in asked[0]
+    assert code == 0 and len(asked) == 2 and "Is this how judgekeeper should read " in asked[0]
 
 
 def test_a_guess_none_of_whose_parts_fit_asks_for_a_converter(tmp_path, capsys, terminal):
@@ -193,7 +193,7 @@ def test_a_guess_none_of_whose_parts_fit_asks_for_a_converter(tmp_path, capsys, 
     answers += ["n", "9"]  # not right; none of the parts fit
     code, out = check(capsys, path)
     assert code == 3
-    assert "Is this right?" in asked[0]
+    assert "Is this how judgekeeper should read " in asked[0]
     last = out.splitlines()[-1]
     assert last.startswith("Next: ask the person whether you may write a small script")
     assert "id, input, output, verdict (pass or fail) and reason" in last
