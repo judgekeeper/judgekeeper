@@ -1,39 +1,40 @@
-"""The marking page as a process of its own, so `judgekeeper mark` can print the link and
-return: a coding agent's shell would wait forever on a command that serves a page.
+"""The marking page as a process of its own, so `judgekeeper` can open it and return: a coding
+agent's shell would wait forever on a command that serves a page.
 
-`start` runs `python -m judgekeeper mark --wait ...` detached from the caller: a new session on
-POSIX; DETACHED_PROCESS, CREATE_NEW_PROCESS_GROUP and CREATE_NO_WINDOW on Windows. Its input
-and output are not the caller's: errors go to .judgekeeper/page.log (never answer text), the
-rest nowhere. It returns the page's link once the page answers (the lock in .judgekeeper/ and
-label.open_page), at most WAIT seconds; else None, and the process is ended.
+`start` runs `python -m judgekeeper.page` detached from the caller: a new session on POSIX;
+DETACHED_PROCESS, CREATE_NEW_PROCESS_GROUP and CREATE_NO_WINDOW on Windows. The page's token
+(made by the caller) and its settings go to it as one JSON line on its stdin, a pipe closed
+right after: never in its arguments, its environment or a file. Its output is not the
+caller's: errors go to .judgekeeper/page.log (never answer text or the token), the rest
+nowhere. It returns the page's link once the page answers to that token (the port is in the
+lock in .judgekeeper/), at most WAIT seconds; else None, and the process is ended.
 
-`stop` closes the open page with a POST to /stop with its token, which works the same on every
-system, and waits until it is gone: it no longer answers, and its lock is released or its
-process has ended.
+`stop` closes the open page with a POST to /stop with the lock's stop secret, which works the
+same on every system, and waits until it is gone: it no longer answers, and its lock is
+released or its process has ended.
 """
 
 from __future__ import annotations
 
-import http.client
+import json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-from urllib.parse import urlencode
 
-from judgekeeper.label import HOST, PROBE_TIMEOUT, open_page, read_lock
+from judgekeeper.label import answers, ask, is_open, link, read_lock
 
 WAIT = 10  # seconds
 LOG = "page.log"
 _started: list[subprocess.Popen] = []  # kept, so no page process is collected while it runs
 
 
-def start(folder: Path, args: list[str], timeout: float = WAIT) -> str | None:
-    """Start the page for the project whose .judgekeeper/ is `folder`, with `mark`'s `args`;
-    its link once it answers, else None."""
+def start(folder: Path, settings: dict, token: str, timeout: float = WAIT) -> str | None:
+    """Start the page for the project whose .judgekeeper/ is `folder`, with `settings` (see
+    page.main) and `token`; its link once it answers to the token, else None."""
     folder = Path(folder)
-    flags = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "close_fds": True}
+    flags = {"stdin": subprocess.PIPE, "stdout": subprocess.DEVNULL, "close_fds": True}
     if os.name == "nt":
         flags["creationflags"] = (subprocess.DETACHED_PROCESS
                                   | subprocess.CREATE_NEW_PROCESS_GROUP
@@ -42,16 +43,22 @@ def start(folder: Path, args: list[str], timeout: float = WAIT) -> str | None:
         flags["start_new_session"] = True
     try:
         with (folder / LOG).open("ab") as log:
-            proc = subprocess.Popen([sys.executable, "-m", "judgekeeper", "mark", "--wait",
-                                     *args], stderr=log, **flags)
+            proc = subprocess.Popen([sys.executable, "-m", "judgekeeper.page"], stderr=log,
+                                    **flags)
     except OSError:
         return None
     _started.append(proc)
+    try:
+        proc.stdin.write((json.dumps({**settings, "token": token}) + "\n").encode("utf-8"))
+        proc.stdin.close()
+    except OSError:
+        proc.kill()
+        return None
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        url = open_page(folder)
-        if url:
-            return url
+        lock = read_lock(folder)
+        if lock is not None and answers(lock["port"], token):
+            return link(lock["port"], token)
         if proc.poll() is not None:
             return None
         time.sleep(0.1)
@@ -63,20 +70,12 @@ def stop(folder: Path, timeout: float = WAIT) -> bool:
     """Close the page open for this project. False when none is open, or it did not close."""
     folder = Path(folder)
     lock = read_lock(folder)
-    if lock is None or open_page(folder) is None:
+    if lock is None or not is_open(folder):
         return False
-    conn = http.client.HTTPConnection(HOST, lock["port"], timeout=PROBE_TIMEOUT)
-    try:
-        conn.request("POST", f"/stop?{urlencode({'token': lock['token']})}")
-        conn.getresponse().read()
-    except (OSError, http.client.HTTPException):
-        pass
-    finally:
-        conn.close()
+    ask(lock["port"], "POST", "/stop", {"stop": lock["stop"]})
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if open_page(folder) is None and (read_lock(folder) != lock
-                                          or not _running(lock["pid"])):
+        if not is_open(folder) and (read_lock(folder) != lock or not _running(lock["pid"])):
             return True
         time.sleep(0.1)
     return False

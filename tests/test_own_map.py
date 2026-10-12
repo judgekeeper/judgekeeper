@@ -14,7 +14,7 @@ import tomllib
 
 import pytest
 
-from judgekeeper import start
+from judgekeeper import background, start
 from judgekeeper.cli import main
 from judgekeeper.readers.mapped import CHANGED_SHAPE
 from judgekeeper.textio import quote_arg
@@ -93,7 +93,16 @@ def test_nested_runs_asks_four_questions_and_one_yes(tmp_path, capsys, terminal)
     assert "Question " not in out and "Answer " not in out  # paths, never values
     assert "Found your results: your own format (history/evals.jsonl, 3 lines, 42 answers)" \
         in out
-    assert "Next: run `judgekeeper mark " in out
+    assert "Next: tell the person the marking page is open in their browser" in out
+
+
+def fresh(root):
+    """Close the page `judgekeeper` opened and clear .judgekeeper/ (judgekeeper.toml stays),
+    so `start` begins anew."""
+    import shutil
+
+    background.stop(root / ".judgekeeper")
+    shutil.rmtree(root / ".judgekeeper")
 
 
 def test_nested_runs_files_after_the_yes(tmp_path, capsys, terminal):
@@ -118,6 +127,7 @@ def test_then_start_reads_judgekeeper_toml(tmp_path, capsys, terminal, no_labeli
     nested_runs_project(tmp_path, runs=3, cases=8, rule_rows=1)
     answers += ["", "", "1", "", ""]
     check(capsys, tmp_path)
+    fresh(tmp_path)
     answers += [""]  # start: open the labeling page? yes
     code = main(["start", str(tmp_path)])
     out = capsys.readouterr().out
@@ -134,9 +144,13 @@ def test_then_judgekeeper_reads_it_without_a_question(tmp_path, capsys, terminal
     answers += ["", "", "1", ""]
     check(capsys, tmp_path)
     before = len(asked)
+    fresh(tmp_path)
     code, out = check(capsys, tmp_path)
     assert code == 0 and len(asked) == before
     assert "Read as judgekeeper.toml says: input prompt, answer <side>.output" in out
+    code, out = check(capsys, tmp_path)  # marking started: the judge and its results
+    assert code == 0 and len(asked) == before
+    assert "(your own format, history/evals.jsonl" in out
 
 
 def test_nothing_is_written_before_the_yes(tmp_path, capsys, terminal):
@@ -305,6 +319,7 @@ def test_the_saved_tool_is_used_without_asking(tmp_path, capsys, no_labeling):
                                                 encoding="utf-8")
     code, out = check(capsys, tmp_path)
     assert code == 0 and "Found your eval tool: promptfoo" in out
+    fresh(tmp_path)
     code = main(["start", str(tmp_path), "--yes"])
     capsys.readouterr()
     assert code == 0 and no_labeling[0].tool == "promptfoo"
@@ -338,6 +353,7 @@ def test_a_changed_shape_says_how_to_map_it_again(tmp_path, capsys, terminal):
     path = nested_runs_project(tmp_path, rule_rows=0)
     answers += ["", "", "1", ""]
     check(capsys, tmp_path)
+    fresh(tmp_path)
     path.write_text(path.read_text(encoding="utf-8").replace('"cases"', '"items"'),
                     encoding="utf-8")
     code, out = check(capsys, "start", tmp_path, "--yes")

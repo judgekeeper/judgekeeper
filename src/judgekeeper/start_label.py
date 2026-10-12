@@ -400,6 +400,7 @@ class StartSession(LabelSession):
         self.pool = data.get("pool", {})
         self.status = status or start_status
         self.sitting = marks.new_sitting()
+        self.link: str | None = None  # marks.PRINTED once the page's link was printed for an agent
         self.not_counted = 0  # lines of marks.jsonl not made on the page
         super().__init__(ws.pool, ws.marks)
         raw = [json.loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
@@ -435,7 +436,8 @@ class StartSession(LabelSession):
             self._apply(item, body)
             mark = item["label"] or ("skip" if item["deferred"] else None)
             line = marks.stamp(item["id"], mark, self.groups.get(item["id"]),
-                               body.get("seconds"), self.sitting, note=body.get("note"))
+                               body.get("seconds"), self.sitting, note=body.get("note"),
+                               link=self.link)
             if not self.out.is_file():
                 begin_marks(self.workspace)
             marks.append(self.out, line)
@@ -756,7 +758,8 @@ def _pass_rate(r: dict) -> list[tuple[str, bool]] | None:
 
 def made_lines(made: dict | None) -> list[str]:
     """How the marks were made (marks.made), and a note when more than a quarter took under a
-    second each, or when lines of marks.jsonl are not counted."""
+    second each, when lines of marks.jsonl are not counted, or when marks were made through a
+    link printed where a coding agent could read it."""
     if not made or not made["marks"]:
         return []
     n, quick = made["marks"], made["under_second"]
@@ -771,7 +774,10 @@ def made_lines(made: dict | None) -> list[str]:
         out.append(f"{quick} of your marks took under a second each. A result is only as good "
                    "as the marks.")
     not_counted = marks.not_counted_line(made.get("not_counted") or 0)
-    return out + ([not_counted] if not_counted else [])
+    printed = made.get("printed") or 0
+    return out + ([not_counted] if not_counted else []) + (
+        [f"{printed} of your marks were made through a link your coding agent could read."]
+        if printed else [])
 
 
 def page_content(r: dict, marking: str | None = None) -> dict:
@@ -1049,17 +1055,26 @@ def run_labeling(found, port: int, open_browser: bool, say,
 
 
 def say_opened(url: str, open_browser: bool, say, command: str = "judgekeeper start",
-               more: str = "") -> None:
+               more: str = "", session=None) -> None:
     """What the terminal says once a page is served: that it opened (or its link), that every
     click is saved, and how to stop and come back. `more` is added to the come-back command
-    (--review, say). The link is printed whole: it holds the token."""
+    (--review, say). The link holds the token, so it is printed whole, and only where a
+    coding agent can't read it, or when no browser opened: without a terminal that is said,
+    and the marks on `session` are stamped (page.py)."""
+    from judgekeeper.page import NO_BROWSER
+    from judgekeeper.start import _interactive
     from judgekeeper.textio import tick
 
-    if open_browser:
-        webbrowser.open(url)
+    terminal = _interactive()
+    if open_browser and webbrowser.open(url) is not False:
         say(f"{tick()} Opened in your browser. Every click is saved.")
-        print(f"  If it did not open, use this link: {url}")
+        if terminal:
+            print(f"  If it did not open, use this link: {url}")
     else:
+        if not terminal:
+            say(NO_BROWSER)
+            if session is not None and hasattr(session, "link"):
+                session.link = marks.PRINTED
         print(f"Open this link in your browser: {url}")
         say("Every click is saved.")
     say(f"  To stop: Ctrl-C. To carry on later: {command}{more}")
@@ -1079,7 +1094,7 @@ def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
                          page=page_template(ws.data(), command),
                          switches={"/review": start_review.switch(ws, say, reviewed),
                                    "/fix": start_fix.switch(ws, say, command)}, lock=ws.dir)
-    say_opened(server.url, open_browser, say, command)
+    say_opened(server.url, open_browser, say, command, session=session)
     try:
         server.serve()
     except KeyboardInterrupt:

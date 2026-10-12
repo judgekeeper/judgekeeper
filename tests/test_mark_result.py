@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from judgekeeper import mark, marks, start, start_label
+from judgekeeper import marks, start, start_label
 from tests.start_projects import promptfoo_project, split
 
 
@@ -37,35 +37,47 @@ def _history(ws):
 def test_the_marks_line():
     made = {"marks": 32, "pass": 16, "fail": 16, "sittings": 1, "seconds": 9,
             "under_second": 0, "not_counted": 0}
-    assert mark.made_lines(made) == [
+    assert start_label.made_lines(made) == [
         ("Your marks: 32 (16 Pass, 16 Fail), made on the page in 1 sitting, about 9 seconds "
          "each.")]
     made.update(sittings=2, seconds=1)
-    assert mark.made_lines(made)[0].endswith("in 2 sittings, about 1 second each.")
+    assert start_label.made_lines(made)[0].endswith("in 2 sittings, about 1 second each.")
     made.update(seconds=None)
-    assert mark.made_lines(made)[0].endswith("made on the page in 2 sittings.")
+    assert start_label.made_lines(made)[0].endswith("made on the page in 2 sittings.")
 
 
 def test_quick_marks_are_said_when_more_than_a_quarter():
     made = {"marks": 32, "pass": 16, "fail": 16, "sittings": 1, "seconds": 2,
             "under_second": 8, "not_counted": 0}
-    assert len(mark.made_lines(made)) == 1  # a quarter: not said
+    assert len(start_label.made_lines(made)) == 1  # a quarter: not said
     made["under_second"] = 9
-    assert mark.made_lines(made)[1] == ("9 of your marks took under a second each. A result is "
+    assert start_label.made_lines(made)[1] == ("9 of your marks took under a second each. A result is "
                                         "only as good as the marks.")
 
 
 def test_lines_not_made_on_the_page_are_said():
     made = {"marks": 30, "pass": 15, "fail": 15, "sittings": 1, "seconds": 4,
             "under_second": 0, "not_counted": 2}
-    assert mark.made_lines(made)[-1] == ("2 lines in marks.jsonl were not made on the page and "
+    assert start_label.made_lines(made)[-1] == ("2 lines in marks.jsonl were not made on the page and "
                                          "are not counted.")
+
+
+def test_marks_made_through_a_printed_link_are_said(ws):
+    session = start_label.StartSession(ws)
+    session.link = "printed"
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    for item in session.items[:3]:
+        session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 4})
+    made = marks.made(marks.read(ws.marks))
+    assert made["printed"] == 3
+    assert start_label.made_lines(made)[-1] == ("3 of your marks were made through a link your "
+                                                "coding agent could read.")
 
 
 def test_the_result_keeps_how_the_marks_were_made_and_the_smallest_drop(ws):
     r = start_label.save_result(ws, _mark(ws, seconds=0.5), say=lambda line: None)
     assert r["made"] == {"marks": 40, "pass": 20, "fail": 20, "sittings": 1, "seconds": 0,
-                         "under_second": 40, "not_counted": 0}
+                         "under_second": 40, "not_counted": 0, "printed": 0}
     assert r["smallest_drop"] == 35
 
 

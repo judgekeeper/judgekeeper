@@ -1,7 +1,8 @@
 """`judgekeeper mark` starts the page as its own process and returns, so a coding agent's shell
 does not wait on it. Run for real here (CI runs it on Linux, macOS and Windows): the command
-returns, the page answers with its token, a mark posted lands in marks.jsonl, a second `mark`
-reuses the page, and `mark --stop` closes it with no process left behind."""
+returns, the page answers with its token, a mark posted lands in marks.jsonl (stamped: the
+link was printed with no terminal), a second `mark` replaces the page, and `mark --stop`
+closes it with no process left behind."""
 
 from __future__ import annotations
 
@@ -108,12 +109,19 @@ def test_mark_runs_the_page_in_the_background(project):
     lines = (folder / "marks.jsonl").read_text(encoding="utf-8").splitlines()
     last = json.loads(lines[-1])
     assert (last["id"], last["mark"], last["by"], last["seconds"]) == (item, "pass", "page", 3)
+    assert last["link"] == "printed"  # the link was printed where an agent reads it
 
     second = jk(project, "mark", "--port", "0", "--no-browser")
-    assert second.returncode == 0, second.stdout + second.stderr
-    assert LINK.search(second.stdout)[1] == url  # the same page
+    assert second.returncode == 0, second.stdout + second.stderr + page_log(project)
+    assert LINK.search(second.stdout)[1] != url  # the open page was replaced
     assert "Marked so far: 1 (1 Pass, 0 Fail)." in second.stdout
-    assert json.loads((folder / label.LOCK).read_text(encoding="utf-8"))["pid"] == pid
+    new_pid = json.loads((folder / label.LOCK).read_text(encoding="utf-8"))["pid"]
+    assert new_pid != pid
+    deadline = time.monotonic() + 10
+    while alive(pid) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert not alive(pid)
+    pid = new_pid
 
     stopped = jk(project, "mark", "--stop")
     assert stopped.returncode == 0, stopped.stdout + stopped.stderr + page_log(project)
@@ -122,5 +130,5 @@ def test_mark_runs_the_page_in_the_background(project):
     while alive(pid) and time.monotonic() < deadline:
         time.sleep(0.1)
     assert not alive(pid)
-    assert label.open_page(folder) is None
+    assert not label.is_open(folder)
     assert not (folder / label.LOCK).exists()

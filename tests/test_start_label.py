@@ -532,7 +532,7 @@ def test_start_labels_and_shows_the_result(tmp_path, capsys, clicker):
     code, out, _ = _run(capsys, tmp_path, "--yes", "--port", "0")
     assert code == 0
     assert "Opened in your browser. Every click is saved." in out
-    assert "  If it did not open, use this link: http://127.0.0.1:" in out
+    assert "token=" not in out  # no terminal: the link is not printed where an agent reads it
     assert "  To stop: Ctrl-C. To carry on later: judgekeeper start" in out
     assert len(clicker["opened"]) == 1
     assert "Your result, from the 36 answers you marked (20 Pass, 16 Fail):" in out
@@ -549,8 +549,25 @@ def test_no_browser_prints_the_link_only(tmp_path, capsys, clicker):
     code, out, _ = _run(capsys, tmp_path, "--yes", "--no-browser", "--port", "0")
     assert code == 0
     assert clicker["opened"] == []
+    assert ("judgekeeper could not open a browser, so the link is printed here, where your "
+            "coding agent can read it.") in out
     assert "Open this link in your browser: http://127.0.0.1:" in out
     assert "Opened in your browser" not in out
+    lines = (tmp_path / ".judgekeeper" / "marks.jsonl").read_text(encoding="utf-8")
+    clicks = [json.loads(x) for x in lines.splitlines()[1:]]
+    assert clicks and all(x["link"] == "printed" for x in clicks)
+
+
+def test_at_a_terminal_start_prints_the_link_as_before(tmp_path, capsys, clicker, monkeypatch):
+    monkeypatch.setattr(start, "_interactive", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "")  # yes, open the page
+    promptfoo_project(tmp_path, split(20, 16))
+    code, out, err = _run(capsys, tmp_path, "--port", "0")
+    assert code == 0, out + err
+    assert "  If it did not open, use this link: http://127.0.0.1:" in out
+    assert "could not open a browser" not in out
+    lines = (tmp_path / ".judgekeeper" / "marks.jsonl").read_text(encoding="utf-8")
+    assert all("link" not in json.loads(x) for x in lines.splitlines()[1:])
 
 
 def test_ctrl_c_says_everything_is_saved(tmp_path, capsys, clicker):

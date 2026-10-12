@@ -179,16 +179,16 @@ def test_the_workflow_runs_33_jobs_on_three_systems(ic):
     assert triggers["workflow_dispatch"]["inputs"]["source"]["default"] == "build"
 
 
-def test_the_marking_page_link_is_read_from_marks_output(ic):
+def test_the_marking_page_link_is_read_from_the_output(ic):
     out = ("Marking page: http://127.0.0.1:54321/?token=Ab-c_9\n"
            "It shows one answer at a time. Your judge's verdict is hidden.")
     assert ic.page_link(out) == ("http://127.0.0.1:54321", "Ab-c_9")
 
 
-def test_the_walk_goes_through_judgekeeper_and_mark(ic, monkeypatch):
-    """`judgekeeper`, `judgekeeper mark` (the page in the background), the stand-in person's
-    marks posted to it, `judgekeeper mark` with the result, then `judgekeeper mark --stop`,
-    before `judgekeeper start` takes over the result."""
+def test_the_walk_goes_through_judgekeeper_twice(ic, monkeypatch):
+    """`judgekeeper` (found, checked, the page in the background, its link printed: no
+    browser), the stand-in person's marks posted to it, `judgekeeper` with the result, then
+    `judgekeeper --stop`, before `judgekeeper start` takes over the result."""
     check = object.__new__(ic.Check)
     check.tool, check.jk, check.port, check.steps = "table", "jk", "5", []
     ran, posted = [], []
@@ -215,13 +215,12 @@ def test_the_walk_goes_through_judgekeeper_and_mark(ic, monkeypatch):
         monkeypatch.setattr(check, name, lambda *a, **k: True, raising=False)
     check.walk()
     commands = [args[1:] for _, args, _ in ran]
-    assert commands[0] == []
-    assert commands[1][:1] == ["mark"] and "--stop" not in commands[1]
-    assert commands[2][:1] == ["mark"] and "--stop" not in commands[2]
-    assert commands[3] == ["mark", "--stop"]
-    assert commands[4][:1] == ["start"]
-    assert any("judgekeeper mark" in e for e in ran[0][2])
-    assert any("Of the answers you passed" in e for e in ran[2][2])
+    assert commands[0] == ["--no-browser", "--port", "5"]
+    assert commands[1] == ["--no-browser", "--port", "5"]
+    assert commands[2] == ["--stop"]
+    assert commands[3][:1] == ["start"]
+    assert any("Marking page" in e for e in ran[0][2])
+    assert any("Of the answers you passed" in e for e in ran[1][2])
     labels = [body for _, _, path, body in posted if path == "/label"]
     assert [(b["id"], b["label"]) for b in labels] == [("a", "pass"), ("b", "fail")]
     assert all(isinstance(b["seconds"], (int, float)) for b in labels)

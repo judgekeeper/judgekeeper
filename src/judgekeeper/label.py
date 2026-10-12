@@ -9,8 +9,11 @@ Security: the page and every request need a random token from the URL; a request
 header is not the bound address is refused (DNS rebinding); every displayed string goes
 through textContent, and the data is embedded as JSON with <, > and & escaped. A connection
 that stays silent for CONNECTION_TIMEOUT seconds is dropped. The server stops on Ctrl-C, on a
-POST to /stop (with the token: it works the same on every system), and after IDLE_TIMEOUT
-seconds without a request.
+POST to /stop (it works the same on every system), and after IDLE_TIMEOUT seconds without a
+request. The project's lock (server.json) holds a separate stop secret, never the token: with
+it a request can only ask whether the page is open (GET /alive) or close it (POST /stop).
+POST /printed (with the token) says the link was printed where a coding agent could read it:
+every later mark is stamped so.
 
 The caller passes the page (start_page.py) and a `result` function: GET /result answers with
 the result page, a static HTML page that runs no script. Once every item is labeled, none
@@ -45,6 +48,7 @@ from socketserver import TCPServer
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 from judgekeeper.anchors import LABELS
+from judgekeeper.marks import PRINTED
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue
 from judgekeeper.table import (
     TEMPLATE_COLUMNS,
@@ -196,41 +200,53 @@ def _json_for_html(data) -> str:
 
 
 LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
-ALREADY_OPEN = ("judgekeeper is already open for this project: {url} (or stop it with Ctrl-C "
-                "in its terminal).")
+ALREADY_OPEN = ("A judgekeeper page is already open for this project. Close it with Ctrl-C in "
+                "its terminal, or run `judgekeeper --stop`.")
 PROBE_TIMEOUT = 2  # seconds to wait for the page named in the lock to answer
 RELEASE_TRIES = 40  # times to try removing the lock, RELEASE_PAUSE seconds apart
 RELEASE_PAUSE = 0.05
 
 
 def read_lock(folder: Path) -> dict | None:
-    """{"pid", "port", "token"} of the page named in the project's lock, or None."""
+    """{"pid", "port", "stop"} of the page named in the project's lock, or None."""
     try:
         lock = json.loads((Path(folder) / LOCK).read_text(encoding="utf-8"))
-        return {"pid": int(lock["pid"]), "port": int(lock["port"]),
-                "token": str(lock["token"])}
+        return {"pid": int(lock["pid"]), "port": int(lock["port"]), "stop": str(lock["stop"])}
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
 
-def open_page(folder: Path) -> str | None:
-    """The link of the page judgekeeper serves for this project now (its lock in `folder`),
-    when that page answers with its token; else None, and a lock nobody answers is stale.
-    Asking the page, not the process, works the same everywhere: on Windows a process can't be
-    looked at without the standard library's os.kill, which ends it."""
-    lock = read_lock(folder)
-    if lock is None:
-        return None
-    port, token = lock["port"], lock["token"]
-    url = f"http://{HOST}:{port}/?token={token}"
-    conn = http.client.HTTPConnection(HOST, port, timeout=PROBE_TIMEOUT)  # never a proxy
+def ask(port: int, method: str, path: str, query: dict, body: dict | None = None) -> int | None:
+    """The status the page on `port` answers with, or None when nothing answers. Never
+    through a proxy."""
+    conn = http.client.HTTPConnection(HOST, port, timeout=PROBE_TIMEOUT)
     try:
-        conn.request("GET", f"/state?{urlencode({'token': token})}")
-        return url if conn.getresponse().status == 200 else None
+        data = None if body is None else json.dumps(body).encode()
+        conn.request(method, f"{path}?{urlencode(query)}", body=data,
+                     headers={"Content-Type": "application/json"})
+        return conn.getresponse().status
     except (OSError, ValueError, http.client.HTTPException):
         return None
     finally:
         conn.close()
+
+
+def is_open(folder: Path) -> bool:
+    """Whether the page named in the project's lock (in `folder`) answers to its stop secret;
+    a lock nobody answers is stale. Asking the page, not the process, works the same
+    everywhere: on Windows a process can't be looked at without the standard library's
+    os.kill, which ends it."""
+    lock = read_lock(folder)
+    return lock is not None and ask(lock["port"], "GET", "/alive", {"stop": lock["stop"]}) == 200
+
+
+def answers(port: int, token: str) -> bool:
+    """Whether a page on `port` answers to `token`."""
+    return ask(port, "GET", "/state", {"token": token}) == 200
+
+
+def link(port: int, token: str) -> str:
+    return f"http://{HOST}:{port}/?token={token}"
 
 
 class _HTTPServer(HTTPServer):
@@ -244,7 +260,8 @@ class _HTTPServer(HTTPServer):
 
 class LabelServer:
     def __init__(self, session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
-                 page: str, switches: dict | None = None, stays: bool = False):
+                 page: str, switches: dict | None = None, stays: bool = False,
+                 token: str | None = None):
         self.session = session
         self.stays = stays  # never stops by itself after the result
         # (session, link back to the labeling page) -> the result page (HTML), for GET /result
@@ -253,22 +270,23 @@ class LabelServer:
         # path -> a function returning the (session, page, result) to switch to, or None
         self.switches = switches or {}
         self.done_at: float | None = None
-        self.token = secrets.token_urlsafe(32)
+        self.token = token or secrets.token_urlsafe(32)
+        self.stop_secret = secrets.token_urlsafe(32)  # closes the page; can't read or mark
         self.httpd = _HTTPServer((HOST, port), _handler(self))
         self.httpd.timeout = 0.2
         self.host = HOST
         self.port = self.httpd.server_address[1]
-        self.url = f"http://{HOST}:{self.port}/?token={self.token}"
+        self.url = link(self.port, self.token)
         self.last_request = time.monotonic()
         self._stopped = False
         self.lock: Path | None = None  # the lock file this server wrote (make_server)
 
     def hold(self, folder: Path) -> None:
-        """Write the project's lock: this process, port and token (the token stays on this
-        computer, in .judgekeeper/, as the labels do)."""
+        """Write the project's lock: this process, port and stop secret (never the token: a
+        coding agent can read .judgekeeper/)."""
         self.lock = Path(folder) / LOCK
         write_replacing(self.lock, json.dumps({"pid": os.getpid(), "port": self.port,
-                                               "token": self.token}))
+                                               "stop": self.stop_secret}))
 
     def release(self) -> None:
         """Remove the lock, when it is still this server's. Windows refuses to delete a file
@@ -278,7 +296,8 @@ class LabelServer:
             return
         for tries in range(RELEASE_TRIES, 0, -1):
             try:
-                if json.loads(self.lock.read_text(encoding="utf-8")).get("token") == self.token:
+                if json.loads(self.lock.read_text(encoding="utf-8")).get("stop") == \
+                        self.stop_secret:
                     self.lock.unlink()
                 break
             except FileNotFoundError:
@@ -347,15 +366,21 @@ def _handler(server: LabelServer):
                        "application/json; charset=utf-8")
 
         def _allowed(self, url) -> bool:
+            """The token, or the stop secret on the two paths it opens (/alive, /stop)."""
             server.last_request = time.monotonic()
             if self.headers.get("Host") != f"{HOST}:{server.port}":
                 self._json(403, {"error": "wrong Host header"})
                 return False
-            token = parse_qs(url.query).get("token", [""])[0]
-            if not hmac.compare_digest(token.encode(), server.token.encode()):
-                self._json(403, {"error": "missing or wrong token"})
-                return False
-            return True
+            query = parse_qs(url.query)
+            token = query.get("token", [""])[0]
+            if hmac.compare_digest(token.encode(), server.token.encode()):
+                return True
+            stop = query.get("stop", [""])[0]
+            if url.path in ("/alive", "/stop") and hmac.compare_digest(
+                    stop.encode(), server.stop_secret.encode()):
+                return True
+            self._json(403, {"error": "missing or wrong token"})
+            return False
 
         def do_GET(self):
             url = urlsplit(self.path)
@@ -363,7 +388,9 @@ def _handler(server: LabelServer):
                 return
             if url.path in ("/", "/state"):
                 server.done_at = None  # the page is open and asking: keep serving it
-            if url.path == "/":
+            if url.path == "/alive":
+                self._json(200, {"open": True})
+            elif url.path == "/":
                 page, nonce = server.page()
                 csp = (f"default-src 'none'; script-src 'nonce-{nonce}'; "
                        "style-src 'unsafe-inline'; font-src data:; connect-src 'self'; "
@@ -405,6 +432,10 @@ def _handler(server: LabelServer):
             if url.path == "/stop":
                 self._json(200, {"stopped": True})
                 server.stop()
+                return
+            if url.path == "/printed" and hasattr(server.session, "link"):
+                server.session.link = PRINTED
+                self._json(200, {"printed": True})
                 return
             posts = getattr(server.session, "posts", {})
             if url.path != "/label" and url.path not in posts:
@@ -462,22 +493,22 @@ def _handler(server: LabelServer):
 
 def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
                 page: str, switches: dict | None = None,
-                lock: Path | None = None, stays: bool = False) -> LabelServer:
+                lock: Path | None = None, stays: bool = False,
+                token: str | None = None) -> LabelServer:
     """A server for `session`, or a LabelError that says why there cannot be one. With `lock`
     (the project's .judgekeeper/), one server per project: when its page is already open,
-    that is the error, with its link; else this server holds the lock until it stops. Two
-    pages on one project would each write their marks over the other's."""
-    if lock is not None:
-        url = open_page(lock)
-        if url:
-            raise LabelError(ALREADY_OPEN.format(url=url))
+    that is the error; else this server holds the lock until it stops. Two pages on one
+    project would each write their marks over the other's. `token`: the one its caller made
+    (default: a new one)."""
+    if lock is not None and is_open(lock):
+        raise LabelError(ALREADY_OPEN)
     # Labels are written on the first click: say now if they cannot be, not in the page.
     unwritable = unwritable_file(session.out)
     if unwritable:
         raise LabelError(unwritable)
     try:
         server = LabelServer(session, port, result=result, page=page, switches=switches,
-                             stays=stays)
+                             stays=stays, token=token)
     except OSError as e:
         raise LabelError(f"cannot listen on {HOST}:{port} ({e.strerror}); try --port") from None
     if lock is not None:

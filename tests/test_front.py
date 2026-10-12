@@ -77,7 +77,9 @@ def assert_one_next_at_the_end(out: str) -> str:
     return lines[-1]
 
 
-START = "Next: run `judgekeeper mark`, then give the person the link it prints."
+START = ("Next: tell the person the marking page is open in their browser, and to mark answers "
+         "until the page says it has enough. When they say they are done, run `judgekeeper` "
+         "again.")
 
 
 # One test per eval tool -----------------------------------------------------------------
@@ -153,9 +155,8 @@ def test_a_path_is_repeated_in_the_next_line(tmp_path, capsys):
     promptfoo_project(tmp_path / "proj", split(20, 16))
     code, out, _ = run(capsys, tmp_path / "proj")
     assert code == 0
-    assert assert_one_next_at_the_end(out) == (
-        f"Next: run `judgekeeper mark {quote_arg(tmp_path / 'proj')}`, then give the person "
-        "the link it prints.")
+    assert assert_one_next_at_the_end(out) == START.replace(
+        "`judgekeeper`", f"`judgekeeper {quote_arg(tmp_path / 'proj')}`")
 
 
 def test_a_long_rule_is_one_line_cut_at_200(here, capsys):
@@ -275,9 +276,8 @@ def test_several_tools(here, capsys):
     assert not (here / ".judgekeeper" / "judge.json").exists()
     code, out, _ = run(capsys, "--tool", "promptfoo")
     assert code == 0
-    assert assert_one_next_at_the_end(out) == (
-        "Next: run `judgekeeper mark --tool promptfoo`, then give the person the link it "
-        "prints.")
+    assert assert_one_next_at_the_end(out) == START.replace(
+        "`judgekeeper`", "`judgekeeper --tool promptfoo`")
 
 
 def test_several_judges(here, capsys):
@@ -468,7 +468,7 @@ def test_at_a_terminal_the_tool_is_asked_and_saved_after_yes(here, capsys, termi
     assert saved["source"] == "promptfoo"
     assert next_lines(out) == [START]
     code, out, _ = run(capsys)  # asked once: now read from judgekeeper.toml
-    assert code == 0 and "Found your eval tool: promptfoo" in out
+    assert code == 0 and "Marking answers for your judge" in out and "(promptfoo, " in out
 
 
 def test_at_a_terminal_no_keeps_judgekeeper_toml_away(here, capsys, terminal):
@@ -479,9 +479,8 @@ def test_at_a_terminal_no_keeps_judgekeeper_toml_away(here, capsys, terminal):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert not (here / "judgekeeper.toml").exists()
-    assert assert_one_next_at_the_end(out) == (
-        "Next: run `judgekeeper mark --metric safety`, then give the person the link it "
-        "prints.")
+    assert assert_one_next_at_the_end(out) == START.replace(
+        "`judgekeeper`", "`judgekeeper --metric safety`")
 
 
 def test_at_a_terminal_the_pass_mark_is_asked(here, capsys, terminal):
@@ -573,10 +572,10 @@ def test_setup_is_removed(here, capsys):
     assert err == "judgekeeper setup was removed. Run judgekeeper in your project.\n"
 
 
-def test_help_lists_the_flags_and_start(capsys):
+def test_help_lists_the_flags_and_mark(capsys):
     code, out, _ = run(capsys, "--help")
     assert code == 0
     for flag in ("--tool", "--metric", "--experiment", "--tracking-uri", "--pass-if",
                  "--label-map", "--judge-model", "--fields", "--yes"):
         assert flag in out
-    assert "start" in out and "setup" not in out
+    assert "mark" in out and "setup" not in out

@@ -1,8 +1,9 @@
 """Command-line entry point.
 
-`judgekeeper` with no command (front.py) finds the judge, checks it for free and ends with one
-`Next:` line; `judgekeeper mark` (mark.py) opens the page to mark answers on, and prints the
-result once there are enough marks; `judgekeeper start` marks answers on a page. Exit codes: 0
+`judgekeeper` with no command (front.py) does the next step: finds the judge, checks it for
+free, opens the page to mark answers on, and prints the result once there are enough marks; it
+ends with one `Next:` line. `judgekeeper mark` (mark.py) opens the page to mark more.
+`judgekeeper start` (not in the help) still has its review, fix and asking again. Exit codes: 0
 success, 1 runtime failure, 2 usage error, 3 the person is needed (`judgekeeper` and `mark`:
 the Next: line says what to ask), 8 stopped at a question (`start`, below), 130 Ctrl-C.
 
@@ -49,11 +50,11 @@ EXIT_STOPPED = 130  # Ctrl-C, as shells report it
 
 MESSAGE = "Check your LLM-as-a-judge."
 ABOUT = ("Run judgekeeper in your project: it finds your eval tool's saved results and the "
-         "judge that made them, checks them for free (no AI call), and ends with one Next: "
-         "line saying what to do.")
+         "judge that made them, checks them for free (no AI call), opens a page to mark "
+         "answers on, and shows how often your judge agrees with your marks. Each run does "
+         "the next step and ends with one Next: line saying what to do.")
 COMMANDS_HELP = (
-    ("mark", "open a page to mark answers Pass or Fail, then see how often your judge agrees"),
-    ("start", "mark answers Pass or Fail on a page, and see how often your judge agrees"),
+    ("mark", "open the page to mark more answers Pass or Fail"),
 )
 HELP_WIDTH = 100
 # Removed commands: the 0.1 CI gate, and setup (part of judgekeeper now). Each prints one line
@@ -167,6 +168,7 @@ def _front_parser() -> argparse.ArgumentParser:
     p.add_argument("--yes", action="store_true",
                    help="without a terminal: the person said yes to the question judgekeeper "
                         "printed")
+    _page_args(p)
     p.add_argument("--version", action=_Version, nargs=0, help="show the version and exit")
     p.add_argument("--debug", action="store_true",
                    help="on an unexpected error, also print the traceback (credentials are "
@@ -206,18 +208,7 @@ def _parser() -> argparse.ArgumentParser:
     mk.add_argument("--yes", action="store_true",
                     help="without a terminal: the person said yes to the question judgekeeper "
                          "printed")
-    mk.add_argument("--port", type=_port, default=8765,
-                    help="port on 127.0.0.1 for the page (default 8765)")
-    mk.add_argument("--no-browser", action="store_true",
-                    help="print the page's link without opening a browser")
-    what = mk.add_mutually_exclusive_group()
-    what.add_argument("--new", action="store_true",
-                      help="start over: your marks move to .judgekeeper/previous-<date>/ "
-                           "(asked first; nothing is deleted)")
-    what.add_argument("--wait", action="store_true",
-                      help="serve the page in this terminal until Ctrl-C, instead of in the "
-                           "background")
-    what.add_argument("--stop", action="store_true", help="close the open page")
+    _page_args(mk)
 
     st = sub.add_parser("start", parents=[common],
                         help="find your judge's saved results and check them against your own "
@@ -293,6 +284,22 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
+def _page_args(p: argparse.ArgumentParser) -> None:
+    """The marking page's options, the same for `judgekeeper` and `mark`."""
+    p.add_argument("--port", type=_port, default=8765,
+                   help="port on 127.0.0.1 for the page (default 8765)")
+    p.add_argument("--no-browser", action="store_true",
+                   help="print the page's link without opening a browser")
+    what = p.add_mutually_exclusive_group()
+    what.add_argument("--new", action="store_true",
+                      help="start over: your marks move to .judgekeeper/previous-<date>/ "
+                           "(asked first; nothing is deleted)")
+    what.add_argument("--wait", action="store_true",
+                      help="serve the page in this terminal until Ctrl-C, instead of in the "
+                           "background")
+    what.add_argument("--stop", action="store_true", help="close the open page")
+
+
 def _normaliser_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--pass-if", metavar="RULE",
                    help="rule for numeric verdicts, e.g. 'score>=0.5' (required for numbers)")
@@ -340,7 +347,8 @@ def cmd_front(args) -> int:
     return front.run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
                      tracking_uri=args.tracking_uri, pass_if=args.pass_if,
                      label_map=args.label_map, judge_model=args.judge_model,
-                     fields=args.fields, yes=args.yes)
+                     fields=args.fields, yes=args.yes, port=args.port,
+                     no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop)
 
 
 COMMANDS = {"mark": cmd_mark, "start": cmd_start, None: cmd_front}
