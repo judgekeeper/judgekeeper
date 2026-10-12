@@ -95,7 +95,7 @@
     if (!root || !window.JKMetrics) return;
     var pos = $("#m-pos"), neg = $("#m-neg"), tpIn = $("#m-tp"), tnIn = $("#m-tn");
     // The verdict thresholds are read from the page, where a test checks them against
-    // judgekeeper's code (judgekeeper.report: RATE_GATE, RATE_CARE, KAPPA_GATE).
+    // judgekeeper's code (judgekeeper.targets: RATE_GATE, RATE_CARE, KAPPA_GATE).
     var rateGate = num($("#th-rate-gate")), rateCare = num($("#th-rate-care")), kappaGate = num($("#th-kappa-gate"));
 
     function set(id, text) { $(id).firstChild.nodeValue = text; }
@@ -158,45 +158,6 @@
       });
     });
     update();
-  }
-
-  // A row of toggle buttons that each show a message.
-  function toggles(attr, render) {
-    var buttons = $all("[" + attr + "]");
-    buttons.forEach(function (button) {
-      button.addEventListener("click", function () {
-        buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(b === button)); });
-        render(button.getAttribute(attr));
-      });
-    });
-  }
-
-  function setUpPanels() {
-    var gateText = {
-      PASS: "The judge clears every check. The build continues.",
-      FAIL: "The judge fell below a threshold. The build stops.",
-      FLAKY: "The judge flips too often to tell. The build stops unless you choose --flaky-as pass."
-    };
-    toggles("data-gate", function (status) {
-      var code = $('[data-exit="gate:' + status + '"]').textContent;
-      $("#ci-dot").className = "ci-dot " + (code === "0" ? "ok" : "no");
-      $("#ci-text").textContent = "judge gate: " + status + " (exit " + code + "). " + gateText[status];
-    });
-
-    var migrateText = {
-      BETTER: "the new judge agrees with people more, by more than the noise. Switch, and expect scores to move because the judge improved.",
-      WORSE: "the new judge agrees with people less, by more than the noise. Do not switch yet.",
-      EQUIVALENT: "both judges agree with people about equally, and almost no answers changed. Scores stay comparable across the switch.",
-      DIFFERENT: "about as good overall, but on different answers. Old and new scores are not comparable answer by answer."
-    };
-    toggles("data-migrate", function (status) {
-      var p = $("#migrate-text");
-      p.innerHTML = "";
-      var strong = document.createElement("strong");
-      strong.textContent = status + ":";
-      p.appendChild(strong);
-      p.appendChild(document.createTextNode(" " + migrateText[status]));
-    });
   }
 
   // Get started: accessible tabs. Without this script every panel is shown.
@@ -446,7 +407,6 @@
     setUpMenu();
     addCopyButtons();
     setUpMatrix();
-    setUpPanels();
     setUpTabs();
     setUpBars();
     setUpDemo();

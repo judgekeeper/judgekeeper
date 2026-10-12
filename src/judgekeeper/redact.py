@@ -3,8 +3,7 @@
 Two layers. First, the current value of every credential environment variable this process
 can see: ANTHROPIC_API_KEY, OPENAI_API_KEY, the platform credentials (LANGFUSE_PUBLIC_KEY,
 LANGFUSE_SECRET_KEY, MLFLOW_TRACKING_PASSWORD), the AWS keys (AWS_ACCESS_KEY_ID,
-AWS_SECRET_ACCESS_KEY), the variable named with --api-key-env, every key name `keys.py` found
-for a judge, and any variable whose name ends in _API_KEY, _TOKEN or _SECRET. Values shorter
+AWS_SECRET_ACCESS_KEY), every key name `keys.py` found for a judge, and any variable whose name ends in _API_KEY, _TOKEN or _SECRET. Values shorter
 than 8 characters are ignored, since they would match ordinary text. Second, as a backstop for
 keys that are not in the environment, strings shaped like provider keys (sk-ant-..., sk-...),
 Bearer and Basic headers, and the user:password part of a URL.
@@ -28,7 +27,7 @@ CREDENTIAL_VARS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "LANGFUSE_PUBLIC_KEY",
 CREDENTIAL_SUFFIXES = ("_API_KEY", "_TOKEN", "_SECRET")
 MIN_SECRET_LENGTH = 8
 
-# Variables named with --api-key-env during this process.
+# Variables registered during this process (the key names keys.py found).
 _named_vars: set[str] = set()
 
 _TOKEN_CHARS = r"[A-Za-z0-9._~+/=-]"

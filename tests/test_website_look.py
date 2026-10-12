@@ -30,7 +30,7 @@ GUIDE = WEBSITE / "start.html"
 HOME = WEBSITE / "index.html"
 CSS = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
 SRC = ROOT / "src" / "judgekeeper"
-OLDER = {"own-metric.html", "assistant.html", "setup.html", "learn.html", "tutorial.html"}
+OLDER = {"assistant.html", "setup.html", "learn.html"}
 STEPS = [("install", "Install"), ("connect", "Connect your results"), ("start", "Start"),
          ("label", "Mark"), ("result", "Your result"), ("improve", "Improve your judge")]
 ROUTE = ["Install", "Connect", "Start", "Mark", "Result", "Improve"]
@@ -552,15 +552,8 @@ def test_the_llmbar_result_names_the_datasets_makers_and_licence():
         a.attrs.get("href") for a in _all(section, "a")]
 
 
-def test_the_tutorial_is_the_advanced_commands():
-    text = (WEBSITE / "tutorial.html").read_text(encoding="utf-8")
-    assert "<title>Advanced commands, step by step | judgekeeper</title>" in text
-    (h1,) = _all(parse(WEBSITE / "tutorial.html"), "h1")
-    assert h1.text() == "Advanced commands, step by step"
-
-
-ORDER = ["index.html", "start.html", "docs.html", "reference.html", "own-metric.html", "assistant.html",
-         "setup.html", "learn.html", "tutorial.html"]
+ORDER = ["index.html", "start.html", "docs.html", "reference.html", "assistant.html",
+         "setup.html", "learn.html"]
 
 
 def test_the_sitemap_and_llms_txt_list_the_pages_in_the_new_order():

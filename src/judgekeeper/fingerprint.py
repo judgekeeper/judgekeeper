@@ -83,7 +83,7 @@ def endpoint_host(base_url: str | None) -> str | None:
     if "@" in parts.netloc:
         raise ValueError(
             "base URL must not contain credentials (user:password@host); put the key in an "
-            "environment variable and name it with --api-key-env"
+            "environment variable"
         )
     if parts.scheme not in ("http", "https") or not parts.hostname:
         raise ValueError("base URL must be an http:// or https:// URL with a host, "

@@ -101,25 +101,6 @@ def test_write_run_scrubs_rationales_and_errors(tmp_path, monkeypatch):
     assert line["id"] == "i1"
 
 
-def test_html_report_scrubs_rationales(pairwise_dir, tmp_path, monkeypatch):
-    """A run file that still holds a key (written unscrubbed) renders without it."""
-    import json
-
-    from judgekeeper.html_report import render_html
-    from judgekeeper.report import build_report
-
-    run = pairwise_dir / "runs" / "run-01.jsonl"
-    run.write_text(run.read_text(
-        encoding="utf-8").replace("run1 i4 AB", "leaked sentinel-openai-key-0001"),
-                   encoding="utf-8")
-    monkeypatch.setenv("OPENAI_API_KEY", "sentinel-openai-key-0001")
-    report = build_report(pairwise_dir / "anchors.jsonl", pairwise_dir / "runs")
-    assert "sentinel-openai-key-0001" in json.dumps(report)  # the old file really had it
-    html = render_html(report)
-    assert "sentinel-openai-key-0001" not in html
-    assert "leaked [REDACTED]" in html
-
-
 @pytest.mark.parametrize("name", ["LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY",
                                   "MLFLOW_TRACKING_PASSWORD", "DATABRICKS_TOKEN"])
 def test_platform_credential_vars_are_redacted(monkeypatch, name):

@@ -7,15 +7,15 @@ Tested with Inspect AI 0.3.242 to 0.3.278. Asking your judge again and trying a 
 ## Produce the log
 
 ```
-inspect eval task.py --epochs 3
+inspect eval task.py
 ```
 
-`--epochs 3` (or `epochs=3` in the task) scores every sample three times; each epoch is one run, so the report can measure the judge's run-to-run noise. Logs land in `./logs` (or `INSPECT_LOG_DIR`).
+Logs land in `./logs` (or `INSPECT_LOG_DIR`).
 
-## Import it
+## Read it
 
 ```
-judgekeeper import inspect logs/2026-09-30T10-00-00_task.json --metric model_graded_qa --labels labels.csv --out reports/qa/
+judgekeeper start --metric model_graded_qa
 ```
 
 `.json` logs are read directly. `.eval` logs (Inspect's default, a zip archive) need the optional extra, which reads any log with `inspect_ai.log.read_eval_log`. Install it in your project's environment:
@@ -24,16 +24,9 @@ judgekeeper import inspect logs/2026-09-30T10-00-00_task.json --metric model_gra
 pip install "judgekeeper[inspect]"
 ```
 
-Without it, convert first: `inspect log dump logs/x.eval > log.json`, or write JSON logs with `--log-format json`. A path can be a log, a folder of logs or a glob; several logs become separate runs.
+Without it, convert first: `inspect log dump logs/x.eval > log.json`, or write JSON logs with `--log-format json`. To read one log, give its path: `judgekeeper start logs/log.json`.
 
 `--metric` is the scorer's name, the key under `samples[].scores` (`model_graded_qa`, `model_graded_fact`, your `@scorer` name). Item ids are `samples[].id`; runs are `samples[].epoch`.
-
-## Human labels
-
-Two ways, which can be combined:
-
-- **Edit the score.** With `from inspect_ai.log import edit_score, ScoreEdit, ProvenanceData`, `edit_score(log, sample_id, "model_graded_qa", ScoreEdit(value="C", provenance=ProvenanceData(author="you", reason="...")))` keeps the original score in `history`, then write the log back. judgekeeper reads the original value as the judge's verdict and the edited value as the human label for that sample. Edit one epoch per sample; edits that disagree across epochs are a usage error.
-- **A labels table:** `--labels labels.csv` with an `id` column (the sample ids) and a `human_label` column. Where both exist for a sample, `--labels` wins, with a note.
 
 ## Traps
 

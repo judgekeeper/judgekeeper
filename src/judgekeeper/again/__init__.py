@@ -13,11 +13,11 @@ run. Before anything is spent, `make_plan` says what would run:
 
 One planner per tool, each `plan(ws, answers, opts, talk, dry) -> Plan`: `promptfoo`,
 `deepeval`, `inspect`, `mlflow`, and `command` for the user's own judge command
-(`--judge-command`, the `--exec` contract). With `dry`, the plan also checks the judge where
-it would run: the installed promptfoo's version, or for the Python tools a small worker
-script (`workers/`) run with the user's own Python, which builds the judge and checks it with
-no API call. judgekeeper never imports DeepEval, Inspect AI or MLflow itself for this. The
-menu's line uses a plan made without `dry`: it runs nothing.
+(`--judge-command`: one answer as JSON on stdin, the verdict on stdout). With `dry`, the plan
+also checks the judge where it would run: the installed promptfoo's version, or for the
+Python tools a small worker script (`workers/`) run with the user's own Python, which builds
+the judge and checks it with no API call. judgekeeper never imports DeepEval, Inspect AI or
+MLflow itself for this. The menu's line uses a plan made without `dry`: it runs nothing.
 
 Every process goes through `run_process`, which tests replace. After the plan, `approve` asks
 before anything is spent (default No; `--yes` never answers it; without a terminal only

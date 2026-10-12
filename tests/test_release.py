@@ -18,7 +18,6 @@ import pytest
 yaml = pytest.importorskip("yaml")
 
 ROOT = Path(__file__).resolve().parent.parent
-PLUGIN_DIST = ROOT / "packages" / "pytest-judgekeeper"
 WORKFLOWS = ROOT / ".github" / "workflows"
 VERSION = "0.2.0"
 ALPHA = "Development Status :: 3 - Alpha"
@@ -40,39 +39,24 @@ def _steps_text(job: dict) -> str:
     return "\n".join(json.dumps(step) for step in job.get("steps", []))
 
 
-# Versions and the two distributions
+# The version and the distribution
 
 def test_versions_agree():
     from judgekeeper import __version__
 
     main = _toml(ROOT / "pyproject.toml")["project"]
-    plugin = _toml(PLUGIN_DIST / "pyproject.toml")["project"]
-    assert main["version"] == plugin["version"] == __version__ == VERSION
-    assert plugin["dependencies"] == [f"judgekeeper=={VERSION}"]
-    assert plugin["name"] == "pytest-judgekeeper"
-    for project in (main, plugin):
-        assert ALPHA in project["classifiers"]
-        assert "Framework :: Pytest" in plugin["classifiers"]
-        for minor in ("3.11", "3.12", "3.13", "3.14"):
-            assert f"Programming Language :: Python :: {minor}" in project["classifiers"]
+    assert main["version"] == __version__ == VERSION
+    assert ALPHA in main["classifiers"]
+    for minor in ("3.11", "3.12", "3.13", "3.14"):
+        assert f"Programming Language :: Python :: {minor}" in main["classifiers"]
 
 
-def test_plugin_entry_point_lives_in_judgekeeper_only():
+def test_no_pytest_plugin_and_no_api_extras():
     main = _toml(ROOT / "pyproject.toml")["project"]
-    plugin = _toml(PLUGIN_DIST / "pyproject.toml")["project"]
-    assert main["entry-points"]["pytest11"] == {"judgekeeper": "judgekeeper.pytest_plugin"}
-    # Declaring it twice would register the plugin twice and break pytest.
-    assert "entry-points" not in plugin
-
-
-def test_plugin_distribution_has_no_code():
-    files = [p for p in PLUGIN_DIST.rglob("*") if p.is_file()
-             and not {"dist", "build"} & set(p.relative_to(PLUGIN_DIST).parts)]
-    assert sorted(p.name for p in files) == ["LICENSE", "README.md", "pyproject.toml"]
-    assert (PLUGIN_DIST / "LICENSE").read_bytes() == (ROOT / "LICENSE").read_bytes()
-    readme = (PLUGIN_DIST / "README.md").read_text(encoding="utf-8").strip().splitlines()
-    body = [line for line in readme if line.strip() and not line.startswith("#")]
-    assert len(body) == 2
+    assert "entry-points" not in main
+    assert not [c for c in main["classifiers"] if "Pytest" in c]
+    assert set(main["optional-dependencies"]) == {"dev", "inspect", "mlflow"}
+    assert not (ROOT / "packages").exists() and not (ROOT / "action.yml").exists()
 
 
 def test_changelog_leads_with_this_version():
@@ -104,9 +88,7 @@ def test_release_workflow_uses_trusted_publishing_and_no_tokens():
     assert "secrets." not in text and "password" not in text and "PYPI_API_TOKEN" not in text
     wf = _workflow("release.yml")
     publish = _publish_jobs(wf)
-    # One job per PyPI project, each behind its own environment: PyPI refuses two pending
-    # publishers with the same owner, repository, workflow and environment.
-    assert sorted(_env_name(j) for j in publish.values()) == ["pypi", "pypi-plugin"]
+    assert [_env_name(j) for j in publish.values()] == ["pypi"]
     for job in publish.values():
         assert job["permissions"] == {"id-token": "write"}
     for name, other in wf["jobs"].items():
@@ -114,22 +96,10 @@ def test_release_workflow_uses_trusted_publishing_and_no_tokens():
             assert "id-token" not in (other.get("permissions") or {}), name
 
 
-def test_each_publish_job_uploads_only_its_own_project():
-    wf = _workflow("release.yml")
-    publish = {_env_name(j): j for j in _publish_jobs(wf).values()}
-    core, plugin = _steps_text(publish["pypi"]), _steps_text(publish["pypi-plugin"])
-    assert "rm dist/pytest_judgekeeper-" in core
-    assert "rm dist/judgekeeper-" in plugin
-    # The plugin pins judgekeeper==VERSION, so it goes up after judgekeeper.
-    core_job = next(n for n, j in wf["jobs"].items() if j is publish["pypi"])
-    needs = publish["pypi-plugin"]["needs"]
-    assert core_job in (needs if isinstance(needs, list) else [needs])
-
-
 def test_release_workflow_builds_checks_and_tests_the_wheel():
     wf = _workflow("release.yml")
     text = "\n".join(_steps_text(j) for j in wf["jobs"].values())
-    assert "python -m build" in text and "packages/pytest-judgekeeper" in text
+    assert "python -m build" in text and "pytest-judgekeeper" not in text
     assert "twine check" in text
     assert "venv" in text and "pytest" in text and ".whl" in text
     for publish in _publish_jobs(wf).values():
@@ -140,17 +110,17 @@ def test_ci_builds_and_runs_the_installed_wheel_on_every_push():
     wf = _workflow("ci.yml")
     assert "push" in wf["on"]
     text = "\n".join(_steps_text(j) for j in wf["jobs"].values())
-    for needed in ("python -m build", "packages/pytest-judgekeeper", "venv",
-                   "judgekeeper --version", "judgekeeper --help", "judgekeeper check ",
-                   "report.html", "judgekeeper init", "twine check"):
+    for needed in ("python -m build", "venv", "judgekeeper --version", "judgekeeper --help",
+                   "judgekeeper start --help", "judgekeeper.record(", ".judgekeeper/records",
+                   "twine check"):
         assert needed in text, needed
-    assert "demo" not in text
+    assert "demo" not in text and "pytest-judgekeeper" not in text
 
 
 def test_release_runs_the_installed_wheel_end_to_end_before_publishing():
     text = "\n".join(_steps_text(j) for j in _workflow("release.yml")["jobs"].values())
-    for needed in ("judgekeeper --version", "judgekeeper --help", "judgekeeper check ",
-                   "report.html"):
+    for needed in ("judgekeeper --version", "judgekeeper --help", "judgekeeper start --help",
+                   "judgekeeper.record(", ".judgekeeper/records"):
         assert needed in text, needed
     assert "demo" not in text
 
@@ -176,12 +146,6 @@ def test_ci_tests_every_python_the_classifiers_name_and_windows_on_every_pull_re
         encoding="utf-8")
 
 
-def test_action_is_marketplace_ready():
-    action = yaml.safe_load((ROOT / "action.yml").read_text(encoding="utf-8"))
-    assert len(action["description"]) < 125
-    assert action["branding"]["icon"] and action["branding"]["color"]
-
-
 # Packaging
 
 def _build_wheel(src: Path, out: Path) -> Path:
@@ -193,33 +157,23 @@ def _build_wheel(src: Path, out: Path) -> Path:
     return wheel
 
 
-def test_wheel_ships_templates_and_plugin_and_no_demo(tmp_path):
+def test_wheel_ships_the_package_and_no_demo(tmp_path):
     wheel = _build_wheel(ROOT, tmp_path)
     assert wheel.name == f"judgekeeper-{VERSION}-py3-none-any.whl"
     names = set(zipfile.ZipFile(wheel).namelist())
-    for needed in ("judgekeeper/templates/single.md", "judgekeeper/templates/pairwise.md",
-                   "judgekeeper/pytest_plugin.py", "judgekeeper/label.py",
+    for needed in ("judgekeeper/label.py", "judgekeeper/start.py",
                    "judgekeeper/schemas/records.schema.json",
                    "judgekeeper/fonts/bricolage-grotesque-latin-600-normal.woff2",
                    "judgekeeper/fonts/bricolage-grotesque-latin-800-normal.woff2",
                    "judgekeeper/fonts/OFL-BricolageGrotesque.txt"):  # the page's font, OFL
         assert needed in names, needed
-    for gone in ("judgekeeper/demo_data/", "judgekeeper/demo.py"):
+    for gone in ("judgekeeper/demo_data/", "judgekeeper/demo.py", "judgekeeper/templates/",
+                 "judgekeeper/pytest_plugin.py", "judgekeeper/gate.py"):
         assert not any(name.startswith(gone) for name in names), gone
     dist_info = f"judgekeeper-{VERSION}.dist-info"
     entry_points = zipfile.ZipFile(wheel).read(f"{dist_info}/entry_points.txt").decode()
-    assert "[pytest11]" in entry_points and "judgekeeper.pytest_plugin" in entry_points
+    assert "[pytest11]" not in entry_points and "judgekeeper.cli:main" in entry_points
     assert f"{dist_info}/licenses/LICENSE" in names
-
-
-def test_plugin_wheel_is_metadata_only(tmp_path):
-    wheel = _build_wheel(PLUGIN_DIST, tmp_path)
-    assert wheel.name == f"pytest_judgekeeper-{VERSION}-py3-none-any.whl"
-    zf = zipfile.ZipFile(wheel)
-    assert not [n for n in zf.namelist() if n.endswith(".py")]
-    meta = zf.read(f"pytest_judgekeeper-{VERSION}.dist-info/METADATA").decode()
-    assert f"Requires-Dist: judgekeeper=={VERSION}" in meta
-    assert f"pytest_judgekeeper-{VERSION}.dist-info/licenses/LICENSE" in zf.namelist()
 
 
 def _build_sdist(src: Path, out: Path) -> list[str]:
@@ -254,11 +208,6 @@ def test_sdist_holds_only_the_package_and_its_readme_licence_and_changelog(tmp_p
             assert f"src/judgekeeper/{path.relative_to(package).as_posix()}" in names, path
 
 
-def test_plugin_sdist_holds_only_its_own_three_files(tmp_path):
-    names = _build_sdist(PLUGIN_DIST, tmp_path)
-    assert set(names) - SDIST_ALWAYS == {"README.md", "LICENSE", "pyproject.toml"}
-
-
 def test_release_workflows_test_the_wheels_from_the_checkout_not_the_sdist():
     """The sdist ships no tests, so the workflows must run the suite from the checkout."""
     for name in ("release.yml", "ci.yml"):
@@ -283,7 +232,7 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     assert (tmp_path / "index.html").read_bytes() == (ROOT / "website" / "index.html").read_bytes()
     assert not (tmp_path / "examples.html").exists()
     for page in ("start.html", "assistant.html", "learn.html", "setup.html",
-                 "tutorial.html", "reference.html", "llms.txt", "assets/style.css", "tutorial/items.csv"):
+                 "reference.html", "llms.txt", "assets/style.css"):
         assert (tmp_path / page).is_file(), page
     assert not (tmp_path / "README.md").exists()
     banner = "assets/social-preview.png"  # the picture in link previews; og:image points at it
@@ -291,7 +240,6 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     for name in ("index.html", "report.html"):
         report = tmp_path / "examples" / "llmbar-haiku" / name
         assert report.read_bytes() == (EXAMPLE / "report.html").read_bytes()
-    assert (tmp_path / "examples" / "workflows" / "judge-gate.yml").is_file()
     index = (tmp_path / "examples" / "index.html").read_text(encoding="utf-8")
     assert index.startswith("<!doctype html>")
     assert 'href="llmbar-haiku/"' in index
@@ -335,13 +283,12 @@ def test_readme_and_guide_cover_install_and_start():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     guide = _guide()
     assert "\npip install judgekeeper\n" in readme
-    assert "judgekeeper --version" in readme and "judgekeeper check " in readme
+    assert "judgekeeper --version" in readme and "judgekeeper start" in readme
     assert "judgekeeper demo" not in readme
     assert "skills/judgekeeper/SKILL.md" in readme
     for text in (readme, guide):
         assert "before the first PyPI release" not in text
-    for needed in ("judgekeeper init", "](own-metric.md)", "judgekeeper start", "pytest",
-                   "skills/judgekeeper/SKILL.md", "kappa", "TPR", "TNR"):
+    for needed in ("judgekeeper start", "skills/judgekeeper/SKILL.md", "kappa", "TPR", "TNR"):
         assert needed in guide, needed
 
 
@@ -359,11 +306,9 @@ def test_docs_do_not_point_at_the_unused_pages_address():
 
 
 def test_package_metadata_links_the_website():
-    for path in (ROOT / "pyproject.toml", PLUGIN_DIST / "pyproject.toml"):
-        urls = _toml(path)["project"]["urls"]
-        assert urls["Homepage"] == "https://www.judgekeeper.com", path
-        assert urls["Source"] == "https://github.com/judgekeeper/judgekeeper", path
     urls = _toml(ROOT / "pyproject.toml")["project"]["urls"]
+    assert urls["Homepage"] == "https://www.judgekeeper.com"
+    assert urls["Source"] == "https://github.com/judgekeeper/judgekeeper"
     assert urls["Documentation"] == "https://www.judgekeeper.com/docs.html"
     assert (ROOT / "website" / "docs.html").is_file()
     assert urls["Issues"] == "https://github.com/judgekeeper/judgekeeper/issues"
@@ -421,17 +366,17 @@ def _llmbar_report() -> dict:
 
 def test_llmbar_report_verdict_follows_the_current_thresholds():
     """The committed LLMBar report's verdict matches the current thresholds."""
-    from judgekeeper import report as rules
+    from judgekeeper import targets
 
     report = _llmbar_report()
     h = report["headline"]
     low = min(h["tpr_mean"], h["tnr_mean"])
-    if low < rules.RATE_GATE or h["kappa_mean"] < rules.KAPPA_GATE:
-        level = rules.NOT_TRUSTWORTHY
-    elif low < rules.RATE_CARE:
-        level = rules.WITH_CARE
+    if low < targets.RATE_GATE or h["kappa_mean"] < targets.KAPPA_GATE:
+        level = "not_trustworthy"
+    elif low < targets.RATE_CARE:
+        level = "usable_with_care"
     else:
-        level = rules.TRUSTWORTHY
+        level = "usable"
     assert report["verdict"]["level"] == level
     assert report["verdict"]["summary"].lower().startswith(LEVEL_WORDS[level])
     page = (EXAMPLE / "report.html").read_text(encoding="utf-8")
@@ -457,26 +402,9 @@ def test_guide_and_learn_page_quote_the_llmbar_verdict_as_the_report_states_it()
 
 # Pins
 
-PIN_FILES = ("README.md", "docs/reference.md", "docs/examples/workflows/judge-gate.yml",
-             "website/index.html", "website/learn.html", "website/setup.html",
-             "website/reference.html",
-             "skills/judgekeeper/SKILL.md")
-
-
-def test_examples_pin_judgekeeper_to_the_released_tag():
-    """`@main` would run whatever lands on main next with the user's API key."""
-    refs = []
-    for name in PIN_FILES:
-        text = (ROOT / name).read_text(encoding="utf-8")
-        refs += [(name, m) for m in re.findall(r"judgekeeper/judgekeeper(?:\.git)?@(\S+)", text)]
-    assert refs, "no pinned reference found; did the examples move?"
-    for name, ref in refs:
-        assert ref.rstrip('"') == f"v{VERSION}", f"{name}: @{ref}"
-
-
 def test_actions_are_pinned_to_commit_hashes():
-    """Tags can be moved; a full commit hash cannot. action.yml runs inside users' CI."""
-    files = sorted((ROOT / ".github" / "workflows").glob("*.yml")) + [ROOT / "action.yml"]
+    """Tags can be moved; a full commit hash cannot."""
+    files = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
     for path in files:
         for line in path.read_text(encoding="utf-8").splitlines():
             m = re.search(r"uses:\s*(\S+)", line)
@@ -488,9 +416,9 @@ def test_actions_are_pinned_to_commit_hashes():
 
 def test_security_policy_and_dependabot_exist():
     policy = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
-    for needed in ("--callable", "--exec", "report", "judgekeeper start"):
+    for needed in ("--judge-command", "judgekeeper start"):
         assert needed in policy, needed
-    for gone in ("judgekeeper label", "`template`"):  # commands that no longer exist
+    for gone in ("judgekeeper label", "`template`", "--callable", "--api-key-env", "gate.md"):
         assert gone not in policy, gone
     import yaml
     config = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8"))

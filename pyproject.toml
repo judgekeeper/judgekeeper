@@ -9,7 +9,6 @@ authors = [{ name = "Sathvik Thota" }]
 keywords = ["llm", "evaluation", "evals", "llm-evaluation", "llm-as-a-judge", "llm-as-judge", "llm-judge", "human-labels", "custom-metric", "rubric", "calibration", "drift"]
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "Framework :: Pytest",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -24,8 +23,6 @@ dependencies = []
 # build, hatchling and pyyaml: tests/test_release.py builds the wheels and reads the workflows.
 dev = ["pytest>=8", "ruff>=0.6", "build>=1", "hatchling>=1.26", "pyyaml>=6",
        "jsonschema>=4.18"]
-anthropic = ["anthropic>=0.40"]
-openai = ["openai>=1.40"]
 inspect = ["inspect-ai>=0.3"]
 mlflow = ["mlflow>=3.1"]
 
@@ -38,9 +35,6 @@ Documentation = "https://www.judgekeeper.com/docs.html"
 Source = "https://github.com/judgekeeper/judgekeeper"
 Issues = "https://github.com/judgekeeper/judgekeeper/issues"
 Changelog = "https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"
-
-[project.entry-points.pytest11]
-judgekeeper = "judgekeeper.pytest_plugin"
 
 [build-system]
 requires = ["hatchling"]

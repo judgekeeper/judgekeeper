@@ -13,7 +13,6 @@ from __future__ import annotations
 import html
 import importlib.util
 import re
-import shutil
 import subprocess
 import sys
 import tomllib
@@ -21,13 +20,11 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper.cli import _parser, main
 from tests.website_pages import (
     NAV,
     ROOT,
     WEBSITE,
     Element,
-    as_shown,
     commands,
     pages,
     parse,
@@ -98,8 +95,7 @@ def test_the_frame_script_and_the_tests_agree_on_the_navigation():
 
 def test_the_older_pages_link_back_to_the_guide():
     assert "learn.html" not in [href for href, _ in NAV]
-    for page in ("setup.html", "tutorial.html", "learn.html", "own-metric.html",
-                 "assistant.html"):
+    for page in ("setup.html", "learn.html", "assistant.html"):
         assert any(h.startswith("start.html") for h in _hrefs(_main(page))), page
 
 
@@ -169,7 +165,7 @@ PY_PIP = ".venv\\Scripts\\python -m pip install judgekeeper"  # the project's ow
 GUIDE = ROOT / "docs" / "guide.md"
 # An install that is not inside a project: the system Python, a shared environment in the
 # home folder, or a tool that installs for the whole computer.
-OUTSIDE = ("pip3 install judgekeeper", "judgekeeper-env", "uvx judgekeeper", "uv tool install",
+OUTSIDE = ("pip3 install judgekeeper", "judgekeeper-env", "uv tool install",
            "pipx", "python3 -m pip install -U judgekeeper", "pip install -U judgekeeper",
            "pip install --user", "py -m pip install judgekeeper")
 
@@ -218,8 +214,7 @@ def test_the_guide_installs_inside_the_project():
                    "a higher number"):
         assert needed in whole, needed
     # Each message a beginner can hit is explained once, under its own heading.
-    for message in (REFUSED, NO_PIP, NO_PIP_WINDOWS, "installed outside a project",
-                    "It is not about judgekeeper"):
+    for message in (REFUSED, NO_PIP, NO_PIP_WINDOWS, "It is not about judgekeeper"):
         assert whole.count(message) == 1, message
     refused = next(v for k, v in help_box.items() if REFUSED in k)
     assert "not switched on" in refused
@@ -265,7 +260,7 @@ def test_a_link_can_open_the_install_on_either_tab():
 def _install_sources() -> list:
     docs = sorted((ROOT / "docs").rglob("*.md"))
     return [*pages(), *docs, ROOT / "README.md", ROOT / "skills" / "judgekeeper" / "SKILL.md",
-            ROOT / "packages" / "pytest-judgekeeper" / "README.md", WEBSITE / "llms.txt"]
+            WEBSITE / "llms.txt"]
 
 
 def test_nothing_shows_an_install_outside_a_project():
@@ -305,8 +300,7 @@ def test_the_guide_and_the_readme_show_the_same_install():
         assert f"```\n{ACTIVATE[key]}\n```" in section, key
     for needed in (f"`{REFUSED}`", f"`{NO_PIP}`", f"`{NO_PIP_WINDOWS}`", "`python --version`",
                    "https://www.python.org/downloads/", "like pytest", "never on your computer",
-                   "It is not about judgekeeper", "(.venv)", "installed outside a project",
-                   "Scripts\\activate.bat"):
+                   "It is not about judgekeeper", "(.venv)", "Scripts\\activate.bat"):
         assert needed in section, needed
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     install = readme[readme.index("## Install"):readme.index("## Use it")]
@@ -330,7 +324,7 @@ def _install_texts() -> dict[str, str]:
     guide = GUIDE.read_text(encoding="utf-8")
     return {"README.md": readme[readme.index("## Install"):readme.index("## Use it")],
             "start.html": _flat(_by_id("start.html", "install")),
-            "guide.md": guide[guide.index("## 0. The core"):guide.index(
+            "guide.md": guide[guide.rindex("\n## ", 0, guide.index("### Install\n")):guide.index(
                 "See a real report without installing")]}
 
 
@@ -356,51 +350,6 @@ def test_didnt_work_explains_an_older_python_and_a_project_that_allows_one():
 def test_the_uv_line_shows_how_to_run_it():
     for name, text in _install_texts().items():
         assert UV_RUN in " ".join(text.split()), name
-
-
-def test_installed_outside_a_project_does_not_blame_the_environment_alone():
-    """Someone who installed it as a tool for the whole computer had nothing to switch on."""
-    (outside,) = [v for k, v in _help("install").items() if "installed outside a project" in k]
-    assert "not switched on" not in outside
-    assert "for your whole computer" in outside
-    guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
-    assert "installed outside a project, the environment was not switched on" not in guide
-
-
-# Use it on your app
-
-def test_use_it_on_your_app_has_four_steps_each_with_something_to_run_or_make():
-    (steps,) = [el for el in _by_id("start.html", "other").iter()
-                if el.tag == "ol" and "steps" in el.classes()]
-    items = [li for li in steps.children if isinstance(li, Element)]
-    heads = [next(h for h in li.iter() if h.tag == "h4").text() for li in items]
-    assert len(heads) == 4
-    for head, needle in zip(heads, ("Collect", "Mark", "judge", "Read"), strict=True):
-        assert needle in head, head
-    for li in items:
-        if "This step has no command either" in li.text():  # the labels, typed in the sheet
-            continue
-        shown = [el for el in li.iter() if el.tag == "pre"]
-        assert shown, li.text()[:60]
-        assert "What you see" in li.text() or "What the file looks like" in li.text()
-    used = {argv[0] for _, argv in commands(WEBSITE / "start.html") if argv}
-    assert {"check", "judge", "validate"} <= used
-    step_commands = [el.text() for el in steps.iter() if el.tag == "code"
-                     and el.parent.tag == "pre" and "output" not in el.parent.classes()]
-    assert step_commands[0] == "judgekeeper check results.csv --judge verdict --human label"
-    assert step_commands[1].startswith("judgekeeper judge anchors.jsonl ")
-
-
-def test_use_it_on_your_app_shows_the_real_file_and_the_real_output(tmp_path, monkeypatch, capsys):
-    (sample,) = [el for el in _els("start.html") if el.attrs.get("data-file") == "tutorial/items.csv"]
-    real = (WEBSITE / "tutorial" / "items.csv").read_text(encoding="utf-8").splitlines()
-    assert sample.text().strip("\n").splitlines() == real[:int(sample.attrs["data-rows"])]
-    shutil.copy(WEBSITE / "tutorial" / "results.csv", tmp_path / "results.csv")
-    monkeypatch.chdir(tmp_path)
-    capsys.readouterr()
-    assert main(["check", "results.csv", "--judge", "verdict", "--human", "label"]) == 0
-    printed = as_shown(capsys.readouterr().out)
-    assert _output("start.html", "check") == printed.strip("\n").splitlines()
 
 
 # With a coding assistant
@@ -462,39 +411,8 @@ def test_llms_txt_lists_the_pages_and_the_prompt_and_every_link_resolves():
 def test_the_sitemap_lists_the_main_pages():
     locs = set(re.findall(r"<loc>(.*?)</loc>", (WEBSITE / "sitemap.xml").read_text(
         encoding="utf-8")))
-    for page in ("start.html", "assistant.html", "own-metric.html"):
+    for page in ("start.html", "assistant.html", "setup.html"):
         assert f"https://www.judgekeeper.com/{page}" in locs, page
-
-
-# What a reader who installed from PyPI can actually run
-
-DOCS = ROOT / "docs"
-RUNNER_PAGES = (WEBSITE / "setup.html", WEBSITE / "learn.html", DOCS / "reference.md",
-                DOCS / "guide.md")
-
-
-@pytest.mark.parametrize("path", RUNNER_PAGES, ids=lambda p: p.name)
-def test_judge_commands_use_the_rule_file_init_writes_and_show_init_first(path):
-    """prompts/single.md and prompts/pairwise.md are files of this repository, not of the
-    package: someone who ran `pip install judgekeeper` does not have them."""
-    text = html.unescape(path.read_text(encoding="utf-8"))
-    assert "--prompt prompts/single.md" not in text
-    assert "--prompt prompts/pairwise.md" not in text
-    first_use = text.index("--prompt prompts/judge.md")
-    assert 0 <= text.index("judgekeeper init") < first_use
-
-
-@pytest.mark.parametrize("path", [WEBSITE / "setup.html", DOCS / "reference.md",
-                                  DOCS / "guide.md"], ids=lambda p: p.name)
-def test_the_anthropic_extra_is_shown_where_the_runner_is_introduced(path):
-    text = html.unescape(path.read_text(encoding="utf-8"))
-    install = 'pip install "judgekeeper[anthropic]"'
-    assert install in text and 'judgekeeper[openai]' in text
-    extras = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
-        "optional-dependencies"]
-    assert {"anthropic", "openai"} <= set(extras)
-    # before the first command that uses the runner
-    assert text.index(install) < text.index("judgekeeper judge anchors.jsonl --runner anthropic")
 
 
 def test_the_setup_page_has_the_laptop_steps_for_mac_and_for_windows():
@@ -514,31 +432,6 @@ def test_the_setup_page_has_the_laptop_steps_for_mac_and_for_windows():
         assert "echo $ANTHROPIC_API_KEY" not in panel and "printenv" not in panel
 
 
-def test_the_reference_states_the_verdict_rule_as_the_code_applies_it():
-    from judgekeeper import report as rules
-
-    text = (DOCS / "reference.md").read_text(encoding="utf-8")
-    gate, care, kappa = f"{rules.RATE_GATE:.2f}", f"{rules.RATE_CARE:.2f}", rules.KAPPA_GATE
-    assert f"| TPR or TNR below {gate}, or kappa below {kappa} | \"not trustworthy as a gate\" |" in text
-    assert (f"| otherwise, TPR or TNR below {care} | \"usable with care\" |") in text
-    assert "TPR and TNR between" not in text  # the code takes the lower of the two rates
-
-
-def test_the_tutorial_is_described_by_what_it_covers_not_as_every_command():
-    parser = _parser()
-    (sub,) = [a for a in parser._actions if a.dest == "command"]
-    shown = {argv[0] for _, argv in commands(WEBSITE / "tutorial.html") if argv}
-    missing = set(sub.choices) - shown
-    assert missing, "the tutorial now shows every command: this test can go"
-    tutorial = (WEBSITE / "tutorial.html").read_text(encoding="utf-8")
-    llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
-    line = next(x for x in llms.splitlines()
-                if x.startswith("- [Advanced commands, step by step]"))
-    for text in (tutorial[:tutorial.index('<h2 id="setup">')], line):
-        assert not re.search(r"every (judgekeeper )?command", text, flags=re.IGNORECASE), text[:80]
-    assert "main commands" in line and "main judgekeeper commands" in tutorial
-
-
 # The Docs page: one list of every page, and the places on GitHub the site does not show
 
 def test_the_docs_page_links_every_page_and_the_places_on_github():
@@ -547,7 +440,7 @@ def test_the_docs_page_links_every_page_and_the_places_on_github():
         if page.name not in {"docs.html", "index.html"}:
             assert page.name in hrefs, page.name
     blob = "https://github.com/judgekeeper/judgekeeper/blob/main/"
-    for tool in ("promptfoo", "deepeval", "inspect", "mlflow", "langfuse"):
+    for tool in ("promptfoo", "deepeval", "inspect", "mlflow"):
         assert f"{blob}docs/integrations/{tool}.md" in hrefs, tool
         assert (ROOT / "docs" / "integrations" / f"{tool}.md").is_file(), tool
     for needed in (f"{blob}CHANGELOG.md", f"{blob}SECURITY.md",

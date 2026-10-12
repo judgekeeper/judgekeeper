@@ -54,8 +54,7 @@ TIMEOUT = 60.0
 EXPECTED_SOURCE = {LLM: {"EVAL", "API"}, HUMAN: {"ANNOTATION", "API"}}
 VERDICT_TYPES = ("BOOLEAN", "NUMERIC", "CATEGORICAL")
 ONE_RUN_NOTE = ("Langfuse keeps one judge score per subject and name: this import is one run, "
-                "so the noise floor is unknown. Re-judge the labeled items (--anchors-out) for "
-                "a real one.")
+                "so the noise floor is unknown.")
 
 # Swapped out by the tests, so rate limiting and back-off never sleep for real.
 _clock = time.monotonic

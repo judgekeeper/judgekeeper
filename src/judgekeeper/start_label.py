@@ -16,9 +16,8 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
 - labels.csv: the person's marks (id, input, output, human_label, notes), written on every
   click. A skipped answer has no label and the note "skipped". File names and keys use
   "label", "pass" and "fail".
-- anchors.jsonl and its manifest: the labeled answers as a frozen anchor set, so `judge`,
-  `baseline` and `gate` work on them later (with the pool's trajectory, outcome and
-  app_version, frozen too). Written with each result.
+- anchors.jsonl and its manifest: the labeled answers as a frozen anchor set (with the
+  pool's trajectory, outcome and app_version, frozen too). Written with each result.
 - judge-check.json and judge-check.csv: did the judge actually judge? (judge_check.py): the
   counts and each answer found, written when labeling starts (and when `start` names the
   CSV). A re-check copies the old ones to history/ with the other start files.
@@ -57,7 +56,6 @@ from judgekeeper.judgments import judgment_to_record, write_run
 from judgekeeper.label import LabelSession, make_server
 from judgekeeper.records import AGENT_FIELDS
 from judgekeeper.redact import scrub, scrub_fingerprint, scrub_value
-from judgekeeper.report import KAPPA_GATE, RATE_CARE, RATE_GATE
 from judgekeeper.runners.base import Judgment
 from judgekeeper.start_page import label_page, result_page
 from judgekeeper.table import guard_cell, write_anchor_file
@@ -428,10 +426,10 @@ def _level(r: dict) -> str | None:
     if r["check"] == "too_few":
         return None
     tpr, tnr, kappa = plain(r["tpr"]), plain(r["tnr"]), plain(r["kappa"])
-    if kappa is None or tpr is None or tnr is None or kappa < KAPPA_GATE \
-            or min(tpr, tnr) < RATE_GATE:
+    if kappa is None or tpr is None or tnr is None or kappa < targets.KAPPA_GATE \
+            or min(tpr, tnr) < targets.RATE_GATE:
         return "not_gate"
-    return "check" if min(tpr, tnr) < RATE_CARE else "gate"
+    return "check" if min(tpr, tnr) < targets.RATE_CARE else "gate"
 
 
 def describe(corrected: dict) -> dict:
@@ -794,7 +792,7 @@ def page_content(r: dict) -> dict:
                   tile("TNR", "When you said Fail", r["tnr"], r["tnr_interval"],
                        f"{labels['wrong']} marked Fail so far"),
                   tile("kappa", "How much you agree beyond luck", r["kappa"], None,
-                       f"from {n} answers · {KAPPA_GATE:g} or more is good", as_pct=False)],
+                       f"from {n} answers · {targets.KAPPA_GATE:g} or more is good", as_pct=False)],
         "pass_rate": None if too_few else _pass_rate(r),
         "corrected": None if too_few else (
             "judgekeeper showed you half of your judge's passes and half of its fails, and "

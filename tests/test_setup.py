@@ -18,8 +18,6 @@ import pytest
 
 from judgekeeper import own_format, setup_project, start
 from judgekeeper.cli import main
-from judgekeeper.config import load_section
-from judgekeeper.gate import GateConfig
 from judgekeeper.textio import tick
 from tests.start_projects import (
     flat_jsonl,
@@ -321,8 +319,6 @@ def test_setup_again_replaces_only_its_own_table(tmp_path, capsys, terminal):
     assert data["gate"] == {"kappa_min": 0.7} and "# my thresholds" in text
     assert data["start"]["source"] == "map"
     assert "  • change the [start] table in judgekeeper.toml" in out
-    assert load_section(tmp_path / "judgekeeper.toml", "gate", GateConfig(), ValueError
-                        ).kappa_min == 0.7  # gate still reads the file
 
 
 def test_a_changed_shape_says_to_run_setup_again(tmp_path, capsys, terminal):

@@ -37,16 +37,9 @@ judgekeeper start
 - After that it can go through the disagreements with you, and have your coding agent fix your judge's rule.
 - No AI calls unless you say yes. judgekeeper never sees your API key and never runs your app.
 
-No judge yet, or want your own rule? See [Your own metric](https://www.judgekeeper.com/own-metric.html).
-
-Already have a table with one row per answer, the judge's verdict and your own label?
-```
-judgekeeper check results.csv --judge verdict --human label
-```
-
 ## What you get
 
-First a plain sentence: of the answers people passed, how many the judge passed, and of the answers people failed, how many it failed. Then whether the judge is usable as a gate, with every warning, and a report you can open in a browser. The numbers are estimates from the answers you marked, not a promise about the next ones. A report from a real judge on a public dataset: [LLMBar judged by Claude Haiku 4.5](https://www.judgekeeper.com/examples/llmbar-haiku/report.html).
+First a plain sentence: of the answers people passed, how many the judge passed, and of the answers people failed, how many it failed. Then one coloured line on whether it agrees with you often enough to use, and a result page you can open in a browser. The numbers are estimates from the answers you marked, not a promise about the next ones. A report from a real judge on a public dataset: [LLMBar judged by Claude Haiku 4.5](https://www.judgekeeper.com/examples/llmbar-haiku/report.html).
 
 ## Numbers
 
@@ -58,12 +51,7 @@ First a plain sentence: of the answers people passed, how many the judge passed,
 
 ## When you need more
 
-| You need | Command | Read |
-|---|---|---|
-| Your own rule, or judgekeeper to run the judge | `judgekeeper init` | [Your own metric](https://www.judgekeeper.com/own-metric.html) |
-| A warning when the judge changes | `judgekeeper gate report.json` | [Keep checking](https://www.judgekeeper.com/learn.html#keeps) |
-| To use results from an eval framework, pytest or CI | `judgekeeper import promptfoo results.json` | [Your tools](https://www.judgekeeper.com/learn.html#works) |
-| A coding agent to set it up for you | none: the agent reads one file, `skills/judgekeeper/SKILL.md` | [With a coding assistant](https://www.judgekeeper.com/assistant.html) |
+A coding agent can set it up for you: it reads one file, `skills/judgekeeper/SKILL.md`. See [With a coding assistant](https://www.judgekeeper.com/assistant.html).
 
 ## Status
 

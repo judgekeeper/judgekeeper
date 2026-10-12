@@ -5,9 +5,6 @@ Conventions the pages follow, so these tests can check every figure:
 - `data-report="headline.kappa_mean"` with `data-format`: a number from
   docs/examples/llmbar-haiku/report.json. `slices[Natural].kappa_mean` picks a list entry.
 - `data-const="judgekeeper.targets:RELIABLE"`: a constant from the code.
-- `data-exit="gate:PASS"`: an exit code from judgekeeper.gate.
-- `data-tutorial="lazy:headline.tnr_mean"`: a number from the tutorial run, checked in
-  test_website_tutorial.py.
 - `data-realcheck="summary.25+25.tpr_tnr.mean"` with `data-format`: a number from
   docs/examples/real-data-check/report.json.
 - `data-coverage="corrected/levels/0.96/min_cell"`: a number from
@@ -38,7 +35,6 @@ from tests.website_pages import (
     WEBSITE,
     commands,
     hand_written_pages,
-    in_output,
     pages,
     parse,
 )
@@ -47,13 +43,12 @@ REPORT = json.loads((ROOT / "docs/examples/llmbar-haiku/report.json").read_text(
 REALCHECK = json.loads((ROOT / "docs/examples/real-data-check/report.json").read_text(
     encoding="utf-8"))
 COVERAGE = json.loads((ROOT / "docs/examples/coverage/coverage.json").read_text(encoding="utf-8"))
-SOURCE_ATTRS = ("data-report", "data-const", "data-exit", "data-tutorial", "data-realcheck",
-                "data-coverage")
+SOURCE_ATTRS = ("data-report", "data-const", "data-realcheck", "data-coverage")
 
 
 def test_site_has_its_pages():
     for name in ("index.html", "start.html", "docs.html", "assistant.html", "learn.html",
-                 "setup.html", "tutorial.html", "own-metric.html", "reference.html", "llms.txt",
+                 "setup.html", "reference.html", "llms.txt",
                  "assets/style.css", "assets/site.js", "assets/theme.js", "assets/metrics.js",
                  "assets/logo.svg", "assets/social-preview.png"):
         assert (WEBSITE / name).is_file(), name
@@ -92,7 +87,7 @@ def _all_commands():
 @pytest.mark.parametrize("argv", list(_all_commands()))
 def test_every_command_on_the_site_parses(argv):
     if len(argv) == 1 and argv[0] in _subcommands():
-        return  # a mention of a command by name in a sentence, such as `judgekeeper gate`
+        return  # a mention of a command by name in a sentence, such as `judgekeeper setup`
     parser = _parser()
     try:
         parser.parse_args(argv)
@@ -106,30 +101,6 @@ def test_the_pages_show_commands():
     # --version on each install tab
     assert counts["index.html"] == 2
     assert counts["start.html"] >= 6  # judgekeeper start, then the four other steps
-    assert counts["learn.html"] >= 12
-    assert counts["setup.html"] >= 4
-    assert counts["tutorial.html"] >= 10
-
-
-def test_pytest_options_on_the_site_exist():
-    plugin = (ROOT / "src/judgekeeper/pytest_plugin.py").read_text(encoding="utf-8")
-    real = set(re.findall(r'addoption\("(--judgekeeper-[a-z-]+)"', plugin))
-    shown = set()
-    for page in hand_written_pages():
-        for el in parse(page).iter():
-            if el.tag == "code" and not in_output(el):
-                shown |= set(re.findall(r"--judgekeeper-[a-z-]+", el.text()))
-    assert shown, "the site shows the pytest plugin"
-    assert shown <= real, shown - real
-
-
-def test_the_setup_page_shows_the_example_workflow_unchanged():
-    expected = (ROOT / "docs/examples/workflows/judge-gate.yml").read_text(encoding="utf-8")
-    blocks = [el for el in parse(WEBSITE / "setup.html").iter()
-              if el.tag == "code" and el.attrs.get("data-file") ==
-              "docs/examples/workflows/judge-gate.yml"]
-    assert len(blocks) == 1
-    assert blocks[0].text().strip() == expected.strip()
 
 
 # Numbers
@@ -213,18 +184,6 @@ def test_constants_match_the_code():
         value = getattr(importlib.import_module(module), name)
         fmt = el.attrs.get("data-format", "2f")
         assert el.text().strip() == render(value, fmt), (page.name, el.attrs)
-
-
-def test_exit_codes_match_the_code():
-    from judgekeeper import gate
-
-    tables = {"gate": gate.EXIT_CODES}
-    found = list(_sourced("data-exit"))
-    statuses = {el.attrs["data-exit"] for _, el in found}
-    assert {f"gate:{s}" for s in gate.EXIT_CODES} <= statuses
-    for page, el in found:
-        table, status = el.attrs["data-exit"].split(":")
-        assert el.text().strip() == str(tables[table][status]), (page.name, el.attrs)
 
 
 NUMBER = re.compile(r"\d+\.\d+|\d+(?:\.\d+)?\s?%")
@@ -390,15 +349,15 @@ def test_the_converter_formats_links_and_bold_that_hold_code():
         "render_reference", ROOT / "scripts" / "render_reference.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    assert module.inline("**`a.toml` first.** See [`b`](own-metric.md#x) and `[c](d)`.") == (
+    assert module.inline("**`a.toml` first.** See [`b`](assistant.md#x) and `[c](d)`.") == (
         '<strong><code>a.toml</code> first.</strong> See '
-        '<a href="own-metric.html#x"><code>b</code></a> and <code>[c](d)</code>.')
+        '<a href="assistant.html#x"><code>b</code></a> and <code>[c](d)</code>.')
     # pages on the site stay on the site; other docs and example folders open on GitHub
     assert module.link("reference.md#y") == "reference.html#y"
     assert module.link("assistant.md") == "assistant.html"
     assert module.link("integrations/mlflow.md").startswith("https://github.com/")
-    assert module.link("examples/own-metric/").endswith("/tree/main/docs/examples/own-metric/")
-    assert module.link("examples/own-metric/items.csv") == "examples/own-metric/items.csv"
+    assert module.link("examples/coverage/").endswith("/tree/main/docs/examples/coverage/")
+    assert module.link("examples/coverage/items.csv") == "examples/coverage/items.csv"
 
 
 def test_the_reference_converter_is_small():
@@ -418,8 +377,8 @@ SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url",
               "twitter:title", "twitter:description", "twitter:image"]
 SHARE_ALT = ("judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, "
              "in one command.")
-NINE_PAGES = {"index.html", "start.html", "docs.html", "assistant.html", "learn.html",
-              "reference.html", "setup.html", "tutorial.html", "own-metric.html"}
+SEVEN_PAGES = {"index.html", "start.html", "docs.html", "assistant.html", "learn.html",
+               "reference.html", "setup.html"}
 
 
 def _head(page: Path) -> tuple[str, str, list[tuple[str, str, str]]]:
@@ -441,7 +400,7 @@ def _png_size(path: Path) -> tuple[int, int]:
 
 
 def test_every_page_has_the_share_preview_tags():
-    assert {p.relative_to(WEBSITE).as_posix() for p in pages()} == NINE_PAGES
+    assert {p.relative_to(WEBSITE).as_posix() for p in pages()} == SEVEN_PAGES
     for page in pages():
         name = page.relative_to(WEBSITE).as_posix()
         title, description, share = _head(page)

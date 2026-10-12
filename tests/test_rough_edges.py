@@ -1,5 +1,5 @@
-"""Rough edges: files that are not UTF-8, unwritable output, a judge that fails on every item,
-`--version`, Windows terminals and shells, and rare wordings.
+"""Rough edges: files that are not UTF-8, unwritable output, `--version`, Windows terminals
+and shells, and rare wordings.
 
 Windows itself is not run here. What depends on it is reached by setting `sys.platform`.
 """
@@ -8,34 +8,27 @@ from __future__ import annotations
 
 import errno
 import io
-import json
 import os
-import shlex
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
-from judgekeeper import __version__, check_table, textio
-from judgekeeper.anchors import freeze
+from judgekeeper import __version__, textio
+from judgekeeper.anchors import AnchorError, load_anchors
 from judgekeeper.cli import main
 from judgekeeper.custom import exec_judge
+from judgekeeper.judgments import JudgmentsError, read_run
 from judgekeeper.label import LabelError, LabelSession, make_server
 from judgekeeper.normalise import NormaliseError, unmapped_error
-from judgekeeper.report import label_quality
+from judgekeeper.readers import read_deepeval, read_inspect, read_promptfoo, read_records
+from judgekeeper.records import RecordsError
 from judgekeeper.table import TableError, read_table
-from tests.conftest import FIXTURES
+from tests.start_projects import promptfoo_project, split, table_project
 
-CHECK_CSV = FIXTURES / "check" / "results.csv"
-MIG = FIXTURES / "migrate"
-EXEC = FIXTURES / "exec"
 TABLE = "id,input,output,verdict,label\na,caf\u00e9,o,pass,pass\nb,q,o,fail,fail\n"
 SHEET = "id,input,output,human_label,notes\na,caf\u00e9,o,pass,\nb,q,o,fail,\n"
 ENCODINGS = ("cp1252", "utf-16")
-RECORDS = ["import", "records", str(FIXTURES / "records" / "export.csv"), "--map",
-           ("target_id=trace_id,name=metric,label=value,explanation=comment,"
-            "annotator_kind=source,input=question,output=answer,evaluator.model=judge_model")]
 
 
 @pytest.fixture
@@ -45,15 +38,6 @@ def windows(monkeypatch):
 
 def _write(path, text: str, encoding: str = "utf-8"):
     path.write_bytes(text.encode(encoding))
-    return path
-
-
-def _anchors(tmp_path, n: int = 10):
-    path = tmp_path / "anchors.jsonl"
-    items = [{"id": f"s{i}", "input": f"q{i}", "output": ("good " if i % 2 == 0 else "bad ")
-              + str(i), "human_label": "pass" if i % 2 == 0 else "fail"} for i in range(n)]
-    path.write_text("".join(json.dumps(i) + "\n" for i in items), encoding="utf-8")
-    freeze(path)
     return path
 
 
@@ -72,15 +56,18 @@ def _plain_error(capsys, *needles: str) -> str:
 # A file that is not UTF-8 --------------------------------------------------------------------
 
 @pytest.mark.parametrize("encoding", ENCODINGS)
-def test_check_says_a_spreadsheet_file_is_not_utf8_and_how_to_fix_it(tmp_path, capsys,
-                                                                    encoding):
-    path = _write(tmp_path / "results.csv", TABLE, encoding)
-    assert main(["check", str(path), "--out", str(tmp_path / "o")]) == 2
-    _plain_error(capsys, str(path), "not saved as UTF-8",
+def test_start_says_a_spreadsheet_file_is_not_utf8_and_how_to_fix_it(tmp_path, capsys,
+                                                                    monkeypatch, encoding):
+    table_project(tmp_path, split(20, 20))
+    path = tmp_path / "results.csv"
+    _write(path, path.read_text(encoding="utf-8").replace("Answer", "Answ\u00e9r"), encoding)
+    monkeypatch.chdir(tmp_path)
+    assert main(["start", "results.csv", "--no-browser"]) == 2
+    _plain_error(capsys, "results.csv", "not saved as UTF-8",
                  'In Excel, save it again as "CSV UTF-8 (Comma delimited)"',
                  "in Google Sheets")
     with pytest.raises(TableError, match="UTF-8"):
-        check_table(path, out=tmp_path / "o2")
+        read_table(path)
 
 
 def test_utf16_without_a_byte_order_mark_is_not_read_as_text(tmp_path):
@@ -96,66 +83,30 @@ def test_a_utf8_file_with_a_byte_order_mark_still_reads(tmp_path):
         assert rows[0]["id"] == "a" and rows[0]["input"] == "caf\u00e9"
 
 
-@pytest.mark.parametrize("encoding", ENCODINGS)
-def test_a_labels_table_says_it_is_not_utf8(tmp_path, capsys, encoding):
-    sheet = _write(tmp_path / "sheet.csv", SHEET, encoding)
-    assert main([*RECORDS, "--labels", str(sheet), "--out", str(tmp_path / "o")]) == 2
-    _plain_error(capsys, str(sheet), "UTF-8", "CSV UTF-8 (Comma delimited)")
-
-
 def test_the_label_session_raises_its_own_error_for_a_file_that_is_not_utf8(tmp_path):
     with pytest.raises(LabelError, match="UTF-8"):
         LabelSession(_write(tmp_path / "items.csv", SHEET, "cp1252"), tmp_path / "l.csv")
 
 
-@pytest.mark.parametrize("tool,name", [("promptfoo", "results.json"),
-                                       ("deepeval", "test_run_1.json"),
-                                       ("inspect", "log.json"), ("records", "records.jsonl")])
-def test_the_framework_readers_say_a_file_is_not_utf8(tmp_path, capsys, monkeypatch, tool,
-                                                      name):
+@pytest.mark.parametrize("reader,name", [(read_promptfoo, "results.json"),
+                                         (read_deepeval, "test_run_1.json"),
+                                         (read_inspect, "log.json"),
+                                         (read_records, "records.jsonl")])
+def test_the_framework_readers_say_a_file_is_not_utf8(tmp_path, monkeypatch, reader, name):
     monkeypatch.setitem(sys.modules, "inspect_ai", None)  # the plain JSON reader
     path = _write(tmp_path / name, '{"note": "caf\u00e9"}\n', "cp1252")
-    assert main(["import", tool, str(path), "--out", str(tmp_path / "o")]) == 2
-    line = _plain_error(capsys, str(path), "not saved as UTF-8")
-    assert "Excel" not in line  # the spreadsheet advice is for spreadsheet files
+    with pytest.raises(RecordsError, match="not saved as UTF-8") as e:
+        reader(path)
+    assert str(path) in str(e.value)
+    assert "Excel" not in str(e.value)  # the spreadsheet advice is for spreadsheet files
 
 
-def test_anchors_runs_prompt_report_and_config_say_they_are_not_utf8(tmp_path, capsys,
-                                                                    pairwise_dir):
-    anchors, runs = pairwise_dir / "anchors.jsonl", pairwise_dir / "runs"
-    report = tmp_path / "rep"
-    assert main(["validate", str(anchors), str(runs), "--out", str(report)]) == 0
-    capsys.readouterr()
-    bad = '{"caf\u00e9": 1}\n'.encode("cp1252")
-
-    config = tmp_path / "judgekeeper.toml"
-    config.write_bytes('# caf\u00e9\n[gate]\n'.encode("cp1252"))
-    assert main(["gate", str(report / "report.json"), "--config", str(config)]) == 2
-    _plain_error(capsys, str(config), "UTF-8")
-
-    prompt = tmp_path / "prompt.md"
-    prompt.write_bytes("---\nrubric_version: v1\n---\ncaf\u00e9 {{input}}\n".encode("cp1252"))
-    for source in (["--callable", "tests.judges_for_tests:pick_good"],
-                   ["--runner", "anthropic", "--model", "m"]):
-        assert main(["judge", str(anchors), *source, "--prompt", str(prompt),
-                     "--out", str(tmp_path / "r")]) == 2
-        _plain_error(capsys, str(prompt), "UTF-8")
-
-    (report / "report.json").write_bytes(bad)
-    assert main(["gate", str(report / "report.json")]) == 2
-    _plain_error(capsys, "report.json", "UTF-8")
-
-    run = runs / "run-01.jsonl"
-    run.write_bytes(bad)
-    assert main(["validate", str(anchors), str(runs), "--out", str(tmp_path / "r2")]) == 2
-    _plain_error(capsys, str(run), "UTF-8")
-    assert main(["judge", str(anchors), "--runner", "replay", "--fixture", str(run),
-                 "--out", str(tmp_path / "r3")]) == 2
-    _plain_error(capsys, str(run), "UTF-8")
-
-    anchors.write_bytes(bad)
-    assert main(["validate", str(anchors), str(runs), "--out", str(tmp_path / "r4")]) == 2
-    _plain_error(capsys, str(anchors), "UTF-8")
+def test_anchors_and_runs_say_they_are_not_utf8(tmp_path):
+    bad = _write(tmp_path / "anchors.jsonl", '{"caf\u00e9": 1}\n', "cp1252")
+    with pytest.raises(AnchorError, match="UTF-8"):
+        load_anchors(bad)
+    with pytest.raises(JudgmentsError, match="UTF-8"):
+        read_run(bad)
 
 
 # --version, and --debug with no command ------------------------------------------------------
@@ -186,141 +137,32 @@ def test_debug_with_no_command_prints_the_help(capsys):
     assert out == usual and err == ""
 
 
-# A judge that fails ---------------------------------------------------------------------------
-
-def _judge(anchors, out, *source, runs: int = 1) -> int:
-    return main(["judge", str(anchors), *source, "--runs", str(runs), "--out", str(out)])
-
-
-def test_a_mistyped_judge_program_is_a_failure_not_a_success(tmp_path, capsys):
-    anchors, runs = _anchors(tmp_path), tmp_path / "runs"
-    assert _judge(anchors, runs, "--exec", "nonexistent-prog-for-judgekeeper-tests") == 1
-    err = capsys.readouterr().err
-    assert "Traceback" not in err and "--debug" not in err
-    last = err.splitlines()[-1]
-    assert last.startswith("error: the judge failed on every item (10 of 10 judgments were "
-                           "errors)")
-    assert "First error: cannot run 'nonexistent-prog-for-judgekeeper-tests'" in last
-
-
-def test_a_judge_function_that_always_raises_is_a_failure(tmp_path, capsys):
-    anchors = _anchors(tmp_path)
-    assert _judge(anchors, tmp_path / "runs", "--callable",
-                  "tests.judges_for_tests:always_raises", runs=3) == 1
-    last = capsys.readouterr().err.splitlines()[-1]
-    assert "the judge failed on every item (30 of 30 judgments were errors)" in last
-    # One line, even when the judge's own message has several.
-    assert last.endswith("First error: RuntimeError: the judge service is down (try again "
-                         "later)")
-
-
-def test_the_first_error_of_a_failed_judge_is_scrubbed(tmp_path, capsys):
-    assert _judge(_anchors(tmp_path), tmp_path / "runs", "--callable",
-                  "tests.judges_for_tests:raises_with_a_key") == 1
-    err = capsys.readouterr().err
-    assert "sk-ant-api03" not in err and "[REDACTED]" in err
-
-
-def test_some_errors_are_counted_and_the_run_still_succeeds(tmp_path, capsys):
-    anchors = _anchors(tmp_path, n=12)
-    command = f'"{sys.executable}" "{EXEC / "fails_some.py"}"'
-    assert _judge(anchors, tmp_path / "runs", "--exec", command, runs=2) == 0
-    lines = capsys.readouterr().err.splitlines()
-    assert lines[-1].startswith("warning: 4 of 24 judgments were errors")
-    assert "First error: exit 3: judge crashed" in lines[-1]
-
-
-def test_a_judge_run_with_no_errors_prints_what_it_always_did(tmp_path, capsys):
-    anchors, runs = _anchors(tmp_path), tmp_path / "runs"
-    assert _judge(anchors, runs, "--callable", "tests.judges_for_tests:keyword_judge",
-                  runs=3) == 0
-    assert capsys.readouterr().err.splitlines() == [
-        "30 judge calls (10 items x 3 runs)",
-        *(f"wrote {runs / f'run-{n:02d}.jsonl'} (10 judgments)" for n in (1, 2, 3)),
-    ]
-
-
-def test_replaying_a_run_of_errors_is_a_failure_too(tmp_path, capsys):
-    anchors, runs = _anchors(tmp_path), tmp_path / "runs"
-    assert _judge(anchors, runs, "--callable", "tests.judges_for_tests:always_raises") == 1
-    capsys.readouterr()
-    assert main(["judge", str(anchors), "--runner", "replay", "--fixture",
-                 str(runs / "run-01.jsonl"), "--out", str(tmp_path / "again")]) == 1
-    assert "the judge failed on every item" in capsys.readouterr().err
-
-
 # An output location that cannot be written ----------------------------------------------------
 
-def _report(tmp_path) -> str:
-    out = tmp_path / "made"
-    assert main(["check", str(CHECK_CSV), "--out", str(out)]) == 0
-    return str(out / "report.json")
-
-
-def _output_commands(tmp_path, pairwise_dir, target: str) -> dict[str, list[str]]:
-    """Every command that writes, with its output at `target`."""
-    anchors, runs = str(pairwise_dir / "anchors.jsonl"), str(pairwise_dir / "runs")
-    report = _report(tmp_path)
-    return {
-        "check": ["check", str(CHECK_CSV), "--out", target],
-        "validate": ["validate", anchors, runs, "--out", target],
-        "judge": ["judge", anchors, "--runner", "replay", "--fixture",
-                  str(pairwise_dir / "runs" / "run-01.jsonl"), "--out", target],
-        "gate": ["gate", report, "--out", target],
-        "migrate": ["migrate", str(MIG / "anchors.jsonl"), str(MIG / "old"),
-                    str(MIG / "new-better"), "--out", target],
-        "import": [*RECORDS, "--out", target],
-        "init": ["init", "--out", f"{target}/judge.md"],
-        "baseline": ["baseline", "set", report, "--path", f"{target}/baseline.json"],
-    }
-
-
-COMMANDS_THAT_WRITE = ("check", "validate", "judge", "gate", "migrate", "import", "init",
-                       "baseline")
-
-
-@pytest.mark.parametrize("command", COMMANDS_THAT_WRITE)
-def test_a_file_where_the_output_folder_should_be_is_said_plainly(tmp_path, capsys,
-                                                                 pairwise_dir, command):
-    blocker = _write(tmp_path / "in-the-way", "a file\n")
-    argv = _output_commands(tmp_path, pairwise_dir, str(blocker))[command]
+def test_a_file_where_the_workspace_folder_should_be_is_said_plainly(tmp_path, capsys,
+                                                                    monkeypatch):
+    promptfoo_project(tmp_path, split(20, 20))
+    blocker = _write(tmp_path / ".judgekeeper", "a file\n")
+    monkeypatch.chdir(tmp_path)
     capsys.readouterr()
-    assert main(argv) == 2
+    assert main(["start", "--no-browser", "--yes"]) == 2
     _plain_error(capsys, str(blocker), "is a file, but a folder is needed there")
     assert blocker.read_text(encoding="utf-8") == "a file\n"
-
-
-@pytest.mark.skipif(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
-                    reason="needs a folder this user cannot write to")
-@pytest.mark.parametrize("command", COMMANDS_THAT_WRITE)
-def test_a_folder_without_write_permission_is_said_plainly(tmp_path, capsys, pairwise_dir,
-                                                           command):
-    locked = tmp_path / "locked"
-    locked.mkdir()
-    argv = _output_commands(tmp_path, pairwise_dir, str(locked / "out"))[command]
-    capsys.readouterr()
-    locked.chmod(0o555)
-    try:
-        assert main(argv) == 2
-    finally:
-        locked.chmod(0o755)
-    _plain_error(capsys, str(locked), "cannot write", "permission denied",
-                 "Choose a location you can write to")
 
 
 def test_a_folder_where_a_file_should_be_is_said_plainly(tmp_path, capsys):
     sheet = _write(tmp_path / "sheet.csv", SHEET)
     folder = tmp_path / "a-folder"
     folder.mkdir()
-    assert main(["init", "--out", str(folder), "--force"]) == 2
-    _plain_error(capsys, str(folder), "is a folder, but a file is needed there")
     with pytest.raises(LabelError, match="is a folder, but a file is needed there"):
         make_server(LabelSession(sheet, folder), 0, page="")  # start's labels.csv
 
 
-def test_debug_adds_the_traceback_to_the_plain_line(tmp_path, capsys):
-    blocker = _write(tmp_path / "in-the-way", "a file\n")
-    assert main(["--debug", "check", str(CHECK_CSV), "--out", str(blocker)]) == 2
+def test_debug_adds_the_traceback_to_the_plain_line(tmp_path, capsys, monkeypatch):
+    promptfoo_project(tmp_path, split(20, 20))
+    blocker = _write(tmp_path / ".judgekeeper", "a file\n")
+    monkeypatch.chdir(tmp_path)
+    assert main(["--debug", "start", "--no-browser", "--yes"]) == 2
     err = capsys.readouterr().err
     assert "Traceback" in err
     assert err.splitlines()[-1].startswith(f"error: {blocker} is a file, but a folder")
@@ -361,35 +203,29 @@ def _terminal(encoding: str) -> io.TextIOWrapper:
 
 
 def test_a_terminal_that_cannot_show_a_character_gets_a_question_mark(tmp_path, monkeypatch):
-    out, err = _terminal("cp1252"), _terminal("cp1252")
-    monkeypatch.setattr(sys, "stdout", out)
+    err = _terminal("cp1252")
     monkeypatch.setattr(sys, "stderr", err)
-    rule = tmp_path / "rule \u2192.md"
-    assert main(["init", "--out", str(rule)]) == 0
-    assert main(["check", str(tmp_path / "missing \u2192.csv")]) == 2
-    out.flush()
+    assert main(["start", str(tmp_path / "missing \u2192.csv")]) == 2
     err.flush()
-    assert b"rule ?.md" in out.buffer.getvalue()
     assert b"missing ?.csv" in err.buffer.getvalue()
 
 
 def test_a_utf8_terminal_gets_the_characters_unchanged(tmp_path, monkeypatch):
-    out = _terminal("utf-8")
-    monkeypatch.setattr(sys, "stdout", out)
-    assert main(["init", "--out", str(tmp_path / "rule \u2192.md")]) == 0
-    out.flush()
-    assert "rule \u2192.md".encode() in out.buffer.getvalue()
+    err = _terminal("utf-8")
+    monkeypatch.setattr(sys, "stderr", err)
+    assert main(["start", str(tmp_path / "missing \u2192.csv")]) == 2
+    err.flush()
+    assert "missing \u2192.csv".encode() in err.buffer.getvalue()
 
 
-def test_migrate_prints_on_a_cp1252_terminal(tmp_path):
+def test_start_prints_on_a_cp1252_terminal(tmp_path):
     env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
     proc = subprocess.run(
-        [sys.executable, "-m", "judgekeeper", "migrate", str(MIG / "anchors.jsonl"),
-         str(MIG / "old"), str(MIG / "new-better"), "--out", str(tmp_path / "m")],
+        [sys.executable, "-m", "judgekeeper", "start", str(tmp_path / "caf\u00e9 \u2192.csv")],
         capture_output=True, env=env, check=False)
-    assert proc.returncode == 0, proc.stderr
-    assert proc.stdout.startswith(b"BETTER: ") and b"kappa 0.60 ? 1.00" in proc.stdout
-    assert "\u00b1".encode("cp1252") in proc.stdout  # cp1252 has this one
+    assert proc.returncode == 2, proc.stderr
+    assert b"Traceback" not in proc.stderr
+    assert "caf\u00e9 ?.csv".encode("cp1252") in proc.stderr  # cp1252 has the first one
 
 
 def test_printed_commands_quote_paths_for_the_shell_in_use(monkeypatch):
@@ -400,21 +236,6 @@ def test_printed_commands_quote_paths_for_the_shell_in_use(monkeypatch):
     assert textio.quote_arg("labels.csv") == "labels.csv"
     assert textio.quote_arg(r"C:\data\labels.csv") == r"C:\data\labels.csv"
     assert textio.quote_arg(r"C:\my data\labels.csv") == r'"C:\my data\labels.csv"'
-
-
-def test_init_quotes_a_rule_path_that_needs_it(tmp_path, monkeypatch, capsys):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "platform", "linux")  # both shells' quoting, on every system
-    rule = str(Path("my folder/judge.md"))  # printed with \ on Windows
-    assert main(["init", "--out", "my folder/judge.md"]) == 0
-    printed = capsys.readouterr().out
-    assert printed.startswith(f"wrote {rule}: fill in every")
-    assert f" --prompt {shlex.quote(rule)} --runs 3 " in printed
-    monkeypatch.setattr(sys, "platform", "win32")
-    assert main(["init", "--out", "my folder/judge.md", "--force"]) == 0
-    assert f' --prompt "{rule}" --runs 3 ' in capsys.readouterr().out
-    assert main(["init"]) == 0
-    assert f" --prompt {Path('prompts/judge.md')} --runs 3 " in capsys.readouterr().out
 
 
 def test_exec_command_keeps_backslashes_on_windows(monkeypatch):
@@ -464,105 +285,21 @@ def test_exec_judge_passes_non_ascii_text_both_ways(tmp_path):
     assert judge({"id": "a", "input": "caf\u00e9 \u2192"}) == "pass: caf\u00e9 \u2192"
 
 
-@pytest.mark.parametrize("provider", ["anthropic", "openai"])
-def test_install_hints_use_quotes_that_work_in_every_shell(tmp_path, monkeypatch, provider):
-    from judgekeeper.runners import AnthropicRunner, OpenAIRunner
-
-    prompt = _write(tmp_path / "p.md", "---\nrubric_version: v1\n---\n{{input}} {{output}}\n")
-    monkeypatch.setenv(f"{provider.upper()}_API_KEY", "test-key-not-real")
-    monkeypatch.setitem(sys.modules, provider, None)  # the import fails
-    cls = AnthropicRunner if provider == "anthropic" else OpenAIRunner
-    with pytest.raises(RuntimeError) as e:
-        cls(model="m", prompt_path=prompt)
-    assert f'pip install "judgekeeper[{provider}]"' in str(e.value)
-    assert "'" not in str(e.value)
-
-
 # Wording of rare cases ------------------------------------------------------------------------
 
-def test_one_labeled_item_is_singular():
-    def message(n: int) -> str:
-        manifest = {"label_distribution": {"pass": n}, "kind": "single"}
-        ends = {"tpr_ci": {"lo": 0.5, "hi": 1.0}, "tnr_ci": {"lo": None, "hi": None}}
-        return label_quality(manifest, ends)["flags"][0]["message"]
-
-    assert message(1) == ("Too few labels for a rough check (1 labeled pass, 0 labeled fail): "
-                          "it needs 15 of each.")
-    assert message(10) == ("Too few labels for a rough check (10 labeled pass, 0 labeled fail): "
-                           "it needs 15 of each.")
-
-
-def test_one_item_and_one_run_are_singular(tmp_path, capsys):
-    anchors = _anchors(tmp_path, n=1)
-    assert _judge(anchors, tmp_path / "runs", "--callable",
-                  "tests.judges_for_tests:keyword_judge") == 0
-    assert capsys.readouterr().err.splitlines() == [
-        "1 judge call (1 item x 1 run)",
-        f"wrote {tmp_path / 'runs' / 'run-01.jsonl'} (1 judgment)",
-    ]
-    assert _judge(_anchors(tmp_path), tmp_path / "runs", "--callable",
-                  "tests.judges_for_tests:keyword_judge") == 0
-    assert capsys.readouterr().err.splitlines()[0] == "10 judge calls (10 items x 1 run)"
-
-
-def _kappa_flag(report: dict) -> dict:
-    (flag,) = [f for f in report["verdict"]["flags"] if "appa" in f["message"]]
-    return flag
-
-
-def test_kappa_that_cannot_be_computed_is_not_compared_with_a_number(tmp_path):
-    same = [{"id": f"i{n}", "verdict": "pass", "label": "pass"} for n in range(6)]
-    flag = _kappa_flag(check_table(same, out=tmp_path / "same"))
-    assert flag == {"code": "no_kappa", "message": (
-        "Kappa vs human labels could not be computed: the human labels and the judge's "
-        "verdicts are all the same single answer, so agreement cannot be told from chance. "
-        "Not trustworthy as a gate.")}
-
-    errors = [{"id": f"i{n}", "verdict": "", "label": "pass" if n % 2 else "fail"}
-              for n in range(6)]
-    report = check_table(errors, out=tmp_path / "errors")
-    assert _kappa_flag(report)["message"] == (
-        "Kappa vs human labels could not be computed: every judgment was a judge error, so "
-        "nothing was scored. Not trustworthy as a gate.")
-    assert "n/a (below" not in json.dumps(report)
-    assert report["verdict"]["level"] == "not_trustworthy"
-
-
-def test_a_low_kappa_keeps_its_wording(tmp_path):
-    rows = [{"id": f"i{n}", "verdict": "pass", "label": "pass" if n % 2 else "fail"}
-            for n in range(6)]
-    assert _kappa_flag(check_table(rows, out=tmp_path)) == {
-        "code": "low_kappa",
-        "message": "Kappa vs human labels is 0.00 (below 0.6): not trustworthy as a gate."}
-
-
 @pytest.mark.parametrize("separator", [";", "\t"])
-def test_a_csv_with_another_separator_is_read(tmp_path, capsys, separator):
+def test_a_csv_with_another_separator_is_read(tmp_path, separator):
     """Excel in many European locales writes semicolons under the name CSV."""
-    text = CHECK_CSV.read_text(encoding="utf-8")
-    assert '"' not in text  # no quoted cells, so every comma in the fixture is a separator
-    other = _write(tmp_path / "results.csv", text.replace(",", separator))
-    assert read_table(other) == read_table(CHECK_CSV)
-    printed = []
-    for table in (other, CHECK_CSV):
-        assert main(["check", str(table), "--out", str(tmp_path / "o")]) == 0
-        printed.append(capsys.readouterr().out)
-    assert printed[0] == printed[1] and "TPR 0.89" in printed[0]
+    comma = _write(tmp_path / "comma.csv", TABLE)
+    other = _write(tmp_path / "results.csv", TABLE.replace(",", separator))
+    assert read_table(other) == read_table(comma)
+    assert read_table(other)[0]["input"] == "caf\u00e9"
 
 
 def test_a_comma_csv_with_semicolons_in_its_text_is_still_a_comma_csv(tmp_path):
     path = _write(tmp_path / "t.csv", 'id,note; more,verdict,label\na,"x; y",pass,pass\n')
     assert read_table(path) == [{"id": "a", "note; more": "x; y", "verdict": "pass",
                                  "label": "pass"}]
-
-
-def test_numbers_in_the_judge_column_point_at_pass_if(tmp_path, capsys):
-    path = _write(tmp_path / "t.csv", "id,verdict,label\na,0.9,pass\nb,0.2,fail\n")
-    assert main(["check", str(path), "--out", str(tmp_path / "o")]) == 2
-    line = _plain_error(capsys, "'0.9'", "'0.2'", '--pass-if "score>=0.5"')
-    assert "--label-map" not in line
-    assert main(["check", str(path), "--pass-if", "score>=0.5", "--out",
-                 str(tmp_path / "o")]) == 0
 
 
 def test_numbers_and_words_get_both_hints_and_human_labels_only_the_map():
@@ -575,14 +312,3 @@ def test_numbers_and_words_get_both_hints_and_human_labels_only_the_map():
     assert "--pass-if" not in human and '--label-map "4=pass" or --label-map "4=fail"' in human
     assert isinstance(unmapped_error([0.5]), NormaliseError)
     assert "'" not in str(unmapped_error([0.5]))  # no single quotes: cmd.exe does not strip them
-
-
-def test_init_gives_the_same_label_counts_as_the_website(tmp_path, monkeypatch, capsys):
-    monkeypatch.chdir(tmp_path)
-    assert main(["init"]) == 0
-    lines = capsys.readouterr().out.splitlines()
-    assert lines[1] == ("  1. label real items in anchors.jsonl: at least 15 that should pass "
-                        "and 15 that should fail")
-    assert lines[2] == ("     for a rough check, 25 of each for a reliable result. One JSON line "
-                        "each: id, input,")
-    assert "50 to 100" not in "\n".join(lines)

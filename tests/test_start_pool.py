@@ -338,8 +338,8 @@ def test_pairwise_items_are_refused(tmp_path, capsys):
     path.write_text("\n".join(rows) + "\n", encoding="utf-8")
     code, out, err = run(capsys, path)
     assert code == 2
-    assert ("These are A/B comparisons. judgekeeper start handles pass/fail answers for now; "
-            "see judgekeeper import.") in out + err
+    assert ("These are A/B comparisons. judgekeeper start handles pass/fail answers for "
+            "now.") in out + err
 
 
 def test_human_labels_in_the_source_are_not_used(tmp_path, capsys):

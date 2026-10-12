@@ -11,7 +11,7 @@ Four things every command shares:
 - saying a file-system error (no permission, a file where a folder should be) as one line
   that names the path and what to do: `describe_os_error`.
 - printing a command the user can paste: `quote_arg` and `open_command` write it for the
-  shell in use, and `split_command` reads `--exec` the way that shell would. On Windows that
+  shell in use, and `split_command` reads `--judge-command` the way that shell would. On Windows that
   is cmd.exe or PowerShell: double quotes, backslashes in paths, `start` instead of `open`.
 
 `tick()` is the mark in front of a line that says something was found or is ready.

@@ -1,7 +1,8 @@
 """skills/judgekeeper/SKILL.md: the file coding agents load. It must parse, stay short, name
 only commands and flags that exist, and walk the same path as the Guide: `judgekeeper start`,
 `setup` or the `record()` line when nothing is found, the person's labels, the result, then
-review, ask again or try a new judge, where the person answers the spending question."""
+review, ask again, try a new judge or fix the rule, where the person answers the spending
+question. The removed commands are not named."""
 
 import re
 import shlex
@@ -63,14 +64,14 @@ def test_rules():
 def test_steps_in_order():
     text = SKILL.read_text(encoding="utf-8")
     heads = re.findall(r"^## (\d)\.", text, flags=re.MULTILINE)
-    assert heads == ["1", "2", "3", "4", "5"]
+    assert heads == ["1", "2", "3", "4"]
 
 
 def test_every_command_exists_in_the_cli():
     _, body = _split(SKILL.read_text(encoding="utf-8"))
     lines = [line for line in _command_lines(body) if "<" not in line]
     commands = {shlex.split(line)[1] for line in lines}
-    assert {"start", "setup", "init", "import", "baseline", "gate"} <= commands
+    assert {"start", "setup"} <= commands <= {"start", "setup", "--version"}
     parser = _parser()
     for line in lines:
         argv = shlex.split(line)[1:]
@@ -80,24 +81,6 @@ def test_every_command_exists_in_the_cli():
             if e.code in (0, None):  # --version prints and stops
                 continue
             pytest.fail(f"SKILL.md names a command the CLI rejects: {line} (exit {e.code})")
-
-
-def test_import_tools_exist():
-    from judgekeeper.cli import _parser
-
-    sub = next(a for a in _parser()._actions if a.dest == "command")
-    tools = next(a for a in sub.choices["import"]._actions if a.dest == "tool").choices
-    text = SKILL.read_text(encoding="utf-8")
-    for tool in re.findall(r"judgekeeper import ([a-z]+)", text):
-        assert tool in tools
-
-
-def test_pytest_options_exist():
-    plugin = (ROOT / "src" / "judgekeeper" / "pytest_plugin.py").read_text(encoding="utf-8")
-    text = SKILL.read_text(encoding="utf-8")
-    for option in set(re.findall(r"--judgekeeper-[a-z-]+", text)):
-        assert f'"{option}"' in plugin
-    assert "judgekeeper_gate" in text and "pytest.mark.judgekeeper" in text
 
 
 def test_readme_links_the_skill():
@@ -125,7 +108,7 @@ def test_the_steps_follow_start():
              "`judgekeeper start --try-new-judge`", "`Go ahead? [y/N]`",
              "`judgekeeper start --fix --no-browser`", ".judgekeeper/fix/prompt.txt",
              "`judgekeeper start --fix --rule-file .judgekeeper/fix/agent-rule.txt`",
-             "`judgekeeper start --try-new-judge --no-browser`", "judgekeeper baseline set"]
+             "`judgekeeper start --try-new-judge --no-browser`"]
     at = [body.index(x) for x in order]
     assert at == sorted(at), [x for x, a in zip(order, at, strict=True)]
 
@@ -156,13 +139,13 @@ def test_the_person_labels_and_says_yes_to_every_spend():
     assert "only after their yes run it again with the `--allow-calls` number it printed" in steps
 
 
-def test_the_older_commands_are_one_advanced_note():
+def test_the_removed_commands_are_not_named():
     body = _body()
-    note = body.index("Advanced, only if the person asks:")
-    for older in ("judgekeeper label ", "judgekeeper import-labels", "judgekeeper judge ",
-                  "judgekeeper validate", "judgekeeper check "):
-        assert older not in body[:note], older
-    assert "judge, validate, check, import" in body[note:]
+    for name in ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "check"):
+        assert f"judgekeeper {name} " not in body and f"`judgekeeper {name}`" not in body, name
+    for gone in ("--judgekeeper-", "judgekeeper_gate", "uses: judgekeeper/", "tutorial.html",
+                 "--api-key-env"):
+        assert gone not in body, gone
 
 
 def test_it_never_shows_an_install_outside_a_project():
@@ -178,16 +161,3 @@ def test_full_flags_point_to_the_published_reference():
     body = _body()
     assert "https://www.judgekeeper.com/reference.html" in body
     assert "docs/reference.md" not in body
-
-
-def test_gate_ci_says_where_the_report_it_gates_on_comes_from():
-    """`start` writes no report.json that `gate` reads: the report comes from judging the
-    anchor set `start` saved and validating it, which calls the judge's model."""
-    body = _body()
-    gate = body[body.index("## 5. Gate CI"):body.index("Advanced, only if the person asks:")]
-    assert ".judgekeeper/anchors.jsonl" in gate
-    assert "https://www.judgekeeper.com/reference.html#gate-ci-on-the-judge" in gate
-    assert "calls the judge's model" in gate
-    report = re.search(r"judgekeeper baseline set (\S+)", gate).group(1)
-    assert f"judgekeeper gate {report}" in gate
-    assert report != ".judgekeeper/result.json"

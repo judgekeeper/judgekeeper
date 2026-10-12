@@ -5,7 +5,6 @@ counted when it is asked again."""
 from __future__ import annotations
 
 from judgekeeper import start_label, targets, weighted
-from judgekeeper.report import _rate_flags
 
 
 def test_a_rate_of_exactly_090_is_not_below_090():
@@ -13,7 +12,6 @@ def test_a_rate_of_exactly_090_is_not_below_090():
     assert tpr < 0.9 and round(tpr, 9) == 0.9
     r = {"check": "rough", "tpr": tpr, "tnr": 1.0, "kappa": 0.89}
     assert start_label._level(r) == "gate"  # green, not amber
-    assert _rate_flags("TPR", tpr) == []
     assert start_label._level({**r, "tpr": 0.8999}) == "check"
 
 

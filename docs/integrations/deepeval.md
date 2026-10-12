@@ -13,24 +13,20 @@ DeepEval has no `--output-file` flag. It writes results in two places:
 
   ```
   export DEEPEVAL_RESULTS_FOLDER=deepeval-results
-  deepeval test run test_judge.py      # run it three times, or call evaluate() three times
+  deepeval test run test_judge.py
   ```
 
   or in Python, `evaluate(..., display_config=DisplayConfig(results_folder="deepeval-results"))`.
 
-Use the results folder: every file is one run, so three runs measure the judge's run-to-run noise. `.latest_run_full.json` only ever holds the last run.
+`.latest_run_full.json` only ever holds the last run.
 
-## Import them
+## Read them
 
 ```
-judgekeeper import deepeval deepeval-results/ --metric "Correctness [GEval]" --labels labels.csv --out reports/correctness/
+judgekeeper start --metric "Correctness [GEval]"
 ```
 
-A path can be the folder, a glob (`"deepeval-results/test_run_*.json"`) or files; a folder with no `test_run_*.json` falls back to `.latest_run_full.json`. `--metric` is the metric's `name` as it appears in `metricsData` (GEval metrics are named `"<name> [GEval]"`). The verdict is the metric's `success`; with `--pass-if "score>=0.7"` judgekeeper applies that rule to `score` instead. The threshold DeepEval used is kept in the report's `source.threshold`.
-
-## Human labels
-
-DeepEval stores no human verdict (`expectedOutput` is a reference answer, not a pass/fail label), so labels come from `--labels`: a CSV or JSONL with an `id` column and a `human_label` column. To get the ids right, name your test cases (below) and use those names. Or label with `judgekeeper start`, which reads DeepEval's results as they are.
+`judgekeeper start` reads the newest `test_run_*.json`, else `.latest_run_full.json`. `--metric` is the metric's `name` as it appears in `metricsData` (GEval metrics are named `"<name> [GEval]"`). The verdict is the metric's `success`; with `--pass-if "score>=0.7"` judgekeeper applies that rule to `score` instead.
 
 ## Traps
 

@@ -1,5 +1,5 @@
-"""The plan for asking your own judge command (`--judge-command`): the `--exec` contract, one
-answer as JSON on stdin and the verdict on stdout. It is the user's judge by definition; its
+"""The plan for asking your own judge command (`--judge-command`): one answer as JSON on
+stdin and the verdict on stdout. It is the user's judge by definition; its
 model is what `--judge-model` says, else unknown. It runs the user's code, which they typed
 themselves, so the plan says how many times."""
 
@@ -42,7 +42,7 @@ def plan(ws, answers: list[dict], opts) -> Plan:
                                "as JSON on stdin.")], payload=list(answers), runner=[command])
 
 
-MAX_ERROR_SHOWN = 300  # characters of the first error, on one line (as `judge --exec`)
+MAX_ERROR_SHOWN = 300  # characters of the first error, on one line
 
 
 def _failed(judgments) -> tuple[int, str]:

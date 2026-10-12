@@ -53,35 +53,23 @@
   <h2 id="tools">Your eval tool</h2>
   <p><code>judgekeeper start</code> reads the results these tools already save. Each guide on GitHub says what to save and what to watch for.</p>
   <ul class="links">
-    <li>promptfoo: <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/promptfoo.md">guide</a> · <a href="reference.html#import-promptfoo-deepeval-and-inspect-ai-results">reference</a></li>
-    <li>DeepEval: <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/deepeval.md">guide</a> · <a href="reference.html#import-promptfoo-deepeval-and-inspect-ai-results">reference</a></li>
-    <li>Inspect AI: <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/inspect.md">guide</a> · <a href="reference.html#import-promptfoo-deepeval-and-inspect-ai-results">reference</a></li>
-    <li>MLflow: <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/mlflow.md">guide</a> · <a href="reference.html#import-mlflow-and-import-langfuse">reference</a></li>
-    <li>Langfuse: <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/langfuse.md">guide</a> · <a href="reference.html#import-mlflow-and-import-langfuse">reference</a></li>
-    <li>Another tool, or your own code: <a href="start.html#own-format">results in your own format</a>, or <a href="start.html#other">a table you make</a>.</li>
-    <li>No judge yet: <a href="own-metric.html">write your own rule</a>.</li>
+    <li>promptfoo: <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/promptfoo.md">guide</a></li>
+    <li>DeepEval: <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/deepeval.md">guide</a></li>
+    <li>Inspect AI: <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/inspect.md">guide</a></li>
+    <li>MLflow: <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/integrations/mlflow.md">guide</a></li>
+    <li>Another tool, or your own code: <a href="start.html#own-format">results in your own format</a>.</li>
   </ul>
 
   <h2 id="python">In your Python code</h2>
   <ul class="links">
     <li><a href="reference.html#record-save-your-own-judges-verdicts-with-one-line"><code>judgekeeper.record()</code></a>: one line that saves what your own judge decided.</li>
-    <li><a href="reference.html#check-a-table-in-a-report-out"><code>check_table()</code></a>: a table in, a report out.</li>
-    <li><a href="reference.html#bring-your-own-judge"><code>check_judge()</code></a>: run your own judge function on marked answers.</li>
-    <li><a href="reference.html#import-promptfoo-deepeval-and-inspect-ai-results"><code>import_results()</code></a>: read a tool&#39;s results from Python.</li>
-    <li><a href="reference.html#records-format-import-records">The records format</a>: one line per answer, for any judge.</li>
+    <li><a href="reference.html#records-format">The records format</a>: one line per answer, for any judge.</li>
   </ul>
 
   <h2 id="assistants">With a coding assistant</h2>
   <ul class="links">
     <li><a href="assistant.html">With a coding assistant</a>: install the skill, or paste one prompt.</li>
     <li><a href="https://github.com/judgekeeper/judgekeeper/blob/main/skills/judgekeeper/SKILL.md">The skill file</a> on GitHub.</li>
-  </ul>
-
-  <h2 id="ci">In CI</h2>
-  <ul class="links">
-    <li><a href="reference.html#github-action">The GitHub Action</a>, and <a href="setup.html#actions">its API key</a>.</li>
-    <li><a href="reference.html#pytest-plugin">The pytest plugin</a>.</li>
-    <li><a href="reference.html#gate-ci-on-the-judge"><code>judgekeeper gate</code></a>: stop a build when your judge changes.</li>
   </ul>
 
   <h2 id="security">Keys, privacy and security</h2>
@@ -95,7 +83,6 @@
   <h2 id="more">More</h2>
   <ul class="links">
     <li><a href="learn.html">How it works, in depth</a>: what the numbers mean, and a real result.</li>
-    <li><a href="tutorial.html">Advanced commands</a>: the older commands, step by step.</li>
     <li><a href="reference.html">Reference</a>: every command, flag, file format and exit code.</li>
     <li><a href="examples/llmbar-haiku/report.html">An example report</a>: Claude Haiku 4.5 as a judge on LLMBar.</li>
   </ul>
@@ -115,7 +102,7 @@
 <p class="fine">Not affiliated with the tools and models it works with. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
 <p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
 <div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
-<div><h2>More</h2><ul><li><a href="own-metric.html">No judge yet? Your own metric</a></li><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li><li><a href="tutorial.html">Advanced commands</a></li></ul></div>
+<div><h2>More</h2><ul><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
 </div>
 </footer>
 </body>

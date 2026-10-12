@@ -78,9 +78,6 @@ Three rules, each with its reason:
 Stop and ask me whenever a step needs me: the labels, a key, spending money, what the
 rule means, or a choice you are not sure about. Do not change my app's code or its CI
 unless I say yes to the diff. `judgekeeper <command> --help` lists every option.
-
-Advanced, only if I ask: the older commands (judge, validate, check) build the same
-check by hand when nothing was saved; www.judgekeeper.com/tutorial.html shows each one.
 ```
 
 The same text is in the file `docs/assistant-prompt.md`.
@@ -124,8 +121,7 @@ so that judgekeeper can check my judge against my own labels:
 4. Touch nothing else. record() catches its own errors and returns nothing, so it can never
    change what the program does; do not wrap it in code that could.
 5. Show me the diff and wait for my yes before saving.
-6. Then run the eval once, run `judgekeeper import records .judgekeeper/records --check`, and
-   show me what it prints.
+6. Then run the eval once, run `judgekeeper start`, and show me what it prints.
 ```
 
 ## Works with

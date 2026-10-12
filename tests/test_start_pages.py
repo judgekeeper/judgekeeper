@@ -259,7 +259,7 @@ def test_the_number_boxes():
 
 
 def test_the_kappa_line_reads_the_gate(monkeypatch):
-    monkeypatch.setattr(start_label, "KAPPA_GATE", 0.7)
+    monkeypatch.setattr(start_label.targets, "KAPPA_GATE", 0.7)
     assert "0.7 or more is good" in start_label.result_html(_result(*GATE))
 
 

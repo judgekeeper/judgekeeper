@@ -123,9 +123,7 @@ def test_a_file_it_cannot_read_is_left_out_with_how_to_see_why(tmp_path, capsys)
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert ".judgekeeper/records/Safe-wording-2026-10-05-9.jsonl could not be read (line 1: " \
-           "score 'high' is not a number), so it was left out. To see every problem: " \
-           "judgekeeper import records .judgekeeper/records/Safe-wording-2026-10-05-9.jsonl " \
-           "--check" in out
+           "score 'high' is not a number), so it was left out." in out
     assert "  Eval tool       your own code (judgekeeper.record())" in out
 
 

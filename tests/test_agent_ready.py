@@ -209,16 +209,6 @@ def test_mlflow_never_mixes_span_verdicts_into_a_trace_level_judge(span_store):
     assert len(judged) == 4 and all("span_id" not in r.metadata for r in judged)
 
 
-def test_import_mlflow_checks_a_span_level_judge(span_store, tmp_path):
-    uri, _ = span_store
-    out = tmp_path / "rep"
-    assert main(["import", "mlflow", "--experiment", "agent", "--tracking-uri", uri,
-                 "--metric", "tool_ok", "--out", str(out)]) == 0
-    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
-    assert report["anchors"]["n_items"] == 4
-    assert report["runs"][0]["kappa"] == pytest.approx(1)
-
-
 # start: the pool and the anchor set -------------------------------------------------------
 
 def _inspect_project(root):

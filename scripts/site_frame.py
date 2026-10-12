@@ -19,11 +19,9 @@ NAV = [("index.html", "Home"), ("start.html", "Guide"), ("docs.html", "Docs"),
        ("reference.html", "Reference"), (GITHUB, "GitHub")]
 START_HERE = [("start.html", "Guide"), ("docs.html", "Docs"), ("reference.html", "Reference"),
               (GITHUB, "GitHub")]
-MORE = [("own-metric.html", "No judge yet? Your own metric"),
-        ("assistant.html", "With a coding assistant"),
+MORE = [("assistant.html", "With a coding assistant"),
         ("setup.html", "Setup and API keys"),
-        ("learn.html", "How it works, in depth"),
-        ("tutorial.html", "Advanced commands")]
+        ("learn.html", "How it works, in depth")]
 FONTS = ("bricolage-grotesque-latin-800-normal.woff2",)  # body text uses the system font
 LOGO = ('<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
         '<path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>'
@@ -103,7 +101,7 @@ def apply(page: Path) -> None:
 
 
 if __name__ == "__main__":
-    generated = {"reference.html", "own-metric.html", "assistant.html"}
+    generated = {"reference.html", "assistant.html"}
     for page in sys.argv[1:] or sorted(p for p in WEBSITE.glob("*.html")
                                        if p.name not in generated):
         apply(Path(page))

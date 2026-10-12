@@ -102,7 +102,7 @@ def test_the_start_output_on_the_site_is_real(tmp_path, monkeypatch, capsys, utc
         assert block == screen
 
 
-@pytest.mark.parametrize("page", ["index.html", "start.html", "tutorial.html"])
+@pytest.mark.parametrize("page", ["index.html", "start.html"])
 def test_the_version_line_on_the_site_is_real(monkeypatch, page):
     class Terminal(io.StringIO):
         encoding = "utf-8"
@@ -147,7 +147,7 @@ def test_the_guide_is_six_steps_then_the_details():
     ids = [el.attrs.get("id") for el in details.children
            if isinstance(el, Element) and el.tag == "section"]
     assert ids == ["reads", "never", "review", "fix", "ask-again", "new-judge", "again", "commands",
-                   "own-format", "other"]
+                   "own-format"]
     assert _codes(_by_id("start.html", "start")) == ["judgekeeper start"]
     reads = _flat(_by_id("start.html", "reads"))
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow", "input", "output", "verdict"):
@@ -174,9 +174,6 @@ def test_the_guide_is_six_steps_then_the_details():
     for needed in ("Continue?", "Mark more answers", "ask your judge again", "re-check",
                    "Your judge changed", "--new", "previous-"):
         assert needed in again, needed
-    other = _by_id("start.html", "other")
-    assert [h.attrs.get("id") for h in other.iter() if h.tag == "h4"][:4] == [
-        "step-collect", "step-label", "step-judge", "step-read"]
 
 
 # The reference ---------------------------------------------------------------------------
@@ -202,11 +199,10 @@ def test_the_reference_has_every_start_flag_and_the_saved_files():
     flat = " ".join(section.split())
     for needed in ("Exactly your judge when", "A close copy when", "Can't be asked again when",
                    "**Trying your new judge.**", "**No results it can read.**",
-                   "installed outside a project",
                    "default 2 for `--ask-again`, 1 for `--try-new-judge`"):
         assert needed in flat, needed
     text = REFERENCE.read_text(encoding="utf-8")
-    assert text.index("## start:") < text.index("## init:")
+    assert text.index("## start:") < text.index("## setup:")
 
 
 # README, guide, skill --------------------------------------------------------------------
@@ -214,8 +210,6 @@ def test_the_reference_has_every_start_flag_and_the_saved_files():
 def test_the_readme_makes_start_the_main_path():
     use = _sections(README)["Use it on your own judge"]
     assert "\ncd your-project\njudgekeeper start\n" in use
-    assert "\njudgekeeper check results.csv --judge verdict --human label\n" in use
-    assert use.index("judgekeeper start") < use.index("judgekeeper check")
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
         assert tool in use, tool
     assert len(README.read_text(encoding="utf-8").splitlines()) <= 80
@@ -238,10 +232,7 @@ def test_the_skill_leaves_labeling_to_the_person():
 
 def test_the_version_is_0_2_0_everywhere():
     main_toml = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    plugin = tomllib.loads((ROOT / "packages" / "pytest-judgekeeper" / "pyproject.toml")
-                           .read_text(encoding="utf-8"))
-    assert __version__ == main_toml["project"]["version"] == plugin["project"]["version"] == \
-        "0.2.0"
+    assert __version__ == main_toml["project"]["version"] == "0.2.0"
 
 
 def test_the_changelog_says_what_0_2_0_adds_and_what_it_does_not_do():
@@ -316,13 +307,13 @@ def test_the_own_format_section_shows_the_three_doors_in_order():
     flat = _flat(section)
     for needed in ("judgekeeper setup", "asks once before it changes any file",
                    "It never edits your code", "judgekeeper.record(",
-                   "JUDGEKEEPER_RECORD=0", "--check"):
+                   "JUDGEKEEPER_RECORD=0"):
         assert needed in flat, needed
     (prompt,) = [el for el in section.iter() if el.attrs.get("id") == "record-prompt"]
     assert "code" in prompt.parent.parent.classes()  # so it gets a copy button
     assert prompt.text() == RECORD_PROMPT
     hrefs = [a.attrs.get("href") for a in section.iter() if a.tag == "a"]
-    assert "reference.html#records-format-import-records" in hrefs
+    assert "reference.html#records-format" in hrefs
     assert "reference.html#record-save-your-own-judges-verdicts-with-one-line" in hrefs
     assert "https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json" in \
         hrefs
