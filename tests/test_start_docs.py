@@ -221,11 +221,11 @@ def test_the_guide_starts_with_start():
     assert "judgekeeper start" in sections["Start here"]
 
 
-def test_the_skill_leaves_labeling_to_the_person():
+def test_the_skill_leaves_marking_to_the_person():
     text = " ".join(SKILL.read_text(encoding="utf-8").split())
-    assert "judgekeeper start --yes --no-browser" in text
-    assert "labeling needs the person" in text.lower()
-    assert len(SKILL.read_text(encoding="utf-8").splitlines()) < 150
+    assert "`uvx judgekeeper`" in text
+    assert "Only the person marks." in text
+    assert len(SKILL.read_text(encoding="utf-8").splitlines()) < 60
 
 
 # The version -----------------------------------------------------------------------------
@@ -285,17 +285,6 @@ def test_the_guide_says_what_comes_after_the_first_result():
     for needed in ("--review", "--ask-again", "--try-new-judge", "--label-more",
                    "Go ahead? [y/N]", "by name only", "10 Pass and 10 Fail"):
         assert needed in section, needed
-
-
-def test_the_skill_spends_only_after_the_persons_yes():
-    text = " ".join(SKILL.read_text(encoding="utf-8").split())
-    for needed in ("Run `--review` only with them",
-                   "Never run the eval or a judge call without the person's yes in this chat",
-                   "`--allow-calls N` only with the exact N judgekeeper printed",
-                   "`judgekeeper start --try-new-judge`",
-                   "the person answers `Go ahead? [y/N]` themselves",
-                   "into the project's own environment, never for the whole computer"):
-        assert needed in text, needed
 
 
 def test_the_own_format_section_shows_the_three_doors_in_order():
