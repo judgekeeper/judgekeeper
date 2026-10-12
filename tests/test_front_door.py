@@ -186,12 +186,13 @@ def test_python_m_judgekeeper_is_the_same_entry_point():
 
 def test_the_readme_is_one_screen_in_order():
     lines = _lines(README)
-    assert len(lines) <= 70
+    assert len(lines) <= 80
     assert list(_sections(README)) == ["Install", "Use it on your own judge", "What you get",
                                        "Numbers", "When you need more", "Status", "Issues",
                                        "License"]
     sections = _sections(README)
-    assert "\npip install judgekeeper\njudgekeeper --version\n" in sections["Install"]
+    assert ("```\npython3 -m venv .venv\nsource .venv/bin/activate\npip install judgekeeper\n"
+            "judgekeeper --version\n```") in sections["Install"]
     assert "inside your project's own Python environment" in sections["Install"]
     use = sections["Use it on your own judge"]
     assert "\njudgekeeper check results.csv --judge verdict --human label\n" in use
@@ -210,9 +211,8 @@ def test_the_readme_is_one_screen_in_order():
     assert sections["License"].strip().splitlines()[-1] == (
         "MIT, for the code. The name judgekeeper and the logo are not covered: see "
         "[TRADEMARKS.md](https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md).")
-    assert ("The numbers are estimates from the answers you marked: how often your judge "
-            "agreed with you on those answers, not a promise about the next ones."
-            ) in sections["What you get"]
+    assert ("The numbers are estimates from the answers you marked, not a promise about the "
+            "next ones.") in sections["What you get"]
 
 
 def test_the_readme_has_no_jargon_no_demo_and_no_link_to_the_unused_pages_address():
@@ -358,8 +358,8 @@ def test_layer_two_opens_with_the_own_metric_sentence():
 def test_what_left_the_readme_is_in_the_guide_word_for_word():
     text = GUIDE.read_text(encoding="utf-8")
     for moved in (
-        ("Judges disagree with humans more than raw agreement suggests, flip verdicts "
-         "between identical runs, and change silently when the provider updates the model."),
+        ("Judges disagree with humans more than raw agreement suggests. They can flip "
+         "verdicts between identical runs, and can change when the provider updates the model."),
         ("Either below 0.80 is \"not trustworthy as a gate\"; 0.80 to 0.90 is \"usable with "
          "care\"."),
         "judgekeeper never guesses.",
