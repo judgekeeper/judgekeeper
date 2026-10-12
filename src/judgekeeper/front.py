@@ -72,7 +72,7 @@ from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
-from judgekeeper.textio import quote_arg, write_replacing
+from judgekeeper.textio import program, quote_arg, write_replacing
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -112,7 +112,7 @@ class FrontTalk(start.Talk):
     """start.Talk for `judgekeeper`: printed commands start `judgekeeper`. Without a
     terminal a choice ends in a `Next:` line (stop), and a yes/no question is noted."""
 
-    program = "judgekeeper"
+    subcommand = ""
     asks_everything = True
 
     def __init__(self, yes: bool, path: str | Path, options: dict, new: bool = False):
@@ -556,7 +556,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         raise talk.stop(EXIT_QUESTION, (
             "ask the person whether to make more answers with their eval first (that makes "
             f"model calls), then run `{talk.command()}` again; or to mark these {n} now: run "
-            f"`{_command_of(talk, saved, 'judgekeeper mark')}`."))
+            f"`{_command_of(talk, saved, 'mark')}`."))
     talk.say()
     return _marking(talk, Workspace(found.root), found, wait, saved, marking=False, first=True)
 
@@ -573,11 +573,11 @@ def answered(talk: FrontTalk, saved: bool) -> tuple[str, dict]:
     return path, options
 
 
-def _command_of(talk: FrontTalk, saved: bool, program: str = "judgekeeper") -> str:
-    """`program` with the flags given, and the answers given at a terminal unless
-    judgekeeper.toml keeps them now."""
+def _command_of(talk: FrontTalk, saved: bool, subcommand: str = "") -> str:
+    """judgekeeper's `subcommand` with the flags given, and the answers given at a terminal
+    unless judgekeeper.toml keeps them now."""
     path, options = answered(talk, saved)
-    return " ".join((program, *start.repeated_flags(path, **options)))
+    return " ".join((program(subcommand), *start.repeated_flags(path, **options)))
 
 
 def _to_save(talk: FrontTalk, found: start.Found,
@@ -607,7 +607,7 @@ def _to_save(talk: FrontTalk, found: start.Found,
         _write(found)
         talk.say("Nothing was saved.")
         raise talk.stop(EXIT_OK, f"nothing. Tell the person judgekeeper reads {mapped.file} "
-                                 "only once judgekeeper.toml says how; run judgekeeper again to "
+                                 f"only once judgekeeper.toml says how; run {program()} again to "
                                  "save it.")
     return new
 
@@ -623,7 +623,7 @@ def _save(talk: FrontTalk, found: start.Found, new: settings.StartSettings,
         for line in settings.render(new).splitlines():
             talk.say(f"  {line}")
         raise talk.stop(EXIT_QUESTION, f"ask the person to add the lines above to "
-                                       f"{settings.FILE}, then run `judgekeeper` again.") from None
+                                       f"{settings.FILE}, then run `{program()}` again.") from None
     talk.say(f"Saved {settings.FILE} (where your judge's results are and how to read them).")
     if made:  # judgekeeper.toml keeps the judge, its model and pass mark now
         for name in ("metric", "pass_if", "judge_model"):
@@ -646,7 +646,7 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
         talk.say("No answer has a clear Pass or Fail from your judge, so there is nothing to "
                  "mark.")
         raise talk.stop(EXIT_OK, "nothing. Tell the person their judge made no real decision "
-                                 "on any answer; run judgekeeper again after their next eval "
+                                 f"on any answer; run {program()} again after their next eval "
                                  "run.")
     over = why is not None
     if over:
@@ -730,7 +730,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown)."""
     opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved),
-                           _command_of(talk, saved, "judgekeeper start"), here=wait)
+                           _command_of(talk, saved, "start"), here=wait)
     shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait)
     if not shown:
         if opened is not None and opened.server is None:
@@ -812,7 +812,7 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
 def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool) -> int:
     """Output B: the result from the marks, saved; whether the page is open."""
     session = StartSession(ws)
-    r = start_label.store_result(ws, session, _command_of(talk, saved, "judgekeeper start"))
+    r = start_label.store_result(ws, session, _command_of(talk, saved, "start"))
     made = r.get("made") or marks.made(marks.read(ws.marks), ids=set(session.by_id))
     for line in made_lines(made):
         talk.say(line)
@@ -838,7 +838,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()
-    talk.say("Next: " + NEXT_RESULT.format(command=_command_of(talk, saved, "judgekeeper mark")))
+    talk.say("Next: " + NEXT_RESULT.format(command=_command_of(talk, saved, "mark")))
     if opened is not None:
         page.serve(opened.server)
     return EXIT_OK

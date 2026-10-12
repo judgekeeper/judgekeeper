@@ -38,7 +38,7 @@ class MarkTalk(front.FrontTalk):
     repeat --new while it is asked about. A choice made at a terminal is repeated as its
     flag."""
 
-    program = "judgekeeper mark"
+    subcommand = "mark"
 
     def remember(self, flag: str, chosen: str, line: str | None = None) -> None:
         super().remember(flag, chosen, line)

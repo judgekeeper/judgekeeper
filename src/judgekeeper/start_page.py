@@ -18,6 +18,7 @@ from functools import lru_cache
 from html import escape
 from importlib import resources
 
+from judgekeeper import textio
 from judgekeeper.judge_check import TITLE as JUDGE_CHECK_TITLE
 
 FONT_FAMILY = "Bricolage Grotesque"
@@ -735,11 +736,12 @@ __RULE_FOLD__
 
 
 def label_page(description: str | None, rule: str | None,
-               command: str = "judgekeeper start") -> str:
+               command: str | None = None) -> str:
     """The labeling page. The line in the right column is the session's `status`, which the
     server sends with the data and after every mark: the page works out nothing itself. The
     server fills in __DATA__, __TOKEN__ and __NONCE__. `command` (start.Talk.command) is what
     the person runs to continue."""
+    command = command or textio.program("start")
     block = _rule_block(rule, BY_THIS_RULE)
     body = (LABEL_BODY.replace("__COMMAND__", _text(command))
             .replace("__STAGE_CLASS__", "" if block.strip() else " no-rule")
@@ -1316,10 +1318,11 @@ __RULE_FOLD__
 
 
 def review_page(description: str | None, rule: str | None,
-                command: str = "judgekeeper start") -> str:
+                command: str | None = None) -> str:
     """The review page, both steps: the page data says which one to show. The server fills
     in __DATA__, __TOKEN__ and __NONCE__. `command` (start.Talk.command) is what the person
     runs to continue."""
+    command = command or textio.program("start")
     body = (REVIEW_BODY.replace("__COMMAND__", _text(command))
             .replace("__BRAND__", BRAND).replace("__CROSS__", CROSS)
             .replace("__TICK__", TICK).replace("__QUESTION__", QUESTION)

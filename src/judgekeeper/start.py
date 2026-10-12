@@ -32,7 +32,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper import find, judge_check, settings, targets
+from judgekeeper import find, judge_check, settings, targets, textio
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map
@@ -131,7 +131,7 @@ class Talk:
     """What `start` says, and the questions it asks when there is a person to answer.
     `flags` (repeated_flags) are what every printed command repeats."""
 
-    program = "judgekeeper start"  # the command every printed command starts with
+    subcommand = "start"  # every printed command starts with textio.program(subcommand)
     asks_everything = False  # without a terminal, ask instead of taking a default (front.py)
 
     def __init__(self, yes: bool = False, quiet: bool = False, flags: tuple[str, ...] = (),
@@ -141,6 +141,11 @@ class Talk:
         self.flags = flags
         self.path = str(path)  # the path the person gave; flags[0] when it is not "."
         self._blank = True  # the last line said was empty: never two in a row
+
+    @property
+    def program(self) -> str:
+        """`judgekeeper start`, or `uvx judgekeeper@<version> start` when uvx started it."""
+        return textio.program(self.subcommand)
 
     def command(self, *extra: str) -> str:
         """`judgekeeper start` with the person's flags, then `extra`: run as printed, it gets
@@ -450,7 +455,7 @@ def _mapped_source(talk: Talk, root: Path, saved) -> tuple[Path, str, list, dict
     path = root / saved.file
     if not path.is_file():
         raise StartError(f"{settings.FILE} says your judge's results are in {saved.file}, "
-                         "which is not there. Run judgekeeper again to set it up.")
+                         f"which is not there. Run {textio.program()} again to set it up.")
     talk.looking(root)
     return root, "mapped", [find.Result("mapped", path, saved.file, path.stat().st_size)], {}
 
@@ -660,7 +665,7 @@ NO_RESULTS = {
     "deepeval": ("but DeepEval saves results only when your tests run through deepeval test "
                  "run or evaluate(); calling a metric's measure() directly saves nothing."),
     "inspect": ("but it has no saved logs in this folder yet. Run your eval (inspect eval saves "
-                "its logs in logs/), then run judgekeeper again."),
+                "its logs in logs/), then run {program} again."),
     "mlflow": "but it has no saved judge assessments in this folder yet.",
 }
 
@@ -671,12 +676,13 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     talk.say(f"No saved eval results found in {root}.")
     for tool, where in signs.items():
         talk.say(f"{find.NAMES[tool]} is used here ({where[0]}), "
-                 + NO_RESULTS.get(tool, "but it has no saved results in this folder yet."))
+                 + NO_RESULTS.get(tool, "but it has no saved results in this folder yet.")
+                 .format(program=textio.program()))
     own = own_format.search(root)
     how = (f"turn it into a table with input, output and verdict columns (see "
            f"{own_format.OWN_FORMAT_URL}), or ask your coding agent with the prompt below.")
     if own is not None:
-        setup = "judgekeeper" + ("" if talk.path == "." else f" {quote_arg(talk.path)}")
+        setup = textio.program() + ("" if talk.path == "." else f" {quote_arg(talk.path)}")
         talk.say(f"{own.rel} looks like saved judge results in your own format.")
         talk.say(f"To use it as it is, run {setup}: it asks how to read it and saves that in "
                  "judgekeeper.toml.")
@@ -688,7 +694,7 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
         talk.say()
         talk.say("Paste this into your coding agent (Claude Code, Cursor or Codex):")
         talk.say()
-        for line in own_format.AGENT_PROMPT.splitlines():
+        for line in own_format.agent_prompt().splitlines():
             talk.say(line)
         talk.say()
         talk.say("Or save your judge's decisions from now on with one judgekeeper.record() line "
@@ -845,7 +851,8 @@ def _check_description(talk: Talk, root: Path, theirs: str | None,
     question = (f'{result.rel} looks like it is from another project (its description is '
                 f'"{theirs}"). Continue?')
     if not talk.confirm(question, default=False, with_yes=False,
-                        hint=f"{question} Run judgekeeper start in a terminal to answer, or "
+                        hint=f"{question} Run {textio.program('start')} in a terminal to "
+                             "answer, or "
                              "point me at the right results file."):
         raise talk.stop(EXIT_OK, f"nothing. Tell the person {result.rel} was left alone: it "
                                  "looks like it is from another project.")

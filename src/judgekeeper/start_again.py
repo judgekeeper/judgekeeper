@@ -35,7 +35,7 @@ import json
 import shutil
 from pathlib import Path
 
-from judgekeeper import marks
+from judgekeeper import marks, textio
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.start_label import (
@@ -619,7 +619,7 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
         if not missing:  # all there, but the judge made no decision on too many: not a re-mark
             talk.say(f"Too few of them are left to compare: your judge made no real decision "
                      f"on {left} of them. Fix that (see the judge check above), run your eval "
-                     "again, then judgekeeper start. Your marks stay as they are.")
+                     f"again, then {textio.program('start')}. Your marks stay as they are.")
             return 0
         talk.say(f"Too few of them are in your latest results to compare: {missing} of your "
                  f"marked answers {'is' if missing == 1 else 'are'} not there (your eval ran on "

@@ -358,7 +358,7 @@ def test_a_changed_shape_says_how_to_map_it_again(tmp_path, capsys, terminal):
                     encoding="utf-8")
     code, out = check(capsys, "start", tmp_path, "--yes")
     assert code == 2
-    assert CHANGED_SHAPE in out
+    assert CHANGED_SHAPE.format(program="judgekeeper") in out
     assert "judgekeeper setup" not in CHANGED_SHAPE
 
 

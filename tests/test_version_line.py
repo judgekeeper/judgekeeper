@@ -37,6 +37,7 @@ def plain_env(monkeypatch):
     monkeypatch.delenv("TERM_PROGRAM", raising=False)
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setenv("VIRTUAL_ENV", "/projects/app/.venv")  # inside a project's environment
+    monkeypatch.delenv("UV", raising=False)  # not started by uv (test_uvx.py: started by uvx)
 
 
 @pytest.fixture
@@ -107,7 +108,7 @@ def test_the_tick_is_never_an_emoji(plain_env):
 
 @pytest.mark.parametrize("prefix", [
     None,  # Python as installed on the computer
-    "/Users/me/.cache/uv/archive-v0/abc123",  # uvx
+    "/Users/me/.cache/uv/archive-v0/abc123",  # uv's cache, not started by uvx
     "/home/me/.local/share/pipx/venvs/judgekeeper",  # pipx
     "/Users/me/.local/share/uv/tools/judgekeeper",  # uv tool install
     "C:\\Users\\me\\AppData\\Roaming\\uv\\data\\tools\\judgekeeper",

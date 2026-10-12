@@ -33,7 +33,7 @@ import json
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from judgekeeper import weighted
+from judgekeeper import textio, weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.start_label import FOLDER, Workspace, say_opened
 from judgekeeper.textio import write_replacing
@@ -351,9 +351,10 @@ def quick_status(session) -> dict:
 
 
 def serve_confirmation(ws: Workspace, cws: Workspace, port: int, open_browser: bool,
-                       say, command: str = "judgekeeper start") -> int:
+                       say, command: str | None = None) -> int:
     """Serve the confirmation page until the last answer, Ctrl-C or 2 hours idle. `command`
     (start.Talk.command) is what the person runs to continue."""
+    command = command or textio.program("start")
     from judgekeeper.label import make_server
     from judgekeeper.start_label import StartSession, _scrubbed, result_html
 

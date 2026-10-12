@@ -48,7 +48,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from judgekeeper import start_fix_rule, start_review, weighted
+from judgekeeper import start_fix_rule, start_review, textio, weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.redact import scrub
@@ -469,7 +469,8 @@ class Fix:
     """The fix of one result: the split (made once), the patterns, the pass mark and its
     test. The page gets only the used answers; the set-aside ones only as counts."""
 
-    def __init__(self, ws: Workspace, command: str = "judgekeeper start"):
+    def __init__(self, ws: Workspace, command: str | None = None):
+        command = command or textio.program("start")
         self.workspace = ws
         self.command = command  # start.Talk.command: the person's own flags, for the agent
         self.out = ws.dir / "fix.json"
@@ -1020,10 +1021,11 @@ def page_template(ws: Workspace) -> str:
     return fix_page(ws.data().get("description"))
 
 
-def switch(ws: Workspace, say, command: str = "judgekeeper start"):
+def switch(ws: Workspace, say, command: str | None = None):
     """For the labeling and review servers: the fix's session, page and result function, or
     None while there is nothing to fix. `command` (start.Talk.command) goes into the agent
     prompt."""
+    command = command or textio.program("start")
 
     def go():
         if not ready(ws):
@@ -1070,8 +1072,9 @@ def finish(fix: Fix, say) -> None:
 
 
 def serve_fix(ws: Workspace, port: int, open_browser: bool, say,
-              command: str = "judgekeeper start") -> int:
+              command: str | None = None) -> int:
     """Serve the fix page until Ctrl-C or 2 hours idle."""
+    command = command or textio.program("start")
     from judgekeeper.label import make_server
 
     fix = Fix(ws, command)

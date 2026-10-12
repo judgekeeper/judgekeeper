@@ -41,7 +41,14 @@ from judgekeeper.redact import printable, scrub
 from judgekeeper.settings import SettingsError
 from judgekeeper.start import StartError
 from judgekeeper.table import TableError
-from judgekeeper.textio import describe_os_error, is_windows, lenient_streams, tick
+from judgekeeper.textio import (
+    describe_os_error,
+    is_windows,
+    lenient_streams,
+    program,
+    started_by_uvx,
+    tick,
+)
 
 EXIT_OK = 0
 EXIT_FAILURE = 1
@@ -98,8 +105,8 @@ def version_lines(stream=None) -> list[str]:
         terminal = False
     if not terminal:
         return [f"judgekeeper {__version__}"]
-    if shutil.which("judgekeeper"):
-        command = "judgekeeper"
+    if started_by_uvx() or shutil.which("judgekeeper"):
+        command = program()
     else:
         command = f"{'py' if is_windows() else 'python3'} -m judgekeeper"
     return [f"{tick(stream)} judgekeeper {__version__} is ready", f"Next: run {command}"]
@@ -312,9 +319,9 @@ def cmd_start(args) -> int:
     from judgekeeper.start import run
 
     if args.agent_prompt:
-        from judgekeeper.own_format import AGENT_PROMPT
+        from judgekeeper.own_format import agent_prompt
 
-        print(AGENT_PROMPT)
+        print(agent_prompt())
         return 0
     for flag, given in (("--test-pass-mark", args.test_pass_mark),
                         ("--rule-file", args.rule_file is not None)):
@@ -367,7 +374,7 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
     SystemExit with argparse's code (0 after --help or --version)."""
     command = _command(args_list)
     if command in REMOVED:
-        print(f"judgekeeper {command} was removed. Run judgekeeper in your project.",
+        print(f"judgekeeper {command} was removed. Run {program()} in your project.",
               file=sys.stderr)
         raise SystemExit(EXIT_USAGE)
     args = (_parser() if command else _front_parser()).parse_args(args_list)
