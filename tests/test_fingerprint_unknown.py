@@ -11,7 +11,6 @@ from judgekeeper.fingerprint import (
     JudgeFingerprint,
     unknown_fields,
 )
-from judgekeeper.gate import FLAKY, JUDGE_CHANGED, PASS, evaluate, load_report
 
 FULL = {"provider": "anthropic", "model": "m", "snapshot": "m-1", "prompt_hash": "h",
         "rubric_version": "v1", "temperature": 0.0, "created_at": "2026-10-01T00:00:00Z",
@@ -48,67 +47,3 @@ def test_unknown_fields_on_a_plain_dict():
     assert unknown_fields(FULL) == []
     assert unknown_fields({**FULL, "temperature": None, "endpoint": ENDPOINT_UNKNOWN}) == [
         "endpoint", "temperature"]
-
-
-def test_old_reports_and_baselines_still_load(tmp_path):
-    from tests.conftest import FIXTURES
-
-    for path in sorted((FIXTURES / "gate").glob("*.json")):
-        report = load_report(path)
-        JudgeFingerprint.from_dict(report["fingerprint"])
-    old = json.loads((FIXTURES / "pairwise" / "baseline.json").read_text(encoding="utf-8"))
-    assert evaluate(old, old)["status"] in (PASS, FLAKY)
-
-
-def _report(fp: dict) -> dict:
-    from tests.conftest import FIXTURES
-
-    r = json.loads((FIXTURES / "gate" / "pass.json").read_text(encoding="utf-8"))
-    r["fingerprint"] = fp
-    return r
-
-
-def test_gate_known_and_different_is_judge_changed():
-    base = _report(FULL)
-    now = _report({**FULL, "model": "other", "temperature": None})
-    result = evaluate(now, base)
-    assert result["status"] == JUDGE_CHANGED
-    assert [c["field"] for c in result["judge_changes"]] == ["model"]
-
-
-def test_gate_unknown_field_warns_and_does_not_block():
-    base = _report(FULL)
-    now = _report({**FULL, "temperature": None, "snapshot": None})
-    result = evaluate(now, base)
-    assert result["status"] == PASS
-    assert any("snapshot" in w and "temperature" in w and "--require-fingerprint" in w
-               for w in result["warnings"])
-
-
-def test_gate_unknown_endpoint_warns():
-    result = evaluate(_report({**FULL, "endpoint": ENDPOINT_UNKNOWN}), _report(FULL))
-    assert result["status"] == PASS
-    assert any("endpoint" in w for w in result["warnings"])
-
-
-def test_gate_require_fingerprint_blocks_on_unknown():
-    base = _report({**FULL, "temperature": None})
-    result = evaluate(_report(FULL), base, require_fingerprint=True)
-    assert result["status"] == JUDGE_CHANGED
-    assert "cannot prove same judge" in result["reason"].lower()
-    assert [c["field"] for c in result["judge_changes"]] == ["temperature"]
-
-
-def test_gate_require_fingerprint_passes_when_everything_known():
-    assert evaluate(_report(FULL), _report(FULL), require_fingerprint=True)["status"] == PASS
-
-
-def test_cli_require_fingerprint(tmp_path):
-    from judgekeeper.cli import main
-
-    base, now = tmp_path / "base.json", tmp_path / "now.json"
-    base.write_text(json.dumps(_report({**FULL, "snapshot": None})), encoding="utf-8")
-    now.write_text(json.dumps(_report(FULL)), encoding="utf-8")
-    assert main(["gate", str(now), "--baseline", str(base), "--out", str(tmp_path / "a")]) == 0
-    assert main(["gate", str(now), "--baseline", str(base), "--out", str(tmp_path / "b"),
-                 "--require-fingerprint"]) == 5

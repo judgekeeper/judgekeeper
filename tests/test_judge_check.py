@@ -405,22 +405,6 @@ def judge_check_mark(problem, counted):
     return Mark(problem=problem, tool_counted_as=counted)
 
 
-def test_import_reads_the_same_files_as_before(tmp_path):
-    """`import`'s output never shows the marks: a grader error stays a fail there."""
-    data = promptfoo_with_problems(split(16, 16), errors=[0, 1])
-    path = _write_json(tmp_path / "results.json", data)
-    labels = tmp_path / "labels.csv"
-    labels.write_text("id,human_label\n" + "".join(f"t{i},pass\n" for i in range(32)),
-                      encoding="utf-8")
-    out = tmp_path / "rep"
-    assert main(["import", "promptfoo", str(path), "--labels", str(labels), "--out",
-                 str(out)]) == 0
-    run1 = [json.loads(x) for x in (out / "runs" / "run-01.jsonl").read_text(
-        encoding="utf-8").splitlines()][1:]
-    assert sum(r["verdict"] == "fail" for r in run1) == 18  # 16, and the 2 grader errors
-    assert not any("mark" in r or "problem" in r for r in run1)
-
-
 # The pool --------------------------------------------------------------------------------
 
 def _pool(records, tool="table", score_judge=False):

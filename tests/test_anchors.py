@@ -6,11 +6,9 @@ import pytest
 
 from judgekeeper.anchors import (
     AnchorError,
-    AnchorHashMismatch,
     canonical_hash,
     freeze,
     load_anchors,
-    load_verified,
     manifest_path_for,
 )
 
@@ -67,23 +65,6 @@ def test_freeze_writes_manifest(tmp_path):
     assert manifest["label_distribution"] == {"A": 1, "B": 2}
     assert manifest["slice_counts"] == {"s1": 2, "s2": 1}
     assert manifest["sha256"] == canonical_hash(ITEMS)
-
-
-def test_load_verified_refuses_on_mismatch(tmp_path):
-    p = write_jsonl(tmp_path / "anchors.jsonl", ITEMS)
-    freeze(p)
-    assert len(load_verified(p)[0]) == 3
-    changed = [dict(i) for i in ITEMS]
-    changed[0]["human_label"] = "B"
-    write_jsonl(p, changed)
-    with pytest.raises(AnchorHashMismatch):
-        load_verified(p)
-
-
-def test_load_verified_requires_manifest(tmp_path):
-    p = write_jsonl(tmp_path / "anchors.jsonl", ITEMS)
-    with pytest.raises(AnchorError, match="not sealed yet"):
-        load_verified(p)
 
 
 @pytest.mark.parametrize(

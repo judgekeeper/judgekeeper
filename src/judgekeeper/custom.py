@@ -1,12 +1,11 @@
-"""Bring your own judge: a Python callable or any program, behind the Runner interface.
+"""Your own judge as a program, behind the Runner interface (`start --judge-command`).
 
-`judge(item: dict) -> bool | str | float | tuple | dict`, sync or async. The item is the anchor
-item without its human label (and without notes, which may hint at it). Pairwise items are
-judged twice, with the outputs in AB and BA order. Whatever the judge returns goes through the
-normaliser; a judge that raises or returns nothing usable becomes an "error" judgment, which
-is excluded from the metrics and counted in the report.
+The judge gets the item without its human label (and without notes, which may hint at it).
+Pairwise items are judged twice, with the outputs in AB and BA order. Whatever the judge
+returns goes through the normaliser; a judge that fails or returns nothing usable becomes an
+"error" judgment, which is not counted.
 
-The `--exec` contract: one item as JSON on stdin per invocation; stdout is a bare verdict
+The contract: one item as JSON on stdin per invocation; stdout is a bare verdict
 (`pass`, `FAIL: reason`, `0.83`) or a JSON object the normaliser reads; a non-zero exit is an
 error judgment. Both streams are UTF-8 on every platform.
 """
@@ -15,18 +14,14 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
-import importlib
 import inspect
 import json
 import os
 import subprocess
-import sys
-import tempfile
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
-from judgekeeper.anchors import PAIRWISE, item_kind, load_verified, seal_new
+from judgekeeper.anchors import PAIRWISE, item_kind
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser, UnmappedValue, unmapped_error
@@ -35,28 +30,12 @@ from judgekeeper.textio import split_command
 
 # Hidden from the judge: the answer, and free text a labeler may have written about it.
 HIDDEN_FIELDS = ("human_label", "notes")
-MAX_CALLS_WITHOUT_YES = 1000
 EXEC_TIMEOUT = 300.0
 _SWAP = {"A": "B", "B": "A"}
 
 
-class CallLimitError(Exception):
-    """More judge calls than MAX_CALLS_WITHOUT_YES without an explicit yes."""
-
-
 class CallableError(Exception):
-    """--callable does not name an importable function."""
-
-
-def count_calls(items: list[dict], runs: int) -> int:
-    orders = 2 if items and item_kind(items[0]) == PAIRWISE else 1
-    return len(items) * runs * orders
-
-
-def check_call_limit(n_calls: int, yes: bool) -> None:
-    if n_calls > MAX_CALLS_WITHOUT_YES and not yes:
-        raise CallLimitError(f"{n_calls:,} judge calls is more than {MAX_CALLS_WITHOUT_YES:,}; "
-                             "pass --yes (yes=True in Python) to run them")
+    """The judge command cannot be read as a command."""
 
 
 def judge_view(item: dict) -> dict:
@@ -148,9 +127,10 @@ def exec_judge(command: str, timeout: float = EXEC_TIMEOUT) -> Callable[[dict], 
     try:
         argv = split_command(command)
     except ValueError as e:  # an unclosed quote
-        raise CallableError(f"--exec {command!r} cannot be read as a command: {e}") from None
+        raise CallableError(f"--judge-command {command!r} cannot be read as a command: "
+                            f"{e}") from None
     if not argv:
-        raise CallableError("--exec needs a command")
+        raise CallableError("--judge-command needs a command")
 
     def call(item: dict):
         env = {**os.environ}
@@ -176,84 +156,3 @@ def exec_judge(command: str, timeout: float = EXEC_TIMEOUT) -> Callable[[dict], 
 
     return call
 
-
-def load_callable(spec: str) -> Callable:
-    """`package.module:function` to the function. The working directory is importable."""
-    module_name, sep, attr = spec.partition(":")
-    if not sep or not module_name or not attr:
-        raise CallableError(f"--callable {spec!r} must look like package.module:function")
-    if "" not in sys.path and str(Path.cwd()) not in sys.path:
-        sys.path.insert(0, str(Path.cwd()))
-    try:
-        obj = importlib.import_module(module_name)
-    except ImportError as e:
-        raise CallableError(f"cannot import {module_name!r}: {e}") from None
-    for part in attr.split("."):
-        if not hasattr(obj, part):
-            raise CallableError(f"{module_name!r} has no attribute {attr!r}")
-        obj = getattr(obj, part)
-    if not callable(obj):
-        raise CallableError(f"{spec!r} is not callable")
-    return obj
-
-
-def callable_name(fn: Callable) -> str:
-    module = getattr(fn, "__module__", None) or "?"
-    return f"{module}:{getattr(fn, '__qualname__', type(fn).__name__)}"
-
-
-def _anchor_path(anchors, out: Path) -> Path:
-    from judgekeeper.table import write_anchor_file
-
-    if isinstance(anchors, str | Path):
-        seal_new(anchors)  # a new anchor set is sealed on first use, as `judge` does
-        return Path(anchors)
-    path = out / "anchors.jsonl"
-    write_anchor_file(path, list(anchors))
-    return path
-
-
-def check_judge(judge: Callable[[dict], Any], anchors, runs: int = 3,
-                pass_if: str | None = None, label_map: dict | str | None = None,
-                fingerprint: dict | None = None, out: str | Path | None = None,
-                yes: bool = False) -> dict:
-    """Run `judge` `runs` times over a frozen anchor set; write run files; return the report.
-
-    `anchors` is an anchor JSONL path (sealed on first use, as `judgekeeper judge` does), or a
-    list of anchor items (written under `out` and frozen for you). `fingerprint` is whatever
-    you know about the judge: model, provider, prompt (text, hashed), temperature...; the rest
-    is recorded as unknown. Files go under `out` (a temporary directory if None):
-    `runs/run-NN.jsonl`, `report.json`, `report.html`.
-    """
-    from judgekeeper.judging import run_judge
-    from judgekeeper.report import build_report
-    from judgekeeper.table import make_fingerprint, write_report
-
-    if not callable(judge):  # before any file is written or call is counted
-        raise TypeError("judge must be a function")
-    if runs < 1:
-        raise ValueError("runs must be at least 1")
-    out = Path(out) if out is not None else Path(tempfile.mkdtemp(prefix="judgekeeper-judge-"))
-    out.mkdir(parents=True, exist_ok=True)
-    anchors_path = _anchor_path(anchors, out)
-    items, manifest = load_verified(anchors_path)
-    check_call_limit(count_calls(items, runs), yes)
-    runner = CustomRunner(judge, Normaliser(manifest["kind"], pass_if=pass_if,
-                                            label_map=label_map),
-                          make_fingerprint(fingerprint),
-                          {"kind": "callable", "file": None, "metric": callable_name(judge)})
-    runs_dir = out / "runs"
-    runs_dir.mkdir(exist_ok=True)
-    for old in runs_dir.glob("run-*.jsonl"):  # this directory is ours: no stale runs
-        old.unlink()
-    run_custom(items, runner, runs, runs_dir, manifest["sha256"], run_judge)
-    report = build_report(anchors_path, runs_dir)
-    write_report(report, out)
-    return report
-
-
-def run_custom(items, runner: CustomRunner, runs: int, runs_dir: Path, sha: str, run_judge,
-               workers: int = 1, progress=None) -> list[Path]:
-    return run_judge(items, runner, runs, runs_dir, sha, workers=workers, progress=progress,
-                     source=runner.source, normaliser=runner.normaliser.describe(),
-                     after_run=runner.raise_if_unmapped)

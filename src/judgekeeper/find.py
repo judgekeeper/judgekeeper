@@ -356,8 +356,8 @@ class _Walk:
                     self.file(entry)
 
 
-# judgekeeper's own output folders: the `check` command's report (anchors.jsonl looks like a
-# table) and 0.1.3's demo data. They are never "your LLM-as-a-judge" or "your own format".
+# judgekeeper's own output folders: 0.1's report folder (anchors.jsonl looks like a table)
+# and 0.1.3's demo data. They are never "your LLM-as-a-judge" or "your own format".
 OWN_FOLDERS = ("judgekeeper-report",)
 OWN_PREFIXES = ("judgekeeper-demo",)
 

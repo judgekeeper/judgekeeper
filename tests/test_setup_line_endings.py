@@ -13,8 +13,6 @@ import tomllib
 import pytest
 
 from judgekeeper.cli import main
-from judgekeeper.config import load_section
-from judgekeeper.gate import GateConfig
 from tests.start_projects import flat_jsonl
 
 CRLF, LF = b"\r\n", b"\n"
@@ -88,7 +86,6 @@ def test_judgekeeper_toml_keeps_its_line_endings_and_stays_valid(tmp_path, capsy
     assert endings(data) == {CRLF} and b"\r\r" not in data
     parsed = tomllib.loads(data.decode("utf-8"))
     assert parsed["gate"] == {"kappa_min": 0.7} and parsed["start"]["source"] == "map"
-    assert load_section(path, "gate", GateConfig(), ValueError).kappa_min == 0.7
 
 
 def test_a_new_judgekeeper_toml_uses_plain_newlines(tmp_path, capsys):

@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Setup and API keys | judgekeeper</title>
-<meta name="description" content="How to give judgekeeper an API key safely: on your laptop, in GitHub Actions and in cloud coding sessions.">
+<meta name="description" content="How to give judgekeeper an API key safely, on your laptop.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="Setup and API keys | judgekeeper">
-<meta property="og:description" content="How to give judgekeeper an API key safely: on your laptop, in GitHub Actions and in cloud coding sessions.">
+<meta property="og:description" content="How to give judgekeeper an API key safely, on your laptop.">
 <meta property="og:url" content="https://www.judgekeeper.com/setup.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
@@ -16,7 +16,7 @@
 <meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Setup and API keys | judgekeeper">
-<meta name="twitter:description" content="How to give judgekeeper an API key safely: on your laptop, in GitHub Actions and in cloud coding sessions.">
+<meta name="twitter:description" content="How to give judgekeeper an API key safely, on your laptop.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
@@ -38,13 +38,9 @@
 </header>
 
 <main id="main" class="wrap narrow">
-  <p class="newhere">New here? Start with the <a href="start.html">Guide</a>. This page is for API keys. Checking your judge with <code>judgekeeper start</code> needs none: you need a key only when you ask your judge again (your own eval tool uses it, and judgekeeper only checks its name), or when an advanced command runs a judge for you.</p>
+  <p class="newhere">New here? Start with the <a href="start.html">Guide</a>. This page is for API keys. Checking your judge with <code>judgekeeper start</code> needs none: you need a key only when you ask your judge again (your own eval tool uses it, and judgekeeper only checks its name).</p>
   <h1>Setup and API keys</h1>
-  <p class="lead">A key never goes into a file, a command or a chat. The steps below keep it in an environment variable: on your laptop, in GitHub Actions and in cloud coding sessions.</p>
-  <p>The advanced commands call a model for you with <code>--runner anthropic</code> or <code>--runner openai</code>. Those two runners use the provider's own Python library, which plain <code>pip install judgekeeper</code> does not include. Add it once, in your project&#39;s environment (switch it on first):</p>
-  <div class="code"><pre><code>pip install "judgekeeper[anthropic]"</code></pre></div>
-  <p>For OpenAI, and for any server that speaks the OpenAI format, the line is <code>pip install "judgekeeper[openai]"</code>. The double quotes matter: without them some terminals read the square brackets as something else.</p>
-
+  <p class="lead">A key never goes into a file, a command or a chat. The steps below keep it in an environment variable on your laptop.</p>
   <h2 id="words">Two words first</h2>
   <ul>
     <li>An <strong>API key</strong> is a secret string, like a password, that lets a program use your account with a model provider such as Anthropic or OpenAI. Anyone who has it can spend your money.</li>
@@ -54,8 +50,6 @@
   <nav aria-label="On this page">
     <ul class="toc">
       <li><a href="#laptop">On your laptop</a></li>
-      <li><a href="#actions">In GitHub Actions</a></li>
-      <li><a href="#cloud">In cloud coding sessions</a></li>
       <li><a href="#never">Where a key must never go</a></li>
       <li><a href="#advice">Good habits</a></li>
     </ul>
@@ -95,116 +89,6 @@
           </div>
         </div>
       </li>
-      <li>
-        <h3>Write your rule file</h3>
-        <p>The judge needs its instructions: one file that says what passes and what fails. This writes a starter file, <code>prompts/judge.md</code>, with parts marked <code>[FILL IN: ...]</code> for you to complete. <a href="own-metric.html">Your own metric</a> shows how.</p>
-        <div class="code"><pre><code>judgekeeper init</code></pre></div>
-      </li>
-      <li>
-        <h3>Run a judge</h3>
-        <p>Here <code>anchors.jsonl</code> is your frozen labels, from <a href="start.html#other">the Guide</a>.</p>
-        <div class="code"><pre><code>judgekeeper judge anchors.jsonl --runner anthropic --model claude-haiku-4-5-20251001 --prompt prompts/judge.md --runs 3 --out runs/haiku/</code></pre></div>
-      </li>
-    </ol>
-
-    <h3 id="other-names">A key under another name</h3>
-    <p>Any variable name works. Tell judgekeeper the <em>name</em> with <code>--api-key-env</code>. It takes a name, never the key itself:</p>
-    <div class="code"><pre><code>export OPENROUTER_API_KEY=...
-judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY --prompt prompts/judge.md --runs 3 --out runs/openrouter/</code></pre></div>
-
-    <h3 id="endpoints">Other providers and local models</h3>
-    <p><code>--base-url</code> sends the requests to another address instead of the provider's default. Use <code>--runner openai</code> for any server that speaks the OpenAI format:</p>
-    <table class="plain">
-      <thead><tr><th scope="col">Where your model runs</th><th scope="col">What to pass</th></tr></thead>
-      <tbody>
-        <tr><td>Azure OpenAI</td><td><code>--base-url</code> with your resource's v1 endpoint, and <code>--api-key-env</code> naming the variable that holds your Azure key</td></tr>
-        <tr><td>OpenRouter</td><td><code>--base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY</code></td></tr>
-        <tr><td>AWS Bedrock or Google Vertex</td><td>Run a gateway such as LiteLLM in front of them, and pass its address with <code>--base-url</code></td></tr>
-        <tr><td>Ollama on your laptop</td><td><code>--base-url http://localhost:11434/v1</code>, no key needed</td></tr>
-      </tbody>
-    </table>
-    <div class="code"><pre><code>judgekeeper judge anchors.jsonl --runner openai --model "$JUDGE_MODEL" --base-url http://localhost:11434/v1 --prompt prompts/judge.md --runs 3 --out runs/local/</code></pre></div>
-    <p class="note">The address goes into the judge's fingerprint. The same model behind a different address counts as a different judge.</p>
-  </section>
-
-  <section id="actions" aria-labelledby="actions-title">
-    <h2 id="actions-title">In GitHub Actions</h2>
-    <ol class="steps">
-      <li>
-        <h3>Store the key as a repository secret</h3>
-        <p>On GitHub, open your repository, then <strong>Settings</strong>, <strong>Secrets and variables</strong>, <strong>Actions</strong>, <strong>New repository secret</strong>. Name it <code>ANTHROPIC_API_KEY</code> and paste the key there. GitHub hides it in logs.</p>
-      </li>
-      <li>
-        <h3>Pass it as <code>env</code>, never as an input</h3>
-        <p>The workflow hands the secret to the step as an environment variable. The judgekeeper action has no input for a key, on purpose.</p>
-      </li>
-      <li>
-        <h3>Copy the example workflow</h3>
-        <p>Save this as <code>.github/workflows/judge-gate.yml</code> in your repository and change the paths. It runs every Monday, to catch a silent model update, and on pull requests that change the judge. It is the same file as <a href="examples/workflows/judge-gate.yml">docs/examples/workflows/judge-gate.yml</a>.</p>
-        <div class="code"><pre><code data-file="docs/examples/workflows/judge-gate.yml"># Copy to .github/workflows/judge-gate.yml in your repo and adjust the paths.
-# Before the first run: judge and validate evals/anchors.jsonl once (the first `judge` seals it:
-# commit evals/anchors.manifest.json), then `judgekeeper baseline set reports/report.json`
-# and commit .judgekeeper/baseline.json.
-name: judge gate
-
-on:
-  # Weekly: the provider can change what a model id serves without any change in your repo.
-  # A scheduled run catches judge drift (a new snapshot, a silent update) between PRs.
-  schedule:
-    - cron: "17 6 * * 1"  # Mondays 06:17 UTC
-  # Pull requests that change the judge itself: its prompt, the anchor set it is measured
-  # against, the committed baseline or the gate thresholds. Other PRs cannot move the judge,
-  # so they do not pay for judge calls.
-  pull_request:
-    paths:
-      - "prompts/judge.md"
-      - "evals/anchors.jsonl"
-      - "evals/anchors.manifest.json"
-      - ".judgekeeper/baseline.json"
-      - "judgekeeper.toml"
-
-permissions:
-  contents: read
-
-jobs:
-  gate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: judgekeeper/judgekeeper@v0.2.0  # a release tag; a commit sha is stricter
-        env:
-          # Keys come from repository secrets, never from action inputs.
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        with:
-          anchors: evals/anchors.jsonl
-          runner: anthropic
-          model: claude-haiku-4-5-20251001
-          prompt: prompts/judge.md
-          runs: 3
-          flaky-as: pass  # FLAKY is reported in the summary but does not fail the build</code></pre></div>
-      </li>
-    </ol>
-  </section>
-
-  <section id="cloud" aria-labelledby="cloud-title">
-    <h2 id="cloud-title">In cloud coding sessions</h2>
-    <p>Claude Code on the web runs your session on a machine in the cloud. Setting a key there takes three steps:</p>
-    <ol class="steps">
-      <li>
-        <h3>Use the Environment variables box</h3>
-        <p>Open the environment's settings and add the key in the <strong>Environment variables</strong> box, under a name of your own:</p>
-        <div class="code"><pre><code>JUDGEKEEPER_ANTHROPIC_KEY=...</code></pre></div>
-        <p>Do not use <code>ANTHROPIC_API_KEY</code> there: the session itself uses Anthropic's variables.</p>
-      </li>
-      <li>
-        <h3>Point judgekeeper at that name and at Anthropic's address</h3>
-        <p>Those machines set <code>ANTHROPIC_BASE_URL</code> to an internal proxy, so pass Anthropic's own address too:</p>
-        <div class="code"><pre><code>judgekeeper judge anchors.jsonl --runner anthropic --model claude-haiku-4-5-20251001 --prompt prompts/judge.md --api-key-env JUDGEKEEPER_ANTHROPIC_KEY --base-url https://api.anthropic.com --runs 3 --out runs/haiku/</code></pre></div>
-      </li>
-      <li>
-        <h3>Start a new session</h3>
-        <p>Changes to the environment apply to new sessions only. A session that was already running does not see the key.</p>
-      </li>
     </ol>
   </section>
 
@@ -225,7 +109,6 @@ jobs:
     <h2 id="advice-title">Good habits</h2>
     <ul>
       <li>Use a dedicated key for judgekeeper, with a low spending limit.</li>
-      <li>Count the calls before a run: items times runs, and twice that for two-answer comparisons. judgekeeper asks you to confirm with <code>--yes</code> above 1,000 calls for your own judge functions.</li>
       <li>judgekeeper replaces anything that looks like a key with <code>[REDACTED]</code> in everything it prints or writes. That is a safety net, not a reason to paste keys anywhere.</li>
     </ul>
   </section>
@@ -238,7 +121,7 @@ jobs:
 <p class="fine">Not affiliated with the tools and models it works with. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
 <p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
 <div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
-<div><h2>More</h2><ul><li><a href="own-metric.html">No judge yet? Your own metric</a></li><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li><li><a href="tutorial.html">Advanced commands</a></li></ul></div>
+<div><h2>More</h2><ul><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
 </div>
 </footer>
 </body>

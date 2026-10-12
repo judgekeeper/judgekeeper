@@ -73,8 +73,7 @@ GIVEN_BY_YOU = "given by you"
 POINT_ME = "Point me at the results: judgekeeper start path/to/results.json"
 RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your judge's decisions at "
                  "the project root: reading them in {root}.")
-PAIRWISE = ("These are A/B comparisons. judgekeeper start handles pass/fail answers for now; "
-            "see judgekeeper import.")
+PAIRWISE = "These are A/B comparisons. judgekeeper start handles pass/fail answers for now."
 HUMAN_COLUMNS = ("human_label", "label")
 FILE_READERS = {"promptfoo": read_promptfoo, "deepeval": read_deepeval, "inspect": read_inspect}
 _TEST_FILE = re.compile(rb'"testFile"\s*:\s*"([^"\\]{1,200})"')
@@ -405,8 +404,7 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
         except RecordsError as e:
             text = str(e)
             text = text[text.find("line "):] if "line " in text else text
-            talk.say(f"  {r.rel} could not be read ({text}), so it was left out. To see every "
-                     f"problem: judgekeeper import records {quote_arg(r.rel)} --check")
+            talk.say(f"  {r.rel} could not be read ({text}), so it was left out.")
             continue
         if CUT_END in records.notes:
             talk.say(f"  Note: the last line of {r.rel} was cut short (the program stopped while "
@@ -1134,15 +1132,13 @@ SERVERS = ("http://", "https://", "databricks")
 
 def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dict]:
     """--tracking-uri: the local MLflow store it names (mlflow.db, `sqlite:///...`, an
-    mlruns/ folder or a `file:` address of one). A tracking server is read by
-    `judgekeeper import mlflow`, not by start."""
+    mlruns/ folder or a `file:` address of one). A tracking server is not read."""
     from judgekeeper.readers.mlflow_store import folder_of
 
     text = str(uri)
     if text.startswith(SERVERS):
         raise StartError(f"judgekeeper start reads an MLflow store in your project (mlflow.db "
-                         f"or an mlruns/ folder); {uri} is a tracking server. To read it: "
-                         f"judgekeeper import mlflow --tracking-uri {uri} --experiment NAME")
+                         f"or an mlruns/ folder); {uri} is a tracking server.")
     if text.startswith("sqlite:///"):
         store = Path(text[len("sqlite:///"):])
     else:

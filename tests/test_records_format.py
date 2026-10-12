@@ -21,7 +21,6 @@ from judgekeeper.records import (
     fingerprint_known,
     problems,
     read_records,
-    records_to_report,
 )
 from judgekeeper.table import make_fingerprint
 
@@ -279,41 +278,3 @@ def test_without_a_trajectory_the_same_answer_still_merges(tmp_path):
     assert records[0].target_id == records[1].target_id == derive_record_id("q", "a")
     pool = start.build_pool([("same.jsonl", records)], "judge", Normaliser())
     assert len(pool.answers) == 1 and pool.n_merged == 1
-
-
-# The anchor set -------------------------------------------------------------------------
-
-def _labeled(tmp_path, trajectory=TRAJECTORY):
-    rows = []
-    for item, label in (("a", "pass"), ("b", "fail")):
-        common = {"target_id": item, "name": "Safe wording", "input": f"q {item}",
-                  "output": f"out {item}"}
-        rows.append({**common, "annotator_kind": "LLM", "label": label,
-                     "trajectory": trajectory, "outcome": OUTCOME,
-                     "app_version": "support-agent 2.3", "metadata": {"criterion": "tone"}})
-        rows.append({**common, "annotator_kind": "HUMAN", "label": label})
-    return read_records(write_jsonl(tmp_path / "labeled.jsonl", rows))
-
-
-def test_the_agent_fields_go_into_the_anchor_set(tmp_path):
-    records_to_report([("labeled.jsonl", _labeled(tmp_path))], kind="records",
-                      out=tmp_path / "rep")
-    anchors = [json.loads(line) for line in
-               (tmp_path / "rep" / "anchors.jsonl").read_text(encoding="utf-8").splitlines()]
-    assert len(anchors) == 2
-    for a in anchors:
-        assert a["trajectory"] == TRAJECTORY
-        assert a["outcome"] == OUTCOME
-        assert a["app_version"] == "support-agent 2.3"
-        assert "metadata" not in a
-
-
-def test_the_agent_fields_are_scrubbed_in_the_anchor_set(tmp_path):
-    secret = "sk-" + "a1b2c3d4" * 4
-    steps = [{"role": "assistant", "content": None, "tool_calls": [
-        {"id": "c1", "name": "call_api", "arguments": {"key": secret}}]}]
-    records_to_report([("labeled.jsonl", _labeled(tmp_path, steps))], kind="records",
-                      out=tmp_path / "rep")
-    text = (tmp_path / "rep" / "anchors.jsonl").read_text(encoding="utf-8")
-    assert secret not in text
-    assert "[REDACTED]" in text

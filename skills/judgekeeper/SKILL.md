@@ -1,6 +1,6 @@
 ---
 name: judgekeeper
-description: Check how often a project's LLM-as-a-judge agrees with human labels (TPR, TNR, kappa, run-to-run noise, position bias) using judgekeeper, and gate CI on it. Use when a project grades outputs with an LLM judge, eval framework or rubric model and the user asks how often the judge agrees with people, wants human labels, or wants a judge check in CI.
+description: Check how often a project's LLM-as-a-judge agrees with human labels (TPR, TNR, kappa) using judgekeeper. Use when a project grades outputs with an LLM judge, eval framework or rubric model and the user asks how often the judge agrees with people, or wants human labels.
 ---
 
 # judgekeeper: check an LLM judge against human labels
@@ -17,7 +17,7 @@ labeling. They may write little code, so say what you are doing in plain words. 
   as a draft. The labels are the only part of the check that is not a model's opinion: the
   person does the labeling, and you never label.
 - API keys come only from environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
-  `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, or the variable named with `--api-key-env`).
+  `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`).
   Never write a key into a file, a command line, a config, a commit or the chat.
 - Report TPR, TNR and kappa together. Never report raw agreement on its own.
 - Judge calls cost money; labeling and the result make none. Ask before spending.
@@ -45,12 +45,10 @@ stores, ask the person which one.
 
 The judge saves its results its own way, so `judgekeeper start` finds nothing? Three doors, in this order:
 (1) `judgekeeper setup` maps the file with no code change (the person answers its few questions and the one yes);
-(2) one `judgekeeper.record()` line where the judge runs (www.judgekeeper.com/assistant.html#add-the-record-line has the prompt that adds it; show the diff, wait for the yes; after one eval run, `judgekeeper import records .judgekeeper/records --check` shows what it saved);
+(2) one `judgekeeper.record()` line where the judge runs (www.judgekeeper.com/assistant.html#add-the-record-line has the prompt that adds it; show the diff, wait for the yes; after one eval run, `judgekeeper start` shows what it saved);
 (3) a table written by a converter (`judgekeeper start --agent-prompt`), checked with `judgekeeper start <table>`.
 
-If the project has no judge at all, say so and stop. If it has no rule file (nothing says
-what pass and fail mean), offer `judgekeeper init`: it writes `prompts/judge.md` with
-`[FILL IN: ...]` markers, and the person decides the answers.
+If the project has no judge at all, say so and stop.
 
 ## 2. The person decides what pass means, then labels
 
@@ -106,44 +104,3 @@ Do its six steps, and stop where they say:
    and only after their yes run it again with the `--allow-calls` number it printed.
 6. Tell them in plain words: on the answers kept aside, how many the new rule fixed and
    broke, and the old and new numbers. Broke more than it fixed: say so, offer the old rule.
-
-## 5. Gate CI
-
-Only when the human asks for it. `gate` reads a report `start` does not write: `judge` and
-`validate` make it from the marked answers `start` saved, `.judgekeeper/anchors.jsonl`, and
-judging calls the judge's model, so say how many calls and wait for their yes. Steps:
-https://www.judgekeeper.com/reference.html#gate-ci-on-the-judge. Then record the baseline once
-from that report and commit it:
-```
-judgekeeper baseline set reports/judge/report.json
-judgekeeper gate reports/judge/report.json
-```
-
-`gate` returns PASS, FAIL, FLAKY, JUDGE_CHANGED or ANCHORS_CHANGED and never fails on a
-change inside the noise band. Then pick one:
-
-- The GitHub Action re-judges the anchor set and gates (key from repository secrets, via
-  `env`, never an input):
-
-  ```
-  - uses: judgekeeper/judgekeeper@v0.2.0
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-    with:
-      anchors: evals/anchors.jsonl
-      runner: anthropic
-      model: claude-haiku-4-5-20251001
-      prompt: prompts/judge.md
-  ```
-
-- The pytest plugin gates a report your pipeline already wrote (it only reads files):
-  `pytest --judgekeeper-report reports/judge/report.json`, or in a test
-  `@pytest.mark.judgekeeper(report="reports/judge/report.json")` or the
-  `judgekeeper_gate` fixture.
-
-Tell the user what was added, where the report is, and what they must do by hand (label,
-add the secret, commit the baseline).
-
-Advanced, only if the person asks: the older commands (judge, validate, check, import) build
-the same check by hand when nothing was saved; www.judgekeeper.com/tutorial.html shows each
-one.

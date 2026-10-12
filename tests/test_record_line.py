@@ -91,16 +91,14 @@ def test_the_file_is_named_after_the_judge_the_date_and_the_process(project):
     assert any(p.name.startswith("judge-") for p in files(project))
 
 
-def test_the_records_read_back_and_pass_the_check(project, capsys):
-    from judgekeeper.cli import main
-
+def test_the_records_read_back_with_no_problem(project):
     judgekeeper.record("q1", "a1", verdict="pass", name="tone")
     judgekeeper.record("q2", "a2", verdict="fail", name="tone")
     records = read_records(files(project)[0])
-    assert [r.label for r in records] == ["pass", "fail"]
+    assert [(r.name, r.label) for r in records] == [("tone", "pass"), ("tone", "fail")]
     assert all(r.target_id for r in records)  # derived from input and output
-    assert main(["import", "records", ".judgekeeper/records", "--check"]) == 0
-    assert 'Judge "tone": 1 pass, 1 fail.' in capsys.readouterr().out
+    lines = files(project)[0].read_text(encoding="utf-8").splitlines()
+    assert [problems(json.loads(x)) for x in lines] == [[], []]
 
 
 @pytest.mark.parametrize("verdict, label", [("pass", "pass"), ("fail", "fail"), (True, "pass"),

@@ -1,8 +1,7 @@
 """How many labels a check needs: one set of targets for every command.
 
-`start` (its result and the line under the labeling page's meters), `check`, `validate` and
-`init` all use these. The two kinds of label are the answers marked Correct and Wrong in
-`start`, the human pass and fail (or A and B) labels in `check` and `validate`.
+`start` uses these: its result and the line under the labeling page's meters. The two kinds
+of label are the answers marked Correct and Wrong.
 
 - A rough check: at least ROUGH of each kind.
 - A reliable result: at least RELIABLE of each kind, and both the TPR range and the TNR range
@@ -22,6 +21,13 @@ RELIABLE = 25
 MAX_WIDTH = 0.30
 EPS = 1e-9
 START_NAMES = ("answers you marked Correct", "answers you marked Wrong")
+
+# What the result calls good. Kappa at or above KAPPA_GATE is good. TPR and TNR are the
+# numbers to act on: below RATE_GATE the judge is not fit to be a gate, below RATE_CARE it is
+# usable with care.
+KAPPA_GATE = 0.6
+RATE_GATE = 0.80
+RATE_CARE = 0.90
 
 
 def _width(interval) -> float | None:

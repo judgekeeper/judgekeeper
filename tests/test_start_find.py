@@ -466,19 +466,6 @@ def test_stripped_promptfoo_results_say_which_setting_removed_what(tmp_path, cap
     assert "Its decisions" not in out
 
 
-@pytest.mark.parametrize("part", list(STRIPPED))
-def test_import_promptfoo_gives_the_same_warning(tmp_path, capsys, part):
-    from tests.start_projects import PROMPTFOO
-
-    data = _strip(json.loads(PROMPTFOO.read_text(encoding="utf-8")), part)
-    path = tmp_path / "promptfoo-results.json"
-    path.write_text(json.dumps(data), encoding="utf-8")
-    main(["import", "promptfoo", str(path), "--metric", "helpfulness",
-          "--out", str(tmp_path / "rep")])
-    out, err = capsys.readouterr()
-    assert STRIPPED[part].format(f="promptfoo-results.json") in out + err
-
-
 def test_a_few_rows_without_an_answer_are_not_stripped_results(tmp_path, capsys):
     outputs = [f"Answer {i}." for i in range(32)]
     outputs[3] = None

@@ -7,9 +7,7 @@ and use labels pass/fail. `slice` and `notes` are optional.
 The hash is sha256 over canonical JSON (sorted keys, no whitespace) of the items sorted by id,
 so it is stable under key order, whitespace and line order, and changes on any content change.
 
-An anchor set is sealed once: its manifest (`<name>.manifest.json`) records the hash. `judge`
-and `validate` seal a set that has no manifest yet (`seal_new`); after that, a changed file
-is a hash mismatch, never sealed again.
+`freeze` seals an anchor set: its manifest (`<name>.manifest.json`) records the hash.
 """
 
 from __future__ import annotations
@@ -25,17 +23,10 @@ PAIRWISE = "pairwise"
 SINGLE = "single"
 
 LABELS = {PAIRWISE: ("A", "B"), SINGLE: ("pass", "fail")}
-# The label treated as "positive" for TPR/TNR.
-POSITIVE = {PAIRWISE: "A", SINGLE: "pass"}
-NEGATIVE = {PAIRWISE: "B", SINGLE: "fail"}
 
 
 class AnchorError(Exception):
     """The anchor set or its manifest is malformed or missing."""
-
-
-class AnchorHashMismatch(AnchorError):
-    """The anchor set no longer matches its frozen manifest."""
 
 
 def item_kind(item: dict) -> str:
@@ -131,36 +122,3 @@ def freeze(path: str | Path) -> dict:
     write_replacing(manifest_path_for(path), json.dumps(manifest, indent=2) + "\n", newline="\n")
     return manifest
 
-
-def seal_new(path: str | Path) -> dict | None:
-    """Seal an anchor set that has no manifest yet and return the manifest; None when it
-    already has one (it is then checked, never rewritten)."""
-    if manifest_path_for(path).is_file():
-        return None
-    return freeze(path)
-
-
-def load_verified(path: str | Path) -> tuple[list[dict], dict]:
-    """Load an anchor set and verify it against its manifest. Raises on mismatch."""
-    mpath = manifest_path_for(path)
-    items = load_anchors(path)
-    if not mpath.is_file():
-        raise AnchorError(f"no manifest at {mpath}: {path} is not sealed yet; `judgekeeper "
-                          "judge` seals a new anchor set on first use")
-    try:
-        manifest = json.loads(read_utf8(mpath, AnchorError))
-    except json.JSONDecodeError:
-        raise AnchorError(f"manifest {mpath} is not valid JSON") from None
-    actual = canonical_hash(items)
-    if manifest.get("sha256") != actual:
-        raise AnchorHashMismatch(
-            f"anchor set {path} does not match {mpath}: "
-            f"manifest sha256 {manifest.get('sha256')}, actual {actual}. "
-            "The anchor set changed after it was frozen. If you changed it on purpose: move "
-            f"{mpath.name} out of the folder (keep it, it records the old set), run judgekeeper "
-            "judge again, which seals the changed set and judges it afresh (runs judged on the "
-            "old set no longer match it), and if you gate against a baseline, set it again from "
-            "the new report: judgekeeper baseline set <new report.json>. Otherwise put the old "
-            "file back."
-        )
-    return items, manifest

@@ -276,7 +276,8 @@ def test_a_server_tracking_uri_says_what_start_reads(two, capsys):
     code, out = run(capsys, two, "--tracking-uri", "http://localhost:5000")
     assert code == start.EXIT_USAGE
     assert "judgekeeper start reads an MLflow store in your project" in out
-    assert "judgekeeper import mlflow --tracking-uri http://localhost:5000" in out
+    assert "http://localhost:5000 is a tracking server." in out
+    assert "judgekeeper import" not in out
 
 
 def test_the_experiment_picks_the_store_that_has_it(two, capsys):

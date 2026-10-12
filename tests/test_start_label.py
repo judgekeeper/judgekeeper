@@ -15,7 +15,7 @@ import pytest
 
 from judgekeeper import label as label_mod
 from judgekeeper import start, start_label, targets, weighted
-from judgekeeper.anchors import load_verified
+from judgekeeper.anchors import canonical_hash, load_anchors, manifest_path_for
 from judgekeeper.cli import main
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.judgments import read_run
@@ -376,11 +376,19 @@ def _label_everything(ws, agree=True):
     return session
 
 
+def _sealed(path):
+    """The anchor set and its manifest, checked against each other."""
+    items = load_anchors(path)
+    manifest = json.loads(manifest_path_for(path).read_text(encoding="utf-8"))
+    assert manifest["sha256"] == canonical_hash(items)
+    return items, manifest
+
+
 def test_a_result_writes_anchors_and_the_result_files(workspace):
     _, ws = workspace
     session = _label_everything(ws)
     start_label.save_result(ws, session, say=lambda line: None)
-    items, manifest = load_verified(ws.anchors)
+    items, manifest = _sealed(ws.anchors)
     assert len(items) == 32 and manifest["label_distribution"] == {"fail": 12, "pass": 20}
     result = json.loads(ws.result_json.read_text(encoding="utf-8"))
     for key in ("tpr", "tnr", "kappa", "tpr_interval", "real_pass_rate", "judge_pass_rate",
@@ -429,7 +437,7 @@ def test_skipped_answers_are_not_in_the_anchors(workspace):
     session.update({"id": ids[0], "label": "pass"})
     session.update({"id": ids[1], "deferred": True})
     start_label.save_result(ws, session, say=lambda line: None)
-    items, _ = load_verified(ws.anchors)
+    items, _ = _sealed(ws.anchors)
     assert [i["id"] for i in items] == [ids[0]]
 
 

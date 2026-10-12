@@ -1,9 +1,10 @@
 """The `judgekeeper.record()` snippets in docs/reference.md and the prompt in docs/assistant.md.
 
 The snippets write the same JSON line as `judgekeeper.record()`, for people who do not want
-the import or use another language; the records they write pass `import records --check`.
+the import or use another language; judgekeeper reads the records they write, with no
+problem in any line.
 The agent prompt asks the user's coding agent to add one `record()` call where the judge
-runs, touch nothing else, show the diff and wait for a yes, then check the records.
+runs, touch nothing else, show the diff and wait for a yes, then run `judgekeeper start`.
 """
 
 from __future__ import annotations
@@ -19,7 +20,8 @@ from pathlib import Path
 import pytest
 
 from judgekeeper import recorder
-from judgekeeper.cli import main
+from judgekeeper.records import problems, read_records
+from judgekeeper.textio import jsonl_lines
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
 RECORD_SECTION = "## record(): save your own judge's verdicts with one line\n"
@@ -57,14 +59,20 @@ SNIPPETS = _snippets()
 AGENT_PROMPT = _agent_prompt()
 
 
-def check(capsys, folder):
-    code = main(["import", "records", str(folder), "--check"])
-    return code, capsys.readouterr().out
+def check(folder) -> list[tuple]:
+    """Every line in the folder is a record with no problem; (name, label, score) of each."""
+    read = []
+    for path in sorted(folder.glob("*.jsonl")):
+        for line in jsonl_lines(path.read_text(encoding="utf-8")):
+            if line.strip():
+                assert problems(json.loads(line)) == []
+        read += [(r.name, r.label, r.score) for r in read_records(path)]
+    return read
 
 
 # The snippets ----------------------------------------------------------------------------
 
-def test_the_python_snippet_writes_records_that_pass_the_check(tmp_path, capsys):
+def test_the_python_snippet_writes_records_that_pass_the_check(tmp_path):
     script = tmp_path / "eval.py"
     script.write_text(SNIPPETS["python"] + """
 
@@ -76,9 +84,8 @@ jk_record({"question": "q"}, "a", score=0.3, name="Safe wording")
     subprocess.run([sys.executable, "-I", str(script)], cwd=tmp_path, check=True)
     folder = tmp_path / ".judgekeeper" / "records"
     assert len(list(folder.glob("Safe-wording-*.jsonl"))) == 1
-    code, out = check(capsys, folder)
-    assert 'Judge "Safe wording": 1 pass, 1 fail, 1 score with no pass mark' in out
-    assert code == 0
+    assert check(folder) == [("Safe wording", "pass", None), ("Safe wording", "fail", None),
+                             ("Safe wording", None, 0.3)]  # a score with no pass mark
 
 
 def test_the_python_snippet_never_raises(tmp_path):
@@ -105,7 +112,7 @@ def _node_runs_typescript() -> bool:
 # CI's test job installs Node.js 22 and sets JUDGEKEEPER_NEEDS_NODE: there it must run.
 @pytest.mark.skipif(not _node_runs_typescript() and not os.environ.get("JUDGEKEEPER_NEEDS_NODE"),
                     reason="needs Node.js 22.18 or later")
-def test_the_typescript_snippet_writes_records_that_pass_the_check(tmp_path, capsys):
+def test_the_typescript_snippet_writes_records_that_pass_the_check(tmp_path):
     script = tmp_path / "eval.ts"
     script.write_text(SNIPPETS["typescript"] + """
 
@@ -118,9 +125,7 @@ jkRecord("Why was I charged twice?", "Your problem.", { verdict: "fail", name: "
                    capture_output=True)
     folder = tmp_path / ".judgekeeper" / "records"
     assert len(list(folder.glob("Safe-wording-*.jsonl"))) == 1
-    code, out = check(capsys, folder)
-    assert 'Judge "Safe wording": 1 pass, 1 fail.' in out
-    assert code == 0
+    assert check(folder) == [("Safe wording", "pass", None), ("Safe wording", "fail", None)]
 
 
 def test_the_snippets_write_the_same_fields():
@@ -148,7 +153,7 @@ def test_the_agent_prompt_says_what_to_do_and_what_not_to():
                   "rule=", "name=", "verdict=", "Touch nothing else",
                   "can never change what the program does",
                   "Show me the diff and wait for my yes before saving",
-                  "judgekeeper import records .judgekeeper/records --check",
+                  "run the eval once, run `judgekeeper start`",
                   "this project's own Python environment", "JUDGEKEEPER_RECORD=0"):
         assert words in text, words
 

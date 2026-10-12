@@ -1,23 +1,14 @@
-"""Fixtures shared by the tests: fixture copies, no real browser, and the MLflow stores."""
+"""Fixtures shared by the tests: no real browser, and the MLflow stores."""
 
-import shutil
 from pathlib import Path
 
 import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-# pytester: tests/test_pytest_plugin.py runs pytest inside pytest. again_stubs: the stub
-# DeepEval, Inspect AI and MLflow packages (the `stubs` fixture) for the ask-again workers.
-pytest_plugins = ["pytester", "tests.again_stubs"]
-
-
-@pytest.fixture
-def pairwise_dir(tmp_path):
-    """A writable copy of the pairwise fixture: anchors, manifest and three replay runs."""
-    dst = tmp_path / "pairwise"
-    shutil.copytree(FIXTURES / "pairwise", dst)
-    return dst
+# again_stubs: the stub DeepEval, Inspect AI and MLflow packages (the `stubs` fixture) for the
+# ask-again workers.
+pytest_plugins = ["tests.again_stubs"]
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +30,7 @@ def keyboard_limit():
 
 @pytest.fixture(autouse=True)
 def fresh_key_registry(monkeypatch):
-    """Variables named with --api-key-env are registered for the life of a process; give each
+    """Key variables keys.py names are registered for the life of a process; give each
     test its own registry so one test cannot hide a leak in another."""
     from judgekeeper import redact
 

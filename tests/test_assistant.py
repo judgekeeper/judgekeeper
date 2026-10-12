@@ -22,10 +22,10 @@ SKILL = ROOT / "skills" / "judgekeeper" / "SKILL.md"
 PLACEHOLDER = re.compile(r"<[a-z]|\[--|\.\.\.")  # syntax lines such as import <tool>
 FENCE = re.compile(r"^```\w*\n(.*?)^```$", flags=re.DOTALL | re.MULTILINE)
 SKILL_DESCRIPTION = (
-    "Check how often a project's LLM-as-a-judge agrees with human labels (TPR, TNR, kappa, "
-    "run-to-run noise, position bias) using judgekeeper, and gate CI on it. Use when a project "
-    "grades outputs with an LLM judge, eval framework or rubric model and the user asks how "
-    "often the judge agrees with people, wants human labels, or wants a judge check in CI.")
+    "Check how often a project's LLM-as-a-judge agrees with human labels (TPR, TNR, kappa) "
+    "using judgekeeper. Use when a project grades outputs with an LLM judge, eval framework or "
+    "rubric model and the user asks how often the judge agrees with people, or wants human "
+    "labels.")
 # The spending rule, the same in the prompt, the skill and the prompt `start --fix` gives: no
 # call before the person's yes; after it, exactly the --allow-calls number judgekeeper printed.
 SPEND_RULE = ("only after my yes in this chat, run it again with `--allow-calls` and exactly "
@@ -157,11 +157,9 @@ def test_the_prompt_follows_todays_path():
     assert "stop and ask" in flat
     assert SPEND_RULE in flat and "at my own terminal i answer that question myself" in flat
     assert "never pass `--allow-calls`" not in flat
-    # The older commands only as a short note at the end, never as steps.
-    advanced = flat[flat.index("advanced, only if i ask"):]
-    assert "tutorial.html" in advanced
-    for name in ("label", "judge", "validate"):
-        assert f"`judgekeeper {name} " not in text, name
+    # The removed commands are not named at all.
+    for name in ("label", "judge", "validate", "check", "import", "init", "gate"):
+        assert f"judgekeeper {name} " not in text, name
 
 
 def test_the_prompt_reports_in_plain_words_and_never_agreement_alone():

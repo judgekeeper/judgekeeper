@@ -104,10 +104,7 @@ Three rules, each with its reason:
 
 Stop and ask me whenever a step needs me: the labels, a key, spending money, what the
 rule means, or a choice you are not sure about. Do not change my app's code or its CI
-unless I say yes to the diff. `judgekeeper &lt;command&gt; --help` lists every option.
-
-Advanced, only if I ask: the older commands (judge, validate, check) build the same
-check by hand when nothing was saved; www.judgekeeper.com/tutorial.html shows each one.</code></pre></div>
+unless I say yes to the diff. `judgekeeper &lt;command&gt; --help` lists every option.</code></pre></div>
 <p>The same text is in the file <code>docs/assistant-prompt.md</code>.</p>
 <h2 id="what-happens-next">What happens next</h2>
 <ol>
@@ -143,8 +140,7 @@ so that judgekeeper can check my judge against my own labels:
 4. Touch nothing else. record() catches its own errors and returns nothing, so it can never
    change what the program does; do not wrap it in code that could.
 5. Show me the diff and wait for my yes before saving.
-6. Then run the eval once, run `judgekeeper import records .judgekeeper/records --check`, and
-   show me what it prints.</code></pre></div>
+6. Then run the eval once, run `judgekeeper start`, and show me what it prints.</code></pre></div>
 <h2 id="works-with">Works with</h2>
 <ul>
 <li>Claude Code</li>
@@ -162,7 +158,7 @@ so that judgekeeper can check my judge against my own labels:
 <p class="fine">Not affiliated with the tools and models it works with. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
 <p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
 <div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
-<div><h2>More</h2><ul><li><a href="own-metric.html">No judge yet? Your own metric</a></li><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li><li><a href="tutorial.html">Advanced commands</a></li></ul></div>
+<div><h2>More</h2><ul><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
 </div>
 </footer>
 </body>
