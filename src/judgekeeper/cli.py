@@ -99,9 +99,9 @@ def version_lines(stream=None) -> list[str]:
     if not terminal:
         return [f"judgekeeper {__version__}"]
     if shutil.which("judgekeeper"):
-        command = "judgekeeper start"
+        command = "judgekeeper"
     else:
-        command = f"{'py' if is_windows() else 'python3'} -m judgekeeper start"
+        command = f"{'py' if is_windows() else 'python3'} -m judgekeeper"
     return [f"{tick(stream)} judgekeeper {__version__} is ready", f"Next: run {command}"]
 
 
