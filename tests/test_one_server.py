@@ -1,6 +1,7 @@
 """One page server per project. Two `start` servers on one project each wrote labels.csv from
-memory, so marks were lost while both pages said "saved": a second one is refused with the
-first one's link, and each write reads the sheet again first."""
+memory, so marks were lost while both pages said "saved": a second one is refused, and each
+write reads the sheet again first. The lock holds the page's port and stop secret, never its
+token."""
 
 from __future__ import annotations
 
@@ -60,16 +61,17 @@ def _serving(ws):
     return server, thread
 
 
-def test_a_second_server_on_the_project_is_refused_with_the_first_ones_link(ws):
+def test_a_second_server_on_the_project_is_refused(ws):
     server, thread = _serving(ws)
     try:
         lock = json.loads((ws.dir / label_mod.LOCK).read_text(encoding="utf-8"))
-        assert lock["port"] == server.port and lock["token"] == server.token
+        assert lock == {"pid": lock["pid"], "port": server.port, "stop": server.stop_secret}
+        assert server.token not in json.dumps(lock)
         with pytest.raises(LabelError) as e:
             make_server(StartSession(ws), 0, page="<p>page</p>", lock=ws.dir)
-        assert str(e.value) == (f"judgekeeper is already open for this project: {server.url} "
-                                "(or stop it with Ctrl-C in its terminal).")
-        assert "--port" not in str(e.value)
+        assert str(e.value) == ("A judgekeeper page is already open for this project. Close "
+                                "it with Ctrl-C in its terminal, or run `judgekeeper --stop`.")
+        assert "--port" not in str(e.value) and server.token not in str(e.value)
     finally:
         server.stop()
         thread.join(timeout=5)
@@ -80,12 +82,12 @@ def test_a_second_server_on_the_project_is_refused_with_the_first_ones_link(ws):
 
 
 def test_a_lock_nobody_answers_is_ignored(ws):
-    (ws.dir / label_mod.LOCK).write_text(json.dumps({"pid": 1, "port": 9, "token": "x"}),
+    (ws.dir / label_mod.LOCK).write_text(json.dumps({"pid": 1, "port": 9, "stop": "x"}),
                                          encoding="utf-8")
     server = make_server(StartSession(ws), 0, page="<p>page</p>", lock=ws.dir)
     try:
         lock = json.loads((ws.dir / label_mod.LOCK).read_text(encoding="utf-8"))
-        assert lock["token"] == server.token
+        assert lock["stop"] == server.stop_secret
     finally:
         server.release()
         server.httpd.server_close()
@@ -100,7 +102,8 @@ def test_a_second_start_says_where_the_page_is_and_stops(ws, tmp_path, capsys):
         server.stop()
         thread.join(timeout=5)
     assert code == 2
-    assert f"judgekeeper is already open for this project: {server.url}" in out + err
+    assert "A judgekeeper page is already open for this project." in out + err
+    assert server.token not in out + err
 
 
 def test_the_lock_is_removed_while_another_reader_has_it_open(ws):

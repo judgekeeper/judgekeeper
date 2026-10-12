@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import urllib.request
 from pathlib import Path
 
@@ -179,18 +180,18 @@ def test_the_workflow_runs_33_jobs_on_three_systems(ic):
     assert triggers["workflow_dispatch"]["inputs"]["source"]["default"] == "build"
 
 
-def test_the_marking_page_link_is_read_from_marks_output(ic):
+def test_the_marking_page_link_is_read_from_the_output(ic):
     out = ("Marking page: http://127.0.0.1:54321/?token=Ab-c_9\n"
            "It shows one answer at a time. Your judge's verdict is hidden.")
     assert ic.page_link(out) == ("http://127.0.0.1:54321", "Ab-c_9")
 
 
-def test_the_walk_goes_through_judgekeeper_and_mark(ic, monkeypatch):
-    """`judgekeeper`, `judgekeeper mark` (the page in the background), the stand-in person's
-    marks posted to it, `judgekeeper mark` with the result, then `judgekeeper mark --stop`,
-    before `judgekeeper start` takes over the result."""
+def _walk(ic, monkeypatch, tool, project=None):
+    """The walk with every command faked: (the commands run, with what each must print), the
+    page calls, and the steps."""
     check = object.__new__(ic.Check)
-    check.tool, check.jk, check.port, check.steps = "table", "jk", "5", []
+    check.tool, check.jk, check.port, check.steps = tool, "jk", "5", []
+    check.project = project
     ran, posted = [], []
 
     class Done:
@@ -198,7 +199,7 @@ def test_the_walk_goes_through_judgekeeper_and_mark(ic, monkeypatch):
         stdout = "Marking page: http://127.0.0.1:5/?token=t0k\n"
 
     def run(name, args, ok_codes=(0,), expect=(), **kwargs):
-        ran.append((name, [str(a) for a in args], list(expect)))
+        ran.append(([str(a) for a in args][1:], list(expect)))
         return Done()
 
     def call(base, token, path, body=None):
@@ -211,17 +212,40 @@ def test_the_walk_goes_through_judgekeeper_and_mark(ic, monkeypatch):
 
     monkeypatch.setattr(check, "run", run, raising=False)
     monkeypatch.setattr(check, "call", call, raising=False)
-    for name in ("make_results", "serve", "fix_rule", "plan_then_go", "setup_own_format"):
+    for name in ("make_results", "serve", "fix_rule", "plan_then_go"):
         monkeypatch.setattr(check, name, lambda *a, **k: True, raising=False)
     check.walk()
-    commands = [args[1:] for _, args, _ in ran]
-    assert commands[0] == []
-    assert commands[1][:1] == ["mark"] and "--stop" not in commands[1]
-    assert commands[2][:1] == ["mark"] and "--stop" not in commands[2]
-    assert commands[3] == ["mark", "--stop"]
-    assert commands[4][:1] == ["start"]
-    assert any("judgekeeper mark" in e for e in ran[0][2])
-    assert any("Of the answers you passed" in e for e in ran[2][2])
+    return ran, posted, check.steps
+
+
+def test_the_walk_goes_through_judgekeeper_twice(ic, monkeypatch):
+    """`judgekeeper` (found, checked, the page in the background, its link printed: no
+    browser), the stand-in person's marks posted to it, `judgekeeper` with the result, then
+    `judgekeeper --stop`, before `judgekeeper start` takes over the result."""
+    ran, posted, _ = _walk(ic, monkeypatch, "table")
+    commands = [args for args, _ in ran]
+    assert commands[0] == ["--no-browser", "--port", "5"]
+    assert commands[1] == ["--no-browser", "--port", "5"]
+    assert commands[2] == ["--stop"]
+    assert commands[3][:1] == ["start"]
+    first = " ".join(ran[0][1])
+    assert "Marking page" in first and "Your judge passed 28 and failed 12" in first
+    assert any("Of the answers you passed" in e for e in ran[1][1])
     labels = [body for _, _, path, body in posted if path == "/label"]
     assert [(b["id"], b["label"]) for b in labels] == [("a", "pass"), ("b", "fail")]
     assert all(isinstance(b["seconds"], (int, float)) for b in labels)
+
+
+def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tmp_path):
+    """`judgekeeper --yes` maps the file and goes on: it says what was found and opens the
+    page, so the first look is checked there, not in a second run."""
+    (tmp_path / "judgekeeper.toml").write_text("[start]\n", encoding="utf-8")
+    ran, _, steps = _walk(ic, monkeypatch, "own-format", tmp_path)
+    commands = [args for args, _ in ran]
+    assert commands[0] == ["--yes", "--no-browser", "--port", "5"]
+    assert commands[1] == ["--no-browser", "--port", "5"]
+    assert commands[2] == ["--stop"]
+    first = " ".join(ran[0][1])
+    assert "Saved judgekeeper" in first and re.escape("my-judge-1") in first
+    assert "Your judge passed 28 and failed 12" in first and "Marking page" in first
+    assert ("judgekeeper.toml saved", True) in [(name, ok) for name, ok, *_ in steps]

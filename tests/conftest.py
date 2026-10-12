@@ -20,6 +20,45 @@ def no_browser(monkeypatch):
     return opened
 
 
+def pytest_configure(config):
+    config.addinivalue_line("markers", "real_page: the marking page runs as its own process, "
+                                       "as it does for a person")
+
+
+@pytest.fixture(autouse=True)
+def pages(request, monkeypatch):
+    """background.start, with the page served in a thread of this process (a test marked
+    `real_page` gets the real one). `started` keeps the settings of each start; `fail` makes
+    the next start fail."""
+    if request.node.get_closest_marker("real_page"):
+        yield None
+        return
+    import threading
+
+    from judgekeeper import background, page, start_label
+
+    started, servers = [], []
+    state = {"fail": False}
+
+    def fake_start(folder, settings, token, timeout=background.WAIT):
+        started.append(dict(settings))
+        if state["fail"]:
+            return None
+        ws = start_label.Workspace(Path(folder).parent)
+        server = page.page_server(ws, 0, settings["command"], settings["start_command"],
+                                  token=token)
+        thread = threading.Thread(target=server.serve, daemon=True)
+        thread.start()
+        servers.append((server, thread))
+        return server.url
+
+    monkeypatch.setattr(background, "start", fake_start)
+    yield started, state
+    for server, thread in servers:
+        server.stop()
+        thread.join(timeout=5)
+
+
 @pytest.fixture(autouse=True)
 def keyboard_limit():
     """Each test starts with the fake keyboard's count of unanswered questions at zero."""

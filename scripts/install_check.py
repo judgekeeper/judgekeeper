@@ -12,13 +12,13 @@ What a stranger does, with nobody at the keyboard and no API key:
 3. The eval tool installed into the project, and real results made with it. Every judge talks
    to a fake judge this script serves on 127.0.0.1: an OpenAI-compatible API and Ollama's own,
    which pass questions 1 to 28 and fail 29 to 40, so the numbers are known.
-4. The way a person goes: `judgekeeper` (the first look), `judgekeeper mark` (the page in the
-   background, its link printed), every answer marked on the page, `judgekeeper mark` again
-   for the result, `judgekeeper mark --stop`; then `judgekeeper start`: the review, Fix your
-   judge (the coding-agent prompt, then a new rule saved with --rule-file), the new rule put
-   in the tool's own file and the tool run again, Try your new judge, and Ask your judge
-   again. judgekeeper's input is a closed pipe; the pages are used through their own HTTP
-   calls, with a stand-in person whose marks are fixed.
+4. The way a person goes: `judgekeeper` (the first look and the page in the background; with
+   no browser and no terminal its link is printed), every answer marked on the page,
+   `judgekeeper` again for the result, `judgekeeper --stop`; then `judgekeeper start`: the
+   review, Fix your judge (the coding-agent prompt, then a new rule saved with --rule-file),
+   the new rule put in the tool's own file and the tool run again, Try your new judge, and Ask
+   your judge again. judgekeeper's input is a closed pipe; the pages are used through their
+   own HTTP calls, with a stand-in person whose marks are fixed.
 5. Every command's output, then "N of N steps OK". Exit 1 on any failed step or "Traceback".
 
 Tools: table, promptfoo, deepeval, inspect, mlflow, record (your own judge code with
@@ -387,8 +387,9 @@ class Check:
     def start(self, *flags) -> list[str]:
         return [self.jk, "start", *flags, "--port", self.port]
 
-    def mark(self, *flags) -> list[str]:
-        return [self.jk, "mark", *flags, "--no-browser", "--port", self.port]
+    def front(self, *flags) -> list[str]:
+        """`judgekeeper` with no command; the page's link printed, never a browser."""
+        return [self.jk, *flags, "--no-browser", "--port", self.port]
 
     # The page's own HTTP calls
 
@@ -691,17 +692,22 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
 
     # The user's path
 
-    def first_look(self):
-        decisions = rf"Your judge passed {len(JUDGE_PASSES)} and failed {N - len(JUDGE_PASSES)}\."
-        self.run("1. first look (judgekeeper)", [self.jk],
-                 expect=[rf"Your judge: .*{re.escape(JUDGE_NAME[self.tool])}", decisions,
-                         r"\nNext: run `judgekeeper mark"])
-
     def mark_path(self):
-        """`judgekeeper mark` opens the page in the background and returns; the stand-in
-        person marks on it; `judgekeeper mark` then prints the result; `--stop` closes it."""
-        p = self.mark_step("2. judgekeeper mark opens the page in the background", self.mark(),
-                           [r"Marking page: http://127\.0\.0\.1:", r"Marked so far: 0 "])
+        """`judgekeeper` finds the judge, checks it and opens the page in the background (its
+        link printed: no browser, no terminal); the stand-in person marks on it; `judgekeeper`
+        then prints the result; `--stop` closes the page. For a file in your own format the
+        first run maps it (answers given by --yes) and goes on: it is the first look."""
+        decisions = rf"Your judge passed {len(JUDGE_PASSES)} and failed {N - len(JUDGE_PASSES)}\."
+        expect = [rf"Your judge: .*{re.escape(JUDGE_NAME[self.tool])}", decisions,
+                  r"Marking page: http://127\.0\.0\.1:", r"Marked so far: 0\."]
+        if self.tool == "own-format":
+            p = self.mark_step("1. judgekeeper maps the file (answers given by --yes, no "
+                               "terminal): the first look, and the page in the background",
+                               self.front("--yes"), [r"Saved judgekeeper\.toml", *expect])
+            self.step("judgekeeper.toml saved", (self.project / "judgekeeper.toml").is_file())
+        else:
+            p = self.mark_step("1. judgekeeper: the first look, and the page in the background",
+                               self.front(), expect)
         link = page_link(p.stdout) if p else None
         if not self.step("2. the page's link is printed", link is not None):
             return
@@ -710,17 +716,17 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         except Exception as e:  # noqa: BLE001 - any failure is this step's failure
             ok, detail = False, f"({type(e).__name__}: {e})"
         self.step("2. the stand-in person marks every answer on the page", ok, detail)
-        self.mark_step("2. judgekeeper mark prints the result", self.mark(),
+        self.mark_step("2. judgekeeper prints the result", self.front(),
                        [r"Your marks: 40 \(25 Pass, 15 Fail\), made on the page",
                         r"Of the answers you passed, your judge passed",
                         r"Of the answers you failed, your judge failed",
                         r"This set can see a drop of", r"still open"])
-        self.mark_step("2. judgekeeper mark --stop closes the page", [self.jk, "mark", "--stop"],
+        self.mark_step("2. judgekeeper --stop closes the page", [self.jk, "--stop"],
                        [r"Closed the marking page"])
 
     def mark_step(self, name: str, args, expect):
-        """A `judgekeeper mark` step; when it fails, what the page's own process wrote to
-        .judgekeeper/page.log, and whether its lock is still there."""
+        """A step that opens or closes the page; when it fails, what the page's own process
+        wrote to .judgekeeper/page.log, and whether its lock is still there."""
         p = self.run(name, args, expect=expect)
         if self.steps and not self.steps[-1][1]:
             folder = self.project / ".judgekeeper"
@@ -732,11 +738,6 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             print(f"--- .judgekeeper/server.json is there: {(folder / 'server.json').exists()}",
                   flush=True)
         return p
-
-    def setup_own_format(self):
-        self.run("judgekeeper maps the file (answers given by --yes, no terminal)",
-                 [self.jk, "--yes"], expect=[r"Saved judgekeeper\.toml", r"\nNext: run "])
-        self.step("judgekeeper.toml saved", (self.project / "judgekeeper.toml").is_file())
 
     def plan_then_go(self, name: str, flags: list[str]) -> bool:
         """Run a step that asks before spending: once for its plan (it stops, exit 8), then
@@ -761,9 +762,6 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
 
     def walk(self):
         self.make_results(RULE_OLD, "old rule")
-        if self.tool == "own-format":
-            self.setup_own_format()
-        self.first_look()
         self.mark_path()
         self.run("2. start: the last result and what next", self.start("--no-browser"),
                  ok_codes=(0, 8), expect=[r"Your last result", r"--review"])
