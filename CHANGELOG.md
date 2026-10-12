@@ -5,7 +5,8 @@
 First beta of the new judgekeeper: one command, `judgekeeper`, does the next step each time you
 run it. Fixing your judge and re-checking it on its own come in later betas.
 
-- Run `uvx judgekeeper` in your project, or `pip install judgekeeper` and then `judgekeeper`.
+- Run `uvx judgekeeper@1.0.0b1` in your project, or `pip install judgekeeper==1.0.0b1` and then
+  `judgekeeper`. The version is needed: uv and pip skip betas unless you name one.
 - It finds the results your eval tool saved and checks your judge's verdicts, with no AI call.
 - It opens a page in your browser to mark answers Pass or Fail, with your judge's verdict hidden.
 - Run it again for TPR, TNR and kappa with ranges, and the smallest drop your marks can see.

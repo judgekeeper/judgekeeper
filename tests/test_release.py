@@ -269,7 +269,8 @@ def test_changelog_entry_says_what_changed_since_0_1_3():
     assert len(entry.strip().splitlines()) < 20
     assert "## 0.2.0" not in text
     flat = " ".join(entry.split())
-    for needed in ("`uvx judgekeeper`", "`pip install judgekeeper`", "`judgekeeper mark`",
+    for needed in (f"`uvx judgekeeper@{VERSION}`", f"`pip install judgekeeper=={VERSION}`",
+                   "`judgekeeper mark`",
                    "your browser", "TPR, TNR and kappa", "skills/judgekeeper/SKILL.md",
                    "no AI call", "beta", "Removed:", "the pytest plugin", "the GitHub Action"):
         assert needed in flat, needed
@@ -289,13 +290,31 @@ def test_older_changelog_entries_stay_as_they_were_written():
 
 def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "\nuvx judgekeeper\n" in readme and "\npip install judgekeeper\n" in readme
-    assert "Run `uvx judgekeeper` in this project and follow what it says." in readme
+    assert f"\nuvx judgekeeper@{VERSION}\n" in readme
+    assert f"\npip install judgekeeper=={VERSION}\n" in readme
+    assert f"Run `uvx judgekeeper@{VERSION}` in this project and follow what it says." in readme
     assert "skills/judgekeeper/SKILL.md" in readme and "beta" in readme
     for gone in ("judgekeeper start", "judgekeeper demo", "before the first PyPI release"):
         assert gone not in readme, gone
     for needed in ("TPR", "TNR", "kappa"):
         assert needed in readme, needed
+
+
+def test_every_install_command_names_the_version_in_pyproject():
+    """uv and pip skip betas unless the version is named: `uvx judgekeeper` and `pip install
+    judgekeeper` would get 0.1.3. README, SKILL.md and the changelog's entry name exactly the
+    version in pyproject.toml, so the next beta can't forget it."""
+    version = _toml(ROOT / "pyproject.toml")["project"]["version"]
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    texts = {"README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+             "SKILL.md": (ROOT / "skills/judgekeeper/SKILL.md").read_text(encoding="utf-8"),
+             "CHANGELOG.md": changelog[:changelog.index("## 0.1.3")]}
+    for name, text in texts.items():
+        uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", text)
+        pip = re.findall(r"pip install judgekeeper(==[\w.]+)?", text)
+        assert uvx and set(uvx) == {f"@{version}"}, (name, uvx)
+        assert set(pip) <= {f"=={version}"}, (name, pip)
+    assert re.findall(r"pip install judgekeeper(==[\w.]+)?", texts["README.md"])
 
 
 def test_readme_has_no_link_to_the_website_while_it_is_offline():

@@ -9,10 +9,10 @@ judgekeeper reads the results the project's LLM-as-a-judge already saved and che
 free. The person marks some answers Pass or Fail on a page in their browser, and judgekeeper
 shows how often the judge agrees with them.
 
-Run `uvx judgekeeper` in the project folder (or `judgekeeper` if installed). Each run does the
-next step and ends with one line that starts with `Next:`: follow each `Next:` line, and run
-`uvx judgekeeper` again when it says so. The person may write little code, so say what you are
-doing in plain words. All flags: `judgekeeper --help`.
+Run `uvx judgekeeper@1.0.0b1` in the project folder (or `judgekeeper` if installed). Each run
+does the next step and ends with one line that starts with `Next:`: follow each `Next:` line.
+Run it again the same way you started it. The person may write little code, so say what you
+are doing in plain words. All flags: `judgekeeper --help`.
 
 ## Rules
 
@@ -38,8 +38,8 @@ doing in plain words. All flags: `judgekeeper --help`.
 2. Tell the person the page is open and to mark answers until the page says it has enough
    (15 Pass and 15 Fail for a first result). Then wait: do nothing until they say they are
    done.
-3. Run `uvx judgekeeper` again. With enough marks it prints the result; with too few it opens
-   the page again and says how many are marked so far.
+3. Run it again, as the `Next:` line says. With enough marks it prints the result; with too
+   few it opens the page again and says how many are marked so far.
 4. Tell the result in plain words, quoting the numbers it printed:
    - TPR: of the answers the person passed, how many the judge passed.
    - TNR: of the answers the person failed, how many the judge failed. A judge that passes

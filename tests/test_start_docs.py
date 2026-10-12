@@ -209,7 +209,7 @@ def test_the_reference_has_every_start_flag_and_the_saved_files():
 
 def test_the_readme_makes_uvx_the_main_path():
     use = _sections(README)["Use it on your own judge"]
-    assert "\ncd your-project\nuvx judgekeeper\n" in use
+    assert f"\ncd your-project\nuvx judgekeeper@{__version__}\n" in use
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
         assert tool in use, tool
     assert len(README.read_text(encoding="utf-8").splitlines()) <= 80
@@ -223,7 +223,7 @@ def test_the_guide_starts_with_start():
 
 def test_the_skill_leaves_marking_to_the_person():
     text = " ".join(SKILL.read_text(encoding="utf-8").split())
-    assert "`uvx judgekeeper`" in text
+    assert f"`uvx judgekeeper@{__version__}`" in text
     assert "Only the person marks." in text
     assert len(SKILL.read_text(encoding="utf-8").splitlines()) < 60
 

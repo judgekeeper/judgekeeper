@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from judgekeeper import __version__
 from judgekeeper.cli import parse_args
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,13 +33,14 @@ def _body() -> str:
 
 def _commands(body: str) -> list[list[str]]:
     """Every `judgekeeper ...` or `uvx judgekeeper ...` in a code span, as its arguments."""
-    spans = re.findall(r"`(?:uvx )?(judgekeeper(?: [^`]*)?)`", body)
-    return [shlex.split(span)[1:] for span in spans]
+    spans = re.findall(r"`(?:uvx )?judgekeeper(?:@[\w.]+)?((?: [^`]*)?)`", body)
+    return [shlex.split(span) for span in spans]
 
 
 def test_frontmatter():
     meta, body = _split(SKILL.read_text(encoding="utf-8"))
-    assert set(meta) == {"name", "description"}
+    # Only the standard Agent Skills fields, so Claude Code, Cursor and Codex all load it.
+    assert {"name", "description"} <= set(meta) <= {"name", "description", "license"}
     assert meta["name"] == "judgekeeper"
     assert 50 < len(meta["description"]) <= 1024
     assert body.strip()
@@ -50,10 +52,12 @@ def test_under_60_lines():
 
 def test_it_starts_with_uvx_and_follows_each_next_line():
     body = _body()
-    assert "`uvx judgekeeper`" in body
+    uvx = f"`uvx judgekeeper@{__version__}`"
+    assert uvx in body
     assert "(or `judgekeeper` if installed)" in body
     assert "follow each `Next:` line" in body
-    assert body.index("`uvx judgekeeper`") < body.index("## Rules")
+    assert "Run it again the same way you started it." in body
+    assert body.index(uvx) < body.index("## Rules")
 
 
 def test_only_the_person_marks_and_the_agent_keeps_out_of_the_page():

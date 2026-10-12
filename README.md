@@ -15,18 +15,18 @@ An LLM-as-a-judge is an AI model that grades the answers of another AI model. Te
 ## Use it on your own judge
 ```
 cd your-project
-uvx judgekeeper
+uvx judgekeeper@1.0.0b1
 ```
 
-You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). Without uv, install it in your project's own Python environment, then run it:
+You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). The version is in the command because uv and pip skip betas unless you name one. Without uv, install it in your project's own Python environment, then run it:
 ```
-pip install judgekeeper
+pip install judgekeeper==1.0.0b1
 judgekeeper
 ```
 
 - It reads the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV) and checks your judge's verdicts for free.
 - It opens a page in your browser. You mark answers Pass or Fail without seeing what your judge said.
-- Run it again when you are done: it shows how often your judge agrees with you.
+- Run it again the same way when you are done: it shows how often your judge agrees with you.
 - No AI calls and no API key. judgekeeper never runs your app.
 
 This is a beta: fixing your judge and re-checking it on its own are coming.
@@ -35,7 +35,7 @@ This is a beta: fixing your judge and re-checking it on its own are coming.
 
 Paste this into Claude Code, Codex or Cursor:
 ```
-Run `uvx judgekeeper` in this project and follow what it says.
+Run `uvx judgekeeper@1.0.0b1` in this project and follow what it says.
 ```
 
 The agent runs `judgekeeper` and tells you when the page is open; you do the marking. Its rules are in one file, `skills/judgekeeper/SKILL.md`.
