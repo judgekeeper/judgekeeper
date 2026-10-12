@@ -14,7 +14,7 @@ import threading
 
 import pytest
 
-from judgekeeper import __version__, background, label, marks, start, start_label
+from judgekeeper import __version__, background, label, marks, page, start, start_label
 from judgekeeper.cli import main
 from tests.start_projects import promptfoo_project, records_project, split
 from tests.test_front import assert_one_next_at_the_end, next_lines, run
@@ -292,7 +292,7 @@ def test_wait_serves_the_page_in_this_process(here, capsys, pages, no_browser):
 
 
 def test_wait_at_a_terminal_prints_the_link(here, capsys, pages, no_browser, monkeypatch):
-    monkeypatch.setattr(start, "_interactive", lambda: True)
+    monkeypatch.setattr(page, "terminal", lambda: True)
     promptfoo_project(here, split(20, 16))
     thread, _ = _wait_in_a_thread(here)
     assert background.stop(here / ".judgekeeper")

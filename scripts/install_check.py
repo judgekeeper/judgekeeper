@@ -695,12 +695,19 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
     def mark_path(self):
         """`judgekeeper` finds the judge, checks it and opens the page in the background (its
         link printed: no browser, no terminal); the stand-in person marks on it; `judgekeeper`
-        then prints the result; `--stop` closes the page."""
+        then prints the result; `--stop` closes the page. For a file in your own format the
+        first run maps it (answers given by --yes) and goes on: it is the first look."""
         decisions = rf"Your judge passed {len(JUDGE_PASSES)} and failed {N - len(JUDGE_PASSES)}\."
-        p = self.mark_step("1. judgekeeper: the first look, and the page in the background",
-                           self.front(),
-                           [rf"Your judge: .*{re.escape(JUDGE_NAME[self.tool])}", decisions,
-                            r"Marking page: http://127\.0\.0\.1:", r"Marked so far: 0\."])
+        expect = [rf"Your judge: .*{re.escape(JUDGE_NAME[self.tool])}", decisions,
+                  r"Marking page: http://127\.0\.0\.1:", r"Marked so far: 0\."]
+        if self.tool == "own-format":
+            p = self.mark_step("1. judgekeeper maps the file (answers given by --yes, no "
+                               "terminal): the first look, and the page in the background",
+                               self.front("--yes"), [r"Saved judgekeeper\.toml", *expect])
+            self.step("judgekeeper.toml saved", (self.project / "judgekeeper.toml").is_file())
+        else:
+            p = self.mark_step("1. judgekeeper: the first look, and the page in the background",
+                               self.front(), expect)
         link = page_link(p.stdout) if p else None
         if not self.step("2. the page's link is printed", link is not None):
             return
@@ -732,11 +739,6 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
                   flush=True)
         return p
 
-    def setup_own_format(self):
-        self.run("judgekeeper maps the file (answers given by --yes, no terminal)",
-                 self.front("--yes"), expect=[r"Saved judgekeeper\.toml", r"\nNext: "])
-        self.step("judgekeeper.toml saved", (self.project / "judgekeeper.toml").is_file())
-
     def plan_then_go(self, name: str, flags: list[str]) -> bool:
         """Run a step that asks before spending: once for its plan (it stops, exit 8), then
         with --allow-calls N, N read from the plan."""
@@ -760,8 +762,6 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
 
     def walk(self):
         self.make_results(RULE_OLD, "old rule")
-        if self.tool == "own-format":
-            self.setup_own_format()
         self.mark_path()
         self.run("2. start: the last result and what next", self.start("--no-browser"),
                  ok_codes=(0, 8), expect=[r"Your last result", r"--review"])

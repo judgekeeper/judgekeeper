@@ -696,12 +696,15 @@ def _ran_again(ws: Workspace, found: start.Found) -> bool:
     return files != list(found.used) or marked != {a.id: a.verdict for a in found.pool.answers}
 
 
-def _marking_line(ws: Workspace) -> str:
-    """The judge being marked, and its results."""
+def _marking_line(ws: Workspace, found: start.Found) -> str:
+    """The judge being marked, and its results, in the shape of the first look's judge line:
+    its model, and its name only when the results hold several judges."""
     data = ws.data()
     tool = {**find.NAMES, "mapped": "your own format"}.get(data.get("tool"), data.get("tool"))
     files = ", ".join(data.get("results_files") or []) or "its results"
-    return f"Marking answers for your judge {data.get('judge')} ({tool}, {files})."
+    model = (data.get("fingerprint") or {}).get("model") or "model not named"
+    judge = f"{data.get('metric')}, {model}" if len(found.metrics) > 1 else model
+    return f"Marking answers for your judge: {judge} ({tool}, {files})."
 
 
 def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
@@ -712,7 +715,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         start_label.prepare(found, say=lambda line: None)
     counts = StartSession(ws).counts()
     enough = min(counts["correct"], counts["wrong"]) >= targets.ROUGH
-    head = [] if first or marking or enough else [_marking_line(ws)]
+    head = [] if first or marking or enough else [_marking_line(ws, found)]
     if not first and _ran_again(ws, found):
         head.append(RAN_AGAIN)
     for line in head:

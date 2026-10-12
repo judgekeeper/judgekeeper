@@ -560,6 +560,7 @@ def test_no_browser_prints_the_link_only(tmp_path, capsys, clicker):
 
 def test_at_a_terminal_start_prints_the_link_as_before(tmp_path, capsys, clicker, monkeypatch):
     monkeypatch.setattr(start, "_interactive", lambda: True)
+    monkeypatch.setattr("judgekeeper.page.terminal", lambda: True)
     monkeypatch.setattr("builtins.input", lambda prompt="": "")  # yes, open the page
     promptfoo_project(tmp_path, split(20, 16))
     code, out, err = _run(capsys, tmp_path, "--port", "0")

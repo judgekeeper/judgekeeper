@@ -14,7 +14,7 @@ import re
 
 import pytest
 
-from judgekeeper import __version__, background, label, marks, start, start_label
+from judgekeeper import __version__, background, label, marks, page, start_label
 from tests.start_projects import promptfoo_project, records_project, split
 from tests.test_front import assert_one_next_at_the_end, next_lines, run
 
@@ -152,8 +152,7 @@ def test_marking_started_opens_the_page_again_with_the_count(here, capsys, pages
     assert code == 0, out
     assert _check(out, err) == NEXT_OPEN
     assert out.splitlines()[2:] == [
-        ('Marking answers for your judge llm-rubric "Is polite and correct." with '
-         "openai:gpt-4.1-mini (promptfoo, results.json)."),
+        "Marking answers for your judge: openai:gpt-4.1-mini (promptfoo, results.json).",
         "",
         OPEN,
         "It shows one answer at a time. Your judge's verdict is hidden.",
@@ -162,6 +161,17 @@ def test_marking_started_opens_the_page_again_with_the_count(here, capsys, pages
         NEXT_OPEN]
     assert "Found your eval tool" not in out and "Checked first" not in out
     assert len(pages[0]) == 2  # the open page was replaced by a new one
+
+
+def test_with_several_judges_the_marking_line_names_the_metric(here, capsys, pages):
+    records_project(here, split(16, 16), name="helpfulness")
+    records_project(here, split(16, 16), name="safety", pid=4102)
+    run(capsys, "--metric", "safety")
+    code, out, _ = run(capsys, "--metric", "safety")
+    assert code == 0, out
+    line = out.splitlines()[2]
+    assert line.startswith("Marking answers for your judge: safety, claude-opus-5 "
+                           "(judgekeeper.record(), "), line
 
 
 # At least 15 Pass + 15 Fail: output B -----------------------------------------------------
@@ -408,7 +418,7 @@ def test_the_result_counts_marks_made_through_a_printed_link(here, capsys, pages
 
 
 def test_at_a_terminal_a_printed_link_is_not_stamped(here, capsys, pages, monkeypatch):
-    monkeypatch.setattr(start, "_interactive", lambda: True)
+    monkeypatch.setattr(page, "terminal", lambda: True)
     promptfoo_project(here, split(20, 16))
     code, out, _ = run(capsys, "--no-browser")
     assert code == 0, out
@@ -447,3 +457,21 @@ def test_the_page_says_to_tell_the_agent_when_it_has_enough(here, capsys, pages)
     assert status["ready"]
     assert status["text"].endswith("When you're done, tell your coding agent, or run "
                                    "judgekeeper in your terminal.")
+
+
+class _Stream:
+    def __init__(self, tty: bool):
+        self.tty = tty
+
+    def isatty(self) -> bool:
+        return self.tty
+
+
+@pytest.mark.parametrize("stdin,stdout,expected", [(True, True, True), (True, False, False),
+                                                   (False, True, False)])
+def test_a_terminal_needs_both_input_and_output(monkeypatch, stdin, stdout, expected):
+    """On Windows the NUL device says it is a terminal: a command run with its input from NUL
+    and its output read by an agent is not at a terminal."""
+    monkeypatch.setattr("sys.stdin", _Stream(stdin))
+    monkeypatch.setattr("sys.stdout", _Stream(stdout))
+    assert page.terminal() is expected

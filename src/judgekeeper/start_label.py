@@ -1062,10 +1062,10 @@ def say_opened(url: str, open_browser: bool, say, command: str = "judgekeeper st
     coding agent can't read it, or when no browser opened: without a terminal that is said,
     and the marks on `session` are stamped (page.py)."""
     from judgekeeper.page import NO_BROWSER
-    from judgekeeper.start import _interactive
+    from judgekeeper.page import terminal as at_terminal
     from judgekeeper.textio import tick
 
-    terminal = _interactive()
+    terminal = at_terminal()
     if open_browser and webbrowser.open(url) is not False:
         say(f"{tick()} Opened in your browser. Every click is saved.")
         if terminal:

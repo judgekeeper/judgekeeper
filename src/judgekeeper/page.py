@@ -101,25 +101,36 @@ def _stamp_printed(page: Page) -> bool:
     return ask(page.port, "POST", "/printed", {"token": page.token}, body={}) == 200
 
 
+def terminal() -> bool:
+    """Whether a person reads this output at a terminal: input and output are both one. On
+    Windows the NUL device says it is a terminal, so input alone is not enough; and what
+    matters for the link is who reads the output."""
+    from judgekeeper.start import _interactive
+
+    try:
+        output = sys.stdout.isatty()
+    except (AttributeError, ValueError):
+        output = False
+    return output and _interactive()
+
+
 def show(say, page: Page, no_browser: bool, wait: bool) -> str | None:
     """Open the page in the person's browser and say so (BROWSER). At a terminal, print the
     link when no browser opened or with --wait (TERMINAL). Without one, when no browser
     opened: say so, stamp the page's marks, then print the link (PRINTED). None when the
     marks could not be stamped: then the link is not printed."""
-    from judgekeeper.start import _interactive
-
-    terminal = _interactive()
+    at_terminal = terminal()
     opened = not no_browser and webbrowser.open(page.url)
-    if opened and not (terminal and wait):
+    if opened and not (at_terminal and wait):
         say(OPEN)
         return BROWSER
-    if not terminal:
+    if not at_terminal:
         say(NO_BROWSER)
         if not _stamp_printed(page):
             return None
     print(f"Marking page: {page.url}")  # the link whole: printed by hand, never by say
     sys.stdout.flush()
-    return TERMINAL if terminal else PRINTED
+    return TERMINAL if at_terminal else PRINTED
 
 
 def serve(server: LabelServer) -> None:
