@@ -20,7 +20,7 @@ What a stranger does, with nobody at the keyboard and no API key:
 5. Every command's output, then "N of N steps OK". Exit 1 on any failed step or "Traceback".
 
 Tools: table, promptfoo, deepeval, inspect, mlflow, record (your own judge code with
-judgekeeper.record()), own-format (your own results file, mapped with `judgekeeper setup`),
+judgekeeper.record()), own-format (your own results file, mapped by `judgekeeper`),
 promptfoo-ollama and inspect-ollama (an open-source judge on Ollama; no model is downloaded).
 
 Standard library only. Pages get ports from a free-port search, never judgekeeper's default.
@@ -705,8 +705,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
                          rf"Its decisions\s+{decisions}"])
 
     def setup_own_format(self):
-        self.run("judgekeeper setup (answers given by --yes, no terminal)",
-                 [self.jk, "setup", "--yes"], expect=[r"judgekeeper\.toml"])
+        self.run("judgekeeper maps the file (answers given by --yes, no terminal)",
+                 [self.jk, "--yes"], expect=[r"Saved judgekeeper\.toml", r"\nNext: run "])
         self.step("judgekeeper.toml saved", (self.project / "judgekeeper.toml").is_file())
 
     def plan_then_go(self, name: str, flags: list[str]) -> bool:

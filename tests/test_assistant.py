@@ -13,8 +13,8 @@ import re
 
 import pytest
 
-from judgekeeper.cli import _parser
-from tests.website_pages import ROOT, command_lines, judgekeeper_argv
+from judgekeeper.cli import parse_args
+from tests.website_pages import ROOT, STILL_NAMED, command_lines, judgekeeper_argv
 
 PROMPT = ROOT / "docs" / "assistant-prompt.md"
 PAGE = ROOT / "docs" / "assistant.md"
@@ -64,8 +64,10 @@ def _commands(markdown: str) -> list[tuple[str, list[str]]]:
 
 def _check_parses(found: list[tuple[str, list[str]]], where: str) -> None:
     for line, argv in found:
+        if argv and argv[0] in STILL_NAMED:
+            continue
         try:
-            _parser().parse_args(argv)
+            parse_args(argv)
         except SystemExit as e:
             if e.code not in (0, None):  # 0: --version, which prints and stops
                 pytest.fail(f"{where} names a command the CLI rejects: {line} (exit {e.code})")

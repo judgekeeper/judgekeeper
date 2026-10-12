@@ -104,14 +104,14 @@ def test_start_names_the_file_and_prints_the_prompt(tmp_path, capsys):
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
     assert "data/prompt_evals.jsonl looks like saved judge results in your own format." in out
-    setup = f"judgekeeper setup {quote_arg(tmp_path)}"
+    setup = f"judgekeeper {quote_arg(tmp_path)}"
     assert (f"To use it as it is, run {setup}: it asks how to read it and saves that in "
             "judgekeeper.toml.") in out
     assert ("Or turn it into a table with input, output and verdict columns (see "
             "www.judgekeeper.com/start.html#own-format), or ask your coding agent with the "
             "prompt below.") in out
     assert own_format.AGENT_PROMPT in out
-    # setup first, then the table or the coding agent, then judgekeeper.record()
+    # judgekeeper first, then the table or the coding agent, then judgekeeper.record()
     assert (out.index("looks like saved judge results") < out.index(setup)
             < out.index("Or turn it into") < out.index(own_format.AGENT_PROMPT)
             < out.index("judgekeeper.record() line"))
@@ -142,7 +142,7 @@ def test_inspect_still_says_to_run_the_eval(tmp_path, capsys):
     _, out, _ = run(capsys, tmp_path)
     assert ("Inspect AI is used here (requirements.txt), but it has no saved logs in this "
             "folder yet. Run your eval (inspect eval saves its logs in logs/), then run "
-            "judgekeeper start again.") in out
+            "judgekeeper again.") in out
 
 
 def test_an_empty_folder_prints_no_prompt(tmp_path, capsys):

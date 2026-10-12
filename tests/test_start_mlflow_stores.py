@@ -275,8 +275,9 @@ def test_the_tracking_uri_flag_picks_the_store(two, capsys, uri):
 def test_a_server_tracking_uri_says_what_start_reads(two, capsys):
     code, out = run(capsys, two, "--tracking-uri", "http://localhost:5000")
     assert code == start.EXIT_USAGE
-    assert "judgekeeper start reads an MLflow store in your project" in out
     assert "http://localhost:5000 is a tracking server." in out
+    assert "judgekeeper reads a local MLflow store instead: an mlflow.db file or an mlruns/ " \
+        "folder in your project." in out
     assert "judgekeeper import" not in out
 
 
@@ -352,3 +353,36 @@ def test_mlflow_db_with_logged_artifacts_is_one_store(tmp_path, capsys):
     assert "Eval tool       MLflow" in said and "mlflow.db (experiment qa)" in said, said
     for unwanted in ("Malformed experiment", "Traceback", "Two MLflow stores"):
         assert unwanted not in said, unwanted
+
+
+# `judgekeeper` (no command): two stores are a question, answered by naming one -------------
+
+def test_judgekeeper_asks_which_store_without_a_terminal(two, capsys):
+    code = main([str(two)])
+    out = capsys.readouterr().out
+    assert code == 3
+    assert "Two MLflow stores found" in out
+    last = out.splitlines()[-1]
+    db, folder = quote_arg(two / "mlflow.db"), quote_arg(two / "mlruns")
+    assert last == (f"Next: ask the person which MLflow store to read (mlflow.db, mlruns), then "
+                    f"run `judgekeeper {db}` or `judgekeeper {folder}`.")
+    code = main([str(two / "mlruns")])
+    out = capsys.readouterr().out
+    assert code in (0, 3) and "Found your eval tool: MLflow (mlruns, experiment qa-folder" in out
+    assert "Two MLflow stores" not in out
+
+
+def test_judgekeeper_asks_which_store_at_a_terminal_and_saves_it(two, capsys, monkeypatch):
+    import tomllib
+
+    answers = ["2", ""]  # mlruns; save
+    monkeypatch.setattr(start, "_interactive", lambda: True)
+    monkeypatch.setattr(builtins, "input", lambda prompt="": answers.pop(0))
+    main([str(two)])
+    out = capsys.readouterr().out
+    assert "Found your eval tool: MLflow (mlruns, experiment qa-folder" in out
+    saved = tomllib.loads((two / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
+    assert saved == {"source": "mlflow", "file": "mlruns"}
+    monkeypatch.setattr(start, "_interactive", lambda: False)
+    main([str(two)])  # asked once: read from judgekeeper.toml now
+    assert "Found your eval tool: MLflow (mlruns, " in capsys.readouterr().out

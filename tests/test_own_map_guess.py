@@ -1,4 +1,4 @@
-"""`judgekeeper setup` on a homemade results file that states its own pass mark and judge
+"""`judgekeeper` on a homemade results file that states its own pass mark and judge
 model at the run level and holds two criteria per answer (tests/start_projects.py,
 coach_project: the shape of a real homemade judge's history, with made-up text).
 
@@ -16,7 +16,7 @@ import tomllib
 
 import pytest
 
-from judgekeeper import mapper, own_format, start
+from judgekeeper import mapper, start
 from judgekeeper.cli import main
 from judgekeeper.readers.mapped import read_mapped
 from tests.start_projects import coach_project, coach_runs_data
@@ -41,7 +41,7 @@ def terminal(monkeypatch):
 
 
 def setup(capsys, *argv):
-    code = main(["setup", *map(str, argv)])
+    code = main([str(a) for a in argv])
     out, err = capsys.readouterr()
     return code, out + err
 
@@ -108,15 +108,18 @@ def test_the_reader_uses_the_pass_mark_of_each_run(tmp_path):
 
 # The conversation ---------------------------------------------------------------------------
 
-def test_how_it_reads_says_where_the_pass_mark_and_model_come_from(tmp_path, capsys):
+def test_how_it_reads_says_where_the_pass_mark_and_model_come_from(tmp_path, capsys,
+                                                                    terminal):
+    answers, _ = terminal
     coach_project(tmp_path)
-    code, out = setup(capsys, tmp_path / "history" / "evals.jsonl", "--yes", "--metric", "all")
+    answers += ["", "", "3", "1", ""]  # right; each its own; all; helpful for now; save
+    code, out = setup(capsys, tmp_path / "history" / "evals.jsonl")
     assert code == 0
     assert ("  score:           answers.<side>.scores.<criterion>.score (judges: safe_wording, "
             "helpful)") in out
     assert "  judge's model:   judge.model (claude-sonnet-5)" in out
     assert "  pass mark:       0.7 (judge.pass_mark in the file)" in out
-    assert "safe_wording: 0.9, pass (pass mark 0.7)" in out
+    assert "Pass mark: score 0.7 or more." in out
     s = saved(tmp_path)
     assert s["pass_mark"] == 0.7 and s["judge"] == "*"
     assert s["map"]["judges"] == ["safe_wording", "helpful"]
@@ -124,9 +127,11 @@ def test_how_it_reads_says_where_the_pass_mark_and_model_come_from(tmp_path, cap
         "judge.pass_mark"
 
 
-def test_start_then_reads_both_judges_with_the_files_pass_mark(tmp_path, capsys):
+def test_start_then_reads_both_judges_with_the_files_pass_mark(tmp_path, capsys, terminal):
+    answers, _ = terminal
     coach_project(tmp_path)
-    setup(capsys, tmp_path / "history" / "evals.jsonl", "--yes", "--metric", "all")
+    answers += ["", "", "3", "1", ""]
+    setup(capsys, tmp_path / "history" / "evals.jsonl")
     found = start.find_judge(tmp_path, metric="helpful")
     assert found.metrics == ["helpful", "safe_wording"]
     assert (found.pool.n_pass, found.pool.n_fail) == (20, 40)
@@ -145,7 +150,7 @@ def test_a_model_given_with_the_flag_shows_in_the_guess(tmp_path, capsys):
 def test_at_a_terminal_it_asks_whether_the_guess_is_right(tmp_path, capsys, terminal):
     answers, asked = terminal
     coach_project(tmp_path)
-    answers += ["", "", "1", ""]  # right; each its own answer; safe_wording; yes
+    answers += ["", "", "1", ""]  # right; each its own answer; safe_wording; save
     code, _ = setup(capsys, tmp_path / "history" / "evals.jsonl")
     assert code == 0 and asked[0].startswith("Is this right?")
     assert saved(tmp_path)["judge"] == "safe_wording"
@@ -164,11 +169,9 @@ def test_after_no_correct_the_pass_mark(tmp_path, capsys, terminal):
         assert f"  {n}. {part}" in out
     assert "  pass mark:       0.5 (given by you)" in out
     assert out.count("How judgekeeper reads it:") == 2
-    assert out.index("(given by you)") < out.index("Three answers as judgekeeper will read")
-    assert "safe_wording: 0.6, pass (pass mark 0.5)" in out
     assert saved(tmp_path)["pass_mark"] == 0.5
     assert "pass_mark_key" not in saved(tmp_path)["map"]
-    assert own_format.AGENT_PROMPT not in out
+    assert "small script" not in out
 
 
 def test_after_no_correct_the_judge_model(tmp_path, capsys, terminal):
@@ -181,13 +184,13 @@ def test_after_no_correct_the_judge_model(tmp_path, capsys, terminal):
     assert saved(tmp_path)["map"]["model_key"] == "app.model"
 
 
-def test_after_no_none_of_these_fit_gives_the_agent_prompt(tmp_path, capsys, terminal):
+def test_after_no_none_of_these_fit_asks_for_a_converter(tmp_path, capsys, terminal):
     answers, _ = terminal
     coach_project(tmp_path)
     answers += ["n", "9"]
     code, out = setup(capsys, tmp_path / "history" / "evals.jsonl")
-    assert code == start.EXIT_USAGE
-    assert own_format.AGENT_PROMPT in out
+    assert code == 3
+    assert "small script" in out.splitlines()[-1]
     assert not (tmp_path / "judgekeeper.toml").exists()
 
 
@@ -212,7 +215,7 @@ def setup_with_choice(capsys, answers, root, path_text, then=("", "", "1", "")):
             state["chosen"] = True
             listed = capsys.readouterr().out
             print(listed)
-            n = re.search(rf"  (\d+)\. {re.escape(path_text)} ", listed)[1]
+            n = re.search(rf"  (\d+)\. {re.escape(path_text)}\b", listed)[1]
             answers.extend(then)
             return n
         return original(prompt)

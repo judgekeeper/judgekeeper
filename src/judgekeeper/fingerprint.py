@@ -8,6 +8,7 @@ because None already means the provider's default endpoint; an unknown endpoint 
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import asdict, dataclass, fields, replace
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
@@ -110,3 +111,24 @@ def plaintext_warning(url: str | None) -> str | None:
         return None
     return (f"{parts.hostname} is reached over plain http://, so the API key and every request "
             "travel unencrypted; use https:// unless this is a local server")
+
+
+def rule_hash(rule: str | None) -> str | None:
+    """The judge's rule as "sha256:<hex>", the same on every system (line endings as \\n);
+    None when the rule is not known."""
+    if rule is None:
+        return None
+    text = rule.replace("\r\n", "\n").replace("\r", "\n")
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def judge_file(*, tool: str, tool_version: str | None, results: list[str], judge: str,
+               model: str | None, rule: str | None, pass_mark: dict | None,
+               fingerprint: dict, version: str) -> dict:
+    """What .judgekeeper/judge.json keeps about the judge that was found: the eval tool and
+    its version, where its results are, the judge, its model, a hash of its rule, its pass
+    mark, the fingerprint of its verdicts, and which judgekeeper wrote it, when."""
+    return {"tool": tool, "tool_version": tool_version, "results": list(results),
+            "judge": judge, "model": model, "rule_hash": rule_hash(rule),
+            "pass_mark": pass_mark, "fingerprint": fingerprint,
+            "judgekeeper_version": version, "created_at": utc_now()}

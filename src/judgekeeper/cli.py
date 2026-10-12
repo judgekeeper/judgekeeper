@@ -1,7 +1,9 @@
 """Command-line entry point.
 
-Exit codes: 0 success, 1 runtime failure, 2 usage error, 8 stopped at a question (`start`
-and `setup`, below), 130 Ctrl-C.
+`judgekeeper` with no command (front.py) finds the judge, checks it for free and ends with one
+`Next:` line; `judgekeeper start` marks answers on a page. Exit codes: 0 success, 1 runtime
+failure, 2 usage error, 3 the person is needed (`judgekeeper`: its Next: line says what to
+ask), 8 stopped at a question (`start`, below), 130 Ctrl-C.
 
 Everything printed as an error goes through redact.scrub. A failure with no better message
 prints one scrubbed line; --debug adds the traceback, also scrubbed. A path that cannot be
@@ -10,11 +12,10 @@ that names the path and what to do.
 
 `start` exits 0 when it is done (also when the person stops), 8 when it stopped at a question
 it cannot ask (no terminal: the line before says the flag or command that answers it, and
-nothing went wrong), 2 when the command is wrong or it finds nothing it can use. `setup`
-exits 8 the same way.
+nothing went wrong), 2 when the command is wrong or it finds nothing it can use.
 
-The commands of the 0.1 CI gate (`REMOVED`) print one line that says so and exit 2. They are
-not in the help.
+Removed commands (`REMOVED`: the 0.1 CI gate, and `setup`, now part of `judgekeeper`) print
+one line that says so and exit 2. They are not in the help.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ import traceback
 from judgekeeper import __version__
 from judgekeeper.anchors import AnchorError
 from judgekeeper.custom import CallableError
+from judgekeeper.dev_requirements import RequirementsError
 from judgekeeper.find import TOOLS
 from judgekeeper.judgments import JudgmentsError
 from judgekeeper.label import LabelError
@@ -45,13 +47,17 @@ EXIT_USAGE = 2
 EXIT_STOPPED = 130  # Ctrl-C, as shells report it
 
 MESSAGE = "Check your LLM-as-a-judge."
-START_HERE = (
-    ("start", "find your judge's saved results and check them against your own marks"),
-    ("setup", "results saved your own way? set the project up in one step, asked once"),
+ABOUT = ("Run judgekeeper in your project: it finds your eval tool's saved results and the "
+         "judge that made them, checks them for free (no AI call), and ends with one Next: "
+         "line saying what to do.")
+COMMANDS_HELP = (
+    ("start", "mark answers Pass or Fail on a page, and see how often your judge agrees"),
 )
 HELP_WIDTH = 100
-# The commands of the 0.1 CI gate. Each prints one line and exits 2.
-REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "check")
+# Removed commands: the 0.1 CI gate, and setup (part of judgekeeper now). Each prints one line
+# and exits 2.
+REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "check",
+           "setup")
 
 
 class _Parser(argparse.ArgumentParser):
@@ -63,23 +69,16 @@ class _Parser(argparse.ArgumentParser):
 
 
 class _TopParser(_Parser):
-    """The top-level help: the message, then the commands."""
+    """The top-level help: the message, what `judgekeeper` does, its options, the commands."""
 
     def format_help(self) -> str:
-        width = max(len(name) for name, _ in START_HERE) + 3
-
-        def described(commands) -> list[str]:  # a long line goes on under its description
-            return [line for name, text in commands for line in textwrap.wrap(
-                text, HELP_WIDTH, initial_indent=f"  {name:<{width}}",
-                subsequent_indent=" " * (2 + width))]
-
-        lines = [self.description, "", "Start here:", *described(START_HERE)]
-        lines += ["", "Options:",
-                  "  -h, --help   show this help and exit",
-                  "  --version    show the version and exit",
-                  "  --debug      on an unexpected error, also print the traceback",
-                  "               (credentials are still scrubbed)",
-                  "", "Run `judgekeeper <command> --help` for a command's options."]
+        width = max(len(name) for name, _ in COMMANDS_HELP) + 3
+        commands = [line for name, text in COMMANDS_HELP for line in textwrap.wrap(
+            text, HELP_WIDTH, initial_indent=f"  {name:<{width}}",
+            subsequent_indent=" " * (2 + width))]
+        lines = [MESSAGE, "", *textwrap.wrap(ABOUT, HELP_WIDTH), "",
+                 super().format_help().rstrip(), "", "Commands:", *commands, "",
+                 "Run `judgekeeper <command> --help` for a command's options."]
         return "\n".join(lines) + "\n"
 
 
@@ -142,12 +141,40 @@ def _times(value: str) -> int:
     return n
 
 
-def _parser() -> argparse.ArgumentParser:
-    p = _TopParser(prog="judgekeeper", description=MESSAGE)
-    p.add_argument("--version", action=_Version, nargs=0)
+def _front_parser() -> argparse.ArgumentParser:
+    """`judgekeeper` with no command. Each option answers a question its Next: line asks."""
+    p = _TopParser(prog="judgekeeper", usage="judgekeeper [PATH] [options]",
+                   formatter_class=lambda prog: argparse.HelpFormatter(prog, width=HELP_WIDTH))
+    p.add_argument("path", nargs="?", default=".", metavar="PATH",
+                   help="your project folder (default: this folder), one results file, or an "
+                        "MLflow store (mlflow.db or an mlruns/ folder)")
+    p.add_argument("--tool", choices=TOOLS,
+                   help="which eval tool's results to read when several are found")
+    p.add_argument("--metric", metavar="NAME",
+                   help="the judge to look at when the results hold several")
+    p.add_argument("--experiment", metavar="NAME_OR_ID",
+                   help="MLflow: the experiment to read, when several have judge results")
+    p.add_argument("--tracking-uri", metavar="URI",
+                   help="MLflow: the local store to read (mlflow.db, sqlite:///..., an mlruns/ "
+                        "folder or file:...)")
+    _normaliser_args(p)
+    p.add_argument("--judge-model", metavar="NAME",
+                   help="the judge's model, when the results do not record it")
+    p.add_argument("--fields", metavar="LIST",
+                   help="a DeepEval GEval judge: the parts it reads, e.g. input,actual_output")
+    p.add_argument("--yes", action="store_true",
+                   help="without a terminal: the person said yes to the question judgekeeper "
+                        "printed")
+    p.add_argument("--version", action=_Version, nargs=0, help="show the version and exit")
     p.add_argument("--debug", action="store_true",
                    help="on an unexpected error, also print the traceback (credentials are "
                         "still scrubbed)")
+    return p
+
+
+def _parser() -> argparse.ArgumentParser:
+    p = _Parser(prog="judgekeeper", description=MESSAGE)
+    p.add_argument("--debug", action="store_true")
     # Also accepted after the command name; SUPPRESS keeps it from resetting the flag above.
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--debug", action="store_true", default=argparse.SUPPRESS,
@@ -225,23 +252,6 @@ def _parser() -> argparse.ArgumentParser:
     st.add_argument("--agent-prompt", action="store_true",
                     help="print a prompt for your coding agent that turns judge results saved "
                          "in your own format into judgekeeper's table, then exit")
-
-    su = sub.add_parser("setup", parents=[common],
-                        help="set a project up in one step: where your judge's results are and "
-                             "how to read them, .gitignore and the dev requirements; one "
-                             "question before any file changes")
-    su.add_argument("path", nargs="?", default=".", metavar="PATH",
-                    help="your project folder (default: this folder), or your judge's "
-                         "results file")
-    su.add_argument("--metric", metavar="NAME",
-                    help="the judge to check when the results hold several (all: every "
-                         "judge, one at a time)")
-    su.add_argument("--judge-model", metavar="NAME",
-                    help="the judge's model, when the results do not say it")
-    su.add_argument("--yes", action="store_true",
-                    help="without a terminal, answer the yes/no questions with their "
-                         "default, including the one before the file changes")
-
     return p
 
 
@@ -276,49 +286,54 @@ def cmd_start(args) -> int:
                judge_command=args.judge_command, allow_calls=args.allow_calls)
 
 
-def cmd_setup(args) -> int:
-    from judgekeeper import setup_project
+def cmd_front(args) -> int:
+    from judgekeeper import front
 
-    return setup_project.run(args.path, yes=args.yes, metric=args.metric,
-                             judge_model=args.judge_model)
+    return front.run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
+                     tracking_uri=args.tracking_uri, pass_if=args.pass_if,
+                     label_map=args.label_map, judge_model=args.judge_model,
+                     fields=args.fields, yes=args.yes)
 
 
-COMMANDS = {"start": cmd_start, "setup": cmd_setup}
+COMMANDS = {"start": cmd_start, None: cmd_front}
 
 
-def _removed(args_list: list[str]) -> str | None:
-    """The removed command named on the command line, if any: the first word that is not an
-    option (the only option before a command is --debug, which takes no value)."""
-    name = next((a for a in args_list if not a.startswith("-")), None)
-    return name if name in REMOVED else None
+def _command(args_list: list[str]) -> str | None:
+    """The command named on the command line: the first word after any --debug (the only
+    option that may come before a command), when it is a command or a removed one."""
+    name = next((a for a in args_list if a != "--debug"), None)
+    return name if name in (*COMMANDS, *REMOVED) else None
+
+
+def parse_args(args_list: list[str]) -> argparse.Namespace:
+    """The arguments as `main` reads them: a command's own, or those of `judgekeeper` with no
+    command (`command` None). A removed command, or arguments that do not parse, raise
+    SystemExit with argparse's code (0 after --help or --version)."""
+    command = _command(args_list)
+    if command in REMOVED:
+        print(f"judgekeeper {command} was removed. Run judgekeeper in your project.",
+              file=sys.stderr)
+        raise SystemExit(EXIT_USAGE)
+    args = (_parser() if command else _front_parser()).parse_args(args_list)
+    if not command:
+        args.command = None
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
     args_list = sys.argv[1:] if argv is None else argv
     lenient_streams()  # a terminal that cannot show a character prints "?", never a crash
-    removed = _removed(args_list)
-    if removed:
-        print(f"judgekeeper {removed} was removed. Run judgekeeper start in your project.",
-              file=sys.stderr)
-        return EXIT_USAGE
-    parser = _parser()
-    if not args_list:
-        parser.print_help()
-        return EXIT_OK
     try:
-        args = parser.parse_args(args_list)
+        args = parse_args(args_list)
     except SystemExit as e:
         return EXIT_OK if e.code in (0, None) else EXIT_USAGE
-    if args.command is None:  # only --debug was given
-        parser.print_help()
-        return EXIT_OK
     try:
         return COMMANDS[args.command](args)
     except KeyboardInterrupt:  # Ctrl-C, often at a question: what was saved stays saved
         print("\nStopped.")
         return EXIT_STOPPED
     except (AnchorError, JudgmentsError, NormaliseError, TableError, CallableError,
-            LabelError, StartError, SettingsError, MapError) as e:
+            LabelError, StartError, SettingsError, MapError, RequirementsError) as e:
         _error(str(e))
         return EXIT_USAGE
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see

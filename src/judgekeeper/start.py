@@ -70,7 +70,7 @@ COLUMN = 16  # the first block's label column
 MONTHS_SHORT = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov",
                 "Dec")
 GIVEN_BY_YOU = "given by you"
-POINT_ME = "Point me at the results: judgekeeper start path/to/results.json"
+POINT_ME = "Point me at the results: {program} path/to/results.json"
 RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your judge's decisions at "
                  "the project root: reading them in {root}.")
 PAIRWISE = "These are A/B comparisons. judgekeeper start handles pass/fail answers for now."
@@ -131,6 +131,9 @@ class Talk:
     """What `start` says, and the questions it asks when there is a person to answer.
     `flags` (repeated_flags) are what every printed command repeats."""
 
+    program = "judgekeeper start"  # the command every printed command starts with
+    asks_everything = False  # without a terminal, ask instead of taking a default (front.py)
+
     def __init__(self, yes: bool = False, quiet: bool = False, flags: tuple[str, ...] = (),
                  path: str | Path = "."):
         self.yes = yes
@@ -142,14 +145,14 @@ class Talk:
     def command(self, *extra: str) -> str:
         """`judgekeeper start` with the person's flags, then `extra`: run as printed, it gets
         past the question it answers."""
-        return " ".join(("judgekeeper start", *self.flags, *extra))
+        return " ".join((self.program, *self.flags, *extra))
 
     def command_at(self, where: str | Path, *extra: str) -> str:
         """`command`, with `where` (a path inside the folder the person gave) as the path."""
         given = self.flags[:1] == (quote_arg(self.path),) and self.path != "."
         flags = self.flags[1:] if given else self.flags
         path = Path(where) if self.path == "." else Path(self.path) / where
-        return " ".join(("judgekeeper start", quote_arg(path), *flags, *extra))
+        return " ".join((self.program, quote_arg(path), *flags, *extra))
 
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):
@@ -159,8 +162,11 @@ class Talk:
         self._blank = not text
 
     def choose(self, title: str, options: list[str], flag_hint: str,
-               ask: str = "Which one?") -> int:
-        """The index of the option the person picks. Without a terminal: the hint, exit 8."""
+               ask: str = "Which one?", flag: str | None = None, values=(),
+               what: str | None = None) -> int:
+        """The index of the option the person picks. Without a terminal: the hint, exit 8.
+        `flag` (with `values`, one per option) answers it, and `what` says what is chosen;
+        `judgekeeper` (front.py) words its Next: line from them."""
         if not _interactive():
             for line in flag_hint.splitlines():
                 self.say(line)
@@ -199,6 +205,20 @@ class Talk:
         if not _interactive():
             return False
         return self.confirm(question, default=True, hint=question, with_yes=False)
+
+    def looking(self, root: Path) -> None:
+        """Say which folder is searched."""
+        self.say(f"Looking in {root} ...")
+        self.say()
+
+    def remember(self, flag: str, chosen: str, line: str | None = None) -> None:
+        """After the person picks at "Which one?": the flag that picks it without asking."""
+        self.say(line or f"(Next time: {flag} {quote_arg(chosen)})")
+
+    def stop(self, code: int, next_step: str | None = None) -> Stop:
+        """The Stop to raise once the lines that say why were said. `next_step` is what
+        `judgekeeper` (front.py) puts in its Next: line; `start` says its own."""
+        return Stop(code)
 
     def _input(self, prompt: str) -> str:
         try:
@@ -430,9 +450,8 @@ def _mapped_source(talk: Talk, root: Path, saved) -> tuple[Path, str, list, dict
     path = root / saved.file
     if not path.is_file():
         raise StartError(f"{settings.FILE} says your judge's results are in {saved.file}, "
-                         "which is not there. Run judgekeeper setup again.")
-    talk.say(f"Looking in {root} ...")
-    talk.say()
+                         "which is not there. Run judgekeeper again to set it up.")
+    talk.looking(root)
     return root, "mapped", [find.Result("mapped", path, saved.file, path.stat().st_size)], {}
 
 
@@ -454,10 +473,12 @@ def _folder_of(result: find.Result) -> str:
 
 
 def _needs_extra(talk: Talk, tool: str, where: str) -> Stop:
+    extra = f'"judgekeeper[{find.EXTRAS[tool]}]"'
     talk.say(f"{find.NAMES[tool]} found ({where}). To read it, add the extra in your "
-             f"project's environment: pip install \"judgekeeper[{find.EXTRAS[tool]}]\", then "
-             f"run {talk.command()} again.")
-    return Stop(EXIT_USAGE)
+             f"project's environment: pip install {extra}, then run {talk.command()} again.")
+    return talk.stop(EXIT_USAGE, f"ask the person to add judgekeeper's {find.EXTRAS[tool]} "
+                                 f"extra (pip install {extra} in the project's environment), "
+                                 f"then run `{talk.command()}` again.")
 
 
 def _has(module: str) -> bool:
@@ -534,7 +555,8 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
             found = [found[talk.choose(
                 "Several MLflow experiments have judge results:", names,
                 f"Several MLflow experiments have judge results; choose one with "
-                f"{_or([f'--experiment {quote_arg(n)}' for n in names])}")]]
+                f"{_or([f'--experiment {quote_arg(n)}' for n in names])}",
+                flag="--experiment", values=names, what="which MLflow experiment to read")]]
             _next_time(talk, "--experiment", found[0][0])
     name, runs = found[0]
     for label, recs in runs:
@@ -638,7 +660,7 @@ NO_RESULTS = {
     "deepeval": ("but DeepEval saves results only when your tests run through deepeval test "
                  "run or evaluate(); calling a metric's measure() directly saves nothing."),
     "inspect": ("but it has no saved logs in this folder yet. Run your eval (inspect eval saves "
-                "its logs in logs/), then run judgekeeper start again."),
+                "its logs in logs/), then run judgekeeper again."),
     "mlflow": "but it has no saved judge assessments in this folder yet.",
 }
 
@@ -654,7 +676,7 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     how = (f"turn it into a table with input, output and verdict columns (see "
            f"{own_format.OWN_FORMAT_URL}), or ask your coding agent with the prompt below.")
     if own is not None:
-        setup = "judgekeeper setup" + ("" if talk.path == "." else f" {quote_arg(talk.path)}")
+        setup = "judgekeeper" + ("" if talk.path == "." else f" {quote_arg(talk.path)}")
         talk.say(f"{own.rel} looks like saved judge results in your own format.")
         talk.say(f"To use it as it is, run {setup}: it asks how to read it and saves that in "
                  "judgekeeper.toml.")
@@ -674,7 +696,10 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
                  "agent to add it.")
     talk.say("judgekeeper start reads the results that promptfoo, DeepEval, Inspect AI and "
              "MLflow save, or a CSV or JSONL file with input, output and verdict columns.")
-    talk.say(POINT_ME)
+    talk.say(POINT_ME.format(program=talk.program))
+
+
+EXPORT = "promptfoo export eval latest -o promptfoo-results.json"
 
 
 def _promptfoo_export(talk: Talk) -> None:
@@ -689,7 +714,7 @@ def _promptfoo_export(talk: Talk) -> None:
         "    promptfoo export eval latest -o promptfoo-results.json",
         "",
         "  Update promptfoo if this command is not found.",
-        "  Then run judgekeeper start again.",
+        f"  Then run {talk.program} again.",
     ):
         talk.say(line)
 
@@ -707,7 +732,10 @@ def _export(talk: Talk, path: Path, tool: str | None, root: Path, config: str):
         return _locate(talk, path, tool)
     if outcome == "commands":
         _promptfoo_export(talk)
-    raise Stop(EXIT_OK)
+        raise talk.stop(EXIT_OK, f"run `{EXPORT}` (it runs no test and costs nothing), then "
+                                 f"run `{talk.command()}` again.")
+    raise talk.stop(EXIT_OK, "nothing. Tell the person what judgekeeper said about their "
+                             "promptfoo results.")
 
 
 def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, dict]:
@@ -728,15 +756,14 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         path = path.resolve()
         return path.parent, kind, [find.Result(kind, path, path.name, path.stat().st_size)], {}
     root = path.resolve()
-    talk.say(f"Looking in {root} ...")
-    talk.say()
+    talk.looking(root)
     found = find.search(root)
     for note in found.notes:
         talk.say(note)
     if found.stopped:
-        talk.say(f"{found.stopped} {POINT_ME}")
+        talk.say(f"{found.stopped} {POINT_ME.format(program=talk.program)}")
     for big in found.too_big():
-        talk.say(big.too_big_message())
+        talk.say(big.too_big_message(talk.program))
     available = [t for t in find.TOOLS if found.readable(t)]
     if "records" not in available and (tool == "records" or tool is None and not available):
         above = find.records_above(root)
@@ -747,14 +774,14 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     if tool is not None:
         if tool not in available:
             if any(r.tool == tool for r in found.too_big()):
-                raise Stop(EXIT_USAGE)
+                raise _too_big(talk, found)
             if tool == "promptfoo" and "promptfoo" in found.signs:
                 return _export(talk, path, tool, root, found.signs["promptfoo"][0])
             raise StartError(f"No saved {find.NAMES[tool]} results found in {root}.")
         available = [tool]
     if not available:
         if found.too_big():  # said above, with how to read them anyway
-            raise Stop(EXIT_USAGE)
+            raise _too_big(talk, found)
         if "promptfoo" in found.signs:
             return _export(talk, path, tool, root, found.signs["promptfoo"][0])
         _nothing_found(talk, root, found.signs)
@@ -766,9 +793,16 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         options = [f"{find.NAMES[t]} ({_where(by_date[t][0])})" for t in available]
         kind = available[talk.choose(
             "Saved results from more than one eval tool:", options,
-            f"Several tools found; choose one with {_or([f'--tool {t}' for t in available])}")]
+            f"Several tools found; choose one with {_or([f'--tool {t}' for t in available])}",
+            flag="--tool", values=available, what="which eval tool's results to check")]
         _next_time(talk, "--tool", kind)
     return root, kind, by_date[kind], found.signs
+
+
+def _too_big(talk: Talk, found: find.Search) -> Stop:
+    big = found.too_big()[0]
+    return talk.stop(EXIT_USAGE, f"ask the person whether to read {big.rel} anyway; if yes, run "
+                                 f"`{talk.command_at(big.rel)}`.")
 
 
 def known_tool(path: str | Path, tool: str | None = None) -> str | None:
@@ -813,7 +847,8 @@ def _check_description(talk: Talk, root: Path, theirs: str | None,
     if not talk.confirm(question, default=False, with_yes=False,
                         hint=f"{question} Run judgekeeper start in a terminal to answer, or "
                              "point me at the right results file."):
-        raise Stop(EXIT_OK)
+        raise talk.stop(EXIT_OK, f"nothing. Tell the person {result.rel} was left alone: it "
+                                 "looks like it is from another project.")
 
 
 def _project_description(root: Path) -> str | None:
@@ -852,14 +887,15 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
     options = [f"{n} ({counts[n]} answers)" for n in names]
     name = names[talk.choose(
         "These results hold more than one judge:", options,
-        f"Several judges found; choose one with {_or([f'--metric {quote_arg(n)}' for n in names])}")]
+        f"Several judges found; choose one with {_or([f'--metric {quote_arg(n)}' for n in names])}",
+        flag="--metric", values=names, what="which judge to check")]
     _next_time(talk, "--metric", name)
     return name
 
 
 def _next_time(talk: Talk, flag: str, chosen: str) -> None:
     """After the person picks at "Which one?": the flag that picks it without asking."""
-    talk.say(f"(Next time: {flag} {quote_arg(chosen)})")
+    talk.remember(flag, chosen)
 
 
 def rule_text(prompt) -> str | None:
@@ -966,20 +1002,25 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                experiment: str | None = None, pass_if: str | None = None,
                label_map: str | dict | None = None, judge_model: str | None = None,
                talk: Talk | None = None, prefer: str | None = None,
-               tracking_uri: str | None = None, store: str | None = None) -> Found:
+               tracking_uri: str | None = None, store: str | None = None,
+               saved: settings.StartSettings | None = None) -> Found:
     """Find the results, choose what to use, make the pool and name the judge.
 
     `talk` says each step and asks the questions; the default says nothing and, with no one
     to ask, stops (Stop) where a question would be needed. `prefer` (the judge of the last
     check) is chosen without asking when the newest results hold it among several; `store`
     (the MLflow store of the last check) likewise. `tracking_uri` names the MLflow store.
+    `saved` stands in for judgekeeper.toml's [start] table (a map not saved yet).
     """
     talk = talk or Talk(quiet=True)
-    saved = _saved(Path(path)) if tool is None and tracking_uri is None else None
+    if saved is None and tool is None and tracking_uri is None:
+        saved = _saved(Path(path))
     if saved is not None and saved.source != "map":
         tool = saved.source
     if saved is not None and saved.judge not in (None, "*"):
         prefer = prefer or saved.judge
+    if saved is not None and saved.source == "mlflow":  # the store and experiment asked once
+        store, experiment = store or saved.file, experiment or saved.experiment
     if tracking_uri is not None:
         root, kind, results, signs = _given_store(talk, Path(path), tracking_uri)
     elif saved is not None and saved.source == "map":
@@ -1128,6 +1169,8 @@ def _task_file(path: Path) -> str | None:
 
 
 SERVERS = ("http://", "https://", "databricks")
+TRACKING_SERVER = ("{uri} is a tracking server. judgekeeper reads a local MLflow store instead: "
+                   "an mlflow.db file or an mlruns/ folder in your project.")
 
 
 def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dict]:
@@ -1137,8 +1180,7 @@ def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dic
 
     text = str(uri)
     if text.startswith(SERVERS):
-        raise StartError(f"judgekeeper start reads an MLflow store in your project (mlflow.db "
-                         f"or an mlruns/ folder); {uri} is a tracking server.")
+        raise StartError(TRACKING_SERVER.format(uri=uri))
     if text.startswith("sqlite:///"):
         store = Path(text[len("sqlite:///"):])
     else:
@@ -1148,8 +1190,7 @@ def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dic
     root = path.resolve() if path.is_dir() else path.resolve().parent
     store = store.resolve()
     rel = store.relative_to(root).as_posix() if store.is_relative_to(root) else str(store)
-    talk.say(f"Looking in {root} ...")
-    talk.say()
+    talk.looking(root)
     return root, "mlflow", [find.Result("mlflow", store, rel)], {}
 
 
@@ -1196,14 +1237,15 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
         stores, names, strict=True)]
     count = {2: "Two", 3: "Three"}.get(len(stores), str(len(stores)))
     title = f"{count} MLflow stores found: {_and(shown)}."
-    if not _interactive():
+    if not _interactive() and not talk.asks_everything:
         talk.say(f"{title} Using {_store_name(stores[0])}.")
         others = [talk.command_at(s.rel) for s in stores[1:]]
         talk.say(f"For the other one: {others[0]}" if len(others) == 1
                  else f"For another one: {_or(others)}")
         return stores
-    chosen = stores[talk.choose(title, shown, "")]
-    talk.say(f"(Next time: {talk.command_at(chosen.rel)})")
+    chosen = stores[talk.choose(title, shown, "", flag="PATH", values=[s.rel for s in stores],
+                                what="which MLflow store to read")]
+    talk.remember("PATH", chosen.rel, f"(Next time: {talk.command_at(chosen.rel)})")
     return first(chosen)
 
 

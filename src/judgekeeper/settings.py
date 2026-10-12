@@ -1,12 +1,14 @@
 """The `[start]` table of judgekeeper.toml: where a project's judge results are and how to
-read them. `judgekeeper setup` writes it; `judgekeeper start` reads it first. Nothing secret.
+read them, as the person answered when `judgekeeper` asked. `judgekeeper` and `judgekeeper
+start` read it first. Nothing secret.
 
     [start]
-    source = "map"                 # or the eval tool start reads as it is: records,
-    file = "history/evals.jsonl"   # promptfoo, deepeval, inspect, mlflow, table
+    source = "map"                 # or the eval tool read as it is: records, promptfoo,
+    file = "history/evals.jsonl"   # deepeval, inspect, mlflow, table (mlflow: the store)
     judge = "Safe wording"         # the judge to check; "*": every judge, one at a time
     pass_mark = 0.5
     model = "claude-opus-5"        # only when the results do not say which model judged
+    experiment = "qa"              # mlflow: the experiment to read
 
     [start.map]                    # how to read the file (see mapper.py)
     each = "cases[]"
@@ -16,7 +18,7 @@ Python reads TOML but cannot write it, so the table is written by hand: `merged`
 the `[start]` and `[start.*]` tables of an existing file, or adds them at the end, and keeps
 every other line as it was, in the file's own line endings (\r\n on Windows). It checks
 the result with tomllib: when anything else would change (an unusual shape), it raises
-SettingsError instead.
+SettingsError instead. Tables of older versions ([gate], [migrate]) are kept as they are.
 """
 
 from __future__ import annotations
@@ -34,8 +36,8 @@ TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
 MAP_KEYS = {"each": str, "id": str, "input": str, "output": str, "sides": list, "score": str,
             "reason": str, "kind": str, "judges": list, "model_key": str, "leave_out": bool,
             "pass_mark_key": str}
-HEADER = ("# judgekeeper start reads this first: where your judge's results are and how to read\n"
-          "# them. Written by judgekeeper setup (run it again to change it); nothing secret.\n")
+HEADER = ("# judgekeeper reads this first: where your judge's results are and how to read\n"
+          "# them, as you answered when it asked. Nothing secret.\n")
 _TABLE = re.compile(r"^\s*\[\s*([^\[\]]+?)\s*\]\s*(#.*)?$")
 
 
@@ -51,6 +53,7 @@ class StartSettings:
     pass_mark: float | None = None
     model: str | None = None
     map: dict = field(default_factory=dict)
+    experiment: str | None = None
 
     def describe(self) -> str:
         """In a few words, for people."""
@@ -75,7 +78,7 @@ def load(root: str | Path) -> StartSettings | None:
         return None
     if not isinstance(table, dict):
         raise SettingsError(f"{FILE}: start must be a table")
-    known = {"source", "file", "judge", "pass_mark", "model", "map"}
+    known = {"source", "file", "judge", "pass_mark", "model", "map", "experiment"}
     unknown = sorted(set(table) - known)
     if unknown:
         raise SettingsError(f"{FILE}: unknown key {unknown[0]!r} in [start]; allowed: "
@@ -83,7 +86,7 @@ def load(root: str | Path) -> StartSettings | None:
     source = table.get("source")
     if source != "map" and source not in TOOLS:
         raise SettingsError(f"{FILE}: [start] source must be map or one of {', '.join(TOOLS)}")
-    for key in ("file", "judge", "model"):
+    for key in ("file", "judge", "model", "experiment"):
         if key in table and not isinstance(table[key], str):
             raise SettingsError(f"{FILE}: [start] {key} must be text")
     mark = table.get("pass_mark")
@@ -102,7 +105,8 @@ def load(root: str | Path) -> StartSettings | None:
         if not isinstance(value, MAP_KEYS[key]):
             raise SettingsError(f"{FILE}: [start.map] {key} has the wrong type")
     return StartSettings(source=source, file=table.get("file"), judge=table.get("judge"),
-                         pass_mark=mark, model=table.get("model"), map=dict(m))
+                         pass_mark=mark, model=table.get("model"), map=dict(m),
+                         experiment=table.get("experiment"))
 
 
 def _value(v) -> str:
@@ -118,7 +122,7 @@ def _value(v) -> str:
 def render(s: StartSettings) -> str:
     """The [start] (and [start.map]) tables as TOML text."""
     lines = ["[start]"]
-    for key in ("source", "file", "judge", "pass_mark", "model"):
+    for key in ("source", "file", "judge", "pass_mark", "model", "experiment"):
         value = getattr(s, key)
         if value is not None:
             lines.append(f"{key} = {_value(value)}")

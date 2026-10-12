@@ -44,7 +44,7 @@ question (`--metric`, `--tool`, `--experiment`). If it found several tools, judg
 stores, ask the person which one.
 
 The judge saves its results its own way, so `judgekeeper start` finds nothing? Three doors, in this order:
-(1) `judgekeeper setup` maps the file with no code change (the person answers its few questions and the one yes);
+(1) `judgekeeper` (no command) maps the file with no code change (the person answers its few questions and the one yes; without a terminal each question ends in a `Next:` line naming the flag that answers it);
 (2) one `judgekeeper.record()` line where the judge runs (www.judgekeeper.com/assistant.html#add-the-record-line has the prompt that adds it; show the diff, wait for the yes; after one eval run, `judgekeeper start` shows what it saved);
 (3) a table written by a converter (`judgekeeper start --agent-prompt`), checked with `judgekeeper start <table>`.
 

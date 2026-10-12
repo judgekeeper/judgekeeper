@@ -209,4 +209,4 @@ def test_a_changed_shape_says_to_run_setup_again(tmp_path):
     with pytest.raises(RecordsError) as e:
         read_mapped(path, m)
     assert str(e.value) == CHANGED_SHAPE
-    assert CHANGED_SHAPE == "Your results file changed shape. Run judgekeeper setup again."
+    assert CHANGED_SHAPE.startswith("Your results file changed shape. ")

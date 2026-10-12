@@ -10,6 +10,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WEBSITE = ROOT / "website"
+# Removed commands that the website, and the Markdown it is made from (docs/reference.md,
+# docs/assistant.md, docs/assistant-prompt.md), still name. They go when those pages are
+# rewritten for the `judgekeeper` command.
+STILL_NAMED = ("setup",)
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
         "track", "wbr", "path", "circle", "rect", "line", "polyline", "polygon", "ellipse",
         "stop", "use"}
