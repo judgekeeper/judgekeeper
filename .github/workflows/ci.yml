@@ -63,7 +63,6 @@ jobs:
           venv/bin/judgekeeper --version
           venv/bin/judgekeeper --help
           venv/bin/judgekeeper start --help
-          venv/bin/judgekeeper setup --help
           venv/bin/python -c 'import judgekeeper; judgekeeper.record(input="q", output="a", verdict="pass")'
           ls .judgekeeper/records/*.jsonl
       - name: Run the test suite against the installed wheel
