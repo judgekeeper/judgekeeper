@@ -54,9 +54,18 @@ The layers below are the other ways in: a table you made yourself, your own rule
 
 ## Why
 
-Teams grade AI outputs with another model, the "judge". Judges disagree with humans more than raw agreement suggests, flip verdicts between identical runs, and change silently when the provider updates the model. judgekeeper measures how often a judge agrees with a frozen set of human labels and shows you, later, whether it still agrees as often.
+Teams grade AI outputs with another model, the "judge". Judges disagree with humans more than raw agreement suggests. They can flip verdicts between identical runs, and can change when the provider updates the model. judgekeeper measures how often a judge agrees with a frozen set of human labels and shows you, later, whether it still agrees as often.
 
-The report leads with TPR (how often the judge passes what humans passed) and TNR (how often it fails what humans failed), each with a 95% interval. Either below 0.80 is "not trustworthy as a gate"; 0.80 to 0.90 is "usable with care". It also shows kappa (agreement beyond chance; never raw agreement on its own), a confusion matrix, every disagreement with the judge's rationale, the noise floor across repeated runs ("unknown" with one run, never zero), AB/BA position bias for pairwise items, per-slice numbers, and how far the labels go: a rough check needs 15 labeled pass and 15 labeled fail, a reliable result 25 of each and TPR and TNR ranges no wider than 0.30.
+The report shows:
+
+- TPR (how often the judge passes what humans passed) and TNR (how often it fails what humans failed), each with a 95% interval. Either below 0.80 is "not trustworthy as a gate"; 0.80 to 0.90 is "usable with care".
+- Kappa: agreement beyond chance. Never raw agreement on its own.
+- A confusion matrix.
+- Every disagreement, with the judge's rationale.
+- The noise floor across repeated runs: "unknown" with one run, never zero.
+- AB/BA position bias for pairwise items.
+- Numbers per slice.
+- How far the labels go: a rough check needs 15 labeled pass and 15 labeled fail. A reliable result needs 25 of each, and TPR and TNR ranges no wider than 0.30.
 
 ## 0. The core
 

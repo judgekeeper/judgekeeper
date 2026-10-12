@@ -18,7 +18,7 @@ back within a week.
   listen on the network.
 - Reports (`report.html`, `migration.html`, `gate.md`) escape the values they show, so a
   hostile model response, item text or model id cannot inject markup. Spreadsheets that
-  `judgekeeper start` writes neutralise cells that would run as formulas, the id column
+  `judgekeeper start` writes neutralize cells that would run as formulas, the id column
   included.
   Text from input files is printed to the terminal without control characters.
 - A plain `http://` base URL to a host other than this machine gets a warning: the key would

@@ -2,225 +2,58 @@
 
 ## 0.2.0 (2026-10-12)
 
-`judgekeeper start`: one command, in your project folder, from your eval tool's saved results
-to how often your judge agrees with you. Then review where you and your judge disagree, ask
-your judge again, and try your new judge on the answers you already marked. AI calls only
-after you say yes, your own judge through your own tool, and key names only.
+`judgekeeper start`: one command from your eval tool's saved results to how often your judge agrees
+with you. AI calls only after you say yes, your own judge through your own tool, and key names only.
 
-- New: `judgekeeper start`. It finds the results your eval tool already saved (promptfoo,
-  DeepEval, Inspect AI, MLflow, or a CSV or JSONL file with input, output and verdict
-  columns) and names your eval tool and your judge. It opens a page in your browser that
-  shows one answer at a time, half from the judge's passes and half from its fails, without
-  what the judge said, and you mark each one Pass or Fail. Then it shows how often your
-  judge agrees with you, corrected for that picking, in the terminal and on a page. Your
-  marks and the result are saved in `.judgekeeper/` in your project, so you can stop, carry
-  on, mark more answers, and check again after your next eval run.
-- Plain words everywhere a person reads: the pages and the terminal say Pass and Fail (never
-  Correct and Wrong), "mark" (never "label") and "your judge" (never "verdict"); no target
-  counts or time estimates on screen. The labeling page's keys are ← Fail and → Pass (1 and
-  2 still work); the review's first step uses ← Fail, N Not sure, → Pass. `start` opens with
-  one block that names your eval tool, results file, what the judge checks, its model and
-  its decisions, then "Next: in your browser, mark each answer Pass or Fail."
-- A new look for the pages, made for a laptop screen: navy only, with the heading font
-  (Bricolage Grotesque, under the SIL Open Font License) embedded, so nothing is loaded from
-  outside. The labeling page shows each answer as a short chat on one card with Fail and Pass
-  under it; you can drag the card, click a dot at the top to go back to any answer, and the
-  first time it explains the task. The result draws its two numbers once, in under a second,
-  and shows them at once when your computer asks for less motion. The review and fix pages
-  have the task on the left and a panel on the right.
-- `judgekeeper start` never runs your app. Finding, labeling, the result and the review make
-  no AI calls and need no API key. When there are too few answers, it prints the command that
-  makes more with your own tool, and you run it.
-- New: before you label, `start` checks whether your judge actually judged (no labels, no AI
-  call). Answers with no real decision (its call failed, its reply could not be read, there is
-  none, or a DeepEval check of nothing got full marks) are left out and named, with what your
-  eval tool counted them as; an empty answer it passed, the same decision for every answer,
-  and a reason that says the opposite are named too. The answers are listed in
-  `.judgekeeper/judge-check.csv`.
-- After a result, `start` shows a short menu: review the disagreements, ask your judge again,
-  label more, or nothing. When your newest results hold a new version of your judge, it also
-  offers to try the new judge. `--review`, `--ask-again`, `--try-new-judge` and
-  `--label-more` answer the menu without asking.
-- New: review the disagreements (free, no AI call). First you look again at each answer where
-  you and your judge disagree, mixed with answers you agreed on, with the judge's verdict still
-  hidden. Then you see what the judge said, with its reason, and say whether the judge was
-  wrong, you were wrong, or the rule is unclear, with an optional line of why. The judge's
-  mistakes go to `.judgekeeper/judge-mistakes.csv`, unclear cases to `rule-unclear.csv`. Your
-  first labels stay the main result.
-- New: fix your judge (`judgekeeper start --fix`, free, no AI call), after the review. About
-  30% of your marked answers are set aside to test a change fairly; from the rest, a page
-  shows what your judge gets wrong, with plain patterns. For a judge that gives a score, it
-  finds the pass mark that fits your marks best and tests it on the answers set aside: how
-  many it fixed and broke, and "it did better", "it did worse" or "Can't tell yet".
-- New: change your judge's rule from the fix page: a prompt to paste into any AI assistant
-  (from the answers not set aside), a box for the new rule with plain checks and the change
-  word by word, and where the rule probably is in your files. judgekeeper never edits them.
-  Try your new judge then also tests the new rule on the answers set aside.
-- New: let your coding agent fix the judge. "Let your coding agent do it" (on the fix page,
-  and printed by `start --fix --no-browser`) gives one prompt, with no answer text in it,
-  that has Claude Code, Cursor or Codex write the new rule, save it with
-  `start --fix --rule-file`, put it in place, run your eval and Try your new judge, and tell
-  you the numbers, asking you before anything that costs money. The rule and answers in the
-  prompt are marked as data, each between markers it can't close, so instructions hidden in an
-  answer are not followed as yours.
-- New: ask your judge again. Your own eval tool grades the answers you labeled again, with
-  your own judge: promptfoo, DeepEval, Inspect AI, MLflow, or your own command
-  (`--judge-command`). Your app is not run. First a plan, with no AI call: whether this is
-  exactly your judge, a close copy (and what differs) or a judge that can't be asked again
-  (and why); which key it will use, by name only (judgekeeper reads the names in `.env`
-  files, never their values); how many calls, and a cost range at prices dated in
-  judgekeeper. AI calls only after you say yes: the question defaults to No, `--yes` never
-  answers it, and without a terminal only `--allow-calls N` does. Then it shows how often the
-  judge changes its verdict on the same answer and how well it agrees with you today. Saved
-  in `.judgekeeper/again/`.
-- New: try your new judge on your old marks. After you change your judge's rule or model and
-  run your eval once, the new judge grades the answers you already marked, shown side by side
-  with the old one, after the same plan and question. A judge fixed while looking at these
-  answers looks better on them, so it then offers a quick check: mark 10 Pass and 10 Fail
-  new answers. The main result stays the old judge's until `judgekeeper start --new`. Saved
-  in `.judgekeeper/new-judge-<date>/`.
-- When promptfoo kept its results only in its own database, `start` offers, at a terminal, to
-  run `promptfoo export` for you. It asks first, and never runs it without a terminal.
-- When your judge saves results in a format of its own, `start` no longer tells you to run
-  your eval again when that would not help. It names a file that looks like your judge's
-  results, says how to turn it into a table, and prints a prompt for your coding agent that
-  writes the table (`judgekeeper start --agent-prompt` prints it alone). For DeepEval it says
-  that calling a metric's `measure()` directly saves nothing. A table may name the judge's
-  model in a `judge_model` column, and `start` prints its first 3 rows so a wrong table shows.
-- Install inside your project: the docs, the website, the README and the agent skill show
-  only an install into your project's own Python environment, like pytest
-  (`pip install judgekeeper` with the project's environment switched on, `uv add --dev
-  judgekeeper` or `poetry add --group dev judgekeeper`). In a terminal,
-  `judgekeeper --version` says when judgekeeper is installed outside a project, including
-  installs made with pipx or `uv tool install`.
-- `judgekeeper --version` in a terminal now says the install is ready and what to run next.
-  Piped or in a script it prints `judgekeeper <version>` as before.
-- `import promptfoo` warns when promptfoo's PROMPTFOO_STRIP_* settings removed the answers or
-  the inputs from a results file, and stops when they removed the judge's verdicts.
-- Reading results, in `start` and in `import`: a promptfoo grader set with `--grader` is no
-  longer taken for promptfoo's default grader; `defaultTest.provider` counts as the grader
-  when nothing else names one; the prompt hash of an llm-rubric judge comes from its grading
-  prompt when every answer shows the same one, so a baseline made from promptfoo results with
-  an earlier version can report `JUDGE_CHANGED` once; a warning when the saved verdicts came
-  from promptfoo's cache. DeepEval: the judge's provider is read from the end of its model
-  name, such as `(Anthropic)`.
-- The records format (what `import records` reads) now has a version (`schema_version`, now 2)
-  and keeps fields it does not know instead of stopping. New optional fields: `metadata` for
-  anything else, the judge's `rule`, and, ready for agents, `trajectory` (the agent's steps),
-  `outcome` (an automatic check such as unit tests) and `app_version`. New: `judgekeeper
-  import records FILE --check` says what judgekeeper reads in a file and lists every problem
-  with its line, and writes nothing. The format is published as a JSON Schema
-  (`docs/records.schema.json`), with three example files.
-- Reading results: Inspect AI keeps each sample's steps, so two agent runs that end in the
-  same answer stay two answers in `start`; a score whose value is a dict is read as one judge
-  per key. MLflow: an assessment on one span inside a trace is left out unless `--metric`
-  names a judge that is only on spans.
-- New: `judgekeeper setup`, to set any project up in one step. When your judge saves its
-  results in a format of its own (a JSON, JSONL or CSV file, nested or flat), it shows what
-  one line holds and how it will read it, asks only what it cannot tell (for example whether
-  answers A and B each count, and which judge to check), and shows 3 answers as it reads
-  them. Then one question lists every file change: `judgekeeper.toml` (where your results
-  are and how to read them; `judgekeeper start` reads it first), the `.gitignore` lines and
-  judgekeeper in your dev requirements. It never edits your code. The website's "Run it"
-  step is now `judgekeeper setup`, then `judgekeeper start`.
-- New: `judgekeeper.record()`. When your judge runs in your own code, one line right after
-  it saves each verdict in `.judgekeeper/records/` (one file per process), and
-  `judgekeeper start` finds them; `start --new` leaves them in place. It never stops your
-  program (an error inside it only logs one warning), uses only Python's standard library,
-  and `JUDGEKEEPER_RECORD=0` turns it off.
-- `judgekeeper start` says when your app's version changed since your last check, from
-  `app_version` in the results (or an `app_version` column in a table).
-- The website's home page shows the install for Mac and Windows, with a check for Python, and
-  then `judgekeeper start`. "Use it on your app" is about `judgekeeper start`; the earlier
-  paths are under "Other ways".
-- Removed: `judgekeeper demo`, with its bundled synthetic data. Running it now gives the usual
-  "invalid choice" error. This includes `judgekeeper demo --try` (the five practice questions)
-  and `judgekeeper demo support`, `coding` and `health` (the three worked examples).
-- Removed: `label`, `template`, `import-labels`, `freeze`, `attribute`, `export` and the
-  `record` command (the `judgekeeper.record()` function stays). Labeling is `judgekeeper
-  start`; `judge` and `validate` seal a new anchor file themselves.
-- Removed from the website: the "See it work" page and its menu entry, and the practice step
-  with its screenshots. The home page now says what judgekeeper is, shows how to install it,
-  and points to checking your own judge.
-- Reads MLflow results kept in an mlruns/ folder with MLflow 3.16 and later.
-- `judgekeeper start` goes on to labeling when your judge failed (or passed) only a few
-  answers, and says so: that may mean it passes too much, and your labels will show it. It
-  stops only when there are fewer than 30 answers, and then says how many you have and how to
-  make more with your own tool, naming the config, test file or task it read.
-- Every command `start` prints for you to run next repeats the flags you gave, so it works as
-  printed. With `--no-browser` it asks "Start the labeling page? It will print a link.", and
-  after No it says what to run when you're ready.
-- New exit code 8: `start` and `setup` stopped at a question they cannot ask without a
-  terminal. Nothing went wrong; the line before says what answers it. Exit code 2 stays for
-  usage errors.
-- `--review`, `--ask-again` and `--try-new-judge` before a result name the exact command that
-  labels first (with `--yes` when there is no terminal) and what the flag does after.
-- DeepEval: `start` reads the `test_run_*.json` files in your results folder before
-  DeepEval's hidden copy of its newest run, says so when that copy holds a different run, and
-  shows the DEEPEVAL_RESULTS_FOLDER tip only when no results folder is kept. A GEval judge
-  built with evaluation steps and no criteria is shown by its first step, never "None".
-- MLflow: `start` keeps MLflow's own log lines out of what it says. With both `mlflow.db` and
-  an `mlruns/` folder, it names both and lets you choose (at a terminal, or with the store's
-  path, `--tracking-uri`, `--experiment` or `MLFLOW_TRACKING_URI`). `judgekeeper start
-  mlruns` reads that store. An `mlruns/` folder copied from another computer is read from its
-  own folder. An unknown `--experiment` names each store searched and its experiments.
-- `judgekeeper setup` reads a pass mark and a judge's model that your file states, for each
-  answer or for the whole run, and says where they came from; it lists every criterion as a
-  judge; at a terminal it asks whether its guess is right, and after No you correct only the
-  part that is wrong.
-- `import records --check` shows each judge's pass mark, model and ids, and how `start`
-  reads several record files of one judge.
-- The agent skill follows `judgekeeper start`: find, set up, the person labels, the result,
-  then review, ask again or try a new judge, where the person answers the spending question.
-- Works on Windows: reading an MLflow store, and every test, now pass on Windows too.
-  judgekeeper reads an `mlflow.db` store through a temporary copy (removed afterwards), so
-  it never opens your store file itself; `judgekeeper setup` keeps your files' own line
-  endings.
-- `start` says only what can happen next: no "label more" once every saved answer is
-  labeled (run your evals again for more answers), and no "ask your judge again" for a judge
-  it cannot run (verdicts saved by your own code or in a table). Below a rough check (15
-  Pass and 15 Fail marks) the result shows no numbers, and the labeling page shows "See my
-  result" only from then on. A records file is found anywhere `start` looks, not only in
-  `.judgekeeper/records/`. When verdicts cannot be read, `start` stops and says what to map,
-  or `--pass-if` for scores, instead of leaving those answers out.
-- The labeling page: the answer box fits the answer, the buttons sit under it, and your
-  judge's rule is shown open. The result page leads each number with its plain name.
-- Ctrl-C at any question stops with "Stopped." (exit code 130) instead of a traceback.
-- `--label-map` advice never guesses which side a word is on, and `right`/`wrong` are read
-  like `correct`/`incorrect` by default.
+### New
+
+- `judgekeeper start` reads the results your eval tool saved and shows how often your judge agrees
+  with your marks. See the [Guide](https://www.judgekeeper.com/start.html).
+- Finding answers, marking them and the result make no AI calls and need no API key.
+- `start` never runs your app. Before you mark, it checks whether your judge actually judged.
+- After a result: review the disagreements, ask your judge again, or try your new judge.
+- `judgekeeper start --fix` finds a better pass mark for scores and helps you change the rule.
+- "Let your coding agent do it": Claude Code, Cursor or Codex writes the new rule (`--rule-file`).
+- `judgekeeper setup` sets up a project whose judge saves results in a format of its own.
+- `start --agent-prompt` prints a prompt for your coding agent to turn those results into a table.
+- `judgekeeper.record()` saves each verdict when your judge runs in your own code.
+- `start` offers to run `promptfoo export` when promptfoo kept its results only in its database.
+- `judgekeeper import records FILE --check` lists every problem in a records file.
+- TRADEMARKS.md: the MIT license covers the code, not the name judgekeeper or its logo.
+
+### Changed
+
+- A new look for the pages, made for a laptop screen. Nothing is loaded from outside.
+- The pages and terminal say Pass and Fail instead of Correct and Wrong.
+- Install inside your project, like pytest. `judgekeeper --version` says when judgekeeper is
+  installed outside a project.
+- Narrower ranges: in simulation they held the true value at least 93.6 times in 100 in every case,
+  and are 27.1% narrower on average.
+- Checked on 5 real judges from 3 public datasets. The ranges held the value from all human labels
+  in 96.0 checks in 100 on average (lowest 94.6, highest 98.4), over 1,000 checks per judge.
+- After you ask your judge again, its TPR and TNR ranges use the same method. The old bootstrap
+  held the true value as rarely as 53.8 times in 100.
+- Label targets: 15 of each mark for a rough check, 25 of each for a reliable result. Report fields
+  changed: see the [Reference](https://www.judgekeeper.com/reference.html).
+- Removed: `judgekeeper demo` (with `judgekeeper demo --try`) and the website's "See it work" page.
+- Removed: `label`, `template`, `import-labels`, `freeze`, `attribute`, `export` and the `record`
+  command. Marking is now part of `judgekeeper start`.
 - The project does not accept pull requests. Bug reports and ideas are welcome as issues.
-- Safer with a project you cloned: `start` stops with a plain message when `.judgekeeper/` or
-  anything in it is a link, instead of writing through it to a file elsewhere.
-  `.judgekeeper/` gets its own `.gitignore` at the first check, so your answers stay off Git
-  while `baseline.json` and `migrations/` can be committed. Asking your judge again runs the
-  project's own Python and eval tool, so do it only in a project you trust; a promptfoo
-  grader written as inline JavaScript or a URL now counts as your own code. An answer holding
-  the U+2028 line separator no longer stops `start`.
-- New: TRADEMARKS.md. The MIT license covers the code, not the name judgekeeper or its logo;
-  the names of the tools it works with belong to their owners.
-- `judgekeeper start`'s ranges are narrower, and still hold what they promise. They come from
-  Jeffreys draws instead of Wilson ranges at 97.5% joined at the corners, at a 96% level that
-  a coverage check chose (`scripts/coverage_check.py`; results in
-  `docs/examples/coverage/coverage.md`): in thousands of simulated checks they held the true
-  value at least 93.6 times in 100 in every case, and they are 27.1% narrower on average. After
-  asking your judge again, the TPR and TNR ranges use the same draws instead of a bootstrap,
-  which held the true value as rarely as 53.8 times in 100, and kappa has no range, as in your
-  result: `kappa_interval` is no longer saved in `again.json`.
-- The ranges, checked on real data: on 5 real judges from 3 public datasets, with 25 + 25
-  labels, the TPR and TNR ranges held the value worked out from all of the dataset's human
-  labels in 96.0 checks in 100 on average (lowest 94.6, highest 98.4), over 1,000 checks per
-  judge (`scripts/real_data_check.py`; results in `docs/examples/real-data-check/report.md`).
-  No judge is called; the data is downloaded at run time and never committed.
-- One set of label targets for every command: a rough check needs 15 of each kind of label, a
-  reliable result 25 of each and both the TPR and the TNR range no wider than 0.30. When 25 of
-  each is reached but a range is still wider, `start`, its labeling page, `check` and
-  `validate` say which range and to label more. `init` prints the same targets. Changed in
-  `report.json`: the flags `few_labels` (fewer than 60 labels) and `lopsided_labels` (worse
-  than 80/20) are replaced by `too_few_labels`, `rough_check` and `not_reliable_yet`;
-  `label_quality.largest_class` and `largest_class_share` by `per_class`, `check` and `wide`.
-  In `result.json`, `z` is replaced by `method`, `level`, `draws` and `seed`, with a new
-  `wide`; in the block after asking again, `resamples` is replaced by `level` and `draws`.
 - No change to any metric.
+
+### Fixed
+
+- Works on Windows, including reading an MLflow store.
+- Reads MLflow `mlruns/` folders from MLflow 3.16 and later.
+- Reads more of what promptfoo, DeepEval, Inspect AI and MLflow save.
+- Every command `start` prints for you to run next works as printed.
+- Ctrl-C at any question stops with "Stopped." instead of a traceback.
+
+### Security
+
+- `start` stops when `.judgekeeper/` or anything in it is a link, instead of writing through it.
+- `.judgekeeper/` gets its own `.gitignore`, so your answers stay off Git.
+- Asking your judge again runs your project's own code: do it only in a project you trust.
 
 ## 0.1.3 (2026-10-04)
 
