@@ -8,6 +8,13 @@ of label are the answers marked Pass and Fail.
   no wider than MAX_WIDTH (from the low end to the high end). The TPR range is about the
   answers marked Pass, the TNR range about those marked Fail.
 
+The smallest drop a set of marks can see (`smallest_drop`): the smallest fall in how often the
+judge is right, in steps of 5 points, that checking these marks again would catch at least 80
+times in 100. Worked out exactly, with no random numbers: the judge is right on 90% of answers
+now; with the changed judge a right answer turns wrong with the chance that makes the net fall
+that size, and a wrong one turns right 3% of the time; a one-sided sign test at 5% on the
+answers that changed. It uses the fewer kind of mark (Pass or Fail).
+
 Why 0.30: about what 25 + 25 gives when the judge agrees with the person about 85% of the
 time and passes half the answers, so such checks are reliable at 25 of each; when the judge
 passes most answers, its TNR range stays wide for longer, and the result is not called
@@ -15,6 +22,8 @@ reliable until it is really that narrow (docs/examples/coverage/coverage.md).
 """
 
 from __future__ import annotations
+
+import math
 
 ROUGH = 15
 RELIABLE = 25
@@ -28,6 +37,16 @@ START_NAMES = ("answers you marked Correct", "answers you marked Wrong")
 KAPPA_GATE = 0.6
 RATE_GATE = 0.80
 RATE_CARE = 0.90
+
+# The smallest drop: the model and the test (see the top of this file)
+RIGHT_NOW = 0.90
+TURNS_RIGHT = 0.03
+ALPHA = 0.05
+POWER = 0.80
+DROP_STEP = 5  # points
+DROP_MODEL = ("The smallest drop assumes your judge is right on 9 in 10 answers now, and is the "
+              "smallest fall a re-check of these marks catches 80 times in 100 (a one-sided "
+              "sign test at 5%).")
 
 
 def _width(interval) -> float | None:
@@ -77,3 +96,61 @@ def line(result: dict, names: tuple[str, str] = START_NAMES) -> str:
                 "more answers to narrow it.")
     return (f"Not reliable yet: the ranges for {sides[0]} and {sides[1]} are still {widths} "
             "wide. Label more answers to narrow them.")
+
+
+def _pmf(n: int, p: float) -> list[float]:
+    """Binomial(n, p) probabilities of 0..n, in logs so a large n does not overflow."""
+    if p <= 0:
+        return [1.0] + [0.0] * n
+    if p >= 1:
+        return [0.0] * n + [1.0]
+    lp, lq = math.log(p), math.log1p(-p)
+    return [math.exp(math.lgamma(n + 1) - math.lgamma(k + 1) - math.lgamma(n - k + 1)
+                     + k * lp + (n - k) * lq) for k in range(n + 1)]
+
+
+def _critical(m: int) -> int:
+    """The fewest of m changed answers that must have turned wrong for the sign test to say
+    the judge got worse: P(Binomial(m, 1/2) >= k) <= ALPHA, worked out in whole numbers."""
+    tail, total = 0, 2 ** m
+    for k in range(m, -1, -1):
+        tail += math.comb(m, k)
+        if tail * 20 > total:  # ALPHA is 1/20
+            return k + 1
+    return 0
+
+
+def _power(n: int, drop: float) -> float:
+    """How often a re-check of n marks catches a fall of `drop` (0 to 1)."""
+    worse = (drop + (1 - RIGHT_NOW) * TURNS_RIGHT) / RIGHT_NOW  # a right answer turns wrong
+    p_worse, p_better = RIGHT_NOW * worse, (1 - RIGHT_NOW) * TURNS_RIGHT
+    changed = _pmf(n, p_worse + p_better)
+    share = p_worse / (p_worse + p_better)
+    caught = 0.0
+    for m in range(1, n + 1):
+        if changed[m] < 1e-300:
+            continue
+        k = _critical(m)
+        if k <= m:
+            caught += changed[m] * sum(_pmf(m, share)[k:])
+    return caught
+
+
+def smallest_drop(n_pass: int, n_fail: int) -> int | None:
+    """The smallest drop, in points, these marks can see (top of this file); None under
+    ROUGH of each kind."""
+    n = min(n_pass, n_fail)
+    if n < ROUGH:
+        return None
+    for drop in range(DROP_STEP, 100, DROP_STEP):
+        if (drop / 100 + (1 - RIGHT_NOW) * TURNS_RIGHT) / RIGHT_NOW > 1:
+            return None
+        if _power(n, drop / 100) >= POWER:
+            return drop
+    return None
+
+
+def drop_line(drop: int | None) -> str | None:
+    if drop is None:
+        return None
+    return f"This set can see a drop of {drop} points or more. Smaller changes need more marks."
