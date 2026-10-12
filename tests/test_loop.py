@@ -253,6 +253,31 @@ def test_the_result_keeps_the_start_command_for_starts_next_steps(here, capsys, 
     assert saved["command"] == "judgekeeper start --port 0"
 
 
+# The exit test: one prompt to a result ----------------------------------------------------
+
+def test_from_a_promptfoo_project_the_agent_runs_judgekeeper_twice(here, capsys, pages):
+    """The agent pastes "Run `uvx judgekeeper` and follow what it says" and does what each
+    Next: line says. From the first run to the result it runs exactly `judgekeeper` twice; the
+    person's marking is the only other step."""
+    promptfoo_project(here, split(20, 16), tag=TAG)
+    ran, argv, person_marked = [], [], 0
+    while len(ran) < 5:
+        ran.append(["judgekeeper", *argv])
+        code, out, err = run(capsys, *argv)
+        assert code == 0, out + err
+        said = _check(out, err)
+        if said.startswith("Next: nothing."):
+            break
+        if "tell the person" in said:
+            _click(start_label.Workspace(here))  # the person marks until the page has enough
+            person_marked += 1
+        (command,) = re.findall(r"run `(judgekeeper[^`]*)`", said)
+        argv = command.split()[1:]
+    assert ran == [["judgekeeper"], ["judgekeeper"]]
+    assert person_marked == 1
+    assert "Of the answers you passed, your judge passed" in out
+
+
 # Marks for another judge, or from 0.2 -----------------------------------------------------
 
 def test_another_judge_asks_to_start_over(here, capsys, pages):
