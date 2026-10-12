@@ -167,9 +167,9 @@ def make_folder(ws: Workspace) -> None:
     if not ws.start.is_file() and not os.path.lexists(gitignore):
         write_replacing(gitignore, GITIGNORE)
     elif gitignore.is_file() and not gitignore.is_symlink():
-        try:
-            old = gitignore.read_bytes() == OLD_GITIGNORE.encode("utf-8")
-        except OSError:
+        try:  # 0.2 wrote it with the system's line endings
+            old = gitignore.read_text(encoding="utf-8") == OLD_GITIGNORE
+        except (OSError, ValueError):
             old = False
         if old:
             write_replacing(gitignore, GITIGNORE)

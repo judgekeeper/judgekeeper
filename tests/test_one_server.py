@@ -114,3 +114,49 @@ def test_the_lock_is_removed_while_another_reader_has_it_open(ws):
     server.release()
     reader.close()
     assert not lock.exists()
+
+
+def test_the_page_binds_without_looking_up_a_host_name(ws, monkeypatch):
+    """http.server looks up the host name of 127.0.0.1 when it binds, which can hang for
+    many seconds on some machines (a CI Mac): the page needs no name."""
+    import socket
+
+    def no_lookup(*args):
+        raise AssertionError("looked up a host name")
+
+    monkeypatch.setattr(socket, "getfqdn", no_lookup)
+    server = make_server(StartSession(ws), 0, page="<p>page</p>", lock=ws.dir)
+    assert server.port > 0
+    server.release()
+    server.httpd.server_close()
+
+
+def test_a_lock_that_cant_be_removed_yet_is_tried_again(ws, monkeypatch):
+    """Windows refuses to delete a file another process has open for a moment."""
+    from pathlib import Path
+
+    server = make_server(StartSession(ws), 0, page="<p>page</p>", lock=ws.dir)
+    real, refused = Path.unlink, []
+
+    def busy(self, *args, **kwargs):
+        if self.name == label_mod.LOCK and len(refused) < 3:
+            refused.append(self)
+            raise PermissionError(32, "being used by another process")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", busy)
+    server.httpd.server_close()
+    server.release()
+    assert len(refused) == 3 and not (ws.dir / label_mod.LOCK).exists()
+
+
+def test_a_page_that_stopped_counts_as_closed_though_its_lock_stays(ws, monkeypatch):
+    """`mark --stop`: a page that no longer answers, whose process has ended, is closed."""
+    from judgekeeper import background
+
+    _, thread = _serving(ws)
+    monkeypatch.setattr(label_mod.LabelServer, "release", lambda self: None)  # lock stays
+    monkeypatch.setattr(background, "_running", lambda pid: False)
+    assert background.stop(ws.dir, timeout=5)
+    thread.join(timeout=5)
+    assert (ws.dir / label_mod.LOCK).exists()

@@ -35,6 +35,14 @@ def test_the_exact_old_text_is_replaced(tmp_path):
     assert (ws.dir / ".gitignore").read_text(encoding="utf-8") == start_label.GITIGNORE
 
 
+def test_the_old_text_with_windows_line_endings_is_replaced(tmp_path):
+    """0.2 wrote the file with the system's line endings."""
+    (tmp_path / ".judgekeeper").mkdir()
+    (tmp_path / ".judgekeeper" / ".gitignore").write_bytes(OLD.replace("\n", "\r\n").encode())
+    ws = _prepare(tmp_path)
+    assert (ws.dir / ".gitignore").read_text(encoding="utf-8") == start_label.GITIGNORE
+
+
 def test_an_edited_one_is_left_alone(tmp_path):
     (tmp_path / ".judgekeeper").mkdir()
     edited = OLD + "!notes.md\n"

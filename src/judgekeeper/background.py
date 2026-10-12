@@ -8,7 +8,8 @@ rest nowhere. It returns the page's link once the page answers (the lock in .jud
 label.open_page), at most WAIT seconds; else None, and the process is ended.
 
 `stop` closes the open page with a POST to /stop with its token, which works the same on every
-system, and waits until it is gone.
+system, and waits until it is gone: it no longer answers, and its lock is released or its
+process has ended.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from judgekeeper.label import HOST, PROBE_TIMEOUT, open_page, read_lock
 
 WAIT = 10  # seconds
 LOG = "page.log"
-_running: list[subprocess.Popen] = []  # kept, so no page process is collected while it runs
+_started: list[subprocess.Popen] = []  # kept, so no page process is collected while it runs
 
 
 def start(folder: Path, args: list[str], timeout: float = WAIT) -> str | None:
@@ -45,7 +46,7 @@ def start(folder: Path, args: list[str], timeout: float = WAIT) -> str | None:
                                      *args], stderr=log, **flags)
     except OSError:
         return None
-    _running.append(proc)
+    _started.append(proc)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         url = open_page(folder)
@@ -73,8 +74,31 @@ def stop(folder: Path, timeout: float = WAIT) -> bool:
     finally:
         conn.close()
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:  # gone: no answer, and its lock released
-        if open_page(folder) is None and read_lock(folder) != lock:
+    while time.monotonic() < deadline:
+        if open_page(folder) is None and (read_lock(folder) != lock
+                                          or not _running(lock["pid"])):
             return True
         time.sleep(0.1)
     return False
+
+
+def _running(pid: int) -> bool:
+    """Whether the process `pid` is still running."""
+    if os.name == "nt":
+        import ctypes
+
+        kernel = ctypes.windll.kernel32
+        handle = kernel.OpenProcess(0x100000 | 0x1000, False, pid)  # SYNCHRONIZE, query
+        if not handle:
+            return False
+        try:
+            return kernel.WaitForSingleObject(handle, 0) == 0x102  # WAIT_TIMEOUT: running
+        finally:
+            kernel.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True

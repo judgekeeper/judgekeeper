@@ -41,6 +41,7 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from socketserver import TCPServer
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 from judgekeeper.anchors import LABELS
@@ -198,6 +199,8 @@ LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serve
 ALREADY_OPEN = ("judgekeeper is already open for this project: {url} (or stop it with Ctrl-C "
                 "in its terminal).")
 PROBE_TIMEOUT = 2  # seconds to wait for the page named in the lock to answer
+RELEASE_TRIES = 40  # times to try removing the lock, RELEASE_PAUSE seconds apart
+RELEASE_PAUSE = 0.05
 
 
 def read_lock(folder: Path) -> dict | None:
@@ -230,6 +233,15 @@ def open_page(folder: Path) -> str | None:
         conn.close()
 
 
+class _HTTPServer(HTTPServer):
+    """HTTPServer without the host-name lookup it makes when it binds (socket.getfqdn of
+    127.0.0.1), which can hang for many seconds on some machines. The page needs no name."""
+
+    def server_bind(self) -> None:
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = HOST, self.server_address[1]
+
+
 class LabelServer:
     def __init__(self, session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
                  page: str, switches: dict | None = None, stays: bool = False):
@@ -242,7 +254,7 @@ class LabelServer:
         self.switches = switches or {}
         self.done_at: float | None = None
         self.token = secrets.token_urlsafe(32)
-        self.httpd = HTTPServer((HOST, port), _handler(self))
+        self.httpd = _HTTPServer((HOST, port), _handler(self))
         self.httpd.timeout = 0.2
         self.host = HOST
         self.port = self.httpd.server_address[1]
@@ -259,15 +271,26 @@ class LabelServer:
                                                "token": self.token}))
 
     def release(self) -> None:
-        """Remove the lock, when it is still this server's."""
+        """Remove the lock, when it is still this server's. Windows refuses to delete a file
+        that another process (`mark --stop`, asking whether the page is open) is reading,
+        so a refusal is tried again for a moment."""
         if self.lock is None:
             return
-        try:
-            if json.loads(self.lock.read_text(encoding="utf-8")).get("token") == self.token:
-                self.lock.unlink()
-        except (OSError, ValueError) as e:
-            print(f"judgekeeper: {LOCK} was not removed ({type(e).__name__}: {e})",
-                  file=sys.stderr)
+        for tries in range(RELEASE_TRIES, 0, -1):
+            try:
+                if json.loads(self.lock.read_text(encoding="utf-8")).get("token") == self.token:
+                    self.lock.unlink()
+                break
+            except FileNotFoundError:
+                break
+            except PermissionError as e:
+                if tries == 1:
+                    print(f"judgekeeper: {LOCK} was not removed ({e})", file=sys.stderr)
+                time.sleep(RELEASE_PAUSE)
+            except (OSError, ValueError) as e:
+                print(f"judgekeeper: {LOCK} was not removed ({type(e).__name__}: {e})",
+                      file=sys.stderr)
+                break
         self.lock = None
 
     def serve(self, idle_timeout: float | None = None) -> None:
