@@ -146,6 +146,14 @@ def test_ci_tests_every_python_the_classifiers_name_and_windows_on_every_pull_re
         encoding="utf-8")
 
 
+def test_ci_runs_the_background_page_on_macos():
+    """The marking page runs as its own process; the unit tests run on Linux and Windows,
+    so its real-process test also runs on macOS."""
+    job = _workflow("ci.yml")["jobs"]["test-macos"]
+    assert job["runs-on"] == "macos-latest"
+    assert "pytest" in _steps_text(job) and "tests/test_mark_background.py" in _steps_text(job)
+
+
 # Packaging
 
 def _build_wheel(src: Path, out: Path) -> Path:

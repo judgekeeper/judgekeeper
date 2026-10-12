@@ -628,7 +628,7 @@ def left_out(units: list, guess: Guess, judges: list[str]) -> int:
     return n
 
 
-# Correcting one part of the guess (setup, after "Is this right?" is answered No) ------------
+# Correcting one part of the guess (after "Is this how ... read FILE?" is answered No) ------------
 
 def _placed(seg: tuple, g: Guess) -> tuple:
     """A leaf path of the first item with its side and judge names as placeholders."""

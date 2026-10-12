@@ -2,7 +2,7 @@
 
 Step A ("Look again"): every disagreement mixed with as many answers the person and the judge
 agreed on (at least 3), the judge still hidden. Step B ("See what your judge said"): only the
-disagreements, with the judge's verdict and reason. The labels in labels.csv never change;
+disagreements, with the judge's verdict and reason. The marks in marks.jsonl never change;
 result.json gains a `review` block.
 
 No test opens a browser: the server runs in a thread and a test client clicks for the person.
@@ -273,15 +273,15 @@ def test_the_files_guard_against_spreadsheet_formulas(tmp_path):
         assert row["output"] == guard_cell(row["output"][1:])
 
 
-def test_labels_csv_never_changes(tmp_path):
+def test_the_marks_never_change(tmp_path):
     ws, flipped = _reviewable(tmp_path)
-    before = ws.labels.read_bytes()
+    before = ws.marks.read_bytes()
     session = ReviewSession(ws)
     _second_look(session, {flipped["pass"][0]: "pass"})
     for item in session.items:
         if item["disagreement"]:
             session.update({"id": item["id"], "choice": "slipped"})
-    assert ws.labels.read_bytes() == before
+    assert ws.marks.read_bytes() == before
 
 
 def test_step_b_is_refused_until_step_a_is_done(tmp_path):
@@ -472,7 +472,7 @@ def test_the_result_counts_the_disagreements_and_says_how_to_review(tmp_path):
     assert r["disagreements"] == 5
     lines = start_label.result_lines(r)
     assert "  See where you disagree (5):  judgekeeper start --review" in lines
-    page = ws.result_html.read_text(encoding="utf-8")
+    page = ws.report_html.read_text(encoding="utf-8")
     assert "See where you disagree (5)" in page
     assert "<code>judgekeeper start --review</code>" in page
 
@@ -498,7 +498,7 @@ def test_the_result_after_a_review_shows_the_lines_and_the_files(tmp_path):
     for line in review_lines(r["review"]):
         assert f"  {line}" in lines
     assert not any("--review" in line for line in lines)  # done: nothing left to review
-    page = ws.result_html.read_text(encoding="utf-8")
+    page = ws.report_html.read_text(encoding="utf-8")
     assert "your judge was wrong on 3 answers" in page
     assert "judge-mistakes.csv" in page and "rule-unclear.csv" in page
     assert page.count('<div class="stmt">') == 2  # the main sentences are unchanged

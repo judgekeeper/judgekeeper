@@ -152,7 +152,7 @@ def test_at_a_terminal_it_asks_whether_the_guess_is_right(tmp_path, capsys, term
     coach_project(tmp_path)
     answers += ["", "", "1", ""]  # right; each its own answer; safe_wording; save
     code, _ = setup(capsys, tmp_path / "history" / "evals.jsonl")
-    assert code == 0 and asked[0].startswith("Is this right?")
+    assert code == 0 and asked[0].startswith("Is this how judgekeeper should read ")
     assert saved(tmp_path)["judge"] == "safe_wording"
 
 

@@ -175,11 +175,13 @@ def test_newer_results_are_rechecked_with_the_saved_labels(tmp_path, capsys, ser
 
 def test_a_recheck_keeps_the_old_check_and_carries_the_labels(tmp_path, capsys, served):
     ws = _checked(tmp_path, n_pass=20, n_fail=16)
-    old_labels = ws.labels.read_text(encoding="utf-8")
+    old_marks = ws.marks.read_text(encoding="utf-8")
     _rewrite(tmp_path, split(16, 20))
     run(capsys, tmp_path)
     (archive,) = ws.history.glob("check-*")
-    assert (archive / "labels.csv").read_text(encoding="utf-8") == old_labels
+    assert (archive / "marks.jsonl").read_text(encoding="utf-8") == old_marks
+    carried = ws.marks.read_text(encoding="utf-8").splitlines()[1:]
+    assert carried == old_marks.splitlines()[1:]  # the marks keep their stamps
     assert (archive / "start.json").is_file() and (archive / "pool-judge.jsonl").is_file()
     session = StartSession(ws)
     assert session.counts() == {"correct": 20, "wrong": 16, "skipped": 0}
@@ -365,13 +367,13 @@ def test_too_few_marks_hide_the_asked_again_numbers_as_the_result_does():
 @pytest.mark.parametrize("name, text", [
     ("result.json", '{"made_at": "2026'), ("result.json", "[]"),
     ("start.json", '{"tool": "promptfoo"}'), ("pool.jsonl", "{not json\n"),
-    ("labels.csv", None),
+    ("marks.jsonl", None),
 ])
 def test_a_damaged_saved_file_is_named_with_the_way_out(tmp_path, capsys, name, text):
     ws = _checked(tmp_path)
     path = ws.dir / name
     if text is None:
-        path.write_bytes("id,human_label\nq1,pass\n".encode("utf-16"))
+        path.write_bytes('{"id": "q1", "mark": "pass"}\n'.encode("utf-16"))
     else:
         path.write_text(text, encoding="utf-8")
     for flag in ([], ["--review"], ["--fix"]):
@@ -405,19 +407,19 @@ def test_missing_marks_are_never_called_agreement(tmp_path, capsys, gone):
     ws = _checked(tmp_path)
     copy = ws.history / "check-2026-10-01T09-00-00Z"
     copy.mkdir(parents=True)
-    copy.joinpath("labels.csv").write_bytes(ws.labels.read_bytes())
+    copy.joinpath("marks.jsonl").write_bytes(ws.marks.read_bytes())
     if gone:
-        ws.labels.unlink()
+        ws.marks.unlink()
     else:
-        ws.labels.write_text("", encoding="utf-8")
+        ws.marks.write_text("", encoding="utf-8")
     for flag in ([], ["--review"], ["--fix"]):
         code, out, _ = run(capsys, tmp_path, *flag)
         assert code == 2
-        assert (f"Your marks are missing: .judgekeeper/labels.csv is "
+        assert (f"Your marks are missing: .judgekeeper/marks.jsonl is "
                 f"{'gone' if gone else 'empty'}, but your last result was made from 36 marked "
                 "answers. A copy from earlier is in .judgekeeper/history/"
-                "check-2026-10-01T09-00-00Z/labels.csv: copy it back to "
-                ".judgekeeper/labels.csv.") in out
+                "check-2026-10-01T09-00-00Z/marks.jsonl: copy it back to "
+                ".judgekeeper/marks.jsonl.") in out
         assert "agree on every" not in out and "agrees with every" not in out
 
 

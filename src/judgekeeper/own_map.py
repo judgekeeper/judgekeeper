@@ -88,9 +88,9 @@ SHOWN_EXAMPLES = ("each", "model_key")  # a count of items, a model's name: neve
 
 
 def _correct(talk: Talk, units: list, g: mapper.Guess) -> mapper.Guess | None:
-    """After "Is this right?" was answered No (at a terminal): which part is wrong, then that
-    part, chosen from the file's paths (or typed in, for the pass mark). None: none of the
-    parts fit."""
+    """After "Is this how judgekeeper should read FILE?" was answered No (at a terminal):
+    which part is wrong, then that part, chosen from the file's paths (or typed in, for the
+    pass mark). None: none of the parts fit."""
     import dataclasses
 
     names = [name for _, name, _ in PARTS]
@@ -210,7 +210,8 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
         talk.say()
         # At a terminal the person checks the guess; without one, only an unsure guess stops.
         if not (g.unsure or start._interactive()) or talk.confirm(
-                "Is this right?", default=True, with_yes=True, hint=""):
+                f'Is this how judgekeeper should read {rel} (the lines under "How judgekeeper '
+                'reads it")?', default=True, with_yes=True, hint=""):
             break
         g = _correct(talk, units, g)
         if g is None:

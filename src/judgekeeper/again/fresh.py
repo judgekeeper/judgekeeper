@@ -11,7 +11,7 @@ answers not counted and why, and the fingerprint of the fresh judgments. `finish
   today (the person's labels against the first fresh run, weighted by the saved groups) and how
   often the first fresh verdict matched the saved one (weighted.general, weighted.steadiness);
 - adds an `again` block to result.json (an earlier one moves to history/) and redraws
-  result.html. The main result, the person's labels and their numbers do not change.
+  report.html. The main result, the person's labels and their numbers do not change.
 """
 
 from __future__ import annotations
@@ -195,7 +195,7 @@ def again_lines(block: dict) -> list[str]:
 
 
 def save(ws, block: dict) -> None:
-    """Put the block in result.json (an earlier one to history/) and redraw result.html."""
+    """Put the block in result.json (an earlier one to history/) and redraw report.html."""
     from judgekeeper.start_label import _scrubbed, _write_json, result_html
 
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
@@ -210,7 +210,7 @@ def save(ws, block: dict) -> None:
         _write_json(target, r["again"])
     r["again"] = block
     _write_json(ws.result_json, r)
-    write_replacing(ws.result_html, result_html(_scrubbed(r)))
+    write_replacing(ws.report_html, result_html(_scrubbed(r)))
 
 
 def finish(ws, plan, fresh: Fresh, talk) -> dict:

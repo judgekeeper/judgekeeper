@@ -77,7 +77,7 @@ def assert_one_next_at_the_end(out: str) -> str:
     return lines[-1]
 
 
-START = "Next: run `judgekeeper start` and mark each answer Pass or Fail on the page it opens."
+START = "Next: run `judgekeeper mark`, then give the person the link it prints."
 
 
 # One test per eval tool -----------------------------------------------------------------
@@ -154,8 +154,8 @@ def test_a_path_is_repeated_in_the_next_line(tmp_path, capsys):
     code, out, _ = run(capsys, tmp_path / "proj")
     assert code == 0
     assert assert_one_next_at_the_end(out) == (
-        f"Next: run `judgekeeper start {quote_arg(tmp_path / 'proj')}` and mark each answer "
-        "Pass or Fail on the page it opens.")
+        f"Next: run `judgekeeper mark {quote_arg(tmp_path / 'proj')}`, then give the person "
+        "the link it prints.")
 
 
 def test_a_long_rule_is_one_line_cut_at_200(here, capsys):
@@ -223,7 +223,8 @@ def test_too_few_answers_needs_the_person(here, capsys):
     assert code == 3
     assert "You have 10 answers" in out
     line = assert_one_next_at_the_end(out)
-    assert "judgekeeper start --yes" in line
+    assert line.endswith("or to mark these 10 now: run `judgekeeper mark`.")
+    assert "--yes" not in line and "judgekeeper start" not in line
 
 
 # No answer text, ever ----------------------------------------------------------------------
@@ -275,8 +276,8 @@ def test_several_tools(here, capsys):
     code, out, _ = run(capsys, "--tool", "promptfoo")
     assert code == 0
     assert assert_one_next_at_the_end(out) == (
-        "Next: run `judgekeeper start --tool promptfoo` and mark each answer Pass or Fail on "
-        "the page it opens.")
+        "Next: run `judgekeeper mark --tool promptfoo`, then give the person the link it "
+        "prints.")
 
 
 def test_several_judges(here, capsys):
@@ -479,8 +480,8 @@ def test_at_a_terminal_no_keeps_judgekeeper_toml_away(here, capsys, terminal):
     assert code == 0, out
     assert not (here / "judgekeeper.toml").exists()
     assert assert_one_next_at_the_end(out) == (
-        "Next: run `judgekeeper start --metric safety` and mark each answer Pass or Fail on "
-        "the page it opens.")
+        "Next: run `judgekeeper mark --metric safety`, then give the person the link it "
+        "prints.")
 
 
 def test_at_a_terminal_the_pass_mark_is_asked(here, capsys, terminal):
@@ -499,7 +500,8 @@ def test_at_a_terminal_an_own_format_is_mapped_and_saved(here, capsys, terminal)
     answers += ["", "", "1", "", ""]  # right; each its own; Safe wording; rules out; save
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert "Is this right?" in asked[0]
+    assert ("Is this how judgekeeper should read history/evals.jsonl (the lines under \"How judgekeeper "
+            "reads it\")?") in asked[0]
     assert "judgekeeper.toml" in asked[-1]
     saved = tomllib.loads((here / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
     assert saved["judge"] == "Safe wording" and saved["map"]["leave_out"] is True

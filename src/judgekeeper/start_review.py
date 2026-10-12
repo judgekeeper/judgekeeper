@@ -19,9 +19,9 @@ so the review has two steps:
   old one moves to history/review-<date>/.
 - judge-mistakes.csv and rule-unclear.csv: the answers marked "The judge was wrong" and "The
   rule is unclear", with both labels, the judge's verdict and reason, and the why. Cells that could be
-  read as spreadsheet formulas are guarded as labels.csv's are.
+  read as spreadsheet formulas are guarded.
 
-labels.csv never changes: the first labels stay the main result. Once step A is done,
+marks.jsonl never changes: the first labels stay the main result. Once step A is done,
 result.json gains a `review` block: the second-look numbers (each re-looked answer's second
 label, Not sure keeping the first, weighted by group as in `weighted.corrected`) and the
 step B counts. Step B choices change no number.
@@ -35,7 +35,7 @@ import json
 import random
 import secrets
 
-from judgekeeper import weighted
+from judgekeeper import marks, weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.label import make_server
@@ -113,7 +113,8 @@ def _basis(ws: Workspace) -> dict:
     """What a review is of: the result and the labels and verdicts it was made from."""
     import hashlib
 
-    digest = hashlib.sha256(ws.labels.read_bytes() + b"\0" + ws.pool_judge.read_bytes())
+    counted = json.dumps(sorted(marks.read(ws.marks).counted().items())).encode("utf-8")
+    digest = hashlib.sha256(counted + b"\0" + ws.pool_judge.read_bytes())
     result = json.loads(ws.result_json.read_text(encoding="utf-8"))
     return {"result_made_at": result.get("made_at"), "sha256": digest.hexdigest()}
 
@@ -248,7 +249,7 @@ class ReviewSession:
         else:
             r.pop("review", None)
         _write_json(ws.result_json, r)
-        write_replacing(ws.result_html, result_html(_scrubbed(r)))
+        write_replacing(ws.report_html, result_html(_scrubbed(r)))
 
     def _write_rows(self, path, choice: str) -> None:
         buf = io.StringIO()
@@ -483,7 +484,7 @@ def run(ws: Workspace, talk, port: int, open_browser: bool) -> int:
     talk.say("  are answers you and your judge agreed on, so being shown one does not mean "
              "you were wrong.")
     talk.say(f"  Step 2: see what your judge said on the {_plural(n, 'disagreement')}.")
-    talk.say(f"  Your marks in {FOLDER}/labels.csv stay as they are.")
+    talk.say(f"  Your marks in {FOLDER}/marks.jsonl stay as they are.")
     if session.step() == "b":
         talk.say(f"You looked again at all {len(session.items)} answers. Carrying on at step 2.")
     talk.say()

@@ -1,4 +1,4 @@
-"""Install judgekeeper fresh into a new project and walk the whole `judgekeeper start` path.
+"""Install judgekeeper fresh into a new project and walk the whole path a person takes.
 
     python scripts/install_check.py --tool promptfoo --source build --work /tmp/jk-check
     python scripts/install_check.py --tool table --source pypi:0.2.0 --work /tmp/jk-check
@@ -12,11 +12,13 @@ What a stranger does, with nobody at the keyboard and no API key:
 3. The eval tool installed into the project, and real results made with it. Every judge talks
    to a fake judge this script serves on 127.0.0.1: an OpenAI-compatible API and Ollama's own,
    which pass questions 1 to 28 and fail 29 to 40, so the numbers are known.
-4. `judgekeeper start` the way a person goes: the first look, marking every answer and the
-   result, the review, Fix your judge (the coding-agent prompt, then a new rule saved with
-   --rule-file), the new rule put in the tool's own file and the tool run again, Try your new
-   judge, and Ask your judge again. judgekeeper's input is a closed pipe; the pages are used
-   through their own HTTP calls, with a stand-in person whose marks are fixed.
+4. The way a person goes: `judgekeeper` (the first look), `judgekeeper mark` (the page in the
+   background, its link printed), every answer marked on the page, `judgekeeper mark` again
+   for the result, `judgekeeper mark --stop`; then `judgekeeper start`: the review, Fix your
+   judge (the coding-agent prompt, then a new rule saved with --rule-file), the new rule put
+   in the tool's own file and the tool run again, Try your new judge, and Ask your judge
+   again. judgekeeper's input is a closed pipe; the pages are used through their own HTTP
+   calls, with a stand-in person whose marks are fixed.
 5. Every command's output, then "N of N steps OK". Exit 1 on any failed step or "Traceback".
 
 Tools: table, promptfoo, deepeval, inspect, mlflow, record (your own judge code with
@@ -70,13 +72,7 @@ MODELS = {"promptfoo": "pf-grader", "deepeval": "gpt-4.1", "inspect": "grader-1"
 DIALECT = {MODELS["promptfoo"]: "promptfoo", MODELS["deepeval"]: "deepeval",
            MODELS["inspect"]: "inspect", MODELS["mlflow"]: "mlflow"}
 
-# The first block's "Eval tool" line and "Judge model" line, per tool.
-TOOL_NAME = {"table": "a table (results.csv)", "promptfoo": "promptfoo", "deepeval": "DeepEval",
-             "inspect": "Inspect AI", "mlflow": "MLflow",
-             "record": "your own code (judgekeeper.record())",
-             "own-format": "your own format (read as judgekeeper.toml says)",
-             "promptfoo-ollama": "promptfoo",
-             "inspect-ollama": "Inspect AI"}
+# The judge's model, as the "Your judge:" line of `judgekeeper` says it, per tool.
 JUDGE_NAME = {"table": "my-judge-1", "promptfoo": MODELS["promptfoo"],
               "deepeval": MODELS["deepeval"], "inspect": MODELS["inspect"],
               "mlflow": MODELS["mlflow"], "record": MODELS["own"], "own-format": MODELS["own"],
@@ -391,6 +387,9 @@ class Check:
     def start(self, *flags) -> list[str]:
         return [self.jk, "start", *flags, "--port", self.port]
 
+    def mark(self, *flags) -> list[str]:
+        return [self.jk, "mark", *flags, "--no-browser", "--port", self.port]
+
     # The page's own HTTP calls
 
     def call(self, base: str, token: str, path: str, body=None):
@@ -405,18 +404,14 @@ class Check:
         except urllib.error.HTTPError as e:
             raise RuntimeError(f"{path}: HTTP {e.code} {e.read().decode('utf-8', 'replace')}")
 
-    def mark_all(self, base: str, token: str):
-        """The stand-in person marks every answer, then opens the result."""
+    def post_marks(self, base: str, token: str):
+        """The stand-in person marks every answer on the page `judgekeeper mark` opened, a few
+        seconds each."""
         state = self.call(base, token, "/state")
         for item in state["items"]:
-            self.call(base, token, "/label", {"id": item["id"], "label": person_mark(item)})
-        after = self.call(base, token, "/state")
-        left = [i for i in after["items"] if not i.get("label")]
-        page = self.call(base, token, "/result")
-        shown = "When you said Pass" in page
-        detail = (f"({len(after['items'])} marked: {after.get('counts')}; result page "
-                  f"{'shown' if shown else 'MISSING'})")
-        return not left and shown, detail
+            self.call(base, token, "/label", {"id": item["id"], "label": person_mark(item),
+                                              "seconds": 4})
+        return True, f"({len(state['items'])} marked)"
 
     def review(self, base: str, token: str):
         """Step 1: a second look at each answer, the judge hidden. Step 2: on each
@@ -697,12 +692,46 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
     # The user's path
 
     def first_look(self):
-        decisions = rf"{N} answers: {len(JUDGE_PASSES)} passed, {N - len(JUDGE_PASSES)} failed"
-        self.run("1. first look", self.start("--no-browser"), ok_codes=(0, 8),
-                 expect=[r"judgekeeper found your LLM-as-a-judge",
-                         rf"Eval tool\s+{re.escape(TOOL_NAME[self.tool])}",
-                         rf"Judge model\s+.*{re.escape(JUDGE_NAME[self.tool])}",
-                         rf"Its decisions\s+{decisions}"])
+        decisions = rf"Your judge passed {len(JUDGE_PASSES)} and failed {N - len(JUDGE_PASSES)}\."
+        self.run("1. first look (judgekeeper)", [self.jk],
+                 expect=[rf"Your judge: .*{re.escape(JUDGE_NAME[self.tool])}", decisions,
+                         r"\nNext: run `judgekeeper mark"])
+
+    def mark_path(self):
+        """`judgekeeper mark` opens the page in the background and returns; the stand-in
+        person marks on it; `judgekeeper mark` then prints the result; `--stop` closes it."""
+        p = self.mark_step("2. judgekeeper mark opens the page in the background", self.mark(),
+                           [r"Marking page: http://127\.0\.0\.1:", r"Marked so far: 0 "])
+        link = page_link(p.stdout) if p else None
+        if not self.step("2. the page's link is printed", link is not None):
+            return
+        try:
+            ok, detail = self.post_marks(*link)
+        except Exception as e:  # noqa: BLE001 - any failure is this step's failure
+            ok, detail = False, f"({type(e).__name__}: {e})"
+        self.step("2. the stand-in person marks every answer on the page", ok, detail)
+        self.mark_step("2. judgekeeper mark prints the result", self.mark(),
+                       [r"Your marks: 40 \(25 Pass, 15 Fail\), made on the page",
+                        r"Of the answers you passed, your judge passed",
+                        r"Of the answers you failed, your judge failed",
+                        r"This set can see a drop of", r"still open"])
+        self.mark_step("2. judgekeeper mark --stop closes the page", [self.jk, "mark", "--stop"],
+                       [r"Closed the marking page"])
+
+    def mark_step(self, name: str, args, expect):
+        """A `judgekeeper mark` step; when it fails, what the page's own process wrote to
+        .judgekeeper/page.log, and whether its lock is still there."""
+        p = self.run(name, args, expect=expect)
+        if self.steps and not self.steps[-1][1]:
+            folder = self.project / ".judgekeeper"
+            try:
+                log = (folder / "page.log").read_text(encoding="utf-8", errors="replace")
+            except OSError as e:
+                log = f"(not readable: {type(e).__name__})"
+            print(f"\n--- .judgekeeper/page.log\n{log[-8000:] or '(empty)'}", flush=True)
+            print(f"--- .judgekeeper/server.json is there: {(folder / 'server.json').exists()}",
+                  flush=True)
+        return p
 
     def setup_own_format(self):
         self.run("judgekeeper maps the file (answers given by --yes, no terminal)",
@@ -735,10 +764,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         if self.tool == "own-format":
             self.setup_own_format()
         self.first_look()
-        self.serve("2. mark every answer (start --yes)", self.start("--no-browser", "--yes"),
-                   self.mark_all, expect=[r"When you said Pass, your judge also said Pass",
-                                          r"When you said Fail, your judge also said Fail"])
-        self.run("2. back again: the last result and what next", self.start("--no-browser"),
+        self.mark_path()
+        self.run("2. start: the last result and what next", self.start("--no-browser"),
                  ok_codes=(0, 8), expect=[r"Your last result", r"--review"])
         self.serve("3. review the disagreements (start --review --yes)",
                    self.start("--review", "--no-browser", "--yes"), self.review)

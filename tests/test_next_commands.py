@@ -73,7 +73,7 @@ def test_the_next_commands_keep_the_path_and_flags(project, marked, served, caps
     assert f"{BASE} --review" in commands and BASE in commands, nexts
     assert all(c.startswith(BASE) for c in commands), commands
 
-    page = Workspace(project / "evals").result_html.read_text(encoding="utf-8")
+    page = Workspace(project / "evals").report_html.read_text(encoding="utf-8")
     assert f"{BASE} --review".replace("_", "&#95;") in page.replace("_", "&#95;")
     assert "<code>judgekeeper start --review</code>" not in page
 

@@ -319,7 +319,7 @@ def test_old_numbers_from_asking_again_are_used_and_said(fake, capsys):
 
 def test_the_new_judge_files(fake, capsys):
     before = json.loads(fake.result_json.read_text(encoding="utf-8"))
-    labels = fake.labels.read_bytes()
+    labels = fake.marks.read_bytes()
     _new_run(fake.root)
     run(capsys, fake.root, "--try-new-judge", "--allow-calls", 36)
     folder = _folder(fake)
@@ -336,8 +336,8 @@ def test_the_new_judge_files(fake, capsys):
     for key in ("tpr", "tnr", "kappa", "labels", "made_at"):
         assert after[key] == before[key]  # the main result stays the old judge's
     assert after["new_judge"]["folder"] == f".judgekeeper/{folder.name}"
-    assert fake.labels.read_bytes() == labels
-    assert "Your new judge" in fake.result_html.read_text(encoding="utf-8")
+    assert fake.marks.read_bytes() == labels
+    assert "Your new judge" in fake.report_html.read_text(encoding="utf-8")
 
 
 def test_trying_the_same_new_judge_again_asks_nothing_again(fake, capsys):
@@ -399,7 +399,7 @@ def test_the_confirmation_result(fake, capsys, confirmed):
     block = json.loads(fake.result_json.read_text(encoding="utf-8"))["new_judge"]["confirmation"]
     assert block["labels"] == {"correct": 26, "wrong": 10} and block["check"] == "quick"
     assert (_folder(fake) / "confirm" / "result.json").is_file()
-    assert "On 36 new answers you marked" in fake.result_html.read_text(encoding="utf-8")
+    assert "On 36 new answers you marked" in fake.report_html.read_text(encoding="utf-8")
 
 
 def test_fewer_than_ten_of_each_says_the_ranges_are_very_wide(fake, capsys, confirmed):
@@ -430,7 +430,7 @@ def test_new_makes_the_new_judge_the_one_checked_and_deletes_nothing(fake, capsy
     moved = sorted(p.relative_to(previous).as_posix() for p in previous.rglob("*")
                    if p.is_file())
     assert moved == files  # the old marks and the confirmation marks, nothing deleted
-    assert any(p.endswith("confirm/labels.csv") for p in moved) and "labels.csv" in moved
+    assert any(p.endswith("confirm/marks.jsonl") for p in moved) and "marks.jsonl" in moved
 
 
 # The other tools rebuild the new judge from their newest results ---------------------------

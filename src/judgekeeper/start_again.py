@@ -31,11 +31,11 @@ likewise.
 
 from __future__ import annotations
 
-import csv
 import json
 import shutil
 from pathlib import Path
 
+from judgekeeper import marks
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.start_label import (
@@ -96,10 +96,10 @@ def saved_problem(ws: Workspace, talk) -> str | None:
             for line in ws.pool.read_text(encoding="utf-8").splitlines():
                 if line.strip() and not isinstance(json.loads(line), dict):
                     raise TypeError(ws.pool.name)
-        if ws.labels.is_file():
-            ws.labels.read_bytes().decode("utf-8")
+        if ws.marks.is_file():
+            ws.marks.read_bytes().decode("utf-8")
     except (ValueError, TypeError) as e:
-        name = ws.labels.name if isinstance(e, UnicodeDecodeError) else ws.pool.name
+        name = ws.marks.name if isinstance(e, UnicodeDecodeError) else ws.pool.name
         return DAMAGED.format(path=f"{folder}/{name}", why=_why(e), command=talk.command(),
                               folder=folder)
     for path, needs, step in ((ws.review, ("items",), "review"),
@@ -118,13 +118,13 @@ def saved_problem(ws: Workspace, talk) -> str | None:
     if ws.result_json.is_file():
         made = sum((_json_dict(ws.result_json).get("labels") or {}).values())
         if made and not _labels(ws):
-            gone = "empty" if ws.labels.is_file() else "gone"
-            copies = sorted([*ws.history.glob("check-*/labels.csv"),
-                             *ws.dir.glob(f"{PREVIOUS}*/labels.csv")], reverse=True)
+            gone = "empty" if ws.marks.is_file() else "gone"
+            copies = sorted([*ws.history.glob(f"check-*/{marks.FILE}"),
+                             *ws.dir.glob(f"{PREVIOUS}*/{marks.FILE}")], reverse=True)
             copy = (f" A copy from earlier is in {folder}/"
                     f"{copies[0].relative_to(ws.dir).as_posix()}: copy it back to "
-                    f"{folder}/labels.csv." if copies else "")
-            return (f"Your marks are missing: {folder}/labels.csv is {gone}, but your last "
+                    f"{folder}/{marks.FILE}." if copies else "")
+            return (f"Your marks are missing: {folder}/{marks.FILE} is {gone}, but your last "
                     f"result was made from {made} marked answers.{copy} Or start a new check: "
                     f"{talk.command('--new')}.")
     return None
@@ -152,14 +152,8 @@ def move_to_previous(ws: Workspace, say) -> Path | None:
 
 
 def _labels(ws: Workspace) -> dict[str, str]:
-    """{answer id: pass or fail} from labels.csv: the person's Pass and Fail marks."""
-    if not ws.labels.is_file():
-        return {}
-    from judgekeeper.table import sheet_id
-
-    with ws.labels.open(encoding="utf-8", newline="") as f:
-        return {sheet_id(row["id"]): row["human_label"] for row in csv.DictReader(f)
-                if row.get("human_label") in ("pass", "fail")}
+    """{answer id: pass or fail} from marks.jsonl: the person's Pass and Fail marks."""
+    return marks.read(ws.marks).counted()
 
 
 def _project(path: Path) -> Path:
@@ -639,16 +633,16 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
 
     archive = ws.history / f"check-{_stamp()}"
     archive.mkdir(parents=True)
-    for p in (ws.start, ws.pool, ws.pool_judge, ws.labels, ws.judge_check_json,
+    for p in (ws.start, ws.pool, ws.pool_judge, ws.marks, ws.judge_check_json,
               ws.judge_check_csv):
         if p.is_file():
             shutil.copy2(p, archive / p.name)
-    ws.labels.unlink(missing_ok=True)
+    old = marks.read(ws.marks)
+    ws.marks.unlink(missing_ok=True)
     prepare(found, talk.say)
+    for item_id in back:  # the marks still in the results keep their stamps
+        marks.append(ws.marks, old.last[item_id])
     session = StartSession(ws)
-    for item_id, label in back.items():
-        session.by_id[item_id]["label"] = label
-    session.write()
 
     now = compute(ws, session)
     talk.say()

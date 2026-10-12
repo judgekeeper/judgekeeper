@@ -14,7 +14,7 @@ import threading
 import pytest
 
 from judgekeeper import label as label_mod
-from judgekeeper import start, start_label, targets, weighted
+from judgekeeper import marks, start, start_label, targets, weighted
 from judgekeeper.anchors import canonical_hash, load_anchors, manifest_path_for
 from judgekeeper.cli import main
 from judgekeeper.fingerprint import JudgeFingerprint
@@ -22,7 +22,7 @@ from judgekeeper.judgments import read_run
 from judgekeeper.records import LLM, RecordList, ScoreRecord
 from judgekeeper.textio import quote_arg
 from tests.start_projects import promptfoo_project, split
-from tests.test_label_server import Client, _read
+from tests.test_label_server import Client
 
 
 def _found(root, n_pass=20, n_fail=12, **kwargs):
@@ -135,7 +135,7 @@ def test_the_page_shows_the_question_and_the_answer_as_written(workspace):
         thread.join(timeout=5)
 
 
-def test_clicks_are_written_to_labels_csv(workspace):
+def test_clicks_are_written_to_marks_jsonl(workspace):
     _, ws = workspace
     server, thread, client = _server(ws)
     try:
@@ -145,12 +145,12 @@ def test_clicks_are_written_to_labels_csv(workspace):
         assert client.label(id=ids[2], deferred=True)[0] == 200  # Skip
         assert client.label(id=ids[3], label="pass")[0] == 200
         assert client.label(id=ids[3], label=None, deferred=False)[0] == 200  # Undo
-        rows = {r["id"]: r for r in _read(ws.labels)}
-        assert rows[ids[0]]["human_label"] == "pass"
-        assert rows[ids[1]]["human_label"] == "fail"
-        assert rows[ids[2]]["human_label"] == "" and rows[ids[2]]["notes"] == "skipped"
-        assert rows[ids[3]]["human_label"] == ""
-        assert list(_read(ws.labels)[0]) == ["id", "input", "output", "human_label", "notes"]
+        last = marks.read(ws.marks).last
+        assert last[ids[0]]["mark"] == "pass"
+        assert last[ids[1]]["mark"] == "fail"
+        assert last[ids[2]]["mark"] == "skip"
+        assert last[ids[3]]["mark"] is None
+        assert len(ws.marks.read_text(encoding="utf-8").splitlines()) == 1 + 5
     finally:
         server.stop()
         thread.join(timeout=5)
@@ -278,7 +278,7 @@ def test_the_terminal_result():
             in lines)
     assert "  Mark more answers:  judgekeeper start" in lines
     assert "  Check again after your next eval run:  judgekeeper start" in lines
-    assert lines[-2:] == ["", "Saved in .judgekeeper/ (result.html is the page you just saw)."]
+    assert lines[-2:] == ["", "Saved in .judgekeeper/ (report.html is the page you just saw)."]
 
 
 # 900 passes and 100 fails in the pool, 25 marked in each group, 24 and 1 marked Pass: 25
@@ -395,7 +395,7 @@ def test_a_result_writes_anchors_and_the_result_files(workspace):
                 "groups", "labels", "fingerprint", "made_at", "verdict", "level", "judge"):
         assert key in result, key
     assert result["tpr"] == 1 and result["tnr"] == 1
-    html = ws.result_html.read_text(encoding="utf-8")
+    html = ws.report_html.read_text(encoding="utf-8")
     assert html.startswith("<!doctype html>")
     date = json.loads(ws.start.read_text(encoding="utf-8"))["results_date"]
     assert "<b>llm-rubric</b> · openai:gpt-4.1-mini" in html
@@ -541,7 +541,7 @@ def test_start_labels_and_shows_the_result(tmp_path, capsys, clicker):
     assert (f"Saved in {(tmp_path / '.judgekeeper').resolve().as_posix()}/. It holds your "
             "answers' text") in out
     assert "Your judge agrees with you often enough to use." in clicker["page"]
-    assert (tmp_path / ".judgekeeper" / "result.html").is_file()
+    assert (tmp_path / ".judgekeeper" / "report.html").is_file()
 
 
 def test_no_browser_prints_the_link_only(tmp_path, capsys, clicker):

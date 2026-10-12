@@ -320,7 +320,7 @@ def test_what_next_holds_the_three_steps():
     assert "<b>Check again after your next eval run</b> <code>judgekeeper start</code>" \
         in _flat(html)
     assert ("Saved in <code>.judgekeeper/</code> in your project. This page is "
-            "<code>result.html</code> there.") in _flat(html)
+            "<code>report.html</code> there.") in _flat(html)
 
 
 def test_the_saved_page_has_commands_not_buttons():
@@ -336,7 +336,7 @@ def test_the_judge_card_shows_the_full_rule(tmp_path):
     for item in session.items:
         session.update({"id": item["id"], "label": groups[item["id"]]})
     start_label.save_result(ws, session, say=lambda line: None)
-    html = _flat(ws.result_html.read_text(encoding="utf-8"))
+    html = _flat(ws.report_html.read_text(encoding="utf-8"))
     assert "<b>llm-rubric</b> · openai:gpt-4.1-mini" in html
     assert ('<div class="rule">&quot;Is polite and correct. Second line of the rubric.&quot;'
             '</div>') in html

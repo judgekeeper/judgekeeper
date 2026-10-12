@@ -69,3 +69,30 @@ def test_the_line_can_name_the_labels_another_way():
     assert targets.line(r, ("answers people passed", "answers people failed")) == (
         "Not reliable yet: the range for answers people failed is still 0.41 wide. Label more "
         "answers to narrow it.")
+
+
+# The smallest drop a set of marks can see ---------------------------------------------------
+
+@pytest.mark.parametrize("n,drop", [(15, 45), (16, 40), (25, 30), (50, 15), (100, 10)])
+def test_the_smallest_drop_a_set_of_marks_can_see(n, drop):
+    assert targets.smallest_drop(n, n) == drop
+
+
+def test_the_smallest_drop_follows_the_fewer_kind_of_mark():
+    assert targets.smallest_drop(100, 16) == targets.smallest_drop(16, 100) == 40
+    assert targets.smallest_drop(25, 400) == 30
+
+
+def test_no_smallest_drop_under_fifteen_of_each():
+    assert targets.smallest_drop(14, 100) is None
+    assert targets.drop_line(None) is None
+    assert targets.drop_line(targets.smallest_drop(16, 16)) == (
+        "This set can see a drop of 40 points or more. Smaller changes need more marks.")
+
+
+def test_many_marks_see_a_drop_of_five_points_quickly():
+    import time
+
+    began = time.monotonic()
+    assert targets.smallest_drop(2000, 2000) == 5
+    assert time.monotonic() - began < 5

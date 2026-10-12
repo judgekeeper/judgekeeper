@@ -709,7 +709,7 @@ def test_the_result_carries_the_counts_and_the_page_shows_the_card(tmp_path, cap
     session = start_label.StartSession(ws)
     r = start_label.save_result(ws, session, say=lambda line: None)
     assert r["judge_check"]["error"] == 1
-    html = ws.result_html.read_text(encoding="utf-8")
+    html = ws.report_html.read_text(encoding="utf-8")
     assert "Did your judge actually judge?" in html
     assert ("Your judge made no real decision on 1 of 33 answers: 1 call failed. promptfoo counted "
             "it as a fail. It is left out here.") in html
@@ -721,7 +721,7 @@ def test_a_clean_result_page_has_one_quiet_line(tmp_path, capsys):
     run(capsys, tmp_path)
     ws = start_label.Workspace(tmp_path)
     start_label.save_result(ws, start_label.StartSession(ws), say=lambda line: None)
-    html = ws.result_html.read_text(encoding="utf-8")
+    html = ws.report_html.read_text(encoding="utf-8")
     assert "<details" in html and "Your judge made a real decision on every answer." in html
     assert "Did your judge actually judge?" in html.split("<details")[1]
 
