@@ -122,27 +122,24 @@ def test_the_first_check_writes_the_folders_gitignore(tmp_path):
     assert (ws.dir / ".gitignore").read_text(encoding="utf-8") == GITIGNORE
     assert GITIGNORE.startswith("# judgekeeper's files hold your app's answers. Commit them "
                                 "only if your data may live here.\n*\n!.gitignore\n"
-                                "!baseline.json\n")
+                                "!judge.json\n!history.jsonl\n")
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_git_keeps_the_answers_out_and_the_baseline_in(tmp_path):
+def test_git_keeps_the_answers_out_and_the_judge_in(tmp_path):
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
     promptfoo_project(tmp_path, split(20, 16))
     ws = start_label.prepare(start.find_judge(tmp_path), say=_quiet)
-    (ws.dir / "baseline.json").write_text("{}", encoding="utf-8")
-    (ws.dir / "migrations").mkdir()
-    (ws.dir / "migrations" / "2026-10-10-a-to-b.json").write_text("{}", encoding="utf-8")
+    (ws.dir / "judge.json").write_text("{}", encoding="utf-8")
 
     def ignored(rel):
         return subprocess.run(["git", "-C", str(tmp_path), "check-ignore", "-q", rel],
                               check=False).returncode == 0
 
     assert ignored(".judgekeeper/pool.jsonl") and ignored(".judgekeeper/start.json")
-    assert ignored(".judgekeeper/records/x.jsonl")
+    assert ignored(".judgekeeper/records/x.jsonl") and ignored(".judgekeeper/marks.jsonl")
     assert not ignored(".judgekeeper/.gitignore")
-    assert not ignored(".judgekeeper/baseline.json")
-    assert not ignored(".judgekeeper/migrations/2026-10-10-a-to-b.json")
+    assert not ignored(".judgekeeper/judge.json")
 
 
 def test_an_existing_gitignore_is_never_changed(tmp_path):

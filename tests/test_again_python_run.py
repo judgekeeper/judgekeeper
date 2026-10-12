@@ -256,7 +256,7 @@ def test_an_answer_with_an_error_is_not_counted(deepeval_ws, stubs, capsys):
     assert _block(deepeval_ws)["counted"] == 35
     every = "".join(p.read_text(encoding="utf-8") for p in _folder(deepeval_ws).iterdir())
     every += deepeval_ws.result_json.read_text(
-        encoding="utf-8") + deepeval_ws.result_html.read_text(encoding="utf-8") + out
+        encoding="utf-8") + deepeval_ws.report_html.read_text(encoding="utf-8") + out
     assert SECRET not in every and "[REDACTED]" in every
 
 

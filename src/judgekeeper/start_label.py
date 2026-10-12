@@ -13,20 +13,23 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
   when the results have them, never shown on a page) and pool-judge.jsonl (the judge's
   verdict on every pool answer, in the run-file format, each line with the full fingerprint).
   Written when labeling starts.
-- labels.csv: the person's marks (id, input, output, human_label, notes), written on every
-  click. A skipped answer has no label and the note "skipped". File names and keys use
-  "label", "pass" and "fail".
+- marks.jsonl: the person's marks (marks.py), a header written when labeling starts, then
+  one stamped line per click, written by the page. No answer text. File names and keys use
+  "label", "pass" and "fail". A labels.csv (judgekeeper 0.2, no stamps) is never read.
 - anchors.jsonl and its manifest: the labeled answers as a frozen anchor set (with the
   pool's trajectory, outcome and app_version, frozen too). Written with each result.
 - judge-check.json and judge-check.csv: did the judge actually judge? (judge_check.py): the
   counts and each answer found, written when labeling starts (and when `start` names the
   CSV). A re-check copies the old ones to history/ with the other start files.
-- result.json and result.html, with the earlier result moved to history/.
+- result.json and report.html (the result page), with the earlier result moved to history/;
+  and one line in history.jsonl for each result made from marks that changed: the judge, the
+  counts and the numbers, no answer text and no ids.
 - review.json, judge-mistakes.csv and rule-unclear.csv: the review of the disagreements
   (start_review.py).
 - fix.json and fix/: fixing the judge after the review (start_fix.py).
 - .gitignore: written when a first check starts in the folder, if there is none, so the
-  answers stay off Git (all but baseline.json and migrations/). Never overwritten.
+  answers stay off Git (all but judge.json and history.jsonl). Never overwritten, except the
+  exact text judgekeeper 0.2 wrote, which is replaced.
 Every string from a results file is scrubbed of credentials before it is written. Nothing is
 written anywhere else, and the user's own .gitignore is never touched.
 
@@ -49,9 +52,9 @@ import webbrowser
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from judgekeeper import __version__, find, judge_check, targets, weighted
+from judgekeeper import __version__, find, judge_check, marks, targets, weighted
 from judgekeeper.anchors import canonical_hash
-from judgekeeper.fingerprint import JudgeFingerprint, utc_now
+from judgekeeper.fingerprint import JudgeFingerprint, rule_hash, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
 from judgekeeper.label import LabelSession, make_server
 from judgekeeper.records import AGENT_FIELDS
@@ -62,12 +65,13 @@ from judgekeeper.table import guard_cell, write_anchor_file
 from judgekeeper.textio import jsonl_lines, link_in, write_replacing
 
 FOLDER = ".judgekeeper"
-SKIPPED = "skipped"
 BLOCK = 10
 ROUGH = targets.ROUGH
 RELIABLE = targets.RELIABLE
 GITIGNORE = ("# judgekeeper's files hold your app's answers. Commit them only if your data "
-             "may live here.\n*\n!.gitignore\n!baseline.json\n!migrations/\n!migrations/*\n")
+             "may live here.\n*\n!.gitignore\n!judge.json\n!history.jsonl\n")
+OLD_GITIGNORE = ("# judgekeeper's files hold your app's answers. Commit them only if your data "
+                 "may live here.\n*\n!.gitignore\n!baseline.json\n!migrations/\n!migrations/*\n")
 LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
         "Remove it, then run judgekeeper start again.")
 SAVED_NOTE = ("Saved in {folder}/. It holds your answers' text: commit it only if your data "
@@ -120,11 +124,14 @@ class Workspace:
         self.start = self.dir / "start.json"
         self.pool = self.dir / "pool.jsonl"
         self.pool_judge = self.dir / "pool-judge.jsonl"
-        self.labels = self.dir / "labels.csv"
+        self.marks = self.dir / marks.FILE
+        self.labels = self.dir / "labels.csv"  # judgekeeper 0.2's marks: never read
         self.anchors = self.dir / "anchors.jsonl"
         self.result_json = self.dir / "result.json"
-        self.result_html = self.dir / "result.html"
+        self.report_html = self.dir / "report.html"
+        self.result_html = self.dir / "result.html"  # the result page's name before 1.0
         self.history = self.dir / "history"
+        self.history_jsonl = self.dir / "history.jsonl"
         self.review = self.dir / "review.json"
         self.judge_mistakes = self.dir / "judge-mistakes.csv"
         self.rule_unclear = self.dir / "rule-unclear.csv"
@@ -150,13 +157,22 @@ def refuse_links(ws: Workspace) -> None:
 
 def make_folder(ws: Workspace) -> None:
     """Make `ws.dir` (after `refuse_links`), with its .gitignore when a first check starts in
-    the project's own folder and it has none."""
+    the project's own folder and it has none. One holding exactly the text 0.2 wrote is
+    replaced; any other is left alone."""
     refuse_links(ws)
     ws.dir.mkdir(parents=True, exist_ok=True)
     gitignore = ws.dir / ".gitignore"
-    if (ws.dir == ws.root / FOLDER and not ws.start.is_file()
-            and not os.path.lexists(gitignore)):
+    if ws.dir != ws.root / FOLDER:
+        return
+    if not ws.start.is_file() and not os.path.lexists(gitignore):
         write_replacing(gitignore, GITIGNORE)
+    elif gitignore.is_file() and not gitignore.is_symlink():
+        try:
+            old = gitignore.read_bytes() == OLD_GITIGNORE.encode("utf-8")
+        except OSError:
+            old = False
+        if old:
+            write_replacing(gitignore, GITIGNORE)
 
 
 def _scrubbed(value):
@@ -226,11 +242,12 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     answers = {a.id: a for a in found.pool.answers}
     old = ws.data() if ws.start.is_file() else None
     groups = {a.id: a.verdict for a in found.pool.answers}
-    if old is not None and {q["id"]: q["group"] for q in old["queue"]} == groups:
+    same = old is not None and {q["id"]: q["group"] for q in old["queue"]} == groups
+    if same:
         seed, queue, started = old["seed"], old["queue"], old.get("started_at")
     else:
-        if ws.labels.is_file():
-            raise StartError(f"{FOLDER}/labels.csv holds labels for other results. Move "
+        if ws.marks.is_file() and marks.read(ws.marks).counted():
+            raise StartError(f"{FOLDER}/{marks.FILE} holds marks for other results. Move "
                              f"{FOLDER}/ somewhere else to start fresh; nothing was changed.")
         seed = secrets.randbelow(2**31)
         queue, started = build_queue(found.pool.answers, seed), None
@@ -283,9 +300,26 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "started_at": started or utc_now(),
         "updated_at": utc_now(),
     })
+    if not same or not ws.marks.is_file():
+        begin_marks(ws)
     if first:
         say(SAVED_NOTE.format(folder=shown_folder(ws)))
     return ws
+
+
+def judge_of(data: dict) -> dict:
+    """The judge as start.json keeps it, as marks.jsonl's header and history.jsonl say it."""
+    fp = data.get("fingerprint") or {}
+    return {"tool": data.get("tool"), "model": fp.get("model"),
+            "rule_hash": rule_hash(data.get("rule")), "pass_mark": data.get("pass_mark"),
+            "fingerprint": fp}
+
+
+def begin_marks(ws: Workspace) -> None:
+    """A new marks.jsonl, its header from start.json: marking starts."""
+    data = ws.data()
+    marks.begin(ws.marks, _scrubbed(marks.header(judge=judge_of(data), pool=data["pool"],
+                                                 results=data.get("results_files") or [])))
 
 
 # The session the page writes to ----------------------------------------------------------
@@ -353,9 +387,11 @@ def start_status(session: StartSession) -> dict:
 
 
 class StartSession(LabelSession):
-    """The pool in queue order and the person's labels. Skip is the label session's defer,
-    saved as the note "skipped". The page gets ids, text, the person's labels and the line
-    under the meters (`status`, by default start_status) only."""
+    """The pool in queue order and the person's marks. Skip is the label session's defer. Each
+    change is one stamped line in marks.jsonl (marks.py), with this session's `sitting` and
+    the `seconds` the page sends; a session made again reads the marks back. The page gets
+    ids, text, the person's labels and the line under the meters (`status`, by default
+    start_status) only."""
 
     def __init__(self, ws: Workspace, status=None):
         self.workspace = ws
@@ -363,24 +399,52 @@ class StartSession(LabelSession):
         self.groups = {q["id"]: q["group"] for q in data.get("queue", [])}
         self.pool = data.get("pool", {})
         self.status = status or start_status
-        super().__init__(ws.pool, ws.labels)
+        self.sitting = marks.new_sitting()
+        self.not_counted = 0  # lines of marks.jsonl not made on the page
+        super().__init__(ws.pool, ws.marks)
         raw = [json.loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
                if line.strip()]
         self.raw = {r["id"]: r for r in raw}
-        for item in self.items:
-            item["deferred"] = item["note"] == SKIPPED
 
     def _resume(self) -> None:
-        super()._resume()
-        for item in self.items:  # a skip is saved as its note
-            item["deferred"] = item["note"] == SKIPPED
+        """The marks on disk: the last stamped line of each answer."""
+        m = marks.read(self.out)
+        self.not_counted = m.not_counted
+        for item in self.items:
+            line = m.last.get(item["id"]) or {}
+            mark = line.get("mark")
+            item["label"] = mark if mark in ("pass", "fail") else None
+            item["deferred"] = mark == "skip"
+            item["note"] = line.get("note") or ""
 
-    def _apply(self, item: dict, body: dict) -> None:
-        super()._apply(item, body)
-        if item["deferred"]:
-            item["note"] = SKIPPED
-        elif item["note"] == SKIPPED:
-            item["note"] = ""
+    def _reread(self) -> None:
+        if self.out.is_file():
+            try:
+                self._resume()
+            except OSError:
+                pass
+
+    def update(self, body: dict) -> None:
+        """Apply one change ({"id", "label"?, "deferred"?, "note"?, "seconds"?}) and add its
+        stamped line. The marks on disk are read again first, so marks another page wrote are
+        kept."""
+        self._reread()
+        item = self.by_id[body["id"]]
+        before = dict(item)
+        try:
+            self._apply(item, body)
+            mark = item["label"] or ("skip" if item["deferred"] else None)
+            line = marks.stamp(item["id"], mark, self.groups.get(item["id"]),
+                               body.get("seconds"), self.sitting, note=body.get("note"))
+            if not self.out.is_file():
+                begin_marks(self.workspace)
+            marks.append(self.out, line)
+        except BaseException:
+            item.update(before)  # memory matches the file on disk
+            raise
+
+    def write(self) -> None:
+        raise NotImplementedError("marks.jsonl gets one line per change: use update()")
 
     def counts(self) -> dict:
         labels = [i["label"] for i in self.items]
@@ -631,7 +695,7 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
         lines += ["", "  Your new judge:"] + [f"  {line}" for line in _new_judge_lines(r)]
     lines += ["", "Next:"]
     lines += [f"  {text}  {command}" for text, command in _next(r)]
-    lines += ["", f"Saved in {saved}/ (result.html is the page you just saw)."]
+    lines += ["", f"Saved in {saved}/ (report.html is the page you just saw)."]
     return lines
 
 
@@ -690,8 +754,29 @@ def _pass_rate(r: dict) -> list[tuple[str, bool]] | None:
                     (f" should pass (probably between {_pct(lo)} and {_pct(hi)}).", False)]
 
 
-def page_content(r: dict) -> dict:
-    """The result page's text and numbers (start_page.result_page lays them out)."""
+def made_lines(made: dict | None) -> list[str]:
+    """How the marks were made (marks.made), and a note when more than a quarter took under a
+    second each, or when lines of marks.jsonl are not counted."""
+    if not made or not made["marks"]:
+        return []
+    n, quick = made["marks"], made["under_second"]
+    line = (f"Your marks: {n} ({made['pass']} Pass, {made['fail']} Fail), made on the page in "
+            f"{_plural(made['sittings'], 'sitting', 'sittings')}")
+    seconds = made.get("seconds")
+    if seconds is not None:
+        line += (", under a second each" if seconds == 0
+                 else f", about {_plural(seconds, 'second', 'seconds')} each")
+    out = [line + "."]
+    if quick and quick * 4 > n:
+        out.append(f"{quick} of your marks took under a second each. A result is only as good "
+                   "as the marks.")
+    not_counted = marks.not_counted_line(made.get("not_counted") or 0)
+    return out + ([not_counted] if not_counted else [])
+
+
+def page_content(r: dict, marking: str | None = None) -> dict:
+    """The result page's text and numbers (start_page.result_page lays them out). `marking`:
+    for the page `judgekeeper mark` serves, its command; the one next step is marking more."""
     labels = r["labels"]
     n = labels["correct"] + labels["wrong"]
     kind = [f"From the {_plural(n, 'answer', 'answers')} you marked: {marks_words(labels)}"
@@ -760,6 +845,12 @@ def page_content(r: dict) -> dict:
     if not (needed and all_labeled(r)):  # else the first step already says it
         steps.append({"title": "Check again after your next eval run", "text": "",
                       "command": command_of(r), "link": None, "button": None})
+    if marking:
+        steps = [{"title": "Mark more answers", "text": ALL_LABELED, "command": marking,
+                  "link": None, "button": None} if all_labeled(r) else
+                 {"title": "Mark more answers", "text": needed or "Marking more answers "
+                  "narrows the ranges.", "command": marking, "link": "/",
+                  "button": "Mark more answers"}]
     review = None
     if r.get("review"):
         review = {"title": "Where you disagree", "lines": _review_lines(r),
@@ -787,6 +878,9 @@ def page_content(r: dict) -> dict:
         "sentences": sentences(r),
         "statements": statements(r),
         "verdict": {"colour": colour, "icon": icon, "text": r["verdict"], "detail": _detail(r)},
+        "made": made_lines(r.get("made")),
+        "drop": targets.drop_line(r.get("smallest_drop")),
+        "drop_model": targets.DROP_MODEL if r.get("smallest_drop") is not None else None,
         "tiles": [tile("TPR", "When you said Pass", r["tpr"], r["tpr_interval"],
                        f"{labels['correct']} marked Pass so far"),
                   tile("TNR", "When you said Fail", r["tnr"], r["tnr_interval"],
@@ -811,8 +905,8 @@ def page_content(r: dict) -> dict:
     }
 
 
-def result_html(r: dict, back: str | None = None) -> str:
-    return result_page(page_content(r), back)
+def result_html(r: dict, back: str | None = None, marking: str | None = None) -> str:
+    return result_page(page_content(r, marking), back)
 
 
 def page_template(about: dict | None = None, command: str = "judgekeeper start") -> str:
@@ -842,6 +936,8 @@ def compute(ws: Workspace, session: StartSession) -> dict:
                     "results_date": data.get("results_date")})
     if data.get("judge_check"):
         r["judge_check"] = data["judge_check"]
+    r["made"] = marks.made(marks.read(ws.marks), ids=set(session.by_id))
+    r["smallest_drop"] = targets.smallest_drop(r["labels"]["correct"], r["labels"]["wrong"])
     return r
 
 
@@ -866,17 +962,41 @@ def _same_result(ws: Workspace, digest: str) -> dict | None:
 
 def save_result(ws: Workspace, session: StartSession, say,
                 command: str = "judgekeeper start") -> dict:
-    """Make a result from the labels so far: anchors, result.json and result.html (the last
-    result moves to history/), and say it in the terminal. `command` (start.Talk.command) is
-    kept in it: every next command it shows starts with it. With no new marks since the saved
-    result, that result stays as it is (with its review, fix and asking again) and is said
-    again: a new one would move the finished review and fix to history/."""
+    """store_result, then say the result in the terminal."""
+    r = store_result(ws, session, command)
+    say("")
+    for line in result_lines(r, shown_folder(ws)):
+        say(line)
+    return r
+
+
+def history_line(ws: Workspace, r: dict) -> dict:
+    """The line history.jsonl gets for a new result: the judge as marks.jsonl's header keeps
+    it, the counts and the numbers. No answer text, no ids."""
+    head = marks.read(ws.marks).header or {}
+
+    def rate(key):
+        lo, hi = r.get(f"{key}_interval") or (None, None)
+        return {"value": r[key], "low": lo, "high": hi}
+
+    labels = r["labels"]
+    return {"time": r["made_at"], "kind": "result", "judge": head.get("judge"),
+            "marks": labels["correct"] + labels["wrong"], "pass": labels["correct"],
+            "fail": labels["wrong"], "marks_hash": r["marks_sha256"], "tpr": rate("tpr"),
+            "tnr": rate("tnr"), "kappa": r["kappa"], "smallest_drop": r.get("smallest_drop")}
+
+
+def store_result(ws: Workspace, session: StartSession,
+                 command: str = "judgekeeper start") -> dict:
+    """Make a result from the marks so far: anchors, result.json and report.html (the last
+    result moves to history/; a result.html from before goes), and a line in history.jsonl.
+    `command` (start.Talk.command) is kept in it: every next command it shows starts with it.
+    With no new marks since the saved result, that result stays as it is (with its review,
+    fix and asking again), and history.jsonl gets no line: a new one would move the finished
+    review and fix to history/."""
     digest = marks_digest(ws, session)
     same = _same_result(ws, digest)
     if same is not None:
-        say("")
-        for line in result_lines(same, shown_folder(ws)):
-            say(line)
         return same
     r = compute(ws, session)
     r["command"] = command
@@ -901,10 +1021,10 @@ def save_result(ws: Workspace, session: StartSession, say,
             n += 1
         ws.result_json.replace(target)
     _write_json(ws.result_json, r)
-    write_replacing(ws.result_html, result_html(_scrubbed(r)))
-    say("")
-    for line in result_lines(r, shown_folder(ws)):
-        say(line)
+    write_replacing(ws.report_html, result_html(_scrubbed(r)))
+    if ws.result_html.is_file() and not ws.result_html.is_symlink():
+        ws.result_html.unlink()
+    marks.append(ws.history_jsonl, _scrubbed(history_line(ws, r)))
     return r
 
 

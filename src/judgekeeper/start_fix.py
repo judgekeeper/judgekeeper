@@ -706,7 +706,7 @@ class Fix:
         self._sync_result()
 
     def _sync_result(self) -> None:
-        """Put the fix block (counts and tests) in result.json and redraw result.html. The
+        """Put the fix block (counts and tests) in result.json and redraw report.html. The
         main result does not change."""
         from judgekeeper.start_label import _scrubbed, result_html
 
@@ -715,7 +715,7 @@ class Fix:
         r["fix"] = {"counts": self.counts(), "used": len(self.used_ids),
                     "aside": len(self.aside_ids), "tests": self.saved["tests"]}
         _write_json(ws.result_json, r)
-        write_replacing(ws.result_html, result_html(_scrubbed(r)))
+        write_replacing(ws.report_html, result_html(_scrubbed(r)))
 
     def _old_decisions(self) -> dict[str, str]:
         """The old judge's decisions asked again, when that was done for this result: from

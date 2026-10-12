@@ -8,7 +8,7 @@ the first step of the review hold nothing the judge said; the fix page holds onl
 judgekeeper used, never those set aside.
 
 The result page runs no script and loads nothing, so the copy saved as
-`.judgekeeper/result.html` opens with no server. Every string in it is escaped.
+`.judgekeeper/report.html` opens with no server. Every string in it is escaped.
 """
 
 from __future__ import annotations
@@ -373,6 +373,7 @@ LABEL_BODY = """<div class="app">
   var TOKEN = "__TOKEN__", MAX_DOTS = 60;
   var data = JSON.parse(document.getElementById("data").textContent);
   var items = data.items, counts = data.counts, pos = data.start, busy = false, history = [];
+  var shownAt = Date.now();  // when the answer on screen was shown: each mark sends its seconds
   var status = data.status;  // the line in the right column, from the server
   var ended = false;         // nothing left to mark: the page shows what comes next
   var walkingSkipped = false;  // "Look at them": going through the skipped answers
@@ -493,6 +494,7 @@ LABEL_BODY = """<div class="app">
     stack.appendChild(c); bindDrag(c);
     renderHeader();
     busy = false; $("pass").disabled = false; $("fail").disabled = false;
+    shownAt = Date.now();
   }
 
   function open(index) { ended = false; pos = index; render(); }
@@ -553,6 +555,7 @@ LABEL_BODY = """<div class="app">
     if (busy) { return false; }
     busy = true; $("pass").disabled = true; $("fail").disabled = true;
     change.id = items[pos].id;
+    change.seconds = Math.max(0, (Date.now() - shownAt) / 1000);
     fetch(url("/label"), {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify(change)
@@ -945,16 +948,22 @@ def result_page(content: dict, back: str | None = None) -> str:
         f"<b>{escape(text)}</b>" if bold else escape(text)
         for text, bold in content["pass_rate"]) + "</p>")
     corrected = f'<p>{escape(content["corrected"])}</p>' if content["corrected"] else ""
-    facts = f'<div class="facts">{rate}{corrected}</div>' if rate or corrected else ""
+    model = content.get("drop_model")
+    model = f"<p>{escape(model)}</p>" if model else ""
+    facts = (f'<div class="facts">{rate}{corrected}{model}</div>' if rate or corrected or model
+             else "")
+    made = "".join(f'<p class="small">{escape(x)}</p>'
+                   for x in [*content.get("made", []), content.get("drop")] if x)
     statements = content.get("statements") or [
         {"text": s, "rate": None, "side": None, "pct": None} for s in content["sentences"]]
     left = [
         f'<h1 class="h1">Your result</h1><p class="small kind">{escape(content["kind"])}</p>',
         "".join(_statement(s) for s in statements),
         _verdict(content["verdict"]),
+        made,
         f'<div class="h2">What next</div><ul class="next-list">{steps}</ul>',
         (f'<p class="small">Saved in <code>{escape(content["folder"])}</code> in your project. '
-         'This page is <code>result.html</code> there.</p>'),
+         'This page is <code>report.html</code> there.</p>'),
     ]
     right = [
         _card(content.get("judge_check")),
@@ -978,7 +987,7 @@ def result_page(content: dict, back: str | None = None) -> str:
 {_fades(left)}
 </div>
 <div class="col">
-{_fades(right, start=len(left))}
+{_fades(right, start=len([b for b in left if b]))}
 </div>
 </main>
 </div>

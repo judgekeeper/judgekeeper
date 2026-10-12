@@ -236,7 +236,7 @@ def finish(ws: Workspace, view: View, plan, fresh, new: NewJudge) -> dict:
 
 
 def save(ws: Workspace, block: dict) -> None:
-    """Put the block in result.json (an earlier one to history/) and redraw result.html."""
+    """Put the block in result.json (an earlier one to history/) and redraw report.html."""
     from judgekeeper.start_label import _scrubbed, _write_json, result_html
 
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
@@ -247,7 +247,7 @@ def save(ws: Workspace, block: dict) -> None:
         _write_json(target, old)
     r["new_judge"] = block
     _write_json(ws.result_json, r)
-    write_replacing(ws.result_html, result_html(_scrubbed(r)))
+    write_replacing(ws.report_html, result_html(_scrubbed(r)))
 
 
 def _share(value, interval) -> str:
@@ -396,7 +396,7 @@ def finish_confirmation(ws: Workspace, cws: Workspace, session, say) -> dict:
     _write_json(ws.root / block["folder"] / "new-judge.json", block)
     save(ws, block)
     main["new_judge"] = block
-    write_replacing(cws.result_html, result_html(_scrubbed(main)))
+    write_replacing(cws.report_html, result_html(_scrubbed(main)))
     say("")
     for line in confirmation_lines(confirmation):
         say(line)
