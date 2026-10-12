@@ -727,8 +727,10 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         then prints the result; `--stop` closes the page. For a file in your own format the
         first run maps it (answers given by --yes) and goes on: it is the first look."""
         decisions = rf"Your judge passed {len(JUDGE_PASSES)} and failed {N - len(JUDGE_PASSES)}\."
+        # Started by uvx, every Next: line names `uvx judgekeeper@<version>`.
+        uvx = [r"Next: .*`uvx judgekeeper@"] if self.via == "uvx" else []
         expect = [rf"Your judge: .*{re.escape(JUDGE_NAME[self.tool])}", decisions,
-                  r"Marking page: http://127\.0\.0\.1:", r"Marked so far: 0\."]
+                  r"Marking page: http://127\.0\.0\.1:", r"Marked so far: 0\.", *uvx]
         if self.tool == "own-format":
             p = self.mark_step("1. judgekeeper maps the file (answers given by --yes, no "
                                "terminal): the first look, and the page in the background",
@@ -749,7 +751,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
                        [r"Your marks: 40 \(25 Pass, 15 Fail\), made on the page",
                         r"Of the answers you passed, your judge passed",
                         r"Of the answers you failed, your judge failed",
-                        r"This set can see a drop of", r"still open"])
+                        r"This set can see a drop of", r"still open", *uvx])
         self.mark_step("2. judgekeeper --stop closes the page", [*self.jk, "--stop"],
                        [r"Closed the marking page"])
 

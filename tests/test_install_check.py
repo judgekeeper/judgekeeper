@@ -230,6 +230,7 @@ def _walk(ic, monkeypatch, tool, project=None, jk=None):
     page calls, and the steps."""
     check = object.__new__(ic.Check)
     check.tool, check.jk, check.port, check.steps = tool, jk or ["jk"], "5", []
+    check.via = "uvx" if jk else "venv"
     check.project = project
     ran, posted = [], []
 
@@ -299,3 +300,11 @@ def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch):
     assert commands[:3] == [["--no-browser", "--port", "5"], ["--no-browser", "--port", "5"],
                             ["--stop"]]
     assert commands[3][:1] == ["start"]
+    first, result = " ".join(ran[0][1]), " ".join(ran[1][1])
+    assert "Next: .*`uvx judgekeeper@" in first and "Next: .*`uvx judgekeeper@" in result
+
+
+def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch):
+    ran, _, _ = _walk(ic, monkeypatch, "table")
+    assert not [e for _, expect in ran for e in expect if "uvx" in e]
+
