@@ -1,0 +1,580 @@
+"""`judgekeeper` with no command: find the eval tool, the results, the judge and its rule, run
+the free checks, write .judgekeeper/judge.json, and end with exactly one `Next:` line.
+
+A person and a coding agent both read the output, so it never holds an answer's text. At a
+terminal a question is asked inline; without one it is printed in plain words with a `Next:`
+line that names the flag answering it, and the exit code is 3.
+"""
+
+from __future__ import annotations
+
+import builtins
+import json
+import re
+import shlex
+import tomllib
+
+import pytest
+
+from judgekeeper import __version__, front, start
+from judgekeeper.cli import main
+from judgekeeper.textio import quote_arg
+from tests.start_projects import (
+    deepeval_project,
+    flat_jsonl,
+    inspect_project,
+    nested_runs_project,
+    own_format_project,
+    promptfoo_data,
+    promptfoo_project,
+    records_project,
+    split,
+    table_project,
+)
+
+TAG = " SECRET-7f3a"  # put into every question and answer, so a leak shows
+
+
+@pytest.fixture
+def here(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+@pytest.fixture
+def terminal(monkeypatch):
+    """A person at a terminal: `answers` are typed in order; `asked` keeps every prompt."""
+    answers: list[str] = []
+    asked: list[str] = []
+    monkeypatch.setattr(start, "_interactive", lambda: True)
+
+    def fake_input(prompt=""):
+        asked.append(prompt)
+        print(prompt)
+        if not answers:
+            raise AssertionError(f"an unexpected question: {prompt!r}")
+        return answers.pop(0)
+
+    monkeypatch.setattr(builtins, "input", fake_input)
+    return answers, asked
+
+
+def run(capsys, *argv):
+    code = main([str(a) for a in argv])
+    out, err = capsys.readouterr()
+    return code, out, err
+
+
+def next_lines(out: str) -> list[str]:
+    return [line for line in out.splitlines() if line.startswith("Next:")]
+
+
+def assert_one_next_at_the_end(out: str) -> str:
+    """Exactly one Next: line, and it is the last line said."""
+    lines = [line for line in out.splitlines() if line.strip()]
+    assert len(next_lines(out)) == 1, out
+    assert lines[-1].startswith("Next:"), out
+    return lines[-1]
+
+
+START = "Next: run `judgekeeper start` and mark each answer Pass or Fail on the page it opens."
+
+
+# One test per eval tool -----------------------------------------------------------------
+
+def test_promptfoo(here, capsys):
+    promptfoo_project(here, split(20, 16))
+    code, out, err = run(capsys)
+    assert code == 0, out + err
+    assert out.splitlines()[:2] == [f"judgekeeper {__version__}", ""]
+    assert "Found your eval tool: promptfoo (results.json, 36 answers)" in out
+    assert ('Your judge: openai:gpt-4.1-mini, rule "Is polite and correct. Second line of the '
+            'rubric."') in out
+    assert "Your judge passed 20 and failed 16." in out
+    assert "Checked first (no AI call):\n  Your judge made a real decision on every answer." \
+        in out
+    assert assert_one_next_at_the_end(out) == START
+    assert err == ""
+
+
+def test_deepeval(here, capsys):
+    deepeval_project(here, split(18, 17))
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert "Found your eval tool: DeepEval (.deepeval/.latest_run_full.json, 35 answers)" in out
+    assert "Your judge: gpt-4.1, rule " in out
+    assert "Your judge passed 18 and failed 17." in out
+    assert assert_one_next_at_the_end(out) == START
+
+
+def test_inspect(here, capsys):
+    inspect_project(here, split(16, 16))
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert "Found your eval tool: Inspect AI (logs/2026-10-02_support.json, 32 answers)" in out
+    assert "Your judge passed 16 and failed 16." in out
+    assert assert_one_next_at_the_end(out) == START
+
+
+def test_a_table_says_which_columns_were_read(here, capsys):
+    table_project(here, split(15, 15), model="claude-haiku-4-5")
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert "Found your results: a table (results.csv, 30 answers)" in out
+    assert "Read the columns input, output, verdict and model." in out
+    assert "Your judge: claude-haiku-4-5, its rule is not in the results" in out
+    assert "The first 3 rows" not in out
+    assert assert_one_next_at_the_end(out) == START
+
+
+def test_records(here, capsys):
+    records_project(here, split(16, 16))
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert ("Found your results: judgekeeper.record() (.judgekeeper/records/, 1 file, "
+            "32 answers)") in out
+    assert 'Your judge: claude-opus-5, rule "Be polite."' in out
+    assert assert_one_next_at_the_end(out) == START
+
+
+def test_own_format_with_yes_saves_the_map_and_reads_it(here, capsys):
+    flat_jsonl(here / "evals" / "graded.jsonl")
+    code, out, _ = run(capsys, "--yes")
+    assert code == 0, out
+    assert "Found your results: your own format (evals/graded.jsonl, 36 answers)" in out
+    assert "  input:           question" in out  # which parts were read: paths only
+    assert "Saved judgekeeper.toml" in out
+    saved = tomllib.loads((here / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
+    assert saved["source"] == "map" and saved["file"] == "evals/graded.jsonl"
+    assert assert_one_next_at_the_end(out) == START
+
+
+def test_a_path_is_repeated_in_the_next_line(tmp_path, capsys):
+    promptfoo_project(tmp_path / "proj", split(20, 16))
+    code, out, _ = run(capsys, tmp_path / "proj")
+    assert code == 0
+    assert assert_one_next_at_the_end(out) == (
+        f"Next: run `judgekeeper start {quote_arg(tmp_path / 'proj')}` and mark each answer "
+        "Pass or Fail on the page it opens.")
+
+
+def test_a_long_rule_is_one_line_cut_at_200(here, capsys):
+    rule = "Be kind. " * 60
+    promptfoo_project(here, split(20, 16), rubric=rule)
+    _, out, _ = run(capsys)
+    line = next(x for x in out.splitlines() if x.startswith("Your judge: "))
+    quoted = line[line.index('"') + 1:line.rindex('"')]
+    assert len(quoted) <= 200 and quoted.endswith("…")
+
+
+# The free checks ------------------------------------------------------------------------
+
+def test_answers_with_no_real_verdict_are_left_out_and_listed(here, capsys):
+    promptfoo_project(here, [*split(18, 16), None, None, None])
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert "Found your eval tool: promptfoo (results.json, 37 answers)" in out
+    assert "Your judge passed 18 and failed 16." in out
+    block = out[out.index("Checked first (no AI call):"):out.index("Next:")]
+    assert "Your judge made no real decision on 3 of 37 answers" in block
+    assert "left out" in block
+    assert "List: .judgekeeper/judge-check.csv" in block
+    rows = (here / ".judgekeeper" / "judge-check.csv").read_text(encoding="utf-8").splitlines()
+    assert len(rows) == 1 + 3
+
+
+def test_judge_json_has_every_field(here, capsys):
+    promptfoo_project(here, split(20, 16))
+    run(capsys)
+    data = json.loads((here / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
+    assert data["tool"] == "promptfoo"
+    assert "tool_version" in data
+    assert data["results"] == ["results.json"]
+    assert data["judge"] and data["model"] == "openai:gpt-4.1-mini"
+    assert data["rule_hash"].startswith("sha256:")
+    assert "pass_mark" in data
+    assert data["judgekeeper_version"] == __version__
+    assert data["created_at"].endswith("Z")
+    assert data["fingerprint"]["model"] == "openai:gpt-4.1-mini"
+
+
+def test_the_rule_hash_follows_the_rule(here, capsys):
+    promptfoo_project(here, split(20, 16), rubric="Be polite.")
+    run(capsys)
+    first = json.loads((here / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
+    promptfoo_project(here, split(20, 16), rubric="Be polite and short.")
+    run(capsys)
+    second = json.loads((here / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
+    assert first["rule_hash"] != second["rule_hash"]
+
+
+def test_the_tool_version_is_read_when_the_results_say_it(here, capsys):
+    data = promptfoo_data(split(20, 16))
+    data["metadata"]["promptfooVersion"] = "0.123.1"
+    (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
+    run(capsys)
+    saved = json.loads((here / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
+    assert saved["tool_version"] == "0.123.1"
+
+
+def test_too_few_answers_needs_the_person(here, capsys):
+    promptfoo_project(here, split(6, 4))
+    code, out, _ = run(capsys)
+    assert code == 3
+    assert "You have 10 answers" in out
+    line = assert_one_next_at_the_end(out)
+    assert "judgekeeper start --yes" in line
+
+
+# No answer text, ever ----------------------------------------------------------------------
+
+MAKERS = {
+    "promptfoo": lambda root: promptfoo_project(root, [*split(18, 16), None], tag=TAG),
+    "deepeval": lambda root: deepeval_project(root, split(18, 17), tag=TAG),
+    "inspect": lambda root: inspect_project(root, [*split(16, 16), "P"], tag=TAG),
+    "table": lambda root: table_project(root, [*split(15, 15), "maybe"], tag=TAG),
+    "records": lambda root: records_project(root, split(16, 16), tag=TAG),
+    "few": lambda root: promptfoo_project(root, split(3, 3), tag=TAG),
+}
+
+
+@pytest.mark.parametrize("tool", MAKERS)
+def test_no_answer_text_in_the_output(here, capsys, tool):
+    MAKERS[tool](here)
+    _, out, err = run(capsys)
+    assert "SECRET-7f3a" not in out + err
+    assert "Question 1?" not in out + err and "Answer 1." not in out + err
+
+
+def test_no_answer_text_from_an_own_format_file(here, capsys):
+    nested_runs_project(here, rule_rows=0)
+    _, out, err = run(capsys, "--yes", "--metric", "Safe wording")
+    assert "Question " not in out + err and "Answer " not in out + err
+
+
+def test_empty_answers_passed_are_counted_without_their_text(here, capsys):
+    promptfoo_project(here, split(18, 16), outputs=["", *[f"text{i}{TAG}" for i in range(33)]])
+    code, out, _ = run(capsys)
+    assert code == 0
+    assert "Your judge passed 1 empty answer." in out
+    assert "SECRET-7f3a" not in out
+
+
+# Questions without a terminal: plain question, a Next: line with the flag, exit 3 ------------
+
+def test_several_tools(here, capsys):
+    promptfoo_project(here, split(20, 16))
+    records_project(here, split(16, 16))
+    code, out, _ = run(capsys)
+    assert code == 3
+    assert "Saved results from more than one eval tool:" in out
+    assert assert_one_next_at_the_end(out) == (
+        "Next: ask the person which eval tool's results to check (records, promptfoo), then "
+        "run `judgekeeper --tool NAME`.")
+    assert not (here / ".judgekeeper" / "judge.json").exists()
+    code, out, _ = run(capsys, "--tool", "promptfoo")
+    assert code == 0
+    assert assert_one_next_at_the_end(out) == (
+        "Next: run `judgekeeper start --tool promptfoo` and mark each answer Pass or Fail on "
+        "the page it opens.")
+
+
+def test_several_judges(here, capsys):
+    records_project(here, split(16, 16), name="helpfulness")
+    records_project(here, split(16, 16), name="safety", pid=4102)
+    code, out, _ = run(capsys)
+    assert code == 3
+    assert assert_one_next_at_the_end(out) == (
+        "Next: ask the person which judge to check (helpfulness, safety), then run "
+        "`judgekeeper --metric NAME`.")
+    code, out, _ = run(capsys, "--metric", "safety")
+    assert code == 0, out
+    assert "Your judge: safety, claude-opus-5" in out
+
+
+def test_a_judge_name_with_spaces_is_quoted(here, capsys):
+    records_project(here, split(16, 16), name="Safe wording")
+    records_project(here, split(16, 16), name="Plain language", pid=4102)
+    code, out, _ = run(capsys)
+    assert code == 3
+    assert "(\"Plain language\", \"Safe wording\")" in next_lines(out)[0] or \
+        "('Plain language', 'Safe wording')" in next_lines(out)[0]
+
+
+def test_scores_need_a_pass_mark(here, capsys):
+    table_project(here, ["0.9"] * 16 + ["0.2"] * 16)
+    code, out, _ = run(capsys)
+    assert code == 3
+    assert "scores" in out
+    line = assert_one_next_at_the_end(out)
+    assert line.startswith("Next: ask the person which score counts as a pass")
+    assert "`judgekeeper --pass-if \"score>=N\"`" in line
+    code, out, _ = run(capsys, "--pass-if", "score>=0.5")
+    assert code == 0, out
+    assert "Your judge passed 16 and failed 16." in out
+    assert "Pass mark: score 0.5 or more" in out
+
+
+def test_words_need_a_label_map(here, capsys):
+    table_project(here, ["good"] * 16 + ["bad"] * 16)
+    code, out, _ = run(capsys)
+    assert code == 3
+    line = assert_one_next_at_the_end(out)
+    assert "which of these mean Pass and which mean Fail (bad, good)" in line
+    assert "--label-map" in line
+    code, out, _ = run(capsys, "--label-map", "good=pass,bad=fail")
+    assert code == 0, out
+
+
+def test_inspect_partial_credit(here, capsys):
+    inspect_project(here, [*split(16, 16), "P", "P"])
+    code, out, _ = run(capsys)
+    assert code == 3
+    line = assert_one_next_at_the_end(out)
+    assert "partial credit" in out and "--label-map P=pass" in line
+    code, _, _ = run(capsys, "--label-map", "P=fail")
+    assert code == 0
+
+
+def test_an_own_format_needs_the_persons_yes_before_judgekeeper_toml(here, capsys):
+    flat_jsonl(here / "evals" / "graded.jsonl")
+    code, out, _ = run(capsys)
+    assert code == 3
+    assert not (here / "judgekeeper.toml").exists()
+    assert "  1. Save how to read evals/graded.jsonl in judgekeeper.toml?" in out
+    assert "`judgekeeper --yes`" in assert_one_next_at_the_end(out)
+    code, out, _ = run(capsys, "--yes")
+    assert code == 0 and (here / "judgekeeper.toml").is_file()
+
+
+def test_own_format_questions_take_their_flag(here, capsys):
+    nested_runs_project(here, rule_rows=0)  # two answers per case, two judges
+    code, out, _ = run(capsys)
+    assert code == 3
+    line = assert_one_next_at_the_end(out)
+    assert "which judge to check" in line and "`judgekeeper --metric NAME`" in line
+    code, out, _ = run(capsys, "--metric", "Safe wording")
+    assert code == 3
+    assert f"`judgekeeper --metric {quote_arg('Safe wording')} --yes`" in \
+        assert_one_next_at_the_end(out)
+    code, out, _ = run(capsys, "--metric", "Safe wording", "--yes")
+    assert code == 0, out
+    saved = tomllib.loads((here / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
+    assert saved["judge"] == "Safe wording" and saved["map"]["sides"] == ["A", "B"]
+
+
+@pytest.fixture
+def confirmed(monkeypatch):
+    """Every yes/no question `judgekeeper` asks, in order."""
+    asked: list[str] = []
+    real = front.FrontTalk.confirm
+
+    def spy(self, question, *args, **kwargs):
+        asked.append(question)
+        return real(self, question, *args, **kwargs)
+
+    monkeypatch.setattr(front.FrontTalk, "confirm", spy)
+    return asked
+
+
+def files(root) -> dict:
+    return {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+
+
+@pytest.mark.parametrize("make", [
+    lambda root: nested_runs_project(root),
+    lambda root: own_format_project(root, cases=40),
+    lambda root: promptfoo_project(root, split(20, 16), description="another bot")])
+def test_following_each_next_line_shows_every_question_before_yes(here, capsys, confirmed,
+                                                                   make):
+    """--yes answers only the questions printed in the last run, and a run that ends with
+    questions writes nothing."""
+    make(here)
+    argv: list[str] = []
+    out, answered = "", 0
+    for _ in range(6):
+        shown, before = out, files(here)
+        confirmed.clear()
+        code, out, _ = run(capsys, *argv)
+        if "--yes" in argv:
+            for question in confirmed:
+                assert question in shown, question
+            answered += len(confirmed)
+        line = assert_one_next_at_the_end(out)
+        if code == 0:
+            break
+        assert code == 3, out
+        assert files(here) == before, out
+        command = re.search(r"`(judgekeeper [^`]*)`", line)[1]
+        argv = ["Safe wording" if a == "NAME" else a for a in shlex.split(command)[1:]]
+    assert code == 0 and answered, out
+    assert line == START
+
+
+def test_the_questions_are_listed_together_after_the_checks(here, capsys):
+    nested_runs_project(here)
+    code, out, _ = run(capsys, "--metric", "Safe wording")
+    assert code == 3
+    assert "Found your results: your own format (history/evals.jsonl, 3 lines, 42 answers)" \
+        in out  # the counts the questions lead to
+    listed = out[out.index(front.QUESTIONS):]
+    assert out.index("Checked first") < out.index(front.QUESTIONS)
+    assert "  1. Each item has 2 answers (A and B). Count each as its own answer?" in listed
+    assert "  2. 6 answers have an error or a score made by a rule" in listed
+    assert "  3. Save how to read history/evals.jsonl in judgekeeper.toml?" in listed
+    command = f"judgekeeper --metric {quote_arg('Safe wording')}"
+    assert assert_one_next_at_the_end(out) == (
+        f"Next: ask the person these 3 questions. If they say yes to all, run `{command} "
+        f"--yes`. If they say no to any, ask them to run `{command}` in a terminal.")
+    assert not (here / ".judgekeeper").exists() and not (here / "judgekeeper.toml").exists()
+
+
+@pytest.mark.parametrize("make", [
+    lambda root: nested_runs_project(root),  # which judge
+    lambda root: (promptfoo_project(root, split(20, 16)),  # which tool
+                  records_project(root, split(16, 16))),
+    lambda root: table_project(root, ["0.9"] * 16 + ["0.2"] * 16)])  # which pass mark
+def test_a_choice_question_never_carries_yes(here, capsys, make):
+    make(here)
+    code, out, _ = run(capsys, "--yes")
+    assert code == 3
+    line = assert_one_next_at_the_end(out)
+    assert "`judgekeeper " in line and "--yes" not in line
+
+
+def test_promptfoo_results_from_another_project(here, capsys):
+    promptfoo_project(here, split(20, 16), description="another bot")
+    code, out, _ = run(capsys)
+    assert code == 3
+    assert "looks like it is from another project" in out
+    assert "`judgekeeper --yes`" in assert_one_next_at_the_end(out)
+    code, _, _ = run(capsys, "--yes")
+    assert code == 0
+
+
+# At a terminal: the same questions, asked inline ------------------------------------------
+
+def test_at_a_terminal_the_tool_is_asked_and_saved_after_yes(here, capsys, terminal):
+    answers, asked = terminal
+    promptfoo_project(here, split(20, 16))
+    records_project(here, split(16, 16))
+    answers += ["2", ""]  # promptfoo; save? yes
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert "Saved results from more than one eval tool:" in out
+    assert "judgekeeper.toml" in asked[-1]
+    saved = tomllib.loads((here / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
+    assert saved["source"] == "promptfoo"
+    assert next_lines(out) == [START]
+    code, out, _ = run(capsys)  # asked once: now read from judgekeeper.toml
+    assert code == 0 and "Found your eval tool: promptfoo" in out
+
+
+def test_at_a_terminal_no_keeps_judgekeeper_toml_away(here, capsys, terminal):
+    answers, _ = terminal
+    records_project(here, split(16, 16), name="helpfulness")
+    records_project(here, split(16, 16), name="safety", pid=4102)
+    answers += ["2", "n"]
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert not (here / "judgekeeper.toml").exists()
+    assert assert_one_next_at_the_end(out) == (
+        "Next: run `judgekeeper start --metric safety` and mark each answer Pass or Fail on "
+        "the page it opens.")
+
+
+def test_at_a_terminal_the_pass_mark_is_asked(here, capsys, terminal):
+    answers, asked = terminal
+    table_project(here, ["0.9"] * 16 + ["0.2"] * 16)
+    answers += ["0.5"]
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert "Pass when the score is at least" in asked[0]
+    assert "--pass-if" in next_lines(out)[0]
+
+
+def test_at_a_terminal_an_own_format_is_mapped_and_saved(here, capsys, terminal):
+    answers, asked = terminal
+    nested_runs_project(here, rule_rows=1)
+    answers += ["", "", "1", "", ""]  # right; each its own; Safe wording; rules out; save
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert "Is this right?" in asked[0]
+    assert "judgekeeper.toml" in asked[-1]
+    saved = tomllib.loads((here / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
+    assert saved["judge"] == "Safe wording" and saved["map"]["leave_out"] is True
+    assert "Question " not in out and "Answer " not in out
+    assert next_lines(out) == [START]
+
+
+# Nothing found, and the MLflow leftovers --------------------------------------------------
+
+def test_nothing_found_says_where_it_looked(here, capsys):
+    code, out, _ = run(capsys)
+    assert code == 3
+    assert f"No saved eval results found in {here}" in out
+    assert assert_one_next_at_the_end(out) == (
+        "Next: run your evals once, then run `judgekeeper` again.")
+
+
+def test_nothing_found_names_the_eval_tool_in_the_project(here, capsys):
+    (here / "requirements.txt").write_text("deepeval\n", encoding="utf-8")
+    code, out, _ = run(capsys)
+    assert code == 3
+    line = assert_one_next_at_the_end(out)
+    assert "DeepEval" in line and "`judgekeeper`" in line
+
+
+def test_promptfoo_config_without_results_points_at_the_export(here, capsys):
+    (here / "promptfooconfig.yaml").write_text("description: x\n", encoding="utf-8")
+    code, out, _ = run(capsys)
+    assert code == 3
+    line = assert_one_next_at_the_end(out)
+    assert "promptfoo export eval latest -o promptfoo-results.json" in line
+
+
+def test_a_tracking_server_says_what_works_instead(here, capsys):
+    code, out, _ = run(capsys, "--tracking-uri", "http://127.0.0.1:5000")
+    assert code == 3
+    assert "tracking server" in out
+    assert "mlflow.db" in out and "mlruns/" in out
+    line = assert_one_next_at_the_end(out)
+    assert "--tracking-uri" in line
+
+
+def test_a_tracking_server_points_at_a_local_store_when_there_is_one(here, capsys):
+    (here / "mlflow.db").write_bytes(b"")
+    code, out, _ = run(capsys, "--tracking-uri", "https://mlflow.example.com")
+    assert code == 3
+    assert "`judgekeeper mlflow.db`" in assert_one_next_at_the_end(out)
+
+
+# Usage --------------------------------------------------------------------------------------
+
+def test_a_missing_path_is_a_usage_error(here, capsys):
+    code, _, err = run(capsys, here / "nope")
+    assert code == 2 and "not found" in err
+
+
+def test_a_wrong_tool_name_is_a_usage_error(here, capsys):
+    code, _, _ = run(capsys, "--tool", "nope")
+    assert code == 2
+
+
+def test_the_question_exit_code_is_3():
+    assert front.EXIT_NEEDS_YOU == 3
+
+
+def test_setup_is_removed(here, capsys):
+    code, out, err = run(capsys, "setup")
+    assert code == 2 and out == ""
+    assert err == "judgekeeper setup was removed. Run judgekeeper in your project.\n"
+
+
+def test_help_lists_the_flags_and_start(capsys):
+    code, out, _ = run(capsys, "--help")
+    assert code == 0
+    for flag in ("--tool", "--metric", "--experiment", "--tracking-uri", "--pass-if",
+                 "--label-map", "--judge-model", "--fields", "--yes"):
+        assert flag in out
+    assert "start" in out and "setup" not in out

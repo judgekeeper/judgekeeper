@@ -1,12 +1,12 @@
 """How many labels a check needs: one set of targets for every command.
 
 `start` uses these: its result and the line under the labeling page's meters. The two kinds
-of label are the answers marked Correct and Wrong.
+of label are the answers marked Pass and Fail.
 
 - A rough check: at least ROUGH of each kind.
 - A reliable result: at least RELIABLE of each kind, and both the TPR range and the TNR range
   no wider than MAX_WIDTH (from the low end to the high end). The TPR range is about the
-  answers marked Correct, the TNR range about those marked Wrong.
+  answers marked Pass, the TNR range about those marked Fail.
 
 Why 0.30: about what 25 + 25 gives when the judge agrees with the person about 85% of the
 time and passes half the answers, so such checks are reliable at 25 of each; when the judge

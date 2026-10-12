@@ -129,10 +129,11 @@ def test_the_help_lists_the_version_flag(capsys):
     assert "  --version " in capsys.readouterr().out
 
 
-def test_debug_with_no_command_prints_the_help(capsys):
-    assert main([]) == 0
+def test_debug_with_no_command_runs_judgekeeper_the_same(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert main([]) == 3  # nothing found here: the Next: line says what to do
     usual = capsys.readouterr().out
-    assert main(["--debug"]) == 0
+    assert main(["--debug"]) == 3
     out, err = capsys.readouterr()
     assert out == usual and err == ""
 

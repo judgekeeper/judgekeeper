@@ -408,7 +408,7 @@ def test_the_pass_mark_a_mapped_file_states(tmp_path, capsys):
     from tests.start_projects import coach_project
 
     path = coach_project(tmp_path)
-    assert main(["setup", str(path), "--yes", "--metric", "all"]) == 0
+    assert main([str(path), "--yes", "--metric", "helpful"]) == 0
     capsys.readouterr()
     found = start.find_judge(tmp_path, metric="helpful")
     assert found.pass_mark == {"mark": 0.7, "op": ">=", "source": "mapped", "follows": True,

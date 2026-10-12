@@ -242,16 +242,18 @@ def test_from_a_subfolder_with_its_own_results_those_win(tmp_path, capsys, no_la
     assert "Nothing to read here" not in out and "  Eval tool       promptfoo" in out
 
 
-def test_setup_from_a_subfolder_finds_the_project_roots_records(tmp_path, capsys, monkeypatch):
+def test_judgekeeper_from_a_subfolder_finds_the_project_roots_records(tmp_path, capsys,
+                                                                     monkeypatch):
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'app'\n", encoding="utf-8")
     two_processes(tmp_path)
     (tmp_path / "app").mkdir()
     monkeypatch.chdir(tmp_path / "app")
-    code = main(["setup", "--yes"])
+    code = main([])
     out = capsys.readouterr().out
     assert code == 0, out
     assert "judgekeeper.record() saves your judge's decisions at the project root" in out
-    assert not (tmp_path / "app" / "judgekeeper.toml").exists()  # it would make app a root
-    assert 'source = "records"' in (tmp_path / "judgekeeper.toml").read_text(encoding="utf-8")
-    code, out, _ = run(capsys, ".")  # judgekeeper.toml says records: found at the root
+    assert "Found your results: judgekeeper.record()" in out
+    assert not (tmp_path / "app" / ".judgekeeper").exists()  # it would make app a root
+    assert (tmp_path / ".judgekeeper" / "judge.json").is_file()
+    code, out, _ = run(capsys, ".")
     assert code == 0 and "  Eval tool       your own code (judgekeeper.record())" in out, out

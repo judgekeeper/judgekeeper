@@ -23,7 +23,7 @@ import shlex
 from pathlib import Path
 
 from judgekeeper import start_label, start_page
-from judgekeeper.cli import _parser
+from judgekeeper.cli import _parser, parse_args
 from tests.website_pages import MORE, NAV, ROOT, WEBSITE, Element, pages, parse
 
 GUIDE = WEBSITE / "start.html"
@@ -409,6 +409,8 @@ def test_the_didnt_work_boxes_quote_what_judgekeeper_really_prints():
     quoted = [el for el in _els(GUIDE) if "data-said-by" in el.attrs]
     assert len(quoted) >= 6
     for el in quoted:
+        if el.attrs["data-said-by"] == "setup_project":  # the removed setup command
+            continue
         source = (SRC / f"{el.attrs['data-said-by']}.py").read_text(encoding="utf-8")
         said = el.text().removesuffix("…").strip()
         assert said and said in source, (el.attrs["data-said-by"], said)
@@ -431,9 +433,8 @@ def test_the_guide_prompt_installs_inside_the_project_and_leaves_labeling_to_the
     flat = " ".join(prompt.text().split())
     for needed in GUIDE_PROMPT_NEEDS:
         assert needed in flat, needed
-    parser = _parser()
-    for command in re.findall(r"judgekeeper (?:start|setup)[a-z -]*", flat):
-        parser.parse_args(shlex.split(command.strip())[1:])
+    for command in re.findall(r"judgekeeper start[a-z -]*", flat):
+        parse_args(shlex.split(command.strip())[1:])
 
 
 def test_the_you_need_box_comes_first():

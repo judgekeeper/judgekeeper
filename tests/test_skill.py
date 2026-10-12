@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper.cli import _parser
+from judgekeeper.cli import parse_args
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILL = ROOT / "skills" / "judgekeeper" / "SKILL.md"
@@ -71,12 +71,11 @@ def test_every_command_exists_in_the_cli():
     _, body = _split(SKILL.read_text(encoding="utf-8"))
     lines = [line for line in _command_lines(body) if "<" not in line]
     commands = {shlex.split(line)[1] for line in lines}
-    assert {"start", "setup"} <= commands <= {"start", "setup", "--version"}
-    parser = _parser()
+    assert {"start"} <= commands <= {"start", "--version"}
     for line in lines:
         argv = shlex.split(line)[1:]
         try:
-            parser.parse_args(argv)
+            parse_args(argv)
         except SystemExit as e:  # pragma: no cover - the message is the failure
             if e.code in (0, None):  # --version prints and stops
                 continue
@@ -89,7 +88,7 @@ def test_readme_links_the_skill():
 
 def test_the_three_doors_in_order_and_record_only_after_a_yes():
     text = SKILL.read_text(encoding="utf-8")
-    doors = [text.index(d) for d in ("(1) `judgekeeper setup`", "(2) one `judgekeeper.record()`",
+    doors = [text.index(d) for d in ("(1) `judgekeeper` (no command)", "(2) one `judgekeeper.record()`",
                                      "(3) a table")]
     assert doors == sorted(doors)
     assert "add a `judgekeeper.record()` line only after their yes on the diff" in text
@@ -102,7 +101,7 @@ def _body() -> str:
 def test_the_steps_follow_start():
     body = _body()
     body = body[body.index("## Install"):]
-    order = ["`judgekeeper --version`", "`judgekeeper start`", "`judgekeeper setup`",
+    order = ["`judgekeeper --version`", "`judgekeeper start`", "`judgekeeper` (no command)",
              "what pass means", "`judgekeeper start --yes --no-browser`", "plain sentence",
              "`judgekeeper start --review`", "`judgekeeper start --ask-again`",
              "`judgekeeper start --try-new-judge`", "`Go ahead? [y/N]`",
@@ -113,9 +112,9 @@ def test_the_steps_follow_start():
     assert at == sorted(at), [x for x, a in zip(order, at, strict=True)]
 
 
-def test_it_names_start_setup_and_record():
+def test_it_names_start_the_mapping_and_record():
     body = _body()
-    for needed in ("judgekeeper start", "judgekeeper setup", "judgekeeper.record()",
+    for needed in ("judgekeeper start", "`judgekeeper` (no command)", "judgekeeper.record()",
                    "www.judgekeeper.com/assistant.html#add-the-record-line"):
         assert needed in body, needed
 

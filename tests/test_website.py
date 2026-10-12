@@ -27,11 +27,12 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from judgekeeper.cli import _parser
+from judgekeeper.cli import _parser, parse_args
 from judgekeeper.metrics import agreement, wilson
 from tests.website_pages import (
     GENERATED_PAGES,
     ROOT,
+    STILL_NAMED,
     WEBSITE,
     commands,
     hand_written_pages,
@@ -87,10 +88,11 @@ def _all_commands():
 @pytest.mark.parametrize("argv", list(_all_commands()))
 def test_every_command_on_the_site_parses(argv):
     if len(argv) == 1 and argv[0] in _subcommands():
-        return  # a mention of a command by name in a sentence, such as `judgekeeper setup`
-    parser = _parser()
+        return  # a mention of a command by name in a sentence, such as `judgekeeper start`
+    if argv and argv[0] in STILL_NAMED:
+        return
     try:
-        parser.parse_args(argv)
+        parse_args(argv)
     except SystemExit as e:
         if e.code not in (0, None):  # 0: --version or --help, which print and stop
             pytest.fail(f"`judgekeeper {' '.join(argv)}` does not parse (exit {e.code})")

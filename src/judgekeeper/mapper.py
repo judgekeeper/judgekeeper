@@ -1,6 +1,6 @@
 """Read a results file saved in a project's own format: list its nested paths and guess how to
-read it. `judgekeeper setup` shows the guess, asks only what it cannot tell, and saves the map
-in judgekeeper.toml; readers/mapped.py then reads the file with it. Standard library only.
+read it. `judgekeeper` (own_map.py) shows the guess, asks only what it cannot tell, and saves
+the map in judgekeeper.toml; readers/mapped.py then reads the file with it. Standard library only.
 
 A file is a list of units: the lines of a JSONL file, the rows of a CSV, or the one document
 of a JSON file. In a unit, `each` is the path to the items (one item holds one judged

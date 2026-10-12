@@ -1,5 +1,5 @@
-"""A results file in a project's own format, read with the map `judgekeeper setup` saved in
-judgekeeper.toml (see mapper.py for the paths).
+"""A results file in a project's own format, read with the map `judgekeeper` saved in
+judgekeeper.toml after the person's yes (see mapper.py for the paths).
 
 One judged answer per item, side and judge: a record with the item's input, the side's
 output, the judge's name, and the verdict: a score with its pass/fail from the pass mark, or
@@ -24,7 +24,8 @@ from pathlib import Path
 from judgekeeper import mapper
 from judgekeeper.records import LLM, RecordList, RecordsError, ScoreRecord, derive_record_id
 
-CHANGED_SHAPE = "Your results file changed shape. Run judgekeeper setup again."
+CHANGED_SHAPE = ("Your results file changed shape. Remove the [start] table from "
+                 "judgekeeper.toml, then run judgekeeper again to read it anew.")
 
 
 def read_mapped(path: str | Path, m: dict, label: str | None = None
