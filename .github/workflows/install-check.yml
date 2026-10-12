@@ -1,6 +1,7 @@
-# Installs judgekeeper fresh into a new project on Windows, Linux and macOS and runs the whole
-# `judgekeeper start` path against real promptfoo, DeepEval, Inspect AI and MLflow results, a
-# table, judgekeeper.record(), a results file in its own format and judges on Ollama
+# Installs judgekeeper fresh into a new project on Windows, Linux and macOS (or runs it with
+# uvx, with nothing installed in the project) and runs the whole `judgekeeper` path against
+# real promptfoo, DeepEval, Inspect AI and MLflow results, a table, judgekeeper.record(), a
+# results file in its own format and judges on Ollama
 # (scripts/install_check.py). Every judge is a fake one the script serves: no API call, no key.
 # It runs on pull requests that change the check, by hand (Actions > Install check > Run
 # workflow, `source` build or pypi:VERSION) and after every release, against the release on
@@ -38,13 +39,20 @@ jobs:
         tool: [table, promptfoo, deepeval, inspect, mlflow, record, own-format,
                promptfoo-ollama, inspect-ollama]
         python: ["3.12"]
+        via: [venv]
         include:
-          - {os: ubuntu-latest, tool: table, python: "3.11"}
-          - {os: ubuntu-latest, tool: table, python: "3.14"}
-          - {os: windows-latest, tool: table, python: "3.11"}
-          - {os: windows-latest, tool: table, python: "3.14"}
-          - {os: macos-latest, tool: table, python: "3.11"}
-          - {os: macos-latest, tool: table, python: "3.14"}
+          - {os: ubuntu-latest, tool: table, python: "3.11", via: venv}
+          - {os: ubuntu-latest, tool: table, python: "3.14", via: venv}
+          - {os: windows-latest, tool: table, python: "3.11", via: venv}
+          - {os: windows-latest, tool: table, python: "3.14", via: venv}
+          - {os: macos-latest, tool: table, python: "3.11", via: venv}
+          - {os: macos-latest, tool: table, python: "3.14", via: venv}
+          - {os: ubuntu-latest, tool: table, python: "3.12", via: uvx}
+          - {os: ubuntu-latest, tool: promptfoo, python: "3.12", via: uvx}
+          - {os: windows-latest, tool: table, python: "3.12", via: uvx}
+          - {os: windows-latest, tool: promptfoo, python: "3.12", via: uvx}
+          - {os: macos-latest, tool: table, python: "3.12", via: uvx}
+          - {os: macos-latest, tool: promptfoo, python: "3.12", via: uvx}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -52,6 +60,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: ${{ matrix.python }}
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        if: matrix.via == 'uvx'
       # promptfoo needs Node.js 22.22 or later.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         if: startsWith(matrix.tool, 'promptfoo')
@@ -82,4 +92,5 @@ jobs:
         env:
           PYTHONUTF8: "1"
           TOOL: ${{ matrix.tool }}
-        run: python scripts/install_check.py --tool "$TOOL" --source "$SOURCE" --work "$RUNNER_TEMP/install check"
+          VIA: ${{ matrix.via }}
+        run: python scripts/install_check.py --tool "$TOOL" --via "$VIA" --source "$SOURCE" --work "$RUNNER_TEMP/install check"

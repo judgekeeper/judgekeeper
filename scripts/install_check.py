@@ -2,13 +2,17 @@
 
     python scripts/install_check.py --tool promptfoo --source build --work /tmp/jk-check
     python scripts/install_check.py --tool table --source pypi:0.2.0 --work /tmp/jk-check
+    python scripts/install_check.py --tool promptfoo --via uvx --work /tmp/jk-check
 
 What a stranger does, with nobody at the keyboard and no API key:
 
-1. A project folder with a space in its path, under --work, with its own virtual environment.
+1. A project folder with a space in its path, under --work, with its own virtual environment;
+   with `--via uvx`, no virtual environment.
 2. judgekeeper installed into it: `build` builds the wheel from this checkout and installs that
    (never an editable install); `pypi:VERSION` installs that release from PyPI, trying again
-   for up to 10 minutes while a new release spreads. `judgekeeper --version` must say it.
+   for up to 10 minutes while a new release spreads. With `--via uvx` nothing is installed in
+   the project: every step runs `uvx --from <the wheel or judgekeeper==VERSION> judgekeeper`.
+   `judgekeeper --version` must say the version.
 3. The eval tool installed into the project, and real results made with it. Every judge talks
    to a fake judge this script serves on 127.0.0.1: an OpenAI-compatible API and Ollama's own,
    which pass questions 1 to 28 and fail 29 to 40, so the numbers are known.
@@ -24,6 +28,7 @@ What a stranger does, with nobody at the keyboard and no API key:
 Tools: table, promptfoo, deepeval, inspect, mlflow, record (your own judge code with
 judgekeeper.record()), own-format (your own results file, mapped by `judgekeeper`),
 promptfoo-ollama and inspect-ollama (an open-source judge on Ollama; no model is downloaded).
+`--via uvx` takes only the tools that need no Python package in the project (UVX_TOOLS).
 
 Standard library only. Pages get ports from a free-port search, never judgekeeper's default.
 Only the project folder this script made is removed (unless --keep).
@@ -52,6 +57,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 TOOLS = ("table", "promptfoo", "deepeval", "inspect", "mlflow", "record", "own-format",
          "promptfoo-ollama", "inspect-ollama")
+UVX_TOOLS = ("table", "promptfoo", "own-format", "promptfoo-ollama")  # nothing to pip install
 WIN = os.name == "nt"
 MARKER = ".made-by-install-check"  # only a folder holding this file is ever removed
 
@@ -133,6 +139,12 @@ def source_version(source: str) -> str:
     if not m:
         raise SystemExit(f"--source must be build or pypi:VERSION, not {source!r}")
     return m.group(1)
+
+
+def uvx_command(uvx: str, source: str, wheel: Path | None) -> list[str]:
+    """`judgekeeper` run by uvx: from the built wheel, or from the release on PyPI."""
+    spec = str(wheel) if source == "build" else f"judgekeeper=={source_version(source)}"
+    return [uvx, "--from", spec, "judgekeeper"]
 
 
 def rule_for(tool: str, rule: str) -> str:
@@ -263,15 +275,19 @@ class FakeJudge:
 # The check ------------------------------------------------------------------------------------
 
 class Check:
-    def __init__(self, tool: str, source: str, work: Path):
-        self.tool, self.source = tool, source
+    def __init__(self, tool: str, source: str, work: Path, via: str = "venv"):
+        self.tool, self.source, self.via = tool, source, via
         self.version = source_version(source)
         self.work = work
         self.project = work / f"{tool} project"
         self.dist = work / f"{tool} wheel"
         self.bin = self.project / ".venv" / ("Scripts" if WIN else "bin")
-        self.py = self.bin / ("python.exe" if WIN else "python")
-        self.jk = self.bin / ("judgekeeper.exe" if WIN else "judgekeeper")
+        if via == "uvx":  # no environment in the project: Python as installed, judgekeeper by uvx
+            self.py = Path(sys.executable)
+            self.jk = uvx_command(shutil.which("uvx") or "uvx", source, None)
+        else:
+            self.py = self.bin / ("python.exe" if WIN else "python")
+            self.jk = [str(self.bin / ("judgekeeper.exe" if WIN else "judgekeeper"))]
         self.steps: list[tuple[str, bool, str]] = []
         self.judge = FakeJudge()
         self.env = dict(os.environ)
@@ -291,6 +307,7 @@ class Check:
             "PROMPTFOO_DISABLE_SHARING": "1", "PROMPTFOO_REQUEST_BACKOFF_MS": "10",
             "MLFLOW_DISABLE_AGENT_HINT": "1", "MLFLOW_GENAI_EVAL_MAX_WORKERS": "4",
             "INSPECT_DISPLAY": "none", "INSPECT_LOG_LEVEL": "warning",
+            "UV_PYTHON": sys.executable, "UV_NO_PROGRESS": "1",
         })
         self.port = free_port()
 
@@ -385,11 +402,11 @@ class Check:
         return ok and code == 0
 
     def start(self, *flags) -> list[str]:
-        return [self.jk, "start", *flags, "--port", self.port]
+        return [*self.jk, "start", *flags, "--port", self.port]
 
     def front(self, *flags) -> list[str]:
         """`judgekeeper` with no command; the page's link printed, never a browser."""
-        return [self.jk, *flags, "--no-browser", "--port", self.port]
+        return [*self.jk, *flags, "--no-browser", "--port", self.port]
 
     # The page's own HTTP calls
 
@@ -436,11 +453,27 @@ class Check:
             remove_own(folder)
             folder.mkdir(parents=True)
             (folder / MARKER).write_text("", encoding="utf-8")
+        if self.via == "uvx":
+            self.step("project with no virtual environment (uvx)",
+                      not (self.project / ".venv").exists())
+            return
         venv.create(self.project / ".venv", with_pip=True)
         self.env["VIRTUAL_ENV"] = str(self.project / ".venv")
         self.env["PATH"] = str(self.bin) + os.pathsep + self.env.get("PATH", "")
         self.step("project with its own virtual environment", self.py.is_file(),
                   f"({self.project})")
+
+    def wait_for_pypi(self, name: str, cmd: list) -> bool:
+        """Run cmd until it works: a new release takes a few minutes to reach every mirror."""
+        deadline = time.monotonic() + PYPI_WAIT
+        while True:
+            p = self.run(name, cmd, timeout=600, record=False)
+            if p and p.returncode == 0:
+                return self.step(name, True)
+            if time.monotonic() > deadline:
+                return self.step(name, False, f"(not installable after {PYPI_WAIT} s)")
+            print("Not on PyPI yet; trying again in 30 s.", flush=True)
+            time.sleep(30)
 
     def install(self) -> bool:
         if self.source == "build":
@@ -457,26 +490,22 @@ class Check:
             if not self.step("one wheel built", len(wheels) == 1,
                              f"({[w.name for w in wheels]})"):
                 return False
-            p = self.run("install the wheel", [self.py, "-m", "pip", "install", wheels[0]],
-                         timeout=600)
-            if not p or p.returncode:
+            if self.via == "uvx":
+                self.jk = uvx_command(self.jk[0], self.source, wheels[0])
+            else:
+                p = self.run("install the wheel", [self.py, "-m", "pip", "install", wheels[0]],
+                             timeout=600)
+                if not p or p.returncode:
+                    return False
+        elif self.via == "uvx":
+            if not self.wait_for_pypi(f"uvx judgekeeper=={self.version} from PyPI",
+                                      [self.jk[0], "--refresh", *self.jk[1:], "--version"]):
                 return False
-        else:
-            deadline = time.monotonic() + PYPI_WAIT
-            while True:
-                p = self.run(f"install judgekeeper=={self.version} from PyPI",
-                             [self.py, "-m", "pip", "install", "--no-cache-dir",
-                              f"judgekeeper=={self.version}"], timeout=600,
-                             record=False)
-                if p and p.returncode == 0:
-                    self.step(f"install judgekeeper=={self.version} from PyPI", True)
-                    break
-                if time.monotonic() > deadline:
-                    return self.step(f"install judgekeeper=={self.version} from PyPI", False,
-                                     f"(not installable after {PYPI_WAIT} s)")
-                print("Not on PyPI yet; trying again in 30 s.", flush=True)
-                time.sleep(30)
-        p = self.run("judgekeeper --version", [self.jk, "--version"],
+        elif not self.wait_for_pypi(f"install judgekeeper=={self.version} from PyPI",
+                                    [self.py, "-m", "pip", "install", "--no-cache-dir",
+                                     f"judgekeeper=={self.version}"]):
+            return False
+        p = self.run("judgekeeper --version", [*self.jk, "--version"],
                      expect=[rf"^judgekeeper {re.escape(self.version)}\s*$"])
         if not p or p.returncode:
             return False
@@ -721,7 +750,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
                         r"Of the answers you passed, your judge passed",
                         r"Of the answers you failed, your judge failed",
                         r"This set can see a drop of", r"still open"])
-        self.mark_step("2. judgekeeper --stop closes the page", [self.jk, "--stop"],
+        self.mark_step("2. judgekeeper --stop closes the page", [*self.jk, "--stop"],
                        [r"Closed the marking page"])
 
     def mark_step(self, name: str, args, expect):
@@ -810,8 +839,9 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
 
     def summary(self) -> int:
         print("\n\n==================== SUMMARY ====================")
-        print(f"{self.tool} on {sys.platform}, Python {sys.version.split()[0]}, judgekeeper "
-              f"{self.version} ({self.source}); fake judge calls: {len(self.judge.calls)}")
+        print(f"{self.tool} via {self.via} on {sys.platform}, Python {sys.version.split()[0]}, "
+              f"judgekeeper {self.version} ({self.source}); fake judge calls: "
+              f"{len(self.judge.calls)}")
         for name, ok, detail in self.steps:
             print(f"{'OK  ' if ok else 'FAIL'}  {name} {detail}".rstrip())
         failed = [s for s in self.steps if not s[1]]
@@ -843,12 +873,17 @@ def main(argv=None) -> int:
     parser.add_argument("--source", default="build", help="build, or pypi:VERSION")
     parser.add_argument("--work", required=True, type=Path,
                         help="the folder the project is made in")
+    parser.add_argument("--via", choices=("venv", "uvx"), default="venv",
+                        help="venv: install into the project's environment; uvx: run by uvx")
     parser.add_argument("--keep", action="store_true", help="keep the project folder")
     args = parser.parse_args(argv)
+    if args.via == "uvx" and args.tool not in UVX_TOOLS:
+        parser.error(f"--via uvx needs a tool with nothing to install in the project: "
+                     f"{', '.join(UVX_TOOLS)}")
     # This script's own printing; judgekeeper's output is its own process's.
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    check = Check(args.tool, args.source, args.work.resolve())
-    print(f"{args.tool} on {sys.platform}; project: {check.project}; "
+    check = Check(args.tool, args.source, args.work.resolve(), args.via)
+    print(f"{args.tool} via {args.via} on {sys.platform}; project: {check.project}; "
           f"fake judge at {check.judge.url}; pages on port {check.port}", flush=True)
     try:
         check.make_project()
