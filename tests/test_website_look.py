@@ -614,3 +614,44 @@ def test_code_shows_the_characters_you_type():
     """The code font joins >= into one sign; a command must show the two characters."""
     rule = re.search(r"^code, pre, kbd \{([^}]*)\}", CSS, flags=re.MULTILINE)
     assert rule and "font-variant-ligatures: none" in rule.group(1)
+
+
+# The screenshots open large over the page and close again (site.js and style.css) ---------
+
+def test_a_click_on_a_screenshot_opens_it_large_and_closes_again():
+    """Before, a click opened the bare image file and the only way back was the Back button."""
+    zoom = _function("setUpZoom")
+    assert '$all(".shot > a, .shot-wide > a")' in zoom
+    assert "window.HTMLDialogElement" in zoom  # no <dialog>: the link opens the file as before
+    assert "showModal()" in zoom  # Escape closes it
+    assert '"Close the picture"' in zoom
+    assert "e.target === box" in zoom  # a click outside the picture
+    assert "opener.focus(" in zoom  # the keyboard goes back to the picture
+    assert "big.alt = $(\"img\", link).alt" in zoom
+    # Cmd, Ctrl, Shift and middle clicks still open the file in a new tab.
+    assert all(key in zoom for key in ("e.button", "e.metaKey", "e.ctrlKey", "e.shiftKey"))
+    assert "setUpZoom();" in _function("start")
+    assert "the screenshots open large" in SITE_JS[:SITE_JS.index("*/")]
+
+
+def test_every_screenshot_is_a_link_to_its_file():
+    """So the zoom picks up every picture, and without JavaScript the link still opens it."""
+    for page, cls in ((HOME, "shot"), (GUIDE, "shot-wide")):
+        figures = [f for f in _all(parse(page), "figure") if f.attrs.get("id") != "demo"]
+        assert len(figures) == 3, page.name
+        for figure in figures:
+            assert cls in figure.classes(), page.name
+            link = next(c for c in figure.children if isinstance(c, Element))
+            assert link.tag == "a" and link.attrs["href"].startswith("assets/shots/")
+            assert [c.tag for c in link.children if isinstance(c, Element)] == ["img"]
+
+
+def test_the_large_picture_fits_the_screen_and_its_close_button_is_big_enough():
+    assert "cursor: zoom-in" in _block(".js .shot > a, .js .shot-wide > a")
+    picture = _block(".zoom img")
+    assert "max-width: 96vw" in picture and "max-height: 92vh" in picture
+    close = _block(".zoom-close")
+    assert "width: 44px" in close and "height: 44px" in close
+    assert "var(--ink)" in close and "var(--sheet)" in close
+    assert ".zoom::backdrop {" in CSS
+    assert "overflow: hidden" in _block("html.zoomed")  # the page behind doesn't scroll

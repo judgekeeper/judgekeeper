@@ -4,7 +4,8 @@
   Every page works without this file: all text is in the HTML. This file adds the theme
   switch and the phone menu, copy buttons, the install tabs, the home page's demo, the
   Guide's rail and done ticks, the interactive numbers, the small toggles in "It keeps
-  checking" and the bar widths in the real result. What it keeps (the theme and
+  checking", the bar widths in the real result, and the screenshots open large over the page
+  (without it, the link opens the image file). What it keeps (the theme and
   the ticked steps) stays in this browser, and every read or write is wrapped in try/catch.
 */
 (function () {
@@ -354,6 +355,42 @@
     });
   }
 
+  // The screenshots: a click opens the picture large in a <dialog> over the page. The ×, a click
+  // outside the picture and Escape close it, and the keyboard goes back to the picture. Cmd,
+  // Ctrl, Shift and middle clicks still open the file, and so does a browser without <dialog>.
+  function setUpZoom() {
+    var links = $all(".shot > a, .shot-wide > a");
+    if (!links.length || !window.HTMLDialogElement) return;
+    var box = document.createElement("dialog"), close = document.createElement("button");
+    var big = document.createElement("img"), opener = null;
+    box.className = "zoom";
+    close.type = "button";
+    close.className = "zoom-close";
+    close.setAttribute("aria-label", "Close the picture");
+    close.textContent = "×";
+    box.appendChild(close);
+    box.appendChild(big);
+    document.body.appendChild(box);
+    close.addEventListener("click", function () { box.close(); });
+    box.addEventListener("click", function (e) { if (e.target === box) box.close(); });
+    box.addEventListener("close", function () {
+      document.documentElement.classList.remove("zoomed");
+      if (opener) opener.focus({ preventScroll: true });
+    });
+    links.forEach(function (link) {
+      link.addEventListener("click", function (e) {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        opener = link;
+        big.src = link.getAttribute("href");
+        big.alt = $("img", link).alt;
+        document.documentElement.classList.add("zoomed");
+        box.showModal();
+        close.focus();
+      });
+    });
+  }
+
   // The Guide: done ticks kept in this browser, and the rail marks the step in view.
   function loadDone() {
     try { return JSON.parse(window.localStorage.getItem("jk-done") || "{}") || {}; } catch (e) { return {}; }
@@ -414,6 +451,7 @@
     setUpBars();
     setUpDemo();
     setUpGuide();
+    setUpZoom();
     openLinkedDetails();
     window.addEventListener("hashchange", openLinkedDetails);
   }
