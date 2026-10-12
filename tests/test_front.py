@@ -341,8 +341,8 @@ def test_an_own_format_needs_the_persons_yes_before_judgekeeper_toml(here, capsy
     code, out, _ = run(capsys)
     assert code == 3
     assert not (here / "judgekeeper.toml").exists()
-    line = assert_one_next_at_the_end(out)
-    assert "judgekeeper.toml" in line and "`judgekeeper --yes`" in line
+    assert "  1. Save how to read evals/graded.jsonl in judgekeeper.toml?" in out
+    assert "`judgekeeper --yes`" in assert_one_next_at_the_end(out)
     code, out, _ = run(capsys, "--yes")
     assert code == 0 and (here / "judgekeeper.toml").is_file()
 
@@ -351,46 +351,95 @@ def test_own_format_questions_take_their_flag(here, capsys):
     nested_runs_project(here, rule_rows=0)  # two answers per case, two judges
     code, out, _ = run(capsys)
     assert code == 3
-    assert "`judgekeeper --yes`" in assert_one_next_at_the_end(out)
-    code, out, _ = run(capsys, "--yes")
-    assert code == 3
     line = assert_one_next_at_the_end(out)
-    assert "which judge to check" in line and "--metric" in line
-    code, out, _ = run(capsys, "--yes", "--metric", "Safe wording")
+    assert "which judge to check" in line and "`judgekeeper --metric NAME`" in line
+    code, out, _ = run(capsys, "--metric", "Safe wording")
+    assert code == 3
+    assert f"`judgekeeper --metric {quote_arg('Safe wording')} --yes`" in \
+        assert_one_next_at_the_end(out)
+    code, out, _ = run(capsys, "--metric", "Safe wording", "--yes")
     assert code == 0, out
     saved = tomllib.loads((here / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
     assert saved["judge"] == "Safe wording" and saved["map"]["sides"] == ["A", "B"]
 
 
+@pytest.fixture
+def confirmed(monkeypatch):
+    """Every yes/no question `judgekeeper` asks, in order."""
+    asked: list[str] = []
+    real = front.FrontTalk.confirm
+
+    def spy(self, question, *args, **kwargs):
+        asked.append(question)
+        return real(self, question, *args, **kwargs)
+
+    monkeypatch.setattr(front.FrontTalk, "confirm", spy)
+    return asked
+
+
+def files(root) -> dict:
+    return {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+
+
 @pytest.mark.parametrize("make", [
     lambda root: nested_runs_project(root),
-    lambda root: own_format_project(root, cases=40)])
-def test_following_each_next_line_saves_only_after_the_save_question(here, capsys, make):
-    """--yes answers only a question the person was shown: judgekeeper.toml is written only
-    after a run whose printed question named it."""
+    lambda root: own_format_project(root, cases=40),
+    lambda root: promptfoo_project(root, split(20, 16), description="another bot")])
+def test_following_each_next_line_shows_every_question_before_yes(here, capsys, confirmed,
+                                                                   make):
+    """--yes answers only the questions printed in the last run, and a run that ends with
+    questions writes nothing."""
     make(here)
     argv: list[str] = []
-    asked_save = False
+    out, answered = "", 0
     for _ in range(6):
+        shown, before = out, files(here)
+        confirmed.clear()
         code, out, _ = run(capsys, *argv)
-        assert asked_save or not (here / "judgekeeper.toml").exists(), out
+        if "--yes" in argv:
+            for question in confirmed:
+                assert question in shown, question
+            answered += len(confirmed)
+        line = assert_one_next_at_the_end(out)
         if code == 0:
             break
         assert code == 3, out
-        line = assert_one_next_at_the_end(out)
-        asked_save = asked_save or "judgekeeper.toml" in line
+        assert files(here) == before, out
         command = re.search(r"`(judgekeeper [^`]*)`", line)[1]
         argv = ["Safe wording" if a == "NAME" else a for a in shlex.split(command)[1:]]
-    assert code == 0 and asked_save, out
-    assert assert_one_next_at_the_end(out) == START
+    assert code == 0 and answered, out
+    assert line == START
 
 
-def test_the_save_question_is_asked_with_the_first_yes_no_question(here, capsys):
+def test_the_questions_are_listed_together_after_the_checks(here, capsys):
     nested_runs_project(here)
-    code, out, _ = run(capsys)
+    code, out, _ = run(capsys, "--metric", "Safe wording")
     assert code == 3
-    assert ('"Each item has 2 answers (A and B). Count each as its own answer, and save how '
-            'to read history/evals.jsonl in judgekeeper.toml?"') in assert_one_next_at_the_end(out)
+    assert "Found your results: your own format (history/evals.jsonl, 3 lines, 42 answers)" \
+        in out  # the counts the questions lead to
+    listed = out[out.index(front.QUESTIONS):]
+    assert out.index("Checked first") < out.index(front.QUESTIONS)
+    assert "  1. Each item has 2 answers (A and B). Count each as its own answer?" in listed
+    assert "  2. 6 answers have an error or a score made by a rule" in listed
+    assert "  3. Save how to read history/evals.jsonl in judgekeeper.toml?" in listed
+    command = f"judgekeeper --metric {quote_arg('Safe wording')}"
+    assert assert_one_next_at_the_end(out) == (
+        f"Next: ask the person these 3 questions. If they say yes to all, run `{command} "
+        f"--yes`. If they say no to any, ask them to run `{command}` in a terminal.")
+    assert not (here / ".judgekeeper").exists() and not (here / "judgekeeper.toml").exists()
+
+
+@pytest.mark.parametrize("make", [
+    lambda root: nested_runs_project(root),  # which judge
+    lambda root: (promptfoo_project(root, split(20, 16)),  # which tool
+                  records_project(root, split(16, 16))),
+    lambda root: table_project(root, ["0.9"] * 16 + ["0.2"] * 16)])  # which pass mark
+def test_a_choice_question_never_carries_yes(here, capsys, make):
+    make(here)
+    code, out, _ = run(capsys, "--yes")
+    assert code == 3
+    line = assert_one_next_at_the_end(out)
+    assert "`judgekeeper " in line and "--yes" not in line
 
 
 def test_promptfoo_results_from_another_project(here, capsys):

@@ -9,11 +9,14 @@ commands or the person's eval tool; never a link to download, never a command bu
 a file says.
 
 Finding is start.find_judge, with FrontTalk in place of start.Talk. At a terminal a question
-is asked inline. Without one, it is printed in plain words with a `Next:` line naming the flag
-that answers it, and the exit code is 3; `--yes` says the person answered yes to the yes/no
-question printed. When an own format's map will be saved, its save question is printed with
-the first yes/no question, as one, so `--yes` never saves unasked. judgekeeper.toml is written only for what had to be asked (which tool,
-which judge, which MLflow store or experiment, how to read an own format), after a yes.
+is asked inline. Without one, a choice (which tool, judge, store, pass mark) is printed in
+plain words with a `Next:` line naming the flag that answers it, and the exit code is 3. A
+yes/no question is noted and the run goes on as if the answer is yes; at the end the noted
+questions are printed as one list, nothing is written, and the exit code is 3. `--yes` means
+yes to the questions printed in the last run, nothing else: they are the same questions,
+because that run went on as if each answer was yes. judgekeeper.toml is written only for what
+had to be asked (which tool, which judge, which MLflow store or experiment, how to read an own
+format), after a yes.
 
 No AI call and no key. Exit codes: 0 found and checked (or `Next: nothing`), 3 the person is
 needed (the `Next:` line says what to ask or do), 2 usage error, 130 Ctrl-C.
@@ -44,7 +47,7 @@ FOUND_NEXT = "run `{command}` and mark each answer Pass or Fail on the page it o
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
-SAVE_MAP_TOO = "{question}, and save how to read {file} in judgekeeper.toml?"
+QUESTIONS = "To ask the person (judgekeeper went on as if the answer is yes):"
 READS = ("judgekeeper reads the results that promptfoo, DeepEval, Inspect AI and MLflow save, "
          "a CSV or JSONL file with input, output and verdict columns, or what "
          "judgekeeper.record() saves.")
@@ -54,8 +57,8 @@ ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
 
 
 class FrontTalk(start.Talk):
-    """start.Talk for `judgekeeper`: printed commands start `judgekeeper`, and without a
-    terminal every question ends in a `Next:` line (stop)."""
+    """start.Talk for `judgekeeper`: printed commands start `judgekeeper`. Without a
+    terminal a choice ends in a `Next:` line (stop), and a yes/no question is noted."""
 
     program = "judgekeeper"
     asks_everything = True
@@ -65,14 +68,13 @@ class FrontTalk(start.Talk):
         super().__init__(yes=yes, path=path)
         self.answers: dict[str, str] = {}  # what the person chose at a terminal: flag -> value
         self.store: str | None = None  # the MLflow store chosen at a terminal
-        self.saving: str | None = None  # the own-format file whose map is saved at the end
+        self.noted: list[str] = []  # yes/no questions taken as yes without a terminal
         self.refresh()
 
     def refresh(self) -> None:
-        """The printed commands repeat the options as they are now, and --yes once given: the
-        person's yes stays a yes when the next question is asked."""
-        self.flags = start.repeated_flags(self.path, **self.options) + (
-            ("--yes",) if self.yes else ())
+        """The printed commands repeat the options as they are now, never --yes: it answers
+        only the questions printed in the run just before (ask_noted)."""
+        self.flags = start.repeated_flags(self.path, **self.options)
 
     def set(self, name: str, value) -> None:
         self.options[name] = value
@@ -107,13 +109,26 @@ class FrontTalk(start.Talk):
     def confirm(self, question, default, hint, with_yes) -> bool:
         if start._interactive():
             return super().confirm(question, default, hint, with_yes)
-        if self.yes:  # the person said yes to the question printed last time
-            return True
-        if self.saving is not None and question != SAVE_MAP.format(file=self.saving):
-            question = SAVE_MAP_TOO.format(question=question.rstrip("?"), file=self.saving)
-        self.say(question)
-        raise self.stop(EXIT_QUESTION, f'ask the person: "{question}" If they say yes, run '
-                                       f"`{self.command('--yes')}`.")
+        if not self.yes:  # with --yes, the person said yes to it: it was printed last run
+            self.noted.append(question)
+        return True
+
+    def ask_noted(self) -> None:
+        """The yes/no questions noted on the way, as one list, before anything is written."""
+        if not self.noted:
+            return
+        self.say()
+        self.say(QUESTIONS)
+        for n, question in enumerate(self.noted, 1):
+            self.say(f"  {n}. {question}")
+        yes, again = f"`{self.command('--yes')}`", f"`{self.command()}`"
+        if len(self.noted) == 1:
+            then = (f"this question. If they say yes, run {yes}. If they say no, ask them to "
+                    f"run {again} in a terminal.")
+        else:
+            then = (f"these {len(self.noted)} questions. If they say yes to all, run {yes}. If "
+                    f"they say no to any, ask them to run {again} in a terminal.")
+        raise self.stop(EXIT_QUESTION, f"ask the person {then}")
 
     def stop(self, code: int, next_step: str | None = None) -> Stop:
         """Say the Next: line; exit 3 when it asks for something, 0 when it is nothing."""
@@ -167,7 +182,6 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
             return path, None
         file, here = path.resolve(), Path.cwd().resolve()
         root = here if file.is_relative_to(here) else project_root(file.parent)
-        _will_save(talk, root, file)
         return root, own_map.map_file(talk, root, file, o["metric"], o["judge_model"],
                                       o["pass_if"], found=False)
     root = path.resolve()
@@ -181,14 +195,8 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     own = own_format.search(root)
     if own is None:
         raise _nothing_found(talk, root, search.signs)
-    _will_save(talk, root, own.path)
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
-
-
-def _will_save(talk: FrontTalk, root: Path, file: Path) -> None:
-    """The map of `file` is saved at the end: its path as own_map and judgekeeper.toml name it."""
-    talk.saving = file.relative_to(root).as_posix() if file.is_relative_to(root) else str(file)
 
 
 def _find(talk: FrontTalk, path: Path, saved) -> start.Found:
@@ -405,9 +413,17 @@ def tool_version(found: start.Found) -> str | None:
     return None
 
 
-def _write(found: start.Found) -> str:
+def _listed(found: start.Found) -> str:
+    """Where _write puts the list of answers left out, as the person finds it."""
+    from judgekeeper import start_label
+
+    ws = start_label.Workspace(found.root)
+    return f"{start_label.shown_folder(ws)}/{judge_check.CSV_FILE}"
+
+
+def _write(found: start.Found) -> None:
     """judge-check.json and .csv, and judge.json, in the project's .judgekeeper/ (never
-    through a link). Returns the CSV's path as the person finds it."""
+    through a link)."""
     from judgekeeper import start_label
 
     ws = start_label.Workspace(found.root)
@@ -421,11 +437,10 @@ def _write(found: start.Found) -> str:
     if found.tool == "mlflow":
         data["experiment"] = found.experiment
     write_replacing(ws.dir / JUDGE_FILE, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-    return f"{start_label.shown_folder(ws)}/{judge_check.CSV_FILE}"
 
 
 def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | None) -> int:
-    listed = _write(found)
+    listed = _listed(found)
     talk.say(found_line(found))
     if found.tool == "table":
         talk.say(_columns_line(found) or "")
@@ -445,13 +460,18 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     for line in check_lines(found, listed):
         talk.say(line)
     if not pool.answers:
+        talk.ask_noted()
+        _write(found)
         talk.say()
         talk.say("No answer has a clear Pass or Fail from your judge, so there is nothing to "
                  "mark.")
         raise talk.stop(EXIT_OK, f"nothing. Tell the person their judge made no real decision "
                                  f"on any answer (the list is in {listed}); run judgekeeper "
                                  "again after their next eval run.")
-    saved = _save(talk, found, mapped)
+    new = _to_save(talk, found, mapped)
+    talk.ask_noted()  # without a terminal, nothing is written before they are answered
+    _write(found)
+    saved = new is not None and _save(talk, found, new, made=mapped is not None)
     n = len(pool.answers)
     if n < start.MIN_POOL:
         talk.say()
@@ -479,11 +499,12 @@ def _start_command(talk: FrontTalk, saved: bool, *extra: str) -> str:
     return " ".join(("judgekeeper start", *flags, *extra))
 
 
-def _save(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | None) -> bool:
-    """judgekeeper.toml, after a yes, for what had to be asked: a map, or the answers at a
-    terminal. Returns whether it keeps them now."""
+def _to_save(talk: FrontTalk, found: start.Found,
+             mapped: settings.StartSettings | None) -> settings.StartSettings | None:
+    """What judgekeeper.toml keeps after a yes, for what had to be asked: a map, or the
+    answers at a terminal. None when there is nothing to keep or the person says no."""
     if mapped is None and not talk.answers:
-        return False
+        return None
     if mapped is not None:
         new, question = mapped, SAVE_MAP.format(file=mapped.file)
     else:
@@ -501,11 +522,19 @@ def _save(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | 
     talk.say()
     if not talk.confirm(question, default=True, with_yes=True, hint=""):
         if mapped is None:
-            return False
+            return None
+        _write(found)
         talk.say("Nothing was saved.")
         raise talk.stop(EXIT_OK, f"nothing. Tell the person judgekeeper reads {mapped.file} "
                                  "only once judgekeeper.toml says how; run judgekeeper again to "
                                  "save it.")
+    return new
+
+
+def _save(talk: FrontTalk, found: start.Found, new: settings.StartSettings,
+          made: bool) -> bool:
+    """Write judgekeeper.toml (`made`: with a map made now). Returns True: it keeps the
+    answers now."""
     try:
         settings.save(found.root, new)
     except settings.SettingsError as e:
@@ -515,7 +544,7 @@ def _save(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | 
         raise talk.stop(EXIT_QUESTION, f"ask the person to add the lines above to "
                                        f"{settings.FILE}, then run `judgekeeper` again.") from None
     talk.say(f"Saved {settings.FILE} (where your judge's results are and how to read them).")
-    if mapped is not None:  # judgekeeper.toml keeps the judge, its model and pass mark now
+    if made:  # judgekeeper.toml keeps the judge, its model and pass mark now
         for name in ("metric", "pass_if", "judge_model"):
             talk.set(name, None)
     return True

@@ -232,7 +232,7 @@ def test_without_a_terminal_the_pass_mark_is_a_flag(tmp_path, capsys):
     assert code == 3
     assert out.splitlines()[-1] == (
         "Next: ask the person which score counts as a pass, then run "
-        f"`judgekeeper {quote_arg(path)} --yes --pass-if \"score>=N\"`.")
+        f"`judgekeeper {quote_arg(path)} --pass-if \"score>=N\"`.")
     code, out = check(capsys, path, "--yes", "--pass-if", "score>=4")
     assert code == 0, out
     assert saved(tmp_path)["pass_mark"] == 4
@@ -248,7 +248,8 @@ def test_without_a_terminal_it_stops_at_the_question_before_saving(tmp_path, cap
     code, out = check(capsys, tmp_path)
     assert code == 3
     assert "Save how to read evals/graded.jsonl in judgekeeper.toml?" in out
-    assert out.splitlines()[-1].endswith(f"run `judgekeeper {quote_arg(tmp_path)} --yes`.")
+    assert f"If they say yes, run `judgekeeper {quote_arg(tmp_path)} --yes`." in \
+        out.splitlines()[-1]
     assert snapshot(tmp_path) == before
 
 
@@ -282,10 +283,10 @@ def test_without_a_terminal_each_answer_question_takes_yes(tmp_path, capsys, mon
     own_format_project(tmp_path)  # each case has two answers, A and B
     code, out = check(capsys)
     assert code == 3, out
+    assert "  1. Each item has 2 answers (A and B). Count each as its own answer?" in out
     assert out.splitlines()[-1] == (
-        'Next: ask the person: "Each item has 2 answers (A and B). Count each as its own '
-        'answer, and save how to read data/prompt_evals.jsonl in judgekeeper.toml?" If they '
-        'say yes, run `judgekeeper --yes`.')
+        "Next: ask the person these 2 questions. If they say yes to all, run `judgekeeper "
+        "--yes`. If they say no to any, ask them to run `judgekeeper` in a terminal.")
 
 
 # Eval tools and records are read as they are ----------------------------------------------
