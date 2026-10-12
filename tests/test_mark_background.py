@@ -77,11 +77,20 @@ def project(tmp_path):
         os.kill(pid, signal.SIGTERM)
 
 
+def page_log(project: Path) -> str:
+    """What the page's own process wrote: shown when a step fails."""
+    try:
+        return (project / ".judgekeeper" / background.LOG).read_text(encoding="utf-8",
+                                                                     errors="replace")
+    except OSError as e:
+        return f"(no page.log: {type(e).__name__})"
+
+
 def test_mark_runs_the_page_in_the_background(project):
     began = time.monotonic()
     first = jk(project, "mark", "--port", "0", "--no-browser")
     took = time.monotonic() - began
-    assert first.returncode == 0, first.stdout + first.stderr
+    assert first.returncode == 0, first.stdout + first.stderr + page_log(project)
     assert took < 20, took  # the page answered within its 10 seconds
     m = LINK.search(first.stdout)
     assert m, first.stdout
@@ -107,7 +116,7 @@ def test_mark_runs_the_page_in_the_background(project):
     assert json.loads((folder / label.LOCK).read_text(encoding="utf-8"))["pid"] == pid
 
     stopped = jk(project, "mark", "--stop")
-    assert stopped.returncode == 0, stopped.stdout + stopped.stderr
+    assert stopped.returncode == 0, stopped.stdout + stopped.stderr + page_log(project)
     assert "Closed the marking page." in stopped.stdout
     deadline = time.monotonic() + 10
     while alive(pid) and time.monotonic() < deadline:

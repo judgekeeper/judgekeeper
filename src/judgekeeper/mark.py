@@ -31,6 +31,7 @@ how the person gets the page.
 
 from __future__ import annotations
 
+import faulthandler
 import sys
 import webbrowser
 from datetime import UTC, datetime
@@ -107,12 +108,28 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
     talk = MarkTalk(yes=yes, path=path, options=options, new=new)
     talk.say(f"judgekeeper {__version__}")
     talk.say()
+    watching = wait and _watch()
     try:
         if stop:
             return _stop(talk, Path(path))
         return _run(talk, Path(path), wait)
     except Stop as e:
         return front.EXIT_NEEDS_YOU if e.code == EXIT_QUESTION else e.code
+    finally:
+        if watching:
+            faulthandler.cancel_dump_traceback_later()
+
+
+def _watch() -> bool:
+    """The page's own process (its errors go to page.log): when the page has not started
+    a little before `mark` stops waiting for it, write where it is stuck to page.log."""
+    try:
+        if sys.stderr.isatty():
+            return False
+        faulthandler.dump_traceback_later(background.WAIT - 2, exit=False, file=sys.stderr)
+    except (AttributeError, OSError, ValueError):
+        return False
+    return True
 
 
 def _link(text: str) -> None:
@@ -159,6 +176,7 @@ def _open_browser(talk: MarkTalk, url: str) -> None:
 
 
 def _serve(server) -> None:
+    faulthandler.cancel_dump_traceback_later()  # the page started
     try:
         server.serve()
     except KeyboardInterrupt:

@@ -700,8 +700,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
     def mark_path(self):
         """`judgekeeper mark` opens the page in the background and returns; the stand-in
         person marks on it; `judgekeeper mark` then prints the result; `--stop` closes it."""
-        p = self.run("2. judgekeeper mark opens the page in the background", self.mark(),
-                     expect=[r"Marking page: http://127\.0\.0\.1:", r"Marked so far: 0 "])
+        p = self.mark_step("2. judgekeeper mark opens the page in the background", self.mark(),
+                           [r"Marking page: http://127\.0\.0\.1:", r"Marked so far: 0 "])
         link = page_link(p.stdout) if p else None
         if not self.step("2. the page's link is printed", link is not None):
             return
@@ -710,13 +710,28 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         except Exception as e:  # noqa: BLE001 - any failure is this step's failure
             ok, detail = False, f"({type(e).__name__}: {e})"
         self.step("2. the stand-in person marks every answer on the page", ok, detail)
-        self.run("2. judgekeeper mark prints the result", self.mark(),
-                 expect=[r"Your marks: 40 \(25 Pass, 15 Fail\), made on the page",
-                         r"Of the answers you passed, your judge passed",
-                         r"Of the answers you failed, your judge failed",
-                         r"This set can see a drop of", r"still open"])
-        self.run("2. judgekeeper mark --stop closes the page", [self.jk, "mark", "--stop"],
-                 expect=[r"Closed the marking page"])
+        self.mark_step("2. judgekeeper mark prints the result", self.mark(),
+                       [r"Your marks: 40 \(25 Pass, 15 Fail\), made on the page",
+                        r"Of the answers you passed, your judge passed",
+                        r"Of the answers you failed, your judge failed",
+                        r"This set can see a drop of", r"still open"])
+        self.mark_step("2. judgekeeper mark --stop closes the page", [self.jk, "mark", "--stop"],
+                       [r"Closed the marking page"])
+
+    def mark_step(self, name: str, args, expect):
+        """A `judgekeeper mark` step; when it fails, what the page's own process wrote to
+        .judgekeeper/page.log, and whether its lock is still there."""
+        p = self.run(name, args, expect=expect)
+        if self.steps and not self.steps[-1][1]:
+            folder = self.project / ".judgekeeper"
+            try:
+                log = (folder / "page.log").read_text(encoding="utf-8", errors="replace")
+            except OSError as e:
+                log = f"(not readable: {type(e).__name__})"
+            print(f"\n--- .judgekeeper/page.log\n{log[-8000:] or '(empty)'}", flush=True)
+            print(f"--- .judgekeeper/server.json is there: {(folder / 'server.json').exists()}",
+                  flush=True)
+        return p
 
     def setup_own_format(self):
         self.run("judgekeeper maps the file (answers given by --yes, no terminal)",

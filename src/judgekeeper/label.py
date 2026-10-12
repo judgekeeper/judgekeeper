@@ -37,6 +37,7 @@ import io
 import json
 import os
 import secrets
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -264,8 +265,9 @@ class LabelServer:
         try:
             if json.loads(self.lock.read_text(encoding="utf-8")).get("token") == self.token:
                 self.lock.unlink()
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as e:
+            print(f"judgekeeper: {LOCK} was not removed ({type(e).__name__}: {e})",
+                  file=sys.stderr)
         self.lock = None
 
     def serve(self, idle_timeout: float | None = None) -> None:

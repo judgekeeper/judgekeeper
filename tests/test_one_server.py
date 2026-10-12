@@ -101,3 +101,16 @@ def test_a_second_start_says_where_the_page_is_and_stops(ws, tmp_path, capsys):
         thread.join(timeout=5)
     assert code == 2
     assert f"judgekeeper is already open for this project: {server.url}" in out + err
+
+
+def test_the_lock_is_removed_while_another_reader_has_it_open(ws):
+    """On Windows a file someone has open can't be deleted, and `mark --stop` reads the lock
+    while the page closes: the page still removes its lock."""
+    server = make_server(StartSession(ws), 0, page="<p>page</p>", lock=ws.dir)
+    lock = ws.dir / label_mod.LOCK
+    reader = lock.open(encoding="utf-8")
+    threading.Timer(0.5, reader.close).start()
+    server.httpd.server_close()
+    server.release()
+    reader.close()
+    assert not lock.exists()

@@ -37,6 +37,22 @@ jobs:
       - name: Lint
         run: ruff check src tests
 
+  # The marking page runs as its own process (judgekeeper mark). The unit tests run on Linux
+  # here and on Windows in windows.yml; this runs that page's real-process test on macOS.
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Test the background page
+        run: pytest -rfEs tests/test_mark_background.py
+
   # Builds both distributions, installs the wheel into a fresh venv and runs it from there,
   # so a packaging mistake (a missing font, a broken entry point) fails here rather than
   # on release day. The same steps run in release.yml before publishing.
