@@ -305,10 +305,9 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
     for figure in (*in_readme, example, simulated, real_judge, two(h["kappa_mean"]),
                    f"with {s['labels_mean']['lowest']} human labels per check"):
         assert figure in readme, figure
-    for path in (ROOT / "docs" / "reference.md", ROOT / "CHANGELOG.md"):
-        text = _flat(path)
-        for figure in result:
-            assert figure in text, (path.name, figure)
+    reference = _flat(ROOT / "docs" / "reference.md")
+    for figure in result:
+        assert figure in reference, figure
     assert "Tested on Python 3.11 to 3.14 on Linux, and on Windows." in readme
     assert "on Python 3.11 to 3.14 on Linux, and on Windows." in _flat(
         ROOT / "website" / "learn.html")

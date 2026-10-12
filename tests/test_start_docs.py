@@ -207,9 +207,9 @@ def test_the_reference_has_every_start_flag_and_the_saved_files():
 
 # README, guide, skill --------------------------------------------------------------------
 
-def test_the_readme_makes_start_the_main_path():
+def test_the_readme_makes_uvx_the_main_path():
     use = _sections(README)["Use it on your own judge"]
-    assert "\ncd your-project\njudgekeeper start\n" in use
+    assert "\ncd your-project\nuvx judgekeeper\n" in use
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
         assert tool in use, tool
     assert len(README.read_text(encoding="utf-8").splitlines()) <= 80
@@ -230,25 +230,9 @@ def test_the_skill_leaves_marking_to_the_person():
 
 # The version -----------------------------------------------------------------------------
 
-def test_the_version_is_0_2_0_everywhere():
+def test_the_version_is_1_0_0b1_everywhere():
     main_toml = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert __version__ == main_toml["project"]["version"] == "0.2.0"
-
-
-def test_the_changelog_says_what_0_2_0_adds_and_what_it_does_not_do():
-    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    entry = " ".join(text[text.index("## 0.2.0"):text.index("## 0.1.3")].split())
-    assert "## 0.2.0 (2026-10-12)" in entry and "## 0.1.4" not in text
-    unchanged = "No change to any metric."
-    for needed in ("`judgekeeper start`", "`judgekeeper --version`", "no AI calls",
-                   "no API key", "never runs your", unchanged, "Removed: `judgekeeper demo`",
-                   ("Removed: `label`, `template`, `import-labels`, `freeze`, `attribute`, "
-                    "`export` and the `record` command"),
-                   "AI calls only after you say yes", "your own judge through your own tool",
-                   "key names only", "review the disagreements", "ask your judge again",
-                   "try your new judge", "`promptfoo export`", "Install inside your project",
-                   "--agent-prompt", "installed outside a project"):
-        assert needed in entry, needed
+    assert __version__ == main_toml["project"]["version"] == "1.0.0b1"
 
 
 # Results in your own format, and after the first result ----------------------------------

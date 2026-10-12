@@ -1,59 +1,19 @@
 # Changelog
 
-## 0.2.0 (2026-10-12)
+## 1.0.0b1 (2026-10-12)
 
-`judgekeeper start`: one command from your eval tool's saved results to how often your judge agrees
-with you. AI calls only after you say yes, your own judge through your own tool, and key names only.
+First beta of the new judgekeeper: one command, `judgekeeper`, does the next step each time you
+run it. Fixing your judge and re-checking it on its own come in later betas.
 
-### New
-
-- `judgekeeper start` reads the results your eval tool saved and shows how often your judge agrees
-  with your marks. See the [Guide](https://www.judgekeeper.com/start.html).
-- Finding answers, marking them and the result make no AI calls and need no API key.
-- `start` never runs your app. Before you mark, it checks whether your judge actually judged.
-- After a result: review the disagreements, ask your judge again, or try your new judge.
-- `judgekeeper start --fix` finds a better pass mark for scores and helps you change the rule.
-- "Let your coding agent do it": Claude Code, Cursor or Codex writes the new rule (`--rule-file`).
-- `judgekeeper setup` sets up a project whose judge saves results in a format of its own.
-- `start --agent-prompt` prints a prompt for your coding agent to turn those results into a table.
-- `judgekeeper.record()` saves each verdict when your judge runs in your own code.
-- `start` offers to run `promptfoo export` when promptfoo kept its results only in its database.
-- `judgekeeper import records FILE --check` lists every problem in a records file.
-- TRADEMARKS.md: the MIT license covers the code, not the name judgekeeper or its logo.
-
-### Changed
-
-- A new look for the pages, made for a laptop screen. Nothing is loaded from outside.
-- The pages and terminal say Pass and Fail instead of Correct and Wrong.
-- Install inside your project, like pytest. `judgekeeper --version` says when judgekeeper is
-  installed outside a project.
-- Narrower ranges: in simulation they held the true value at least 93.6 times in 100 in every case,
-  and are 27.1% narrower on average.
-- Checked on 5 real judges from 3 public datasets. The ranges held the value from all human labels
-  in 96.0 checks in 100 on average (lowest 94.6, highest 98.4), over 1,000 checks per judge.
-- After you ask your judge again, its TPR and TNR ranges use the same method. The old bootstrap
-  held the true value as rarely as 53.8 times in 100.
-- Label targets: 15 of each mark for a rough check, 25 of each for a reliable result. Report fields
-  changed: see the [Reference](https://www.judgekeeper.com/reference.html).
-- Removed: `judgekeeper demo` (with `judgekeeper demo --try`) and the website's "See it work" page.
-- Removed: `label`, `template`, `import-labels`, `freeze`, `attribute`, `export` and the `record`
-  command. Marking is now part of `judgekeeper start`.
-- The project does not accept pull requests. Bug reports and ideas are welcome as issues.
-- No change to any metric.
-
-### Fixed
-
-- Works on Windows, including reading an MLflow store.
-- Reads MLflow `mlruns/` folders from MLflow 3.16 and later.
-- Reads more of what promptfoo, DeepEval, Inspect AI and MLflow save.
-- Every command `start` prints for you to run next works as printed.
-- Ctrl-C at any question stops with "Stopped." instead of a traceback.
-
-### Security
-
-- `start` stops when `.judgekeeper/` or anything in it is a link, instead of writing through it.
-- `.judgekeeper/` gets its own `.gitignore`, so your answers stay off Git.
-- Asking your judge again runs your project's own code: do it only in a project you trust.
+- Run `uvx judgekeeper` in your project, or `pip install judgekeeper` and then `judgekeeper`.
+- It finds the results your eval tool saved and checks your judge's verdicts, with no AI call.
+- It opens a page in your browser to mark answers Pass or Fail, with your judge's verdict hidden.
+- Run it again for TPR, TNR and kappa with ranges, and the smallest drop your marks can see.
+- `judgekeeper mark` opens the page to mark more; `judgekeeper --stop` closes it.
+- A coding agent reads `skills/judgekeeper/SKILL.md`: it runs `judgekeeper`, and only you mark.
+- Removed: `init`, `freeze`, `judge`, `validate`, `baseline`, `gate`, `migrate`, `check`,
+  `template`, `import-labels`, `label`, `import`, `export`, `attribute` and `demo`, the pytest
+  plugin and the GitHub Action.
 
 ## 0.1.3 (2026-10-04)
 

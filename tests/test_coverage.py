@@ -72,6 +72,3 @@ def test_the_coverage_figures_in_the_docs_come_from_the_committed_grid():
     reference = " ".join((root / "docs" / "reference.md").read_text(encoding="utf-8").split())
     for figure in figures:
         assert figure in reference, figure
-    changelog = " ".join((root / "CHANGELOG.md").read_text(encoding="utf-8").split())
-    for figure in figures[1:2] + figures[5:]:
-        assert figure in changelog, figure
