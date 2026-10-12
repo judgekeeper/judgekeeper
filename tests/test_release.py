@@ -320,13 +320,14 @@ def test_docs_do_not_point_at_the_unused_pages_address():
         assert "judgekeeper.github.io" not in path.read_text(encoding="utf-8"), path
 
 
-def test_package_metadata_links_the_website():
+def test_package_metadata_links_the_repo_while_the_website_is_offline():
+    """PyPI shows these links. The README is the documentation until the website is back."""
     urls = _toml(ROOT / "pyproject.toml")["project"]["urls"]
-    assert urls["Homepage"] == "https://www.judgekeeper.com"
+    assert urls["Homepage"] == "https://github.com/judgekeeper/judgekeeper"
     assert urls["Source"] == "https://github.com/judgekeeper/judgekeeper"
-    assert urls["Documentation"] == "https://www.judgekeeper.com/docs.html"
-    assert (ROOT / "website" / "docs.html").is_file()
+    assert "Documentation" not in urls
     assert urls["Issues"] == "https://github.com/judgekeeper/judgekeeper/issues"
+    assert not [u for u in urls.values() if "judgekeeper.com" in u]
 
 
 def test_contributing_says_issues_not_pull_requests_and_how_to_report_privately():

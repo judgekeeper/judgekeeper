@@ -30,8 +30,7 @@ mlflow = ["mlflow>=3.1"]
 judgekeeper = "judgekeeper.cli:main"
 
 [project.urls]
-Homepage = "https://www.judgekeeper.com"
-Documentation = "https://www.judgekeeper.com/docs.html"
+Homepage = "https://github.com/judgekeeper/judgekeeper"
 Source = "https://github.com/judgekeeper/judgekeeper"
 Issues = "https://github.com/judgekeeper/judgekeeper/issues"
 Changelog = "https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"
