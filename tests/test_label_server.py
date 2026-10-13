@@ -160,6 +160,30 @@ def test_host_header_must_be_the_bound_address(tmp_path, serve, host):
     assert not out.exists()
 
 
+@pytest.mark.parametrize("method", ["OPTIONS", "PUT", "DELETE", "PATCH", "HEAD", "TRACE"])
+def test_other_methods_get_the_same_checks_then_405(tmp_path, serve, method):
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    resp, _ = client.request(method, "/label", token=False)
+    assert resp.status == 403
+    resp, _ = client.request(method, "/label", host="evil.example")
+    assert resp.status == 403
+    resp, payload = client.request(method, "/label")
+    assert resp.status == 405
+    assert resp.getheader("Allow") == "GET, POST"
+    assert payload == b"" if method == "HEAD" else json.loads(payload)
+    assert not (tmp_path / "labels.csv").exists()
+
+
+def test_no_answer_names_the_python_version(tmp_path, serve):
+    import platform
+
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    for method, token in (("GET", True), ("GET", False), ("OPTIONS", False), ("OPTIONS", True)):
+        resp, _ = client.request(method, "/state", token=token)
+        server = resp.getheader("Server") or ""
+        assert "Python" not in server and platform.python_version() not in server, server
+
+
 def test_labels_are_written_immediately(tmp_path, serve):
     out = tmp_path / "labels.csv"
     client = serve(_items(tmp_path), out)

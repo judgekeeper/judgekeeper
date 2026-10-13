@@ -11,7 +11,8 @@ through textContent, and the data is embedded as JSON with <, > and & escaped. E
 connection is read in a thread of its own, so a slow or silent one never holds up the rest;
 it is dropped after CONNECTION_TIMEOUT seconds. Requests are then handled one at a time
 (LabelServer.busy). A POST's body is read before any answer: a connection closed with unread
-data is reset on Windows, and the answer is lost. The server stops on Ctrl-C, on a
+data is reset on Windows, and the answer is lost. Any other method (OPTIONS, HEAD...) gets the
+same Host and token checks, then 405; no answer names the Python version. The server stops on Ctrl-C, on a
 POST to /stop (it works the same on every system), and after IDLE_TIMEOUT seconds without a
 request. The project's lock (server.json) holds a separate stop secret, never the token: with
 it a request can only ask whether the page is open (GET /alive) or close it (POST /stop). A
@@ -390,6 +391,14 @@ def _handler(server: LabelServer):
         def log_message(self, format, *args):
             pass  # quiet: request lines carry the token
 
+        def version_string(self) -> str:
+            return "judgekeeper"  # the Server header: not the Python version
+
+        def __getattr__(self, name: str):
+            if name.startswith("do_"):  # a method with no do_ of its own
+                return self._other
+            raise AttributeError(name)
+
         def _send(self, status: int, body: bytes, content_type: str, extra=None) -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
@@ -401,7 +410,8 @@ def _handler(server: LabelServer):
             for k, v in (extra or {}).items():
                 self.send_header(k, v)
             self.end_headers()
-            self.wfile.write(body)
+            if self.command != "HEAD":
+                self.wfile.write(body)
 
         def _json(self, status: int, data) -> None:
             self._send(status, json.dumps(data, ensure_ascii=False).encode("utf-8"),
@@ -441,6 +451,13 @@ def _handler(server: LabelServer):
             body = self._body()
             with server.busy:
                 self._post(body)
+
+        def _other(self):
+            self._body()
+            with server.busy:
+                if self._allowed(urlsplit(self.path)):
+                    self._send(405, b'{"error": "method not allowed"}',
+                               "application/json; charset=utf-8", {"Allow": "GET, POST"})
 
         def _get(self):
             url = urlsplit(self.path)
