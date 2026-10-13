@@ -1,12 +1,11 @@
 """The commands of the 0.1 CI gate, and `setup` (part of `judgekeeper` now), are gone: each
-name prints one line, exits 2, and is not in the help."""
+name prints one line, exits 2, and is not in the help. (`check` is a command again.)"""
 
 import pytest
 
 from judgekeeper.cli import REMOVED, main
 
-NAMES = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "check",
-         "setup")
+NAMES = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "setup")
 
 
 def test_every_old_name_is_listed():

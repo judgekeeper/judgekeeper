@@ -3,6 +3,8 @@
 `judgekeeper` with no command (front.py) does the next step: finds the judge, checks it for
 free, opens the page to mark answers on, and prints the result once there are enough marks; it
 ends with one `Next:` line. `judgekeeper mark` (mark.py) opens the page to mark more.
+`judgekeeper check` (check.py) re-tests a changed judge on the marks (exit 1: the new judge
+got worse); `--fast` only says whether it changed.
 `judgekeeper start` (not in the help) still has its review, fix and asking again. Exit codes: 0
 success, 1 runtime failure, 2 usage error, 3 the person is needed (`judgekeeper` and `mark`:
 the Next: line says what to ask), 8 stopped at a question (`start`, below), 130 Ctrl-C.
@@ -17,7 +19,8 @@ it cannot ask (no terminal: the line before says the flag or command that answer
 nothing went wrong), 2 when the command is wrong or it finds nothing it can use.
 
 Removed commands (`REMOVED`: the 0.1 CI gate, and `setup`, now part of `judgekeeper`) print
-one line that says so and exit 2. They are not in the help.
+one line that says so and exit 2. They are not in the help. `check` is a command again, with
+a new meaning.
 """
 
 from __future__ import annotations
@@ -62,12 +65,12 @@ ABOUT = ("Run judgekeeper in your project: it finds your eval tool's saved resul
          "the next step and ends with one Next: line saying what to do.")
 COMMANDS_HELP = (
     ("mark", "open the page to mark more answers Pass or Fail"),
+    ("check", "when your judge changed, re-check it on your marks"),
 )
 HELP_WIDTH = 100
 # Removed commands: the 0.1 CI gate, and setup (part of judgekeeper now). Each prints one line
 # and exits 2.
-REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "check",
-           "setup")
+REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "setup")
 
 
 class _Parser(argparse.ArgumentParser):
@@ -217,6 +220,19 @@ def _parser() -> argparse.ArgumentParser:
                          "printed")
     _page_args(mk)
 
+    ck = sub.add_parser("check", parents=[common],
+                        help="when your judge changed, re-check it on your marks")
+    ck.add_argument("path", nargs="?", default=".", metavar="PATH",
+                    help="your project folder (default: this folder)")
+    how = ck.add_mutually_exclusive_group()
+    how.add_argument("--fast", action="store_true",
+                     help="only say whether your judge changed: no AI call, no network (for "
+                          "git pre-commit)")
+    how.add_argument("--hook", action="store_true",
+                     help="for a coding agent's hook: read the hook's JSON on stdin, answer in "
+                          "JSON")
+    how.add_argument("--baseline", action="store_true", help=argparse.SUPPRESS)
+
     st = sub.add_parser("start", parents=[common],
                         help="find your judge's saved results and check them against your own "
                              "labels")
@@ -348,6 +364,13 @@ def cmd_mark(args) -> int:
                     no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop)
 
 
+def cmd_check(args) -> int:
+    from judgekeeper import check
+
+    return check.run(args.path, fast_only=args.fast, hook=args.hook,
+                     baseline_only=args.baseline)
+
+
 def cmd_front(args) -> int:
     from judgekeeper import front
 
@@ -358,7 +381,7 @@ def cmd_front(args) -> int:
                      no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop)
 
 
-COMMANDS = {"mark": cmd_mark, "start": cmd_start, None: cmd_front}
+COMMANDS = {"mark": cmd_mark, "check": cmd_check, "start": cmd_start, None: cmd_front}
 
 
 def _command(args_list: list[str]) -> str | None:
