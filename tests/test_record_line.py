@@ -212,6 +212,33 @@ def test_an_unwritable_folder_never_raises_and_warns_once(project, caplog):
                                                "verdicts.")
 
 
+def _link(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=target.is_dir())
+    except (OSError, NotImplementedError):
+        pytest.skip("symbolic links not allowed here")
+
+
+@pytest.mark.parametrize("where", [".judgekeeper", ".judgekeeper/records", "file"])
+def test_records_are_never_written_through_a_link(project, tmp_path_factory, caplog, where):
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
+    path = recorder._path(None)
+    if where == "file":
+        path.parent.mkdir(parents=True)
+        (elsewhere / "target.jsonl").write_text("", encoding="utf-8")
+        _link(path, elsewhere / "target.jsonl")
+    else:
+        (project / where).parent.mkdir(parents=True, exist_ok=True)
+        _link(project / where, elsewhere)
+    with caplog.at_level(logging.WARNING, logger="judgekeeper"):
+        assert judgekeeper.record("q", "a", verdict="pass") is None
+    assert [p.read_text(encoding="utf-8") for p in elsewhere.rglob("*") if p.is_file()] in (
+        [], [""])
+    assert not any(elsewhere.iterdir()) or where == "file"
+    message = caplog.records[-1].getMessage()
+    assert "is a link. judgekeeper does not write through links" in message
+
+
 def test_the_off_switch(project, monkeypatch):
     for off in ("0", "false", "off", "no", "OFF"):
         monkeypatch.setenv("JUDGEKEEPER_RECORD", off)

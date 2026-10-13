@@ -104,7 +104,7 @@ def locked(root: Path, tool: str) -> str | None:
     if tool == "promptfoo":
         try:
             lock = json.loads((root / "package-lock.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):
             return None
         if not isinstance(lock, dict):
             return None
@@ -159,7 +159,7 @@ def _promptfoo_agent(found) -> dict | None:
 
     try:
         data = json.loads(found.results[0].path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return None
     default_test = ((data.get("config") or {}).get("defaultTest") or {}) if isinstance(
         data, dict) else {}

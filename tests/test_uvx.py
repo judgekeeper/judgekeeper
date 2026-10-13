@@ -36,6 +36,7 @@ def here(tmp_path, monkeypatch):
 def by_uvx(monkeypatch):
     monkeypatch.setenv("UV", "/Users/me/.local/bin/uv")
     monkeypatch.setattr(sys, "prefix", CACHES[0])
+    monkeypatch.setattr(textio, "extras_here", lambda: ())  # started without an extra
 
 
 def _bare_commands(text: str) -> list[str]:
@@ -49,6 +50,7 @@ def _bare_commands(text: str) -> list[str]:
 @pytest.mark.parametrize("prefix", CACHES)
 def test_uv_s_cache_folder_and_uv_set_mean_uvx(monkeypatch, prefix):
     monkeypatch.setenv("UV", "uv")
+    monkeypatch.setattr(textio, "extras_here", lambda: ())
     monkeypatch.setattr(sys, "prefix", prefix)
     assert textio.program() == UVX
     assert textio.program("mark") == f"{UVX} mark"

@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 
 from judgekeeper.find import NAMES
 from judgekeeper.redact import scrub
+from judgekeeper.textio import plural
 
 ERROR, UNREADABLE, EMPTY, NOTHING_CHECKED = "error", "unreadable", "empty", "nothing_checked"
 EMPTY_ANSWER_REFUSED = "empty_answer_refused"
@@ -180,8 +181,7 @@ def check(pool, tool: str, score_judge: bool = False) -> Result:
 
 # What it says ----------------------------------------------------------------------------
 
-def _n(n: int, one: str, many: str) -> str:
-    return f"{n} {one if n == 1 else many}"
+_n = plural  # textio.plural
 
 
 _NO_DECISION_WORDS = {ERROR: ("call failed", "calls failed"),

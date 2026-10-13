@@ -4,7 +4,8 @@ Four things every command shares:
 
 - reading a text file the user supplied. A spreadsheet saved by Excel's default "CSV" option
   is cp1252 or UTF-16, not UTF-8; `read_utf8` turns that into one line that says how to save
-  it, raised as the caller's own usage error. JSONL is split into lines by `jsonl_lines`.
+  it, raised as the caller's own usage error. JSONL is split into lines by `jsonl_lines`;
+  `read_json` says JSON nested too deep to read in one plain line too.
 - writing a file judgekeeper owns: `write_replacing` writes a new file and renames it over the
   old one, so a link there is replaced, never written through; `link_in` finds a link in a
   folder before anything is written.
@@ -15,12 +16,15 @@ Four things every command shares:
   shell in use, and `split_command` reads `--judge-command` the way that shell would. On Windows that
   is cmd.exe or PowerShell: double quotes, backslashes in paths, `start` instead of `open`.
 
-`tick()` is the mark in front of a line that says something was found or is ready.
+`tick()` is the mark in front of a line that says something was found or is ready, and
+`plural` says a count as people say it ("1 answer", "2 answers").
 """
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -82,11 +86,70 @@ def started_by_uvx() -> bool:
 def program(subcommand: str = "") -> str:
     """judgekeeper as the person runs it again: `uvx judgekeeper@<version>` when uvx started
     it (uvx and pip skip betas unless the version is named, and uvx puts no `judgekeeper`
-    command on the PATH), else `judgekeeper`; then the subcommand."""
+    command on the PATH), with the extras it was started with (uvx_with); else
+    `judgekeeper`; then the subcommand."""
     from judgekeeper import __version__
 
-    name = f"uvx judgekeeper@{__version__}" if started_by_uvx() else "judgekeeper"
+    name = "judgekeeper"
+    if started_by_uvx():
+        name = uvx_with() if extras_here() else f"uvx judgekeeper@{__version__}"
     return f"{name} {subcommand}" if subcommand else name
+
+
+# judgekeeper's extras, and the module each one installs
+EXTRA_MODULES = {"inspect": "inspect_ai", "mlflow": "mlflow"}
+
+
+def extras_here() -> tuple[str, ...]:
+    """The extras whose module this Python can import (without importing it)."""
+    import importlib.util
+
+    here = []
+    for extra, module in EXTRA_MODULES.items():
+        try:
+            if importlib.util.find_spec(module) is not None:
+                here.append(extra)
+        except (ImportError, ValueError):  # ValueError: set to None in sys.modules
+            continue
+    return tuple(here)
+
+
+def is_prerelease(version: str | None = None) -> bool:
+    """Whether `version` (judgekeeper's own by default) is a beta, alpha, rc or dev release."""
+    from judgekeeper import __version__
+
+    return re.search(r"\d(a|b|rc|\.dev)\d*$", version or __version__) is not None
+
+
+def uvx_with(*extras: str) -> str:
+    """The uvx command that runs this version of judgekeeper with `extras` and the extras it
+    has now: uvx keeps its own environment, which `pip install` never reaches."""
+    from judgekeeper import __version__
+
+    names = ",".join(sorted({*extras, *extras_here()}))
+    return f'uvx --from "judgekeeper[{names}]=={__version__}" judgekeeper'
+
+
+def install_extra(extra: str) -> str:
+    """`pip install "judgekeeper[<extra>]"`, pinned to this version while it is a beta (pip
+    skips betas unless the version is named)."""
+    from judgekeeper import __version__
+
+    pin = f"=={__version__}" if is_prerelease() else ""
+    return f'pip install "judgekeeper[{extra}]{pin}"'
+
+
+def get_extra(extra: str) -> str:
+    """How to get `extra`, as the end of a sentence: the uvx command when uvx started
+    judgekeeper, else the install line."""
+    if started_by_uvx():
+        return f"run `{uvx_with(extra)}`"
+    return f"install the extra ({install_extra(extra)})"
+
+
+def plural(n: int, one: str, many: str | None = None) -> str:
+    """`n` and the word for it: `one` for 1, else `many` (by default `one` + "s")."""
+    return f"{n} {one if n == 1 else many or one + 's'}"
 
 
 # Reading -------------------------------------------------------------------------------------
@@ -118,6 +181,39 @@ def read_utf8(path: str | Path, error: type[Exception]) -> str:
     Raises `error` (the caller's usage error) with one plain line when the file is not UTF-8.
     """
     return decode_utf8(Path(path).read_bytes(), path, error).removeprefix(BOM)
+
+
+NOT_JSON = "{file} isn't valid JSON that judgekeeper can read."
+MAX_NESTING = 500  # lists and objects inside each other; Python before 3.14 stops near 1000
+
+
+def read_json(path: str | Path, error: type[Exception]):
+    """The JSON in a file the user supplied (read_utf8). Raises `error` with one plain line
+    when it is nested deeper than MAX_NESTING (on every Python version, whether or not its JSON
+    reader stops first); json.JSONDecodeError as usual."""
+    text = read_utf8(path, error)
+    try:
+        data = json.loads(text)
+    except RecursionError:
+        raise error(NOT_JSON.format(file=path)) from None
+    if _too_deep(data):
+        raise error(NOT_JSON.format(file=path))
+    return data
+
+
+def _too_deep(data) -> bool:
+    """Whether lists and objects are nested deeper than MAX_NESTING, walked without
+    recursion."""
+    stack = [(data, 1)]
+    while stack:
+        value, depth = stack.pop()
+        if depth > MAX_NESTING:
+            return True
+        if isinstance(value, dict):
+            stack.extend((v, depth + 1) for v in value.values() if isinstance(v, (dict, list)))
+        elif isinstance(value, list):
+            stack.extend((v, depth + 1) for v in value if isinstance(v, (dict, list)))
+    return False
 
 
 def jsonl_lines(text: str) -> list[str]:

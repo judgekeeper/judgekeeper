@@ -59,6 +59,12 @@ def baseline(monkeypatch):
     return calls
 
 
+@pytest.fixture(autouse=True)
+def no_extras(monkeypatch):
+    """No optional extra is installed (the test environment may have mlflow)."""
+    monkeypatch.setattr(textio, "extras_here", lambda: ())
+
+
 @pytest.fixture
 def by_uvx(monkeypatch):
     """judgekeeper was started by uvx."""
@@ -828,3 +834,38 @@ def test_no_internal_words_in_the_code():
     for path in Path(judgekeeper.__file__).parent.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         assert not re.search(r"\bScene \d|walkthrough", text), path.name
+
+
+def test_one_mark_is_said_as_one(here):
+    (row,) = keep.history_rows([{"time": "2026-10-19T10:00:00Z", "kind": "check",
+                                 "trigger": "baseline", "changed": [], "free": 0, "asked": 1,
+                                 "exact": "exact", "groups": None, "flipped": []}])
+    assert row["tested"] == "1 mark (1 asked again)"
+
+
+def test_a_hook_error_reaches_the_agent_on_one_line(here, capsys, monkeypatch):
+    from judgekeeper import marks
+
+    _marked(here)
+
+    def broken(path):
+        raise ValueError("first line\nsecond line")
+
+    monkeypatch.setattr(marks, "read", broken)
+    monkeypatch.setattr(sys, "stdin", io.StringIO("{}"))
+    assert main(["check", "--hook"]) == 0
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert "\n" not in context and "first line" in context
+
+
+def test_uvx_with_an_extra_runs_the_hooks_with_it(here, capsys, no_browser, baseline, by_uvx,
+                                                  monkeypatch):
+    monkeypatch.setattr(textio, "extras_here", lambda: ("mlflow",))
+    _marked(here)
+    (here / ".git" / "hooks").mkdir(parents=True)
+    _turn_on(here, capsys, no_browser)
+    (hook, _) = _hook_commands(_settings(here))
+    assert hook["command"] == "uvx"
+    assert hook["args"][:3] == ["--from", f"judgekeeper[mlflow]=={V}", "judgekeeper"]
+    text = (here / ".git" / "hooks" / "pre-commit").read_text(encoding="utf-8")
+    assert f"uvx --from 'judgekeeper[mlflow]=={V}' judgekeeper check --fast || exit $?" in text

@@ -250,7 +250,7 @@ def test_stop_closes_the_open_page(here, capsys, pages):
     assert label.is_open(folder)
     code, out, _ = run(capsys, "mark", "--stop")
     assert code == 0
-    assert "Closed the marking page. Your marks are saved." in out
+    assert "Closed the marking page." in out and "marks are saved" not in out
     assert _check(out).startswith("Next: nothing.")
     assert not label.is_open(folder)
     code, out, _ = run(capsys, "mark", "--stop")

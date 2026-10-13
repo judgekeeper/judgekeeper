@@ -372,11 +372,21 @@ def test_stop_closes_the_page(here, capsys, pages):
     assert label.is_open(folder)
     code, out, _ = run(capsys, "--stop")
     assert code == 0
-    assert "Closed the marking page. Your marks are saved." in out
+    assert "Closed the marking page." in out
+    assert "marks are saved" not in out  # none were made
     assert _check(out).startswith("Next: nothing.")
     assert not label.is_open(folder)
     code, out, _ = run(capsys, "--stop")
     assert code == 0 and "No marking page is open." in out
+
+
+def test_stop_says_the_marks_are_saved_when_there_are_some(here, capsys, pages):
+    promptfoo_project(here, split(20, 16))
+    run(capsys)
+    _click(start_label.Workspace(here), 4)
+    code, out, _ = run(capsys, "--stop")
+    assert "Closed the marking page. Your marks are saved." in out
+    assert code == 0
 
 
 def test_the_help_has_the_page_flags_and_hides_start(capsys):

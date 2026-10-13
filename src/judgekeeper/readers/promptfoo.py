@@ -62,7 +62,7 @@ from judgekeeper.records import (
     ScoreRecord,
     derive_record_id,
 )
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import read_json
 
 # Assertion types graded by a model (promptfoo src/types/index.ts, BaseAssertionTypesSchema).
 MODEL_GRADED = frozenset({
@@ -132,9 +132,23 @@ def is_stripped_warning(text: str) -> bool:
     return any(setting in text for _, setting in STRIP_SETTINGS.values())
 
 
+TWO_JUDGES = ("{where}: test {test}{config} has more than one {name!r} judge. Give each one a "
+              "name with metric: in its assertion, then run your eval again (that makes model "
+              "calls).")
+
+
+class TwoJudges(RecordsError):
+    """A test holds two judges of the same name. Only its number is kept (counted from 1):
+    its description and variables are input text, never shown."""
+
+    def __init__(self, path: Path, test, name: str):
+        self.test, self.name = test, name
+        super().__init__(TWO_JUDGES.format(where=path, test=test, config="", name=name))
+
+
 def _load(path: Path) -> dict:
     try:
-        data = json.loads(read_utf8(path, RecordsError))
+        data = read_json(path, RecordsError)
     except json.JSONDecodeError as e:
         raise RecordsError(f"{path}: not JSON ({e.msg})") from None
     results = data.get("results") if isinstance(data, dict) else None
@@ -323,8 +337,8 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                 continue
             per_row[name] += 1
             if per_row[name] > 1:
-                raise RecordsError(f"{path}: test {r.get('testIdx')} has more than one {name!r} "
-                                   "component; name them with metric: in each assertion")
+                idx = r.get("testIdx")
+                raise TwoJudges(path, idx + 1 if isinstance(idx, int) else idx, name)
             grader = grader_of(a, test_opts, default_test)
             evaluator = _provider(grader)
             if not evaluator:

@@ -132,12 +132,22 @@ def _exe(name: str) -> str:
     return f"Scripts/{name}.exe" if os.name == "nt" else f"bin/{name}"
 
 
+def _uvx() -> list[str]:
+    """This version of judgekeeper run by uvx, with the extras it has now (as textio.program
+    names it): a hook must read the same results."""
+    extras = textio.extras_here()
+    if extras:
+        return ["uvx", "--from", f"judgekeeper[{','.join(sorted(extras))}]=={__version__}",
+                "judgekeeper"]
+    return ["uvx", f"judgekeeper@{__version__}"]
+
+
 def runner(root: Path) -> tuple[list[str], str]:
-    """(judgekeeper as the hooks run it, how): `uvx judgekeeper@<version>` ("uvx"); the
-    project's own, its path from the project ("project"); else this one, by its full path
+    """(judgekeeper as the hooks run it, how): uvx with this version and its extras ("uvx");
+    the project's own, its path from the project ("project"); else this one, by its full path
     ("here")."""
     if textio.started_by_uvx():
-        return ["uvx", f"judgekeeper@{__version__}"], "uvx"
+        return _uvx(), "uvx"
     prefix = _prefix().resolve()
     if prefix.is_relative_to(root):
         return [(prefix.relative_to(root) / _exe("judgekeeper")).as_posix()], "project"
@@ -263,7 +273,7 @@ def _pre_commit(root: Path, argv: list[str],
     folder = Path(os.path.relpath(root, git)).as_posix()
     at = [] if folder == "." else [folder]
     command = _shell(_from(argv, how, folder), "check", "--fast", *at)
-    portable = _shell(["uvx", f"judgekeeper@{__version__}"], "check", "--fast", *at)
+    portable = _shell(_uvx(), "check", "--fast", *at)
     hook = git / GIT_HOOK
     rel = Path(os.path.relpath(hook, root)).as_posix()
 
@@ -524,8 +534,9 @@ def _last_check(ws) -> str:
     last = lines[-1]
     day = _day(last.get("time"))
     if last.get("trigger") == "baseline":
-        return (f"Last check: {day}, your judge asked once about {last.get('asked')} marked "
-                f"answers (it changed its mind on {len(last.get('flipped') or [])}).")
+        asked = textio.plural(int(last.get("asked") or 0), "marked answer")
+        return (f"Last check: {day}, your judge asked once about {asked} (it changed its mind "
+                f"on {len(last.get('flipped') or [])}).")
     groups = last.get("groups") or {}
     worse = [k for k in ("passed", "failed") if (groups.get(k) or {}).get("verdict") == "worse"]
     said = (f"worse on answers you {' and '.join(worse)}" if worse else "no drop seen")
@@ -598,7 +609,8 @@ def history_rows(lines: list[dict]) -> list[dict]:
         free, asked = int(line.get("free") or 0), int(line.get("asked") or 0)
         parts = ([f"{free} free"] if free else []) + ([f"{asked} asked again"] if asked else [])
         row = {"date": _day(line.get("time")) or "",
-               "tested": f"{free + asked} marks ({', '.join(parts)})" if parts else "0 marks",
+               "tested": (f"{textio.plural(free + asked, 'mark')} ({', '.join(parts)})" if parts
+                          else "0 marks"),
                "exact": "close copy" if line.get("exact") == "close" else "exact"}
         if line.get("trigger") == "baseline":
             row.update(changed="Asked your judge once, to learn how steady it is", groups=[],

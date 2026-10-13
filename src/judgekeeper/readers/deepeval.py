@@ -47,7 +47,7 @@ from judgekeeper.records import (
     ScoreRecord,
     derive_record_id,
 )
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import read_json
 
 POSITIONAL = re.compile(r"(conversational_)?test_case_\d+")
 STAMP = re.compile(r"test_run_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})")
@@ -111,11 +111,27 @@ def _mark(md: dict, label, conversational: bool) -> Mark:
                 output_elsewhere=conversational)
 
 
+LINK_ONLY = "{file} only links to Confident AI; your results aren't saved on this computer."
+
+
+class LinkOnly(RecordsError):
+    """The file holds only DeepEval's link to the run on Confident AI (LINK_ONLY)."""
+
+
+def is_link_only(data) -> bool:
+    """Whether DeepEval saved only the link to the run on Confident AI: `testRunLink`, no
+    test cases."""
+    return isinstance(data, dict) and "testRunLink" in data and not any(
+        k in data for k in ("testCases", "conversationalTestCases", "testRunData"))
+
+
 def _load(path: Path) -> dict:
     try:
-        data = json.loads(read_utf8(path, RecordsError))
+        data = read_json(path, RecordsError)
     except json.JSONDecodeError as e:
         raise RecordsError(f"{path}: not JSON ({e.msg})") from None
+    if is_link_only(data):
+        raise LinkOnly(LINK_ONLY.format(file=path))
     if isinstance(data, dict) and isinstance(data.get("testRunData"), dict):
         data = data["testRunData"]  # the wrapper DeepEval's save_test_run(save_under_key=...)
     if not isinstance(data, dict) or not ("testCases" in data

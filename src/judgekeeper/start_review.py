@@ -52,7 +52,7 @@ from judgekeeper.start_label import (
 )
 from judgekeeper.start_page import review_page
 from judgekeeper.table import guard_cell
-from judgekeeper.textio import jsonl_lines, program, write_replacing
+from judgekeeper.textio import jsonl_lines, plural, program, write_replacing
 
 MIN_AGREED = 3
 SECOND = ("pass", "fail", "unsure")
@@ -67,8 +67,7 @@ FILES = {"judge_wrong": "judge-mistakes.csv", "rule_unclear": "rule-unclear.csv"
 SEVERAL = 3  # changed agreed answers that suggest the rule is unclear
 
 
-def _plural(n: int, word: str, many: str | None = None) -> str:
-    return f"{n} {word if n == 1 else many or word + 's'}"
+_plural = plural  # textio.plural
 
 
 def labeled(ws: Workspace) -> list[dict]:
