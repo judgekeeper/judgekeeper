@@ -62,7 +62,7 @@ from judgekeeper.redact import scrub, scrub_fingerprint, scrub_value
 from judgekeeper.runners.base import Judgment
 from judgekeeper.start_page import label_page, result_page
 from judgekeeper.table import guard_cell, write_anchor_file
-from judgekeeper.textio import jsonl_lines, link_in, write_replacing
+from judgekeeper.textio import jsonl_lines, link_in, program, write_replacing
 
 FOLDER = ".judgekeeper"
 BLOCK = 10
@@ -73,7 +73,7 @@ GITIGNORE = ("# judgekeeper's files hold your app's answers. Commit them only if
 OLD_GITIGNORE = ("# judgekeeper's files hold your app's answers. Commit them only if your data "
                  "may live here.\n*\n!.gitignore\n!baseline.json\n!migrations/\n!migrations/*\n")
 LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
-        "Remove it, then run judgekeeper start again.")
+        "Remove it, then run {program} again.")
 SAVED_NOTE = ("Saved in {folder}/. It holds your answers' text: commit it only if your data "
               "may live in your repo.")
 
@@ -152,7 +152,8 @@ def refuse_links(ws: Workspace) -> None:
             shown = link.relative_to(ws.root).as_posix()
         except ValueError:
             shown = str(link)
-        raise StartError(LINK.format(path=shown, kind="folder" if link.is_dir() else "file"))
+        raise StartError(LINK.format(path=shown, kind="folder" if link.is_dir() else "file",
+                                     program=program("start")))
 
 
 def make_folder(ws: Workspace) -> None:
@@ -625,7 +626,7 @@ def all_labeled(r: dict) -> bool:
 def command_of(r: dict, *extra: str) -> str:
     """The command the person runs next: `judgekeeper start` with the path and flags of the
     run that made the result (start.Talk.command, kept in it), then `extra`."""
-    return " ".join((r.get("command") or "judgekeeper start", *extra))
+    return " ".join((r.get("command") or program("start"), *extra))
 
 
 def _next(r: dict) -> list[tuple[str, str]]:
@@ -915,10 +916,11 @@ def result_html(r: dict, back: str | None = None, marking: str | None = None) ->
     return result_page(page_content(r, marking), back)
 
 
-def page_template(about: dict | None = None, command: str = "judgekeeper start") -> str:
+def page_template(about: dict | None = None, command: str | None = None) -> str:
     """The labeling page for a check whose start.json is `about`: its description and its
     judge's rule are shown; nothing else from it is. `command`: what the person runs to
     continue."""
+    command = command or program("start")
     about = about or {}
     return label_page(about.get("description") or about.get("app_version"), about.get("rule"),
                       command)
@@ -967,8 +969,9 @@ def _same_result(ws: Workspace, digest: str) -> dict | None:
 
 
 def save_result(ws: Workspace, session: StartSession, say,
-                command: str = "judgekeeper start") -> dict:
+                command: str | None = None) -> dict:
     """store_result, then say the result in the terminal."""
+    command = command or program("start")
     r = store_result(ws, session, command)
     say("")
     for line in result_lines(r, shown_folder(ws)):
@@ -993,13 +996,14 @@ def history_line(ws: Workspace, r: dict) -> dict:
 
 
 def store_result(ws: Workspace, session: StartSession,
-                 command: str = "judgekeeper start") -> dict:
+                 command: str | None = None) -> dict:
     """Make a result from the marks so far: anchors, result.json and report.html (the last
     result moves to history/; a result.html from before goes), and a line in history.jsonl.
     `command` (start.Talk.command) is kept in it: every next command it shows starts with it.
     With no new marks since the saved result, that result stays as it is (with its review,
     fix and asking again), and history.jsonl gets no line: a new one would move the finished
     review and fix to history/."""
+    command = command or program("start")
     digest = marks_digest(ws, session)
     same = _same_result(ws, digest)
     if same is not None:
@@ -1035,8 +1039,9 @@ def store_result(ws: Workspace, session: StartSession,
 
 
 def result_maker(ws: Workspace, say, made: list | None = None,
-                 command: str = "judgekeeper start"):
+                 command: str | None = None):
     """The server's result function: each call makes and saves a new result."""
+    command = command or program("start")
 
     def make(session: StartSession, back: str) -> str:
         r = save_result(ws, session, say, command)
@@ -1049,18 +1054,20 @@ def result_maker(ws: Workspace, say, made: list | None = None,
 
 
 def run_labeling(found, port: int, open_browser: bool, say,
-                 command: str = "judgekeeper start") -> int:
+                 command: str | None = None) -> int:
     """Save the pool of `found`, then serve the labeling page for it."""
+    command = command or program("start")
     return serve_workspace(prepare(found, say), port, open_browser, say, command)
 
 
-def say_opened(url: str, open_browser: bool, say, command: str = "judgekeeper start",
+def say_opened(url: str, open_browser: bool, say, command: str | None = None,
                more: str = "", session=None) -> None:
     """What the terminal says once a page is served: that it opened (or its link), that every
     click is saved, and how to stop and come back. `more` is added to the come-back command
     (--review, say). The link holds the token, so it is printed whole, and only where a
     coding agent can't read it, or when no browser opened: without a terminal that is said,
     and the marks on `session` are stamped (page.py)."""
+    command = command or program("start")
     from judgekeeper.page import NO_BROWSER
     from judgekeeper.page import terminal as at_terminal
     from judgekeeper.textio import tick
@@ -1082,9 +1089,10 @@ def say_opened(url: str, open_browser: bool, say, command: str = "judgekeeper st
 
 
 def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
-                    command: str = "judgekeeper start") -> int:
+                    command: str | None = None) -> int:
     """Serve the labeling page until the last answer, Ctrl-C or 2 hours idle. `command`
     (start.Talk.command) is what the person runs to continue."""
+    command = command or program("start")
     from judgekeeper import start_fix, start_review
 
     session = StartSession(ws)

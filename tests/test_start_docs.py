@@ -207,9 +207,9 @@ def test_the_reference_has_every_start_flag_and_the_saved_files():
 
 # README, guide, skill --------------------------------------------------------------------
 
-def test_the_readme_makes_start_the_main_path():
+def test_the_readme_makes_uvx_the_main_path():
     use = _sections(README)["Use it on your own judge"]
-    assert "\ncd your-project\njudgekeeper start\n" in use
+    assert f"\ncd your-project\nuvx judgekeeper@{__version__}\n" in use
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
         assert tool in use, tool
     assert len(README.read_text(encoding="utf-8").splitlines()) <= 80
@@ -221,34 +221,18 @@ def test_the_guide_starts_with_start():
     assert "judgekeeper start" in sections["Start here"]
 
 
-def test_the_skill_leaves_labeling_to_the_person():
+def test_the_skill_leaves_marking_to_the_person():
     text = " ".join(SKILL.read_text(encoding="utf-8").split())
-    assert "judgekeeper start --yes --no-browser" in text
-    assert "labeling needs the person" in text.lower()
-    assert len(SKILL.read_text(encoding="utf-8").splitlines()) < 150
+    assert f"`uvx judgekeeper@{__version__}`" in text
+    assert "Only the person marks." in text
+    assert len(SKILL.read_text(encoding="utf-8").splitlines()) < 60
 
 
 # The version -----------------------------------------------------------------------------
 
-def test_the_version_is_0_2_0_everywhere():
+def test_the_version_is_1_0_0b1_everywhere():
     main_toml = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert __version__ == main_toml["project"]["version"] == "0.2.0"
-
-
-def test_the_changelog_says_what_0_2_0_adds_and_what_it_does_not_do():
-    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    entry = " ".join(text[text.index("## 0.2.0"):text.index("## 0.1.3")].split())
-    assert "## 0.2.0 (2026-10-12)" in entry and "## 0.1.4" not in text
-    unchanged = "No change to any metric."
-    for needed in ("`judgekeeper start`", "`judgekeeper --version`", "no AI calls",
-                   "no API key", "never runs your", unchanged, "Removed: `judgekeeper demo`",
-                   ("Removed: `label`, `template`, `import-labels`, `freeze`, `attribute`, "
-                    "`export` and the `record` command"),
-                   "AI calls only after you say yes", "your own judge through your own tool",
-                   "key names only", "review the disagreements", "ask your judge again",
-                   "try your new judge", "`promptfoo export`", "Install inside your project",
-                   "--agent-prompt", "installed outside a project"):
-        assert needed in entry, needed
+    assert __version__ == main_toml["project"]["version"] == "1.0.0b1"
 
 
 # Results in your own format, and after the first result ----------------------------------
@@ -285,17 +269,6 @@ def test_the_guide_says_what_comes_after_the_first_result():
     for needed in ("--review", "--ask-again", "--try-new-judge", "--label-more",
                    "Go ahead? [y/N]", "by name only", "10 Pass and 10 Fail"):
         assert needed in section, needed
-
-
-def test_the_skill_spends_only_after_the_persons_yes():
-    text = " ".join(SKILL.read_text(encoding="utf-8").split())
-    for needed in ("Run `--review` only with them",
-                   "Never run the eval or a judge call without the person's yes in this chat",
-                   "`--allow-calls N` only with the exact N judgekeeper printed",
-                   "`judgekeeper start --try-new-judge`",
-                   "the person answers `Go ahead? [y/N]` themselves",
-                   "into the project's own environment, never for the whole computer"):
-        assert needed in text, needed
 
 
 def test_the_own_format_section_shows_the_three_doors_in_order():

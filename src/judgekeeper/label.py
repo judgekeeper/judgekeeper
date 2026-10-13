@@ -201,7 +201,7 @@ def _json_for_html(data) -> str:
 
 LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
 ALREADY_OPEN = ("A judgekeeper page is already open for this project. Close it with Ctrl-C in "
-                "its terminal, or run `judgekeeper --stop`.")
+                "its terminal, or run `{program} --stop`.")
 PROBE_TIMEOUT = 2  # seconds to wait for the page named in the lock to answer
 RELEASE_TRIES = 40  # times to try removing the lock, RELEASE_PAUSE seconds apart
 RELEASE_PAUSE = 0.05
@@ -501,7 +501,9 @@ def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
     project would each write their marks over the other's. `token`: the one its caller made
     (default: a new one)."""
     if lock is not None and is_open(lock):
-        raise LabelError(ALREADY_OPEN)
+        from judgekeeper.textio import program
+
+        raise LabelError(ALREADY_OPEN.format(program=program()))
     # Labels are written on the first click: say now if they cannot be, not in the page.
     unwritable = unwritable_file(session.out)
     if unwritable:

@@ -25,7 +25,7 @@ from judgekeeper import mapper
 from judgekeeper.records import LLM, RecordList, RecordsError, ScoreRecord, derive_record_id
 
 CHANGED_SHAPE = ("Your results file changed shape. Remove the [start] table from "
-                 "judgekeeper.toml, then run judgekeeper again to read it anew.")
+                 "judgekeeper.toml, then run {program} again to read it anew.")
 
 
 def read_mapped(path: str | Path, m: dict, label: str | None = None
@@ -60,7 +60,9 @@ def read_mapped(path: str | Path, m: dict, label: str | None = None
                         records += _records(item, side, judge, question, answer, model, mark,
                                             unnamed)
         except mapper.Missing:
-            raise RecordsError(CHANGED_SHAPE) from None
+            from judgekeeper.textio import program
+
+            raise RecordsError(CHANGED_SHAPE.format(program=program())) from None
         out.append((f"{label} line {n}" if many else label, records))
     if flat:
         return [(label, RecordList((r for _, recs in out for r in recs),

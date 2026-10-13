@@ -208,5 +208,5 @@ def test_a_changed_shape_says_to_run_setup_again(tmp_path):
     path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
     with pytest.raises(RecordsError) as e:
         read_mapped(path, m)
-    assert str(e.value) == CHANGED_SHAPE
+    assert str(e.value) == CHANGED_SHAPE.format(program="judgekeeper")
     assert CHANGED_SHAPE.startswith("Your results file changed shape. ")

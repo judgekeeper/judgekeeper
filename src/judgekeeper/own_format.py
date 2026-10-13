@@ -159,4 +159,11 @@ def search(root: Path) -> OwnFile | None:
     return None
 
 
-__all__ = ["AGENT_PROMPT", "OwnFile", "looks_judged", "search"]
+def agent_prompt() -> str:
+    """AGENT_PROMPT, naming judgekeeper the way it was started (textio.program)."""
+    from judgekeeper.textio import program
+
+    return AGENT_PROMPT.replace("`judgekeeper start ", f"`{program('start')} ")
+
+
+__all__ = ["AGENT_PROMPT", "OwnFile", "agent_prompt", "looks_judged", "search"]

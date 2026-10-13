@@ -10,7 +10,8 @@ Four things every command shares:
   folder before anything is written.
 - saying a file-system error (no permission, a file where a folder should be) as one line
   that names the path and what to do: `describe_os_error`.
-- printing a command the user can paste: `quote_arg` and `open_command` write it for the
+- printing a command the user can paste: `program` says how judgekeeper was started
+  (`uvx judgekeeper@<version>` or `judgekeeper`), `quote_arg` and `open_command` write it for the
   shell in use, and `split_command` reads `--judge-command` the way that shell would. On Windows that
   is cmd.exe or PowerShell: double quotes, backslashes in paths, `start` instead of `open`.
 
@@ -68,6 +69,24 @@ def lenient_streams() -> None:
             reconfigure(errors="replace")
         except (ValueError, OSError):  # closed or detached: leave it as it is
             pass
+
+
+def started_by_uvx() -> bool:
+    """uvx sets UV and runs judgekeeper from a folder `archive-v<N>/<id>` in uv's cache, on
+    every system and with a cache folder of the person's own. `uv run` and `uv tool install`
+    set UV too, but run it from a project's environment or a tool folder."""
+    return bool(os.environ.get("UV")) and Path(
+        sys.prefix.replace("\\", "/")).parent.name.startswith("archive-v")
+
+
+def program(subcommand: str = "") -> str:
+    """judgekeeper as the person runs it again: `uvx judgekeeper@<version>` when uvx started
+    it (uvx and pip skip betas unless the version is named, and uvx puts no `judgekeeper`
+    command on the PATH), else `judgekeeper`; then the subcommand."""
+    from judgekeeper import __version__
+
+    name = f"uvx judgekeeper@{__version__}" if started_by_uvx() else "judgekeeper"
+    return f"{name} {subcommand}" if subcommand else name
 
 
 # Reading -------------------------------------------------------------------------------------

@@ -20,7 +20,7 @@ import json
 import os
 from pathlib import Path
 
-from judgekeeper import again, find
+from judgekeeper import again, find, textio
 from judgekeeper.redact import scrub
 
 LATEST = ".judgekeeper/promptfoo-latest.json"
@@ -99,8 +99,8 @@ def offer(talk, root: Path) -> str:
     target = root / TARGET
     if target.exists() and not talk.confirm(f"{TARGET} is already here. Replace it?",
                                             default=False, with_yes=False, hint=TARGET):
-        talk.say(f"Your last promptfoo run is saved as {LATEST}. To use it: judgekeeper start "
-                 f"{LATEST}")
+        talk.say(f"Your last promptfoo run is saved as {LATEST}. To use it: "
+                 f"{textio.program('start')} {LATEST}")
         return "stop"
     out.replace(target)
     talk.say(f"Saved your last promptfoo run as {TARGET}.")

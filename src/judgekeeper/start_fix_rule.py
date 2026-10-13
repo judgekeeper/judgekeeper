@@ -31,6 +31,7 @@ import unicodedata
 from pathlib import Path
 
 from judgekeeper.start_label import ASKABLE
+from judgekeeper.textio import program
 
 CUT = 1500  # characters of each text in the prompt
 MAX_MISTAKES, MAX_UNCLEAR, MAX_KEEP = 20, 6, 6
@@ -470,10 +471,10 @@ def hand_over(root: Path, data: dict, old: str, new: str, n_aside: int) -> dict:
                     "command you will run my eval with, and run it only after I say yes."
                     f"\n\n{new}")
     if tool in ASKABLE:
-        last = ("Then run your eval and judgekeeper start: it offers Try your new judge on your "
-                f"marked answers, and tests it on the {n_aside} kept aside.")
+        last = (f"Then run your eval and {program('start')}: it offers Try your new judge on "
+                f"your marked answers, and tests it on the {n_aside} kept aside.")
     else:
-        last = "Then run your eval and judgekeeper start to check it on new answers."
+        last = f"Then run your eval and {program('start')} to check it on new answers."
     return {"where": where, "where_short": visible(short),
             "notes": [NOTES[tool]] if tool in NOTES else [], "agent_prompt": agent,
             "last": last}

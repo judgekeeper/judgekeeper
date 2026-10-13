@@ -290,7 +290,7 @@ def test_the_python_version_on_the_site_is_the_one_the_package_needs():
     assert "`Python 3.11` or a higher number" in GUIDE.read_text(encoding="utf-8")
 
 
-def test_the_guide_and_the_readme_show_the_same_install():
+def test_the_guide_shows_the_install():
     text = GUIDE.read_text(encoding="utf-8")
     section = text[text.index("### Install\n"):text.index("See a real report without installing")]
     for line in (*CHECK.values(), *MAKE_VENV.values(), "pip install judgekeeper", *DEV_TOOLS,
@@ -302,13 +302,6 @@ def test_the_guide_and_the_readme_show_the_same_install():
                    "https://www.python.org/downloads/", "like pytest", "never on your computer",
                    "It is not about judgekeeper", "(.venv)", "Scripts\\activate.bat"):
         assert needed in section, needed
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    install = readme[readme.index("## Install"):readme.index("## Use it")]
-    assert "\nsource .venv/bin/activate\npip install judgekeeper\njudgekeeper --version\n" in install
-    for needed in ("in your project folder", "like pytest", ".venv\\Scripts\\activate",
-                   "python3 -m venv .venv", *DEV_TOOLS):
-        assert needed in install, needed
-    assert "](https://www.judgekeeper.com/start.html#install)" in readme
 
 
 OLD_PYTHON = ("Could not find a version that satisfies the requirement judgekeeper "
@@ -319,11 +312,9 @@ UV_RUN = "uv run judgekeeper start"
 
 
 def _install_texts() -> dict[str, str]:
-    """The README's Install section, the Guide's install step (start.html) and guide.md's."""
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    """The Guide's install step (start.html) and guide.md's."""
     guide = GUIDE.read_text(encoding="utf-8")
-    return {"README.md": readme[readme.index("## Install"):readme.index("## Use it")],
-            "start.html": _flat(_by_id("start.html", "install")),
+    return {"start.html": _flat(_by_id("start.html", "install")),
             "guide.md": guide[guide.rindex("\n## ", 0, guide.index("### Install\n")):guide.index(
                 "See a real report without installing")]}
 

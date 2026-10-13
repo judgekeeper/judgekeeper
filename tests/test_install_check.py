@@ -160,7 +160,7 @@ def test_only_a_folder_the_script_made_is_removed(ic, tmp_path):
     assert not ours.exists()
 
 
-def test_the_workflow_runs_33_jobs_on_three_systems(ic):
+def test_the_workflow_runs_39_jobs_on_three_systems_6_of_them_through_uvx(ic):
     yaml = pytest.importorskip("yaml")
     workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
     job = workflow["jobs"]["install-check"]
@@ -168,9 +168,13 @@ def test_the_workflow_runs_33_jobs_on_three_systems(ic):
     assert job["strategy"]["fail-fast"] is False and job["timeout-minutes"] == 30
     assert set(matrix["os"]) == {"ubuntu-latest", "windows-latest", "macos-latest"}
     assert tuple(matrix["tool"]) == ic.TOOLS
-    extra = {(x["os"], x["tool"], x["python"]) for x in matrix["include"]}
-    assert extra == {(o, "table", p) for o in matrix["os"] for p in ("3.11", "3.14")}
-    assert len(matrix["os"]) * len(matrix["tool"]) * len(matrix["python"]) + len(extra) == 33
+    assert matrix["python"] == ["3.12"] and matrix["via"] == ["venv"]
+    extra = {(x["os"], x["tool"], x["python"], x["via"]) for x in matrix["include"]}
+    pythons = {(o, "table", p, "venv") for o in matrix["os"] for p in ("3.11", "3.14")}
+    uvx = {(o, t, "3.12", "uvx") for o in matrix["os"] for t in ("table", "promptfoo")}
+    assert extra == pythons | uvx
+    assert {t for _, t, _, _ in uvx} <= set(ic.UVX_TOOLS)
+    assert len(matrix["os"]) * len(matrix["tool"]) + len(extra) == 39
     assert workflow["permissions"] == {"contents": "read"}
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "secrets." not in text and "persist-credentials: false" in text
@@ -180,17 +184,53 @@ def test_the_workflow_runs_33_jobs_on_three_systems(ic):
     assert triggers["workflow_dispatch"]["inputs"]["source"]["default"] == "build"
 
 
+def test_the_uvx_jobs_get_uv_from_a_pinned_action_and_say_via(ic):
+    yaml = pytest.importorskip("yaml")
+    steps = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["install-check"]["steps"]
+    (uv,) = [s for s in steps if s.get("uses", "").startswith("astral-sh/setup-uv@")]
+    assert re.fullmatch(r"astral-sh/setup-uv@[0-9a-f]{40}", uv["uses"])
+    assert uv["if"] == "matrix.via == 'uvx'"
+    (check,) = [s for s in steps if s.get("name") == "Run the install check"]
+    assert check["env"]["VIA"] == "${{ matrix.via }}" and '--via "$VIA"' in check["run"]
+
+
+def test_uvx_runs_judgekeeper_from_the_built_wheel_or_the_release(ic):
+    wheel = Path("w") / "judgekeeper-1.0.0b1-py3-none-any.whl"
+    assert ic.uvx_command("uvx", "build", wheel) == ["uvx", "--from", str(wheel), "judgekeeper"]
+    assert ic.uvx_command("uvx", "pypi:1.0.0b1", None) == [
+        "uvx", "--from", "judgekeeper==1.0.0b1", "judgekeeper"]
+
+
+def test_uvx_is_only_for_tools_that_need_nothing_installed_in_the_project(ic, tmp_path, capsys):
+    assert ic.UVX_TOOLS == ("table", "promptfoo", "own-format", "promptfoo-ollama")
+    for tool in ("deepeval", "inspect", "mlflow", "record", "inspect-ollama"):
+        with pytest.raises(SystemExit):
+            ic.main(["--tool", tool, "--via", "uvx", "--work", str(tmp_path)])
+        assert "--via uvx" in capsys.readouterr().err
+    assert not list(tmp_path.iterdir())  # stopped before anything was made
+
+
+def test_with_uvx_the_project_has_no_virtual_environment(ic, tmp_path):
+    check = object.__new__(ic.Check)
+    check.via, check.steps, check.env = "uvx", [], {}
+    check.project, check.dist = tmp_path / "project", tmp_path / "wheel"
+    check.make_project()
+    assert not (check.project / ".venv").exists()
+    assert check.steps == [("project with no virtual environment (uvx)", True, "")]
+
+
 def test_the_marking_page_link_is_read_from_the_output(ic):
     out = ("Marking page: http://127.0.0.1:54321/?token=Ab-c_9\n"
            "It shows one answer at a time. Your judge's verdict is hidden.")
     assert ic.page_link(out) == ("http://127.0.0.1:54321", "Ab-c_9")
 
 
-def _walk(ic, monkeypatch, tool, project=None):
+def _walk(ic, monkeypatch, tool, project=None, jk=None):
     """The walk with every command faked: (the commands run, with what each must print), the
     page calls, and the steps."""
     check = object.__new__(ic.Check)
-    check.tool, check.jk, check.port, check.steps = tool, "jk", "5", []
+    check.tool, check.jk, check.port, check.steps = tool, jk or ["jk"], "5", []
+    check.via = "uvx" if jk else "venv"
     check.project = project
     ran, posted = [], []
 
@@ -199,7 +239,9 @@ def _walk(ic, monkeypatch, tool, project=None):
         stdout = "Marking page: http://127.0.0.1:5/?token=t0k\n"
 
     def run(name, args, ok_codes=(0,), expect=(), **kwargs):
-        ran.append(([str(a) for a in args][1:], list(expect)))
+        args = [str(a) for a in args]
+        assert args[:len(check.jk)] == check.jk, args
+        ran.append((args[len(check.jk):], list(expect)))
         return Done()
 
     def call(base, token, path, body=None):
@@ -249,3 +291,20 @@ def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tm
     assert "Saved judgekeeper" in first and re.escape("my-judge-1") in first
     assert "Your judge passed 28 and failed 12" in first and "Marking page" in first
     assert ("judgekeeper.toml saved", True) in [(name, ok) for name, ok, *_ in steps]
+
+
+def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch):
+    jk = ["uvx", "--from", "w.whl", "judgekeeper"]
+    ran, _, _ = _walk(ic, monkeypatch, "promptfoo", jk=jk)
+    commands = [args for args, _ in ran]
+    assert commands[:3] == [["--no-browser", "--port", "5"], ["--no-browser", "--port", "5"],
+                            ["--stop"]]
+    assert commands[3][:1] == ["start"]
+    first, result = " ".join(ran[0][1]), " ".join(ran[1][1])
+    assert "Next: .*`uvx judgekeeper@" in first and "Next: .*`uvx judgekeeper@" in result
+
+
+def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch):
+    ran, _, _ = _walk(ic, monkeypatch, "table")
+    assert not [e for _, expect in ran for e in expect if "uvx" in e]
+

@@ -2,7 +2,7 @@
 
 # judgekeeper
 
-<p><a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/v/judgekeeper" alt="PyPI version"></a> <a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/pyversions/judgekeeper" alt="Python 3.11 to 3.14"></a> <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests on main"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/judgekeeper/judgekeeper" alt="MIT license"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"><img src="https://img.shields.io/pypi/status/judgekeeper" alt="Status: alpha"></a><br><a href="https://www.judgekeeper.com/">Website</a> · <a href="https://www.judgekeeper.com/start.html">Guide</a> · <a href="https://www.judgekeeper.com/docs.html">Docs</a> · <a href="https://www.judgekeeper.com/learn.html">How it works</a> · <a href="https://www.judgekeeper.com/reference.html">Reference</a> · <a href="https://pypi.org/project/judgekeeper/">PyPI</a></p>
+<p><a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/v/judgekeeper" alt="PyPI version"></a> <a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/pyversions/judgekeeper" alt="Python 3.11 to 3.14"></a> <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests on main"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/judgekeeper/judgekeeper" alt="MIT license"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"><img src="https://img.shields.io/pypi/status/judgekeeper" alt="Status: beta"></a></p>
 
 **Check your LLM-as-a-judge.**
 
@@ -12,50 +12,49 @@ An LLM-as-a-judge is an AI model that grades the answers of another AI model. Te
 
 <p align="center"><img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/readme-label.png" width="720" alt="The marking page: a question, your app's answer, and equal Fail and Pass buttons. What your judge decided stays hidden."></p>
 
-## Install
-
-You need Python 3.11 or newer. Run these in your project folder: judgekeeper goes inside your project's own Python environment, like pytest.
-```
-python3 -m venv .venv
-source .venv/bin/activate
-pip install judgekeeper
-judgekeeper --version
-```
-
-- On Windows: `py -m venv .venv`, then `.venv\Scripts\activate`.
-- With uv or Poetry: `uv add --dev judgekeeper` or `poetry add --group dev judgekeeper`, then `uv run judgekeeper start` or `poetry run judgekeeper start`.
-- More help: [Install](https://www.judgekeeper.com/start.html#install).
-
 ## Use it on your own judge
 ```
 cd your-project
-judgekeeper start
+uvx judgekeeper@1.0.0b1
 ```
 
-- It reads the results your eval tool already saved: promptfoo, DeepEval, Inspect AI, MLflow, or a CSV.
-- You mark answers Pass or Fail without seeing what the judge said. Then it shows how often you agree.
-- After that it can go through the disagreements with you, and have your coding agent fix your judge's rule.
-- No AI calls unless you say yes. judgekeeper never sees your API key and never runs your app.
+You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). The version is in the command because uv and pip skip betas unless you name one. Without uv, install it in your project's own Python environment, then run it:
+```
+pip install judgekeeper==1.0.0b1
+judgekeeper
+```
+
+- It reads the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV) and checks your judge's verdicts for free.
+- It opens a page in your browser. You mark answers Pass or Fail without seeing what your judge said.
+- Run it again the same way when you are done: it shows how often your judge agrees with you.
+- No AI calls and no API key. judgekeeper never runs your app.
+
+This is a beta: fixing your judge and re-checking it on its own are coming.
+
+## With a coding agent
+
+Paste this into Claude Code, Codex or Cursor:
+```
+Run `uvx judgekeeper@1.0.0b1` in this project and follow what it says.
+```
+
+The agent runs `judgekeeper` and tells you when the page is open; you do the marking. Its rules are in one file, `skills/judgekeeper/SKILL.md`.
 
 ## What you get
 
-First a plain sentence: of the answers people passed, how many the judge passed, and of the answers people failed, how many it failed. Then one coloured line on whether it agrees with you often enough to use, and a result page you can open in a browser. The numbers are estimates from the answers you marked, not a promise about the next ones. A report from a real judge on a public dataset: [LLMBar judged by Claude Haiku 4.5](https://www.judgekeeper.com/examples/llmbar-haiku/report.html).
+TPR: of the answers you passed, how many your judge passed. TNR: of the answers you failed, how many it failed. Kappa: how much you agree beyond chance. Each comes with a range, and judgekeeper says the smallest drop your marks can see. The numbers are estimates from the answers you marked, not a promise about the next ones.
 
 ## Numbers
 
-- **Its ranges hold on real data.** We tested the ranges for how often the judge passed answers people passed (TPR) and how often it failed answers people failed (TNR). We used 5 real judges from 3 public datasets (LLMBar, MT-Bench, LLMJudge), with 50 human labels per check, over 1,000 checks per judge. On average the value from all the human labels fell inside the range in 96.0 checks in 100 (lowest 94.6, highest 98.4). [Real-data check](https://www.judgekeeper.com/examples/real-data-check/report.md)
+- **Its ranges hold on real data.** We tested the ranges for how often the judge passed answers people passed (TPR) and how often it failed answers people failed (TNR). We used 5 real judges from 3 public datasets (LLMBar, MT-Bench, LLMJudge), with 50 human labels per check, over 1,000 checks per judge. On average the value from all the human labels fell inside the range in 96.0 checks in 100 (lowest 94.6, highest 98.4). [Real-data check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/real-data-check/report.md)
 - **One of those checks:** GPT-4 as the judge on MT-Bench, 50 labels: TPR 0.82 (range 0.71 to 0.91), and the value from all 1,814 human labels is 0.85; TNR 0.49 (range 0.36 to 0.65), and from all labels 0.56.
-- **In simulation too:** the ranges held the true value at least 93.6 times in 100 in every tested case, and 96.2 on average. [Coverage check](https://www.judgekeeper.com/examples/coverage/coverage.md)
-- **A real judge, checked:** Claude Haiku 4.5 on LLMBar, 419 items: TPR 0.95, TNR 0.88, kappa (agreement after taking away lucky guesses) 0.83. [Report](https://www.judgekeeper.com/examples/llmbar-haiku/report.html)
+- **In simulation too:** the ranges held the true value at least 93.6 times in 100 in every tested case, and 96.2 on average. [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
+- **A real judge, checked:** Claude Haiku 4.5 on LLMBar, 419 items: TPR 0.95, TNR 0.88, kappa (agreement after taking away lucky guesses) 0.83. [Report](https://github.com/judgekeeper/judgekeeper/tree/main/docs/examples/llmbar-haiku)
 - Tested on Python 3.11 to 3.14 on Linux, and on Windows. [Test runs](https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml)
-
-## When you need more
-
-A coding agent can set it up for you: it reads one file, `skills/judgekeeper/SKILL.md`. See [With a coding assistant](https://www.judgekeeper.com/assistant.html).
 
 ## Status
 
-Alpha (0.2.0): commands and report fields may still change. The [Guide](https://www.judgekeeper.com/start.html) explains `judgekeeper start`, [How it works](https://www.judgekeeper.com/learn.html) has the background, the [reference](https://www.judgekeeper.com/reference.html) has every command and flag, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed.
+Beta (1.0.0b1): commands and report fields may still change. `judgekeeper --help` lists every flag, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed.
 
 ## Issues
 

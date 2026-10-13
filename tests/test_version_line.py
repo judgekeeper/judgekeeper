@@ -37,6 +37,7 @@ def plain_env(monkeypatch):
     monkeypatch.delenv("TERM_PROGRAM", raising=False)
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setenv("VIRTUAL_ENV", "/projects/app/.venv")  # inside a project's environment
+    monkeypatch.delenv("UV", raising=False)  # not started by uv (test_uvx.py: started by uvx)
 
 
 @pytest.fixture
@@ -57,7 +58,7 @@ def _version(monkeypatch, out, which="/usr/local/bin/judgekeeper") -> list[str]:
 def test_in_a_terminal_it_says_ready_and_what_to_run_next(monkeypatch, plain_env):
     lines = _version(monkeypatch, Terminal())
     assert lines == [f"✓ judgekeeper {__version__} is ready",
-                     "Next: run judgekeeper start"]
+                     "Next: run judgekeeper"]
 
 
 def test_piped_it_prints_only_the_version(monkeypatch, plain_env):
@@ -66,7 +67,7 @@ def test_piped_it_prints_only_the_version(monkeypatch, plain_env):
 
 def test_without_the_command_on_path_it_names_python_m(monkeypatch, plain_env):
     lines = _version(monkeypatch, Terminal(), which=None)
-    assert lines[1] == "Next: run python3 -m judgekeeper start"
+    assert lines[1] == "Next: run python3 -m judgekeeper"
 
 
 def test_on_windows_without_the_command_on_path_it_names_py_m(monkeypatch, plain_env):
@@ -74,7 +75,7 @@ def test_on_windows_without_the_command_on_path_it_names_py_m(monkeypatch, plain
     monkeypatch.setenv("WT_SESSION", "1")
     lines = _version(monkeypatch, Terminal(), which=None)
     assert lines == [f"✓ judgekeeper {__version__} is ready",
-                     "Next: run py -m judgekeeper start"]
+                     "Next: run py -m judgekeeper"]
 
 
 def test_the_tick_needs_an_encoding_that_has_it(plain_env):
@@ -107,7 +108,7 @@ def test_the_tick_is_never_an_emoji(plain_env):
 
 @pytest.mark.parametrize("prefix", [
     None,  # Python as installed on the computer
-    "/Users/me/.cache/uv/archive-v0/abc123",  # uvx
+    "/Users/me/.cache/uv/archive-v0/abc123",  # uv's cache, not started by uvx
     "/home/me/.local/share/pipx/venvs/judgekeeper",  # pipx
     "/Users/me/.local/share/uv/tools/judgekeeper",  # uv tool install
     "C:\\Users\\me\\AppData\\Roaming\\uv\\data\\tools\\judgekeeper",
@@ -116,7 +117,7 @@ def test_it_never_warns_about_where_it_is_installed(monkeypatch, plain_env, outs
     if prefix:
         monkeypatch.setattr(sys, "prefix", prefix)
     assert _version(monkeypatch, Terminal()) == [f"✓ judgekeeper {__version__} is ready",
-                                                 "Next: run judgekeeper start"]
+                                                 "Next: run judgekeeper"]
 
 
 def test_piped_outside_a_project_it_still_prints_only_the_version(monkeypatch, plain_env,

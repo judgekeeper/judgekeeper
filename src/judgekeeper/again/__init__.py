@@ -41,7 +41,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper import prices
+from judgekeeper import prices, textio
 from judgekeeper.redact import scrub
 from judgekeeper.textio import jsonl_lines
 
@@ -436,10 +436,11 @@ def cost_words(p: Plan) -> str:
     return prices.amount(*p.cost)
 
 
-def plan_lines(p: Plan, title: str = "Ask your judge again", command: str = "judgekeeper start",
+def plan_lines(p: Plan, title: str = "Ask your judge again", command: str | None = None,
                flag: str = "--ask-again") -> list[str]:
     """The plan as the terminal shows it. `command` (start.Talk.command) and `flag` make the
     hint for a judge that can't be asked: run as printed, it is the same step again."""
+    command = command or textio.program("start")
     lines = [title, "", f"  Your judge: {p.judge}"]
     if p.status == CANT:
         said = p.plain or f"Your judge can't be asked again: {p.why}."

@@ -1,5 +1,6 @@
 """The path for coding assistants: docs/assistant-prompt.md (the prompt a person pastes),
-docs/assistant.md (the page that shows it) and skills/judgekeeper/SKILL.md (the skill).
+docs/assistant.md (the page that shows it) and the skill's description (the skill itself is
+checked in test_skill.py).
 
 The prompt is short, carries the three rules that must never be lost (labels, keys, the call
 count), and names only commands the real CLI accepts. The page shows the prompt exactly.
@@ -244,57 +245,9 @@ def test_the_renderer_keeps_the_prompt_whole():
 
 # The skill
 
-def _skill_body() -> str:
-    return _read(SKILL).split("\n---\n", 1)[1]
-
-
 def test_the_skill_keeps_its_description():
     head = _read(SKILL).split("\n---\n", 1)[0]
     assert f"description: {SKILL_DESCRIPTION}" in head.splitlines()
     # `npx skills add` prints the description word for word: the site's words apply to it.
     assert "LLM-as-a-judge" in SKILL_DESCRIPTION and "LLM-as-judge" not in SKILL_DESCRIPTION
     assert "trust" not in SKILL_DESCRIPTION.lower()
-
-
-def test_the_skill_installs_first_and_names_no_demo():
-    body = _skill_body()
-    assert "`judgekeeper --version`" in body
-    assert body.index("`judgekeeper --version`") < body.index("## 1.")
-    assert "judgekeeper demo" not in body
-
-
-def test_the_skill_reports_in_plain_words():
-    flat = _flat(_skill_body())
-    assert "plain sentence" in flat
-    step = flat[flat.index("## 3."):flat.index("## 4.")]
-    assert step.index("plain sentence") < step.index("kappa")
-
-
-def test_the_skill_sends_the_human_to_the_labeling_page():
-    body = _skill_body()
-    step = body[body.index("## 2."):body.index("## 3.")]
-    assert "judgekeeper start --yes --no-browser" in step
-    assert "127.0.0.1" in step
-    assert "Stop." in step
-
-
-def test_the_skill_says_the_page_opens_only_with_the_token_link():
-    body = _skill_body()
-    step = _flat(body[body.index("## 2."):body.index("## 3.")])
-    assert "prints a link that includes a token" in step
-    assert "the page opens only with that full link" in step
-    assert "the exact link it printed" in step
-
-
-def test_the_skill_asks_what_pass_means_before_labeling():
-    flat = _flat(_skill_body())
-    assert "say in one sentence what pass means before they label" in flat
-    assert "not the judge's" in flat
-    assert flat.index("what pass means before they label") < flat.index(
-        "judgekeeper start --yes --no-browser")
-
-
-def test_every_command_in_the_skill_parses():
-    found = _commands(_skill_body())
-    assert len(found) >= 10
-    _check_parses(found, "skills/judgekeeper/SKILL.md")

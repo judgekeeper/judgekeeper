@@ -52,7 +52,7 @@ from judgekeeper.start_label import (
 )
 from judgekeeper.start_page import review_page
 from judgekeeper.table import guard_cell
-from judgekeeper.textio import jsonl_lines, write_replacing
+from judgekeeper.textio import jsonl_lines, program, write_replacing
 
 MIN_AGREED = 3
 SECOND = ("pass", "fail", "unsure")
@@ -400,8 +400,8 @@ def _command(ws: Workspace) -> str:
     try:
         r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return "judgekeeper start"
-    return r.get("command") or "judgekeeper start" if isinstance(r, dict) else "judgekeeper start"
+        return program("start")
+    return r.get("command") or program("start") if isinstance(r, dict) else program("start")
 
 
 def result_maker(ws: Workspace, say):
@@ -424,9 +424,10 @@ def switch(ws: Workspace, say, opened: list):
     return go
 
 
-def finish(ws: Workspace, say, command: str = "judgekeeper start") -> None:
+def finish(ws: Workspace, say, command: str | None = None) -> None:
     """Say where the review stopped, or its lines and files once it is done. `command`
     (start.Talk.command) is what the person runs to continue."""
+    command = command or program("start")
     session = ReviewSession(ws)
     say("")
     if session.step() != "done":
@@ -444,8 +445,9 @@ def finish(ws: Workspace, say, command: str = "judgekeeper start") -> None:
 
 
 def serve_review(ws: Workspace, port: int, open_browser: bool, say,
-                 command: str = "judgekeeper start") -> int:
+                 command: str | None = None) -> int:
     """Serve the review page until the review is done, Ctrl-C or 2 hours idle."""
+    command = command or program("start")
     from judgekeeper import start_fix
 
     session = ReviewSession(ws)
