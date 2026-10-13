@@ -9,9 +9,11 @@ import copy
 import json
 import os
 import tomllib
+from pathlib import Path
 
 import pytest
 
+from judgekeeper.textio import quote_arg
 from tests.start_projects import deepeval_data, deepeval_project, split
 from tests.test_front import assert_one_next_at_the_end, run, terminal  # noqa: F401
 
@@ -34,10 +36,10 @@ def test_two_deepeval_folders_are_asked_about_not_merged(two_apps, capsys):
     code, out, _ = run(capsys)
     assert "DeepEval results in more than one folder:" in out
     assert "older file" not in out
+    app1, app2 = (quote_arg(Path(f"{a}/.deepeval")) for a in ("app1", "app2"))
     assert assert_one_next_at_the_end(out) == (
         "Next: ask the person which DeepEval results to check (app2/.deepeval, "
-        "app1/.deepeval), then run `judgekeeper app2/.deepeval` or "
-        "`judgekeeper app1/.deepeval`.")
+        f"app1/.deepeval), then run `judgekeeper {app2}` or `judgekeeper {app1}`.")
     assert code == 3
 
 
