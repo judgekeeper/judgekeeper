@@ -361,6 +361,46 @@ def test_idle_connection_does_not_freeze_the_server(tmp_path, serve, monkeypatch
         idle.close()
 
 
+def test_one_silent_connection_does_not_stall_the_page(tmp_path, serve):
+    """A connection that sends nothing is served on its own: a real request is answered at
+    once, not after the silent one times out."""
+    import socket
+    import time
+
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    idle = socket.create_connection(("127.0.0.1", client.server.port))
+    try:
+        time.sleep(0.3)  # the server has accepted the silent connection
+        start = time.monotonic()
+        assert client.state()["summary"]["n_items"] == 4
+        assert time.monotonic() - start < 1
+    finally:
+        idle.close()
+
+
+@pytest.mark.parametrize("query", ["", "?token=wrong", "?token={token}&x=1"])
+def test_a_refused_post_is_answered_after_its_body_is_read(tmp_path, serve, query):
+    """A POST refused before its body is used (no token, or a path that isn't there) still
+    has its body read: closing a connection with unread data resets it on Windows, and the
+    answer is lost."""
+    import socket
+
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    port = client.server.port
+    path = "/nowhere" if "x=1" in query else "/label"
+    body = json.dumps({"id": "it0", "label": "pass", "pad": "x" * 200_000}).encode()
+    head = (f"POST {path}{query.format(token=client.server.token)} HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{port}\r\nContent-Type: application/json\r\n"
+            f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n").encode()
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
+        s.sendall(head + body)
+        answer = b""
+        while chunk := s.recv(65536):  # a reset raises here instead of ending cleanly
+            answer += chunk
+    assert answer.split(b"\r\n", 1)[0] in (b"HTTP/1.0 403 Forbidden", b"HTTP/1.0 404 Not Found")
+    assert not (tmp_path / "labels.csv").exists()
+
+
 # Stopping by itself once the result is served (the page `judgekeeper start` passes)
 
 def _serve_until_done(tmp_path, **kw):

@@ -7,8 +7,11 @@ output, human_label, notes).
 
 Security: the page and every request need a random token from the URL; a request whose Host
 header is not the bound address is refused (DNS rebinding); every displayed string goes
-through textContent, and the data is embedded as JSON with <, > and & escaped. A connection
-that stays silent for CONNECTION_TIMEOUT seconds is dropped. The server stops on Ctrl-C, on a
+through textContent, and the data is embedded as JSON with <, > and & escaped. Each
+connection is read in a thread of its own, so a slow or silent one never holds up the rest;
+it is dropped after CONNECTION_TIMEOUT seconds. Requests are then handled one at a time
+(LabelServer.busy). A POST's body is read before any answer: a connection closed with unread
+data is reset on Windows, and the answer is lost. The server stops on Ctrl-C, on a
 POST to /stop (it works the same on every system), and after IDLE_TIMEOUT seconds without a
 request. The project's lock (server.json) holds a separate stop secret, never the token: with
 it a request can only ask whether the page is open (GET /alive) or close it (POST /stop).
@@ -41,8 +44,9 @@ import json
 import os
 import secrets
 import sys
+import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from socketserver import TCPServer
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -67,8 +71,7 @@ from judgekeeper.textio import describe_os_error, unwritable_file, write_replaci
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 IDLE_TIMEOUT = 2 * 60 * 60  # seconds
-# Seconds one connection may stay silent. The server handles one connection at a time, so
-# without this a connection that sends nothing (a browser's spare one) would block the rest.
+# Seconds one connection may stay silent (a browser's spare one) before it is dropped.
 CONNECTION_TIMEOUT = 5
 MAX_BODY = 1_000_000
 # Seconds a page may take to fetch its result after the last item before the server stops.
@@ -251,9 +254,12 @@ def link(port: int, token: str) -> str:
     return f"http://{HOST}:{port}/?token={token}"
 
 
-class _HTTPServer(HTTPServer):
-    """HTTPServer without the host-name lookup it makes when it binds (socket.getfqdn of
-    127.0.0.1), which can hang for many seconds on some machines. The page needs no name."""
+class _HTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer without the host-name lookup it makes when it binds (socket.getfqdn
+    of 127.0.0.1), which can hang for many seconds on some machines. The page needs no name.
+    Closing it waits for no connection: the one being handled holds LabelServer.busy."""
+
+    block_on_close = False
 
     def server_bind(self) -> None:
         TCPServer.server_bind(self)
@@ -280,6 +286,7 @@ class LabelServer:
         self.port = self.httpd.server_address[1]
         self.url = link(self.port, self.token)
         self.last_request = time.monotonic()
+        self.busy = threading.Lock()  # held while a request is handled: one at a time
         self._stopped = False
         self.lock: Path | None = None  # the lock file this server wrote (make_server)
 
@@ -323,8 +330,9 @@ class LabelServer:
                 if self.done_at is not None and time.monotonic() - self.done_at > RESULT_WAIT:
                     break
         finally:
-            self.httpd.server_close()
-            self.release()
+            with self.busy:  # a request being handled finishes first
+                self.httpd.server_close()
+                self.release()
 
     def stop(self) -> None:
         self._stopped = True
@@ -384,7 +392,25 @@ def _handler(server: LabelServer):
             self._json(403, {"error": "missing or wrong token"})
             return False
 
+        def _body(self) -> bytes | None:
+            """The request's body, read before any answer (see the module's docstring); None
+            when it has no length that can be read."""
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return None
+            return self.rfile.read(length) if 0 < length <= MAX_BODY else None
+
         def do_GET(self):
+            with server.busy:
+                self._get()
+
+        def do_POST(self):
+            body = self._body()
+            with server.busy:
+                self._post(body)
+
+        def _get(self):
             url = urlsplit(self.path)
             if not self._allowed(url):
                 return
@@ -427,7 +453,7 @@ def _handler(server: LabelServer):
             else:
                 self._json(404, {"error": "not found"})
 
-        def do_POST(self):
+        def _post(self, raw: bytes | None):
             url = urlsplit(self.path)
             if not self._allowed(url):
                 return
@@ -448,9 +474,9 @@ def _handler(server: LabelServer):
                 too_long = getattr(server.session, "too_long", {})
                 if length > MAX_BODY and url.path in too_long:
                     raise ValueError(too_long[url.path])
-                if not 0 < length <= MAX_BODY:
+                if raw is None:
                     raise ValueError("expected a JSON body")
-                body = json.loads(self.rfile.read(length))
+                body = json.loads(raw)
                 if not isinstance(body, dict):
                     raise TypeError("expected a JSON object")
                 if url.path == "/label" and not isinstance(body.get("id"), str):
