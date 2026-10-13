@@ -635,3 +635,23 @@ def test_a_version_not_confirmed_is_a_close_copy(tmp_path, stubs, terminal):
     p = make_plan(ws, PY, talk=start.Talk())
     assert p.status == "close"
     assert p.why == "the DeepEval version was not confirmed"
+
+
+def test_an_inspect_panel_checks_the_key_of_every_grader(tmp_path, stubs, monkeypatch):
+    ws = _checked(tmp_path, inspect_project)
+
+    def panel(data):
+        data["eval"]["model_roles"] = {}
+        data["eval"]["scorers"][0]["options"] = {
+            "model": [{"model": "openai/gpt-4.1-mini"}, {"model": "anthropic/claude-haiku-4-5"}],
+            "reducer": "majority"}
+
+    _inspect_log(tmp_path, panel)
+    for name in keys.all_names():
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
+    p = make_plan(ws, PY)
+    assert not p.key_ok
+    assert any("ANTHROPIC_API_KEY" in x for x in plan_lines(p))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "y" * 30)
+    assert make_plan(ws, PY).key_ok
