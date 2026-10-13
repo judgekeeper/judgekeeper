@@ -132,6 +132,25 @@ def is_stripped_warning(text: str) -> bool:
     return any(setting in text for _, setting in STRIP_SETTINGS.values())
 
 
+TEST_WIDTH = 40  # characters of a test's description shown
+
+
+def _which_test(row: dict) -> str:
+    """A test as people count it: its number from 1, then its description, or else its first
+    variable, on one line."""
+    idx = row.get("testIdx")
+    case = row.get("testCase") if isinstance(row.get("testCase"), dict) else {}
+    label = case.get("description")
+    if label is None or not str(label).strip():
+        given = row.get("vars") if isinstance(row.get("vars"), dict) else case.get("vars")
+        label = next(iter(given.values()), None) if isinstance(given, dict) else None
+    text = "" if label is None else " ".join(str(label).split())
+    if len(text) > TEST_WIDTH:
+        text = text[:TEST_WIDTH - 1] + "…"
+    number = idx + 1 if isinstance(idx, int) and not isinstance(idx, bool) else idx
+    return f'test {number} ("{text}")' if text else f"test {number}"
+
+
 def _load(path: Path) -> dict:
     try:
         data = read_json(path, RecordsError)
@@ -323,8 +342,9 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                 continue
             per_row[name] += 1
             if per_row[name] > 1:
-                raise RecordsError(f"{path}: test {r.get('testIdx')} has more than one {name!r} "
-                                   "component; name them with metric: in each assertion")
+                raise RecordsError(f"{path}: {_which_test(r)} has more than one {name!r} judge. "
+                                   "Give each one a name with metric: in its assertion, then run "
+                                   "your eval again (that makes model calls).")
             grader = grader_of(a, test_opts, default_test)
             evaluator = _provider(grader)
             if not evaluator:

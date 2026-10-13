@@ -137,5 +137,5 @@ def test_two_llm_rubric_components_with_the_same_name_are_an_error(tmp_path):
                                     if c["assertion"].get("metric") == "helpfulness")))
     path = tmp_path / "results.json"
     path.write_text(json.dumps(data), encoding="utf-8")
-    with pytest.raises(RecordsError, match="name them with metric"):
+    with pytest.raises(RecordsError, match="a name with metric: in its assertion"):
         read_promptfoo(path)
