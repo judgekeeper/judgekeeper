@@ -23,6 +23,12 @@ Traps handled here:
   when promptfoo changes its own grading prompt; when every judged row of a metric gives the
   same template, its hash is the prompt hash. The rule shown to the person stays the rubric.
 - `metadata.cachedResponse` marks a verdict promptfoo replayed from its cache: a warning.
+- `not-llm-rubric` (and every other `not-` form of a judge type) is saved after promptfoo
+  turned the verdict round, so it is read as it is. `agent-rubric` (a grader that uses tools)
+  and `trajectory:goal-success` (it reads the app's trace) are judges too.
+- An `assert-set` was saved with `assertion.type == "assert-set"` and its children nested.
+  promptfoo 0.124.1 saves it with no `assertion` (its marker is `metadata.assertionSet`), and
+  its children both nested and again flat right after it: each child is read once.
 - A grader that failed (its call errored, or its reply could not be read) is saved as a plain
   fail: `graderFail(reason)` in src/matchers/shared.ts is fail(reason) plus
   `metadata.graderError`. The record keeps it as promptfoo saved it and gets an in-memory
@@ -64,6 +70,8 @@ MODEL_GRADED = frozenset({
     "answer-relevance", "context-faithfulness", "context-recall", "context-relevance",
     "conversation-relevance", "search-rubric",
 })
+# Judges that are not one model call: a grader with tools, a grader of the app's trace
+AGENT_GRADED = frozenset({"agent-rubric", "trajectory:goal-success"})
 DEFAULT_GRADER = ("default grader model not recorded by promptfoo: {n} judgments had no grader "
                   "provider on the assertion, the test or defaultTest, so promptfoo used its "
                   "built-in default grader; its model is recorded as unknown.")
@@ -142,17 +150,39 @@ def _text(v) -> str | None:
     return v if isinstance(v, str) else canonical_json(v)
 
 
+def judge_type(kind) -> str | None:
+    """The judge type an assertion type is (`not-llm-rubric` is `llm-rubric`), or None when
+    no model grades it."""
+    if not isinstance(kind, str):
+        return None
+    base = kind.removeprefix("not-")
+    return base if base in MODEL_GRADED or base in AGENT_GRADED else None
+
+
+def _is_set(c: dict) -> bool:
+    marker = (c.get("metadata") or {}).get("assertionSet") if isinstance(
+        c.get("metadata"), dict) else None
+    return ((c.get("assertion") or {}).get("type") == "assert-set"
+            or (isinstance(marker, dict) and marker.get("type") == "assert-set"))
+
+
 def _components(grading: dict | None) -> list[dict]:
-    """componentResults, with nested assert-set results flattened."""
+    """componentResults, with nested assert-set results flattened; children saved again
+    flat right after their set (promptfoo 0.124.1) are read once."""
     out = []
-    for c in (grading or {}).get("componentResults") or []:
-        if not isinstance(c, dict):
-            continue
-        nested = c.get("componentResults")
-        if nested and (c.get("assertion") or {}).get("type") == "assert-set":
-            out += _components(c)
-        else:
+    comps = [c for c in (grading or {}).get("componentResults") or [] if isinstance(c, dict)]
+    i = 0
+    while i < len(comps):
+        c = comps[i]
+        i += 1
+        nested = [x for x in c.get("componentResults") or [] if isinstance(x, dict)]
+        if not (nested and _is_set(c)):
             out.append(c)
+            continue
+        out += _components(c)
+        again = comps[i:i + len(nested)]
+        if [canonical_json(x) for x in again] == [canonical_json(x) for x in nested]:
+            i += len(nested)
     return out
 
 
@@ -287,7 +317,7 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                     created_at=created_at))
                 continue
             name = a.get("metric") or kind or "unknown"
-            if kind not in MODEL_GRADED:
+            if judge_type(kind) is None:
                 records.append(ScoreRecord(target_id=item_id, name=name, annotator_kind=CODE,
                                            label=label, score=c.get("score"), run=run, **content))
                 continue

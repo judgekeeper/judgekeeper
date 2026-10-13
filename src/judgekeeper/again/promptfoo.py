@@ -46,12 +46,13 @@ from judgekeeper.again import CLOSE, EXACT, Plan, cant, left_out_line
 from judgekeeper.again.fresh import AgainError, Fresh, new_folder
 from judgekeeper.anchors import canonical_json
 from judgekeeper.readers.promptfoo import (
-    MODEL_GRADED,
+    AGENT_GRADED,
     _components,
     _options,
     _text,
     grader_of,
     is_set_grader,
+    judge_type,
     read_promptfoo,
 )
 from judgekeeper.records import LLM, derive_record_id
@@ -63,6 +64,8 @@ CALLS = {"llm-rubric": 1, "factuality": 1, "model-graded-factuality": 1,
          "model-graded-closedqa": 1, "context-recall": 1, "context-relevance": 1,
          "context-faithfulness": 2, "answer-relevance": 3, "search-rubric": 1}
 AT_LEAST = {"conversation-relevance"}  # one call per message window
+TRAJECTORY = "trajectory:goal-success"
+AGENT_WHY = "your judge is an agent, which may look at things that changed since your eval ran"
 PROMPT_TYPES = {"factuality", "model-graded-factuality", "model-graded-closedqa", "g-eval",
                 "answer-relevance", "context-faithfulness", "context-recall",
                 "context-relevance"}
@@ -93,7 +96,7 @@ NO_TEST = ("no test in your newest results matches it",
 
 
 def calls_for(assertion: dict) -> int:
-    kind = assertion.get("type")
+    kind = judge_type(assertion.get("type"))
     if kind == "g-eval":
         value = assertion.get("value")
         return 2 * (len(value) if isinstance(value, list) and value else 1)
@@ -264,7 +267,7 @@ def _rows(root: Path, files: list[str]) -> dict[str, tuple[dict, dict]]:
 def _judged(row: dict, metric: str) -> list[dict]:
     """The row's model-graded components of the judge `metric`."""
     return [c for c in _components(row.get("gradingResult"))
-            if (c.get("assertion") or {}).get("type") in MODEL_GRADED
+            if judge_type((c.get("assertion") or {}).get("type")) is not None
             and ((c["assertion"].get("metric") or c["assertion"].get("type")) == metric)]
 
 
@@ -337,7 +340,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             continue
         texts = [(row.get("prompt") or {}).get("raw") or ""]
         texts += [v for v in (row.get("vars") or {}).values() if isinstance(v, str)]
-        if any(c["assertion"].get("type") in PROMPT_TYPES for c in comps) and any(
+        if any(judge_type(c["assertion"].get("type")) in PROMPT_TYPES for c in comps) and any(
                 m in t for t in texts for m in TEMPLATE_MARKS):
             templated += 1
             continue
@@ -376,6 +379,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     if not judged:
         return cant("promptfoo", judge, "none of your labeled answers can be graded again",
                     short="no answer can be graded again")
+    types = {judge_type(c["assertion"].get("type")) for j in judged for c in j[2]}
+    if TRAJECTORY in types:
+        return cant("promptfoo", judge, "your judge reads the trace of your app's run, which "
+                                        "your results don't keep", short="your judge reads a trace")
 
     config = _config(root)
     grader = next(iter(graders.values()))
@@ -422,6 +429,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         elif not version and installed is None:
             return cant("promptfoo", judge, "promptfoo is not installed here",
                         short="promptfoo is not installed")
+    if types & AGENT_GRADED:
+        reasons.append(AGENT_WHY)
     if reasons:
         status, why = CLOSE, "; ".join(reasons)
 
@@ -439,8 +448,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             a = c["assertion"]
             calls = calls_for(a)
             n += calls
-            at_least |= a.get("type") in AT_LEAST
-            embeddings |= a.get("type") == "answer-relevance"
+            at_least |= judge_type(a.get("type")) in AT_LEAST | AGENT_GRADED
+            embeddings |= judge_type(a.get("type")) == "answer-relevance"
             used = c.get("tokensUsed") or {}
             if used.get("prompt"):
                 inp += int(used["prompt"])

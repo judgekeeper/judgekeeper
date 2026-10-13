@@ -1,0 +1,66 @@
+{
+ "evalId": "eval-assert-set",
+ "results": {
+  "version": 3,
+  "timestamp": "2026-10-12T09:00:00.000Z",
+  "results": [
+   {
+    "id": "row-0", "testIdx": 0, "promptIdx": 0,
+    "vars": {"question": "Question 0?"},
+    "testCase": {"description": "t0", "vars": {"question": "Question 0?"},
+                 "options": {"provider": {"id": "openai:gpt-4.1-mini", "config": {"temperature": 0}}}},
+    "prompt": {"raw": "Answer: Question 0?"},
+    "response": {"output": "Answer 0."},
+    "success": true,
+    "gradingResult": {
+     "pass": true, "score": 1, "reason": "All assertions passed",
+     "componentResults": [
+      {"pass": true, "score": 1, "reason": "Aggregate score 1.00 ≥ 0.5 threshold",
+       "metadata": {"assertionSet": {"type": "assert-set", "assertionCount": 2, "metric": "mygroup",
+                                     "threshold": 0.5}},
+       "componentResults": [
+        {"pass": true, "score": 1, "reason": "polite and correct",
+         "assertion": {"type": "llm-rubric", "value": "Is polite and correct.", "metric": "polite"}},
+        {"pass": true, "score": 1, "reason": "Assertion passed",
+         "assertion": {"type": "contains", "value": "Answer", "weight": 1}}
+       ]},
+      {"pass": true, "score": 1, "reason": "polite and correct",
+       "assertion": {"type": "llm-rubric", "value": "Is polite and correct.", "metric": "polite"}},
+      {"pass": true, "score": 1, "reason": "Assertion passed",
+       "assertion": {"type": "contains", "value": "Answer", "weight": 1}}
+     ]
+    }
+   },
+   {
+    "id": "row-1", "testIdx": 1, "promptIdx": 0,
+    "vars": {"question": "Question 1?"},
+    "testCase": {"description": "t1", "vars": {"question": "Question 1?"},
+                 "options": {"provider": {"id": "openai:gpt-4.1-mini", "config": {"temperature": 0}}}},
+    "prompt": {"raw": "Answer: Question 1?"},
+    "response": {"output": "Answer 1."},
+    "success": false,
+    "gradingResult": {
+     "pass": false, "score": 0.5, "reason": "Aggregate score 0.50 < 0.5 threshold",
+     "componentResults": [
+      {"pass": false, "score": 0.5, "reason": "Aggregate score 0.50 < 0.5 threshold",
+       "metadata": {"assertionSet": {"type": "assert-set", "assertionCount": 2, "metric": "mygroup",
+                                     "threshold": 0.5}},
+       "componentResults": [
+        {"pass": false, "score": 0, "reason": "not polite",
+         "assertion": {"type": "llm-rubric", "value": "Is polite and correct.", "metric": "polite"}},
+        {"pass": true, "score": 1, "reason": "Assertion passed",
+         "assertion": {"type": "contains", "value": "Answer", "weight": 1}}
+       ]},
+      {"pass": false, "score": 0, "reason": "not polite",
+       "assertion": {"type": "llm-rubric", "value": "Is polite and correct.", "metric": "polite"}},
+      {"pass": true, "score": 1, "reason": "Assertion passed",
+       "assertion": {"type": "contains", "value": "Answer", "weight": 1}}
+     ]
+    }
+   }
+  ]
+ },
+ "config": {"description": "assert-set as promptfoo 0.124.1 saves it",
+            "defaultTest": {"options": {"provider": {"id": "openai:gpt-4.1-mini"}}}},
+ "metadata": {"promptfooVersion": "0.124.1", "evaluationCreatedAt": "2026-10-12T09:00:00.000Z"}
+}
