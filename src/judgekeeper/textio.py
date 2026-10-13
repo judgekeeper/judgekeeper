@@ -4,7 +4,8 @@ Four things every command shares:
 
 - reading a text file the user supplied. A spreadsheet saved by Excel's default "CSV" option
   is cp1252 or UTF-16, not UTF-8; `read_utf8` turns that into one line that says how to save
-  it, raised as the caller's own usage error. JSONL is split into lines by `jsonl_lines`.
+  it, raised as the caller's own usage error. JSONL is split into lines by `jsonl_lines`;
+  `read_json` says JSON nested too deep to read in one plain line too.
 - writing a file judgekeeper owns: `write_replacing` writes a new file and renames it over the
   old one, so a link there is replaced, never written through; `link_in` finds a link in a
   folder before anything is written.
@@ -20,6 +21,7 @@ Four things every command shares:
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import subprocess
@@ -118,6 +120,19 @@ def read_utf8(path: str | Path, error: type[Exception]) -> str:
     Raises `error` (the caller's usage error) with one plain line when the file is not UTF-8.
     """
     return decode_utf8(Path(path).read_bytes(), path, error).removeprefix(BOM)
+
+
+NOT_JSON = "{file} isn't valid JSON that judgekeeper can read."
+
+
+def read_json(path: str | Path, error: type[Exception]):
+    """The JSON in a file the user supplied (read_utf8). Raises `error` with one plain line
+    when it is nested deeper than Python's JSON reader goes; json.JSONDecodeError as usual."""
+    text = read_utf8(path, error)
+    try:
+        return json.loads(text)
+    except RecursionError:
+        raise error(NOT_JSON.format(file=path)) from None
 
 
 def jsonl_lines(text: str) -> list[str]:

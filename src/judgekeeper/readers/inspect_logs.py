@@ -50,7 +50,7 @@ from judgekeeper.records import (
     ScoreRecord,
     derive_record_id,
 )
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import read_json
 
 DEFAULT_LABELS = {"C": "pass", "I": "fail"}
 # Stands in for a template or instructions the scorer leaves at Inspect's default.
@@ -96,7 +96,7 @@ def _load(path: Path) -> dict:
     if path.suffix.lower() == ".eval":
         raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path))
     try:
-        return json.loads(read_utf8(path, RecordsError))
+        return read_json(path, RecordsError)
     except json.JSONDecodeError as e:
         raise RecordsError(f"{path}: not JSON ({e.msg})") from None
 
@@ -118,7 +118,7 @@ def eval_header(path: str | Path) -> dict:
         return {}
     else:
         try:
-            spec = json.loads(read_utf8(path, RecordsError)).get("eval")
+            spec = read_json(path, RecordsError).get("eval")
         except (OSError, ValueError, AttributeError, RecordsError):
             return {}
     return spec if isinstance(spec, dict) else {}

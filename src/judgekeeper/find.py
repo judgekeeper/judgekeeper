@@ -213,9 +213,7 @@ def classify_file(path: Path) -> str | None:
 def _made_at(result: Result) -> datetime | None:
     try:
         if result.tool == "promptfoo":
-            from judgekeeper.textio import read_utf8
-
-            data = json.loads(read_utf8(result.path, ValueError))
+            data = textio.read_json(result.path, ValueError)
             stamp = (data.get("metadata") or {}).get("evaluationCreatedAt")
             return _parse_date(stamp)
         if result.tool == "deepeval":
@@ -460,7 +458,7 @@ def _run_of(path: Path):
         if path.stat().st_size > MAX_BYTES:
             return None
         data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return None
     if isinstance(data, dict) and isinstance(data.get("testRunData"), dict):
         data = data["testRunData"]

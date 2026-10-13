@@ -62,7 +62,7 @@ from judgekeeper.records import (
     ScoreRecord,
     derive_record_id,
 )
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import read_json
 
 # Assertion types graded by a model (promptfoo src/types/index.ts, BaseAssertionTypesSchema).
 MODEL_GRADED = frozenset({
@@ -134,7 +134,7 @@ def is_stripped_warning(text: str) -> bool:
 
 def _load(path: Path) -> dict:
     try:
-        data = json.loads(read_utf8(path, RecordsError))
+        data = read_json(path, RecordsError)
     except json.JSONDecodeError as e:
         raise RecordsError(f"{path}: not JSON ({e.msg})") from None
     results = data.get("results") if isinstance(data, dict) else None

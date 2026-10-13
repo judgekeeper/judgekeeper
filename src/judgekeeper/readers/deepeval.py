@@ -47,7 +47,7 @@ from judgekeeper.records import (
     ScoreRecord,
     derive_record_id,
 )
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import read_json
 
 POSITIONAL = re.compile(r"(conversational_)?test_case_\d+")
 STAMP = re.compile(r"test_run_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})")
@@ -113,7 +113,7 @@ def _mark(md: dict, label, conversational: bool) -> Mark:
 
 def _load(path: Path) -> dict:
     try:
-        data = json.loads(read_utf8(path, RecordsError))
+        data = read_json(path, RecordsError)
     except json.JSONDecodeError as e:
         raise RecordsError(f"{path}: not JSON ({e.msg})") from None
     if isinstance(data, dict) and isinstance(data.get("testRunData"), dict):
