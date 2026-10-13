@@ -1170,6 +1170,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             first, read_older = loaded[0], iter(loaded[1:])
         else:
             first, rest = None, list(results)
+            unjudged = None  # Inspect: the newest log, when it holds no judge decisions
             while first is None:  # a log that can't be read never hides a good one beside it
                 newest = rest.pop(0)
                 try:
@@ -1178,6 +1179,18 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                     if not rest:
                         raise StartError(str(e)) from None
                     talk.say(f"{e} It is left out.")
+                    continue
+                if kind == "inspect" and not any(r.annotator_kind == LLM
+                                                 for r in first.records):
+                    unjudged = unjudged or newest
+                    if rest:
+                        first = None
+                    elif unjudged is not newest:
+                        raise StartError(NO_JUDGE_LOG.format(
+                            n=len(results), program=textio.program()))
+            if unjudged is not None and unjudged is not newest:
+                talk.say(f"Your newest Inspect log, {unjudged.rel}, holds no judge decisions. "
+                         f"Using {newest.rel}, the newest that does.")
             results = [newest, *rest]
             read_older = _readable(talk, rest)
     if kind in ("records", "mapped"):
@@ -1238,6 +1251,10 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  stopped=[n for x in used for n in x.records.notes
                           if n.startswith("Your Inspect run stopped early")],
                  label_map=label_map or None)
+
+
+NO_JUDGE_LOG = ("none of your {n} Inspect logs holds decisions from an LLM judge. To check one "
+                "log, run {program} with its path.")
 
 
 def _rule_key(r, kind: str) -> str | None:
