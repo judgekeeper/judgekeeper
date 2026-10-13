@@ -13,7 +13,12 @@ judge is right, in steps of 5 points, that checking these marks again would catc
 times in 100. Worked out exactly, with no random numbers: the judge is right on 90% of answers
 now; with the changed judge a right answer turns wrong with the chance that makes the net fall
 that size, and a wrong one turns right 3% of the time; a one-sided sign test at 5% on the
-answers that changed. It uses the fewer kind of mark (Pass or Fail).
+answers that changed. It uses the fewer kind of mark (Pass or Fail). Once judgekeeper has
+asked the judge again about the marked answers (the baseline), it uses the judge's measured
+steadiness instead: how often its verdict changed (at least 1%) and how often it was right.
+
+`got_worse` is that same test on a re-check: of the answers whose verdict changed, the ones
+the new judge now gets wrong against the ones it now gets right.
 
 Why 0.30: about what 25 + 25 gives when the judge agrees with the person about 85% of the
 time and passes half the answers, so such checks are reliable at 25 of each; when the judge
@@ -44,6 +49,8 @@ TURNS_RIGHT = 0.03
 ALPHA = 0.05
 POWER = 0.80
 DROP_STEP = 5  # points
+MIN_FLIP = 0.01  # a measured flip rate counts as at least this
+MIN_RIGHT = 0.5  # a judge measured as right less often than this counts as this
 DROP_MODEL = ("The smallest drop assumes your judge is right on 9 in 10 answers now, and is the "
               "smallest fall a re-check of these marks catches 80 times in 100 (a one-sided "
               "sign test at 5%).")
@@ -120,10 +127,17 @@ def _critical(m: int) -> int:
     return 0
 
 
-def _power(n: int, drop: float) -> float:
+def got_worse(now_wrong: int, now_right: int) -> bool:
+    """Whether a re-check shows the judge got worse: the one-sided sign test at 5% on the
+    answers whose verdict changed (`now_wrong` turned wrong, `now_right` turned right)."""
+    m = now_wrong + now_right
+    return m > 0 and now_wrong >= _critical(m)
+
+
+def _power(n: int, drop: float, right: float = RIGHT_NOW, turns: float = TURNS_RIGHT) -> float:
     """How often a re-check of n marks catches a fall of `drop` (0 to 1)."""
-    worse = (drop + (1 - RIGHT_NOW) * TURNS_RIGHT) / RIGHT_NOW  # a right answer turns wrong
-    p_worse, p_better = RIGHT_NOW * worse, (1 - RIGHT_NOW) * TURNS_RIGHT
+    worse = (drop + (1 - right) * turns) / right  # a right answer turns wrong
+    p_worse, p_better = right * worse, (1 - right) * turns
     changed = _pmf(n, p_worse + p_better)
     share = p_worse / (p_worse + p_better)
     caught = 0.0
@@ -136,16 +150,21 @@ def _power(n: int, drop: float) -> float:
     return caught
 
 
-def smallest_drop(n_pass: int, n_fail: int) -> int | None:
+def smallest_drop(n_pass: int, n_fail: int, flip: float | None = None,
+                  right: float | None = None) -> int | None:
     """The smallest drop, in points, these marks can see (top of this file); None under
-    ROUGH of each kind."""
+    ROUGH of each kind. `flip` and `right` are the judge's measured steadiness (how often its
+    verdict changed when asked again, at least MIN_FLIP; how often it was right), used in
+    place of TURNS_RIGHT and RIGHT_NOW."""
     n = min(n_pass, n_fail)
     if n < ROUGH:
         return None
+    turns = TURNS_RIGHT if flip is None else max(flip, MIN_FLIP)
+    now = RIGHT_NOW if right is None else min(max(right, MIN_RIGHT), 1.0)
     for drop in range(DROP_STEP, 100, DROP_STEP):
-        if (drop / 100 + (1 - RIGHT_NOW) * TURNS_RIGHT) / RIGHT_NOW > 1:
+        if (drop / 100 + (1 - now) * turns) / now > 1:
             return None
-        if _power(n, drop / 100) >= POWER:
+        if _power(n, drop / 100, now, turns) >= POWER:
             return drop
     return None
 
