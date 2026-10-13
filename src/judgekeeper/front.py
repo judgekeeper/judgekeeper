@@ -868,7 +868,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
         raise talk.stop(EXIT_QUESTION, "ask the person to close it with Ctrl-C in the terminal "
                                        "it runs in; else it closes by itself after 2 hours "
                                        "without a click.")
-    talk.say("Closed the marking page. Your marks are saved.")
+    saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
+    talk.say(f"Closed the marking page.{saved}")
     raise talk.stop(EXIT_OK, f"nothing. Run `{talk.command()}` to open it again.")
 
 
