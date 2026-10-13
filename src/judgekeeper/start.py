@@ -409,22 +409,29 @@ def _read(result: find.Result) -> Loaded:
     return Loaded(result.rel, records)
 
 
-def _readable(talk: Talk, results: list[find.Result]):
+def _readable(talk: Talk, results: list[find.Result], root: Path):
     """Each of `results` read (_read), newest first; one that can't be read is said and
     left out."""
     for r in results:
         try:
             yield _read(r)
         except RecordsError as e:
-            talk.say(f"{_unread(e, r)} It is left out.")
+            talk.say(f"{_unread(e, r, root)} It is left out.")
 
 
-def _unread(error: RecordsError, result: find.Result) -> str:
-    """Why `result` can't be read, in one line: a DeepEval file that only links to Confident
-    AI by its path in the project, wherever it is met."""
+def _unread(error: RecordsError, result: find.Result, root: Path) -> str:
+    """Why `result` can't be read, in one line, by its path in the project, wherever it is
+    met: a DeepEval file that only links to Confident AI; a promptfoo test with two judges of
+    one name, with the config file it is in."""
     from judgekeeper.readers.deepeval import LINK_ONLY, LinkOnly
+    from judgekeeper.readers.promptfoo import TWO_JUDGES, TwoJudges
 
-    return LINK_ONLY.format(file=result.rel) if isinstance(error, LinkOnly) else str(error)
+    if isinstance(error, LinkOnly):
+        return LINK_ONLY.format(file=result.rel)
+    if isinstance(error, TwoJudges):
+        return TWO_JUDGES.format(where=result.rel, test=error.test, name=error.name,
+                                 config=f" in {_config_named(root, result)}")
+    return str(error)
 
 
 def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
@@ -942,20 +949,20 @@ CONFIG_SUFFIXES = (".yaml", ".yml", ".json")
 MAX_CONFIGS = 200  # files looked at for promptfoo configs
 
 
-def _config_description(path: Path) -> str | None:
-    """The top-level `description` of `path` when it is a promptfoo config (named
-    promptfooconfig.*, or with its keys), else None. YAML by a line scan, no YAML reader."""
+def _promptfoo_config(path: Path) -> tuple[bool, str | None]:
+    """(whether `path` is a promptfoo config: named promptfooconfig.*, or with its keys; its
+    top-level `description` or None). YAML by a line scan, no YAML reader."""
     try:
         if path.stat().st_size > find.HEAD_BYTES * 16:
-            return None
+            return False, None
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return None
+        return False, None
     if path.suffix.lower() == ".json":
         try:
             data = json.loads(text)
         except (ValueError, RecursionError):
-            return None
+            return False, None
         keys = set(data) if isinstance(data, dict) else set()
         value = data.get("description") if isinstance(data, dict) else None
     else:
@@ -964,14 +971,31 @@ def _config_description(path: Path) -> str | None:
         value = m[1].strip().strip("'\"") if m else None
     named = path.name.lower() in find.PROMPTFOO_CONFIGS
     if not named and ("prompts" not in keys or not keys & {"providers", "tests"}):
-        return None
-    return value.strip() or None if isinstance(value, str) else None
+        return False, None
+    return True, (value.strip() or None if isinstance(value, str) else None)
 
 
 def _project_descriptions(root: Path) -> set[str]:
-    """The descriptions of every promptfoo config in the project, at most find.TABLE_DEPTH
-    folders deep (the folders find skips are skipped, links never followed)."""
-    found, looked, queue = set(), 0, [root]
+    """The descriptions of every promptfoo config in the project (_promptfoo_configs)."""
+    return {d for d in _promptfoo_configs(root).values() if d}
+
+
+def _config_named(root: Path, result: find.Result) -> str:
+    """The promptfoo config `result` was made from, as a path in the project: the only one,
+    else the one with its description; else "your promptfoo config"."""
+    configs = _promptfoo_configs(root)
+    if len(configs) == 1:
+        return next(iter(configs))
+    theirs = results_description(result)
+    same = [rel for rel, mine in configs.items() if theirs is not None and mine == theirs]
+    return same[0] if len(same) == 1 else "your promptfoo config"
+
+
+def _promptfoo_configs(root: Path) -> dict[str, str | None]:
+    """{path in the project: its description} for every promptfoo config, at most
+    find.TABLE_DEPTH folders deep (the folders find skips are skipped, links never
+    followed)."""
+    found, looked, queue = {}, 0, [root]
     while queue and looked < MAX_CONFIGS:
         folder = queue.pop(0)
         try:
@@ -988,9 +1012,9 @@ def _project_descriptions(root: Path) -> set[str]:
                     queue.append(path)
             elif path.suffix.lower() in CONFIG_SUFFIXES and looked < MAX_CONFIGS:
                 looked += 1
-                description = _config_description(path)
-                if description:
-                    found.add(description)
+                config, description = _promptfoo_config(path)
+                if config:
+                    found[path.relative_to(root).as_posix()] = description
     return found
 
 
@@ -1220,8 +1244,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                     first = _read(newest)
                 except RecordsError as e:
                     if not rest:
-                        raise StartError(_unread(e, newest)) from None
-                    talk.say(f"{_unread(e, newest)} It is left out.")
+                        raise StartError(_unread(e, newest, root)) from None
+                    talk.say(f"{_unread(e, newest, root)} It is left out.")
                     continue
                 if kind == "inspect" and not any(r.annotator_kind == LLM
                                                  for r in first.records):
@@ -1235,7 +1259,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                 talk.say(f"Your newest Inspect log, {unjudged.rel}, holds no judge decisions. "
                          f"Using {newest.rel}, the newest that does.")
             results = [newest, *rest]
-            read_older = _readable(talk, rest)
+            read_older = _readable(talk, rest, root)
     if kind in ("records", "mapped"):
         metrics = sorted({r.name for r in every.records if r.annotator_kind == LLM})
     else:
