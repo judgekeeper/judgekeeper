@@ -137,3 +137,19 @@ def test_mark_runs_the_page_in_the_background(project):
     assert not alive(pid)
     assert not label.is_open(folder)
     assert not (folder / label.LOCK).exists()
+
+
+def test_mark_stop_closes_a_page_whose_server_json_is_gone(project):
+    first = jk(project, "mark", "--port", "0", "--no-browser")
+    assert first.returncode == 0, first.stdout + first.stderr + page_log(project)
+    folder = project / ".judgekeeper"
+    pid = json.loads((folder / label.LOCK).read_text(encoding="utf-8"))["pid"]
+    (folder / label.LOCK).unlink()
+
+    stopped = jk(project, "mark", "--stop")
+    assert stopped.returncode == 0, stopped.stdout + stopped.stderr + page_log(project)
+    assert "Closed the marking page." in stopped.stdout
+    deadline = time.monotonic() + 10
+    while alive(pid) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert not alive(pid)

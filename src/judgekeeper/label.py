@@ -14,7 +14,8 @@ it is dropped after CONNECTION_TIMEOUT seconds. Requests are then handled one at
 data is reset on Windows, and the answer is lost. The server stops on Ctrl-C, on a
 POST to /stop (it works the same on every system), and after IDLE_TIMEOUT seconds without a
 request. The project's lock (server.json) holds a separate stop secret, never the token: with
-it a request can only ask whether the page is open (GET /alive) or close it (POST /stop).
+it a request can only ask whether the page is open (GET /alive) or close it (POST /stop). A
+copy of the lock (page.json) lets --stop find the page when server.json is gone.
 POST /printed (with the token) says the link was printed where a coding agent could read it:
 every later mark is stamped so.
 
@@ -203,6 +204,7 @@ def _json_for_html(data) -> str:
 
 
 LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
+LOCK_COPY = "page.json"  # the same, read when server.json is gone
 ALREADY_OPEN = ("A judgekeeper page is already open for this project. Close it with Ctrl-C in "
                 "its terminal, or run `{program} --stop`.")
 PROBE_TIMEOUT = 2  # seconds to wait for the page named in the lock to answer
@@ -212,13 +214,17 @@ RELEASE_PAUSE = 0.05
 
 def read_lock(folder: Path) -> dict | None:
     """{"pid", "port", "stop", "view"} of the page named in the project's lock, or None.
-    `view` names a page that is not for marking ("keep": the "Turn on" page), else None."""
-    try:
-        lock = json.loads((Path(folder) / LOCK).read_text(encoding="utf-8"))
-        return {"pid": int(lock["pid"]), "port": int(lock["port"]), "stop": str(lock["stop"]),
-                "view": lock.get("view") if isinstance(lock.get("view"), str) else None}
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
+    `view` names a page that is not for marking ("keep": the "Turn on" page), else None.
+    When server.json can't be read, its copy (page.json) is."""
+    for name in (LOCK, LOCK_COPY):
+        try:
+            lock = json.loads((Path(folder) / name).read_text(encoding="utf-8"))
+            view = lock.get("view")
+            return {"pid": int(lock["pid"]), "port": int(lock["port"]),
+                    "stop": str(lock["stop"]), "view": view if isinstance(view, str) else None}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            continue
+    return None
 
 
 def ask(port: int, method: str, path: str, query: dict, body: dict | None = None) -> int | None:
@@ -291,35 +297,42 @@ class LabelServer:
         self.lock: Path | None = None  # the lock file this server wrote (make_server)
 
     def hold(self, folder: Path, view: str | None = None) -> None:
-        """Write the project's lock: this process, port, stop secret and which page (never
-        the token: a coding agent can read .judgekeeper/)."""
+        """Write the project's lock and its copy: this process, port, stop secret and which
+        page (never the token: a coding agent can read .judgekeeper/)."""
         self.lock = Path(folder) / LOCK
         held = {"pid": os.getpid(), "port": self.port, "stop": self.stop_secret}
-        write_replacing(self.lock, json.dumps({**held, **({"view": view} if view else {})}))
+        text = json.dumps({**held, **({"view": view} if view else {})})
+        write_replacing(self.lock, text)
+        write_replacing(self.lock.with_name(LOCK_COPY), text)
 
     def release(self) -> None:
-        """Remove the lock, when it is still this server's. Windows refuses to delete a file
-        that another process (`mark --stop`, asking whether the page is open) is reading,
-        so a refusal is tried again for a moment."""
+        """Remove the lock and its copy, each when it is still this server's."""
         if self.lock is None:
             return
+        for path in (self.lock, self.lock.with_name(LOCK_COPY)):
+            self._remove(path)
+        self.lock = None
+
+    def _remove(self, path: Path) -> None:
+        """Remove `path` when it holds this server's stop secret. Windows refuses to delete a
+        file that another process (`mark --stop`, asking whether the page is open) is
+        reading, so a refusal is tried again for a moment."""
         for tries in range(RELEASE_TRIES, 0, -1):
             try:
-                if json.loads(self.lock.read_text(encoding="utf-8")).get("stop") == \
+                if json.loads(path.read_text(encoding="utf-8")).get("stop") == \
                         self.stop_secret:
-                    self.lock.unlink()
+                    path.unlink()
                 break
             except FileNotFoundError:
                 break
             except PermissionError as e:
                 if tries == 1:
-                    print(f"judgekeeper: {LOCK} was not removed ({e})", file=sys.stderr)
+                    print(f"judgekeeper: {path.name} was not removed ({e})", file=sys.stderr)
                 time.sleep(RELEASE_PAUSE)
-            except (OSError, ValueError) as e:
-                print(f"judgekeeper: {LOCK} was not removed ({type(e).__name__}: {e})",
+            except (OSError, ValueError, AttributeError) as e:
+                print(f"judgekeeper: {path.name} was not removed ({type(e).__name__}: {e})",
                       file=sys.stderr)
                 break
-        self.lock = None
 
     def serve(self, idle_timeout: float | None = None) -> None:
         """Handle requests until stop(), Ctrl-C, or idle_timeout seconds without a request."""
