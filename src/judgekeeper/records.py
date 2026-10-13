@@ -44,7 +44,7 @@ from judgekeeper.table import (
     _delimiter,
     derive_id,
 )
-from judgekeeper.textio import jsonl_lines, read_utf8
+from judgekeeper.textio import jsonl_lines, plural, read_utf8
 
 SCHEMA_VERSION = 2
 LLM, HUMAN, CODE = "LLM", "HUMAN", "CODE"
@@ -547,8 +547,7 @@ def read_records(path: str | Path, column_map: str | dict | None = None,
 
 # Records to a report --------------------------------------------------------------------
 
-def _plural(n: int, one: str, many: str) -> str:
-    return f"{n} {one if n == 1 else many}"
+_plural = plural  # textio.plural
 
 
 def _verdict_value(rec: ScoreRecord, pass_if) -> Any:

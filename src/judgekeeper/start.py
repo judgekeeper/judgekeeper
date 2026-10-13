@@ -56,7 +56,7 @@ from judgekeeper.records import (
 )
 from judgekeeper.redact import one_line, scrub
 from judgekeeper.table import _blank, make_fingerprint, read_table
-from judgekeeper.textio import quote_arg, read_utf8, tick
+from judgekeeper.textio import plural, quote_arg, read_utf8, tick
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -1027,7 +1027,7 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
         return metric
     if len(names) == 1:
         return names[0]
-    options = [f"{n} ({counts[n]} answers)" for n in names]
+    options = [f"{n} ({_plural(counts[n], 'answer', 'answers')})" for n in names]
     name = names[talk.choose(
         "These results hold more than one judge:", options,
         f"Several judges found; choose one with {_or([f'--metric {quote_arg(n)}' for n in names])}",
@@ -1415,8 +1415,7 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
 
 # What `start` says after finding ---------------------------------------------------------
 
-def _plural(n: int, one: str, many: str) -> str:
-    return f"{n} {one if n == 1 else many}"
+_plural = plural  # textio.plural
 
 
 ROW_CELL = 40  # characters of a cell shown in a table's first rows
@@ -1455,8 +1454,8 @@ def when_words(d) -> str:
 
 
 NOT_IN_FILE = "not in the file"
-PARTIAL = ("Inspect gave partial credit (P) on {n} answers: should they count as Pass or Fail? "
-           "Run again with --label-map P=pass or --label-map P=fail.")
+PARTIAL = ("Inspect gave partial credit (P) on {n}: should they count as Pass or Fail? Run "
+           "again with --label-map P=pass or --label-map P=fail.")
 NO_MODEL = "not named in the results (add --judge-model NAME)"
 
 
@@ -1561,7 +1560,8 @@ def say_found(talk: Talk, found: Found) -> None:
                          "1 repeat of the same answer was merged."))
     if pool.unmapped:  # stop: a result without those answers would be wrong
         if found.tool == "inspect" and "P" in pool.unmapped:  # model_graded_qa(partial_credit)
-            raise StartError(PARTIAL.format(n=pool.n_unmapped.get(repr("P"), 0)))
+            raise StartError(PARTIAL.format(n=_plural(pool.n_unmapped.get(repr("P"), 0),
+                                                      "answer", "answers")))
         raise StartError(unknown_values(pool.unmapped))
     if pool.n_human:
         where = (f"{Path(found.used[0]).name} also holds" if len(found.used) == 1

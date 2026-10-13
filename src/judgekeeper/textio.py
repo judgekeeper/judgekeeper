@@ -16,7 +16,8 @@ Four things every command shares:
   shell in use, and `split_command` reads `--judge-command` the way that shell would. On Windows that
   is cmd.exe or PowerShell: double quotes, backslashes in paths, `start` instead of `open`.
 
-`tick()` is the mark in front of a line that says something was found or is ready.
+`tick()` is the mark in front of a line that says something was found or is ready, and
+`plural` says a count as people say it ("1 answer", "2 answers").
 """
 
 from __future__ import annotations
@@ -144,6 +145,11 @@ def get_extra(extra: str) -> str:
     if started_by_uvx():
         return f"run `{uvx_with(extra)}`"
     return f"install the extra ({install_extra(extra)})"
+
+
+def plural(n: int, one: str, many: str | None = None) -> str:
+    """`n` and the word for it: `one` for 1, else `many` (by default `one` + "s")."""
+    return f"{n} {one if n == 1 else many or one + 's'}"
 
 
 # Reading -------------------------------------------------------------------------------------
