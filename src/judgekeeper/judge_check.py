@@ -15,6 +15,11 @@ and the marks the readers set (records.Mark). Four checks:
    (`--pass-if`, DeepEval's thresholds, record()'s pass_mark, a mapped score), whose reasons
    talk about a score.
 
+Two more look at the judge's setup (judge_setup.py), not its decisions (`setup_lines`):
+promptfoo with no grader written down (promptfoo then picks one from whichever API key is
+set, and its results don't say which), and an eval tool whose version judgekeeper can't see
+(DeepEval and MLflow results don't hold it; the project's lockfile may).
+
 Every check is information: none stops `start`. The functions here are pure; start_label
 writes judge-check.json and judge-check.csv, and the terminal and the result page say `lines`.
 """
@@ -235,6 +240,25 @@ def has_rows(block: dict | None) -> bool:
     return bool(block) and any(block.get(k) for k in KINDS)
 
 
+MODEL_NOT_WRITTEN = ("Your judge's model isn't written in your config. promptfoo picks it "
+                     "from whichever API key is set, so it can change without any file "
+                     "changing. Write it in your config (`defaultTest.options.provider`).")
+VERSION_NOT_SEEN = ("judgekeeper can't see your eval tool's version, so an update to it won't "
+                    "be noticed. Pin it in your project (e.g. `{pin}`).")
+PINS = {"deepeval": "deepeval==4.2.8", "mlflow": "mlflow==3.17.0"}  # results hold no version
+
+
+def setup_lines(found, setup: dict) -> list[str]:
+    """The free checks on the judge's setup (judge_setup.of): what can change the judge
+    without judgekeeper seeing it."""
+    out = []
+    if found.tool == "promptfoo" and (not found.models or found.model_source):
+        out.append(MODEL_NOT_WRITTEN)
+    if found.tool in PINS and setup.get("tool_version") is None:
+        out.append(VERSION_NOT_SEEN.format(pin=PINS[found.tool]))
+    return out
+
+
 def terminal_lines(block: dict | None, tick: str) -> list[str]:
     """The lines `start` prints: `tick` (textio.tick) in front of the one line when nothing
     was found, else "!" in front of each finding, and where to see the answers."""
@@ -257,4 +281,4 @@ def page_lines(block: dict | None) -> list[str]:
 __all__ = ["CSV_COLUMNS", "EVERY_ANSWER", "KINDS", "LEFT_OUT", "LIST_LINE", "TITLE", "Finding",
            "Result",
            "check", "has_rows", "is_empty_answer", "lines", "page_lines",
-           "says_opposite", "stated_decisions", "terminal_lines"]
+           "says_opposite", "setup_lines", "stated_decisions", "terminal_lines"]

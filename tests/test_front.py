@@ -16,7 +16,7 @@ import tomllib
 
 import pytest
 
-from judgekeeper import __version__, front, start
+from judgekeeper import __version__, front, judge_setup, start
 from judgekeeper.cli import main
 from judgekeeper.textio import quote_arg
 from tests.start_projects import (
@@ -188,24 +188,23 @@ def test_judge_json_has_every_field(here, capsys):
     promptfoo_project(here, split(20, 16))
     run(capsys)
     data = json.loads((here / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
-    assert data["tool"] == "promptfoo"
-    assert "tool_version" in data
-    assert data["results"] == ["results.json"]
-    assert data["judge"] and data["model"] == "openai:gpt-4.1-mini"
-    assert data["rule_hash"].startswith("sha256:")
-    assert "pass_mark" in data
+    assert set(data) == {"setup", "setup_hash", "first_seen", "judgekeeper_version"}
+    setup = data["setup"]
+    assert setup["tool"] == "promptfoo"
+    assert "tool_version" in setup and "version_from" in setup
+    assert setup["models"] == ["openai:gpt-4.1-mini"] and setup["kind"] == "one call"
+    assert setup["rule_hash"].startswith("sha256:")
+    assert "pass_mark" in setup and "prompt_hash" in setup and "temperature" in setup
+    assert data["setup_hash"].startswith("sha256:")
     assert data["judgekeeper_version"] == __version__
-    assert data["created_at"].endswith("Z")
-    assert data["fingerprint"]["model"] == "openai:gpt-4.1-mini"
+    assert data["first_seen"].endswith("Z")
 
 
 def test_the_rule_hash_follows_the_rule(here, capsys):
     promptfoo_project(here, split(20, 16), rubric="Be polite.")
-    run(capsys)
-    first = json.loads((here / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
+    first = judge_setup.of(start.find_judge(here))
     promptfoo_project(here, split(20, 16), rubric="Be polite and short.")
-    run(capsys)
-    second = json.loads((here / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
+    second = judge_setup.of(start.find_judge(here))
     assert first["rule_hash"] != second["rule_hash"]
 
 
@@ -215,7 +214,8 @@ def test_the_tool_version_is_read_when_the_results_say_it(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     run(capsys)
     saved = json.loads((here / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
-    assert saved["tool_version"] == "0.123.1"
+    assert saved["setup"]["tool_version"] == "0.123.1"
+    assert saved["setup"]["version_from"] == "results"
 
 
 def test_too_few_answers_needs_the_person(here, capsys):

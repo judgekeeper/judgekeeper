@@ -423,8 +423,8 @@ def test_no_to_the_confirmation_keeps_the_numbers(fake, capsys, terminal, confir
 def test_new_makes_the_new_judge_the_one_checked_and_deletes_nothing(fake, capsys, confirmed):
     _new_run(fake.root)
     run(capsys, fake.root, "--try-new-judge", "--allow-calls", 36, "--yes")
-    files = sorted(p.relative_to(fake.dir).as_posix() for p in fake.dir.rglob("*")
-                   if p.is_file() and p.name != ".gitignore")  # it stays
+    files = sorted(p.relative_to(fake.dir).as_posix() for p in fake.dir.rglob("*")  # these stay
+                   if p.is_file() and p.name not in (".gitignore", "history.jsonl"))
     run(capsys, fake.root, "--new")
     (previous,) = fake.dir.glob("previous-*")
     moved = sorted(p.relative_to(previous).as_posix() for p in previous.rglob("*")

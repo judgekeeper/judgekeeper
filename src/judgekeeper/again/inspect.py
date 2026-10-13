@@ -218,6 +218,11 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         tokens.append((i * calls, o * calls))
     model = graders[0] if graders else None
     check = keys.check(model, "inspect", root, loads_env=loads_env)
+    for other in list(dict.fromkeys(graders))[1:]:  # a panel: every grader's key
+        more = keys.check(other, "inspect", root, loads_env=loads_env)
+        check.ok = check.ok and more.ok
+        check.lines += [x for x in more.lines if x not in check.lines]
+        check.settings += [x for x in more.settings if x not in check.settings]
     left = []
     if len(found) < len(answers):
         n = len(answers) - len(found)

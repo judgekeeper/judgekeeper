@@ -17,13 +17,18 @@
 A new eval run does not start over: the answers being marked are in .judgekeeper/pool.jsonl,
 so marking goes on with them and a result stays valid (marks are tests for the judge, not for
 one results file); one line says the eval ran again. Only another judge or --new starts over.
+When the judge's setup (judge_setup.py) changed since the marks, that line says what changed,
+and once there are enough marks the result's Next: line is `judgekeeper check`, which re-tests
+the new judge on them.
 `judgekeeper mark` (mark.py) goes through the same table for marking more: it opens the page
 in every row but "asked" and "start over", prints the count, and leaves the result to
 `judgekeeper`. --wait serves the page in this process, --stop closes it (page.py).
 
 Finding: find the eval tool, its saved results, the judge and its rule; run the free checks
-(judge_check); write .judgekeeper/judge.json; say what was found in plain lines, then exactly
-one line starting `Next:`.
+(judge_check); write .judgekeeper/judge.json (the judge's setup, judge_setup.py: before
+marking starts it follows the newest results, then it keeps the judge of the marks until
+`judgekeeper check` re-checks a new one); say what was found in plain lines, then exactly one
+line starting `Next:`.
 
 A person and a coding agent read the same output, and the agent follows the `Next:` line. So
 the output holds counts, names, file paths and the judge's rule (the person's own config, on
@@ -47,8 +52,6 @@ is needed (the `Next:` line says what to ask or do), 2 usage error, 130 Ctrl-C.
 
 from __future__ import annotations
 
-import json
-import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -57,6 +60,7 @@ from judgekeeper import (
     background,
     find,
     judge_check,
+    judge_setup,
     marks,
     own_format,
     page,
@@ -66,20 +70,19 @@ from judgekeeper import (
     start_label,
     targets,
 )
-from judgekeeper.fingerprint import judge_file, rule_hash
+from judgekeeper.fingerprint import rule_hash
 from judgekeeper.label import DEFAULT_PORT, is_open
 from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
-from judgekeeper.textio import program, quote_arg, write_replacing
+from judgekeeper.textio import program, quote_arg
 
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_NEEDS_YOU = 3
 RULE_WIDTH = 200  # characters of the judge's rule shown, on one line
 VALUE_WIDTH = 40  # characters of a judge's decision value shown
-JUDGE_FILE = "judge.json"
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
 LABEL_MAP = '"VALUE=pass,VALUE=fail"'
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
@@ -95,8 +98,9 @@ ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
 START_OVER = f"Start over with these results? Your old marks move to {FOLDER}/previous-<date>/."
 OLD_MARKS = (f"{FOLDER}/labels.csv holds marks from judgekeeper 0.2. They have no time stamps, "
              "so this version does not use them.")
-RAN_AGAIN = ("Your eval ran again since you started marking. Your marks are kept; re-checking "
-             "them against new results comes later.")
+RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
+JUDGE_CHANGED = "Your judge changed since your marks: {what}."
+NEXT_CHECK = "run `{command}`."
 NEXT_OPEN = ("tell the person the marking page is open in their browser, and to mark answers "
              "until the page says it has enough. When they say they are done, run `{command}` "
              "again.")
@@ -457,34 +461,24 @@ def _notes(found: start.Found) -> list[str]:
 
 
 def check_lines(found: start.Found, listed: str) -> list[str]:
-    """The free checks: what was found, and where the list of those answers is."""
+    """The free checks: what was found, and where the list of those answers is; then what
+    can change the judge without judgekeeper seeing it."""
     block = found.check.block() if found.check else None
     found_problems = judge_check.lines(block)
     lines = ["Checked first (no AI call):"]
     if not found_problems:
-        return [*lines, f"  {judge_check.EVERY_ANSWER}"]
-    lines += [f"  {line}" for problem in found_problems for line in problem]
-    if judge_check.has_rows(block):
-        lines.append(f"  List: {listed}")
-    return lines
+        lines.append(f"  {judge_check.EVERY_ANSWER}")
+    else:
+        lines += [f"  {line}" for problem in found_problems for line in problem]
+        if judge_check.has_rows(block):
+            lines.append(f"  List: {listed}")
+    return lines + [f"  {line}" for line in judge_check.setup_lines(found,
+                                                                    judge_setup.of(found))]
 
 
 def tool_version(found: start.Found) -> str | None:
-    """The eval tool's version, when its results say it."""
-    newest = found.results[0].path
-    try:
-        if found.tool == "promptfoo":
-            m = re.search(rb'"promptfooVersion"\s*:\s*"([^"\\]{1,40})"', newest.read_bytes())
-            return m[1].decode("utf-8", errors="replace") if m else None
-        if found.tool == "inspect":
-            from judgekeeper.readers.inspect_logs import eval_header
-
-            packages = eval_header(newest).get("packages")
-            version = packages.get("inspect_ai") if isinstance(packages, dict) else None
-            return version if isinstance(version, str) else None
-    except (OSError, ValueError, RecordsError):
-        return None
-    return None
+    """The eval tool's version: from its results, else the project's lockfile."""
+    return judge_setup.version_of(found)[0]
 
 
 def _listed(found: start.Found) -> str:
@@ -497,20 +491,20 @@ def _listed(found: start.Found) -> str:
 
 def _write(found: start.Found) -> None:
     """judge-check.json and .csv, and judge.json, in the project's .judgekeeper/ (never
-    through a link)."""
+    through a link). judge.json follows the newest results only until marking starts: then it
+    is the judge of the marks, which `judgekeeper check` moves on."""
     from judgekeeper import start_label
 
     ws = start_label.Workspace(found.root)
     start_label.save_judge_check(ws, found)  # also when it lists nothing: no list stays stale
-    results = ([found.store] if found.tool == "mlflow" else
-               [found.results[0].rel] if found.tool == "mapped" else list(found.used))
-    data = judge_file(tool=found.tool, tool_version=tool_version(found), results=results,
-                      judge=found.metric, model=", ".join(found.models) or None,
-                      rule=found.rule, pass_mark=found.pass_mark,
-                      fingerprint=found.fingerprint, version=__version__)
-    if found.tool == "mlflow":
-        data["experiment"] = found.experiment
-    write_replacing(ws.dir / JUDGE_FILE, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    if not ws.start.is_file() or judge_setup.read(ws) is None:
+        judge_setup.save(ws, judge_setup.of(found))
+
+
+def _changed(ws: Workspace, found: start.Found) -> list[str]:
+    """What changed in the judge's setup since the one judge.json keeps, in words."""
+    saved = judge_setup.read(ws)
+    return judge_setup.changes(saved["setup"], judge_setup.of(found)) if saved else []
 
 
 def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | None,
@@ -716,14 +710,17 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     counts = StartSession(ws).counts()
     enough = min(counts["correct"], counts["wrong"]) >= targets.ROUGH
     head = [] if first or marking or enough else [_marking_line(ws, found)]
-    if not first and _ran_again(ws, found):
+    changed = [] if first else _changed(ws, found)
+    if changed:
+        head.append(JUDGE_CHANGED.format(what=", ".join(changed)))
+    elif not first and _ran_again(ws, found):
         head.append(RAN_AGAIN)
     for line in head:
         talk.say(line)
     if head:
         talk.say()
     if enough and not marking:
-        return _result(talk, ws, found, wait, saved)
+        return _result(talk, ws, found, wait, saved, check=bool(changed))
     return _page(talk, ws, counts, wait, saved, enough)
 
 
@@ -809,8 +806,16 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
     return f"This result is about your judge as it was{day}: {model}, {rule}."
 
 
-def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool) -> int:
-    """Output B: the result from the marks, saved; whether the page is open."""
+def _check_command(talk: FrontTalk) -> str:
+    """`judgekeeper check`, with the path when it is not this folder."""
+    path = [] if talk.path == "." else [quote_arg(talk.path)]
+    return " ".join((program("check"), *path))
+
+
+def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
+            check: bool = False) -> int:
+    """Output B: the result from the marks, saved; whether the page is open. `check`: the
+    judge changed since the marks, so the Next: line is `judgekeeper check`."""
     session = StartSession(ws)
     r = start_label.store_result(ws, session, _command_of(talk, saved, "start"))
     made = r.get("made") or marks.made(marks.read(ws.marks), ids=set(session.by_id))
@@ -838,7 +843,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()
-    talk.say("Next: " + NEXT_RESULT.format(command=_command_of(talk, saved, "mark")))
+    if check:
+        talk.say("Next: " + NEXT_CHECK.format(command=_check_command(talk)))
+    else:
+        talk.say("Next: " + NEXT_RESULT.format(command=_command_of(talk, saved, "mark")))
     if opened is not None:
         page.serve(opened.server)
     return EXIT_OK

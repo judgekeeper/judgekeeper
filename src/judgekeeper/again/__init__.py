@@ -362,13 +362,14 @@ def left_out_line(n: int, why: str, why_many: str | None = None) -> str:
 # The plan --------------------------------------------------------------------------------------
 
 def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
-              new=None) -> Plan:
+              new=None, only: set[str] | None = None) -> Plan:
     """The plan for asking the judge of `ws` again. `dry` checks the judge where it would run
     (no API call); without it nothing runs (for the menu). `talk`, at a terminal, asks the
     few questions a plan may need (DeepEval's fields, a tool's version).
 
     With `new` (a new_judge.View), the judge is the new one in the newest results, rebuilt
-    from them, and it grades the same labeled answers; it is asked once unless --times."""
+    from them, and it grades the same labeled answers; it is asked once unless --times.
+    `only` (answer ids) keeps the plan to those labeled answers."""
     from dataclasses import replace
 
     from judgekeeper.again import command, deepeval, inspect, mlflow, promptfoo
@@ -376,7 +377,7 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
 
     opts = opts or AgainOptions()
     opts = replace(opts, times=opts.times or (1 if new is not None else TIMES))
-    answers = labeled_answers(ws)
+    answers = [a for a in labeled_answers(ws) if only is None or a["id"] in only]
     source = new if new is not None else ws
     data = source.data()
     planners = {"promptfoo": promptfoo.plan, "deepeval": deepeval.plan,
