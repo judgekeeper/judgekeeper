@@ -54,9 +54,9 @@ from pathlib import Path
 from judgekeeper import __version__, find, judge_setup, marks, start, targets
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
-from judgekeeper.redact import printable, scrub, scrub_value
+from judgekeeper.redact import one_line, scrub, scrub_value
 from judgekeeper.start_label import Workspace
-from judgekeeper.textio import program, quote_arg, write_replacing
+from judgekeeper.textio import plural, program, quote_arg, write_replacing
 
 EXIT_OK, EXIT_WORSE, EXIT_NEEDS_YOU = 0, 1, 3
 CHECKS = "checks.json"  # written only by the "Turn on" page
@@ -94,8 +94,7 @@ def _terminal() -> bool:
         return False
 
 
-def _n(n: int, one: str, many: str | None = None) -> str:
-    return f"{n} {one if n == 1 else many or one + 's'}"
+_n = plural  # textio.plural
 
 
 def _pct(x: float | None) -> str:
@@ -466,7 +465,7 @@ class Said:
     person: str | None = None  # one short line for the person (the hook's systemMessage)
 
     def say(self, text: str = "") -> None:
-        self.lines.append(text)
+        self.lines.append(one_line(text))
 
 
 def _no_change(state: State) -> str:
@@ -554,7 +553,7 @@ def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
     n, total = len(tested), len(state.marks)
     parts = [f"{len(free)} free from your new results"] if free else []
     parts += [f"{len(asked.verdicts)} asked again"] if asked.verdicts else []
-    on = f"your {total} marks" if n == total else f"{n} of your {total} marks"
+    on = f"your {_n(total, 'mark')}" if n == total else f"{n} of your {_n(total, 'mark')}"
     said.say(f"Re-checked on {on} ({', '.join(parts)}).")
     for line in asked.reasons:
         said.say(line)
@@ -647,7 +646,7 @@ def baseline(path: str, said: Said) -> int:
 # The command ------------------------------------------------------------------------------------
 
 def _print(text: str = "") -> None:
-    print(printable(scrub(text)))
+    print(one_line(scrub(text)))
     sys.stdout.flush()
 
 

@@ -29,7 +29,7 @@ import re
 import sys
 import textwrap
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from judgekeeper import find, judge_check, settings, targets, textio
@@ -54,9 +54,9 @@ from judgekeeper.records import (
     fingerprint_known,
     read_records,
 )
-from judgekeeper.redact import printable, scrub
+from judgekeeper.redact import one_line, scrub
 from judgekeeper.table import _blank, make_fingerprint, read_table
-from judgekeeper.textio import quote_arg, read_utf8, tick
+from judgekeeper.textio import plural, quote_arg, read_utf8, tick
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -162,7 +162,7 @@ class Talk:
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):
             return
-        print(printable(scrub(text)))
+        print(one_line(scrub(text)))
         sys.stdout.flush()  # piped or in the background, lines must not wait in a buffer
         self._blank = not text
 
@@ -227,7 +227,7 @@ class Talk:
 
     def _input(self, prompt: str) -> str:
         try:
-            return input(printable(prompt)).strip()
+            return input(one_line(prompt)).strip()
         except EOFError:
             raise Stop(EXIT_QUESTION) from None
 
@@ -409,14 +409,29 @@ def _read(result: find.Result) -> Loaded:
     return Loaded(result.rel, records)
 
 
-def _readable(talk: Talk, results: list[find.Result]):
+def _readable(talk: Talk, results: list[find.Result], root: Path):
     """Each of `results` read (_read), newest first; one that can't be read is said and
     left out."""
     for r in results:
         try:
             yield _read(r)
         except RecordsError as e:
-            talk.say(f"{e} It is left out.")
+            talk.say(f"{_unread(e, r, root)} It is left out.")
+
+
+def _unread(error: RecordsError, result: find.Result, root: Path) -> str:
+    """Why `result` can't be read, in one line, by its path in the project, wherever it is
+    met: a DeepEval file that only links to Confident AI; a promptfoo test with two judges of
+    one name, with the config file it is in."""
+    from judgekeeper.readers.deepeval import LINK_ONLY, LinkOnly
+    from judgekeeper.readers.promptfoo import TWO_JUDGES, TwoJudges
+
+    if isinstance(error, LinkOnly):
+        return LINK_ONLY.format(file=result.rel)
+    if isinstance(error, TwoJudges):
+        return TWO_JUDGES.format(where=result.rel, test=error.test, name=error.name,
+                                 config=f" in {_config_named(root, result)}")
+    return str(error)
 
 
 def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
@@ -478,12 +493,21 @@ def _folder_of(result: find.Result) -> str:
 
 
 def _needs_extra(talk: Talk, tool: str, where: str) -> Stop:
-    extra = f'"judgekeeper[{find.EXTRAS[tool]}]"'
+    """Reading `tool` needs an extra: started by uvx, the uvx command that has it (pip would
+    not reach uvx's environment); else pip install, then the same command again."""
+    extra = find.EXTRAS[tool]
+    if textio.started_by_uvx():
+        command = " ".join((textio.uvx_with(extra), *filter(None, [talk.subcommand]),
+                            *talk.flags))
+        talk.say(f"{find.NAMES[tool]} found ({where}). To read {find.NAMES[tool]} results, "
+                 f"run `{command}`.")
+        return talk.stop(EXIT_USAGE, f"run `{command}`.")
+    install = textio.install_extra(extra)
     talk.say(f"{find.NAMES[tool]} found ({where}). To read it, add the extra in your "
-             f"project's environment: pip install {extra}, then run {talk.command()} again.")
-    return talk.stop(EXIT_USAGE, f"ask the person to add judgekeeper's {find.EXTRAS[tool]} "
-                                 f"extra (pip install {extra} in the project's environment), "
-                                 f"then run `{talk.command()}` again.")
+             f"project's environment: {install}, then run {talk.command()} again.")
+    return talk.stop(EXIT_USAGE, f"ask the person to add judgekeeper's {extra} extra "
+                                 f"({install} in the project's environment), then run "
+                                 f"`{talk.command()}` again.")
 
 
 def _has(module: str) -> bool:
@@ -513,7 +537,30 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
             return _mlflow_experiment(talk, store, experiment, metric, uri)
 
 
-def _no_experiment(experiment: str, stores: list[tuple[find.Result, list[str]]]) -> StartError:
+OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({names}). "
+                "judgekeeper reads judges run with mlflow.genai.evaluate() and scorers "
+                "(MLflow 3). Reading these older results isn't supported.")
+OLD_EVALUATE_NEXT = ("tell the person judgekeeper can't read judge scores from "
+                     "mlflow.evaluate(); it reads a judge run with mlflow.genai.evaluate() and "
+                     "scorers.")
+# The run metrics mlflow.evaluate() logs for a judged metric: faithfulness/v1/mean, ...
+_OLD_METRIC = re.compile(r"(.+/v\d+)/(mean|variance|p90)")
+
+
+def _old_evaluate(uri: str) -> list[str]:
+    """The judged metrics mlflow.evaluate() (MLflow 2) logged in the store's runs, by name
+    (faithfulness/v1); [] when there are none."""
+    from mlflow import MlflowClient
+
+    client = MlflowClient(tracking_uri=uri)
+    names = set()
+    for exp in client.search_experiments():
+        for run in client.search_runs([exp.experiment_id], max_results=100):
+            names.update(m[1] for m in map(_OLD_METRIC.fullmatch, run.data.metrics) if m)
+    return sorted(names)
+
+
+def _no_experiment(experiment: str,stores: list[tuple[find.Result, list[str]]]) -> StartError:
     """--experiment names none of the experiments: say each store searched and its own."""
     where = [f"{_store_name(s)} (its experiments: {', '.join(names) or 'none'})"
              for s, names in stores]
@@ -553,6 +600,10 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                 found.append((exp.name, runs))
         if not found and missing:
             raise StartError(missing[0])
+        old = [] if found else _old_evaluate(uri)
+        if old:
+            talk.say(OLD_EVALUATE.format(names=", ".join(old)))
+            raise talk.stop(EXIT_USAGE, OLD_EVALUATE_NEXT)
         if not found:
             raise StartError(f"no MLflow experiment in {store.rel} has judge assessments")
         if len(found) > 1:
@@ -802,7 +853,38 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
             f"Several tools found; choose one with {_or([f'--tool {t}' for t in available])}",
             flag="--tool", values=available, what="which eval tool's results to check")]
         _next_time(talk, "--tool", kind)
+    if root.name == find.HIDDEN_KEPT:  # a .deepeval/ folder: its project is the one it is in
+        root = root.parent
+        return root, kind, [replace(r, rel=r.path.relative_to(root).as_posix())
+                            for r in by_date[kind]], found.signs
     return root, kind, by_date[kind], found.signs
+
+
+def _eval_folder(result: find.Result) -> str | None:
+    """The folder DeepEval saved a results file in (a .deepeval/ or results folder): one
+    eval. None for a file under a name of its own (a run copied out), read with any."""
+    name = result.path.name
+    if name in find.DEEPEVAL_COPIES or find.DEEPEVAL_RUN.fullmatch(name):
+        return Path(result.rel).parent.as_posix()
+    return None
+
+
+def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None) -> list:
+    """DeepEval results in more than one folder are separate evals, never one pool: the
+    results of one folder, the last check's (`prefer`) or the one the person picks."""
+    folders = list(dict.fromkeys(f for f in map(_eval_folder, results) if f))  # newest first
+    if len(folders) < 2:
+        return results
+    if prefer not in folders:
+        shown = [f"{f}/ ({_where(next(r for r in results if _eval_folder(r) == f))})"
+                 for f in folders]
+        commands = [talk.command_at(f) for f in folders]
+        prefer = folders[talk.choose(
+            "DeepEval results in more than one folder:", shown,
+            f"DeepEval results in more than one folder; choose one with {_or(commands)}",
+            flag="PATH", values=folders, what="which DeepEval results to check")]
+        talk.remember("PATH", prefer, f"(Next time: {talk.command_at(prefer)})")
+    return [r for r in results if _eval_folder(r) in (prefer, None)]
 
 
 def _too_big(talk: Talk, found: find.Search) -> Stop:
@@ -837,25 +919,103 @@ def results_description(result: find.Result) -> str | None:
     try:
         data = json.loads(result.path.read_text(encoding="utf-8", errors="replace"))
         theirs = (data.get("config") or {}).get("description")
-    except (OSError, ValueError, AttributeError):
+    except (OSError, ValueError, AttributeError, RecursionError):
         return None
     return (theirs.strip() or None) if isinstance(theirs, str) else None
 
 
 def _check_description(talk: Talk, root: Path, theirs: str | None,
                        result: find.Result) -> None:
-    """Ask before using promptfoo results whose description is not this project's."""
-    mine = _project_description(root)
-    if theirs is None or mine is None or theirs == mine:
+    """Ask before using promptfoo results whose description is in none of the project's
+    promptfoo configs (when they have one)."""
+    mine = _project_descriptions(root)
+    if theirs is None or not mine or theirs in mine:
         return
     question = (f'{result.rel} looks like it is from another project (its description is '
-                f'"{theirs}"). Continue?')
+                f'"{theirs}", and no promptfoo config here has it). Use it anyway? If not, '
+                f"nothing is read: run {textio.program()} with the path of your own results "
+                "file.")
     if not talk.confirm(question, default=False, with_yes=False,
                         hint=f"{question} Run {textio.program('start')} in a terminal to "
                              "answer, or "
                              "point me at the right results file."):
         raise talk.stop(EXIT_OK, f"nothing. Tell the person {result.rel} was left alone: it "
                                  "looks like it is from another project.")
+
+
+# A promptfoo config: `prompts` and `providers` or `tests` at the top
+_CONFIG_KEY = re.compile(r"^(prompts|providers|tests)\s*:", re.MULTILINE)
+CONFIG_SUFFIXES = (".yaml", ".yml", ".json")
+MAX_CONFIGS = 200  # files looked at for promptfoo configs
+
+
+def _promptfoo_config(path: Path) -> tuple[bool, str | None]:
+    """(whether `path` is a promptfoo config: named promptfooconfig.*, or with its keys; its
+    top-level `description` or None). YAML by a line scan, no YAML reader."""
+    try:
+        if path.stat().st_size > find.HEAD_BYTES * 16:
+            return False, None
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False, None
+    if path.suffix.lower() == ".json":
+        try:
+            data = json.loads(text)
+        except (ValueError, RecursionError):
+            return False, None
+        keys = set(data) if isinstance(data, dict) else set()
+        value = data.get("description") if isinstance(data, dict) else None
+    else:
+        keys = {m[1] for m in _CONFIG_KEY.finditer(text)}
+        m = _DESCRIPTION.search(text)
+        value = m[1].strip().strip("'\"") if m else None
+    named = path.name.lower() in find.PROMPTFOO_CONFIGS
+    if not named and ("prompts" not in keys or not keys & {"providers", "tests"}):
+        return False, None
+    return True, (value.strip() or None if isinstance(value, str) else None)
+
+
+def _project_descriptions(root: Path) -> set[str]:
+    """The descriptions of every promptfoo config in the project (_promptfoo_configs)."""
+    return {d for d in _promptfoo_configs(root).values() if d}
+
+
+def _config_named(root: Path, result: find.Result) -> str:
+    """The promptfoo config `result` was made from, as a path in the project: the only one,
+    else the one with its description; else "your promptfoo config"."""
+    configs = _promptfoo_configs(root)
+    if len(configs) == 1:
+        return next(iter(configs))
+    theirs = results_description(result)
+    same = [rel for rel, mine in configs.items() if theirs is not None and mine == theirs]
+    return same[0] if len(same) == 1 else "your promptfoo config"
+
+
+def _promptfoo_configs(root: Path) -> dict[str, str | None]:
+    """{path in the project: its description} for every promptfoo config, at most
+    find.TABLE_DEPTH folders deep (the folders find skips are skipped, links never
+    followed)."""
+    found, looked, queue = {}, 0, [root]
+    while queue and looked < MAX_CONFIGS:
+        folder = queue.pop(0)
+        try:
+            entries = sorted(os.scandir(folder), key=lambda e: e.name)
+        except OSError:
+            continue
+        for entry in entries:
+            path = Path(entry.path)
+            if entry.is_symlink():
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                if find._walked(entry.name) and len(path.relative_to(root).parts) < \
+                        find.TABLE_DEPTH:
+                    queue.append(path)
+            elif path.suffix.lower() in CONFIG_SUFFIXES and looked < MAX_CONFIGS:
+                looked += 1
+                config, description = _promptfoo_config(path)
+                if config:
+                    found[path.relative_to(root).as_posix()] = description
+    return found
 
 
 def _project_description(root: Path) -> str | None:
@@ -868,7 +1028,7 @@ def _project_description(root: Path) -> str | None:
         if name.endswith(".json"):
             try:
                 value = json.loads(text).get("description")
-            except (ValueError, AttributeError):
+            except (ValueError, AttributeError, RecursionError):
                 return None
             return value.strip() if isinstance(value, str) else None
         m = _DESCRIPTION.search(text)
@@ -891,7 +1051,7 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
         return metric
     if len(names) == 1:
         return names[0]
-    options = [f"{n} ({counts[n]} answers)" for n in names]
+    options = [f"{n} ({_plural(counts[n], 'answer', 'answers')})" for n in names]
     name = names[talk.choose(
         "These results hold more than one judge:", options,
         f"Several judges found; choose one with {_or([f'--metric {quote_arg(n)}' for n in names])}",
@@ -1028,6 +1188,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         prefer = prefer or saved.judge
     if saved is not None and saved.source == "mlflow":  # the store and experiment asked once
         store, experiment = store or saved.file, experiment or saved.experiment
+    if saved is not None and saved.source == "deepeval":  # the folder asked once
+        store = store or saved.file
     if tracking_uri is not None:
         root, kind, results, signs = _given_store(talk, Path(path), tracking_uri)
     elif saved is not None and saved.source == "map":
@@ -1036,6 +1198,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         root, kind, results, signs = _locate(talk, Path(path), tool)
     if kind == "mlflow":
         results = _choose_store(talk, root, results, experiment, store)
+    elif kind == "deepeval":
+        results = _choose_folder(talk, results, store)
     newest = results[0]
     description = None
     name = None
@@ -1073,16 +1237,29 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             first, read_older = loaded[0], iter(loaded[1:])
         else:
             first, rest = None, list(results)
+            unjudged = None  # Inspect: the newest log, when it holds no judge decisions
             while first is None:  # a log that can't be read never hides a good one beside it
                 newest = rest.pop(0)
                 try:
                     first = _read(newest)
                 except RecordsError as e:
                     if not rest:
-                        raise StartError(str(e)) from None
-                    talk.say(f"{e} It is left out.")
+                        raise StartError(_unread(e, newest, root)) from None
+                    talk.say(f"{_unread(e, newest, root)} It is left out.")
+                    continue
+                if kind == "inspect" and not any(r.annotator_kind == LLM
+                                                 for r in first.records):
+                    unjudged = unjudged or newest
+                    if rest:
+                        first = None
+                    elif unjudged is not newest:
+                        raise StartError(NO_JUDGE_LOG.format(
+                            n=len(results), program=textio.program()))
+            if unjudged is not None and unjudged is not newest:
+                talk.say(f"Your newest Inspect log, {unjudged.rel}, holds no judge decisions. "
+                         f"Using {newest.rel}, the newest that does.")
             results = [newest, *rest]
-            read_older = _readable(talk, rest)
+            read_older = _readable(talk, rest, root)
     if kind in ("records", "mapped"):
         metrics = sorted({r.name for r in every.records if r.annotator_kind == LLM})
     else:
@@ -1141,6 +1318,10 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  stopped=[n for x in used for n in x.records.notes
                           if n.startswith("Your Inspect run stopped early")],
                  label_map=label_map or None)
+
+
+NO_JUDGE_LOG = ("none of your {n} Inspect logs holds decisions from an LLM judge. To check one "
+                "log, run {program} with its path.")
 
 
 def _rule_key(r, kind: str) -> str | None:
@@ -1258,8 +1439,7 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
 
 # What `start` says after finding ---------------------------------------------------------
 
-def _plural(n: int, one: str, many: str) -> str:
-    return f"{n} {one if n == 1 else many}"
+_plural = plural  # textio.plural
 
 
 ROW_CELL = 40  # characters of a cell shown in a table's first rows
@@ -1298,8 +1478,8 @@ def when_words(d) -> str:
 
 
 NOT_IN_FILE = "not in the file"
-PARTIAL = ("Inspect gave partial credit (P) on {n} answers: should they count as Pass or Fail? "
-           "Run again with --label-map P=pass or --label-map P=fail.")
+PARTIAL = ("Inspect gave partial credit (P) on {n}: should they count as Pass or Fail? Run "
+           "again with --label-map P=pass or --label-map P=fail.")
 NO_MODEL = "not named in the results (add --judge-model NAME)"
 
 
@@ -1404,7 +1584,8 @@ def say_found(talk: Talk, found: Found) -> None:
                          "1 repeat of the same answer was merged."))
     if pool.unmapped:  # stop: a result without those answers would be wrong
         if found.tool == "inspect" and "P" in pool.unmapped:  # model_graded_qa(partial_credit)
-            raise StartError(PARTIAL.format(n=pool.n_unmapped.get(repr("P"), 0)))
+            raise StartError(PARTIAL.format(n=_plural(pool.n_unmapped.get(repr("P"), 0),
+                                                      "answer", "answers")))
         raise StartError(unknown_values(pool.unmapped))
     if pool.n_human:
         where = (f"{Path(found.used[0]).name} also holds" if len(found.used) == 1

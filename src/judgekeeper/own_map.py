@@ -26,6 +26,7 @@ from judgekeeper import mapper, own_format, settings, start
 from judgekeeper.normalise import NormaliseError, parse_pass_if
 from judgekeeper.records import LLM, RecordsError
 from judgekeeper.start import EXIT_QUESTION, EXIT_USAGE, StartError, Talk
+from judgekeeper.textio import plural
 
 MAX_PATHS = 24
 RECORD_DOOR = ("Or save your judge's decisions from now on with one judgekeeper.record() line "
@@ -148,7 +149,7 @@ def _choose_judge(talk: Talk, units, g: mapper.Guess, metric: str | None) -> str
         return metric
     if len(g.judges) == 1:
         return g.judges[0]
-    options = [f"{j} ({_count(units, g, j)} answers)" for j in g.judges]
+    options = [f"{j} ({plural(_count(units, g, j), 'answer')})" for j in g.judges]
     i = talk.choose("Which judge do you want to check?", [*options, "All, one at a time"], "",
                     flag="--metric", values=[*g.judges, "all"], what="which judge to check")
     return "*" if i == len(g.judges) else g.judges[i]
@@ -230,7 +231,8 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     left = mapper.left_out(units, mapper.Guess(**{**g.__dict__, "sides": sides}), chosen) \
         if chosen or not g.judges else 0
     if left and talk.confirm(
-            f"{left} answers have an error or a score made by a rule (a reason starting "
+            f"{plural(left, 'answer has', 'answers have')} an error or a score made by a rule "
+            "(a reason starting "
             '"Rule"), not by your judge. Leave them out?', default=True, with_yes=True,
             hint=""):
         m["leave_out"] = True

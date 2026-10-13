@@ -167,7 +167,7 @@ def config_env_names(config: Path | None) -> set[str]:
     if str(config).endswith(".json"):
         try:
             env = json.loads(text).get("env")
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, RecursionError):
             return set()
         return {k for k in env if NAME.match(str(k))} if isinstance(env, dict) else set()
     names, inside, indent = set(), False, None

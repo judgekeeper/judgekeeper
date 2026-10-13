@@ -50,14 +50,13 @@ from judgekeeper.records import (
     ScoreRecord,
     derive_record_id,
 )
-from judgekeeper.textio import read_utf8
+from judgekeeper.textio import get_extra, read_json
 
 DEFAULT_LABELS = {"C": "pass", "I": "fail"}
 # Stands in for a template or instructions the scorer leaves at Inspect's default.
 DEFAULT_PROMPT = "inspect_ai default for {name}"
-EVAL_NEEDS_EXTRA = ("{path}: reading .eval logs needs inspect_ai. Install the extra "
-                    "(pip install \"judgekeeper[inspect]\"), or run `inspect log dump {path} > "
-                    "log.json` first and import the .json.")
+EVAL_NEEDS_EXTRA = ("{path}: reading .eval logs needs inspect_ai. To read it, {get}; or run "
+                    "`inspect log dump {path} > log.json` first and read the .json.")
 
 
 GRADER_FAILED = "grader_failed"
@@ -94,9 +93,9 @@ def _load(path: Path) -> dict:
             raise RecordsError(f"{path.name} can't be read: it may be cut short, or not an "
                                f"Inspect AI log ({type(e).__name__})") from None
     if path.suffix.lower() == ".eval":
-        raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path))
+        raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path, get=get_extra("inspect")))
     try:
-        return json.loads(read_utf8(path, RecordsError))
+        return read_json(path, RecordsError)
     except json.JSONDecodeError as e:
         raise RecordsError(f"{path}: not JSON ({e.msg})") from None
 
@@ -118,7 +117,7 @@ def eval_header(path: str | Path) -> dict:
         return {}
     else:
         try:
-            spec = json.loads(read_utf8(path, RecordsError)).get("eval")
+            spec = read_json(path, RecordsError).get("eval")
         except (OSError, ValueError, AttributeError, RecordsError):
             return {}
     return spec if isinstance(spec, dict) else {}

@@ -11,7 +11,8 @@ setup.py, .git or requirements*.txt, never the home folder; else the current fol
 per process and judge name (the coverage.py approach: appending to one shared file is not
 safe across processes on Windows or network drives), worked out from the process id on each
 call, so a forked child gets its own file. A lock per file keeps threads' lines whole; each
-line is written in one go and the file closed, so it is on disk at once.
+line is written in one go and the file closed, so it is on disk at once. Nothing is written
+through a link (.judgekeeper, its records folder or the file being one).
 
 A score or pass mark may be any real number: an int or float, a numpy number, a Decimal, or
 text that reads as one ("0.8"); a numpy True or False is a bool. `metadata` may be any mapping.
@@ -76,11 +77,20 @@ def record(input=None, output=None, *, verdict=None, score=None, pass_mark=None,
                      temperature, id, metadata)
         path = _path(name)
         with _lock_for(path):
+            _refuse_links(path)
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "a", encoding="utf-8", newline="\n") as f:
                 f.write(line)
     except Exception as e:  # noqa: BLE001 - never into the user's program
         _warn(e)
+
+
+def _refuse_links(path: Path) -> None:
+    """Never write through a link: .judgekeeper, its records folder and the file itself must
+    not be one (a symlink, or on Windows a junction), as for marks (marks.py)."""
+    for part in (path.parent.parent, path.parent, path):
+        if part.is_symlink() or getattr(os.path, "isjunction", lambda _: False)(part):
+            raise _RecordError(f"{part} is a link. judgekeeper does not write through links")
 
 
 def _is_bool(value) -> bool:

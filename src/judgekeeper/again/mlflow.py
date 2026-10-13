@@ -37,6 +37,7 @@ from judgekeeper.again.fresh import Fresh
 from judgekeeper.normalise import Normaliser, UnmappedValue
 from judgekeeper.start_label import display
 from judgekeeper.table import make_fingerprint
+from judgekeeper.textio import get_extra
 
 WORKER_ENV = {"MLFLOW_DISABLE_TELEMETRY": "true", "MLFLOW_DISABLE_AGENT_HINT": "1"}
 
@@ -232,7 +233,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         info = (assessment_info(ws, metric, run=data["results_files"][0]) if new
                 else assessment_info(ws, metric))
     except ImportError:
-        return cant("mlflow", judge, 'reading MLflow needs pip install "judgekeeper[mlflow]"',
+        return cant("mlflow", judge, f"reading MLflow needs mlflow: {get_extra('mlflow')}",
                     short="the mlflow extra is not installed")
     python = again.user_python(root, opts.python)
     saved = info.get("text") if info.get("instructions") else None

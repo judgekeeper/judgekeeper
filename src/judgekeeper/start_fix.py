@@ -60,7 +60,7 @@ from judgekeeper.start_label import (
     question_view,
     say_opened,
 )
-from judgekeeper.textio import jsonl_lines, quote_arg, write_replacing
+from judgekeeper.textio import jsonl_lines, plural, quote_arg, write_replacing
 
 ASIDE_TENTHS = 3  # of each cell set aside, rounded up
 MIN_EACH = 5  # set-aside answers marked Pass, and Fail, a test needs
@@ -110,8 +110,7 @@ AGENT_SAYS = ("To fix your judge's rule with your coding agent (Claude Code, Cur
               "paste this:")
 
 
-def _plural(n: int, word: str, many: str | None = None) -> str:
-    return f"{n} {word if n == 1 else many or word + 's'}"
+_plural = plural  # textio.plural
 
 
 def _mark(x: float) -> str:

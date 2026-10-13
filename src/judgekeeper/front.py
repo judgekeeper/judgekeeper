@@ -76,7 +76,7 @@ from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
-from judgekeeper.textio import program, quote_arg
+from judgekeeper.textio import plural, program, quote_arg
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -88,7 +88,7 @@ LABEL_MAP = '"VALUE=pass,VALUE=fail"'
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
-QUESTIONS = "To ask the person (judgekeeper went on as if the answer is yes):"
+QUESTIONS = "To ask the person:"
 READS = ("judgekeeper reads the results that promptfoo, DeepEval, Inspect AI and MLflow save, "
          "a CSV or JSONL file with input, output and verdict columns, or what "
          "judgekeeper.record() saves.")
@@ -314,7 +314,9 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     terminal = start._interactive()
     if found.tool == "inspect" and "P" in values:  # model_graded_qa(partial_credit=True)
         n = found.pool.n_unmapped.get(repr("P"), 0)
-        talk.say(f"Inspect gave partial credit (P) on {n} answers.")
+        talk.say(found_line(found))  # what was found, before the question
+        talk.say(judge_line(found))
+        talk.say(f"Inspect gave partial credit (P) on {_n(n, 'answer')}.")
         if not terminal:
             raise talk.stop(EXIT_QUESTION, (
                 "ask the person whether partial credit (P) counts as Pass or Fail, then run "
@@ -377,8 +379,7 @@ def _tracking_server(talk: FrontTalk, path: Path, uri: str) -> Stop:
 
 # Saying it ---------------------------------------------------------------------------------
 
-def _n(n: int, one: str, many: str | None = None) -> str:
-    return f"{n} {one if n == 1 else many or one + 's'}"
+_n = plural  # textio.plural
 
 
 def found_line(found: start.Found) -> str:
@@ -408,7 +409,8 @@ def _one_line(rule: str) -> str:
 
 
 def judge_line(found: start.Found) -> str:
-    parts = [found.metric] if len(found.metrics) > 1 else []
+    # DeepEval's metric always: its name says what the judge checks (GEval's own name)
+    parts = [found.metric] if len(found.metrics) > 1 or found.tool == "deepeval" else []
     if found.models:
         model = ", ".join(found.models)
         if found.model_source == start.GIVEN_BY_YOU:
@@ -549,7 +551,8 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
                  f"least {start.ROUGH} you mark Pass and {start.ROUGH} you mark Fail.")
         raise talk.stop(EXIT_QUESTION, (
             "ask the person whether to make more answers with their eval first (that makes "
-            f"model calls), then run `{talk.command()}` again; or to mark these {n} now: run "
+            f"model calls), then run `{talk.command()}` again; or to mark "
+            f"{'this one' if n == 1 else f'these {n}'} now: run "
             f"`{_command_of(talk, saved, 'mark')}`."))
     talk.say()
     return _marking(talk, Workspace(found.root), found, wait, saved, marking=False, first=True)
@@ -592,6 +595,8 @@ def _to_save(talk: FrontTalk, found: start.Found,
             new.judge = found.metric
         if found.tool == "mlflow":
             new.file = talk.store or new.file
+        if found.tool == "deepeval" and talk.store is not None:  # which folder
+            new.file = talk.store
             new.experiment = talk.answers.get("--experiment", new.experiment)
         question = SAVE
     talk.say()
@@ -865,7 +870,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
         raise talk.stop(EXIT_QUESTION, "ask the person to close it with Ctrl-C in the terminal "
                                        "it runs in; else it closes by itself after 2 hours "
                                        "without a click.")
-    talk.say("Closed the marking page. Your marks are saved.")
+    saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
+    talk.say(f"Closed the marking page.{saved}")
     raise talk.stop(EXIT_OK, f"nothing. Run `{talk.command()}` to open it again.")
 
 

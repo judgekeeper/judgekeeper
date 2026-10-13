@@ -62,7 +62,7 @@ from judgekeeper.redact import scrub, scrub_fingerprint, scrub_value
 from judgekeeper.runners.base import Judgment
 from judgekeeper.start_page import label_page, result_page
 from judgekeeper.table import guard_cell, write_anchor_file
-from judgekeeper.textio import jsonl_lines, link_in, program, write_replacing
+from judgekeeper.textio import jsonl_lines, link_in, plural, program, write_replacing
 
 FOLDER = ".judgekeeper"
 BLOCK = 10
@@ -702,8 +702,7 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
     return lines
 
 
-def _plural(n: int, one: str, many: str) -> str:
-    return f"{n} {one if n == 1 else many}"
+_plural = plural  # textio.plural
 
 
 def in_words(day: str) -> str:
