@@ -522,7 +522,30 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
             return _mlflow_experiment(talk, store, experiment, metric, uri)
 
 
-def _no_experiment(experiment: str, stores: list[tuple[find.Result, list[str]]]) -> StartError:
+OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({names}). "
+                "judgekeeper reads judges run with mlflow.genai.evaluate() and scorers "
+                "(MLflow 3). Reading these older results isn't supported.")
+OLD_EVALUATE_NEXT = ("tell the person judgekeeper can't read judge scores from "
+                     "mlflow.evaluate(); it reads a judge run with mlflow.genai.evaluate() and "
+                     "scorers.")
+# The run metrics mlflow.evaluate() logs for a judged metric: faithfulness/v1/mean, ...
+_OLD_METRIC = re.compile(r"(.+/v\d+)/(mean|variance|p90)")
+
+
+def _old_evaluate(uri: str) -> list[str]:
+    """The judged metrics mlflow.evaluate() (MLflow 2) logged in the store's runs, by name
+    (faithfulness/v1); [] when there are none."""
+    from mlflow import MlflowClient
+
+    client = MlflowClient(tracking_uri=uri)
+    names = set()
+    for exp in client.search_experiments():
+        for run in client.search_runs([exp.experiment_id], max_results=100):
+            names.update(m[1] for m in map(_OLD_METRIC.fullmatch, run.data.metrics) if m)
+    return sorted(names)
+
+
+def _no_experiment(experiment: str,stores: list[tuple[find.Result, list[str]]]) -> StartError:
     """--experiment names none of the experiments: say each store searched and its own."""
     where = [f"{_store_name(s)} (its experiments: {', '.join(names) or 'none'})"
              for s, names in stores]
@@ -562,6 +585,10 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                 found.append((exp.name, runs))
         if not found and missing:
             raise StartError(missing[0])
+        old = [] if found else _old_evaluate(uri)
+        if old:
+            talk.say(OLD_EVALUATE.format(names=", ".join(old)))
+            raise talk.stop(EXIT_USAGE, OLD_EVALUATE_NEXT)
         if not found:
             raise StartError(f"no MLflow experiment in {store.rel} has judge assessments")
         if len(found) > 1:
