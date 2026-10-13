@@ -762,7 +762,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         self.step("2. the stand-in person marks every answer on the page", ok, detail)
         self.keep_watch(uvx)
         self.mark_step("2. judgekeeper --stop closes the page", [*self.jk, "--stop"],
-                       [r"Closed the marking page"])
+                       [r"Closed the judgekeeper page"])  # the Turn on page is open now
 
     def fake_browser(self) -> tuple[dict, Path]:
         """An environment whose BROWSER is a script that keeps each link it is given in a
@@ -790,17 +790,17 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
     def keep_watch(self, uvx: list[str]):
         """The result opens the page that turns on automatic checks in the (fake) browser: the
         link is never printed. "Turn on" is clicked with the page's token, as marks are; the
-        page sets up the hooks and asks the judge once. Then `judgekeeper` says the status,
-        and `check --fast` with no change is timed."""
+        page sets up the hooks and asks the judge once. Then `judgekeeper` says what was set
+        up, then the status, and `check --fast` with no change is timed."""
         env, links = self.fake_browser()
+        expect = [r"Your marks: 50 \(25 Pass, 25 Fail\), made on the page",
+                  r"Of the answers you passed, your judge passed",
+                  r"Of the answers you failed, your judge failed",
+                  r"This set can see a drop of",
+                  r"turns on automatic checks is open in your browser",
+                  r"Next: ask the person if judgekeeper should keep checking", *uvx]
         p = self.mark_step("2. judgekeeper prints the result and opens the Turn on page",
-                           self.front(browser=True), [r"Your marks: 50 \(25 Pass, 25 Fail\), made on the page",
-                                          r"Of the answers you passed, your judge passed",
-                                          r"Of the answers you failed, your judge failed",
-                                          r"This set can see a drop of",
-                                          r"turns on automatic checks is open in your browser",
-                                          r"Next: ask the person if judgekeeper should keep checking",
-                                          *uvx], env=env)
+                           self.front(browser=True), expect, env=env)
         try:
             shown = links.read_text(encoding="utf-8").split()
         except OSError:
@@ -840,6 +840,10 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             pinned = str(hook.get("command", "")).startswith("${CLAUDE_PROJECT_DIR}/.venv/")
         self.step("2. checks.json is on, the agent hook runs this judgekeeper",
                   checks.get("on") is True and pinned, f"({json.dumps(hook)[:300]})")
+        self.run("2. judgekeeper says what Turn on set up, once", self.front(),
+                 expect=[r"Automatic checks: ON\. The person turned them on on the page",
+                         r"Added the agent hook to \.claude/settings\.local\.json",
+                         r"Keeping watch\.", r"Next: nothing\. Tell the person: "])
         self.run("2. judgekeeper says the status", self.front(),
                  expect=[r"Automatic checks: ON since", r"Runs when: your judge changes",
                          r"To turn automatic checks off: .*check --off",
