@@ -68,8 +68,9 @@ def _nested(data: dict, keys: tuple):
 
 
 def _added(text: str, header: str, spec: str = "judgekeeper") -> str | None:
-    """pyproject.toml's text with `spec` ("judgekeeper" or "judgekeeper==<version>") added to the `dev = [...]` list of the table
-    `header`, or None when the list is not where or how judgekeeper edits it."""
+    """pyproject.toml's text with `spec` ("judgekeeper" or "judgekeeper==<version>") added to
+    the `dev = [...]` list of the table `header`, or None when the list is not where or how
+    judgekeeper edits it."""
     eol = line_ending(text)  # new lines end as the file's lines do
     lines = text.splitlines(keepends=True)
     start = next((i for i, line in enumerate(lines)

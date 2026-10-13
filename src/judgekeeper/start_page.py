@@ -1785,7 +1785,7 @@ KEEP_STYLE = """
 .keep .choice { display: flex; gap: 10px; flex-wrap: wrap; }
 .keep label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px;
   color: var(--text-2); }
-.keep .said p { margin: 0 0 8px; }
+.keep .said p { margin: 0 0 8px; white-space: pre-wrap; }
 .keep .said p:first-child { color: var(--text); font-weight: 600; }
 """
 

@@ -284,7 +284,7 @@ def test_the_walk_goes_through_judgekeeper_and_turns_on_checks(ic, monkeypatch, 
     ran, posted, steps = _walk(ic, monkeypatch, "table", tmp_path)
     fronts, after = _front(ic, [args for args, _ in ran])
     assert fronts == [["--no-browser", "--port", "5"], ["--port", "5"],
-                      ["--no-browser", "--port", "5"]]
+                      ["--no-browser", "--port", "5"], ["--no-browser", "--port", "5"]]
     assert after[0][:1] == ["start"]
     first = " ".join(ran[0][1])
     assert "Marking page" in first and "Your judge passed 28 and failed 22" in first
@@ -292,7 +292,8 @@ def test_the_walk_goes_through_judgekeeper_and_turns_on_checks(ic, monkeypatch, 
     assert "Of the answers you passed" in result and "25 Fail" in result
     assert "turns on automatic checks is open in your browser" in result
     assert ("http://127.0.0.1:6", "k33p", "/turn-on", {"allow_agent_judge": False}) in posted
-    assert "Automatic checks: ON since" in " ".join(ran[2][1])
+    assert "Keeping watch" in " ".join(ran[2][1])
+    assert "Automatic checks: ON since" in " ".join(ran[3][1])
     names = [name for name, *_ in steps]
     assert "2. Turn on, clicked on the page with its token" in names
     labels = [body for _, _, path, body in posted if path == "/label"]
@@ -307,7 +308,8 @@ def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tm
     ran, _, steps = _walk(ic, monkeypatch, "own-format", tmp_path)
     fronts, _ = _front(ic, [args for args, _ in ran])
     assert fronts[0] == ["--yes", "--no-browser", "--port", "5"]
-    assert fronts[1:] == [["--port", "5"], ["--no-browser", "--port", "5"]]
+    assert fronts[1:] == [["--port", "5"], ["--no-browser", "--port", "5"],
+                          ["--no-browser", "--port", "5"]]
     first = " ".join(ran[0][1])
     assert "Saved judgekeeper" in first and re.escape("my-judge-1") in first
     assert "Your judge passed 28 and failed 22" in first and "Marking page" in first
@@ -328,7 +330,7 @@ def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_p
     jk = ["uvx", "--from", "w.whl", "judgekeeper"]
     ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path, jk=jk)
     fronts, after = _front(ic, [args for args, _ in ran])
-    assert fronts[0] == ["--no-browser", "--port", "5"] and len(fronts) == 3
+    assert fronts[0] == ["--no-browser", "--port", "5"] and len(fronts) == 4
     assert after[0][:1] == ["start"]
     first, result = " ".join(ran[0][1]), " ".join(ran[1][1])
     assert "Next: .*`uvx judgekeeper@" in first and "Next: .*`uvx judgekeeper@" in result

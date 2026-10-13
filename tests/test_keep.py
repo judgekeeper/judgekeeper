@@ -116,6 +116,13 @@ def _settings(root) -> dict:
     return json.loads((root / ".claude" / "settings.local.json").read_text(encoding="utf-8"))
 
 
+def _told(capsys) -> str:
+    """The first `judgekeeper` after the click: what was set up (said once)."""
+    code, out = run(capsys)
+    assert code == 0 and "Keeping watch." in out, out
+    return out
+
+
 def _hook_commands(settings: dict) -> list[dict]:
     return [h for entry in settings["hooks"]["PostToolUse"] for h in entry["hooks"]]
 
@@ -168,41 +175,53 @@ def test_an_agent_judge_that_can_write_gets_the_extra_box(here, capsys, no_brows
 
 # Turn on -----------------------------------------------------------------------------------
 
-def test_turn_on_is_refused_when_the_link_was_printed(here, baseline):
+@pytest.mark.parametrize("path", ["/turn-on", "/no-thanks"])
+def test_both_answers_are_refused_when_the_link_was_printed(here, baseline, path):
     ws = _marked(here)
     session = keep.KeepSession(ws)
     session.link = PRINTED
-    answer = session.posts["/turn-on"]({})
+    assert session.state()["phase"] == "refused"  # said as the page loads
+    answer = session.posts[path]({})
     assert answer["phase"] == "refused"
     assert answer["lines"] == ["Open judgekeeper in your own terminal to turn this on."]
     assert not (ws.dir / "checks.json").exists() and baseline == []
     assert not (here / ".claude").exists()
 
 
-def test_turn_on_through_a_printed_link_is_refused(here, capsys, pages, baseline, monkeypatch):
+NEXT_TERMINAL = ("Next: ask the person to run `judgekeeper check --on` in their own terminal.")
+
+
+def test_without_a_browser_the_agent_never_gets_the_link(here, capsys, pages, baseline,
+                                                         monkeypatch):
+    from judgekeeper import label
+
     _marked(here)
     monkeypatch.setattr("webbrowser.open", lambda url, *a, **k: False)
-    code, out = run(capsys, printed=True)
+    code, out = run(capsys)
     assert code == 0
-    link = next(x for x in out.splitlines() if x.startswith("Turn-on page: "))
-    answer = _call(link.removeprefix("Turn-on page: "), "/turn-on", {})
-    assert answer["phase"] == "refused"
+    assert "Turn-on page" not in out and KEEP_OPEN not in out
+    assert assert_one_next_at_the_end(out) == NEXT_TERMINAL
+    assert not label.is_open(here / ".judgekeeper")
     assert not (here / ".judgekeeper" / "checks.json").exists()
+    code, out = run(capsys, "check", "--on")
+    assert code == 3
+    assert assert_one_next_at_the_end(out) == NEXT_TERMINAL
 
 
 def test_a_click_sets_everything_up(here, capsys, no_browser, baseline, by_uvx):
     ws = _marked(here)
     (here / ".cursor").mkdir()
-    (here / ".pre-commit-config.yaml").write_text(
-        "repos:\n  - repo: https://github.com/astral-sh/ruff-pre-commit\n    rev: v0.6.0\n"
-        "    hooks:\n      - id: ruff\n", encoding="utf-8")
+    (here / ".git" / "hooks").mkdir(parents=True)
+    config = ("repos:\n  - repo: https://github.com/astral-sh/ruff-pre-commit\n    rev: v0.6.0\n"
+              "    hooks:\n      - id: ruff\n")
+    (here / ".pre-commit-config.yaml").write_text(config, encoding="utf-8")
     state = _turn_on(here, capsys, no_browser)
     assert state["phase"] == "done"
     assert state["lines"][0] == ("Keeping watch. Your marks stay on this computer "
                                  "(.judgekeeper/ is not in git).")
     assert "Added the agent hook to .claude/settings.local.json." in state["lines"]
     assert "Added the agent hook to .cursor/hooks.json." in state["lines"]
-    assert ("Added a check before each git commit to .pre-commit-config.yaml."
+    assert ("Added a check before each git commit to .git/hooks/pre-commit."
             in state["lines"])
     assert any("changed its mind on 1" in x for x in state["lines"])
     assert baseline == [str(here.resolve())]
@@ -211,7 +230,7 @@ def test_a_click_sets_everything_up(here, capsys, no_browser, baseline, by_uvx):
     assert data["on"] is True and data["by"] == "page" and data["allow_agent_judge"] is False
     assert data["since"].endswith("Z") and data["sitting"]
     assert [a["file"] for a in data["added"]] == [
-        ".claude/settings.local.json", ".cursor/hooks.json", ".pre-commit-config.yaml"]
+        ".claude/settings.local.json", ".cursor/hooks.json", ".git/hooks/pre-commit"]
 
     hooks = _hook_commands(_settings(here))
     assert len(hooks) == 2
@@ -226,12 +245,8 @@ def test_a_click_sets_everything_up(here, capsys, no_browser, baseline, by_uvx):
     for event in ("afterShellExecution", "afterFileEdit"):
         assert cursor["hooks"][event] == [{"command": f"uvx judgekeeper@{V} check --hook",
                                            "timeout": 600}]
-    config = (here / ".pre-commit-config.yaml").read_text(encoding="utf-8")
-    assert config.startswith("repos:\n  - repo: https://github.com/astral-sh/ruff-pre-commit\n")
-    assert (f"  - repo: local\n    hooks:\n      - id: judgekeeper\n"
-            f"        name: judgekeeper\n        entry: uvx judgekeeper@{V} check --fast\n"
-            "        language: system\n        pass_filenames: false\n"
-            "        always_run: true\n") in config
+    # the team's config is never edited: the check is local, as the marks are
+    assert (here / ".pre-commit-config.yaml").read_text(encoding="utf-8") == config
     assert ws.marks.is_file()
 
 
@@ -248,7 +263,8 @@ def test_installed_in_the_project_runs_its_own_and_pins_it(here, capsys, no_brow
     (here / "requirements-dev.txt").write_text("pytest\r\n", encoding="utf-8", newline="")
     state = _turn_on(here, capsys, no_browser)
     assert f"Added judgekeeper=={V} to requirements-dev.txt." in state["lines"]
-    assert (here / "requirements-dev.txt").read_bytes() == f"pytest\r\njudgekeeper=={V}\r\n".encode()
+    pinned = f"pytest\r\njudgekeeper=={V}\r\n".encode()
+    assert (here / "requirements-dev.txt").read_bytes() == pinned
     exe = "Scripts/judgekeeper.exe" if os.name == "nt" else "bin/judgekeeper"
     (h, _) = _hook_commands(_settings(here))
     assert h["command"] == f"${{CLAUDE_PROJECT_DIR}}/.venv/{exe}"
@@ -263,30 +279,83 @@ def test_a_git_hook_is_written_when_there_is_none(here, capsys, no_browser, base
     hook = here / ".git" / "hooks" / "pre-commit"
     assert "Added a check before each git commit to .git/hooks/pre-commit." in state["lines"]
     text = hook.read_text(encoding="utf-8")
-    assert text.startswith("#!/bin/sh\n")
-    assert f"exec uvx judgekeeper@{V} check --fast\n" in text
+    assert text == f"#!/bin/sh\n{BLOCK}"
     if os.name != "nt":
         assert os.access(hook, os.X_OK)
 
 
-def test_a_git_hook_of_the_persons_is_left_alone(here, capsys, no_browser, baseline, by_uvx):
+BLOCK = ("# judgekeeper: re-checks your judge before each commit (no AI call). "
+         "`judgekeeper check --off` takes this block out.\n"
+         f"uvx judgekeeper@{V} check --fast || exit $?\n"
+         "# judgekeeper: end\n")
+SNIPPET = ["- repo: local", "  hooks:", "    - id: judgekeeper", "      name: judgekeeper",
+           f"      entry: uvx judgekeeper@{V} check --fast", "      language: system",
+           "      pass_filenames: false", "      always_run: true"]
+
+
+def test_a_git_hook_of_the_persons_gets_a_marked_block(here, capsys, no_browser, baseline,
+                                                       by_uvx):
     _marked(here)
     (here / ".git" / "hooks").mkdir(parents=True)
     hook = here / ".git" / "hooks" / "pre-commit"
     hook.write_text("#!/bin/sh\nmake lint\n", encoding="utf-8")
     state = _turn_on(here, capsys, no_browser)
-    assert hook.read_text(encoding="utf-8") == "#!/bin/sh\nmake lint\n"
-    assert (f"Your git pre-commit hook was left as it is. To check before each commit, add "
-            f"this line to it: uvx judgekeeper@{V} check --fast") in state["lines"]
+    assert hook.read_text(encoding="utf-8") == f"#!/bin/sh\n{BLOCK}make lint\n"
+    assert "Added a check before each git commit to .git/hooks/pre-commit." in state["lines"]
+    hook.write_text(hook.read_text(encoding="utf-8") + "make test\n", encoding="utf-8")
+    run(capsys, "check", "--off")
+    assert hook.read_text(encoding="utf-8") == "#!/bin/sh\nmake lint\nmake test\n"
+
+
+@pytest.mark.parametrize("hook_text, where, shown", [
+    ("#!/usr/bin/env python3\n# File generated by pre-commit: https://pre-commit.com\n",
+     ".pre-commit-config.yaml", SNIPPET),
+    ("#!/bin/sh\n. \"$(dirname \"$0\")/_/husky.sh\"\n", "your git pre-commit hook",
+     [f"uvx judgekeeper@{V} check --fast"]),
+    ("#!/usr/bin/env python3\nprint('lint')\n", "your git pre-commit hook",
+     [f"uvx judgekeeper@{V} check --fast"]),
+])
+def test_a_hook_run_by_another_tool_is_left_alone(here, capsys, no_browser, baseline, by_uvx,
+                                                   hook_text, where, shown):
+    _marked(here)
+    (here / ".git" / "hooks").mkdir(parents=True)
+    hook = here / ".git" / "hooks" / "pre-commit"
+    hook.write_text(hook_text, encoding="utf-8")
+    state = _turn_on(here, capsys, no_browser)
+    assert hook.read_text(encoding="utf-8") == hook_text
+    at = state["lines"].index(f"Your git pre-commit hook is run by another tool, so judgekeeper "
+                              f"left it as it is. To check before each commit, add this to "
+                              f"{where}:")
+    assert state["lines"][at + 1:at + 1 + len(shown)] == [f"  {x}" for x in shown]
     assert [a["file"] for a in _checks(here)["added"]] == [".claude/settings.local.json"]
+    _told(capsys)
+    _, out = run(capsys)
+    assert ("  Runs when: your judge changes (agent hook); before each git commit: not set up "
+            "(add the lines below).") in out.splitlines()
+    assert f"    {shown[-1]}" in out.splitlines()
 
 
 def test_a_hooks_path_is_left_alone(here, capsys, no_browser, baseline, by_uvx):
     _marked(here)
     (here / ".git" / "hooks").mkdir(parents=True)
     (here / ".git" / "config").write_text("[core]\n\thooksPath = .githooks\n", encoding="utf-8")
-    _turn_on(here, capsys, no_browser)
+    state = _turn_on(here, capsys, no_browser)
     assert not (here / ".git" / "hooks" / "pre-commit").exists()
+    assert any("left it as it is" in x for x in state["lines"])
+
+
+def test_installed_elsewhere_no_local_path_reaches_a_shared_file(here, capsys, no_browser,
+                                                                 baseline, monkeypatch):
+    _marked(here)
+    elsewhere = here.parent / "tools-env"
+    monkeypatch.setattr(keep, "_prefix", lambda: elsewhere)
+    (here / ".cursor").mkdir()
+    config = "repos:\n- repo: local\n  hooks: []\n"
+    (here / ".pre-commit-config.yaml").write_text(config, encoding="utf-8")
+    state = _turn_on(here, capsys, no_browser)
+    assert (here / ".pre-commit-config.yaml").read_text(encoding="utf-8") == config
+    assert not (here / ".cursor" / "hooks.json").exists()  # a file a team may commit
+    assert ("Cursor runs the agent hook in .claude/settings.local.json too." in state["lines"])
 
 
 def test_the_persons_settings_are_kept(here, capsys, no_browser, baseline, by_uvx):
@@ -319,16 +388,15 @@ def test_settings_that_cant_be_read_are_left_alone(here, capsys, no_browser, bas
 
 def test_a_second_turn_on_adds_nothing_twice(here, capsys, no_browser, baseline, by_uvx):
     ws = _marked(here)
-    (here / ".pre-commit-config.yaml").write_text("repos:\n- repo: local\n  hooks: []\n",
-                                                  encoding="utf-8")
+    (here / ".git" / "hooks").mkdir(parents=True)
     _turn_on(here, capsys, no_browser)
     settings = (here / ".claude" / "settings.local.json").read_text(encoding="utf-8")
-    config = (here / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    hook = (here / ".git" / "hooks" / "pre-commit").read_text(encoding="utf-8")
     session = keep.KeepSession(ws)
     session.posts["/turn-on"]({})
     session.wait()
     assert (here / ".claude" / "settings.local.json").read_text(encoding="utf-8") == settings
-    assert (here / ".pre-commit-config.yaml").read_text(encoding="utf-8") == config
+    assert (here / ".git" / "hooks" / "pre-commit").read_text(encoding="utf-8") == hook
     assert len(_checks(here)["added"]) == 2
 
 
@@ -344,8 +412,31 @@ def test_no_thanks_is_remembered(here, capsys, no_browser, pages, baseline):
     code, out = run(capsys)
     assert code == 0
     assert OFF_LINE in out and KEEP_OPEN not in out
+    assert "The judgekeeper page is still open." in out and "marking page" not in out
     assert assert_one_next_at_the_end(out) == NEXT_RESULT
     assert len(pages[0]) == n  # no page opened by itself
+    code, out = run(capsys, "--stop")
+    assert "Closed the judgekeeper page." in out
+
+
+def test_no_thanks_keeps_what_off_left_behind(here, capsys, no_browser, pages, baseline,
+                                              by_uvx):
+    _marked(here)
+    (here / ".git" / "hooks").mkdir(parents=True)
+    _turn_on(here, capsys, no_browser)
+    hook = here / ".git" / "hooks" / "pre-commit"
+    hook.write_text(hook.read_text(encoding="utf-8").replace("|| exit $?", ""),
+                    encoding="utf-8")
+    run(capsys, "check", "--off")
+    left = _checks(here)["added"]
+    assert [a["file"] for a in left] == [".git/hooks/pre-commit"]
+    run(capsys, "check", "--on")
+    _call(no_browser[-1], "/no-thanks", {})
+    assert _checks(here)["added"] == left
+    run(capsys, "check", "--on")
+    _call(no_browser[-1], "/turn-on", {})
+    _done(no_browser[-1])
+    assert left[0] in _checks(here)["added"]
 
 
 def test_on_and_off_are_in_the_help(capsys):
@@ -365,6 +456,28 @@ def test_check_on_opens_the_turn_on_page(here, capsys, pages, no_browser):
     assert assert_one_next_at_the_end(out) == NEXT_KEEP
     assert pages[0][-1]["view"] == "keep"
     assert _call(no_browser[-1], "/state")["phase"] == "ask"
+
+
+def test_check_on_takes_a_port(here, capsys, pages, no_browser):
+    _marked(here)
+    code, _ = run(capsys, "check", "--on", "--port", "8790")
+    assert code == 0
+    assert pages[0][-1]["port"] == 8790
+
+
+def test_a_port_in_use_is_passed_over():
+    import socket
+
+    from judgekeeper import page
+
+    with socket.socket() as held, socket.socket() as spare:
+        held.bind(("127.0.0.1", 0))
+        held.listen()
+        spare.bind(("127.0.0.1", 0))
+        taken, free = held.getsockname()[1], spare.getsockname()[1]
+        spare.close()
+        assert page.free_port(taken, others=(taken, free)) == free
+        assert page.free_port(free, others=()) == free
 
 
 def test_check_on_needs_25_of_each(here, capsys, pages):
@@ -412,10 +525,33 @@ def no_calls(monkeypatch):
 
 # The status ----------------------------------------------------------------------------------
 
+def test_after_the_click_judgekeeper_says_what_was_set_up_once(here, capsys, no_browser,
+                                                               baseline, by_uvx):
+    _marked(here)
+    (here / ".git" / "hooks").mkdir(parents=True)
+    _turn_on(here, capsys, no_browser)
+    code, out = run(capsys)
+    assert code == 0
+    assert out.splitlines()[2:] == [
+        "Automatic checks: ON. The person turned them on on the page, and judgekeeper:",
+        "  Added the agent hook to .claude/settings.local.json.",
+        "  Added a check before each git commit to .git/hooks/pre-commit.",
+        ("  Asked your judge again about 50 marked answers: it changed its mind on 1 of your 50 "
+         "marked answers."),
+        "Keeping watch. Your marks stay on this computer (.judgekeeper/ is not in git).",
+        "",
+        ('Next: nothing. Tell the person: "judgekeeper will re-check your judge when it '
+         'changes."'),
+    ]
+    _, again = run(capsys)
+    assert "Automatic checks: ON since" in again
+
+
 def test_the_status_when_checks_are_on(here, capsys, no_browser, baseline, by_uvx):
     _marked(here)
     (here / ".git" / "hooks").mkdir(parents=True)
     _turn_on(here, capsys, no_browser)
+    _told(capsys)
     code, out = run(capsys)
     assert code == 0
     lines = out.splitlines()
@@ -439,6 +575,7 @@ def test_the_status_when_checks_are_on(here, capsys, no_browser, baseline, by_uv
 def test_the_status_names_the_last_check(here, capsys, no_browser, baseline, by_uvx):
     _marked(here)
     _turn_on(here, capsys, no_browser)
+    _told(capsys)
     _results(here, LENIENT, model=HAIKU)
     assert run(capsys, "check")[0] == 1
     code, out = run(capsys)
@@ -452,6 +589,7 @@ def test_the_status_says_when_the_judge_changed_since(here, capsys, no_browser, 
                                                      by_uvx):
     _marked(here)
     _turn_on(here, capsys, no_browser)
+    _told(capsys)
     _results(here, LENIENT, model=HAIKU)
     code, out = run(capsys)
     assert code == 0
@@ -468,8 +606,9 @@ def test_off_removes_exactly_what_was_added(here, capsys, no_browser, baseline, 
     (here / ".claude" / "settings.local.json").write_text(json.dumps(mine, indent=2) + "\n",
                                                           encoding="utf-8")
     (here / ".cursor").mkdir()
-    config = "repos:\n- repo: local\n  hooks: []\n"
-    (here / ".pre-commit-config.yaml").write_text(config, encoding="utf-8")
+    (here / ".git" / "hooks").mkdir(parents=True)
+    hook = here / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nmake lint\n", encoding="utf-8")
     _turn_on(here, capsys, no_browser)
     # Claude Code adds a permission of its own after Turn on
     settings = _settings(here)
@@ -482,7 +621,7 @@ def test_off_removes_exactly_what_was_added(here, capsys, no_browser, baseline, 
     assert out.splitlines()[2:] == [
         "Automatic checks: OFF.",
         ("Removed: the agent hook in .claude/settings.local.json, the agent hook in "
-         ".cursor/hooks.json, the judgekeeper lines in .pre-commit-config.yaml."),
+         ".cursor/hooks.json, the judgekeeper lines in .git/hooks/pre-commit."),
         "Kept: your marks and history in .judgekeeper/ (judgekeeper never deletes your marks).",
         f"To turn them on again, run `uvx judgekeeper@{V} check --on`.",
         "",
@@ -490,10 +629,22 @@ def test_off_removes_exactly_what_was_added(here, capsys, no_browser, baseline, 
     ]
     assert _settings(here) == {"permissions": {"allow": ["Bash(ls)", "Bash(npm test)"]}}
     assert not (here / ".cursor" / "hooks.json").exists() and (here / ".cursor").is_dir()
-    assert (here / ".pre-commit-config.yaml").read_text(encoding="utf-8") == config
+    assert hook.read_text(encoding="utf-8") == "#!/bin/sh\nmake lint\n"
     data = _checks(here)
     assert data["on"] is False and data["added"] == [] and data["off"].endswith("Z")
     assert ws.marks.is_file() and ws.history_jsonl.read_bytes() == history
+
+
+def test_off_gives_the_settings_back_as_they_were(here, capsys, no_browser, baseline, by_uvx):
+    _marked(here)
+    (here / ".claude").mkdir()
+    text = '{\r\n    "env": {"FOO": "1"},\r\n    "model": "opus"\r\n}\r\n'
+    settings = here / ".claude" / "settings.local.json"
+    settings.write_bytes(text.encode())
+    _turn_on(here, capsys, no_browser)
+    assert b'\r\n        "PostToolUse"' in settings.read_bytes()  # its own indent kept
+    run(capsys, "check", "--off")
+    assert settings.read_bytes() == text.encode()
 
 
 def test_off_removes_files_it_made(here, capsys, no_browser, baseline, by_uvx):
@@ -510,10 +661,11 @@ def test_off_leaves_a_file_changed_since_alone(here, capsys, no_browser, baselin
     (here / ".git" / "hooks").mkdir(parents=True)
     _turn_on(here, capsys, no_browser)
     hook = here / ".git" / "hooks" / "pre-commit"
-    hook.write_text(hook.read_text(encoding="utf-8") + "make lint\n", encoding="utf-8")
+    changed = hook.read_text(encoding="utf-8").replace(" || exit $?", "")  # its block edited
+    hook.write_text(changed, encoding="utf-8")
     code, out = run(capsys, "check", "--off")
     assert code == 0
-    assert hook.is_file()
+    assert hook.read_text(encoding="utf-8") == changed
     assert ("Left as it is: .git/hooks/pre-commit (changed since judgekeeper added to it; "
             "remove the judgekeeper lines yourself).") in out.splitlines()
     assert "Removed: the agent hook in .claude/settings.local.json." in out.splitlines()
@@ -583,6 +735,24 @@ def test_the_agent_hook_end_to_end(here, capsys, no_browser, baseline, by_uvx, m
     assert data["systemMessage"].startswith("judgekeeper: your judge changed")
 
 
+def test_the_hook_exits_0_on_any_error(here, capsys, monkeypatch):
+    from judgekeeper import marks
+
+    _marked(here)
+
+    def broken(path):
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr(marks, "read", broken)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({
+        "hook_event_name": "PostToolUse", "tool_name": "Bash"})))
+    code = main(["check", "--hook"])
+    out, err = capsys.readouterr()
+    assert code == 0 and err == ""
+    context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+    assert context.startswith("judgekeeper could not check your judge: ")
+
+
 # The report's History ------------------------------------------------------------------------
 
 def test_the_report_has_a_history_row_per_check(here, capsys, no_calls):
@@ -634,7 +804,12 @@ def test_the_turn_on_page_runs_as_its_own_process(here, capsys, no_browser):
 
     _marked(here)
     try:
-        code, out = run(capsys, "check", "--on")
+        import socket
+
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        code, out = run(capsys, "check", "--on", "--port", port)
         assert code == 0 and KEEP_OPEN in out
         html = _call(no_browser[-1], "/")
         assert "Keep checking your judge?" in html
@@ -642,3 +817,14 @@ def test_the_turn_on_page_runs_as_its_own_process(here, capsys, no_browser):
     finally:
         background.stop(here / ".judgekeeper")
 
+
+
+def test_no_internal_words_in_the_code():
+    import re
+    from pathlib import Path
+
+    import judgekeeper
+
+    for path in Path(judgekeeper.__file__).parent.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        assert not re.search(r"\bScene \d|walkthrough", text), path.name

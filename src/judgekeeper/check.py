@@ -60,7 +60,7 @@ from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import printable, scrub, scrub_value
 from judgekeeper.start_label import Workspace
-from judgekeeper.textio import program, quote_arg, write_replacing
+from judgekeeper.textio import describe_os_error, program, quote_arg, write_replacing
 
 EXIT_OK, EXIT_WORSE, EXIT_NEEDS_YOU = 0, 1, 3
 CHECKS = "checks.json"  # written only by the "Turn on" page
@@ -664,9 +664,9 @@ def _report(ws: Workspace) -> None:
 
 # On and off -------------------------------------------------------------------------------------
 
-def turn_on_page(path: str, said: Said) -> int:
+def turn_on_page(path: str, said: Said, port: int | None = None) -> int:
     """`check --on`: the "Turn on" page, opened in the person's browser."""
-    from judgekeeper import front, keep
+    from judgekeeper import front, keep, page
     from judgekeeper.label import DEFAULT_PORT
 
     state = _state(path)
@@ -683,10 +683,10 @@ def turn_on_page(path: str, said: Said) -> int:
         said.say(f"Next: nothing. Tell the person automatic checks are on; `{program()}` says "
                  "what they do.")
         return EXIT_OK
-    shown = front.open_keep(said.say, state.ws, DEFAULT_PORT, no_browser=False)
+    shown = front.open_keep(said.say, state.ws, port or DEFAULT_PORT, no_browser=False)
     said.say()
-    if shown is None:
-        said.say(f"Next: ask the person to run `{_command(state)} --on` in their own terminal.")
+    if shown is None or shown == page.NOT_SHOWN:
+        said.say("Next: " + front.NEXT_TERMINAL.format(command=f"{_command(state)} --on"))
         return EXIT_NEEDS_YOU
     again = " ".join((program(), *([] if str(path) == "." else [quote_arg(path)])))
     said.say("Next: " + (front.NEXT_KEEP if shown == "browser" else front.NEXT_KEEP_LINK)
@@ -741,29 +741,48 @@ def _hook_input() -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def run(path: str = ".", fast_only: bool = False, hook: bool = False,
-        baseline_only: bool = False, on: bool = False, off: bool = False) -> int:
-    """`judgekeeper check`. Returns the exit code."""
-    if fast_only:
-        return fast(path, _print)
+def _hook(path: str) -> int:
+    """`--hook`: always exit 0 (Claude Code reads hook JSON only then, and 2 would block the
+    agent); what went wrong, if anything, goes to the agent in the JSON."""
     said = Said()
-    if hook:
+    given: dict = {}
+    try:
         given = _hook_input()
         edited = (given.get("tool_input") or {}).get("file_path") if isinstance(
             given.get("tool_input"), dict) else None
         full(path, said, "hook", edited if isinstance(edited, str) else None)
-        if said.lines:
-            out = {"hookSpecificOutput": {
-                "hookEventName": str(given.get("hook_event_name") or "PostToolUse"),
-                "additionalContext": scrub("\n".join(said.lines).strip())}}
-            if said.person:
-                out["systemMessage"] = scrub(said.person)
-            print(json.dumps(out, ensure_ascii=False))
-        return EXIT_OK
-    if on or off:
+    except Exception as e:  # noqa: BLE001 - nothing may stop the agent's work
+        why = describe_os_error(e) if isinstance(e, OSError) else None
+        why = why or str(e) or type(e).__name__
+        said.lines = [f"judgekeeper could not check your judge: {why}."]
+        said.person = None
+    if said.lines:
+        out = {"hookSpecificOutput": {
+            "hookEventName": str(given.get("hook_event_name") or "PostToolUse"),
+            "additionalContext": scrub("\n".join(said.lines).strip())}}
+        if said.person:
+            out["systemMessage"] = scrub(said.person)
+        print(json.dumps(out, ensure_ascii=False))
+    return EXIT_OK
+
+
+def run(path: str = ".", fast_only: bool = False, hook: bool = False,
+        baseline_only: bool = False, on: bool = False, off: bool = False,
+        port: int | None = None) -> int:
+    """`judgekeeper check`. Returns the exit code."""
+    if fast_only:
+        return fast(path, _print)
+    if hook:
+        return _hook(path)
+    said = Said()
+    if on:
         _print(f"judgekeeper {__version__}")
         _print()
-        return (turn_on_page if on else turn_off)(path, _Printed())
+        return turn_on_page(path, _Printed(), port)
+    if off:
+        _print(f"judgekeeper {__version__}")
+        _print()
+        return turn_off(path, _Printed())
     code = baseline(path, said) if baseline_only else full(path, said, "by hand")
     _print(f"judgekeeper {__version__}")
     _print()

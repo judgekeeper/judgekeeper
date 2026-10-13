@@ -34,6 +34,33 @@ NO_BROWSER = ("judgekeeper could not open a browser, so the link is printed here
 DONE = "When you're done, tell your coding agent, or run {program} in your terminal."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
 KEEP = "keep"  # the "Turn on" page (keep.py), in place of marking
+NOT_SHOWN = "not shown"  # no browser, no terminal, and the link is not for the agent
+OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
+
+
+def free_port(port: int, others=OTHER_PORTS) -> int:
+    """`port` when nothing listens on it, else the first of `others` that is free; else
+    `port` (starting the page then says it is taken)."""
+    import socket
+
+    from judgekeeper.label import HOST
+
+    for candidate in (port, *others):
+        with socket.socket() as s:
+            try:
+                s.bind((HOST, candidate))
+            except OSError:
+                continue
+        return candidate
+    return port
+
+
+def name_of(folder: Path) -> str:
+    """The page open for this project, as the output names it."""
+    from judgekeeper.label import read_lock
+
+    lock = read_lock(folder) or {}
+    return "the judgekeeper page" if lock.get("view") == KEEP else "the marking page"
 
 
 def marking_status(session: StartSession) -> dict:
@@ -130,17 +157,20 @@ def terminal() -> bool:
 
 
 def show(say, page: Page, no_browser: bool, wait: bool, opened: str = OPEN,
-         name: str = "Marking page") -> str | None:
+         name: str = "Marking page", for_agent: bool = True) -> str | None:
     """Open the page in the person's browser and say so (BROWSER). At a terminal, print the
     link when no browser opened or with --wait (TERMINAL). Without one, when no browser
     opened: say so, stamp the page's marks, then print the link (PRINTED). None when the
     marks could not be stamped: then the link is not printed. `opened` is said when the
-    browser opened it, and `name` names the printed link."""
+    browser opened it, and `name` names the printed link. Not `for_agent` (a page only the
+    person may answer): without a browser or a terminal nothing is printed (NOT_SHOWN)."""
     at_terminal = terminal()
     in_browser = not no_browser and webbrowser.open(page.url)
     if in_browser and not (at_terminal and wait):
         say(opened)
         return BROWSER
+    if not at_terminal and not for_agent:
+        return NOT_SHOWN
     if not at_terminal:
         say(NO_BROWSER)
         if not _stamp_printed(page):
