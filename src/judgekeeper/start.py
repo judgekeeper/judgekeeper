@@ -880,18 +880,79 @@ def results_description(result: find.Result) -> str | None:
 
 def _check_description(talk: Talk, root: Path, theirs: str | None,
                        result: find.Result) -> None:
-    """Ask before using promptfoo results whose description is not this project's."""
-    mine = _project_description(root)
-    if theirs is None or mine is None or theirs == mine:
+    """Ask before using promptfoo results whose description is in none of the project's
+    promptfoo configs (when they have one)."""
+    mine = _project_descriptions(root)
+    if theirs is None or not mine or theirs in mine:
         return
     question = (f'{result.rel} looks like it is from another project (its description is '
-                f'"{theirs}"). Continue?')
+                f'"{theirs}", and no promptfoo config here has it). Use it anyway? If not, '
+                f"nothing is read: run {textio.program()} with the path of your own results "
+                "file.")
     if not talk.confirm(question, default=False, with_yes=False,
                         hint=f"{question} Run {textio.program('start')} in a terminal to "
                              "answer, or "
                              "point me at the right results file."):
         raise talk.stop(EXIT_OK, f"nothing. Tell the person {result.rel} was left alone: it "
                                  "looks like it is from another project.")
+
+
+# A promptfoo config: `prompts` and `providers` or `tests` at the top
+_CONFIG_KEY = re.compile(r"^(prompts|providers|tests)\s*:", re.MULTILINE)
+CONFIG_SUFFIXES = (".yaml", ".yml", ".json")
+MAX_CONFIGS = 200  # files looked at for promptfoo configs
+
+
+def _config_description(path: Path) -> str | None:
+    """The top-level `description` of `path` when it is a promptfoo config (named
+    promptfooconfig.*, or with its keys), else None. YAML by a line scan, no YAML reader."""
+    try:
+        if path.stat().st_size > find.HEAD_BYTES * 16:
+            return None
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    if path.suffix.lower() == ".json":
+        try:
+            data = json.loads(text)
+        except (ValueError, RecursionError):
+            return None
+        keys = set(data) if isinstance(data, dict) else set()
+        value = data.get("description") if isinstance(data, dict) else None
+    else:
+        keys = {m[1] for m in _CONFIG_KEY.finditer(text)}
+        m = _DESCRIPTION.search(text)
+        value = m[1].strip().strip("'\"") if m else None
+    named = path.name.lower() in find.PROMPTFOO_CONFIGS
+    if not named and ("prompts" not in keys or not keys & {"providers", "tests"}):
+        return None
+    return value.strip() or None if isinstance(value, str) else None
+
+
+def _project_descriptions(root: Path) -> set[str]:
+    """The descriptions of every promptfoo config in the project, at most find.TABLE_DEPTH
+    folders deep (the folders find skips are skipped, links never followed)."""
+    found, looked, queue = set(), 0, [root]
+    while queue and looked < MAX_CONFIGS:
+        folder = queue.pop(0)
+        try:
+            entries = sorted(os.scandir(folder), key=lambda e: e.name)
+        except OSError:
+            continue
+        for entry in entries:
+            path = Path(entry.path)
+            if entry.is_symlink():
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                if find._walked(entry.name) and len(path.relative_to(root).parts) < \
+                        find.TABLE_DEPTH:
+                    queue.append(path)
+            elif path.suffix.lower() in CONFIG_SUFFIXES and looked < MAX_CONFIGS:
+                looked += 1
+                description = _config_description(path)
+                if description:
+                    found.add(description)
+    return found
 
 
 def _project_description(root: Path) -> str | None:

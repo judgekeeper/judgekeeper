@@ -505,7 +505,8 @@ def test_results_from_another_project_ask_first(tmp_path, capsys, monkeypatch):
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert ('results.json looks like it is from another project (its description is "billing '
-            'bot"). Continue? [y/N]') in out
+            'bot", and no promptfoo config here has it). Use it anyway?') in out
+    assert out.count("[y/N]") == 1
     assert "Its decisions" not in out
 
     answers = iter(["y", ""])  # yes, then Enter to open the labeling page

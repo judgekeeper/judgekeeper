@@ -88,7 +88,7 @@ LABEL_MAP = '"VALUE=pass,VALUE=fail"'
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
-QUESTIONS = "To ask the person (judgekeeper went on as if the answer is yes):"
+QUESTIONS = "To ask the person:"
 READS = ("judgekeeper reads the results that promptfoo, DeepEval, Inspect AI and MLflow save, "
          "a CSV or JSONL file with input, output and verdict columns, or what "
          "judgekeeper.record() saves.")
