@@ -216,6 +216,114 @@ def test_fast_is_fast_and_uses_no_network(here, capsys, monkeypatch):
     assert time.perf_counter() - began < 1.0
 
 
+# --fast and --hook remember the setup of the results they read --------------------------------
+
+def _no_reading(monkeypatch):
+    """Reading the results (and with them inspect_ai or mlflow) fails the test."""
+    def refuse(*args, **kwargs):
+        raise AssertionError("the results were read")
+
+    monkeypatch.setattr(start, "find_judge", refuse)
+
+
+def test_fast_remembers_the_setup_and_reads_nothing_next_time(here, capsys, monkeypatch):
+    _marked(here)
+    assert run(capsys, "--fast") == (0, "")
+    assert (here / ".judgekeeper" / check.SEEN).is_file()
+    _no_reading(monkeypatch)
+    assert run(capsys, "--fast") == (0, "")
+    monkeypatch.setattr(check, "_terminal", lambda: True)
+    assert run(capsys, "--fast") == (0, check.MATCHES + "\n")
+
+
+def test_fast_reads_again_when_the_results_change(here, capsys, monkeypatch):
+    _marked(here)
+    run(capsys, "--fast")
+    _results(here, MARKED, version="0.125.0")  # the same size, maybe the same modified time
+    code, out = run(capsys, "--fast")
+    assert code == 3
+    assert out.splitlines()[0] == "Your eval tool changed: promptfoo 0.124.1 -> 0.125.0."
+    _no_reading(monkeypatch)
+    assert run(capsys, "--fast") == (code, out)  # the new setup is remembered too
+
+
+def test_fast_reads_again_when_new_results_appear(here, capsys):
+    log = inspect_data(split(25, 25), tag=TAG)
+    _write(here / "logs" / "a.json", log)
+    found = start.find_judge(here)
+    judge_setup.save(Workspace(here), judge_setup.of(found))
+    ws = start_label.prepare(found, say=_quiet)
+    session = StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"]})
+    assert run(capsys, "--fast") == (0, "")
+    log["eval"]["packages"] = {"inspect_ai": "0.3.999"}
+    log["eval"]["created"] = "2099-01-01T00:00:00+00:00"
+    _write(here / "logs" / "b.json", log)
+    code, out = run(capsys, "--fast")
+    assert code == 3 and "Inspect AI" in out.splitlines()[0]
+
+
+def test_fast_reads_again_when_a_pinned_version_changes(here, capsys):
+    deepeval_project(here, split(25, 25), tag=TAG)
+    (here / "requirements.txt").write_text("deepeval==4.2.8\n", encoding="utf-8")
+    found = start.find_judge(here)
+    judge_setup.save(Workspace(here), judge_setup.of(found))
+    ws = start_label.prepare(found, say=_quiet)
+    session = StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"]})
+    assert run(capsys, "--fast") == (0, "")
+    (here / "requirements.txt").write_text("deepeval==4.2.9\n", encoding="utf-8")
+    code, out = run(capsys, "--fast")
+    assert code == 3
+    assert out.splitlines()[0] == "Your eval tool changed: DeepEval 4.2.8 -> 4.2.9."
+
+
+def test_fast_with_a_remembered_setup_still_sees_a_newer_config(here, capsys, monkeypatch):
+    _marked(here)
+    run(capsys, "--fast")
+    _no_reading(monkeypatch)
+    import os
+
+    config = here / "promptfooconfig.yaml"
+    later = (here / "results.json").stat().st_mtime + 60
+    os.utime(config, (later, later))
+    assert run(capsys, "--fast") == (0, check.CONFIG_NEWER + "\n")
+
+
+def test_the_hook_with_no_change_reads_nothing_either(here, capsys, monkeypatch, no_calls):
+    _marked(here)
+    run(capsys, "--fast")
+    _no_reading(monkeypatch)
+    assert _hook(capsys, monkeypatch) == (0, "")
+
+
+def test_a_remembered_setup_from_another_version_is_not_used(here, capsys, monkeypatch):
+    _marked(here)
+    run(capsys, "--fast")
+    seen = here / ".judgekeeper" / check.SEEN
+    data = json.loads(seen.read_text(encoding="utf-8"))
+    data["judgekeeper_version"] = "0.0.1"
+    seen.write_text(json.dumps(data), encoding="utf-8")
+    reads = []
+    real = start.find_judge
+    monkeypatch.setattr(start, "find_judge", lambda *a, **k: reads.append(1) or real(*a, **k))
+    assert run(capsys, "--fast") == (0, "")
+    assert reads == [1]
+
+
+def test_a_store_folder_is_seen_to_change_deep_inside(tmp_path):
+    store = tmp_path / "mlruns"
+    (store / "1" / "traces" / "t1").mkdir(parents=True)
+    (store / "1" / "traces" / "t1" / "meta.yaml").write_text("a: 1\n", encoding="utf-8")
+    before = check.files_signature([store])
+    assert check.files_signature([store]) == before
+    (store / "1" / "traces" / "t1" / "assessments").mkdir()
+    (store / "1" / "traces" / "t1" / "assessments" / "x.json").write_text("{}", encoding="utf-8")
+    assert check.files_signature([store]) != before
+
+
 # check: free first ---------------------------------------------------------------------------
 
 SCENE_6 = [

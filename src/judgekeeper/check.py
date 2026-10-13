@@ -14,6 +14,10 @@ checked. Nothing here ever asks a question.
 | the judge's config is newer than the results     | it is re-checked after the next    | 0    |
 |                                                  | eval run                           |      |
 
+`--fast` and `--hook` read the results (and with them inspect_ai or mlflow) only when they
+changed: `results-seen.json` (local, never committed) remembers the setup of the newest results
+by what the files it came from hold (the results, the lockfiles, judgekeeper.toml).
+
 `check`: the same, then for a changed setup:
 1. free first: marked answers whose exact text is in the newest results already have the new
    judge's verdict;
@@ -48,8 +52,11 @@ smallest-drop line uses from then on.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import os
+import stat
 import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -66,6 +73,11 @@ EXIT_OK, EXIT_WORSE, EXIT_NEEDS_YOU = 0, 1, 3
 CHECKS = "checks.json"  # written only by the "Turn on" page
 COUNTS = "check-calls.json"
 VERDICTS = "verdicts"
+SEEN = "results-seen.json"
+LOCKFILES = ("package-lock.json", "uv.lock", "poetry.lock", "judgekeeper.toml")
+WHOLE = 4_000_000  # bytes: a results file up to this size is hashed whole
+ENDS = 64 * 1024  # bytes read from each end of a bigger one
+MAX_ENTRIES = 20_000  # files in a results folder (an MLflow store) looked at, at most
 PER_DAY = 10
 TIMES_LIMIT = 2
 KEEP_DAYS = 7
@@ -179,26 +191,166 @@ def _newest(state: State):
                       f"results: {why}")
 
 
-def _config_newer(found) -> Path | None:
-    """The file the judge comes from (promptfoo's config, Inspect's task file), when it is
-    newer than the newest results."""
+def _configs(found) -> list[Path]:
+    """The files the judge comes from: promptfoo's config, Inspect's task file."""
     root = Path(found.root)
-    files = []
     if found.tool == "promptfoo":
-        files = [root / n for n in find.PROMPTFOO_CONFIGS]
-    elif found.tool == "inspect" and found.task_file:
-        files = [root / found.task_file]
+        return [root / n for n in find.PROMPTFOO_CONFIGS]
+    if found.tool == "inspect" and found.task_file:
+        return [root / found.task_file]
+    return []
+
+
+def _newer(configs: list[Path], newest: Path) -> Path | None:
+    """The first of `configs` that is newer than the results file `newest`."""
     try:
-        results = found.results[0].path.stat().st_mtime
+        results = newest.stat().st_mtime
     except OSError:
         return None
-    for f in files:
+    for f in configs:
         try:
             if f.is_file() and f.stat().st_mtime > results:
                 return f
         except OSError:
             continue
     return None
+
+
+def _config_newer(found) -> Path | None:
+    """The file the judge comes from, when it is newer than the newest results."""
+    return _newer(_configs(found), found.results[0].path)
+
+
+# The setup of the newest results, remembered -----------------------------------------------------
+
+def _file_part(h, path: Path, st: os.stat_result) -> None:
+    h.update(f"{st.st_size}\0".encode())
+    try:
+        with open(path, "rb") as f:
+            if st.st_size <= WHOLE:
+                for block in iter(lambda: f.read(1 << 20), b""):
+                    h.update(block)
+                return
+            h.update(f"{st.st_mtime_ns}\0".encode())
+            h.update(f.read(ENDS))
+            f.seek(-ENDS, os.SEEK_END)
+            h.update(f.read(ENDS))
+    except OSError:
+        h.update(b"unreadable\0")
+
+
+def files_signature(paths) -> str | None:
+    """A hash of what `paths` hold now: a file up to WHOLE bytes by its content, a bigger one
+    by its size, modified time and both ends; a folder (an MLflow store) by the name, size and
+    modified time of everything in it. None when a folder holds more than MAX_ENTRIES."""
+    h = hashlib.sha256()
+    entries = 0
+    for path in sorted({Path(p) for p in paths}, key=str):
+        h.update(str(path).encode("utf-8", "surrogatepass") + b"\0")
+        try:
+            st = path.stat()
+        except OSError:
+            h.update(b"none\0")
+            continue
+        if not stat.S_ISDIR(st.st_mode):
+            _file_part(h, path, st)
+            continue
+        for folder, dirs, files in os.walk(path):  # never follows a link
+            dirs.sort()
+            for name in sorted(dirs + files):
+                entries += 1
+                if entries > MAX_ENTRIES:
+                    return None
+                try:
+                    st = os.lstat(os.path.join(folder, name))
+                except OSError:
+                    continue
+                rel = os.path.relpath(os.path.join(folder, name), path)
+                h.update(f"{rel}\0{st.st_size}\0{st.st_mtime_ns}\0".encode("utf-8",
+                                                                         "surrogatepass"))
+    return h.hexdigest()
+
+
+def _key(state: State, read: list[str]) -> str | None:
+    """What the setup of the newest results depends on, as one hash: the results judgekeeper
+    finds and the ones it read last time, the lockfiles and judgekeeper.toml, how start.json
+    says to read them, and judgekeeper's own version. None when it can't be told cheaply."""
+    root = state.ws.root
+    found = find.search(root)
+    if found.stopped:
+        return None
+    paths = {str(r.path) for rs in found.results.values() for r in rs} | set(read)
+    paths |= {str(root / n) for n in LOCKFILES} | {str(p) for p in root.glob("requirements*.txt")}
+    paths |= {p + "-wal" for p in list(paths)}  # an SQLite store writes here first
+    signature = files_signature(paths)
+    if signature is None:
+        return None
+    data = state.data
+    how = {k: data.get(k) for k in ("tool", "metric", "label_map", "pass_mark", "mlflow_store")}
+    fp = data.get("fingerprint") or {}
+    how["given"] = fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU else None
+    how["env"] = {v: os.environ.get(v) for v in (*find.RESULTS_VARS.values(),
+                                                 "MLFLOW_TRACKING_URI")}
+    text = json.dumps([__version__, how, signature], sort_keys=True, default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _seen(ws: Workspace) -> dict:
+    try:
+        data = json.loads((ws.dir / SEEN).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    ok = (isinstance(data, dict) and data.get("judgekeeper_version") == __version__
+          and isinstance(data.get("setup"), dict) and isinstance(data.get("read"), list))
+    return data if ok else {}
+
+
+def _remember(state: State, found, setup: dict) -> None:
+    """results-seen.json: the setup of the results just read, and what it depends on."""
+    root = state.ws.root
+    read = [str(r.path) for r in found.results]
+    try:
+        key = _key(state, read)
+        if key is None:
+            return
+        path = state.ws.dir / SEEN
+        marks._refuse_links(path)
+        write_replacing(path, json.dumps({
+            "judgekeeper_version": __version__, "key": key, "setup": setup,
+            "setup_hash": judge_setup.hash_of(setup), "read": read,
+            "newest": str(found.results[0].path), "configs": [str(p) for p in _configs(found)],
+            "root": str(root)}, indent=2, ensure_ascii=False) + "\n")
+    except (OSError, ValueError, marks.MarksError):
+        pass  # the next check reads the results again
+
+
+@dataclass
+class Now:
+    """The judge in the newest results: its setup, its config when that is newer than the
+    results, and the results themselves when they were read (None: remembered)."""
+    setup: dict
+    config: Path | None
+    found: object | None = None
+
+
+def _now(state: State) -> tuple[Now | None, str | None]:
+    """(the judge in the newest results, None), from results-seen.json when nothing it
+    depends on changed; else read, and remembered. (None, why) when it can't be read."""
+    seen = _seen(state.ws)
+    if seen and seen.get("root") == str(state.ws.root):
+        try:
+            same = _key(state, [str(p) for p in seen["read"]]) == seen.get("key")
+        except (OSError, ValueError):
+            same = False
+        if same:
+            configs = [Path(p) for p in seen.get("configs") or []]
+            return Now(seen["setup"], _newer(configs, Path(seen.get("newest") or ""))), None
+    found, problem = _newest(state)
+    if found is None:
+        return None, problem
+    setup = judge_setup.of(found)
+    _remember(state, found, setup)
+    return Now(setup, _config_newer(found), found), None
 
 
 def _change_line(old: dict, new: dict, changed: list[str], full: bool) -> str:
@@ -221,17 +373,17 @@ def fast(path: str, say) -> int:
     state = _state(path)
     if state is None or not state.enough:
         return EXIT_OK
-    found, problem = _newest(state)
-    if found is None:
+    now, problem = _now(state)
+    if now is None:
         say(problem + ".")
         return EXIT_OK
-    old, new = state.saved["setup"], judge_setup.of(found)
+    old, new = state.saved["setup"], now.setup
     changed = judge_setup.changes(old, new)
     if changed:
         say(_change_line(old, new, changed, full=False))
         say(f"Next: run `{_command(state)}`.")
         return EXIT_NEEDS_YOU
-    if _config_newer(found) is not None:
+    if now.config is not None:
         say(CONFIG_NEWER)
     elif _terminal():
         say(MATCHES)
@@ -511,18 +663,22 @@ def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
         said.say(NOT_SET_UP.format(n=targets.ROUGH))
         said.say(f"Next: run `{program()}` to mark answers.")
         return EXIT_NEEDS_YOU
-    found, problem = _newest(state)
-    if found is None:
+    old = state.saved["setup"]
+    now, problem = _now(state)
+    found, new = (now.found, now.setup) if now is not None else (None, None)
+    if now is not None and found is None and judge_setup.changes(old, new):
+        found, problem = _newest(state)  # remembered, but a re-check needs the answers
+        new = judge_setup.of(found) if found is not None else new
+    if problem:
         if hook:
             return EXIT_OK
         said.say(problem + ".")
         said.say("Next: ask the person to run their eval once, then run "
                  f"`{_command(state)}` again.")
         return EXIT_NEEDS_YOU
-    old, new = state.saved["setup"], judge_setup.of(found)
     changed = judge_setup.changes(old, new)
     if not changed:
-        config = _config_newer(found)
+        config = now.config
         if hook:
             if config is not None and edited and Path(edited).resolve() == config.resolve():
                 said.say(CONFIG_NEWER)
