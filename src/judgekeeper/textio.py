@@ -270,8 +270,12 @@ def link_in(folder: str | Path) -> Path | None:
     return None
 
 
-def _is_link(path: Path) -> bool:
+def is_link(path: Path) -> bool:
+    """Whether `path` is a link: a symlink, or on Windows a junction."""
     return path.is_symlink() or getattr(os.path, "isjunction", lambda _: False)(path)
+
+
+_is_link = is_link
 
 
 # File-system errors --------------------------------------------------------------------------

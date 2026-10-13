@@ -30,8 +30,10 @@ The hooks run judgekeeper the way it was started at the click, pinned to that ve
 Every change is listed in checks.json `added`, so `check --off` (anyone may run it, the agent
 too) removes exactly that: a file judgekeeper made goes when it is unchanged; a file it added
 to gets its old text back when it is unchanged since, else the added lines are taken out when
-they are there as they were, else it is left alone and that is said. Marks, history and
-verdicts stay.
+they are there as they were, else it is left alone and that is said. It only ever touches a
+file turning on writes for that kind of entry (in the project, or the git repository's own
+.git/hooks/pre-commit), never through a link: anything else checks.json lists is left alone and
+said. Marks, history and verdicts stay.
 
 checks.json: {"on", "since", "by": "page", "sitting", "allow_agent_judge", "runs", "added",
 "commit", "said"}; after "No thanks" "on" is false and "declined" holds the time; after
@@ -78,6 +80,8 @@ NOT_TOUCHED = ("Your git pre-commit hook is run by another tool, so judgekeeper 
 HOOKS_FOLDER = ("Your git uses its own hooks folder ({folder}), so judgekeeper left it as it "
                 "is. To check before each commit, add this line to the pre-commit hook there:")
 OWN_FOLDER = "your git uses its own hooks folder"
+LINKED = ("{file} is a link. judgekeeper does not write through links. To check before each "
+          "commit, add this line to your git pre-commit hook:")
 CURSOR_TOO = "Cursor runs the agent hook in .claude/settings.local.json too."
 
 REFUSED = "Open judgekeeper in your own terminal to turn this on."
@@ -318,6 +322,9 @@ def _pre_commit(root: Path, argv: list[str],
         return (None, [NOT_TOUCHED.format(where=where), *(f"  {x}" for x in add)],
                 {"state": "not set up", "where": where, "add": add})
 
+    if not _no_link(hook, git):
+        return (None, [LINKED.format(file=rel), f"  {portable}"],
+                {"state": "not set up", "where": "your git pre-commit hook", "add": [portable]})
     own = hooks_folder(git)
     if own is not None:
         return (None, [HOOKS_FOLDER.format(folder=own), f"  {portable}"],
@@ -368,6 +375,8 @@ def _requirement(root: Path) -> tuple[dict | None, list[str]]:
     if change.apply is None:
         return None, [change.text + "."]
     path = root / change.file
+    if not _no_link(path, root):
+        return None, [f"{change.file} is a link. judgekeeper does not write through links."]
     before = textio.read_utf8(path, RequirementsError)
     change.apply()
     after = textio.read_utf8(path, RequirementsError)
@@ -457,8 +466,53 @@ def tell(ws) -> list[str]:
 
 # Taking it out ---------------------------------------------------------------------------------
 
-def _remove_hooks(root: Path, entry: dict) -> bool:
-    path = root / entry["file"]
+def _no_link(path: Path, top: Path) -> bool:
+    """Whether neither `path` nor any folder above it, up to `top`, is a link."""
+    for p in (path, *path.parents):
+        if textio.is_link(p):
+            return False
+        if p == top:
+            return True
+    return False
+
+
+def _same(a: Path, b: Path) -> bool:
+    return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+
+
+def _well_formed(entry) -> bool:
+    """Whether an `added` entry has the fields Turn on writes for its kind."""
+    if not isinstance(entry, dict) or not all(isinstance(entry.get(k), str)
+                                              for k in ("file", "sha256")):
+        return False
+    if entry.get("kind") == AGENT_HOOK:
+        return isinstance(entry.get("hooks"), dict)
+    if entry.get("kind") == REQUIREMENT:
+        return isinstance(entry.get("where"), str) and isinstance(entry.get("before"), str)
+    return entry.get("kind") == COMMIT and isinstance(entry.get("block"), str)
+
+
+def ours(root: Path, entry) -> Path | None:
+    """The file an `added` entry of checks.json names, when it is one Turn on writes for that
+    kind (in the project, or its git repository's own .git/hooks/pre-commit) with no link on
+    the way; None for anything else, which `check --off` never touches."""
+    from judgekeeper.dev_requirements import FILES
+
+    if not _well_formed(entry):
+        return None
+    kind = entry.get("kind")
+    git = git_root(root) if kind == COMMIT else None
+    known = {AGENT_HOOK: [root / CLAUDE, root / CURSOR],
+             COMMIT: [git / GIT_HOOK] if git is not None else [],
+             REQUIREMENT: [root / n for n in FILES]}.get(kind, [])
+    path = Path(os.path.normpath(root / entry["file"]))
+    for want in known:
+        if _same(path, want):
+            return want if _no_link(want, git if kind == COMMIT else root) else None
+    return None
+
+
+def _remove_hooks(path: Path, entry: dict) -> bool:
     old, data = _read_json(path)
     if old is None:
         return True  # gone already
@@ -490,8 +544,7 @@ def _remove_hooks(root: Path, entry: dict) -> bool:
     return True
 
 
-def _remove_text(root: Path, entry: dict) -> bool:
-    path = root / entry["file"]
+def _remove_text(path: Path, entry: dict) -> bool:
     try:
         now = path.read_bytes().decode("utf-8-sig")
     except FileNotFoundError:
@@ -525,24 +578,36 @@ def _what(entry: dict) -> str:
     return f"the judgekeeper lines in {entry['file']}"
 
 
-def turn_off(ws) -> tuple[list[str], list[str]] | None:
-    """Take out what checks.json lists: (removed, left as they are), or None when automatic
-    checks are not on."""
+CHANGED, NOT_OURS = "changed", "not ours"
+
+
+def turn_off(ws) -> tuple[list[str], list[tuple[str, str]]] | None:
+    """Take out what checks.json lists: (removed, left as they are: (file, CHANGED or
+    NOT_OURS)), or None when automatic checks are not on. Only a file `ours` names is ever
+    touched, and a malformed entry is left and said."""
     data = read(ws)
     if data.get("on") is not True:
         return None
     root = Path(ws.root).resolve()
     removed, left, kept = [], [], []
-    for entry in data.get("added") or []:
+    added = data.get("added")
+    for entry in added if isinstance(added, list) else []:
+        name = entry.get("file") if isinstance(entry, dict) else None
+        name = name if isinstance(name, str) else "an entry in checks.json"
         try:
-            done = (_remove_hooks if entry.get("kind") == AGENT_HOOK else _remove_text)(root, entry)
-        except (OSError, KeyError, TypeError):
-            done = False
-        if done:
-            removed.append(_what(entry))
-        else:
-            left.append(entry["file"])
-            kept.append(entry)
+            path = ours(root, entry)
+            if path is None:
+                left.append((name, NOT_OURS))
+                kept.append(entry)
+                continue
+            remove = _remove_hooks if entry.get("kind") == AGENT_HOOK else _remove_text
+            if remove(path, entry):
+                removed.append(_what(entry))
+                continue
+        except (OSError, KeyError, TypeError, ValueError, AttributeError):
+            pass
+        left.append((name, CHANGED))
+        kept.append(entry)
     _write(ws, {**data, "on": False, "off": utc_now(), "added": kept})
     return removed, left
 

@@ -39,6 +39,7 @@ _LISTED_TOML = re.compile(r"""["']judgekeeper\s*(?:["'\[<>=!~;@ ])""", re.IGNORE
 _LISTED_LINE = re.compile(r"^\s*judgekeeper\s*(?:[\[<>=!~;@#]|$)", re.IGNORECASE)
 _HEADER = re.compile(r"^\s*\[\s*([^\[\]]+?)\s*\]\s*(#.*)?$")
 _DEV = re.compile(r"^(\s*)dev\s*=\s*\[")
+FILES = ("pyproject.toml", "requirements-dev.txt", "requirements-dev.in")  # the only ones edited
 FORMS = (("the dev group in pyproject.toml", ("dependency-groups", "dev"), "dependency-groups"),
          ("the dev extra in pyproject.toml", ("project", "optional-dependencies", "dev"),
           "project.optional-dependencies"))
@@ -142,7 +143,7 @@ def requirements_change(root: Path, spec: str = "judgekeeper") -> Change | None:
             return Change(f"add judgekeeper to {where}",
                           lambda new=new: write_keeping(pyproject, new),
                           f"Added judgekeeper to {where}", "pyproject.toml", where)
-    for name in ("requirements-dev.txt", "requirements-dev.in"):
+    for name in FILES[1:]:
         path = root / name
         if path.is_file():
             text = read_utf8(path, RequirementsError)

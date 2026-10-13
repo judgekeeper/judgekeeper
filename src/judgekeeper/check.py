@@ -914,9 +914,13 @@ def turn_off(path: str, said: Said) -> int:
     said.say("Automatic checks: OFF.")
     if removed:
         said.say(f"Removed: {', '.join(removed)}.")
-    for file in left:
-        said.say(f"Left as it is: {file} (changed since judgekeeper added to it; remove the "
-                 "judgekeeper lines yourself).")
+    for file, why in left:
+        if why == keep.NOT_OURS:
+            said.say(f"Left alone: {file} (checks.json lists it, but judgekeeper did not "
+                     "add it there).")
+        else:
+            said.say(f"Left as it is: {file} (changed since judgekeeper added to it; remove "
+                     "the judgekeeper lines yourself).")
     said.say(keep.KEPT)
     said.say(f"To turn them on again, run `{_command(state)} --on`.")
     said.say()

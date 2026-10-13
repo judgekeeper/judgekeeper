@@ -936,3 +936,117 @@ def test_uvx_with_an_extra_runs_the_hooks_with_it(here, capsys, no_browser, base
     assert hook["args"][:3] == ["--from", f"judgekeeper[mlflow]=={V}", "judgekeeper"]
     text = (here / ".git" / "hooks" / "pre-commit").read_text(encoding="utf-8")
     assert f"uvx --from 'judgekeeper[mlflow]=={V}' judgekeeper check --fast || exit $?" in text
+
+
+# check --off acts only on the files Turn on writes ------------------------------------------------
+
+def _forged(root, added) -> None:
+    """checks.json as an agent could write it: on, listing whatever it likes."""
+    data = {"on": True, "since": "2026-10-13T08:00:00Z", "by": "page", "sitting": "s1",
+            "added": added}
+    (root / ".judgekeeper" / "checks.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+def _outside(here, name: str, text: str):
+    path = here.parent / f"{here.name}-{name}"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+NOT_OURS = "checks.json lists it, but judgekeeper did not add it there"
+
+
+def test_off_never_touches_a_file_outside_the_project(here, capsys):
+    _marked(here)
+    gone = _outside(here, "delete.txt", "keep me\n")
+    kept = _outside(here, "overwrite.txt", "mine\n")
+    absolute = _outside(here, "absolute.txt", "mine too\n")
+    _forged(here, [
+        {"file": f"../{gone.name}", "kind": keep.COMMIT, "created": True, "block": "# x\n",
+         "sha256": keep._sha("keep me\n")},
+        {"file": f"../{kept.name}", "kind": keep.REQUIREMENT, "where": "x", "before": "PWNED\n",
+         "sha256": keep._sha("mine\n")},
+        {"file": str(absolute), "kind": keep.COMMIT, "created": True, "block": "# x\n",
+         "sha256": keep._sha("mine too\n")},
+        {"file": f"../{kept.name}", "kind": keep.AGENT_HOOK, "before": "PWNED\n",
+         "sha256": keep._sha("mine\n"), "hooks": {}},
+    ])
+    code, out = run(capsys, "check", "--off")
+    assert code == 0
+    assert gone.read_text(encoding="utf-8") == "keep me\n"
+    assert kept.read_text(encoding="utf-8") == "mine\n"
+    assert absolute.read_text(encoding="utf-8") == "mine too\n"
+    assert f"Left alone: ../{gone.name} ({NOT_OURS})." in out.splitlines()
+    assert "Removed:" not in out
+
+
+def test_off_never_touches_a_listed_file_that_is_not_ours(here, capsys):
+    _marked(here)
+    (here / "src").mkdir()
+    app = here / "src" / "app.py"
+    app.write_text("print('app')\n", encoding="utf-8")
+    _forged(here, [{"file": "src/app.py", "kind": keep.COMMIT, "created": True, "block": "x",
+                    "sha256": keep._sha("print('app')\n")},
+                   {"file": "requirements.txt", "kind": keep.REQUIREMENT, "where": "x",
+                    "before": "", "sha256": keep._sha("")}])
+    (here / "requirements.txt").write_text("", encoding="utf-8")
+    code, out = run(capsys, "check", "--off")
+    assert code == 0 and app.is_file() and (here / "requirements.txt").is_file()
+    assert f"Left alone: src/app.py ({NOT_OURS})." in out.splitlines()
+
+
+def _link(link, target, folder=False) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=folder)
+    except (OSError, NotImplementedError):
+        pytest.skip("this system can't make a symbolic link here")
+
+
+def test_off_never_writes_through_a_link(here, capsys):
+    _marked(here)
+    target = _outside(here, "settings.json", "{}\n")
+    (here / ".claude").mkdir()
+    _link(here / ".claude" / "settings.local.json", target)
+    _forged(here, [{"file": ".claude/settings.local.json", "kind": keep.AGENT_HOOK,
+                    "before": "PWNED\n", "sha256": keep._sha("{}\n"), "hooks": {}}])
+    code, out = run(capsys, "check", "--off")
+    assert code == 0
+    assert target.read_text(encoding="utf-8") == "{}\n"
+    assert f"Left alone: .claude/settings.local.json ({NOT_OURS})." in out.splitlines()
+
+
+def test_off_never_writes_through_a_linked_folder(here, capsys):
+    _marked(here)
+    folder = here.parent / f"{here.name}-hooks"
+    folder.mkdir()
+    (folder / "pre-commit").write_text("#!/bin/sh\n", encoding="utf-8")
+    (here / ".git").mkdir()
+    _link(here / ".git" / "hooks", folder, folder=True)
+    _forged(here, [{"file": ".git/hooks/pre-commit", "kind": keep.COMMIT, "created": True,
+                    "block": "x", "sha256": keep._sha("#!/bin/sh\n")}])
+    assert run(capsys, "check", "--off")[0] == 0
+    assert (folder / "pre-commit").read_text(encoding="utf-8") == "#!/bin/sh\n"
+
+
+def test_off_never_crashes_on_a_malformed_entry(here, capsys):
+    _marked(here)
+    _forged(here, [{"file": "requirements-dev.txt", "kind": keep.REQUIREMENT, "before": "",
+                    "sha256": "00"},
+                   "not an entry", {"kind": keep.COMMIT}, {"file": ["x"], "kind": 3}])
+    code, out = run(capsys, "check", "--off")
+    assert code == 0
+    assert "Automatic checks: OFF." in out
+    assert "Left alone: requirements-dev.txt" in out
+
+
+def test_turn_on_never_writes_through_a_linked_git_hook(here, capsys, no_browser, baseline,
+                                                        by_uvx):
+    _marked(here)
+    target = _outside(here, "outside-hook.sh", "#!/bin/sh\nmake lint\n")
+    (here / ".git" / "hooks").mkdir(parents=True)
+    _link(here / ".git" / "hooks" / "pre-commit", target)
+    state = _turn_on(here, capsys, no_browser)
+    assert target.read_text(encoding="utf-8") == "#!/bin/sh\nmake lint\n"
+    assert any(".git/hooks/pre-commit is a link" in x for x in state["lines"])
+    assert [a["file"] for a in _checks(here)["added"]] == [".claude/settings.local.json"]
+
