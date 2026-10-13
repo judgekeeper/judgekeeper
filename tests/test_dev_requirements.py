@@ -135,3 +135,20 @@ def test_pyproject_keeps_its_line_endings(tmp_path, text, want):
     data = (tmp_path / "pyproject.toml").read_bytes()
     assert tomllib.loads(data.decode("utf-8"))["dependency-groups"]["dev"] == want
     assert endings(data) == {CRLF} and b"\r\r" not in data
+
+
+@pytest.mark.parametrize("files, name", [
+    ({"pyproject.toml": PYPROJECT_GROUPS}, "pyproject.toml"),
+    ({"requirements-dev.txt": "pytest\n"}, "requirements-dev.txt"),
+])
+def test_a_pinned_version_is_added_as_given(tmp_path, files, name):
+    for file, text in files.items():
+        (tmp_path / file).write_text(text, encoding="utf-8")
+    change = requirements_change(tmp_path, "judgekeeper==1.0.0b2")
+    assert change.file == name
+    change.apply()
+    text = (tmp_path / name).read_text(encoding="utf-8")
+    if name == "pyproject.toml":
+        assert tomllib.loads(text)["dependency-groups"]["dev"][-1] == "judgekeeper==1.0.0b2"
+    else:
+        assert text.splitlines()[-1] == "judgekeeper==1.0.0b2"
