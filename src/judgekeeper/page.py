@@ -82,7 +82,7 @@ def page_server(ws: Workspace, port: int, command: str,
                 start_command: str | None = None, token: str | None = None):
     """The marking page: marking, and the result (no review or fix). Every click is a stamped
     line in marks.jsonl. It holds the project's lock and stays open after the result, until
-    /stop, Ctrl-C or 2 hours idle. `command` is how to come back to it; the result keeps
+    /stop, Ctrl-C or 30 minutes idle. `command` is how to come back to it; the result keeps
     `start_command`. `token`: the one the command made (default: a new one)."""
     start_command = start_command or textio.program("start")
     session = marking_session(ws)

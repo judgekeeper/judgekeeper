@@ -1,5 +1,6 @@
 """`--stop` closes the page even when server.json is gone: the page records itself in a second
-file in .judgekeeper/."""
+file in .judgekeeper/. A page nobody can close any more stops by itself after 30 minutes
+without a request."""
 
 from __future__ import annotations
 
@@ -44,3 +45,6 @@ def test_both_records_hold_the_stop_secret_never_the_token(here, capsys, pages):
     assert copy == (folder / label.LOCK).read_text(encoding="utf-8")
     assert "token" not in copy
 
+
+def test_an_idle_page_closes_after_30_minutes():
+    assert label.IDLE_TIMEOUT == 30 * 60

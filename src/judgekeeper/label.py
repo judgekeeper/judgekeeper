@@ -71,7 +71,7 @@ from judgekeeper.textio import describe_os_error, unwritable_file, write_replaci
 
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
-IDLE_TIMEOUT = 2 * 60 * 60  # seconds
+IDLE_TIMEOUT = 30 * 60  # seconds
 # Seconds one connection may stay silent (a browser's spare one) before it is dropped.
 CONNECTION_TIMEOUT = 5
 MAX_BODY = 1_000_000

@@ -352,7 +352,7 @@ def quick_status(session) -> dict:
 
 def serve_confirmation(ws: Workspace, cws: Workspace, port: int, open_browser: bool,
                        say, command: str | None = None) -> int:
-    """Serve the confirmation page until the last answer, Ctrl-C or 2 hours idle. `command`
+    """Serve the confirmation page until the last answer, Ctrl-C or 30 minutes idle. `command`
     (start.Talk.command) is what the person runs to continue."""
     command = command or textio.program("start")
     from judgekeeper.label import make_server

@@ -945,7 +945,7 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     if not background.stop(ws.dir):
         talk.say(f"{name[:1].upper()}{name[1:]} did not close.")
         raise talk.stop(EXIT_QUESTION, "ask the person to close it with Ctrl-C in the terminal "
-                                       "it runs in; else it closes by itself after 2 hours "
+                                       "it runs in; else it closes by itself after 30 minutes "
                                        "without a click.")
     saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
     talk.say(f"Closed {name}.{saved}")
