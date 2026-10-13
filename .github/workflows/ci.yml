@@ -53,6 +53,52 @@ jobs:
       - name: Test the background page
         run: pytest -rfEs tests/test_mark_background.py
 
+  # Runs action.yml from this checkout on a small promptfoo project that holds only what
+  # judgekeeper commits (tests/fixtures/action): no key and no AI call.
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: The judge of the marks (expect exit 0)
+        id: same
+        uses: ./
+        with:
+          path: tests/fixtures/action
+
+      - name: Results from a changed judge
+        run: cp tests/fixtures/action/changed/results.json tests/fixtures/action/results.json
+
+      - name: A changed judge (expect exit 3)
+        id: changed
+        continue-on-error: true
+        uses: ./
+        with:
+          path: tests/fixtures/action
+
+      - name: Full mode without the marks committed (expect exit 3)
+        id: full
+        continue-on-error: true
+        uses: ./
+        with:
+          mode: full
+          path: tests/fixtures/action
+
+      - name: Check the exit codes
+        env:
+          SAME: ${{ steps.same.outputs.exit-code }}
+          CHANGED_OUTCOME: ${{ steps.changed.outcome }}
+          CHANGED: ${{ steps.changed.outputs.exit-code }}
+          FULL_OUTCOME: ${{ steps.full.outcome }}
+          FULL: ${{ steps.full.outputs.exit-code }}
+        run: |
+          set -x
+          test "$SAME" = 0
+          test "$CHANGED_OUTCOME" = failure
+          test "$CHANGED" = 3
+          test "$FULL_OUTCOME" = failure
+          test "$FULL" = 3
+
   # Builds both distributions, installs the wheel into a fresh venv and runs it from there,
   # so a packaging mistake (a missing font, a broken entry point) fails here rather than
   # on release day. The same steps run in release.yml before publishing.

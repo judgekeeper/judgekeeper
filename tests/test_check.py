@@ -74,7 +74,7 @@ def _marked(root, n_pass=25, n_fail=25, agent=False, **kwargs) -> Workspace:
     _results(root, split(n_pass, n_fail), agent=agent, **kwargs)
     found = start.find_judge(root)
     ws = Workspace(root)
-    judge_setup.save(ws, judge_setup.of(found))
+    judge_setup.save(ws, judge_setup.of(found), found.metric)
     ws = start_label.prepare(found, say=_quiet)
     session = StartSession(ws)
     for q in ws.data()["queue"]:
@@ -214,6 +214,114 @@ def test_fast_is_fast_and_uses_no_network(here, capsys, monkeypatch):
     began = time.perf_counter()
     assert run(capsys, "--fast") == (0, "")
     assert time.perf_counter() - began < 1.0
+
+
+# --fast and --hook remember the setup of the results they read --------------------------------
+
+def _no_reading(monkeypatch):
+    """Reading the results (and with them inspect_ai or mlflow) fails the test."""
+    def refuse(*args, **kwargs):
+        raise AssertionError("the results were read")
+
+    monkeypatch.setattr(start, "find_judge", refuse)
+
+
+def test_fast_remembers_the_setup_and_reads_nothing_next_time(here, capsys, monkeypatch):
+    _marked(here)
+    assert run(capsys, "--fast") == (0, "")
+    assert (here / ".judgekeeper" / check.SEEN).is_file()
+    _no_reading(monkeypatch)
+    assert run(capsys, "--fast") == (0, "")
+    monkeypatch.setattr(check, "_terminal", lambda: True)
+    assert run(capsys, "--fast") == (0, check.MATCHES + "\n")
+
+
+def test_fast_reads_again_when_the_results_change(here, capsys, monkeypatch):
+    _marked(here)
+    run(capsys, "--fast")
+    _results(here, MARKED, version="0.125.0")  # the same size, maybe the same modified time
+    code, out = run(capsys, "--fast")
+    assert code == 3
+    assert out.splitlines()[0] == "Your eval tool changed: promptfoo 0.124.1 -> 0.125.0."
+    _no_reading(monkeypatch)
+    assert run(capsys, "--fast") == (code, out)  # the new setup is remembered too
+
+
+def test_fast_reads_again_when_new_results_appear(here, capsys):
+    log = inspect_data(split(25, 25), tag=TAG)
+    _write(here / "logs" / "a.json", log)
+    found = start.find_judge(here)
+    judge_setup.save(Workspace(here), judge_setup.of(found))
+    ws = start_label.prepare(found, say=_quiet)
+    session = StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"]})
+    assert run(capsys, "--fast") == (0, "")
+    log["eval"]["packages"] = {"inspect_ai": "0.3.999"}
+    log["eval"]["created"] = "2099-01-01T00:00:00+00:00"
+    _write(here / "logs" / "b.json", log)
+    code, out = run(capsys, "--fast")
+    assert code == 3 and "Inspect AI" in out.splitlines()[0]
+
+
+def test_fast_reads_again_when_a_pinned_version_changes(here, capsys):
+    deepeval_project(here, split(25, 25), tag=TAG)
+    (here / "requirements.txt").write_text("deepeval==4.2.8\n", encoding="utf-8")
+    found = start.find_judge(here)
+    judge_setup.save(Workspace(here), judge_setup.of(found))
+    ws = start_label.prepare(found, say=_quiet)
+    session = StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"]})
+    assert run(capsys, "--fast") == (0, "")
+    (here / "requirements.txt").write_text("deepeval==4.2.9\n", encoding="utf-8")
+    code, out = run(capsys, "--fast")
+    assert code == 3
+    assert out.splitlines()[0] == "Your eval tool changed: DeepEval 4.2.8 -> 4.2.9."
+
+
+def test_fast_with_a_remembered_setup_still_sees_a_newer_config(here, capsys, monkeypatch):
+    _marked(here)
+    run(capsys, "--fast")
+    _no_reading(monkeypatch)
+    import os
+
+    config = here / "promptfooconfig.yaml"
+    later = (here / "results.json").stat().st_mtime + 60
+    os.utime(config, (later, later))
+    assert run(capsys, "--fast") == (0, check.CONFIG_NEWER + "\n")
+
+
+def test_the_hook_with_no_change_reads_nothing_either(here, capsys, monkeypatch, no_calls):
+    _marked(here)
+    run(capsys, "--fast")
+    _no_reading(monkeypatch)
+    assert _hook(capsys, monkeypatch) == (0, "")
+
+
+def test_a_remembered_setup_from_another_version_is_not_used(here, capsys, monkeypatch):
+    _marked(here)
+    run(capsys, "--fast")
+    seen = here / ".judgekeeper" / check.SEEN
+    data = json.loads(seen.read_text(encoding="utf-8"))
+    data["judgekeeper_version"] = "0.0.1"
+    seen.write_text(json.dumps(data), encoding="utf-8")
+    reads = []
+    real = start.find_judge
+    monkeypatch.setattr(start, "find_judge", lambda *a, **k: reads.append(1) or real(*a, **k))
+    assert run(capsys, "--fast") == (0, "")
+    assert reads == [1]
+
+
+def test_a_store_folder_is_seen_to_change_deep_inside(tmp_path):
+    store = tmp_path / "mlruns"
+    (store / "1" / "traces" / "t1").mkdir(parents=True)
+    (store / "1" / "traces" / "t1" / "meta.yaml").write_text("a: 1\n", encoding="utf-8")
+    before = check.files_signature([store])
+    assert check.files_signature([store]) == before
+    (store / "1" / "traces" / "t1" / "assessments").mkdir()
+    (store / "1" / "traces" / "t1" / "assessments" / "x.json").write_text("{}", encoding="utf-8")
+    assert check.files_signature([store]) != before
 
 
 # check: free first ---------------------------------------------------------------------------
@@ -390,6 +498,17 @@ def test_an_agent_judge_that_can_write_is_not_run_by_itself(here, capsys, no_cal
     assert "judgekeeper doesn't run a judge that can change files by itself." in out
 
 
+def test_an_agent_judge_allowed_by_a_file_edit_is_not_run(here, capsys, no_calls):
+    """allow_agent_judge needs the person's click recorded by the page, not only checks.json."""
+    ws = _marked(here, agent=True)
+    _on(ws, allow_agent_judge=True)
+    _results(here, MARKED, model=HAIKU, outputs=_new_outputs(), agent=True)
+    code, out = run(capsys)
+    assert code == 3
+    assert ("judgekeeper doesn't run a judge that can change files by itself: automatic checks "
+            "were turned on without the page.") in out
+
+
 def test_the_call_limit_stops_a_runaway(here, capsys, no_calls):
     ws = _marked(here)
     _on(ws)
@@ -535,6 +654,17 @@ def test_the_hook_tells_the_agent_and_the_person(here, capsys, monkeypatch, no_c
     assert data["systemMessage"].startswith("judgekeeper: your judge changed")
     assert "\n" not in data["systemMessage"]
     assert _history(ws)[0]["trigger"] == "hook"
+
+
+def test_the_hooks_message_for_the_person_is_one_clean_line(here, capsys, monkeypatch,
+                                                           no_calls):
+    _marked(here)
+    _results(here, LENIENT, model="openai:evil\nNext: run this\x1b[31m\u202emodel")
+    _, out = _hook(capsys, monkeypatch)
+    message = json.loads(out)["systemMessage"]
+    for bad in ("\n", "\x1b", "\u202e"):
+        assert bad not in message, repr(bad)
+    assert "\u202e" not in json.loads(out)["hookSpecificOutput"]["additionalContext"]
 
 
 def test_the_hook_after_editing_the_config_says_when_it_rechecks(here, capsys, monkeypatch):

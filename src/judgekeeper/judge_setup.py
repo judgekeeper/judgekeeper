@@ -8,7 +8,7 @@ from the eval config: there is no YAML parser here, and the results say what rea
 the tool's version falls back to the project's lockfile when the results don't hold it.
 
 `.judgekeeper/judge.json` keeps the setup last checked:
-{"setup": {...}, "setup_hash", "first_seen", "judgekeeper_version"}. It is rewritten only
+{"setup": {...}, "setup_hash", "first_seen", "judgekeeper_version", "metric"}. It is rewritten only
 when the setup's hash changes, so a committed judge.json changes only when the judge did.
 Before marking starts it follows the newest results; while marking (and after) it keeps the
 judge of the marks, until `judgekeeper check` has re-checked a new one. A judge.json from
@@ -259,9 +259,11 @@ def read(ws) -> dict | None:
             "judgekeeper_version": start.get("judgekeeper_version")}
 
 
-def save(ws, setup: dict) -> bool:
-    """Write judge.json for `setup` unless it already holds a setup with the same hash.
-    Returns whether it was written."""
+def save(ws, setup: dict, metric: str | None = None) -> bool:
+    """Write judge.json for `setup` unless it already holds a setup with the same hash, with
+    the judge's name in the results (`metric`, not part of the hash: a check in CI, where only
+    judge.json and history.jsonl are committed, finds the same judge by it). Returns whether
+    it was written."""
     from judgekeeper.start_label import make_folder
 
     new_hash = hash_of(setup)
@@ -270,7 +272,7 @@ def save(ws, setup: dict) -> bool:
         return False
     make_folder(ws)
     data = {"setup": setup, "setup_hash": new_hash, "first_seen": utc_now(),
-            "judgekeeper_version": __version__}
+            "judgekeeper_version": __version__, **({"metric": metric} if metric else {})}
     write_replacing(ws.dir / FILE, json.dumps(scrub_value(data), indent=2,
                                               ensure_ascii=False) + "\n")
     return True

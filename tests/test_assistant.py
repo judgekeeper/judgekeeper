@@ -23,10 +23,11 @@ SKILL = ROOT / "skills" / "judgekeeper" / "SKILL.md"
 PLACEHOLDER = re.compile(r"<[a-z]|\[--|\.\.\.")  # syntax lines such as import <tool>
 FENCE = re.compile(r"^```\w*\n(.*?)^```$", flags=re.DOTALL | re.MULTILINE)
 SKILL_DESCRIPTION = (
-    "Check how often a project's LLM-as-a-judge agrees with human labels (TPR, TNR, kappa) "
-    "using judgekeeper. Use when a project grades outputs with an LLM judge, eval framework or "
-    "rubric model and the user asks how often the judge agrees with people, or wants human "
-    "labels.")
+    "Check how often your LLM-as-a-judge agrees with people: you mark some answers, judgekeeper "
+    "compares, and then keeps checking it. Use when a project grades outputs with an LLM judge "
+    "(any model, including open-source ones run locally with Ollama or vLLM) in promptfoo, "
+    "DeepEval, Inspect, MLflow or its own code, and the user wants to check or keep checking "
+    "that judge.")
 # The spending rule, the same in the prompt, the skill and the prompt `start --fix` gives: no
 # call before the person's yes; after it, exactly the --allow-calls number judgekeeper printed.
 SPEND_RULE = ("only after my yes in this chat, run it again with `--allow-calls` and exactly "
@@ -247,7 +248,7 @@ def test_the_renderer_keeps_the_prompt_whole():
 
 def test_the_skill_keeps_its_description():
     head = _read(SKILL).split("\n---\n", 1)[0]
-    assert f"description: {SKILL_DESCRIPTION}" in head.splitlines()
+    assert f'description: "{SKILL_DESCRIPTION}"' in head.splitlines()
     # `npx skills add` prints the description word for word: the site's words apply to it.
     assert "LLM-as-a-judge" in SKILL_DESCRIPTION and "LLM-as-judge" not in SKILL_DESCRIPTION
     assert "trust" not in SKILL_DESCRIPTION.lower()

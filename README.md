@@ -15,27 +15,36 @@ An LLM-as-a-judge is an AI model that grades the answers of another AI model. Te
 ## Use it on your own judge
 ```
 cd your-project
-uvx judgekeeper@1.0.0b1
+uvx judgekeeper@1.0.0b2
 ```
 
 You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). The version is in the command because uv and pip skip betas unless you name one. Without uv, install it in your project's own Python environment, then run it:
 ```
-pip install judgekeeper==1.0.0b1
+pip install judgekeeper==1.0.0b2
 judgekeeper
 ```
 
 - It reads the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV) and checks your judge's verdicts for free.
 - It opens a page in your browser. You mark answers Pass or Fail without seeing what your judge said.
 - Run it again the same way when you are done: it shows how often your judge agrees with you.
-- No AI calls and no API key. judgekeeper never runs your app.
+- Marking and the result make no AI call and need no API key. judgekeeper never runs your app.
 
-This is a beta: fixing your judge and re-checking it on its own are coming.
+This is a beta: fixing your judge is coming.
+
+## Then it keeps checking by itself
+
+Once you have marked 25 Pass and 25 Fail, judgekeeper asks on the page whether it should keep checking your judge. Only your click turns this on. Then, when your judge's model, rule, pass mark or eval tool changes, judgekeeper re-tests it on your marks and says if it got worse.
+
+- Turning on adds a hook for Claude Code and Cursor (in `.claude/settings.local.json`), a check before each git commit (no AI call), judgekeeper to your dev requirements when it is installed in your project, and asks your judge once about your marked answers, to learn how steady it is.
+- A re-check first uses the verdicts your newest results already hold, for free. It asks your own judge only about the rest, with the key your evals already use.
+- To turn it off: `uvx judgekeeper@1.0.0b2 check --off`. It takes out exactly what it added; your marks stay.
+- In GitHub Actions: `uses: judgekeeper/judgekeeper@v1.0.0b2`, after the step that runs your eval. See [action.yml](https://github.com/judgekeeper/judgekeeper/blob/main/action.yml).
 
 ## With a coding agent
 
 Paste this into Claude Code, Codex or Cursor:
 ```
-Run `uvx judgekeeper@1.0.0b1` in this project and follow what it says.
+Run `uvx judgekeeper@1.0.0b2` in this project and follow what it says.
 ```
 
 The agent runs `judgekeeper` and tells you when the page is open; you do the marking. Its rules are in one file, `skills/judgekeeper/SKILL.md`.
@@ -54,7 +63,7 @@ TPR: of the answers you passed, how many your judge passed. TNR: of the answers 
 
 ## Status
 
-Beta (1.0.0b1): commands and report fields may still change. `judgekeeper --help` lists every flag, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed.
+Beta (1.0.0b2): commands and report fields may still change. `judgekeeper --help` lists every flag, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed.
 
 ## Issues
 

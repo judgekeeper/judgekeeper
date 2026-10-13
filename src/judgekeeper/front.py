@@ -515,7 +515,7 @@ def _write(found: start.Found) -> None:
     ws = start_label.Workspace(found.root)
     start_label.save_judge_check(ws, found)  # also when it lists nothing: no list stays stale
     if not ws.start.is_file() or judge_setup.read(ws) is None:
-        judge_setup.save(ws, judge_setup.of(found))
+        judge_setup.save(ws, judge_setup.of(found), found.metric)
 
 
 def _changed(ws: Workspace, found: start.Found) -> list[str]:
@@ -930,7 +930,7 @@ def _status(talk: FrontTalk, ws: Workspace, saved: bool, check: bool) -> int:
     """Automatic checks are on: the result is saved (report.html), and the status said; the
     first time after the click, what it set up instead."""
     start_label.store_result(ws, StartSession(ws), _command_of(talk, saved, "start"))
-    first = not keep.told(ws)
+    first = not keep.told(ws) and keep.clicked(ws)  # a file edit gets the status at once
     lines = keep.tell(ws) if first else keep.status_lines(ws, _check_command(talk))
     for line in lines:
         talk.say(line)

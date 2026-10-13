@@ -28,6 +28,17 @@ back within a week.
   which. Every file there is written as a new file that replaces the old one. The first time
   a check starts in it, the folder gets its own `.gitignore`, so your answers stay off Git.
 
+## Turning on automatic checks
+
+Only the person's click on the "Turn on" page is meant to turn on automatic checks, but
+judgekeeper cannot prove a person clicked: anything that can write files in your project, a
+coding agent included, can write `.judgekeeper/checks.json` by hand. judgekeeper then still
+re-checks your judge, and its status says "turned on by a file edit, not on the page". A judge
+that can change files runs by itself only after the click on the page, which the page records
+in `.judgekeeper/page.log`. Whatever `checks.json` lists, `judgekeeper check --off` changes
+only the files turning on writes (`.claude/settings.local.json`, `.cursor/hooks.json`, the git
+pre-commit hook, the dev requirements), never through a link.
+
 ## Things that run your own code, by design
 
 `judgekeeper start --judge-command` runs a command you give, so that any judge can be

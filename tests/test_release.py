@@ -19,7 +19,7 @@ yaml = pytest.importorskip("yaml")
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
-VERSION = "1.0.0b1"
+VERSION = "1.0.0b2"
 BETA = "Development Status :: 4 - Beta"
 EXAMPLE = ROOT / "docs" / "examples" / "llmbar-haiku"
 
@@ -56,13 +56,30 @@ def test_no_pytest_plugin_and_no_api_extras():
     assert "entry-points" not in main
     assert not [c for c in main["classifiers"] if "Pytest" in c]
     assert set(main["optional-dependencies"]) == {"dev", "inspect", "mlflow"}
-    assert not (ROOT / "packages").exists() and not (ROOT / "action.yml").exists()
+    assert not (ROOT / "packages").exists()
+
+
+def test_the_action_runs_check_fast_or_full():
+    action = yaml.safe_load((ROOT / "action.yml").read_text(encoding="utf-8"))
+    assert action["runs"]["using"] == "composite"
+    assert set(action["inputs"]) == {"mode", "path", "python-version", "version"}
+    assert action["inputs"]["mode"]["default"] == "fast"
+    text = (ROOT / "action.yml").read_text(encoding="utf-8")
+    assert "judgekeeper check" in text and "--fast" in text and "--ci" in text
+    assert "secrets." not in text  # the key is the calling workflow's, set in its env
+
+
+def test_ci_runs_the_action_from_this_checkout():
+    job = _workflow("ci.yml")["jobs"]["action"]
+    uses = [s.get("uses") for s in job["steps"]]
+    assert uses.count("./") == 3
+    assert "tests/fixtures/action" in _steps_text(job)
 
 
 def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = re.findall(r"^## (\S+)", text, flags=re.MULTILINE)
-    assert entries == [VERSION, "0.1.3", "0.1.2", "0.1.1", "0.1.0"]
+    assert entries == [VERSION, "1.0.0b1", "0.1.3", "0.1.2", "0.1.1", "0.1.0"]
 
 
 # Workflows
@@ -262,14 +279,26 @@ def _guide() -> str:
     return (ROOT / "docs" / "guide.md").read_text(encoding="utf-8")
 
 
-def test_changelog_entry_says_what_changed_since_0_1_3():
-    """0.2.0 was never released: the beta's entry says what changed from 0.1.3."""
+def test_changelog_entry_says_what_keeps_checking():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    entry = text[text.index(f"## {VERSION}"):text.index("## 0.1.3")]
+    entry = text[text.index(f"## {VERSION}"):text.index("## 1.0.0b1")]
+    assert len(entry.strip().splitlines()) < 20
+    flat = " ".join(entry.split())
+    for needed in (f"`uvx judgekeeper@{VERSION}`", f"`pip install judgekeeper=={VERSION}`",
+                   "`judgekeeper check`", "`judgekeeper check --off`", "Only your click",
+                   "History", "`action.yml`", "`mode: fast`", "`mode: full`", "skill"):
+        assert needed in flat, needed
+
+
+def test_changelog_entry_says_what_changed_since_0_1_3():
+    """0.2.0 was never released: the first beta's entry says what changed from 0.1.3."""
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    beta = "1.0.0b1"
+    entry = text[text.index(f"## {beta}"):text.index("## 0.1.3")]
     assert len(entry.strip().splitlines()) < 20
     assert "## 0.2.0" not in text
     flat = " ".join(entry.split())
-    for needed in (f"`uvx judgekeeper@{VERSION}`", f"`pip install judgekeeper=={VERSION}`",
+    for needed in (f"`uvx judgekeeper@{beta}`", f"`pip install judgekeeper=={beta}`",
                    "`judgekeeper mark`",
                    "your browser", "TPR, TNR and kappa", "skills/judgekeeper/SKILL.md",
                    "no AI call", "beta", "Removed:", "the pytest plugin", "the GitHub Action"):
@@ -302,13 +331,13 @@ def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
 
 def test_every_install_command_names_the_version_in_pyproject():
     """uv and pip skip betas unless the version is named: `uvx judgekeeper` and `pip install
-    judgekeeper` would get 0.1.3. README, SKILL.md and the changelog's entry name exactly the
-    version in pyproject.toml, so the next beta can't forget it."""
+    judgekeeper` would get 0.1.3. README, SKILL.md and the changelog's newest entry name the
+    exact version in pyproject.toml, so the next beta can't forget it."""
     version = _toml(ROOT / "pyproject.toml")["project"]["version"]
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     texts = {"README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
              "SKILL.md": (ROOT / "skills/judgekeeper/SKILL.md").read_text(encoding="utf-8"),
-             "CHANGELOG.md": changelog[:changelog.index("## 0.1.3")]}
+             "CHANGELOG.md": changelog[:changelog.index("## ", changelog.index("## ") + 3)]}
     for name, text in texts.items():
         uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", text)
         pip = re.findall(r"pip install judgekeeper(==[\w.]+)?", text)
@@ -439,7 +468,7 @@ def test_guide_and_learn_page_quote_the_llmbar_verdict_as_the_report_states_it()
 
 def test_actions_are_pinned_to_commit_hashes():
     """Tags can be moved; a full commit hash cannot."""
-    files = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+    files = sorted((ROOT / ".github" / "workflows").glob("*.yml")) + [ROOT / "action.yml"]
     for path in files:
         for line in path.read_text(encoding="utf-8").splitlines():
             m = re.search(r"uses:\s*(\S+)", line)
@@ -447,6 +476,14 @@ def test_actions_are_pinned_to_commit_hashes():
                 continue
             assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", m.group(1)), f"{path.name}: {line.strip()}"
             assert re.search(r"#\s*v\d", line), f"{path.name}: no version comment on {line.strip()}"
+
+
+def test_security_policy_says_a_file_edit_can_turn_checks_on():
+    flat = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
+    for needed in ("cannot prove a person clicked", "`.judgekeeper/checks.json`",
+                   '"turned on by a file edit, not on the page"', "`judgekeeper check --off`",
+                   "never through a link"):
+        assert needed in flat, needed
 
 
 def test_security_policy_and_dependabot_exist():
