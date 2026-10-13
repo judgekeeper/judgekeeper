@@ -54,7 +54,7 @@ from judgekeeper.records import (
     fingerprint_known,
     read_records,
 )
-from judgekeeper.redact import printable, scrub
+from judgekeeper.redact import one_line, scrub
 from judgekeeper.table import _blank, make_fingerprint, read_table
 from judgekeeper.textio import quote_arg, read_utf8, tick
 
@@ -162,7 +162,7 @@ class Talk:
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):
             return
-        print(printable(scrub(text)))
+        print(one_line(scrub(text)))
         sys.stdout.flush()  # piped or in the background, lines must not wait in a buffer
         self._blank = not text
 
@@ -227,7 +227,7 @@ class Talk:
 
     def _input(self, prompt: str) -> str:
         try:
-            return input(printable(prompt)).strip()
+            return input(one_line(prompt)).strip()
         except EOFError:
             raise Stop(EXIT_QUESTION) from None
 
@@ -837,7 +837,7 @@ def results_description(result: find.Result) -> str | None:
     try:
         data = json.loads(result.path.read_text(encoding="utf-8", errors="replace"))
         theirs = (data.get("config") or {}).get("description")
-    except (OSError, ValueError, AttributeError):
+    except (OSError, ValueError, AttributeError, RecursionError):
         return None
     return (theirs.strip() or None) if isinstance(theirs, str) else None
 
@@ -868,7 +868,7 @@ def _project_description(root: Path) -> str | None:
         if name.endswith(".json"):
             try:
                 value = json.loads(text).get("description")
-            except (ValueError, AttributeError):
+            except (ValueError, AttributeError, RecursionError):
                 return None
             return value.strip() if isinstance(value, str) else None
         m = _DESCRIPTION.search(text)

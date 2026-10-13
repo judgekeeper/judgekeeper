@@ -40,7 +40,7 @@ from judgekeeper.judgments import JudgmentsError
 from judgekeeper.label import LabelError
 from judgekeeper.mapper import MapError
 from judgekeeper.normalise import NormaliseError
-from judgekeeper.redact import printable, scrub
+from judgekeeper.redact import one_line, printable, scrub
 from judgekeeper.settings import SettingsError
 from judgekeeper.start import StartError
 from judgekeeper.table import TableError
@@ -127,7 +127,7 @@ def _say(text: str, file=None, end: str = "\n") -> None:
 
 
 def _error(message: str) -> None:
-    _say(f"error: {scrub(message)}", file=sys.stderr)
+    _say(f"error: {one_line(scrub(message))}", file=sys.stderr)
 
 
 def _port(value: str) -> int:

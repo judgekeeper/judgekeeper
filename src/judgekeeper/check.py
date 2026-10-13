@@ -54,7 +54,7 @@ from pathlib import Path
 from judgekeeper import __version__, find, judge_setup, marks, start, targets
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
-from judgekeeper.redact import printable, scrub, scrub_value
+from judgekeeper.redact import one_line, scrub, scrub_value
 from judgekeeper.start_label import Workspace
 from judgekeeper.textio import program, quote_arg, write_replacing
 
@@ -466,7 +466,7 @@ class Said:
     person: str | None = None  # one short line for the person (the hook's systemMessage)
 
     def say(self, text: str = "") -> None:
-        self.lines.append(text)
+        self.lines.append(one_line(text))
 
 
 def _no_change(state: State) -> str:
@@ -647,7 +647,7 @@ def baseline(path: str, said: Said) -> int:
 # The command ------------------------------------------------------------------------------------
 
 def _print(text: str = "") -> None:
-    print(printable(scrub(text)))
+    print(one_line(scrub(text)))
     sys.stdout.flush()
 
 

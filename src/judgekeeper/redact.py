@@ -10,6 +10,9 @@ Bearer and Basic headers, and the user:password part of a URL.
 
 `printable` is the other half of "shown to the user": text taken from an input file may hold
 terminal escape sequences, which could retitle or clear the terminal it is printed to.
+`one_line` also turns every line break into a space: each line judgekeeper says is printed by
+one call, so a name from a results file can never start a line of its own (one that could
+look like the `Next:` line).
 
 A judge fingerprint is scrubbed too (`scrub_fingerprint`): its model and snapshot come from
 the provider's response, and a gateway can put anything there.
@@ -49,6 +52,15 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 def printable(text) -> str:
     """`text` without control characters (tab and newline stay), safe to print to a terminal."""
     return _CONTROL.sub("", str(text))
+
+
+# Every character str.splitlines() splits at: a name holding one could start a new line.
+_LINE_BREAKS = re.compile("[\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
+
+
+def one_line(text) -> str:
+    """`printable` text with every line break turned into a space: one line of output."""
+    return printable(_LINE_BREAKS.sub(" ", str(text)))
 
 
 def register_key_env(name: str) -> None:
