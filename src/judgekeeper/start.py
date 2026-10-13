@@ -416,7 +416,15 @@ def _readable(talk: Talk, results: list[find.Result]):
         try:
             yield _read(r)
         except RecordsError as e:
-            talk.say(f"{e} It is left out.")
+            talk.say(f"{_unread(e, r)} It is left out.")
+
+
+def _unread(error: RecordsError, result: find.Result) -> str:
+    """Why `result` can't be read, in one line: a DeepEval file that only links to Confident
+    AI by its path in the project, wherever it is met."""
+    from judgekeeper.readers.deepeval import LINK_ONLY, LinkOnly
+
+    return LINK_ONLY.format(file=result.rel) if isinstance(error, LinkOnly) else str(error)
 
 
 def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
@@ -1177,8 +1185,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                     first = _read(newest)
                 except RecordsError as e:
                     if not rest:
-                        raise StartError(str(e)) from None
-                    talk.say(f"{e} It is left out.")
+                        raise StartError(_unread(e, newest)) from None
+                    talk.say(f"{_unread(e, newest)} It is left out.")
                     continue
                 if kind == "inspect" and not any(r.annotator_kind == LLM
                                                  for r in first.records):

@@ -462,13 +462,14 @@ def _run_of(path: Path):
         return None
     if isinstance(data, dict) and isinstance(data.get("testRunData"), dict):
         data = data["testRunData"]
-    if not isinstance(data, dict):
-        return None
+    if not isinstance(data, dict) or "testRunLink" in data and "testCases" not in data:
+        return None  # not a run, or only the link to it on Confident AI
     return data.get("testCases"), data.get("conversationalTestCases")
 
 
 def _prefer_saved_runs(found: Search) -> None:
-    """DeepEval's hidden copies (DEEPEVAL_COPIES) count once per folder, the newest. When
+    """DeepEval's hidden copies (DEEPEVAL_COPIES) count once per folder: the full run when it
+    is there (the other may hold only a link to the run on Confident AI), else the other. When
     a results folder holds `test_run_*.json` files, those are read and the copies left out;
     a copy that holds a different run than the newest of them is named in a note."""
     runs = found.results.get("deepeval", [])
@@ -476,7 +477,7 @@ def _prefer_saved_runs(found: Search) -> None:
     for r in runs:
         if r.path.name in DEEPEVAL_COPIES:
             kept = copies.get(r.path.parent)
-            if kept is None or r.path.stat().st_mtime > kept.path.stat().st_mtime:
+            if kept is None or r.path.name == DEEPEVAL_COPIES[0]:
                 copies[r.path.parent] = r
     saved = [r for r in runs if DEEPEVAL_RUN.fullmatch(r.path.name)]
     if saved:
