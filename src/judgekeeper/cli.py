@@ -231,6 +231,10 @@ def _parser() -> argparse.ArgumentParser:
     how.add_argument("--hook", action="store_true",
                      help="for a coding agent's hook: read the hook's JSON on stdin, answer in "
                           "JSON")
+    how.add_argument("--on", action="store_true",
+                     help="open the page where you can turn on automatic checks")
+    how.add_argument("--off", action="store_true",
+                     help="turn automatic checks off: take out the hooks judgekeeper added")
     how.add_argument("--baseline", action="store_true", help=argparse.SUPPRESS)
 
     st = sub.add_parser("start", parents=[common],
@@ -368,7 +372,7 @@ def cmd_check(args) -> int:
     from judgekeeper import check
 
     return check.run(args.path, fast_only=args.fast, hook=args.hook,
-                     baseline_only=args.baseline)
+                     baseline_only=args.baseline, on=args.on, off=args.off)
 
 
 def cmd_front(args) -> int:

@@ -33,6 +33,7 @@ NO_BROWSER = ("judgekeeper could not open a browser, so the link is printed here
               "coding agent can read it.")
 DONE = "When you're done, tell your coding agent, or run {program} in your terminal."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
+KEEP = "keep"  # the "Turn on" page (keep.py), in place of marking
 
 
 def marking_status(session: StartSession) -> dict:
@@ -68,6 +69,16 @@ def page_server(ws: Workspace, port: int, command: str,
                        stays=True, token=token)
 
 
+def server_for(ws: Workspace, settings: dict, token: str):
+    """The page `settings` ask for: the "Turn on" page (view KEEP), else the marking page."""
+    if settings.get("view") == KEEP:
+        from judgekeeper import keep
+
+        return keep.keep_server(ws, int(settings["port"]), token)
+    return page_server(ws, int(settings["port"]), str(settings["command"]),
+                       str(settings["start_command"]), token=token)
+
+
 @dataclass
 class Page:
     url: str
@@ -77,18 +88,19 @@ class Page:
 
 
 def open_new(ws: Workspace, port: int, command: str, start_command: str,
-             here: bool = False) -> Page | None:
+             here: bool = False, view: str | None = None) -> Page | None:
     """Close the page open for this project, then start a new one: in the background, or
-    served by this process (`here`, for --wait). None when it could not start."""
+    served by this process (`here`, for --wait). `view` KEEP: the "Turn on" page, always in
+    the background. None when it could not start."""
     if is_open(ws.dir):
         background.stop(ws.dir)
     if here:
         server = page_server(ws, port, command, start_command)
         return Page(server.url, server.port, server.token, server)
     token = secrets.token_urlsafe(32)
-    url = background.start(ws.dir, {"root": str(ws.root.resolve()), "port": port,
-                                    "command": command, "start_command": start_command},
-                           token)
+    settings = {"root": str(ws.root.resolve()), "port": port, "command": command,
+                "start_command": start_command, **({"view": view} if view else {})}
+    url = background.start(ws.dir, settings, token)
     if url is None:
         return None
     from urllib.parse import urlsplit
@@ -117,21 +129,23 @@ def terminal() -> bool:
     return output and _interactive()
 
 
-def show(say, page: Page, no_browser: bool, wait: bool) -> str | None:
+def show(say, page: Page, no_browser: bool, wait: bool, opened: str = OPEN,
+         name: str = "Marking page") -> str | None:
     """Open the page in the person's browser and say so (BROWSER). At a terminal, print the
     link when no browser opened or with --wait (TERMINAL). Without one, when no browser
     opened: say so, stamp the page's marks, then print the link (PRINTED). None when the
-    marks could not be stamped: then the link is not printed."""
+    marks could not be stamped: then the link is not printed. `opened` is said when the
+    browser opened it, and `name` names the printed link."""
     at_terminal = terminal()
-    opened = not no_browser and webbrowser.open(page.url)
-    if opened and not (at_terminal and wait):
-        say(OPEN)
+    in_browser = not no_browser and webbrowser.open(page.url)
+    if in_browser and not (at_terminal and wait):
+        say(opened)
         return BROWSER
     if not at_terminal:
         say(NO_BROWSER)
         if not _stamp_printed(page):
             return None
-    print(f"Marking page: {page.url}")  # the link whole: printed by hand, never by say
+    print(f"{name}: {page.url}")  # the link whole: printed by hand, never by say
     sys.stdout.flush()
     return TERMINAL if at_terminal else PRINTED
 
@@ -157,14 +171,14 @@ def _watch() -> None:
 
 def main() -> int:
     """`python -m judgekeeper.page`, as background.start runs it: one JSON line on stdin holds
-    the token, the project's root, the port and the two commands the page shows. Errors go
-    to stderr (page.log), never the token."""
+    the token, the project's root, the port, the two commands the page shows and which page
+    (`view`). Errors go to stderr (page.log), never the token."""
     _watch()
     try:
         given = json.loads(sys.stdin.readline())
         token, root = str(given["token"]), Path(given["root"])
-        port, command = int(given["port"]), str(given["command"])
-        start_command = str(given["start_command"])
+        settings = {"port": int(given["port"]), "command": str(given["command"]),
+                    "start_command": str(given["start_command"]), "view": given.get("view")}
     except (ValueError, KeyError, TypeError):
         faulthandler.cancel_dump_traceback_later()
         print("judgekeeper: the page got no token on its input, so it did not start.",
@@ -176,7 +190,7 @@ def main() -> int:
               file=sys.stderr)
         return 2
     try:
-        server = page_server(Workspace(root), port, command, start_command, token=token)
+        server = server_for(Workspace(root), settings, token)
     except (LabelError, OSError) as e:
         faulthandler.cancel_dump_traceback_later()
         print(f"judgekeeper: {e}", file=sys.stderr)

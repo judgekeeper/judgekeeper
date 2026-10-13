@@ -55,7 +55,7 @@ from judgekeeper.start_label import (
 # verdicts of each judge setup (verdicts/) and how many checks asked the judge
 # (check-calls.json)
 KEPT = (".gitignore", "baseline.json", "records", "history.jsonl", "verdicts",
-        "check-calls.json")
+        "check-calls.json", "checks.json")
 PREVIOUS = "previous-"
 
 
