@@ -25,7 +25,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from judgekeeper import background, marks, start_label, textio
-from judgekeeper.label import LabelError, LabelServer, ask, is_open, make_server
+from judgekeeper.label import (
+    DEFAULT_PORT,
+    HOST,
+    LabelError,
+    LabelServer,
+    ask,
+    is_open,
+    is_page,
+    make_server,
+)
 from judgekeeper.start_label import StartSession, Workspace
 
 OPEN = "The marking page is open in your browser."
@@ -36,23 +45,30 @@ BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the pag
 KEEP = "keep"  # the "Turn on" page (keep.py), in place of marking
 NOT_SHOWN = "not shown"  # no browser, no terminal, and the link is not for the agent
 OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
+ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
 
 
-def free_port(port: int, others=OTHER_PORTS) -> int:
-    """`port` when nothing listens on it, else the first of `others` that is free; else
-    `port` (starting the page then says it is taken)."""
+def port_free(port: int) -> bool:
+    """Whether nothing listens on `port`."""
     import socket
 
-    from judgekeeper.label import HOST
+    with socket.socket() as s:
+        try:
+            s.bind((HOST, port))
+        except OSError:
+            return False
+    return True
 
-    for candidate in (port, *others):
-        with socket.socket() as s:
-            try:
-                s.bind((HOST, candidate))
-            except OSError:
-                continue
-        return candidate
-    return port
+
+def choose_port(port: int, say) -> int:
+    """`port`, unless it is the default and taken: then the first free one of OTHER_PORTS,
+    else `port` (starting the page then says it is taken). When a judgekeeper page holds the
+    default (another project's: this project's is closed first), that is said."""
+    if port != DEFAULT_PORT or port_free(port):
+        return port
+    if is_page(port):
+        say(ANOTHER_PROJECT.format(command=textio.program("--stop")))
+    return next((other for other in OTHER_PORTS if port_free(other)), port)
 
 
 def name_of(folder: Path) -> str:
@@ -115,12 +131,14 @@ class Page:
 
 
 def open_new(ws: Workspace, port: int, command: str, start_command: str,
-             here: bool = False, view: str | None = None) -> Page | None:
-    """Close the page open for this project, then start a new one: in the background, or
-    served by this process (`here`, for --wait). `view` KEEP: the "Turn on" page, always in
-    the background. None when it could not start."""
+             here: bool = False, view: str | None = None, say=lambda line: None) -> Page | None:
+    """Close the page open for this project, then start a new one (on a free port when the
+    default is taken, choose_port; `say` says why): in the background, or served by this
+    process (`here`, for --wait). `view` KEEP: the "Turn on" page, always in the
+    background. None when it could not start."""
     if is_open(ws.dir):
         background.stop(ws.dir)
+    port = choose_port(port, say)
     if here:
         server = page_server(ws, port, command, start_command)
         return Page(server.url, server.port, server.token, server)

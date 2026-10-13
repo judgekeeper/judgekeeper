@@ -227,19 +227,38 @@ def read_lock(folder: Path) -> dict | None:
     return None
 
 
-def ask(port: int, method: str, path: str, query: dict, body: dict | None = None) -> int | None:
-    """The status the page on `port` answers with, or None when nothing answers. Never
-    through a proxy."""
+def _answer(port: int, method: str, path: str, query: dict,
+            body: dict | None = None) -> tuple[int, bytes] | None:
+    """The status and body the page on `port` answers with, or None when nothing answers.
+    Never through a proxy."""
     conn = http.client.HTTPConnection(HOST, port, timeout=PROBE_TIMEOUT)
     try:
         data = None if body is None else json.dumps(body).encode()
         conn.request(method, f"{path}?{urlencode(query)}", body=data,
                      headers={"Content-Type": "application/json"})
-        return conn.getresponse().status
+        response = conn.getresponse()
+        return response.status, response.read()
     except (OSError, ValueError, http.client.HTTPException):
         return None
     finally:
         conn.close()
+
+
+def ask(port: int, method: str, path: str, query: dict, body: dict | None = None) -> int | None:
+    """The status the page on `port` answers with, or None when nothing answers."""
+    answer = _answer(port, method, path, query, body)
+    return None if answer is None else answer[0]
+
+
+def is_page(port: int) -> bool:
+    """Whether a judgekeeper page listens on `port`: it refuses a request without its token in
+    its own words."""
+    answer = _answer(port, "GET", "/alive", {})
+    try:
+        return answer is not None and answer[0] == 403 and \
+            json.loads(answer[1]) == {"error": "missing or wrong token"}
+    except ValueError:
+        return False
 
 
 def is_open(folder: Path) -> bool:

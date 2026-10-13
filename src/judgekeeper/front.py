@@ -122,6 +122,8 @@ KEEP_FAILED = ("The page that turns on automatic checks could not start in the b
 NEXT_STATUS = "nothing. Tell the person what is on, and how to turn it off."
 COULD_NOT = ("ask the person to run {command} in their own terminal (it keeps the page open "
              "there).")
+PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
+NEXT_ANY_PORT = "run `{command}` (it opens the page on any free port)."
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
@@ -747,11 +749,18 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown)."""
     opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved),
-                           _command_of(talk, saved, "start"), here=wait)
+                           _command_of(talk, saved, "start"), here=wait, say=talk.say)
     shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait)
     if not shown:
         if opened is not None and opened.server is None:
             background.stop(ws.dir)
+        tried = page.choose_port(talk.options["port"], lambda line: None)
+        if opened is None and not page.port_free(tried):  # --wait would need the same port
+            talk.say(PORT_TAKEN.format(port=tried))
+            path, options = answered(talk, saved)
+            command = " ".join((program(), *start.repeated_flags(path, **{**options,
+                                                                          "port": 0})))
+            raise talk.stop(EXIT_QUESTION, NEXT_ANY_PORT.format(command=command))
         talk.say(f"The marking page could not start in the background (what went wrong is in "
                  f"{shown_folder(ws)}/{background.LOG}).")
         raise talk.stop(EXIT_QUESTION, COULD_NOT.format(command=talk.command("--wait")))
@@ -887,9 +896,7 @@ def open_keep(say, ws: Workspace, port: int, no_browser: bool) -> str | None:
     when it could not start (said). Its link is never printed for a coding agent: only the
     person may answer it (page.NOT_SHOWN, said). On the default port, a free one is found
     when it is taken."""
-    if port == DEFAULT_PORT:
-        port = page.free_port(port)
-    opened = page.open_new(ws, port, program(), program("start"), view=page.KEEP)
+    opened = page.open_new(ws, port, program(), program("start"), view=page.KEEP, say=say)
     shown = opened and page.show(say, opened, no_browser, wait=False, opened=KEEP_OPEN,
                                  name="Turn-on page", for_agent=False)
     if shown == page.NOT_SHOWN:

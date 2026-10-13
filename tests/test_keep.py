@@ -477,21 +477,6 @@ def test_check_on_takes_a_port(here, capsys, pages, no_browser):
     assert pages[0][-1]["port"] == 8790
 
 
-def test_a_port_in_use_is_passed_over():
-    import socket
-
-    from judgekeeper import page
-
-    with socket.socket() as held, socket.socket() as spare:
-        held.bind(("127.0.0.1", 0))
-        held.listen()
-        spare.bind(("127.0.0.1", 0))
-        taken, free = held.getsockname()[1], spare.getsockname()[1]
-        spare.close()
-        assert page.free_port(taken, others=(taken, free)) == free
-        assert page.free_port(free, others=()) == free
-
-
 def test_check_on_needs_25_of_each(here, capsys, pages):
     _marked(here, n_pass=15, n_fail=25)
     code, out = run(capsys, "check", "--on")
