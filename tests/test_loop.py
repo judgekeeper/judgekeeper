@@ -15,6 +15,7 @@ import re
 import pytest
 
 from judgekeeper import __version__, background, label, marks, page, start_label
+from tests.page_http import retried
 from tests.start_projects import promptfoo_project, records_project, split
 from tests.test_front import assert_one_next_at_the_end, next_lines, run
 
@@ -74,8 +75,12 @@ def _post_marks(url: str, ws, n: int, seconds=5) -> int:
         req = urllib.request.Request(f"{base}{path}?token={token}",
                                      data=None if body is None else json.dumps(body).encode(),
                                      headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=10) as r:
-            return json.loads(r.read())
+
+        def send():
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return json.loads(r.read())
+
+        return retried(send)
 
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
     items = call("/state")["items"][:n]

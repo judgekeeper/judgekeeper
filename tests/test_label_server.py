@@ -16,6 +16,7 @@ import pytest
 from judgekeeper import label as label_mod
 from judgekeeper import textio
 from judgekeeper.label import LabelError, LabelServer, LabelSession
+from tests.page_http import retried
 
 # A page as the caller passes it: the server fills in the nonce, the token and the data.
 PAGE = ('<!doctype html><title>labels</title>'
@@ -62,7 +63,6 @@ class Client:
         self.server = server
 
     def request(self, method, path, body=None, token=True, host=None):
-        conn = http.client.HTTPConnection("127.0.0.1", self.server.port, timeout=5)
         if token:
             path += ("&" if "?" in path else "?") + f"token={self.server.token}"
         headers = {"Host": host or f"127.0.0.1:{self.server.port}"}
@@ -70,11 +70,17 @@ class Client:
         if body is not None:
             data = json.dumps(body).encode()
             headers["Content-Type"] = "application/json"
-        conn.request(method, path, body=data, headers=headers)
-        resp = conn.getresponse()
-        payload = resp.read()
-        conn.close()
-        return resp, payload
+
+        def send():
+            conn = http.client.HTTPConnection("127.0.0.1", self.server.port, timeout=5)
+            try:
+                conn.request(method, path, body=data, headers=headers)
+                resp = conn.getresponse()
+                return resp, resp.read()
+            finally:
+                conn.close()
+
+        return retried(send)
 
     def state(self):
         resp, payload = self.request("GET", "/state")

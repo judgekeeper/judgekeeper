@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from judgekeeper import background, label
+from tests.page_http import retried
 from tests.start_projects import promptfoo_project, split
 
 LINK = re.compile(r"^Marking page: (http://127\.0\.0\.1:(\d+)/\?token=([\w-]+))$", re.MULTILINE)
@@ -60,8 +61,12 @@ def call(base: str, token: str, path: str, body=None):
     req = urllib.request.Request(f"{base}{path}?token={token}",
                                  data=None if body is None else json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=10) as r:
-        return r.status, json.loads(r.read())
+
+    def send():
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status, json.loads(r.read())
+
+    return retried(send)
 
 
 @pytest.fixture

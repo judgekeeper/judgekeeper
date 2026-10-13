@@ -21,6 +21,7 @@ import pytest
 
 from judgekeeper import background, label, start_label
 from judgekeeper.cli import main
+from tests.page_http import retried
 from tests.start_projects import promptfoo_project, split
 from tests.test_mark_background import alive
 
@@ -149,8 +150,12 @@ def test_opening_an_open_page_replaces_it(here, capsys, no_browser):
     req = urllib.request.Request(f"{base}/label?token={token}",
                                  data=json.dumps({"id": item, "label": "pass"}).encode(),
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=10) as r:
-        assert r.status == 200
+
+    def send():
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status
+
+    assert retried(send) == 200
     old_pid = label.read_lock(ws.dir)["pid"]
 
     code, out, _ = _run(capsys, "--port", "0")

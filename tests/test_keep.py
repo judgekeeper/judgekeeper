@@ -23,6 +23,7 @@ import pytest
 from judgekeeper import __version__, check, keep, textio
 from judgekeeper.cli import main
 from judgekeeper.marks import PRINTED
+from tests.page_http import retried
 from tests.test_check import HAIKU, LENIENT, MODEL, TAG, _marked, _results
 from tests.test_front import assert_one_next_at_the_end
 
@@ -84,9 +85,14 @@ def _call(url: str, path: str, body=None):
     req = urllib.request.Request(f"{base}{path}?token={token}",
                                  data=None if body is None else json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=10) as r:
-        raw = r.read().decode("utf-8")
-        return json.loads(raw) if r.headers.get_content_type() == "application/json" else raw
+
+    def send():
+        with urllib.request.urlopen(req, timeout=10) as r:
+            raw = r.read().decode("utf-8")
+            return json.loads(raw) if r.headers.get_content_type() == "application/json" \
+                else raw
+
+    return retried(send)
 
 
 def _done(url: str) -> dict:
