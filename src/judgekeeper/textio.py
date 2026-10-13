@@ -184,16 +184,36 @@ def read_utf8(path: str | Path, error: type[Exception]) -> str:
 
 
 NOT_JSON = "{file} isn't valid JSON that judgekeeper can read."
+MAX_NESTING = 500  # lists and objects inside each other; Python before 3.14 stops near 1000
 
 
 def read_json(path: str | Path, error: type[Exception]):
     """The JSON in a file the user supplied (read_utf8). Raises `error` with one plain line
-    when it is nested deeper than Python's JSON reader goes; json.JSONDecodeError as usual."""
+    when it is nested deeper than MAX_NESTING (on every Python version, whether or not its JSON
+    reader stops first); json.JSONDecodeError as usual."""
     text = read_utf8(path, error)
     try:
-        return json.loads(text)
+        data = json.loads(text)
     except RecursionError:
         raise error(NOT_JSON.format(file=path)) from None
+    if _too_deep(data):
+        raise error(NOT_JSON.format(file=path))
+    return data
+
+
+def _too_deep(data) -> bool:
+    """Whether lists and objects are nested deeper than MAX_NESTING, walked without
+    recursion."""
+    stack = [(data, 1)]
+    while stack:
+        value, depth = stack.pop()
+        if depth > MAX_NESTING:
+            return True
+        if isinstance(value, dict):
+            stack.extend((v, depth + 1) for v in value.values() if isinstance(v, (dict, list)))
+        elif isinstance(value, list):
+            stack.extend((v, depth + 1) for v in value if isinstance(v, (dict, list)))
+    return False
 
 
 def jsonl_lines(text: str) -> list[str]:

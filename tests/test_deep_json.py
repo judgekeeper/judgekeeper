@@ -14,7 +14,7 @@ def here(tmp_path, monkeypatch):
     return tmp_path
 
 
-DEEP = 100_000  # deeper than any JSON reader in Python goes
+DEEP = 100_000  # deeper than Python's JSON reader goes before 3.14
 
 
 @pytest.mark.parametrize("name, head", [
@@ -26,7 +26,8 @@ DEEP = 100_000  # deeper than any JSON reader in Python goes
 def test_json_nested_too_deep_is_said_in_plain_words(here, capsys, name, head, given):
     path = here / name
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(head + "[" * DEEP + "]" * DEEP + "}" * head.count("{"), encoding="utf-8")
+    closing = "}" * (head.count("{") - head.count("}"))
+    path.write_text(head + "[" * DEEP + "]" * DEEP + closing, encoding="utf-8")
     code, out, err = run(capsys, *([name] if given else []))
     assert code == 2, out + err
     assert "RecursionError" not in out + err
