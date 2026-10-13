@@ -14,6 +14,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import shutil
 import sys
 import time
 import urllib.request
@@ -63,6 +64,20 @@ def baseline(monkeypatch):
 def no_extras(monkeypatch):
     """No optional extra is installed (the test environment may have mlflow)."""
     monkeypatch.setattr(textio, "extras_here", lambda: ())
+
+
+@pytest.fixture(autouse=True)
+def git_config(tmp_path_factory, monkeypatch):
+    """git reads no config of this computer's: an empty file stands in for the global one
+    (a test writes in it), and the system's is skipped."""
+    path = tmp_path_factory.mktemp("git-config") / "global"
+    path.write_text("", encoding="utf-8")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(path))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    return path
+
+
+needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
 
 
 @pytest.fixture
@@ -348,6 +363,58 @@ def test_a_hooks_path_is_left_alone(here, capsys, no_browser, baseline, by_uvx):
     state = _turn_on(here, capsys, no_browser)
     assert not (here / ".git" / "hooks" / "pre-commit").exists()
     assert any("left it as it is" in x for x in state["lines"])
+
+
+def _git_repo(root) -> None:
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+
+
+HOOKS_FOLDER_STATUS = ("  Runs when: your judge changes (agent hook); before each git commit: "
+                       "not set up (your git uses its own hooks folder).")
+
+
+@needs_git
+def test_a_hooks_path_set_for_every_repository_is_left_alone(here, capsys, no_browser,
+                                                            baseline, by_uvx, git_config):
+    _marked(here)
+    _git_repo(here)
+    folder = here.parent / "my-hooks"
+    git_config.write_text(f"[core]\n\thooksPath = {folder.as_posix()}\n", encoding="utf-8")
+    state = _turn_on(here, capsys, no_browser)
+    assert not (here / ".git" / "hooks" / "pre-commit").exists()
+    assert not folder.exists()
+    at = state["lines"].index(f"Your git uses its own hooks folder ({folder.as_posix()}), so "
+                              "judgekeeper left it as it is. To check before each commit, add "
+                              "this line to the pre-commit hook there:")
+    assert state["lines"][at + 1] == f"  uvx judgekeeper@{V} check --fast"
+    _told(capsys)
+    _, out = run(capsys)
+    assert HOOKS_FOLDER_STATUS in out.splitlines()
+    assert f"    uvx judgekeeper@{V} check --fast" in out.splitlines()
+
+
+@needs_git
+def test_a_hooks_path_naming_git_own_folder_gets_the_hook(here, capsys, no_browser, baseline,
+                                                          by_uvx, git_config):
+    _marked(here)
+    _git_repo(here)
+    git_config.write_text("[core]\n\thooksPath = .git/hooks\n", encoding="utf-8")
+    state = _turn_on(here, capsys, no_browser)
+    assert "Added a check before each git commit to .git/hooks/pre-commit." in state["lines"]
+
+
+@needs_git
+def test_the_status_sees_a_hooks_path_set_after_turning_on(here, capsys, no_browser, baseline,
+                                                           by_uvx, git_config):
+    _marked(here)
+    _git_repo(here)
+    _turn_on(here, capsys, no_browser)
+    _told(capsys)
+    git_config.write_text("[core]\n\thooksPath = ~/.githooks\n", encoding="utf-8")
+    _, out = run(capsys)
+    assert HOOKS_FOLDER_STATUS in out.splitlines()
 
 
 def test_installed_elsewhere_no_local_path_reaches_a_shared_file(here, capsys, no_browser,
