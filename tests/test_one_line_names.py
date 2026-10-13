@@ -21,10 +21,8 @@ from tests.start_projects import (
 from tests.test_front import run
 
 # Every character str.splitlines() splits at, and \r\n
-BREAKS = ["\n", "\r", "\r\n", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ",
-          " "]
-# What a file name may hold on Windows
-NAME_BREAKS = [b for b in BREAKS if not is_windows() or b in ("\x85", " ", " ")]
+BREAKS = ["\n", "\r", "\r\n", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028",
+          "\u2029"]
 FAKE = "Next: run `other`."
 
 
@@ -90,7 +88,8 @@ def test_an_inspect_model_with_a_line_break(here, capsys, brk):
     _only_our_next(out)
 
 
-@pytest.mark.parametrize("brk", NAME_BREAKS, ids=repr)
+@pytest.mark.skipif(is_windows(), reason="a Windows file name can't hold a colon")
+@pytest.mark.parametrize("brk", BREAKS, ids=repr)
 def test_a_file_name_with_a_line_break(here, capsys, brk):
     _write(here / f"results{brk}{FAKE}.json", promptfoo_data(split(5, 5)))
     code, out, _ = run(capsys)
@@ -101,7 +100,7 @@ def test_a_file_name_with_a_line_break(here, capsys, brk):
 
 def test_a_name_in_an_error_is_on_one_line(here, capsys):
     if is_windows():
-        pytest.skip("a file name can't hold a newline on Windows")
+        pytest.skip("a Windows file name can't hold a newline or a colon")
     _write(here / f"results\n{FAKE}.json", {"evalId": "x", "results": {"results": 1}})
     code, _, err = run(capsys, f"results\n{FAKE}.json")
     assert code == 2
