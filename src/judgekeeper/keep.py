@@ -35,6 +35,10 @@ file turning on writes for that kind of entry (in the project, or the git reposi
 .git/hooks/pre-commit), never through a link: anything else checks.json lists is left alone and
 said. Marks, history and verdicts stay.
 
+The page writes its own line for the click in page.log. Nothing on disk can prove a person
+clicked, but a checks.json written by hand has no such line: the status then says "turned on by
+a file edit, not on the page", and a judge that can change files never runs by itself.
+
 checks.json: {"on", "since", "by": "page", "sitting", "allow_agent_judge", "runs", "added",
 "commit", "said"}; after "No thanks" "on" is false and "declined" holds the time; after
 --off "on" is false, "off" holds the time and "added" keeps what was left as it was.
@@ -59,6 +63,8 @@ from judgekeeper.marks import PRINTED
 from judgekeeper.textio import line_ending, write_keeping, write_replacing
 
 CHECKS = "checks.json"
+LOG = "page.log"  # the page process's log (background.LOG)
+CLICK = "judgekeeper page: Turn on clicked "
 TIMEOUT = 600  # seconds a hook may run
 PROJECT_DIR = "${CLAUDE_PROJECT_DIR}"
 CLAUDE = ".claude/settings.local.json"
@@ -84,6 +90,8 @@ LINKED = ("{file} is a link. judgekeeper does not write through links. To check 
           "commit, add this line to your git pre-commit hook:")
 CURSOR_TOO = "Cursor runs the agent hook in .claude/settings.local.json too."
 
+BY_PAGE = "turned on by the person on the page"
+BY_FILE = "turned on by a file edit, not on the page"
 REFUSED = "Open judgekeeper in your own terminal to turn this on."
 SET_UP = "Automatic checks: ON. The person turned them on on the page, and judgekeeper:"
 NEXT_SET_UP = ('nothing. Tell the person: "judgekeeper will re-check your judge when it '
@@ -443,6 +451,42 @@ def said_too(ws, lines: list[str]) -> None:
         _write(ws, data)
 
 
+def record_click(ws, allow_agent_judge: bool) -> None:
+    """The page process's own line in page.log for the person's click on "Turn on", with the
+    `since` and `sitting` checks.json now holds. Nothing on disk can prove a person clicked
+    (an agent can write any file), but checks.json alone, written by hand, has no such line."""
+    data = read(ws)
+    line = json.dumps({"since": data.get("since"), "sitting": data.get("sitting"),
+                       "allow_agent_judge": allow_agent_judge is True})
+    with open(ws.dir / LOG, "a", encoding="utf-8") as f:
+        f.write(f"{CLICK}{line}\n")
+
+
+def clicked(ws, agent: bool = False) -> bool:
+    """Whether page.log holds the page's line for the click that turned on the checks in
+    checks.json (same `since` and `sitting`); with `agent`, one that also allowed a judge that
+    can change files."""
+    data = read(ws)
+    if data.get("on") is not True:
+        return False
+    try:
+        text = (ws.dir / LOG).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    for raw in text.splitlines():
+        if not raw.startswith(CLICK):
+            continue
+        try:
+            line = json.loads(raw[len(CLICK):])
+        except ValueError:
+            continue
+        if isinstance(line, dict) and line.get("since") == data.get("since") \
+                and line.get("sitting") == data.get("sitting") \
+                and (not agent or line.get("allow_agent_judge") is True):
+            return True
+    return False
+
+
 def decline(ws, sitting: str) -> None:
     """"No thanks": off, and what --off left as it was stays listed."""
     old = read(ws)
@@ -657,8 +701,8 @@ def status_lines(ws, command: str) -> list[str]:
     from judgekeeper.start_label import shown_folder
 
     data = read(ws)
-    lines = [(f"Automatic checks: ON since {_day(data.get('since'))}, turned on by the person "
-              "on the page.")]
+    by = BY_PAGE if clicked(ws) else BY_FILE
+    lines = [f"Automatic checks: ON since {_day(data.get('since'))}, {by}."]
     kinds = {a.get("kind") for a in data.get("added") or []}
     commit = data.get("commit") or {}
     git = git_root(ws.root) if COMMIT in kinds else None
@@ -791,6 +835,10 @@ class KeepSession:
             return self.state()
         allow = body.get("allow_agent_judge") is True
         setup = turn_on(self.ws, allow, self.sitting)
+        try:
+            record_click(self.ws, allow)
+        except OSError:
+            pass  # the status then says it was not turned on on the page
         self.lines = [WATCHING, *setup, ASKING]
         self.phase = "asking"
         self.thread = threading.Thread(target=self._baseline, args=(setup,))

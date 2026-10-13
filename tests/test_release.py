@@ -478,6 +478,14 @@ def test_actions_are_pinned_to_commit_hashes():
             assert re.search(r"#\s*v\d", line), f"{path.name}: no version comment on {line.strip()}"
 
 
+def test_security_policy_says_a_file_edit_can_turn_checks_on():
+    flat = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
+    for needed in ("cannot prove a person clicked", "`.judgekeeper/checks.json`",
+                   '"turned on by a file edit, not on the page"', "`judgekeeper check --off`",
+                   "never through a link"):
+        assert needed in flat, needed
+
+
 def test_security_policy_and_dependabot_exist():
     policy = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
     for needed in ("--judge-command", "judgekeeper start"):

@@ -1050,3 +1050,23 @@ def test_turn_on_never_writes_through_a_linked_git_hook(here, capsys, no_browser
     assert any(".git/hooks/pre-commit is a link" in x for x in state["lines"])
     assert [a["file"] for a in _checks(here)["added"]] == [".claude/settings.local.json"]
 
+
+# Checks turned on by a file edit, not on the page --------------------------------------------------
+
+def test_a_hand_written_checks_json_is_named_in_the_status(here, capsys):
+    _marked(here)
+    _forged(here, [])
+    _, out = run(capsys)
+    assert any(x.startswith("Automatic checks: ON since") and
+               x.endswith("turned on by a file edit, not on the page.") for x in out.splitlines())
+
+
+def test_the_click_is_recorded_by_the_page(here, capsys, no_browser, baseline, by_uvx):
+    _marked(here)
+    _turn_on(here, capsys, no_browser)
+    from judgekeeper.start_label import Workspace
+
+    assert keep.clicked(Workspace(here))
+    _told(capsys)
+    _, out = run(capsys)
+    assert any(x.endswith("turned on by the person on the page.") for x in out.splitlines())

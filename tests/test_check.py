@@ -498,6 +498,17 @@ def test_an_agent_judge_that_can_write_is_not_run_by_itself(here, capsys, no_cal
     assert "judgekeeper doesn't run a judge that can change files by itself." in out
 
 
+def test_an_agent_judge_allowed_by_a_file_edit_is_not_run(here, capsys, no_calls):
+    """allow_agent_judge needs the person's click recorded by the page, not only checks.json."""
+    ws = _marked(here, agent=True)
+    _on(ws, allow_agent_judge=True)
+    _results(here, MARKED, model=HAIKU, outputs=_new_outputs(), agent=True)
+    code, out = run(capsys)
+    assert code == 3
+    assert ("judgekeeper doesn't run a judge that can change files by itself: automatic checks "
+            "were turned on without the page.") in out
+
+
 def test_the_call_limit_stops_a_runaway(here, capsys, no_calls):
     ws = _marked(here)
     _on(ws)
@@ -643,6 +654,17 @@ def test_the_hook_tells_the_agent_and_the_person(here, capsys, monkeypatch, no_c
     assert data["systemMessage"].startswith("judgekeeper: your judge changed")
     assert "\n" not in data["systemMessage"]
     assert _history(ws)[0]["trigger"] == "hook"
+
+
+def test_the_hooks_message_for_the_person_is_one_clean_line(here, capsys, monkeypatch,
+                                                           no_calls):
+    _marked(here)
+    _results(here, LENIENT, model="openai:evil\nNext: run this\x1b[31m\u202emodel")
+    _, out = _hook(capsys, monkeypatch)
+    message = json.loads(out)["systemMessage"]
+    for bad in ("\n", "\x1b", "\u202e"):
+        assert bad not in message, repr(bad)
+    assert "\u202e" not in json.loads(out)["hookSpecificOutput"]["additionalContext"]
 
 
 def test_the_hook_after_editing_the_config_says_when_it_rechecks(here, capsys, monkeypatch):

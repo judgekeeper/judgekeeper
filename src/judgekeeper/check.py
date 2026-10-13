@@ -97,6 +97,8 @@ NOT_SET_UP = ("Your marks can't check your judge yet: that needs {n} you mark Pa
 TURN_ON = ("Turning on automatic checks lets judgekeeper ask your judge about {which}{n} "
            "marked answer{s}.")
 AGENT = "judgekeeper doesn't run a judge that can change files by itself."
+AGENT_NO_PAGE = ("judgekeeper doesn't run a judge that can change files by itself: automatic "
+                 "checks were turned on without the page.")
 DAILY = ("judgekeeper already ran {n} checks that ask your judge today; it asks again "
          "tomorrow.")
 LIMIT = "judgekeeper reached its call limit for this judge, so it didn't ask it again."
@@ -503,10 +505,15 @@ def ask(state: State, found, setup: dict, ids: list[str], rest: bool = False) ->
                                           s="" if len(ids) == 1 else "s"))
         return out
     agent = setup.get("agent") or {}
-    if setup.get("kind") == judge_setup.AGENT and agent.get("can_write") is not False \
-            and checks.get("allow_agent_judge") is not True:
-        out.reasons.append(AGENT)
-        return out
+    if setup.get("kind") == judge_setup.AGENT and agent.get("can_write") is not False:
+        if checks.get("allow_agent_judge") is not True:
+            out.reasons.append(AGENT)
+            return out
+        from judgekeeper import keep
+
+        if not keep.clicked(ws, agent=True):
+            out.reasons.append(AGENT_NO_PAGE)
+            return out
     counts = _counts(ws)
     if int(counts["days"].get(_today(), 0)) >= PER_DAY:
         out.reasons.append(DAILY.format(n=PER_DAY))
@@ -971,7 +978,7 @@ def _hook(path: str) -> int:
             "hookEventName": str(given.get("hook_event_name") or "PostToolUse"),
             "additionalContext": scrub("\n".join(said.lines).strip())}}
         if said.person:
-            out["systemMessage"] = scrub(said.person)
+            out["systemMessage"] = scrub(one_line(said.person))
         print(json.dumps(out, ensure_ascii=False))
     return EXIT_OK
 

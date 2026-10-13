@@ -923,7 +923,7 @@ def _status(talk: FrontTalk, ws: Workspace, saved: bool, check: bool) -> int:
     """Automatic checks are on: the result is saved (report.html), and the status said; the
     first time after the click, what it set up instead."""
     start_label.store_result(ws, StartSession(ws), _command_of(talk, saved, "start"))
-    first = not keep.told(ws)
+    first = not keep.told(ws) and keep.clicked(ws)  # a file edit gets the status at once
     lines = keep.tell(ws) if first else keep.status_lines(ws, _check_command(talk))
     for line in lines:
         talk.say(line)

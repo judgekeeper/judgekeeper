@@ -103,7 +103,8 @@ def test_the_result_is_tpr_tnr_and_kappa_with_ranges_and_the_drop():
 def test_only_the_person_turns_on_automatic_checks():
     body = _body()
     for rule in ('never click "Turn on"', "never write `checks.json`",
-                 "run `judgekeeper check --off` when the person asks"):
+                 "judgekeeper can't tell that from their click",
+                 "run `judgekeeper check --off` when they ask"):
         assert rule in body, rule
 
 

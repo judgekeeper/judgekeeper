@@ -46,7 +46,8 @@ _KEY_SHAPES = (
 
 
 # C0 controls other than tab and newline, DEL, and the C1 range: what a terminal acts on.
-_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+# C0 and C1 controls, and the bidi overrides and isolates that can make text read backwards
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
 
 
 def printable(text) -> str:

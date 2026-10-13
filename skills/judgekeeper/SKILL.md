@@ -28,7 +28,8 @@ are doing in plain words. All flags: `judgekeeper --help`.
 - Report TPR, TNR and kappa together, with their ranges and the line "this set can see a drop
   of X" judgekeeper prints. Never report raw agreement on its own.
 - Only the person turns on automatic checks: never click "Turn on" or "No thanks" on the
-  page, and never write `checks.json`. Do run `judgekeeper check --off` when the person asks.
+  page, and never write `checks.json` (judgekeeper can't tell that from their click, so it
+  would turn checks on behind their back). Do run `judgekeeper check --off` when they ask.
 - Keys only in environment variables; never print or write one. Marking and the result make
   no AI call and need no key.
 
