@@ -27,8 +27,7 @@ NEXT_LINK = ("Next: give the person the link above and ask them to mark answers 
              "page says it has enough. When they say they are done, run `judgekeeper` again.")
 NEXT_RESULT = ("Next: nothing. Tell the person the result above. To mark more, run "
                "`judgekeeper mark`.")
-RAN_AGAIN = ("Your eval ran again since you started marking. Your marks are kept; re-checking "
-             "them against new results comes later.")
+RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
 NO_BROWSER = ("judgekeeper could not open a browser, so the link is printed here, where your "
               "coding agent can read it.")
 PRINTED_LINE = "{n} of your marks were made through a link your coding agent could read."
@@ -239,7 +238,8 @@ def test_a_changed_rule_carries_on_and_says_which_judge(here, capsys, pages):
     assert re.search(r"This result is about your judge as it was on \d{1,2} [A-Z][a-z]{2}: "
                      r"openai:gpt-4\.1-mini, rule hash [0-9a-f]{4}\.", out), out
     assert head["judge"]["rule_hash"][7:11] in out
-    assert _check(out) == NEXT_RESULT
+    assert "\nYour judge changed since your marks: rule changed.\n" in out
+    assert _check(out) == "Next: run `judgekeeper check`."
 
 
 def test_the_result_keeps_the_start_command_for_starts_next_steps(here, capsys, pages):

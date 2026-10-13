@@ -30,8 +30,7 @@ COULD_NOT = ("Next: ask the person to run judgekeeper mark --wait in their own t
              "keeps the page open there).")
 START_OVER = ("Start over with these results? Your old marks move to "
               ".judgekeeper/previous-<date>/.")
-RAN_AGAIN = ("Your eval ran again since you started marking. Your marks are kept; re-checking "
-             "them against new results comes later.")
+RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
 
 
 @pytest.fixture

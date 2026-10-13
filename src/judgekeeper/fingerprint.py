@@ -121,14 +121,3 @@ def rule_hash(rule: str | None) -> str | None:
     text = rule.replace("\r\n", "\n").replace("\r", "\n")
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-
-def judge_file(*, tool: str, tool_version: str | None, results: list[str], judge: str,
-               model: str | None, rule: str | None, pass_mark: dict | None,
-               fingerprint: dict, version: str) -> dict:
-    """What .judgekeeper/judge.json keeps about the judge that was found: the eval tool and
-    its version, where its results are, the judge, its model, a hash of its rule, its pass
-    mark, the fingerprint of its verdicts, and which judgekeeper wrote it, when."""
-    return {"tool": tool, "tool_version": tool_version, "results": list(results),
-            "judge": judge, "model": model, "rule_hash": rule_hash(rule),
-            "pass_mark": pass_mark, "fingerprint": fingerprint,
-            "judgekeeper_version": version, "created_at": utc_now()}
