@@ -44,6 +44,11 @@ something changed; it always exits 0 (the JSON is read only then, and 2 would bl
 checks on; it needs 25 Pass and 25 Fail marks. `--off` takes out exactly what turning on
 added; anyone may run it. Both keep the marks, history and verdicts.
 
+`--ci` (hidden; judgekeeper's GitHub Action, `mode: full`) is `check` in GitHub Actions: the
+team committed the marks, and their workflow, with the key as a secret, is the permission to
+ask the judge (never one that can change files); checks.json, the person's, is not read.
+`--fast` also works in a checkout holding only judge.json and history.jsonl.
+
 `--baseline` (hidden; the page runs it after "Turn on") asks the current judge once about
 every marked answer: its verdicts become the old ones the next check compares with, and how
 often they differ from the original eval run is the judge's measured steadiness, which the
@@ -69,7 +74,7 @@ from judgekeeper.redact import one_line, scrub, scrub_value
 from judgekeeper.start_label import Workspace
 from judgekeeper.textio import describe_os_error, plural, program, quote_arg, write_replacing
 
-EXIT_OK, EXIT_WORSE, EXIT_NEEDS_YOU = 0, 1, 3
+EXIT_OK, EXIT_WORSE, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 1, 2, 3
 CHECKS = "checks.json"  # written only by the "Turn on" page
 COUNTS = "check-calls.json"
 VERDICTS = "verdicts"
@@ -101,6 +106,10 @@ NO_KEY = "The key your judge needs isn't set where judgekeeper runs, so your jud
 CLOSE = "This was a close copy of your judge, not an exact one: {why}."
 TRACE_WHY = "your judge reads traces, which may have changed since your eval ran"
 OFF = "Automatic checks are off, so judgekeeper doesn't ask your judge."
+NOT_COMMITTED = ("Your marks are not in this checkout: `mode: full` needs .judgekeeper/start.json, "
+                 "marks.jsonl and pool.jsonl committed.")
+CI_ONLY = ("`--ci` is for judgekeeper's GitHub Action (action.yml), where your workflow allows "
+           "asking your judge. On your computer, run `judgekeeper check`.")
 
 
 def _terminal() -> bool:
@@ -137,11 +146,14 @@ class State:
     marks: dict[str, str]  # answer id -> "pass" or "fail"
     saved: dict  # judge.json (judge_setup.read)
     lines: list[str] = field(default_factory=list)  # what is said, in order
+    counts: tuple[int, int] | None = None  # (Pass, Fail) marks, when only history.jsonl says
+    ci: bool = False  # in judgekeeper's GitHub Action: the workflow allows asking the judge
 
     @property
     def enough(self) -> bool:
         values = list(self.marks.values())
-        return min(values.count("pass"), values.count("fail")) >= targets.ROUGH
+        n_pass, n_fail = self.counts or (values.count("pass"), values.count("fail"))
+        return min(n_pass, n_fail) >= targets.ROUGH
 
 
 def _state(path: str) -> State | None:
@@ -162,6 +174,39 @@ def _state(path: str) -> State | None:
     if saved is None or not isinstance(data, dict):
         return None
     return State(ws=ws, path=path, data=data, marks=marks.read(ws.marks).counted(), saved=saved)
+
+
+def _committed(path: str) -> State | None:
+    """What a checkout holds when only what judgekeeper commits is there (judge.json and
+    history.jsonl, as in CI): the judge last checked, its name, and how many marks the newest
+    result had. None when marking never started there or there is no result."""
+    from judgekeeper.start_again import _project
+
+    given = Path(path)
+    if not given.exists():
+        return None
+    ws = Workspace(_project(given))
+    saved = judge_setup._saved(ws)
+    if saved is None or ws.start.exists():
+        return None
+    counts = None
+    try:
+        text = ws.history_jsonl.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for raw in text.splitlines():
+        try:
+            line = json.loads(raw)
+        except ValueError:
+            continue
+        if isinstance(line, dict) and line.get("kind") == "result":
+            n_pass, n_fail = line.get("pass"), line.get("fail")
+            if isinstance(n_pass, int) and isinstance(n_fail, int):
+                counts = (n_pass, n_fail)
+    if counts is None:
+        return None
+    data = {"tool": saved["setup"].get("tool"), "metric": saved.get("metric")}
+    return State(ws=ws, path=path, data=data, marks={}, saved=saved, counts=counts)
 
 
 def _newest(state: State):
@@ -370,7 +415,7 @@ def _command(state_or_path) -> str:
 # --fast -----------------------------------------------------------------------------------------
 
 def fast(path: str, say) -> int:
-    state = _state(path)
+    state = _state(path) or _committed(path)
     if state is None or not state.enough:
         return EXIT_OK
     now, problem = _now(state)
@@ -452,7 +497,7 @@ def ask(state: State, found, setup: dict, ids: list[str], rest: bool = False) ->
 
     out = Asked()
     ws = state.ws
-    checks = _checks(ws)
+    checks = {"on": True} if state.ci else _checks(ws)
     if not checks.get("on"):
         out.reasons.append(TURN_ON.format(which="the other " if rest else "your ", n=len(ids),
                                           s="" if len(ids) == 1 else "s"))
@@ -657,9 +702,14 @@ def _free(found, marked: dict[str, str]) -> dict[str, str]:
 def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
     hook = trigger == "hook"
     state = _state(path)
+    if state is not None:
+        state.ci = trigger == "ci"
     if state is None or not state.enough:
         if hook:
             return EXIT_OK
+        if state is None and trigger == "ci" and _committed(path) is not None:
+            said.say(NOT_COMMITTED)
+            return EXIT_NEEDS_YOU
         said.say(NOT_SET_UP.format(n=targets.ROUGH))
         said.say(f"Next: run `{program()}` to mark answers.")
         return EXIT_NEEDS_YOU
@@ -703,7 +753,7 @@ def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
             said.say(line)
         said.say()
         on = ""
-        if not _checks(state.ws).get("on"):
+        if not state.ci and not _checks(state.ws).get("on"):
             on = (f" To let judgekeeper ask their judge, run `{_command(state)} --on`: it opens "
                   "a page where the person can turn on automatic checks.")
         said.say(f"Next: tell the person their judge changed ({short}) and none of their "
@@ -757,7 +807,7 @@ def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": g,
         "smallest_drop": drop, "flipped": flipped}))
     _save_verdicts(state.ws, new, found, tested)
-    judge_setup.save(state.ws, new)
+    judge_setup.save(state.ws, new, found.metric)
     _report(state.ws)
     return EXIT_WORSE if worse else EXIT_OK
 
@@ -924,10 +974,13 @@ def _hook(path: str) -> int:
 
 def run(path: str = ".", fast_only: bool = False, hook: bool = False,
         baseline_only: bool = False, on: bool = False, off: bool = False,
-        port: int | None = None) -> int:
+        port: int | None = None, ci: bool = False) -> int:
     """`judgekeeper check`. Returns the exit code."""
     if fast_only:
         return fast(path, _print)
+    if ci and os.environ.get("GITHUB_ACTIONS") != "true":
+        _print(CI_ONLY)
+        return EXIT_USAGE
     if hook:
         return _hook(path)
     said = Said()
@@ -939,7 +992,8 @@ def run(path: str = ".", fast_only: bool = False, hook: bool = False,
         _print(f"judgekeeper {__version__}")
         _print()
         return turn_off(path, _Printed())
-    code = baseline(path, said) if baseline_only else full(path, said, "by hand")
+    code = (baseline(path, said) if baseline_only
+            else full(path, said, "ci" if ci else "by hand"))
     _print(f"judgekeeper {__version__}")
     _print()
     for line in said.lines:

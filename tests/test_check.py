@@ -74,7 +74,7 @@ def _marked(root, n_pass=25, n_fail=25, agent=False, **kwargs) -> Workspace:
     _results(root, split(n_pass, n_fail), agent=agent, **kwargs)
     found = start.find_judge(root)
     ws = Workspace(root)
-    judge_setup.save(ws, judge_setup.of(found))
+    judge_setup.save(ws, judge_setup.of(found), found.metric)
     ws = start_label.prepare(found, say=_quiet)
     session = StartSession(ws)
     for q in ws.data()["queue"]:

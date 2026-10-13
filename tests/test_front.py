@@ -188,7 +188,7 @@ def test_judge_json_has_every_field(here, capsys):
     promptfoo_project(here, split(20, 16))
     run(capsys)
     data = json.loads((here / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
-    assert set(data) == {"setup", "setup_hash", "first_seen", "judgekeeper_version"}
+    assert set(data) == {"setup", "setup_hash", "first_seen", "judgekeeper_version", "metric"}
     setup = data["setup"]
     assert setup["tool"] == "promptfoo"
     assert "tool_version" in setup and "version_from" in setup

@@ -513,7 +513,7 @@ def _write(found: start.Found) -> None:
     ws = start_label.Workspace(found.root)
     start_label.save_judge_check(ws, found)  # also when it lists nothing: no list stays stale
     if not ws.start.is_file() or judge_setup.read(ws) is None:
-        judge_setup.save(ws, judge_setup.of(found))
+        judge_setup.save(ws, judge_setup.of(found), found.metric)
 
 
 def _changed(ws: Workspace, found: start.Found) -> list[str]:
