@@ -104,7 +104,7 @@ def test_deepeval(here, capsys):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert "Found your eval tool: DeepEval (.deepeval/.latest_run_full.json, 35 answers)" in out
-    assert "Your judge: gpt-4.1, rule " in out
+    assert "Your judge: Correctness [GEval], gpt-4.1, rule " in out
     assert "Your judge passed 18 and failed 17." in out
     assert assert_one_next_at_the_end(out) == START
 

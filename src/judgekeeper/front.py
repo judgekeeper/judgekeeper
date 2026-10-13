@@ -408,7 +408,8 @@ def _one_line(rule: str) -> str:
 
 
 def judge_line(found: start.Found) -> str:
-    parts = [found.metric] if len(found.metrics) > 1 else []
+    # DeepEval's metric always: its name says what the judge checks (GEval's own name)
+    parts = [found.metric] if len(found.metrics) > 1 or found.tool == "deepeval" else []
     if found.models:
         model = ", ".join(found.models)
         if found.model_source == start.GIVEN_BY_YOU:
