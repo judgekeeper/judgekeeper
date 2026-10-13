@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.0b2 (2026-10-13)
+
+judgekeeper now keeps checking your judge by itself, once you turn it on. Run
+`uvx judgekeeper@1.0.0b2`, or `pip install judgekeeper==1.0.0b2` and then `judgekeeper`.
+
+- `judgekeeper check`: when your judge's model, rule, pass mark or eval tool changes, it
+  re-tests the new judge on your marks and says whether it got worse on the answers you passed
+  or failed. Verdicts your newest results already hold are used first, for free.
+- With 25 Pass and 25 Fail marks, a page asks whether to keep checking. Only your click turns
+  it on: it adds a hook for Claude Code and Cursor and a check before each git commit, and asks
+  your judge once to learn how steady it is. On your computer, no judge is asked without it.
+- `judgekeeper` then says what is on. `judgekeeper check --off` takes out exactly what was
+  added and keeps your marks; `judgekeeper check --on` opens the page again.
+- `check --fast`, run by the hooks, reads your results again only when they changed, so it
+  stays quick for every eval tool.
+- The report has a History of every check. A GitHub Action, `action.yml`: `mode: fast` says
+  whether your judge changed (no AI call); `mode: full` re-checks it on marks you commit.
+- The coding-agent skill says that only you turn on automatic checks.
+
 ## 1.0.0b1 (2026-10-12)
 
 First beta of the new judgekeeper: one command, `judgekeeper`, does the next step each time you

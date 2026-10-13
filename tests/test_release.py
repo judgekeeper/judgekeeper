@@ -19,7 +19,7 @@ yaml = pytest.importorskip("yaml")
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
-VERSION = "1.0.0b1"
+VERSION = "1.0.0b2"
 BETA = "Development Status :: 4 - Beta"
 EXAMPLE = ROOT / "docs" / "examples" / "llmbar-haiku"
 
@@ -79,7 +79,7 @@ def test_ci_runs_the_action_from_this_checkout():
 def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = re.findall(r"^## (\S+)", text, flags=re.MULTILINE)
-    assert entries == [VERSION, "0.1.3", "0.1.2", "0.1.1", "0.1.0"]
+    assert entries == [VERSION, "1.0.0b1", "0.1.3", "0.1.2", "0.1.1", "0.1.0"]
 
 
 # Workflows
@@ -279,14 +279,26 @@ def _guide() -> str:
     return (ROOT / "docs" / "guide.md").read_text(encoding="utf-8")
 
 
-def test_changelog_entry_says_what_changed_since_0_1_3():
-    """0.2.0 was never released: the beta's entry says what changed from 0.1.3."""
+def test_changelog_entry_says_what_keeps_checking():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    entry = text[text.index(f"## {VERSION}"):text.index("## 0.1.3")]
+    entry = text[text.index(f"## {VERSION}"):text.index("## 1.0.0b1")]
+    assert len(entry.strip().splitlines()) < 20
+    flat = " ".join(entry.split())
+    for needed in (f"`uvx judgekeeper@{VERSION}`", f"`pip install judgekeeper=={VERSION}`",
+                   "`judgekeeper check`", "`judgekeeper check --off`", "Only your click",
+                   "History", "`action.yml`", "`mode: fast`", "`mode: full`", "skill"):
+        assert needed in flat, needed
+
+
+def test_changelog_entry_says_what_changed_since_0_1_3():
+    """0.2.0 was never released: the first beta's entry says what changed from 0.1.3."""
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    beta = "1.0.0b1"
+    entry = text[text.index(f"## {beta}"):text.index("## 0.1.3")]
     assert len(entry.strip().splitlines()) < 20
     assert "## 0.2.0" not in text
     flat = " ".join(entry.split())
-    for needed in (f"`uvx judgekeeper@{VERSION}`", f"`pip install judgekeeper=={VERSION}`",
+    for needed in (f"`uvx judgekeeper@{beta}`", f"`pip install judgekeeper=={beta}`",
                    "`judgekeeper mark`",
                    "your browser", "TPR, TNR and kappa", "skills/judgekeeper/SKILL.md",
                    "no AI call", "beta", "Removed:", "the pytest plugin", "the GitHub Action"):
@@ -319,13 +331,13 @@ def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
 
 def test_every_install_command_names_the_version_in_pyproject():
     """uv and pip skip betas unless the version is named: `uvx judgekeeper` and `pip install
-    judgekeeper` would get 0.1.3. README, SKILL.md and the changelog's entry name exactly the
-    version in pyproject.toml, so the next beta can't forget it."""
+    judgekeeper` would get 0.1.3. README, SKILL.md and the changelog's newest entry name the
+    exact version in pyproject.toml, so the next beta can't forget it."""
     version = _toml(ROOT / "pyproject.toml")["project"]["version"]
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     texts = {"README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
              "SKILL.md": (ROOT / "skills/judgekeeper/SKILL.md").read_text(encoding="utf-8"),
-             "CHANGELOG.md": changelog[:changelog.index("## 0.1.3")]}
+             "CHANGELOG.md": changelog[:changelog.index("## ", changelog.index("## ") + 3)]}
     for name, text in texts.items():
         uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", text)
         pip = re.findall(r"pip install judgekeeper(==[\w.]+)?", text)

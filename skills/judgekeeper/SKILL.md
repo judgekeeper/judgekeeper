@@ -9,7 +9,7 @@ judgekeeper reads the results the project's LLM-as-a-judge already saved and che
 free. The person marks some answers Pass or Fail on a page in their browser, and judgekeeper
 shows how often the judge agrees with them.
 
-Run `uvx judgekeeper@1.0.0b1` in the project folder (or `judgekeeper` if installed). Each run
+Run `uvx judgekeeper@1.0.0b2` in the project folder (or `judgekeeper` if installed). Each run
 does the next step and ends with one line that starts with `Next:`: follow each `Next:` line.
 Run it again the same way you started it. The person may write little code, so say what you
 are doing in plain words. All flags: `judgekeeper --help`.

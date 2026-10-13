@@ -232,7 +232,7 @@ def test_the_skill_leaves_marking_to_the_person():
 
 def test_the_version_is_1_0_0b1_everywhere():
     main_toml = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert __version__ == main_toml["project"]["version"] == "1.0.0b1"
+    assert __version__ == main_toml["project"]["version"] == "1.0.0b2"
 
 
 # Results in your own format, and after the first result ----------------------------------
