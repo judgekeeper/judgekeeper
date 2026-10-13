@@ -1,6 +1,6 @@
 ---
 name: judgekeeper
-description: Check how often a project's LLM-as-a-judge agrees with human labels (TPR, TNR, kappa) using judgekeeper. Use when a project grades outputs with an LLM judge, eval framework or rubric model and the user asks how often the judge agrees with people, or wants human labels.
+description: "Check how often your LLM-as-a-judge agrees with people: you mark some answers, judgekeeper compares, and then keeps checking it. Use when a project grades outputs with an LLM judge (any model, including open-source ones run locally with Ollama or vLLM) in promptfoo, DeepEval, Inspect, MLflow or its own code, and the user wants to check or keep checking that judge."
 ---
 
 # judgekeeper: check an LLM-as-a-judge against the person's marks
@@ -27,6 +27,8 @@ are doing in plain words. All flags: `judgekeeper --help`.
   Then run the command the `Next:` line names; pass `--yes` only after their yes.
 - Report TPR, TNR and kappa together, with their ranges and the line "this set can see a drop
   of X" judgekeeper prints. Never report raw agreement on its own.
+- Only the person turns on automatic checks: never click "Turn on" or "No thanks" on the
+  page, and never write `checks.json`. Do run `judgekeeper check --off` when the person asks.
 - Keys only in environment variables; never print or write one. Marking and the result make
   no AI call and need no key.
 
@@ -46,6 +48,10 @@ are doing in plain words. All flags: `judgekeeper --help`.
      everything has TPR 1.0 and TNR 0.0.
    - Kappa: agreement beyond chance (1 is perfect, 0 is chance).
    - The ranges, and the smallest drop this set of marks can see.
+5. With 25 Pass and 25 Fail marks, judgekeeper opens a page that asks the person whether it
+   should keep checking the judge by itself. Tell them; only they answer. Once on, it
+   re-checks the judge on their marks when its model, rule, pass mark or eval tool changes,
+   and tells you what it found: pass that on in plain words.
 
 To mark more later: `judgekeeper mark`. To close the page: `judgekeeper --stop`.
 
