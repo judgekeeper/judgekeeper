@@ -445,7 +445,7 @@ def finish(ws: Workspace, say, command: str | None = None) -> None:
 
 def serve_review(ws: Workspace, port: int, open_browser: bool, say,
                  command: str | None = None) -> int:
-    """Serve the review page until the review is done, Ctrl-C or 2 hours idle."""
+    """Serve the review page until the review is done, Ctrl-C or 30 minutes idle."""
     command = command or program("start")
     from judgekeeper import start_fix
 

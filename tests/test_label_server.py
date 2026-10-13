@@ -16,6 +16,7 @@ import pytest
 from judgekeeper import label as label_mod
 from judgekeeper import textio
 from judgekeeper.label import LabelError, LabelServer, LabelSession
+from tests.page_http import retried
 
 # A page as the caller passes it: the server fills in the nonce, the token and the data.
 PAGE = ('<!doctype html><title>labels</title>'
@@ -62,7 +63,6 @@ class Client:
         self.server = server
 
     def request(self, method, path, body=None, token=True, host=None):
-        conn = http.client.HTTPConnection("127.0.0.1", self.server.port, timeout=5)
         if token:
             path += ("&" if "?" in path else "?") + f"token={self.server.token}"
         headers = {"Host": host or f"127.0.0.1:{self.server.port}"}
@@ -70,11 +70,17 @@ class Client:
         if body is not None:
             data = json.dumps(body).encode()
             headers["Content-Type"] = "application/json"
-        conn.request(method, path, body=data, headers=headers)
-        resp = conn.getresponse()
-        payload = resp.read()
-        conn.close()
-        return resp, payload
+
+        def send():
+            conn = http.client.HTTPConnection("127.0.0.1", self.server.port, timeout=5)
+            try:
+                conn.request(method, path, body=data, headers=headers)
+                resp = conn.getresponse()
+                return resp, resp.read()
+            finally:
+                conn.close()
+
+        return retried(send)
 
     def state(self):
         resp, payload = self.request("GET", "/state")
@@ -152,6 +158,30 @@ def test_host_header_must_be_the_bound_address(tmp_path, serve, host):
     resp, _ = client.request("POST", "/label", {"id": "it0", "label": "pass"}, host=host)
     assert resp.status == 403
     assert not out.exists()
+
+
+@pytest.mark.parametrize("method", ["OPTIONS", "PUT", "DELETE", "PATCH", "HEAD", "TRACE"])
+def test_other_methods_get_the_same_checks_then_405(tmp_path, serve, method):
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    resp, _ = client.request(method, "/label", token=False)
+    assert resp.status == 403
+    resp, _ = client.request(method, "/label", host="evil.example")
+    assert resp.status == 403
+    resp, payload = client.request(method, "/label")
+    assert resp.status == 405
+    assert resp.getheader("Allow") == "GET, POST"
+    assert payload == b"" if method == "HEAD" else json.loads(payload)
+    assert not (tmp_path / "labels.csv").exists()
+
+
+def test_no_answer_names_the_python_version(tmp_path, serve):
+    import platform
+
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    for method, token in (("GET", True), ("GET", False), ("OPTIONS", False), ("OPTIONS", True)):
+        resp, _ = client.request(method, "/state", token=token)
+        server = resp.getheader("Server") or ""
+        assert "Python" not in server and platform.python_version() not in server, server
 
 
 def test_labels_are_written_immediately(tmp_path, serve):
@@ -359,6 +389,46 @@ def test_idle_connection_does_not_freeze_the_server(tmp_path, serve, monkeypatch
         assert time.monotonic() - start < 4
     finally:
         idle.close()
+
+
+def test_one_silent_connection_does_not_stall_the_page(tmp_path, serve):
+    """A connection that sends nothing is served on its own: a real request is answered at
+    once, not after the silent one times out."""
+    import socket
+    import time
+
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    idle = socket.create_connection(("127.0.0.1", client.server.port))
+    try:
+        time.sleep(0.3)  # the server has accepted the silent connection
+        start = time.monotonic()
+        assert client.state()["summary"]["n_items"] == 4
+        assert time.monotonic() - start < 1
+    finally:
+        idle.close()
+
+
+@pytest.mark.parametrize("query", ["", "?token=wrong", "?token={token}&x=1"])
+def test_a_refused_post_is_answered_after_its_body_is_read(tmp_path, serve, query):
+    """A POST refused before its body is used (no token, or a path that isn't there) still
+    has its body read: closing a connection with unread data resets it on Windows, and the
+    answer is lost."""
+    import socket
+
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    port = client.server.port
+    path = "/nowhere" if "x=1" in query else "/label"
+    body = json.dumps({"id": "it0", "label": "pass", "pad": "x" * 200_000}).encode()
+    head = (f"POST {path}{query.format(token=client.server.token)} HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{port}\r\nContent-Type: application/json\r\n"
+            f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n").encode()
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
+        s.sendall(head + body)
+        answer = b""
+        while chunk := s.recv(65536):  # a reset raises here instead of ending cleanly
+            answer += chunk
+    assert answer.split(b"\r\n", 1)[0] in (b"HTTP/1.0 403 Forbidden", b"HTTP/1.0 404 Not Found")
+    assert not (tmp_path / "labels.csv").exists()
 
 
 # Stopping by itself once the result is served (the page `judgekeeper start` passes)

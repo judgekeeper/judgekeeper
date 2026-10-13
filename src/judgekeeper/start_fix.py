@@ -1072,7 +1072,7 @@ def finish(fix: Fix, say) -> None:
 
 def serve_fix(ws: Workspace, port: int, open_browser: bool, say,
               command: str | None = None) -> int:
-    """Serve the fix page until Ctrl-C or 2 hours idle."""
+    """Serve the fix page until Ctrl-C or 30 minutes idle."""
     command = command or textio.program("start")
     from judgekeeper.label import make_server
 

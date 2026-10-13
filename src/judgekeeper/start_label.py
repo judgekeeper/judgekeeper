@@ -1108,7 +1108,7 @@ def say_opened(url: str, open_browser: bool, say, command: str | None = None,
 
 def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
                     command: str | None = None) -> int:
-    """Serve the labeling page until the last answer, Ctrl-C or 2 hours idle. `command`
+    """Serve the labeling page until the last answer, Ctrl-C or 30 minutes idle. `command`
     (start.Talk.command) is what the person runs to continue."""
     command = command or program("start")
     from judgekeeper import start_fix, start_review

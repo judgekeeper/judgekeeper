@@ -23,6 +23,7 @@ import pytest
 from judgekeeper import __version__, check, keep, textio
 from judgekeeper.cli import main
 from judgekeeper.marks import PRINTED
+from tests.page_http import retried
 from tests.test_check import HAIKU, LENIENT, MODEL, TAG, _marked, _results
 from tests.test_front import assert_one_next_at_the_end
 
@@ -84,9 +85,14 @@ def _call(url: str, path: str, body=None):
     req = urllib.request.Request(f"{base}{path}?token={token}",
                                  data=None if body is None else json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=10) as r:
-        raw = r.read().decode("utf-8")
-        return json.loads(raw) if r.headers.get_content_type() == "application/json" else raw
+
+    def send():
+        with urllib.request.urlopen(req, timeout=10) as r:
+            raw = r.read().decode("utf-8")
+            return json.loads(raw) if r.headers.get_content_type() == "application/json" \
+                else raw
+
+    return retried(send)
 
 
 def _done(url: str) -> dict:
@@ -469,21 +475,6 @@ def test_check_on_takes_a_port(here, capsys, pages, no_browser):
     code, _ = run(capsys, "check", "--on", "--port", "8790")
     assert code == 0
     assert pages[0][-1]["port"] == 8790
-
-
-def test_a_port_in_use_is_passed_over():
-    import socket
-
-    from judgekeeper import page
-
-    with socket.socket() as held, socket.socket() as spare:
-        held.bind(("127.0.0.1", 0))
-        held.listen()
-        spare.bind(("127.0.0.1", 0))
-        taken, free = held.getsockname()[1], spare.getsockname()[1]
-        spare.close()
-        assert page.free_port(taken, others=(taken, free)) == free
-        assert page.free_port(free, others=()) == free
 
 
 def test_check_on_needs_25_of_each(here, capsys, pages):

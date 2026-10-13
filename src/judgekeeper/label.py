@@ -7,11 +7,16 @@ output, human_label, notes).
 
 Security: the page and every request need a random token from the URL; a request whose Host
 header is not the bound address is refused (DNS rebinding); every displayed string goes
-through textContent, and the data is embedded as JSON with <, > and & escaped. A connection
-that stays silent for CONNECTION_TIMEOUT seconds is dropped. The server stops on Ctrl-C, on a
+through textContent, and the data is embedded as JSON with <, > and & escaped. Each
+connection is read in a thread of its own, so a slow or silent one never holds up the rest;
+it is dropped after CONNECTION_TIMEOUT seconds. Requests are then handled one at a time
+(LabelServer.busy). A POST's body is read before any answer: a connection closed with unread
+data is reset on Windows, and the answer is lost. Any other method (OPTIONS, HEAD...) gets the
+same Host and token checks, then 405; no answer names the Python version. The server stops on Ctrl-C, on a
 POST to /stop (it works the same on every system), and after IDLE_TIMEOUT seconds without a
 request. The project's lock (server.json) holds a separate stop secret, never the token: with
-it a request can only ask whether the page is open (GET /alive) or close it (POST /stop).
+it a request can only ask whether the page is open (GET /alive) or close it (POST /stop). A
+copy of the lock (page.json) lets --stop find the page when server.json is gone.
 POST /printed (with the token) says the link was printed where a coding agent could read it:
 every later mark is stamped so.
 
@@ -41,8 +46,9 @@ import json
 import os
 import secrets
 import sys
+import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from socketserver import TCPServer
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -66,9 +72,8 @@ from judgekeeper.textio import describe_os_error, unwritable_file, write_replaci
 
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
-IDLE_TIMEOUT = 2 * 60 * 60  # seconds
-# Seconds one connection may stay silent. The server handles one connection at a time, so
-# without this a connection that sends nothing (a browser's spare one) would block the rest.
+IDLE_TIMEOUT = 30 * 60  # seconds
+# Seconds one connection may stay silent (a browser's spare one) before it is dropped.
 CONNECTION_TIMEOUT = 5
 MAX_BODY = 1_000_000
 # Seconds a page may take to fetch its result after the last item before the server stops.
@@ -200,6 +205,7 @@ def _json_for_html(data) -> str:
 
 
 LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
+LOCK_COPY = "page.json"  # the same, read when server.json is gone
 ALREADY_OPEN = ("A judgekeeper page is already open for this project. Close it with Ctrl-C in "
                 "its terminal, or run `{program} --stop`.")
 PROBE_TIMEOUT = 2  # seconds to wait for the page named in the lock to answer
@@ -209,28 +215,51 @@ RELEASE_PAUSE = 0.05
 
 def read_lock(folder: Path) -> dict | None:
     """{"pid", "port", "stop", "view"} of the page named in the project's lock, or None.
-    `view` names a page that is not for marking ("keep": the "Turn on" page), else None."""
-    try:
-        lock = json.loads((Path(folder) / LOCK).read_text(encoding="utf-8"))
-        return {"pid": int(lock["pid"]), "port": int(lock["port"]), "stop": str(lock["stop"]),
-                "view": lock.get("view") if isinstance(lock.get("view"), str) else None}
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
+    `view` names a page that is not for marking ("keep": the "Turn on" page), else None.
+    When server.json can't be read, its copy (page.json) is."""
+    for name in (LOCK, LOCK_COPY):
+        try:
+            lock = json.loads((Path(folder) / name).read_text(encoding="utf-8"))
+            view = lock.get("view")
+            return {"pid": int(lock["pid"]), "port": int(lock["port"]),
+                    "stop": str(lock["stop"]), "view": view if isinstance(view, str) else None}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            continue
+    return None
 
 
-def ask(port: int, method: str, path: str, query: dict, body: dict | None = None) -> int | None:
-    """The status the page on `port` answers with, or None when nothing answers. Never
-    through a proxy."""
+def _answer(port: int, method: str, path: str, query: dict,
+            body: dict | None = None) -> tuple[int, bytes] | None:
+    """The status and body the page on `port` answers with, or None when nothing answers.
+    Never through a proxy."""
     conn = http.client.HTTPConnection(HOST, port, timeout=PROBE_TIMEOUT)
     try:
         data = None if body is None else json.dumps(body).encode()
         conn.request(method, f"{path}?{urlencode(query)}", body=data,
                      headers={"Content-Type": "application/json"})
-        return conn.getresponse().status
+        response = conn.getresponse()
+        return response.status, response.read()
     except (OSError, ValueError, http.client.HTTPException):
         return None
     finally:
         conn.close()
+
+
+def ask(port: int, method: str, path: str, query: dict, body: dict | None = None) -> int | None:
+    """The status the page on `port` answers with, or None when nothing answers."""
+    answer = _answer(port, method, path, query, body)
+    return None if answer is None else answer[0]
+
+
+def is_page(port: int) -> bool:
+    """Whether a judgekeeper page listens on `port`: it refuses a request without its token in
+    its own words."""
+    answer = _answer(port, "GET", "/alive", {})
+    try:
+        return answer is not None and answer[0] == 403 and \
+            json.loads(answer[1]) == {"error": "missing or wrong token"}
+    except ValueError:
+        return False
 
 
 def is_open(folder: Path) -> bool:
@@ -251,9 +280,12 @@ def link(port: int, token: str) -> str:
     return f"http://{HOST}:{port}/?token={token}"
 
 
-class _HTTPServer(HTTPServer):
-    """HTTPServer without the host-name lookup it makes when it binds (socket.getfqdn of
-    127.0.0.1), which can hang for many seconds on some machines. The page needs no name."""
+class _HTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer without the host-name lookup it makes when it binds (socket.getfqdn
+    of 127.0.0.1), which can hang for many seconds on some machines. The page needs no name.
+    Closing it waits for no connection: the one being handled holds LabelServer.busy."""
+
+    block_on_close = False
 
     def server_bind(self) -> None:
         TCPServer.server_bind(self)
@@ -280,39 +312,47 @@ class LabelServer:
         self.port = self.httpd.server_address[1]
         self.url = link(self.port, self.token)
         self.last_request = time.monotonic()
+        self.busy = threading.Lock()  # held while a request is handled: one at a time
         self._stopped = False
         self.lock: Path | None = None  # the lock file this server wrote (make_server)
 
     def hold(self, folder: Path, view: str | None = None) -> None:
-        """Write the project's lock: this process, port, stop secret and which page (never
-        the token: a coding agent can read .judgekeeper/)."""
+        """Write the project's lock and its copy: this process, port, stop secret and which
+        page (never the token: a coding agent can read .judgekeeper/)."""
         self.lock = Path(folder) / LOCK
         held = {"pid": os.getpid(), "port": self.port, "stop": self.stop_secret}
-        write_replacing(self.lock, json.dumps({**held, **({"view": view} if view else {})}))
+        text = json.dumps({**held, **({"view": view} if view else {})})
+        write_replacing(self.lock, text)
+        write_replacing(self.lock.with_name(LOCK_COPY), text)
 
     def release(self) -> None:
-        """Remove the lock, when it is still this server's. Windows refuses to delete a file
-        that another process (`mark --stop`, asking whether the page is open) is reading,
-        so a refusal is tried again for a moment."""
+        """Remove the lock and its copy, each when it is still this server's."""
         if self.lock is None:
             return
+        for path in (self.lock, self.lock.with_name(LOCK_COPY)):
+            self._remove(path)
+        self.lock = None
+
+    def _remove(self, path: Path) -> None:
+        """Remove `path` when it holds this server's stop secret. Windows refuses to delete a
+        file that another process (`mark --stop`, asking whether the page is open) is
+        reading, so a refusal is tried again for a moment."""
         for tries in range(RELEASE_TRIES, 0, -1):
             try:
-                if json.loads(self.lock.read_text(encoding="utf-8")).get("stop") == \
+                if json.loads(path.read_text(encoding="utf-8")).get("stop") == \
                         self.stop_secret:
-                    self.lock.unlink()
+                    path.unlink()
                 break
             except FileNotFoundError:
                 break
             except PermissionError as e:
                 if tries == 1:
-                    print(f"judgekeeper: {LOCK} was not removed ({e})", file=sys.stderr)
+                    print(f"judgekeeper: {path.name} was not removed ({e})", file=sys.stderr)
                 time.sleep(RELEASE_PAUSE)
-            except (OSError, ValueError) as e:
-                print(f"judgekeeper: {LOCK} was not removed ({type(e).__name__}: {e})",
+            except (OSError, ValueError, AttributeError) as e:
+                print(f"judgekeeper: {path.name} was not removed ({type(e).__name__}: {e})",
                       file=sys.stderr)
                 break
-        self.lock = None
 
     def serve(self, idle_timeout: float | None = None) -> None:
         """Handle requests until stop(), Ctrl-C, or idle_timeout seconds without a request."""
@@ -323,8 +363,9 @@ class LabelServer:
                 if self.done_at is not None and time.monotonic() - self.done_at > RESULT_WAIT:
                     break
         finally:
-            self.httpd.server_close()
-            self.release()
+            with self.busy:  # a request being handled finishes first
+                self.httpd.server_close()
+                self.release()
 
     def stop(self) -> None:
         self._stopped = True
@@ -350,6 +391,14 @@ def _handler(server: LabelServer):
         def log_message(self, format, *args):
             pass  # quiet: request lines carry the token
 
+        def version_string(self) -> str:
+            return "judgekeeper"  # the Server header: not the Python version
+
+        def __getattr__(self, name: str):
+            if name.startswith("do_"):  # a method with no do_ of its own
+                return self._other
+            raise AttributeError(name)
+
         def _send(self, status: int, body: bytes, content_type: str, extra=None) -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
@@ -361,7 +410,8 @@ def _handler(server: LabelServer):
             for k, v in (extra or {}).items():
                 self.send_header(k, v)
             self.end_headers()
-            self.wfile.write(body)
+            if self.command != "HEAD":
+                self.wfile.write(body)
 
         def _json(self, status: int, data) -> None:
             self._send(status, json.dumps(data, ensure_ascii=False).encode("utf-8"),
@@ -384,7 +434,32 @@ def _handler(server: LabelServer):
             self._json(403, {"error": "missing or wrong token"})
             return False
 
+        def _body(self) -> bytes | None:
+            """The request's body, read before any answer (see the module's docstring); None
+            when it has no length that can be read."""
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return None
+            return self.rfile.read(length) if 0 < length <= MAX_BODY else None
+
         def do_GET(self):
+            with server.busy:
+                self._get()
+
+        def do_POST(self):
+            body = self._body()
+            with server.busy:
+                self._post(body)
+
+        def _other(self):
+            self._body()
+            with server.busy:
+                if self._allowed(urlsplit(self.path)):
+                    self._send(405, b'{"error": "method not allowed"}',
+                               "application/json; charset=utf-8", {"Allow": "GET, POST"})
+
+        def _get(self):
             url = urlsplit(self.path)
             if not self._allowed(url):
                 return
@@ -427,7 +502,7 @@ def _handler(server: LabelServer):
             else:
                 self._json(404, {"error": "not found"})
 
-        def do_POST(self):
+        def _post(self, raw: bytes | None):
             url = urlsplit(self.path)
             if not self._allowed(url):
                 return
@@ -448,9 +523,9 @@ def _handler(server: LabelServer):
                 too_long = getattr(server.session, "too_long", {})
                 if length > MAX_BODY and url.path in too_long:
                     raise ValueError(too_long[url.path])
-                if not 0 < length <= MAX_BODY:
+                if raw is None:
                     raise ValueError("expected a JSON body")
-                body = json.loads(self.rfile.read(length))
+                body = json.loads(raw)
                 if not isinstance(body, dict):
                     raise TypeError("expected a JSON object")
                 if url.path == "/label" and not isinstance(body.get("id"), str):
