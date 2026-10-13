@@ -29,7 +29,7 @@ import re
 import sys
 import textwrap
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from judgekeeper import find, judge_check, settings, targets, textio
@@ -846,7 +846,38 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
             f"Several tools found; choose one with {_or([f'--tool {t}' for t in available])}",
             flag="--tool", values=available, what="which eval tool's results to check")]
         _next_time(talk, "--tool", kind)
+    if root.name == find.HIDDEN_KEPT:  # a .deepeval/ folder: its project is the one it is in
+        root = root.parent
+        return root, kind, [replace(r, rel=r.path.relative_to(root).as_posix())
+                            for r in by_date[kind]], found.signs
     return root, kind, by_date[kind], found.signs
+
+
+def _eval_folder(result: find.Result) -> str | None:
+    """The folder DeepEval saved a results file in (a .deepeval/ or results folder): one
+    eval. None for a file under a name of its own (a run copied out), read with any."""
+    name = result.path.name
+    if name in find.DEEPEVAL_COPIES or find.DEEPEVAL_RUN.fullmatch(name):
+        return Path(result.rel).parent.as_posix()
+    return None
+
+
+def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None) -> list:
+    """DeepEval results in more than one folder are separate evals, never one pool: the
+    results of one folder, the last check's (`prefer`) or the one the person picks."""
+    folders = list(dict.fromkeys(f for f in map(_eval_folder, results) if f))  # newest first
+    if len(folders) < 2:
+        return results
+    if prefer not in folders:
+        shown = [f"{f}/ ({_where(next(r for r in results if _eval_folder(r) == f))})"
+                 for f in folders]
+        commands = [talk.command_at(f) for f in folders]
+        prefer = folders[talk.choose(
+            "DeepEval results in more than one folder:", shown,
+            f"DeepEval results in more than one folder; choose one with {_or(commands)}",
+            flag="PATH", values=folders, what="which DeepEval results to check")]
+        talk.remember("PATH", prefer, f"(Next time: {talk.command_at(prefer)})")
+    return [r for r in results if _eval_folder(r) in (prefer, None)]
 
 
 def _too_big(talk: Talk, found: find.Search) -> Stop:
@@ -1133,6 +1164,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         prefer = prefer or saved.judge
     if saved is not None and saved.source == "mlflow":  # the store and experiment asked once
         store, experiment = store or saved.file, experiment or saved.experiment
+    if saved is not None and saved.source == "deepeval":  # the folder asked once
+        store = store or saved.file
     if tracking_uri is not None:
         root, kind, results, signs = _given_store(talk, Path(path), tracking_uri)
     elif saved is not None and saved.source == "map":
@@ -1141,6 +1174,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         root, kind, results, signs = _locate(talk, Path(path), tool)
     if kind == "mlflow":
         results = _choose_store(talk, root, results, experiment, store)
+    elif kind == "deepeval":
+        results = _choose_folder(talk, results, store)
     newest = results[0]
     description = None
     name = None
