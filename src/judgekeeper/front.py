@@ -314,6 +314,8 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     terminal = start._interactive()
     if found.tool == "inspect" and "P" in values:  # model_graded_qa(partial_credit=True)
         n = found.pool.n_unmapped.get(repr("P"), 0)
+        talk.say(found_line(found))  # what was found, before the question
+        talk.say(judge_line(found))
         talk.say(f"Inspect gave partial credit (P) on {_n(n, 'answer')}.")
         if not terminal:
             raise talk.stop(EXIT_QUESTION, (
