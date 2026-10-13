@@ -15,14 +15,19 @@ What a stranger does, with nobody at the keyboard and no API key:
    `judgekeeper --version` must say the version.
 3. The eval tool installed into the project, and real results made with it. Every judge talks
    to a fake judge this script serves on 127.0.0.1: an OpenAI-compatible API and Ollama's own,
-   which pass questions 1 to 28 and fail 29 to 40, so the numbers are known.
+   which pass questions 1 to 28 and fail 29 to 50, so the numbers are known.
 4. The way a person goes: `judgekeeper` (the first look and the page in the background; with
-   no browser and no terminal its link is printed), every answer marked on the page,
-   `judgekeeper` again for the result, `judgekeeper --stop`; then `judgekeeper start`: the
+   no browser and no terminal its link is printed), every answer marked on the page (25 Pass,
+   25 Fail), `judgekeeper` again for the result and the page that turns on automatic checks
+   (opened in a fake browser: BROWSER names a script that keeps the link, so it is never
+   printed), "Turn on" clicked with the page's token, the status, `judgekeeper --stop`; then
+   `judgekeeper start`: the
    review, Fix your judge (the coding-agent prompt, then a new rule saved with --rule-file),
    the new rule put in the tool's own file and the tool run again, Try your new judge, and Ask
-   your judge again. judgekeeper's input is a closed pipe; the pages are used through their
-   own HTTP calls, with a stand-in person whose marks are fixed.
+   your judge again; then, with the new rule in the results, `check --fast` (exit 3), `check`
+   (the re-check on the marks), the report's History and `check --off`. judgekeeper's input
+   is a closed pipe; the pages are used through their own HTTP calls, with a stand-in person
+   whose marks are fixed.
 5. Every command's output, then "N of N steps OK". Exit 1 on any failed step or "Traceback".
 
 Tools: table, promptfoo, deepeval, inspect, mlflow, record (your own judge code with
@@ -61,9 +66,14 @@ UVX_TOOLS = ("table", "promptfoo", "own-format", "promptfoo-ollama")  # nothing 
 WIN = os.name == "nt"
 MARKER = ".made-by-install-check"  # only a folder holding this file is ever removed
 
-N = 40
-JUDGE_PASSES = frozenset(range(1, 29))  # the fake judge passes 1-28 and fails 29-40
-PERSON_PASSES = frozenset(range(1, 23)) | {31, 32, 33}  # the stand-in: 25 Pass, 15 Fail
+N = 50
+JUDGE_PASSES = frozenset(range(1, 29))  # the fake judge passes 1-28 and fails 29-50
+PERSON_PASSES = frozenset(range(1, 23)) | {31, 32, 33}  # the stand-in: 25 Pass, 25 Fail
+FAST_RUNS = 5  # times `check --fast` is timed with no change
+FAST_LIMIT = 0.3  # seconds: the no-change path, installed in a venv on Linux
+# Results judgekeeper reads through the tool's own package (inspect_ai, mlflow): loading it
+# takes longer than FAST_LIMIT, so their time is printed, not held to it.
+READ_BY_PACKAGE = ("inspect", "mlflow", "inspect-ollama")
 RULE_OLD = "Pass only if the answer gives the right sum."
 RULE_NEW = "Pass only if the answer gives the right sum, written as a number."
 WHY = {"pass": "The sum is right.", "fail": "The sum in the answer is wrong."}
@@ -289,6 +299,7 @@ class Check:
             self.py = self.bin / ("python.exe" if WIN else "python")
             self.jk = [str(self.bin / ("judgekeeper.exe" if WIN else "judgekeeper"))]
         self.steps: list[tuple[str, bool, str]] = []
+        self.browser_folder: Path | None = None  # the fake browser's (fake_browser)
         self.judge = FakeJudge()
         self.env = dict(os.environ)
         for name in ("VIRTUAL_ENV", "PYTHONHOME", "PYTHONPATH", "CONDA_PREFIX"):
@@ -321,7 +332,8 @@ class Check:
     def which(self, name: str) -> str:
         return shutil.which(name, path=self.env.get("PATH")) or name
 
-    def run(self, name: str, args, ok_codes=(0,), expect=(), timeout=900, record=True):
+    def run(self, name: str, args, ok_codes=(0,), expect=(), timeout=900, record=True,
+            env=None):
         """Run a command in the project with a closed input; check its exit code, that the
         output holds every pattern in `expect`, and that nothing printed a traceback."""
         args = [str(a) for a in args]
@@ -330,7 +342,7 @@ class Check:
             p = subprocess.run(args, check=False, cwd=self.project, input="",
                                capture_output=True,
                                text=True, encoding="utf-8", errors="replace",
-                               timeout=timeout, env=self.env)
+                               timeout=timeout, env=env or self.env)
         except subprocess.TimeoutExpired as e:
             out = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) \
                 else e.stdout or ""
@@ -404,9 +416,10 @@ class Check:
     def start(self, *flags) -> list[str]:
         return [*self.jk, "start", *flags, "--port", self.port]
 
-    def front(self, *flags) -> list[str]:
-        """`judgekeeper` with no command; the page's link printed, never a browser."""
-        return [*self.jk, *flags, "--no-browser", "--port", self.port]
+    def front(self, *flags, browser: bool = False) -> list[str]:
+        """`judgekeeper` with no command; the page's link printed, never a browser (with
+        `browser`, the fake one fake_browser makes)."""
+        return [*self.jk, *flags, *([] if browser else ["--no-browser"]), "--port", self.port]
 
     # The page's own HTTP calls
 
@@ -747,18 +760,135 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         except Exception as e:  # noqa: BLE001 - any failure is this step's failure
             ok, detail = False, f"({type(e).__name__}: {e})"
         self.step("2. the stand-in person marks every answer on the page", ok, detail)
-        self.mark_step("2. judgekeeper prints the result", self.front(),
-                       [r"Your marks: 40 \(25 Pass, 15 Fail\), made on the page",
-                        r"Of the answers you passed, your judge passed",
-                        r"Of the answers you failed, your judge failed",
-                        r"This set can see a drop of", r"still open", *uvx])
+        self.keep_watch(uvx)
         self.mark_step("2. judgekeeper --stop closes the page", [*self.jk, "--stop"],
-                       [r"Closed the marking page"])
+                       [r"Closed the judgekeeper page"])  # the Turn on page is open now
 
-    def mark_step(self, name: str, args, expect):
+    def fake_browser(self) -> tuple[dict, Path]:
+        """An environment whose BROWSER is a script that keeps each link it is given in a
+        file (Python's webbrowser runs it with the link), and that file. It lives in a folder
+        with no space in its path, which this script removes."""
+        import tempfile
+
+        folder = Path(tempfile.mkdtemp(prefix="jk-browser-"))
+        (folder / MARKER).write_text("", encoding="utf-8")
+        self.browser_folder = folder
+        links = folder / "links.txt"
+        if WIN:
+            script = folder / "browser.cmd"
+            # %* whole: cmd.exe splits an argument at "=", and the link holds "token=".
+            script.write_text(f'@echo off\r\n>>"{links}" echo %*\r\n', encoding="utf-8")
+        else:
+            import shlex
+
+            script = folder / "browser"
+            script.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$1\" >> {shlex.quote(str(links))}\n",
+                              encoding="utf-8")
+            script.chmod(0o755)
+        return {**self.env, "BROWSER": str(script)}, links
+
+    def keep_watch(self, uvx: list[str]):
+        """The result opens the page that turns on automatic checks in the (fake) browser: the
+        link is never printed. "Turn on" is clicked with the page's token, as marks are; the
+        page sets up the hooks and asks the judge once. Then `judgekeeper` says what was set
+        up, then the status, and `check --fast` with no change is timed."""
+        env, links = self.fake_browser()
+        expect = [r"Your marks: 50 \(25 Pass, 25 Fail\), made on the page",
+                  r"Of the answers you passed, your judge passed",
+                  r"Of the answers you failed, your judge failed",
+                  r"This set can see a drop of",
+                  r"turns on automatic checks is open in your browser",
+                  r"Next: ask the person if judgekeeper should keep checking", *uvx]
+        p = self.mark_step("2. judgekeeper prints the result and opens the Turn on page",
+                           self.front(browser=True), expect, env=env)
+        try:
+            shown = links.read_text(encoding="utf-8").split()
+        except OSError:
+            shown = []
+        link = page_link(shown[-1]) if shown else None
+        self.step("2. the fake browser got the link, and it was not printed",
+                  link is not None and p is not None and "token=" not in p.stdout,
+                  f"({len(shown)} links)")
+        if link is None:
+            return
+        try:
+            state = self.call(*link, "/turn-on", {"allow_agent_judge": False})
+            deadline = time.monotonic() + 600
+            while state.get("phase") == "asking" and time.monotonic() < deadline:
+                time.sleep(1)
+                state = self.call(*link, "/state")
+            lines = state.get("lines") or []
+            print("\n".join(f"  page: {x}" for x in lines), flush=True)
+            ok = state.get("phase") == "done" and bool(lines) and lines[0].startswith(
+                "Keeping watch.")
+            detail = f"(phase {state.get('phase')})"
+        except Exception as e:  # noqa: BLE001 - any failure is this step's failure
+            ok, detail = False, f"({type(e).__name__}: {e})"
+        self.step("2. Turn on, clicked on the page with its token", ok, detail)
+        try:
+            checks = json.loads((self.project / ".judgekeeper" / "checks.json")
+                                .read_text(encoding="utf-8"))
+            settings = json.loads((self.project / ".claude" / "settings.local.json")
+                                  .read_text(encoding="utf-8"))
+            hook = settings["hooks"]["PostToolUse"][0]["hooks"][0]
+        except (OSError, ValueError, KeyError, IndexError) as e:
+            checks, hook = {}, {"error": f"{type(e).__name__}: {e}"}
+        if self.via == "uvx":
+            pinned = hook.get("command") == "uvx" and \
+                (hook.get("args") or [""])[0] == f"judgekeeper@{self.version}"
+        else:
+            pinned = str(hook.get("command", "")).startswith("${CLAUDE_PROJECT_DIR}/.venv/")
+        self.step("2. checks.json is on, the agent hook runs this judgekeeper",
+                  checks.get("on") is True and pinned, f"({json.dumps(hook)[:300]})")
+        self.run("2. judgekeeper says what Turn on set up, once", self.front(),
+                 expect=[r"Automatic checks: ON\. The person turned them on on the page",
+                         r"Added the agent hook to \.claude/settings\.local\.json",
+                         r"Keeping watch\.", r"Next: nothing\. Tell the person: "])
+        self.run("2. judgekeeper says the status", self.front(),
+                 expect=[r"Automatic checks: ON since", r"Runs when: your judge changes",
+                         r"To turn automatic checks off: .*check --off",
+                         r"Next: nothing\. Tell the person what is on"])
+        times = []
+        for _ in range(FAST_RUNS):
+            began = time.perf_counter()
+            p = self.run("check --fast, no change", [*self.jk, "check", "--fast"],
+                         record=False)
+            times.append(time.perf_counter() - began)
+            if p is None or p.returncode != 0:
+                break
+        fastest = min(times)
+        limited = (self.via == "venv" and sys.platform.startswith("linux")
+                   and self.tool not in READ_BY_PACKAGE)
+        self.step("2. check --fast with no change", bool(p) and p.returncode == 0
+                  and (not limited or fastest < FAST_LIMIT),
+                  f"(fastest of {len(times)}: {fastest * 1000:.0f} ms via {self.via}"
+                  + (f"; limit {FAST_LIMIT * 1000:.0f} ms)" if limited else ")"))
+
+    def recheck(self):
+        """The new rule is in the results: `check --fast` sees it, `check` re-tests it on the
+        marks, the report holds the check, and `check --off` takes out the hooks."""
+        self.run("7. check --fast sees the judge changed", [*self.jk, "check", "--fast"],
+                 ok_codes=(3,), expect=[r"Your (judge|eval tool) changed",
+                                        r"Next: run `.*check`"])
+        self.run("8. check re-tests the new judge on the marks", [*self.jk, "check"],
+                 expect=[r"Re-checked on (your 50|\d+ of your 50) marks",
+                         r"Answers you passed:", r"Answers you failed:"])
+        report = self.project / ".judgekeeper" / "report.html"
+        try:
+            html = report.read_text(encoding="utf-8")
+        except OSError:
+            html = ""
+        self.step("8. report.html has the check in its History", "<h3>History</h3>" in html)
+        self.run("9. check --off takes out what Turn on added", [*self.jk, "check", "--off"],
+                 expect=[r"Automatic checks: OFF\.",
+                         r"Removed: the agent hook in \.claude/settings\.local\.json"])
+        self.step("9. the agent hook is gone",
+                  not (self.project / ".claude" / "settings.local.json").exists())
+
+    def mark_step(self, name: str, args, expect, env=None):
         """A step that opens or closes the page; when it fails, what the page's own process
         wrote to .judgekeeper/page.log, and whether its lock is still there."""
-        p = self.run(name, args, expect=expect)
+        p = self.run(name, args, expect=expect, env=env)
         if self.steps and not self.steps[-1][1]:
             folder = self.project / ".judgekeeper"
             try:
@@ -813,6 +943,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
                  else ["--fields", "input,actual_output"] if self.tool == "deepeval" else [])
         self.plan_then_go("5. try your new judge", ["--try-new-judge", *extra])
         self.plan_then_go("6. ask your judge again", ["--ask-again", "--times", "1", *extra])
+        self.recheck()
 
     def fix_rule(self):
         """Fix your judge as a coding agent does: the terminal's prompt, then a new rule
@@ -895,7 +1026,9 @@ def main(argv=None) -> int:
         check.judge.stop()
     code = check.summary()
     if not args.keep:
-        for folder in (check.project, check.dist):
+        for folder in (check.project, check.dist, check.browser_folder):
+            if folder is None:
+                continue
             try:
                 remove_own(folder)
             except OSError as e:

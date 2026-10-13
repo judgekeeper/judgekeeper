@@ -61,6 +61,7 @@ from judgekeeper import (
     find,
     judge_check,
     judge_setup,
+    keep,
     marks,
     own_format,
     page,
@@ -107,6 +108,18 @@ NEXT_OPEN = ("tell the person the marking page is open in their browser, and to 
 NEXT_LINK = ("give the person the link above and ask them to mark answers until the page says "
              "it has enough. When they say they are done, run `{command}` again.")
 NEXT_RESULT = "nothing. Tell the person the result above. To mark more, run `{command}`."
+KEEP_OPEN = "The page that turns on automatic checks is open in your browser."
+NEXT_KEEP = ("ask the person if judgekeeper should keep checking their judge by itself. They "
+             "answer on the page open in their browser (only they can turn this on). Then run "
+             "`{command}` again.")
+NEXT_KEEP_LINK = ("give the person the link above and ask if judgekeeper should keep checking "
+                  "their judge by itself; they answer on that page. Then run `{command}` again.")
+NO_KEEP_PAGE = ("judgekeeper could not open a browser here, and only the person can turn on "
+                "automatic checks.")
+NEXT_TERMINAL = "ask the person to run `{command}` in their own terminal."
+KEEP_FAILED = ("The page that turns on automatic checks could not start in the background "
+               "(what went wrong is in {log}).")
+NEXT_STATUS = "nothing. Tell the person what is on, and how to turn it off."
 COULD_NOT = ("ask the person to run {command} in their own terminal (it keeps the page open "
              "there).")
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -724,6 +737,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         talk.say(line)
     if head:
         talk.say()
+    if enough and not marking and keep.is_on(ws):
+        return _status(talk, ws, saved, check=bool(changed))
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, check=bool(changed))
     return _page(talk, ws, counts, wait, saved, enough)
@@ -841,8 +856,18 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     if drop:
         talk.say(drop)
     talk.say(f"Report: {shown_folder(ws)}/{ws.report_html.name}")
+    least = min(r["labels"]["correct"], r["labels"]["wrong"])
+    offer = not check and not wait and not keep.answered(ws) and least >= targets.RELIABLE
+    if not check and keep.answered(ws):
+        talk.say(keep.OFF_LINE.format(command=_check_command(talk) + " --on"))
+    elif not check and least < targets.RELIABLE:
+        talk.say(keep.MARK_MORE)
+    if offer:
+        return _offer(talk, ws, saved)
     opened = None
-    if is_open(ws.dir):
+    if is_open(ws.dir) and page.name_of(ws.dir) != "the marking page":
+        talk.say("The judgekeeper page is still open.")
+    elif is_open(ws.dir):
         talk.say("The marking page is still open, if they want to mark more.")
     elif wait:
         opened, _ = _open(talk, ws, wait, saved)
@@ -857,6 +882,57 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     return EXIT_OK
 
 
+def open_keep(say, ws: Workspace, port: int, no_browser: bool) -> str | None:
+    """The "Turn on" page in the background, shown (page.show): how it was shown, or None
+    when it could not start (said). Its link is never printed for a coding agent: only the
+    person may answer it (page.NOT_SHOWN, said). On the default port, a free one is found
+    when it is taken."""
+    if port == DEFAULT_PORT:
+        port = page.free_port(port)
+    opened = page.open_new(ws, port, program(), program("start"), view=page.KEEP)
+    shown = opened and page.show(say, opened, no_browser, wait=False, opened=KEEP_OPEN,
+                                 name="Turn-on page", for_agent=False)
+    if shown == page.NOT_SHOWN:
+        background.stop(ws.dir)
+        say(NO_KEEP_PAGE)
+        return shown
+    if not shown:
+        if opened is not None:
+            background.stop(ws.dir)
+        say(KEEP_FAILED.format(log=f"{shown_folder(ws)}/{background.LOG}"))
+    return shown or None
+
+
+def _offer(talk: FrontTalk, ws: Workspace, saved: bool) -> int:
+    """After a result with enough marks, the first time: the "Turn on" page."""
+    shown = open_keep(talk.say, ws, talk.options["port"], talk.options["no_browser"])
+    talk.say()
+    command = _command_of(talk, saved)
+    if shown is None:
+        talk.say("Next: " + NEXT_RESULT.format(command=_command_of(talk, saved, "mark")))
+    elif shown == page.NOT_SHOWN:
+        talk.say("Next: " + NEXT_TERMINAL.format(command=_check_command(talk) + " --on"))
+    elif shown == page.BROWSER:
+        talk.say("Next: " + NEXT_KEEP.format(command=command))
+    else:
+        talk.say("Next: " + NEXT_KEEP_LINK.format(command=command))
+    return EXIT_OK
+
+
+def _status(talk: FrontTalk, ws: Workspace, saved: bool, check: bool) -> int:
+    """Automatic checks are on: the result is saved (report.html), and the status said; the
+    first time after the click, what it set up instead."""
+    start_label.store_result(ws, StartSession(ws), _command_of(talk, saved, "start"))
+    first = not keep.told(ws)
+    lines = keep.tell(ws) if first else keep.status_lines(ws, _check_command(talk))
+    for line in lines:
+        talk.say(line)
+    talk.say()
+    talk.say("Next: " + (NEXT_CHECK.format(command=_check_command(talk)) if check
+                         else keep.NEXT_SET_UP if first else NEXT_STATUS))
+    return EXIT_OK
+
+
 def _stop(talk: FrontTalk, path: Path) -> int:
     """--stop: close the page open for this project."""
     if not path.exists():
@@ -865,13 +941,14 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
         raise talk.stop(EXIT_OK, f"nothing. Run `{talk.command()}` to open it.")
+    name = page.name_of(ws.dir)
     if not background.stop(ws.dir):
-        talk.say("The marking page did not close.")
+        talk.say(f"{name[:1].upper()}{name[1:]} did not close.")
         raise talk.stop(EXIT_QUESTION, "ask the person to close it with Ctrl-C in the terminal "
                                        "it runs in; else it closes by itself after 2 hours "
                                        "without a click.")
     saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
-    talk.say(f"Closed the marking page.{saved}")
+    talk.say(f"Closed {name}.{saved}")
     raise talk.stop(EXIT_OK, f"nothing. Run `{talk.command()}` to open it again.")
 
 

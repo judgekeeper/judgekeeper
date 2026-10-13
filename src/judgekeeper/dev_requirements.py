@@ -31,6 +31,8 @@ class Change:
     text: str  # the line in the list
     apply: Callable[[], None] | None  # None: nothing to change, only something to know
     done: str = ""
+    file: str = ""  # the file it changes
+    where: str = ""  # that file, in words
 
 
 _LISTED_TOML = re.compile(r"""["']judgekeeper\s*(?:["'\[<>=!~;@ ])""", re.IGNORECASE)
@@ -65,9 +67,10 @@ def _nested(data: dict, keys: tuple):
     return data
 
 
-def _added(text: str, header: str) -> str | None:
-    """pyproject.toml's text with "judgekeeper" added to the `dev = [...]` list of the table
-    `header`, or None when the list is not where or how judgekeeper edits it."""
+def _added(text: str, header: str, spec: str = "judgekeeper") -> str | None:
+    """pyproject.toml's text with `spec` ("judgekeeper" or "judgekeeper==<version>") added to
+    the `dev = [...]` list of the table `header`, or None when the list is not where or how
+    judgekeeper edits it."""
     eol = line_ending(text)  # new lines end as the file's lines do
     lines = text.splitlines(keepends=True)
     start = next((i for i, line in enumerate(lines)
@@ -85,8 +88,8 @@ def _added(text: str, header: str) -> str | None:
     if "]" in line:  # one line: dev = ["pytest"]
         close = line.rindex("]")
         inside = line[line.index("[") + 1:close].strip()
-        item = '"judgekeeper"' if not inside else (
-            ' "judgekeeper"' if inside.endswith(",") else ', "judgekeeper"')
+        item = f'"{spec}"' if not inside else (
+            f' "{spec}"' if inside.endswith(",") else f', "{spec}"')
         lines[at] = line[:close].rstrip() + item + line[close:] if inside else \
             line[:close] + item + line[close:]
         return "".join(lines)
@@ -97,20 +100,21 @@ def _added(text: str, header: str) -> str | None:
     if any("#" in lines[i] for i in items):
         return None
     if not items:
-        lines.insert(close, f'    "judgekeeper",{eol}')
+        lines.insert(close, f'    "{spec}",{eol}')
         return "".join(lines)
     last = items[-1]
     indent = lines[last][:len(lines[last]) - len(lines[last].lstrip())]
     trailing = lines[last].rstrip().endswith(",")
     if not trailing:
         lines[last] = lines[last].rstrip("\r\n") + "," + eol
-    lines.insert(last + 1, f'{indent}"judgekeeper"{"," if trailing else ""}{eol}')
+    lines.insert(last + 1, f'{indent}"{spec}"{"," if trailing else ""}{eol}')
     return "".join(lines)
 
 
-def requirements_change(root: Path) -> Change | None:
-    """Adding judgekeeper to the first dev requirements form the project has. None when it is
-    listed already; a Change with nothing to apply when there is no form to add it to."""
+def requirements_change(root: Path, spec: str = "judgekeeper") -> Change | None:
+    """Adding `spec` (judgekeeper, maybe pinned) to the first dev requirements form the project
+    has. None when judgekeeper is listed already; a Change with nothing to apply when there is
+    no form to add it to."""
     if _listed(root):
         return None
     pyproject = root / "pyproject.toml"
@@ -124,9 +128,9 @@ def requirements_change(root: Path) -> Change | None:
             old = _nested(data, keys)
             if not isinstance(old, list):
                 continue
-            new = _added(text, header)
+            new = _added(text, header, spec)
             want = copy.deepcopy(data)
-            _nested(want, keys[:-1])[keys[-1]] = [*old, "judgekeeper"]
+            _nested(want, keys[:-1])[keys[-1]] = [*old, spec]
             try:
                 ok = new is not None and tomllib.loads(new) == want
             except tomllib.TOMLDecodeError:
@@ -137,7 +141,7 @@ def requirements_change(root: Path) -> Change | None:
                               f"{where} yourself", None)
             return Change(f"add judgekeeper to {where}",
                           lambda new=new: write_keeping(pyproject, new),
-                          f"Added judgekeeper to {where}")
+                          f"Added judgekeeper to {where}", "pyproject.toml", where)
     for name in ("requirements-dev.txt", "requirements-dev.in"):
         path = root / name
         if path.is_file():
@@ -146,9 +150,10 @@ def requirements_change(root: Path) -> Change | None:
             def apply(path=path, text=text):  # in the file's own line endings
                 eol = line_ending(text)
                 before = text if not text or text.endswith("\n") else text + eol
-                write_keeping(path, before + "judgekeeper" + eol)
+                write_keeping(path, before + spec + eol)
 
-            return Change(f"add judgekeeper to {name}", apply, f"Added judgekeeper to {name}")
+            return Change(f"add judgekeeper to {name}", apply, f"Added judgekeeper to {name}",
+                          name, name)
     return Change(NOT_LISTED, None)
 
 

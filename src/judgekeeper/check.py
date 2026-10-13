@@ -36,6 +36,10 @@ hooks) reads the hook's JSON on stdin and answers in hook JSON: the lines for th
 (`additionalContext`) and one short line for the person (`systemMessage`), only when
 something changed; it always exits 0 (the JSON is read only then, and 2 would block).
 
+`--on` opens the "Turn on" page (keep.py), where only the person's click turns automatic
+checks on; it needs 25 Pass and 25 Fail marks. `--off` takes out exactly what turning on
+added; anyone may run it. Both keep the marks, history and verdicts.
+
 `--baseline` (hidden; the page runs it after "Turn on") asks the current judge once about
 every marked answer: its verdicts become the old ones the next check compares with, and how
 often they differ from the original eval run is the judge's measured steadiness, which the
@@ -56,7 +60,7 @@ from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_value
 from judgekeeper.start_label import Workspace
-from judgekeeper.textio import plural, program, quote_arg, write_replacing
+from judgekeeper.textio import describe_os_error, plural, program, quote_arg, write_replacing
 
 EXIT_OK, EXIT_WORSE, EXIT_NEEDS_YOU = 0, 1, 3
 CHECKS = "checks.json"  # written only by the "Turn on" page
@@ -237,11 +241,9 @@ def fast(path: str, say) -> int:
 # Asking the judge -------------------------------------------------------------------------------
 
 def _checks(ws: Workspace) -> dict:
-    try:
-        data = json.loads((ws.dir / CHECKS).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
+    from judgekeeper import keep
+
+    return keep.read(ws)
 
 
 def _today() -> str:
@@ -544,8 +546,12 @@ def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
         for line in asked.reasons:
             said.say(line)
         said.say()
+        on = ""
+        if not _checks(state.ws).get("on"):
+            on = (f" To let judgekeeper ask their judge, run `{_command(state)} --on`: it opens "
+                  "a page where the person can turn on automatic checks.")
         said.say(f"Next: tell the person their judge changed ({short}) and none of their "
-                 "marked answers could be re-checked yet.")
+                 f"marked answers could be re-checked yet.{on}")
         said.person = (f"judgekeeper: your judge changed ({short}); it could not be re-checked "
                        "yet.")
         return EXIT_NEEDS_YOU
@@ -596,6 +602,7 @@ def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
         "smallest_drop": drop, "flipped": flipped}))
     _save_verdicts(state.ws, new, found, tested)
     judge_setup.save(state.ws, new)
+    _report(state.ws)
     return EXIT_WORSE if worse else EXIT_OK
 
 
@@ -640,6 +647,74 @@ def baseline(path: str, said: Said) -> int:
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": None,
         "smallest_drop": drop, "flipped": flipped, "right": right}))
     _save_verdicts(state.ws, new, found, asked.verdicts)
+    _report(state.ws)
+    return EXIT_OK
+
+
+def _report(ws: Workspace) -> None:
+    """report.html again, with this check in its History (when there is a result)."""
+    from judgekeeper.start_label import write_report
+
+    try:
+        write_report(ws)
+    except OSError:
+        pass  # the check is saved; the report catches up with the next result
+
+
+# On and off -------------------------------------------------------------------------------------
+
+def turn_on_page(path: str, said: Said, port: int | None = None) -> int:
+    """`check --on`: the "Turn on" page, opened in the person's browser."""
+    from judgekeeper import front, keep, page
+    from judgekeeper.label import DEFAULT_PORT
+
+    state = _state(path)
+    least = min(list(state.marks.values()).count(k) for k in ("pass", "fail")) if state else 0
+    if state is None or least < targets.RELIABLE:
+        said.say(keep.MARK_MORE)
+        said.say()
+        said.say(f"Next: run `{program('mark')}` and ask the person to mark answers until they "
+                 f"have {targets.RELIABLE} Pass and {targets.RELIABLE} Fail.")
+        return EXIT_NEEDS_YOU
+    if keep.is_on(state.ws):
+        said.say("Automatic checks are already on.")
+        said.say()
+        said.say(f"Next: nothing. Tell the person automatic checks are on; `{program()}` says "
+                 "what they do.")
+        return EXIT_OK
+    shown = front.open_keep(said.say, state.ws, port or DEFAULT_PORT, no_browser=False)
+    said.say()
+    if shown is None or shown == page.NOT_SHOWN:
+        said.say("Next: " + front.NEXT_TERMINAL.format(command=f"{_command(state)} --on"))
+        return EXIT_NEEDS_YOU
+    again = " ".join((program(), *([] if str(path) == "." else [quote_arg(path)])))
+    said.say("Next: " + (front.NEXT_KEEP if shown == "browser" else front.NEXT_KEEP_LINK)
+             .format(command=again))
+    return EXIT_OK
+
+
+def turn_off(path: str, said: Said) -> int:
+    """`check --off`: take out what turning on added; marks, history and verdicts stay."""
+    from judgekeeper import keep
+
+    state = _state(path)
+    done = keep.turn_off(state.ws) if state is not None else None
+    if done is None:
+        said.say("Automatic checks are already off.")
+        said.say()
+        said.say("Next: nothing. Tell the person automatic checks are off.")
+        return EXIT_OK
+    removed, left = done
+    said.say("Automatic checks: OFF.")
+    if removed:
+        said.say(f"Removed: {', '.join(removed)}.")
+    for file in left:
+        said.say(f"Left as it is: {file} (changed since judgekeeper added to it; remove the "
+                 "judgekeeper lines yourself).")
+    said.say(keep.KEPT)
+    said.say(f"To turn them on again, run `{_command(state)} --on`.")
+    said.say()
+    said.say("Next: nothing. Tell the person automatic checks are off.")
     return EXIT_OK
 
 
@@ -650,6 +725,13 @@ def _print(text: str = "") -> None:
     sys.stdout.flush()
 
 
+class _Printed(Said):
+    """Said as it goes: a printed link (page.show) stays in its place among the lines."""
+
+    def say(self, text: str = "") -> None:
+        _print(text)
+
+
 def _hook_input() -> dict:
     try:
         data = json.loads(sys.stdin.read() or "{}")
@@ -658,25 +740,49 @@ def _hook_input() -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def run(path: str = ".", fast_only: bool = False, hook: bool = False,
-        baseline_only: bool = False) -> int:
-    """`judgekeeper check`. Returns the exit code."""
-    if fast_only:
-        return fast(path, _print)
+def _hook(path: str) -> int:
+    """`--hook`: always exit 0 (Claude Code reads hook JSON only then, and 2 would block the
+    agent); what went wrong, if anything, goes to the agent in the JSON."""
     said = Said()
-    if hook:
+    given: dict = {}
+    try:
         given = _hook_input()
         edited = (given.get("tool_input") or {}).get("file_path") if isinstance(
             given.get("tool_input"), dict) else None
         full(path, said, "hook", edited if isinstance(edited, str) else None)
-        if said.lines:
-            out = {"hookSpecificOutput": {
-                "hookEventName": str(given.get("hook_event_name") or "PostToolUse"),
-                "additionalContext": scrub("\n".join(said.lines).strip())}}
-            if said.person:
-                out["systemMessage"] = scrub(said.person)
-            print(json.dumps(out, ensure_ascii=False))
-        return EXIT_OK
+    except Exception as e:  # noqa: BLE001 - nothing may stop the agent's work
+        why = describe_os_error(e) if isinstance(e, OSError) else None
+        why = why or str(e) or type(e).__name__
+        said.lines = []
+        said.say(f"judgekeeper could not check your judge: {why}.")  # on one line
+        said.person = None
+    if said.lines:
+        out = {"hookSpecificOutput": {
+            "hookEventName": str(given.get("hook_event_name") or "PostToolUse"),
+            "additionalContext": scrub("\n".join(said.lines).strip())}}
+        if said.person:
+            out["systemMessage"] = scrub(said.person)
+        print(json.dumps(out, ensure_ascii=False))
+    return EXIT_OK
+
+
+def run(path: str = ".", fast_only: bool = False, hook: bool = False,
+        baseline_only: bool = False, on: bool = False, off: bool = False,
+        port: int | None = None) -> int:
+    """`judgekeeper check`. Returns the exit code."""
+    if fast_only:
+        return fast(path, _print)
+    if hook:
+        return _hook(path)
+    said = Said()
+    if on:
+        _print(f"judgekeeper {__version__}")
+        _print()
+        return turn_on_page(path, _Printed(), port)
+    if off:
+        _print(f"judgekeeper {__version__}")
+        _print()
+        return turn_off(path, _Printed())
     code = baseline(path, said) if baseline_only else full(path, said, "by hand")
     _print(f"judgekeeper {__version__}")
     _print()

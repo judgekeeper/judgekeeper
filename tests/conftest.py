@@ -45,8 +45,7 @@ def pages(request, monkeypatch):
         if state["fail"]:
             return None
         ws = start_label.Workspace(Path(folder).parent)
-        server = page.page_server(ws, 0, settings["command"], settings["start_command"],
-                                  token=token)
+        server = page.server_for(ws, {**settings, "port": 0}, token)
         thread = threading.Thread(target=server.serve, daemon=True)
         thread.start()
         servers.append((server, thread))

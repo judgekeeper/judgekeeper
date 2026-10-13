@@ -835,6 +835,11 @@ RESULT_STYLE = """
 .quiet { margin-top: 10px; color: var(--muted); font-size: 13px; }
 .quiet summary { cursor: pointer; }
 .quiet p { margin: 6px 0 0; }
+.hist { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text-2); }
+.hist th { text-align: left; font-weight: 600; color: var(--muted); padding: 0 8px 6px 0; }
+.hist td { border-top: 1px solid var(--line); padding: 8px 8px 8px 0; vertical-align: top;
+  overflow-wrap: anywhere; }
+.hist td span { display: block; }
 .fade { opacity: 0; transform: translateY(6px); animation: in 420ms var(--ease-out) forwards; }
 @keyframes in { to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
@@ -936,6 +941,21 @@ def _fades(blocks: list[str], start: int = 0) -> str:
                    for k, b in enumerate(x for x in blocks if x))
 
 
+def _history(rows: list[dict]) -> str:
+    """The checks of the judge on the marks, newest first: a static table."""
+    if not rows:
+        return ""
+    body = "".join(
+        f'<tr><td>{escape(r["date"])}</td><td>{escape(r["changed"])}</td>'
+        f'<td>{escape(r["tested"])}</td><td>'
+        + "".join(f"<span>{escape(g)}</span>" for g in r["groups"])
+        + f'</td><td>{escape(r["verdict"])}</td><td>{escape(r["exact"])}</td></tr>'
+        for r in rows)
+    return ('<div class="card"><h3>History</h3><table class="hist"><thead><tr><th>Date</th>'
+            '<th>What changed</th><th>Marks tested</th><th>Old → new judge</th>'
+            f'<th>Result</th><th>Copy</th></tr></thead><tbody>{body}</tbody></table></div>')
+
+
 def result_page(content: dict, back: str | None = None) -> str:
     """The result as a page. `content` holds the text (see start_label.page_content); `back`
     is the link to the labeling page while the server runs, None for the saved copy, where
@@ -966,6 +986,7 @@ def result_page(content: dict, back: str | None = None) -> str:
         f'<div class="h2">What next</div><ul class="next-list">{steps}</ul>',
         (f'<p class="small">Saved in <code>{escape(content["folder"])}</code> in your project. '
          'This page is <code>report.html</code> there.</p>'),
+        _history(content.get("history") or []),
     ]
     right = [
         _card(content.get("judge_check")),
@@ -1753,3 +1774,101 @@ def fix_page(description: str | None) -> str:
     and __NONCE__; everything shown comes from the data, through textContent."""
     del description  # the page is about the judge, not the app: nothing from it is shown
     return _head("judgekeeper: fix your judge", FIX_STYLE) + FIX_BODY.replace("__BRAND__", BRAND)
+
+
+# The "Turn on" page (keep.py) -------------------------------------------------------------
+
+KEEP_STYLE = """
+.keep { max-width: 620px; width: 100%; margin: 0 auto; padding: 48px 24px; display: flex;
+  flex-direction: column; gap: 18px; }
+.keep p { color: var(--text-2); }
+.keep .choice { display: flex; gap: 10px; flex-wrap: wrap; }
+.keep label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px;
+  color: var(--text-2); }
+.keep .said p { margin: 0 0 8px; white-space: pre-wrap; }
+.keep .said p:first-child { color: var(--text); font-weight: 600; }
+"""
+
+KEEP_BODY = """<div class="app">
+<header class="hdr">
+  __BRAND__
+  <div class="mid">Automatic checks</div>
+  <div class="end"></div>
+</header>
+<main class="keep">
+  <h1 class="h1">Keep checking your judge?</h1>
+  <p>__TEXT__</p>
+  __AGENT__
+  <div class="choice" id="choice">
+    <button class="btn primary" id="on" type="button">Turn on</button>
+    <button class="btn" id="no" type="button">No thanks</button>
+  </div>
+  <div class="said" id="said" role="status"></div>
+  <p class="status" id="status"></p>
+</main>
+</div>
+<script type="application/json" id="data">__DATA__</script>
+<script nonce="__NONCE__">
+(function () {
+  "use strict";
+  var TOKEN = "__TOKEN__";
+  function $(id) { return document.getElementById(id); }
+  function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
+  function show(state) {
+    var said = $("said");
+    said.textContent = "";
+    (state.lines || []).forEach(function (line) {
+      var p = document.createElement("p"); p.textContent = line; said.appendChild(p);
+    });
+    $("choice").hidden = state.phase !== "ask";
+    if ($("agent")) { $("agent").hidden = state.phase !== "ask"; }
+    if (state.phase === "asking") { setTimeout(poll, 1000); }
+  }
+  function poll() {
+    fetch(url("/state")).then(function (r) { return r.json(); }).then(show)
+      .catch(function () { setTimeout(poll, 2000); });
+  }
+  function answer(path, body) {
+    $("on").disabled = true; $("no").disabled = true;
+    fetch(url(path), {method: "POST", headers: {"Content-Type": "application/json"},
+                      body: JSON.stringify(body)})
+      .then(function (r) { return r.json(); })
+      .then(function (state) {
+        if (state.error) { throw new Error(state.error); }
+        show(state);
+        if (state.phase === "refused") { $("choice").hidden = true; }
+      })
+      .catch(function (e) {
+        $("status").textContent = "Not saved: " + e.message;
+        $("on").disabled = false; $("no").disabled = false;
+      });
+  }
+  $("on").addEventListener("click", function () {
+    answer("/turn-on", {allow_agent_judge: !!($("allow") && $("allow").checked)});
+  });
+  $("no").addEventListener("click", function () { answer("/no-thanks", {}); });
+  show(JSON.parse($("data").textContent));
+})();
+</script>
+</body>
+</html>
+"""
+
+KEEP_AGENT = """<label id="agent"><input type="checkbox" id="allow">
+    Also run my judge by itself, even though it can change files.</label>"""
+
+
+def keep_page(tool: str | None, n: int, agent: bool) -> str:
+    """The page that turns automatic checks on: what they do, [Turn on] [No thanks], and for
+    a judge that is an agent which can change files, an unticked box to let it run by itself.
+    `tool` names the eval tool judgekeeper asks the judge through (None: it can't ask it, and
+    uses the verdicts in the newest results). The server fills in __DATA__, __TOKEN__ and
+    __NONCE__; the lines said after a click come in through textContent."""
+    using = (f"your own judge through {_text(tool)} with the key your evals already use."
+             if tool else "your judge's verdicts in your newest results.")
+    text = ("When your judge's model, rule, pass mark or eval tool changes, judgekeeper "
+            f"re-tests it on your marks, using {using} Each check asks your judge about up to "
+            f"{int(n)} answers. First it asks once now, to learn how steady your judge is.")
+    body = (KEEP_BODY.replace("__BRAND__", BRAND).replace("__TEXT__", text)
+            .replace("__AGENT__", KEEP_AGENT if agent else ""))
+    return _head("judgekeeper: keep checking", KEEP_STYLE) + body
