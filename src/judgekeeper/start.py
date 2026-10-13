@@ -478,12 +478,21 @@ def _folder_of(result: find.Result) -> str:
 
 
 def _needs_extra(talk: Talk, tool: str, where: str) -> Stop:
-    extra = f'"judgekeeper[{find.EXTRAS[tool]}]"'
+    """Reading `tool` needs an extra: started by uvx, the uvx command that has it (pip would
+    not reach uvx's environment); else pip install, then the same command again."""
+    extra = find.EXTRAS[tool]
+    if textio.started_by_uvx():
+        command = " ".join((textio.uvx_with(extra), *filter(None, [talk.subcommand]),
+                            *talk.flags))
+        talk.say(f"{find.NAMES[tool]} found ({where}). To read {find.NAMES[tool]} results, "
+                 f"run `{command}`.")
+        return talk.stop(EXIT_USAGE, f"run `{command}`.")
+    install = textio.install_extra(extra)
     talk.say(f"{find.NAMES[tool]} found ({where}). To read it, add the extra in your "
-             f"project's environment: pip install {extra}, then run {talk.command()} again.")
-    return talk.stop(EXIT_USAGE, f"ask the person to add judgekeeper's {find.EXTRAS[tool]} "
-                                 f"extra (pip install {extra} in the project's environment), "
-                                 f"then run `{talk.command()}` again.")
+             f"project's environment: {install}, then run {talk.command()} again.")
+    return talk.stop(EXIT_USAGE, f"ask the person to add judgekeeper's {extra} extra "
+                                 f"({install} in the project's environment), then run "
+                                 f"`{talk.command()}` again.")
 
 
 def _has(module: str) -> bool:

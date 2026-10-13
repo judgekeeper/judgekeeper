@@ -27,6 +27,7 @@ from tests.start_projects import (
     split,
     table_project,
 )
+from tests.test_extras_advice import PIN
 
 
 @pytest.fixture(autouse=True)
@@ -147,7 +148,7 @@ def test_inspect_eval_logs_without_the_extra_say_how_to_read_them(tmp_path, caps
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
     assert ('Inspect AI found (logs/). To read it, add the extra in your project\'s environment: '
-            'pip install "judgekeeper[inspect]", then run '
+            f'pip install "judgekeeper[inspect]{PIN}", then run '
             f"judgekeeper start {quote_arg(tmp_path)} again.") in out
 
 
@@ -227,7 +228,7 @@ def test_mlflow_without_the_extra_says_how_to_read_it(tmp_path, capsys, monkeypa
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
     assert ('MLflow found (mlruns/). To read it, add the extra in your project\'s environment: '
-            'pip install "judgekeeper[mlflow]", then run '
+            f'pip install "judgekeeper[mlflow]{PIN}", then run '
             f"judgekeeper start {quote_arg(tmp_path)} again.") in out
 
 

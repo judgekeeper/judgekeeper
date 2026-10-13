@@ -77,9 +77,9 @@ from judgekeeper.records import (
     ScoreRecord,
     derive_record_id,
 )
+from judgekeeper.textio import get_extra
 
-NEEDS_EXTRA = ("reading MLflow needs mlflow. Install the extra "
-               "(pip install \"judgekeeper[mlflow]\").")
+NEEDS_EXTRA = "reading MLflow needs mlflow. To read it, {get}."
 KINDS = {"LLM_JUDGE": LLM, "AI_JUDGE": LLM, "HUMAN": HUMAN, "CODE": CODE}
 SOURCE_RUN_ID = "mlflow.assessment.sourceRunId"
 SCORER_NAME = "mlflow.assessment.scorerName"
@@ -242,7 +242,7 @@ def _client(tracking_uri):
     try:
         from mlflow import MlflowClient
     except ImportError:
-        raise RecordsError(NEEDS_EXTRA) from None
+        raise RecordsError(NEEDS_EXTRA.format(get=get_extra("mlflow"))) from None
     return MlflowClient(tracking_uri=tracking_uri) if tracking_uri else MlflowClient()
 
 

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -84,11 +85,65 @@ def started_by_uvx() -> bool:
 def program(subcommand: str = "") -> str:
     """judgekeeper as the person runs it again: `uvx judgekeeper@<version>` when uvx started
     it (uvx and pip skip betas unless the version is named, and uvx puts no `judgekeeper`
-    command on the PATH), else `judgekeeper`; then the subcommand."""
+    command on the PATH), with the extras it was started with (uvx_with); else
+    `judgekeeper`; then the subcommand."""
     from judgekeeper import __version__
 
-    name = f"uvx judgekeeper@{__version__}" if started_by_uvx() else "judgekeeper"
+    name = "judgekeeper"
+    if started_by_uvx():
+        name = uvx_with() if extras_here() else f"uvx judgekeeper@{__version__}"
     return f"{name} {subcommand}" if subcommand else name
+
+
+# judgekeeper's extras, and the module each one installs
+EXTRA_MODULES = {"inspect": "inspect_ai", "mlflow": "mlflow"}
+
+
+def extras_here() -> tuple[str, ...]:
+    """The extras whose module this Python can import (without importing it)."""
+    import importlib.util
+
+    here = []
+    for extra, module in EXTRA_MODULES.items():
+        try:
+            if importlib.util.find_spec(module) is not None:
+                here.append(extra)
+        except (ImportError, ValueError):  # ValueError: set to None in sys.modules
+            continue
+    return tuple(here)
+
+
+def is_prerelease(version: str | None = None) -> bool:
+    """Whether `version` (judgekeeper's own by default) is a beta, alpha, rc or dev release."""
+    from judgekeeper import __version__
+
+    return re.search(r"\d(a|b|rc|\.dev)\d*$", version or __version__) is not None
+
+
+def uvx_with(*extras: str) -> str:
+    """The uvx command that runs this version of judgekeeper with `extras` and the extras it
+    has now: uvx keeps its own environment, which `pip install` never reaches."""
+    from judgekeeper import __version__
+
+    names = ",".join(sorted({*extras, *extras_here()}))
+    return f'uvx --from "judgekeeper[{names}]=={__version__}" judgekeeper'
+
+
+def install_extra(extra: str) -> str:
+    """`pip install "judgekeeper[<extra>]"`, pinned to this version while it is a beta (pip
+    skips betas unless the version is named)."""
+    from judgekeeper import __version__
+
+    pin = f"=={__version__}" if is_prerelease() else ""
+    return f'pip install "judgekeeper[{extra}]{pin}"'
+
+
+def get_extra(extra: str) -> str:
+    """How to get `extra`, as the end of a sentence: the uvx command when uvx started
+    judgekeeper, else the install line."""
+    if started_by_uvx():
+        return f"run `{uvx_with(extra)}`"
+    return f"install the extra ({install_extra(extra)})"
 
 
 # Reading -------------------------------------------------------------------------------------
