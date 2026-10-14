@@ -247,3 +247,54 @@ def test_kappa_is_in_the_details_with_its_range_and_no_bar():
     assert "Kappa on your real mix (agreement beyond coincidence)" in html
     assert f"could be {lo:.2f} to {hi:.2f}" in html
     assert "or more is good" not in html and "beyond luck" not in html
+
+
+# A re-check keeps the groups the marks were picked by ----------------------------------------
+
+def test_a_recheck_weights_the_marks_by_the_groups_they_were_picked_from():
+    """Pools of 2,000, 80% truly Pass. The old judge passes 97% of true Pass and 50% of true
+    Fail; the new one 80% and 15%. 25 + 25 marks picked by the old judge's groups: the new
+    judge's numbers come out right on average. Re-weighting by the new verdicts instead (as a
+    re-check did) is far off."""
+    rng = random.Random(2000)
+    got, true, wrong = {"tpr": [], "tnr": []}, {"tpr": [], "tnr": []}, {"tpr": [], "tnr": []}
+    for _ in range(300):
+        truth = [rng.random() < 0.8 for _ in range(2000)]
+        old = ["pass" if rng.random() < (0.97 if t else 0.50) else "fail" for t in truth]
+        new = ["pass" if rng.random() < (0.80 if t else 0.15) else "fail" for t in truth]
+        pool = {"pass": old.count("pass"), "fail": old.count("fail")}
+        now = {"pass": new.count("pass"), "fail": new.count("fail")}
+        picked, labels, verdicts = {}, {}, {}
+        for g in ("pass", "fail"):
+            for i in rng.sample([i for i, v in enumerate(old) if v == g], 25):
+                picked[i] = g
+                labels[i] = "pass" if truth[i] else "fail"
+                verdicts[i] = new[i]
+        r = start_label.picked_numbers({"pool": pool, "groups": picked}, labels, verdicts, now,
+                                       draws=20)
+        by_new = {g: [sum(verdicts[i] == g for i in labels),
+                      sum(verdicts[i] == g and labels[i] == "pass" for i in labels)]
+                  for g in ("pass", "fail")}
+        old_way = weighted.corrected(now["pass"], now["fail"], *by_new["pass"], *by_new["fail"],
+                                     draws=20)
+        should = [i for i, t in enumerate(truth) if t]
+        should_not = [i for i, t in enumerate(truth) if not t]
+        for key, value in (("tpr", sum(new[i] == "pass" for i in should) / len(should)),
+                           ("tnr", sum(new[i] == "fail" for i in should_not) / len(should_not))):
+            got[key].append(r[key])
+            true[key].append(value)
+            wrong[key].append(old_way[key])
+    for key in ("tpr", "tnr"):
+        mean = sum(true[key]) / 300
+        assert sum(got[key]) / 300 == pytest.approx(mean, abs=0.02), key
+        assert abs(sum(wrong[key]) / 300 - mean) > 0.05, key
+
+
+def test_the_new_judges_own_pass_share_comes_from_the_new_results():
+    r = start_label.picked_numbers({"pool": {"pass": 20, "fail": 16},
+                                    "groups": {i: "pass" for i in range(20)}},
+                                   dict.fromkeys(range(20), "pass"),
+                                   dict.fromkeys(range(20), "pass"),
+                                   {"pass": 16, "fail": 20}, draws=20)
+    assert r["judge_pass_rate"] == pytest.approx(16 / 36)
+    assert r["groups"]["pass"]["pool"] == 20  # weighted by the pool the marks came from

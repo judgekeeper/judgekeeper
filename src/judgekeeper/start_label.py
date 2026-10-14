@@ -989,14 +989,39 @@ def page_template(about: dict | None = None, command: str | None = None) -> str:
                       command)
 
 
+def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict, **draws) -> dict:
+    """The numbers of marks made before the judge's verdicts changed (a re-check): weighted
+    by the groups they were picked from and that pool's sizes (`picked`: {"pool", "groups"}),
+    against the new verdicts (weighted.general). The real pass rate comes from the marks and
+    their pick groups; the judge's own pass share from the new pool (`pool`). A mark made
+    after the re-check counts in the group of its verdict now."""
+    by = {i: picked["groups"].get(i, verdicts[i]) for i in labels}
+    counts = {g: [sum(by[i] == g for i in labels),
+                  sum(by[i] == g and labels[i] == "pass" for i in labels)]
+              for g in ("pass", "fail")}
+    p = picked["pool"]
+    out = weighted.corrected(p["pass"], p["fail"], *counts["pass"], *counts["fail"], **draws)
+    new = weighted.general([(by[i], labels[i], verdicts[i]) for i in labels], p["pass"],
+                           p["fail"], **draws)
+    out.update({k: new[k] for k in ("tpr", "tnr", "kappa", "tpr_interval", "tnr_interval",
+                                    "kappa_interval")})
+    total = pool["pass"] + pool["fail"]
+    out["judge_pass_rate"] = pool["pass"] / total if total else None
+    return out
+
+
 def compute(ws: Workspace, session: StartSession) -> dict:
     data = ws.data()
     groups = {q["id"]: q["group"] for q in data["queue"]}
     counted = session.group_counts()
     disagreements = sum(item["label"] != groups[item["id"]] for item in session.items
                         if item["label"])
-    r = describe(weighted.corrected(data["pool"]["pass"], data["pool"]["fail"],
-                                    *counted["pass"], *counted["fail"]))
+    if data.get("picked"):  # a re-check: the marks keep the groups they were picked by
+        labels = {i["id"]: i["label"] for i in session.items if i["label"]}
+        r = describe(picked_numbers(data["picked"], labels, groups, data["pool"]))
+    else:
+        r = describe(weighted.corrected(data["pool"]["pass"], data["pool"]["fail"],
+                                        *counted["pass"], *counted["fail"]))
     r.update(skipped=session.counts()["skipped"], disagreements=disagreements,
              left=sum(1 for item in session.items if not item["label"]),
              made_at=utc_now(),

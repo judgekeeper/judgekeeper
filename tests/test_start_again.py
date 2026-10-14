@@ -166,7 +166,10 @@ def test_newer_results_are_rechecked_with_the_saved_labels(tmp_path, capsys, ser
     assert ("When you said Fail, your judge also said Fail about 100% of the time before and "
             "about 100% now.") in out
     after = json.loads(ws.result_json.read_text(encoding="utf-8"))
-    assert after["tpr"] == pytest.approx(0.8) and after["groups"]["pass"]["pool"] == 16
+    assert after["tpr"] == pytest.approx(0.8)
+    assert after["groups"]["pass"]["pool"] == 20  # the pool the marks were picked from
+    assert after["judge_pass_rate"] == pytest.approx(16 / 36)  # the judge's share now
+    assert ws.data()["picked"]["pool"] == {"pass": 20, "fail": 16}
     history = sorted(ws.history.glob("result-*.json"))
     assert [json.loads(h.read_text(
         encoding="utf-8"))["made_at"] for h in history] == [before["made_at"]]
