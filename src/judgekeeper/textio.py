@@ -355,6 +355,9 @@ def quote_arg(arg: str | Path) -> str:
     """`arg` as one argument of a command the user pastes; quoted only when it needs it."""
     if is_windows():
         return subprocess.list2cmdline([str(arg)])  # double quotes: cmd.exe and PowerShell
+    if "`" in str(arg):  # $'...' with \x60: no backtick, so it survives inside `...`
+        escaped = str(arg).replace("\\", "\\\\").replace("'", "\\'").replace("`", "\\x60")
+        return f"$'{escaped}'"
     return shlex.quote(str(arg))
 
 
