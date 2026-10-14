@@ -225,7 +225,11 @@ def _provider(value) -> dict:
         return ev
     else:
         return {}
-    ev = {"provider": pid.split(":", 1)[0], "model": pid}
+    if pid.startswith("file://"):  # the person's own provider: its file's name, never a path
+        name = re.split(r"[\\/]", pid.removeprefix("file://"))[-1].split(":", 1)[0]
+        ev = {"provider": "file", "model": f"your own provider ({name})"}
+    else:
+        ev = {"provider": pid.split(":", 1)[0], "model": pid}
     if isinstance(config, dict) and config.get("temperature") is not None:
         ev["temperature"] = config["temperature"]
     return ev
