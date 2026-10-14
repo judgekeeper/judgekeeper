@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
 import pytest
 
@@ -288,3 +289,156 @@ def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys,
     (test,) = [t for t in split["tests"] if t["kind"] == "pass mark"]
     assert (test["fixed"], test["broke"]) == (int(m[2]), int(m[3]))
     assert test["n"] == len(split["hidden"])
+
+
+# The test of a new rule (Screen 5b) ------------------------------------------------------------
+
+NEW_RULE = "The answer must solve the problem, be polite and never promise a refund."
+
+
+def _person(question_text: str) -> bool:
+    i = int(re.search(r"Question (\d+)\?", question_text)[1])
+    if i < WRONG_PASSES:
+        return False
+    if 25 <= i < 25 + WRONG_FAILS:
+        return True
+    return i < 25
+
+
+@pytest.fixture
+def judge(here, monkeypatch):
+    """The project's own promptfoo, faked: the old rule grades as saved, NEW_RULE grades every
+    answer as the person marked it. `holder["fake"].calls` keeps each call."""
+    from judgekeeper import again, keys
+    from tests.start_projects import project_promptfoo
+    from tests.test_again_run import FakePromptfoo
+
+    project_promptfoo(here)
+    for name in keys.all_names():
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
+    monkeypatch.setattr(again, "which", lambda name: None)
+    holder = {"evals": 0}
+
+    def runner(argv, cwd, env=None, timeout=None):
+        if "fake" not in holder:
+            holder["fake"] = FakePromptfoo(Workspace(here), version="0.124.1")
+        fake = holder["fake"]
+        if "eval" in argv:
+            holder["evals"] += 1
+            config = json.loads((Path(cwd) / argv[argv.index("-c") + 1]).read_text(encoding="utf-8"))
+            tests = json.loads((Path(cwd) / config["tests"].removeprefix("file://"))
+                               .read_text(encoding="utf-8"))
+            fake.flips = {(t["description"], 0) for t in tests
+                          if t["assert"][0]["value"] == NEW_RULE
+                          and fake.saved[t["vars"]["question"]][0]
+                          != _person(t["vars"]["question"])}
+        return fake(argv, cwd, env, timeout)
+
+    monkeypatch.setattr(again, "run_process", runner)
+    return holder
+
+
+def _write_rule(ws, text: str = NEW_RULE) -> None:
+    (ws.dir / "fix" / "rule.txt").write_text(text, encoding="utf-8")
+
+
+def _hidden_counts(ws) -> tuple[int, int, int]:
+    """(hidden, the old rule's right answers, fixed) when the new rule agrees with every mark."""
+    split, marks = _split(ws), fix.Marks(ws)
+    right = sum(marks.judge[i] == marks.person[i] for i in split["hidden"])
+    return len(split["hidden"]), right, len(split["hidden"]) - right
+
+
+def test_without_a_terminal_or_yes_the_rule_is_not_tested(here, capsys, judge):
+    ws = project(here)
+    run(capsys)
+    _write_rule(ws)
+    code, out = run(capsys)
+    assert code == 3
+    n, _, _ = _hidden_counts(ws)
+    flat = " ".join(out.split())
+    assert out.splitlines()[2] == "Step 4 of 5: Fix (testing your new rule)"
+    assert (f"To test it, judgekeeper asks your judge about your {n} hidden answers, once with "
+            f"the old rule and once with the new one. That is {2 * n} AI calls, paid with your "
+            "own key.") in flat
+    assert flat.endswith("Next: run `judgekeeper fix` in your terminal to answer, or "
+                         "`judgekeeper fix --yes` to go ahead.")
+    assert judge["evals"] == 0
+    assert not (ws.dir / "rules").exists()
+
+
+def test_with_yes_both_rules_are_asked_and_the_verdict_comes_from_the_math(here, capsys,
+                                                                          judge):
+    from judgekeeper import targets
+
+    ws = project(here)
+    run(capsys)
+    _write_rule(ws)
+    code, out = run(capsys, "--yes")
+    assert code == 0, out
+    assert judge["evals"] == 2  # the old and the new rule, in the same run
+    n, right, fixed = _hidden_counts(ws)
+    lines = out.splitlines()
+    at = lines.index(f"Tested on your {n} hidden marks:")
+    assert lines[at + 1:at + 3] == [
+        f"  Old rule agreed with you on {right}. New rule agreed with you on {n}.",
+        f"  It fixed {fixed} and broke 0."]
+    kind = targets.fix_verdict(fixed, 0, n).kind
+    words = {"better": "Result: better. A difference this large is very unlikely to be a "
+                       "coincidence.",
+             "safe": "Result: safe to try. We can't say it's better yet, but it's very "
+                     "unlikely to be more than 10 points worse."}
+    assert words[kind] in " ".join(out.split())
+    assert " ".join(out.split()).endswith(
+        "Next: if you like it, put the new rule in promptfooconfig.yaml, line 5. Then run "
+        "your eval, and run `judgekeeper check`.")
+    assert lines[4] == f'New rule:  "{NEW_RULE[:57].rstrip()}…"'
+    assert lines[5] == "           (from .judgekeeper/fix/rule.txt)"
+
+
+def test_a_test_is_kept_without_answer_text(here, capsys, judge):
+    from judgekeeper.fingerprint import rule_hash
+
+    ws = project(here)
+    run(capsys)
+    _write_rule(ws)
+    run(capsys, "--yes")
+    h = rule_hash(NEW_RULE)
+    saved = ws.dir / "rules" / f"{h.removeprefix('sha256:')}.txt"
+    assert saved.read_text(encoding="utf-8") == NEW_RULE
+    lines = [json.loads(x) for x in ws.history_jsonl.read_text(encoding="utf-8").splitlines()]
+    (line,) = [x for x in lines if x.get("kind") == "fix"]
+    n, _, fixed = _hidden_counts(ws)
+    assert (line["rule_hash"], line["hidden"], line["fixed"], line["broke"]) == (h, n, fixed, 0)
+    text = ws.history_jsonl.read_text(encoding="utf-8")
+    assert TAG.strip() not in text and "Question" not in text
+    for i in _split(ws)["hidden"]:
+        assert i not in text
+
+
+def test_a_tested_rule_shows_the_first_screen_again(here, capsys, judge):
+    ws = project(here)
+    run(capsys)
+    _write_rule(ws)
+    run(capsys, "--yes")
+    code, out = run(capsys)
+    assert code == 0 and judge["evals"] == 2
+    assert out.splitlines()[2] == "Step 4 of 5: Fix"
+
+
+@pytest.mark.parametrize("text, said", [
+    ("", "The new rule is empty."),
+    ("Grade {{ output }} kindly.",
+     "The new rule adds a template part ({{ ... }}) the old rule did not have."),
+])
+def test_a_rule_that_cant_be_tested_is_refused(here, capsys, judge, text, said):
+    ws = project(here)
+    run(capsys)
+    _write_rule(ws, text)
+    code, out = run(capsys, "--yes")
+    assert code == 3
+    assert said in " ".join(out.split())
+    assert judge["evals"] == 0
+    assert " ".join(out.split()).endswith(
+        "Next: change the rule in .judgekeeper/fix/rule.txt, then run `judgekeeper fix` again.")

@@ -55,6 +55,20 @@ MIN_EACH = 5  # hidden marks marked Pass, and Fail, at least
 SWAPPABLE = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools whose rule fix can swap
 RULE_SHOWN = 58  # characters of the rule shown, "…" included
 STEP = "Step 4 of 5: Fix"
+STEP_TEST = "Step 4 of 5: Fix (testing your new rule)"
+ASK = ("To test it, judgekeeper asks your judge about your {n} hidden answers, once with the "
+       "old rule and once with the new one. That is {calls}, paid with your own key.")
+RESULT = {
+    "better": "Result: better. A difference this large is very unlikely to be a coincidence.",
+    "safe": ("Result: safe to try. We can't say it's better yet, but it's very unlikely to be "
+             "more than 10 points worse."),
+    "leans better": ("Result: can't tell yet. That leans toward better, but a split this small "
+                     "could easily be a coincidence."),
+    "same": ("Result: can't tell yet. The two rules look about the same here. More marks are "
+             "unlikely to change that much."),
+    "leans worse": "Result: it looks worse. Keep the old rule.",
+    "worse": "Result: worse. Keep the old rule.",
+}
 CANT_SWAP = {"table": "its grades come from a table",
              "records": "your own code gives its grades",
              "mapped": "its grades come from your own results file"}
@@ -389,6 +403,19 @@ def _rule_quote(rule: str) -> str:
 
 # The run ------------------------------------------------------------------------------------
 
+def _new_rule(ws: Workspace, split: Split) -> str | None:
+    """The rule in fix/rule.txt when it was not tested on this set of hidden marks yet."""
+    from judgekeeper.fingerprint import rule_hash
+
+    path = _folder(ws) / RULE
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    tested = {t.get("rule_hash") for t in split.tests if t.get("kind") == "rule"}
+    return None if text and rule_hash(text) in tested else text
+
+
 def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     """`judgekeeper fix`. Returns the exit code."""
     from judgekeeper.check import _state
@@ -396,16 +423,19 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     talk = Talk(path)
     talk.say(f"judgekeeper {__version__}")
     talk.say()
-    talk.say(STEP)
-    talk.say()
     state = _state(path)
-    if state is None or not Marks(state.ws).enough():
+    ws = state.ws if state is not None else None
+    m = Marks(ws) if ws is not None else None
+    split = current_split(ws, m, new=new) if m is not None and m.enough() else None
+    rule = _new_rule(ws, split) if split is not None and not new else None
+    talk.say(STEP if rule is None else STEP_TEST)
+    talk.say()
+    if split is None:
         talk.para("You have not marked enough answers yet to fix your judge.")
         talk.next(f"run `{program('mark')}` to mark more answers.")
         return EXIT_NEEDS_YOU
-    ws = state.ws
-    m = Marks(ws)
-    split = current_split(ws, m, new=new)
+    if rule is not None:
+        return test_rule(talk, ws, m, split, rule, yes)
     return first_run(talk, ws, m, split)
 
 
@@ -461,6 +491,145 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     talk.next(f"write your new rule in {folder}/{RULE}, then run `{talk.command()}` again to "
               "test it.")
     return EXIT_OK
+
+
+# The test of a new rule (Screen 5b) ------------------------------------------------------
+
+def _old_rule(m: Marks) -> str:
+    """The judge's rule as the person edits it (a GEval's steps, numbered)."""
+    return start_fix_rule.rule_text(m.data.get("rule") or "", m.data.get("tool") or "")
+
+
+def _problems(m: Marks, split: Split, rule: str) -> list[dict]:
+    """The rule checks: blocking (empty, judgekeeper's prompt pasted back, a dropped or added
+    template part) and said (a big change, text copied from the seen answers)."""
+    old = _old_rule(m)
+    outputs = [m.row(i)["output"] for i in split.seen]
+    found = start_fix_rule.checks(old, rule, m.data.get("tool") or "", outputs)
+    if not any(c["blocking"] for c in found):
+        found += start_fix_rule.agent_checks(old, rule)
+    return found
+
+
+def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes: bool):
+    """Ask the judge about the hidden answers with the old rule and with the new one, after
+    the person's yes: ({id: old grade}, {id: new grade}, reasons not counted), or an exit
+    code when nothing was asked."""
+    from judgekeeper import again
+    from judgekeeper.again.fresh import NOT_COUNTED, AgainError
+    from judgekeeper.check import CAN_WRITE, DOWNLOAD, NO_KEY, _can_write, _go_ahead, _Quiet
+
+    ids = set(split.hidden)
+    plans = [again.make_plan(ws, again.AgainOptions(times=1, rule=r), dry=True, only=ids)
+             for r in (None, rule)]
+    why = next((p.plain or f"Your judge can't be asked again: {p.why}." for p in plans
+                if p.status == again.CANT), None)
+    why = why or (NO_KEY if not all(p.key_ok for p in plans) else None)
+    why = why or next((DOWNLOAD.format(version=p.tool_version) for p in plans if p.download),
+                      None)
+    if why:
+        talk.para(why)
+        talk.next(f"run `{talk.command()}` again once your judge can be asked here.")
+        return EXIT_NEEDS_YOU
+    calls = sum(p.calls for p in plans)
+    talk.para(ASK.format(n=len(split.hidden), calls=plural(calls, "AI call")))
+    from judgekeeper import judge_setup
+
+    if _can_write((judge_setup.read(ws) or {}).get("setup") or {}):
+        talk.para(CAN_WRITE)
+    answer = _go_ahead(yes)
+    if answer is None:
+        talk.next(f"run `{talk.command()}` in your terminal to answer, or "
+                  f"`{talk.command()} --yes` to go ahead.")
+        return EXIT_NEEDS_YOU
+    if not answer:
+        talk.para("Your judge was not asked.")
+        talk.next(f"run `{talk.command()}` again when you are ready to test your rule.")
+        return EXIT_NEEDS_YOU
+    grades, left = [], Counter()
+    for plan in plans:
+        plan.folder = ws.dir / "fix" / "runs" / utc_now().replace(":", "-")
+        try:
+            fresh = again.run_tool(ws, plan, _Quiet())
+        except AgainError as e:
+            talk.say()
+            talk.para(f"Asking your judge did not finish: {scrub(str(e))}")
+            talk.next(f"run `{talk.command()}` again to test your rule.")
+            return EXIT_NEEDS_YOU
+        grades.append({i: v[0] for i, v in fresh.verdicts.items()})
+        left.update(fresh.not_counted.values())
+    reasons = []
+    for why, k in left.items():
+        one, many = NOT_COUNTED.get(why, (why, why))
+        reasons.append(f"1 answer was not counted: {one}." if k == 1 else
+                       f"{k} answers were not counted: {many}.")
+    return grades[0], grades[1], reasons
+
+
+def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes: bool) -> int:
+    """Screen 5b: the new rule from rule.txt, checked, then tested on the hidden marks with
+    the old rule asked the same way, in the same run; the verdict from the math."""
+    from judgekeeper.fingerprint import rule_hash
+
+    folder = f"{shown_folder(ws)}/{FOLDER}"
+    talk.say(f"New rule:  {_rule_quote(rule)}")
+    talk.say(f"           (from {folder}/{RULE})")
+    talk.say()
+    problems = _problems(m, split, rule)
+    for c in problems:
+        talk.para(c["text"])
+    if any(c["blocking"] for c in problems):
+        talk.next(f"change the rule in {folder}/{RULE}, then run `{talk.command()}` again.")
+        return EXIT_NEEDS_YOU
+    if problems:
+        talk.say()
+    asked = _ask_both(ws, m, split, rule, talk, yes)
+    if isinstance(asked, int):
+        return asked
+    old, new, reasons = asked
+    ids = [i for i in split.hidden if i in old and i in new]
+    fixed = sum(old[i] != m.person[i] and new[i] == m.person[i] for i in ids)
+    broke = sum(old[i] == m.person[i] and new[i] != m.person[i] for i in ids)
+    v = targets.fix_verdict(fixed, broke, len(ids), test=len(split.tests) + 1)
+    talk.say()
+    talk.say(f"Tested on your {len(ids)} hidden marks:")
+    talk.say(f"  Old rule agreed with you on {sum(old[i] == m.person[i] for i in ids)}. New "
+             f"rule agreed with you on {sum(new[i] == m.person[i] for i in ids)}.")
+    talk.say(f"  It fixed {fixed} and broke {broke}.")
+    for line in reasons:
+        talk.para(line, indent="  ")
+    talk.say()
+    talk.para(RESULT[v.kind])
+    h = rule_hash(rule)
+    _keep(ws, split, rule, h, v)
+    if v.kind in ("better", "safe"):
+        old_rule = m.data.get("rule") or ""
+        where = start_fix_rule.found_rule(ws.root, old_rule, m.data.get("tool") or "")
+        place = (f"in {where[0]}, line {where[1]}" if where else
+                 f"where your eval keeps it ({start_fix_rule.field(m.data.get('tool') or '')})")
+        talk.next(f"if you like it, put the new rule {place}. Then run your eval, and run "
+                  f"`{talk.command('check')}`.")
+        return EXIT_OK
+    talk.next(f"keep the old rule, or write another rule in {folder}/{RULE} and run "
+              f"`{talk.command()}` again.")
+    return EXIT_OK
+
+
+def _keep(ws: Workspace, split: Split, rule: str, h: str, v) -> None:
+    """The tested rule in rules/<hash>.txt, the test in split.json and a history line: the
+    rule's hash, the counts and the verdict, never answer text or ids."""
+    path = ws.dir / "rules" / f"{h.removeprefix('sha256:')}.txt"
+    marks._refuse_links(path)
+    path.parent.mkdir(exist_ok=True)
+    write_replacing(path, rule)
+    test = {"kind": "rule", "time": utc_now(), "rule_hash": h, "n": v.n, "fixed": v.fixed,
+            "broke": v.broke, "verdict": v.kind, "test": len(split.tests) + 1}
+    split.tests.append(test)
+    save_split(ws, split)
+    marks.append(ws.history_jsonl, {"time": test["time"], "kind": "fix", "rule_hash": h,
+                                    "hidden": v.n, "fixed": v.fixed, "broke": v.broke,
+                                    "verdict": v.kind, "test": test["test"],
+                                    "set": split.set})
 
 
 __all__ = ["Marks", "Split", "make_split", "mistakes", "mistakes_md", "pattern_lines",
