@@ -761,9 +761,9 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             ok, detail = False, f"({type(e).__name__}: {e})"
         self.step("2. the stand-in person marks every answer on the page", ok, detail)
         self.mark_step("2. judgekeeper prints the result", self.front(),
-                       [r"Your marks: 50 \(25 Pass, 25 Fail\), made on the page",
-                        r"Of the answers you passed, your judge passed",
-                        r"Of the answers you failed, your judge failed",
+                       [r"Your judge vs your marks, on 50 answers:",
+                        r"You passed:  your judge also passed about \d+%",
+                        r"You failed:  (your judge also failed about \d+%|too early to tell)",
                         r"Step 3 of 5: Measure", *uvx])
         self.mark_step("2. judgekeeper --stop closes the page", [*self.jk, "--stop"],
                        [r"Closed the marking page"])
@@ -772,8 +772,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         """The new rule is in the results: `check --yes` re-tests it on the marks, and the
         report holds the check."""
         self.run("7. check re-tests the new judge on the marks", [*self.jk, "check", "--yes"],
-                 expect=[r"Re-checked on (your 50|\d+ of your 50) marks",
-                         r"Answers you passed:", r"Answers you failed:"])
+                 expect=[r"Re-checked on (all 50 of your marks|\d+ of your 50 marks):",
+                         r"You passed:  old judge right on", r"You failed:  old judge right on"])
         report = self.project / ".judgekeeper" / "report.html"
         try:
             html = report.read_text(encoding="utf-8")

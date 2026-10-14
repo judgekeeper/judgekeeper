@@ -54,7 +54,7 @@ def test_the_ranges_are_repeatable_with_their_seed():
     two = weighted.general(ITEMS, 20, 16)
     assert one["tpr_interval"] == two["tpr_interval"]
     assert one["tnr_interval"] == two["tnr_interval"]
-    assert "kappa_interval" not in one  # kappa has a value, no range
+    assert one["kappa_interval"] == two["kappa_interval"]
     other = weighted.general(ITEMS, 20, 16, seed=7)
     assert other["tpr_interval"] != one["tpr_interval"]
     assert (one["draws"], one["seed"], one["level"]) == (weighted.DRAWS, weighted.SEED,
