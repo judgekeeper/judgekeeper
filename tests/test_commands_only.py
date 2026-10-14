@@ -145,3 +145,20 @@ def test_a_post_without_the_pages_origin_writes_no_mark(here, capsys, no_browser
     assert e.value.code == 403
     marks = Workspace(here).marks
     assert not marks.exists() or '"label"' not in marks.read_text(encoding="utf-8")
+
+
+def test_no_message_tells_an_agent_what_to_say_to_the_person():
+    """Every message speaks to the person: none says "tell the person" or "ask the person"
+    (the strings in the code, so a rarely printed line is checked too)."""
+    import ast
+    from pathlib import Path
+
+    import judgekeeper
+
+    for path in Path(judgekeeper.__file__).parent.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                text = " ".join(node.value.lower().split())
+                for words in ("tell the person", "ask the person", "give the person"):
+                    assert words not in text, (path.name, node.lineno, node.value[:80])
