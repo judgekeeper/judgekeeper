@@ -20,6 +20,15 @@ steadiness instead: how often its verdict changed (at least 1%) and how often it
 `got_worse` is that same test on a re-check: of the answers whose verdict changed, the ones
 the new judge now gets wrong against the ones it now gets right.
 
+`fix_verdict` is the verdict on a new rule tested on the hidden marks (`judgekeeper fix`):
+fixed (the old rule was wrong, the new one right) against broke (the other way round), out of
+n hidden marks. Better or worse: the exact two-sided sign test at 5%. Else safe to try: Tango's
+score test for paired proportions, one-sided 2.5%, rules out the new rule being more than 10
+points worse. Else can't tell yet, leaning better, the same or leaning worse. Each extra test
+on the same hidden marks (`test` k) uses the levels divided by k, so trying rule after rule
+does not turn a coincidence into "better". `top_up` is how many more marks most often settle a
+"can't tell yet" (7 with about 10 hidden, 9 with about 15).
+
 Why 0.30: about what 25 + 25 gives when the judge agrees with the person about 85% of the
 time and passes half the answers, so such checks are reliable at 25 of each; when the judge
 passes most answers, its TNR range stays wide for longer, and the result is not called
@@ -29,6 +38,8 @@ reliable until it is really that narrow (docs/examples/coverage/coverage.md).
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
+from statistics import NormalDist
 
 ROUGH = 15
 RELIABLE = 25
@@ -173,3 +184,60 @@ def drop_line(drop: int | None) -> str | None:
     if drop is None:
         return None
     return f"This set can see a drop of {drop} points or more. Smaller changes need more marks."
+
+
+# The verdict on a new rule ---------------------------------------------------------------------
+
+SIGN_LEVEL = 0.05  # two-sided, better or worse
+SAFE_LEVEL = 0.025  # one-sided, safe to try
+SAFE_MARGIN = 0.10  # safe to try: not more than 10 points worse
+
+
+@dataclass(frozen=True)
+class FixVerdict:
+    kind: str  # "better", "safe", "leans better", "same", "leans worse" or "worse"
+    fixed: int
+    broke: int
+    n: int
+
+
+def sign_p(fixed: int, broke: int) -> float:
+    """The exact two-sided sign test of fixed against broke (binomial, p = 0.5)."""
+    d = fixed + broke
+    if not d:
+        return 1.0
+    tail = sum(math.comb(d, i) for i in range(min(fixed, broke) + 1))
+    return min(1.0, 2 * tail / 2 ** d)
+
+
+def tango_z(fixed: int, broke: int, n: int, delta0: float) -> float:
+    """Tango's (1998) score statistic for paired proportions, against a difference of
+    `delta0` (new right minus old right, as a share of n)."""
+    a = 2 * n
+    b = -fixed - broke + (2 * n - fixed + broke) * delta0
+    c = -broke * delta0 * (1 - delta0)
+    q21 = (math.sqrt(max(b * b - 4 * a * c, 0.0)) - b) / (2 * a)
+    var = n * (2 * q21 + delta0 * (1 - delta0))
+    return 0.0 if var <= 0 else (fixed - broke - n * delta0) / math.sqrt(var)
+
+
+def fix_verdict(fixed: int, broke: int, n: int, test: int = 1) -> FixVerdict:
+    """The verdict on a new rule from `n` hidden marks; `test` is how many tests these marks
+    have now served, this one included."""
+    k = max(1, test)
+    if sign_p(fixed, broke) < SIGN_LEVEL / k:
+        kind = "better" if fixed > broke else "worse"
+    elif n and tango_z(fixed, broke, n, -SAFE_MARGIN) > NormalDist().inv_cdf(1 - SAFE_LEVEL / k):
+        kind = "safe"
+    elif fixed > broke:
+        kind = "leans better"
+    elif fixed == broke:
+        kind = "same"
+    else:
+        kind = "leans worse"
+    return FixVerdict(kind, fixed, broke, n)
+
+
+def top_up(n: int) -> int:
+    """How many more marks most often settle a "can't tell yet" on `n` hidden marks."""
+    return 7 if n <= 12 else 9
