@@ -296,6 +296,68 @@ def mistakes_md(rule: str | None, rows: list[dict]) -> str:
     return scrub("\n".join(parts).rstrip("\n") + "\n")
 
 
+# The pass mark (free) ----------------------------------------------------------------------
+
+VERDICT_WORDS = {"better": "better", "safe": "safe to try"}
+
+
+def _follows(m: Marks, pm: dict | None) -> bool:
+    return bool(pm and pm.get("follows")) and all(
+        isinstance(m.scores.get(i), int | float) for i in m.person)
+
+
+def test_pass_mark(m: Marks, split: Split) -> dict | None:
+    """The pass mark that fits the seen marks best, tested on the hidden marks with the saved
+    scores (no AI call), once per set of hidden marks: the test, also kept in split.json, or
+    None for a judge with no pass mark or when the pass mark already fits best."""
+    from judgekeeper.start import passes
+    from judgekeeper.start_fix import cell, cell_weights, choose_mark
+
+    pm = m.data.get("pass_mark")
+    if not _follows(m, pm):
+        return None
+    if split.pass_mark is not None:
+        return split.pass_mark or None
+    rows = {i: {"judge": m.judge[i], "final": m.person[i]} for i in m.person}
+    seen = [rows[i] for i in split.seen]
+    weights = cell_weights(list(rows.values()), seen, m.data.get("pool") or {})
+    current, op = pm["mark"], pm["op"]
+    new = choose_mark([(cell(rows[i]), m.person[i], m.scores[i]) for i in split.seen],
+                      current, op, weights)
+    if new == current:
+        split.pass_mark = {}
+        return None
+    fixed = broke = 0
+    for i in split.hidden:
+        now = passes(m.scores[i], op, new)
+        fixed += m.judge[i] != m.person[i] and now == m.person[i]
+        broke += m.judge[i] == m.person[i] and now != m.person[i]
+    v = targets.fix_verdict(fixed, broke, len(split.hidden), test=len(split.tests) + 1)
+    test = {"kind": "pass mark", "time": utc_now(), "old": current, "new": new, "op": op,
+            "n": len(split.hidden), "fixed": fixed, "broke": broke, "verdict": v.kind}
+    split.tests.append(test)
+    split.pass_mark = test
+    return test
+
+
+def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
+    """Screen 5a's pass-mark line, when the verdict says the new mark is worth trying."""
+    from judgekeeper.start_fix import locate, searched, where_lines
+
+    words = VERDICT_WORDS.get(test["verdict"])
+    if words is None:
+        return None
+    new, old = f"{test['new']:g}", f"{test['old']:g}"
+    name = searched(pm)
+    found = name and locate(ws.root, name, test["old"])
+    if found:
+        where = f"Change it in {found[0]}, line {found[1]}."
+    else:
+        where = re.sub(r'(--pass-if "[^"]*")', r"`\1`", where_lines(pm, test["new"])[0])
+    return (f"A better pass mark: {new} instead of {old} (tested on your hidden marks: fixed "
+            f"{test['fixed']}, broke {test['broke']}, {words}). {where}")
+
+
 # Saying it ----------------------------------------------------------------------------------
 
 class Talk:
@@ -368,12 +430,18 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.say()
     rule = data.get("rule") if data.get("one_rule", True) else None
     folder = f"{shown_folder(ws)}/{FOLDER}"
+    tested = test_pass_mark(m, split)
+    save_split(ws, split)
     path = _folder(ws) / MISTAKES
     marks._refuse_links(path)
     write_replacing(path, mistakes_md(rule, seen_rows))
     talk.say("Each mistake, with your judge's own reason:")
     talk.say(f"  {folder}/{MISTAKES} ({plural(len(wrong), 'answer')})")
     talk.say()
+    line = tested and pass_mark_line(ws, pm, tested)
+    if line:
+        talk.para(line)
+        talk.say()
     tool = data.get("tool")
     if tool in SWAPPABLE and rule:
         where = start_fix_rule.found_rule(ws.root, rule, tool)

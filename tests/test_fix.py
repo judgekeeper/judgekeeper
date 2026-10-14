@@ -240,3 +240,51 @@ def test_question_and_answer_text_never_reach_the_terminal(here, capsys):
     _, out = run(capsys)
     assert "Question 1?" not in out and "Answer 1." not in out
     assert question(1) not in out
+
+
+# The pass mark (free) -------------------------------------------------------------------------
+
+def score_project(root) -> Workspace:
+    """A table judge that gives scores, passed at 0.5. The person fails what it passed with a
+    score under 0.7: a better pass mark is 0.7."""
+    import csv
+
+    scores = [0.52 + 0.019 * i for i in range(25)] + [0.02 + 0.019 * i for i in range(25)]
+    with (root / "results.csv").open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["input", "output", "verdict"])
+        for i, s in enumerate(scores):
+            w.writerow([question(i, TAG), answer(i, TAG), f"{s:.3f}"])
+    assert main(["--pass-if", "score>=0.5", "--no-browser"]) == 0
+    main(["--stop"])
+    ws = Workspace(root)
+    session = StartSession(ws)
+    by_id = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
+    for item in session.items:
+        i = int(re.search(r"Question (\d+)\?", json.dumps(by_id[item["id"]]["input"]))[1])
+        label = "pass" if scores[i] >= 0.7 else "fail"
+        session.update({"id": item["id"], "label": label, "seconds": 5})
+    return ws
+
+
+def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys, monkeypatch):
+    from judgekeeper import again
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("the judge was asked")
+
+    monkeypatch.setattr(again, "run_process", refuse)
+    ws = score_project(here)
+    capsys.readouterr()
+    run(capsys)
+    _, out = run(capsys)  # the second run shows the saved test, not a new one
+    flat = " ".join(out.split())
+    m = re.search(r"A better pass mark: (0\.\d+) instead of 0\.5 \(tested on your hidden "
+                  r"marks: fixed (\d+), broke (\d+), (better|safe to try)\)\.", flat)
+    assert m, flat
+    assert 0.6 < float(m[1]) <= 0.7
+    assert 'Use `--pass-if "score>=0.7"`.' in flat
+    split = _split(ws)
+    (test,) = [t for t in split["tests"] if t["kind"] == "pass mark"]
+    assert (test["fixed"], test["broke"]) == (int(m[2]), int(m[3]))
+    assert test["n"] == len(split["hidden"])
