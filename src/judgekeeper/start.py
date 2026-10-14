@@ -1619,8 +1619,9 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
         talk.say(f"For the other one: {others[0]}" if len(others) == 1
                  else f"For another one: {_or(others)}")
         return stores
-    chosen = stores[talk.choose(title, shown, "", flag="PATH", values=[s.rel for s in stores],
-                                what="which MLflow store to read")]
+    chosen = stores[talk.choose(f"{count} MLflow stores found:", shown, "", flag="PATH",
+                                values=[s.rel for s in stores],
+                                what="which MLflow store to read")]  # each said once: listed
     talk.remember("PATH", chosen.rel, f"(Next time: {talk.command_at(chosen.rel)})")
     return first(chosen)
 

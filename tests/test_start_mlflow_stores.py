@@ -233,8 +233,8 @@ def test_two_stores_at_a_terminal_ask(two, capsys, monkeypatch):
     monkeypatch.setattr(builtins, "input", lambda prompt="": answers.pop(0))
     found = start.find_judge(two, talk=start.Talk(path=two, flags=(str(two),)))
     out = capsys.readouterr().out
-    assert "Two MLflow stores found: mlflow.db (qa-db) and mlruns/ (qa-folder)." in out
-    assert "  1. mlflow.db (qa-db)\n  2. mlruns/ (qa-folder)" in out
+    assert "Two MLflow stores found:\n  1. mlflow.db (qa-db)\n  2. mlruns/ (qa-folder)" in out
+    assert out.count("qa-db") == 1  # each store said once
     assert found.store == "mlruns"
     assert f"(Next time: judgekeeper start {quote_arg(two / 'mlruns')})" in out
 

@@ -96,8 +96,8 @@ READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLf
 FIND = ("tool", "metric", "experiment", "tracking_uri", "pass_if", "label_map", "judge_model")
 ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
 START_OVER = f"Start over with these results? Your old marks move to {FOLDER}/previous-<date>/."
-OLD_MARKS = (f"{FOLDER}/labels.csv holds marks from judgekeeper 0.2. They have no time stamps, "
-             "so this version does not use them.")
+OLD_MARKS = (f"{FOLDER}/labels.csv holds marks from an older judgekeeper. They have no time "
+             "stamps, so this version does not use them.")
 RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
 JUDGE_CHANGED = "Your judge changed since your marks: {what}."
 STEP = "Step {n} of 5: {name}"
@@ -339,8 +339,22 @@ def _find(talk: FrontTalk, path: Path, saved) -> start.Found:
         except RecordsError as e:
             raise start.usage_error(e) from None
         if not found.pool.unmapped:
+            _ignored(talk, found)
             return found
         _unread_values(talk, found)
+
+
+IGNORED = {"experiment": ("mlflow", "--experiment is for MLflow results, so it was ignored."),
+           "fields": ("deepeval", "--fields is for a DeepEval judge, so it was ignored.")}
+
+
+def _ignored(talk: FrontTalk, found: start.Found) -> None:
+    """A flag for another tool's results: said, and left out of the commands printed."""
+    for option, (tool, said) in IGNORED.items():
+        if talk.options.get(option) and found.tool != tool:
+            talk.para(said)
+            talk.say()
+            talk.set(option, None)
 
 
 def _shown(values) -> str:

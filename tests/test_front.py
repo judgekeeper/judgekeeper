@@ -640,3 +640,17 @@ def test_help_lists_the_flags_and_mark(capsys):
                  "--label-map", "--judge-model", "--fields", "--yes"):
         assert flag in out
     assert "mark" in out and "setup" not in out
+
+
+@pytest.mark.parametrize("flag, value, said", [
+    ("--experiment", "support", "--experiment is for MLflow results, so it was ignored."),
+    ("--fields", "input,actual_output",
+     "--fields is for a DeepEval judge, so it was ignored."),
+])
+def test_a_flag_for_another_tool_says_it_was_ignored(here, capsys, flag, value, said):
+    promptfoo_project(here, split(20, 16))
+    code, out, _ = run(capsys, flag, value, "--no-browser")
+    assert said in " ".join(out.split())
+    assert "Eval tool:   promptfoo" in out
+    assert flag not in assert_one_next_at_the_end(out)
+    assert code == 0, out
