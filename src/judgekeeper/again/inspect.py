@@ -231,16 +231,18 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     if new:
         payload = [(a, {"id": a["id"], "input": s["input"], "output": a["output"],
                         "target": s["target"]}, None) for a, s in found]
-    else:
+    else:  # a swapped rule makes a new grading prompt: none to compare with
         payload = [(a, {"id": a["id"], "sample": s.get("id"), "epoch": s.get("epoch")},
-                    saved_prompt(s, metric)) for a, s in found]
+                    None if opts.rule is not None else saved_prompt(s, metric))
+                   for a, s in found]
     return Plan(tool="inspect", judge=judge, status=status, why=why, model=model,
                 provider=check.provider, key_lines=check.lines, notes=notes,
                 calls_each=[calls] * len(found), tokens=tokens, left_out=left,
                 settings=check.settings, key_ok=check.ok, tool_version=installed or made_with,
                 runner=[python], payload=payload,
                 job={"log": str(root / data["results_files"][0]), "scorer": metric,
-                     "new": new},
+                     "new": new, "rule": opts.rule,
+                     "rule_field": data.get("rule_field") or "instructions"},
                 side_effects=[(f"Your app is not run. Inspect re-scores a copy of your log in "
                                f"your Python ({python}); your log is never changed.")])
 

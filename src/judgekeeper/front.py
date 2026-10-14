@@ -118,6 +118,8 @@ NEXT_ALL_MARKED = "run your eval again to get new answers, then run `{command}`.
 NEXT_CHECK = "run `{command}` to re-check your changed judge on your marks."
 NEXT_RESULT = ("nothing to do. When you change your judge or update your eval tool, run "
                "`{command}`.")
+NEXT_FIX = "to try a better rule, run `{command}`."
+FIX_FROM = 3  # mistakes on the seen marks that make `judgekeeper fix` the next step
 NEXT_CONTINUE = "run `{command}` when you want to continue."
 STILL_OPEN = "The marking page is still open if you want to mark more answers."
 VS_MARKS = "Your judge vs your marks, on {n}:"
@@ -970,6 +972,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     if which:
         talk.say()
         talk.para(which)
+    wrong = _where_wrong(talk, ws)
     talk.say()
     talk.say(f"Full report: {shown_folder(ws)}/{ws.report_html.name} (open it in your browser)")
     talk.say()
@@ -984,7 +987,12 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     talk.say()
     if check:
         next_step = NEXT_CHECK.format(command=_check_command(talk))
-    elif r["verdict_level"] in ("too_early", "check"):  # marking more will tell
+    elif r["verdict_level"] == "too_early":  # a side can't be told yet: mark more
+        next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
+    elif wrong >= FIX_FROM:
+        next_step = NEXT_FIX.format(command=_check_command(talk).replace(
+            program("check"), program("fix"), 1))
+    elif r["verdict_level"] == "check":  # can't tell yet, too few mistakes to fix from
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
     else:
         next_step = NEXT_RESULT.format(command=_check_command(talk))
@@ -992,6 +1000,22 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     if opened is not None:
         page.serve(opened.server)
     return EXIT_OK
+
+
+def _where_wrong(talk: FrontTalk, ws: Workspace) -> int:
+    """The result's "Where it goes wrong" lines (fix.where_wrong); how many mistakes."""
+    from judgekeeper import fix
+
+    try:
+        lines, wrong = fix.where_wrong(ws)
+    except (OSError, ValueError, KeyError):  # what the result is made from can't be read
+        return 0
+    if lines:
+        talk.say()
+        talk.say("Where it goes wrong:")
+        for line in lines:
+            talk.para(line, indent="  ")
+    return wrong
 
 
 def _stop(talk: FrontTalk, path: Path) -> int:

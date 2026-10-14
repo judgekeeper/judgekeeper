@@ -265,6 +265,12 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     status, why = classify(info, worker)
     if status == CANT:
         return cant("mlflow", judge, why, short=re.split(r"[.,](?:\s|$)", why)[0])
+    job = judge_job(info, worker)
+    if opts.rule is not None:
+        if job["kind"] not in ("guidelines", "make_judge"):
+            return cant("mlflow", judge, again.NO_SWAP.format(
+                what="an MLflow judge that is registered or built in"), short="no rule to swap")
+        job = {**job, "text": opts.rule}
     version = worker.get("version")
     if status == EXACT:
         confirmed = dry and bool(version) and talk is not None and talk.ask_yes(
@@ -299,7 +305,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 calls_note="up to" if info.get("trace") else "", tokens=tokens,
                 settings=check.settings, key_ok=check.ok, tool_version=version, left_out=left,
                 runner=[python], payload=payload,
-                job={"uri": info.get("uri"), "judge": judge_job(info, worker)},
+                job={"uri": info.get("uri"), "judge": job},
                 side_effects=[(f"Your app is not run. MLflow calls your judge directly in "
                                f"your Python ({python}); never mlflow.genai.evaluate(), so "
                                "nothing is added to your MLflow store.")])

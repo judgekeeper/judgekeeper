@@ -278,7 +278,7 @@ def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
     ran, posted, steps = _walk(ic, monkeypatch, "table", tmp_path)
     fronts, after = _front(ic, [args for args, _ in ran])
     assert fronts == [["--no-browser", "--port", "5"], ["--no-browser", "--port", "5"]]
-    assert after[0][:1] == ["start"]
+    assert after[0][:1] == ["fix"]
     first = " ".join(ran[0][1])
     assert "Open this link" in first and "Your judge's grades: 28 Pass, 22 Fail" in first
     result = " ".join(ran[1][1])
@@ -321,7 +321,7 @@ def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_p
     ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path, jk=jk)
     fronts, after = _front(ic, [args for args, _ in ran])
     assert fronts[0] == ["--no-browser", "--port", "5"] and len(fronts) == 2
-    assert after[0][:1] == ["start"]
+    assert after[0][:1] == ["fix"]
     first, result = " ".join(ran[0][1]), " ".join(ran[1][1])
     assert "Next: [^`]*`uvx judgekeeper@" in first and "Next: [^`]*`uvx judgekeeper@" in result
 
@@ -330,3 +330,21 @@ def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch, tmp_p
     ran, _, _ = _walk(ic, monkeypatch, "table", tmp_path)
     assert not [e for _, expect in ran for e in expect if "uvx" in e]
 
+
+
+def test_the_walk_runs_fix_after_the_result(ic, monkeypatch, tmp_path):
+    """`judgekeeper fix` (where the judge goes wrong), then for a judge whose rule it can swap,
+    a new rule in .judgekeeper/fix/rule.txt and `judgekeeper fix --yes` (the test); then
+    `judgekeeper start` takes over as before."""
+    ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path)
+    commands = [args for args, _ in ran]
+    end = commands.index(["--stop"])
+    assert commands[end + 1:end + 3] == [["fix"], ["fix", "--yes"]]
+    assert any("Step 4 of 5: Fix" in e for e in ran[end + 1][1])
+    assert any("Tested on your" in e for e in ran[end + 2][1])
+    rule = tmp_path / ".judgekeeper" / "fix" / "rule.txt"
+    assert rule.read_text(encoding="utf-8").strip() == ic.rule_for("promptfoo", ic.RULE_NEW)
+    ran, _, _ = _walk(ic, monkeypatch, "table", tmp_path / "t")
+    commands = [args for args, _ in ran]
+    end = commands.index(["--stop"])
+    assert commands[end + 1] == ["fix"] and ["fix", "--yes"] not in commands

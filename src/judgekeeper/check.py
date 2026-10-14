@@ -667,6 +667,49 @@ def _not_set_up(path: str, state: State | None, said) -> int:
     return EXIT_NEEDS_YOU
 
 
+def _tested_rule(state: State, found) -> str | None:
+    """When the new judge's rule is one `judgekeeper fix` tested: the line that says so, with
+    the day and the result of that test."""
+    from judgekeeper.fix import VERDICT_NAMES
+    from judgekeeper.start_fix_rule import rule_text
+
+    if not found.rule:
+        return None
+    now = " ".join(rule_text(found.rule, found.tool).split())
+    folder = state.ws.dir / "rules"
+    hashes = []
+    for path in sorted(folder.glob("*.txt")) if folder.is_dir() else []:
+        try:
+            if " ".join(path.read_text(encoding="utf-8").split()) == now:
+                hashes.append("sha256:" + path.stem)
+        except OSError:
+            continue
+    tests = [x for x in _history_all(state.ws)
+             if x.get("kind") == "fix" and x.get("rule_hash") in hashes]
+    if not tests:
+        return None
+    day = _day(tests[-1].get("time"))
+    result = VERDICT_NAMES.get(tests[-1].get("verdict"), "").lower()
+    return (f"This is the rule you tested with `{program('fix')}`"
+            f"{f' on {day}' if day else ''}{f' ({result})' if result else ''}.")
+
+
+def _history_all(ws: Workspace) -> list[dict]:
+    try:
+        text = ws.history_jsonl.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    out = []
+    for raw in text.splitlines():
+        try:
+            line = json.loads(raw)
+        except ValueError:
+            continue
+        if isinstance(line, dict):
+            out.append(line)
+    return out
+
+
 def _switched(state: State) -> str | None:
     """The eval tool whose results are here now, when the marks' tool has none: judges of two
     eval tools can't be compared."""
@@ -749,6 +792,10 @@ def full(path: str, said: Said, yes: bool = False) -> int:
 
     change = _change_line(old, new, changed, full=True)
     said.say(change)
+    tested = _tested_rule(state, found) if found is not None and old.get("rule_hash") != \
+        new.get("rule_hash") else None
+    if tested:
+        said.say(tested)
     if _lock_newer(state, old, new, found.results[0].path if found else now.newest):
         said.say(CONFIG_NEWER)  # the results were made before the update: out of date
         said.say()
@@ -895,6 +942,16 @@ def history_rows(lines: list[dict]) -> list[dict]:
     tested, old against new per group, the verdict, exact or close."""
     rows = []
     for line in lines:
+        if isinstance(line, dict) and line.get("kind") == "fix":  # a rule tested by fix
+            from judgekeeper.fix import VERDICT_NAMES
+
+            n = int(line.get("hidden") or 0)
+            rows.append({"date": _day(line.get("time")) or "",
+                         "changed": f"New rule tested on {plural(n, 'hidden mark')}",
+                         "tested": plural(n, "hidden mark"),
+                         "groups": [f"Fixed {line.get('fixed')}, broke {line.get('broke')}"],
+                         "verdict": VERDICT_NAMES.get(line.get("verdict"), ""), "exact": ""})
+            continue
         if not isinstance(line, dict) or line.get("kind") != "check" or \
                 line.get("trigger") == "baseline":  # asked by automatic checks (1.0 betas)
             continue
@@ -920,7 +977,17 @@ def history_rows(lines: list[dict]) -> list[dict]:
 
 def report_rows(ws: Workspace) -> list[dict]:
     """The History rows for report.html: newest first."""
-    return list(reversed(history_rows(_history(ws))))
+    try:
+        text = ws.history_jsonl.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    lines = []
+    for raw in text.splitlines():
+        try:
+            lines.append(json.loads(raw))
+        except ValueError:
+            continue
+    return list(reversed(history_rows(lines)))
 
 
 __all__ = ["full", "groups", "history_rows", "report_rows", "run"]
