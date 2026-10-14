@@ -269,15 +269,19 @@ def _guide() -> str:
     return (ROOT / "docs" / "guide.md").read_text(encoding="utf-8")
 
 
-def test_changelog_entry_says_what_keeps_checking():
+def test_changelog_entry_says_1_0_is_commands_you_run():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entry = text[text.index(f"## {VERSION}"):text.index("## 1.0.0b1")]
     assert len(entry.strip().splitlines()) < 20
     flat = " ".join(entry.split())
+    removed = ("Removed: automatic checks, the GitHub Action and the agent skill. 1.0 is "
+               "commands you run yourself; agent support may come back later.")
     for needed in (f"`uvx judgekeeper@{VERSION}`", f"`pip install judgekeeper=={VERSION}`",
-                   "`judgekeeper check`", "`judgekeeper check --off`", "Only your click",
-                   "History", "`action.yml`", "`mode: fast`", "`mode: full`", "skill"):
+                   "`judgekeeper check`", "History", "asks first",
+                   "Find. Mark. Measure. Fix. Re-check.", removed):
         assert needed in flat, needed
+    for gone in ("--off", "Only your click", "action.yml", "mode: fast", "hook"):
+        assert gone not in flat, gone
 
 
 def test_changelog_entry_says_what_changed_since_0_1_3():
@@ -466,12 +470,13 @@ def test_actions_are_pinned_to_commit_hashes():
             assert re.search(r"#\s*v\d", line), f"{path.name}: no version comment on {line.strip()}"
 
 
-def test_security_policy_says_a_file_edit_can_turn_checks_on():
+def test_security_policy_says_what_judgekeeper_writes_and_that_agents_are_not_supported():
     flat = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
-    for needed in ("cannot prove a person clicked", "`.judgekeeper/checks.json`",
-                   '"turned on by a file edit, not on the page"', "`judgekeeper check --off`",
-                   "never through a link"):
+    for needed in ("writes only inside `.judgekeeper/`", "never edits other tools' settings",
+                   "isn't supported in 1.0", "its own origin"):
         assert needed in flat, needed
+    for gone in ("Turn on", "checks.json", "--off", "page.log", "settings.local.json"):
+        assert gone not in flat, gone
 
 
 def test_security_policy_and_dependabot_exist():
