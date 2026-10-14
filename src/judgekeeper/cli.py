@@ -240,6 +240,16 @@ def _parser() -> argparse.ArgumentParser:
                          "paid with your own key)")
     p.check = ck
 
+    fx = sub.add_parser("fix", parents=[common],
+                        help="see where your judge goes wrong and test a better rule")
+    fx.add_argument("path", nargs="?", default=".", metavar="PATH",
+                    help="your project folder (default: this folder)")
+    fx.add_argument("--yes", action="store_true",
+                    help="without a terminal: go ahead and test the new rule (it makes AI "
+                         "calls, paid with your own key)")
+    fx.add_argument("--new", action="store_true",
+                    help="hide a new set of your marks to test rules on")
+
     st = sub.add_parser("start", parents=[common],
                         help="find your judge's saved results and check them against your own "
                              "labels")
@@ -378,6 +388,12 @@ def cmd_check(args) -> int:
     return check.run(args.path, yes=args.yes)
 
 
+def cmd_fix(args) -> int:
+    from judgekeeper import fix
+
+    return fix.run(args.path, yes=args.yes, new=args.new)
+
+
 def cmd_front(args) -> int:
     from judgekeeper import front
 
@@ -388,7 +404,8 @@ def cmd_front(args) -> int:
                      no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop)
 
 
-COMMANDS = {"mark": cmd_mark, "check": cmd_check, "start": cmd_start, None: cmd_front}
+COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, "start": cmd_start,
+            None: cmd_front}
 
 
 def _command(args_list: list[str]) -> str | None:
