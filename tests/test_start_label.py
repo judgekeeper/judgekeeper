@@ -273,8 +273,9 @@ def test_the_terminal_result():
     assert (f"You failed: your judge also failed about 25% (could be {tnr_lo:.0%} to "
             f"{tnr_hi:.0%}).") in lines
     assert "Your judge passes too many answers you would fail." in lines
+    k_lo, k_hi = r["kappa_interval"]
     assert (f"  TPR 0.95 ({tpr_lo:.2f}–{tpr_hi:.2f})   TNR 0.25 ({tnr_lo:.2f}–"
-            f"{tnr_hi:.2f})   kappa 0.25") in lines
+            f"{tnr_hi:.2f})   kappa 0.25 ({k_lo:.2f}–{k_hi:.2f})") in lines
     lo, hi = r["real_pass_rate_interval"]
     assert (f"  Your judge passes 90% of your app's answers. From your marks, about 76% should "
             f"pass (probably between {lo:.0%} and {hi:.0%}).") in lines

@@ -243,12 +243,13 @@ def test_the_number_boxes():
     r = _result(*CHECK)
     html = _flat(start_label.result_html(r))
     lo, hi = r["tpr_interval"]
-    for needed in ("When you said Pass", "When you said Fail", "How much you agree beyond luck",
+    for needed in ("When you said Pass", "When you said Fail", "Kappa on your real mix",
                    f"{r['tpr']:.0%}</b>", f"{r['tnr']:.0%}</b>", f"{r['kappa']:.2f}</b>",
                    f"Rough: could be {lo:.0%} to {hi:.0%}. Marking more answers narrows this.",
                    (f"Rough: could be {r['tnr_interval'][0]:.0%} to "
                     f"{r['tnr_interval'][1]:.0%}. Marking more answers narrows this."),
-                   "from 30 answers · 0.6 or more is good"):
+                   (f"could be {r['kappa_interval'][0]:.2f} to {r['kappa_interval'][1]:.2f}, "
+                    "from 30 answers")):
         assert needed in html, needed
     tiles = re.findall(r'<div class="tile">.*?</div>\s*</div>', start_label.result_html(r),
                        re.DOTALL)
@@ -257,9 +258,9 @@ def test_the_number_boxes():
     assert "<span style" in tiles[0] and "<span style" not in tiles[2]  # kappa: the mark only
 
 
-def test_the_kappa_line_reads_the_gate(monkeypatch):
-    monkeypatch.setattr(start_label.targets, "KAPPA_GATE", 0.7)
-    assert "0.7 or more is good" in start_label.result_html(_result(*GATE))
+def test_the_kappa_line_has_no_target():
+    html = start_label.result_html(_result(*GATE))
+    assert "or more is good" not in html and "Kappa on your real mix" in html
 
 
 def test_an_unknown_rate_shows_a_dash_and_no_bar():  # only with too few labels

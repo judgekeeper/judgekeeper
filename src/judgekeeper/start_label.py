@@ -120,6 +120,7 @@ DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
 WIDTH_WORDS = {"too_wide": "Not enough marks yet", "rough": "Rough", "sharp": "Sharp"}
 # Under a range too wide to give a number, when few of the answers are of that kind
+KAPPA_PLAIN = "Kappa on your real mix (agreement beyond coincidence)"
 FEW = ("Few of these answers should {kind}, so it takes more marks to measure how your judge "
        "handles the ones that do.")
 
@@ -714,7 +715,8 @@ def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
         lines.append("")
         lines.append("  " + "   ".join([_number("TPR", r["tpr"], r["tpr_interval"]),
                                         _number("TNR", r["tnr"], r["tnr_interval"]),
-                                        _number("kappa", r["kappa"], None)]))
+                                        _number("kappa", r["kappa"],
+                                                r.get("kappa_interval"))]))
         if pass_rate_line(r):
             lines.append(f"  {pass_rate_line(r)}")
         lines.append(f"  {CORRECTED}")
@@ -841,6 +843,14 @@ def page_content(r: dict, marking: str | None = None) -> dict:
             shown["line"] = f"{shown['line']} {FEW.format(kind=kind)}"
         return shown
 
+    def kappa_tile(shown: dict) -> dict:
+        """Kappa's tile: its range in words (it has no bar: it moves with how many answers
+        pass, so it is no target)."""
+        lo, hi = r.get("kappa_interval") or (None, None)
+        if not too_few and r["kappa"] is not None and lo is not None:
+            shown["line"] = f"could be {lo:.2f} to {hi:.2f}, from {n} answers"
+        return shown
+
     colour, icon, _ = LEVELS[r["verdict_level"]]
     judge = r.get("judge") or {}
     fingerprint = r.get("fingerprint") or {}
@@ -928,8 +938,8 @@ def page_content(r: dict, marking: str | None = None) -> dict:
                            f"{labels['correct']} marked Pass so far"), "tpr"),
                   few(tile("TNR", "When you said Fail", r["tnr"], r["tnr_interval"],
                            f"{labels['wrong']} marked Fail so far"), "tnr"),
-                  tile("kappa", "How much you agree beyond luck", r["kappa"], None,
-                       f"from {n} answers · {targets.KAPPA_GATE:g} or more is good", as_pct=False)],
+                  kappa_tile(tile("kappa", KAPPA_PLAIN, r["kappa"], None,
+                                  f"from {n} answers", as_pct=False))],
         "pass_rate": None if too_few else _pass_rate(r),
         "corrected": None if too_few else (
             "judgekeeper showed you half of your judge's passes and half of its fails, and "

@@ -189,3 +189,61 @@ def test_a_side_too_wide_is_too_early_to_tell(project, capsys):
     assert "Result:" not in out
     assert out.rstrip().endswith(
         "Next: run `judgekeeper mark --no-browser` to mark more answers.")
+
+
+# Kappa: re-weighted, with a range, in the details -------------------------------------------
+
+def _true_kappa(real: float, tpr: float, tnr: float) -> float:
+    judge = real * tpr + (1 - real) * (1 - tnr)
+    agree = real * tpr + (1 - real) * tnr
+    chance = judge * real + (1 - judge) * (1 - real)
+    return (agree - chance) / (1 - chance)
+
+
+@pytest.mark.parametrize("real,expected", [(0.8, 0.65), (0.9, 0.53)])
+def test_kappa_is_reweighted_to_the_real_mix(real, expected):
+    """Half the marks from each of the judge's groups, re-weighted: the mean kappa is the
+    kappa of all the answers."""
+    tpr, tnr, n = 0.90, 0.80, 50
+    assert _true_kappa(real, tpr, tnr) == pytest.approx(expected, abs=0.005)
+    judge = real * tpr + (1 - real) * (1 - tnr)
+    a, b = real * tpr / judge, real * (1 - tpr) / (1 - judge)
+    pool_pass = round(100_000 * judge)
+    rng = random.Random(7)
+    kappas = []
+    for _ in range(300):
+        c_p = sum(rng.random() < a for _ in range(n))
+        c_f = sum(rng.random() < b for _ in range(n))
+        kappas.append(weighted.corrected(pool_pass, 100_000 - pool_pass, n, c_p, n, c_f,
+                                         draws=50)["kappa"])
+    assert sum(kappas) / len(kappas) == pytest.approx(expected, abs=0.02)
+
+
+@pytest.mark.parametrize("case,kappa,low,high", [
+    ((0.5, (15, 13), (15, 2)), 0.73, 0.40, 0.90),  # S1
+    ((0.9, (15, 15), (15, 0)), 1.00, 0.49, 1.00),  # S4
+])
+def test_kappa_has_a_range(case, kappa, low, high):
+    r = result(*case)
+    assert r["kappa"] == pytest.approx(kappa, abs=0.01)
+    assert r["kappa_interval"][0] == pytest.approx(low, abs=0.03)
+    assert r["kappa_interval"][1] == pytest.approx(high, abs=0.03)
+
+
+def test_kappa_after_asking_again_has_a_range():
+    items = [("pass", "pass", "pass")] * 18 + [("pass", "fail", "pass")] * 2 + \
+            [("fail", "fail", "fail")] * 17 + [("fail", "pass", "fail")] * 3
+    out = weighted.general(items, 500, 500)
+    lo, hi = out["kappa_interval"]
+    assert lo < out["kappa"] < hi
+
+
+def test_kappa_is_in_the_details_with_its_range_and_no_bar():
+    from html import unescape
+
+    r = result(0.5, (15, 13), (15, 2))
+    html = " ".join(unescape(start_label.result_html(r)).split())
+    lo, hi = r["kappa_interval"]
+    assert "Kappa on your real mix (agreement beyond coincidence)" in html
+    assert f"could be {lo:.2f} to {hi:.2f}" in html
+    assert "or more is good" not in html and "beyond luck" not in html

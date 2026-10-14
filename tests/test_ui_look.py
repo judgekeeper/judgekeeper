@@ -301,7 +301,7 @@ def test_the_result_has_two_columns_with_the_sentences_left_and_the_details_righ
                    "Check again after your next eval run", "<code>judgekeeper start</code>"):
         assert needed in left, needed
     for needed in ("<h3>Details</h3>", "When you said Pass", "TPR", "TNR",
-                   "How much you agree beyond luck", "<h3>Your judge</h3>"):
+                   "Kappa on your real mix", "<h3>Your judge</h3>"):
         assert needed in right, needed
     assert "<h3>Details</h3>" not in left and "What next" not in right
     assert ".split { grid-template-columns: minmax(0, 1fr) 400px; }" in html
