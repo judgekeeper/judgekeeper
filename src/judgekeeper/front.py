@@ -52,6 +52,7 @@ is needed (the `Next:` line says what to ask or do), 2 usage error, 130 Ctrl-C.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -125,8 +126,6 @@ MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
 NEXT_ANY_PORT = "run `{command}` (it opens the page on any free port)."
-NO_DECISION = ("nothing to do now. Your judge made no real decision on any answer{listed}; run "
-               "`{command}` again after your next eval run.")
 # A tool found here with no saved results: what saves them
 SAVES = {"deepeval": "DeepEval saves results only when you run deepeval test run or evaluate().",
          "inspect": "Inspect AI saves its logs in logs/ when you run inspect eval.",
@@ -279,9 +278,20 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if uri is not None and str(uri).startswith(start.SERVERS):
         raise _tracking_server(talk, path, str(uri))
     if not path.exists():
-        raise StartError(f"file or folder not found: {path}")
+        raise not_found(path)
     where, saved = _own_format(talk, path)
     return _find(talk, where, saved), saved
+
+
+def not_found(path: Path) -> StartError:
+    """PATH is not there; a single word is taken for a command that does not exist."""
+    word = str(path)
+    if re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", word):
+        return StartError(f"`{word}` is not a judgekeeper command, and there is no folder "
+                          f"named {word} here.", f"run `{program()}`, or "
+                                                 f"`{program()} --help` to see the commands.")
+    return StartError(f"file or folder not found: {path}",
+                      "check the path, then run `{command}`.")
 
 
 def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettings | None]:
@@ -326,14 +336,14 @@ def _find(talk: FrontTalk, path: Path, saved) -> start.Found:
         try:
             found = start.find_judge(path, talk=talk, saved=saved, store=talk.store, **options)
         except RecordsError as e:
-            raise StartError(str(e)) from None
+            raise start.usage_error(e) from None
         if not found.pool.unmapped:
             return found
         _unread_values(talk, found)
 
 
 def _shown(values) -> str:
-    texts = [" ".join(str(v).split()) for v in values]
+    texts = [start.shown_value(v) for v in values]
     texts = [t[:VALUE_WIDTH - 1] + "…" if len(t) > VALUE_WIDTH else t for t in texts]
     return ", ".join(sorted(texts)[:10]) + (f" and {len(texts) - 10} more"
                                              if len(texts) > 10 else "")
@@ -375,17 +385,43 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
                 talk.set("pass_if", f"score>={answer}")
                 return
     words = [str(v) for v in values if not _numeric(v)]
-    talk.say(f"judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
-             f"Fail: {_shown(words)}.")
+    long = [v for v in values if not _numeric(v) and not start.verdict_like(v)]
+    if long:  # never shown: it may be the judge's reason or an answer's text
+        raise _long_text(talk, found, long)
+    talk.para(f"judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
+              f"Fail: {_shown(words)}.")
     if not terminal:
         raise talk.stop(EXIT_QUESTION, (
-            f"decide which of these mean Pass and which mean Fail ({_shown(words)}), then run "
+            "decide which of the values above mean Pass and which mean Fail, then run "
             f"`{talk.command('--label-map', LABEL_MAP)}`."))
     picked = []
     for w in words:
         i = talk.choose(f"Does {w!r} mean Pass or Fail?", ["Pass", "Fail"], "")
         picked.append(f"{w}={('pass', 'fail')[i]}")
     _add_label_map(talk, ",".join(picked))
+
+
+def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
+    """The judge's decisions hold long text, not grade words: counted, never shown. In a
+    table, a quote that never closes may have put it there."""
+    from judgekeeper.table import open_quote
+
+    n = sum(found.pool.n_unmapped.get(repr(v), 0) for v in long)
+    newest = found.results[0].path
+    if found.tool == "table":
+        columns = find.table_columns(newest)
+        column = next((c for c in find.VERDICT_COLUMNS if c in columns), "verdict")
+        line = open_quote(newest, loose=True)
+        hint = (f" (line {line} of {newest.name} may have a quote that never closes)"
+                if line else "")
+        where = f"the {column} column holds long text in {_n(n, 'row')}{hint}"
+        fix = f"make each grade in the {column} column of {newest.name} one word, like pass"
+    else:
+        where = f"they hold long text in {_n(n, 'answer')}"
+        fix = "check where your judge's decisions are saved"
+    talk.para("judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
+              f"Fail: {where}.")
+    return talk.stop(EXIT_QUESTION, f"{fix}, then run `{talk.command()}`.")
 
 
 def _nothing_found(talk: FrontTalk, root: Path, signs: dict) -> Stop:
@@ -596,10 +632,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         talk.ask_noted()
         _write(found)
         talk.say()
-        talk.para("No answer has a clear Pass or Fail from your judge, so there is nothing to "
-                  "mark.")
-        raise talk.stop(EXIT_OK, NO_DECISION.format(listed=f" (the list is in {listed})",
-                                                    command=talk.command()))
+        raise _nothing_to_mark(talk, found, None)  # the free check said where the list is
     new = _to_save(talk, found, mapped)
     talk.ask_noted()  # without a terminal, nothing is written before they are answered
     _write(found)
@@ -615,6 +648,20 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
             f"with `{_command_of(talk, saved, 'mark')}`."))
     talk.say()
     return _marking(talk, Workspace(found.root), found, wait, saved, marking=False, first=True)
+
+
+def _nothing_to_mark(talk: FrontTalk, found: start.Found, listed: str | None) -> Stop:
+    """No answer has a clear Pass or Fail: the person fixes the judge and runs the eval
+    again (exit 3)."""
+    failed = {kind for kind, _ in found.pool.left.values()} == {judge_check.ERROR}
+    talk.para("Your judge's calls failed on every answer, so there is nothing to mark."
+              if failed else "No answer has a clear Pass or Fail from your judge, so there is "
+                             "nothing to mark.")
+    if listed:
+        talk.para(f"The list is in {listed}.")
+    fix = "fix your judge's calls" if failed else "fix your judge"
+    return talk.stop(EXIT_QUESTION, f"{fix}, run your eval again, then run "
+                                    f"`{talk.command()}`.")
 
 
 def answered(talk: FrontTalk, saved: bool) -> tuple[str, dict]:
@@ -701,9 +748,7 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
     why = _why_start_over(talk, ws, found)
     if not found.pool.answers and (why is not None or not ws.start.is_file()):
         talk.ask_noted()
-        talk.para("No answer has a clear Pass or Fail from your judge, so there is nothing to "
-                  "mark.")
-        raise talk.stop(EXIT_OK, NO_DECISION.format(listed="", command=program()))
+        raise _nothing_to_mark(talk, found, None)
     over = why is not None
     if over:
         for line in why:
@@ -961,7 +1006,7 @@ def _where_wrong(talk: FrontTalk, ws: Workspace) -> int:
 def _stop(talk: FrontTalk, path: Path) -> int:
     """--stop: close the page open for this project."""
     if not path.exists():
-        raise StartError(f"file or folder not found: {path}")
+        raise not_found(path)
     ws = Workspace(start_again._project(path))
     if not is_open(ws.dir):
         talk.say("No marking page is open.")

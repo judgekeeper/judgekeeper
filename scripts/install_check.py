@@ -797,12 +797,12 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         return p
 
     def plan_then_go(self, name: str, flags: list[str]) -> bool:
-        """Run a step that asks before spending: once for its plan (it stops, exit 8), then
+        """Run a step that asks before spending: once for its plan (it stops, exit 3), then
         with --allow-calls N, N read from the plan."""
         # MLflow's own judge is a make_judge, never one of MLflow's built-in judges.
         expect = [r"judge calls", *([r"make_judge"] if self.tool == "mlflow" else [])]
         plan = self.run(f"{name}: the plan", self.start(*flags, "--no-browser"),
-                        ok_codes=(8,), expect=expect)
+                        ok_codes=(3,), expect=expect)
         n = planned_calls(plan.stdout) if plan else None
         if not self.step(f"{name}: N read from the plan", n is not None, f"(N = {n})"):
             return False
@@ -822,7 +822,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         self.mark_path()
         self.fix_path()
         self.run("2. start: the last result and what next", self.start("--no-browser"),
-                 ok_codes=(0, 8), expect=[r"Your last result", r"--review"])
+                 ok_codes=(0, 3), expect=[r"Your last result", r"--review"])
         self.serve("3. review the disagreements (start --review --yes)",
                    self.start("--review", "--no-browser", "--yes"), self.review)
 

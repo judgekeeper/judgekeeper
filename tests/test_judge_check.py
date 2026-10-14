@@ -186,7 +186,7 @@ def _block(**counts):
 
 def test_nothing_found_is_one_line():
     assert judge_check.terminal_lines(_block(), "✓") == [
-        "  ✓ Your judge made a real decision on every answer."]
+        "  ✓ Your judge gave a Pass or Fail on every answer (no errors or empty replies)."]
 
 
 def test_every_finding_has_its_line():
@@ -533,7 +533,7 @@ def test_a_clean_judge_gets_one_line(tmp_path, capsys):
     assert code == 0
     lines = out.splitlines()
     where = lines.index("  Its decisions   32 answers: 20 passed, 12 failed")
-    assert lines[where + 1] == f"  {ok()} Your judge made a real decision on every answer."
+    assert lines[where + 1] == f"  {ok()} {judge_check.EVERY_ANSWER}"
     assert "no clear verdict" not in out
 
 
@@ -722,7 +722,7 @@ def test_a_clean_result_page_has_one_quiet_line(tmp_path, capsys):
     ws = start_label.Workspace(tmp_path)
     start_label.save_result(ws, start_label.StartSession(ws), say=lambda line: None)
     html = ws.report_html.read_text(encoding="utf-8")
-    assert "<details" in html and "Your judge made a real decision on every answer." in html
+    assert "<details" in html and judge_check.EVERY_ANSWER in html
     assert "Did your judge actually judge?" in html.split("<details")[1]
 
 

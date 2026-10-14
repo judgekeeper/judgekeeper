@@ -115,15 +115,15 @@ def test_a_last_line_cut_short_is_left_out(tmp_path, capsys, no_labeling):
     assert len(no_labeling[0].pool.answers) == 36
 
 
-def test_a_file_it_cannot_read_is_left_out_with_how_to_see_why(tmp_path, capsys):
+def test_a_line_it_cannot_read_is_left_out_and_counted(tmp_path, capsys):
     two_processes(tmp_path)
-    bad = records_project(tmp_path, [True], pid=9, mtime=NOW - 90)
-    bad.write_text('{"label": "pass", "score": "high"}\n{"label": "fail"}\n',
-                   encoding="utf-8")
+    bad = records_project(tmp_path, [True, False], pid=9, mtime=NOW - 90)
+    lines = bad.read_text(encoding="utf-8").splitlines()
+    bad.write_text('{"label": "pass", "score": "high"}\n' + lines[1] + "\n", encoding="utf-8")
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert ".judgekeeper/records/Safe-wording-2026-10-05-9.jsonl could not be read (line 1: " \
-           "score 'high' is not a number), so it was left out." in out
+    assert "1 answer in Safe-wording-2026-10-05-9.jsonl was left out: line 1 has a damaged " \
+           "field." in out
     assert "  Eval tool       your own code (judgekeeper.record())" in out
 
 

@@ -43,7 +43,6 @@ import os
 import random
 import re
 import secrets
-import sys
 from collections import Counter
 from pathlib import Path
 
@@ -894,15 +893,17 @@ def _indented(talk, text: str) -> None:
 
 
 def read_rule_file(path: str | Path) -> str:
-    """The text of `--rule-file`; ValueError (what to say) when it can't be read."""
+    """The text of `--rule-file`; StartError (what to say) when it can't be read."""
+    from judgekeeper.start import StartError
+
     try:
         return Path(path).read_text(encoding="utf-8")
     except UnicodeDecodeError:
         why = "it is not UTF-8 text"
     except OSError as e:
         why = e.strerror or str(e)
-    raise ValueError(f"judgekeeper start: error: can't read --rule-file {quote_arg(path)}: "
-                     f"{why}")
+    raise StartError(f"can't read --rule-file {quote_arg(path)}: {why}",
+                     "check the path, then run `{command}`.")
 
 
 def save_rule_file(fix: Fix, talk, text: str) -> int:
@@ -1029,11 +1030,7 @@ def run(ws: Workspace, talk, port: int, open_browser: bool, test: bool = False,
         return 0
     text = None
     if rule_file is not None:
-        try:
-            text = read_rule_file(rule_file)
-        except ValueError as e:
-            print(e, file=sys.stderr)
-            return start.EXIT_USAGE
+        text = read_rule_file(rule_file)  # cli.main says what went wrong
     fix = Fix(ws, talk.command())
     if fix.new:
         talk.say()

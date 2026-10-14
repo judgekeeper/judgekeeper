@@ -45,7 +45,7 @@ CSV_PATH = f".judgekeeper/{CSV_FILE}"  # start_label.FOLDER
 CSV_COLUMNS = ("id", "problem", "tool_counted_as", "judge_decision", "judge_reason", "input",
                "output")
 TITLE = "Did your judge actually judge?"
-EVERY_ANSWER = "Your judge made a real decision on every answer."
+EVERY_ANSWER = "Your judge gave a Pass or Fail on every answer (no errors or empty replies)."
 LIST_LINE = f"The list is in {CSV_PATH}"
 TOOLS = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools that count verdicts themselves
 

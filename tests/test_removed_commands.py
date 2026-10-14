@@ -20,7 +20,8 @@ def test_a_removed_command_prints_one_line_and_exits_2(name, extra, capsys, tmp_
     assert main([name, *extra]) == 2
     out, err = capsys.readouterr()
     assert out == ""
-    assert err == f"judgekeeper {name} was removed. Run judgekeeper in your project.\n"
+    assert err == (f"judgekeeper {name} was removed. Run judgekeeper in your project.\n"
+                   "Next: run `judgekeeper` in your project.\n")
     assert list(tmp_path.iterdir()) == []  # nothing written
 
 

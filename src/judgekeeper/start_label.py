@@ -58,7 +58,7 @@ from judgekeeper.fingerprint import JudgeFingerprint, rule_hash, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
 from judgekeeper.label import LabelSession, make_server
 from judgekeeper.records import AGENT_FIELDS
-from judgekeeper.redact import scrub, scrub_fingerprint, scrub_value
+from judgekeeper.redact import scrub, scrub_fingerprint, scrub_value, visible
 from judgekeeper.runners.base import Judgment
 from judgekeeper.start_page import label_page, result_page
 from judgekeeper.table import guard_cell, write_anchor_file
@@ -153,7 +153,7 @@ def refuse_links(ws: Workspace) -> None:
         except ValueError:
             shown = str(link)
         raise StartError(LINK.format(path=shown, kind="folder" if link.is_dir() else "file",
-                                     program=program("start")))
+                                     program=program()))
 
 
 def make_folder(ws: Workspace) -> None:
@@ -915,9 +915,10 @@ def page_content(r: dict, marking: str | None = None) -> dict:
 def result_html(r: dict, back: str | None = None, marking: str | None = None,
                 history: list[dict] | None = None, fixing: dict | None = None) -> str:
     """The result page; `history`: the History rows of report.html (check.report_rows);
-    `fixing`: its Fix section (fix.report_section)."""
-    return result_page({**page_content(r, marking), "history": history or [],
-                        "fixing": fixing}, back)
+    `fixing`: its Fix section (fix.report_section). No value on it holds a hidden character
+    (redact.visible)."""
+    return visible(result_page({**page_content(r, marking), "history": history or [],
+                                "fixing": fixing}, back))
 
 
 def _fixing(ws: Workspace) -> dict | None:

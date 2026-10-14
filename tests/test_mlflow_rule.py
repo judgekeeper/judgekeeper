@@ -169,7 +169,7 @@ def test_a_changed_rule_is_a_new_judge(tmp_path, stores, capsys, monkeypatch):
     code, out, _ = run(capsys, "--try-new-judge", "--no-browser")
     assert "Your judge changed since your last check: the prompt changed." in out
     assert "same judge as your last check" not in out
-    assert code == 8 and "judge calls" in out and "make_judge" in out  # the plan, then stop
+    assert code == 3 and "judge calls" in out and "make_judge" in out  # the plan, then stop
 
 
 @pytest.mark.parametrize(("meta", "want"), [
@@ -292,7 +292,7 @@ def test_failed_judge_calls_are_counted(tmp_path, failing_stores, capsys):
     shutil.copy2(failing_stores / "some.db", tmp_path / "mlflow.db")
     _, out, _ = run(capsys, tmp_path, "--no-browser")
     assert "Its decisions   19 answers" in out, out
-    assert "Your judge made a real decision on every answer" not in out
+    assert "Your judge gave a Pass or Fail on every answer" not in out
     assert re.search(r"5 calls failed", out), out
     found = start.find_judge(tmp_path)
     errors = [r for r in found.pool.answers if r.verdict not in ("pass", "fail")]
@@ -305,5 +305,6 @@ def test_every_judge_call_failed_says_why(tmp_path, failing_stores, capsys):
     said = out + err
     assert code != 0
     assert "every call of your judge sum_check failed (24 saved as errors)" in said, said
-    assert "First error: SCORER_ERROR: the judge gave no reply for question" in said
+    assert "First error" not in said and "no reply for question" not in said  # its text
+    assert "Next: fix your judge's calls (MLflow keeps each error with its trace)" in said
     assert "has no judge assessments" not in said

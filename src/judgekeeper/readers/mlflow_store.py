@@ -71,13 +71,18 @@ from judgekeeper.records import (
     HUMAN,
     LLM,
     NO_MARK,
+    Damaged,
     Mark,
     RecordList,
     RecordsError,
     ScoreRecord,
+    check_record,
     derive_record_id,
 )
 from judgekeeper.textio import get_extra
+
+# The loggers MLflow's reading goes through: MLflow's own, and the database layers under it
+LOGGERS = ("mlflow", "alembic", "sqlalchemy")
 
 NEEDS_EXTRA = "reading MLflow needs mlflow. To read it, {get}."
 KINDS = {"LLM_JUDGE": LLM, "AI_JUDGE": LLM, "HUMAN": HUMAN, "CODE": CODE}
@@ -166,9 +171,11 @@ def is_folder_store(uri) -> bool:
 def quiet() -> Iterator[None]:
     """Around judgekeeper's own MLflow calls: MLflow says nothing of its own. Its hint for
     coding agents (logged on `import mlflow` when an agent runs it) is switched off with
-    MLFLOW_DISABLE_AGENT_HINT=1, and its loggers show errors only (it warns once per trace it
-    cannot download, for example). Both are put back afterwards, also after an error; a
-    value the user set is left as it is. Never for the user's shell, never in a file."""
+    MLFLOW_DISABLE_AGENT_HINT=1, and its loggers (and the database layers' under it) show
+    only CRITICAL: it warns once per trace it cannot download, and logs a traceback that
+    holds the stored text when a trace has a byte that isn't UTF-8. Both are put back
+    afterwards, also after an error; a value the user set is left as it is. Never for the
+    user's shell, never in a file."""
     set_hint = HINT not in os.environ
     if set_hint:
         os.environ[HINT] = "1"
@@ -176,13 +183,15 @@ def quiet() -> Iterator[None]:
         import mlflow  # noqa: F401 - MLflow sets its loggers' level on import
     except ImportError:
         pass
-    logger = logging.getLogger("mlflow")
-    level = logger.level
-    logger.setLevel(logging.ERROR)
+    loggers = [logging.getLogger(name) for name in LOGGERS]
+    levels = [logger.level for logger in loggers]
+    for logger in loggers:
+        logger.setLevel(logging.CRITICAL)
     try:
         yield
     finally:
-        logger.setLevel(level)
+        for logger, level in zip(loggers, levels):
+            logger.setLevel(level)
         if set_hint:
             os.environ.pop(HINT, None)
 
@@ -423,14 +432,57 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     said: list[str] = []
     uri = tracking_uri or os.environ.get("MLFLOW_TRACKING_URI")
     with folder_store_allowed(uri, say=said.append), quiet():
-        files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric,
-                             folder_of(uri))
+        try:
+            files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature,
+                                 metric, folder_of(uri))
+        except UNREADABLE:  # caught before MLflow says more: its words can hold the text
+            raise damaged_store(uri) from None
+    for _, records in files:
+        records.source = store_name(uri)
     files[-1][1].notes[:0] = said
     return files
 
 
+def _unreadable() -> tuple[type[BaseException], ...]:
+    """What reading a damaged store raises: a byte that isn't text, a database that isn't
+    one; and SQLAlchemy's own errors, which wrap them."""
+    import sqlite3
+
+    found: list[type[BaseException]] = [UnicodeDecodeError, sqlite3.DatabaseError,
+                                        RecursionError, OverflowError]
+    try:
+        from sqlalchemy.exc import DatabaseError
+    except ImportError:
+        pass
+    else:
+        found.append(DatabaseError)
+    return tuple(found)
+
+
+UNREADABLE = _unreadable()
+
+
+def store_name(uri) -> str:
+    """The store at `uri` as the person knows it: mlflow.db, or the mlruns folder."""
+    folder = folder_of(uri)
+    if folder is not None:
+        return folder.name
+    return Path(str(uri).removeprefix("sqlite:///")).name if uri else "Your MLflow store"
+
+
+def damaged_store(uri) -> Damaged:
+    """A store judgekeeper can't read, in plain words: its name, never MLflow's error."""
+    return Damaged(f"{store_name(uri)} is damaged: judgekeeper can't read one of its traces.",
+                   "find the damaged trace with `mlflow ui` (or log your evaluation again), "
+                   "then run `{command}`.")
+
+
 class JudgeCallsFailed(RecordsError):
-    """Every call of the experiment's judge failed: MLflow saved only errors."""
+    """Every call of the experiment's judge failed: MLflow saved only errors. The errors'
+    text is never said: it can hold an answer's text."""
+
+    next_step = ("fix your judge's calls (MLflow keeps each error with its trace), run your "
+                 "evaluation again, then run `{command}`.")
 
 
 def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, experiment) -> None:
@@ -445,10 +497,9 @@ def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, exper
     gone = [f for f in failed if not wanted or f[0] in wanted]
     if not judged and gone:
         names = sorted({str(f[1]["name"]) for f in gone})
-        first = " ".join(str(gone[0][2]).split())[:300]
         raise JudgeCallsFailed(
             f"MLflow experiment {experiment!r}: every call of your judge "
-            f"{', '.join(names)} failed ({len(gone)} saved as errors). First error: {first}")
+            f"{', '.join(names)} failed ({len(gone)} saved as errors).")
     for run, fields, error in gone:
         evaluator = evaluators.get((run, fields["name"])) or evaluators.get((None,
                                                                              fields["name"]))
@@ -487,68 +538,84 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     missing_ids = 0
     n_traces = 0
     missing: list[str] = []
+    damaged: list[str] = []  # the ids of traces left out for a damaged field
     for trace in _traces(client, exp.experiment_id, folder, missing):
         n_traces += 1
-        request, response = _content(trace)
-        item_id = _item_id(trace, request, id_from)
-        if item_id is None:
-            missing_ids += 1
-            continue
-        trace_run = (trace.info.trace_metadata or {}).get(TRACE_SOURCE_RUN)
-        root = _root_span(trace)
-        for a in trace.info.assessments or []:
-            d = a.to_dictionary()
-            feedback = d.get("feedback")
-            source = d.get("source") or {}
-            kind = KINDS.get(str(source.get("source_type")).upper())
-            if feedback is None or kind is None:
+        sizes = (len(humans), len(failed), len(on_spans),
+                 {run: len(recs) for run, recs in judged.items()})
+        try:
+            request, response = _content(trace)
+            item_id = _item_id(trace, request, id_from)
+            if item_id is None:
+                missing_ids += 1
                 continue
-            label, score, error = _value(feedback)
-            meta = d.get("metadata") or {}
-            span = d.get("span_id")
-            if kind == CODE and (feedback.get("error") or {}).get("error_code") == SCORER_ERROR:
+            trace_run = (trace.info.trace_metadata or {}).get(TRACE_SOURCE_RUN)
+            root = _root_span(trace)
+            for a in trace.info.assessments or []:
+                d = a.to_dictionary()
+                feedback = d.get("feedback")
+                source = d.get("source") or {}
+                kind = KINDS.get(str(source.get("source_type")).upper())
+                if feedback is None or kind is None:
+                    continue
+                label, score, error = _value(feedback)
+                meta = d.get("metadata") or {}
+                span = d.get("span_id")
+                if kind == CODE and (feedback.get("error") or {}).get("error_code") == SCORER_ERROR:
+                    run = meta.get(SOURCE_RUN_ID) or trace_run or NO_RUN
+                    if not span or span == root:
+                        failed.append((run, {
+                            "target_id": item_id, "name": d.get("assessment_name"),
+                            "input": request, "output": response,
+                            "created_at": d.get("create_time")}, error))
+                    continue
+                common = {"target_id": item_id, "name": d.get("assessment_name"),
+                          "label": label, "score": score, "input": request, "output": response,
+                          "created_at": d.get("create_time"),
+                          "metadata": {"span_id": span} if span else {}}
+                if span == root:
+                    span = None  # on the root span: a verdict on the whole answer
+                if kind == HUMAN and d.get("valid") is False:
+                    continue  # overridden by a later human assessment
+                if kind in (CODE, HUMAN):
+                    record = ScoreRecord(annotator_kind=kind, **common)
+                    if span:
+                        on_spans.append((None, record))
+                    else:
+                        humans.append(record)
+                    continue
                 run = meta.get(SOURCE_RUN_ID) or trace_run or NO_RUN
-                if not span or span == root:
-                    failed.append((run, {
-                        "target_id": item_id, "name": d.get("assessment_name"),
-                        "input": request, "output": response,
-                        "created_at": d.get("create_time")}, error))
-                continue
-            common = {"target_id": item_id, "name": d.get("assessment_name"),
-                      "label": label, "score": score, "input": request, "output": response,
-                      "created_at": d.get("create_time"),
-                      "metadata": {"span_id": span} if span else {}}
-            if span == root:
-                span = None  # on the root span: a verdict on the whole answer
-            if kind == HUMAN and d.get("valid") is False:
-                continue  # overridden by a later human assessment
-            if kind in (CODE, HUMAN):
-                record = ScoreRecord(annotator_kind=kind, **common)
+                if wanted and run not in wanted:
+                    continue
+                evaluator = _model(source.get("source_id"))
+                instructions = judge_instructions(meta)
+                if instructions:
+                    evaluator["rule"] = instructions
+                if meta.get(SCORER_NAME) or meta.get(SCORER_VERSION):
+                    evaluator["version"] = "@".join(
+                        str(x) for x in (meta.get(SCORER_NAME), meta.get(SCORER_VERSION)) if x)
+                if temperature is not None:
+                    evaluator["temperature"] = temperature
+                explanation = error or d.get("rationale") or None
+                record = ScoreRecord(annotator_kind=LLM, explanation=explanation,
+                                     evaluator=evaluator, **common,
+                                     mark=Mark(problem="error") if error else NO_MARK)
                 if span:
-                    on_spans.append((None, record))
+                    on_spans.append((run, record))
                 else:
-                    humans.append(record)
-                continue
-            run = meta.get(SOURCE_RUN_ID) or trace_run or NO_RUN
-            if wanted and run not in wanted:
-                continue
-            evaluator = _model(source.get("source_id"))
-            instructions = judge_instructions(meta)
-            if instructions:
-                evaluator["rule"] = instructions
-            if meta.get(SCORER_NAME) or meta.get(SCORER_VERSION):
-                evaluator["version"] = "@".join(
-                    str(x) for x in (meta.get(SCORER_NAME), meta.get(SCORER_VERSION)) if x)
-            if temperature is not None:
-                evaluator["temperature"] = temperature
-            explanation = error or d.get("rationale") or None
-            record = ScoreRecord(annotator_kind=LLM, explanation=explanation,
-                                 evaluator=evaluator, **common,
-                                 mark=Mark(problem="error") if error else NO_MARK)
-            if span:
-                on_spans.append((run, record))
-            else:
-                judged.setdefault(run, RecordList()).append(record)
+                    judged.setdefault(run, RecordList()).append(record)
+
+            for r in [*humans[sizes[0]:], *(r for _, r in on_spans[sizes[2]:]),
+                      *(r for run, recs in judged.items() for r in recs[sizes[3].get(run, 0):])]:
+                check_record(r)
+        except Exception:  # noqa: BLE001 - MLflow's own errors on one damaged trace too:
+            # this trace is left out, the others are read
+            del humans[sizes[0]:], failed[sizes[1]:], on_spans[sizes[2]:]
+            for run in list(judged):
+                del judged[run][sizes[3].get(run, 0):]
+                if not judged[run]:
+                    del judged[run]
+            damaged.append(str(getattr(trace.info, "trace_id", n_traces)))
 
     if n_traces == 0 and missing:
         where = f"{folder.name}/" if folder is not None else "the store"
@@ -602,5 +669,7 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
                             "name it with --metric.")
     if missing:
         humans.notes.append(missing_line(len(missing), folder.name if folder else "the store"))
+    if files and damaged:
+        files[0][1].left_out, files[0][1].unit = damaged, "trace"
     files.append(("human assessments", humans))
     return files

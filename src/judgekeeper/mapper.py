@@ -119,9 +119,10 @@ def _is(key: str, words) -> bool:
 
 # Loading and walking ----------------------------------------------------------------------
 
-def load_numbered(path: str | Path) -> list[tuple[int, object]]:
+def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[int, object]]:
     """[(line number, unit)]: JSONL lines, CSV rows (all values text), or a JSON document
-    (its elements, when it is a list). Lines that are not JSON are skipped."""
+    (its elements, when it is a list). Lines that are not JSON are skipped (their numbers
+    added to `skipped`)."""
     path = Path(path)
     suffix = path.suffix.lower()
     text = read_utf8(path, MapError).removeprefix("﻿")
@@ -134,8 +135,8 @@ def load_numbered(path: str | Path) -> list[tuple[int, object]]:
     if suffix == ".json":
         try:
             doc = json.loads(text)
-        except ValueError as e:
-            raise MapError(f"{path.name} is not JSON ({e})") from None
+        except ValueError:  # never the parser's words: they quote the file
+            raise MapError(f"{path.name} is damaged (it isn't valid JSON)") from None
         except RecursionError:
             raise MapError(NOT_JSON.format(file=path.name)) from None
         return list(enumerate(doc, 1)) if isinstance(doc, list) else [(1, doc)]
@@ -145,7 +146,8 @@ def load_numbered(path: str | Path) -> list[tuple[int, object]]:
             try:
                 units.append((n, json.loads(line)))
             except (ValueError, RecursionError):
-                continue
+                if skipped is not None:
+                    skipped.append(n)
     return units
 
 

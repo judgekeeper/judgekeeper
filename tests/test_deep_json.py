@@ -31,5 +31,5 @@ def test_json_nested_too_deep_is_said_in_plain_words(here, capsys, name, head, g
     code, out, err = run(capsys, *([name] if given else []))
     assert code == 2, out + err
     assert "RecursionError" not in out + err
-    assert "isn't valid JSON that judgekeeper can read." in err
+    assert f"{path.name} is nested more than 500 levels deep. Save it again" in err
     assert path.name in err
