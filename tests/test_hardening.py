@@ -820,3 +820,26 @@ def test_report_and_page_show_no_hidden_characters(project, capsys):
         assert c not in state, hex(ord(c))
     assert "\\u001b" not in state and "[31m" in state
     assert "polite" in report
+
+
+def test_a_damaged_mlflow_assessment_leaves_out_its_trace(tmp_path, monkeypatch, capsys):
+    import sqlite3
+
+    from tests.conftest import build_mlflow_store
+
+    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+    root = tmp_path / "proj"
+    root.mkdir()
+    build_mlflow_store(root)
+    db = sqlite3.connect(root / "mlflow.db")
+    (trace,) = db.execute("select trace_id from assessments where source_type = 'LLM_JUDGE' "
+                          "order by trace_id limit 1").fetchone()
+    db.execute("update assessments set value = '1e999' where trace_id = ? and "
+               "source_type = 'LLM_JUDGE'", (trace,))
+    db.commit()
+    db.close()
+    monkeypatch.chdir(root)
+    capsys.readouterr()
+    code, text = run(capsys, "--no-browser", "--metric", "correctness")
+    assert_rules(code, text)
+    assert f"1 answer in mlflow.db was left out: trace {trace} has a damaged field." in text

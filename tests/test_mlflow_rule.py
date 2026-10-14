@@ -306,4 +306,5 @@ def test_every_judge_call_failed_says_why(tmp_path, failing_stores, capsys):
     assert code != 0
     assert "every call of your judge sum_check failed (24 saved as errors)" in said, said
     assert "First error" not in said and "no reply for question" not in said  # its text
+    assert "Next: fix your judge's calls (MLflow keeps each error with its trace)" in said
     assert "has no judge assessments" not in said

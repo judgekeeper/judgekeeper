@@ -343,7 +343,8 @@ class RecordList(list):
     `per_metric`: extra source fields for one metric name, e.g. DeepEval's threshold; its
     "warnings" are added to `warnings` when that metric is the one validated.
     `left_out`: the numbers (from 1) of the rows left out for a damaged field (read_rows);
-    `unit` says what a row is in this file ("row", or "line" in a JSONL file).
+    `unit` says what a row is in this file ("row", or "line" in a JSONL file). `source`: the
+    file's name as the person knows it, when it is not the file read (an MLflow store).
     """
 
     def __init__(self, records=(), *, version=None, ids_derived=False, warnings=None,
@@ -355,8 +356,9 @@ class RecordList(list):
         self.notes = list(notes or [])
         self.label_map = dict(label_map or {})
         self.per_metric = dict(per_metric or {})
-        self.left_out: list[int] = []
+        self.left_out: list = []
         self.unit = unit
+        self.source: str | None = None
 
 
 # One damaged row ------------------------------------------------------------------------
@@ -434,7 +436,8 @@ def left_out_note(records: RecordList, file: str) -> str | None:
         named.append(f"{len(rows) - SHOWN_ROWS} more")
     listed = " and ".join([", ".join(named[:-1]), named[-1]] if len(named) > 1 else named)
     one = len(rows) == 1
-    return (f"{plural(len(rows), 'answer')} in {Path(file).name} {'was' if one else 'were'} "
+    name = records.source or Path(file).name
+    return (f"{plural(len(rows), 'answer')} in {name} {'was' if one else 'were'} "
             f"left out: {listed} {'has' if one else 'have'} a damaged field.")
 
 

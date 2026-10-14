@@ -632,7 +632,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
             try:
                 runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
             except (TracesMissing, JudgeCallsFailed) as e:
-                missing.append(str(e))
+                missing.append(e)
                 continue
             except Damaged:
                 raise
@@ -641,7 +641,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
             if any(r.annotator_kind == LLM for _, recs in runs for r in recs):
                 found.append((exp.name, runs))
         if not found and missing:
-            raise StartError(missing[0])
+            raise usage_error(missing[0])
         old = [] if found else _old_evaluate(uri)
         if old:
             talk.say(OLD_EVALUATE.format(names=", ".join(old)))
