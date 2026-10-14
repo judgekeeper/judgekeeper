@@ -336,7 +336,7 @@ def test_known_places_are_looked_at_before_the_limit(tmp_path, capsys, monkeypat
     deepeval_project(tmp_path, split(20, 12))
     code, out, _ = run(capsys, tmp_path)
     assert "  Results file    .deepeval/.latest_run_full.json" in out
-    assert "Stopped looking after 5 files." in out
+    assert "Stopped looking" not in out  # said only when nothing was found
     assert code == 0
 
 

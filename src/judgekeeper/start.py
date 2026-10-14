@@ -871,8 +871,6 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     found = find.search(root)
     for note in found.notes:
         talk.say(note)
-    if found.stopped:
-        talk.say(f"{found.stopped} {POINT_ME.format(program=talk.program)}")
     for big in found.too_big():
         talk.say(big.too_big_message(talk.program))
     available = [t for t in find.TOOLS if found.readable(t)]
@@ -898,6 +896,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
             raise _too_big(talk, found)
         if found.unreadable:
             raise _unreadable(found)
+        if found.stopped:  # only when nothing was found: results found are what was asked
+            talk.say(f"{found.stopped} {POINT_ME.format(program=talk.program)}")
         if "promptfoo" in found.signs:
             return _export(talk, path, tool, root, found.signs["promptfoo"][0])
         _nothing_found(talk, root, found.signs)
