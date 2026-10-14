@@ -633,8 +633,8 @@ def _prefer_saved_runs(found: Search) -> None:
             if theirs is not None and ours is not None and theirs != ours:
                 found.notes.append(
                     f"DeepEval's hidden copy {copy.rel} holds a different run. Using the newest "
-                    f"file in your results folder, {newest.rel}; to use the other: judgekeeper "
-                    f"start {copy.rel}")
+                    f"file in your results folder, {newest.rel}; to use the other: "
+                    f"{textio.program()} {textio.quote_arg(copy.rel)}")
         copies = {}
     if "deepeval" in found.results:
         found.results["deepeval"] = [r for r in runs if r.path.name not in DEEPEVAL_COPIES

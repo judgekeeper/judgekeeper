@@ -45,7 +45,7 @@ def cannot(talk: Talk, rel: str, why: str):
     return talk.stop(EXIT_USAGE, (
         f"turn {rel} into a CSV with the columns id, input, output, verdict (pass or fail) "
         "and reason, one CSV per judge, leaving out errors and scores made by a rule. Then "
-        "run `judgekeeper <the CSV>`."))
+        f"run `{talk.program} <the CSV>`."))
 
 
 UNSURE_PARTS = {"output": "the answer", "input": "the input", "score": "the score"}

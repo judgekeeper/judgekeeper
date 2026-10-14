@@ -96,3 +96,14 @@ def test_extras_here_names_the_extras_whose_module_is_installed(monkeypatch):
     monkeypatch.setattr("importlib.util.find_spec",
                         lambda name: object() if name in found else None)
     assert textio.extras_here() == ("mlflow",)
+
+
+def test_started_by_uvx_with_an_extra_the_next_lines_keep_it(here, capsys, monkeypatch,
+                                                            by_uvx):
+    monkeypatch.setattr(textio, "extras_here", lambda: ("mlflow",))
+    command = f'uvx --from "judgekeeper[mlflow]=={__version__}" judgekeeper'
+    (here / "survey.csv").write_text("No,Question,Answer\n1,q,a\n", encoding="utf-8")
+    code, out, _ = run(capsys, "survey.csv")
+    assert f"`{command} <the CSV>`" in assert_one_next_at_the_end(out)
+    assert "`judgekeeper " not in out
+    assert code == 3
