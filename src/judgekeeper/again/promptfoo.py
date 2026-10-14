@@ -349,6 +349,11 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             graders.setdefault(canonical_json(g), g)
         judged.append((a, row, comps, test_opts, default_test))
 
+    if opts.rule is not None:
+        judged = _swapped(judged, opts.rule)
+        if judged is None:
+            return cant("promptfoo", data["judge"], again.NO_SWAP.format(
+                what="this kind of promptfoo grader"), short="no rule to swap")
     judge = f"{data['judge']} (promptfoo {version})" if version else data["judge"]
     for g in graders.values():
         if is_set_grader(g):
@@ -487,6 +492,25 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 job={"metric": metric},
                 side_effects=[SIDE_EFFECT, (f"Two temporary files are written next to {where} "
                                             "and removed afterwards.")])
+
+
+RULE_TYPES = frozenset({"llm-rubric", "g-eval", "model-graded-closedqa", "search-rubric"})
+
+
+def _swapped(judged: list, rule: str) -> list | None:
+    """`judged` with `rule` as the value of each grader that takes a rule, and no saved grading
+    prompt to compare with (the new rule makes a new one); None when an answer has none."""
+    out = []
+    for a, row, comps, test_opts, default_test in judged:
+        swapped = [{**c, "assertion": {**c["assertion"], "value": rule},
+                    "metadata": {k: v for k, v in (c.get("metadata") or {}).items()
+                                 if k != "renderedGradingPrompt"}}
+                   if judge_type(c["assertion"].get("type")) in RULE_TYPES else c
+                   for c in comps]
+        if swapped == comps:
+            return None
+        out.append((a, row, swapped, test_opts, default_test))
+    return out
 
 
 # Asking again ---------------------------------------------------------------------------------

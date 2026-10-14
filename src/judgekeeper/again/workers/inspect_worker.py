@@ -130,6 +130,8 @@ def run(job, out_path, version):
     before = {(str(s.id), s.epoch): set(s.scores or {}) for s in log.samples}
     spec = next(s for s in log.eval.scorers if s.name == job["scorer"])
     options = dict(spec.options or {})
+    if job.get("rule") is not None:  # judgekeeper fix: a new rule in place of the saved one
+        options[job.get("rule_field") or "instructions"] = job["rule"]
     if options.get("model") is not None:
         options["model"] = uncached(options["model"], GenerateConfig, get_model)
     scorer = scorer_from_registry(registry_create, job["scorer"], options)
