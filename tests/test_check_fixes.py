@@ -15,8 +15,10 @@ No test calls an API: asking again goes through the fake promptfoo of test_again
 
 from __future__ import annotations
 
+import io
 import json
 import os
+import sys
 
 from judgekeeper import judge_setup
 from judgekeeper.cli import main
@@ -221,3 +223,22 @@ def test_no_marked_answer_in_the_new_results_says_why_and_what_to_do(here, capsy
                           "`judgekeeper check` again; or start over on your new answers with "
                           "`judgekeeper --new`.")
     assert _history(ws) == []
+
+
+# N24 ------------------------------------------------------------------------------------------
+
+class _Closed(io.StringIO):
+    """A pipe whose reader stopped reading (`| head`)."""
+
+    def write(self, text):
+        raise BrokenPipeError(32, "Broken pipe")
+
+    def fileno(self):
+        raise io.UnsupportedOperation
+
+
+def test_a_closed_pipe_ends_quietly(here, capsys, monkeypatch, no_calls):
+    _marked(here)
+    monkeypatch.setattr(sys, "stdout", _Closed())
+    assert main(["check"]) == 0
+    assert capsys.readouterr().err == ""
