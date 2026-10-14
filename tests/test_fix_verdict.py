@@ -6,7 +6,7 @@
   one-sided 2.5%) rules out "more than 10 points worse";
 - else can't tell yet: leaning better, the same, or leaning worse.
 Each extra test on the same hidden marks is stricter: test k uses the level divided by k.
-The cases are the published lookup table for the first test; the error check is exact.
+The cases are a lookup table of the first test worked out by hand; the error check is exact.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def test_each_extra_test_on_the_same_marks_is_stricter():
     assert V(3, 0, 10, test=3).kind == "leans better"
 
 
-# The published exact error, in percent, rounded to one decimal: kept aside -> P(fixed) -> error
+# The exact error, in percent, rounded to one decimal: hidden marks -> P(fixed) -> error
 ERROR = {10: {0.0: 0.0, 0.02: 0.0, 0.05: 0.4, 0.10: 1.3, 0.20: 2.7, 0.30: 3.0},
          15: {0.0: 0.0, 0.02: 0.7, 0.05: 1.9, 0.10: 2.3, 0.20: 2.0, 0.30: 2.1}}
 
@@ -61,7 +61,7 @@ ERROR = {10: {0.0: 0.0, 0.02: 0.0, 0.05: 0.4, 0.10: 1.3, 0.20: 2.7, 0.30: 3.0},
 @pytest.mark.parametrize("n, pf", [(n, pf) for n in ERROR for pf in ERROR[n]])
 def test_safe_to_try_rarely_clears_a_rule_10_points_worse(n, pf):
     """Exact: over every possible result when the new rule is truly 10 points worse, the
-    chance of "better" or "safe to try" is the published one (about 3% at most)."""
+    chance of "better" or "safe to try" is about 3% at most."""
     pb, same = pf + 0.10, 1 - 2 * pf - 0.10
     error = sum(math.comb(n, f) * math.comb(n - f, b) * pf ** f * pb ** b * same ** (n - f - b)
                 for f in range(n + 1) for b in range(n + 1 - f)
