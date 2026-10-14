@@ -21,6 +21,7 @@ default answer of a yes/no question, but never picks between tools or judges. Ev
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import operator
@@ -266,6 +267,7 @@ class Pool:
     n_unmapped: dict = field(default_factory=dict)  # how many verdicts had each unmapped value
     n_merged: int = 0
     n_human: int = 0
+    n_tied: int = 0  # answers asked more than once whose grades split evenly
     left: dict = field(default_factory=dict)  # answer id: (judge_check kind, its record)
 
     @property
@@ -309,6 +311,12 @@ def _mark_of(r: ScoreRecord, v, norm: Normaliser, threshold) -> tuple[float | No
     return _number(threshold), None
 
 
+def tie_break(key: str) -> str:
+    """The grade an answer whose grades are tied takes: from a hash of its id, even is pass,
+    so ties split about evenly and one answer always gets the same."""
+    return ("pass", "fail")[int(hashlib.sha256(key.encode("utf-8")).hexdigest(), 16) % 2]
+
+
 def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normaliser) -> Pool:
     """The pool from the judge `metric`'s verdicts in `files`, newest file first. An answer
     whose verdicts are all no real decision (the reader's mark, or nothing the normaliser can
@@ -349,7 +357,11 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                 continue
             pool.n_merged += len(judged) - 1
             passes = sum(v.verdict == "pass" for _, v in judged)
-            verdict = "pass" if passes * 2 > len(judged) else "fail"
+            if passes * 2 == len(judged):  # a tie: the same side for this answer every time
+                verdict = tie_break(key)
+                pool.n_tied += 1
+            else:
+                verdict = "pass" if passes * 2 > len(judged) else "fail"
             r, v = next((r, v) for r, v in reversed(judged) if v.verdict == verdict)
             score = v.raw_score if v.raw_score is not None else _number(r.score)
             pass_mark, pass_op = _mark_of(r, v, norm, threshold)

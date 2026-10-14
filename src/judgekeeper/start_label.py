@@ -121,6 +121,10 @@ TOO_EARLY = "too early to tell"
 WIDTH_WORDS = {"too_wide": "Not enough marks yet", "rough": "Rough", "sharp": "Sharp"}
 # Under a range too wide to give a number, when few of the answers are of that kind
 KAPPA_PLAIN = "Kappa on your real mix (agreement beyond coincidence)"
+RANGE_MEANS = ("'Could be' means: in judgekeeper's tests, ranges made this way held the true "
+               "number about 95 times in 100.")
+RANGE_COVERS = ("Ranges cover the coincidence of which answers you marked. They don't cover "
+                "your own slips or answers unlike these.")
 FEW = ("Few of these answers should {kind}, so it takes more marks to measure how your judge "
        "handles the ones that do.")
 
@@ -624,12 +628,12 @@ def _number(name: str, value, interval) -> str:
 def pass_rate_line(r: dict) -> str:
     if r["judge_pass_rate"] is None:
         return ""
-    line = f"Your judge passes {_pct(r['judge_pass_rate'])} of your app's answers."
+    line = f"Your judge passes {_pct(r['judge_pass_rate'])} of the answers in your results."
     if r["real_pass_rate"] is None:
         return f"{line} How many should pass is unknown yet."
     lo, hi = r["real_pass_rate_interval"]
     return (f"{line} From your marks, about {_pct(r['real_pass_rate'])} should pass "
-            f"(probably between {_pct(lo)} and {_pct(hi)}).")
+            f"(could be {_pct(lo)} to {_pct(hi)}).")
 
 
 def to_review(r: dict) -> int:
@@ -775,12 +779,12 @@ def _pass_rate(r: dict) -> list[tuple[str, bool]] | None:
     if r["judge_pass_rate"] is None:
         return None
     parts = [("Your judge passes ", False), (_pct(r["judge_pass_rate"]), True),
-             (" of your app's answers.", False)]
+             (" of the answers in your results.", False)]
     if r["real_pass_rate"] is None:
         return parts + [(" How many should pass is unknown yet.", False)]
     lo, hi = r["real_pass_rate_interval"]
     return parts + [(" From your marks, about ", False), (_pct(r["real_pass_rate"]), True),
-                    (f" should pass (probably between {_pct(lo)} and {_pct(hi)}).", False)]
+                    (f" should pass (could be {_pct(lo)} to {_pct(hi)}).", False)]
 
 
 def made_lines(made: dict | None) -> list[str]:
@@ -943,8 +947,8 @@ def page_content(r: dict, marking: str | None = None) -> dict:
         "pass_rate": None if too_few else _pass_rate(r),
         "corrected": None if too_few else (
             "judgekeeper showed you half of your judge's passes and half of its fails, and "
-            "corrects the numbers for that. The bar under each number is the range it is "
-            "probably in."),
+            "corrects the numbers for that. The bar under each number is the range it could "
+            f"be in. {RANGE_MEANS} {RANGE_COVERS}"),
         "judge": {"name": judge.get("metric") or judge.get("name"), "model": model,
                   "rule": judge.get("rule"), "source": source},
         "review": review,

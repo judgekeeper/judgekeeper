@@ -368,3 +368,72 @@ def test_check_rates_are_the_reports():
 def test_the_smallest_drop_follows_the_judges_own_rates():
     assert targets.smallest_drop(30, 30, 0.32, 0.32) != targets.smallest_drop(30, 30, 0.9, 0.9)
     assert targets.smallest_drop(14, 30, 0.9, 0.9) is None  # no first result yet
+
+
+# Small items ---------------------------------------------------------------------------------
+
+def test_a_tie_takes_the_same_side_every_time_and_splits_evenly():
+    from judgekeeper import start
+
+    ids = [f"answer-{i}" for i in range(1000)]
+    picks = [start.tie_break(i) for i in ids]
+    assert picks == [start.tie_break(i) for i in ids]
+    assert 0.45 <= picks.count("pass") / 1000 <= 0.55
+
+
+def test_tied_answers_are_counted_in_the_free_check(tmp_path):
+    from judgekeeper import judge_check, start
+    from tests.start_projects import promptfoo_data, split
+
+    data = promptfoo_data(split(20, 16))
+    rows = data["results"]["results"]
+    twice = [dict(r) for r in rows[:2]]  # the same answers again, with the other grade
+    for r in twice:
+        r["gradingResult"] = {**r["gradingResult"], "componentResults": [
+            {**c, "pass": not c["pass"]} for c in r["gradingResult"]["componentResults"]]}
+    data["results"]["results"] = rows + twice
+    (tmp_path / "results.json").write_text(__import__("json").dumps(data), encoding="utf-8")
+    found = start.find_judge(tmp_path)
+    assert found.pool.n_tied == 2
+    said = " ".join(" ".join(x) for x in judge_check.lines(found.check.block()))
+    assert ("2 answers got a tied grade when asked more than once; judgekeeper took one of "
+            "the two, the same each time.") in said
+
+
+def test_the_details_say_what_a_range_means_and_what_it_does_not_cover():
+    from html import unescape
+
+    r = result(0.5, (30, 26), (30, 3))
+    html = " ".join(unescape(start_label.result_html(r)).split())
+    assert ("'Could be' means: in judgekeeper's tests, ranges made this way held the true "
+            "number about 95 times in 100.") in html
+    assert ("Ranges cover the coincidence of which answers you marked. They don't cover your "
+            "own slips or answers unlike these.") in html
+    assert "of the answers in your results" in html and "app's answers" not in html
+
+
+WORDS_NEVER_SHOWN = ("Probably", "probably", "No drop seen", "trusted", "proven", "guaranteed",
+                     "significant", "p-value", "confidence", "likely")
+
+
+def test_no_shown_string_overclaims():
+    """No string in the code that reaches the screen, the page or report.html."""
+    import re
+    from pathlib import Path
+
+    src = Path(start_label.__file__).parent
+    shown = ("start_label.py", "front.py", "check.py", "targets.py", "start_page.py")
+    for name in shown:
+        text = (src / name).read_text(encoding="utf-8")
+        strings = re.findall(r'"(?:[^"\\\n]|\\.)*"', text)
+        for s in strings:
+            for word in WORDS_NEVER_SHOWN:
+                assert word not in s, (name, word, s)
+
+
+def test_the_readme_names_kappas_range():
+    from pathlib import Path
+
+    readme = (Path(__file__).parent.parent / "README.md").read_text(encoding="utf-8")
+    line = next(x for x in readme.splitlines() if "Each comes with a range" in x)
+    assert "Kappa" in line

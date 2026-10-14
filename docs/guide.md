@@ -61,6 +61,7 @@ The result shows:
 - TPR (how often the judge passes what humans passed) and TNR (how often it fails what humans failed), each with a range.
 - Kappa: agreement beyond coincidence, on your real mix of answers, with its range. It moves with how many answers pass (the same judge has a lower kappa when most answers pass), so it is in the details and is not part of the verdict. Never raw agreement on its own.
 - How far the labels go: a first result needs 15 labeled pass and 15 labeled fail. It is ready when the TPR and TNR ranges are no wider than 0.30, however many marks that takes.
+- "Could be A% to B%" means: in judgekeeper's tests, ranges made this way held the true number about 95 times in 100 ([coverage check](examples/coverage/coverage.md)). Ranges cover the coincidence of which answers you marked. They don't cover your own slips or answers unlike these.
 - The verdict follows the ranges, never a number alone: green when both ranges stay at or above 80%, red when one stays below it, and "too early to tell" while a range is more than 40 points wide.
 
 ## Get it

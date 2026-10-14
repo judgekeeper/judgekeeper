@@ -277,12 +277,12 @@ def test_the_pass_rate_box():
     r = _result(*CHECK)
     html = _flat(start_label.result_html(r))
     lo, hi = r["real_pass_rate_interval"]
-    assert (f"Your judge passes <b>{r['judge_pass_rate']:.0%}</b> of your app's answers. From "
-            f"your marks, about <b>{r['real_pass_rate']:.0%}</b> should pass (probably between "
-            f"{lo:.0%} and {hi:.0%}).") in unescape(html)
+    assert (f"Your judge passes <b>{r['judge_pass_rate']:.0%}</b> of the answers in your "
+            f"results. From your marks, about <b>{r['real_pass_rate']:.0%}</b> should pass "
+            f"(could be {lo:.0%} to {hi:.0%}).") in unescape(html)
     assert ("judgekeeper showed you half of your judge's passes and half of its fails, and "
-            "corrects the numbers for that. The bar under each number is the range it is "
-            "probably in.") in unescape(html)
+            "corrects the numbers for that. The bar under each number is the range it could "
+            "be in.") in unescape(html)
 
 
 def test_the_title_line_says_the_check_the_counts_and_the_date():
