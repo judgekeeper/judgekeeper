@@ -525,7 +525,10 @@ def _read_mapped(result: find.Result, saved) -> list[Loaded]:
 
 
 def _where(result: find.Result) -> str:
-    return f"{result.rel}, saved {result.date():%Y-%m-%d %H:%M}"
+    """The file, and when it was saved: for DeepEval only the run's own time (a file's time
+    can be when the project was copied), else no date."""
+    date = result.run_date() if result.tool == "deepeval" else result.date()
+    return result.rel if date is None else f"{result.rel}, saved {date:%Y-%m-%d %H:%M}"
 
 
 def _folder_of(result: find.Result) -> str:
@@ -925,12 +928,29 @@ def _eval_folder(result: find.Result) -> str | None:
     return None
 
 
+def _link_only(result: find.Result) -> bool:
+    from judgekeeper.readers.deepeval import is_link_only
+
+    if result.size > 4096:  # a link-only file is a few lines
+        return False
+    try:
+        return is_link_only(textio.read_json(result.path, ValueError))
+    except (OSError, ValueError):
+        return False
+
+
 def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None) -> list:
     """DeepEval results in more than one folder are separate evals, never one pool: the
     results of one folder, the last check's (`prefer`) or the one the person picks."""
     folders = list(dict.fromkeys(f for f in map(_eval_folder, results) if f))  # newest first
     if len(folders) < 2:
         return results
+    if all(_link_only(r) for r in results):
+        from judgekeeper.readers.deepeval import LinkOnly
+
+        raise StartError(f"Each DeepEval results folder here ({', '.join(folders)}) only links "
+                         "to Confident AI; your results aren't saved on this computer.",
+                         LinkOnly.next_step)
     if prefer not in folders:
         shown = [f"{f}/ ({_where(next(r for r in results if _eval_folder(r) == f))})"
                  for f in folders]

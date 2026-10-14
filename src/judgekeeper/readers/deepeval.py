@@ -119,6 +119,9 @@ LINK_ONLY = "{file} only links to Confident AI; your results aren't saved on thi
 class LinkOnly(RecordsError):
     """The file holds only DeepEval's link to the run on Confident AI (LINK_ONLY)."""
 
+    next_step = ("set DEEPEVAL_RESULTS_FOLDER=results and run your eval once (DeepEval saves "
+                 "its results there too), then run `{command}` again.")
+
 
 def is_link_only(data) -> bool:
     """Whether DeepEval saved only the link to the run on Confident AI: `testRunLink`, no

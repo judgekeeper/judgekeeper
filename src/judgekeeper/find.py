@@ -95,6 +95,10 @@ class Result:
         return (f"{self.rel} is {self.size / 1_000_000:,.0f} MB. Run {program} "
                 f"{self.rel} to read it anyway.")
 
+    def run_date(self) -> datetime | None:
+        """The tool's own date for the results, when the file has one."""
+        return _made_at(self)
+
     def date(self) -> datetime:
         """When the results were made: the tool's own date when the file has one, else the
         file's modified time. Always with a time zone."""
