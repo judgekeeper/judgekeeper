@@ -40,7 +40,7 @@ def test_a_range_of_no_width_is_exact():
 
 # The verdict uses the ranges -----------------------------------------------------------------
 
-def test_s4_is_not_green():
+def test_a_judge_that_passes_most_answers_is_not_green_at_15_each():
     """Judge passes 90%; the pass group 15 of 15 marked Pass, the fail group 0 of 15."""
     r = result(0.9, (15, 15), (15, 0))
     assert r["verdict_level"] == "too_early"
@@ -48,21 +48,21 @@ def test_s4_is_not_green():
     assert targets.width_word(r["tnr_interval"]) == "too_wide"
 
 
-def test_s5_does_not_flip_to_red_on_one_mark():
+def test_one_mark_does_not_flip_it_to_red():
     r = result(0.9, (16, 15), (15, 0))
     assert r["verdict_level"] == "too_early"
     assert targets.width_word(r["tnr_interval"]) == "too_wide"
 
 
 @pytest.mark.parametrize("case", [(0.5, (15, 13), (15, 2)), (0.5, (15, 14), (16, 1))],
-                         ids=["S1", "S3"])
-def test_s1_and_s3_can_not_tell_yet(case):
+                         ids=["87-each-side", "94-each-side"])
+def test_good_numbers_on_few_marks_can_not_tell_yet(case):
     assert result(*case)["verdict_level"] == "check"
 
 
 @pytest.mark.parametrize("case", [(0.9, (20, 18), (20, 4)), (0.9, (25, 25), (25, 0))],
-                         ids=["S2", "S6"])
-def test_s2_and_s6_fail_side_is_too_early(case):
+                         ids=["some-disagree", "25-each"])
+def test_the_fail_side_is_too_early_when_most_answers_pass(case):
     r = result(*case)
     assert targets.width_word(r["tnr_interval"]) == "too_wide"
     assert r["verdict_level"] == "too_early"
@@ -220,8 +220,8 @@ def test_kappa_is_reweighted_to_the_real_mix(real, expected):
 
 
 @pytest.mark.parametrize("case,kappa,low,high", [
-    ((0.5, (15, 13), (15, 2)), 0.73, 0.40, 0.90),  # S1
-    ((0.9, (15, 15), (15, 0)), 1.00, 0.49, 1.00),  # S4
+    ((0.5, (15, 13), (15, 2)), 0.73, 0.40, 0.90),  # half pass, 87% each side
+    ((0.9, (15, 15), (15, 0)), 1.00, 0.49, 1.00),  # 90% pass, every mark agrees
 ])
 def test_kappa_has_a_range(case, kappa, low, high):
     r = result(*case)
@@ -348,7 +348,7 @@ def test_the_paired_words(right, wrong, n, words):
 
 
 def test_check_rates_are_the_reports():
-    """S2: judge passes 90%; of 20 marks in its pass group 18 Pass, of 20 in its fail group 4
+    """The judge passes 90%; of 20 marks in its pass group 18 Pass, of 20 in its fail group 4
     Pass. The old judge's TNR in check is the report's (47%), not the raw 89%."""
     from judgekeeper import check
 
