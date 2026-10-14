@@ -972,8 +972,11 @@ def result_html(r: dict, back: str | None = None, marking: str | None = None,
 
 
 def _fixing(ws: Workspace) -> dict | None:
+    """The Fix section, after the hidden marks are set aside (fix.prepare_split): no mistake
+    is shown from a mark that a later test hides."""
     from judgekeeper import fix
 
+    fix.prepare_split(ws)
     section = fix.report_section(ws)
     return _scrubbed(section) if section else None
 

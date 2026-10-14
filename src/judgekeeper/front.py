@@ -950,6 +950,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.para(line)
     if head:
         talk.say()
+    from judgekeeper import fix
+
+    fix.prepare_split(ws)  # before any mistake is shown or written: some marks are hidden
     session = StartSession(ws)
     r = start_label.store_result(ws, session, _command_of(talk, saved, "start"))
     n = r["labels"]["correct"] + r["labels"]["wrong"]

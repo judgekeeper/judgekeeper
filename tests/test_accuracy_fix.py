@@ -79,3 +79,75 @@ def test_the_guide_says_how_extra_tests_stay_fair():
 
     guide = (Path(__file__).parent.parent / "docs" / "guide.md").read_text(encoding="utf-8")
     assert "under about 1 in 20" in guide
+
+
+# Hidden marks from the first result on ---------------------------------------------------------
+
+def _hidden_texts(ws, split) -> list[str]:
+    from tests.start_projects import question
+    from tests.test_fix import TAG, _index
+
+    return [question(_index(ws, i), TAG) for i in split["hidden"]]
+
+
+def test_the_hidden_marks_are_set_aside_when_the_first_result_appears(here, capsys):
+    from judgekeeper.cli import main
+
+    ws = project(here)
+    assert not (ws.dir / "fix" / "split.json").exists()
+    assert main(["--no-browser"]) == 0  # the first result
+    out = capsys.readouterr().out
+    split = _split(ws)
+    assert len(split["hidden"]) >= 10
+    report = ws.report_html.read_text(encoding="utf-8")
+    for text in _hidden_texts(ws, split):
+        assert text not in report and text not in out
+    for i in split["hidden"]:
+        assert i not in report and i not in out
+
+
+def test_hidden_marks_never_show_while_the_set_is_in_use(here, capsys):
+    from judgekeeper.cli import main
+
+    ws = project(here)
+    main(["--no-browser"])
+    run(capsys)  # fix's first run: mistakes.md
+    split = _split(ws)
+    md = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    section = fix.report_section(ws)
+    shown = json.dumps(section)
+    for text in _hidden_texts(ws, split):
+        assert text not in md and text not in shown
+
+
+def test_a_retired_set_may_show_its_answers(here, capsys, judge):
+    """A rule tested on the set is now the judge's rule: the hidden marks are seen again, and
+    the next marks make a new set."""
+    from judgekeeper import judge_setup
+    from judgekeeper.fingerprint import rule_hash
+
+    ws = project(here)
+    run(capsys)
+    _write_rule(ws)
+    run(capsys, "--yes")
+    hidden = _split(ws)["hidden"]
+    saved = judge_setup.read(ws)
+    setup = {**saved["setup"], "rule_hash": rule_hash(NEW_RULE)}
+    judge_setup.save(ws, setup, saved.get("metric"))
+    split = fix.current_split(ws, fix.Marks(ws))
+    assert split.hidden == [] and set(hidden) <= set(split.seen)
+    assert split.fresh == {"want": fix.FRESH}
+    wrong = [i for i in hidden if fix.Marks(ws).judge[i] != fix.Marks(ws).person[i]]
+    shown = json.dumps(fix.report_section(ws))
+    assert wrong and all(fix.Marks(ws).row(i)["input"][:40] in shown for i in wrong)
+
+
+def test_three_rules_retire_the_set(here, capsys, judge):
+    ws = project(here)
+    run(capsys)
+    split = fix.read_split(ws)
+    split.tests = [{"kind": "rule", "rule_hash": f"sha256:{n}", "verdict": "leans worse"}
+                   for n in range(3)]
+    fix.save_split(ws, split)
+    split = fix.current_split(ws, fix.Marks(ws))
+    assert split.hidden == [] and split.fresh == {"want": fix.FRESH}
