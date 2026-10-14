@@ -161,7 +161,7 @@ def test_check_remembers_the_setup_and_reads_nothing_next_time(here, capsys, mon
     assert (here / ".judgekeeper" / check.SEEN).is_file()
     _no_reading(monkeypatch)
     code, out = run(capsys)
-    assert code == 0 and "No change in your judge" in out
+    assert code == 0 and "Your judge has not changed" in out
 
 
 def test_check_reads_again_when_the_results_change(here, capsys, no_calls):
@@ -253,14 +253,14 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_c
     code, out = run(capsys)
     assert code == 0
     day = datetime.now().astimezone()
-    assert f"No change in your judge since the last check ({day.day} " in out
+    assert f"Your judge has not changed since your last check ({day.day} " in out
 
 
 def test_the_same_judge_has_nothing_to_check(here, capsys, no_calls):
     _marked(here)
     code, out = run(capsys)
     assert code == 0
-    assert "No change in your judge since the last check" in out
+    assert "Your judge has not changed since you marked your answers." in out
     assert _history(Workspace(here)) == []
 
 

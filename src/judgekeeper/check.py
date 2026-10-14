@@ -56,8 +56,9 @@ MAX_ENTRIES = 20_000  # files in a results folder (an MLflow store) looked at, a
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers you failed"))
 
-CONFIG_NEWER = ("Your judge's config changed after your last eval run; judgekeeper re-checks it "
-                "after the next one.")
+CONFIG_NEWER = ("Your judge's settings changed after your last eval run, so the grades "
+                "judgekeeper has are out of date.")
+SAME = "Same model, same rule, same eval tool."
 NOT_SET_UP = ("Your marks can't check your judge yet: that needs {n} you mark Pass and {n} you "
               "mark Fail.")
 ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}. That is {calls}, "
@@ -558,11 +559,12 @@ def _switched(state: State) -> str | None:
 
 
 def _no_change(state: State) -> str:
-    when = state.saved.get("first_seen")
-    for line in _history(state.ws):
-        when = line.get("time") or when
-    day = _day(when)
-    return f"No change in your judge since the last check{f' ({day})' if day else ''}."
+    """Since when the judge is the same: the last check, or the marks when none ran."""
+    checks = _history(state.ws)
+    day = _day(checks[-1].get("time")) if checks else None
+    if not checks:
+        return "Your judge has not changed since you marked your answers."
+    return f"Your judge has not changed since your last check{f' ({day})' if day else ''}."
 
 
 def _history(ws: Workspace) -> list[dict]:
@@ -618,12 +620,15 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         return EXIT_NEEDS_YOU
     changed = judge_setup.changes(old, new)
     if not changed:
-        config = now.config
-        said.say(_no_change(state))
-        if config is not None:
+        if now.config is not None:  # one line per case, never "no change" with it
             said.say(CONFIG_NEWER)
-        said.say()
-        said.say((NEXT_SAME if config is None else NEXT_EVAL).format(command=_command(state)))
+            said.say()
+            said.say(NEXT_EVAL.format(command=_command(state)))
+        else:
+            said.say(_no_change(state))
+            said.say(SAME)
+            said.say()
+            said.say(NEXT_SAME.format(command=_command(state)))
         return EXIT_OK
 
     change = _change_line(old, new, changed, full=True)
