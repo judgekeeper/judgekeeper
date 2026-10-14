@@ -14,7 +14,7 @@ majority of its verdicts, a tie going to fail. An answer with no real decision f
 left out and counted, and said; a verdict that cannot be mapped stops `start`.
 
 Questions are asked only at a terminal (stdin). Without one, `start` prints the question as
-the flag that answers it and exits 8 (EXIT_QUESTION: nothing went wrong); `--yes` takes the
+the flag that answers it and exits 3 (EXIT_QUESTION: nothing went wrong); `--yes` takes the
 default answer of a yes/no question, but never picks between tools or judges. Every printed
 "run this next" command comes from `Talk.command`, so it repeats the flags the person gave.
 """
@@ -60,7 +60,7 @@ from judgekeeper.textio import plural, quote_arg, read_utf8, tick
 
 EXIT_OK = 0
 EXIT_USAGE = 2
-EXIT_QUESTION = 8  # stopped at a question it cannot ask (no terminal); nothing went wrong
+EXIT_QUESTION = 3  # stopped at a question it cannot ask (no terminal); nothing went wrong
 
 ROUGH = targets.ROUGH  # the label targets every command shares
 RELIABLE = targets.RELIABLE
@@ -81,7 +81,13 @@ _DESCRIPTION = re.compile(r"^description:\s*(.*?)\s*$", re.MULTILINE)
 
 
 class StartError(Exception):
-    """`start` cannot go on: a usage error (exit 2)."""
+    """`start` cannot go on: a usage error (exit 2). `next_step`: the words of its Next: line
+    (cli.main), where {command} is the command as it was run, without the flag `drop`."""
+
+    def __init__(self, message: str = "", next_step: str | None = None,
+                 drop: str | None = None):
+        super().__init__(message)
+        self.next_step, self.drop = next_step, drop
 
 
 class Stop(Exception):
@@ -1047,7 +1053,8 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
     if metric is not None:
         if metric not in counts:
             raise StartError(f"no judge named {metric!r}; judges are: "
-                             f"{', '.join(repr(n) for n in names)}")
+                             f"{', '.join(repr(n) for n in names)}",
+                             f"run `{{command}} --metric {quote_arg(names[0])}`.", "--metric")
         return metric
     if len(names) == 1:
         return names[0]

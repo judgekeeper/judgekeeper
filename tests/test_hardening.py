@@ -93,3 +93,110 @@ def test_every_judge_call_failed_needs_the_person(project, capsys):
         "The list is in .judgekeeper/judge-check.csv.", "",
         ("Next: fix your judge's calls, run your eval again, then run "
          "`judgekeeper --no-browser`.")]
+
+
+# Every error ends with a Next: line ---------------------------------------------------------
+
+def _promptfoo(root: Path) -> Path:
+    from tests.start_projects import promptfoo_project, split
+
+    return promptfoo_project(root, split(20, 16), tag=" ZQIN ZQOUT")
+
+
+@pytest.mark.parametrize("args", [
+    ["--tool", "nope"], ["--port", "99999"], ["--no-such-flag"], ["mark", "--tool", "nope"],
+    ["check", "--no-such-flag"], ["start", "--rule-file", "rule.txt"], ["setup"], ["init"],
+    ["no/such/folder"], ["mark", "no/such/folder"], ["--stop", "no/such/folder"]])
+def test_a_usage_error_ends_with_a_next_line(project, capsys, args):
+    code, text = run(capsys, *args)
+    assert_rules(code, text)
+    assert code == 2
+
+
+def test_a_bare_word_is_not_taken_for_a_folder(project, capsys):
+    code, text = run(capsys, "status")
+    assert_rules(code, text)
+    assert code == 2
+    assert "`status` is not a judgekeeper command" in text
+    assert "file or folder not found" not in text
+    assert "Next: run `judgekeeper`, or `judgekeeper --help` to see the commands." in text
+
+
+def test_a_judge_name_that_is_not_there_names_one_that_is(project, capsys):
+    _promptfoo(project)
+    code, text = run(capsys, "--metric", "nope", "--no-browser")
+    assert_rules(code, text)
+    assert code == 2
+    assert "Next: run `judgekeeper --no-browser --metric llm-rubric`." in text
+
+
+def test_an_unexpected_error_never_prints_its_text(project, capsys, monkeypatch):
+    from judgekeeper import front
+
+    _promptfoo(project)
+
+    def broken(*args, **kwargs):
+        raise ValueError("ZQOUT the answer text")
+
+    monkeypatch.setattr(front, "find_found", broken)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code == 2
+    assert "judgekeeper hit a problem it didn't expect" in text
+    assert "https://github.com/judgekeeper/judgekeeper/issues" in text
+    assert "ValueError" not in text
+
+
+def test_ctrl_c_says_how_to_carry_on(project, capsys, monkeypatch):
+    from judgekeeper import front
+
+    def stopped(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(front, "find_found", stopped)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code == 130
+    assert "Next: run `judgekeeper --no-browser` to carry on." in text
+
+
+@pytest.mark.skipif(__import__("os").name == "nt", reason="chmod does not stop writes there")
+def test_a_folder_judgekeeper_cannot_write_in(project, capsys):
+    import os
+
+    _promptfoo(project)
+    project.chmod(0o555)
+    try:
+        if os.access(project, os.W_OK):
+            pytest.skip("running as a user that can write anywhere")
+        code, text = run(capsys, "--no-browser")
+    finally:
+        project.chmod(0o755)
+    assert_rules(code, text)
+    assert code == 2
+    assert "Next: make this folder writable" in text
+
+
+def test_start_stopped_at_a_question_exits_3(project, capsys):
+    _promptfoo(project)
+    code, _ = run(capsys, "start")
+    assert code == 3
+
+
+def test_errors_are_printed_in_one_place():
+    """Each `error:` line is printed by cli.main, which adds the Next: line; `judgekeeper`
+    and `mark` never end with exit 2 on their own."""
+    import re
+
+    src = Path(__file__).parent.parent / "src" / "judgekeeper"
+    printed = re.compile(r"""(["']|: )error: """)  # a line printed as an error
+    for path in src.rglob("*.py"):
+        if path.name != "cli.py":
+            assert not printed.search(path.read_text(encoding="utf-8")), path
+    for name in ("front.py", "mark.py"):
+        lines = (src / name).read_text(encoding="utf-8").splitlines()
+        assert not [x for x in lines if "EXIT_USAGE" in x and not x.startswith("EXIT_")], name
+    cli = (src / "cli.py").read_text(encoding="utf-8").splitlines()
+    for n, line in enumerate(cli):
+        if line.strip().startswith("return EXIT_USAGE"):
+            assert any("_next(" in x for x in cli[n - 3:n]), (n + 1, line)

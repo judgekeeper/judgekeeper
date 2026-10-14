@@ -42,10 +42,12 @@ def _write(path, text: str, encoding: str = "utf-8"):
 
 
 def _plain_error(capsys, *needles: str) -> str:
-    """The one error line on stderr: no exception name, no traceback, no --debug pointer."""
+    """The one error line on stderr, then its Next: line: no exception name, no traceback,
+    no --debug pointer."""
     err = capsys.readouterr().err
     lines = [x for x in err.splitlines() if x.strip()]
-    assert len(lines) == 1 and lines[0].startswith("error: "), err
+    assert len(lines) == 2 and lines[0].startswith("error: "), err
+    assert lines[1].startswith("Next: "), err
     for bad in ("Traceback", "Error:", "Errno", "--debug", "codec"):
         assert bad not in err, err
     for needle in needles:
@@ -166,7 +168,7 @@ def test_debug_adds_the_traceback_to_the_plain_line(tmp_path, capsys, monkeypatc
     assert main(["--debug", "start", "--no-browser", "--yes"]) == 2
     err = capsys.readouterr().err
     assert "Traceback" in err
-    assert err.splitlines()[-1].startswith(f"error: {blocker} is a file, but a folder")
+    assert err.splitlines()[-2].startswith(f"error: {blocker} is a file, but a folder")
 
 
 def test_file_errors_in_plain_words(monkeypatch):

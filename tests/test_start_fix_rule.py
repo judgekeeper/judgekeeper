@@ -1060,7 +1060,8 @@ def test_a_missing_rule_file_is_a_usage_error_naming_it(tmp_path, seeded, capsys
     too_easy_project(tmp_path)
     code, _, err = run(capsys, tmp_path, "--fix", "--rule-file", tmp_path / "nope.txt")
     assert code == 2
-    assert "judgekeeper start: error: can't read --rule-file" in err and "nope.txt" in err
+    assert "error: can't read --rule-file" in err and "nope.txt" in err
+    assert err.splitlines()[-1].startswith("Next: check the path, then run `judgekeeper start ")
 
 
 def test_rule_file_works_only_with_fix(tmp_path, capsys):

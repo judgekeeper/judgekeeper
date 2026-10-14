@@ -169,7 +169,7 @@ def test_a_changed_rule_is_a_new_judge(tmp_path, stores, capsys, monkeypatch):
     code, out, _ = run(capsys, "--try-new-judge", "--no-browser")
     assert "Your judge changed since your last check: the prompt changed." in out
     assert "same judge as your last check" not in out
-    assert code == 8 and "judge calls" in out and "make_judge" in out  # the plan, then stop
+    assert code == 3 and "judge calls" in out and "make_judge" in out  # the plan, then stop
 
 
 @pytest.mark.parametrize(("meta", "want"), [

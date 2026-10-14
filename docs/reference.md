@@ -172,7 +172,7 @@ The result shows both judges against your same marks, side by side, weighted by 
 
 **When promptfoo's results are only in its database**, at a terminal `start` offers to run `promptfoo export eval latest` for you (no AI call; promptfoo's telemetry, update check and logs off). The file is checked against this project's promptfoo config (its description, else its prompts): a run from another project is deleted with a note on how to find yours; otherwise it is saved as `promptfoo-results.json` and `start` carries on.
 
-**Without a terminal** (a script, CI, a coding agent) it never asks. It prints what it found and the flag or command that answers the question, and exits 8; `--yes` takes the defaults. A printed command repeats the flags you gave (the path, `--metric`, `--experiment`, `--no-browser`, ...), so it works as printed. With `--no-browser` the question is "Start it now? It prints a link."; after No at a terminal it says the command to run when you're ready. After you pick a tool, an experiment, a judge or an MLflow store at a terminal, it prints what picks it next time, such as `(Next time: --metric safe_wording)` or `(Next time: judgekeeper start mlruns)`. Marking needs a person: in CI, `start` can only find and report. Exit codes: 0 done (also when you stop early, after No, and after No to a spending question), 1 a runtime failure (for asking again: the tool failed), 2 a usage error, nothing it can use found, or `--review`, `--ask-again` or `--try-new-judge` before a result (it prints the command that marks answers first, with `--yes` when there is no terminal, and what the flag does after), 8 stopped at a question that needs an answer (nothing went wrong), 130 stopped with Ctrl-C (asking again saves nothing from that run).
+**Without a terminal** (a script, CI, a coding agent) it never asks. It prints what it found and the flag or command that answers the question, and exits 3; `--yes` takes the defaults. A printed command repeats the flags you gave (the path, `--metric`, `--experiment`, `--no-browser`, ...), so it works as printed. With `--no-browser` the question is "Start it now? It prints a link."; after No at a terminal it says the command to run when you're ready. After you pick a tool, an experiment, a judge or an MLflow store at a terminal, it prints what picks it next time, such as `(Next time: --metric safe_wording)` or `(Next time: judgekeeper start mlruns)`. Marking needs a person: in CI, `start` can only find and report. Exit codes: 0 done (also when you stop early, after No, and after No to a spending question), 1 a runtime failure (for asking again: the tool failed), 2 a usage error, nothing it can use found, or `--review`, `--ask-again` or `--try-new-judge` before a result (it prints the command that marks answers first, with `--yes` when there is no terminal, and what the flag does after), 8 stopped at a question that needs an answer (nothing went wrong), 130 stopped with Ctrl-C (asking again saves nothing from that run).
 
 **Checking the install.** In a terminal, `judgekeeper --version` says judgekeeper is ready and what to run next. Piped or in a script it prints only `judgekeeper <version>`.
 
@@ -208,9 +208,9 @@ When a file cannot be mapped (no answers or no scores in it), or you say none of
 | `PATH` | Your project folder (default: this folder), or your judge's results file |
 | `--metric NAME` | The judge to check when the results hold several; `all` for every judge, one at a time. Needed without a terminal when there are several |
 | `--judge-model NAME` | The judge's model, when the results do not say it; saved in `judgekeeper.toml` |
-| `--yes` | Without a terminal, answer every yes/no question with its default, including the one before the file changes. Without a terminal and without `--yes`, it prints the list and exits 8 |
+| `--yes` | Without a terminal, answer every yes/no question with its default, including the one before the file changes. Without a terminal and without `--yes`, it prints the list and exits 3 |
 
-Exit 0 when a source is set up (or you kept the one set up before), 2 when none was found, 8 when a question needs an answer.
+Exit 0 when a source is set up (or you kept the one set up before), 2 when none was found, 3 when a question needs an answer.
 
 **The `[start]` table of `judgekeeper.toml`.** Nothing secret; `start` reads it first.
 
@@ -429,7 +429,7 @@ Every fingerprint field except `created_at` may be unknown: provider, model, sna
 - judgekeeper has no server. Your key stays in your environment, and your eval tool's requests go from your machine straight to the provider.
 - Nothing judgekeeper writes contains a key: every file it writes is scrubbed. Before any text reaches disk or your terminal, the value of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET` (`DATABRICKS_TOKEN`, `MLFLOW_TRACKING_TOKEN`) is replaced with `[REDACTED]`, as is anything shaped like a provider key (`sk-ant-…`, `sk-…`, `Bearer …`, `Basic …`) and the `user:password@` part of a URL.
 - Platform readers take credentials from the environment only: `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` (host from `LANGFUSE_BASE_URL` or `LANGFUSE_HOST`, default `https://cloud.langfuse.com`) for Langfuse; whatever MLflow reads (`MLFLOW_TRACKING_URI`, `MLFLOW_TRACKING_TOKEN`, `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, ...) for MLflow. The Langfuse reader only issues GET requests, sends the keys only to the configured host, refuses redirects to another host and never prints the Authorization header, a response body or the keys.
-- Error text is scrubbed too. An unexpected error prints one line and exits 1; `--debug` adds the traceback, still scrubbed.
+- Error text is scrubbed too. An unexpected error prints one line, never its own text (it can hold an answer's text), and exits 2; `--debug` adds the traceback, still scrubbed.
 - There is no flag that takes a key, and there never will be.
 - In CI, keep keys in repository secrets and pass them to the step as `env`, never as inputs.
 
@@ -439,6 +439,6 @@ Every fingerprint field except `created_at` may be unknown: provider, model, sna
 |---|---|---|
 | 0 | success | all |
 | 1 | a runtime failure (asking again: the tool failed; `--rule-file`: a check stopped the rule) | `start` |
-| 2 | usage error (bad arguments; unmapped verdicts or labels; nothing it can use found; an input file that is not UTF-8 text; an output location that cannot be written; a command removed in this version, which says so in one line) | all |
-| 8 | stopped at a question it cannot ask (no terminal): the line before says the flag or command that answers it; nothing went wrong | `start`, `setup` |
-| 130 | stopped with Ctrl-C: it prints "Stopped."; what was saved before stays saved | all |
+| 2 | usage error (bad arguments; unmapped verdicts or labels; nothing it can use found; an input file that is not UTF-8 text or is damaged; an output location that cannot be written; a command removed in this version, which says so in one line; a problem judgekeeper didn't expect) | all |
+| 3 | stopped at a question it cannot ask (no terminal): the line before says the flag or command that answers it; nothing went wrong. Also: the person is needed (the `Next:` line says what to do) | all |
+| 130 | stopped with Ctrl-C: it prints "Stopped." and the command that carries on; what was saved before stays saved | all |

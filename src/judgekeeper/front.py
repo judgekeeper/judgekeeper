@@ -52,6 +52,7 @@ is needed (the `Next:` line says what to ask or do), 2 usage error, 130 Ctrl-C.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -257,9 +258,20 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if uri is not None and str(uri).startswith(start.SERVERS):
         raise _tracking_server(talk, path, str(uri))
     if not path.exists():
-        raise StartError(f"file or folder not found: {path}")
+        raise not_found(path)
     where, saved = _own_format(talk, path)
     return _find(talk, where, saved), saved
+
+
+def not_found(path: Path) -> StartError:
+    """PATH is not there; a single word is taken for a command that does not exist."""
+    word = str(path)
+    if re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", word):
+        return StartError(f"`{word}` is not a judgekeeper command, and there is no folder "
+                          f"named {word} here.", f"run `{program()}`, or "
+                                                 f"`{program()} --help` to see the commands.")
+    return StartError(f"file or folder not found: {path}",
+                      "check the path, then run `{command}`.")
 
 
 def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettings | None]:
@@ -950,7 +962,7 @@ def _status(talk: FrontTalk, ws: Workspace, saved: bool, check: bool) -> int:
 def _stop(talk: FrontTalk, path: Path) -> int:
     """--stop: close the page open for this project."""
     if not path.exists():
-        raise StartError(f"file or folder not found: {path}")
+        raise not_found(path)
     ws = Workspace(start_again._project(path))
     if not is_open(ws.dir):
         talk.say("No marking page is open.")

@@ -569,7 +569,8 @@ def test_the_question_exit_code_is_3():
 def test_setup_is_removed(here, capsys):
     code, out, err = run(capsys, "setup")
     assert code == 2 and out == ""
-    assert err == "judgekeeper setup was removed. Run judgekeeper in your project.\n"
+    assert err == ("judgekeeper setup was removed. Run judgekeeper in your project.\n"
+                   "Next: run `judgekeeper` in your project.\n")
 
 
 def test_help_lists_the_flags_and_mark(capsys):

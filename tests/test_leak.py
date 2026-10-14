@@ -72,7 +72,7 @@ def _label_everything(ws):
 
 def test_no_key_leaks_anywhere(env, capsys):
     results = _results_with_keys(env)
-    assert main(["start"]) == 8  # no terminal: it stops at the first question
+    assert main(["start"]) == 3  # no terminal: it stops at the first question
     printed = capsys.readouterr()
     assert "Its decisions" in printed.out
     # What the page does next: save the marks and the result.
@@ -100,11 +100,11 @@ def test_a_failure_message_is_scrubbed_and_has_no_traceback(env, capsys, monkeyp
                               f"{{'X-Other': '{SENTINELS['MY_GATEWAY_API_KEY']}'}}")
 
     monkeypatch.setitem(cli.COMMANDS, "start", fails)
-    assert main(["start"]) == 1
+    assert main(["start"]) == 2
     err = capsys.readouterr().err
-    assert "error:" in err and redact.REDACTED in err and "401" in err
+    assert "error: judgekeeper hit a problem it didn't expect" in err and "401" not in err
     assert "Traceback" not in err and "--debug" in err
-    assert main(["--debug", "start"]) == 1
+    assert main(["--debug", "start"]) == 2
     debug = capsys.readouterr().err
     assert "Traceback" in debug
     for value in SENTINELS.values():
@@ -119,7 +119,7 @@ def test_an_mlflow_store_with_keys_never_shows_them(env, capsys, monkeypatch):
     monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
     monkeypatch.setattr(mlflow_store, "_noted", False)
     build_mlflow_store(env, note=f" (debug: {KEYS})")
-    assert main(["start", "--metric", "correctness"]) == 8
+    assert main(["start", "--metric", "correctness"]) == 3
     printed = capsys.readouterr()
     assert "Its decisions" in printed.out
     for value in SENTINELS.values():

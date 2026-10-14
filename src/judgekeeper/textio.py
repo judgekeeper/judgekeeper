@@ -175,11 +175,16 @@ def decode_utf8(data: bytes, path: str | Path, error: type[Exception]) -> str:
         raise error(not_utf8_message(path)) from None
 
 
+last_read: str | None = None  # the name of the last file read_utf8 read, for an error
+
+
 def read_utf8(path: str | Path, error: type[Exception]) -> str:
     """The text of a file the user supplied, without a byte order mark.
 
     Raises `error` (the caller's usage error) with one plain line when the file is not UTF-8.
     """
+    global last_read
+    last_read = Path(path).name
     return decode_utf8(Path(path).read_bytes(), path, error).removeprefix(BOM)
 
 

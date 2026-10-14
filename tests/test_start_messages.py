@@ -375,12 +375,10 @@ def test_no_at_a_terminal_says_how_to_come_back(tmp_path, capsys, terminal, monk
 
 # 4. The exit code for "stopped at a question" --------------------------------------------
 
-def test_the_question_code_is_new():
-    from judgekeeper import cli
+def test_a_question_is_exit_3_as_for_every_command():
+    from judgekeeper import cli, front
 
-    # 3, 4, 5: the old gate's; 6, 7: once attribute's; none of them reused
-    used = {cli.EXIT_OK, cli.EXIT_FAILURE, cli.EXIT_USAGE, 3, 4, 5, 6, 7, cli.EXIT_STOPPED}
-    assert QUESTION not in used
+    assert QUESTION == front.EXIT_NEEDS_YOU == 3
     assert f"{QUESTION} when it stopped at a question" in cli.__doc__
 
 
