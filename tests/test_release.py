@@ -59,21 +59,11 @@ def test_no_pytest_plugin_and_no_api_extras():
     assert not (ROOT / "packages").exists()
 
 
-def test_the_action_runs_check_fast_or_full():
-    action = yaml.safe_load((ROOT / "action.yml").read_text(encoding="utf-8"))
-    assert action["runs"]["using"] == "composite"
-    assert set(action["inputs"]) == {"mode", "path", "python-version", "version"}
-    assert action["inputs"]["mode"]["default"] == "fast"
-    text = (ROOT / "action.yml").read_text(encoding="utf-8")
-    assert "judgekeeper check" in text and "--fast" in text and "--ci" in text
-    assert "secrets." not in text  # the key is the calling workflow's, set in its env
-
-
-def test_ci_runs_the_action_from_this_checkout():
-    job = _workflow("ci.yml")["jobs"]["action"]
-    uses = [s.get("uses") for s in job["steps"]]
-    assert uses.count("./") == 3
-    assert "tests/fixtures/action" in _steps_text(job)
+def test_there_is_no_github_action():
+    """1.0 is commands a person runs: no action.yml, its fixtures or its CI job."""
+    assert not (ROOT / "action.yml").exists()
+    assert not (ROOT / "tests" / "fixtures" / "action").exists()
+    assert "action" not in _workflow("ci.yml")["jobs"]
 
 
 def test_changelog_leads_with_this_version():
@@ -468,7 +458,7 @@ def test_guide_and_learn_page_quote_the_llmbar_verdict_as_the_report_states_it()
 
 def test_actions_are_pinned_to_commit_hashes():
     """Tags can be moved; a full commit hash cannot."""
-    files = sorted((ROOT / ".github" / "workflows").glob("*.yml")) + [ROOT / "action.yml"]
+    files = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
     for path in files:
         for line in path.read_text(encoding="utf-8").splitlines():
             m = re.search(r"uses:\s*(\S+)", line)
