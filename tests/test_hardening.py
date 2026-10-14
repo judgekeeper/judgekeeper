@@ -633,3 +633,21 @@ def test_fuzzed_own_format_lines_keep_the_rules(tmp_path, monkeypatch, capsys):
         path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
         code, out = run(capsys, "--no-browser")
         assert_rules(code, out)
+
+
+# No answer text in any message ----------------------------------------------------------------
+
+def test_a_record_problem_names_the_field_not_its_value():
+    from judgekeeper.records import ScoreRecord, problems
+
+    found = problems({"schema_version": "ZQWHY", "annotator_kind": "ZQWHY", "score": "ZQWHY",
+                      "evaluator": {"temperature": "ZQWHY"}})
+    found += problems({"evaluator": "ZQWHY not an object"})
+    assert "schema_version is not a whole number, 1 or more" in found
+    assert "score is not a number" in found
+    assert "evaluator.temperature is not a number" in found
+    assert "evaluator is not a JSON object" in found
+    assert not [p for p in found if "ZQWHY" in p]
+    with pytest.raises(Exception) as e:
+        ScoreRecord.from_dict({"score": [1]})
+    assert "[1]" not in str(e.value)

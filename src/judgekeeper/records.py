@@ -151,7 +151,7 @@ def _evaluator_problems(v) -> list[str]:
         try:
             v = json.loads(v)
         except json.JSONDecodeError:
-            return [f"evaluator {v[:60]!r} is not a JSON object"]
+            return ["evaluator is not a JSON object"]
     if not isinstance(v, dict):
         return [("evaluator must be an object with provider, model, prompt, temperature and "
                  "version")]
@@ -160,7 +160,7 @@ def _evaluator_problems(v) -> list[str]:
         value = v.get(key)
         if key == "temperature":
             if value is not None and not _is_number(value):
-                out.append(f"evaluator.temperature {value!r} is not a number")
+                out.append("evaluator.temperature is not a number")
         elif value is not None and not _is_text(value):
             out.append(f"evaluator.{key} must be text")
     return out
@@ -219,7 +219,7 @@ def problems(d: dict) -> list[str]:
     out = []
     version = d.get("schema_version")
     if version is not None and not (_is_whole(version) and version >= 1):
-        out.append(f"schema_version {version!r} must be a whole number, 1 or more")
+        out.append("schema_version is not a whole number, 1 or more")
     target = d.get("target_id")
     if target is not None and not (isinstance(target, str) or _is_whole(target)):
         out.append("target_id must be text or a whole number")
@@ -228,10 +228,10 @@ def problems(d: dict) -> list[str]:
             out.append(f"{key} must be text")
     kind = d.get("annotator_kind")
     if kind is not None and (not isinstance(kind, str) or _kind(kind) is None):
-        out.append(f"annotator_kind {kind!r} is not one of {', '.join(KINDS)}")
+        out.append(f"annotator_kind is not one of {', '.join(KINDS)}")
     score = d.get("score")
     if score is not None and not (_is_number(score) or isinstance(score, bool)):
-        out.append(f"score {score!r} is not a number")
+        out.append("score is not a number")
     run = d.get("run")
     if run is not None and not (isinstance(run, str) or _is_whole(run)):
         out.append("run must be a whole number or text")
@@ -460,7 +460,7 @@ def _number(v) -> float | None:
     try:
         return float(str(v).strip())
     except ValueError:
-        raise RecordsError(f"score {v!r} is not a number") from None
+        raise RecordsError("score is not a number") from None
 
 
 def _run(v):
