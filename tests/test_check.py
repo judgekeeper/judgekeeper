@@ -427,37 +427,47 @@ def test_an_inspect_version_bump_only(here, capsys, no_calls):
             "model are the same.") in out
 
 
-# check: asking the judge ----------------------------------------------------------------------
+# check: asking the judge, only after a yes -----------------------------------------------------
 
-def test_with_checks_off_the_judge_is_never_asked(here, capsys, no_calls):
-    _marked(here)
+ASK = ("To re-check, judgekeeper asks your new judge about your 50 marked answers. That is 50 "
+       "AI calls, paid with your own key.")
+
+
+@pytest.fixture
+def terminal(monkeypatch):
+    """A person at a terminal, answering the question with each of `answers` in turn."""
+    answers, prompts = [], []
+    monkeypatch.setattr(start, "_interactive", lambda: True)
+
+    def fake_input(prompt=""):
+        prompts.append(prompt)
+        if not answers:
+            raise EOFError
+        return answers.pop(0)
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    return answers, prompts
+
+
+def test_without_a_terminal_or_yes_the_judge_is_never_asked(here, capsys, judge):
+    ws = _marked(here)
+    before = (ws.dir / "judge.json").read_bytes()
     _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
     code, out = run(capsys)
     assert code == 3
-    assert ("Turning on automatic checks lets judgekeeper ask your judge about your 50 marked "
-            "answers.") in out
+    assert ASK in " ".join(out.split())
     assert "Answers you passed" not in out
-    assert _next(out).startswith("Next: tell the person")
+    assert _next(out) == ("Next: run `judgekeeper check` in your terminal to answer, or "
+                          "`judgekeeper check --yes` to go ahead.")
+    assert (ws.dir / "judge.json").read_bytes() == before
+    assert _history(ws) == []
+    assert _evals(judge) == 0
 
 
-def test_some_free_and_checks_off_tests_the_free_ones(here, capsys, no_calls):
+def test_with_yes_the_rest_is_asked_again(here, capsys, judge):
     _marked(here)
-    outputs = [answer(i, TAG) if i < 20 or 25 <= i < 45 else f"{answer(i, TAG)} (v2)"
-               for i in range(50)]
-    _results(here, MARKED, model=HAIKU, outputs=outputs)
-    code, out = run(capsys)
-    assert code == 0
-    assert "Re-checked on 40 of your 50 marks (40 free from your new results)." in out
-    assert ("Turning on automatic checks lets judgekeeper ask your judge about the other 10 "
-            "marked answers.") in out
-    assert re.search(r"^This check can see a drop of \d+ points or more", out, re.MULTILINE)
-
-
-def test_with_checks_on_the_rest_is_asked_again(here, capsys, judge):
-    ws = _marked(here)
-    _on(ws)
     _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    code, out = run(capsys)
+    code, out = run(capsys, "--yes")
     assert code == 1
     assert "Re-checked on your 50 marks (50 asked again)." in out
     assert "it now passes 9 answers you failed" in out
@@ -468,78 +478,78 @@ def test_with_checks_on_the_rest_is_asked_again(here, capsys, judge):
     assert "close copy" not in out  # the same promptfoo version: exactly the judge
 
 
-def test_a_close_copy_is_said(here, capsys, judge):
-    ws = _marked(here)
-    _on(ws)
-    _results(here, MARKED, model=HAIKU, version="0.125.0", outputs=_new_outputs())
+def test_at_a_terminal_yes_asks_the_judge(here, capsys, judge, terminal):
+    answers, prompts = terminal
+    answers.append("y")
+    _marked(here)
+    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
     code, out = run(capsys)
+    assert code == 1
+    assert prompts == ["Go ahead? [y/N] "]
+    assert ASK in " ".join(out.split())
+    assert _evals(judge) == 1
+
+
+@pytest.mark.parametrize("said", ["", "n", "no"])
+def test_at_a_terminal_no_is_the_default(here, capsys, judge, terminal, said):
+    terminal[0].append(said)
+    ws = _marked(here)
+    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
+    code, out = run(capsys)
+    assert code == 3
+    assert "Your judge was not asked." in out
+    assert _history(ws) == []
+    assert _evals(judge) == 0
+
+
+def test_a_free_recheck_asks_nothing(here, capsys, no_calls, terminal):
+    _marked(here)
+    _results(here, LENIENT, model=HAIKU)
+    code, out = run(capsys)
+    assert code == 1
+    assert terminal[1] == [] and "Go ahead?" not in out
+
+
+def test_some_free_and_a_no_tests_the_free_ones(here, capsys, judge, terminal):
+    terminal[0].append("n")
+    _marked(here)
+    outputs = [answer(i, TAG) if i < 20 or 25 <= i < 45 else f"{answer(i, TAG)} (v2)"
+               for i in range(50)]
+    _results(here, MARKED, model=HAIKU, outputs=outputs)
+    code, out = run(capsys)
+    assert code == 0
+    assert ("judgekeeper asks your new judge about the other 10 marked answers. That is 10 AI "
+            "calls") in " ".join(out.split())
+    assert "Re-checked on 40 of your 50 marks (40 free from your new results)." in out
+    assert re.search(r"^This check can see a drop of \d+ points or more", out, re.MULTILINE)
+
+
+def test_a_close_copy_is_said(here, capsys, judge):
+    _marked(here)
+    _results(here, MARKED, model=HAIKU, version="0.125.0", outputs=_new_outputs())
+    code, out = run(capsys, "--yes")
     assert code == 0
     assert re.search(r"^This was a close copy of your judge, not an exact one: .*0\.124\.1.*"
                      r"0\.125\.0", out, re.MULTILINE)
 
 
 def test_free_first_then_asked(here, capsys, judge):
-    ws = _marked(here)
-    _on(ws)
+    _marked(here)
     outputs = [answer(i, TAG) if i % 2 else f"{answer(i, TAG)} (v2)" for i in range(50)]
     _results(here, MARKED, model=HAIKU, outputs=outputs)
-    code, out = run(capsys)
+    code, out = run(capsys, "--yes")
     assert code == 0
     assert "Re-checked on your 50 marks (25 free from your new results, 25 asked again)." in out
     assert len(judge["fake"].files_seen["tests"]) == 25
 
 
-def test_an_agent_judge_that_can_write_is_not_run_by_itself(here, capsys, no_calls):
-    ws = _marked(here, agent=True)
-    _on(ws)
+def test_the_question_says_when_the_judge_can_change_files(here, capsys, judge):
+    _marked(here, agent=True)
     _results(here, MARKED, model=HAIKU, outputs=_new_outputs(), agent=True)
     code, out = run(capsys)
     assert code == 3
-    assert "judgekeeper doesn't run a judge that can change files by itself." in out
-
-
-def test_an_agent_judge_allowed_by_a_file_edit_is_not_run(here, capsys, no_calls):
-    """allow_agent_judge needs the person's click recorded by the page, not only checks.json."""
-    ws = _marked(here, agent=True)
-    _on(ws, allow_agent_judge=True)
-    _results(here, MARKED, model=HAIKU, outputs=_new_outputs(), agent=True)
-    code, out = run(capsys)
-    assert code == 3
-    assert ("judgekeeper doesn't run a judge that can change files by itself: automatic checks "
-            "were turned on without the page.") in out
-
-
-def test_the_call_limit_stops_a_runaway(here, capsys, no_calls):
-    ws = _marked(here)
-    _on(ws)
-    _results(here, MARKED, model=HAIKU, outputs=_new_outputs())
-    found = start.find_judge(here)
-    setup_hash = judge_setup.hash_of(judge_setup.of(found))
-    _write(ws.dir / check.COUNTS, {"days": {}, "calls": {setup_hash: 90}})
-    code, out = run(capsys)
-    assert code == 3
-    assert "judgekeeper reached its call limit for this judge" in out
-
-
-def test_the_daily_cap(here, capsys, no_calls):
-    ws = _marked(here)
-    _on(ws)
-    _results(here, MARKED, model=HAIKU, outputs=_new_outputs())
-    today = datetime.now().astimezone().strftime("%Y-%m-%d")
-    _write(ws.dir / check.COUNTS, {"days": {today: check.PER_DAY}, "calls": {}})
-    code, out = run(capsys)
-    assert code == 3
-    assert f"judgekeeper already ran {check.PER_DAY} checks that ask your judge today" in out
-
-
-def test_a_check_with_calls_counts_them(here, capsys, judge):
-    ws = _marked(here)
-    _on(ws)
-    _results(here, MARKED, model=HAIKU, outputs=_new_outputs())
-    run(capsys)
-    counts = json.loads((ws.dir / check.COUNTS).read_text(encoding="utf-8"))
-    assert sum(counts["days"].values()) == 1
-    assert list(counts["calls"].values()) == [50]
+    assert "Your judge is an agent that can change files when it runs." in out
+    assert _evals(judge) == 0
 
 
 def test_nothing_tested_keeps_the_check_pending(here, capsys, no_calls):
@@ -585,9 +595,8 @@ def test_a_history_line_per_check(here, capsys, no_calls):
 
 def test_no_answer_text_in_history_verdicts_or_output(here, capsys, judge):
     ws = _marked(here)
-    _on(ws)
     _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    run(capsys)  # run() checks the output
+    run(capsys, "--yes")  # run() checks the output
     texts = [(ws.dir / "history.jsonl").read_text(encoding="utf-8")]
     texts += [p.read_text(encoding="utf-8") for p in (ws.dir / "verdicts").glob("*.jsonl")]
     assert len(texts) >= 2

@@ -565,18 +565,6 @@ def test_check_on_when_on_says_so(here, capsys, pages, no_browser, baseline, by_
     assert len(pages[0]) == n
 
 
-def test_a_check_that_could_not_test_names_check_on(here, capsys, no_calls):
-    _marked(here)
-    _results(here, LENIENT, model=HAIKU, outputs=[f"new {i}" for i in range(50)])
-    code, out = run(capsys, "check")
-    assert code == 3
-    assert assert_one_next_at_the_end(out) == (
-        f"Next: tell the person their judge changed (model {MODEL} -> {HAIKU}) and none of "
-        "their marked answers could be re-checked yet. To let judgekeeper ask their judge, run "
-        "`judgekeeper check --on`: it opens a page where the person can turn on automatic "
-        "checks.")
-
-
 @pytest.fixture
 def no_calls(monkeypatch):
     from judgekeeper import again

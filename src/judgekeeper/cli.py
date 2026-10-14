@@ -237,6 +237,9 @@ def _parser() -> argparse.ArgumentParser:
                      help="turn automatic checks off: take out the hooks judgekeeper added")
     how.add_argument("--baseline", action="store_true", help=argparse.SUPPRESS)
     how.add_argument("--ci", action="store_true", help=argparse.SUPPRESS)
+    ck.add_argument("--yes", action="store_true",
+                    help="without a terminal: go ahead and ask your judge (it makes AI calls, "
+                         "paid with your own key)")
     ck.add_argument("--port", type=_port, default=None,
                     help="with --on: port on 127.0.0.1 for the page (default 8765, or the next "
                          "free one)")
@@ -377,7 +380,7 @@ def cmd_check(args) -> int:
 
     return check.run(args.path, fast_only=args.fast, hook=args.hook,
                      baseline_only=args.baseline, on=args.on, off=args.off, port=args.port,
-                     ci=args.ci)
+                     ci=args.ci, yes=args.yes)
 
 
 def cmd_front(args) -> int:
