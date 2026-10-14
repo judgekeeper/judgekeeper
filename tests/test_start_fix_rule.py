@@ -847,6 +847,7 @@ def test_a_paste_over_what_the_page_takes_says_too_long(tmp_path, seeded):
         with socket.create_connection(("127.0.0.1", server.port), timeout=5) as s:
             s.sendall((f"POST /fix/rule?token={server.token} HTTP/1.1\r\n"
                        f"Host: 127.0.0.1:{server.port}\r\nContent-Type: application/json\r\n"
+                       f"Origin: http://127.0.0.1:{server.port}\r\n"
                        f"Content-Length: {label_mod.MAX_BODY + 1}\r\n\r\n").encode())
             chunks = []  # the headers and the body may come in separate packets
             try:

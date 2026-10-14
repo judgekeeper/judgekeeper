@@ -74,7 +74,8 @@ def _post_marks(url: str, ws, n: int, seconds=5) -> int:
     def call(path, body=None):
         req = urllib.request.Request(f"{base}{path}?token={token}",
                                      data=None if body is None else json.dumps(body).encode(),
-                                     headers={"Content-Type": "application/json"})
+                                     headers={"Content-Type": "application/json",
+                                              "Origin": base})  # as the page sends it
 
         def send():
             with urllib.request.urlopen(req, timeout=10) as r:

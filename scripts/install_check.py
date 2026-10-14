@@ -417,7 +417,8 @@ class Check:
     def call(self, base: str, token: str, path: str, body=None):
         req = urllib.request.Request(f"{base}{path}?token={token}",
                                      data=None if body is None else json.dumps(body).encode(),
-                                     headers={"Content-Type": "application/json"})
+                                     headers={"Content-Type": "application/json",
+                                              "Origin": base})  # as the page sends it
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
                 raw = r.read().decode("utf-8")

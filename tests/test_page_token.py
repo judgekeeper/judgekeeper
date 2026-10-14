@@ -72,7 +72,8 @@ def _status(base: str, path: str, method="GET", body=None) -> int:
     conn = http.client.HTTPConnection(host, int(port), timeout=10)
     try:
         data = None if body is None else json.dumps(body).encode()
-        conn.request(method, path, body=data, headers={"Content-Type": "application/json"})
+        conn.request(method, path, body=data,
+                     headers={"Content-Type": "application/json", "Origin": base})
         return conn.getresponse().status
     except OSError:
         return 0  # nothing answers
@@ -149,7 +150,7 @@ def test_opening_an_open_page_replaces_it(here, capsys, no_browser):
     item = start_label.StartSession(ws).items[0]["id"]
     req = urllib.request.Request(f"{base}/label?token={token}",
                                  data=json.dumps({"id": item, "label": "pass"}).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers={"Content-Type": "application/json", "Origin": base})
 
     def send():
         with urllib.request.urlopen(req, timeout=10) as r:

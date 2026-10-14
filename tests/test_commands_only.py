@@ -130,3 +130,18 @@ def test_the_marking_page_has_no_turn_on(here, capsys, no_browser):
         with pytest.raises(urllib.error.HTTPError) as e:
             retried(lambda req=req: urllib.request.urlopen(req, timeout=10))
         assert e.value.code == 404, path
+
+
+def test_a_post_without_the_pages_origin_writes_no_mark(here, capsys, no_browser):
+    _results(here, MARKED_25)
+    assert _cli(capsys)[0] == 0
+    base, token = no_browser[-1].split("/?token=")
+    item = Workspace(here).data()["queue"][0]["id"]
+    req = urllib.request.Request(
+        f"{base}/label?token={token}", data=json.dumps({"id": item, "label": "pass"}).encode(),
+        headers={"Content-Type": "application/json"})
+    with pytest.raises(urllib.error.HTTPError) as e:
+        retried(lambda: urllib.request.urlopen(req, timeout=10))
+    assert e.value.code == 403
+    marks = Workspace(here).marks
+    assert not marks.exists() or '"label"' not in marks.read_text(encoding="utf-8")

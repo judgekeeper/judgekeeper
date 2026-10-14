@@ -559,7 +559,7 @@ LABEL_BODY = """<div class="app">
     change.seconds = Math.max(0, (Date.now() - shownAt) / 1000);
     fetch(url("/label"), {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify(change)
+      referrerPolicy: "same-origin", body: JSON.stringify(change)
     }).then(function (r) {
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
@@ -1234,7 +1234,7 @@ __RULE_FOLD__
   function post(change, then) {
     fetch(url("/label"), {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify(change)
+      referrerPolicy: "same-origin", body: JSON.stringify(change)
     }).then(function (r) {
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
@@ -1625,7 +1625,7 @@ FIX_BODY = """<div class="app">
     button.disabled = true;
     fetch(url("/fix/pass-mark"), {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({mark: data.pass_mark.mark})
+      referrerPolicy: "same-origin", body: JSON.stringify({mark: data.pass_mark.mark})
     }).then(function (r) {
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
@@ -1643,7 +1643,8 @@ FIX_BODY = """<div class="app">
 
   function postJSON(path, body) {
     return fetch(url(path), {
-      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
+      method: "POST", headers: {"Content-Type": "application/json"},
+      referrerPolicy: "same-origin", body: JSON.stringify(body)
     }).then(function (r) {
       return r.json().then(function (b) { return {ok: r.ok, body: b}; });
     });

@@ -18,7 +18,10 @@ request. The project's lock (server.json) holds a separate stop secret, never th
 it a request can only ask whether the page is open (GET /alive) or close it (POST /stop). A
 copy of the lock (page.json) lets --stop find the page when server.json is gone.
 POST /printed (with the token) says the link was printed where a coding agent could read it:
-every later mark is stamped so.
+every later mark is stamped so. Every POST also needs the page's own Origin
+(http://127.0.0.1:<port>, or localhost) and, when the browser sends it, `Sec-Fetch-Site:
+same-origin`: only the page's own script marks, never another site or a program that has the
+link (judgekeeper's own requests, `ask`, send the Origin).
 
 The caller passes the page (start_page.py) and a `result` function: GET /result answers with
 the result page, a static HTML page that runs no script. Once every item is labeled, none
@@ -204,6 +207,7 @@ def _json_for_html(data) -> str:
             .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
 
 
+ONLY_PAGE = "only the marking page in your browser can send this"
 LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
 LOCK_COPY = "page.json"  # the same, read when server.json is gone
 ALREADY_OPEN = ("A judgekeeper page is already open for this project. Close it with Ctrl-C in "
@@ -233,8 +237,10 @@ def _answer(port: int, method: str, path: str, query: dict,
     conn = http.client.HTTPConnection(HOST, port, timeout=PROBE_TIMEOUT)
     try:
         data = None if body is None else json.dumps(body).encode()
-        conn.request(method, f"{path}?{urlencode(query)}", body=data,
-                     headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json"}
+        if method == "POST":  # as the page's own script sends it
+            headers["Origin"] = f"http://{HOST}:{port}"
+        conn.request(method, f"{path}?{urlencode(query)}", body=data, headers=headers)
         response = conn.getresponse()
         return response.status, response.read()
     except (OSError, ValueError, http.client.HTTPException):
@@ -431,6 +437,15 @@ def _handler(server: LabelServer):
             self._json(403, {"error": "missing or wrong token"})
             return False
 
+        def _same_origin(self) -> bool:
+            """Whether a POST comes from the page's own script (see the module's docstring)."""
+            origins = (f"http://{HOST}:{server.port}", f"http://localhost:{server.port}")
+            site = self.headers.get("Sec-Fetch-Site")
+            if self.headers.get("Origin") in origins and site in (None, "same-origin"):
+                return True
+            self._json(403, {"error": ONLY_PAGE})
+            return False
+
         def _body(self) -> bytes | None:
             """The request's body, read before any answer (see the module's docstring); None
             when it has no length that can be read."""
@@ -501,7 +516,7 @@ def _handler(server: LabelServer):
 
         def _post(self, raw: bytes | None):
             url = urlsplit(self.path)
-            if not self._allowed(url):
+            if not self._allowed(url) or not self._same_origin():
                 return
             if url.path == "/stop":
                 self._json(200, {"stopped": True})
