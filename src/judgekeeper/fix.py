@@ -673,6 +673,31 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
     return grades[0], grades[1], reasons
 
 
+def next_test(split: Split) -> int:
+    """Which test on this set of hidden marks the next one is: every test counts, whatever
+    its verdict (after "safe to try", a re-test after a top-up), so each is stricter."""
+    return len(split.tests) + 1
+
+
+def few_mistakes(m: Marks, split: Split) -> str | None:
+    """Said before the question when the hidden marks hold fewer than targets.FIX_FEW of the
+    judge's mistakes: a test that can then only catch a worse rule. The counts it needs come
+    from the verdict's own math, for this test."""
+    wrong = sum(m.judge[i] != m.person[i] for i in split.hidden)
+    if wrong >= targets.FIX_FEW:
+        return None
+    n, k = len(split.hidden), next_test(split)
+
+    def fewest(kinds):
+        return next((f for f in range(n + 1)
+                     if targets.fix_verdict(f, 0, n, test=k).kind in kinds), n)
+
+    return (f"Your hidden marks hold only {plural(wrong, 'answer')} your judge got wrong. A new "
+            f"rule needs at least {fewest(('safe', 'better'))} of those fixed to be called safe "
+            f"to try, and about {fewest(('better',))} to be called better, so this test can "
+            "only catch a worse rule.")
+
+
 def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes: bool) -> int:
     """Screen 5b: the new rule from rule.txt, checked, then tested on the hidden marks with
     the old rule asked the same way, in the same run; the verdict from the math."""
@@ -690,6 +715,10 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
         return EXIT_NEEDS_YOU
     if problems:
         talk.say()
+    few = few_mistakes(m, split)
+    if few:
+        talk.para(few)
+        talk.say()
     asked = _ask_both(ws, m, split, rule, talk, yes)
     if isinstance(asked, int):
         return asked
@@ -697,7 +726,7 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     ids = [i for i in split.hidden if i in old and i in new]
     fixed = sum(old[i] != m.person[i] and new[i] == m.person[i] for i in ids)
     broke = sum(old[i] == m.person[i] and new[i] != m.person[i] for i in ids)
-    v = targets.fix_verdict(fixed, broke, len(ids), test=len(split.tests) + 1)
+    v = targets.fix_verdict(fixed, broke, len(ids), test=next_test(split))
     talk.say()
     talk.say(f"Tested on your {len(ids)} hidden marks:")
     talk.say(f"  Old rule agreed with you on {sum(old[i] == m.person[i] for i in ids)}. New "

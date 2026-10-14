@@ -279,6 +279,7 @@ def drop_line(drop: int | None) -> str | None:
 SIGN_LEVEL = 0.05  # two-sided, better or worse
 SAFE_LEVEL = 0.025  # one-sided, safe to try
 SAFE_MARGIN = 0.10  # safe to try: not more than 10 points worse
+FIX_FEW = 3  # fewer of the judge's mistakes hidden than this: a test can only catch worse
 
 
 @dataclass(frozen=True)
