@@ -759,7 +759,7 @@ def _pass_rate(r: dict) -> list[tuple[str, bool]] | None:
 def made_lines(made: dict | None) -> list[str]:
     """How the marks were made (marks.made), and a note when more than a quarter took under a
     second each, when lines of marks.jsonl are not counted, or when marks were made through a
-    link printed where a coding agent could read it."""
+    link printed where another program could read it (no terminal)."""
     if not made or not made["marks"]:
         return []
     n, quick = made["marks"], made["under_second"]
@@ -776,7 +776,8 @@ def made_lines(made: dict | None) -> list[str]:
     not_counted = marks.not_counted_line(made.get("not_counted") or 0)
     printed = made.get("printed") or 0
     return out + ([not_counted] if not_counted else []) + (
-        [f"{printed} of your marks were made through a link your coding agent could read."]
+        [(f"{printed} of your marks were made through a link printed where another program "
+          "could read it.")]
         if printed else [])
 
 
@@ -913,7 +914,7 @@ def page_content(r: dict, marking: str | None = None) -> dict:
 
 def result_html(r: dict, back: str | None = None, marking: str | None = None,
                 history: list[dict] | None = None) -> str:
-    """The result page; `history`: the History rows of report.html (keep.report_rows). No
+    """The result page; `history`: the History rows of report.html (check.report_rows). No
     value on it holds a hidden character (redact.visible)."""
     return visible(result_page({**page_content(r, marking), "history": history or []}, back))
 
@@ -921,7 +922,7 @@ def result_html(r: dict, back: str | None = None, marking: str | None = None,
 def write_report(ws: Workspace) -> None:
     """report.html again from the saved result, with the checks so far in its History; nothing
     when there is no result yet."""
-    from judgekeeper import keep
+    from judgekeeper import check
 
     try:
         r = json.loads(ws.result_json.read_text(encoding="utf-8"))
@@ -929,7 +930,7 @@ def write_report(ws: Workspace) -> None:
         return
     if isinstance(r, dict):
         write_replacing(ws.report_html, result_html(_scrubbed(r),
-                                                    history=_scrubbed(keep.report_rows(ws))))
+                                                    history=_scrubbed(check.report_rows(ws))))
 
 
 def page_template(about: dict | None = None, command: str | None = None) -> str:
@@ -1047,10 +1048,10 @@ def store_result(ws: Workspace, session: StartSession,
             n += 1
         ws.result_json.replace(target)
     _write_json(ws.result_json, r)
-    from judgekeeper import keep
+    from judgekeeper import check
 
     write_replacing(ws.report_html, result_html(_scrubbed(r),
-                                                history=_scrubbed(keep.report_rows(ws))))
+                                                history=_scrubbed(check.report_rows(ws))))
     if ws.result_html.is_file() and not ws.result_html.is_symlink():
         ws.result_html.unlink()
     marks.append(ws.history_jsonl, _scrubbed(history_line(ws, r)))

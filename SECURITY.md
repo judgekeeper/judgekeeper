@@ -28,16 +28,23 @@ back within a week.
   which. Every file there is written as a new file that replaces the old one. The first time
   a check starts in it, the folder gets its own `.gitignore`, so your answers stay off Git.
 
-## Turning on automatic checks
+## What judgekeeper writes
 
-Only the person's click on the "Turn on" page is meant to turn on automatic checks, but
-judgekeeper cannot prove a person clicked: anything that can write files in your project, a
-coding agent included, can write `.judgekeeper/checks.json` by hand. judgekeeper then still
-re-checks your judge, and its status says "turned on by a file edit, not on the page". A judge
-that can change files runs by itself only after the click on the page, which the page records
-in `.judgekeeper/page.log`. Whatever `checks.json` lists, `judgekeeper check --off` changes
-only the files turning on writes (`.claude/settings.local.json`, `.cursor/hooks.json`, the git
-pre-commit hook, the dev requirements), never through a link.
+judgekeeper writes only inside `.judgekeeper/` in your project, plus, each only after you say
+yes, `judgekeeper.toml` (where your results are and how to read them) and
+`promptfoo-results.json` (your last promptfoo run, exported for you). It never edits other
+tools' settings: no editor or agent hooks, no git hooks, no `.pre-commit-config.yaml`, no
+requirements files. It never runs your judge by itself: `judgekeeper check` says how many AI
+calls a re-check needs and asks before it makes them.
+
+## Running judgekeeper through a coding agent
+
+judgekeeper 1.0 is made for a person to run in their own terminal, marking in their own
+browser. Running it through a coding agent isn't supported in 1.0. The marks are meant to be
+the person's own, so the marking page saves a mark only from a browser on that page: every
+request needs the page's random token, and every change also needs to come from the page
+itself, its own origin (`Origin: http://127.0.0.1:<port>`, and `Sec-Fetch-Site: same-origin`
+when the browser sends it).
 
 ## Things that run your own code, by design
 

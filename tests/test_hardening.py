@@ -23,8 +23,13 @@ def run(capsys, *args) -> tuple[int, str]:
     return code, printed.out + printed.err
 
 
+def flat(text: str) -> str:
+    """Printed text with its lines joined: messages wrap at 80 columns."""
+    return " ".join(text.split())
+
+
 def assert_rules(code: int, text: str) -> None:
-    assert "Traceback" not in text, text
+    assert "Traceback" not in flat(text), text
     assert code in (0, 2, 3, 130), (code, text)
     nexts = [line for line in text.splitlines() if line.startswith("Next:")]
     assert len(nexts) == 1, text
@@ -52,8 +57,8 @@ def test_no_message_prints_a_placeholder(project, capsys):
     _write(project / "requirements.txt", "inspect-ai\n")
     code, text = run(capsys)
     assert_rules(code, text)
-    assert "{program}" not in text
-    assert "then run judgekeeper again" in text
+    assert "{program}" not in flat(text)
+    assert "Next: run your eval once from this folder, then run `judgekeeper` again." in flat(text)
 
 
 def test_a_link_in_judgekeepers_folder_names_the_main_command(project, capsys):
@@ -66,7 +71,7 @@ def test_a_link_in_judgekeepers_folder_names_the_main_command(project, capsys):
     _link(project / ".judgekeeper", outside, folder=True)
     code, text = run(capsys, "--no-browser")
     assert code == 2
-    assert "Remove it, then run judgekeeper again." in text
+    assert "Remove it, then run judgekeeper again." in flat(text)
 
 
 def test_the_free_check_says_what_it_saw_not_more(project, capsys):
@@ -75,9 +80,8 @@ def test_the_free_check_says_what_it_saw_not_more(project, capsys):
     promptfoo_project(project, split(20, 16))
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
-    assert ("Your judge gave a Pass or Fail on every answer (no errors or empty "
-            "replies).") in text
-    assert "real decision" not in text
+    assert "Free check (no AI call): every answer got a clear Pass or Fail." in flat(text)
+    assert "real decision" not in flat(text)
 
 
 def test_every_judge_call_failed_needs_the_person(project, capsys):
@@ -88,11 +92,10 @@ def test_every_judge_call_failed_needs_the_person(project, capsys):
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert code == 3
-    assert text.splitlines()[-4:] == [
-        "Your judge's calls failed on every answer, so there is nothing to mark.",
-        "The list is in .judgekeeper/judge-check.csv.", "",
-        ("Next: fix your judge's calls, run your eval again, then run "
-         "`judgekeeper --no-browser`.")]
+    assert "The list is in .judgekeeper/judge-check.csv." in flat(text)
+    assert flat(text).endswith(
+        "Your judge's calls failed on every answer, so there is nothing to mark. Next: fix "
+        "your judge's calls, run your eval again, then run `judgekeeper --no-browser`.")
 
 
 # Every error ends with a Next: line ---------------------------------------------------------
@@ -117,9 +120,9 @@ def test_a_bare_word_is_not_taken_for_a_folder(project, capsys):
     code, text = run(capsys, "status")
     assert_rules(code, text)
     assert code == 2
-    assert "`status` is not a judgekeeper command" in text
-    assert "file or folder not found" not in text
-    assert "Next: run `judgekeeper`, or `judgekeeper --help` to see the commands." in text
+    assert "`status` is not a judgekeeper command" in flat(text)
+    assert "file or folder not found" not in flat(text)
+    assert "Next: run `judgekeeper`, or `judgekeeper --help` to see the commands." in flat(text)
 
 
 def test_a_judge_name_that_is_not_there_names_one_that_is(project, capsys):
@@ -127,7 +130,7 @@ def test_a_judge_name_that_is_not_there_names_one_that_is(project, capsys):
     code, text = run(capsys, "--metric", "nope", "--no-browser")
     assert_rules(code, text)
     assert code == 2
-    assert "Next: run `judgekeeper --no-browser --metric llm-rubric`." in text
+    assert "Next: run `judgekeeper --no-browser --metric llm-rubric`." in flat(text)
 
 
 def test_an_unexpected_error_never_prints_its_text(project, capsys, monkeypatch):
@@ -142,9 +145,9 @@ def test_an_unexpected_error_never_prints_its_text(project, capsys, monkeypatch)
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert code == 2
-    assert "judgekeeper hit a problem it didn't expect" in text
-    assert "https://github.com/judgekeeper/judgekeeper/issues" in text
-    assert "ValueError" not in text
+    assert "judgekeeper hit a problem it didn't expect" in flat(text)
+    assert "https://github.com/judgekeeper/judgekeeper/issues" in flat(text)
+    assert "ValueError" not in flat(text)
 
 
 def test_ctrl_c_says_how_to_carry_on(project, capsys, monkeypatch):
@@ -157,7 +160,7 @@ def test_ctrl_c_says_how_to_carry_on(project, capsys, monkeypatch):
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert code == 130
-    assert "Next: run `judgekeeper --no-browser` to carry on." in text
+    assert "Next: run `judgekeeper --no-browser` to carry on." in flat(text)
 
 
 @pytest.mark.skipif(__import__("os").name == "nt", reason="chmod does not stop writes there")
@@ -174,7 +177,7 @@ def test_a_folder_judgekeeper_cannot_write_in(project, capsys):
         project.chmod(0o755)
     assert_rules(code, text)
     assert code == 2
-    assert "Next: make this folder writable" in text
+    assert "Next: make this folder writable" in flat(text)
 
 
 def test_start_stopped_at_a_question_exits_3(project, capsys):
@@ -299,8 +302,8 @@ def test_a_cut_off_file_says_where_to_save_it_again(project, capsys, tool):
     assert_rules(code, text)
     assert code == 2, text
     assert (f"error: {path.name} is cut off or damaged (it ends in the middle). Save it again "
-            f"from {NAMES[tool]}.") in text
-    assert f"Next: save {path.name} again from {NAMES[tool]}, then run `judgekeeper " in text
+            f"from {NAMES[tool]}.") in flat(text)
+    assert f"Next: save {path.name} again from {NAMES[tool]}, then run `judgekeeper " in flat(text)
 
 
 # One damaged row ----------------------------------------------------------------------------
@@ -377,8 +380,8 @@ def test_one_damaged_row_is_left_out_and_counted(project, capsys, tool, what):
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert code in (0, 3), text  # the other 19 rows are read
-    assert f"1 answer in {path.name} was left out: row 7 has a damaged field." in text
-    assert "19 answers" in text
+    assert f"1 answer in {path.name} was left out: row 7 has a damaged field." in flat(text)
+    assert "19 answers" in flat(text)
 
 
 def test_a_file_with_every_row_damaged_says_so(project, capsys):
@@ -390,7 +393,7 @@ def test_a_file_with_every_row_damaged_says_so(project, capsys):
     assert_rules(code, text)
     assert code == 2
     assert ("results.json is damaged: each of its 20 rows has a damaged field. Save it again "
-            "from promptfoo.") in text
+            "from promptfoo.") in flat(text)
 
 
 def test_an_inspect_nan_score_is_no_decision(project, capsys):
@@ -400,7 +403,7 @@ def test_an_inspect_nan_score_is_no_decision(project, capsys):
     _dump(path, data)
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
-    assert "Your judge passed 9 and failed 10." in text
+    assert "Your judge's grades: 9 Pass, 10 Fail." in flat(text)
 
 
 # A table, the own format and judgekeeper.record() ------------------------------------------
@@ -485,7 +488,7 @@ def test_own_format_one_damaged_line(project, capsys, what):
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
-    assert "1 answer in graded.jsonl was left out: line 7 has a damaged field." in text
+    assert "1 answer in graded.jsonl was left out: line 7 has a damaged field." in flat(text)
 
 
 @pytest.mark.parametrize("what", sorted(_file_damage("")))
@@ -540,7 +543,7 @@ def test_a_bad_record_line_is_left_out_and_counted(project, capsys, what):
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert code in (0, 3), text  # the other 19 lines are read
-    assert f"1 answer in {path.name} was left out: line 7 has a damaged field." in text
+    assert f"1 answer in {path.name} was left out: line 7 has a damaged field." in flat(text)
 
 
 # A seeded fuzzer ----------------------------------------------------------------------------
@@ -669,8 +672,8 @@ def test_short_unknown_grades_are_listed_but_never_in_the_next_line(project, cap
     assert_rules(code, text)
     assert code == 3
     assert ("judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
-            'Fail: "ok, sure", bad, good.') in text
-    (next_line,) = [x for x in text.splitlines() if x.startswith("Next:")]
+            'Fail: "ok, sure", bad, good.') in flat(text)
+    next_line = flat(text[text.index("Next:"):])
     for value in ("good", "bad", "ok, sure"):
         assert value not in next_line
     assert '--label-map "VALUE=pass,VALUE=fail"' in next_line
@@ -684,7 +687,7 @@ def test_long_text_grades_are_counted_not_shown(project, capsys):
     assert_rules(code, text)
     assert code == 3
     assert ("judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
-            "Fail: the verdict column holds long text in 20 rows.") in text
+            "Fail: the verdict column holds long text in 20 rows.") in flat(text)
 
 
 def test_a_quote_that_never_closes_is_named(project, capsys):
@@ -694,7 +697,7 @@ def test_a_quote_that_never_closes_is_named(project, capsys):
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert code == 2
-    assert "line 6 of results.csv has a quote that never closes" in text
+    assert "line 6 of results.csv has a quote that never closes" in flat(text)
 
 
 def test_a_quote_closed_rows_later_is_named(project, capsys):
@@ -705,7 +708,7 @@ def test_a_quote_closed_rows_later_is_named(project, capsys):
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert code == 2
-    assert "line 6 of results.csv has a quote that never closes" in text
+    assert "line 6 of results.csv has a quote that never closes" in flat(text)
 
 
 def test_long_text_from_a_quote_points_at_its_line(project, capsys):
@@ -717,7 +720,7 @@ def test_long_text_from_a_quote_points_at_its_line(project, capsys):
     assert_rules(code, text)
     assert code == 3
     assert ("the verdict column holds long text in 1 row (line 6 of results.csv may have a "
-            "quote that never closes).") in text
+            "quote that never closes).") in flat(text)
 
 
 def test_an_answer_over_several_lines_is_not_a_broken_quote(project, capsys):
@@ -726,7 +729,7 @@ def test_an_answer_over_several_lines_is_not_a_broken_quote(project, capsys):
     _table_rows(project, rows)
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
-    assert "quote" not in text
+    assert "quote" not in flat(text)
 
 
 # Third-party loggers --------------------------------------------------------------------------
@@ -761,7 +764,7 @@ def test_a_bad_byte_in_an_mlflow_store_prints_no_answer_and_no_traceback(tmp_pat
         logging.getLogger().removeHandler(handler)
     assert_rules(code, text)
     assert code == 2
-    assert "mlflow.db is damaged: judgekeeper can't read one of its traces." in text
+    assert "mlflow.db is damaged: judgekeeper can't read one of its traces." in flat(text)
 
 
 def test_mlflow_loggers_say_nothing_below_critical():
@@ -842,4 +845,4 @@ def test_a_damaged_mlflow_assessment_leaves_out_its_trace(tmp_path, monkeypatch,
     capsys.readouterr()
     code, text = run(capsys, "--no-browser", "--metric", "correctness")
     assert_rules(code, text)
-    assert f"1 answer in mlflow.db was left out: trace {trace} has a damaged field." in text
+    assert f"1 answer in mlflow.db was left out: trace {trace} has a damaged field." in flat(text)

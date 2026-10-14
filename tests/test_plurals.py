@@ -57,7 +57,7 @@ def test_one_helper_everywhere():
 def test_one_answer(here, capsys):
     _write(here / "results.json", promptfoo_data(split(1, 0)))
     _, out, _ = run(capsys)
-    assert "You have 1 answer with a clear verdict." in out
+    assert "You have 1 answer with a clear grade." in out
     assert "mark this one now" in out
     assert not SLIP.search(out), out
 

@@ -18,7 +18,10 @@ request. The project's lock (server.json) holds a separate stop secret, never th
 it a request can only ask whether the page is open (GET /alive) or close it (POST /stop). A
 copy of the lock (page.json) lets --stop find the page when server.json is gone.
 POST /printed (with the token) says the link was printed where a coding agent could read it:
-every later mark is stamped so.
+every later mark is stamped so. Every POST also needs the page's own Origin
+(http://127.0.0.1:<port>, or localhost) and, when the browser sends it, `Sec-Fetch-Site:
+same-origin`: only the page's own script marks, never another site or a program that has the
+link (judgekeeper's own requests, `ask`, send the Origin).
 
 The caller passes the page (start_page.py) and a `result` function: GET /result answers with
 the result page, a static HTML page that runs no script. Once every item is labeled, none
@@ -212,6 +215,7 @@ def _json_for_html(data) -> str:
             .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
 
 
+ONLY_PAGE = "only the marking page in your browser can send this"
 LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
 LOCK_COPY = "page.json"  # the same, read when server.json is gone
 ALREADY_OPEN = ("A judgekeeper page is already open for this project. Close it with Ctrl-C in "
@@ -222,15 +226,13 @@ RELEASE_PAUSE = 0.05
 
 
 def read_lock(folder: Path) -> dict | None:
-    """{"pid", "port", "stop", "view"} of the page named in the project's lock, or None.
-    `view` names a page that is not for marking ("keep": the "Turn on" page), else None.
-    When server.json can't be read, its copy (page.json) is."""
+    """{"pid", "port", "stop"} of the page named in the project's lock, or None. When
+    server.json can't be read, its copy (page.json) is."""
     for name in (LOCK, LOCK_COPY):
         try:
             lock = json.loads((Path(folder) / name).read_text(encoding="utf-8"))
-            view = lock.get("view")
             return {"pid": int(lock["pid"]), "port": int(lock["port"]),
-                    "stop": str(lock["stop"]), "view": view if isinstance(view, str) else None}
+                    "stop": str(lock["stop"])}
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             continue
     return None
@@ -243,8 +245,10 @@ def _answer(port: int, method: str, path: str, query: dict,
     conn = http.client.HTTPConnection(HOST, port, timeout=PROBE_TIMEOUT)
     try:
         data = None if body is None else json.dumps(body).encode()
-        conn.request(method, f"{path}?{urlencode(query)}", body=data,
-                     headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json"}
+        if method == "POST":  # as the page's own script sends it
+            headers["Origin"] = f"http://{HOST}:{port}"
+        conn.request(method, f"{path}?{urlencode(query)}", body=data, headers=headers)
         response = conn.getresponse()
         return response.status, response.read()
     except (OSError, ValueError, http.client.HTTPException):
@@ -324,12 +328,11 @@ class LabelServer:
         self._stopped = False
         self.lock: Path | None = None  # the lock file this server wrote (make_server)
 
-    def hold(self, folder: Path, view: str | None = None) -> None:
-        """Write the project's lock and its copy: this process, port, stop secret and which
-        page (never the token: a coding agent can read .judgekeeper/)."""
+    def hold(self, folder: Path) -> None:
+        """Write the project's lock and its copy: this process, port and stop secret (never
+        the token: any program that can read .judgekeeper/ can read the lock)."""
         self.lock = Path(folder) / LOCK
-        held = {"pid": os.getpid(), "port": self.port, "stop": self.stop_secret}
-        text = json.dumps({**held, **({"view": view} if view else {})})
+        text = json.dumps({"pid": os.getpid(), "port": self.port, "stop": self.stop_secret})
         write_replacing(self.lock, text)
         write_replacing(self.lock.with_name(LOCK_COPY), text)
 
@@ -441,6 +444,15 @@ def _handler(server: LabelServer):
             self._json(403, {"error": "missing or wrong token"})
             return False
 
+        def _same_origin(self) -> bool:
+            """Whether a POST comes from the page's own script (see the module's docstring)."""
+            origins = (f"http://{HOST}:{server.port}", f"http://localhost:{server.port}")
+            site = self.headers.get("Sec-Fetch-Site")
+            if self.headers.get("Origin") in origins and site in (None, "same-origin"):
+                return True
+            self._json(403, {"error": ONLY_PAGE})
+            return False
+
         def _body(self) -> bytes | None:
             """The request's body, read before any answer (see the module's docstring); None
             when it has no length that can be read."""
@@ -511,7 +523,7 @@ def _handler(server: LabelServer):
 
         def _post(self, raw: bytes | None):
             url = urlsplit(self.path)
-            if not self._allowed(url):
+            if not self._allowed(url) or not self._same_origin():
                 return
             if url.path == "/stop":
                 self._json(200, {"stopped": True})
@@ -578,12 +590,12 @@ def _handler(server: LabelServer):
 def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
                 page: str, switches: dict | None = None,
                 lock: Path | None = None, stays: bool = False,
-                token: str | None = None, view: str | None = None) -> LabelServer:
+                token: str | None = None) -> LabelServer:
     """A server for `session`, or a LabelError that says why there cannot be one. With `lock`
     (the project's .judgekeeper/), one server per project: when its page is already open,
     that is the error; else this server holds the lock until it stops. Two pages on one
     project would each write their marks over the other's. `token`: the one its caller made
-    (default: a new one). `view` goes in the lock: which page it is, when not for marking."""
+    (default: a new one)."""
     if lock is not None and is_open(lock):
         from judgekeeper.textio import program
 
@@ -599,7 +611,7 @@ def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
         raise LabelError(f"cannot listen on {HOST}:{port} ({e.strerror}); try --port") from None
     if lock is not None:
         try:
-            server.hold(lock, view)
+            server.hold(lock)
         except OSError:
             pass  # no lock: the labels' own write still says when it can't save
     return server

@@ -2,30 +2,19 @@
 
 Marks are tests for the judge. The judge is its whole setup (judge_setup.py), read from the
 newest results, never from the eval config; `.judgekeeper/judge.json` keeps the setup last
-checked. Nothing here ever asks a question.
+checked. The person runs it by hand, after they change their judge or update their eval tool.
 
-`check --fast` (git pre-commit, hooks): no AI call, no network.
+`results-seen.json` (local, never committed) remembers the setup of the newest results by what
+the files it came from hold (the results, the lockfiles, judgekeeper.toml), so a check with
+nothing new reads nothing again.
 
-| What is there                                    | What it says                       | Exit |
-|--------------------------------------------------|------------------------------------|------|
-| no marks, or under 15 Pass + 15 Fail             | nothing                            | 0    |
-| the same setup                                   | nothing (one line at a terminal)   | 0    |
-| the setup changed                                | what changed; Next: check          | 3    |
-| the judge's config is newer than the results     | it is re-checked after the next    | 0    |
-|                                                  | eval run                           |      |
-
-`--fast` and `--hook` read the results (and with them inspect_ai or mlflow) only when they
-changed: `results-seen.json` (local, never committed) remembers the setup of the newest results
-by what the files it came from hold (the results, the lockfiles, judgekeeper.toml).
-
-`check`: the same, then for a changed setup:
+For a changed setup:
 1. free first: marked answers whose exact text is in the newest results already have the new
    judge's verdict;
-2. the rest only when automatic checks are on (`checks.json`, written by the "Turn on" page):
-   the person's own judge is asked once about each, through `again/` (no menu, no cost line),
-   never a judge that can change files unless the person allowed it, at most PER_DAY checks
-   with calls a day, and at most TIMES_LIMIT times the calls one re-check of every mark needs
-   for one judge setup (a runaway retry stops there). `check-calls.json` counts them;
+2. the rest only after the person's yes: `check` says how many answers and calls it would
+   ask about and asks `Go ahead? [y/N]` at a terminal (Enter is no); without a terminal only
+   `--yes` says yes, else it stops (exit 3) before anything is asked or saved. The person's
+   own judge is then asked once about each, through `again/` (no menu);
 3. a one-sided paired test per group (the answers the person passed, and failed): the old
    verdicts (the last check's for the previous setup, `verdicts/<hash>.jsonl`; else the
    results the marks were made on) against the new;
@@ -35,36 +24,19 @@ by what the files it came from hold (the results, the lockfiles, judgekeeper.tom
    tested, nothing is saved: the check stays pending.
 
 Exit 0 (no drop seen, or nothing changed), 1 (worse in either group), 3 (the person is
-needed: not enough marks, or nothing could be tested). `--hook` (Claude Code and Cursor
-hooks) reads the hook's JSON on stdin and answers in hook JSON: the lines for the agent
-(`additionalContext`) and one short line for the person (`systemMessage`), only when
-something changed; it always exits 0 (the JSON is read only then, and 2 would block).
-
-`--on` opens the "Turn on" page (keep.py), where only the person's click turns automatic
-checks on; it needs 25 Pass and 25 Fail marks. `--off` takes out exactly what turning on
-added; anyone may run it. Both keep the marks, history and verdicts.
-
-`--ci` (hidden; judgekeeper's GitHub Action, `mode: full`) is `check` in GitHub Actions: the
-team committed the marks, and their workflow, with the key as a secret, is the permission to
-ask the judge (never one that can change files); checks.json, the person's, is not read.
-`--fast` also works in a checkout holding only judge.json and history.jsonl.
-
-`--baseline` (hidden; the page runs it after "Turn on") asks the current judge once about
-every marked answer: its verdicts become the old ones the next check compares with, and how
-often they differ from the original eval run is the judge's measured steadiness, which the
-smallest-drop line uses from then on.
+needed: not enough marks, nothing could be tested, or the question needs an answer).
+report.html shows one History row per check (report_rows).
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-import math
 import os
 import stat
 import sys
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 from judgekeeper import __version__, find, judge_setup, marks, start, targets
@@ -72,53 +44,42 @@ from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_value
 from judgekeeper.start_label import Workspace
-from judgekeeper.textio import describe_os_error, plural, program, quote_arg, write_replacing
+from judgekeeper.textio import plural, program, quote_arg, wrap, write_replacing
 
 EXIT_OK, EXIT_WORSE, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 1, 2, 3
-CHECKS = "checks.json"  # written only by the "Turn on" page
-COUNTS = "check-calls.json"
 VERDICTS = "verdicts"
 SEEN = "results-seen.json"
 LOCKFILES = ("package-lock.json", "uv.lock", "poetry.lock", "judgekeeper.toml")
 WHOLE = 4_000_000  # bytes: a results file up to this size is hashed whole
 ENDS = 64 * 1024  # bytes read from each end of a bigger one
 MAX_ENTRIES = 20_000  # files in a results folder (an MLflow store) looked at, at most
-PER_DAY = 10
-TIMES_LIMIT = 2
-KEEP_DAYS = 7
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers you failed"))
 
-MATCHES = "judgekeeper: your judge matches your marks."
 CONFIG_NEWER = ("Your judge's config changed after your last eval run; judgekeeper re-checks it "
                 "after the next one.")
 NOT_SET_UP = ("Your marks can't check your judge yet: that needs {n} you mark Pass and {n} you "
               "mark Fail.")
-TURN_ON = ("Turning on automatic checks lets judgekeeper ask your judge about {which}{n} "
-           "marked answer{s}.")
-AGENT = "judgekeeper doesn't run a judge that can change files by itself."
-AGENT_NO_PAGE = ("judgekeeper doesn't run a judge that can change files by itself: automatic "
-                 "checks were turned on without the page.")
-DAILY = ("judgekeeper already ran {n} checks that ask your judge today; it asks again "
-         "tomorrow.")
-LIMIT = "judgekeeper reached its call limit for this judge, so it didn't ask it again."
+ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}. That is {calls}, "
+             "paid with your own key.")
+GO_AHEAD = "Go ahead? [y/N] "
+CAN_WRITE = "Your judge is an agent that can change files when it runs."
+NOT_ASKED = "Your judge was not asked."
+NEXT_YES = "Next: run `{command}` in your terminal to answer, or `{command} --yes` to go ahead."
+NEXT_LATER = "Next: run `{command}` again when you are ready to re-check your judge."
+NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your judge."
+NEXT_EVAL = "Next: run your eval again, then run `{command}`."
+NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
+NEXT_WORSE = "Next: go back to {back}, or change your judge and run `{command}` again."
+SWITCHED = ("Your results now come from {new}, not {old}.",
+            "judgekeeper can't compare judges across two eval tools.")
+NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
+STEP = "Step 5 of 5: Re-check"
 DOWNLOAD = ("Asking your judge would mean downloading promptfoo {version}; judgekeeper "
             "doesn't download anything by itself.")
 NO_KEY = "The key your judge needs isn't set where judgekeeper runs, so your judge wasn't asked."
 CLOSE = "This was a close copy of your judge, not an exact one: {why}."
 TRACE_WHY = "your judge reads traces, which may have changed since your eval ran"
-OFF = "Automatic checks are off, so judgekeeper doesn't ask your judge."
-NOT_COMMITTED = ("Your marks are not in this checkout: `mode: full` needs .judgekeeper/start.json, "
-                 "marks.jsonl and pool.jsonl committed.")
-CI_ONLY = ("`--ci` is for judgekeeper's GitHub Action (action.yml), where your workflow allows "
-           "asking your judge. On your computer, run `judgekeeper check`.")
-
-
-def _terminal() -> bool:
-    try:
-        return sys.stdout.isatty()
-    except (AttributeError, ValueError):
-        return False
 
 
 _n = plural  # textio.plural
@@ -148,13 +109,11 @@ class State:
     marks: dict[str, str]  # answer id -> "pass" or "fail"
     saved: dict  # judge.json (judge_setup.read)
     lines: list[str] = field(default_factory=list)  # what is said, in order
-    counts: tuple[int, int] | None = None  # (Pass, Fail) marks, when only history.jsonl says
-    ci: bool = False  # in judgekeeper's GitHub Action: the workflow allows asking the judge
 
     @property
     def enough(self) -> bool:
         values = list(self.marks.values())
-        n_pass, n_fail = self.counts or (values.count("pass"), values.count("fail"))
+        n_pass, n_fail = values.count("pass"), values.count("fail")
         return min(n_pass, n_fail) >= targets.ROUGH
 
 
@@ -176,39 +135,6 @@ def _state(path: str) -> State | None:
     if saved is None or not isinstance(data, dict):
         return None
     return State(ws=ws, path=path, data=data, marks=marks.read(ws.marks).counted(), saved=saved)
-
-
-def _committed(path: str) -> State | None:
-    """What a checkout holds when only what judgekeeper commits is there (judge.json and
-    history.jsonl, as in CI): the judge last checked, its name, and how many marks the newest
-    result had. None when marking never started there or there is no result."""
-    from judgekeeper.start_again import _project
-
-    given = Path(path)
-    if not given.exists():
-        return None
-    ws = Workspace(_project(given))
-    saved = judge_setup._saved(ws)
-    if saved is None or ws.start.exists():
-        return None
-    counts = None
-    try:
-        text = ws.history_jsonl.read_text(encoding="utf-8")
-    except OSError:
-        return None
-    for raw in text.splitlines():
-        try:
-            line = json.loads(raw)
-        except ValueError:
-            continue
-        if isinstance(line, dict) and line.get("kind") == "result":
-            n_pass, n_fail = line.get("pass"), line.get("fail")
-            if isinstance(n_pass, int) and isinstance(n_fail, int):
-                counts = (n_pass, n_fail)
-    if counts is None:
-        return None
-    data = {"tool": saved["setup"].get("tool"), "metric": saved.get("metric")}
-    return State(ws=ws, path=path, data=data, marks={}, saved=saved, counts=counts)
 
 
 def _newest(state: State):
@@ -414,67 +340,10 @@ def _command(state_or_path) -> str:
     return " ".join((program("check"), *([] if str(path) == "." else [quote_arg(path)])))
 
 
-# --fast -----------------------------------------------------------------------------------------
-
-def fast(path: str, say) -> int:
-    state = _state(path) or _committed(path)
-    if state is None or not state.enough:
-        return EXIT_OK
-    now, problem = _now(state)
-    if now is None:
-        say(problem + ".")
-        return EXIT_OK
-    old, new = state.saved["setup"], now.setup
-    changed = judge_setup.changes(old, new)
-    if changed:
-        say(_change_line(old, new, changed, full=False))
-        say(f"Next: run `{_command(state)}`.")
-        return EXIT_NEEDS_YOU
-    if now.config is not None:
-        say(CONFIG_NEWER)
-    elif _terminal():
-        say(MATCHES)
-    return EXIT_OK
-
-
 # Asking the judge -------------------------------------------------------------------------------
 
-def _checks(ws: Workspace) -> dict:
-    from judgekeeper import keep
-
-    return keep.read(ws)
-
-
-def _today() -> str:
-    return datetime.now().astimezone().strftime("%Y-%m-%d")
-
-
-def _counts(ws: Workspace) -> dict:
-    try:
-        data = json.loads((ws.dir / COUNTS).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        data = {}
-    data = data if isinstance(data, dict) else {}
-    days = data.get("days") if isinstance(data.get("days"), dict) else {}
-    calls = data.get("calls") if isinstance(data.get("calls"), dict) else {}
-    return {"days": days, "calls": calls}
-
-
-def _count(ws: Workspace, counts: dict, setup_hash: str, calls: int) -> None:
-    """One more check with calls today, and its calls for this setup; days older than a week
-    are dropped. Written before the judge is asked, so a check that dies still counts."""
-    today = _today()
-    oldest = (datetime.now().astimezone() - timedelta(days=KEEP_DAYS)).strftime("%Y-%m-%d")
-    days = {d: n for d, n in counts["days"].items() if d >= oldest}
-    days[today] = int(days.get(today, 0)) + 1
-    calls_by = dict(counts["calls"])
-    calls_by[setup_hash] = int(calls_by.get(setup_hash, 0)) + calls
-    write_replacing(ws.dir / COUNTS, json.dumps({"days": days, "calls": calls_by}, indent=2)
-                    + "\n")
-
-
 class _Quiet:
-    """The talk a tool's run gets: nothing is printed (the hook's output is JSON only)."""
+    """The talk a tool's run gets: nothing is printed."""
 
     quiet = True
     yes = False
@@ -491,43 +360,46 @@ class Asked:
     close: str | None = None  # why it was a close copy
 
 
-def ask(state: State, found, setup: dict, ids: list[str], rest: bool = False) -> Asked:
+def _can_write(setup: dict) -> bool:
+    agent = setup.get("agent") or {}
+    return setup.get("kind") == judge_setup.AGENT and agent.get("can_write") is not False
+
+
+def _wrap(said, text: str) -> None:
+    for line in wrap(text):
+        said.say(line)
+
+
+def _go_ahead(yes: bool) -> bool | None:
+    """The person's answer to GO_AHEAD: --yes, else asked at a terminal (Enter is no); None
+    without a terminal."""
+    if yes:
+        return True
+    if not start._interactive():
+        return None
+    while True:
+        try:
+            answer = input(GO_AHEAD).strip().lower()
+        except EOFError:
+            return False
+        if answer in ("", "n", "no"):
+            return False
+        if answer in ("y", "yes"):
+            return True
+
+
+def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
+        rest: bool = False) -> Asked | None:
     """Ask the judge in the newest results about the marked answers `ids` (`rest`: the ones
-    not found free), when automatic checks are on and every limit allows it."""
+    not found free), once the person said yes to the calls it makes. None without a terminal
+    and without --yes: the question is said, nothing is asked."""
     from judgekeeper import again, new_judge
     from judgekeeper.again.fresh import NOT_COUNTED, AgainError, write_files
 
     out = Asked()
     ws = state.ws
-    checks = {"on": True} if state.ci else _checks(ws)
-    if not checks.get("on"):
-        out.reasons.append(TURN_ON.format(which="the other " if rest else "your ", n=len(ids),
-                                          s="" if len(ids) == 1 else "s"))
-        return out
-    agent = setup.get("agent") or {}
-    if setup.get("kind") == judge_setup.AGENT and agent.get("can_write") is not False:
-        if checks.get("allow_agent_judge") is not True:
-            out.reasons.append(AGENT)
-            return out
-        from judgekeeper import keep
-
-        if not keep.clicked(ws, agent=True):
-            out.reasons.append(AGENT_NO_PAGE)
-            return out
-    counts = _counts(ws)
-    if int(counts["days"].get(_today(), 0)) >= PER_DAY:
-        out.reasons.append(DAILY.format(n=PER_DAY))
-        return out
     view = new_judge.View(ws, found)
-    opts = again.AgainOptions(times=1)
-    plan = again.make_plan(ws, opts, dry=False, new=view, only=set(ids))
-    if plan.status != again.CANT:
-        setup_hash = judge_setup.hash_of(setup)
-        needs = math.ceil(plan.calls / max(plan.answers, 1) * len(state.marks))
-        if int(counts["calls"].get(setup_hash, 0)) + plan.calls > TIMES_LIMIT * needs:
-            out.reasons.append(LIMIT)
-            return out
-        plan = again.make_plan(ws, opts, dry=True, new=view, only=set(ids))
+    plan = again.make_plan(ws, again.AgainOptions(times=1), dry=True, new=view, only=set(ids))
     if plan.status == again.CANT:
         out.reasons.append(plan.plain or f"Your judge can't be asked again: {plan.why}.")
         return out
@@ -537,7 +409,17 @@ def ask(state: State, found, setup: dict, ids: list[str], rest: bool = False) ->
     if plan.download:
         out.reasons.append(DOWNLOAD.format(version=plan.tool_version))
         return out
-    _count(ws, counts, judge_setup.hash_of(setup), plan.calls)
+    said.say()
+    _wrap(said, ASK_FIRST.format(which="the other " if rest else "your ",
+                                 n=_n(len(ids), "marked answer"), calls=_n(plan.calls, "AI call")))
+    if _can_write(setup):
+        said.say(CAN_WRITE)
+    answer = _go_ahead(yes)
+    if answer is None:
+        return None
+    if not answer:
+        out.reasons.append(NOT_ASKED)
+        return out
     plan.folder = ws.dir / "checks" / utc_now().replace(":", "-")
     try:
         fresh = again.run_tool(view, plan, _Quiet())
@@ -602,28 +484,10 @@ def _group_line(key: str, title: str, g: dict) -> str:
     return f"  {title}:  old judge {_pct(g['old'])}, new judge {_pct(g['new'])}.  {end}"
 
 
-def _steadiness(ws: Workspace) -> tuple[float | None, float | None]:
-    """(flip rate, rate of being right) from the newest baseline in history.jsonl."""
-    try:
-        text = ws.history_jsonl.read_text(encoding="utf-8")
-    except OSError:
-        return None, None
-    for raw in reversed(text.splitlines()):
-        try:
-            line = json.loads(raw)
-        except ValueError:
-            continue
-        if isinstance(line, dict) and line.get("kind") == "check" \
-                and line.get("trigger") == "baseline" and line.get("asked"):
-            return len(line.get("flipped") or []) / line["asked"], line.get("right")
-    return None, None
-
-
-def _drop_line(drop: int | None, measured: bool) -> str | None:
+def _drop_line(drop: int | None) -> str | None:
     if drop is None:
         return None
-    how = " (from your judge's measured steadiness)" if measured else ""
-    return f"This check can see a drop of {drop} points or more{how}."
+    return f"This check can see a drop of {drop} points or more."
 
 
 # Saving -----------------------------------------------------------------------------------------
@@ -667,11 +531,30 @@ def _save_verdicts(ws: Workspace, setup: dict, found, verdicts: dict[str, str]) 
 
 @dataclass
 class Said:
+    """What check says, line by line: a Next: line, or any line over 80 columns, wrapped
+    (textio.wrap) under its own indent."""
     lines: list[str] = field(default_factory=list)
-    person: str | None = None  # one short line for the person (the hook's systemMessage)
 
     def say(self, text: str = "") -> None:
-        self.lines.append(one_line(text))
+        text = one_line(text)
+        if not text.startswith("Next:") and len(text) <= 80:
+            self.lines.append(text)
+            return
+        indent = text[:len(text) - len(text.lstrip())]
+        for line in wrap(text.strip(), indent=indent):
+            self._say(line)
+
+    def _say(self, line: str) -> None:
+        self.lines.append(line)
+
+
+def _switched(state: State) -> str | None:
+    """The eval tool whose results are here now, when the marks' tool has none: judges of two
+    eval tools can't be compared."""
+    search = find.search(state.ws.root)
+    tools = [t for t in find.TOOLS if search.readable(t)]
+    old = state.data.get("tool")
+    return tools[0] if tools and old not in tools else None
 
 
 def _no_change(state: State) -> str:
@@ -706,17 +589,9 @@ def _free(found, marked: dict[str, str]) -> dict[str, str]:
             if a.id in marked and a.source in newest}
 
 
-def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
-    hook = trigger == "hook"
+def full(path: str, said: Said, yes: bool = False) -> int:
     state = _state(path)
-    if state is not None:
-        state.ci = trigger == "ci"
     if state is None or not state.enough:
-        if hook:
-            return EXIT_OK
-        if state is None and trigger == "ci" and _committed(path) is not None:
-            said.say(NOT_COMMITTED)
-            return EXIT_NEEDS_YOU
         said.say(NOT_SET_UP.format(n=targets.ROUGH))
         said.say(f"Next: run `{program()}` to mark answers.")
         return EXIT_NEEDS_YOU
@@ -726,47 +601,47 @@ def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
     if now is not None and found is None and judge_setup.changes(old, new):
         found, problem = _newest(state)  # remembered, but a re-check needs the answers
         new = judge_setup.of(found) if found is not None else new
+    switched = _switched(state) if problem else None
+    if switched:
+        names = find.NAMES
+        old_tool = state.data.get("tool")
+        for line in SWITCHED:
+            said.say(line.format(new=names.get(switched, switched),
+                                 old=names.get(old_tool, old_tool)))
+        said.say()
+        said.say(NEXT_FRESH.format(command=program(), new=names.get(switched, switched)))
+        return EXIT_NEEDS_YOU
     if problem:
-        if hook:
-            return EXIT_OK
         said.say(problem + ".")
-        said.say("Next: ask the person to run their eval once, then run "
-                 f"`{_command(state)}` again.")
+        said.say()
+        said.say(NEXT_RUN_EVAL.format(command=_command(state)))
         return EXIT_NEEDS_YOU
     changed = judge_setup.changes(old, new)
     if not changed:
         config = now.config
-        if hook:
-            if config is not None and edited and Path(edited).resolve() == config.resolve():
-                said.say(CONFIG_NEWER)
-            return EXIT_OK
         said.say(_no_change(state))
         if config is not None:
             said.say(CONFIG_NEWER)
         said.say()
-        said.say("Next: nothing. Tell the person their judge has not changed since the last "
-                 "check.")
+        said.say((NEXT_SAME if config is None else NEXT_EVAL).format(command=_command(state)))
         return EXIT_OK
 
     change = _change_line(old, new, changed, full=True)
     said.say(change)
     free = _free(found, state.marks)
     rest = [i for i in state.marks if i not in free]
-    asked = ask(state, found, new, rest, rest=bool(free)) if rest else Asked()
+    asked = (ask(state, found, new, rest, said, yes, rest=bool(free)) if rest
+             else Asked())
+    if asked is None:
+        said.say()
+        said.say(NEXT_YES.format(command=_command(state)))
+        return EXIT_NEEDS_YOU
     tested = {**free, **asked.verdicts}
-    short = ", ".join(changed)
     if not tested:
         for line in asked.reasons:
             said.say(line)
         said.say()
-        on = ""
-        if not state.ci and not _checks(state.ws).get("on"):
-            on = (f" To let judgekeeper ask their judge, run `{_command(state)} --on`: it opens "
-                  "a page where the person can turn on automatic checks.")
-        said.say(f"Next: tell the person their judge changed ({short}) and none of their "
-                 f"marked answers could be re-checked yet.{on}")
-        said.person = (f"judgekeeper: your judge changed ({short}); it could not be re-checked "
-                       "yet.")
+        said.say(NEXT_LATER.format(command=_command(state)))
         return EXIT_NEEDS_YOU
 
     n, total = len(tested), len(state.marks)
@@ -784,9 +659,8 @@ def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
     said.say()
     if asked.close:
         said.say(CLOSE.format(why=asked.close))
-    flip, right = _steadiness(state.ws)
-    drop = targets.smallest_drop(g["passed"]["n"], g["failed"]["n"], flip, right)
-    line = _drop_line(drop, flip is not None)
+    drop = targets.smallest_drop(g["passed"]["n"], g["failed"]["n"])
+    line = _drop_line(drop)
     if line:
         said.say(line)
     worse = [k for k in ("failed", "passed") if g[k]["verdict"] == "worse"]
@@ -798,18 +672,16 @@ def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
         tool = find.NAMES.get(new.get("tool"), new.get("tool"))
         back = (f"the old version of {tool} ({old.get('tool_version')})"
                 if judge_setup.tool_only(old, new) else "the old judge")
-        said.say(f"Next: tell the person the new judge {what('they')}. Ask whether to go back "
-                 f"to {back}.")
-        said.person = f"judgekeeper: your judge changed ({short}); it now {what('you')}."
+        said.say(f"Your new judge {what('you')}.")
+        said.say()
+        said.say(NEXT_WORSE.format(back=back, command=_command(state)))
     else:
-        said.say(f"Next: nothing. Tell the person their judge changed ({short}) and the "
-                 "re-check on their marks found no drop.")
-        said.person = (f"judgekeeper: your judge changed ({short}); re-checked on your marks, "
-                       "no drop seen.")
+        said.say()
+        said.say(NEXT_SAME.format(command=_command(state)))
 
     flipped = [i for i in tested if i in old_verdicts and old_verdicts[i] != tested[i]]
     marks.append(state.ws.history_jsonl, scrub_value({
-        "time": utc_now(), "kind": "check", "trigger": trigger, "before": old, "after": new,
+        "time": utc_now(), "kind": "check", "trigger": "by hand", "before": old, "after": new,
         "changed": changed, "marks": total, "free": len(free), "asked": len(asked.verdicts),
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": g,
         "smallest_drop": drop, "flipped": flipped}))
@@ -817,51 +689,6 @@ def full(path: str, said: Said, trigger: str, edited: str | None = None) -> int:
     judge_setup.save(state.ws, new, found.metric)
     _report(state.ws)
     return EXIT_WORSE if worse else EXIT_OK
-
-
-def baseline(path: str, said: Said) -> int:
-    """Ask the current judge once about every marked answer: the old verdicts of the next
-    check, and the judge's measured steadiness."""
-    state = _state(path)
-    if state is None or not state.enough:
-        said.say(NOT_SET_UP.format(n=targets.ROUGH))
-        return EXIT_NEEDS_YOU
-    if not _checks(state.ws).get("on"):
-        said.say(OFF)
-        return EXIT_NEEDS_YOU
-    found, problem = _newest(state)
-    if found is None:
-        said.say(problem + ".")
-        return EXIT_NEEDS_YOU
-    old, new = state.saved["setup"], judge_setup.of(found)
-    if judge_setup.changes(old, new):
-        said.say(f"Your judge changed since your marks; run `{_command(state)}` first.")
-        return EXIT_NEEDS_YOU
-    asked = ask(state, found, new, list(state.marks))
-    for line in asked.reasons:
-        said.say(line)
-    if not asked.verdicts:
-        return EXIT_NEEDS_YOU
-    pool = {q["id"]: q["group"] for q in state.data.get("queue") or []}
-    flipped = [i for i, v in asked.verdicts.items() if pool.get(i) not in (None, v)]
-    n = len(asked.verdicts)
-    right = sum(state.marks[i] == v for i, v in asked.verdicts.items()) / n
-    said.say(f"Asked your judge again about {_n(n, 'marked answer')}: it changed its mind on "
-             f"{len(flipped)} of your {n} marked answers.")
-    values = [state.marks[i] for i in asked.verdicts]
-    drop = targets.smallest_drop(values.count("pass"), values.count("fail"),
-                                 len(flipped) / n, right)
-    line = _drop_line(drop, True)
-    if line:
-        said.say(line)
-    marks.append(state.ws.history_jsonl, scrub_value({
-        "time": utc_now(), "kind": "check", "trigger": "baseline", "before": new,
-        "after": new, "changed": [], "marks": len(state.marks), "free": 0, "asked": n,
-        "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": None,
-        "smallest_drop": drop, "flipped": flipped, "right": right}))
-    _save_verdicts(state.ws, new, found, asked.verdicts)
-    _report(state.ws)
-    return EXIT_OK
 
 
 def _report(ws: Workspace) -> None:
@@ -874,67 +701,6 @@ def _report(ws: Workspace) -> None:
         pass  # the check is saved; the report catches up with the next result
 
 
-# On and off -------------------------------------------------------------------------------------
-
-def turn_on_page(path: str, said: Said, port: int | None = None) -> int:
-    """`check --on`: the "Turn on" page, opened in the person's browser."""
-    from judgekeeper import front, keep, page
-    from judgekeeper.label import DEFAULT_PORT
-
-    state = _state(path)
-    least = min(list(state.marks.values()).count(k) for k in ("pass", "fail")) if state else 0
-    if state is None or least < targets.RELIABLE:
-        said.say(keep.MARK_MORE)
-        said.say()
-        said.say(f"Next: run `{program('mark')}` and ask the person to mark answers until they "
-                 f"have {targets.RELIABLE} Pass and {targets.RELIABLE} Fail.")
-        return EXIT_NEEDS_YOU
-    if keep.is_on(state.ws):
-        said.say("Automatic checks are already on.")
-        said.say()
-        said.say(f"Next: nothing. Tell the person automatic checks are on; `{program()}` says "
-                 "what they do.")
-        return EXIT_OK
-    shown = front.open_keep(said.say, state.ws, port or DEFAULT_PORT, no_browser=False)
-    said.say()
-    if shown is None or shown == page.NOT_SHOWN:
-        said.say("Next: " + front.NEXT_TERMINAL.format(command=f"{_command(state)} --on"))
-        return EXIT_NEEDS_YOU
-    again = " ".join((program(), *([] if str(path) == "." else [quote_arg(path)])))
-    said.say("Next: " + (front.NEXT_KEEP if shown == "browser" else front.NEXT_KEEP_LINK)
-             .format(command=again))
-    return EXIT_OK
-
-
-def turn_off(path: str, said: Said) -> int:
-    """`check --off`: take out what turning on added; marks, history and verdicts stay."""
-    from judgekeeper import keep
-
-    state = _state(path)
-    done = keep.turn_off(state.ws) if state is not None else None
-    if done is None:
-        said.say("Automatic checks are already off.")
-        said.say()
-        said.say("Next: nothing. Tell the person automatic checks are off.")
-        return EXIT_OK
-    removed, left = done
-    said.say("Automatic checks: OFF.")
-    if removed:
-        said.say(f"Removed: {', '.join(removed)}.")
-    for file, why in left:
-        if why == keep.NOT_OURS:
-            said.say(f"Left alone: {file} (checks.json lists it, but judgekeeper did not "
-                     "add it there).")
-        else:
-            said.say(f"Left as it is: {file} (changed since judgekeeper added to it; remove "
-                     "the judgekeeper lines yourself).")
-    said.say(keep.KEPT)
-    said.say(f"To turn them on again, run `{_command(state)} --on`.")
-    said.say()
-    said.say("Next: nothing. Tell the person automatic checks are off.")
-    return EXIT_OK
-
-
 # The command ------------------------------------------------------------------------------------
 
 def _print(text: str = "") -> None:
@@ -943,73 +709,62 @@ def _print(text: str = "") -> None:
 
 
 class _Printed(Said):
-    """Said as it goes: a printed link (page.show) stays in its place among the lines."""
+    """Said as it goes, so the question is asked in its place among the lines."""
 
     def say(self, text: str = "") -> None:
-        _print(text)
+        if not text.startswith("Next:") and len(one_line(text)) <= 80:
+            _print(text)
+        else:
+            super().say(text)
+
+    def _say(self, line: str) -> None:
+        _print(line)
 
 
-def _hook_input() -> dict:
-    try:
-        data = json.loads(sys.stdin.read() or "{}")
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _hook(path: str) -> int:
-    """`--hook`: always exit 0 (Claude Code reads hook JSON only then, and 2 would block the
-    agent); what went wrong, if anything, goes to the agent in the JSON."""
-    said = Said()
-    given: dict = {}
-    try:
-        given = _hook_input()
-        edited = (given.get("tool_input") or {}).get("file_path") if isinstance(
-            given.get("tool_input"), dict) else None
-        full(path, said, "hook", edited if isinstance(edited, str) else None)
-    except Exception as e:  # noqa: BLE001 - nothing may stop the agent's work
-        why = describe_os_error(e) if isinstance(e, OSError) else None
-        why = why or str(e) or type(e).__name__
-        said.lines = []
-        said.say(f"judgekeeper could not check your judge: {why}.")  # on one line
-        said.person = None
-    if said.lines:
-        out = {"hookSpecificOutput": {
-            "hookEventName": str(given.get("hook_event_name") or "PostToolUse"),
-            "additionalContext": scrub("\n".join(said.lines).strip())}}
-        if said.person:
-            out["systemMessage"] = scrub(one_line(said.person))
-        print(json.dumps(out, ensure_ascii=False))
-    return EXIT_OK
-
-
-def run(path: str = ".", fast_only: bool = False, hook: bool = False,
-        baseline_only: bool = False, on: bool = False, off: bool = False,
-        port: int | None = None, ci: bool = False) -> int:
+def run(path: str = ".", yes: bool = False) -> int:
     """`judgekeeper check`. Returns the exit code."""
-    if fast_only:
-        return fast(path, _print)
-    if ci and os.environ.get("GITHUB_ACTIONS") != "true":
-        _print(CI_ONLY)
-        return EXIT_USAGE
-    if hook:
-        return _hook(path)
-    said = Said()
-    if on:
-        _print(f"judgekeeper {__version__}")
-        _print()
-        return turn_on_page(path, _Printed(), port)
-    if off:
-        _print(f"judgekeeper {__version__}")
-        _print()
-        return turn_off(path, _Printed())
-    code = (baseline(path, said) if baseline_only
-            else full(path, said, "ci" if ci else "by hand"))
     _print(f"judgekeeper {__version__}")
     _print()
-    for line in said.lines:
-        _print(line)
-    return code
+    _print(STEP)
+    _print()
+    return full(path, _Printed(), yes=yes)
 
 
-__all__ = ["COUNTS", "PER_DAY", "baseline", "fast", "full", "groups", "run"]
+# The report's History ------------------------------------------------------------------------
+
+def _rate(x) -> str:
+    return "?" if x is None else f"{x:.0%}"
+
+
+def history_rows(lines: list[dict]) -> list[dict]:
+    """One row per check in history.jsonl lines (in their order): date, what changed, marks
+    tested, old against new per group, the verdict, exact or close."""
+    rows = []
+    for line in lines:
+        if not isinstance(line, dict) or line.get("kind") != "check" or \
+                line.get("trigger") == "baseline":  # asked by automatic checks (1.0 betas)
+            continue
+        free, asked = int(line.get("free") or 0), int(line.get("asked") or 0)
+        parts = ([f"{free} free"] if free else []) + ([f"{asked} asked again"] if asked else [])
+        groups_ = line.get("groups") or {}
+        shown = []
+        for key, _, title in GROUPS:
+            g = groups_.get(key) or {}
+            shown.append(f"{title}: {_rate(g.get('old'))} → {_rate(g.get('new'))}"
+                         if g.get("n") else f"{title}: not tested")
+        worse = any((groups_.get(k) or {}).get("verdict") == "worse" for k in groups_)
+        rows.append({"date": _day(line.get("time")) or "",
+                     "tested": (f"{plural(free + asked, 'mark')} ({', '.join(parts)})" if parts
+                                else "0 marks"),
+                     "exact": "close copy" if line.get("exact") == "close" else "exact",
+                     "changed": ", ".join(line.get("changed") or []), "groups": shown,
+                     "verdict": "Worse" if worse else "No drop seen"})
+    return rows
+
+
+def report_rows(ws: Workspace) -> list[dict]:
+    """The History rows for report.html: newest first."""
+    return list(reversed(history_rows(_history(ws))))
+
+
+__all__ = ["full", "groups", "history_rows", "report_rows", "run"]

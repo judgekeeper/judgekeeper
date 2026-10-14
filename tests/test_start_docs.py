@@ -26,7 +26,6 @@ from tests.website_pages import ROOT, WEBSITE, Element, parse
 README = ROOT / "README.md"
 GUIDE = ROOT / "docs" / "guide.md"
 REFERENCE = ROOT / "docs" / "reference.md"
-SKILL = ROOT / "skills" / "judgekeeper" / "SKILL.md"
 SHOWN_PROJECT = "/Users/me/support-bot"
 
 
@@ -215,17 +214,15 @@ def test_the_readme_makes_uvx_the_main_path():
     assert len(README.read_text(encoding="utf-8").splitlines()) <= 80
 
 
-def test_the_guide_starts_with_start():
+def test_the_guide_starts_with_the_five_steps():
     sections = _sections(GUIDE)
     assert next(iter(sections)) == "Start here"
-    assert "judgekeeper start" in sections["Start here"]
-
-
-def test_the_skill_leaves_marking_to_the_person():
-    text = " ".join(SKILL.read_text(encoding="utf-8").split())
-    assert f"`uvx judgekeeper@{__version__}`" in text
-    assert "Only the person marks." in text
-    assert len(SKILL.read_text(encoding="utf-8").splitlines()) < 60
+    here = sections["Start here"]
+    assert "Find. Mark. Measure. Fix. Re-check." in here
+    for command in ("\njudgekeeper\n", "`judgekeeper mark`", "`judgekeeper check`"):
+        assert command in here, command
+    for gone in ("judgekeeper start", "coding agent", "Claude Code", "Cursor"):
+        assert gone not in here, gone
 
 
 # The version -----------------------------------------------------------------------------
@@ -257,23 +254,21 @@ def test_the_own_format_section_shows_the_table_and_the_agent_prompt():
 def test_the_reference_and_the_guide_explain_the_own_format():
     reference = " ".join(REFERENCE.read_text(encoding="utf-8").split())
     guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
-    for text in (reference, guide):
-        for needed in ("judge_model", "--agent-prompt", "first 3 rows"):
-            assert needed in text, needed
+    for needed in ("judge_model", "--agent-prompt", "first 3 rows"):
+        assert needed in reference, needed
+    for needed in ("judge_model", "`judgekeeper your-table.csv`", "judgekeeper.toml"):
+        assert needed in guide, needed
     assert "calling a metric's `measure()` directly saves nothing" in reference
 
 
-def test_the_guide_says_what_comes_after_the_first_result():
-    text = GUIDE.read_text(encoding="utf-8")
-    section = text[text.index("### After your first result"):text.index("## Why")]
-    for needed in ("--review", "--ask-again", "--try-new-judge", "--label-more",
-                   "Go ahead? [y/N]", "by name only", "10 Pass and 10 Fail"):
+def test_the_guide_says_how_a_re_check_asks_before_it_spends():
+    section = " ".join(_sections(GUIDE)["Start here"].split())
+    for needed in ("`judgekeeper check`", "Go ahead? [y/N]", "`--yes`", "with your own key",
+                   "History", "`--no-browser`", "`judgekeeper --stop`"):
         assert needed in section, needed
 
 
 def test_the_own_format_section_shows_the_three_doors_in_order():
-    from tests.test_record_snippets import AGENT_PROMPT as RECORD_PROMPT
-
     section = _by_id("start.html", "own-format")
     heads = [el.attrs.get("id") for el in section.iter() if el.tag == "h4"]
     assert heads == ["door-setup", "door-record", "door-agent", "records-format"]
@@ -282,9 +277,6 @@ def test_the_own_format_section_shows_the_three_doors_in_order():
                    "It never edits your code", "judgekeeper.record(",
                    "JUDGEKEEPER_RECORD=0"):
         assert needed in flat, needed
-    (prompt,) = [el for el in section.iter() if el.attrs.get("id") == "record-prompt"]
-    assert "code" in prompt.parent.parent.classes()  # so it gets a copy button
-    assert prompt.text() == RECORD_PROMPT
     hrefs = [a.attrs.get("href") for a in section.iter() if a.tag == "a"]
     assert "reference.html#records-format" in hrefs
     assert "reference.html#record-save-your-own-judges-verdicts-with-one-line" in hrefs

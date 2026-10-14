@@ -545,9 +545,9 @@ def _needs_extra(talk: Talk, tool: str, where: str) -> Stop:
     install = textio.install_extra(extra)
     talk.say(f"{find.NAMES[tool]} found ({where}). To read it, add the extra in your "
              f"project's environment: {install}, then run {talk.command()} again.")
-    return talk.stop(EXIT_USAGE, f"ask the person to add judgekeeper's {extra} extra "
-                                 f"({install} in the project's environment), then run "
-                                 f"`{talk.command()}` again.")
+    return talk.stop(EXIT_USAGE, f"add judgekeeper's {extra} extra ({install} in your "
+                                 f"project's environment), then run `{talk.command()}` "
+                                 "again.")
 
 
 def _has(module: str) -> bool:
@@ -580,9 +580,8 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
 OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({names}). "
                 "judgekeeper reads judges run with mlflow.genai.evaluate() and scorers "
                 "(MLflow 3). Reading these older results isn't supported.")
-OLD_EVALUATE_NEXT = ("tell the person judgekeeper can't read judge scores from "
-                     "mlflow.evaluate(); it reads a judge run with mlflow.genai.evaluate() and "
-                     "scorers.")
+OLD_EVALUATE_NEXT = ("run your judge with mlflow.genai.evaluate() and scorers, then run "
+                     "`judgekeeper` again.")
 # The run metrics mlflow.evaluate() logs for a judged metric: faithfulness/v1/mean, ...
 _OLD_METRIC = re.compile(r"(.+/v\d+)/(mean|variance|p90)")
 
@@ -791,8 +790,7 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
             talk.say(line)
         talk.say()
         talk.say("Or save your judge's decisions from now on with one judgekeeper.record() line "
-                 f"where it runs: {own_format.RECORD_URL} has a prompt that asks your coding "
-                 "agent to add it.")
+                 f"where it runs: {own_format.RECORD_URL} shows the line.")
     talk.say("judgekeeper start reads the results that promptfoo, DeepEval, Inspect AI and "
              "MLflow save, or a CSV or JSONL file with input, output and verdict columns.")
     talk.say(POINT_ME.format(program=talk.program))
@@ -823,18 +821,26 @@ def _export(talk: Talk, path: Path, tool: str | None, root: Path, config: str):
     then carry on with the file; else print the export commands and stop."""
     from judgekeeper import start_export
 
-    talk.say(f"{tick()} Your eval tool: promptfoo ({config})")
-    talk.say("  No promptfoo results file in this folder. promptfoo keeps them in its own "
-             "database.")
+    screens = getattr(talk, "screens", False)  # `judgekeeper`'s own words (front.FrontTalk)
+    if screens:
+        talk.para(f"Found promptfoo in this folder ({config}), but no saved results file yet. "
+                  "promptfoo keeps its results in its own database.")
+    else:
+        talk.say(f"{tick()} Your eval tool: promptfoo ({config})")
+        talk.say("  No promptfoo results file in this folder. promptfoo keeps them in its own "
+                 "database.")
     outcome = start_export.offer(talk, root)
     if outcome == "done":
         return _locate(talk, path, tool)
+    if outcome == "commands" and screens:
+        raise talk.stop(EXIT_OK, f"save your last run with `{EXPORT}` (free: it runs no test), "
+                                 f"then run `{talk.command()}` again.")
     if outcome == "commands":
         _promptfoo_export(talk)
         raise talk.stop(EXIT_OK, f"run `{EXPORT}` (it runs no test and costs nothing), then "
                                  f"run `{talk.command()}` again.")
-    raise talk.stop(EXIT_OK, "nothing. Tell the person what judgekeeper said about their "
-                             "promptfoo results.")
+    raise talk.stop(EXIT_OK, "nothing. Find your promptfoo run as said above, then run "
+                             f"`{talk.command()}` again.")
 
 
 def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, dict]:
@@ -931,7 +937,7 @@ def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None) -
 
 def _too_big(talk: Talk, found: find.Search) -> Stop:
     big = found.too_big()[0]
-    return talk.stop(EXIT_USAGE, f"ask the person whether to read {big.rel} anyway; if yes, run "
+    return talk.stop(EXIT_USAGE, f"to read {big.rel} anyway, run "
                                  f"`{talk.command_at(big.rel)}`.")
 
 
@@ -981,8 +987,8 @@ def _check_description(talk: Talk, root: Path, theirs: str | None,
                         hint=f"{question} Run {textio.program('start')} in a terminal to "
                              "answer, or "
                              "point me at the right results file."):
-        raise talk.stop(EXIT_OK, f"nothing. Tell the person {result.rel} was left alone: it "
-                                 "looks like it is from another project.")
+        raise talk.stop(EXIT_OK, f"nothing. {result.rel} was left alone: it looks like it is "
+                                 "from another project.")
 
 
 # A promptfoo config: `prompts` and `providers` or `tests` at the top

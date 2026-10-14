@@ -2,23 +2,20 @@
 
 ## 1.0.0b2 (2026-10-13)
 
-judgekeeper now keeps checking your judge by itself, once you turn it on. Run
-`uvx judgekeeper@1.0.0b2`, or `pip install judgekeeper==1.0.0b2` and then `judgekeeper`.
+Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. Run
+`uvx judgekeeper@1.0.0b2`, or `pip install judgekeeper==1.0.0b2` and then `judgekeeper`, in
+your own terminal.
 
 - `judgekeeper check`: when your judge's model, rule, pass mark or eval tool changes, it
   re-tests the new judge on your marks and says whether it got worse on the answers you passed
-  or failed. Verdicts your newest results already hold are used first, for free.
-- With 25 Pass and 25 Fail marks, a page asks whether to keep checking. Only your click turns
-  it on: it adds a hook for Claude Code and Cursor and a check before each git commit, and asks
-  your judge once to learn how steady it is. On your computer, no judge is asked without it.
-- `judgekeeper` then says what is on. `judgekeeper check --off` takes out exactly what was
-  added and keeps your marks; `judgekeeper check --on` opens the page again.
-- `check --fast`, run by the hooks, reads your results again only when they changed, so it
-  stays quick for every eval tool.
-- The report has a History of every check. A GitHub Action, `action.yml`: `mode: fast` says
-  whether your judge changed (no AI call); `mode: full` re-checks it on marks you commit.
-- The coding-agent skill says that only you turn on automatic checks.
+  or failed. Grades your newest results already hold are used first, for free. When it needs
+  AI calls, it says how many and asks first (without a terminal, `--yes` says yes).
+- The report has a History of every check.
+- Every screen says which of the 5 steps it is, and its `Next:` line says what you do next.
+- The marking page saves a mark only when it comes from the page itself.
 - Broken results files give a clear message instead of a Python error.
+- Removed: automatic checks, the GitHub Action and the agent skill. 1.0 is commands you run
+  yourself; agent support may come back later.
 
 ## 1.0.0b1 (2026-10-12)
 

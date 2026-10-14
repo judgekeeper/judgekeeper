@@ -368,3 +368,23 @@ def split_command(command: str) -> list[str]:
         return shlex.split(command)
     return [a[1:-1] if len(a) >= 2 and a[0] == a[-1] and a[0] in "\"'" else a
             for a in shlex.split(command, posix=False)]
+
+
+WIDTH = 64  # what judgekeeper says wraps here; a command in backticks is never split
+WHOLE = ("Inspect AI",)  # names never split either
+
+
+def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
+    """`text` as lines of at most `width` characters (a longer command stays whole on its
+    own line), each starting with `indent`. Only a text that starts with "Next:" gives a line
+    that starts with it: a name read from a file can't pass for judgekeeper's Next: line."""
+    import re
+    import textwrap
+
+    keep = re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
+    for part in keep:
+        text = text.replace(part, part.replace(" ", "\0"))
+    text = text[:1] + re.sub(r"\s+(?=Next:)", "\0", text[1:])
+    lines = textwrap.wrap(text, width, initial_indent=indent, subsequent_indent=indent,
+                          break_long_words=False, break_on_hyphens=False) or [indent.rstrip()]
+    return [line.replace("\0", " ") for line in lines]

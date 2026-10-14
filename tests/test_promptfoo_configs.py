@@ -63,7 +63,8 @@ def test_no_config_matches_so_it_asks_and_says_what_no_changes(here, capsys):
     assert code == 3
     assert ('results.json looks like it is from another project (its description is "another '
             'bot", and no promptfoo config here has it). Use it anyway? If not, nothing is '
-            "read: run judgekeeper with the path of your own results file.") in out
+            "read: run judgekeeper with the path of your own results file.") in " ".join(
+                out.split())
     assert "went on as if" not in out
-    assert "To ask the person:" in out
+    assert "judgekeeper needs your answer to this question:" in out
     assert "`judgekeeper --yes`" in assert_one_next_at_the_end(out)

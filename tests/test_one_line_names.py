@@ -38,11 +38,12 @@ def _write(path, data):
 
 
 def _only_our_next(out: str) -> None:
-    """Exactly one line starts `Next:` (split as any reader splits it), and it is the last."""
-    lines = [line for line in out.splitlines() if line.strip()]
+    """Exactly one line starts `Next:` (split as any reader splits it), and its paragraph
+    ends the output."""
+    lines = out.rstrip("\n").splitlines()
     nexts = [line for line in lines if line.lstrip().startswith("Next:")]
     assert len(nexts) == 1, out
-    assert nexts[0] == lines[-1]
+    assert all(line.strip() for line in lines[lines.index(nexts[0]):]), out
     assert not nexts[0].startswith(FAKE)
     assert not any(b in out for b in BREAKS if b != "\n"), repr(out)
 
