@@ -476,9 +476,36 @@ def test_promptfoo_results_from_another_project(here, capsys):
     code, out, _ = run(capsys)
     assert code == 3
     assert "looks like it is from another project" in out
+    assert "Answers:" not in out and "grades" not in out  # asked before any result
     assert "`judgekeeper --yes`" in assert_one_next_at_the_end(out)
+    assert "`judgekeeper PATH`" in assert_one_next_at_the_end(out)
     code, _, _ = run(capsys, "--yes")
     assert code == 0
+
+
+def test_no_to_another_project_names_the_file_from_this_one(here, capsys, terminal):
+    answers, _ = terminal
+    promptfoo_project(here, split(20, 16), name="older.json", description="support bot",
+                      created="2026-10-01T10:00:00.000Z")
+    promptfoo_project(here, split(20, 16), description="another bot",
+                      created="2026-10-05T10:00:00.000Z")
+    answers += ["n"]
+    code, out, _ = run(capsys)
+    assert "Answers:" not in out
+    assert assert_one_next_at_the_end(out) == (
+        "Next: run `judgekeeper older.json` to read older.json, the newest results from this "
+        "project.")
+    assert code == 3
+
+
+def test_no_to_another_project_says_how_to_name_yours(here, capsys, terminal):
+    answers, _ = terminal
+    promptfoo_project(here, split(20, 16), description="another bot")
+    answers += ["n"]
+    code, out, _ = run(capsys)
+    assert assert_one_next_at_the_end(out) == (
+        "Next: run `judgekeeper PATH` with the path of your own results file.")
+    assert code == 3
 
 
 # At a terminal: the same questions, asked inline ------------------------------------------

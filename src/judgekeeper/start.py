@@ -1050,22 +1050,31 @@ def results_description(result: find.Result) -> str | None:
 
 
 def _check_description(talk: Talk, root: Path, theirs: str | None,
-                       result: find.Result) -> None:
+                       result: find.Result, others: list[find.Result] = ()) -> None:
     """Ask before using promptfoo results whose description is in none of the project's
-    promptfoo configs (when they have one)."""
+    promptfoo configs (when they have one), before anything is read. After No: the newest
+    of `others` from this project, or how to name your own."""
     mine = _project_descriptions(root)
     if theirs is None or not mine or theirs in mine:
         return
-    question = (f'{result.rel} looks like it is from another project (its description is '
-                f'"{theirs}", and no promptfoo config here has it). Use it anyway? If not, '
-                f"nothing is read: run {textio.program()} with the path of your own results "
-                "file.")
-    if not talk.confirm(question, default=False, with_yes=False,
-                        hint=f"{question} Run {textio.program('start')} in a terminal to "
-                             "answer, or "
-                             "point me at the right results file."):
-        raise talk.stop(EXIT_OK, f"nothing. {result.rel} was left alone: it looks like it is "
-                                 "from another project.")
+    said = (f'{result.rel} looks like it is from another project (its description is '
+            f'"{theirs}", and no promptfoo config here has it).')
+    own = f"`{talk.command_at('PATH')}` with the path of your own results file"
+    question = f"{said} Use it anyway?"
+    if getattr(talk, "screens", False) and not _interactive() and not talk.yes:
+        raise _stop_with(talk, question, f"run `{talk.command('--yes')}` to use it anyway, or "
+                                         f"{own}.")
+    if talk.confirm(question, default=False, with_yes=False,
+                    hint=f"{question} Run {textio.program('start')} in a terminal to answer, "
+                         "or point me at the right results file."):
+        return
+    other = next((r for r in others if r.path != result.path
+                  and results_description(r) in mine), None)
+    if other is not None:
+        raise _stop_with(talk, f"{result.rel} was left alone.",
+                         f"run `{talk.command_at(other.rel)}` to read {other.rel}, the newest "
+                         "results from this project.", EXIT_OK)
+    raise _stop_with(talk, f"{result.rel} was left alone.", f"run {own}.", EXIT_OK)
 
 
 # A promptfoo config: `prompts` and `providers` or `tests` at the top
@@ -1196,12 +1205,12 @@ def _no_judge(talk: Talk, kind: str, files: list, rules: bool) -> Stop:
     return _stop_with(talk, text, NO_JUDGE_NEXT.format(command=talk.command()))
 
 
-def _stop_with(talk: Talk, text: str, next_step: str) -> Stop:
+def _stop_with(talk: Talk, text: str, next_step: str, code: int = EXIT_USAGE) -> Stop:
     """Say `text`, then stop with `next_step` (`judgekeeper` says it in its Next: line)."""
     _note(talk, text)
     if not getattr(talk, "screens", False):
         talk.say(f"Next: {next_step}")
-    return talk.stop(EXIT_USAGE, next_step)
+    return talk.stop(code, next_step)
 
 
 def _note(talk: Talk, text: str) -> None:
@@ -1391,7 +1400,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             results, newest = json_logs, json_logs[0]
         if kind == "promptfoo":
             description = results_description(newest)
-            _check_description(talk, root, description, newest)
+            _check_description(talk, root, description, newest, results)
         if kind in ("records", "mapped"):  # every file (or run) the newest judge wrote
             loaded = (_read_records(talk, results) if kind == "records"
                       else _read_mapped(results[0], saved))
