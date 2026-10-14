@@ -142,7 +142,7 @@ def test_a_table_says_which_columns_were_read(here, capsys):
     table_project(here, split(15, 15), model="claude-haiku-4-5")
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert "Eval tool:   a table" in out and "(read from results.csv)" in out
+    assert "Eval tool:   your own CSV file" in out and "(read from results.csv)" in out
     assert "Read the columns input, output, verdict and model." in out
     assert "Judge:       claude-haiku-4-5" in out
     assert "Judge rule:  not in your results" in out

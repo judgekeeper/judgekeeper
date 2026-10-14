@@ -490,7 +490,7 @@ def _changed(ws: Workspace, found: start.Found) -> list[str]:
 
 
 TOOL_NAMES = {**find.NAMES, "records": "judgekeeper.record() in your code",
-              "mapped": "your own format", "table": "a table"}
+              "mapped": "your own format"}
 
 
 def _read_from(found: start.Found) -> str:
@@ -543,7 +543,10 @@ def _rule_lines(found: start.Found) -> list[str]:
 def found_block(found: start.Found) -> list[str]:
     """Screen 1's "Find" block: the eval tool, the answers, the judge and its rule."""
     answers = found.check.answers if found.check else len(found.pool.answers)
-    lines = [f"Eval tool:   {TOOL_NAMES.get(found.tool, found.tool)}",
+    tool = TOOL_NAMES.get(found.tool, found.tool)
+    if found.tool == "table":  # named by its kind: "your own CSV file"
+        tool = f"your own {Path(found.results[0].rel).suffix.lstrip('.').upper()} file"
+    lines = [f"Eval tool:   {tool}",
              f"Answers:     {_n(answers, 'answer')} from your app, each graded by your judge",
              f"{INDENT}(read from {_read_from(found)})",
              f"Judge:       {_judge_value(found)}", *_rule_lines(found)]

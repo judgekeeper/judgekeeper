@@ -14,7 +14,7 @@ import pytest
 from judgekeeper import __version__
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import deepeval_project, promptfoo_project, split
+from tests.start_projects import deepeval_project, promptfoo_project, split, table_project
 
 RULE = "The answer solves the customer's problem and is polite."
 LONG_RULE = ("The answer must fully solve the customer's problem, be polite, short, and never "
@@ -381,3 +381,16 @@ def test_too_few_answers_says_so_without_a_target_number(here, capsys):
     assert "15" not in text
     assert not any(ch.isdigit() for ch in TOO_FEW_NUMBERS)
 
+
+@pytest.mark.parametrize("name, kind", [("results.csv", "CSV"), ("graded.jsonl", "JSONL")])
+def test_a_table_is_named_by_its_file_kind(here, capsys, name, kind):
+    if kind == "CSV":
+        table_project(here, split(15, 15), name=name)
+    else:
+        import json
+
+        rows = [{"input": f"Q{i}", "output": f"A{i}", "verdict": "pass" if v else "fail"}
+                for i, v in enumerate(split(15, 15))]
+        (here / name).write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    _, lines = screen(capsys)
+    assert f"Eval tool:   your own {kind} file" in lines
