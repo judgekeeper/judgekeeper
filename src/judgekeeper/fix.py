@@ -52,6 +52,8 @@ FOLDER = "fix"
 SPLIT, MISTAKES, RULE = "split.json", "mistakes.md", "rule.txt"
 HIDDEN_TENTHS = 3  # of each group of marks hidden, rounded up
 MIN_EACH = 5  # hidden marks marked Pass, and Fail, at least
+MAX_RULES = 3  # rules tested on one set of hidden marks
+FRESH = 10  # new marks that make a new set of hidden marks
 SWAPPABLE = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools whose rule fix can swap
 RULE_SHOWN = 58  # characters of the rule shown, "…" included
 STEP = "Step 4 of 5: Fix"
@@ -111,6 +113,7 @@ class Marks:
         groups = {q["id"]: q["group"] for q in self.data.get("queue") or []}
         self.judge = {i: groups[i] for i in self.person if i in groups}
         self.person = {i: m for i, m in self.person.items() if i in self.judge}
+        self.order = sorted(self.person, key=lambda i: str(read.last[i].get("at") or ""))
         _, records = read_run(ws.pool_judge)
         self.reasons = {i: scrub(r.get("rationale") or "") for i, r in records.items()}
         self.scores = {i: r.get("raw_score") for i, r in records.items()}
@@ -168,11 +171,19 @@ class Split:
     made_at: str = ""
     tests: list[dict] = field(default_factory=list)
     pass_mark: dict | None = None
+    topup: dict | None = None  # {"want", "rule_hash", "done"}: after "can't tell yet", once
+    fresh: dict | None = None  # {"want"}: after MAX_RULES rules, new marks make a new set
+    pending: list[str] = field(default_factory=list)  # new marks waiting for a top-up or set
+    retest: bool = False  # a top-up was just completed: test its rule again
 
     def to_json(self) -> dict:
         return {"set": self.set, "seed": self.seed, "made_at": self.made_at,
                 "visible": self.seen, "hidden": self.hidden, "tests": self.tests,
-                "pass_mark": self.pass_mark}
+                "pass_mark": self.pass_mark, "topup": self.topup, "fresh": self.fresh}
+
+    def rules(self) -> list[str]:
+        """The rules tested on this set, once each."""
+        return list(dict.fromkeys(t["rule_hash"] for t in self.tests if t["kind"] == "rule"))
 
 
 def _folder(ws: Workspace) -> Path:
@@ -184,7 +195,8 @@ def read_split(ws: Workspace) -> Split | None:
         d = json.loads((_folder(ws) / SPLIT).read_text(encoding="utf-8"))
         return Split(seed=int(d["seed"]), seen=list(d["visible"]), hidden=list(d["hidden"]),
                      set=int(d.get("set") or 1), made_at=str(d.get("made_at") or ""),
-                     tests=list(d.get("tests") or []), pass_mark=d.get("pass_mark"))
+                     tests=list(d.get("tests") or []), pass_mark=d.get("pass_mark"),
+                     topup=d.get("topup"), fresh=d.get("fresh"))
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -205,7 +217,23 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
         seen, hidden = make_split(m, seed)
         split = Split(seed=seed, seen=seen, hidden=hidden, made_at=utc_now())
     known = set(split.seen) | set(split.hidden)
-    split.seen += sorted(i for i in m.person if i not in known)
+    new_ids = [i for i in m.order if i not in known]
+    if split.fresh:  # MAX_RULES rules tested: the next FRESH new marks are a new set
+        if len(new_ids) >= split.fresh["want"]:
+            split = Split(seed=split.seed, seen=sorted(known), hidden=new_ids,
+                          set=split.set + 1, made_at=utc_now())
+        else:
+            split.pending = new_ids
+    elif split.topup and not split.topup.get("done"):  # the top-up's marks are hidden
+        want = split.topup["want"]
+        if len(new_ids) >= want:
+            split.hidden += new_ids[:want]
+            split.seen += new_ids[want:]
+            split.topup["done"] = split.retest = True
+        else:
+            split.pending = new_ids
+    else:
+        split.seen += new_ids
     split.seen = [i for i in split.seen if i in m.person]
     split.hidden = [i for i in split.hidden if i in m.person]
     save_split(ws, split)
@@ -428,15 +456,39 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     m = Marks(ws) if ws is not None else None
     split = current_split(ws, m, new=new) if m is not None and m.enough() else None
     rule = _new_rule(ws, split) if split is not None and not new else None
+    if split is not None and split.retest:  # a top-up was just marked: the same rule again
+        rule = (ws.dir / "rules" / f"{split.topup['rule_hash'].removeprefix('sha256:')}.txt"
+                ).read_text(encoding="utf-8")
     talk.say(STEP if rule is None else STEP_TEST)
     talk.say()
     if split is None:
         talk.para("You have not marked enough answers yet to fix your judge.")
         talk.next(f"run `{program('mark')}` to mark more answers.")
         return EXIT_NEEDS_YOU
+    if split.fresh or (split.topup and not split.topup.get("done")):
+        return _waiting(talk, ws, split)
+    if rule is not None and not split.retest and len(split.rules()) >= MAX_RULES:
+        split.fresh = {"want": FRESH}
+        save_split(ws, split)
+        return _waiting(talk, ws, split)
     if rule is not None:
         return test_rule(talk, ws, m, split, rule, yes)
     return first_run(talk, ws, m, split)
+
+
+def _waiting(talk: Talk, ws: Workspace, split: Split) -> int:
+    """New marks are needed first: for the top-up, or for a new set of hidden marks."""
+    if split.fresh:
+        want, then = split.fresh["want"], ": they become a new set of hidden marks"
+        talk.para(f"You have tested {len(split.rules())} rules on these hidden marks. More "
+                  "tests on the same marks would make a coincidence look like a better rule.")
+    else:
+        want, then = split.topup["want"], ""
+    if split.pending:
+        talk.para(f"You have marked {len(split.pending)} of the {want} more answers.")
+    talk.next(f"mark {want - len(split.pending)} more answers with `{program('mark')}`, then "
+              f"run `{talk.command()}` again{then}.")
+    return EXIT_NEEDS_YOU
 
 
 def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
@@ -609,6 +661,19 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
                  f"where your eval keeps it ({start_fix_rule.field(m.data.get('tool') or '')})")
         talk.next(f"if you like it, put the new rule {place}. Then run your eval, and run "
                   f"`{talk.command('check')}`.")
+        return EXIT_OK
+    if v.kind == "leans better" and split.topup is None:
+        split.topup = {"want": targets.top_up(v.n), "rule_hash": h, "done": False}
+        save_split(ws, split)
+        talk.next(f"mark {split.topup['want']} more answers with `{program('mark')}`, then run "
+                  f"`{talk.command()}` again.")
+        return EXIT_OK
+    if v.kind == "leans better":  # one top-up per set: a new set is the way on
+        split.fresh = {"want": FRESH}
+        save_split(ws, split)
+        talk.next(f"keep the old rule for now, or mark {FRESH} more answers with "
+                  f"`{program('mark')}`, then run `{talk.command()}` again: they become a new "
+                  "set of hidden marks.")
         return EXIT_OK
     talk.next(f"keep the old rule, or write another rule in {folder}/{RULE} and run "
               f"`{talk.command()}` again.")

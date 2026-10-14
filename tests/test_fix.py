@@ -37,33 +37,43 @@ def here(tmp_path, monkeypatch):
     return project
 
 
-def _outputs() -> list[str]:
+def _outputs(n: int = N) -> list[str]:
     return [f"{answer(i, TAG)} We give a refund now." if i < WRONG_PASSES else answer(i, TAG)
-            for i in range(N)]
+            for i in range(n)]
 
 
-def project(root, rule: str = RULE) -> Workspace:
-    """50 promptfoo answers (25 passed, 25 failed by the judge), every one marked: the person
-    fails the first 10 the judge passed and passes 3 it failed."""
+NEW_RULE = "The answer must solve the problem, be polite and never promise a refund."
+
+
+def _person(question_text: str, half: int = N // 2) -> bool:
+    """The person's mark: Pass for the judge's passes and Fail for its fails, except the
+    first WRONG_PASSES passes (Fail) and the first WRONG_FAILS fails (Pass)."""
+    i = int(re.search(r"Question (\d+)\?", question_text)[1])
+    if i < WRONG_PASSES:
+        return False
+    if half <= i < half + WRONG_FAILS:
+        return True
+    return i < half
+
+
+def project(root, rule: str = RULE, n: int = N, marked: int | None = None) -> Workspace:
+    """`n` promptfoo answers (half passed, half failed by the judge), the first `marked` in
+    the page's order marked (default: all): the person fails the first 10 the judge passed
+    and passes 3 it failed."""
     (root / "promptfooconfig.yaml").write_text(
         f"description: support bot\ntests:\n  - assert:\n      - type: llm-rubric\n"
         f"        value: \"{rule}\"\n", encoding="utf-8")
-    verdicts = [True] * 25 + [False] * 25
-    data = promptfoo_data(verdicts, rubric=rule, tag=TAG, outputs=_outputs())
+    half = n // 2
+    verdicts = [True] * half + [False] * (n - half)
+    data = promptfoo_data(verdicts, rubric=rule, tag=TAG, outputs=_outputs(n))
     data["metadata"]["promptfooVersion"] = "0.124.1"
     (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
     assert main(["--no-browser"]) == 0
     main(["--stop"])
     ws = Workspace(root)
     session = StartSession(ws)
-    for item in session.items:
-        group = session.groups[item["id"]]
-        label = group
-        index = _index(ws, item["id"])
-        if group == "pass" and index < WRONG_PASSES:
-            label = "fail"
-        if group == "fail" and 25 <= index < 25 + WRONG_FAILS:
-            label = "pass"
+    for item in session.items[:marked]:
+        label = "pass" if _person(question(_index(ws, item["id"])), half) else "fail"
         session.update({"id": item["id"], "label": label, "seconds": 5})
     return ws
 
@@ -293,18 +303,6 @@ def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys,
 
 # The test of a new rule (Screen 5b) ------------------------------------------------------------
 
-NEW_RULE = "The answer must solve the problem, be polite and never promise a refund."
-
-
-def _person(question_text: str) -> bool:
-    i = int(re.search(r"Question (\d+)\?", question_text)[1])
-    if i < WRONG_PASSES:
-        return False
-    if 25 <= i < 25 + WRONG_FAILS:
-        return True
-    return i < 25
-
-
 @pytest.fixture
 def judge(here, monkeypatch):
     """The project's own promptfoo, faked: the old rule grades as saved, NEW_RULE grades every
@@ -318,7 +316,7 @@ def judge(here, monkeypatch):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
     monkeypatch.setattr(again, "which", lambda name: None)
-    holder = {"evals": 0}
+    holder = {"evals": 0, "half": N // 2, "fixes": {}}
 
     def runner(argv, cwd, env=None, timeout=None):
         if "fake" not in holder:
@@ -329,10 +327,12 @@ def judge(here, monkeypatch):
             config = json.loads((Path(cwd) / argv[argv.index("-c") + 1]).read_text(encoding="utf-8"))
             tests = json.loads((Path(cwd) / config["tests"].removeprefix("file://"))
                                .read_text(encoding="utf-8"))
-            fake.flips = {(t["description"], 0) for t in tests
-                          if t["assert"][0]["value"] == NEW_RULE
-                          and fake.saved[t["vars"]["question"]][0]
-                          != _person(t["vars"]["question"])}
+            fake.flips = set()
+            for t in tests:
+                value, q = t["assert"][0]["value"], t["vars"]["question"]
+                fixes = value == NEW_RULE or q in holder["fixes"].get(value, ())
+                if fixes and fake.saved[q][0] != _person(q, holder["half"]):
+                    fake.flips.add((t["description"], 0))
         return fake(argv, cwd, env, timeout)
 
     monkeypatch.setattr(again, "run_process", runner)
@@ -442,3 +442,77 @@ def test_a_rule_that_cant_be_tested_is_refused(here, capsys, judge, text, said):
     assert judge["evals"] == 0
     assert " ".join(out.split()).endswith(
         "Next: change the rule in .judgekeeper/fix/rule.txt, then run `judgekeeper fix` again.")
+
+
+# One top-up after "can't tell yet", and at most 3 rules on one set of hidden marks ----------
+
+def _mark_more(ws, k: int, half: int) -> list[str]:
+    session = StartSession(ws)
+    todo = [i for i in session.items if not i["label"]][:k]
+    for item in todo:
+        label = "pass" if _person(question(_index(ws, item["id"])), half) else "fail"
+        session.update({"id": item["id"], "label": label, "seconds": 5})
+    return [i["id"] for i in todo]
+
+
+def _question(ws, item_id: str) -> str:
+    return question(_index(ws, item_id), TAG)
+
+
+def test_one_top_up_after_cant_tell_goes_to_the_hidden_marks(here, capsys, judge):
+    from judgekeeper import targets
+
+    judge["half"] = 40
+    ws = project(here, n=80, marked=60)
+    run(capsys)
+    split, marks = _split(ws), fix.Marks(ws)
+    one = next(i for i in split["hidden"] if marks.person[i] != marks.judge[i])
+    judge["fixes"] = {"Fix just one.": {_question(ws, one)}}
+    _write_rule(ws, "Fix just one.")
+    code, out = run(capsys, "--yes")
+    flat = " ".join(out.split())
+    assert code == 0
+    assert "Result: can't tell yet. That leans toward better" in flat
+    more = targets.top_up(len(split["hidden"]))
+    assert flat.endswith(f"Next: mark {more} more answers with `judgekeeper mark`, then run "
+                         "`judgekeeper fix` again.")
+    first = _mark_more(ws, 3, 40)
+    code, out = run(capsys)
+    assert code == 3 and judge["evals"] == 2
+    flat = " ".join(out.split())
+    assert f"You have marked 3 of the {more} more answers." in flat
+    assert flat.endswith(f"Next: mark {more - 3} more answers with `judgekeeper mark`, then "
+                         "run `judgekeeper fix` again.")
+    rest = _mark_more(ws, more - 3, 40)
+    code, out = run(capsys, "--yes")
+    assert code == 0 and judge["evals"] == 4  # the same rule, tested again once
+    after = _split(ws)
+    assert set(first + rest) <= set(after["hidden"])
+    assert len(after["hidden"]) == len(split["hidden"]) + more
+    assert [t["rule_hash"] for t in after["tests"] if t["kind"] == "rule"] == [
+        after["tests"][0]["rule_hash"]] * 2
+    assert "mark 10 more answers" in " ".join(out.split()) or "Result: better" in out \
+        or "Result: safe to try" in out
+
+
+def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys, judge):
+    judge["half"] = 40
+    ws = project(here, n=80, marked=60)
+    run(capsys)
+    for k in range(3):
+        _write_rule(ws, f"Rule number {k}.")
+        assert run(capsys, "--yes")[0] == 0
+    assert judge["evals"] == 6
+    _write_rule(ws, "Rule number 3.")
+    code, out = run(capsys, "--yes")
+    flat = " ".join(out.split())
+    assert code == 3 and judge["evals"] == 6
+    assert "You have tested 3 rules on these hidden marks." in flat
+    assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
+                         "`judgekeeper fix` again: they become a new set of hidden marks.")
+    new = _mark_more(ws, 10, 40)
+    code, out = run(capsys, "--yes")
+    assert code == 0 and judge["evals"] == 8
+    split = _split(ws)
+    assert sorted(split["hidden"]) == sorted(new) and split["set"] == 2
+    assert [t["kind"] for t in split["tests"]] == ["rule"]
