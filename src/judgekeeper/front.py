@@ -118,6 +118,8 @@ NEXT_ALL_MARKED = "run your eval again to get new answers, then run `{command}`.
 NEXT_CHECK = "run `{command}` to re-check your changed judge on your marks."
 NEXT_RESULT = ("nothing to do. When you change your judge or update your eval tool, run "
                "`{command}`.")
+NEXT_FIX = "to try a better rule, run `{command}`."
+FIX_FROM = 3  # mistakes on the seen marks that make `judgekeeper fix` the next step
 NEXT_CONTINUE = "run `{command}` when you want to continue."
 STILL_OPEN = "The marking page is still open if you want to mark more answers."
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
@@ -956,6 +958,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     which = _which_judge(ws, found)
     if which:
         talk.para(which)
+    wrong = _where_wrong(talk, ws)
     talk.say()
     drop = targets.drop_line(r.get("smallest_drop", targets.smallest_drop(
         r["labels"]["correct"], r["labels"]["wrong"])))
@@ -972,11 +975,32 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     else:
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
     talk.say()
-    next_step = NEXT_CHECK if check else NEXT_RESULT
-    talk.para("Next: " + next_step.format(command=_check_command(talk)))
+    if check:
+        talk.para("Next: " + NEXT_CHECK.format(command=_check_command(talk)))
+    elif wrong >= FIX_FROM:
+        talk.para("Next: " + NEXT_FIX.format(command=_check_command(talk).replace(
+            program("check"), program("fix"), 1)))
+    else:
+        talk.para("Next: " + NEXT_RESULT.format(command=_check_command(talk)))
     if opened is not None:
         page.serve(opened.server)
     return EXIT_OK
+
+
+def _where_wrong(talk: FrontTalk, ws: Workspace) -> int:
+    """The result's "Where it goes wrong" lines (fix.where_wrong); how many mistakes."""
+    from judgekeeper import fix
+
+    try:
+        lines, wrong = fix.where_wrong(ws)
+    except (OSError, ValueError, KeyError):  # what the result is made from can't be read
+        return 0
+    if lines:
+        talk.say()
+        talk.say("Where it goes wrong:")
+        for line in lines:
+            talk.para(line, indent="  ")
+    return wrong
 
 
 def _stop(talk: FrontTalk, path: Path) -> int:

@@ -256,7 +256,7 @@ def test_screen_8_help(capsys):
         "  1. Find      judgekeeper          finds your eval results and your judge",
         "  2. Mark      in your browser      you mark answers Pass or Fail",
         "  3. Measure   judgekeeper          how often your judge agrees with you",
-        "  4. Fix       coming soon          write a better rule, tested on hidden marks",
+        "  4. Fix       judgekeeper fix      write a better rule, tested on hidden marks",
         "  5. Re-check  judgekeeper check    after you change your judge or update",
         "                                    your eval tool",
         "",
@@ -269,7 +269,9 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[17:19] == ["  check   re-check your judge on your marks after a change", ""]
+    assert lines[17:20] == [
+        "  fix     see where your judge goes wrong and test a better rule",
+        "  check   re-check your judge on your marks after a change", ""]
     assert "Options:" in lines
     for gone in ("--fast", "--hook", "--on", "--off", "Turn on", "coding agent"):
         assert gone not in out, gone

@@ -230,6 +230,17 @@ def metric_job(md: dict, fields, model: dict | None = None) -> dict:
     return {**job, "model": model} if model else job
 
 
+def swap_rule(metric: dict, rule: str) -> dict:
+    """A GEval's job with `rule` in place of its own: its evaluation steps (numbered lines, or
+    one step), or its criteria when it was given only criteria."""
+    from judgekeeper.start_fix_rule import deepeval_steps
+
+    if not metric.get("steps"):
+        return {**metric, "criteria": rule}
+    steps = deepeval_steps(rule) or [line.strip() for line in rule.splitlines() if line.strip()]
+    return {**metric, "steps": steps}
+
+
 def case_job(case: dict, fields) -> dict:
     """The saved test case, as the worker passes it to LLMTestCase: every field it has (tool
     calls only when the judge reads them)."""
@@ -442,6 +453,12 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                                   "their saved steps can't be read back exactly"))
     payload = [(a, {"id": a["id"], "case": case_job(case, fields),
                     "metric": metric_job(md, fields, built)}) for a, case, md in found]
+    if opts.rule is not None:
+        if any(job["metric"]["kind"] != "geval" for _, job in payload):
+            return cant("deepeval", judge, again.NO_SWAP.format(
+                what="a DeepEval metric that is not a GEval"), short="no rule to swap")
+        for _, job in payload:
+            job["metric"] = swap_rule(job["metric"], opts.rule)
     return Plan(tool="deepeval", judge=f"{judge} (DeepEval {version})" if version else judge,
                 status=status, why=why, model=model, provider=check.provider,
                 key_lines=check.lines, notes=notes, calls_each=calls_each,

@@ -344,7 +344,7 @@ def test_words_that_stand_out_in_three_or_more_mistakes():
                 + [_m("pass", "fail", "A refund is possible.")])
     agreed = [_m("pass", "pass", "Thanks for asking about shipping.")] * 6
     lines = start_fix.pattern_lines(mistakes + agreed)
-    assert ("Words that show up in many of its mistakes: refund (4), policy (3), covers (3), "
+    assert ("Words found in many of its mistakes: refund (4), policy (3), covers (3), "
             "warranty (3).") in lines
     two = [_m("pass", "fail", "warranty")] * 2 + [_m("fail", "pass", "plain")]
     assert not any(x.startswith("Words") for x in start_fix.pattern_lines(two + agreed))

@@ -67,6 +67,7 @@ class AgainOptions:
     judge_command: str | None = None
     judge_model: str | None = None
     allow_calls: int | None = None  # --allow-calls
+    rule: str | None = None  # `judgekeeper fix`: a new rule, swapped in for the judge's own
 
 
 @dataclass
@@ -122,6 +123,7 @@ def cant(tool: str, judge: str, why: str, short: str = "") -> Plan:
 
 
 NOT_MARKED = "your newest results don't contain the answers you marked"
+NO_SWAP = "judgekeeper can't put a new rule into {what}, so it can't take a new rule"
 
 
 def not_marked(tool: str, judge: str) -> Plan:

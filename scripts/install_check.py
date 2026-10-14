@@ -18,7 +18,9 @@ What a stranger does, with nobody at the keyboard and no API key:
    which pass questions 1 to 28 and fail 29 to 50, so the numbers are known.
 4. The way a person goes: `judgekeeper` (the first look and the page in the background; with
    `--no-browser` its link is printed), every answer marked on the page (25 Pass, 25 Fail),
-   `judgekeeper` again for the result, `judgekeeper --stop`; then `judgekeeper start`: the
+   `judgekeeper` again for the result, `judgekeeper --stop`, `judgekeeper fix` (and for a
+   judge whose rule it can swap, a new rule tested with `fix --yes`); then `judgekeeper
+   start`: the
    review, Fix your judge (the coding-agent prompt, then a new rule saved with --rule-file),
    the new rule put in the tool's own file and the tool run again, Try your new judge, and Ask
    your judge again; then, with the new rule in the results, `check --yes` (the re-check on
@@ -91,6 +93,9 @@ RULE_FILE = {"promptfoo": "promptfooconfig.yaml", "deepeval": "test_quiz.py",
              "inspect": "quiz.py", "mlflow": "quiz_eval.py", "record": "quiz_judge.py",
              "promptfoo-ollama": "promptfooconfig.yaml", "inspect-ollama": "quiz.py"}
 NEW_MODEL = "my-judge-2"
+# Tools whose rule `judgekeeper fix` swaps in when it asks the judge
+SWAP_TOOLS = ("promptfoo", "deepeval", "inspect", "mlflow", "promptfoo-ollama",
+              "inspect-ollama")
 NO_RULE_SAID = "Your results do not say your judge's rule, so judgekeeper can't write a prompt"
 OWN_JUDGE = ("table", "record", "own-format")  # asked again through --judge-command
 PIP = {"deepeval": ["deepeval"], "inspect": ["inspect-ai", "openai"], "mlflow": ["mlflow"],
@@ -815,6 +820,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
     def walk(self):
         self.make_results(RULE_OLD, "old rule")
         self.mark_path()
+        self.fix_path()
         self.run("2. start: the last result and what next", self.start("--no-browser"),
                  ok_codes=(0, 3), expect=[r"Your last result", r"--review"])
         self.serve("3. review the disagreements (start --review --yes)",
@@ -835,6 +841,30 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         self.plan_then_go("5. try your new judge", ["--try-new-judge", *extra])
         self.plan_then_go("6. ask your judge again", ["--ask-again", "--times", "1", *extra])
         self.recheck()
+
+    def fix_path(self):
+        """`judgekeeper fix`: where the judge goes wrong; then, for a judge whose rule it can
+        swap, a new rule in .judgekeeper/fix/rule.txt and `judgekeeper fix --yes`, which asks
+        the judge with the old and the new rule (--yes: no terminal here)."""
+        swap = self.tool in SWAP_TOOLS
+        self.run("2. judgekeeper fix: where your judge goes wrong", [*self.jk, "fix"],
+                 ok_codes=(0,) if swap else (3,),
+                 expect=[r"Step 4 of 5: Fix", r"mistakes\.md",
+                         *([] if swap else [r"can't test a new rule"])])
+        if not swap:
+            return
+        rule = self.project / ".judgekeeper" / "fix" / "rule.txt"
+        rule.parent.mkdir(parents=True, exist_ok=True)
+        rule.write_text(rule_for(self.tool, RULE_NEW) + "\n", encoding="utf-8")
+        judge = getattr(self, "judge", None)
+        before = len(judge.calls) if judge else 0
+        self.run("2. judgekeeper fix --yes: the new rule tested on the hidden marks",
+                 [*self.jk, "fix", "--yes"],
+                 expect=[r"Tested on your \d+ hidden marks", r"Result: "])
+        if judge:
+            made = len(judge.calls) - before
+            self.step("2. the judge was asked with the old and the new rule", made > 0,
+                      f"({made} calls)")
 
     def fix_rule(self):
         """Fix your judge as a coding agent does: the terminal's prompt, then a new rule

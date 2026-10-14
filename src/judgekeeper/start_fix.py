@@ -43,7 +43,6 @@ import os
 import random
 import re
 import secrets
-import statistics
 from collections import Counter
 from pathlib import Path
 
@@ -65,25 +64,6 @@ ASIDE_TENTHS = 3  # of each cell set aside, rounded up
 MIN_EACH = 5  # set-aside answers marked Pass, and Fail, a test needs
 MAX_TESTS = 3  # tests on one split
 P_SURE = 0.05
-FEW = 3  # mistakes a pattern needs
-NEAR = 0.1  # how close to the pass mark is close
-LONG_SIDE = 4  # mistakes on one side the length pattern needs
-LONG = 1.5  # how much longer is long
-WORDS_SHOWN = 5
-WORD_IN = 3  # mistakes a word must be in
-STRONG = 1.0  # smoothed log-odds a word needs, against the agreed answers
-STOPWORDS = frozenset((
-    "about", "above", "after", "again", "against", "also", "among", "another", "anything",
-    "because", "been", "before", "being", "below", "between", "both", "cannot", "could",
-    "does", "doing", "done", "down", "during", "each", "either", "else", "even", "ever",
-    "every", "from", "further", "have", "having", "here", "hers", "herself", "himself",
-    "however", "into", "itself", "just", "like", "made", "make", "many", "might", "more",
-    "most", "much", "must", "myself", "need", "never", "once", "only", "other", "ours",
-    "ourselves", "over", "same", "should", "since", "some", "something", "such", "than",
-    "that", "their", "theirs", "them", "themselves", "then", "there", "these", "they", "this",
-    "those", "though", "through", "under", "until", "upon", "very", "want", "well", "were",
-    "what", "when", "where", "whether", "which", "while", "will", "with", "within", "without",
-    "would", "your", "yours", "yourself", "yourselves"))
 # Folders never searched: environments, judgekeeper's own, and where eval tools keep their
 # results (DeepEval's runs, MLflow's folder store, Inspect's logs)
 SEARCH_SKIP = {".venv", "venv", "node_modules", ".git", ".judgekeeper", "__pycache__",
@@ -238,69 +218,12 @@ def _keep_old(ws: Workspace) -> None:
 
 # The patterns -----------------------------------------------------------------------------
 
-def _words(text: str) -> list[str]:
-    return list(dict.fromkeys(w for w in re.findall(r"[^\W\d_]{4,}", text.lower())
-                              if w not in STOPWORDS))
-
-
-def _about(n: float) -> int:
-    return int(round(n, -1)) if n >= 100 else round(n)
-
-
 def pattern_lines(rows: list[dict], mark: float | None = None) -> list[str]:
-    """Plain patterns in the judge's mistakes, only when strong. `rows` are the used answers:
-    "judge", "final", "choice", "output" (text) and "score"; `mark` is the pass mark when the
-    judge's decisions follow its scores."""
-    wrong = mistakes(rows)
-    n = len(wrong)
-    if n < FEW:
-        return []
-    lines = []
-    passes = sum(m["judge"] == "pass" for m in wrong)
-    fails = n - passes
-    if passes > fails:
-        lines.append(f"{passes} of its {n} mistakes are answers it passed but you failed. Its "
-                     "rule may be too easy.")
-    elif fails > passes:
-        lines.append(f"{fails} of its {n} mistakes are answers it failed but you passed. Its "
-                     "rule may be too strict.")
-    else:
-        lines.append(f"Half of its {n} mistakes are answers it passed but you failed, and half "
-                     "are answers it failed but you passed.")
-    if mark is not None:
-        near = sum(m.get("score") is not None and abs(m["score"] - mark) <= NEAR + 1e-9
-                   for m in wrong)
-        if near * 2 > n:
-            lines.append(f"{near} of its {n} mistakes sit close to the pass mark. Moving the "
-                         "pass mark may fix them.")
-    for judge, final, name in (("fail", "pass", "wrong fails"), ("pass", "fail",
-                                                                 "wrong passes")):
-        side = [len(m["output"].split()) for m in wrong if m["judge"] == judge]
-        agreed = [len(m["output"].split()) for m in rows
-                  if m["judge"] == m["final"] == final]
-        if len(side) < LONG_SIDE or len(agreed) < FEW:
-            continue
-        long, usual = statistics.median(side), statistics.median(agreed)
-        if usual > 0 and long >= LONG * usual:
-            lines.append(f"Its {name} are long answers (about {_about(long)} words, against "
-                         f"{_about(usual)}).")
-    agreed = [m for m in rows if m["judge"] == m["final"]]
-    if len(agreed) >= FEW:
-        in_wrong = Counter(w for m in wrong for w in _words(m["output"]))
-        in_agreed = Counter(w for m in agreed for w in _words(m["output"]))
-        k = len(agreed)
-        strong = []
-        for word, a in in_wrong.items():
-            b = in_agreed[word]
-            odds = (math.log((a + 0.5) / (n - a + 0.5))
-                    - math.log((b + 0.5) / (k - b + 0.5)))
-            if a >= WORD_IN and odds >= STRONG:
-                strong.append((odds, a, word))
-        strong.sort(key=lambda x: (-x[0], -x[1]))
-        if strong:
-            lines.append("Words that show up in many of its mistakes: " + ", ".join(
-                f"{word} ({a})" for _, a, word in strong[:WORDS_SHOWN]) + ".")
-    return lines
+    """Plain patterns in the judge's mistakes on the used answers (fix.patterns), one line
+    each."""
+    from judgekeeper import fix
+
+    return [" ".join(p) for p in fix.patterns(rows, mark)]
 
 
 # The pass mark ----------------------------------------------------------------------------

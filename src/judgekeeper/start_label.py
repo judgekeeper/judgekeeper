@@ -913,10 +913,19 @@ def page_content(r: dict, marking: str | None = None) -> dict:
 
 
 def result_html(r: dict, back: str | None = None, marking: str | None = None,
-                history: list[dict] | None = None) -> str:
-    """The result page; `history`: the History rows of report.html (check.report_rows). No
-    value on it holds a hidden character (redact.visible)."""
-    return visible(result_page({**page_content(r, marking), "history": history or []}, back))
+                history: list[dict] | None = None, fixing: dict | None = None) -> str:
+    """The result page; `history`: the History rows of report.html (check.report_rows);
+    `fixing`: its Fix section (fix.report_section). No value on it holds a hidden character
+    (redact.visible)."""
+    return visible(result_page({**page_content(r, marking), "history": history or [],
+                                "fixing": fixing}, back))
+
+
+def _fixing(ws: Workspace) -> dict | None:
+    from judgekeeper import fix
+
+    section = fix.report_section(ws)
+    return _scrubbed(section) if section else None
 
 
 def write_report(ws: Workspace) -> None:
@@ -930,7 +939,8 @@ def write_report(ws: Workspace) -> None:
         return
     if isinstance(r, dict):
         write_replacing(ws.report_html, result_html(_scrubbed(r),
-                                                    history=_scrubbed(check.report_rows(ws))))
+                                                    history=_scrubbed(check.report_rows(ws)),
+                                                    fixing=_fixing(ws)))
 
 
 def page_template(about: dict | None = None, command: str | None = None) -> str:
@@ -1051,7 +1061,8 @@ def store_result(ws: Workspace, session: StartSession,
     from judgekeeper import check
 
     write_replacing(ws.report_html, result_html(_scrubbed(r),
-                                                history=_scrubbed(check.report_rows(ws))))
+                                                history=_scrubbed(check.report_rows(ws)),
+                                                fixing=_fixing(ws)))
     if ws.result_html.is_file() and not ws.result_html.is_symlink():
         ws.result_html.unlink()
     marks.append(ws.history_jsonl, _scrubbed(history_line(ws, r)))

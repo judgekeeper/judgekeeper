@@ -956,6 +956,36 @@ def _history(rows: list[dict]) -> str:
             f'<th>Result</th><th>Copy</th></tr></thead><tbody>{body}</tbody></table></div>')
 
 
+def _fixing(section: dict | None) -> str:
+    """The Fix card: where the judge goes wrong and its mistakes on the marks the person can
+    see, with its own reason, and every rule tested on the hidden marks."""
+    if not section:
+        return ""
+    parts = ['<div class="card"><h3>Fix</h3>']
+    if section.get("patterns"):
+        parts.append("<p><b>Where your judge goes wrong</b></p><ul>"
+                     + "".join(f"<li>{escape(x)}</li>" for x in section["patterns"]) + "</ul>")
+    if section.get("mistakes"):
+        parts.append("<p><b>Its mistakes on the marks you can see</b></p>")
+        for n, m in enumerate(section["mistakes"], 1):
+            parts.append(
+                f'<details><summary>[{n}] {escape(m["said"])}</summary>'
+                f'<p class="small">Question: {escape(m["question"])}</p>'
+                f'<p class="small">Answer: {escape(m["answer"])}</p>'
+                + (f'<p class="small">Your judge\'s reason: {escape(m["reason"])}</p>'
+                   if m.get("reason") else "") + "</details>")
+    if section.get("rules"):
+        body = "".join(
+            f'<tr><td>{escape(r["date"])}</td><td><code>{escape(r["rule"])}</code></td>'
+            f'<td>{escape(str(r["n"]))}</td><td>{escape(str(r["fixed"]))}</td>'
+            f'<td>{escape(str(r["broke"]))}</td><td>{escape(r["result"])}</td></tr>'
+            for r in section["rules"])
+        parts.append('<p><b>Rules tested</b></p><table class="hist"><thead><tr><th>Date</th>'
+                     '<th>Rule</th><th>Hidden marks</th><th>Fixed</th><th>Broke</th>'
+                     f'<th>Result</th></tr></thead><tbody>{body}</tbody></table>')
+    return "".join(parts) + "</div>"
+
+
 def result_page(content: dict, back: str | None = None) -> str:
     """The result as a page. `content` holds the text (see start_label.page_content); `back`
     is the link to the labeling page while the server runs, None for the saved copy, where
@@ -990,6 +1020,7 @@ def result_page(content: dict, back: str | None = None) -> str:
     ]
     right = [
         _card(content.get("judge_check")),
+        _fixing(content.get("fixing")),
         _card(content.get("fix")),
         _card(content.get("review")),
         _card(content.get("again")),
