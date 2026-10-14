@@ -870,6 +870,9 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     for big in found.too_big():
         talk.say(big.too_big_message(talk.program))
     available = [t for t in find.TOOLS if found.readable(t)]
+    if found.unreadable and (available or found.too_big()):
+        for rel, how in found.unreadable:
+            talk.say(f"{rel} {how}, so it was left out.")
     if "records" not in available and (tool == "records" or tool is None and not available):
         above = find.records_above(root)
         if above is not None:  # record() saves at the project root, from any subfolder
@@ -887,6 +890,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     if not available:
         if found.too_big():  # said above, with how to read them anyway
             raise _too_big(talk, found)
+        if found.unreadable:
+            raise _unreadable(found)
         if "promptfoo" in found.signs:
             return _export(talk, path, tool, root, found.signs["promptfoo"][0])
         _nothing_found(talk, root, found.signs)
@@ -933,6 +938,20 @@ def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None) -
             flag="PATH", values=folders, what="which DeepEval results to check")]
         talk.remember("PATH", prefer, f"(Next time: {talk.command_at(prefer)})")
     return [r for r in results if _eval_folder(r) in (prefer, None)]
+
+
+def _unreadable(found: find.Search) -> Damaged:
+    """The results-like file judgekeeper found but could not read, when it found no other."""
+    rel, how = found.unreadable[0]
+    if how != "is empty":
+        return Damaged(f"{rel} {how}.", f"give your user permission to read {rel}, then run "
+                                        "`{command}` again.")
+    if "promptfoo" in found.signs and rel.endswith(".json"):
+        return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
+                       f"save your last promptfoo run to it with `promptfoo export eval latest "
+                       f"-o {rel}` (free: it runs no test), then run `{{command}}` again.")
+    return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
+                   f"save your results to {rel} again, then run `{{command}}` again.")
 
 
 def _too_big(talk: Talk, found: find.Search) -> Stop:

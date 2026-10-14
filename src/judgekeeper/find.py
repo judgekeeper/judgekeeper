@@ -110,6 +110,7 @@ class Search:
     signs: dict[str, list[str]] = field(default_factory=dict)  # tool -> configs, folders
     stopped: str | None = None  # why the walk stopped early, as a sentence
     notes: list[str] = field(default_factory=list)
+    unreadable: list[tuple[str, str]] = field(default_factory=list)  # results-like: (rel, how)
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -123,6 +124,16 @@ class Search:
 def _head(path: Path) -> bytes:
     with open(path, "rb") as f:
         return f.read(HEAD_BYTES)
+
+
+_RESULTS_WORDS = re.compile(r"result|output|eval|judg|score|verdict", re.IGNORECASE)
+
+
+def _results_like(path: Path) -> bool:
+    """A file judgekeeper would read if it could: one whose name says results."""
+    suffix = path.suffix.lower()
+    return ((suffix in (".json", ".eval") or suffix in TABLE_SUFFIXES)
+            and bool(_RESULTS_WORDS.search(path.stem)))
 
 
 def sniff_json(head: bytes) -> str | None:
@@ -286,7 +297,15 @@ class _Walk:
         self.seen_files.add(path)
         self.files += 1
         try:
-            self._classify(path, entry.name, entry.stat(follow_symlinks=False).st_size)
+            size = entry.stat(follow_symlinks=False).st_size
+            if size == 0 and _results_like(path):
+                self.search.unreadable.append((self.rel(path), "is empty"))
+                return
+            self._classify(path, entry.name, size)
+        except PermissionError:
+            if _results_like(path):
+                denied = "can't be read: permission denied"
+                self.search.unreadable.append((self.rel(path), denied))
         except OSError:
             pass  # unreadable: not results
 
