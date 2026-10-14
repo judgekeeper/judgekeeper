@@ -316,7 +316,7 @@ def _find(talk: FrontTalk, path: Path, saved) -> start.Found:
         try:
             found = start.find_judge(path, talk=talk, saved=saved, store=talk.store, **options)
         except RecordsError as e:
-            raise StartError(str(e)) from None
+            raise start.usage_error(e) from None
         if not found.pool.unmapped:
             return found
         _unread_values(talk, found)

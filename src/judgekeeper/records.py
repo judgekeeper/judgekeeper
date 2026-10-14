@@ -44,7 +44,7 @@ from judgekeeper.table import (
     _delimiter,
     derive_id,
 )
-from judgekeeper.textio import jsonl_lines, plural, read_utf8
+from judgekeeper.textio import MAX_NESTING, jsonl_lines, plural, read_utf8, too_deep
 
 SCHEMA_VERSION = 2
 LLM, HUMAN, CODE = "LLM", "HUMAN", "CODE"
@@ -65,6 +65,42 @@ _NUMBER = re.compile(r"\A\s*([-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?)?\s*\Z")
 
 class RecordsError(TableError):
     """The records cannot be turned into a report: a usage error."""
+
+
+class Damaged(RecordsError):
+    """A results file that can't be read as a whole (empty, cut off, not the tool's). Its
+    message names the file, never its content or the JSON parser's words; `next_step` is the
+    Next: line's (cli.main)."""
+
+    def __init__(self, message: str, next_step: str):
+        super().__init__(message)
+        self.next_step = next_step
+
+
+def damaged(path: str | Path, tool: str, how: str) -> Damaged:
+    """`how` the file at `path` is damaged, and to save it again from `tool`."""
+    name = Path(path).name
+    return Damaged(f"{name} {how}. Save it again from {tool}.",
+                   f"save {name} again from {tool}, then run `{{command}}`.")
+
+
+def load_json(path: str | Path, tool: str):
+    """The JSON in `tool`'s results file. Damaged, in plain words, when it is empty, cut off,
+    not JSON or nested too deep."""
+    text = read_utf8(path, RecordsError)
+    if not text.strip():
+        raise damaged(path, tool, "is empty")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        cut = e.pos >= len(text.rstrip()) or e.msg.startswith("Unterminated string")
+        raise damaged(path, tool, "is cut off or damaged (it ends in the middle)" if cut
+                      else "is damaged (it isn't valid JSON)") from None
+    except (RecursionError, ValueError):  # nested too deep, or a number too long to read
+        raise damaged(path, tool, "is damaged (judgekeeper can't read it as JSON)") from None
+    if too_deep(data):
+        raise damaged(path, tool, f"is nested more than {MAX_NESTING} levels deep")
+    return data
 
 
 def derive_record_id(input, output, trajectory=None) -> str:

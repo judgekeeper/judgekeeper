@@ -36,7 +36,6 @@ with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, option
 
 from __future__ import annotations
 
-import json
 import math
 from pathlib import Path
 
@@ -48,7 +47,9 @@ from judgekeeper.records import (
     RecordList,
     RecordsError,
     ScoreRecord,
+    damaged,
     derive_record_id,
+    load_json,
 )
 from judgekeeper.textio import get_extra, read_json
 
@@ -89,15 +90,12 @@ def _load(path: Path) -> dict:
     if read_eval_log is not None:
         try:
             return read_eval_log(str(path)).model_dump(mode="json")
-        except Exception as e:  # noqa: BLE001 - a log cut short, empty or not Inspect's
-            raise RecordsError(f"{path.name} can't be read: it may be cut short, or not an "
-                               f"Inspect AI log ({type(e).__name__})") from None
+        except Exception:  # noqa: BLE001 - a log cut short, empty or not Inspect's
+            raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
+                                              "an Inspect AI log") from None
     if path.suffix.lower() == ".eval":
         raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path, get=get_extra("inspect")))
-    try:
-        return read_json(path, RecordsError)
-    except json.JSONDecodeError as e:
-        raise RecordsError(f"{path}: not JSON ({e.msg})") from None
+    return load_json(path, "Inspect AI")
 
 
 def eval_header(path: str | Path) -> dict:
@@ -234,7 +232,7 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
     data = _load(path)
     spec = data.get("eval") if isinstance(data, dict) else None
     if not isinstance(spec, dict):
-        raise RecordsError(f"{path}: not an Inspect AI log (no eval)")
+        raise damaged(path, "Inspect AI", "is not an Inspect AI log (no eval)")
     samples = data.get("samples")
     if not samples:
         raise RecordsError(f"{path}: the log has no samples (was it written with "

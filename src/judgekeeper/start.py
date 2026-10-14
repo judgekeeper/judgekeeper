@@ -26,6 +26,7 @@ import math
 import operator
 import os
 import re
+import sqlite3
 import sys
 import textwrap
 from collections import Counter
@@ -50,6 +51,7 @@ from judgekeeper.records import (
     ScoreRecord,
     _consensus,
     _verdict_value,
+    damaged,
     derive_record_id,
     fingerprint_known,
     read_records,
@@ -402,13 +404,30 @@ class Loaded:
     records: RecordList
 
 
+# What a reader can meet in a damaged file that is not its own RecordsError
+UNREADABLE = (RecursionError, OverflowError, UnicodeDecodeError, sqlite3.DatabaseError)
+
+
+def unreadable(path: Path, tool: str) -> RecordsError:
+    """A reader stopped on a damaged file: said in plain words, never the error's text."""
+    return damaged(path, find.NAMES.get(tool, tool), "is damaged: judgekeeper can't read it")
+
+
+def usage_error(e: Exception, text: str | None = None) -> StartError:
+    """A reader's error as a usage error, with its Next: line when it has one."""
+    return StartError(str(e) if text is None else text, getattr(e, "next_step", None))
+
+
 def _read(result: find.Result) -> Loaded:
-    if result.tool == "table":
-        records = read_results_table(result.path)
-    elif result.tool == "inspect":  # a sample that errored before it was scored, too
-        records = read_inspect(result.path, with_errors=True)
-    else:
-        records = FILE_READERS[result.tool](result.path)
+    try:
+        if result.tool == "table":
+            records = read_results_table(result.path)
+        elif result.tool == "inspect":  # a sample that errored before it was scored, too
+            records = read_inspect(result.path, with_errors=True)
+        else:
+            records = FILE_READERS[result.tool](result.path)
+    except UNREADABLE:
+        raise unreadable(result.path, result.tool) from None
     stripped = [w for w in records.warnings if is_stripped_warning(w)]
     if stripped:
         raise StartError(stripped[0])
@@ -446,7 +465,10 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
     loaded = []
     for r in results:
         try:
-            records = read_records(r.path, cut_end_ok=True)
+            try:
+                records = read_records(r.path, cut_end_ok=True)
+            except UNREADABLE:
+                raise unreadable(r.path, "records") from None
         except RecordsError as e:
             text = str(e)
             text = text[text.find("line "):] if "line " in text else text
@@ -485,8 +507,11 @@ def _read_mapped(result: find.Result, saved) -> list[Loaded]:
     from judgekeeper.readers.mapped import read_mapped
 
     m = {**saved.map, "judge": saved.judge, "pass_mark": saved.pass_mark, "model": saved.model}
-    return [Loaded(label, records) for label, records in read_mapped(result.path, m,
-                                                                     label=result.rel)]
+    try:
+        read = read_mapped(result.path, m, label=result.rel)
+    except UNREADABLE:
+        raise unreadable(result.path, "your own tool") from None
+    return [Loaded(label, records) for label, records in read]
 
 
 def _where(result: find.Result) -> str:
@@ -1251,7 +1276,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                     first = _read(newest)
                 except RecordsError as e:
                     if not rest:
-                        raise StartError(_unread(e, newest, root)) from None
+                        raise usage_error(e, _unread(e, newest, root)) from None
                     talk.say(f"{_unread(e, newest, root)} It is left out.")
                     continue
                 if kind == "inspect" and not any(r.annotator_kind == LLM

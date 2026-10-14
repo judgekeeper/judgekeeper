@@ -200,3 +200,104 @@ def test_errors_are_printed_in_one_place():
     for n, line in enumerate(cli):
         if line.strip().startswith("return EXIT_USAGE"):
             assert any("_next(" in x for x in cli[n - 3:n]), (n + 1, line)
+
+
+# Whole files, damaged -----------------------------------------------------------------------
+
+TAG = " ZQIN ZQOUT"  # start_projects puts the tag in every question and answer
+WHY = "ZQWHY reason"
+
+
+def _dump(path: Path, data) -> Path:
+    return _write(path, __import__("json").dumps(data, indent=1))
+
+
+def _promptfoo_file(root: Path) -> tuple[Path, dict]:
+    from tests.start_projects import promptfoo_data, split
+
+    data = promptfoo_data(split(10, 10), tag=TAG)
+    for row in data["results"]["results"]:
+        for c in row["gradingResult"]["componentResults"]:
+            c["reason"] = WHY
+        row["gradingResult"]["reason"] = WHY
+    _write(root / "promptfooconfig.yaml",
+           "description: support bot\nprompts:\n  - 'Answer: {{question}}'\n")
+    return root / "results.json", data
+
+
+def _deepeval_file(root: Path) -> tuple[Path, dict]:
+    from tests.start_projects import deepeval_data, split
+
+    data = deepeval_data(split(10, 10), tag=TAG)
+    for case in data["testCases"]:
+        for md in case["metricsData"]:
+            md["reason"] = WHY
+    return root / ".deepeval" / ".latest_test_run.json", data
+
+
+def _inspect_file(root: Path) -> tuple[Path, dict]:
+    from tests.start_projects import inspect_data, split
+
+    data = inspect_data(split(10, 10), tag=TAG)
+    for s in data["samples"]:
+        for score in s["scores"].values():
+            score["explanation"] = WHY
+    return root / "logs" / "2026-10-02_support.json", data
+
+
+JSON_TOOLS = {"promptfoo": _promptfoo_file, "deepeval": _deepeval_file,
+              "inspect": _inspect_file}
+NAMES = {"promptfoo": "promptfoo", "deepeval": "DeepEval", "inspect": "Inspect AI"}
+
+
+def _file_damage(text: str) -> dict[str, str]:
+    """The whole file damaged, the same way for every reader."""
+    import json
+
+    return {"cut off": text[:len(text) // 2],
+            "empty": "  \n",
+            "0 bytes": "",
+            "a list at the top": json.dumps(["ZQIN", "ZQOUT"]),
+            "a string at the top": json.dumps("ZQOUT"),
+            "nested too deep": "[" * 100_000 + "]" * 100_000,
+            "a number too long": "1" * 5000}
+
+
+PARSER_WORDS = ("Expecting", "line 1 column", "JSONDecodeError", "char ", "Errno")
+
+
+@pytest.mark.parametrize("tool", sorted(JSON_TOOLS))
+def test_a_valid_file_keeps_the_rules(project, capsys, tool):
+    path, data = JSON_TOOLS[tool](project)
+    _dump(path, data)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code in (0, 3), text  # 20 answers: too few for a first result, it asks
+
+
+FILE_CASES = [(tool, what) for tool in sorted(JSON_TOOLS) for what in _file_damage("")]
+
+
+@pytest.mark.parametrize("tool,what", FILE_CASES)
+def test_a_damaged_file_says_so_in_plain_words(project, capsys, tool, what):
+    path, data = JSON_TOOLS[tool](project)
+    _dump(path, data)
+    path.write_text(_file_damage(path.read_text(encoding="utf-8"))[what], encoding="utf-8")
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code in (2, 3), text
+    for words in PARSER_WORDS:
+        assert words not in text, text
+
+
+@pytest.mark.parametrize("tool", sorted(JSON_TOOLS))
+def test_a_cut_off_file_says_where_to_save_it_again(project, capsys, tool):
+    path, data = JSON_TOOLS[tool](project)
+    _dump(path, data)
+    path.write_text(path.read_text(encoding="utf-8")[:500], encoding="utf-8")
+    code, text = run(capsys, path.relative_to(project).as_posix(), "--no-browser")
+    assert_rules(code, text)
+    assert code == 2, text
+    assert (f"error: {path.name} is cut off or damaged (it ends in the middle). Save it again "
+            f"from {NAMES[tool]}.") in text
+    assert f"Next: save {path.name} again from {NAMES[tool]}, then run `judgekeeper " in text

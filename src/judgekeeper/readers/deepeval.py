@@ -34,7 +34,6 @@ Traps handled here:
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
@@ -45,9 +44,10 @@ from judgekeeper.records import (
     RecordList,
     RecordsError,
     ScoreRecord,
+    damaged,
     derive_record_id,
+    load_json,
 )
-from judgekeeper.textio import read_json
 
 POSITIONAL = re.compile(r"(conversational_)?test_case_\d+")
 STAMP = re.compile(r"test_run_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})")
@@ -126,17 +126,14 @@ def is_link_only(data) -> bool:
 
 
 def _load(path: Path) -> dict:
-    try:
-        data = read_json(path, RecordsError)
-    except json.JSONDecodeError as e:
-        raise RecordsError(f"{path}: not JSON ({e.msg})") from None
+    data = load_json(path, "DeepEval")
     if is_link_only(data):
         raise LinkOnly(LINK_ONLY.format(file=path))
     if isinstance(data, dict) and isinstance(data.get("testRunData"), dict):
         data = data["testRunData"]  # the wrapper DeepEval's save_test_run(save_under_key=...)
     if not isinstance(data, dict) or not ("testCases" in data
                                           or "conversationalTestCases" in data):
-        raise RecordsError(f"{path}: not a DeepEval test run file (no testCases)")
+        raise damaged(path, "DeepEval", "is not a DeepEval test run file (no testCases)")
     return data
 
 

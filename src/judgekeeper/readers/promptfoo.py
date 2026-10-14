@@ -56,13 +56,14 @@ from judgekeeper.records import (
     CODE,
     HUMAN,
     LLM,
+    Damaged,
     Mark,
     RecordList,
     RecordsError,
     ScoreRecord,
     derive_record_id,
+    load_json,
 )
-from judgekeeper.textio import read_json
 
 # Assertion types graded by a model (promptfoo src/types/index.ts, BaseAssertionTypesSchema).
 MODEL_GRADED = frozenset({
@@ -147,14 +148,13 @@ class TwoJudges(RecordsError):
 
 
 def _load(path: Path) -> dict:
-    try:
-        data = read_json(path, RecordsError)
-    except json.JSONDecodeError as e:
-        raise RecordsError(f"{path}: not JSON ({e.msg})") from None
+    data = load_json(path, "promptfoo")
     results = data.get("results") if isinstance(data, dict) else None
     if not isinstance(results, dict) or not isinstance(results.get("results"), list):
-        raise RecordsError(f"{path}: not a promptfoo results file (no results.results[]); "
-                           "write one with `promptfoo eval -o results.json`")
+        raise Damaged(f"{path.name}: not a promptfoo results file (no results.results[]); "
+                      "write one with `promptfoo eval -o results.json`",
+                      "write it again with `promptfoo eval -o results.json`, then run "
+                      "`{command}`.")
     return data
 
 

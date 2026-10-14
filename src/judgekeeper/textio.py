@@ -201,12 +201,12 @@ def read_json(path: str | Path, error: type[Exception]):
         data = json.loads(text)
     except RecursionError:
         raise error(NOT_JSON.format(file=path)) from None
-    if _too_deep(data):
+    if too_deep(data):
         raise error(NOT_JSON.format(file=path))
     return data
 
 
-def _too_deep(data) -> bool:
+def too_deep(data) -> bool:
     """Whether lists and objects are nested deeper than MAX_NESTING, walked without
     recursion."""
     stack = [(data, 1)]
