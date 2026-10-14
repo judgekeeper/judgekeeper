@@ -105,6 +105,16 @@ def test_deepeval_latest_run(tmp_path, capsys):
     assert "  Its decisions   32 answers: 20 passed, 12 failed" in out
 
 
+def test_deepevals_temporary_run_file_is_not_results(tmp_path, capsys):
+    deepeval_project(tmp_path, split(20, 12))
+    deepeval_project(tmp_path, split(3, 3), name=".temp_test_run_data.json")  # a run going on
+    deepeval_project(tmp_path, split(3, 3), name=".deepeval/.temp_test_run_data.json")
+    assert [r.rel for r in find.search(tmp_path).readable("deepeval")] == [
+        ".deepeval/.latest_run_full.json"]
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0 and "  Its decisions   32 answers: 20 passed, 12 failed" in out
+
+
 def test_deepeval_results_folder_from_its_variable(tmp_path, capsys, monkeypatch):
     deepeval_project(tmp_path, split(20, 12), name="evals/runs/test_run_20261002_090000.json")
     (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["deepeval"]\n',

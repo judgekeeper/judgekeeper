@@ -65,6 +65,7 @@ VERDICT_COLUMNS = ("verdict", "judge_verdict", "judge")
 TABLE_SUFFIXES = (".csv", ".tsv", ".jsonl")
 RESULTS_VARS = {"deepeval": "DEEPEVAL_RESULTS_FOLDER", "inspect": "INSPECT_LOG_DIR"}
 INSPECT_SKIP = "logs.json"  # Inspect's listing of a log folder, not a log
+DEEPEVAL_TEMP = ".temp_test_run_data.json"  # DeepEval's file while a run goes on, not results
 
 _DEPENDENCY = {"deepeval": re.compile(r"(?<![\w-])deepeval(?![\w-])", re.IGNORECASE),
                "inspect": re.compile(r"(?<![\w-])inspect[-_]ai(?![\w-])", re.IGNORECASE)}
@@ -332,7 +333,7 @@ class _Walk:
         elif suffix == ".json":
             if DEEPEVAL_RUN.fullmatch(name) or name in DEEPEVAL_COPIES:
                 self.add("deepeval", path, size)
-            elif name != INSPECT_SKIP and self.json_sniffed < MAX_JSON:
+            elif name not in (INSPECT_SKIP, DEEPEVAL_TEMP) and self.json_sniffed < MAX_JSON:
                 self.json_sniffed += 1
                 tool = sniff_json(_head(path))
                 if tool:
