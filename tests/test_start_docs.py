@@ -26,7 +26,6 @@ from tests.website_pages import ROOT, WEBSITE, Element, parse
 README = ROOT / "README.md"
 GUIDE = ROOT / "docs" / "guide.md"
 REFERENCE = ROOT / "docs" / "reference.md"
-SKILL = ROOT / "skills" / "judgekeeper" / "SKILL.md"
 SHOWN_PROJECT = "/Users/me/support-bot"
 
 
@@ -221,13 +220,6 @@ def test_the_guide_starts_with_start():
     assert "judgekeeper start" in sections["Start here"]
 
 
-def test_the_skill_leaves_marking_to_the_person():
-    text = " ".join(SKILL.read_text(encoding="utf-8").split())
-    assert f"`uvx judgekeeper@{__version__}`" in text
-    assert "Only the person marks." in text
-    assert len(SKILL.read_text(encoding="utf-8").splitlines()) < 60
-
-
 # The version -----------------------------------------------------------------------------
 
 def test_the_version_is_1_0_0b1_everywhere():
@@ -272,8 +264,6 @@ def test_the_guide_says_what_comes_after_the_first_result():
 
 
 def test_the_own_format_section_shows_the_three_doors_in_order():
-    from tests.test_record_snippets import AGENT_PROMPT as RECORD_PROMPT
-
     section = _by_id("start.html", "own-format")
     heads = [el.attrs.get("id") for el in section.iter() if el.tag == "h4"]
     assert heads == ["door-setup", "door-record", "door-agent", "records-format"]
@@ -282,9 +272,6 @@ def test_the_own_format_section_shows_the_three_doors_in_order():
                    "It never edits your code", "judgekeeper.record(",
                    "JUDGEKEEPER_RECORD=0"):
         assert needed in flat, needed
-    (prompt,) = [el for el in section.iter() if el.attrs.get("id") == "record-prompt"]
-    assert "code" in prompt.parent.parent.classes()  # so it gets a copy button
-    assert prompt.text() == RECORD_PROMPT
     hrefs = [a.attrs.get("href") for a in section.iter() if a.tag == "a"]
     assert "reference.html#records-format" in hrefs
     assert "reference.html#record-save-your-own-judges-verdicts-with-one-line" in hrefs

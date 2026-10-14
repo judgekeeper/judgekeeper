@@ -48,7 +48,7 @@ SOURCE_ATTRS = ("data-report", "data-const", "data-realcheck", "data-coverage")
 
 
 def test_site_has_its_pages():
-    for name in ("index.html", "start.html", "docs.html", "assistant.html", "learn.html",
+    for name in ("index.html", "start.html", "docs.html", "learn.html",
                  "setup.html", "reference.html", "llms.txt",
                  "assets/style.css", "assets/site.js", "assets/theme.js", "assets/metrics.js",
                  "assets/logo.svg", "assets/social-preview.png"):
@@ -351,12 +351,12 @@ def test_the_converter_formats_links_and_bold_that_hold_code():
         "render_reference", ROOT / "scripts" / "render_reference.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    assert module.inline("**`a.toml` first.** See [`b`](assistant.md#x) and `[c](d)`.") == (
+    assert module.inline("**`a.toml` first.** See [`b`](reference.md#x) and `[c](d)`.") == (
         '<strong><code>a.toml</code> first.</strong> See '
-        '<a href="assistant.html#x"><code>b</code></a> and <code>[c](d)</code>.')
+        '<a href="reference.html#x"><code>b</code></a> and <code>[c](d)</code>.')
     # pages on the site stay on the site; other docs and example folders open on GitHub
     assert module.link("reference.md#y") == "reference.html#y"
-    assert module.link("assistant.md") == "assistant.html"
+    assert module.link("reference.md") == "reference.html"
     assert module.link("integrations/mlflow.md").startswith("https://github.com/")
     assert module.link("examples/coverage/").endswith("/tree/main/docs/examples/coverage/")
     assert module.link("examples/coverage/items.csv") == "examples/coverage/items.csv"
@@ -379,8 +379,8 @@ SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url",
               "twitter:title", "twitter:description", "twitter:image"]
 SHARE_ALT = ("judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, "
              "in one command.")
-SEVEN_PAGES = {"index.html", "start.html", "docs.html", "assistant.html", "learn.html",
-               "reference.html", "setup.html"}
+SIX_PAGES = {"index.html", "start.html", "docs.html", "learn.html", "reference.html",
+             "setup.html"}
 
 
 def _head(page: Path) -> tuple[str, str, list[tuple[str, str, str]]]:
@@ -402,7 +402,7 @@ def _png_size(path: Path) -> tuple[int, int]:
 
 
 def test_every_page_has_the_share_preview_tags():
-    assert {p.relative_to(WEBSITE).as_posix() for p in pages()} == SEVEN_PAGES
+    assert {p.relative_to(WEBSITE).as_posix() for p in pages()} == SIX_PAGES
     for page in pages():
         name = page.relative_to(WEBSITE).as_posix()
         title, description, share = _head(page)

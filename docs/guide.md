@@ -103,8 +103,6 @@ See a real report without installing anything: [LLMBar judged by Claude Haiku 4.
 
 ## Your tools
 
-- Let a coding agent wire it in: [`skills/judgekeeper/SKILL.md`](../skills/judgekeeper/SKILL.md) tells Claude Code and other agents how, step by step.
-
 ### I use a framework
 
 `judgekeeper start` reads the files your eval tool already writes: promptfoo, DeepEval, Inspect AI and MLflow. Your eval code does not change. How to get each file and each tool's traps: [`docs/integrations/`](integrations/). Any other tool (or your own code) can write judgekeeper's records format (one JSON line per verdict: `name, input, output, label` or `score`, plus optional fields such as `evaluator` and `metadata`; see the [records format](reference.md#records-format)), or call [`judgekeeper.record()`](reference.md#record-save-your-own-judges-verdicts-with-one-line).

@@ -40,15 +40,6 @@ Once you have marked 25 Pass and 25 Fail, judgekeeper asks on the page whether i
 - To turn it off: `uvx judgekeeper@1.0.0b2 check --off`. It takes out exactly what it added; your marks stay.
 - In GitHub Actions: `uses: judgekeeper/judgekeeper@v1.0.0b2`, after the step that runs your eval. See [action.yml](https://github.com/judgekeeper/judgekeeper/blob/main/action.yml).
 
-## With a coding agent
-
-Paste this into Claude Code, Codex or Cursor:
-```
-Run `uvx judgekeeper@1.0.0b2` in this project and follow what it says.
-```
-
-The agent runs `judgekeeper` and tells you when the page is open; you do the marking. Its rules are in one file, `skills/judgekeeper/SKILL.md`.
-
 ## What you get
 
 TPR: of the answers you passed, how many your judge passed. TNR: of the answers you failed, how many it failed. Kappa: how much you agree beyond chance. Each comes with a range, and judgekeeper says the smallest drop your marks can see. The numbers are estimates from the answers you marked, not a promise about the next ones.

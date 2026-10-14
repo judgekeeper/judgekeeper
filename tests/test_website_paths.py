@@ -1,20 +1,17 @@
-"""The website's paths: the navigation, the short home page, the Guide (start.html), "With a
-coding assistant" (assistant.html) and llms.txt.
+"""The website's paths: the navigation, the short home page, the Guide (start.html) and
+llms.txt.
 
 tests/test_website.py already checks, for every page, that commands parse, links resolve and
 nothing loads from another site; tests/test_website_look.py checks the frame, the theme and the
 Guide's steps. This file checks that every page carries the same navigation; the home page is
-short; the install is inside the project; the output blocks are what the commands print; the
-assistant page shows the prompt exactly; and the links in llms.txt point at real files.
+short; the install is inside the project; the output blocks are what the commands print; and
+the links in llms.txt point at real files.
 """
 
 from __future__ import annotations
 
-import html
 import importlib.util
 import re
-import subprocess
-import sys
 import tomllib
 from pathlib import Path
 
@@ -30,7 +27,6 @@ from tests.website_pages import (
     parse,
 )
 
-PROMPT = ROOT / "docs" / "assistant-prompt.md"
 HOME_MAX_LINES = 211
 JARGON = re.compile(r"\b(TPR|TNR|kappa)\b", flags=re.IGNORECASE)
 FIGURE = re.compile(r"\d+\.\d+|\d+\s?%")
@@ -95,16 +91,15 @@ def test_the_frame_script_and_the_tests_agree_on_the_navigation():
 
 def test_the_older_pages_link_back_to_the_guide():
     assert "learn.html" not in [href for href, _ in NAV]
-    for page in ("setup.html", "learn.html", "assistant.html"):
+    for page in ("setup.html", "learn.html"):
         assert any(h.startswith("start.html") for h in _hrefs(_main(page))), page
 
 
 # Plain words
 
-@pytest.mark.parametrize("page", ["index.html", "assistant.html"])
+@pytest.mark.parametrize("page", ["index.html"])
 def test_no_jargon_outside_quoted_output(page):
-    """TPR, TNR and kappa appear on these pages only inside a <pre>: what a program printed,
-    or the prompt, which is shown word for word. The one exception is kappa in the home page's
+    """TPR, TNR and kappa appear on these pages only inside a <pre>: what a program printed. The one exception is kappa in the home page's
     real check, which says what kappa is in the same paragraph."""
     main = _main(page)
     check = [el for el in main.iter() if el.attrs.get("id") == "check"]
@@ -259,8 +254,7 @@ def test_a_link_can_open_the_install_on_either_tab():
 
 def _install_sources() -> list:
     docs = sorted((ROOT / "docs").rglob("*.md"))
-    return [*pages(), *docs, ROOT / "README.md", ROOT / "skills" / "judgekeeper" / "SKILL.md",
-            WEBSITE / "llms.txt"]
+    return [*pages(), *docs, ROOT / "README.md", WEBSITE / "llms.txt"]
 
 
 def test_nothing_shows_an_install_outside_a_project():
@@ -343,30 +337,6 @@ def test_the_uv_line_shows_how_to_run_it():
         assert UV_RUN in " ".join(text.split()), name
 
 
-# With a coding assistant
-
-def test_the_assistant_page_is_rendered_and_current(tmp_path):
-    out = tmp_path / "assistant.html"
-    subprocess.run([sys.executable, str(ROOT / "scripts/render_reference.py"),
-                    str(ROOT / "docs/assistant.md"), str(out)], check=True, capture_output=True)
-    assert out.read_text(encoding="utf-8") == (WEBSITE / "assistant.html").read_text(
-        encoding="utf-8"), "run: python scripts/render_reference.py"
-
-
-def test_the_assistant_page_shows_the_prompt_exactly_in_one_block_with_a_copy_button():
-    prompt = PROMPT.read_text(encoding="utf-8").rstrip("\n")
-    page = (WEBSITE / "assistant.html").read_text(encoding="utf-8")
-    block = f"<pre><code>{html.escape(prompt, quote=False)}</code></pre>"
-    assert page.count(block) == 1
-    assert f'<div class="code">{block}</div>' in page  # .code is what site.js adds Copy to
-    holding = [el for el in _els("assistant.html") if el.tag == "pre" and el.text() == prompt]
-    assert len(holding) == 1 and "code" in holding[0].parent.classes()
-    scripts = [el.attrs.get("src") for el in _els("assistant.html") if el.tag == "script"]
-    assert scripts == ["assets/theme.js", "assets/site.js"]
-    js = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
-    assert '$all(".code pre")' in js and "navigator.clipboard.writeText" in js
-
-
 # llms.txt and the sitemap
 
 def _llms_links() -> list[tuple[str, str, str]]:
@@ -381,7 +351,7 @@ def _llms_links() -> list[tuple[str, str, str]]:
     return found
 
 
-def test_llms_txt_lists_the_pages_and_the_prompt_and_every_link_resolves():
+def test_llms_txt_lists_the_pages_and_every_link_resolves():
     site, raw = "https://www.judgekeeper.com/", "https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/"
     targets = []
     for _, url, line in _llms_links():
@@ -396,13 +366,12 @@ def test_llms_txt_lists_the_pages_and_the_prompt_and_every_link_resolves():
     assert len(targets) == len(set(targets))
     for page in pages():
         assert page in targets, page.name
-    assert PROMPT in targets
 
 
 def test_the_sitemap_lists_the_main_pages():
     locs = set(re.findall(r"<loc>(.*?)</loc>", (WEBSITE / "sitemap.xml").read_text(
         encoding="utf-8")))
-    for page in ("start.html", "assistant.html", "setup.html"):
+    for page in ("start.html", "setup.html"):
         assert f"https://www.judgekeeper.com/{page}" in locs, page
 
 
@@ -435,11 +404,11 @@ def test_the_docs_page_links_every_page_and_the_places_on_github():
         assert f"{blob}docs/integrations/{tool}.md" in hrefs, tool
         assert (ROOT / "docs" / "integrations" / f"{tool}.md").is_file(), tool
     for needed in (f"{blob}CHANGELOG.md", f"{blob}SECURITY.md",
-                   f"{blob}skills/judgekeeper/SKILL.md", "https://pypi.org/project/judgekeeper/",
+                   "https://pypi.org/project/judgekeeper/",
                    "https://github.com/judgekeeper/judgekeeper/issues/new/choose",
                    "https://github.com/judgekeeper/judgekeeper/security/advisories/new"):
         assert needed in hrefs, needed
-    for path in ("CHANGELOG.md", "SECURITY.md", "skills/judgekeeper/SKILL.md"):
+    for path in ("CHANGELOG.md", "SECURITY.md"):
         assert (ROOT / path).is_file(), path
 
 

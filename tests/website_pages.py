@@ -10,9 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WEBSITE = ROOT / "website"
-# Removed commands that the website, and the Markdown it is made from (docs/reference.md,
-# docs/assistant.md, docs/assistant-prompt.md), still name. They go when those pages are
-# rewritten for the `judgekeeper` command.
+# Removed commands that the website, and the Markdown it is made from (docs/reference.md),
+# still name. They go when those pages are rewritten for the `judgekeeper` command.
 STILL_NAMED = ("setup",)
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
         "track", "wbr", "path", "circle", "rect", "line", "polyline", "polygon", "ellipse",
@@ -92,14 +91,14 @@ def pages() -> list[Path]:
                   if not {"examples", "errors"} & set(p.relative_to(WEBSITE).parts))
 
 
-# reference and assistant come from docs/*.md (scripts/render_reference.py).
-GENERATED_PAGES = {"reference.html", "assistant.html"}
+# reference comes from docs/reference.md (scripts/render_reference.py).
+GENERATED_PAGES = {"reference.html"}
 # The navigation bar every page carries, in order: (href, label). The theme switch sits next
 # to it.
 NAV = [("index.html", "Home"), ("start.html", "Guide"), ("docs.html", "Docs"),
        ("reference.html", "Reference"), ("https://github.com/judgekeeper/judgekeeper", "GitHub")]
 # The footer's "More" column: every page outside the navigation, in this order.
-MORE = [("assistant.html", "With a coding assistant"), ("setup.html", "Setup and API keys"),
+MORE = [("setup.html", "Setup and API keys"),
         ("learn.html", "How it works, in depth")]
 
 

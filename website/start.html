@@ -66,20 +66,6 @@
     <li>Everything saved in your project, on your computer</li></ul></div>
 </div>
 
-<details class="agent"><summary>Using a coding assistant? Paste this prompt instead <span>Claude Code, Cursor or Codex</span></summary>
-  <div class="code"><pre><code id="guide-prompt">Help me check my LLM-as-a-judge with judgekeeper in this project:
-
-1. Install judgekeeper inside this project's own Python environment, as a dev tool:
-   `uv add --dev judgekeeper`, `poetry add --group dev judgekeeper`, or
-   `pip install judgekeeper` with the project's virtual environment active. Never
-   install it for the whole computer.
-2. If `judgekeeper start` finds no results, run `judgekeeper setup` and show me its
-   questions instead of answering them for me.
-3. Run `judgekeeper start --yes --no-browser` in the background, since it keeps
-   running while I mark, and give me the link it prints. I will mark the answers
-   myself: never mark them for me.</code></pre></div>
-</details>
-
 <section class="stop" id="install" aria-labelledby="install-title">
   <div class="head"><span class="n" aria-hidden="true">1</span><h2 id="install-title">Install</h2></div>
   <p class="why">judgekeeper is a tool for developers, like pytest. Install it inside your project, in the project&#39;s own Python environment, not on your computer as a whole. You need Python 3.11 or newer.</p>
@@ -142,7 +128,7 @@ judgekeeper --version</code></pre></div>
       <div class="in"><p>Run this once in your project folder. It looks inside the file, asks only what it can&#39;t tell, shows 3 answers as it will read them, then asks once before it changes any file. It never edits your code. (<a href="#door-setup">More on setup</a>.)</p>
         <div class="code"><pre><code>judgekeeper setup</code></pre></div></div></details>
     <details><summary>My judge is code I wrote, and it saves nothing</summary>
-      <div class="in"><p>Add one line where your judge decides on each answer, in your eval code, then run your eval once. Or let your coding assistant add it: <a href="#door-record">More on record()</a> has the prompt.</p>
+      <div class="in"><p>Add one line where your judge decides on each answer, in your eval code, then run your eval once. (<a href="#door-record">More on record()</a>.)</p>
         <div class="code"><pre><code>judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
                    judge="claude-opus-5", rule=criteria)</code></pre></div></div></details>
   </div>
@@ -336,29 +322,7 @@ This shows how often your judge agrees with you.
     <div class="code"><pre><code>import judgekeeper
 judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
                    reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")</code></pre></div>
-    <p>It never stops your program, uses only Python&#39;s standard library, and <code>JUDGEKEEPER_RECORD=0</code> turns it off. Without the import, or in TypeScript: the <a href="reference.html#record-save-your-own-judges-verdicts-with-one-line">reference</a> has a few lines that do the same. judgekeeper never edits your code, but your coding agent can add the line. Paste this prompt: it shows you the change and waits for your yes.</p>
-    <div class="code"><pre><code id="record-prompt">In this project, my LLM judge runs in my own code. Please add the judgekeeper.record() line,
-so that judgekeeper can check my judge against my own labels:
-
-1. judgekeeper must be installed in this project's own Python environment, as a dev tool. If
-   it is missing, install it there: for example `uv add --dev judgekeeper`, `poetry add
-   --group dev judgekeeper`, or `pip install judgekeeper` with the project's virtual
-   environment active.
-2. Find where this project's LLM judge produces each score or verdict.
-3. Right after it, add one call, with the values the judge just used and gave:
-
-       import judgekeeper
-       judgekeeper.record(input=..., output=..., score=..., pass_mark=..., reason=...,
-                          judge="&lt;the judge's model&gt;", rule=&lt;the judge's rule or criteria&gt;,
-                          name="&lt;the judge's or criterion's name&gt;")
-
-   When the judge gives pass or fail, pass verdict=... instead of score and pass_mark. One
-   call per judge or criterion. Only in the eval code, never in code that serves real users
-   (it saves inputs and outputs to a file); JUDGEKEEPER_RECORD=0 turns it off.
-4. Touch nothing else. record() catches its own errors and returns nothing, so it can never
-   change what the program does; do not wrap it in code that could.
-5. Show me the diff and wait for my yes before saving.
-6. Then run the eval once, run `judgekeeper start`, and show me what it prints.</code></pre></div>
+    <p>It never stops your program, uses only Python&#39;s standard library, and <code>JUDGEKEEPER_RECORD=0</code> turns it off. Without the import, or in TypeScript: the <a href="reference.html#record-save-your-own-judges-verdicts-with-one-line">reference</a> has a few lines that do the same. judgekeeper never edits your code.</p>
 
     <h4 id="door-agent">3. Your coding agent writes a table</h4>
     <p>Turn your results into a table: a CSV with the columns <code>id</code>, <code>input</code>, <code>output</code>, <code>verdict</code> (pass or fail) and <code>reason</code>, plus <code>judge_model</code> when you know which model judged. Make one CSV per judge or criterion. Then run:</p>
@@ -394,7 +358,7 @@ so that judgekeeper can check my judge against my own labels:
 <p class="fine">Not affiliated with the tools and models it works with. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
 <p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
 <div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
-<div><h2>More</h2><ul><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
+<div><h2>More</h2><ul><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
 </div>
 </footer>
 </body>

@@ -25,7 +25,7 @@ from judgekeeper.textio import jsonl_lines
 
 OWN_FORMAT_URL = "www.judgekeeper.com/start.html#own-format"
 INSTALL_URL = "www.judgekeeper.com/start.html#install"
-RECORD_URL = "www.judgekeeper.com/assistant.html#add-the-record-line"
+RECORD_URL = "www.judgekeeper.com/reference.html#record-save-your-own-judges-verdicts-with-one-line"
 AGENT_PROMPT = """\
 In this project, my LLM judge saves its results in its own format. Please:
 

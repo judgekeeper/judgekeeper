@@ -418,8 +418,6 @@ export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): voi
 }
 ```
 
-**Let your coding agent add the line.** judgekeeper never edits your code. [A prompt for Claude Code, Cursor or Codex](assistant.md#add-the-record-line) asks it to find where your judge gives each score or verdict, add one `judgekeeper.record(...)` call right after it, touch nothing else, show you the diff and wait for your yes, then run the eval once and `judgekeeper start`.
-
 ## Unknown judge fields
 
 Every fingerprint field except `created_at` may be unknown: provider, model, snapshot, prompt hash, rubric version and temperature are `null`, and an unknown endpoint is the string `"unknown"` (because `endpoint: null` already means the provider's default endpoint). Files from earlier versions still load: a missing field reads as unknown, except a missing `endpoint`, which reads as the provider default.

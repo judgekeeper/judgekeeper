@@ -9,8 +9,8 @@
   demo that shows what the judge said only after you mark, the real pages in pictures and the
   six-step route.
 - The Guide: six steps, each with "You're done when" and a done tick, "Didn't work?" quoting
-  what judgekeeper really prints, the coding-assistant prompt, and pictures of the real pages
-  with the product's own words around them.
+  what judgekeeper really prints, and pictures of the real pages with the product's own
+  words around them.
 - Every older page starts with "New here?".
 """
 
@@ -19,18 +19,17 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
-import shlex
 from pathlib import Path
 
 from judgekeeper import start_label, start_page
-from judgekeeper.cli import _parser, parse_args
+from judgekeeper.cli import _parser
 from tests.website_pages import MORE, NAV, ROOT, WEBSITE, Element, pages, parse
 
 GUIDE = WEBSITE / "start.html"
 HOME = WEBSITE / "index.html"
 CSS = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
 SRC = ROOT / "src" / "judgekeeper"
-OLDER = {"assistant.html", "setup.html", "learn.html"}
+OLDER = {"setup.html", "learn.html"}
 STEPS = [("install", "Install"), ("connect", "Connect your results"), ("start", "Start"),
          ("label", "Mark"), ("result", "Your result"), ("improve", "Improve your judge")]
 ROUTE = ["Install", "Connect", "Start", "Mark", "Result", "Improve"]
@@ -416,27 +415,6 @@ def test_the_didnt_work_boxes_quote_what_judgekeeper_really_prints():
         assert said and said in source, (el.attrs["data-said-by"], said)
 
 
-GUIDE_PROMPT_NEEDS = ("inside this project's own Python environment", "uv add --dev judgekeeper",
-                      "poetry add --group dev judgekeeper",
-                      # It keeps running while the person marks: in the foreground an agent
-                      # would wait, or stop it, and the link would go dead.
-                      "Run `judgekeeper start --yes --no-browser` in the background",
-                      "I will mark the answers myself")
-
-
-def test_the_guide_prompt_installs_inside_the_project_and_leaves_labeling_to_the_person():
-    (fold,) = _all(parse(GUIDE), "details", "agent")
-    assert _flat(_all(fold, "summary")[0]).startswith(
-        "Using a coding assistant? Paste this prompt instead")
-    (prompt,) = [el for el in fold.iter() if el.attrs.get("id") == "guide-prompt"]
-    assert prompt.tag == "code" and "code" in prompt.parent.parent.classes()  # a copy button
-    flat = " ".join(prompt.text().split())
-    for needed in GUIDE_PROMPT_NEEDS:
-        assert needed in flat, needed
-    for command in re.findall(r"judgekeeper start[a-z -]*", flat):
-        parse_args(shlex.split(command.strip())[1:])
-
-
 def test_the_you_need_box_comes_first():
     (ready,) = _all(parse(GUIDE), "div", "ready")
     assert [h.text() for h in _all(ready, "h2")] == ["You need", "You will end with"]
@@ -553,8 +531,8 @@ def test_the_llmbar_result_names_the_datasets_makers_and_licence():
         a.attrs.get("href") for a in _all(section, "a")]
 
 
-ORDER = ["index.html", "start.html", "docs.html", "reference.html", "assistant.html",
-         "setup.html", "learn.html"]
+ORDER = ["index.html", "start.html", "docs.html", "reference.html", "setup.html",
+         "learn.html"]
 
 
 def test_the_sitemap_and_llms_txt_list_the_pages_in_the_new_order():

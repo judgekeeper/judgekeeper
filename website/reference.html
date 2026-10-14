@@ -391,7 +391,6 @@ export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): voi
       JSON.stringify(line) + "\n");
   } catch { /* a record never stops your program */ }
 }</code></pre>
-<p><strong>Let your coding agent add the line.</strong> judgekeeper never edits your code. <a href="assistant.html#add-the-record-line">A prompt for Claude Code, Cursor or Codex</a> asks it to find where your judge gives each score or verdict, add one <code>judgekeeper.record(...)</code> call right after it, touch nothing else, show you the diff and wait for your yes, then run the eval once and <code>judgekeeper start</code>.</p>
 <h2 id="unknown-judge-fields">Unknown judge fields</h2>
 <p>Every fingerprint field except <code>created_at</code> may be unknown: provider, model, snapshot, prompt hash, rubric version and temperature are <code>null</code>, and an unknown endpoint is the string <code>&quot;unknown&quot;</code> (because <code>endpoint: null</code> already means the provider's default endpoint). Files from earlier versions still load: a missing field reads as unknown, except a missing <code>endpoint</code>, which reads as the provider default.</p>
 <h2 id="your-api-keys">Your API keys</h2>
@@ -423,7 +422,7 @@ export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): voi
 <p class="fine">Not affiliated with the tools and models it works with. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
 <p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
 <div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
-<div><h2>More</h2><ul><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
+<div><h2>More</h2><ul><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
 </div>
 </footer>
 </body>

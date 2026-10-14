@@ -20,9 +20,6 @@ DOCS_URL = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/"
 PAGES = {  # source stem: (target page, title, description, who the page is for)
     "reference": ("reference.html", "Reference: every command and flag",
                   "Every judgekeeper command, file format, flag, exit code and config key.", ""),
-    "assistant": ("assistant.html", "With a coding assistant",
-                  "Hand the whole job to a coding assistant: install the skill or paste one prompt.",
-                  "handing the whole job to a coding assistant, with the skill or one prompt"),
 }
 NEW_HERE = ('<p class="newhere">New here? Start with the <a href="start.html">Guide</a>. '
             "This page is for {who}.</p>\n")
@@ -129,8 +126,6 @@ def render(markdown: str) -> str:
 def build(source: Path, out: Path) -> None:
     target, title, description, who = PAGES[source.stem]
     body = render(source.read_text(encoding="utf-8"))
-    if target == "assistant.html":  # commands and the prompt get a copy button (assets/site.js)
-        body = body.replace("<pre>", '<div class="code"><pre>').replace("</pre>", "</pre></div>")
     out.write_text(PAGE.format(
         head=head(target, title, description), links=head_links(), header=header(target),
         footer=footer(), new_here=NEW_HERE.format(who=who) if who else "", body=body,

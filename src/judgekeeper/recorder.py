@@ -24,8 +24,7 @@ false, off, no) turns it off, for production. Standard library only, and nothing
 judgekeeper is imported, so `import judgekeeper` stays light.
 
 docs/reference.md holds the same line as a snippet for people who do not want the import
-(Python) or use another language (TypeScript); docs/assistant.md holds a prompt that asks a
-coding agent to add the call.
+(Python) or use another language (TypeScript).
 """
 
 from __future__ import annotations

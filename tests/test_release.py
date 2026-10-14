@@ -246,7 +246,7 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     _build_pages(tmp_path)
     assert (tmp_path / "index.html").read_bytes() == (ROOT / "website" / "index.html").read_bytes()
     assert not (tmp_path / "examples.html").exists()
-    for page in ("start.html", "assistant.html", "learn.html", "setup.html",
+    for page in ("start.html", "learn.html", "setup.html",
                  "reference.html", "llms.txt", "assets/style.css"):
         assert (tmp_path / page).is_file(), page
     assert not (tmp_path / "README.md").exists()
@@ -311,8 +311,7 @@ def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert f"\nuvx judgekeeper@{VERSION}\n" in readme
     assert f"\npip install judgekeeper=={VERSION}\n" in readme
-    assert f"Run `uvx judgekeeper@{VERSION}` in this project and follow what it says." in readme
-    assert "skills/judgekeeper/SKILL.md" in readme and "beta" in readme
+    assert "beta" in readme
     for gone in ("judgekeeper start", "judgekeeper demo", "before the first PyPI release"):
         assert gone not in readme, gone
     for needed in ("TPR", "TNR", "kappa"):
@@ -321,12 +320,11 @@ def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
 
 def test_every_install_command_names_the_version_in_pyproject():
     """uv and pip skip betas unless the version is named: `uvx judgekeeper` and `pip install
-    judgekeeper` would get 0.1.3. README, SKILL.md and the changelog's newest entry name the
+    judgekeeper` would get 0.1.3. README and the changelog's newest entry name the
     exact version in pyproject.toml, so the next beta can't forget it."""
     version = _toml(ROOT / "pyproject.toml")["project"]["version"]
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     texts = {"README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
-             "SKILL.md": (ROOT / "skills/judgekeeper/SKILL.md").read_text(encoding="utf-8"),
              "CHANGELOG.md": changelog[:changelog.index("## ", changelog.index("## ") + 3)]}
     for name, text in texts.items():
         uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", text)

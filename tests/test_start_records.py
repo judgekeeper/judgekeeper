@@ -179,8 +179,8 @@ def test_nothing_found_offers_the_record_line(tmp_path, capsys):
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
     assert ("Or save your judge's decisions from now on with one judgekeeper.record() line "
-            "where it runs: www.judgekeeper.com/assistant.html#add-the-record-line has a "
-            "prompt that asks your coding agent to add it.") in out
+            "where it runs: www.judgekeeper.com/reference.html#record-save-your-own-judges-"
+            "verdicts-with-one-line shows the line.") in out
 
 
 def test_records_reach_the_labeling_page_like_any_other_results(tmp_path):

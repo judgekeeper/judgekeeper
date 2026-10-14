@@ -19,8 +19,7 @@ NAV = [("index.html", "Home"), ("start.html", "Guide"), ("docs.html", "Docs"),
        ("reference.html", "Reference"), (GITHUB, "GitHub")]
 START_HERE = [("start.html", "Guide"), ("docs.html", "Docs"), ("reference.html", "Reference"),
               (GITHUB, "GitHub")]
-MORE = [("assistant.html", "With a coding assistant"),
-        ("setup.html", "Setup and API keys"),
+MORE = [("setup.html", "Setup and API keys"),
         ("learn.html", "How it works, in depth")]
 FONTS = ("bricolage-grotesque-latin-800-normal.woff2",)  # body text uses the system font
 LOGO = ('<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
@@ -101,7 +100,7 @@ def apply(page: Path) -> None:
 
 
 if __name__ == "__main__":
-    generated = {"reference.html", "assistant.html"}
+    generated = {"reference.html"}
     for page in sys.argv[1:] or sorted(p for p in WEBSITE.glob("*.html")
                                        if p.name not in generated):
         apply(Path(page))
