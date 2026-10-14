@@ -4,7 +4,7 @@
 free, opens the page to mark answers on, and prints the result once there are enough marks; it
 ends with one `Next:` line. `judgekeeper mark` (mark.py) opens the page to mark more.
 `judgekeeper check` (check.py) re-tests a changed judge on the marks (exit 1: the new judge
-got worse); `--fast` only says whether it changed.
+got worse); it asks before any call to the judge.
 `judgekeeper start` (not in the help) still has its review, fix and asking again. Exit codes: 0
 success, 1 runtime failure, 2 usage error, 3 the person is needed (`judgekeeper` and `mark`:
 the Next: line says what to ask), 8 stopped at a question (`start`, below), 130 Ctrl-C.
@@ -34,7 +34,6 @@ import traceback
 from judgekeeper import __version__
 from judgekeeper.anchors import AnchorError
 from judgekeeper.custom import CallableError
-from judgekeeper.dev_requirements import RequirementsError
 from judgekeeper.find import TOOLS
 from judgekeeper.judgments import JudgmentsError
 from judgekeeper.label import LabelError
@@ -58,40 +57,53 @@ EXIT_FAILURE = 1
 EXIT_USAGE = 2
 EXIT_STOPPED = 130  # Ctrl-C, as shells report it
 
-MESSAGE = "Check your LLM-as-a-judge."
-ABOUT = ("Run judgekeeper in your project: it finds your eval tool's saved results and the "
-         "judge that made them, checks them for free (no AI call), opens a page to mark "
-         "answers on, and shows how often your judge agrees with your marks. Each run does "
-         "the next step and ends with one Next: line saying what to do.")
+MESSAGE = "Check your LLM-as-a-judge in 5 steps."
+STEPS = """\
+  1. Find      judgekeeper          finds your eval results and your judge
+  2. Mark      in your browser      you mark answers Pass or Fail
+  3. Measure   judgekeeper          how often your judge agrees with you
+  4. Fix       coming soon          write a better rule, tested on hidden marks
+  5. Re-check  judgekeeper check    after you change your judge or update
+                                    your eval tool"""
+READS = """\
+judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
+MLflow, or a CSV or JSONL file with these columns:
+  input, output, verdict"""
 COMMANDS_HELP = (
-    ("mark", "open the page to mark more answers Pass or Fail"),
-    ("check", "when your judge changed, re-check it on your marks"),
+    ("mark", "mark more answers"),
+    ("check", "re-check your judge on your marks after a change"),
 )
-HELP_WIDTH = 100
+HELP_WIDTH = 80
 # Removed commands: the 0.1 CI gate, and setup (part of judgekeeper now). Each prints one line
 # and exits 2.
 REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "setup")
 
 
 class _Parser(argparse.ArgumentParser):
-    """argparse echoes bad argument values in its errors; scrub them too."""
+    """argparse echoes bad argument values in its errors; scrub them too. An error of
+    `judgekeeper check` ends in one Next: line (its flags for automatic checks, --on, --off,
+    --hook, --fast, --ci, --baseline and --port, are gone)."""
 
     def error(self, message):
         self.print_usage(sys.stderr)
-        self.exit(EXIT_USAGE, f"{self.prog}: error: {printable(scrub(message))}\n")
+        after = ""
+        if self.prog.endswith(" check"):
+            after = f"Next: run `{program('check')}` yourself after you change your judge.\n"
+        self.exit(EXIT_USAGE, f"{self.prog}: error: {printable(scrub(message))}\n{after}")
 
 
 class _TopParser(_Parser):
-    """The top-level help: the message, what `judgekeeper` does, its options, the commands."""
+    """The top-level help: the 5 steps, what judgekeeper reads, the usage, the commands, then
+    the options of `judgekeeper` itself."""
 
     def format_help(self) -> str:
         width = max(len(name) for name, _ in COMMANDS_HELP) + 3
         commands = [line for name, text in COMMANDS_HELP for line in textwrap.wrap(
             text, HELP_WIDTH, initial_indent=f"  {name:<{width}}",
             subsequent_indent=" " * (2 + width))]
-        lines = [MESSAGE, "", *textwrap.wrap(ABOUT, HELP_WIDTH), "",
-                 super().format_help().rstrip(), "", "Commands:", *commands, "",
-                 "Run `judgekeeper <command> --help` for a command's options."]
+        usage, _, options = super().format_help().partition("\n\n")
+        lines = [MESSAGE, "", STEPS, "", READS, "", usage.strip(), "", "Commands:", *commands,
+                 "", options.rstrip()]
         return "\n".join(lines) + "\n"
 
 
@@ -158,6 +170,7 @@ def _front_parser() -> argparse.ArgumentParser:
     """`judgekeeper` with no command. Each option answers a question its Next: line asks."""
     p = _TopParser(prog="judgekeeper", usage="judgekeeper [PATH] [options]",
                    formatter_class=lambda prog: argparse.HelpFormatter(prog, width=HELP_WIDTH))
+    p._positionals.title, p._optionals.title = "Arguments", "Options"
     p.add_argument("path", nargs="?", default=".", metavar="PATH",
                    help="your project folder (default: this folder), one results file, or an "
                         "MLflow store (mlflow.db or an mlruns/ folder)")
@@ -176,8 +189,7 @@ def _front_parser() -> argparse.ArgumentParser:
     p.add_argument("--fields", metavar="LIST",
                    help="a DeepEval GEval judge: the parts it reads, e.g. input,actual_output")
     p.add_argument("--yes", action="store_true",
-                   help="without a terminal: the person said yes to the question judgekeeper "
-                        "printed")
+                   help="without a terminal: yes to the questions judgekeeper printed")
     _page_args(p)
     p.add_argument("--version", action=_Version, nargs=0, help="show the version and exit")
     p.add_argument("--debug", action="store_true",
@@ -216,30 +228,17 @@ def _parser() -> argparse.ArgumentParser:
     mk.add_argument("--fields", metavar="LIST",
                     help="a DeepEval GEval judge: the parts it reads, e.g. input,actual_output")
     mk.add_argument("--yes", action="store_true",
-                    help="without a terminal: the person said yes to the question judgekeeper "
-                         "printed")
+                    help="without a terminal: yes to the questions judgekeeper printed")
     _page_args(mk)
 
     ck = sub.add_parser("check", parents=[common],
                         help="when your judge changed, re-check it on your marks")
     ck.add_argument("path", nargs="?", default=".", metavar="PATH",
                     help="your project folder (default: this folder)")
-    how = ck.add_mutually_exclusive_group()
-    how.add_argument("--fast", action="store_true",
-                     help="only say whether your judge changed: no AI call, no network (for "
-                          "git pre-commit)")
-    how.add_argument("--hook", action="store_true",
-                     help="for a coding agent's hook: read the hook's JSON on stdin, answer in "
-                          "JSON")
-    how.add_argument("--on", action="store_true",
-                     help="open the page where you can turn on automatic checks")
-    how.add_argument("--off", action="store_true",
-                     help="turn automatic checks off: take out the hooks judgekeeper added")
-    how.add_argument("--baseline", action="store_true", help=argparse.SUPPRESS)
-    how.add_argument("--ci", action="store_true", help=argparse.SUPPRESS)
-    ck.add_argument("--port", type=_port, default=None,
-                    help="with --on: port on 127.0.0.1 for the page (default 8765, or the next "
-                         "free one)")
+    ck.add_argument("--yes", action="store_true",
+                    help="without a terminal: go ahead and ask your judge (it makes AI calls, "
+                         "paid with your own key)")
+    p.check = ck
 
     st = sub.add_parser("start", parents=[common],
                         help="find your judge's saved results and check them against your own "
@@ -333,10 +332,11 @@ def _page_args(p: argparse.ArgumentParser) -> None:
 
 def _normaliser_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--pass-if", metavar="RULE",
-                   help="rule for numeric verdicts, e.g. 'score>=0.5' (required for numbers)")
+                   help="when your judge's grades are scores: which pass, e.g. 'score>=0.5'")
     p.add_argument("--label-map", metavar="MAP",
-                   help="extra verdict spellings, e.g. 'good=pass,bad=fail' (added to the "
-                        "defaults pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0)")
+                   help="more spellings of your judge's grades, e.g. 'good=pass,bad=fail' "
+                        "(added to pass/fail, true/false, yes/no, correct/incorrect, "
+                        "right/wrong, 1/0)")
 
 
 def cmd_start(args) -> int:
@@ -375,9 +375,7 @@ def cmd_mark(args) -> int:
 def cmd_check(args) -> int:
     from judgekeeper import check
 
-    return check.run(args.path, fast_only=args.fast, hook=args.hook,
-                     baseline_only=args.baseline, on=args.on, off=args.off, port=args.port,
-                     ci=args.ci)
+    return check.run(args.path, yes=args.yes)
 
 
 def cmd_front(args) -> int:
@@ -409,7 +407,13 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
         print(f"judgekeeper {command} was removed. Run {program()} in your project.",
               file=sys.stderr)
         raise SystemExit(EXIT_USAGE)
-    args = (_parser() if command else _front_parser()).parse_args(args_list)
+    parser = _parser() if command else _front_parser()
+    if command == "check":  # an unknown flag is said by `check` itself, with its Next: line
+        args, extra = parser.parse_known_args(args_list)
+        if extra:
+            parser.check.error(f"unrecognized arguments: {' '.join(extra)}")
+    else:
+        args = parser.parse_args(args_list)
     if not command:
         args.command = None
     return args
@@ -428,7 +432,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\nStopped.")
         return EXIT_STOPPED
     except (AnchorError, JudgmentsError, NormaliseError, TableError, CallableError,
-            LabelError, StartError, SettingsError, MapError, RequirementsError) as e:
+            LabelError, StartError, SettingsError, MapError) as e:
         _error(str(e))
         return EXIT_USAGE
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see

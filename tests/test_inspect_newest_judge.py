@@ -37,7 +37,8 @@ def test_the_newest_log_with_a_judge_is_used(here, capsys):
     code, out, _ = run(capsys)
     assert ("Your newest Inspect log, logs/2026-10-02_exact.json, holds no judge decisions. "
             "Using logs/2026-10-01_support.json, the newest that does.") in out
-    assert "Found your eval tool: Inspect AI (logs/2026-10-01_support.json, 36 answers)" in out
+    assert "Eval tool:   Inspect AI" in out and "36 answers from your app" in out
+    assert "(read from logs/2026-10-01_support.json)" in out
     assert code == 0, out
 
 

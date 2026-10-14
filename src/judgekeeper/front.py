@@ -61,7 +61,6 @@ from judgekeeper import (
     find,
     judge_check,
     judge_setup,
-    keep,
     marks,
     own_format,
     page,
@@ -77,22 +76,21 @@ from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
-from judgekeeper.textio import plural, program, quote_arg
+from judgekeeper.textio import plural, program, quote_arg, wrap
 
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_NEEDS_YOU = 3
-RULE_WIDTH = 200  # characters of the judge's rule shown, on one line
+RULE_SHOWN = 58  # characters of the judge's rule shown, "…" included, on one line
 VALUE_WIDTH = 40  # characters of a judge's decision value shown
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
 LABEL_MAP = '"VALUE=pass,VALUE=fail"'
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
-QUESTIONS = "To ask the person:"
-READS = ("judgekeeper reads the results that promptfoo, DeepEval, Inspect AI and MLflow save, "
-         "a CSV or JSONL file with input, output and verdict columns, or what "
-         "judgekeeper.record() saves.")
+QUESTIONS = "judgekeeper needs your answer to {which}:"
+READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV "
+         "or JSONL file.")
 # The options that find the judge, as start.find_judge takes them
 FIND = ("tool", "metric", "experiment", "tracking_uri", "pass_if", "label_map", "judge_model")
 ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
@@ -101,29 +99,36 @@ OLD_MARKS = (f"{FOLDER}/labels.csv holds marks from judgekeeper 0.2. They have n
              "so this version does not use them.")
 RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
 JUDGE_CHANGED = "Your judge changed since your marks: {what}."
-NEXT_CHECK = "run `{command}`."
-NEXT_OPEN = ("tell the person the marking page is open in their browser, and to mark answers "
-             "until the page says it has enough. When they say they are done, run `{command}` "
-             "again.")
-NEXT_LINK = ("give the person the link above and ask them to mark answers until the page says "
-             "it has enough. When they say they are done, run `{command}` again.")
-NEXT_RESULT = "nothing. Tell the person the result above. To mark more, run `{command}`."
-KEEP_OPEN = "The page that turns on automatic checks is open in your browser."
-NEXT_KEEP = ("ask the person if judgekeeper should keep checking their judge by itself. They "
-             "answer on the page open in their browser (only they can turn this on). Then run "
-             "`{command}` again.")
-NEXT_KEEP_LINK = ("give the person the link above and ask if judgekeeper should keep checking "
-                  "their judge by itself; they answer on that page. Then run `{command}` again.")
-NO_KEEP_PAGE = ("judgekeeper could not open a browser here, and only the person can turn on "
-                "automatic checks.")
-NEXT_TERMINAL = "ask the person to run `{command}` in their own terminal."
-KEEP_FAILED = ("The page that turns on automatic checks could not start in the background "
-               "(what went wrong is in {log}).")
-NEXT_STATUS = "nothing. Tell the person what is on, and how to turn it off."
-COULD_NOT = ("ask the person to run {command} in their own terminal (it keeps the page open "
-             "there).")
+STEP = "Step {n} of 5: {name}"
+INDENT = " " * 13  # under the value of "Eval tool:   "
+EVERY_ANSWER = "every answer got a clear Pass or Fail."
+FREE_CHECK = "Free check (no AI call): "
+SHOWS = ("It shows the same answers one at a time. Mark each one Pass or Fail, the way you "
+         "want your judge to decide. Your judge's grade stays hidden, so you decide on your "
+         "own.")
+BAR = "The bar at the top shows how close you are."
+PRECISE = "Each new mark makes your numbers more precise."
+NOT_ENOUGH = "That is not enough for a first result yet."
+NEXT_MARK = "mark until the page says you have enough, then run `{command}` again."
+NEXT_KEEP_MARKING = ("keep marking until the page says you have enough, then run `{command}` "
+                     "again.")
+NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
+NEXT_ALL_MARKED = "run your eval again to get new answers, then run `{command}`."
+NEXT_CHECK = "run `{command}` to re-check your changed judge on your marks."
+NEXT_RESULT = ("nothing to do. When you change your judge or update your eval tool, run "
+               "`{command}`.")
+NEXT_CONTINUE = "run `{command}` when you want to continue."
+STILL_OPEN = "The marking page is still open if you want to mark more answers."
+MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
+COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
 NEXT_ANY_PORT = "run `{command}` (it opens the page on any free port)."
+NO_DECISION = ("nothing to do now. Your judge made no real decision on any answer{listed}; run "
+               "`{command}` again after your next eval run.")
+# A tool found here with no saved results: what saves them
+SAVES = {"deepeval": "DeepEval saves results only when you run deepeval test run or evaluate().",
+         "inspect": "Inspect AI saves its logs in logs/ when you run inspect eval.",
+         "mlflow": "MLflow keeps the judge's assessments once mlflow.genai.evaluate() runs."}
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
@@ -133,6 +138,7 @@ class FrontTalk(start.Talk):
 
     subcommand = ""
     asks_everything = True
+    screens = True  # start.py says some things in this command's own words
 
     def __init__(self, yes: bool, path: str | Path, options: dict, new: bool = False):
         self.options = dict(options)  # the flags given, and answers given as flags
@@ -170,15 +176,15 @@ class FrontTalk(start.Talk):
         for option in options:
             self.say(f"  {option}")
         if flag is None:
-            raise self.stop(EXIT_QUESTION, f"ask the person to run `{self.command()}` in a "
-                                           "terminal, to answer there.")
+            raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
+                                           "there.")
         names = ", ".join(quote_arg(str(v)) for v in values)
         if flag == "PATH":
             commands = [f"`{self.command_at(v)}`" for v in values]
             then = start._or(commands)
         else:
             then = f"`{self.command(flag, 'NAME')}`"
-        raise self.stop(EXIT_QUESTION, f"ask the person {what} ({names}), then run {then}.")
+        raise self.stop(EXIT_QUESTION, f"choose {what} ({names}), then run {then}.")
 
     def confirm(self, question, default, hint, with_yes) -> bool:
         if start._interactive():
@@ -192,23 +198,26 @@ class FrontTalk(start.Talk):
         if not self.noted:
             return
         self.say()
-        self.say(QUESTIONS)
+        one = len(self.noted) == 1
+        self.say(QUESTIONS.format(which="this question" if one
+                                  else f"these {len(self.noted)} questions"))
         for n, question in enumerate(self.noted, 1):
-            self.say(f"  {n}. {question}")
+            for i, line in enumerate(wrap(question, indent="     ")):
+                self.say(f"  {n}. {line.lstrip()}" if i == 0 else line)
         yes, again = f"`{self.command('--yes')}`", f"`{self.command()}`"
-        if len(self.noted) == 1:
-            then = (f"this question. If they say yes, run {yes}. If they say no, ask them to "
-                    f"run {again} in a terminal.")
-        else:
-            then = (f"these {len(self.noted)} questions. If they say yes to all, run {yes}. If "
-                    f"they say no to any, ask them to run {again} in a terminal.")
-        raise self.stop(EXIT_QUESTION, f"ask the person {then}")
+        raise self.stop(EXIT_QUESTION, f"run {again} in a terminal to answer, or {yes} to say "
+                                       f"yes{'' if one else ' to all'}.")
+
+    def para(self, text: str = "", indent: str = "") -> None:
+        """Say `text` wrapped (textio.wrap)."""
+        for line in wrap(text, indent=indent):
+            self.say(line)
 
     def stop(self, code: int, next_step: str | None = None) -> Stop:
         """Say the Next: line; exit 3 when it asks for something, 0 when it is nothing."""
         if next_step:
             self.say()
-            self.say(f"Next: {next_step}")
+            self.para(f"Next: {next_step}")
             return Stop(EXIT_OK if next_step.startswith("nothing") else EXIT_NEEDS_YOU)
         return Stop(EXIT_NEEDS_YOU if code == EXIT_QUESTION else code)
 
@@ -235,9 +244,20 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
     try:
         if stop:
             return _stop(talk, path)
+        if not marking and not _started(path):
+            talk.say(STEP.format(n=1, name="Find"))
+            talk.say()
         return _run(talk, path, wait, marking)
     except Stop as e:
         return EXIT_NEEDS_YOU if e.code == EXIT_QUESTION else e.code
+
+
+def _started(path: Path) -> bool:
+    """Whether marking started in the project at `path` (or 0.2's marks are there)."""
+    if not path.exists():
+        return False
+    ws = Workspace(start_again._project(path))
+    return ws.start.is_file() or ws.labels.is_file()
 
 
 # Finding -----------------------------------------------------------------------------------
@@ -329,12 +349,13 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     terminal = start._interactive()
     if found.tool == "inspect" and "P" in values:  # model_graded_qa(partial_credit=True)
         n = found.pool.n_unmapped.get(repr("P"), 0)
-        talk.say(found_line(found))  # what was found, before the question
-        talk.say(judge_line(found))
+        for line in found_block(found):  # what was found, before the question
+            talk.say(line)
+        talk.say()
         talk.say(f"Inspect gave partial credit (P) on {_n(n, 'answer')}.")
         if not terminal:
             raise talk.stop(EXIT_QUESTION, (
-                "ask the person whether partial credit (P) counts as Pass or Fail, then run "
+                "decide whether partial credit (P) counts as Pass or Fail, then run "
                 f"`{talk.command('--label-map', 'P=pass')}` or "
                 f"`{talk.command('--label-map', 'P=fail')}`."))
         i = talk.choose("Should partial credit count as Pass or Fail?", ["Pass", "Fail"], "")
@@ -344,8 +365,8 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
         talk.say(f"Your judge's decisions are scores ({_shown(values)}), and the results do "
                  "not say which score passes.")
         if not terminal:
-            raise talk.stop(EXIT_QUESTION, "ask the person which score counts as a pass, then "
-                                           f"run `{talk.command('--pass-if', PASS_IF)}`.")
+            raise talk.stop(EXIT_QUESTION, "decide which score counts as a pass, then run "
+                                           f"`{talk.command('--pass-if', PASS_IF)}`.")
         while True:
             answer = talk.ask("Pass when the score is at least", "0.5")
             if _numeric(answer):
@@ -356,8 +377,8 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
              f"Fail: {_shown(words)}.")
     if not terminal:
         raise talk.stop(EXIT_QUESTION, (
-            f"ask the person which of these mean Pass and which mean Fail ({_shown(words)}), "
-            f"then run `{talk.command('--label-map', LABEL_MAP)}`."))
+            f"decide which of these mean Pass and which mean Fail ({_shown(words)}), then run "
+            f"`{talk.command('--label-map', LABEL_MAP)}`."))
     picked = []
     for w in words:
         i = talk.choose(f"Does {w!r} mean Pass or Fail?", ["Pass", "Fail"], "")
@@ -366,17 +387,20 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
 
 
 def _nothing_found(talk: FrontTalk, root: Path, signs: dict) -> Stop:
-    talk.say(f"No saved eval results found in {root}.")
-    for tool, where in signs.items():
-        talk.say(f"{find.NAMES[tool]} is used here ({where[0]}), "
-                 + start.NO_RESULTS.get(tool, "but it has no saved results in this folder yet."))
-    talk.say(READS)
-    tools = [find.NAMES[t] for t in signs]
-    if tools:
-        return talk.stop(EXIT_QUESTION, f"ask the person to run their {start._and(tools)} evals "
-                                        "once (that makes model calls), then run "
-                                        f"`{talk.command()}` again.")
-    return talk.stop(EXIT_QUESTION, f"run your evals once, then run `{talk.command()}` again.")
+    """No results: the tools found here (with what saves their results), else what
+    judgekeeper can read. The folder by its name only."""
+    if signs:
+        for tool, where in signs.items():
+            name = find.NAMES[tool]
+            talk.para(f"Found {name} in this folder ({where[0]}), but no saved results yet. "
+                      + SAVES.get(tool, ""))
+    else:
+        talk.say(f"No eval results found in this folder ({root.name}).")
+        talk.para(READS)
+    again = f"`{talk.command()}`"
+    other = "" if signs else f" If your results are in another folder, run {again} from there."
+    return talk.stop(EXIT_QUESTION, f"run your eval once from this folder, then run {again} "
+                                    f"again.{other}")
 
 
 def _tracking_server(talk: FrontTalk, path: Path, uri: str) -> Stop:
@@ -388,56 +412,13 @@ def _tracking_server(talk: FrontTalk, path: Path, uri: str) -> Stop:
     if stores:
         return talk.stop(EXIT_QUESTION, f"run `{talk.command_at(stores[0].rel)}`.")
     return talk.stop(EXIT_QUESTION, (
-        "ask the person where their local MLflow store is (an mlflow.db file or an mlruns/ "
-        f"folder), then run `{talk.command('--tracking-uri', 'PATH')}`."))
+        "find your local MLflow store (an mlflow.db file or an mlruns/ folder), then run "
+        f"`{talk.command('--tracking-uri', 'PATH')}`."))
 
 
 # Saying it ---------------------------------------------------------------------------------
 
 _n = plural  # textio.plural
-
-
-def found_line(found: start.Found) -> str:
-    """Which tool's results were read, where, and how many answers the judge saw."""
-    newest = found.results[0]
-    answers = _n(found.check.answers if found.check else len(found.pool.answers), "answer")
-    if found.tool == "mlflow":
-        return (f"Found your eval tool: MLflow ({found.store}, experiment "
-                f"{quote_arg(found.experiment or '')}, {answers})")
-    if found.tool == "records":
-        return (f"Found your results: judgekeeper.record() ({start._folder_of(newest)}, "
-                f"{_n(len(found.used), 'file')}, {answers})")
-    where = newest.rel
-    if found.tool == "mapped":  # one file; each of its lines may be a run
-        runs = f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else ""
-        return f"Found your results: your own format ({where}{runs}, {answers})"
-    if len(found.used) > 1:
-        where += f" and {_n(len(found.used) - 1, 'older file')}"
-    if found.tool == "table":
-        return f"Found your results: a table ({where}, {answers})"
-    return f"Found your eval tool: {find.NAMES[found.tool]} ({where}, {answers})"
-
-
-def _one_line(rule: str) -> str:
-    text = " ".join(rule.split())
-    return text if len(text) <= RULE_WIDTH else text[:RULE_WIDTH - 1].rstrip() + "…"
-
-
-def judge_line(found: start.Found) -> str:
-    # DeepEval's metric always: its name says what the judge checks (GEval's own name)
-    parts = [found.metric] if len(found.metrics) > 1 or found.tool == "deepeval" else []
-    if found.models:
-        model = ", ".join(found.models)
-        if found.model_source == start.GIVEN_BY_YOU:
-            model += " (as you told me)"
-        elif found.model_source:
-            model += f" ({found.model_source})"
-    else:
-        model = "model not named in your results (add --judge-model NAME)"
-    parts.append(model)
-    parts.append(f'rule "{_one_line(found.rule)}"' if found.rule
-                 else "its rule is not in the results")
-    return "Your judge: " + ", ".join(parts)
 
 
 def _columns_line(found: start.Found) -> str | None:
@@ -477,22 +458,6 @@ def _notes(found: start.Found) -> list[str]:
     return out
 
 
-def check_lines(found: start.Found, listed: str) -> list[str]:
-    """The free checks: what was found, and where the list of those answers is; then what
-    can change the judge without judgekeeper seeing it."""
-    block = found.check.block() if found.check else None
-    found_problems = judge_check.lines(block)
-    lines = ["Checked first (no AI call):"]
-    if not found_problems:
-        lines.append(f"  {judge_check.EVERY_ANSWER}")
-    else:
-        lines += [f"  {line}" for problem in found_problems for line in problem]
-        if judge_check.has_rows(block):
-            lines.append(f"  List: {listed}")
-    return lines + [f"  {line}" for line in judge_check.setup_lines(found,
-                                                                    judge_setup.of(found))]
-
-
 def tool_version(found: start.Found) -> str | None:
     """The eval tool's version: from its results, else the project's lockfile."""
     return judge_setup.version_of(found)[0]
@@ -524,37 +489,115 @@ def _changed(ws: Workspace, found: start.Found) -> list[str]:
     return judge_setup.changes(saved["setup"], judge_setup.of(found)) if saved else []
 
 
+TOOL_NAMES = {**find.NAMES, "records": "judgekeeper.record() in your code",
+              "mapped": "your own format"}
+
+
+def _read_from(found: start.Found) -> str:
+    """Where the answers were read, in the shape of found_line's brackets."""
+    newest = found.results[0]
+    if found.tool == "mlflow":
+        return f"{found.store}, experiment {quote_arg(found.experiment or '')}"
+    if found.tool == "records":
+        return f"{start._folder_of(newest)}, {_n(len(found.used), 'file')}"
+    if found.tool == "mapped":
+        return newest.rel + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
+    if len(found.used) > 1:
+        return f"{newest.rel} and {_n(len(found.used) - 1, 'older file')}"
+    return newest.rel
+
+
+def _judge_value(found: start.Found) -> str:
+    """The judge after "Judge:": its name when the results hold several, and its model."""
+    parts = [found.metric] if len(found.metrics) > 1 or found.tool == "deepeval" else []
+    if found.models:
+        model = ", ".join(found.models)
+        if found.model_source == start.GIVEN_BY_YOU:
+            model += " (as you said)"
+        elif found.model_source:
+            model += f" ({found.model_source})"
+    else:
+        model = "model not named in your results (add --judge-model NAME)"
+    return ", ".join([*parts, model])
+
+
+def _rule_file(found: start.Found) -> str | None:
+    """The file the judge's rule comes from, when judgekeeper knows it."""
+    if found.tool == "promptfoo":
+        return next((n for n in find.PROMPTFOO_CONFIGS if (Path(found.root) / n).is_file()),
+                    None)
+    return found.task_file if found.tool == "inspect" else None
+
+
+def _rule_lines(found: start.Found) -> list[str]:
+    if not found.rule:
+        return ["Judge rule:  not in your results"]
+    text = " ".join(found.rule.split())
+    if len(text) <= RULE_SHOWN:
+        return [f'Judge rule:  "{text}"']
+    where = _rule_file(found)
+    return [f'Judge rule:  "{text[:RULE_SHOWN - 1].rstrip()}…"',
+            f"{INDENT}(shortened{f'; full rule in {where}' if where else ''})"]
+
+
+def found_block(found: start.Found) -> list[str]:
+    """Screen 1's "Find" block: the eval tool, the answers, the judge and its rule."""
+    answers = found.check.answers if found.check else len(found.pool.answers)
+    tool = TOOL_NAMES.get(found.tool, found.tool)
+    if found.tool == "table":  # named by its kind: "your own CSV file"
+        tool = f"your own {Path(found.results[0].rel).suffix.lstrip('.').upper()} file"
+    lines = [f"Eval tool:   {tool}",
+             f"Answers:     {_n(answers, 'answer')} from your app, each graded by your judge",
+             f"{INDENT}(read from {_read_from(found)})",
+             f"Judge:       {_judge_value(found)}", *_rule_lines(found)]
+    if found.pass_mark:
+        lines.append(f"Pass mark:   {start._pass_mark_words(found.pass_mark)}")
+    return lines
+
+
+def _free_check(talk: FrontTalk, found: start.Found, listed: str) -> None:
+    """The free checks, each a paragraph: what was found, where its list is, then what can
+    change the judge without judgekeeper seeing it."""
+    block = found.check.block() if found.check else None
+    findings = [" ".join(f) for f in judge_check.lines(block)]
+    if not findings:
+        talk.para(FREE_CHECK + EVERY_ANSWER)
+    for i, finding in enumerate(findings):
+        talk.para(FREE_CHECK + finding[:1].lower() + finding[1:] if i == 0 else finding)
+    if findings and judge_check.has_rows(block):
+        talk.para(f"The list is in {listed}.")
+    for line in judge_check.setup_lines(found, judge_setup.of(found)):
+        talk.para(line)
+
+
 def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | None,
          wait: bool) -> int:
-    """Found, no marking started: what was found and the free checks, then the page."""
+    """Found, no marking started: Screen 1's "Find" block and the free checks, then the
+    page."""
     listed = _listed(found)
-    talk.say(found_line(found))
+    for line in found_block(found):
+        talk.say(line)
     if found.tool == "table":
-        talk.say(_columns_line(found) or "")
+        talk.para(_columns_line(found) or "")
     if found.tool == "mapped" and mapped is None:
         saved = start._saved(found.root)
         if saved is not None and saved.map:
-            talk.say(_map_line(saved))
-    talk.say(judge_line(found))
-    if found.pass_mark:
-        talk.say(f"Pass mark: {start._pass_mark_words(found.pass_mark)}.")
+            talk.para(_map_line(saved))
+    talk.say()
     pool = found.pool
     if pool.answers:
-        talk.say(f"Your judge passed {pool.n_pass} and failed {pool.n_fail}.")
+        talk.say(f"Your judge's grades: {pool.n_pass} Pass, {pool.n_fail} Fail.")
     for note in _notes(found):
-        talk.say(note)
-    talk.say()
-    for line in check_lines(found, listed):
-        talk.say(line)
+        talk.para(note)
+    _free_check(talk, found, listed)
     if not pool.answers:
         talk.ask_noted()
         _write(found)
         talk.say()
-        talk.say("No answer has a clear Pass or Fail from your judge, so there is nothing to "
-                 "mark.")
-        raise talk.stop(EXIT_OK, f"nothing. Tell the person their judge made no real decision "
-                                 f"on any answer (the list is in {listed}); run judgekeeper "
-                                 "again after their next eval run.")
+        talk.para("No answer has a clear Pass or Fail from your judge, so there is nothing to "
+                  "mark.")
+        raise talk.stop(EXIT_OK, NO_DECISION.format(listed=f" (the list is in {listed})",
+                                                    command=talk.command()))
     new = _to_save(talk, found, mapped)
     talk.ask_noted()  # without a terminal, nothing is written before they are answered
     _write(found)
@@ -562,13 +605,12 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     n = len(pool.answers)
     if n < start.MIN_POOL:
         talk.say()
-        talk.say(f"You have {_n(n, 'answer')} with a clear verdict. A first result needs at "
-                 f"least {start.ROUGH} you mark Pass and {start.ROUGH} you mark Fail.")
+        talk.para(f"You have {_n(n, 'answer')} with a clear grade. That is not enough answers "
+                  "for a first result.")
         raise talk.stop(EXIT_QUESTION, (
-            "ask the person whether to make more answers with their eval first (that makes "
-            f"model calls), then run `{talk.command()}` again; or to mark "
-            f"{'this one' if n == 1 else f'these {n}'} now: run "
-            f"`{_command_of(talk, saved, 'mark')}`."))
+            "run your eval to make more answers first (that makes model calls), then run "
+            f"`{talk.command()}` again; or mark {'this one' if n == 1 else f'these {n}'} now "
+            f"with `{_command_of(talk, saved, 'mark')}`."))
     talk.say()
     return _marking(talk, Workspace(found.root), found, wait, saved, marking=False, first=True)
 
@@ -620,9 +662,9 @@ def _to_save(talk: FrontTalk, found: start.Found,
             return None
         _write(found)
         talk.say("Nothing was saved.")
-        raise talk.stop(EXIT_OK, f"nothing. Tell the person judgekeeper reads {mapped.file} "
-                                 f"only once judgekeeper.toml says how; run {program()} again to "
-                                 "save it.")
+        raise talk.stop(EXIT_OK, f"nothing. judgekeeper reads {mapped.file} only once "
+                                 f"judgekeeper.toml says how; run `{program()}` again to save "
+                                 "it.")
     return new
 
 
@@ -636,8 +678,8 @@ def _save(talk: FrontTalk, found: start.Found, new: settings.StartSettings,
         talk.say(f"{e}. Add this to {settings.FILE} yourself:")
         for line in settings.render(new).splitlines():
             talk.say(f"  {line}")
-        raise talk.stop(EXIT_QUESTION, f"ask the person to add the lines above to "
-                                       f"{settings.FILE}, then run `{program()}` again.") from None
+        raise talk.stop(EXIT_QUESTION, f"add the lines above to {settings.FILE}, then run "
+                                       f"`{program()}` again.") from None
     talk.say(f"Saved {settings.FILE} (where your judge's results are and how to read them).")
     if made:  # judgekeeper.toml keeps the judge, its model and pass mark now
         for name in ("metric", "pass_if", "judge_model"):
@@ -657,15 +699,13 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
     why = _why_start_over(talk, ws, found)
     if not found.pool.answers and (why is not None or not ws.start.is_file()):
         talk.ask_noted()
-        talk.say("No answer has a clear Pass or Fail from your judge, so there is nothing to "
-                 "mark.")
-        raise talk.stop(EXIT_OK, "nothing. Tell the person their judge made no real decision "
-                                 f"on any answer; run {program()} again after their next eval "
-                                 "run.")
+        talk.para("No answer has a clear Pass or Fail from your judge, so there is nothing to "
+                  "mark.")
+        raise talk.stop(EXIT_OK, NO_DECISION.format(listed="", command=program()))
     over = why is not None
     if over:
         for line in why:
-            talk.say(line)
+            talk.para(line)
         over = talk.confirm(START_OVER, default=True, with_yes=True, hint="")
     talk.ask_noted()  # without a terminal, nothing is written or moved before the answers
     saved = to_save is not None and _save(talk, found, to_save, made=mapped is not None)
@@ -710,40 +750,23 @@ def _ran_again(ws: Workspace, found: start.Found) -> bool:
     return files != list(found.used) or marked != {a.id: a.verdict for a in found.pool.answers}
 
 
-def _marking_line(ws: Workspace, found: start.Found) -> str:
-    """The judge being marked, and its results, in the shape of the first look's judge line:
-    its model, and its name only when the results hold several judges."""
-    data = ws.data()
-    tool = {**find.NAMES, "mapped": "your own format"}.get(data.get("tool"), data.get("tool"))
-    files = ", ".join(data.get("results_files") or []) or "its results"
-    model = (data.get("fingerprint") or {}).get("model") or "model not named"
-    judge = f"{data.get('metric')}, {model}" if len(found.metrics) > 1 else model
-    return f"Marking answers for your judge: {judge} ({tool}, {files})."
-
-
 def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
              marking: bool, first: bool = False) -> int:
-    """The pool (prepared now unless it is there), then the page and the count (output A), or
-    for `judgekeeper` with enough marks the result (output B)."""
+    """The pool (prepared now unless it is there), then the page and the count (Screens 1, 2
+    and 4), or for `judgekeeper` with enough marks the result."""
     if not ws.start.is_file():
         start_label.prepare(found, say=lambda line: None)
     counts = StartSession(ws).counts()
     enough = min(counts["correct"], counts["wrong"]) >= targets.ROUGH
-    head = [] if first or marking or enough else [_marking_line(ws, found)]
+    head = []
     changed = [] if first else _changed(ws, found)
     if changed:
         head.append(JUDGE_CHANGED.format(what=", ".join(changed)))
     elif not first and _ran_again(ws, found):
         head.append(RAN_AGAIN)
-    for line in head:
-        talk.say(line)
-    if head:
-        talk.say()
-    if enough and not marking and keep.is_on(ws):
-        return _status(talk, ws, saved, check=bool(changed))
     if enough and not marking:
-        return _result(talk, ws, found, wait, saved, check=bool(changed))
-    return _page(talk, ws, counts, wait, saved, enough)
+        return _result(talk, ws, found, wait, saved, head, check=bool(changed))
+    return _page(talk, ws, counts, wait, saved, enough, head, marking, first)
 
 
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool) -> tuple[page.Page, str]:
@@ -768,22 +791,45 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool) -> tuple[page
 
 
 def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
-          enough: bool) -> int:
-    """Output A: a new page, opened in the browser, and the count so far."""
-    opened, shown = _open(talk, ws, wait, saved)
-    talk.say("It shows one answer at a time. Your judge's verdict is hidden.")
-    n = counts["correct"] + counts["wrong"]
-    so_far = f"Marked so far: {n} ({counts['correct']} Pass, {counts['wrong']} Fail)." if n \
-        else "Marked so far: 0."
-    needs = ("That is enough for a first result." if enough else
-             f"A first result needs {targets.ROUGH} Pass and {targets.ROUGH} Fail.")
-    talk.say(f"{so_far} {needs}")
-    if opened.server is not None:
-        talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
+          enough: bool, head: list[str], marking: bool, first: bool) -> int:
+    """Step 2: the count so far and the page, opened in the browser (its link printed with
+    --no-browser). `judgekeeper` again before a first result keeps a page that is still open
+    (its tab still works); `mark` always opens a new one."""
+    n_pass, n_fail = counts["correct"], counts["wrong"]
+    n = n_pass + n_fail
+    items = StartSession(ws).items
+    command = _command_of(talk, saved)
+    if marking and n and n == len(items):
+        talk.say(f"You have marked all {_n(n, 'answer')}. There are no more to mark.")
+        talk.say()
+        talk.para("Next: " + NEXT_ALL_MARKED.format(command=_command_of(talk, saved, "mark")))
+        return EXIT_OK
+    talk.say(STEP.format(n=2, name="Mark (more answers)" if marking and enough else "Mark"))
     talk.say()
-    next_step = NEXT_OPEN if shown == page.BROWSER else NEXT_LINK
-    talk.say("Next: " + next_step.format(command=_command_of(talk, saved)))
-    if opened.server is not None:
+    for line in head:
+        talk.para(line)
+    if head:
+        talk.say()
+    if n:
+        talk.say(f"You have marked {_n(n, 'answer')} so far ({n_pass} Pass, {n_fail} Fail).")
+        if not enough:
+            talk.say(NOT_ENOUGH)
+        talk.say()
+    after = PRECISE if enough else BAR if n else SHOWS
+    opened = None
+    if not first and not marking and not wait and n and is_open(ws.dir):
+        talk.para(f"The marking page is still open in your browser. {after}")
+    else:
+        opened, shown = _open(talk, ws, wait, saved)
+        again = " again" if n and not marking else ""
+        talk.para(f"The marking page is open in your browser{again}. {after}"
+                  if shown == page.BROWSER else after)
+        if opened.server is not None:
+            talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
+    talk.say()
+    next_step = (NEXT_MORE if enough else NEXT_KEEP_MARKING if n else NEXT_MARK)
+    talk.para("Next: " + next_step.format(command=command))
+    if opened is not None and opened.server is not None:
         page.serve(opened.server)
     return EXIT_OK
 
@@ -842,101 +888,49 @@ def _check_command(talk: FrontTalk) -> str:
 
 
 def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
-            check: bool = False) -> int:
-    """Output B: the result from the marks, saved; whether the page is open. `check`: the
+            head: list[str], check: bool = False) -> int:
+    """Step 3: the result from the marks, saved; whether the page is open. `check`: the
     judge changed since the marks, so the Next: line is `judgekeeper check`."""
+    talk.say(STEP.format(n=3, name="Measure"))
+    talk.say()
+    for line in head:
+        talk.para(line)
+    if head:
+        talk.say()
     session = StartSession(ws)
     r = start_label.store_result(ws, session, _command_of(talk, saved, "start"))
     made = r.get("made") or marks.made(marks.read(ws.marks), ids=set(session.by_id))
     for line in made_lines(made):
-        talk.say(line)
+        talk.para(line)
     talk.say()
-    talk.say(_rate("passed", "passed", r["tpr"], r.get("tpr_interval")))
-    talk.say(_rate("failed", "failed", r["tnr"], r.get("tnr_interval")))
+    talk.para(_rate("passed", "passed", r["tpr"], r.get("tpr_interval")))
+    talk.para(_rate("failed", "failed", r["tnr"], r.get("tnr_interval")))
     kappa = "unknown" if r["kappa"] is None else f"{r['kappa']:.2f}"
     talk.say(f"Kappa (agreement beyond chance): {kappa}.")
-    talk.say(verdict_line(r))
+    talk.para(verdict_line(r))
     which = _which_judge(ws, found)
     if which:
-        talk.say(which)
+        talk.para(which)
     talk.say()
     drop = targets.drop_line(r.get("smallest_drop", targets.smallest_drop(
         r["labels"]["correct"], r["labels"]["wrong"])))
     if drop:
-        talk.say(drop)
+        talk.para(drop)
     talk.say(f"Report: {shown_folder(ws)}/{ws.report_html.name}")
-    least = min(r["labels"]["correct"], r["labels"]["wrong"])
-    offer = not check and not wait and not keep.answered(ws) and least >= targets.RELIABLE
-    if not check and keep.answered(ws):
-        talk.say(keep.OFF_LINE.format(command=_check_command(talk) + " --on"))
-    elif not check and least < targets.RELIABLE:
-        talk.say(keep.MARK_MORE)
-    if offer:
-        return _offer(talk, ws, saved)
+    talk.say()
     opened = None
-    if is_open(ws.dir) and page.name_of(ws.dir) != "the marking page":
-        talk.say("The judgekeeper page is still open.")
-    elif is_open(ws.dir):
-        talk.say("The marking page is still open, if they want to mark more.")
+    if is_open(ws.dir):
+        talk.say(STILL_OPEN)
     elif wait:
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
-    talk.say()
-    if check:
-        talk.say("Next: " + NEXT_CHECK.format(command=_check_command(talk)))
     else:
-        talk.say("Next: " + NEXT_RESULT.format(command=_command_of(talk, saved, "mark")))
+        talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
+    talk.say()
+    next_step = NEXT_CHECK if check else NEXT_RESULT
+    talk.para("Next: " + next_step.format(command=_check_command(talk)))
     if opened is not None:
         page.serve(opened.server)
-    return EXIT_OK
-
-
-def open_keep(say, ws: Workspace, port: int, no_browser: bool) -> str | None:
-    """The "Turn on" page in the background, shown (page.show): how it was shown, or None
-    when it could not start (said). Its link is never printed for a coding agent: only the
-    person may answer it (page.NOT_SHOWN, said). On the default port, a free one is found
-    when it is taken."""
-    opened = page.open_new(ws, port, program(), program("start"), view=page.KEEP, say=say)
-    shown = opened and page.show(say, opened, no_browser, wait=False, opened=KEEP_OPEN,
-                                 name="Turn-on page", for_agent=False)
-    if shown == page.NOT_SHOWN:
-        background.stop(ws.dir)
-        say(NO_KEEP_PAGE)
-        return shown
-    if not shown:
-        if opened is not None:
-            background.stop(ws.dir)
-        say(KEEP_FAILED.format(log=f"{shown_folder(ws)}/{background.LOG}"))
-    return shown or None
-
-
-def _offer(talk: FrontTalk, ws: Workspace, saved: bool) -> int:
-    """After a result with enough marks, the first time: the "Turn on" page."""
-    shown = open_keep(talk.say, ws, talk.options["port"], talk.options["no_browser"])
-    talk.say()
-    command = _command_of(talk, saved)
-    if shown is None:
-        talk.say("Next: " + NEXT_RESULT.format(command=_command_of(talk, saved, "mark")))
-    elif shown == page.NOT_SHOWN:
-        talk.say("Next: " + NEXT_TERMINAL.format(command=_check_command(talk) + " --on"))
-    elif shown == page.BROWSER:
-        talk.say("Next: " + NEXT_KEEP.format(command=command))
-    else:
-        talk.say("Next: " + NEXT_KEEP_LINK.format(command=command))
-    return EXIT_OK
-
-
-def _status(talk: FrontTalk, ws: Workspace, saved: bool, check: bool) -> int:
-    """Automatic checks are on: the result is saved (report.html), and the status said; the
-    first time after the click, what it set up instead."""
-    start_label.store_result(ws, StartSession(ws), _command_of(talk, saved, "start"))
-    first = not keep.told(ws) and keep.clicked(ws)  # a file edit gets the status at once
-    lines = keep.tell(ws) if first else keep.status_lines(ws, _check_command(talk))
-    for line in lines:
-        talk.say(line)
-    talk.say()
-    talk.say("Next: " + (NEXT_CHECK.format(command=_check_command(talk)) if check
-                         else keep.NEXT_SET_UP if first else NEXT_STATUS))
     return EXIT_OK
 
 
@@ -947,17 +941,17 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     ws = Workspace(start_again._project(path))
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
-        raise talk.stop(EXIT_OK, f"nothing. Run `{talk.command()}` to open it.")
-    name = page.name_of(ws.dir)
-    if not background.stop(ws.dir):
-        talk.say(f"{name[:1].upper()}{name[1:]} did not close.")
-        raise talk.stop(EXIT_QUESTION, "ask the person to close it with Ctrl-C in the terminal "
-                                       "it runs in; else it closes by itself after 30 minutes "
-                                       "without a click.")
-    saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
-    talk.say(f"Closed {name}.{saved}")
-    raise talk.stop(EXIT_OK, f"nothing. Run `{talk.command()}` to open it again.")
+    elif not background.stop(ws.dir):
+        talk.say("The marking page did not close.")
+        raise talk.stop(EXIT_QUESTION, "close it with Ctrl-C in the terminal it runs in; else "
+                                       "it closes by itself after 30 minutes without a click.")
+    else:
+        saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
+        talk.say(f"Closed the marking page.{saved}")
+    talk.say()
+    talk.para("Next: " + NEXT_CONTINUE.format(command=talk.command()))
+    return EXIT_OK
 
 
-__all__ = ["EXIT_NEEDS_YOU", "FrontTalk", "answered", "check_lines", "find_found", "found_line",
-           "go", "judge_line", "run", "tool_version", "verdict_line"]
+__all__ = ["EXIT_NEEDS_YOU", "FrontTalk", "answered", "find_found", "found_block", "go", "run",
+           "tool_version", "verdict_line"]

@@ -51,11 +51,9 @@ from judgekeeper.start_label import (
 )
 
 # Not part of a check: .gitignore, baseline.json (set by `baseline set`), records/
-# (judgekeeper.record()); and what `judgekeeper check` keeps across marks: history.jsonl, the
-# verdicts of each judge setup (verdicts/) and how many checks asked the judge
-# (check-calls.json)
-KEPT = (".gitignore", "baseline.json", "records", "history.jsonl", "verdicts",
-        "check-calls.json", "checks.json", "checks-told.txt")
+# (judgekeeper.record()); and what `judgekeeper check` keeps across marks: history.jsonl and
+# the verdicts of each judge setup (verdicts/)
+KEPT = (".gitignore", "baseline.json", "records", "history.jsonl", "verdicts")
 PREVIOUS = "previous-"
 
 

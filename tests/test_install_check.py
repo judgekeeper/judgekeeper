@@ -58,7 +58,7 @@ def test_question_numbers_come_from_any_shape(ic):
 def test_the_stand_in_person_marks_25_pass_and_25_fail(ic):
     marks = [ic.person_mark({"input": ic.quiz(i)[0], "output": ic.quiz(i)[1]})
              for i in range(1, ic.N + 1)]
-    assert marks.count("pass") == 25 and marks.count("fail") == 25  # enough to turn on checks
+    assert marks.count("pass") == 25 and marks.count("fail") == 25
     # It disagrees with the judge on 9 answers: 23-28 the judge passed, 31-33 it failed.
     judge = ["pass" if i in ic.JUDGE_PASSES else "fail" for i in range(1, ic.N + 1)]
     assert [i + 1 for i, (m, j) in enumerate(zip(marks, judge)) if m != j] == [
@@ -220,26 +220,25 @@ def test_with_uvx_the_project_has_no_virtual_environment(ic, tmp_path):
 
 
 def test_the_marking_page_link_is_read_from_the_output(ic):
-    out = ("Marking page: http://127.0.0.1:54321/?token=Ab-c_9\n"
-           "It shows one answer at a time. Your judge's verdict is hidden.")
+    out = ("Open this link in your browser to mark answers:\n"
+           "http://127.0.0.1:54321/?token=Ab-c_9\n"
+           "It shows the same answers one at a time.")
     assert ic.page_link(out) == ("http://127.0.0.1:54321", "Ab-c_9")
 
 
 def _walk(ic, monkeypatch, tool, project, jk=None):
     """The walk with every command faked: (the commands run, with what each must print), the
-    page calls, and the steps. The fake browser got the Turn on page's link."""
+    page calls, and the steps."""
     check = object.__new__(ic.Check)
     check.tool, check.jk, check.port, check.steps = tool, jk or ["jk"], "5", []
     check.via = "uvx" if jk else "venv"
     check.version = "1.0.0"
     check.project = project
     ran, posted = [], []
-    links = project / "links.txt"
-    links.write_text("http://127.0.0.1:6/?token=k33p\n", encoding="utf-8")
 
     class Done:
         returncode = 0
-        stdout = "Marking page: http://127.0.0.1:5/?token=t0k\n"
+        stdout = "Open this link in your browser to mark answers:\nhttp://127.0.0.1:5/?token=t0k\n"
 
     def run(name, args, ok_codes=(0,), expect=(), **kwargs):
         args = [str(a) for a in args]
@@ -249,8 +248,6 @@ def _walk(ic, monkeypatch, tool, project, jk=None):
 
     def call(base, token, path, body=None):
         posted.append((base, token, path, body))
-        if path == "/turn-on":
-            return {"phase": "done", "lines": ["Keeping watch. Your marks stay here."]}
         if path == "/state":
             return {"items": [{"id": "a", "input": "Question 1: what is 1 + 1?"},
                               {"id": "b", "input": "Question 40: what is 40 + 40?"}],
@@ -261,41 +258,34 @@ def _walk(ic, monkeypatch, tool, project, jk=None):
     monkeypatch.setattr(check, "call", call, raising=False)
     for name in ("make_results", "serve", "fix_rule", "plan_then_go"):
         monkeypatch.setattr(check, name, lambda *a, **k: True, raising=False)
-    monkeypatch.setattr(check, "fake_browser", lambda: ({"BROWSER": "b"}, links), raising=False)
     check.walk()
     return ran, posted, check.steps
 
 
 def _front(ic, commands):
-    """The commands up to `--stop`: `judgekeeper` runs, then `check --fast` runs."""
+    """The commands up to `--stop` (`judgekeeper` runs only), and those after it."""
     end = commands.index(["--stop"])
-    fronts = [c for c in commands[:end] if c[:1] != ["check"]]
-    fast = [c for c in commands[:end] if c[:1] == ["check"]]
-    assert fast == [["check", "--fast"]] * ic.FAST_RUNS
+    fronts = commands[:end]
+    assert not [c for c in fronts if c[:1] == ["check"]]
     return fronts, commands[end + 1:]
 
 
-def test_the_walk_goes_through_judgekeeper_and_turns_on_checks(ic, monkeypatch, tmp_path):
+def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
     """`judgekeeper` (found, checked, the page in the background, its link printed: no
-    browser), the stand-in person's marks posted to it, `judgekeeper` with the result and the
-    Turn on page (its link only in the fake browser), Turn on clicked with that page's token,
-    the status, `check --fast` timed, then `judgekeeper --stop`, before `judgekeeper start`
-    takes over the result."""
+    browser), the stand-in person's marks posted to it, `judgekeeper` with the result, then
+    `judgekeeper --stop`, before `judgekeeper start` takes over the result. No page turns on
+    automatic checks."""
     ran, posted, steps = _walk(ic, monkeypatch, "table", tmp_path)
     fronts, after = _front(ic, [args for args, _ in ran])
-    assert fronts == [["--no-browser", "--port", "5"], ["--port", "5"],
-                      ["--no-browser", "--port", "5"], ["--no-browser", "--port", "5"]]
+    assert fronts == [["--no-browser", "--port", "5"], ["--no-browser", "--port", "5"]]
     assert after[0][:1] == ["start"]
     first = " ".join(ran[0][1])
-    assert "Marking page" in first and "Your judge passed 28 and failed 22" in first
+    assert "Open this link" in first and "Your judge's grades: 28 Pass, 22 Fail" in first
     result = " ".join(ran[1][1])
     assert "Of the answers you passed" in result and "25 Fail" in result
-    assert "turns on automatic checks is open in your browser" in result
-    assert ("http://127.0.0.1:6", "k33p", "/turn-on", {"allow_agent_judge": False}) in posted
-    assert "Keeping watch" in " ".join(ran[2][1])
-    assert "Automatic checks: ON since" in " ".join(ran[3][1])
-    names = [name for name, *_ in steps]
-    assert "2. Turn on, clicked on the page with its token" in names
+    assert "automatic" not in result.lower()
+    assert not [path for _, _, path, _ in posted if path in ("/turn-on", "/no-thanks")]
+    assert not [name for name, *_ in steps if "Turn on" in name]
     labels = [body for _, _, path, body in posted if path == "/label"]
     assert [(b["id"], b["label"]) for b in labels] == [("a", "pass"), ("b", "fail")]
     assert all(isinstance(b["seconds"], (int, float)) for b in labels)
@@ -308,32 +298,31 @@ def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tm
     ran, _, steps = _walk(ic, monkeypatch, "own-format", tmp_path)
     fronts, _ = _front(ic, [args for args, _ in ran])
     assert fronts[0] == ["--yes", "--no-browser", "--port", "5"]
-    assert fronts[1:] == [["--port", "5"], ["--no-browser", "--port", "5"],
-                          ["--no-browser", "--port", "5"]]
+    assert fronts[1:] == [["--no-browser", "--port", "5"]]
     first = " ".join(ran[0][1])
     assert "Saved judgekeeper" in first and re.escape("my-judge-1") in first
-    assert "Your judge passed 28 and failed 22" in first and "Marking page" in first
+    assert "Your judge's grades: 28 Pass, 22 Fail" in first and "Open this link" in first
     assert ("judgekeeper.toml saved", True) in [(name, ok) for name, ok, *_ in steps]
 
 
-def test_the_walk_ends_with_the_re_check_and_off(ic, monkeypatch, tmp_path):
-    """With the new rule in the results: `check --fast` exits 3, `check` re-tests it on the
-    marks, `check --off` takes out the hooks."""
+def test_the_walk_ends_with_the_re_check(ic, monkeypatch, tmp_path):
+    """With the new rule in the results: `check --yes` (the person's yes to any calls, with no
+    terminal) re-tests it on the marks; no flag of the automatic checks is run."""
     ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path)
-    assert [args for args, _ in ran][-3:] == [["check", "--fast"], ["check"],
-                                              ["check", "--off"]]
-    assert any("Re-checked on" in e for e in ran[-2][1])
-    assert any("Automatic checks: OFF" in e for e in ran[-1][1])
+    commands = [args for args, _ in ran]
+    assert [c for c in commands if c[:1] == ["check"]] == [["check", "--yes"]]
+    assert commands[-1] == ["check", "--yes"]
+    assert any("Re-checked on" in e for e in ran[-1][1])
 
 
 def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_path):
     jk = ["uvx", "--from", "w.whl", "judgekeeper"]
     ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path, jk=jk)
     fronts, after = _front(ic, [args for args, _ in ran])
-    assert fronts[0] == ["--no-browser", "--port", "5"] and len(fronts) == 4
+    assert fronts[0] == ["--no-browser", "--port", "5"] and len(fronts) == 2
     assert after[0][:1] == ["start"]
     first, result = " ".join(ran[0][1]), " ".join(ran[1][1])
-    assert "Next: .*`uvx judgekeeper@" in first and "Next: .*`uvx judgekeeper@" in result
+    assert "Next: [^`]*`uvx judgekeeper@" in first and "Next: [^`]*`uvx judgekeeper@" in result
 
 
 def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch, tmp_path):

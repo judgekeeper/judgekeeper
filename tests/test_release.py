@@ -59,21 +59,11 @@ def test_no_pytest_plugin_and_no_api_extras():
     assert not (ROOT / "packages").exists()
 
 
-def test_the_action_runs_check_fast_or_full():
-    action = yaml.safe_load((ROOT / "action.yml").read_text(encoding="utf-8"))
-    assert action["runs"]["using"] == "composite"
-    assert set(action["inputs"]) == {"mode", "path", "python-version", "version"}
-    assert action["inputs"]["mode"]["default"] == "fast"
-    text = (ROOT / "action.yml").read_text(encoding="utf-8")
-    assert "judgekeeper check" in text and "--fast" in text and "--ci" in text
-    assert "secrets." not in text  # the key is the calling workflow's, set in its env
-
-
-def test_ci_runs_the_action_from_this_checkout():
-    job = _workflow("ci.yml")["jobs"]["action"]
-    uses = [s.get("uses") for s in job["steps"]]
-    assert uses.count("./") == 3
-    assert "tests/fixtures/action" in _steps_text(job)
+def test_there_is_no_github_action():
+    """1.0 is commands a person runs: no action.yml, its fixtures or its CI job."""
+    assert not (ROOT / "action.yml").exists()
+    assert not (ROOT / "tests" / "fixtures" / "action").exists()
+    assert "action" not in _workflow("ci.yml")["jobs"]
 
 
 def test_changelog_leads_with_this_version():
@@ -256,7 +246,7 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     _build_pages(tmp_path)
     assert (tmp_path / "index.html").read_bytes() == (ROOT / "website" / "index.html").read_bytes()
     assert not (tmp_path / "examples.html").exists()
-    for page in ("start.html", "assistant.html", "learn.html", "setup.html",
+    for page in ("start.html", "learn.html", "setup.html",
                  "reference.html", "llms.txt", "assets/style.css"):
         assert (tmp_path / page).is_file(), page
     assert not (tmp_path / "README.md").exists()
@@ -279,15 +269,19 @@ def _guide() -> str:
     return (ROOT / "docs" / "guide.md").read_text(encoding="utf-8")
 
 
-def test_changelog_entry_says_what_keeps_checking():
+def test_changelog_entry_says_1_0_is_commands_you_run():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entry = text[text.index(f"## {VERSION}"):text.index("## 1.0.0b1")]
     assert len(entry.strip().splitlines()) < 20
     flat = " ".join(entry.split())
+    removed = ("Removed: automatic checks, the GitHub Action and the agent skill. 1.0 is "
+               "commands you run yourself; agent support may come back later.")
     for needed in (f"`uvx judgekeeper@{VERSION}`", f"`pip install judgekeeper=={VERSION}`",
-                   "`judgekeeper check`", "`judgekeeper check --off`", "Only your click",
-                   "History", "`action.yml`", "`mode: fast`", "`mode: full`", "skill"):
+                   "`judgekeeper check`", "History", "asks first",
+                   "Find. Mark. Measure. Fix. Re-check.", removed):
         assert needed in flat, needed
+    for gone in ("--off", "Only your click", "action.yml", "mode: fast", "hook"):
+        assert gone not in flat, gone
 
 
 def test_changelog_entry_says_what_changed_since_0_1_3():
@@ -321,8 +315,7 @@ def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert f"\nuvx judgekeeper@{VERSION}\n" in readme
     assert f"\npip install judgekeeper=={VERSION}\n" in readme
-    assert f"Run `uvx judgekeeper@{VERSION}` in this project and follow what it says." in readme
-    assert "skills/judgekeeper/SKILL.md" in readme and "beta" in readme
+    assert "beta" in readme
     for gone in ("judgekeeper start", "judgekeeper demo", "before the first PyPI release"):
         assert gone not in readme, gone
     for needed in ("TPR", "TNR", "kappa"):
@@ -331,12 +324,11 @@ def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
 
 def test_every_install_command_names_the_version_in_pyproject():
     """uv and pip skip betas unless the version is named: `uvx judgekeeper` and `pip install
-    judgekeeper` would get 0.1.3. README, SKILL.md and the changelog's newest entry name the
+    judgekeeper` would get 0.1.3. README and the changelog's newest entry name the
     exact version in pyproject.toml, so the next beta can't forget it."""
     version = _toml(ROOT / "pyproject.toml")["project"]["version"]
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     texts = {"README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
-             "SKILL.md": (ROOT / "skills/judgekeeper/SKILL.md").read_text(encoding="utf-8"),
              "CHANGELOG.md": changelog[:changelog.index("## ", changelog.index("## ") + 3)]}
     for name, text in texts.items():
         uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", text)
@@ -468,7 +460,7 @@ def test_guide_and_learn_page_quote_the_llmbar_verdict_as_the_report_states_it()
 
 def test_actions_are_pinned_to_commit_hashes():
     """Tags can be moved; a full commit hash cannot."""
-    files = sorted((ROOT / ".github" / "workflows").glob("*.yml")) + [ROOT / "action.yml"]
+    files = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
     for path in files:
         for line in path.read_text(encoding="utf-8").splitlines():
             m = re.search(r"uses:\s*(\S+)", line)
@@ -478,12 +470,13 @@ def test_actions_are_pinned_to_commit_hashes():
             assert re.search(r"#\s*v\d", line), f"{path.name}: no version comment on {line.strip()}"
 
 
-def test_security_policy_says_a_file_edit_can_turn_checks_on():
+def test_security_policy_says_what_judgekeeper_writes_and_that_agents_are_not_supported():
     flat = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
-    for needed in ("cannot prove a person clicked", "`.judgekeeper/checks.json`",
-                   '"turned on by a file edit, not on the page"', "`judgekeeper check --off`",
-                   "never through a link"):
+    for needed in ("writes only inside `.judgekeeper/`", "never edits other tools' settings",
+                   "isn't supported in 1.0", "its own origin"):
         assert needed in flat, needed
+    for gone in ("Turn on", "checks.json", "--off", "page.log", "settings.local.json"):
+        assert gone not in flat, gone
 
 
 def test_security_policy_and_dependabot_exist():

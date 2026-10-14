@@ -549,8 +549,7 @@ def test_no_browser_prints_the_link_only(tmp_path, capsys, clicker):
     code, out, _ = _run(capsys, tmp_path, "--yes", "--no-browser", "--port", "0")
     assert code == 0
     assert clicker["opened"] == []
-    assert ("judgekeeper could not open a browser, so the link is printed here, where your "
-            "coding agent can read it.") in out
+    assert "judgekeeper could not open a browser, so the link is printed here." in out
     assert "Open this link in your browser: http://127.0.0.1:" in out
     assert "Opened in your browser" not in out
     lines = (tmp_path / ".judgekeeper" / "marks.jsonl").read_text(encoding="utf-8")

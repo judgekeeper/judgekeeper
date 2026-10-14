@@ -1,5 +1,0 @@
-# judgekeeper's files hold your app's answers. Commit them only if your data may live here.
-*
-!.gitignore
-!judge.json
-!history.jsonl

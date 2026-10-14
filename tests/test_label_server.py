@@ -62,10 +62,16 @@ class Client:
     def __init__(self, server):
         self.server = server
 
-    def request(self, method, path, body=None, token=True, host=None):
+    def request(self, method, path, body=None, token=True, host=None, origin=True,
+                headers=None):
+        """As the page's own script sends it: a POST carries the page's Origin (`origin`
+        False leaves it out); `headers` adds or replaces headers."""
         if token:
             path += ("&" if "?" in path else "?") + f"token={self.server.token}"
-        headers = {"Host": host or f"127.0.0.1:{self.server.port}"}
+        own = {"Host": host or f"127.0.0.1:{self.server.port}"}
+        if method == "POST" and origin:
+            own["Origin"] = f"http://127.0.0.1:{self.server.port}"
+        headers = {**own, **(headers or {})}
         data = None
         if body is not None:
             data = json.dumps(body).encode()
@@ -158,6 +164,63 @@ def test_host_header_must_be_the_bound_address(tmp_path, serve, host):
     resp, _ = client.request("POST", "/label", {"id": "it0", "label": "pass"}, host=host)
     assert resp.status == 403
     assert not out.exists()
+
+
+@pytest.mark.parametrize("headers", [
+    {}, {"Origin": "http://evil.example"}, {"Origin": "null"},
+    {"Origin": "http://127.0.0.1:{other}"}, {"Origin": "https://127.0.0.1:{port}"},
+    {"Origin": "http://127.0.0.1:{port}", "Sec-Fetch-Site": "cross-site"},
+    {"Origin": "http://127.0.0.1:{port}", "Sec-Fetch-Site": "same-site"}])
+def test_a_post_needs_the_pages_own_origin(tmp_path, serve, headers):
+    """Only the page's own script can mark: a POST from anything else (another site, a script
+    with the link) is refused, even with the token."""
+    out = tmp_path / "labels.csv"
+    client = serve(_items(tmp_path), out)
+    port = client.server.port
+    headers = {k: v.format(port=port, other=port + 1) for k, v in headers.items()}
+    resp, payload = client.request("POST", "/label", {"id": "it0", "label": "pass"},
+                                   origin=False, headers=headers)
+    assert resp.status == 403
+    assert json.loads(payload) == {"error": "only the marking page in your browser can "
+                                            "send this"}
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("headers", [
+    {"Origin": "http://127.0.0.1:{port}"}, {"Origin": "http://localhost:{port}"},
+    {"Origin": "http://127.0.0.1:{port}", "Sec-Fetch-Site": "same-origin"}])
+def test_the_pages_own_origin_may_post(tmp_path, serve, headers):
+    out = tmp_path / "labels.csv"
+    client = serve(_items(tmp_path), out)
+    headers = {k: v.format(port=client.server.port) for k, v in headers.items()}
+    resp, _ = client.request("POST", "/label", {"id": "it0", "label": "pass"}, origin=False,
+                             headers=headers)
+    assert resp.status == 200
+    assert _read(out)[0]["human_label"] == "pass"
+
+
+def test_every_post_the_pages_send_keeps_their_origin():
+    """The pages are served with Referrer-Policy: no-referrer, under which a browser sends
+    `Origin: null` with a POST; each POST asks for the same-origin policy, so the server sees
+    the page's own origin."""
+    import re
+
+    from judgekeeper import start_page
+
+    source = Path(start_page.__file__).read_text(encoding="utf-8")
+    posts = re.findall(r'fetch\([^)]*\), \{\s*method: "POST".*?body:', source, re.DOTALL)
+    assert len(posts) >= 4
+    for post in posts:
+        assert 'referrerPolicy: "same-origin"' in post, post
+
+
+def test_the_cli_sends_the_pages_origin(tmp_path, serve):
+    """judgekeeper's own requests (--stop, the printed-link stamp) pass the same check."""
+    from judgekeeper.label import ask
+
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    assert ask(client.server.port, "POST", "/stop", {"token": client.server.token}, body={}) \
+        == 200
 
 
 @pytest.mark.parametrize("method", ["OPTIONS", "PUT", "DELETE", "PATCH", "HEAD", "TRACE"])

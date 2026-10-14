@@ -1,4 +1,4 @@
-"""`judgekeeper mark` starts the page as its own process and returns, so a coding agent's shell
+"""`judgekeeper mark` starts the page as its own process and returns, so the shell
 does not wait on it. Run for real here (CI runs it on Linux, macOS and Windows): the command
 returns, the page answers with its token, a mark posted lands in marks.jsonl (stamped: the
 link was printed with no terminal), a second `mark` replaces the page, and `mark --stop`
@@ -22,7 +22,8 @@ from judgekeeper import background, label
 from tests.page_http import retried
 from tests.start_projects import promptfoo_project, split
 
-LINK = re.compile(r"^Marking page: (http://127\.0\.0\.1:(\d+)/\?token=([\w-]+))$", re.MULTILINE)
+LINK = re.compile(r"^Open this link in your browser to mark answers:\n"
+                  r"(http://127\.0\.0\.1:(\d+)/\?token=([\w-]+))$", re.MULTILINE)
 
 
 def alive(pid: int) -> bool:
@@ -60,7 +61,8 @@ def jk(project: Path, *args: str, timeout: float = 60) -> subprocess.CompletedPr
 def call(base: str, token: str, path: str, body=None):
     req = urllib.request.Request(f"{base}{path}?token={token}",
                                  data=None if body is None else json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers={"Content-Type": "application/json",
+                                          "Origin": base})  # as the page sends it
 
     def send():
         with urllib.request.urlopen(req, timeout=10) as r:
@@ -114,12 +116,12 @@ def test_mark_runs_the_page_in_the_background(project):
     lines = (folder / "marks.jsonl").read_text(encoding="utf-8").splitlines()
     last = json.loads(lines[-1])
     assert (last["id"], last["mark"], last["by"], last["seconds"]) == (item, "pass", "page", 3)
-    assert last["link"] == "printed"  # the link was printed where an agent reads it
+    assert last["link"] == "printed"  # the link was printed with no terminal
 
     second = jk(project, "mark", "--port", "0", "--no-browser")
     assert second.returncode == 0, second.stdout + second.stderr + page_log(project)
     assert LINK.search(second.stdout)[1] != url  # the open page was replaced
-    assert "Marked so far: 1 (1 Pass, 0 Fail)." in second.stdout
+    assert "You have marked 1 answer so far (1 Pass, 0 Fail)." in second.stdout
     new_pid = json.loads((folder / label.LOCK).read_text(encoding="utf-8"))["pid"]
     assert new_pid != pid
     deadline = time.monotonic() + 10

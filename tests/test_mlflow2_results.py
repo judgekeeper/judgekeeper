@@ -46,5 +46,7 @@ def test_judge_scores_from_mlflow_evaluate_are_named_and_not_read(here, capsys):
             "faithfulness/v1). judgekeeper reads judges run with mlflow.genai.evaluate() and "
             "scorers (MLflow 3). Reading these older results isn't supported.") in out
     assert "no MLflow experiment" not in out + err
-    assert assert_one_next_at_the_end(out).startswith("Next: tell the person ")
+    assert assert_one_next_at_the_end(out) == (
+        "Next: run your judge with mlflow.genai.evaluate() and scorers, then run `judgekeeper` "
+        "again.")
     assert code == 3

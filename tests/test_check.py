@@ -1,7 +1,7 @@
 """`judgekeeper check`: when the judge's setup changed since the last check, re-test the new
 judge on the person's marks. Free first (marked answers whose exact text is in the newest
-results), then, only with automatic checks on, the person's own judge is asked about the
-rest; a one-sided paired test per group; a history line; exit 0, 1 (worse) or 3.
+results), then, only after the person's yes, the person's own judge is asked about the rest;
+a one-sided paired test per group; a history line; exit 0, 1 (worse) or 3.
 
 No test calls a paid API or needs promptfoo: asking again goes through the fake promptfoo of
 test_again_run.
@@ -11,8 +11,6 @@ from __future__ import annotations
 
 import json
 import re
-import socket
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -117,12 +115,6 @@ def judge(monkeypatch, here):
     return holder
 
 
-def _on(ws, **extra):
-    data = {"on": True, "since": "2026-10-12T08:00:00Z", "sitting": "s1",
-            "allow_agent_judge": False, "added": [], **extra}
-    _write(ws.dir / "checks.json", data)
-
-
 def run(capsys, *argv, stdin=None, monkeypatch=None):
     code = main(["check", *argv])
     out, err = capsys.readouterr()
@@ -143,80 +135,17 @@ def _history(ws):
 
 
 def _next(out: str) -> str:
-    return [x for x in out.splitlines() if x.startswith("Next:")][-1]
+    from tests.test_front import next_lines
+
+    return next_lines(out)[-1]
 
 
-# --fast -------------------------------------------------------------------------------------
-
-def test_fast_without_enough_marks_says_nothing(here, capsys):
-    _marked(here, n_pass=10, n_fail=25)
-    _results(here, MARKED, model=HAIKU)
-    assert run(capsys, "--fast") == (0, "")
+def _flat(out: str) -> str:
+    """The output with its wrapping undone."""
+    return " ".join(out.split())
 
 
-def test_fast_without_judgekeeper_says_nothing(here, capsys):
-    _results(here, MARKED)
-    assert run(capsys, "--fast") == (0, "")
-    assert not (here / ".judgekeeper").exists()
-
-
-def test_fast_with_the_same_judge_is_silent(here, capsys):
-    _marked(here)
-    _results(here, MARKED, created="2026-10-13T09:00:00Z")  # another run, the same judge
-    assert run(capsys, "--fast") == (0, "")
-
-
-def test_fast_says_one_line_in_a_terminal(here, capsys, monkeypatch):
-    _marked(here)
-    monkeypatch.setattr(check, "_terminal", lambda: True)
-    assert run(capsys, "--fast") == (0, "judgekeeper: your judge matches your marks.\n")
-
-
-def test_fast_names_the_change_and_exits_3(here, capsys, no_calls):
-    _marked(here)
-    _results(here, LENIENT, model=HAIKU)
-    code, out = run(capsys, "--fast")
-    assert code == 3
-    assert out == (f"Your judge changed: model {MODEL} -> {HAIKU}.\n"
-                   "Next: run `judgekeeper check`.\n")
-
-
-def test_fast_sees_a_version_bump_only(here, capsys):
-    _marked(here)
-    _results(here, MARKED, version="0.125.0")
-    code, out = run(capsys, "--fast")
-    assert code == 3
-    assert out.splitlines()[0] == "Your eval tool changed: promptfoo 0.124.1 -> 0.125.0."
-
-
-def test_fast_says_when_the_config_is_newer_than_the_results(here, capsys):
-    _marked(here)
-    config = here / "promptfooconfig.yaml"
-    later = (here / "results.json").stat().st_mtime + 60
-    config.write_text("description: support bot\n# a new rubric\n", encoding="utf-8")
-    import os
-
-    os.utime(config, (later, later))
-    code, out = run(capsys, "--fast")
-    assert code == 0
-    assert out == ("Your judge's config changed after your last eval run; judgekeeper "
-                   "re-checks it after the next one.\n")
-
-
-def test_fast_is_fast_and_uses_no_network(here, capsys, monkeypatch):
-    _marked(here, n_pass=250, n_fail=250)
-
-    def no_network(*args, **kwargs):
-        raise AssertionError("a network call")
-
-    monkeypatch.setattr(socket, "socket", no_network)
-    monkeypatch.setattr(socket, "create_connection", no_network)
-    began = time.perf_counter()
-    assert run(capsys, "--fast") == (0, "")
-    assert time.perf_counter() - began < 1.0
-
-
-# --fast and --hook remember the setup of the results they read --------------------------------
+# check remembers the setup of the results it read ------------------------------------------
 
 def _no_reading(monkeypatch):
     """Reading the results (and with them inspect_ai or mlflow) fails the test."""
@@ -226,82 +155,40 @@ def _no_reading(monkeypatch):
     monkeypatch.setattr(start, "find_judge", refuse)
 
 
-def test_fast_remembers_the_setup_and_reads_nothing_next_time(here, capsys, monkeypatch):
+def test_check_remembers_the_setup_and_reads_nothing_next_time(here, capsys, monkeypatch):
     _marked(here)
-    assert run(capsys, "--fast") == (0, "")
+    assert run(capsys)[0] == 0
     assert (here / ".judgekeeper" / check.SEEN).is_file()
     _no_reading(monkeypatch)
-    assert run(capsys, "--fast") == (0, "")
-    monkeypatch.setattr(check, "_terminal", lambda: True)
-    assert run(capsys, "--fast") == (0, check.MATCHES + "\n")
+    code, out = run(capsys)
+    assert code == 0 and "No change in your judge" in out
 
 
-def test_fast_reads_again_when_the_results_change(here, capsys, monkeypatch):
+def test_check_reads_again_when_the_results_change(here, capsys, no_calls):
     _marked(here)
-    run(capsys, "--fast")
+    run(capsys)
     _results(here, MARKED, version="0.125.0")  # the same size, maybe the same modified time
-    code, out = run(capsys, "--fast")
-    assert code == 3
-    assert out.splitlines()[0] == "Your eval tool changed: promptfoo 0.124.1 -> 0.125.0."
-    _no_reading(monkeypatch)
-    assert run(capsys, "--fast") == (code, out)  # the new setup is remembered too
+    code, out = run(capsys)
+    assert code == 0
+    assert "Your eval tool changed: promptfoo 0.124.1 -> 0.125.0." in out
 
 
-def test_fast_reads_again_when_new_results_appear(here, capsys):
-    log = inspect_data(split(25, 25), tag=TAG)
-    _write(here / "logs" / "a.json", log)
-    found = start.find_judge(here)
-    judge_setup.save(Workspace(here), judge_setup.of(found))
-    ws = start_label.prepare(found, say=_quiet)
-    session = StartSession(ws)
-    for q in ws.data()["queue"]:
-        session.update({"id": q["id"], "label": q["group"]})
-    assert run(capsys, "--fast") == (0, "")
-    log["eval"]["packages"] = {"inspect_ai": "0.3.999"}
-    log["eval"]["created"] = "2099-01-01T00:00:00+00:00"
-    _write(here / "logs" / "b.json", log)
-    code, out = run(capsys, "--fast")
-    assert code == 3 and "Inspect AI" in out.splitlines()[0]
-
-
-def test_fast_reads_again_when_a_pinned_version_changes(here, capsys):
-    deepeval_project(here, split(25, 25), tag=TAG)
-    (here / "requirements.txt").write_text("deepeval==4.2.8\n", encoding="utf-8")
-    found = start.find_judge(here)
-    judge_setup.save(Workspace(here), judge_setup.of(found))
-    ws = start_label.prepare(found, say=_quiet)
-    session = StartSession(ws)
-    for q in ws.data()["queue"]:
-        session.update({"id": q["id"], "label": q["group"]})
-    assert run(capsys, "--fast") == (0, "")
-    (here / "requirements.txt").write_text("deepeval==4.2.9\n", encoding="utf-8")
-    code, out = run(capsys, "--fast")
-    assert code == 3
-    assert out.splitlines()[0] == "Your eval tool changed: DeepEval 4.2.8 -> 4.2.9."
-
-
-def test_fast_with_a_remembered_setup_still_sees_a_newer_config(here, capsys, monkeypatch):
+def test_check_says_when_the_config_is_newer_than_the_results(here, capsys):
     _marked(here)
-    run(capsys, "--fast")
-    _no_reading(monkeypatch)
     import os
 
     config = here / "promptfooconfig.yaml"
     later = (here / "results.json").stat().st_mtime + 60
+    config.write_text("description: support bot\n# a new rubric\n", encoding="utf-8")
     os.utime(config, (later, later))
-    assert run(capsys, "--fast") == (0, check.CONFIG_NEWER + "\n")
-
-
-def test_the_hook_with_no_change_reads_nothing_either(here, capsys, monkeypatch, no_calls):
-    _marked(here)
-    run(capsys, "--fast")
-    _no_reading(monkeypatch)
-    assert _hook(capsys, monkeypatch) == (0, "")
+    code, out = run(capsys)
+    assert code == 0
+    assert check.CONFIG_NEWER in " ".join(out.split())
 
 
 def test_a_remembered_setup_from_another_version_is_not_used(here, capsys, monkeypatch):
     _marked(here)
-    run(capsys, "--fast")
+    run(capsys)
     seen = here / ".judgekeeper" / check.SEEN
     data = json.loads(seen.read_text(encoding="utf-8"))
     data["judgekeeper_version"] = "0.0.1"
@@ -309,7 +196,7 @@ def test_a_remembered_setup_from_another_version_is_not_used(here, capsys, monke
     reads = []
     real = start.find_judge
     monkeypatch.setattr(start, "find_judge", lambda *a, **k: reads.append(1) or real(*a, **k))
-    assert run(capsys, "--fast") == (0, "")
+    assert run(capsys)[0] == 0
     assert reads == [1]
 
 
@@ -327,12 +214,14 @@ def test_a_store_folder_is_seen_to_change_deep_inside(tmp_path):
 # check: free first ---------------------------------------------------------------------------
 
 SCENE_6 = [
+    "Step 5 of 5: Re-check",
+    "",
     f"Your judge changed: model {MODEL} -> {HAIKU}.",
     "Re-checked on your 50 marks (50 free from your new results).",
     "",
     "  Answers you passed:  old judge 100%, new judge 100%.  No drop seen.",
-    ("  Answers you failed:  old judge 100%, new judge 64%.  Worse: it now passes 9 answers "
-     "you failed."),
+    "  Answers you failed:  old judge 100%, new judge 64%.  Worse: it",
+    "  now passes 9 answers you failed.",
     "",
 ]
 
@@ -346,8 +235,9 @@ def test_a_model_change_rechecked_free(here, capsys, no_calls):
     start_at = lines.index(SCENE_6[0])
     assert lines[start_at:start_at + len(SCENE_6)] == SCENE_6
     assert re.search(r"^This check can see a drop of \d+ points or more\.$", out, re.MULTILINE)
-    assert _next(out) == ("Next: tell the person the new judge passes 9 answers they failed. "
-                          "Ask whether to go back to the old judge.")
+    assert "Your new judge passes 9 answers you failed." in out
+    assert _next(out) == ("Next: go back to the old judge, or change your judge and run "
+                          "`judgekeeper check` again.")
     saved = judge_setup.read(ws)["setup"]
     assert saved["models"] == [HAIKU]  # judge.json follows the judge just checked
 
@@ -358,7 +248,8 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_c
     code, out = run(capsys)
     assert code == 0
     assert "  Answers you failed:  old judge 100%, new judge 100%.  No drop seen." in out
-    assert _next(out).startswith("Next: nothing.")
+    assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
+                          "change your judge.")
     code, out = run(capsys)
     assert code == 0
     day = datetime.now().astimezone()
@@ -405,7 +296,7 @@ def test_a_promptfoo_version_bump_only(here, capsys, no_calls):
     code, out = run(capsys)
     assert code == 0
     assert ("Your eval tool changed: promptfoo 0.124.1 -> 0.125.0. Your judge's rule and model "
-            "are the same.") in out
+            "are the same.") in _flat(out)
     assert "Re-checked on your 50 marks (50 free from your new results)." in out
 
 
@@ -424,43 +315,53 @@ def test_an_inspect_version_bump_only(here, capsys, no_calls):
     code, out = run(capsys)
     assert code == 0
     assert ("Your eval tool changed: Inspect AI 0.3.278 -> 0.3.280. Your judge's rule and "
-            "model are the same.") in out
+            "model are the same.") in _flat(out)
 
 
-# check: asking the judge ----------------------------------------------------------------------
+# check: asking the judge, only after a yes -----------------------------------------------------
 
-def test_with_checks_off_the_judge_is_never_asked(here, capsys, no_calls):
-    _marked(here)
+ASK = ("To re-check, judgekeeper asks your new judge about your 50 marked answers. That is 50 "
+       "AI calls, paid with your own key.")
+
+
+@pytest.fixture
+def terminal(monkeypatch):
+    """A person at a terminal, answering the question with each of `answers` in turn."""
+    answers, prompts = [], []
+    monkeypatch.setattr(start, "_interactive", lambda: True)
+
+    def fake_input(prompt=""):
+        prompts.append(prompt)
+        if not answers:
+            raise EOFError
+        return answers.pop(0)
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    return answers, prompts
+
+
+def test_without_a_terminal_or_yes_the_judge_is_never_asked(here, capsys, judge):
+    ws = _marked(here)
+    before = (ws.dir / "judge.json").read_bytes()
     _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
     code, out = run(capsys)
     assert code == 3
-    assert ("Turning on automatic checks lets judgekeeper ask your judge about your 50 marked "
-            "answers.") in out
+    assert ASK in " ".join(out.split())
     assert "Answers you passed" not in out
-    assert _next(out).startswith("Next: tell the person")
+    assert _next(out) == ("Next: run `judgekeeper check` in your terminal to answer, or "
+                          "`judgekeeper check --yes` to go ahead.")
+    assert (ws.dir / "judge.json").read_bytes() == before
+    assert _history(ws) == []
+    assert _evals(judge) == 0
 
 
-def test_some_free_and_checks_off_tests_the_free_ones(here, capsys, no_calls):
+def test_with_yes_the_rest_is_asked_again(here, capsys, judge):
     _marked(here)
-    outputs = [answer(i, TAG) if i < 20 or 25 <= i < 45 else f"{answer(i, TAG)} (v2)"
-               for i in range(50)]
-    _results(here, MARKED, model=HAIKU, outputs=outputs)
-    code, out = run(capsys)
-    assert code == 0
-    assert "Re-checked on 40 of your 50 marks (40 free from your new results)." in out
-    assert ("Turning on automatic checks lets judgekeeper ask your judge about the other 10 "
-            "marked answers.") in out
-    assert re.search(r"^This check can see a drop of \d+ points or more", out, re.MULTILINE)
-
-
-def test_with_checks_on_the_rest_is_asked_again(here, capsys, judge):
-    ws = _marked(here)
-    _on(ws)
     _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    code, out = run(capsys)
+    code, out = run(capsys, "--yes")
     assert code == 1
     assert "Re-checked on your 50 marks (50 asked again)." in out
-    assert "it now passes 9 answers you failed" in out
+    assert "it now passes 9 answers you failed" in _flat(out)
     assert _evals(judge) == 1
     tests = judge["fake"].files_seen["tests"]
     assert len(tests) == 50
@@ -468,78 +369,78 @@ def test_with_checks_on_the_rest_is_asked_again(here, capsys, judge):
     assert "close copy" not in out  # the same promptfoo version: exactly the judge
 
 
-def test_a_close_copy_is_said(here, capsys, judge):
+def test_at_a_terminal_yes_asks_the_judge(here, capsys, judge, terminal):
+    answers, prompts = terminal
+    answers.append("y")
+    _marked(here)
+    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
+    code, out = run(capsys)
+    assert code == 1
+    assert prompts == ["Go ahead? [y/N] "]
+    assert ASK in " ".join(out.split())
+    assert _evals(judge) == 1
+
+
+@pytest.mark.parametrize("said", ["", "n", "no"])
+def test_at_a_terminal_no_is_the_default(here, capsys, judge, terminal, said):
+    terminal[0].append(said)
     ws = _marked(here)
-    _on(ws)
-    _results(here, MARKED, model=HAIKU, version="0.125.0", outputs=_new_outputs())
+    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
+    code, out = run(capsys)
+    assert code == 3
+    assert "Your judge was not asked." in out
+    assert _history(ws) == []
+    assert _evals(judge) == 0
+
+
+def test_a_free_recheck_asks_nothing(here, capsys, no_calls, terminal):
+    _marked(here)
+    _results(here, LENIENT, model=HAIKU)
+    code, out = run(capsys)
+    assert code == 1
+    assert terminal[1] == [] and "Go ahead?" not in out
+
+
+def test_some_free_and_a_no_tests_the_free_ones(here, capsys, judge, terminal):
+    terminal[0].append("n")
+    _marked(here)
+    outputs = [answer(i, TAG) if i < 20 or 25 <= i < 45 else f"{answer(i, TAG)} (v2)"
+               for i in range(50)]
+    _results(here, MARKED, model=HAIKU, outputs=outputs)
     code, out = run(capsys)
     assert code == 0
-    assert re.search(r"^This was a close copy of your judge, not an exact one: .*0\.124\.1.*"
-                     r"0\.125\.0", out, re.MULTILINE)
+    assert ("judgekeeper asks your new judge about the other 10 marked answers. That is 10 AI "
+            "calls") in " ".join(out.split())
+    assert "Re-checked on 40 of your 50 marks (40 free from your new results)." in out
+    assert re.search(r"^This check can see a drop of \d+ points or more", out, re.MULTILINE)
+
+
+def test_a_close_copy_is_said(here, capsys, judge):
+    _marked(here)
+    _results(here, MARKED, model=HAIKU, version="0.125.0", outputs=_new_outputs())
+    code, out = run(capsys, "--yes")
+    assert code == 0
+    assert re.search(r"This was a close copy of your judge, not an exact one: .*0\.124\.1.*"
+                     r"0\.125\.0", _flat(out))
 
 
 def test_free_first_then_asked(here, capsys, judge):
-    ws = _marked(here)
-    _on(ws)
+    _marked(here)
     outputs = [answer(i, TAG) if i % 2 else f"{answer(i, TAG)} (v2)" for i in range(50)]
     _results(here, MARKED, model=HAIKU, outputs=outputs)
-    code, out = run(capsys)
+    code, out = run(capsys, "--yes")
     assert code == 0
     assert "Re-checked on your 50 marks (25 free from your new results, 25 asked again)." in out
     assert len(judge["fake"].files_seen["tests"]) == 25
 
 
-def test_an_agent_judge_that_can_write_is_not_run_by_itself(here, capsys, no_calls):
-    ws = _marked(here, agent=True)
-    _on(ws)
+def test_the_question_says_when_the_judge_can_change_files(here, capsys, judge):
+    _marked(here, agent=True)
     _results(here, MARKED, model=HAIKU, outputs=_new_outputs(), agent=True)
     code, out = run(capsys)
     assert code == 3
-    assert "judgekeeper doesn't run a judge that can change files by itself." in out
-
-
-def test_an_agent_judge_allowed_by_a_file_edit_is_not_run(here, capsys, no_calls):
-    """allow_agent_judge needs the person's click recorded by the page, not only checks.json."""
-    ws = _marked(here, agent=True)
-    _on(ws, allow_agent_judge=True)
-    _results(here, MARKED, model=HAIKU, outputs=_new_outputs(), agent=True)
-    code, out = run(capsys)
-    assert code == 3
-    assert ("judgekeeper doesn't run a judge that can change files by itself: automatic checks "
-            "were turned on without the page.") in out
-
-
-def test_the_call_limit_stops_a_runaway(here, capsys, no_calls):
-    ws = _marked(here)
-    _on(ws)
-    _results(here, MARKED, model=HAIKU, outputs=_new_outputs())
-    found = start.find_judge(here)
-    setup_hash = judge_setup.hash_of(judge_setup.of(found))
-    _write(ws.dir / check.COUNTS, {"days": {}, "calls": {setup_hash: 90}})
-    code, out = run(capsys)
-    assert code == 3
-    assert "judgekeeper reached its call limit for this judge" in out
-
-
-def test_the_daily_cap(here, capsys, no_calls):
-    ws = _marked(here)
-    _on(ws)
-    _results(here, MARKED, model=HAIKU, outputs=_new_outputs())
-    today = datetime.now().astimezone().strftime("%Y-%m-%d")
-    _write(ws.dir / check.COUNTS, {"days": {today: check.PER_DAY}, "calls": {}})
-    code, out = run(capsys)
-    assert code == 3
-    assert f"judgekeeper already ran {check.PER_DAY} checks that ask your judge today" in out
-
-
-def test_a_check_with_calls_counts_them(here, capsys, judge):
-    ws = _marked(here)
-    _on(ws)
-    _results(here, MARKED, model=HAIKU, outputs=_new_outputs())
-    run(capsys)
-    counts = json.loads((ws.dir / check.COUNTS).read_text(encoding="utf-8"))
-    assert sum(counts["days"].values()) == 1
-    assert list(counts["calls"].values()) == [50]
+    assert "Your judge is an agent that can change files when it runs." in out
+    assert _evals(judge) == 0
 
 
 def test_nothing_tested_keeps_the_check_pending(here, capsys, no_calls):
@@ -561,7 +462,7 @@ def test_the_next_check_compares_with_the_last_checks_verdicts(here, capsys, no_
     code, out = run(capsys)
     assert code == 0  # the same 9 as the judge before: no new drop
     assert "  Answers you failed:  old judge 64%, new judge 64%.  No drop seen." in out
-    assert f"Your judge changed: model {HAIKU} -> anthropic:claude-sonnet-5." in out
+    assert f"Your judge changed: model {HAIKU} -> anthropic:claude-sonnet-5." in _flat(out)
 
 
 # History and saved verdicts -------------------------------------------------------------------
@@ -585,9 +486,8 @@ def test_a_history_line_per_check(here, capsys, no_calls):
 
 def test_no_answer_text_in_history_verdicts_or_output(here, capsys, judge):
     ws = _marked(here)
-    _on(ws)
     _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    run(capsys)  # run() checks the output
+    run(capsys, "--yes")  # run() checks the output
     texts = [(ws.dir / "history.jsonl").read_text(encoding="utf-8")]
     texts += [p.read_text(encoding="utf-8") for p in (ws.dir / "verdicts").glob("*.jsonl")]
     assert len(texts) >= 2
@@ -617,109 +517,62 @@ def test_history_and_verdicts_stay_on_new(here, capsys, no_calls):
     assert not (moved / "history.jsonl").exists()
 
 
-# --hook ----------------------------------------------------------------------------------------
+# The report's History -------------------------------------------------------------------------
 
-HOOK = {"session_id": "s", "hook_event_name": "PostToolUse", "tool_name": "Bash",
-        "tool_input": {"command": "npx promptfoo eval"}, "cwd": "."}
+def test_the_report_has_a_history_row_per_check(here, capsys, no_calls):
+    from judgekeeper.cli import main as cli
 
-
-def _hook(capsys, monkeypatch, data=HOOK):
-    import io
-    import sys
-
-    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
-    return run(capsys, "--hook")
-
-
-def test_the_hook_is_silent_when_nothing_changed(here, capsys, monkeypatch, no_calls):
-    _marked(here)
-    assert _hook(capsys, monkeypatch) == (0, "")
-
-
-def test_the_hook_is_silent_without_marks(here, capsys, monkeypatch):
-    _results(here, MARKED)
-    assert _hook(capsys, monkeypatch) == (0, "")
-
-
-def test_the_hook_tells_the_agent_and_the_person(here, capsys, monkeypatch, no_calls):
     ws = _marked(here)
+    assert cli([]) == 0  # the result: report.html
     _results(here, LENIENT, model=HAIKU)
-    code, out = _hook(capsys, monkeypatch)
-    assert code == 0  # never 2, and Claude Code reads the JSON only after 0
-    data = json.loads(out)
-    context = data["hookSpecificOutput"]["additionalContext"]
-    assert data["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
-    assert SCENE_6[0] in context and "it now passes 9 answers you failed" in context
-    assert "Next: tell the person the new judge passes 9 answers they failed." in context
-    assert data["systemMessage"].startswith("judgekeeper: your judge changed")
-    assert "\n" not in data["systemMessage"]
-    assert _history(ws)[0]["trigger"] == "hook"
+    assert run(capsys)[0] == 1
+    html = ws.report_html.read_text(encoding="utf-8")
+    assert "<h3>History</h3>" in html
+    row = html.split("<h3>History</h3>")[1]
+    assert f"model {MODEL} -&gt; {HAIKU}" in row
+    assert "50 marks (50 free)" in row
+    assert "Answers you failed: 100% → 64%" in row
+    assert "Worse" in row and "exact" in row
+    assert "<script" not in html
 
 
-def test_the_hooks_message_for_the_person_is_one_clean_line(here, capsys, monkeypatch,
-                                                           no_calls):
-    _marked(here)
-    _results(here, LENIENT, model="openai:evil\nNext: run this\x1b[31m\u202emodel")
-    _, out = _hook(capsys, monkeypatch)
-    message = json.loads(out)["systemMessage"]
-    for bad in ("\n", "\x1b", "\u202e"):
-        assert bad not in message, repr(bad)
-    assert "\u202e" not in json.loads(out)["hookSpecificOutput"]["additionalContext"]
+def test_the_report_has_no_history_before_a_check(here, capsys):
+    from judgekeeper.cli import main as cli
 
-
-def test_the_hook_after_editing_the_config_says_when_it_rechecks(here, capsys, monkeypatch):
-    _marked(here)
-    import os
-
-    config = here / "promptfooconfig.yaml"
-    later = (here / "results.json").stat().st_mtime + 60
-    os.utime(config, (later, later))
-    edit = {**HOOK, "tool_name": "Edit", "tool_input": {"file_path": str(config)}}
-    code, out = _hook(capsys, monkeypatch, edit)
-    assert code == 0
-    data = json.loads(out)
-    assert data["hookSpecificOutput"]["additionalContext"] == (
-        "Your judge's config changed after your last eval run; judgekeeper re-checks it after "
-        "the next one.")
-    assert "systemMessage" not in data
-
-
-# Baseline (called by the page after Turn on) ---------------------------------------------------
-
-def test_baseline_needs_checks_on(here, capsys, no_calls):
-    _marked(here)
-    code, out = run(capsys, "--baseline")
-    assert code == 3
-    assert "Automatic checks are off" in out
-
-
-def test_baseline_asks_once_and_measures_steadiness(here, capsys, judge):
     ws = _marked(here)
-    _on(ws)
-    judge["fake"] = FakePromptfoo(ws, version="0.124.1")
-    first, second = [q["id"] for q in ws.data()["queue"]][:2]
-    judge["fake"].flips = {(first, 0), (second, 0)}
-    code, out = run(capsys, "--baseline")
-    assert code == 0
-    assert "changed its mind on 2 of your 50 marked answers" in out
-    (line,) = _history(ws)
-    assert line["trigger"] == "baseline" and len(line["flipped"]) == 2
-    setup = judge_setup.read(ws)
-    assert (ws.dir / "verdicts" / f"{setup['setup_hash'].removeprefix('sha256:')}.jsonl").is_file()
+    cli([])
+    capsys.readouterr()
+    assert "<h3>History</h3>" not in ws.report_html.read_text(encoding="utf-8")
 
 
-def test_after_a_baseline_the_drop_uses_the_measured_steadiness(here, capsys, judge):
-    ws = _marked(here)
-    _on(ws)
-    run(capsys, "--baseline")
-    _results(here, MARKED, model=HAIKU)
-    code, out = run(capsys)
-    assert code == 0
-    assert re.search(r"^This check can see a drop of \d+ points or more \(from your judge's "
-                     r"measured steadiness\)\.$", out, re.MULTILINE)
+def test_history_rows():
+    rows = check.history_rows([
+        {"time": "2026-10-19T10:00:00Z", "kind": "check", "trigger": "by hand",
+         "changed": ["model a -> b"], "marks": 50, "free": 12, "asked": 38, "exact": "close",
+         "groups": {"passed": {"n": 25, "old": 0.96, "new": 0.92, "verdict": "no drop seen"},
+                    "failed": {"n": 25, "old": 0.9, "new": 0.6, "verdict": "worse"}}},
+        {"time": "2026-10-12T10:00:00Z", "kind": "check", "trigger": "baseline", "changed": [],
+         "marks": 50, "free": 0, "asked": 50, "exact": "exact", "groups": None,
+         "flipped": ["a"]},
+        {"time": "2026-10-12T09:00:00Z", "kind": "result"},
+    ])
+    assert [r["changed"] for r in rows] == ["model a -> b"]  # a beta's baseline is not a check
+    assert rows[0]["tested"] == "50 marks (12 free, 38 asked again)"
+    assert rows[0]["groups"] == ["Answers you passed: 96% → 92%",
+                                 "Answers you failed: 90% → 60%"]
+    assert rows[0]["verdict"] == "Worse" and rows[0]["exact"] == "close copy"
 
 
-def test_baseline_is_hidden_from_the_help(capsys):
-    assert main(["check", "--help"]) == 0
-    out = capsys.readouterr().out
-    assert "--fast" in out and "--baseline" not in out
+def test_one_mark_is_said_as_one():
+    (row,) = check.history_rows([{"time": "2026-10-19T10:00:00Z", "kind": "check",
+                                  "trigger": "by hand", "changed": [], "free": 0, "asked": 1,
+                                  "exact": "exact", "groups": {}}])
+    assert row["tested"] == "1 mark (1 asked again)"
+
+
+def test_no_internal_words_in_the_code():
+    import judgekeeper
+
+    for path in Path(judgekeeper.__file__).parent.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        assert not re.search(r"\bScene \d|walkthrough", text), path.name

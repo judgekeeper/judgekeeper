@@ -1,10 +1,8 @@
-"""The `judgekeeper.record()` snippets in docs/reference.md and the prompt in docs/assistant.md.
+"""The `judgekeeper.record()` snippets in docs/reference.md.
 
 The snippets write the same JSON line as `judgekeeper.record()`, for people who do not want
 the import or use another language; judgekeeper reads the records they write, with no
 problem in any line.
-The agent prompt asks the user's coding agent to add one `record()` call where the judge
-runs, touch nothing else, show the diff and wait for a yes, then run `judgekeeper start`.
 """
 
 from __future__ import annotations
@@ -25,7 +23,6 @@ from judgekeeper.textio import jsonl_lines
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
 RECORD_SECTION = "## record(): save your own judge's verdicts with one line\n"
-PROMPT_SECTION = "## Add the record() line\n"
 
 
 def _section(path: Path, heading: str) -> str:
@@ -49,14 +46,7 @@ def _snippets() -> dict[str, str]:
     return {k: v[0] for k, v in found.items()}
 
 
-def _agent_prompt() -> str:
-    blocks = _blocks(_section(DOCS / "assistant.md", PROMPT_SECTION))
-    assert len(blocks) == 1
-    return blocks[0]
-
-
 SNIPPETS = _snippets()
-AGENT_PROMPT = _agent_prompt()
 
 
 def check(folder) -> list[tuple]:
@@ -145,23 +135,6 @@ def test_the_snippets_say_where_to_run_them():
 
 
 # The agent prompt ------------------------------------------------------------------------
-
-def test_the_agent_prompt_says_what_to_do_and_what_not_to():
-    text = " ".join(AGENT_PROMPT.split())
-    for words in ("where this project's LLM judge produces each score or verdict",
-                  "judgekeeper.record(", "input", "output", "pass_mark", "reason", "judge=",
-                  "rule=", "name=", "verdict=", "Touch nothing else",
-                  "can never change what the program does",
-                  "Show me the diff and wait for my yes before saving",
-                  "run the eval once, run `judgekeeper start`",
-                  "this project's own Python environment", "JUDGEKEEPER_RECORD=0"):
-        assert words in text, words
-
-
-def test_the_agent_prompt_installs_inside_the_project_only():
-    for outside in ("pipx", "uv tool", "uvx", "pip3 install", "--user", "-g "):
-        assert outside not in AGENT_PROMPT
-
 
 # The snippets take record()'s arguments and write what it writes ----------------------------
 

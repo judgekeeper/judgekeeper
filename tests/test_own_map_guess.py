@@ -20,6 +20,7 @@ from judgekeeper import mapper, start
 from judgekeeper.cli import main
 from judgekeeper.readers.mapped import read_mapped
 from tests.start_projects import coach_project, coach_runs_data
+from tests.test_front import next_lines
 
 
 @pytest.fixture
@@ -119,7 +120,7 @@ def test_how_it_reads_says_where_the_pass_mark_and_model_come_from(tmp_path, cap
             "helpful)") in out
     assert "  judge's model:   judge.model (claude-sonnet-5)" in out
     assert "  pass mark:       0.7 (judge.pass_mark in the file)" in out
-    assert "Pass mark: score 0.7 or more." in out
+    assert "Pass mark:   score 0.7 or more" in out
     s = saved(tmp_path)
     assert s["pass_mark"] == 0.7 and s["judge"] == "*"
     assert s["map"]["judges"] == ["safe_wording", "helpful"]
@@ -171,7 +172,7 @@ def test_after_no_correct_the_pass_mark(tmp_path, capsys, terminal):
     assert out.count("How judgekeeper reads it:") == 2
     assert saved(tmp_path)["pass_mark"] == 0.5
     assert "pass_mark_key" not in saved(tmp_path)["map"]
-    assert "small script" not in out
+    assert "into a CSV" not in out
 
 
 def test_after_no_correct_the_judge_model(tmp_path, capsys, terminal):
@@ -190,7 +191,7 @@ def test_after_no_none_of_these_fit_asks_for_a_converter(tmp_path, capsys, termi
     answers += ["n", "9"]
     code, out = setup(capsys, tmp_path / "history" / "evals.jsonl")
     assert code == 3
-    assert "small script" in out.splitlines()[-1]
+    assert "into a CSV with the columns" in next_lines(out)[-1]
     assert not (tmp_path / "judgekeeper.toml").exists()
 
 

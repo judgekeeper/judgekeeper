@@ -339,7 +339,7 @@ def test_promptfoo_with_no_grader_written_down_is_said(tmp_path, monkeypatch, ca
     _promptfoo(tmp_path, model=None)
     front.run()
     out = capsys.readouterr().out
-    block = out[out.index("Checked first (no AI call):"):]
+    block = " ".join(out[out.index("Free check (no AI call):"):].split())
     assert ("Your judge's model isn't written in your config. promptfoo picks it from whichever "
             "API key is set, so it can change without any file changing. Write it in your "
             "config (`defaultTest.options.provider`).") in block
@@ -356,7 +356,7 @@ def test_an_unknown_tool_version_is_said(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     deepeval_project(tmp_path, split(20, 16))
     front.run()
-    out = capsys.readouterr().out
+    out = " ".join(capsys.readouterr().out.split())
     assert ("judgekeeper can't see your eval tool's version, so an update to it won't be "
             "noticed. Pin it in your project (e.g. `deepeval==4.2.8`).") in out
 

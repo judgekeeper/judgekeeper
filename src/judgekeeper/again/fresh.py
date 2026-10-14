@@ -69,8 +69,8 @@ def new_folder(ws) -> Path:
     return folder
 
 
-TOO_FEW_NUMBERS = ("How often it agrees with you is not shown: a result needs at least 15 "
-                   "answers you mark Pass and 15 you mark Fail.")
+TOO_FEW_NUMBERS = ("How often it agrees with you is not shown: you have not marked enough "
+                   "answers Pass and Fail for a result yet.")
 
 
 def _share(value) -> str:

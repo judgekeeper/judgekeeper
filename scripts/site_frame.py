@@ -19,8 +19,7 @@ NAV = [("index.html", "Home"), ("start.html", "Guide"), ("docs.html", "Docs"),
        ("reference.html", "Reference"), (GITHUB, "GitHub")]
 START_HERE = [("start.html", "Guide"), ("docs.html", "Docs"), ("reference.html", "Reference"),
               (GITHUB, "GitHub")]
-MORE = [("assistant.html", "With a coding assistant"),
-        ("setup.html", "Setup and API keys"),
+MORE = [("setup.html", "Setup and API keys"),
         ("learn.html", "How it works, in depth")]
 FONTS = ("bricolage-grotesque-latin-800-normal.woff2",)  # body text uses the system font
 LOGO = ('<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
@@ -71,7 +70,8 @@ def footer() -> str:
         f'<div><a class="brand" href="index.html">{LOGO}judgekeeper</a>\n'
         '<p class="fine">Free and open source, MIT license. It shows how often your judge '
         "agrees with you; it never decides for you.</p>\n"
-        '<p class="fine">Not affiliated with the tools and models it works with. Names belong '
+        '<p class="fine">Not affiliated with the tools it can read results from, or their '
+        'models. Names belong '
         f'to their owners: see <a href="{GITHUB}/blob/main/TRADEMARKS.md">the name and logo '
         "note</a>.</p>\n"
         '<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your '
@@ -101,7 +101,7 @@ def apply(page: Path) -> None:
 
 
 if __name__ == "__main__":
-    generated = {"reference.html", "assistant.html"}
+    generated = {"reference.html"}
     for page in sys.argv[1:] or sorted(p for p in WEBSITE.glob("*.html")
                                        if p.name not in generated):
         apply(Path(page))

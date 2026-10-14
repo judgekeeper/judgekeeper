@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How it works, in depth | judgekeeper</title>
-<meta name="description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
+<meta name="description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to check again, the tools it can read results from, a real result, and where your keys go.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="How it works, in depth | judgekeeper">
-<meta property="og:description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
+<meta property="og:description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to check again, the tools it can read results from, a real result, and where your keys go.">
 <meta property="og:url" content="https://www.judgekeeper.com/learn.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
@@ -16,7 +16,7 @@
 <meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="How it works, in depth | judgekeeper">
-<meta name="twitter:description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to keep checking, the tools it works with, a real result, and where your keys go.">
+<meta name="twitter:description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to check again, the tools it can read results from, a real result, and where your keys go.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
@@ -48,7 +48,7 @@
     <ul class="toc">
       <li><a href="#problem">Three ways a judge goes wrong</a></li>
       <li><a href="#numbers">What the numbers mean</a></li>
-      <li><a href="#works">Works with what you already use</a></li>
+      <li><a href="#works">Reads what your tools already save</a></li>
       <li><a href="#result">A real result</a></li>
       <li><a href="#real-data">Do the ranges hold on real data?</a></li>
       <li><a href="#keys">Your data and keys</a></li>
@@ -167,16 +167,8 @@
 <section class="alt" id="works" aria-labelledby="works-title">
   <div class="wrap">
     <p class="kicker">Integrations</p>
-    <h2 id="works-title">Works with what you already use</h2>
+    <h2 id="works-title">Reads what your tools already save</h2>
     <p class="lead">judgekeeper does not replace your tools. It reads what they already save: the results of promptfoo, DeepEval, Inspect AI and MLflow, or a CSV or JSONL table. Run <code>judgekeeper start</code> in your project; the <a href="start.html">Guide</a> shows each step.</p>
-    <div class="tiles">
-      <details>
-        <summary><span>A coding agent<small>skill file</small></span></summary>
-        <div class="recipe">
-          <p>Coding agents such as Claude Code can set judgekeeper up for you. Give them <a href="https://github.com/judgekeeper/judgekeeper/blob/main/skills/judgekeeper/SKILL.md">skills/judgekeeper/SKILL.md</a>. It explains each step, and tells the agent never to invent human labels.</p>
-        </div>
-      </details>
-    </div>
   </div>
 </section>
 
@@ -283,10 +275,10 @@
 <div class="wrap cols">
 <div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
 <p class="fine">Free and open source, MIT license. It shows how often your judge agrees with you; it never decides for you.</p>
-<p class="fine">Not affiliated with the tools and models it works with. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
+<p class="fine">Not affiliated with the tools it can read results from, or their models. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
 <p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
 <div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
-<div><h2>More</h2><ul><li><a href="assistant.html">With a coding assistant</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
+<div><h2>More</h2><ul><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
 </div>
 </footer>
 </body>

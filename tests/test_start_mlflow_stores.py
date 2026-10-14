@@ -30,6 +30,7 @@ from judgekeeper.cli import main
 from judgekeeper.readers import mlflow_store
 from judgekeeper.readers.mlflow_store import ALLOW, HINT
 from judgekeeper.textio import quote_arg
+from tests.test_front import assert_one_next_at_the_end
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -362,13 +363,14 @@ def test_judgekeeper_asks_which_store_without_a_terminal(two, capsys):
     out = capsys.readouterr().out
     assert code == 3
     assert "Two MLflow stores found" in out
-    last = out.splitlines()[-1]
     db, folder = quote_arg(two / "mlflow.db"), quote_arg(two / "mlruns")
-    assert last == (f"Next: ask the person which MLflow store to read (mlflow.db, mlruns), then "
-                    f"run `judgekeeper {db}` or `judgekeeper {folder}`.")
+    assert assert_one_next_at_the_end(out) == (
+        f"Next: choose which MLflow store to read (mlflow.db, mlruns), then run "
+        f"`judgekeeper {db}` or `judgekeeper {folder}`.")
     code = main([str(two / "mlruns")])
     out = capsys.readouterr().out
-    assert code in (0, 3) and "Found your eval tool: MLflow (mlruns, experiment qa-folder" in out
+    assert code in (0, 3) and "Eval tool:   MLflow" in out
+    assert "(read from mlruns, experiment qa-folder)" in out
     assert "Two MLflow stores" not in out
 
 
@@ -380,9 +382,9 @@ def test_judgekeeper_asks_which_store_at_a_terminal_and_saves_it(two, capsys, mo
     monkeypatch.setattr(builtins, "input", lambda prompt="": answers.pop(0))
     main([str(two)])
     out = capsys.readouterr().out
-    assert "Found your eval tool: MLflow (mlruns, experiment qa-folder" in out
+    assert "Eval tool:   MLflow" in out and "(read from mlruns, experiment qa-folder)" in out
     saved = tomllib.loads((two / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
     assert saved == {"source": "mlflow", "file": "mlruns"}
     monkeypatch.setattr(start, "_interactive", lambda: False)
     main([str(two)])  # asked once: read from judgekeeper.toml now
-    assert "Found your eval tool: MLflow (mlruns, " in capsys.readouterr().out
+    assert "(read from mlruns, " in capsys.readouterr().out
