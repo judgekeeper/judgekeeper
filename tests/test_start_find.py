@@ -169,7 +169,7 @@ def test_a_plain_table(tmp_path, capsys):
     assert "  Eval tool       a table (results.csv)" in out
     assert "  Results file    data/results.csv (saved " in out
     assert "  What it checks  not in the file" in out
-    assert "  Judge model     not named in the results (add --judge-model NAME)" in out
+    assert "  Judge model     not found in the results (add --judge-model NAME)" in out
     assert "  Its decisions   32 answers: 16 passed, 16 failed" in out
 
 

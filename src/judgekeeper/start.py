@@ -1629,7 +1629,7 @@ def when_words(d) -> str:
 NOT_IN_FILE = "not in the file"
 PARTIAL = ("Inspect gave partial credit (P) on {n}: should they count as Pass or Fail? Run "
            "again with --label-map P=pass or --label-map P=fail.")
-NO_MODEL = "not named in the results (add --judge-model NAME)"
+NO_MODEL = "not found in the results (add --judge-model NAME)"
 
 
 def _tool_words(found: Found) -> str:

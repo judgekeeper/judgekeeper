@@ -555,7 +555,7 @@ def _judge_value(found: start.Found) -> str:
         elif found.model_source:
             model += f" ({found.model_source})"
     else:
-        model = "model not named in your results (add --judge-model NAME)"
+        model = "model not found in your results (add --judge-model NAME)"
     return ", ".join([*parts, model])
 
 

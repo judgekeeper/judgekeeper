@@ -808,7 +808,7 @@ def page_content(r: dict, marking: str | None = None) -> dict:
     colour, icon, _ = LEVELS[r["verdict_level"]]
     judge = r.get("judge") or {}
     fingerprint = r.get("fingerprint") or {}
-    model = fingerprint.get("model") or "model not named in the results"
+    model = fingerprint.get("model") or "model not found in the results"
     if fingerprint.get("model_source"):
         model += " (as you told me)"
     source = None

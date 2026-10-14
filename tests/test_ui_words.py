@@ -74,7 +74,7 @@ def test_the_first_block_for_a_table_says_what_is_missing(tmp_path):
     assert lines[2] == "  Eval tool       a table (results.csv)"
     assert lines[3].startswith("  Results file    data/results.csv (saved ")
     assert lines[4] == "  What it checks  not in the file"
-    assert lines[5] == "  Judge model     not named in the results (add --judge-model NAME)"
+    assert lines[5] == "  Judge model     not found in the results (add --judge-model NAME)"
     assert lines[6] == "  Its decisions   32 answers: 16 passed, 16 failed"
 
 
@@ -102,7 +102,7 @@ def test_the_first_block_for_mlflow():
 def test_a_judge_model_you_gave_is_said_as_such(tmp_path):
     promptfoo_project(tmp_path, split(20, 12), model=None)
     lines = start.found_lines(start.find_judge(tmp_path))
-    assert "  Judge model     not named in the results (add --judge-model NAME)" in lines
+    assert "  Judge model     not found in the results (add --judge-model NAME)" in lines
     lines = start.found_lines(start.find_judge(tmp_path, judge_model="gpt-4.1-mini"))
     assert "  Judge model     gpt-4.1-mini (as you told me)" in lines
 

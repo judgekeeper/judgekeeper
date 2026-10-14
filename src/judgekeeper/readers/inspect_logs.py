@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -200,6 +201,25 @@ def trajectory(sample: dict) -> list[dict] | None:
     return [_step(m) for m in messages] or None
 
 
+_NAMED_MODEL = re.compile(r"\s\(([A-Za-z][\w.:@-]*(?:/[\w.:@-]+)*)\)\Z")
+_MODEL_KEYS = ("grader_model", "judge_model", "model", "grader")
+
+
+def _model_said(name: str, score: dict) -> str | None:
+    """The grader's model when the log has no grader role: in the score's metadata, or after
+    the scorer's name as R's vitals package writes it (`model_graded_qa() (claude-sonnet-4-5)`).
+    A word in brackets is a model only when it looks like one (a digit and a - . or /)."""
+    metadata = score.get("metadata")
+    for key in _MODEL_KEYS:
+        value = metadata.get(key) if isinstance(metadata, dict) else None
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    m = _NAMED_MODEL.search(name or "")
+    if m and re.search(r"\d", m[1]) and re.search(r"[-./]", m[1]):
+        return m[1]
+    return None
+
+
 def sample_key(sample: dict) -> str:
     """The id `start` gives this sample's answer: its input, output and steps."""
     return derive_record_id(sample.get("input"), (sample.get("output") or {}).get("completion"),
@@ -306,6 +326,8 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
             model, temp = grader_model, temperature
             if model is None and options.get("model"):
                 model, temp = _model(options["model"])[0], None
+            if model is None:
+                model, temp = _model_said(name, score), None
             evaluator = {}
             if model:
                 evaluator["model"] = model
