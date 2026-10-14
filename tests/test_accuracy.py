@@ -437,3 +437,25 @@ def test_the_readme_names_kappas_range():
     readme = (Path(__file__).parent.parent / "README.md").read_text(encoding="utf-8")
     line = next(x for x in readme.splitlines() if "Each comes with a range" in x)
     assert "Kappa" in line
+
+
+def test_check_shows_counts_only(tmp_path, monkeypatch, capsys):
+    """No line of check's output or the report's History names a flipped answer's id."""
+    import json
+
+    from judgekeeper.cli import main
+    from tests.test_check import HAIKU, LENIENT, _marked, _results
+
+    monkeypatch.chdir(tmp_path)
+    ws = _marked(tmp_path)
+    start_label.store_result(ws, start_label.StartSession(ws))  # the report the History is in
+    _results(tmp_path, LENIENT, model=HAIKU)
+    assert main(["check"]) == 1
+    out = capsys.readouterr().out
+    line = [json.loads(x) for x in ws.history_jsonl.read_text(encoding="utf-8").splitlines()
+            if '"check"' in x][-1]
+    report = ws.report_html.read_text(encoding="utf-8")
+    assert len(line["flipped"]) == 9  # kept in history.jsonl only
+    for answer_id in line["flipped"]:
+        assert answer_id not in out and answer_id not in report
+    assert "Worse" in report
