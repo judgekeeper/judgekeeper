@@ -5,6 +5,8 @@ free, opens the page to mark answers on, and prints the result once there are en
 ends with one `Next:` line. `judgekeeper mark` (mark.py) opens the page to mark more.
 `judgekeeper check` (check.py) re-tests a changed judge on the marks (exit 1: the new judge
 got worse); it asks before any call to the judge.
+`judgekeeper fix` (fix.py) shows where the judge goes wrong and tests a new rule on marks it
+keeps hidden; it asks before any call to the judge.
 `judgekeeper start` (not in the help) still has its review, fix and asking again. Exit codes: 0
 success, 1 runtime failure, 2 usage error, 3 the person is needed (`judgekeeper` and `mark`:
 the Next: line says what to ask), 8 stopped at a question (`start`, below), 130 Ctrl-C.
@@ -62,7 +64,7 @@ STEPS = """\
   1. Find      judgekeeper          finds your eval results and your judge
   2. Mark      in your browser      you mark answers Pass or Fail
   3. Measure   judgekeeper          how often your judge agrees with you
-  4. Fix       coming soon          write a better rule, tested on hidden marks
+  4. Fix       judgekeeper fix      write a better rule, tested on hidden marks
   5. Re-check  judgekeeper check    after you change your judge or update
                                     your eval tool"""
 READS = """\
@@ -71,6 +73,7 @@ MLflow, or a CSV or JSONL file with these columns:
   input, output, verdict"""
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
+    ("fix", "see where your judge goes wrong and test a better rule"),
     ("check", "re-check your judge on your marks after a change"),
 )
 HELP_WIDTH = 80
