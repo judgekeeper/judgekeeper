@@ -26,8 +26,8 @@ NEXT_OPEN = ("Next: tell the person the marking page is open in their browser, a
              "`judgekeeper` again.")
 NEXT_LINK = ("Next: give the person the link above and ask them to mark answers until the "
              "page says it has enough. When they say they are done, run `judgekeeper` again.")
-COULD_NOT = ("Next: ask the person to run judgekeeper mark --wait in their own terminal (it "
-             "keeps the page open there).")
+COULD_NOT = ("Next: run `judgekeeper mark --wait` in your own terminal (it keeps the page "
+             "open there).")
 START_OVER = ("Start over with these results? Your old marks move to "
               ".judgekeeper/previous-<date>/.")
 RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."

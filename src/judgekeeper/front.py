@@ -121,7 +121,7 @@ NEXT_TERMINAL = "ask the person to run `{command}` in their own terminal."
 KEEP_FAILED = ("The page that turns on automatic checks could not start in the background "
                "(what went wrong is in {log}).")
 NEXT_STATUS = "nothing. Tell the person what is on, and how to turn it off."
-COULD_NOT = ("ask the person to run {command} in their own terminal (it keeps the page open "
+COULD_NOT = ("run `{command}` in your own terminal (it keeps the page open "
              "there).")
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
 NEXT_ANY_PORT = "run `{command}` (it opens the page on any free port)."

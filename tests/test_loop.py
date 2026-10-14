@@ -478,8 +478,8 @@ def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):
     assert code == 3
     assert ("The marking page could not start in the background (what went wrong is in "
             ".judgekeeper/page.log).") in out
-    assert _check(out, err) == ("Next: ask the person to run judgekeeper --wait in their own "
-                                "terminal (it keeps the page open there).")
+    assert _check(out, err) == ("Next: run `judgekeeper --wait` in your own terminal (it keeps "
+                                "the page open there).")
 
 
 # The page says what to do when it has enough -----------------------------------------------
