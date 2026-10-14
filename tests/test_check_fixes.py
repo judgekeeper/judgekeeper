@@ -1,14 +1,14 @@
 # ruff: noqa: F811 - the fixtures come from test_check
 """`judgekeeper check` never claims more than it measured, and says where it looked.
 
-- N04: a version change seen only in a lockfile that is newer than the results is not
+- A version change seen only in a lockfile that is newer than the results is not
   re-checked on those older results: the grades are out of date until the next eval run.
-- N05: after "Worse", the old judge stays the reference: every check says it again until the
+- After "Worse", the old judge stays the reference: every check says it again until the
   judge goes back (or changes again), and the History gets the check once.
-- N06: when the newest results hold none of the marked answers: a reason and a way forward.
-- N20: a wrong PATH, or a folder under the project, says where it looked.
-- N21: no "since the last check" before any check; a missing results file is said plainly.
-- N24: output piped into a program that stops reading ends quietly.
+- When the newest results hold none of the marked answers: a reason and a way forward.
+- A wrong PATH, or a folder under the project, says where it looked.
+- No "since the last check" before any check; a missing results file is said plainly.
+- Output piped into a program that stops reading ends quietly.
 - Screen 6a: the agreed words for "nothing changed" and "changed after your last eval run".
 No test calls an API: asking again goes through the fake promptfoo of test_again_run.
 """
@@ -81,7 +81,7 @@ def test_settings_changed_after_the_last_eval_run(here, capsys, no_calls):
 
 
 def test_after_a_check_nothing_changed_names_that_check(here, capsys, no_calls):
-    """N21: "since the last check" only once a check ran."""
+    """"Since your last check" only once a check ran."""
     _marked(here)
     _results(here, MARKED, model=HAIKU)
     assert run(capsys)[0] == 0
@@ -90,7 +90,7 @@ def test_after_a_check_nothing_changed_names_that_check(here, capsys, no_calls):
     assert "Your judge has not changed since your last check (" in out
 
 
-# N20 ------------------------------------------------------------------------------------------
+# Where check looked ---------------------------------------------------------------------------
 
 def test_a_path_that_does_not_exist(here, capsys):
     _marked(here)
@@ -130,7 +130,7 @@ def test_too_few_marks_says_so_without_a_number(here, capsys):
     assert _next(out) == "Next: run `judgekeeper mark` to mark more answers."
 
 
-# N21 ------------------------------------------------------------------------------------------
+# A missing results file -----------------------------------------------------------------------
 
 def test_deleted_results_are_said_plainly(here, capsys, no_calls):
     _marked(here)
@@ -143,7 +143,7 @@ def test_deleted_results_are_said_plainly(here, capsys, no_calls):
     assert _next(out) == "Next: run your eval once, then run `judgekeeper check` again."
 
 
-# N04 ------------------------------------------------------------------------------------------
+# A lockfile-only version update ---------------------------------------------------------------
 
 def test_a_lockfile_update_is_not_rechecked_on_older_results(here, capsys, no_calls):
     _lock(here, "0.121.0")
@@ -175,7 +175,7 @@ def test_a_lockfile_update_is_rechecked_after_the_next_eval_run(here, capsys, no
     assert judge_setup.read(ws)["setup"]["tool_version"] == "0.130.0"
 
 
-# N05 ------------------------------------------------------------------------------------------
+# A worse judge stays worse --------------------------------------------------------------------
 
 def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys, no_calls):
     ws = _marked(here)
@@ -206,7 +206,7 @@ def test_after_worse_judgekeeper_still_points_at_check(here, capsys, no_calls):
     assert ws.report_html.is_file()
 
 
-# N06 ------------------------------------------------------------------------------------------
+# No marked answer in the newest results -------------------------------------------------------
 
 def test_no_marked_answer_in_the_new_results_says_why_and_what_to_do(here, capsys, judge):
     ws = _marked(here)
@@ -225,7 +225,7 @@ def test_no_marked_answer_in_the_new_results_says_why_and_what_to_do(here, capsy
     assert _history(ws) == []
 
 
-# N24 ------------------------------------------------------------------------------------------
+# A closed output pipe -------------------------------------------------------------------------
 
 class _Closed(io.StringIO):
     """A pipe whose reader stopped reading (`| head`)."""
