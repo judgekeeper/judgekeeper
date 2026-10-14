@@ -58,7 +58,7 @@ from judgekeeper.records import (
     read_records,
 )
 from judgekeeper.redact import one_line, scrub
-from judgekeeper.table import _blank, make_fingerprint, read_table
+from judgekeeper.table import _blank, make_fingerprint, open_quote, read_table
 from judgekeeper.textio import plural, quote_arg, read_utf8, tick
 
 EXIT_OK = 0
@@ -367,7 +367,14 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
 def read_results_table(path: Path) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
     column, when there is one, as human records (counted, not used). A `model` (or
-    `judge_model`) column names the judge's model, an `app_version` column the app's."""
+    `judge_model`) column names the judge's model, an `app_version` column the app's. A quote
+    that never closes stops it: the rows after it would be read as one cell."""
+    line = open_quote(path)
+    if line is not None:
+        raise StartError(f"line {line} of {path.name} has a quote that never closes, so the "
+                         "rows after it can't be read.",
+                         f"close the quote on line {line} of {path.name}, then run "
+                         "`{command}`.")
     rows = read_table(path)
     if not rows:  # a header and nothing under it
         raise StartError(f"{path.name} has no rows")
@@ -1562,19 +1569,40 @@ def _pass_mark_words(pm: dict) -> str:
     return f"score {words[pm['op']]}" if pm.get("op") in words else f"score {mark}"
 
 
+SENTENCE = re.compile(r"[.!?;:]")  # punctuation a grade word does not hold
+
+
+def verdict_like(value) -> bool:
+    """Whether a decision value looks like a grade word, so it may be shown: at most 3 words,
+    under 30 characters, no sentence punctuation. Anything longer may be the judge's reason
+    or an answer's text (a CSV quote that never closes puts them there)."""
+    text = " ".join(str(value).split())
+    return len(text) < 30 and len(text.split()) <= 3 and not SENTENCE.search(text)
+
+
+def shown_value(value) -> str:
+    """A decision value on one line; quoted when it holds a comma."""
+    text = " ".join(str(value).split())
+    return f'"{text}"' if "," in text else text
+
+
 def unknown_values(values) -> str:
     """What to do about decisions judgekeeper can't read as Pass or Fail, in plain words: never
     a guess, since a wrong one would turn fails into passes."""
     from judgekeeper.normalise import PASS_IF_EXAMPLE, _numeric
 
     seen = list(dict.fromkeys(values))
-    shown = ", ".join(str(v) for v in seen[:10]) + (f" and {len(seen) - 10} more"
+    shown = ", ".join(shown_value(v) for v in seen[:10]) + (f" and {len(seen) - 10} more"
                                                      if len(seen) > 10 else "")
     numbers = [v for v in seen if _numeric(v)]
     if len(numbers) == len(seen):
         return (f"Your judge's decisions are numbers ({shown}): say which scores pass with "
                 f"--pass-if, e.g. {PASS_IF_EXAMPLE}")
     words = [str(v) for v in seen if not _numeric(v)]
+    long = [w for w in words if not verdict_like(w)]
+    if long:
+        return ("judgekeeper can't tell which of your judge's decisions mean Pass and which "
+                f"mean Fail: they hold long text ({_plural(len(long), 'value')}).")
     example = (f'--label-map "{words[0]}=pass,{words[1]}=fail"' if len(words) > 1
                else f'--label-map "{words[0]}=pass" or --label-map "{words[0]}=fail"')
     tail = f" Numbers need --pass-if, e.g. {PASS_IF_EXAMPLE}" if numbers else ""

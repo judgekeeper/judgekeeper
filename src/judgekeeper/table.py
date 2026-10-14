@@ -111,6 +111,40 @@ def read_table(path: str | Path) -> list[dict]:
     raise TableError(f"{path}: expected a .csv, .tsv or .jsonl file")
 
 
+def open_quote(path: str | Path, loose: bool = False) -> int | None:
+    """The line where a quoted cell of a CSV or TSV file starts that swallows the rows after
+    it (its quote never closes, or closes only rows later), or None. A cell swallowed rows
+    when two lines or more inside it read as whole rows (one value per column); with
+    `loose`, when it holds a line break at all (a hint, not a finding)."""
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix not in (".csv", ".tsv"):
+        return None
+    text = read_utf8(path, TableError)
+    delimiter = _delimiter(text, suffix)
+    reader = csv.reader(io.StringIO(text, newline=""), delimiter=delimiter, strict=True)
+    header, start = None, 1
+    try:
+        for row in reader:
+            if header is None:
+                header = row
+            elif any(loose or (len(header) >= 3 and _rows_inside(cell, delimiter,
+                                                                 len(header)) >= 2)
+                     for cell in row if "\n" in cell):
+                return start
+            start = reader.line_num + 1
+    except csv.Error as e:
+        if loose or "unexpected end of data" in str(e):  # loose: any quote out of place
+            return start
+    return None
+
+
+def _rows_inside(cell: str, delimiter: str, columns: int) -> int:
+    """How many lines of a cell read as a whole row of `columns` values."""
+    return sum(len(next(csv.reader([line], delimiter=delimiter), [])) == columns
+               for line in cell.split("\n"))
+
+
 def kind_of(columns) -> str:
     return PAIRWISE if "output_a" in columns and "output_b" in columns else SINGLE
 

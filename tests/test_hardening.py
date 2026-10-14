@@ -651,3 +651,79 @@ def test_a_record_problem_names_the_field_not_its_value():
     with pytest.raises(Exception) as e:
         ScoreRecord.from_dict({"score": [1]})
     assert "[1]" not in str(e.value)
+
+
+def _table_rows(root: Path, rows: list[str]) -> Path:
+    """results.csv with a header and these lines as they are (to write broken CSV)."""
+    return _write(root / "results.csv", "input,output,verdict\n" + "\n".join(rows) + "\n")
+
+
+def _plain_rows(n: int, verdicts=("pass", "fail")) -> list[str]:
+    return [f"Question {i} ZQIN,Answer {i} ZQOUT,{verdicts[i % len(verdicts)]}"
+            for i in range(n)]
+
+
+def test_short_unknown_grades_are_listed_but_never_in_the_next_line(project, capsys):
+    _table_rows(project, _plain_rows(20, ("good", "bad", '"ok, sure"')))
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code == 3
+    assert ("judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
+            'Fail: "ok, sure", bad, good.') in text
+    (next_line,) = [x for x in text.splitlines() if x.startswith("Next:")]
+    for value in ("good", "bad", "ok, sure"):
+        assert value not in next_line
+    assert '--label-map "VALUE=pass,VALUE=fail"' in next_line
+
+
+def test_long_text_grades_are_counted_not_shown(project, capsys):
+    rows = [f"Question {i} ZQIN,Answer {i} ZQOUT,The answer is fine ZQWHY and polite"
+            for i in range(20)]
+    _table_rows(project, rows)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code == 3
+    assert ("judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
+            "Fail: the verdict column holds long text in 20 rows.") in text
+
+
+def test_a_quote_that_never_closes_is_named(project, capsys):
+    rows = _plain_rows(20)
+    rows[4] = 'Question 4 ZQIN,"Answer 4 ZQOUT,pass'  # line 6, counting the header
+    _table_rows(project, rows)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code == 2
+    assert "line 6 of results.csv has a quote that never closes" in text
+
+
+def test_a_quote_closed_rows_later_is_named(project, capsys):
+    rows = _plain_rows(20)
+    rows[4] = 'Question 4 ZQIN,Answer 4 ZQOUT,"pass'  # line 6: its grade swallows 3 rows
+    rows[7] = 'Question 7 ZQIN,Answer 7 ZQOUT,fail"'
+    _table_rows(project, rows)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code == 2
+    assert "line 6 of results.csv has a quote that never closes" in text
+
+
+def test_long_text_from_a_quote_points_at_its_line(project, capsys):
+    rows = _plain_rows(20)
+    rows[4] = 'Question 4 ZQIN,Answer 4 ZQOUT,"the reply ZQWHY'  # swallows text, not rows
+    rows[5] = 'is fine" and polite'
+    _table_rows(project, rows)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code == 3
+    assert ("the verdict column holds long text in 1 row (line 6 of results.csv may have a "
+            "quote that never closes).") in text
+
+
+def test_an_answer_over_several_lines_is_not_a_broken_quote(project, capsys):
+    rows = _plain_rows(20)
+    rows[4] = 'Question 4 ZQIN,"Answer 4 ZQOUT, first line,\nsecond, line\nthird line",pass'
+    _table_rows(project, rows)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert "quote" not in text

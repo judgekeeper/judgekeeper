@@ -323,7 +323,7 @@ def _find(talk: FrontTalk, path: Path, saved) -> start.Found:
 
 
 def _shown(values) -> str:
-    texts = [" ".join(str(v).split()) for v in values]
+    texts = [start.shown_value(v) for v in values]
     texts = [t[:VALUE_WIDTH - 1] + "…" if len(t) > VALUE_WIDTH else t for t in texts]
     return ", ".join(sorted(texts)[:10]) + (f" and {len(texts) - 10} more"
                                              if len(texts) > 10 else "")
@@ -364,17 +364,43 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
                 talk.set("pass_if", f"score>={answer}")
                 return
     words = [str(v) for v in values if not _numeric(v)]
+    long = [v for v in values if not _numeric(v) and not start.verdict_like(v)]
+    if long:  # never shown: it may be the judge's reason or an answer's text
+        raise _long_text(talk, found, long)
     talk.say(f"judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
              f"Fail: {_shown(words)}.")
     if not terminal:
         raise talk.stop(EXIT_QUESTION, (
-            f"ask the person which of these mean Pass and which mean Fail ({_shown(words)}), "
-            f"then run `{talk.command('--label-map', LABEL_MAP)}`."))
+            "decide which of the values above mean Pass and which mean Fail, then run "
+            f"`{talk.command('--label-map', LABEL_MAP)}`."))
     picked = []
     for w in words:
         i = talk.choose(f"Does {w!r} mean Pass or Fail?", ["Pass", "Fail"], "")
         picked.append(f"{w}={('pass', 'fail')[i]}")
     _add_label_map(talk, ",".join(picked))
+
+
+def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
+    """The judge's decisions hold long text, not grade words: counted, never shown. In a
+    table, a quote that never closes may have put it there."""
+    from judgekeeper.table import open_quote
+
+    n = sum(found.pool.n_unmapped.get(repr(v), 0) for v in long)
+    newest = found.results[0].path
+    if found.tool == "table":
+        columns = find.table_columns(newest)
+        column = next((c for c in find.VERDICT_COLUMNS if c in columns), "verdict")
+        line = open_quote(newest, loose=True)
+        hint = (f" (line {line} of {newest.name} may have a quote that never closes)"
+                if line else "")
+        where = f"the {column} column holds long text in {_n(n, 'row')}{hint}"
+        fix = f"make each grade in the {column} column of {newest.name} one word, like pass"
+    else:
+        where = f"they hold long text in {_n(n, 'answer')}"
+        fix = "check where your judge's decisions are saved"
+    talk.say("judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
+             f"Fail: {where}.")
+    return talk.stop(EXIT_QUESTION, f"{fix}, then run `{talk.command()}`.")
 
 
 def _nothing_found(talk: FrontTalk, root: Path, signs: dict) -> Stop:
