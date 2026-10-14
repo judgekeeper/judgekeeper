@@ -84,6 +84,9 @@ def damaged(path: str | Path, tool: str, how: str) -> Damaged:
                    f"save {name} again from {tool}, then run `{{command}}`.")
 
 
+NESTED = f"is nested more than {MAX_NESTING} levels deep"  # the same on every Python
+
+
 def load_json(path: str | Path, tool: str):
     """The JSON in `tool`'s results file. Damaged, in plain words, when it is empty, cut off,
     not JSON or nested too deep."""
@@ -96,10 +99,12 @@ def load_json(path: str | Path, tool: str):
         cut = e.pos >= len(text.rstrip()) or e.msg.startswith("Unterminated string")
         raise damaged(path, tool, "is cut off or damaged (it ends in the middle)" if cut
                       else "is damaged (it isn't valid JSON)") from None
-    except (RecursionError, ValueError):  # nested too deep, or a number too long to read
+    except RecursionError:  # Python before 3.14 stops here; 3.14 reads it: too_deep below
+        raise damaged(path, tool, NESTED) from None
+    except ValueError:  # a number too long to read
         raise damaged(path, tool, "is damaged (judgekeeper can't read it as JSON)") from None
     if too_deep(data):
-        raise damaged(path, tool, f"is nested more than {MAX_NESTING} levels deep")
+        raise damaged(path, tool, NESTED)
     return data
 
 
