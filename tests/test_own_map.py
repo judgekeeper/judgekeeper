@@ -25,6 +25,7 @@ from tests.start_projects import (
     records_project,
     split,
 )
+from tests.test_front import next_lines
 
 
 @pytest.fixture
@@ -91,9 +92,10 @@ def test_nested_runs_asks_four_questions_and_one_yes(tmp_path, capsys, terminal)
     assert "history/evals.jsonl looks like your judge's results in a format of its own" in out
     assert "cases[].A.output" in out and "cases[].A.scores.<criterion>.score" in out
     assert "Question " not in out and "Answer " not in out  # paths, never values
-    assert "Found your results: your own format (history/evals.jsonl, 3 lines, 42 answers)" \
-        in out
-    assert "Next: tell the person the marking page is open in their browser" in out
+    assert "Eval tool:   your own format" in out
+    assert "42 answers from your app" in out
+    assert "(read from history/evals.jsonl, 3 lines)" in out
+    assert "The marking page is open in your browser." in out
 
 
 def fresh(root):
@@ -147,10 +149,11 @@ def test_then_judgekeeper_reads_it_without_a_question(tmp_path, capsys, terminal
     fresh(tmp_path)
     code, out = check(capsys, tmp_path)
     assert code == 0 and len(asked) == before
-    assert "Read as judgekeeper.toml says: input prompt, answer <side>.output" in out
-    code, out = check(capsys, tmp_path)  # marking started: the judge and its results
+    assert "Read as judgekeeper.toml says: input prompt, answer <side>.output" in " ".join(
+        out.split())
+    code, out = check(capsys, tmp_path)  # marking started: straight to marking
     assert code == 0 and len(asked) == before
-    assert "(your own format, history/evals.jsonl" in out
+    assert "Step 2 of 5: Mark" in out
 
 
 def test_nothing_is_written_before_the_yes(tmp_path, capsys, terminal):
@@ -162,7 +165,7 @@ def test_nothing_is_written_before_the_yes(tmp_path, capsys, terminal):
     assert code == 0
     assert snapshot(tmp_path) == before
     assert "Nothing was saved." in out
-    assert out.splitlines()[-1].startswith("Next: nothing.")
+    assert next_lines(out)[-1].startswith("Next: nothing.")
 
 
 def test_one_side_when_each_is_not_its_own_answer(tmp_path, capsys, terminal):
@@ -183,7 +186,7 @@ def test_all_judges_one_at_a_time(tmp_path, capsys, terminal):
     code, out = check(capsys, tmp_path)
     assert code == 0, out
     assert saved(tmp_path)["judge"] == "*"
-    assert "Your judge: Plain language, " in out
+    assert "Judge:       Plain language, " in out
 
 
 # Questions only when needed -------------------------------------------------------------
@@ -208,8 +211,8 @@ def test_a_guess_none_of_whose_parts_fit_asks_for_a_converter(tmp_path, capsys, 
     code, out = check(capsys, path)
     assert code == 3
     assert "Is this how judgekeeper should read " in asked[0]
-    last = out.splitlines()[-1]
-    assert last.startswith("Next: ask the person whether you may write a small script")
+    last = next_lines(out)[-1]
+    assert last.startswith("Next: turn graded.jsonl into a CSV")
     assert "id, input, output, verdict (pass or fail) and reason" in last
     assert not (tmp_path / "judgekeeper.toml").exists()
 
@@ -221,7 +224,7 @@ def test_a_file_it_cannot_map_asks_for_a_converter(tmp_path, capsys):
     code, out = check(capsys, path)
     assert code == 3
     assert "judgekeeper cannot read scores.jsonl by itself: " in out and "no answers" in out
-    assert "small script" in out.splitlines()[-1]
+    assert "into a CSV with the columns" in next_lines(out)[-1]
     assert not (tmp_path / "judgekeeper.toml").exists()
 
 
@@ -244,8 +247,8 @@ def test_without_a_terminal_the_pass_mark_is_a_flag(tmp_path, capsys):
                     encoding="utf-8")
     code, out = check(capsys, path, "--yes")
     assert code == 3
-    assert out.splitlines()[-1] == (
-        "Next: ask the person which score counts as a pass, then run "
+    assert next_lines(out)[-1] == (
+        "Next: decide which score counts as a pass, then run "
         f"`judgekeeper {quote_arg(path)} --pass-if \"score>=N\"`.")
     code, out = check(capsys, path, "--yes", "--pass-if", "score>=4")
     assert code == 0, out
@@ -262,8 +265,7 @@ def test_without_a_terminal_it_stops_at_the_question_before_saving(tmp_path, cap
     code, out = check(capsys, tmp_path)
     assert code == 3
     assert "Save how to read evals/graded.jsonl in judgekeeper.toml?" in out
-    assert f"If they say yes, run `judgekeeper {quote_arg(tmp_path)} --yes`." in \
-        out.splitlines()[-1]
+    assert f"or `judgekeeper {quote_arg(tmp_path)} --yes` to say yes." in next_lines(out)[-1]
     assert snapshot(tmp_path) == before
 
 
@@ -276,7 +278,7 @@ def test_yes_answers_it(tmp_path, capsys):
 def test_several_judges_without_a_terminal_need_metric(tmp_path, capsys):
     nested_runs_project(tmp_path, rule_rows=0)
     code, out = check(capsys, tmp_path, "--yes")
-    assert code == 3 and "--metric" in out.splitlines()[-1]
+    assert code == 3 and "--metric" in next_lines(out)[-1]
     assert not (tmp_path / "judgekeeper.toml").exists()
     code, out = check(capsys, tmp_path, "--yes", "--metric", "Plain language")
     assert code == 0
@@ -297,10 +299,11 @@ def test_without_a_terminal_each_answer_question_takes_yes(tmp_path, capsys, mon
     own_format_project(tmp_path)  # each case has two answers, A and B
     code, out = check(capsys)
     assert code == 3, out
-    assert "  1. Each item has 2 answers (A and B). Count each as its own answer?" in out
-    assert out.splitlines()[-1] == (
-        "Next: ask the person these 2 questions. If they say yes to all, run `judgekeeper "
-        "--yes`. If they say no to any, ask them to run `judgekeeper` in a terminal.")
+    assert ("1. Each item has 2 answers (A and B). Count each as its own answer?"
+            in " ".join(out.split()))
+    assert next_lines(out)[-1] == (
+        "Next: run `judgekeeper` in a terminal to answer, or `judgekeeper --yes` to say yes "
+        "to all.")
 
 
 # Eval tools and records are read as they are ----------------------------------------------
@@ -318,7 +321,7 @@ def test_the_saved_tool_is_used_without_asking(tmp_path, capsys, no_labeling):
     (tmp_path / "judgekeeper.toml").write_text('[start]\nsource = "promptfoo"\n',
                                                 encoding="utf-8")
     code, out = check(capsys, tmp_path)
-    assert code == 0 and "Found your eval tool: promptfoo" in out
+    assert code == 0 and "Eval tool:   promptfoo" in out
     fresh(tmp_path)
     code = main(["start", str(tmp_path), "--yes"])
     capsys.readouterr()

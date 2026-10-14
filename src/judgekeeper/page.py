@@ -1,13 +1,12 @@
 """The marking page: the page `judgekeeper` and `judgekeeper mark` open to mark answers on,
 served by a process of its own (background.py) or, with --wait, by the command itself.
 
-The page's link holds its token, and the token never passes through a coding agent. The
-command makes the token, hands it to the page's process on its stdin (`main`), and opens the
-link in the person's browser itself (`show`): the output says the page is open, with no link.
-Only when no browser opens is the link printed. Without a terminal (an agent or a script
-reads the output) that is said, and every mark made on that page is stamped "link":
-"printed", so the result can count them. At a terminal (the person's own) a printed link is
-not stamped.
+The page's link holds its token. The command makes the token, hands it to the page's process
+on its stdin (`main`), and opens the link in the person's browser itself (`show`): the output
+says the page is open, with no link. Only when no browser opens (or with --no-browser, on a
+remote machine) is the link printed. Without a terminal (another program reads the output)
+every mark made on that page is stamped "link": "printed", so the result can count them. At a
+terminal (the person's own) a printed link is not stamped.
 
 An open page can't be shown again without its token, so opening a page closes the open one
 first (with the stop secret in server.json) and starts a new one, with a new token. The marks
@@ -37,10 +36,9 @@ from judgekeeper.label import (
 )
 from judgekeeper.start_label import StartSession, Workspace
 
-OPEN = "The marking page is open in your browser."
-NO_BROWSER = ("judgekeeper could not open a browser, so the link is printed here, where your "
-              "coding agent can read it.")
-DONE = "When you're done, tell your coding agent, or run {program} in your terminal."
+NO_BROWSER = "judgekeeper could not open a browser, so the link is printed here."
+LINK = "Open this link in your browser to mark answers:"
+DONE = "When you're done, run {program} in your terminal."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
 OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
 ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
@@ -159,23 +157,19 @@ def terminal() -> bool:
     return output and _interactive()
 
 
-def show(say, page: Page, no_browser: bool, wait: bool, opened: str = OPEN,
-         name: str = "Marking page") -> str | None:
-    """Open the page in the person's browser and say so (BROWSER). At a terminal, print the
-    link when no browser opened or with --wait (TERMINAL). Without one, when no browser
-    opened: say so, stamp the page's marks, then print the link (PRINTED). None when the
-    marks could not be stamped: then the link is not printed. `opened` is said when the
-    browser opened it, and `name` names the printed link."""
+def show(say, page: Page, no_browser: bool, wait: bool) -> str | None:
+    """Open the page in the person's browser (BROWSER: nothing is said, the caller says it).
+    At a terminal, print the link when no browser opened, with --no-browser or with --wait
+    (TERMINAL). Without one, stamp the page's marks first, then print the link (PRINTED).
+    None when the marks could not be stamped: then the link is not printed."""
     at_terminal = terminal()
     in_browser = not no_browser and webbrowser.open(page.url)
     if in_browser and not (at_terminal and wait):
-        say(opened)
         return BROWSER
-    if not at_terminal:
-        say(NO_BROWSER)
-        if not _stamp_printed(page):
-            return None
-    print(f"{name}: {page.url}")  # the link whole: printed by hand, never by say
+    if not at_terminal and not _stamp_printed(page):
+        return None
+    say(LINK)
+    print(page.url)  # the link whole: printed by hand, never by say
     sys.stdout.flush()
     return TERMINAL if at_terminal else PRINTED
 

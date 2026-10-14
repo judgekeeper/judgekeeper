@@ -159,9 +159,9 @@ def test_opening_an_open_page_replaces_it(here, capsys, no_browser):
     assert retried(send) == 200
     old_pid = label.read_lock(ws.dir)["pid"]
 
-    code, out, _ = _run(capsys, "--port", "0")
+    code, out, _ = _run(capsys, "mark", "--port", "0")  # `mark` opens a new page
     assert code == 0, out
-    assert "Marked so far: 1 (1 Pass, 0 Fail)." in out  # the mark stays
+    assert "You have marked 1 answer so far (1 Pass, 0 Fail)." in out  # the mark stays
     second = no_browser[-1]
     new_base, new_token = _split(second)
     assert new_token != token

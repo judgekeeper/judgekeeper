@@ -220,8 +220,9 @@ def test_with_uvx_the_project_has_no_virtual_environment(ic, tmp_path):
 
 
 def test_the_marking_page_link_is_read_from_the_output(ic):
-    out = ("Marking page: http://127.0.0.1:54321/?token=Ab-c_9\n"
-           "It shows one answer at a time. Your judge's verdict is hidden.")
+    out = ("Open this link in your browser to mark answers:\n"
+           "http://127.0.0.1:54321/?token=Ab-c_9\n"
+           "It shows the same answers one at a time.")
     assert ic.page_link(out) == ("http://127.0.0.1:54321", "Ab-c_9")
 
 
@@ -237,7 +238,7 @@ def _walk(ic, monkeypatch, tool, project, jk=None):
 
     class Done:
         returncode = 0
-        stdout = "Marking page: http://127.0.0.1:5/?token=t0k\n"
+        stdout = "Open this link in your browser to mark answers:\nhttp://127.0.0.1:5/?token=t0k\n"
 
     def run(name, args, ok_codes=(0,), expect=(), **kwargs):
         args = [str(a) for a in args]
@@ -279,7 +280,7 @@ def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
     assert fronts == [["--no-browser", "--port", "5"], ["--no-browser", "--port", "5"]]
     assert after[0][:1] == ["start"]
     first = " ".join(ran[0][1])
-    assert "Marking page" in first and "Your judge passed 28 and failed 22" in first
+    assert "Open this link" in first and "Your judge's grades: 28 Pass, 22 Fail" in first
     result = " ".join(ran[1][1])
     assert "Of the answers you passed" in result and "25 Fail" in result
     assert "automatic" not in result.lower()
@@ -300,7 +301,7 @@ def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tm
     assert fronts[1:] == [["--no-browser", "--port", "5"]]
     first = " ".join(ran[0][1])
     assert "Saved judgekeeper" in first and re.escape("my-judge-1") in first
-    assert "Your judge passed 28 and failed 22" in first and "Marking page" in first
+    assert "Your judge's grades: 28 Pass, 22 Fail" in first and "Open this link" in first
     assert ("judgekeeper.toml saved", True) in [(name, ok) for name, ok, *_ in steps]
 
 
@@ -321,7 +322,7 @@ def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_p
     assert fronts[0] == ["--no-browser", "--port", "5"] and len(fronts) == 2
     assert after[0][:1] == ["start"]
     first, result = " ".join(ran[0][1]), " ".join(ran[1][1])
-    assert "Next: .*`uvx judgekeeper@" in first and "Next: .*`uvx judgekeeper@" in result
+    assert "Next: [^`]*`uvx judgekeeper@" in first and "Next: [^`]*`uvx judgekeeper@" in result
 
 
 def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch, tmp_path):

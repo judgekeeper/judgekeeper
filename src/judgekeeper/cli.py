@@ -57,16 +57,23 @@ EXIT_FAILURE = 1
 EXIT_USAGE = 2
 EXIT_STOPPED = 130  # Ctrl-C, as shells report it
 
-MESSAGE = "Check your LLM-as-a-judge."
-ABOUT = ("Run judgekeeper in your project: it finds your eval tool's saved results and the "
-         "judge that made them, checks them for free (no AI call), opens a page to mark "
-         "answers on, and shows how often your judge agrees with your marks. Each run does "
-         "the next step and ends with one Next: line saying what to do.")
+MESSAGE = "Check your LLM-as-a-judge in 5 steps."
+STEPS = """\
+  1. Find      judgekeeper          finds your eval results and your judge
+  2. Mark      in your browser      you mark answers Pass or Fail
+  3. Measure   judgekeeper          how often your judge agrees with you
+  4. Fix       coming soon          write a better rule, tested on hidden marks
+  5. Re-check  judgekeeper check    after you change your judge or update
+                                    your eval tool"""
+READS = """\
+judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
+MLflow, or a CSV or JSONL file with these columns:
+  input, output, verdict"""
 COMMANDS_HELP = (
-    ("mark", "open the page to mark more answers Pass or Fail"),
-    ("check", "when your judge changed, re-check it on your marks"),
+    ("mark", "mark more answers"),
+    ("check", "re-check your judge on your marks after a change"),
 )
-HELP_WIDTH = 100
+HELP_WIDTH = 80
 # Removed commands: the 0.1 CI gate, and setup (part of judgekeeper now). Each prints one line
 # and exits 2.
 REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "setup")
@@ -86,16 +93,17 @@ class _Parser(argparse.ArgumentParser):
 
 
 class _TopParser(_Parser):
-    """The top-level help: the message, what `judgekeeper` does, its options, the commands."""
+    """The top-level help: the 5 steps, what judgekeeper reads, the usage, the commands, then
+    the options of `judgekeeper` itself."""
 
     def format_help(self) -> str:
         width = max(len(name) for name, _ in COMMANDS_HELP) + 3
         commands = [line for name, text in COMMANDS_HELP for line in textwrap.wrap(
             text, HELP_WIDTH, initial_indent=f"  {name:<{width}}",
             subsequent_indent=" " * (2 + width))]
-        lines = [MESSAGE, "", *textwrap.wrap(ABOUT, HELP_WIDTH), "",
-                 super().format_help().rstrip(), "", "Commands:", *commands, "",
-                 "Run `judgekeeper <command> --help` for a command's options."]
+        usage, _, options = super().format_help().partition("\n\n")
+        lines = [MESSAGE, "", STEPS, "", READS, "", usage.strip(), "", "Commands:", *commands,
+                 "", options.rstrip()]
         return "\n".join(lines) + "\n"
 
 
@@ -162,6 +170,7 @@ def _front_parser() -> argparse.ArgumentParser:
     """`judgekeeper` with no command. Each option answers a question its Next: line asks."""
     p = _TopParser(prog="judgekeeper", usage="judgekeeper [PATH] [options]",
                    formatter_class=lambda prog: argparse.HelpFormatter(prog, width=HELP_WIDTH))
+    p._positionals.title, p._optionals.title = "Arguments", "Options"
     p.add_argument("path", nargs="?", default=".", metavar="PATH",
                    help="your project folder (default: this folder), one results file, or an "
                         "MLflow store (mlflow.db or an mlruns/ folder)")
@@ -180,8 +189,7 @@ def _front_parser() -> argparse.ArgumentParser:
     p.add_argument("--fields", metavar="LIST",
                    help="a DeepEval GEval judge: the parts it reads, e.g. input,actual_output")
     p.add_argument("--yes", action="store_true",
-                   help="without a terminal: the person said yes to the question judgekeeper "
-                        "printed")
+                   help="without a terminal: yes to the questions judgekeeper printed")
     _page_args(p)
     p.add_argument("--version", action=_Version, nargs=0, help="show the version and exit")
     p.add_argument("--debug", action="store_true",
@@ -220,8 +228,7 @@ def _parser() -> argparse.ArgumentParser:
     mk.add_argument("--fields", metavar="LIST",
                     help="a DeepEval GEval judge: the parts it reads, e.g. input,actual_output")
     mk.add_argument("--yes", action="store_true",
-                    help="without a terminal: the person said yes to the question judgekeeper "
-                         "printed")
+                    help="without a terminal: yes to the questions judgekeeper printed")
     _page_args(mk)
 
     ck = sub.add_parser("check", parents=[common],
@@ -325,10 +332,11 @@ def _page_args(p: argparse.ArgumentParser) -> None:
 
 def _normaliser_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--pass-if", metavar="RULE",
-                   help="rule for numeric verdicts, e.g. 'score>=0.5' (required for numbers)")
+                   help="when your judge's grades are scores: which pass, e.g. 'score>=0.5'")
     p.add_argument("--label-map", metavar="MAP",
-                   help="extra verdict spellings, e.g. 'good=pass,bad=fail' (added to the "
-                        "defaults pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0)")
+                   help="more spellings of your judge's grades, e.g. 'good=pass,bad=fail' "
+                        "(added to pass/fail, true/false, yes/no, correct/incorrect, "
+                        "right/wrong, 1/0)")
 
 
 def cmd_start(args) -> int:

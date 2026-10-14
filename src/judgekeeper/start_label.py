@@ -759,7 +759,7 @@ def _pass_rate(r: dict) -> list[tuple[str, bool]] | None:
 def made_lines(made: dict | None) -> list[str]:
     """How the marks were made (marks.made), and a note when more than a quarter took under a
     second each, when lines of marks.jsonl are not counted, or when marks were made through a
-    link printed where a coding agent could read it."""
+    link printed where another program could read it (no terminal)."""
     if not made or not made["marks"]:
         return []
     n, quick = made["marks"], made["under_second"]
@@ -776,7 +776,8 @@ def made_lines(made: dict | None) -> list[str]:
     not_counted = marks.not_counted_line(made.get("not_counted") or 0)
     printed = made.get("printed") or 0
     return out + ([not_counted] if not_counted else []) + (
-        [f"{printed} of your marks were made through a link your coding agent could read."]
+        [(f"{printed} of your marks were made through a link printed where another program "
+          "could read it.")]
         if printed else [])
 
 

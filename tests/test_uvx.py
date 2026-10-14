@@ -17,7 +17,7 @@ import pytest
 from judgekeeper import __version__, page, start_label, textio
 from judgekeeper.cli import version_lines
 from tests.start_projects import promptfoo_project, records_project, split
-from tests.test_front import run
+from tests.test_front import next_lines, run
 
 UVX = f"uvx judgekeeper@{__version__}"
 CACHES = ["/Users/me/.cache/uv/archive-v0/r-lOTHILJ6Qzv6Y1",
@@ -92,7 +92,7 @@ def test_the_first_run_says_to_run_uvx_again(here, capsys, by_uvx, no_browser):
     promptfoo_project(here, split(20, 16))
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert out.splitlines()[-1].endswith(f"When they say they are done, run `{UVX}` again.")
+    assert next_lines(out)[-1].endswith(f"then run `{UVX}` again.")
     assert not _bare_commands(out), out
 
 
@@ -100,7 +100,7 @@ def test_a_printed_link_says_to_run_uvx_again(here, capsys, by_uvx):
     promptfoo_project(here, split(20, 16))
     code, out, _ = run(capsys, "--no-browser")
     assert code == 0, out
-    assert out.splitlines()[-1].endswith(f"run `{UVX} --no-browser` again.")
+    assert next_lines(out)[-1].endswith(f"run `{UVX} --no-browser` again.")
     assert not _bare_commands(out), out
 
 
@@ -113,12 +113,12 @@ def test_marking_started_and_the_result_name_uvx(here, capsys, by_uvx):
     for item in session.items[:10]:
         session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 5})
     _, out, _ = run(capsys)
-    assert f"run `{UVX}` again." in out and not _bare_commands(out), out
+    assert f"run `{UVX}` again." in next_lines(out)[-1] and not _bare_commands(out), out
     for item in session.items[10:]:
         session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 5})
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert out.splitlines()[-1].endswith(f"To mark more, run `{UVX} mark`.")
+    assert next_lines(out)[-1].endswith(f"run `{UVX} check`.")
     assert not _bare_commands(out), out
 
 
@@ -134,7 +134,8 @@ def test_mark_says_to_run_uvx_again(here, capsys, by_uvx):
     promptfoo_project(here, split(20, 16))
     code, out, _ = run(capsys, "mark", "--no-browser")
     assert code == 0, out
-    assert f"run `{UVX} --no-browser` again." in out and not _bare_commands(out), out
+    assert f"run `{UVX} --no-browser` again." in next_lines(out)[-1]
+    assert not _bare_commands(out), out
 
 
 def test_stop_and_start_over_name_uvx(here, capsys, by_uvx):
@@ -155,7 +156,7 @@ def test_the_page_says_to_run_uvx_in_the_terminal(here, capsys, by_uvx):
     for item in session.items:
         session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 5})
     text = page.marking_session(ws).summary()["status"]["text"]
-    assert text.endswith(f"tell your coding agent, or run {UVX} in your terminal."), text
+    assert text.endswith(f"When you're done, run {UVX} in your terminal."), text
 
 
 def test_start_names_uvx_start(here, capsys, by_uvx):
@@ -169,4 +170,4 @@ def test_without_uvx_nothing_changes(here, capsys, no_browser, monkeypatch):
     promptfoo_project(here, split(20, 16))
     _, out, _ = run(capsys)
     assert "uvx" not in out
-    assert out.splitlines()[-1].endswith("run `judgekeeper` again.")
+    assert next_lines(out)[-1].endswith("run `judgekeeper` again.")

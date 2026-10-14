@@ -35,7 +35,6 @@ import json
 import os
 import stat
 import sys
-import textwrap
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -45,7 +44,7 @@ from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_value
 from judgekeeper.start_label import Workspace
-from judgekeeper.textio import plural, program, quote_arg, write_replacing
+from judgekeeper.textio import plural, program, quote_arg, wrap, write_replacing
 
 EXIT_OK, EXIT_WORSE, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 1, 2, 3
 VERDICTS = "verdicts"
@@ -54,7 +53,6 @@ LOCKFILES = ("package-lock.json", "uv.lock", "poetry.lock", "judgekeeper.toml")
 WHOLE = 4_000_000  # bytes: a results file up to this size is hashed whole
 ENDS = 64 * 1024  # bytes read from each end of a bigger one
 MAX_ENTRIES = 20_000  # files in a results folder (an MLflow store) looked at, at most
-WIDTH = 64  # the question's lines
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers you failed"))
 
@@ -69,6 +67,11 @@ CAN_WRITE = "Your judge is an agent that can change files when it runs."
 NOT_ASKED = "Your judge was not asked."
 NEXT_YES = "Next: run `{command}` in your terminal to answer, or `{command} --yes` to go ahead."
 NEXT_LATER = "Next: run `{command}` again when you are ready to re-check your judge."
+NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your judge."
+NEXT_EVAL = "Next: run your eval again, then run `{command}`."
+NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
+NEXT_WORSE = "Next: go back to {back}, or change your judge and run `{command}` again."
+STEP = "Step 5 of 5: Re-check"
 DOWNLOAD = ("Asking your judge would mean downloading promptfoo {version}; judgekeeper "
             "doesn't download anything by itself.")
 NO_KEY = "The key your judge needs isn't set where judgekeeper runs, so your judge wasn't asked."
@@ -360,7 +363,7 @@ def _can_write(setup: dict) -> bool:
 
 
 def _wrap(said, text: str) -> None:
-    for line in textwrap.wrap(text, WIDTH):
+    for line in wrap(text):
         said.say(line)
 
 
@@ -525,10 +528,21 @@ def _save_verdicts(ws: Workspace, setup: dict, found, verdicts: dict[str, str]) 
 
 @dataclass
 class Said:
+    """What check says, line by line: a Next: line, or any line over 80 columns, wrapped
+    (textio.wrap) under its own indent."""
     lines: list[str] = field(default_factory=list)
 
     def say(self, text: str = "") -> None:
-        self.lines.append(one_line(text))
+        text = one_line(text)
+        if not text.startswith("Next:") and len(text) <= 80:
+            self.lines.append(text)
+            return
+        indent = text[:len(text) - len(text.lstrip())]
+        for line in wrap(text.strip(), indent=indent):
+            self._say(line)
+
+    def _say(self, line: str) -> None:
+        self.lines.append(line)
 
 
 def _no_change(state: State) -> str:
@@ -577,8 +591,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         new = judge_setup.of(found) if found is not None else new
     if problem:
         said.say(problem + ".")
-        said.say("Next: ask the person to run their eval once, then run "
-                 f"`{_command(state)}` again.")
+        said.say()
+        said.say(NEXT_RUN_EVAL.format(command=_command(state)))
         return EXIT_NEEDS_YOU
     changed = judge_setup.changes(old, new)
     if not changed:
@@ -587,8 +601,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         if config is not None:
             said.say(CONFIG_NEWER)
         said.say()
-        said.say("Next: nothing. Tell the person their judge has not changed since the last "
-                 "check.")
+        said.say((NEXT_SAME if config is None else NEXT_EVAL).format(command=_command(state)))
         return EXIT_OK
 
     change = _change_line(old, new, changed, full=True)
@@ -602,7 +615,6 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say(NEXT_YES.format(command=_command(state)))
         return EXIT_NEEDS_YOU
     tested = {**free, **asked.verdicts}
-    short = ", ".join(changed)
     if not tested:
         for line in asked.reasons:
             said.say(line)
@@ -638,11 +650,12 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         tool = find.NAMES.get(new.get("tool"), new.get("tool"))
         back = (f"the old version of {tool} ({old.get('tool_version')})"
                 if judge_setup.tool_only(old, new) else "the old judge")
-        said.say(f"Next: tell the person the new judge {what('they')}. Ask whether to go back "
-                 f"to {back}.")
+        said.say(f"Your new judge {what('you')}.")
+        said.say()
+        said.say(NEXT_WORSE.format(back=back, command=_command(state)))
     else:
-        said.say(f"Next: nothing. Tell the person their judge changed ({short}) and the "
-                 "re-check on their marks found no drop.")
+        said.say()
+        said.say(NEXT_SAME.format(command=_command(state)))
 
     flipped = [i for i in tested if i in old_verdicts and old_verdicts[i] != tested[i]]
     marks.append(state.ws.history_jsonl, scrub_value({
@@ -674,15 +687,23 @@ def _print(text: str = "") -> None:
 
 
 class _Printed(Said):
-    """Said as it goes: a printed link (page.show) stays in its place among the lines."""
+    """Said as it goes, so the question is asked in its place among the lines."""
 
     def say(self, text: str = "") -> None:
-        _print(text)
+        if not text.startswith("Next:") and len(one_line(text)) <= 80:
+            _print(text)
+        else:
+            super().say(text)
+
+    def _say(self, line: str) -> None:
+        _print(line)
 
 
 def run(path: str = ".", yes: bool = False) -> int:
     """`judgekeeper check`. Returns the exit code."""
     _print(f"judgekeeper {__version__}")
+    _print()
+    _print(STEP)
     _print()
     return full(path, _Printed(), yes=yes)
 

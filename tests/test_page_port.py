@@ -14,6 +14,7 @@ from judgekeeper import page
 from judgekeeper.cli import main
 from judgekeeper.label import LabelServer, LabelSession
 from tests.start_projects import promptfoo_project, split
+from tests.test_front import next_lines
 
 ANOTHER = "A marking page for another project is open; close it there with `judgekeeper --stop`."
 
@@ -102,4 +103,4 @@ def test_no_free_port_never_suggests_wait(here, taken, capsys, pages, monkeypatc
     assert code == 3, out
     assert "--wait" not in out
     assert f"Port {port} is in use" in out
-    assert out.rstrip().splitlines()[-1].startswith("Next: run `judgekeeper --port 0")
+    assert next_lines(out)[-1].startswith("Next: run `judgekeeper --port 0")

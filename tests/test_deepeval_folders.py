@@ -38,14 +38,15 @@ def test_two_deepeval_folders_are_asked_about_not_merged(two_apps, capsys):
     assert "older file" not in out
     app1, app2 = (quote_arg(Path(f"{a}/.deepeval")) for a in ("app1", "app2"))
     assert assert_one_next_at_the_end(out) == (
-        "Next: ask the person which DeepEval results to check (app2/.deepeval, "
+        "Next: choose which DeepEval results to check (app2/.deepeval, "
         f"app1/.deepeval), then run `judgekeeper {app2}` or `judgekeeper {app1}`.")
     assert code == 3
 
 
 def test_the_folder_named_is_read_alone_in_its_own_project(two_apps, capsys):
     code, out, _ = run(capsys, "app1/.deepeval")
-    assert "Found your eval tool: DeepEval (.deepeval/.latest_run_full.json, 20 answers)" in out
+    assert "Eval tool:   DeepEval" in out and "20 answers from your app" in out
+    assert "(read from .deepeval/.latest_run_full.json)" in out
     assert (two_apps / "app1" / ".judgekeeper" / "judge.json").is_file()
     assert not (two_apps / "app1" / ".deepeval" / ".judgekeeper").exists()
     assert code == 3  # 20 answers: fewer than a first result needs
@@ -59,7 +60,8 @@ def test_at_a_terminal_the_folder_is_asked_and_kept(two_apps, capsys, terminal):
     assert saved["source"] == "deepeval" and saved["file"] == "app1/.deepeval"
     _, out, _ = run(capsys)  # asked once
     assert "more than one folder" not in out
-    assert "app1/.deepeval/.latest_run_full.json, 20 answers" in out
+    assert "(read from app1/.deepeval/.latest_run_full.json)" in out
+    assert "20 answers from your app" in out
 
 
 def test_a_file_with_several_metrics_asks_which(here, capsys):

@@ -135,7 +135,14 @@ def _history(ws):
 
 
 def _next(out: str) -> str:
-    return [x for x in out.splitlines() if x.startswith("Next:")][-1]
+    from tests.test_front import next_lines
+
+    return next_lines(out)[-1]
+
+
+def _flat(out: str) -> str:
+    """The output with its wrapping undone."""
+    return " ".join(out.split())
 
 
 # check remembers the setup of the results it read ------------------------------------------
@@ -207,12 +214,14 @@ def test_a_store_folder_is_seen_to_change_deep_inside(tmp_path):
 # check: free first ---------------------------------------------------------------------------
 
 SCENE_6 = [
+    "Step 5 of 5: Re-check",
+    "",
     f"Your judge changed: model {MODEL} -> {HAIKU}.",
     "Re-checked on your 50 marks (50 free from your new results).",
     "",
     "  Answers you passed:  old judge 100%, new judge 100%.  No drop seen.",
-    ("  Answers you failed:  old judge 100%, new judge 64%.  Worse: it now passes 9 answers "
-     "you failed."),
+    "  Answers you failed:  old judge 100%, new judge 64%.  Worse: it",
+    "  now passes 9 answers you failed.",
     "",
 ]
 
@@ -226,8 +235,9 @@ def test_a_model_change_rechecked_free(here, capsys, no_calls):
     start_at = lines.index(SCENE_6[0])
     assert lines[start_at:start_at + len(SCENE_6)] == SCENE_6
     assert re.search(r"^This check can see a drop of \d+ points or more\.$", out, re.MULTILINE)
-    assert _next(out) == ("Next: tell the person the new judge passes 9 answers they failed. "
-                          "Ask whether to go back to the old judge.")
+    assert "Your new judge passes 9 answers you failed." in out
+    assert _next(out) == ("Next: go back to the old judge, or change your judge and run "
+                          "`judgekeeper check` again.")
     saved = judge_setup.read(ws)["setup"]
     assert saved["models"] == [HAIKU]  # judge.json follows the judge just checked
 
@@ -238,7 +248,8 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_c
     code, out = run(capsys)
     assert code == 0
     assert "  Answers you failed:  old judge 100%, new judge 100%.  No drop seen." in out
-    assert _next(out).startswith("Next: nothing.")
+    assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
+                          "change your judge.")
     code, out = run(capsys)
     assert code == 0
     day = datetime.now().astimezone()
@@ -285,7 +296,7 @@ def test_a_promptfoo_version_bump_only(here, capsys, no_calls):
     code, out = run(capsys)
     assert code == 0
     assert ("Your eval tool changed: promptfoo 0.124.1 -> 0.125.0. Your judge's rule and model "
-            "are the same.") in out
+            "are the same.") in _flat(out)
     assert "Re-checked on your 50 marks (50 free from your new results)." in out
 
 
@@ -304,7 +315,7 @@ def test_an_inspect_version_bump_only(here, capsys, no_calls):
     code, out = run(capsys)
     assert code == 0
     assert ("Your eval tool changed: Inspect AI 0.3.278 -> 0.3.280. Your judge's rule and "
-            "model are the same.") in out
+            "model are the same.") in _flat(out)
 
 
 # check: asking the judge, only after a yes -----------------------------------------------------
@@ -350,7 +361,7 @@ def test_with_yes_the_rest_is_asked_again(here, capsys, judge):
     code, out = run(capsys, "--yes")
     assert code == 1
     assert "Re-checked on your 50 marks (50 asked again)." in out
-    assert "it now passes 9 answers you failed" in out
+    assert "it now passes 9 answers you failed" in _flat(out)
     assert _evals(judge) == 1
     tests = judge["fake"].files_seen["tests"]
     assert len(tests) == 50
@@ -409,8 +420,8 @@ def test_a_close_copy_is_said(here, capsys, judge):
     _results(here, MARKED, model=HAIKU, version="0.125.0", outputs=_new_outputs())
     code, out = run(capsys, "--yes")
     assert code == 0
-    assert re.search(r"^This was a close copy of your judge, not an exact one: .*0\.124\.1.*"
-                     r"0\.125\.0", out, re.MULTILINE)
+    assert re.search(r"This was a close copy of your judge, not an exact one: .*0\.124\.1.*"
+                     r"0\.125\.0", _flat(out))
 
 
 def test_free_first_then_asked(here, capsys, judge):
@@ -451,7 +462,7 @@ def test_the_next_check_compares_with_the_last_checks_verdicts(here, capsys, no_
     code, out = run(capsys)
     assert code == 0  # the same 9 as the judge before: no new drop
     assert "  Answers you failed:  old judge 64%, new judge 64%.  No drop seen." in out
-    assert f"Your judge changed: model {HAIKU} -> anthropic:claude-sonnet-5." in out
+    assert f"Your judge changed: model {HAIKU} -> anthropic:claude-sonnet-5." in _flat(out)
 
 
 # History and saved verdicts -------------------------------------------------------------------

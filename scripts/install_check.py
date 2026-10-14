@@ -80,7 +80,7 @@ MODELS = {"promptfoo": "pf-grader", "deepeval": "gpt-4.1", "inspect": "grader-1"
 DIALECT = {MODELS["promptfoo"]: "promptfoo", MODELS["deepeval"]: "deepeval",
            MODELS["inspect"]: "inspect", MODELS["mlflow"]: "mlflow"}
 
-# The judge's model, as the "Your judge:" line of `judgekeeper` says it, per tool.
+# The judge's model, as the "Judge:" line of `judgekeeper` says it, per tool.
 JUDGE_NAME = {"table": "my-judge-1", "promptfoo": MODELS["promptfoo"],
               "deepeval": MODELS["deepeval"], "inspect": MODELS["inspect"],
               "mlflow": MODELS["mlflow"], "record": MODELS["own"], "own-format": MODELS["own"],
@@ -731,11 +731,14 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         link printed: no browser, no terminal); the stand-in person marks on it; `judgekeeper`
         then prints the result; `--stop` closes the page. For a file in your own format the
         first run maps it (answers given by --yes) and goes on: it is the first look."""
-        decisions = rf"Your judge passed {len(JUDGE_PASSES)} and failed {N - len(JUDGE_PASSES)}\."
-        # Started by uvx, every Next: line names `uvx judgekeeper@<version>`.
-        uvx = [r"Next: .*`uvx judgekeeper@"] if self.via == "uvx" else []
-        expect = [rf"Your judge: .*{re.escape(JUDGE_NAME[self.tool])}", decisions,
-                  r"Marking page: http://127\.0\.0\.1:", r"Marked so far: 0\.", *uvx]
+        decisions = (rf"Your judge's grades: {len(JUDGE_PASSES)} Pass, "
+                     rf"{N - len(JUDGE_PASSES)} Fail\.")
+        # Started by uvx, every Next: line names `uvx judgekeeper@<version>` (it may wrap).
+        uvx = [r"Next: [^`]*`uvx judgekeeper@"] if self.via == "uvx" else []
+        expect = [r"Step 1 of 5: Find", rf"Judge: .*{re.escape(JUDGE_NAME[self.tool])}",
+                  decisions, r"Step 2 of 5: Mark",
+                  r"Open this link in your browser to mark answers:\s+http://127\.0\.0\.1:",
+                  *uvx]
         if self.tool == "own-format":
             p = self.mark_step("1. judgekeeper maps the file (answers given by --yes, no "
                                "terminal): the first look, and the page in the background",
@@ -755,7 +758,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         self.mark_step("2. judgekeeper prints the result", self.front(),
                        [r"Your marks: 50 \(25 Pass, 25 Fail\), made on the page",
                         r"Of the answers you passed, your judge passed",
-                        r"Of the answers you failed, your judge failed", *uvx])
+                        r"Of the answers you failed, your judge failed",
+                        r"Step 3 of 5: Measure", *uvx])
         self.mark_step("2. judgekeeper --stop closes the page", [*self.jk, "--stop"],
                        [r"Closed the marking page"])
 

@@ -70,8 +70,8 @@ def test_marks_made_through_a_printed_link_are_said(ws):
         session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 4})
     made = marks.made(marks.read(ws.marks))
     assert made["printed"] == 3
-    assert start_label.made_lines(made)[-1] == ("3 of your marks were made through a link your "
-                                                "coding agent could read.")
+    assert start_label.made_lines(made)[-1] == ("3 of your marks were made through a link "
+                                                "printed where another program could read it.")
 
 
 def test_the_result_keeps_how_the_marks_were_made_and_the_smallest_drop(ws):

@@ -24,8 +24,9 @@ def test_what_was_found_comes_before_the_question(here, capsys):
     path.write_text(json.dumps(inspect_data([True] * 16 + [False] * 16 + ["P"] * 4)),
                     encoding="utf-8")
     code, out, _ = run(capsys)
-    found = out.index("Found your eval tool: Inspect AI (logs/2026-10-02_support.json, ")
-    judge = out.index("Your judge: anthropic/claude-haiku-4-5")
+    found = out.index("Eval tool:   Inspect AI")
+    assert "(read from logs/2026-10-02_support.json)" in out
+    judge = out.index("Judge:       anthropic/claude-haiku-4-5")
     asked = out.index("Inspect gave partial credit (P) on 4 answers.")
     assert found < judge < asked
     assert "--label-map P=pass" in assert_one_next_at_the_end(out)

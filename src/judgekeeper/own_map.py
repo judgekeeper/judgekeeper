@@ -39,10 +39,9 @@ def cannot(talk: Talk, rel: str, why: str):
     talk.say(f"judgekeeper cannot read {rel} by itself: {why}.")
     talk.say(RECORD_DOOR)
     return talk.stop(EXIT_USAGE, (
-        f"ask the person whether you may write a small script that turns {rel} into a CSV "
-        "with the columns id, input, output, verdict (pass or fail) and reason, one CSV per "
-        "judge, leaving out errors and scores made by a rule. Then run `judgekeeper "
-        "<the CSV>`."))
+        f"turn {rel} into a CSV with the columns id, input, output, verdict (pass or fail) "
+        "and reason, one CSV per judge, leaving out errors and scores made by a rule. Then "
+        "run `judgekeeper <the CSV>`."))
 
 
 def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
@@ -176,7 +175,7 @@ def _pass_mark(talk: Talk, g: mapper.Guess, pass_if: str | None):
         return value
     talk.say("Your judge's scores are not between 0 and 1, and the file does not say which "
              "score passes.")
-    raise talk.stop(EXIT_QUESTION, f"ask the person which score counts as a pass, then run "
+    raise talk.stop(EXIT_QUESTION, f"decide which score counts as a pass, then run "
                                    f"`{talk.command('--pass-if', PASS_IF)}`.")
 
 
