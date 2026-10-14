@@ -127,7 +127,7 @@ def test_a_file_with_no_scores_cannot_be_mapped(tmp_path):
     path = tmp_path / "answers.jsonl"
     path.write_text("".join(json.dumps({"question": f"q{i}", "answer": "a"}) + "\n"
                             for i in range(5)), encoding="utf-8")
-    with pytest.raises(mapper.MapError, match="no score or verdict"):
+    with pytest.raises(mapper.MapError, match="no judge verdicts"):
         mapper.guess(mapper.load(path))
 
 

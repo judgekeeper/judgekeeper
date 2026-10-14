@@ -38,7 +38,6 @@ CRITERION = "<criterion>"
 EXAMPLE_WIDTH = 60
 SAMPLE_UNITS = 50  # units looked at for a guess
 MAX_DEPTH = 8
-MAX_VERDICT = 20  # characters: a longer text is not a verdict
 
 INPUT_WORDS = ("input", "prompt", "question", "query", "instruction", "message", "request")
 OUTPUT_WORDS = ("output", "outputs", "answer", "answers", "response", "responses",
@@ -56,6 +55,15 @@ JUDGE_MODEL_KEYS = MODEL_KEYS[:4]  # say "judge" in their own name, at any depth
 JUDGE_PARENTS = ("judge", "judges", "judging", "evaluator", "grader", "grading", "scorer")
 PASS_MARK_KEYS = ("pass_mark", "passmark", "threshold", "pass_threshold", "passing_score",
                   "pass_score", "min_score", "cutoff")
+# Where a file keeps its judge's settings (pass mark, criteria text): never an answer's parts
+SETTING_PARENTS = (*JUDGE_PARENTS, "config", "settings", "criteria", "rubric", "rubrics")
+# A part under one of these is a verdict when its values are verdict-like (judge.result)
+JUDGE_WORDS = ("judge", "judgment", "judgement", "eval", "evaluation", "grader", "grading")
+VERDICT_VALUES = frozenset({
+    "pass", "passed", "fail", "failed", "true", "false", "yes", "no", "y", "n", "correct",
+    "incorrect", "right", "wrong", "good", "bad", "ok", "accept", "accepted", "reject",
+    "rejected", "success", "failure", "partial", "partially correct", "c", "i", "p"})
+MOST = 0.8  # the share of an answer's values that must be verdict-like
 
 _PLAIN = re.compile(r"[A-Za-z0-9_\-]+|\{side\}|\{judge\}")
 _BARE = re.compile(r"[^.\[\]\"]+")
@@ -264,6 +272,7 @@ class Guess:
     model_key: str | None = None  # a path, in the item or around it (nearest first)
     model: str | None = None  # the model's name in the first item, for showing
     unsure: list[str] = field(default_factory=list)  # roles guessed from value types only
+    doubt: str | None = None  # why the whole reading may be wrong (one answer of many)
 
     def judge_name(self) -> str:
         """The judge's name when the file holds one judge without a name of its own."""
@@ -292,10 +301,36 @@ def _item_lists(unit, prefix=(), depth=0):
             yield from _item_lists(value, (*prefix, (str(key), False)), depth + 1)
 
 
+def _setting(seg: tuple) -> bool:
+    """A part under the judge's settings (judge.criteria.answer_quality): never an answer's."""
+    return any(str(k).lower() in SETTING_PARENTS for k in seg[:-1])
+
+
+def _id_like(key: str) -> bool:
+    return str(key).lower() in ID_KEYS or bool(_words(key) & {"id", "uid", "uuid"})
+
+
+def _verdict_value(value) -> bool:
+    """A judge's verdict as a value: pass/fail and its kin, true/false, or a number from 0 to
+    100 (0 to 1, or a fixed scale such as 1 to 5)."""
+    if isinstance(value, bool):
+        return True
+    n = number(value)
+    if n is not None:
+        return 0 <= n <= 100
+    return isinstance(value, str) and value.strip().lower() in VERDICT_VALUES
+
+
+def _verdict_like(values) -> bool:
+    """Most of an answer's values (MOST, empty ones aside) are verdicts."""
+    values = [v for v in values if v is not None and v != ""]
+    return bool(values) and sum(map(_verdict_value, values)) >= MOST * len(values)
+
+
 def _outputs(item: dict) -> list[tuple]:
     return [seg for seg, v in _leaves(item) if isinstance(v, str)
             and any(_is(k, OUTPUT_WORDS) for k in seg) and not _is(seg[-1], REASON_WORDS)
-            and not any(_is(k, INPUT_WORDS) for k in seg)]
+            and not any(_is(k, INPUT_WORDS) for k in seg) and not _setting(seg)]
 
 
 def _differ_at(paths: list[tuple]) -> int | None:
@@ -318,10 +353,12 @@ def _texts(item: dict) -> list[tuple]:
     """Top-level text values that no key name places: candidates for the answer."""
     return [seg for seg, v in _leaves(item) if len(seg) == 1 and isinstance(v, str)
             and not _is(seg[0], INPUT_WORDS + SCORE_WORDS + REASON_WORDS)
-            and seg[0].lower() not in ID_KEYS + MODEL_KEYS]
+            and seg[0].lower() not in MODEL_KEYS and not _id_like(seg[0])]
 
 
 def _choose_each(units) -> str:
+    """The path to the answers: a list of two or more items that hold answers before the
+    line itself (a line can name its judge like an answer: answer_quality)."""
     candidates: list = []
     for unit in units:
         if isinstance(unit, dict) and _outputs(unit):
@@ -333,6 +370,8 @@ def _choose_each(units) -> str:
                 continue
             if any(_outputs(item) for item, _ in found):
                 candidates.append(seg)
+                if len(found) >= 2 and () in candidates:
+                    candidates.remove(())
         if candidates:
             break
     if not candidates and _texts(units[0]):
@@ -375,16 +414,12 @@ def guess(units: list, each: str | None = None) -> Guess:
             outputs = [_fill(outputs[0], at, SIDE)]
     output_seg = outputs[0]
 
-    # the score or verdict, per side and per judge
-    scores = [seg for seg, v in _leaves(first) if _is(seg[-1], SCORE_WORDS)
-              and (number(v) is not None or isinstance(v, bool)
-                   or (isinstance(v, str) and 0 < len(v) <= MAX_VERDICT))]
+    # the score or verdict, per side and per judge: named so, and verdict-like values
+    scores = [seg for seg, v in _leaves(first) if _named_verdict(seg)
+              and (v is None or _verdict_value(v))
+              and _verdict_like(_at(sample, seg))]
     if not scores:
-        scores = [seg for seg, v in _leaves(first)
-                  if number(v) is not None and not _is(seg[-1], ("id",))]
-        if not scores:
-            raise MapError("no score or verdict was found next to the answers")
-        unsure.append("score")
+        raise MapError("no judge verdicts were found in it")
     if sides:
         placed = []
         for seg in scores:
@@ -415,11 +450,12 @@ def guess(units: list, each: str | None = None) -> Guess:
     # the input, the reason, the id
     leaves = [(seg, v) for seg, v in _leaves(first) if SIDE not in seg]
     inputs = [seg for seg, v in leaves if isinstance(v, str) and any(
-        _is(k, INPUT_WORDS) for k in seg) and seg not in outputs]
+        _is(k, INPUT_WORDS) for k in seg) and seg not in outputs and not _setting(seg)
+        and not _id_like(seg[-1])]
     if not inputs:
         texts = [seg for seg, v in leaves if isinstance(v, str) and len(seg) == 1
                  and seg != output_seg and not _is(seg[-1], REASON_WORDS + SCORE_WORDS)
-                 and seg[-1].lower() not in ID_KEYS]
+                 and not _id_like(seg[-1])]
         if not texts:
             raise MapError("no question or input was found next to the answers")
         inputs = [texts[0]]
@@ -429,7 +465,7 @@ def guess(units: list, each: str | None = None) -> Guess:
     for seg, v in _leaves(first):
         if len(seg) == len(score_seg) and _is(seg[-1], REASON_WORDS) and isinstance(v, str):
             fitted = _refit(seg, score_seg)
-            if fitted[:-1] == parent:
+            if fitted[:-1] == parent and fitted != score_seg:  # never the score's own path
                 reason = _as_path(fitted)
                 break
     id_key = next((k for k in first if str(k).lower() in ID_KEYS), None)
@@ -441,7 +477,41 @@ def guess(units: list, each: str | None = None) -> Guess:
     _kind_and_pass_mark(guess, sample)
     _pass_mark_in_file(guess, units)
     _model(guess, units)
+    guess.doubt = _one_of_many(units, each)
     return guess
+
+
+def _named_verdict(seg: tuple) -> bool:
+    """A part whose name says it is a verdict (score, verdict, grade, ...) or that sits under
+    a judge (judge.result); never an id or a pass mark."""
+    last = seg[-1]
+    if _id_like(last) or last.lower().replace("-", "_") in PASS_MARK_KEYS:
+        return False
+    return _is(last, SCORE_WORDS) or any(_is(k, JUDGE_WORDS) for k in seg[:-1]) and not _is(
+        last, REASON_WORDS + ("model",))
+
+
+def _at(sample: list[dict], seg: tuple) -> list:
+    """The values at `seg` in each item that has it."""
+    out = []
+    for item in sample:
+        try:
+            out.append(get(item, _as_path(seg)))
+        except Missing:
+            continue
+    return out
+
+
+def _one_of_many(units: list, each: str) -> str | None:
+    """Why a reading of one answer is in doubt: the file holds a list of many items."""
+    if sum(len(_safe_items(u, each)) for u in units) != 1:
+        return None
+    lists = [(len(_safe_items(units[0], write(seg))), seg) for seg in _item_lists(units[0])]
+    n, seg = max(lists, key=lambda x: x[0], default=(0, None))
+    if n < 2:
+        return None
+    return (f"judgekeeper read 1 answer, but the file holds a list of {n} items "
+            f"({shown(write(seg)).removesuffix('[]')}); check the mapping")
 
 
 def _score_rank(key: str) -> int:
@@ -470,7 +540,19 @@ def _every_judge(sample: list[dict], score_seg: tuple, sides: list[str],
                     continue
                 if str(key) not in found:
                     found.append(str(key))
-    return found
+    return [j for j in found if _named_verdict((*parent, j, *rest)) and _verdict_like(
+        _values_of(sample, _as_path(score_seg), sides, j))]
+
+
+def _values_of(sample: list[dict], path: str, sides: list[str], judge: str) -> list:
+    out = []
+    for item in sample:
+        for side in sides or [None]:
+            try:
+                out.append(get(item, path, side, judge))
+            except Missing:
+                continue
+    return out
 
 
 def _refit(seg: tuple, like: tuple) -> tuple:
@@ -551,7 +633,7 @@ def _model_rank(seg: tuple) -> int | None:
     if last in JUDGE_MODEL_KEYS or (len(seg) > 1 and last == "model" and any(
             k.lower() in JUDGE_PARENTS for k in seg[:-1])):
         return 0
-    if len(seg) == 1 and last in MODEL_KEYS:
+    if len(seg) == 1 and last in MODEL_KEYS and last != "model":  # "model" alone: the app's
         return 1 + MODEL_KEYS.index(last)
     return None
 
@@ -675,8 +757,7 @@ def choices(units: list, g: Guess, role: str) -> list[tuple[str, str]]:
             continue
         if role in ("input", "output", "reason") and not isinstance(value, str):
             continue
-        if role == "score" and not (number(value) is not None or isinstance(value, bool) or (
-                isinstance(value, str) and 0 < len(value) <= MAX_VERDICT)):
+        if role == "score" and not _verdict_value(value):
             continue
         path = _as_path(placed)
         if path not in seen:

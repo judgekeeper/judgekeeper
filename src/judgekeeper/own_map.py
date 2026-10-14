@@ -34,14 +34,33 @@ RECORD_DOOR = ("Or save your judge's decisions from now on with one judgekeeper.
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
 
 
+def _para(talk: Talk, text: str) -> None:
+    getattr(talk, "para", talk.say)(text)  # wrapped on `judgekeeper`'s screens
+
+
 def cannot(talk: Talk, rel: str, why: str):
     """The file cannot be mapped: what to do instead. Returns the Stop to raise."""
-    talk.say(f"judgekeeper cannot read {rel} by itself: {why}.")
-    talk.say(RECORD_DOOR)
+    _para(talk, f"judgekeeper cannot read {rel} by itself: {why}.")
+    _para(talk, RECORD_DOOR)
     return talk.stop(EXIT_USAGE, (
         f"turn {rel} into a CSV with the columns id, input, output, verdict (pass or fail) "
         "and reason, one CSV per judge, leaving out errors and scores made by a rule. Then "
         "run `judgekeeper <the CSV>`."))
+
+
+UNSURE_PARTS = {"output": "the answer", "input": "the input", "score": "the score"}
+
+
+def unsure(talk: Talk, rel: str, g: mapper.Guess):
+    """A reading judgekeeper is not sure of, without a terminal: --yes never accepts it.
+    Returns the Stop to raise."""
+    parts = [UNSURE_PARTS.get(p, p) for p in g.unsure]
+    why = g.doubt or f"it guessed {' and '.join(parts)} from their values, not their names"
+    _para(talk, f"judgekeeper isn't sure how to read {rel}: {why}.")
+    return talk.stop(EXIT_QUESTION, (
+        f"run `{talk.command()}` in a terminal to check how judgekeeper reads {rel}, or turn "
+        "it into a CSV with the columns id, input, output, verdict (pass or fail) and "
+        "reason."))
 
 
 def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
@@ -207,8 +226,14 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
         for line in how_lines(g, judge_model):
             talk.say(line)
         talk.say()
-        # At a terminal the person checks the guess; without one, only an unsure guess stops.
-        if not (g.unsure or start._interactive()) or talk.confirm(
+        if g.doubt:
+            _para(talk, f"Check this: {g.doubt}.")
+            talk.say()
+        # At a terminal the person checks the guess; without one, an unsure guess stops and
+        # --yes never accepts it.
+        if (g.unsure or g.doubt) and not start._interactive():
+            raise unsure(talk, rel, g)
+        if not start._interactive() or talk.confirm(
                 f'Is this how judgekeeper should read {rel} (the lines under "How judgekeeper '
                 'reads it")?', default=True, with_yes=True, hint=""):
             break
@@ -247,4 +272,4 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     return saved
 
 
-__all__ = ["cannot", "how_lines", "map_file"]
+__all__ = ["cannot", "how_lines", "map_file", "unsure"]
