@@ -315,7 +315,8 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         return path, None
     search = find.search(root)
     if (any(search.readable(t) for t in find.TOOLS) or search.too_big() or search.unreadable
-            or find.records_above(root) is not None or "promptfoo" in search.signs):
+            or search.skipped or find.records_above(root) is not None
+            or "promptfoo" in search.signs or find.results_above(root) is not None):
         return path, None  # find_judge reads them, or says how
     own = own_format.search(root)
     if own is None:
@@ -433,10 +434,13 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict) -> Stop:
             talk.para(f"Found {name} in this folder ({where[0]}), but no saved results yet. "
                       + SAVES.get(tool, ""))
     else:
-        talk.say(f"No eval results found in this folder ({root.name}).")
+        down = find.looked(root).replace(f" from {root.name}", "")
+        talk.para(f"No eval results found in this folder ({root.name}). judgekeeper looked "
+                  f"{down}.")
         talk.para(READS)
     again = f"`{talk.command()}`"
-    other = "" if signs else f" If your results are in another folder, run {again} from there."
+    other = "" if signs else (f" If your results are somewhere else, run "
+                              f"`{talk.command_at('PATH')}` with their file or folder.")
     return talk.stop(EXIT_QUESTION, f"run your eval once from this folder, then run {again} "
                                     f"again.{other}")
 

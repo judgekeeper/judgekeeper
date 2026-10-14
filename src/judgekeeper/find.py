@@ -49,6 +49,7 @@ MAX_JSON = 200
 HEAD_BYTES = 64 * 1024
 MAX_BYTES = 200 * 1000 * 1000
 TABLE_DEPTH = 2
+DEEPER = 4  # nothing found: folders further down where results-like files are named
 
 SKIP_DIRS = frozenset({".git", "node_modules", ".venv", "venv", "site-packages",
                        "dist-packages", "__pycache__", ".judgekeeper"})
@@ -116,6 +117,7 @@ class Search:
     stopped: str | None = None  # why the walk stopped early, as a sentence
     notes: list[str] = field(default_factory=list)
     unreadable: list[tuple[str, str]] = field(default_factory=list)  # results-like: (rel, how)
+    skipped: list[tuple[str, str]] = field(default_factory=list)  # results-like, not looked in
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -283,6 +285,13 @@ class _Walk:
         self.seen_dirs: set[Path] = set()
         self.seen_files: set[Path] = set()
         self.started = _clock()
+        self.edge: list[Path] = []  # folders one below MAX_DEPTH, not walked
+
+    def skip(self, path: Path, why: str, rel: str | None = None) -> None:
+        """A results-like file the walk does not read: said when nothing is found."""
+        item = (rel or self.rel(path), why)
+        if item not in self.search.skipped:
+            self.search.skipped.append(item)
 
     def rel(self, path: Path) -> str:
         return path.relative_to(self.root).as_posix()
@@ -369,6 +378,10 @@ class _Walk:
                 self.add("records", path, size)
             elif is_table(columns):
                 self.add("table", path, size)
+        elif suffix in TABLE_SUFFIXES and _results_like(path):  # deeper than tables are read
+            columns = table_columns(path)
+            if is_table(columns) or (suffix == ".jsonl" and is_records(columns)):
+                self.skip(path, _down(depth - 1))
 
     def folder(self, path: Path) -> None:
         """Walk `path` breadth first, at most MAX_DEPTH folders below the root."""
@@ -384,6 +397,8 @@ class _Walk:
                 continue
             for entry in entries:
                 if entry.is_symlink():
+                    if _results_like(Path(entry.path)) and entry.is_file():
+                        self.skip(Path(entry.path), LINK)
                     continue
                 if entry.is_dir(follow_symlinks=False):
                     sub = Path(entry.path)
@@ -395,6 +410,8 @@ class _Walk:
                             self.sign("mlflow", self.rel(sub) + "/")
                     elif _walked(entry.name) and self.depth(sub) <= MAX_DEPTH:
                         queue.append(sub)
+                    elif _walked(entry.name):
+                        self.edge.append(sub)
                 elif entry.is_file(follow_symlinks=False):
                     self.file(entry)
 
@@ -491,7 +508,94 @@ def search(root: str | Path) -> Search:
     except _Stop:
         pass
     _prefer_saved_runs(walk.search)
+    if not any(walk.search.results.values()) and walk.search.stopped is None:
+        _look_deeper(walk)
+        _look_above(walk)
     return walk.search
+
+
+LINK = "a link: judgekeeper doesn't follow links"
+ABOVE = "in the folder above"
+PROJECT_MARKERS = ("pyproject.toml", "package.json", ".git", "judgekeeper.toml", "setup.py")
+
+
+def _down(n: int) -> str:
+    return f"{n} folder down" if n == 1 else f"{n} folders down"
+
+
+def looked(root: Path) -> str:
+    """How far the walk looks, said when nothing is found."""
+    return f"{_down(MAX_DEPTH)} from {root.name} (tables: {_down(TABLE_DEPTH - 1)})"
+
+
+def _look_deeper(walk: _Walk) -> None:
+    """Nothing found: name results-like files up to DEEPER folders below where the walk
+    stopped, by their names only, within the walk's own limits."""
+    queue, files, started = list(walk.edge), 0, _clock()
+    while queue:
+        folder = queue.pop(0)
+        try:
+            entries = sorted(os.scandir(folder), key=lambda e: e.name)
+        except OSError:
+            continue
+        for entry in entries:
+            if files >= MAX_FILES or _clock() - started > MAX_SECONDS:
+                return
+            if entry.is_symlink():
+                continue
+            path = Path(entry.path)
+            if entry.is_dir(follow_symlinks=False):
+                if _walked(entry.name) and walk.depth(path) <= MAX_DEPTH + DEEPER:
+                    queue.append(path)
+            elif entry.is_file(follow_symlinks=False):
+                files += 1
+                if _results_like(path) or entry.name == "mlflow.db":
+                    walk.skip(path, _down(walk.depth(path) - 1))
+
+
+def project_folder(folder: Path) -> Path | None:
+    """The nearest folder above `folder` that looks like a project's own (PROJECT_MARKERS),
+    below the home folder; None when there is none."""
+    try:
+        home = Path.home().resolve()
+    except (RuntimeError, OSError):
+        home = None
+    for above in folder.parents:
+        if above == home:
+            return None
+        try:
+            if any((above / m).exists() for m in PROJECT_MARKERS):
+                return above
+        except OSError:
+            return None
+    return None
+
+
+def results_above(root: Path) -> Path | None:
+    """The project folder above `root` when it holds results judgekeeper reads."""
+    up = project_folder(root)
+    if up is None:
+        return None
+    found = search(up)
+    return up if any(found.readable(t) for t in TOOLS) or found.too_big() else None
+
+
+def _look_above(walk: _Walk) -> None:
+    """Nothing found and no project folder above: name results-like files in the folder
+    just above."""
+    root = walk.root
+    if root.parent == root or project_folder(root) is not None:
+        return
+    try:
+        if root.parent == Path.home().resolve():
+            return
+        entries = sorted(os.scandir(root.parent), key=lambda e: e.name)
+    except (OSError, RuntimeError):
+        return
+    for entry in entries:
+        path = Path(entry.path)
+        if not entry.is_symlink() and entry.is_file() and _results_like(path):
+            walk.skip(path, ABOVE, rel=f"../{entry.name}")
 
 
 def _run_of(path: Path):

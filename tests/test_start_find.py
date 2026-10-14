@@ -215,7 +215,7 @@ def test_a_table_deeper_than_two_folders_is_not_a_table(tmp_path, capsys):
     table_project(tmp_path, split(16, 16), name="a/b/results.csv")
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
-    assert "No saved eval results found" in out
+    assert "  a/b/results.csv (2 folders down)" in out and "Eval tool" not in out
 
 
 def test_mlflow_store(tmp_path, capsys):
@@ -282,7 +282,7 @@ def test_skipped_folders_are_skipped(tmp_path, capsys, folder):
 def test_files_deeper_than_four_folders_are_not_found(tmp_path, capsys):
     promptfoo_project(tmp_path / "a" / "b" / "c" / "d" / "e", split(20, 12), config=False)
     code, out, _ = run(capsys, tmp_path)
-    assert code == 2 and "No saved eval results found" in out
+    assert code == 2 and "  a/b/c/d/e/results.json (5 folders down)" in out
     promptfoo_project(tmp_path / "a" / "b" / "c" / "d", split(20, 12), config=False)
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and "a/b/c/d/results.json" in out
@@ -301,7 +301,8 @@ def test_symbolic_links_are_not_followed(tmp_path, capsys):
         pytest.skip("symbolic links not allowed here")
     code, out, _ = run(capsys, project)
     assert code == 2
-    assert "No saved eval results found" in out
+    assert "results.json (a link: judgekeeper doesn't follow links)" in out
+    assert "Eval tool" not in out
 
 
 def test_the_search_stops_after_the_file_limit(tmp_path, capsys, monkeypatch):

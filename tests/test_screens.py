@@ -235,13 +235,14 @@ def test_screen_7_nothing_found(tmp_path, capsys, monkeypatch):
         *HEAD,
         "Step 1 of 5: Find",
         "",
-        "No eval results found in this folder (my-app).",
+        "No eval results found in this folder (my-app). judgekeeper",
+        "looked 4 folders down (tables: 1 folder down).",
         "judgekeeper can read results from promptfoo, DeepEval,",
         "Inspect AI, MLflow, or a CSV or JSONL file.",
         "",
         "Next: run your eval once from this folder, then run",
-        "`judgekeeper` again. If your results are in another folder, run",
-        "`judgekeeper` from there.",
+        "`judgekeeper` again. If your results are somewhere else, run",
+        "`judgekeeper PATH` with their file or folder.",
     ]
     assert str(tmp_path) not in "\n".join(lines)
 

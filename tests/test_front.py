@@ -541,11 +541,12 @@ def test_at_a_terminal_an_own_format_is_mapped_and_saved(here, capsys, terminal)
 def test_nothing_found_names_the_folder_not_its_path(here, capsys):
     code, out, _ = run(capsys)
     assert code == 3
-    assert f"No eval results found in this folder ({here.name})." in out
+    assert f"No eval results found in this folder ({here.name}). judgekeeper" in " ".join(
+        out.split())
     assert str(here) not in out
     assert assert_one_next_at_the_end(out) == (
         "Next: run your eval once from this folder, then run `judgekeeper` again. If your "
-        "results are in another folder, run `judgekeeper` from there.")
+        "results are somewhere else, run `judgekeeper PATH` with their file or folder.")
 
 
 def test_nothing_found_names_the_eval_tool_in_the_project(here, capsys):

@@ -769,7 +769,8 @@ NO_RESULTS = {
 def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     from judgekeeper import own_format
 
-    talk.say(f"No saved eval results found in {root}.")
+    talk.say(f"No saved eval results found in {root}. judgekeeper looked "
+             f"{find.looked(root).replace(' from ' + root.name, '')}.")
     for tool, where in signs.items():
         talk.say(f"{find.NAMES[tool]} is used here ({where[0]}), "
                  + NO_RESULTS.get(tool, "but it has no saved results in this folder yet.")
@@ -883,6 +884,13 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
             talk.say(RECORDS_ABOVE.format(root=above))
             talk.say()
             return _locate(talk, above, tool)
+    if not available and tool is None and not found.too_big() and not found.unreadable:
+        above = find.results_above(root)
+        if above is not None:  # run from a subfolder (src/, say) of the project
+            _note(talk, f"No eval results in {root.name}. Reading the project folder above it "
+                        f"({above.name}).")
+            talk.say()
+            return _locate(talk, above, tool)
     if tool is not None:
         if tool not in available:
             if any(r.tool == tool for r in found.too_big()):
@@ -896,6 +904,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
             raise _too_big(talk, found)
         if found.unreadable:
             raise _unreadable(found)
+        if found.skipped:
+            raise _left_out(talk, root, found)
         if found.stopped:  # only when nothing was found: results found are what was asked
             talk.say(f"{found.stopped} {POINT_ME.format(program=talk.program)}")
         if "promptfoo" in found.signs:
@@ -984,6 +994,22 @@ def _unreadable(found: find.Search) -> Damaged:
                        f"-o {rel}` (free: it runs no test), then run `{{command}}` again.")
     return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
                    f"save your results to {rel} again, then run `{{command}}` again.")
+
+
+def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
+    """Nothing found where judgekeeper looks, but results-like files elsewhere: name them
+    and the command that reads the first."""
+    _note(talk, f"No eval results found where judgekeeper looks: {find.looked(root)}. It "
+                "left out:")
+    for rel, why in found.skipped[:5]:
+        talk.say(f"  {rel} ({why})")
+    if len(found.skipped) > 5:
+        talk.say(f"  and {len(found.skipped) - 5} more")
+    which = "that is" if len(found.skipped) == 1 else "one of these is"
+    next_step = f"if {which} your results, run `{talk.command_at(found.skipped[0][0])}`."
+    if not getattr(talk, "screens", False):
+        talk.say(f"Next: {next_step[0].upper()}{next_step[1:]}")
+    return talk.stop(EXIT_USAGE, next_step)
 
 
 def _too_big(talk: Talk, found: find.Search) -> Stop:
