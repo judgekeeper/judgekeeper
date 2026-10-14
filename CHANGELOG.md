@@ -18,6 +18,7 @@ judgekeeper now keeps checking your judge by itself, once you turn it on. Run
 - The report has a History of every check. A GitHub Action, `action.yml`: `mode: fast` says
   whether your judge changed (no AI call); `mode: full` re-checks it on marks you commit.
 - The coding-agent skill says that only you turn on automatic checks.
+- Broken results files give a clear message instead of a Python error.
 
 ## 1.0.0b1 (2026-10-12)
 
