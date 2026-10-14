@@ -546,3 +546,31 @@ def test_the_result_uses_only_the_seen_marks_once_some_are_hidden(here, capsys):
     main([])
     out = capsys.readouterr().out
     assert f"of its {len(seen)} mistakes" in out
+
+
+# report.html ----------------------------------------------------------------------------------
+
+def test_the_report_has_a_fix_section_and_history_rows(here, capsys, judge):
+    import html as html_lib
+
+    ws = project(here)
+    assert main([]) == 0  # the result: report.html
+    run(capsys)
+    _write_rule(ws)
+    run(capsys, "--yes")
+    page = ws.report_html.read_text(encoding="utf-8")
+    assert "<h3>Fix</h3>" in page
+    fix_part = page.split("<h3>Fix</h3>")[1].split('<div class="card">')[0]
+    text = html_lib.unescape(fix_part)
+    assert "Where your judge goes wrong" in text and "Its rule may be too easy." in text
+    split, marks = _split(ws), fix.Marks(ws)
+    seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
+    assert text.count("Your judge said") == len(seen)
+    assert "reason " in text  # the judge's own reason
+    rows = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
+    for i in split["hidden"]:
+        assert i not in page and rows[i]["output"] not in page
+    assert "Rules tested" in text and "Fixed" in text and "Safe to try" in text
+    history = html_lib.unescape(page.split("<h3>History</h3>")[1])
+    assert "New rule tested on" in history
+    assert "<script" not in page

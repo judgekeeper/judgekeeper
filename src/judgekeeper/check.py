@@ -827,6 +827,16 @@ def history_rows(lines: list[dict]) -> list[dict]:
     tested, old against new per group, the verdict, exact or close."""
     rows = []
     for line in lines:
+        if isinstance(line, dict) and line.get("kind") == "fix":  # a rule tested by fix
+            from judgekeeper.fix import VERDICT_NAMES
+
+            n = int(line.get("hidden") or 0)
+            rows.append({"date": _day(line.get("time")) or "",
+                         "changed": f"New rule tested on {plural(n, 'hidden mark')}",
+                         "tested": plural(n, "hidden mark"),
+                         "groups": [f"Fixed {line.get('fixed')}, broke {line.get('broke')}"],
+                         "verdict": VERDICT_NAMES.get(line.get("verdict"), ""), "exact": ""})
+            continue
         if not isinstance(line, dict) or line.get("kind") != "check" or \
                 line.get("trigger") == "baseline":  # asked by automatic checks (1.0 betas)
             continue
@@ -850,7 +860,17 @@ def history_rows(lines: list[dict]) -> list[dict]:
 
 def report_rows(ws: Workspace) -> list[dict]:
     """The History rows for report.html: newest first."""
-    return list(reversed(history_rows(_history(ws))))
+    try:
+        text = ws.history_jsonl.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    lines = []
+    for raw in text.splitlines():
+        try:
+            lines.append(json.loads(raw))
+        except ValueError:
+            continue
+    return list(reversed(history_rows(lines)))
 
 
 __all__ = ["full", "groups", "history_rows", "report_rows", "run"]

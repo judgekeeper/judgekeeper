@@ -329,6 +329,49 @@ def where_wrong(ws: Workspace, most: int = 3) -> tuple[list[str], int]:
     return lines[:most], len(mistakes(rows))
 
 
+VERDICT_NAMES = {"better": "Better", "safe": "Safe to try", "leans better": "Can't tell yet",
+                 "same": "Can't tell yet", "leans worse": "Looks worse", "worse": "Worse"}
+
+
+def report_section(ws: Workspace) -> dict | None:
+    """report.html's Fix section: the patterns and the mistakes on the marks the person can
+    see (with the judge's reason), and every rule tested (history.jsonl); never a hidden
+    mark. None when there is nothing to show."""
+    from judgekeeper.check import _day
+
+    try:
+        m = Marks(ws)
+    except (OSError, ValueError, KeyError):
+        return None
+    split = read_split(ws)
+    ids = [i for i in split.seen if i in m.person] if split else list(m.person)
+    rows = [m.row(i) for i in ids]
+    pm = m.data.get("pass_mark")
+    wrong = mistakes(rows)
+    tested = []
+    for line in jsonl_lines(ws.history_jsonl.read_text(encoding="utf-8")
+                            if ws.history_jsonl.is_file() else ""):
+        try:
+            x = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(x, dict) and x.get("kind") == "fix":
+            tested.append({"date": _day(x.get("time")) or "",
+                           "rule": str(x.get("rule_hash") or "").removeprefix("sha256:")[:8],
+                           "n": x.get("hidden"), "fixed": x.get("fixed"),
+                           "broke": x.get("broke"),
+                           "result": VERDICT_NAMES.get(x.get("verdict"), "")})
+    if not wrong and not tested:
+        return None
+    cut = start_fix_rule.CUT
+    return {"patterns": pattern_lines(rows, pm["mark"] if _follows(m, pm) else None),
+            "mistakes": [{"said": f"Your judge said {r['judge'].upper()}. You said "
+                                  f"{r['final'].upper()}.",
+                          "question": r["input"][:cut], "answer": r["output"][:cut],
+                          "reason": r["reason"][:cut]} for r in wrong],
+            "rules": tested}
+
+
 # mistakes.md --------------------------------------------------------------------------------
 
 def mistakes_md(rule: str | None, rows: list[dict]) -> str:
@@ -707,6 +750,12 @@ def _keep(ws: Workspace, split: Split, rule: str, h: str, v) -> None:
                                     "hidden": v.n, "fixed": v.fixed, "broke": v.broke,
                                     "verdict": v.kind, "test": test["test"],
                                     "set": split.set})
+    from judgekeeper.start_label import write_report
+
+    try:
+        write_report(ws)
+    except OSError:
+        pass  # the test is saved; the report catches up with the next result
 
 
 __all__ = ["Marks", "Split", "make_split", "mistakes", "mistakes_md", "pattern_lines",
