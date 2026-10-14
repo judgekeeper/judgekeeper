@@ -59,8 +59,7 @@ GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers 
 CONFIG_NEWER = ("Your judge's settings changed after your last eval run, so the grades "
                 "judgekeeper has are out of date.")
 SAME = "Same model, same rule, same eval tool."
-NOT_SET_UP = ("Your marks can't check your judge yet: that needs {n} you mark Pass and {n} you "
-              "mark Fail.")
+NOT_SET_UP = "You have not marked enough answers yet for a re-check."
 ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}. That is {calls}, "
              "paid with your own key.")
 GO_AHEAD = "Go ahead? [y/N] "
@@ -549,6 +548,38 @@ class Said:
         self.lines.append(line)
 
 
+def _not_set_up(path: str, state: State | None, said) -> int:
+    """No marks to check with: where it looked, and where the marks are when a folder above
+    holds them (check run from a folder inside the project, or in .judgekeeper/)."""
+    from judgekeeper.start_again import _project
+
+    given = Path(path)
+    if not given.exists():
+        said.say(f"There is no file or folder named {given.name or path} here.")
+        said.say()
+        said.say(f"Next: run `{program('check')}` in your project folder.")
+        return EXIT_USAGE
+    if state is not None:
+        said.say(NOT_SET_UP)
+        said.say()
+        said.say(f"Next: run `{program('mark')}` to mark more answers.")
+        return EXIT_NEEDS_YOU
+    folder = _project(given)
+    above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)
+    if above is None:
+        said.say(f"No marks in this folder ({folder.name}).")
+        said.say()
+        said.say(f"Next: run `{program()}` to find your eval results and mark answers.")
+        return EXIT_NEEDS_YOU
+    where = os.path.relpath(above, given if given.is_dir() else given.parent)
+    which = "the folder" if above == folder.parent else "a folder"
+    said.say(f"No marks in this folder ({folder.name}). Your marks are in {which} above it "
+             f"({above.name}).")
+    said.say()
+    said.say(f"Next: run `{program('check')} {quote_arg(where)}`.")
+    return EXIT_NEEDS_YOU
+
+
 def _switched(state: State) -> str | None:
     """The eval tool whose results are here now, when the marks' tool has none: judges of two
     eval tools can't be compared."""
@@ -594,9 +625,7 @@ def _free(found, marked: dict[str, str]) -> dict[str, str]:
 def full(path: str, said: Said, yes: bool = False) -> int:
     state = _state(path)
     if state is None or not state.enough:
-        said.say(NOT_SET_UP.format(n=targets.ROUGH))
-        said.say(f"Next: run `{program()}` to mark answers.")
-        return EXIT_NEEDS_YOU
+        return _not_set_up(path, state, said)
     old = state.saved["setup"]
     now, problem = _now(state)
     found, new = (now.found, now.setup) if now is not None else (None, None)

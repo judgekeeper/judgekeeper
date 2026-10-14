@@ -83,3 +83,43 @@ def test_after_a_check_nothing_changed_names_that_check(here, capsys, no_calls):
     code, out = run(capsys)
     assert code == 0
     assert "Your judge has not changed since your last check (" in out
+
+
+# N20 ------------------------------------------------------------------------------------------
+
+def test_a_path_that_does_not_exist(here, capsys):
+    _marked(here)
+    code, out = run(capsys, "nope.json")
+    assert code == 2
+    assert "There is no file or folder named nope.json here." in out
+    assert _next(out) == "Next: run `judgekeeper check` in your project folder."
+
+
+def test_a_folder_under_the_project_says_where_the_marks_are(here, capsys, monkeypatch):
+    _marked(here)
+    (here / "src").mkdir()
+    monkeypatch.chdir(here / "src")
+    code, out = run(capsys)
+    assert code == 3
+    assert "No marks in this folder (src). Your marks are in the folder above it" in _flat(out)
+    assert _next(out) == "Next: run `judgekeeper check ..`."
+
+
+def test_no_marks_anywhere(tmp_path, capsys, monkeypatch):
+    folder = tmp_path / "my-app"
+    folder.mkdir()
+    monkeypatch.chdir(folder)
+    code, out = run(capsys)
+    assert code == 3
+    assert "No marks in this folder (my-app)." in out
+    assert "15" not in out
+    assert _next(out) == "Next: run `judgekeeper` to find your eval results and mark answers."
+
+
+def test_too_few_marks_says_so_without_a_number(here, capsys):
+    _marked(here, n_pass=10, n_fail=25)
+    code, out = run(capsys)
+    assert code == 3
+    assert "You have not marked enough answers yet for a re-check." in out
+    assert "15" not in out
+    assert _next(out) == "Next: run `judgekeeper mark` to mark more answers."
