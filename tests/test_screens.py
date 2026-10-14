@@ -14,7 +14,7 @@ import pytest
 from judgekeeper import __version__
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import promptfoo_project, split
+from tests.start_projects import deepeval_project, promptfoo_project, split
 
 RULE = "The answer solves the customer's problem and is polite."
 LONG_RULE = ("The answer must fully solve the customer's problem, be polite, short, and never "
@@ -307,6 +307,49 @@ def test_the_result_is_step_3_and_speaks_to_the_person(here, capsys):
     assert "The marking page is still open if you want to mark more answers." in lines
     assert lines[-2:] == ["Next: nothing to do. When you change your judge or update your",
                           "eval tool, run `judgekeeper check`."]
+
+
+def test_a_switch_to_another_eval_tool_gives_no_check_verdict(here, capsys):
+    """Marks made on promptfoo's results, then only DeepEval's results: `check` can't compare
+    judges across two eval tools, so it says so and gives no verdict."""
+    promptfoo_project(here, split(23, 17), rubric=RULE)
+    screen(capsys)
+    _mark(here, 15, 15)
+    screen(capsys, "--stop")
+    (here / "results.json").unlink()
+    (here / "promptfooconfig.yaml").unlink()
+    deepeval_project(here, split(25, 25))
+    code, lines = screen(capsys, "check")
+    assert code == 3
+    assert lines[2:] == [
+        "Step 5 of 5: Re-check",
+        "",
+        "Your results now come from DeepEval, not promptfoo.",
+        "judgekeeper can't compare judges across two eval tools.",
+        "",
+        "Next: run `judgekeeper` to start fresh with DeepEval.",
+    ]
+    for word in ("Worse", "No drop", "Re-checked on"):
+        assert word not in "\n".join(lines), word
+
+
+def test_old_marks_from_another_tool_give_no_mixed_result(here, capsys):
+    """Marks made on promptfoo's results, then DeepEval's results: plain `judgekeeper` says the
+    marks are for other results and asks before starting over; it shows no result."""
+    promptfoo_project(here, split(23, 17), rubric=RULE)
+    screen(capsys)
+    _mark(here, 15, 15)
+    screen(capsys, "--stop")
+    (here / "results.json").unlink()
+    (here / "promptfooconfig.yaml").unlink()
+    deepeval_project(here, split(25, 25))
+    code, lines = screen(capsys)
+    text = "\n".join(lines)
+    assert code == 3
+    assert "Your marks are for other results" in " ".join(text.split())
+    assert "Start over with these results?" in text
+    for word in ("Step 3 of 5", "your judge also passed", "Of the answers you passed"):
+        assert word not in text, word
 
 
 def test_wrapping_keeps_commands_whole_and_never_starts_a_line_with_next():

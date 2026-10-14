@@ -71,6 +71,9 @@ NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your ju
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
 NEXT_WORSE = "Next: go back to {back}, or change your judge and run `{command}` again."
+SWITCHED = ("Your results now come from {new}, not {old}.",
+            "judgekeeper can't compare judges across two eval tools.")
+NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
 STEP = "Step 5 of 5: Re-check"
 DOWNLOAD = ("Asking your judge would mean downloading promptfoo {version}; judgekeeper "
             "doesn't download anything by itself.")
@@ -545,6 +548,15 @@ class Said:
         self.lines.append(line)
 
 
+def _switched(state: State) -> str | None:
+    """The eval tool whose results are here now, when the marks' tool has none: judges of two
+    eval tools can't be compared."""
+    search = find.search(state.ws.root)
+    tools = [t for t in find.TOOLS if search.readable(t)]
+    old = state.data.get("tool")
+    return tools[0] if tools and old not in tools else None
+
+
 def _no_change(state: State) -> str:
     when = state.saved.get("first_seen")
     for line in _history(state.ws):
@@ -589,6 +601,16 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     if now is not None and found is None and judge_setup.changes(old, new):
         found, problem = _newest(state)  # remembered, but a re-check needs the answers
         new = judge_setup.of(found) if found is not None else new
+    switched = _switched(state) if problem else None
+    if switched:
+        names = find.NAMES
+        old_tool = state.data.get("tool")
+        for line in SWITCHED:
+            said.say(line.format(new=names.get(switched, switched),
+                                 old=names.get(old_tool, old_tool)))
+        said.say()
+        said.say(NEXT_FRESH.format(command=program(), new=names.get(switched, switched)))
+        return EXIT_NEEDS_YOU
     if problem:
         said.say(problem + ".")
         said.say()
