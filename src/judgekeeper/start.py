@@ -54,6 +54,7 @@ from judgekeeper.records import (
     damaged,
     derive_record_id,
     fingerprint_known,
+    left_out_note,
     read_records,
 )
 from judgekeeper.redact import one_line, scrub
@@ -466,7 +467,7 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
     for r in results:
         try:
             try:
-                records = read_records(r.path, cut_end_ok=True)
+                records = read_records(r.path, cut_end_ok=True, bad_lines_ok=True)
             except UNREADABLE:
                 raise unreadable(r.path, "records") from None
         except RecordsError as e:
@@ -688,7 +689,7 @@ class Found:
     models: list[str] = field(default_factory=list)  # the judge's model(s), as the results say
     model_source: str | None = None  # None (the results), GIVEN_BY_YOU or judgekeeper.toml
     experiment: str | None = None  # MLflow: the experiment read
-    stopped: list[str] = field(default_factory=list)  # Inspect: runs that stopped early
+    stopped: list[str] = field(default_factory=list)  # Inspect runs that stopped early; rows left out
     label_map: str | dict | None = None  # --label-map as given, kept in start.json
 
 
@@ -1348,7 +1349,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  rule_field=_inspect_field(records) if kind == "inspect" and rule else None,
                  models=models, model_source=model_source, experiment=name,
                  stopped=[n for x in used for n in x.records.notes
-                          if n.startswith("Your Inspect run stopped early")],
+                          if n.startswith("Your Inspect run stopped early")]
+                 + [n for x in used if (n := left_out_note(x.records, x.label))],
                  label_map=label_map or None)
 
 

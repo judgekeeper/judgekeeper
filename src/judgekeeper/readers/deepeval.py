@@ -44,9 +44,11 @@ from judgekeeper.records import (
     RecordList,
     RecordsError,
     ScoreRecord,
+    all_damaged,
     damaged,
     derive_record_id,
     load_json,
+    read_rows,
 )
 
 POSITIONAL = re.compile(r"(conversational_)?test_case_\d+")
@@ -137,6 +139,11 @@ def _load(path: Path) -> dict:
     return data
 
 
+def _listed(value) -> list:
+    """A list of cases as the file holds it; anything else is no cases."""
+    return value if isinstance(value, list) else []
+
+
 def read_deepeval(path: str | Path) -> RecordList:
     """ScoreRecords from one DeepEval test run file: one LLM record per metric per case."""
     path = Path(path)
@@ -146,15 +153,19 @@ def read_deepeval(path: str | Path) -> RecordList:
     records = RecordList()
     thresholds: dict[str, set] = {}
     strict: set[str] = set()  # metrics in strict mode: a score of 1 or 0, the threshold fixed
-    cases = [(c, False) for c in data.get("testCases") or []]
-    cases += [(c, True) for c in data.get("conversationalTestCases") or []]
-    for case, conversational in cases:
+    cases = [(c, False) for c in _listed(data.get("testCases"))]
+    cases += [(c, True) for c in _listed(data.get("conversationalTestCases"))]
+
+    def read_case(row: tuple[dict, bool]) -> None:
+        case, conversational = row
         if conversational:
             item_input = case.get("scenario") or canonical_json(case.get("turns") or [])
             output = ""
         else:
             item_input, output = case.get("input"), case.get("actualOutput")
         name = case.get("name")
+        if not (name is None or isinstance(name, str | int)) or isinstance(name, bool):
+            raise TypeError("a case's name")
         if not name or POSITIONAL.fullmatch(str(name)):
             item_id = derive_record_id(item_input, output)
             records.ids_derived = True
@@ -170,8 +181,9 @@ def read_deepeval(path: str | Path) -> RecordList:
             prompt = rubric_from_verbose_logs(md.get("verboseLogs"))
             if prompt:
                 evaluator["prompt"] = prompt
-            if md.get("threshold") is not None:
-                thresholds.setdefault(md["name"], set()).add(md["threshold"])
+            threshold = md.get("threshold")
+            if isinstance(threshold, int | float) and not isinstance(threshold, bool):
+                thresholds.setdefault(md["name"], set()).add(threshold)
             if md.get("strictMode") is True:
                 strict.add(md["name"])
             label = None if not isinstance(success, bool) else ("pass" if success else "fail")
@@ -180,6 +192,9 @@ def read_deepeval(path: str | Path) -> RecordList:
                 score=md.get("score"), explanation=md.get("reason") or md.get("error") or None,
                 input=item_input, output=output, evaluator=evaluator, created_at=created_at,
                 mark=_mark(md, label, conversational)))
+
+    read_rows(records, enumerate(cases, 1), read_case)
+    all_damaged(path, "DeepEval", records)
     if records.ids_derived:
         records.warnings.append(POSITIONAL_WARNING)
     records.per_metric = {name: {"threshold": next(iter(ts)) if len(ts) == 1 else sorted(ts)}

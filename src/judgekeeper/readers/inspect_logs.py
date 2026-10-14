@@ -47,9 +47,11 @@ from judgekeeper.records import (
     RecordList,
     RecordsError,
     ScoreRecord,
+    all_damaged,
     damaged,
     derive_record_id,
     load_json,
+    read_rows,
 )
 from judgekeeper.textio import get_extra, read_json
 
@@ -234,6 +236,7 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
     if not isinstance(spec, dict):
         raise damaged(path, "Inspect AI", "is not an Inspect AI log (no eval)")
     samples = data.get("samples")
+    samples = samples if isinstance(samples, list) else None
     if not samples:
         raise RecordsError(f"{path}: the log has no samples (was it written with "
                            "--no-log-samples?)")
@@ -246,7 +249,13 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
     stopped = stopped_early(data)
     if stopped:
         records.notes.append(stopped)
-    for sample in samples:
+
+    def read_sample(sample: dict) -> None:
+        if not (sample.get("id") is None or isinstance(sample["id"], str | int)) or \
+                isinstance(sample.get("id"), bool):
+            raise TypeError("a sample's id")
+        if not isinstance(sample.get("messages"), list | None):
+            raise TypeError("a sample's messages")
         item_id = str(sample.get("id"))
         epoch = sample.get("epoch")
         output = (sample.get("output") or {}).get("completion")
@@ -257,7 +266,7 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
             scores = {name: _sample_error(sample["error"]) for name in scorer_options}
         for name, score in scores.items():
             if not isinstance(score, dict):
-                continue
+                raise TypeError("a score")
             options = scorer_options.get(name) or {}
             model, temp = grader_model, temperature
             if model is None and options.get("model"):
@@ -287,6 +296,9 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
                         target_id=item_id, name=key, annotator_kind=HUMAN, label=human_label,
                         score=human_score, explanation=provenance.get("reason") or None,
                         **content, created_at=provenance.get("timestamp")))
+
+    read_rows(records, enumerate(samples, 1), read_sample)
+    all_damaged(path, "Inspect AI", records)
     return records
 
 

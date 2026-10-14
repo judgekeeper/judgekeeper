@@ -56,13 +56,16 @@ from judgekeeper.records import (
     CODE,
     HUMAN,
     LLM,
+    ROW_DAMAGE,
     Damaged,
     Mark,
     RecordList,
     RecordsError,
     ScoreRecord,
+    all_damaged,
     derive_record_id,
     load_json,
+    read_rows,
 )
 
 # Assertion types graded by a model (promptfoo src/types/index.ts, BaseAssertionTypesSchema).
@@ -286,6 +289,29 @@ def _ids(rows: list[dict], id_var: str | None, path: Path) -> tuple[list[str], b
     return [suffix(derive_record_id(r.get("vars"), None), r) for r in rows], True
 
 
+def _shaped(r) -> bool:
+    """Whether a row has the shape the reading below needs (each part an object or missing,
+    its vars usable as an id); a row without it is left out and counted."""
+    if not isinstance(r, dict):
+        return False
+    parts = (r.get("response"), r.get("testCase"), r.get("vars"), r.get("gradingResult"))
+    if not all(p is None or isinstance(p, dict) for p in parts):
+        return False
+    parts = (r.get("gradingResult") or {}).get("componentResults")
+    if not (parts is None or isinstance(parts, list)):
+        return False
+    test_vars = (r.get("testCase") or {}).get("vars")
+    description = (r.get("testCase") or {}).get("description") or r.get("description")
+    if not (test_vars is None or isinstance(test_vars, dict)) or not (
+            description is None or isinstance(description, str)):
+        return False
+    try:
+        canonical_json(r.get("vars") or {})
+    except ROW_DAMAGE:
+        return False
+    return True
+
+
 def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
     """ScoreRecords from a promptfoo `-o results.json`.
 
@@ -297,23 +323,33 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
     path = Path(path)
     data = _load(path)
     summary = data["results"]
-    rows = [r for r in summary["results"] if isinstance(r, dict)]
-    default_test = (data.get("config") or {}).get("defaultTest") or {}
+    numbered = list(enumerate(summary["results"], 1))
+    good = [(n, r) for n, r in numbered if _shaped(r)]  # each other row is left out
+    rows = [r for _, r in good]
+    config = data.get("config")
+    default_test = (config if isinstance(config, dict) else {}).get("defaultTest") or {}
     default_test = default_test if isinstance(default_test, dict) else {}
     created_at = summary.get("timestamp")
+    created_at = created_at if isinstance(created_at, str | int | float) else None
     stripped = _stripped(rows)
     if "grading" in stripped:
         raise RecordsError(stripped_message("grading", path))
     ids, derived = _ids(rows, id_var, path)
 
-    records = RecordList(version=summary.get("version"), ids_derived=derived,
+    version = summary.get("version")
+    records = RecordList(version=version if isinstance(version, str | int) else None,
+                         ids_derived=derived,
                          warnings=[stripped_message(part, path) for part in stripped])
+    records.left_out = [n for n, r in numbered if not _shaped(r)]
     seen: Counter = Counter()
     n_default: Counter = Counter()  # judgments by the default grader, per metric name
     n_set: Counter = Counter()  # judgments by a grader set with --grader, per metric name
     templates: dict[str, list] = defaultdict(list)  # metric -> (record, template or None)
     n_cached = 0
-    for r, item_id in zip(rows, ids):
+
+    def read_row(row: tuple[dict, str]) -> None:
+        nonlocal n_cached
+        r, item_id = row
         seen[(item_id, r.get("promptIdx"))] += 1
         run = seen[(item_id, r.get("promptIdx"))]
         test_opts = _options(r.get("testCase"))
@@ -366,7 +402,13 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
             templates[name].append((record, grading_template(
                 rendered, (r.get("response") or {}).get("output"), r.get("vars"))
                 if isinstance(rendered, str) else None))
+
+    read_rows(records, zip([n for n, _ in good], zip(rows, ids)), read_row)
+    records.left_out.sort()
+    all_damaged(path, "promptfoo", records)
+    kept = {id(record) for record in records}
     for judged in templates.values():
+        judged = [(record, t) for record, t in judged if id(record) in kept]
         found = {t for _, t in judged}
         if len(found) == 1 and None not in found:
             digest = hashlib.sha256(found.pop().encode("utf-8")).hexdigest()

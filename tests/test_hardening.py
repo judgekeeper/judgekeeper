@@ -301,3 +301,335 @@ def test_a_cut_off_file_says_where_to_save_it_again(project, capsys, tool):
     assert (f"error: {path.name} is cut off or damaged (it ends in the middle). Save it again "
             f"from {NAMES[tool]}.") in text
     assert f"Next: save {path.name} again from {NAMES[tool]}, then run `judgekeeper " in text
+
+
+# One damaged row ----------------------------------------------------------------------------
+
+DAMAGED_ROW = 6  # the row damaged, counted from 0 (row 7 for the person)
+NAN = float("nan")
+HUGE = 10 ** 400  # too big for a float
+
+
+def _deep(value, depth: int = 300):
+    """`value` inside `depth` lists: under the depth a whole file is refused at."""
+    for _ in range(depth):
+        value = [value]
+    return value
+
+
+def _rows(tool: str, data):
+    return {"promptfoo": lambda d: d["results"]["results"], "deepeval": lambda d: d["testCases"],
+            "inspect": lambda d: d["samples"]}[tool](data)
+
+
+# (what, how one row is damaged); None: the row itself is a number
+ROW_DAMAGE = {
+    "promptfoo": {
+        "string for an object": lambda r: r.update(gradingResult="ZQWHY broken"),
+        "list for an object": lambda r: r.update(response=["ZQOUT"]),
+        "string for vars": lambda r: r.update(vars="ZQIN", testCase="ZQIN"),
+        "list for a name": lambda r: r["gradingResult"]["componentResults"][0][
+            "assertion"].update(metric=["ZQWHY"]),
+        "string for the parts": lambda r: r["gradingResult"].update(componentResults="ZQWHY"),
+        "huge number": lambda r: r["gradingResult"]["componentResults"][0].update(score=HUGE),
+        "NaN": lambda r: r["gradingResult"]["componentResults"][0].update(score=NAN),
+        "deep nesting": lambda r: r.update(vars={"question": _deep("ZQIN")}),
+        "number for a row": None,
+    },
+    "deepeval": {
+        "string for an object": lambda c: c.update(metricsData="ZQWHY"),
+        "list for a name": lambda c: c["metricsData"][0].update(name=["ZQWHY"]),
+        "object for a name": lambda c: c.update(name={"ZQIN": 1}),
+        "list for a metric": lambda c: c.update(metricsData=["ZQWHY"]),
+        "huge number": lambda c: c["metricsData"][0].update(score=HUGE),
+        "NaN": lambda c: c["metricsData"][0].update(score=NAN),
+        "deep nesting": lambda c: c.update(input=_deep("ZQIN")),
+        "object for the model": lambda c: c["metricsData"][0].update(
+            evaluationModel={"ZQWHY": 1}),
+        "number for a row": None,
+    },
+    "inspect": {
+        "string for an object": lambda s: s.update(scores="ZQWHY"),
+        "list for an object": lambda s: s.update(output=["ZQOUT"]),
+        "string for a score": lambda s: s["scores"].update(model_graded_qa="ZQWHY"),
+        "string for the messages": lambda s: s.update(messages="ZQIN"),
+        "huge number": lambda s: s["scores"]["model_graded_qa"].update(value=HUGE),
+        "deep nesting": lambda s: s.update(input=_deep("ZQIN")),
+        "list for an id": lambda s: s.update(id=["ZQIN"]),
+        "number for a row": None,
+    },
+}
+ROW_CASES = [(tool, what) for tool, kinds in sorted(ROW_DAMAGE.items()) for what in kinds]
+
+
+@pytest.mark.parametrize("tool,what", ROW_CASES)
+def test_one_damaged_row_is_left_out_and_counted(project, capsys, tool, what):
+    import copy
+
+    path, data = JSON_TOOLS[tool](project)
+    data = copy.deepcopy(data)
+    how = ROW_DAMAGE[tool][what]
+    if how is None:
+        _rows(tool, data)[DAMAGED_ROW] = 7
+    else:
+        how(_rows(tool, data)[DAMAGED_ROW])
+    _dump(path, data)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code in (0, 3), text  # the other 19 rows are read
+    assert f"1 answer in {path.name} was left out: row 7 has a damaged field." in text
+    assert "19 answers" in text
+
+
+def test_a_file_with_every_row_damaged_says_so(project, capsys):
+    path, data = _promptfoo_file(project)
+    for row in data["results"]["results"]:
+        row["gradingResult"] = "ZQWHY"
+    _dump(path, data)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code == 2
+    assert ("results.json is damaged: each of its 20 rows has a damaged field. Save it again "
+            "from promptfoo.") in text
+
+
+def test_an_inspect_nan_score_is_no_decision(project, capsys):
+    """Inspect writes NaN for a score it could not give: an answer with no decision."""
+    path, data = _inspect_file(project)
+    data["samples"][DAMAGED_ROW]["scores"]["model_graded_qa"]["value"] = NAN
+    _dump(path, data)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert "Your judge passed 9 and failed 10." in text
+
+
+# A table, the own format and judgekeeper.record() ------------------------------------------
+
+def _table(root: Path) -> Path:
+    import csv
+
+    from tests.start_projects import split
+
+    path = root / "results.csv"
+    with path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["input", "output", "verdict", "reason"])
+        for i, v in enumerate(split(10, 10)):
+            w.writerow([f"Question {i}?{TAG}", f"Answer {i}.{TAG}", "pass" if v else "fail",
+                        WHY])
+    return path
+
+
+def test_a_valid_table_keeps_the_rules(project, capsys):
+    _table(project)
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code in (0, 3), text
+
+
+def test_a_cut_off_table_keeps_the_rules(project, capsys):
+    path = _table(project)
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text[:len(text) // 2], encoding="utf-8")
+    code, out = run(capsys, "--no-browser")
+    assert_rules(code, out)
+
+
+def _own(root: Path, capsys) -> Path:
+    """A file in a format of its own, one judged answer per line, its map saved in
+    judgekeeper.toml (after the person's yes)."""
+    import json
+
+    from tests.start_projects import flat_jsonl
+
+    path = flat_jsonl(root / "evals" / "graded.jsonl", 20)
+    lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    for line in lines:
+        line.update(question=line["question"] + TAG, model_answer=line["model_answer"] + TAG,
+                    explanation=WHY)
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code == 3, text
+    code, text = run(capsys, "--no-browser", "--yes")
+    assert_rules(code, text)
+    assert (root / "judgekeeper.toml").is_file(), text
+    return path
+
+
+OWN_DAMAGE = {
+    "list for the grade": lambda d: d.update(grade=["ZQWHY"]),
+    "huge number": lambda d: d.update(grade=HUGE),
+    "deep nesting": lambda d: d.update(question=_deep("ZQIN")),
+    "no answer": lambda d: d.pop("model_answer"),
+    "number for a line": None,
+    "not JSON": "not json ZQIN",
+}
+
+
+@pytest.mark.parametrize("what", sorted(OWN_DAMAGE))
+def test_own_format_one_damaged_line(project, capsys, what):
+    import json
+
+    path = _own(project, capsys)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    how = OWN_DAMAGE[what]
+    if how is None:
+        lines[DAMAGED_ROW] = "7"
+    elif isinstance(how, str):
+        lines[DAMAGED_ROW] = how
+    else:
+        d = json.loads(lines[DAMAGED_ROW])
+        how(d)
+        lines[DAMAGED_ROW] = json.dumps(d)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert "1 answer in graded.jsonl was left out: line 7 has a damaged field." in text
+
+
+@pytest.mark.parametrize("what", sorted(_file_damage("")))
+def test_own_format_damaged_file(project, capsys, what):
+    path = _own(project, capsys)
+    path.write_text(_file_damage(path.read_text(encoding="utf-8"))[what], encoding="utf-8")
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code in (2, 3), text
+
+
+RECORD_DAMAGE = {
+    "string for an object": lambda d: d.update(evaluator="ZQWHY"),
+    "list for a name": lambda d: d.update(name=["ZQWHY"]),
+    "text for a version": lambda d: d.update(schema_version="ZQWHY"),
+    "text for a score": lambda d: d.update(score="ZQWHY"),
+    "text for a kind": lambda d: d.update(annotator_kind="ZQWHY"),
+    "huge number": lambda d: d.update(score=HUGE),
+    "deep nesting": lambda d: d.update(input=_deep("ZQIN")),
+    "number for a line": "7",
+    "not JSON": "not json ZQIN",
+}
+
+
+def _records(root: Path) -> Path:
+    import json
+
+    from tests.start_projects import records_project, split
+
+    path = records_project(root, split(10, 10), tag=TAG)
+    lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    for line in lines:
+        line["explanation"] = WHY
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("what", sorted(RECORD_DAMAGE))
+def test_a_bad_record_line_is_left_out_and_counted(project, capsys, what):
+    import json
+
+    path = _records(project)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    how = RECORD_DAMAGE[what]
+    if isinstance(how, str):
+        lines[DAMAGED_ROW] = how
+    else:
+        d = json.loads(lines[DAMAGED_ROW])
+        how(d)
+        lines[DAMAGED_ROW] = json.dumps(d)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code in (0, 3), text  # the other 19 lines are read
+    assert f"1 answer in {path.name} was left out: line 7 has a damaged field." in text
+
+
+# A seeded fuzzer ----------------------------------------------------------------------------
+
+FUZZ_CASES = 50
+# Values put in place of others: never a sentinel, since a value may land in a judge's name
+VALUES = ["some text", "", None, True, 0, -1, HUGE, NAN, 1e308, [], {}, ["text"], {"k": 1},
+          _deep("text", 50)]
+
+
+def _places(value, at=()):
+    """Every place in a JSON value: (its path from the top, its value)."""
+    yield at, value
+    if isinstance(value, dict):
+        for k, v in value.items():
+            yield from _places(v, (*at, k))
+    elif isinstance(value, list):
+        for i, v in enumerate(value):
+            yield from _places(v, (*at, i))
+
+
+def _fuzzed(data, rnd):
+    import copy
+
+    data = copy.deepcopy(data)
+    places = [p for p, _ in _places(data) if p]
+    for _ in range(rnd.randint(1, 3)):
+        at = rnd.choice(places)
+        parent = data
+        try:
+            for key in at[:-1]:
+                parent = parent[key]
+            parent[at[-1]] = rnd.choice(VALUES)
+        except (KeyError, IndexError, TypeError):  # an earlier change moved it
+            continue
+    return data
+
+
+@pytest.mark.parametrize("tool", sorted(JSON_TOOLS))
+def test_fuzzed_files_keep_the_rules(tmp_path, monkeypatch, capsys, tool):
+    import json
+    import random
+
+    rnd = random.Random(f"judgekeeper-{tool}")
+    for n in range(FUZZ_CASES):
+        root = tmp_path / f"case-{n}"
+        root.mkdir()
+        monkeypatch.chdir(root)
+        path, data = JSON_TOOLS[tool](root)
+        text = json.dumps(_fuzzed(data, rnd), indent=1)
+        if rnd.random() < 0.2:  # sometimes cut short too
+            text = text[:rnd.randint(0, len(text))]
+        _write(path, text)
+        code, out = run(capsys, "--no-browser")
+        assert_rules(code, out)
+
+
+def test_fuzzed_record_lines_keep_the_rules(tmp_path, monkeypatch, capsys):
+    import json
+    import random
+
+    rnd = random.Random("judgekeeper-records")
+    for n in range(FUZZ_CASES):
+        root = tmp_path / f"case-{n}"
+        root.mkdir()
+        monkeypatch.chdir(root)
+        path = _records(root)
+        lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        i = rnd.randrange(len(lines))
+        lines[i] = _fuzzed(lines[i], rnd)
+        path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+        code, out = run(capsys, "--no-browser")
+        assert_rules(code, out)
+
+
+def test_fuzzed_own_format_lines_keep_the_rules(tmp_path, monkeypatch, capsys):
+    import json
+    import random
+
+    rnd = random.Random("judgekeeper-own")
+    root = tmp_path / "own"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    path = _own(root, capsys)
+    good = path.read_text(encoding="utf-8").splitlines()
+    for _ in range(FUZZ_CASES):
+        lines = [json.loads(line) for line in good]
+        i = rnd.randrange(len(lines))
+        lines[i] = _fuzzed(lines[i], rnd)
+        path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+        code, out = run(capsys, "--no-browser")
+        assert_rules(code, out)
