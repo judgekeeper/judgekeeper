@@ -691,14 +691,17 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say(NEXT_EVAL.format(command=_command(state)))
         return EXIT_OK
     free = _free(found, state.marks)
-    rest = [i for i in state.marks if i not in free]
+    # what the last check of this same new judge already asked (after a "Worse", say)
+    cached = {i: v for i, v in _read_verdicts(state.ws, judge_setup.hash_of(new)).items()
+              if i in state.marks and i not in free}
+    rest = [i for i in state.marks if i not in free and i not in cached]
     asked = (ask(state, found, new, rest, said, yes, rest=bool(free)) if rest
              else Asked())
     if asked is None:
         said.say()
         said.say(NEXT_YES.format(command=_command(state)))
         return EXIT_NEEDS_YOU
-    tested = {**free, **asked.verdicts}
+    tested = {**free, **cached, **asked.verdicts}
     if not tested:
         for line in asked.reasons:
             said.say(line)
@@ -708,6 +711,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
 
     n, total = len(tested), len(state.marks)
     parts = [f"{len(free)} free from your new results"] if free else []
+    parts += [f"{len(cached)} from your last check"] if cached else []
     parts += [f"{len(asked.verdicts)} asked again"] if asked.verdicts else []
     on = f"your {_n(total, 'mark')}" if n == total else f"{n} of your {_n(total, 'mark')}"
     said.say(f"Re-checked on {on} ({', '.join(parts)}).")
@@ -742,15 +746,30 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say(NEXT_SAME.format(command=_command(state)))
 
     flipped = [i for i in tested if i in old_verdicts and old_verdicts[i] != tested[i]]
-    marks.append(state.ws.history_jsonl, scrub_value({
+    line = scrub_value({
         "time": utc_now(), "kind": "check", "trigger": "by hand", "before": old, "after": new,
         "changed": changed, "marks": total, "free": len(free), "asked": len(asked.verdicts),
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": g,
-        "smallest_drop": drop, "flipped": flipped}))
+        "smallest_drop": drop, "flipped": flipped})
+    if not _same_as_last(state, line):
+        marks.append(state.ws.history_jsonl, line)
     _save_verdicts(state.ws, new, found, tested)
-    judge_setup.save(state.ws, new, found.metric)
+    if not worse:  # after "Worse" the old judge stays the reference until it comes back
+        judge_setup.save(state.ws, new, found.metric)
     _report(state.ws)
     return EXIT_WORSE if worse else EXIT_OK
+
+
+def _same_as_last(state: State, line: dict) -> bool:
+    """Whether the last check in history.jsonl is this one again (the same judges, the same
+    result): a "Worse" that is still open is not a new check."""
+    checks = _history(state.ws)
+    if not checks:
+        return False
+    last = checks[-1]
+    same = (judge_setup.hash_of(last.get("before") or {}) == judge_setup.hash_of(line["before"])
+            and judge_setup.hash_of(last.get("after") or {}) == judge_setup.hash_of(line["after"]))
+    return same and last.get("groups") == line["groups"]
 
 
 def _report(ws: Workspace) -> None:

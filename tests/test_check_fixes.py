@@ -19,6 +19,7 @@ import json
 import os
 
 from judgekeeper import judge_setup
+from judgekeeper.cli import main
 from tests.test_check import (  # noqa: F401
     HAIKU,
     LENIENT,
@@ -169,3 +170,34 @@ def test_a_lockfile_update_is_rechecked_after_the_next_eval_run(here, capsys, no
     assert code == 0
     assert "Re-checked on your 50 marks (50 free from your new results)." in out
     assert judge_setup.read(ws)["setup"]["tool_version"] == "0.130.0"
+
+
+# N05 ------------------------------------------------------------------------------------------
+
+def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys, no_calls):
+    ws = _marked(here)
+    before = judge_setup.read(ws)["setup_hash"]
+    _results(here, LENIENT, model=HAIKU)
+    assert run(capsys)[0] == 1
+    assert judge_setup.read(ws)["setup_hash"] == before  # the old judge stays the reference
+    code, out = run(capsys)
+    assert code == 1
+    assert "it now passes 9 answers you failed" in _flat(out)
+    assert "has not changed" not in out
+    assert len(_history(ws)) == 1  # the same check is in the History once
+    _results(here, MARKED)  # back to the old judge
+    code, out = run(capsys)
+    assert code == 0 and "has not changed" in out
+
+
+def test_after_worse_judgekeeper_still_points_at_check(here, capsys, no_calls):
+    ws = _marked(here)
+    _results(here, LENIENT, model=HAIKU)
+    run(capsys)
+    code = main([])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert f"Your judge changed since your marks: model openai:gpt-4.1-mini -> {HAIKU}." in \
+        _flat(out)
+    assert "`judgekeeper check`" in _next(out)
+    assert ws.report_html.is_file()

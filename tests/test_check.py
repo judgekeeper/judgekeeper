@@ -239,7 +239,7 @@ def test_a_model_change_rechecked_free(here, capsys, no_calls):
     assert _next(out) == ("Next: go back to the old judge, or change your judge and run "
                           "`judgekeeper check` again.")
     saved = judge_setup.read(ws)["setup"]
-    assert saved["models"] == [HAIKU]  # judge.json follows the judge just checked
+    assert saved["models"] == [MODEL]  # after "Worse" the old judge stays the reference
 
 
 def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_calls):
@@ -456,12 +456,12 @@ def test_nothing_tested_keeps_the_check_pending(here, capsys, no_calls):
 
 def test_the_next_check_compares_with_the_last_checks_verdicts(here, capsys, no_calls):
     _marked(here)
-    _results(here, LENIENT, model=HAIKU)
-    assert run(capsys)[0] == 1
+    _results(here, MARKED, model=HAIKU)  # no drop: judge.json moves to this judge
+    assert run(capsys)[0] == 0
     _results(here, LENIENT, model="anthropic:claude-sonnet-5")
     code, out = run(capsys)
-    assert code == 0  # the same 9 as the judge before: no new drop
-    assert "  Answers you failed:  old judge 64%, new judge 64%.  No drop seen." in out
+    assert code == 1  # against the last check's verdicts (all agreed): 9 new mistakes
+    assert "old judge 100%, new judge 64%." in _flat(out)
     assert f"Your judge changed: model {HAIKU} -> anthropic:claude-sonnet-5." in _flat(out)
 
 
@@ -499,10 +499,11 @@ def test_verdicts_are_kept_by_setup(here, capsys, no_calls):
     ws = _marked(here)
     _results(here, LENIENT, model=HAIKU)
     run(capsys)
-    setup = judge_setup.read(ws)
-    path = ws.dir / "verdicts" / f"{setup['setup_hash'].removeprefix('sha256:')}.jsonl"
+    new = judge_setup.of(start.find_judge(here))  # the judge just checked
+    setup_hash = judge_setup.hash_of(new)
+    path = ws.dir / "verdicts" / f"{setup_hash.removeprefix('sha256:')}.jsonl"
     head, *lines = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines()]
-    assert head["setup"] == setup["setup"] and head["setup_hash"] == setup["setup_hash"]
+    assert head["setup"] == new and head["setup_hash"] == setup_hash
     assert len(lines) == 50 and set(lines[0]) == {"id", "verdict"}
 
 
