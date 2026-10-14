@@ -574,3 +574,23 @@ def test_the_report_has_a_fix_section_and_history_rows(here, capsys, judge):
     history = html_lib.unescape(page.split("<h3>History</h3>")[1])
     assert "New rule tested on" in history
     assert "<script" not in page
+
+
+def test_check_names_a_rule_tested_with_fix(here, capsys, judge):
+    from judgekeeper.check import _day
+
+    ws = project(here)
+    run(capsys)
+    _write_rule(ws)
+    run(capsys, "--yes")
+    data = promptfoo_data([True] * 25 + [False] * 25, rubric=NEW_RULE, tag=TAG,
+                          outputs=_outputs())  # the person put the new rule in, ran the eval
+    data["metadata"]["promptfooVersion"] = "0.124.1"
+    (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
+    capsys.readouterr()
+    main(["check"])
+    out = " ".join(capsys.readouterr().out.split())
+    split = _split(ws)
+    day = _day(split["tests"][-1]["time"])
+    result = {"safe": "safe to try", "better": "better"}[split["tests"][-1]["verdict"]]
+    assert f"This is the rule you tested with `judgekeeper fix` on {day} ({result})." in out
