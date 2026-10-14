@@ -134,3 +134,37 @@ def test_decisions_it_cant_read_are_said_plainly(tmp_path, capsys, values, said)
     code, out = run(capsys, tmp_path)
     assert code == 2 and said in out, out
     assert "Its decisions" not in out and "verdict values" not in out
+
+
+@pytest.mark.parametrize("eval_part", ["x", None, [1, 2]])
+def test_an_inspect_log_with_a_damaged_eval_part_is_named_as_inspect(tmp_path, capsys,
+                                                                      eval_part):
+    data = inspect_data(split(10, 10))
+    data["eval"] = eval_part
+    (tmp_path / "logs").mkdir()
+    log = tmp_path / "logs" / "2026-10-13T10-00-00+00-00_quiz_T.json"
+    log.write_text(json.dumps(data), encoding="utf-8")
+    assert find.classify_file(log) == "inspect"
+    code, out = run(capsys, tmp_path)
+    assert code == 2, out
+    assert ("2026-10-13T10-00-00+00-00_quiz_T.json can't be read: its eval part is damaged. "
+            "Save it again from Inspect AI.") in " ".join(out.split())
+    assert "promptfoo" not in out
+
+
+def test_a_damaged_eval_part_is_named_when_inspect_is_installed(tmp_path, capsys,
+                                                                monkeypatch):
+    def read_eval_log(path):
+        raise ValueError("1 validation error for EvalLog")
+
+    log = types.ModuleType("inspect_ai.log")
+    log.read_eval_log = read_eval_log
+    monkeypatch.setitem(sys.modules, "inspect_ai", types.ModuleType("inspect_ai"))
+    monkeypatch.setitem(sys.modules, "inspect_ai.log", log)
+    data = inspect_data(split(10, 10))
+    data["eval"] = "x"
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "2026-10-13_quiz.json").write_text(json.dumps(data), encoding="utf-8")
+    code, out = run(capsys, tmp_path)
+    assert code == 2 and "its eval part is damaged" in out, out
+    assert "validation" not in out

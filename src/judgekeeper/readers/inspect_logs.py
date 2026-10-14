@@ -110,11 +110,27 @@ def _load(path: Path) -> dict:
             with quiet():
                 return read_eval_log(str(path)).model_dump(mode="json")
         except Exception:  # noqa: BLE001 - a log cut short, empty or not Inspect's
+            if _eval_part_damaged(path):
+                raise damaged(path, "Inspect AI", EVAL_DAMAGED) from None
             raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
                                               "an Inspect AI log") from None
     if path.suffix.lower() == ".eval":
         raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path, get=get_extra("inspect")))
     return load_json(path, "Inspect AI")
+
+
+EVAL_DAMAGED = "can't be read: its eval part is damaged"
+
+
+def _eval_part_damaged(path: Path) -> bool:
+    """A JSON log whose "eval" is there but is not an object."""
+    if path.suffix.lower() != ".json":
+        return False
+    try:
+        data = load_json(path, "Inspect AI")
+    except RecordsError:
+        return False
+    return isinstance(data, dict) and "eval" in data and not isinstance(data["eval"], dict)
 
 
 def eval_header(path: str | Path) -> dict:
@@ -252,7 +268,8 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
     data = _load(path)
     spec = data.get("eval") if isinstance(data, dict) else None
     if not isinstance(spec, dict):
-        raise damaged(path, "Inspect AI", "is not an Inspect AI log (no eval)")
+        raise damaged(path, "Inspect AI", EVAL_DAMAGED if isinstance(data, dict) and "eval" in data
+                      else "is not an Inspect AI log (no eval)")
     samples = data.get("samples")
     samples = samples if isinstance(samples, list) else None
     if not samples:

@@ -130,8 +130,10 @@ def sniff_json(head: bytes) -> str | None:
     text = head.decode("utf-8", errors="replace").lstrip("﻿ \t\r\n")
     if not text.startswith("{"):
         return None
-    # Inspect first: its logs also have a "results" object (the scores) and "stats".
-    if re.search(r'"eval"\s*:\s*\{', text) and re.search(r'"(status|samples)"\s*:', text):
+    # Inspect first: its logs also have a "results" object (the scores) and "stats". An "eval"
+    # that is not an object is still Inspect's, damaged, and its reader says so.
+    if (re.search(r'"eval"\s*:', text) and re.search(r'"(status|samples)"\s*:', text)
+            and not re.search(r'"(evalId|promptfooVersion)"\s*:', text)):
         return "inspect"
     if re.search(r'"results"\s*:\s*\{', text) and re.search(
             r'"(evalId|promptfooVersion|prompts|stats)"\s*:', text):
