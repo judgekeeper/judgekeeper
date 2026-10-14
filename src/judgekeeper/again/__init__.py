@@ -121,6 +121,17 @@ def cant(tool: str, judge: str, why: str, short: str = "") -> Plan:
     return Plan(tool=tool, judge=judge, status=CANT, why=why, short=short or why)
 
 
+NOT_MARKED = "your newest results don't contain the answers you marked"
+
+
+def not_marked(tool: str, judge: str) -> Plan:
+    """None of the marked answers is in the newest results: nothing to grade again."""
+    plan = cant(tool, judge, NOT_MARKED)
+    plan.plain = ("Your newest results don't contain the answers you marked, so your judge "
+                  "can't grade them again.")
+    return plan
+
+
 # Processes -------------------------------------------------------------------------------------
 
 STOP_WAIT = 5  # seconds a stopped program gets to end before it is killed

@@ -420,6 +420,25 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:
+        return _main(argv)
+    except BrokenPipeError:  # piped into a program that stopped reading (`| head`): no error
+        _quiet_stdout()
+        return EXIT_OK
+
+
+def _quiet_stdout() -> None:
+    """Point stdout at the null device, so Python's own flush at exit can't fail again."""
+    import os
+
+    try:
+        with open(os.devnull, "w", encoding="utf-8") as null:
+            os.dup2(null.fileno(), sys.stdout.fileno())
+    except (AttributeError, OSError, ValueError):  # io.UnsupportedOperation is an OSError
+        pass
+
+
+def _main(argv: list[str] | None) -> int:
     args_list = sys.argv[1:] if argv is None else argv
     lenient_streams()  # a terminal that cannot show a character prints "?", never a crash
     try:
@@ -431,6 +450,8 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:  # Ctrl-C, often at a question: what was saved stays saved
         print("\nStopped.")
         return EXIT_STOPPED
+    except BrokenPipeError:
+        raise  # said by main: nothing went wrong
     except (AnchorError, JudgmentsError, NormaliseError, TableError, CallableError,
             LabelError, StartError, SettingsError, MapError) as e:
         _error(str(e))

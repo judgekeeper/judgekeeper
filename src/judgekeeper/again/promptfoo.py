@@ -42,7 +42,7 @@ import re
 from pathlib import Path
 
 from judgekeeper import again, find, keys, prices
-from judgekeeper.again import CLOSE, EXACT, Plan, cant, left_out_line
+from judgekeeper.again import CLOSE, EXACT, Plan, cant, left_out_line, not_marked
 from judgekeeper.again.fresh import AgainError, Fresh, new_folder
 from judgekeeper.anchors import canonical_json
 from judgekeeper.readers.promptfoo import (
@@ -377,8 +377,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                             "your judge runs your own code (a file:// rubric or transform)",
                             short="your judge is your own code")
     if not judged:
-        return cant("promptfoo", judge, "none of your labeled answers can be graded again",
-                    short="no answer can be graded again")
+        return not_marked("promptfoo", judge)
     types = {judge_type(c["assertion"].get("type")) for j in judged for c in j[2]}
     if TRAJECTORY in types:
         return cant("promptfoo", judge, "your judge reads the trace of your app's run, which "

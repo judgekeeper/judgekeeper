@@ -32,7 +32,16 @@ import os
 import re
 
 from judgekeeper import again, keys, prices
-from judgekeeper.again import CANT, CLOSE, EXACT, Plan, cant, left_out_line, worker_run
+from judgekeeper.again import (
+    CANT,
+    CLOSE,
+    EXACT,
+    Plan,
+    cant,
+    left_out_line,
+    not_marked,
+    worker_run,
+)
 from judgekeeper.again.fresh import Fresh
 from judgekeeper.normalise import Normaliser, UnmappedValue
 from judgekeeper.start_label import display
@@ -272,8 +281,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         traces = info.get("traces") or {}
         found = [a for a in answers if a["id"] in traces]
     if not found:
-        return cant("mlflow", judge, "none of your labeled answers is in your MLflow store any "
-                    "more", short="your answers are not in your MLflow store")
+        return not_marked("mlflow", judge)
     tokens = []
     for a in found:
         i, o = prices.tokens_from_text(f"{display(a['input'])}\n{display(a['output'])}")
