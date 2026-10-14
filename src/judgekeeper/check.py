@@ -56,10 +56,10 @@ MAX_ENTRIES = 20_000  # files in a results folder (an MLflow store) looked at, a
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers you failed"))
 
-CONFIG_NEWER = ("Your judge's config changed after your last eval run; judgekeeper re-checks it "
-                "after the next one.")
-NOT_SET_UP = ("Your marks can't check your judge yet: that needs {n} you mark Pass and {n} you "
-              "mark Fail.")
+CONFIG_NEWER = ("Your judge's settings changed after your last eval run, so the grades "
+                "judgekeeper has are out of date.")
+SAME = "Same model, same rule, same eval tool."
+NOT_SET_UP = "You have not marked enough answers yet for a re-check."
 ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}. That is {calls}, "
              "paid with your own key.")
 GO_AHEAD = "Go ahead? [y/N] "
@@ -67,6 +67,8 @@ CAN_WRITE = "Your judge is an agent that can change files when it runs."
 NOT_ASKED = "Your judge was not asked."
 NEXT_YES = "Next: run `{command}` in your terminal to answer, or `{command} --yes` to go ahead."
 NEXT_LATER = "Next: run `{command}` again when you are ready to re-check your judge."
+NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
+                   "again; or start over on your new answers with `{new}`.")
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
@@ -158,8 +160,13 @@ def _newest(state: State):
                 raise
             return start.find_judge(root, **options), None  # the results name it now
     except (start.StartError, start.Stop, RecordsError, OSError, ValueError) as e:
+        tool = data.get("tool")
+        if tool in find.TOOLS and not find.search(root).readable(tool):
+            return None, (f"judgekeeper finds no {find.NAMES.get(tool, tool)} results in this "
+                          f"folder ({Path(root).name})")
         why = (scrub(str(e)) if str(e) and not isinstance(e, start.Stop)
-               else "it would have to ask which results to read")
+               else "they need a choice first, such as which results to read: run "
+                    f"`{program()}` to make it")
         return None, (f"judgekeeper can't read your judge {data.get('metric')} in your newest "
                       f"results: {why}")
 
@@ -187,6 +194,22 @@ def _newer(configs: list[Path], newest: Path) -> Path | None:
         except OSError:
             continue
     return None
+
+
+def _lock_newer(state: State, old: dict, new: dict, newest: Path | None) -> bool:
+    """Whether the eval tool's version changed only in a lockfile written after the newest
+    results: they were made by the old version, so they can't re-check the new one."""
+    if old.get("tool_version") == new.get("tool_version") or new.get("version_from") != \
+            "lockfile" or newest is None:
+        return False
+    root = Path(state.ws.root)
+    locks = [root / n for n in LOCKFILES if n != "judgekeeper.toml"]
+    locks += list(root.glob("requirements*.txt"))
+    try:
+        results = newest.stat().st_mtime
+    except OSError:
+        return False
+    return any(f.is_file() and f.stat().st_mtime > results for f in locks)
 
 
 def _config_newer(found) -> Path | None:
@@ -304,6 +327,7 @@ class Now:
     setup: dict
     config: Path | None
     found: object | None = None
+    newest: Path | None = None  # the newest results file (or store)
 
 
 def _now(state: State) -> tuple[Now | None, str | None]:
@@ -317,13 +341,14 @@ def _now(state: State) -> tuple[Now | None, str | None]:
             same = False
         if same:
             configs = [Path(p) for p in seen.get("configs") or []]
-            return Now(seen["setup"], _newer(configs, Path(seen.get("newest") or ""))), None
+            newest = Path(seen.get("newest") or "")
+            return Now(seen["setup"], _newer(configs, newest), newest=newest), None
     found, problem = _newest(state)
     if found is None:
         return None, problem
     setup = judge_setup.of(found)
     _remember(state, found, setup)
-    return Now(setup, _config_newer(found), found), None
+    return Now(setup, _config_newer(found), found, found.results[0].path), None
 
 
 def _change_line(old: dict, new: dict, changed: list[str], full: bool) -> str:
@@ -358,6 +383,7 @@ class Asked:
     calls: int = 0
     reasons: list[str] = field(default_factory=list)
     close: str | None = None  # why it was a close copy
+    not_marked: bool = False  # the newest results hold none of the marked answers
 
 
 def _can_write(setup: dict) -> bool:
@@ -402,6 +428,7 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     plan = again.make_plan(ws, again.AgainOptions(times=1), dry=True, new=view, only=set(ids))
     if plan.status == again.CANT:
         out.reasons.append(plan.plain or f"Your judge can't be asked again: {plan.why}.")
+        out.not_marked = plan.why == again.NOT_MARKED
         return out
     if not plan.key_ok:
         out.reasons.append(NO_KEY)
@@ -548,6 +575,38 @@ class Said:
         self.lines.append(line)
 
 
+def _not_set_up(path: str, state: State | None, said) -> int:
+    """No marks to check with: where it looked, and where the marks are when a folder above
+    holds them (check run from a folder inside the project, or in .judgekeeper/)."""
+    from judgekeeper.start_again import _project
+
+    given = Path(path)
+    if not given.exists():
+        said.say(f"There is no file or folder named {given.name or path} here.")
+        said.say()
+        said.say(f"Next: run `{program('check')}` in your project folder.")
+        return EXIT_USAGE
+    if state is not None:
+        said.say(NOT_SET_UP)
+        said.say()
+        said.say(f"Next: run `{program('mark')}` to mark more answers.")
+        return EXIT_NEEDS_YOU
+    folder = _project(given)
+    above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)
+    if above is None:
+        said.say(f"No marks in this folder ({folder.name}).")
+        said.say()
+        said.say(f"Next: run `{program()}` to find your eval results and mark answers.")
+        return EXIT_NEEDS_YOU
+    where = os.path.relpath(above, given if given.is_dir() else given.parent)
+    which = "the folder" if above == folder.parent else "a folder"
+    said.say(f"No marks in this folder ({folder.name}). Your marks are in {which} above it "
+             f"({above.name}).")
+    said.say()
+    said.say(f"Next: run `{program('check')} {quote_arg(where)}`.")
+    return EXIT_NEEDS_YOU
+
+
 def _switched(state: State) -> str | None:
     """The eval tool whose results are here now, when the marks' tool has none: judges of two
     eval tools can't be compared."""
@@ -558,11 +617,12 @@ def _switched(state: State) -> str | None:
 
 
 def _no_change(state: State) -> str:
-    when = state.saved.get("first_seen")
-    for line in _history(state.ws):
-        when = line.get("time") or when
-    day = _day(when)
-    return f"No change in your judge since the last check{f' ({day})' if day else ''}."
+    """Since when the judge is the same: the last check, or the marks when none ran."""
+    checks = _history(state.ws)
+    day = _day(checks[-1].get("time")) if checks else None
+    if not checks:
+        return "Your judge has not changed since you marked your answers."
+    return f"Your judge has not changed since your last check{f' ({day})' if day else ''}."
 
 
 def _history(ws: Workspace) -> list[dict]:
@@ -592,9 +652,7 @@ def _free(found, marked: dict[str, str]) -> dict[str, str]:
 def full(path: str, said: Said, yes: bool = False) -> int:
     state = _state(path)
     if state is None or not state.enough:
-        said.say(NOT_SET_UP.format(n=targets.ROUGH))
-        said.say(f"Next: run `{program()}` to mark answers.")
-        return EXIT_NEEDS_YOU
+        return _not_set_up(path, state, said)
     old = state.saved["setup"]
     now, problem = _now(state)
     found, new = (now.found, now.setup) if now is not None else (None, None)
@@ -618,34 +676,47 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         return EXIT_NEEDS_YOU
     changed = judge_setup.changes(old, new)
     if not changed:
-        config = now.config
-        said.say(_no_change(state))
-        if config is not None:
+        if now.config is not None:  # one line per case, never "no change" with it
             said.say(CONFIG_NEWER)
-        said.say()
-        said.say((NEXT_SAME if config is None else NEXT_EVAL).format(command=_command(state)))
+            said.say()
+            said.say(NEXT_EVAL.format(command=_command(state)))
+        else:
+            said.say(_no_change(state))
+            said.say(SAME)
+            said.say()
+            said.say(NEXT_SAME.format(command=_command(state)))
         return EXIT_OK
 
     change = _change_line(old, new, changed, full=True)
     said.say(change)
+    if _lock_newer(state, old, new, found.results[0].path if found else now.newest):
+        said.say(CONFIG_NEWER)  # the results were made before the update: out of date
+        said.say()
+        said.say(NEXT_EVAL.format(command=_command(state)))
+        return EXIT_OK
     free = _free(found, state.marks)
-    rest = [i for i in state.marks if i not in free]
+    # what the last check of this same new judge already asked (after a "Worse", say)
+    cached = {i: v for i, v in _read_verdicts(state.ws, judge_setup.hash_of(new)).items()
+              if i in state.marks and i not in free}
+    rest = [i for i in state.marks if i not in free and i not in cached]
     asked = (ask(state, found, new, rest, said, yes, rest=bool(free)) if rest
              else Asked())
     if asked is None:
         said.say()
         said.say(NEXT_YES.format(command=_command(state)))
         return EXIT_NEEDS_YOU
-    tested = {**free, **asked.verdicts}
+    tested = {**free, **cached, **asked.verdicts}
     if not tested:
         for line in asked.reasons:
             said.say(line)
         said.say()
-        said.say(NEXT_LATER.format(command=_command(state)))
+        later = NEXT_NOT_MARKED if asked.not_marked else NEXT_LATER
+        said.say(later.format(command=_command(state), new=program("--new")))
         return EXIT_NEEDS_YOU
 
     n, total = len(tested), len(state.marks)
     parts = [f"{len(free)} free from your new results"] if free else []
+    parts += [f"{len(cached)} from your last check"] if cached else []
     parts += [f"{len(asked.verdicts)} asked again"] if asked.verdicts else []
     on = f"your {_n(total, 'mark')}" if n == total else f"{n} of your {_n(total, 'mark')}"
     said.say(f"Re-checked on {on} ({', '.join(parts)}).")
@@ -680,15 +751,30 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say(NEXT_SAME.format(command=_command(state)))
 
     flipped = [i for i in tested if i in old_verdicts and old_verdicts[i] != tested[i]]
-    marks.append(state.ws.history_jsonl, scrub_value({
+    line = scrub_value({
         "time": utc_now(), "kind": "check", "trigger": "by hand", "before": old, "after": new,
         "changed": changed, "marks": total, "free": len(free), "asked": len(asked.verdicts),
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": g,
-        "smallest_drop": drop, "flipped": flipped}))
+        "smallest_drop": drop, "flipped": flipped})
+    if not _same_as_last(state, line):
+        marks.append(state.ws.history_jsonl, line)
     _save_verdicts(state.ws, new, found, tested)
-    judge_setup.save(state.ws, new, found.metric)
+    if not worse:  # after "Worse" the old judge stays the reference until it comes back
+        judge_setup.save(state.ws, new, found.metric)
     _report(state.ws)
     return EXIT_WORSE if worse else EXIT_OK
+
+
+def _same_as_last(state: State, line: dict) -> bool:
+    """Whether the last check in history.jsonl is this one again (the same judges, the same
+    result): a "Worse" that is still open is not a new check."""
+    checks = _history(state.ws)
+    if not checks:
+        return False
+    last = checks[-1]
+    same = (judge_setup.hash_of(last.get("before") or {}) == judge_setup.hash_of(line["before"])
+            and judge_setup.hash_of(last.get("after") or {}) == judge_setup.hash_of(line["after"]))
+    return same and last.get("groups") == line["groups"]
 
 
 def _report(ws: Workspace) -> None:
