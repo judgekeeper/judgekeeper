@@ -65,7 +65,7 @@ def test_a_link_in_judgekeeper_stops_start_and_the_file_it_points_to_is_unchange
     code, _, err = _start(capsys, project)
     assert code == 2 and served == []
     assert (f".judgekeeper/{name} is a link to another file. judgekeeper does not write "
-            "through links. Remove it, then run judgekeeper start again.") in err
+            "through links. Remove it, then run judgekeeper again.") in err
     assert victim.read_text(encoding="utf-8") == VICTIM
     assert sorted(p.name for p in (project / ".judgekeeper").iterdir()) == [name]
 

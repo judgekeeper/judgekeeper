@@ -153,7 +153,7 @@ def refuse_links(ws: Workspace) -> None:
         except ValueError:
             shown = str(link)
         raise StartError(LINK.format(path=shown, kind="folder" if link.is_dir() else "file",
-                                     program=program("start")))
+                                     program=program()))
 
 
 def make_folder(ws: Workspace) -> None:

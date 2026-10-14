@@ -369,7 +369,8 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict) -> Stop:
     talk.say(f"No saved eval results found in {root}.")
     for tool, where in signs.items():
         talk.say(f"{find.NAMES[tool]} is used here ({where[0]}), "
-                 + start.NO_RESULTS.get(tool, "but it has no saved results in this folder yet."))
+                 + start.NO_RESULTS.get(tool, "but it has no saved results in this folder yet.")
+                 .format(program=program()))
     talk.say(READS)
     tools = [find.NAMES[t] for t in signs]
     if tools:
