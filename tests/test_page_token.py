@@ -39,7 +39,10 @@ def here(tmp_path, monkeypatch):
     if lock and alive(lock["pid"]):  # never leave a page running after a failed test
         import signal
 
-        os.kill(lock["pid"], signal.SIGTERM)
+        try:
+            os.kill(lock["pid"], signal.SIGTERM)
+        except (PermissionError, ProcessLookupError):  # it was closing already (Windows)
+            pass
 
 
 @pytest.fixture

@@ -90,7 +90,7 @@ def test_an_eval_log_cut_short_is_one_plain_line(tmp_path, capsys, monkeypatch):
     code, out = run(capsys, tmp_path / "logs" / "2026-10-02_support.eval")
     assert code == 2, out
     assert ("2026-10-02_support.eval can't be read: it may be cut short, or not an Inspect AI "
-            "log (ValueError)") in out
+            "log. Save it again from Inspect AI.") in out
     assert "Traceback" not in out and "EOCD" not in out
 
 

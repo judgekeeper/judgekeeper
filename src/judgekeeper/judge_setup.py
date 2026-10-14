@@ -155,7 +155,13 @@ def _shape(found) -> tuple[str, list[str], str | None, dict | None]:
 
 def _promptfoo_agent(found) -> dict | None:
     """{runtime, can_write, looks_at} when the judge is one of promptfoo's agent graders."""
-    from judgekeeper.readers.promptfoo import _components, _options, grader_of, judge_type
+    from judgekeeper.readers.promptfoo import (
+        _components,
+        _options,
+        _shaped,
+        grader_of,
+        judge_type,
+    )
 
     try:
         data = json.loads(found.results[0].path.read_text(encoding="utf-8"))
@@ -165,7 +171,7 @@ def _promptfoo_agent(found) -> dict | None:
         data, dict) else {}
     for row in ((data.get("results") or {}).get("results") or []) if isinstance(data, dict) \
             else []:
-        if not isinstance(row, dict):
+        if not _shaped(row):  # left out when it was read
             continue
         for c in _components(row.get("gradingResult")):
             a = c.get("assertion") or {}

@@ -175,11 +175,16 @@ def decode_utf8(data: bytes, path: str | Path, error: type[Exception]) -> str:
         raise error(not_utf8_message(path)) from None
 
 
+last_read: str | None = None  # the name of the last file read_utf8 read, for an error
+
+
 def read_utf8(path: str | Path, error: type[Exception]) -> str:
     """The text of a file the user supplied, without a byte order mark.
 
     Raises `error` (the caller's usage error) with one plain line when the file is not UTF-8.
     """
+    global last_read
+    last_read = Path(path).name
     return decode_utf8(Path(path).read_bytes(), path, error).removeprefix(BOM)
 
 
@@ -196,12 +201,12 @@ def read_json(path: str | Path, error: type[Exception]):
         data = json.loads(text)
     except RecursionError:
         raise error(NOT_JSON.format(file=path)) from None
-    if _too_deep(data):
+    if too_deep(data):
         raise error(NOT_JSON.format(file=path))
     return data
 
 
-def _too_deep(data) -> bool:
+def too_deep(data) -> bool:
     """Whether lists and objects are nested deeper than MAX_NESTING, walked without
     recursion."""
     stack = [(data, 1)]

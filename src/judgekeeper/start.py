@@ -14,7 +14,7 @@ majority of its verdicts, a tie going to fail. An answer with no real decision f
 left out and counted, and said; a verdict that cannot be mapped stops `start`.
 
 Questions are asked only at a terminal (stdin). Without one, `start` prints the question as
-the flag that answers it and exits 8 (EXIT_QUESTION: nothing went wrong); `--yes` takes the
+the flag that answers it and exits 3 (EXIT_QUESTION: nothing went wrong); `--yes` takes the
 default answer of a yes/no question, but never picks between tools or judges. Every printed
 "run this next" command comes from `Talk.command`, so it repeats the flags the person gave.
 """
@@ -26,6 +26,7 @@ import math
 import operator
 import os
 import re
+import sqlite3
 import sys
 import textwrap
 from collections import Counter
@@ -44,23 +45,26 @@ from judgekeeper.records import (
     HUMAN,
     LLM,
     NO_MARK,
+    Damaged,
     Mark,
     RecordList,
     RecordsError,
     ScoreRecord,
     _consensus,
     _verdict_value,
+    damaged,
     derive_record_id,
     fingerprint_known,
+    left_out_note,
     read_records,
 )
 from judgekeeper.redact import one_line, scrub
-from judgekeeper.table import _blank, make_fingerprint, read_table
+from judgekeeper.table import _blank, make_fingerprint, open_quote, read_table
 from judgekeeper.textio import plural, quote_arg, read_utf8, tick
 
 EXIT_OK = 0
 EXIT_USAGE = 2
-EXIT_QUESTION = 8  # stopped at a question it cannot ask (no terminal); nothing went wrong
+EXIT_QUESTION = 3  # stopped at a question it cannot ask (no terminal); nothing went wrong
 
 ROUGH = targets.ROUGH  # the label targets every command shares
 RELIABLE = targets.RELIABLE
@@ -81,7 +85,13 @@ _DESCRIPTION = re.compile(r"^description:\s*(.*?)\s*$", re.MULTILINE)
 
 
 class StartError(Exception):
-    """`start` cannot go on: a usage error (exit 2)."""
+    """`start` cannot go on: a usage error (exit 2). `next_step`: the words of its Next: line
+    (cli.main), where {command} is the command as it was run, without the flag `drop`."""
+
+    def __init__(self, message: str = "", next_step: str | None = None,
+                 drop: str | None = None):
+        super().__init__(message)
+        self.next_step, self.drop = next_step, drop
 
 
 class Stop(Exception):
@@ -358,7 +368,14 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
 def read_results_table(path: Path) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
     column, when there is one, as human records (counted, not used). A `model` (or
-    `judge_model`) column names the judge's model, an `app_version` column the app's."""
+    `judge_model`) column names the judge's model, an `app_version` column the app's. A quote
+    that never closes stops it: the rows after it would be read as one cell."""
+    line = open_quote(path)
+    if line is not None:
+        raise StartError(f"line {line} of {path.name} has a quote that never closes, so the "
+                         "rows after it can't be read.",
+                         f"close the quote on line {line} of {path.name}, then run "
+                         "`{command}`.")
     rows = read_table(path)
     if not rows:  # a header and nothing under it
         raise StartError(f"{path.name} has no rows")
@@ -396,13 +413,30 @@ class Loaded:
     records: RecordList
 
 
+# What a reader can meet in a damaged file that is not its own RecordsError
+UNREADABLE = (RecursionError, OverflowError, UnicodeDecodeError, sqlite3.DatabaseError)
+
+
+def unreadable(path: Path, tool: str) -> RecordsError:
+    """A reader stopped on a damaged file: said in plain words, never the error's text."""
+    return damaged(path, find.NAMES.get(tool, tool), "is damaged: judgekeeper can't read it")
+
+
+def usage_error(e: Exception, text: str | None = None) -> StartError:
+    """A reader's error as a usage error, with its Next: line when it has one."""
+    return StartError(str(e) if text is None else text, getattr(e, "next_step", None))
+
+
 def _read(result: find.Result) -> Loaded:
-    if result.tool == "table":
-        records = read_results_table(result.path)
-    elif result.tool == "inspect":  # a sample that errored before it was scored, too
-        records = read_inspect(result.path, with_errors=True)
-    else:
-        records = FILE_READERS[result.tool](result.path)
+    try:
+        if result.tool == "table":
+            records = read_results_table(result.path)
+        elif result.tool == "inspect":  # a sample that errored before it was scored, too
+            records = read_inspect(result.path, with_errors=True)
+        else:
+            records = FILE_READERS[result.tool](result.path)
+    except UNREADABLE:
+        raise unreadable(result.path, result.tool) from None
     stripped = [w for w in records.warnings if is_stripped_warning(w)]
     if stripped:
         raise StartError(stripped[0])
@@ -440,7 +474,10 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
     loaded = []
     for r in results:
         try:
-            records = read_records(r.path, cut_end_ok=True)
+            try:
+                records = read_records(r.path, cut_end_ok=True, bad_lines_ok=True)
+            except UNREADABLE:
+                raise unreadable(r.path, "records") from None
         except RecordsError as e:
             text = str(e)
             text = text[text.find("line "):] if "line " in text else text
@@ -479,8 +516,11 @@ def _read_mapped(result: find.Result, saved) -> list[Loaded]:
     from judgekeeper.readers.mapped import read_mapped
 
     m = {**saved.map, "judge": saved.judge, "pass_mark": saved.pass_mark, "model": saved.model}
-    return [Loaded(label, records) for label, records in read_mapped(result.path, m,
-                                                                     label=result.rel)]
+    try:
+        read = read_mapped(result.path, m, label=result.rel)
+    except UNREADABLE:
+        raise unreadable(result.path, "your own tool") from None
+    return [Loaded(label, records) for label, records in read]
 
 
 def _where(result: find.Result) -> str:
@@ -578,7 +618,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         try:
             found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
         except (TracesMissing, JudgeCallsFailed) as e:
-            raise StartError(str(e)) from None
+            raise usage_error(e) from None
         except RecordsError as e:
             if not str(e).startswith("no MLflow experiment named"):
                 raise
@@ -591,14 +631,16 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
             try:
                 runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
             except (TracesMissing, JudgeCallsFailed) as e:
-                missing.append(str(e))
+                missing.append(e)
                 continue
+            except Damaged:
+                raise
             except RecordsError:  # an experiment with no traces
                 continue
             if any(r.annotator_kind == LLM for _, recs in runs for r in recs):
                 found.append((exp.name, runs))
         if not found and missing:
-            raise StartError(missing[0])
+            raise usage_error(missing[0])
         old = [] if found else _old_evaluate(uri)
         if old:
             talk.say(OLD_EVALUATE.format(names=", ".join(old)))
@@ -656,7 +698,7 @@ class Found:
     models: list[str] = field(default_factory=list)  # the judge's model(s), as the results say
     model_source: str | None = None  # None (the results), GIVEN_BY_YOU or judgekeeper.toml
     experiment: str | None = None  # MLflow: the experiment read
-    stopped: list[str] = field(default_factory=list)  # Inspect: runs that stopped early
+    stopped: list[str] = field(default_factory=list)  # Inspect runs that stopped early; rows left out
     label_map: str | dict | None = None  # --label-map as given, kept in start.json
 
 
@@ -1053,7 +1095,8 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
     if metric is not None:
         if metric not in counts:
             raise StartError(f"no judge named {metric!r}; judges are: "
-                             f"{', '.join(repr(n) for n in names)}")
+                             f"{', '.join(repr(n) for n in names)}",
+                             f"run `{{command}} --metric {quote_arg(names[0])}`.", "--metric")
         return metric
     if len(names) == 1:
         return names[0]
@@ -1250,7 +1293,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                     first = _read(newest)
                 except RecordsError as e:
                     if not rest:
-                        raise StartError(_unread(e, newest, root)) from None
+                        raise usage_error(e, _unread(e, newest, root)) from None
                     talk.say(f"{_unread(e, newest, root)} It is left out.")
                     continue
                 if kind == "inspect" and not any(r.annotator_kind == LLM
@@ -1322,7 +1365,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  rule_field=_inspect_field(records) if kind == "inspect" and rule else None,
                  models=models, model_source=model_source, experiment=name,
                  stopped=[n for x in used for n in x.records.notes
-                          if n.startswith("Your Inspect run stopped early")],
+                          if n.startswith("Your Inspect run stopped early")]
+                 + [n for x in used if (n := left_out_note(x.records, x.label))],
                  label_map=label_map or None)
 
 
@@ -1534,19 +1578,40 @@ def _pass_mark_words(pm: dict) -> str:
     return f"score {words[pm['op']]}" if pm.get("op") in words else f"score {mark}"
 
 
+SENTENCE = re.compile(r"[.!?;:]")  # punctuation a grade word does not hold
+
+
+def verdict_like(value) -> bool:
+    """Whether a decision value looks like a grade word, so it may be shown: at most 3 words,
+    under 30 characters, no sentence punctuation. Anything longer may be the judge's reason
+    or an answer's text (a CSV quote that never closes puts them there)."""
+    text = " ".join(str(value).split())
+    return len(text) < 30 and len(text.split()) <= 3 and not SENTENCE.search(text)
+
+
+def shown_value(value) -> str:
+    """A decision value on one line; quoted when it holds a comma."""
+    text = " ".join(str(value).split())
+    return f'"{text}"' if "," in text else text
+
+
 def unknown_values(values) -> str:
     """What to do about decisions judgekeeper can't read as Pass or Fail, in plain words: never
     a guess, since a wrong one would turn fails into passes."""
     from judgekeeper.normalise import PASS_IF_EXAMPLE, _numeric
 
     seen = list(dict.fromkeys(values))
-    shown = ", ".join(str(v) for v in seen[:10]) + (f" and {len(seen) - 10} more"
+    shown = ", ".join(shown_value(v) for v in seen[:10]) + (f" and {len(seen) - 10} more"
                                                      if len(seen) > 10 else "")
     numbers = [v for v in seen if _numeric(v)]
     if len(numbers) == len(seen):
         return (f"Your judge's decisions are numbers ({shown}): say which scores pass with "
                 f"--pass-if, e.g. {PASS_IF_EXAMPLE}")
     words = [str(v) for v in seen if not _numeric(v)]
+    long = [w for w in words if not verdict_like(w)]
+    if long:
+        return ("judgekeeper can't tell which of your judge's decisions mean Pass and which "
+                f"mean Fail: they hold long text ({_plural(len(long), 'value')}).")
     example = (f'--label-map "{words[0]}=pass,{words[1]}=fail"' if len(words) > 1
                else f'--label-map "{words[0]}=pass" or --label-map "{words[0]}=fail"')
     tail = f" Numbers need --pass-if, e.g. {PASS_IF_EXAMPLE}" if numbers else ""

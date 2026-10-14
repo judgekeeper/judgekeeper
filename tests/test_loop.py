@@ -421,7 +421,7 @@ def test_start_still_works(here, capsys, pages):
     _click(start_label.Workspace(here))
     assert run(capsys)[0] == 0  # the result
     code, out, _ = run(capsys, "start", "--no-browser")
-    assert code in (0, 8), out
+    assert code in (0, 3), out
     assert "Your last result" in out
 
 

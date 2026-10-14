@@ -40,7 +40,7 @@ def test_ctrl_c_stops_with_one_line_and_no_traceback(monkeypatch, capsys):
     assert main(["start"]) == 130
     out = capsys.readouterr()
     assert "Traceback" not in out.out + out.err
-    assert out.out == "\nStopped.\n"
+    assert out.out == "\nStopped.\nNext: run `judgekeeper start` to carry on.\n"
 
 
 @pytest.mark.parametrize("port", ["99999", "-1", "65536", "eighty"])

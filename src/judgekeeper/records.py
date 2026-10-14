@@ -44,7 +44,7 @@ from judgekeeper.table import (
     _delimiter,
     derive_id,
 )
-from judgekeeper.textio import jsonl_lines, plural, read_utf8
+from judgekeeper.textio import MAX_NESTING, jsonl_lines, plural, read_utf8, too_deep
 
 SCHEMA_VERSION = 2
 LLM, HUMAN, CODE = "LLM", "HUMAN", "CODE"
@@ -65,6 +65,47 @@ _NUMBER = re.compile(r"\A\s*([-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?)?\s*\Z")
 
 class RecordsError(TableError):
     """The records cannot be turned into a report: a usage error."""
+
+
+class Damaged(RecordsError):
+    """A results file that can't be read as a whole (empty, cut off, not the tool's). Its
+    message names the file, never its content or the JSON parser's words; `next_step` is the
+    Next: line's (cli.main)."""
+
+    def __init__(self, message: str, next_step: str):
+        super().__init__(message)
+        self.next_step = next_step
+
+
+def damaged(path: str | Path, tool: str, how: str) -> Damaged:
+    """`how` the file at `path` is damaged, and to save it again from `tool`."""
+    name = Path(path).name
+    return Damaged(f"{name} {how}. Save it again from {tool}.",
+                   f"save {name} again from {tool}, then run `{{command}}`.")
+
+
+NESTED = f"is nested more than {MAX_NESTING} levels deep"  # the same on every Python
+
+
+def load_json(path: str | Path, tool: str):
+    """The JSON in `tool`'s results file. Damaged, in plain words, when it is empty, cut off,
+    not JSON or nested too deep."""
+    text = read_utf8(path, RecordsError)
+    if not text.strip():
+        raise damaged(path, tool, "is empty")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        cut = e.pos >= len(text.rstrip()) or e.msg.startswith("Unterminated string")
+        raise damaged(path, tool, "is cut off or damaged (it ends in the middle)" if cut
+                      else "is damaged (it isn't valid JSON)") from None
+    except RecursionError:  # Python before 3.14 stops here; 3.14 reads it: too_deep below
+        raise damaged(path, tool, NESTED) from None
+    except ValueError:  # a number too long to read
+        raise damaged(path, tool, "is damaged (judgekeeper can't read it as JSON)") from None
+    if too_deep(data):
+        raise damaged(path, tool, NESTED)
+    return data
 
 
 def derive_record_id(input, output, trajectory=None) -> str:
@@ -115,7 +156,7 @@ def _evaluator_problems(v) -> list[str]:
         try:
             v = json.loads(v)
         except json.JSONDecodeError:
-            return [f"evaluator {v[:60]!r} is not a JSON object"]
+            return ["evaluator is not a JSON object"]
     if not isinstance(v, dict):
         return [("evaluator must be an object with provider, model, prompt, temperature and "
                  "version")]
@@ -124,7 +165,7 @@ def _evaluator_problems(v) -> list[str]:
         value = v.get(key)
         if key == "temperature":
             if value is not None and not _is_number(value):
-                out.append(f"evaluator.temperature {value!r} is not a number")
+                out.append("evaluator.temperature is not a number")
         elif value is not None and not _is_text(value):
             out.append(f"evaluator.{key} must be text")
     return out
@@ -183,7 +224,7 @@ def problems(d: dict) -> list[str]:
     out = []
     version = d.get("schema_version")
     if version is not None and not (_is_whole(version) and version >= 1):
-        out.append(f"schema_version {version!r} must be a whole number, 1 or more")
+        out.append("schema_version is not a whole number, 1 or more")
     target = d.get("target_id")
     if target is not None and not (isinstance(target, str) or _is_whole(target)):
         out.append("target_id must be text or a whole number")
@@ -192,10 +233,10 @@ def problems(d: dict) -> list[str]:
             out.append(f"{key} must be text")
     kind = d.get("annotator_kind")
     if kind is not None and (not isinstance(kind, str) or _kind(kind) is None):
-        out.append(f"annotator_kind {kind!r} is not one of {', '.join(KINDS)}")
+        out.append(f"annotator_kind is not one of {', '.join(KINDS)}")
     score = d.get("score")
     if score is not None and not (_is_number(score) or isinstance(score, bool)):
-        out.append(f"score {score!r} is not a number")
+        out.append("score is not a number")
     run = d.get("run")
     if run is not None and not (isinstance(run, str) or _is_whole(run)):
         out.append("run must be a whole number or text")
@@ -306,10 +347,13 @@ class RecordList(list):
     `label_map`: the reader's default verdict spellings (Inspect's C/I), under --label-map.
     `per_metric`: extra source fields for one metric name, e.g. DeepEval's threshold; its
     "warnings" are added to `warnings` when that metric is the one validated.
+    `left_out`: the numbers (from 1) of the rows left out for a damaged field (read_rows);
+    `unit` says what a row is in this file ("row", or "line" in a JSONL file). `source`: the
+    file's name as the person knows it, when it is not the file read (an MLflow store).
     """
 
     def __init__(self, records=(), *, version=None, ids_derived=False, warnings=None,
-                 notes=None, label_map=None, per_metric=None):
+                 notes=None, label_map=None, per_metric=None, unit="row"):
         super().__init__(records)
         self.version = version
         self.ids_derived = ids_derived
@@ -317,6 +361,96 @@ class RecordList(list):
         self.notes = list(notes or [])
         self.label_map = dict(label_map or {})
         self.per_metric = dict(per_metric or {})
+        self.left_out: list = []
+        self.unit = unit
+        self.source: str | None = None
+
+
+# One damaged row ------------------------------------------------------------------------
+# A reader reads each row of a file on its own. A row whose reading raises one of these (a
+# string where an object should be, a list for a name...), or whose records hold a value
+# judgekeeper can't use further on (check_record), is left out and counted; the rest is read.
+
+ROW_DAMAGE = (AttributeError, TypeError, ValueError, KeyError, IndexError, RecursionError,
+              OverflowError)
+ROW_NESTING = 100  # lists and objects inside each other in one answer; real ones use a few
+SHOWN_ROWS = 5  # row numbers named in the note; the rest are counted
+
+
+def _nested(value) -> int:
+    """How deep lists and objects are nested in `value`, walked without recursion."""
+    deepest, stack = 0, [(value, 0)]
+    while stack:
+        v, depth = stack.pop()
+        if isinstance(v, dict | list):
+            depth += 1
+            deepest = max(deepest, depth)
+            if depth > ROW_NESTING:
+                break
+            stack.extend((x, depth) for x in (v.values() if isinstance(v, dict) else v))
+    return deepest
+
+
+def _finite(v) -> bool:
+    return not isinstance(v, int | float) or isinstance(v, bool) or math.isfinite(float(v))
+
+
+def check_record(r: ScoreRecord) -> None:
+    """TypeError or ValueError (OverflowError for a number too big) when `r` holds a value
+    judgekeeper can't use further on: an id or a name that is not text, a decision or score
+    that is not a plain value or not a finite number, a reason that is not text, an answer
+    nested too deep or holding NaN, a judge's model that is not text."""
+    if not isinstance(r.target_id, str) or not isinstance(r.name, str):
+        raise TypeError("id or name")
+    for v in (r.label, r.score):
+        if not (v is None or isinstance(v, str | bool | int | float)) or not _finite(v):
+            raise TypeError("decision or score")
+    if r.explanation is not None and not isinstance(r.explanation, str):
+        raise TypeError("reason")
+    for v in (r.input, r.output, r.trajectory):
+        if _nested(v) > ROW_NESTING:
+            raise ValueError("nested too deep")
+        json.dumps(v, allow_nan=False)
+    model = r.evaluator.get("model") if isinstance(r.evaluator, dict) else None
+    if not isinstance(r.evaluator, dict) or not (model is None or isinstance(model, str)):
+        raise TypeError("judge")
+
+
+def read_rows(records: RecordList, rows, read_one) -> None:
+    """`read_one(row)` for each (number, row) of `rows`; it adds the row's records to
+    `records`. A damaged row (ROW_DAMAGE, check_record) adds nothing: its number goes to
+    `records.left_out`. A RecordsError still stops the file."""
+    for n, row in rows:
+        before = len(records)
+        try:
+            read_one(row)
+            for r in records[before:]:
+                check_record(r)
+        except ROW_DAMAGE:
+            del records[before:]
+            records.left_out.append(n)
+
+
+def left_out_note(records: RecordList, file: str) -> str | None:
+    """The note on the rows of `file` left out for a damaged field, or None."""
+    rows = records.left_out
+    if not rows:
+        return None
+    named = [f"{records.unit} {n}" for n in rows[:SHOWN_ROWS]]
+    if len(rows) > SHOWN_ROWS:
+        named.append(f"{len(rows) - SHOWN_ROWS} more")
+    listed = " and ".join([", ".join(named[:-1]), named[-1]] if len(named) > 1 else named)
+    one = len(rows) == 1
+    name = records.source or Path(file).name
+    return (f"{plural(len(rows), 'answer')} in {name} {'was' if one else 'were'} "
+            f"left out: {listed} {'has' if one else 'have'} a damaged field.")
+
+
+def all_damaged(path: str | Path, tool: str, records: RecordList) -> None:
+    """Damaged when every row of the file was left out (there were rows; none was read)."""
+    if records.left_out and not records:
+        each = plural(len(records.left_out), records.unit)
+        raise damaged(path, tool, f"is damaged: each of its {each} has a damaged field")
 
 
 def _content(v):
@@ -334,7 +468,7 @@ def _number(v) -> float | None:
     try:
         return float(str(v).strip())
     except ValueError:
-        raise RecordsError(f"score {v!r} is not a number") from None
+        raise RecordsError("score is not a number") from None
 
 
 def _run(v):
@@ -415,8 +549,8 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
                 continue
             try:
                 row = json.loads(line)
-            except json.JSONDecodeError as e:
-                rows.append((n, f"not valid JSON ({e.msg})", 0))
+            except (ValueError, RecursionError):  # never the parser's words: they quote it
+                rows.append((n, "not valid JSON", 0))
                 continue
             if not isinstance(row, dict):
                 rows.append((n, "each line must be a JSON object", 0))
@@ -510,10 +644,12 @@ CUT_END = "the last line was cut short and was left out"
 
 
 def read_records(path: str | Path, column_map: str | dict | None = None,
-                 cut_end_ok: bool = False) -> RecordList:
+                 cut_end_ok: bool = False, bad_lines_ok: bool = False) -> RecordList:
     """ScoreRecords from a JSONL, CSV or TSV file. `column_map` renames source columns.
 
-    A record judgekeeper cannot read stops with its line number. A newer version of the format, or a record over 1 MB, adds one
+    A record judgekeeper cannot read stops with its line number; with `bad_lines_ok` it is
+    left out instead, its line number in `left_out`, and the other lines are read (Damaged
+    when no line is left). A newer version of the format, or a record over 1 MB, adds one
     warning. With `cut_end_ok`, a last line that is not whole JSON (the writing program
     stopped in the middle of it) is left out, with CUT_END in the notes."""
     path = Path(path)
@@ -524,21 +660,33 @@ def read_records(path: str | Path, column_map: str | dict | None = None,
         rows = rows[:-1]
     mapping = parse_map(column_map)
     check_map(mapping, rows, path)
-    records = RecordList()
+    records = RecordList(unit="line")
     n_big = 0
     for n, row, size in rows:
-        if isinstance(row, str):
-            raise RecordsError(f"{path}: line {n}: {row}")
-        d, found = record_dict(row, mapping, cells)
-        found += problems(d)
-        if found:
-            raise RecordsError(f"{path.name}: line {n}: {found[0]}")
-        rec = ScoreRecord.from_dict(d)
-        if rec.target_id is None:
-            rec.target_id = derive_record_id(rec.input, rec.output, rec.trajectory)
-            records.ids_derived = True
+        try:
+            if isinstance(row, str):
+                raise RecordsError(f"{path.name}: line {n}: {row}")
+            d, found = record_dict(row, mapping, cells)
+            found += problems(d)
+            if found:
+                raise RecordsError(f"{path.name}: line {n}: {found[0]}")
+            rec = ScoreRecord.from_dict(d)
+            if rec.target_id is None:
+                rec.target_id = derive_record_id(rec.input, rec.output, rec.trajectory)
+                records.ids_derived = True
+            if bad_lines_ok:
+                check_record(rec)
+        except (RecordsError, *ROW_DAMAGE):
+            if not bad_lines_ok:
+                raise
+            records.left_out.append(n)
+            continue
         n_big += size > BIG
         records.append(rec)
+    if records.left_out and not records:
+        lines = plural(len(records.left_out), "line")
+        raise Damaged(f"{path.name} is damaged: each of its {lines} has a damaged field.",
+                      "run your eval again (it writes new records), then run `{command}`.")
     records.warnings += file_warnings(path.name, records, n_big)
     if cut:
         records.notes.append(CUT_END)

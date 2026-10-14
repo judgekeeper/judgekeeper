@@ -6,15 +6,17 @@ ends with one `Next:` line. `judgekeeper mark` (mark.py) opens the page to mark 
 `judgekeeper check` (check.py) re-tests a changed judge on the marks (exit 1: the new judge
 got worse); it asks before any call to the judge.
 `judgekeeper start` (not in the help) still has its review, fix and asking again. Exit codes: 0
-success, 1 runtime failure, 2 usage error, 3 the person is needed (`judgekeeper` and `mark`:
-the Next: line says what to ask), 8 stopped at a question (`start`, below), 130 Ctrl-C.
+success, 2 usage error, 3 the person is needed (the Next: line says what to do), 130 Ctrl-C;
+`start` also 1 (asking again: the tool failed).
 
-Everything printed as an error goes through redact.scrub. A failure with no better message
-prints one scrubbed line; --debug adds the traceback, also scrubbed. A path that cannot be
-written or read (no permission, a file where a folder should be) is a usage error: one line
-that names the path and what to do.
+Every error ends with one `Next:` line, printed here. Everything printed as an error goes
+through redact.scrub. A failure with no better message never prints its own text (it can hold
+an answer's text): one line says judgekeeper hit a problem it didn't expect and where to report
+it, exit 2; --debug adds the traceback, also scrubbed. A path that cannot be written or read
+(no permission, a file where a folder should be) is a usage error: one line that names the
+path and what to do.
 
-`start` exits 0 when it is done (also when the person stops), 8 when it stopped at a question
+`start` exits 0 when it is done (also when the person stops), 3 when it stopped at a question
 it cannot ask (no terminal: the line before says the flag or command that answers it, and
 nothing went wrong), 2 when the command is wrong or it finds nothing it can use.
 
@@ -31,7 +33,7 @@ import sys
 import textwrap
 import traceback
 
-from judgekeeper import __version__
+from judgekeeper import __version__, textio
 from judgekeeper.anchors import AnchorError
 from judgekeeper.custom import CallableError
 from judgekeeper.find import TOOLS
@@ -48,14 +50,26 @@ from judgekeeper.textio import (
     is_windows,
     lenient_streams,
     program,
+    quote_arg,
     started_by_uvx,
     tick,
 )
 
 EXIT_OK = 0
-EXIT_FAILURE = 1
 EXIT_USAGE = 2
 EXIT_STOPPED = 130  # Ctrl-C, as shells report it
+ISSUES = "https://github.com/judgekeeper/judgekeeper/issues"
+UNEXPECTED = ("judgekeeper hit a problem it didn't expect reading {what}. Please report it: "
+              f"{ISSUES} (remove any answer text first).")
+# The Next: line of an error; {command} is the command as it was run
+NEXT_FIX = "fix what the line above says, then run `{command}`."
+NEXT_UNEXPECTED = "report it; to see where it went wrong, run `{command} --debug`."
+NEXT_WRITE = ("make this folder writable (judgekeeper keeps its files in .judgekeeper/ here), "
+              "then run `{command}`.")
+NEXT_PATH = "check the path, then run `{command}`."
+NEXT_HELP = "run `{command}` to see the options."
+NEXT_REMOVED = "run `{command}` in your project."
+NEXT_STOPPED = "run `{command}` to carry on."
 
 MESSAGE = "Check your LLM-as-a-judge in 5 steps."
 STEPS = """\
@@ -140,6 +154,32 @@ def _say(text: str, file=None, end: str = "\n") -> None:
 
 def _error(message: str) -> None:
     _say(f"error: {one_line(scrub(message))}", file=sys.stderr)
+
+
+def _next(step: str, file=None) -> None:
+    """The one Next: line an error ends with."""
+    _say(f"Next: {one_line(scrub(step))}", file=sys.stderr if file is None else file)
+
+
+def again(args_list: list[str], drop: str | None = None) -> str:
+    """The command as it was run (without --debug, and without the flag `drop` and its
+    value), to repeat in a Next: line."""
+    words, skip = [], False
+    for arg in args_list:
+        if skip or arg == "--debug":
+            skip = False
+            continue
+        if drop is not None and arg == drop:
+            skip = True
+            continue
+        if drop is not None and arg.startswith(f"{drop}="):
+            continue
+        words.append(quote_arg(arg))
+    return " ".join((program(), *words))
+
+
+def _step(step: str, args_list: list[str], drop: str | None = None) -> str:
+    return step.replace("{command}", again(args_list, drop))
 
 
 def _port(value: str) -> int:
@@ -351,6 +391,7 @@ def cmd_start(args) -> int:
                         ("--rule-file", args.rule_file is not None)):
         if given and not args.fix:
             print(f"judgekeeper start: error: {flag} works only with --fix", file=sys.stderr)
+            _next(f"run `{program('start')} --fix {flag}`, or leave {flag} out.")
             return EXIT_USAGE
     return run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
                tracking_uri=args.tracking_uri, pass_if=args.pass_if, label_map=args.label_map, judge_model=args.judge_model,
@@ -406,6 +447,7 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
     if command in REMOVED:
         print(f"judgekeeper {command} was removed. Run {program()} in your project.",
               file=sys.stderr)
+        _next(NEXT_REMOVED.replace("{command}", program()))
         raise SystemExit(EXIT_USAGE)
     parser = _parser() if command else _front_parser()
     if command == "check":  # an unknown flag is said by `check` itself, with its Next: line
@@ -444,17 +486,24 @@ def _main(argv: list[str] | None) -> int:
     try:
         args = parse_args(args_list)
     except SystemExit as e:
-        return EXIT_OK if e.code in (0, None) else EXIT_USAGE
+        if e.code in (0, None):
+            return EXIT_OK
+        if _command(args_list) not in (*REMOVED, "check"):  # these said their Next: line
+            _next(NEXT_HELP.replace("{command}", program(_command(args_list) or "") + " --help"))
+        return EXIT_USAGE
     try:
         return COMMANDS[args.command](args)
     except KeyboardInterrupt:  # Ctrl-C, often at a question: what was saved stays saved
         print("\nStopped.")
+        _next(_step(NEXT_STOPPED, args_list), file=sys.stdout)
         return EXIT_STOPPED
     except BrokenPipeError:
         raise  # said by main: nothing went wrong
     except (AnchorError, JudgmentsError, NormaliseError, TableError, CallableError,
             LabelError, StartError, SettingsError, MapError) as e:
         _error(str(e))
+        _next(_step(getattr(e, "next_step", None) or NEXT_FIX, args_list,
+                    getattr(e, "drop", None)))
         return EXIT_USAGE
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see
         if args.debug:
@@ -462,11 +511,12 @@ def _main(argv: list[str] | None) -> int:
         file_problem = describe_os_error(e) if isinstance(e, OSError) else None
         if file_problem:
             _error(file_problem)
+            _next(_step(NEXT_WRITE if file_problem.startswith("cannot write") else NEXT_PATH,
+                        args_list))
             return EXIT_USAGE
-        _error(f"{type(e).__name__}: {e}")
-        if not args.debug:
-            print("  run with --debug for the traceback", file=sys.stderr)
-        return EXIT_FAILURE
+        _error(UNEXPECTED.format(what=textio.last_read or "your results"))
+        _next(_step(NEXT_UNEXPECTED, args_list))
+        return EXIT_USAGE
 
 
 if __name__ == "__main__":

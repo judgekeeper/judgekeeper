@@ -13,6 +13,7 @@ your own terminal.
 - The report has a History of every check.
 - Every screen says which of the 5 steps it is, and its `Next:` line says what you do next.
 - The marking page saves a mark only when it comes from the page itself.
+- Broken results files give a clear message instead of a Python error.
 - Removed: automatic checks, the GitHub Action and the agent skill. 1.0 is commands you run
   yourself; agent support may come back later.
 

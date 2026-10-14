@@ -22,7 +22,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from judgekeeper import mapper
-from judgekeeper.records import LLM, RecordList, RecordsError, ScoreRecord, derive_record_id
+from judgekeeper.records import (
+    LLM,
+    RecordList,
+    RecordsError,
+    ScoreRecord,
+    derive_record_id,
+    read_rows,
+)
 
 CHANGED_SHAPE = ("Your results file changed shape. Remove the [start] table from "
                  "judgekeeper.toml, then run {program} again to read it anew.")
@@ -38,8 +45,9 @@ def read_mapped(path: str | Path, m: dict, label: str | None = None
     (leave out answers with an error or a score made by a rule)."""
     path = Path(path)
     label = label or path.name
+    skipped: list[int] = []  # lines that are not JSON
     try:
-        units = mapper.load_numbered(path)
+        units = mapper.load_numbered(path, skipped)
     except mapper.MapError as e:
         raise RecordsError(str(e)) from None
     flat = not m["each"]
@@ -47,10 +55,13 @@ def read_mapped(path: str | Path, m: dict, label: str | None = None
     unnamed = mapper.parse(m["score"])[-1][0]
     out = []
     for n, unit in units:
-        records = RecordList(ids_derived=not m.get("id"))
-        try:
-            found = mapper.items(unit, m["each"])
-            for item, up in found:
+        records = RecordList(ids_derived=not m.get("id"), unit="line" if flat else "item")
+
+        def read_item(found: tuple[dict, list], records=records) -> None:
+            item, up = found
+            if not isinstance(item, dict):
+                raise TypeError("an item that is not an object")
+            try:
                 question = mapper.get(item, m["input"])
                 model = _model(item, up, m)
                 mark = {**m, "pass_mark": _pass_mark(item, up, m)}
@@ -59,16 +70,35 @@ def read_mapped(path: str | Path, m: dict, label: str | None = None
                     for judge in mapper.judges_read(m):
                         records += _records(item, side, judge, question, answer, model, mark,
                                             unnamed)
-        except mapper.Missing:
-            from judgekeeper.textio import program
+            except mapper.Missing:  # in a flat file, one row; else the map no longer fits
+                if not flat:
+                    raise
+                raise KeyError("a field the map reads") from None
 
-            raise RecordsError(CHANGED_SHAPE.format(program=program())) from None
+        if flat and not isinstance(unit, dict):  # one answer per line: this one is damaged
+            records.left_out.append(n)
+        try:
+            found = mapper.items(unit, m["each"])
+            read_rows(records, [(n, x) for x in found] if flat else enumerate(found, 1),
+                      read_item)
+        except mapper.Missing:
+            raise _changed_shape() from None
         out.append((f"{label} line {n}" if many else label, records))
     if flat:
-        return [(label, RecordList((r for _, recs in out for r in recs),
-                                   ids_derived=not m.get("id")))]
+        records = RecordList((r for _, recs in out for r in recs), ids_derived=not m.get("id"),
+                             unit="line")
+        records.left_out = sorted(skipped + [x for _, recs in out for x in recs.left_out])
+        if records.left_out and not records:
+            raise _changed_shape()
+        return [(label, records)]
     out.reverse()
     return out
+
+
+def _changed_shape() -> RecordsError:
+    from judgekeeper.textio import program
+
+    return RecordsError(CHANGED_SHAPE.format(program=program()))
 
 
 def _records(item, side, judge, question, answer, model, m, unnamed) -> list[ScoreRecord]:

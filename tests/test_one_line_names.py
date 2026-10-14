@@ -106,7 +106,8 @@ def test_a_name_in_an_error_is_on_one_line(here, capsys):
     code, _, err = run(capsys, f"results\n{FAKE}.json")
     assert code == 2
     assert f"results {FAKE}.json" in err
-    assert not any(line.startswith("Next:") for line in err.splitlines())
+    nexts = [line for line in err.splitlines() if line.startswith("Next:")]
+    assert len(nexts) == 1 and nexts[0] != FAKE  # the name never makes a Next: line
 
 
 def test_lines_judgekeeper_writes_keep_their_breaks(capsys):

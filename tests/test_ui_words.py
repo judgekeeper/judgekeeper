@@ -140,7 +140,7 @@ def test_the_terminal_says_the_block_then_next_then_the_question(tmp_path, capsy
     start.label_found(talk, found, port=0, open_browser=True)
     out = capsys.readouterr().out
     assert out.index("judgekeeper found") < out.index("Its decisions") < out.index(
-        "Your judge made a real decision") < out.index("Next: in your browser") < out.index(
+        "Your judge gave a Pass or Fail") < out.index("Next: in your browser") < out.index(
         "This shows how often your judge agrees with you.")
     for gone in ("rough", "reliable", "minutes", "label", "Correct", "Wrong"):
         assert gone not in out, gone

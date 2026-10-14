@@ -46,13 +46,34 @@ _KEY_SHAPES = (
 
 
 # C0 controls other than tab and newline, DEL, and the C1 range: what a terminal acts on.
-# C0 and C1 controls, and the bidi overrides and isolates that can make text read backwards
-_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
+# And characters that change how text reads without being seen (_HIDDEN): zero-width ones,
+# the marks, overrides and isolates of bidirectional text, and the byte order mark. A name
+# holding them could pass for another name.
+_HIDDEN = "\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff"
+_CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
+_UNSEEN = re.compile(f"[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f{_HIDDEN}]")
 
 
 def printable(text) -> str:
     """`text` without control characters (tab and newline stay), safe to print to a terminal."""
     return _CONTROL.sub("", str(text))
+
+
+def visible(text: str) -> str:
+    """`text` for a page: control characters (ESC among them), zero-width and bidirectional
+    controls dropped; tabs and line breaks stay."""
+    return _UNSEEN.sub("", text)
+
+
+def visible_value(value):
+    """`value` with every string in it (inside lists and objects too, keys as well) visible."""
+    if isinstance(value, str):
+        return visible(value)
+    if isinstance(value, list):
+        return [visible_value(v) for v in value]
+    if isinstance(value, dict):
+        return {visible_value(k): visible_value(v) for k, v in value.items()}
+    return value
 
 
 # Every character str.splitlines() splits at: a name holding one could start a new line.

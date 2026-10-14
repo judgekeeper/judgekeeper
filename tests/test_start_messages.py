@@ -16,7 +16,7 @@ import types
 
 import pytest
 
-from judgekeeper import start, start_label
+from judgekeeper import judge_check, start, start_label
 from judgekeeper.cli import _parser, main
 from judgekeeper.textio import split_command
 from tests import keyboard
@@ -142,7 +142,7 @@ def test_the_next_lines_say_what_to_do_and_why(tmp_path, capsys):
     _, out, _ = run(capsys, tmp_path, "--yes")
     after = out[out.index("Its decisions"):]
     assert after.splitlines()[1:5] == [
-        f"  {ok()} Your judge made a real decision on every answer.", "",
+        f"  {ok()} {judge_check.EVERY_ANSWER}", "",
         "Next: in your browser, mark each answer Pass or Fail.",
         "This shows how often your judge agrees with you."]
     for gone in ("rough check", "reliable", "minutes", "you mark Correct", "You will label",
@@ -375,12 +375,10 @@ def test_no_at_a_terminal_says_how_to_come_back(tmp_path, capsys, terminal, monk
 
 # 4. The exit code for "stopped at a question" --------------------------------------------
 
-def test_the_question_code_is_new():
-    from judgekeeper import cli
+def test_a_question_is_exit_3_as_for_every_command():
+    from judgekeeper import cli, front
 
-    # 3, 4, 5: the old gate's; 6, 7: once attribute's; none of them reused
-    used = {cli.EXIT_OK, cli.EXIT_FAILURE, cli.EXIT_USAGE, 3, 4, 5, 6, 7, cli.EXIT_STOPPED}
-    assert QUESTION not in used
+    assert QUESTION == front.EXIT_NEEDS_YOU == 3
     assert f"{QUESTION} when it stopped at a question" in cli.__doc__
 
 

@@ -36,8 +36,10 @@ with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, option
 
 from __future__ import annotations
 
-import json
+import logging
 import math
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from judgekeeper.anchors import canonical_json
@@ -48,7 +50,11 @@ from judgekeeper.records import (
     RecordList,
     RecordsError,
     ScoreRecord,
+    all_damaged,
+    damaged,
     derive_record_id,
+    load_json,
+    read_rows,
 )
 from judgekeeper.textio import get_extra, read_json
 
@@ -81,6 +87,19 @@ def _mark(score: dict, label) -> Mark:
     return Mark(problem=problem, tool_counted_as=counted if problem else None)
 
 
+@contextmanager
+def quiet() -> Iterator[None]:
+    """Around inspect_ai's reading: its loggers show only CRITICAL (a log it cannot read is
+    said here, in plain words, never with its text). Put back afterwards."""
+    logger = logging.getLogger("inspect_ai")
+    level = logger.level
+    logger.setLevel(logging.CRITICAL)
+    try:
+        yield
+    finally:
+        logger.setLevel(level)
+
+
 def _load(path: Path) -> dict:
     try:
         from inspect_ai.log import read_eval_log
@@ -88,16 +107,14 @@ def _load(path: Path) -> dict:
         read_eval_log = None
     if read_eval_log is not None:
         try:
-            return read_eval_log(str(path)).model_dump(mode="json")
-        except Exception as e:  # noqa: BLE001 - a log cut short, empty or not Inspect's
-            raise RecordsError(f"{path.name} can't be read: it may be cut short, or not an "
-                               f"Inspect AI log ({type(e).__name__})") from None
+            with quiet():
+                return read_eval_log(str(path)).model_dump(mode="json")
+        except Exception:  # noqa: BLE001 - a log cut short, empty or not Inspect's
+            raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
+                                              "an Inspect AI log") from None
     if path.suffix.lower() == ".eval":
         raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path, get=get_extra("inspect")))
-    try:
-        return read_json(path, RecordsError)
-    except json.JSONDecodeError as e:
-        raise RecordsError(f"{path}: not JSON ({e.msg})") from None
+    return load_json(path, "Inspect AI")
 
 
 def eval_header(path: str | Path) -> dict:
@@ -110,7 +127,8 @@ def eval_header(path: str | Path) -> dict:
         read_eval_log = None
     if read_eval_log is not None:
         try:
-            spec = read_eval_log(str(path), header_only=True).eval.model_dump(mode="json")
+            with quiet():
+                spec = read_eval_log(str(path), header_only=True).eval.model_dump(mode="json")
         except Exception:  # noqa: BLE001 - Inspect's own errors: the header only shapes advice
             return {}
     elif path.suffix.lower() == ".eval":
@@ -234,8 +252,9 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
     data = _load(path)
     spec = data.get("eval") if isinstance(data, dict) else None
     if not isinstance(spec, dict):
-        raise RecordsError(f"{path}: not an Inspect AI log (no eval)")
+        raise damaged(path, "Inspect AI", "is not an Inspect AI log (no eval)")
     samples = data.get("samples")
+    samples = samples if isinstance(samples, list) else None
     if not samples:
         raise RecordsError(f"{path}: the log has no samples (was it written with "
                            "--no-log-samples?)")
@@ -248,7 +267,13 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
     stopped = stopped_early(data)
     if stopped:
         records.notes.append(stopped)
-    for sample in samples:
+
+    def read_sample(sample: dict) -> None:
+        if not (sample.get("id") is None or isinstance(sample["id"], str | int)) or \
+                isinstance(sample.get("id"), bool):
+            raise TypeError("a sample's id")
+        if not isinstance(sample.get("messages"), list | None):
+            raise TypeError("a sample's messages")
         item_id = str(sample.get("id"))
         epoch = sample.get("epoch")
         output = (sample.get("output") or {}).get("completion")
@@ -259,7 +284,7 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
             scores = {name: _sample_error(sample["error"]) for name in scorer_options}
         for name, score in scores.items():
             if not isinstance(score, dict):
-                continue
+                raise TypeError("a score")
             options = scorer_options.get(name) or {}
             model, temp = grader_model, temperature
             if model is None and options.get("model"):
@@ -289,6 +314,9 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
                         target_id=item_id, name=key, annotator_kind=HUMAN, label=human_label,
                         score=human_score, explanation=provenance.get("reason") or None,
                         **content, created_at=provenance.get("timestamp")))
+
+    read_rows(records, enumerate(samples, 1), read_sample)
+    all_damaged(path, "Inspect AI", records)
     return records
 
 
