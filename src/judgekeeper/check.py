@@ -194,6 +194,22 @@ def _newer(configs: list[Path], newest: Path) -> Path | None:
     return None
 
 
+def _lock_newer(state: State, old: dict, new: dict, newest: Path | None) -> bool:
+    """Whether the eval tool's version changed only in a lockfile written after the newest
+    results: they were made by the old version, so they can't re-check the new one."""
+    if old.get("tool_version") == new.get("tool_version") or new.get("version_from") != \
+            "lockfile" or newest is None:
+        return False
+    root = Path(state.ws.root)
+    locks = [root / n for n in LOCKFILES if n != "judgekeeper.toml"]
+    locks += list(root.glob("requirements*.txt"))
+    try:
+        results = newest.stat().st_mtime
+    except OSError:
+        return False
+    return any(f.is_file() and f.stat().st_mtime > results for f in locks)
+
+
 def _config_newer(found) -> Path | None:
     """The file the judge comes from, when it is newer than the newest results."""
     return _newer(_configs(found), found.results[0].path)
@@ -309,6 +325,7 @@ class Now:
     setup: dict
     config: Path | None
     found: object | None = None
+    newest: Path | None = None  # the newest results file (or store)
 
 
 def _now(state: State) -> tuple[Now | None, str | None]:
@@ -322,13 +339,14 @@ def _now(state: State) -> tuple[Now | None, str | None]:
             same = False
         if same:
             configs = [Path(p) for p in seen.get("configs") or []]
-            return Now(seen["setup"], _newer(configs, Path(seen.get("newest") or ""))), None
+            newest = Path(seen.get("newest") or "")
+            return Now(seen["setup"], _newer(configs, newest), newest=newest), None
     found, problem = _newest(state)
     if found is None:
         return None, problem
     setup = judge_setup.of(found)
     _remember(state, found, setup)
-    return Now(setup, _config_newer(found), found), None
+    return Now(setup, _config_newer(found), found, found.results[0].path), None
 
 
 def _change_line(old: dict, new: dict, changed: list[str], full: bool) -> str:
@@ -667,6 +685,11 @@ def full(path: str, said: Said, yes: bool = False) -> int:
 
     change = _change_line(old, new, changed, full=True)
     said.say(change)
+    if _lock_newer(state, old, new, found.results[0].path if found else now.newest):
+        said.say(CONFIG_NEWER)  # the results were made before the update: out of date
+        said.say()
+        said.say(NEXT_EVAL.format(command=_command(state)))
+        return EXIT_OK
     free = _free(found, state.marks)
     rest = [i for i in state.marks if i not in free]
     asked = (ask(state, found, new, rest, said, yes, rest=bool(free)) if rest

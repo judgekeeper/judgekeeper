@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 
+from judgekeeper import judge_setup
 from tests.test_check import (  # noqa: F401
     HAIKU,
     LENIENT,
@@ -136,3 +137,35 @@ def test_deleted_results_are_said_plainly(here, capsys, no_calls):
     assert str(here) not in out
     assert "would have to ask" not in out
     assert _next(out) == "Next: run your eval once, then run `judgekeeper check` again."
+
+
+# N04 ------------------------------------------------------------------------------------------
+
+def test_a_lockfile_update_is_not_rechecked_on_older_results(here, capsys, no_calls):
+    _lock(here, "0.121.0")
+    ws = _marked(here, version=None)
+    assert judge_setup.read(ws)["setup"]["tool_version"] == "0.121.0"
+    before = (ws.dir / "judge.json").read_bytes()
+    _lock(here, "0.130.0", later=60)  # promptfoo updated; the eval not run again
+    code, out = run(capsys)
+    assert code == 0
+    flat = _flat(out)
+    assert "Your eval tool changed: promptfoo 0.121.0 -> 0.130.0." in flat
+    assert ("Your judge's settings changed after your last eval run, so the grades "
+            "judgekeeper has are out of date.") in flat
+    assert _next(out) == "Next: run your eval again, then run `judgekeeper check`."
+    assert "Re-checked" not in out and "No drop" not in out
+    assert (ws.dir / "judge.json").read_bytes() == before
+    assert _history(ws) == []
+
+
+def test_a_lockfile_update_is_rechecked_after_the_next_eval_run(here, capsys, no_calls):
+    _lock(here, "0.121.0")
+    ws = _marked(here, version=None)
+    _lock(here, "0.130.0", later=60)
+    stamp = (here / "package-lock.json").stat().st_mtime + 60  # the eval ran on the new one
+    os.utime(here / "results.json", (stamp, stamp))
+    code, out = run(capsys)
+    assert code == 0
+    assert "Re-checked on your 50 marks (50 free from your new results)." in out
+    assert judge_setup.read(ws)["setup"]["tool_version"] == "0.130.0"
