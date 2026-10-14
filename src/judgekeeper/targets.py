@@ -13,14 +13,22 @@ early to give a number; down to ROUGH_WIDTH, rough; SHARP_WIDTH or less, sharp. 
 follows the ranges, never a number alone (level): each side is "yes" when the low end of its
 range reaches RATE_GATE, "no" when the high end stays below it, else "can't tell".
 
+A re-check (`paired_verdict`) compares the old and the new judge on the same marks, one group
+at a time (the answers the person passed, and failed): of n marks, now_wrong turned wrong (the
+old judge was right, the new one is not) and now_right turned right. The change is
+(now_right - now_wrong) / n, and its range is Tango's score range for a paired difference
+(Tango 1998), 90% (5% each side), which works with zero cells too. "Worse" when the whole
+range is below 0; "no drop bigger than NO_DROP_MARGIN" when its low end is above minus that
+margin; else "not sure", which counts as worse (exit 1) only when the drop seen is bigger than
+the margin. The low end is always said: the worst drop the marks could hide.
+
 The smallest drop a set of marks can see (`smallest_drop`): the smallest fall in how often the
-judge is right, in steps of 5 points, that checking these marks again would catch at least 80
-times in 100. Worked out exactly, with no random numbers: the judge is right on 90% of answers
-now; with the changed judge a right answer turns wrong with the chance that makes the net fall
-that size, and a wrong one turns right 3% of the time; a one-sided sign test at 5% on the
-answers that changed. It uses the fewer kind of mark (Pass or Fail). Once judgekeeper has
-asked the judge again about the marked answers (the baseline), it uses the judge's measured
-steadiness instead: how often its verdict changed (at least 1%) and how often it was right.
+judge is right, in steps of 5 points, that a re-check of these marks calls "Worse" at least 80
+times in 100. Worked out exactly, with no random numbers, for each kind of mark with how often
+this judge is right on it (TPR on the answers marked Pass, TNR on those marked Fail): with the
+changed judge a right answer turns wrong with the chance that makes the net fall that size,
+and a wrong one turns right 3% of the time. The larger of the two is said: a drop both kinds of
+mark can see.
 
 Why 0.30: about what 25 + 25 gives when the judge agrees with the person about 85% of the
 time and passes half the answers; when the judge passes most answers, its TNR range stays wide
@@ -32,6 +40,8 @@ can change after real use.
 from __future__ import annotations
 
 import math
+from functools import lru_cache
+from statistics import NormalDist
 
 ROUGH = 15
 MAX_WIDTH = 0.30
@@ -49,17 +59,18 @@ RATE_GATE = 0.80
 KAPPA_GATE = 0.6
 RATE_CARE = 0.90
 
-# The smallest drop: the model and the test (see the top of this file)
-RIGHT_NOW = 0.90
+# A re-check: the paired range and the margin a drop must stay within (see the top)
+PAIRED_LEVEL = 0.90
+NO_DROP_MARGIN = 0.20
+
+# The smallest drop: the model (see the top of this file)
+RIGHT_NOW = 0.90  # how often the judge is right, when its rate is not known
 TURNS_RIGHT = 0.03
-ALPHA = 0.05
 POWER = 0.80
 DROP_STEP = 5  # points
-MIN_FLIP = 0.01  # a measured flip rate counts as at least this
-MIN_RIGHT = 0.5  # a judge measured as right less often than this counts as this
-DROP_MODEL = ("The smallest drop assumes your judge is right on 9 in 10 answers now, and is the "
-              "smallest fall a re-check of these marks catches 80 times in 100 (a one-sided "
-              "sign test at 5%).")
+DROP_MODEL = ("The smallest drop uses how often your judge is right now on the answers you "
+              "passed and on those you failed, and is the smallest fall a re-check of these "
+              "marks calls worse 80 times in 100.")
 
 
 def _width(interval) -> float | None:
@@ -144,57 +155,107 @@ def _pmf(n: int, p: float) -> list[float]:
                      + k * lp + (n - k) * lq) for k in range(n + 1)]
 
 
-def _critical(m: int) -> int:
-    """The fewest of m changed answers that must have turned wrong for the sign test to say
-    the judge got worse: P(Binomial(m, 1/2) >= k) <= ALPHA, worked out in whole numbers."""
-    tail, total = 0, 2 ** m
-    for k in range(m, -1, -1):
-        tail += math.comb(m, k)
-        if tail * 20 > total:  # ALPHA is 1/20
-            return k + 1
-    return 0
+def _score(right: int, wrong: int, n: int, change: float) -> float:
+    """Tango's score for "the change is `change`": the observed change minus it, over its
+    standard error with the cells' chances fitted under that change (their closed form)."""
+    a = 2 * n
+    b = -right - wrong + (2 * n - right + wrong) * change
+    c = -wrong * change * (1 - change)
+    p_wrong = (math.sqrt(max(b * b - 4 * a * c, 0.0)) - b) / (2 * a)
+    variance = n * (2 * p_wrong + change - change * change)
+    diff = right - wrong - n * change
+    if variance <= 0:
+        return math.copysign(math.inf, diff) if diff else 0.0
+    return diff / math.sqrt(variance)
 
 
-def got_worse(now_wrong: int, now_right: int) -> bool:
-    """Whether a re-check shows the judge got worse: the one-sided sign test at 5% on the
-    answers whose verdict changed (`now_wrong` turned wrong, `now_right` turned right)."""
-    m = now_wrong + now_right
-    return m > 0 and now_wrong >= _critical(m)
+def paired_range(now_right: int, now_wrong: int, n: int,
+                 level: float = PAIRED_LEVEL) -> tuple[float, float]:
+    """The range of the change (new right minus old right, as a share of the n marks): every
+    change whose score is within the two-sided `level` (the score falls as the change grows,
+    so each end is found by halving)."""
+    z = NormalDist().inv_cdf((1 + level) / 2)
+    seen = (now_right - now_wrong) / n
+
+    def end(lo: float, hi: float, target: float) -> float:
+        for _ in range(60):
+            mid = (lo + hi) / 2
+            if _score(now_right, now_wrong, n, mid) > target:
+                lo = mid
+            else:
+                hi = mid
+        return (lo + hi) / 2
+
+    return end(-1.0, seen, z), end(seen, 1.0, -z)
 
 
-def _power(n: int, drop: float, right: float = RIGHT_NOW, turns: float = TURNS_RIGHT) -> float:
-    """How often a re-check of n marks catches a fall of `drop` (0 to 1)."""
-    worse = (drop + (1 - right) * turns) / right  # a right answer turns wrong
-    p_worse, p_better = right * worse, (1 - right) * turns
-    changed = _pmf(n, p_worse + p_better)
-    share = p_worse / (p_worse + p_better)
+def paired_verdict(now_right: int, now_wrong: int, n: int) -> dict:
+    """The re-check of one group of n marks: {"change", "low", "high", "now_right",
+    "now_wrong", "n", "verdict": "worse" | "no_drop" | "not_sure", "exit_worse"}."""
+    change = (now_right - now_wrong) / n
+    low, high = paired_range(now_right, now_wrong, n)
+    if high < 0:
+        verdict = "worse"
+    elif low > -NO_DROP_MARGIN:
+        verdict = "no_drop"
+    else:
+        verdict = "not_sure"
+    exit_worse = verdict == "worse" or (verdict == "not_sure"
+                                         and round(-change, 9) > NO_DROP_MARGIN)
+    return {"change": change, "low": low, "high": high, "now_right": now_right,
+            "now_wrong": now_wrong, "n": n, "verdict": verdict, "exit_worse": exit_worse}
+
+
+@lru_cache(maxsize=512)
+def _worse_from(n: int) -> tuple[int, ...]:
+    """For each count turned right (0..n), the fewest turned wrong that a re-check of n marks
+    calls "Worse" (n + 1 when none does). More turned wrong only lowers the range."""
+    out = []
+    for right in range(n + 1):
+        lo, hi = right, n - right + 1  # the first count turned wrong with the range below 0
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if paired_range(right, mid, n)[1] < 0:
+                hi = mid
+            else:
+                lo = mid + 1
+        out.append(lo)
+    return tuple(out)
+
+
+def _power(n: int, drop: float, right: float, turns: float = TURNS_RIGHT) -> float:
+    """How often a re-check of n marks calls a fall of `drop` (0 to 1) "Worse"."""
+    p_wrong = (drop + (1 - right) * turns)  # right * (the chance a right one turns wrong)
+    p_right = (1 - right) * turns
+    need = _worse_from(n)
     caught = 0.0
-    for m in range(1, n + 1):
-        if changed[m] < 1e-300:
+    for k_right, chance in enumerate(_pmf(n, p_right)):
+        if chance < 1e-300 or need[k_right] > n - k_right:
             continue
-        k = _critical(m)
-        if k <= m:
-            caught += changed[m] * sum(_pmf(m, share)[k:])
+        rest = _pmf(n - k_right, min(p_wrong / (1 - p_right), 1.0))
+        caught += chance * sum(rest[need[k_right]:])
     return caught
 
 
-def smallest_drop(n_pass: int, n_fail: int, flip: float | None = None,
-                  right: float | None = None) -> int | None:
-    """The smallest drop, in points, these marks can see (top of this file); None under
-    ROUGH of each kind. `flip` and `right` are the judge's measured steadiness (how often its
-    verdict changed when asked again, at least MIN_FLIP; how often it was right), used in
-    place of TURNS_RIGHT and RIGHT_NOW."""
-    n = min(n_pass, n_fail)
-    if n < ROUGH:
-        return None
-    turns = TURNS_RIGHT if flip is None else max(flip, MIN_FLIP)
-    now = RIGHT_NOW if right is None else min(max(right, MIN_RIGHT), 1.0)
+def _smallest(n: int, right: float) -> int | None:
     for drop in range(DROP_STEP, 100, DROP_STEP):
-        if (drop / 100 + (1 - now) * turns) / now > 1:
+        if drop / 100 + (1 - right) * TURNS_RIGHT > right:  # more than the judge gets right
             return None
-        if _power(n, drop / 100, now, turns) >= POWER:
+        if _power(n, drop / 100, right) >= POWER:
             return drop
     return None
+
+
+def smallest_drop(n_pass: int, n_fail: int, tpr: float | None = None,
+                  tnr: float | None = None) -> int | None:
+    """The smallest drop, in points, these marks can see (top of this file); None under
+    ROUGH of each kind, or when a kind of mark can see none. `tpr` and `tnr`: how often this
+    judge is right on the answers marked Pass and Fail (RIGHT_NOW when not known)."""
+    if min(n_pass, n_fail) < ROUGH:
+        return None
+    drops = [_smallest(n, RIGHT_NOW if rate is None else max(rate, 0.01))
+             for n, rate in ((n_pass, tpr), (n_fail, tnr))]
+    return None if None in drops else max(drops)
 
 
 def drop_line(drop: int | None) -> str | None:

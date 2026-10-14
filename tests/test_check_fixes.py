@@ -171,7 +171,8 @@ def test_a_lockfile_update_is_rechecked_after_the_next_eval_run(here, capsys, no
     os.utime(here / "results.json", (stamp, stamp))
     code, out = run(capsys)
     assert code == 0
-    assert "Re-checked on your 50 marks (50 free from your new results)." in out
+    assert "Re-checked for free from your new results." in out
+    assert "Re-checked on all 50 of your marks:" in out
     assert judge_setup.read(ws)["setup"]["tool_version"] == "0.130.0"
 
 
@@ -185,7 +186,7 @@ def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys, no_calls):
     assert judge_setup.read(ws)["setup_hash"] == before  # the old judge stays the reference
     code, out = run(capsys)
     assert code == 1
-    assert "it now passes 9 answers you failed" in _flat(out)
+    assert "Worse: 9 turned wrong and none turned right." in _flat(out)
     assert "has not changed" not in out
     assert len(_history(ws)) == 1  # the same check is in the History once
     _results(here, MARKED)  # back to the old judge

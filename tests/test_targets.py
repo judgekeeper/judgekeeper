@@ -41,21 +41,21 @@ def test_a_range_of_exactly_the_width_is_narrow_enough():
 
 # The smallest drop a set of marks can see ---------------------------------------------------
 
-@pytest.mark.parametrize("n,drop", [(15, 45), (16, 40), (25, 30), (50, 15), (100, 10)])
+@pytest.mark.parametrize("n,drop", [(15, 30), (16, 30), (25, 20), (50, 10), (100, 10)])
 def test_the_smallest_drop_a_set_of_marks_can_see(n, drop):
     assert targets.smallest_drop(n, n) == drop
 
 
 def test_the_smallest_drop_follows_the_fewer_kind_of_mark():
-    assert targets.smallest_drop(100, 16) == targets.smallest_drop(16, 100) == 40
-    assert targets.smallest_drop(25, 400) == 30
+    assert targets.smallest_drop(100, 16) == targets.smallest_drop(16, 100) == 30
+    assert targets.smallest_drop(25, 400) == 20
 
 
 def test_no_smallest_drop_under_fifteen_of_each():
     assert targets.smallest_drop(14, 100) is None
     assert targets.drop_line(None) is None
     assert targets.drop_line(targets.smallest_drop(16, 16)) == (
-        "This set can see a drop of 40 points or more. Smaller changes need more marks.")
+        "This set can see a drop of 30 points or more. Smaller changes need more marks.")
 
 
 def test_many_marks_see_a_drop_of_five_points_quickly():

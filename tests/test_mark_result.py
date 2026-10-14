@@ -78,7 +78,7 @@ def test_the_result_keeps_how_the_marks_were_made_and_the_smallest_drop(ws):
     r = start_label.save_result(ws, _mark(ws, seconds=0.5), say=lambda line: None)
     assert r["made"] == {"marks": 40, "pass": 20, "fail": 20, "sittings": 1, "seconds": 0,
                          "under_second": 40, "not_counted": 0, "printed": 0}
-    assert r["smallest_drop"] == 35
+    assert r["smallest_drop"] == 25
 
 
 def test_no_smallest_drop_under_fifteen_of_each(ws):
@@ -91,9 +91,9 @@ def test_the_report_page_says_both_new_lines(ws):
     page = (ws.dir / "report.html").read_text(encoding="utf-8")
     assert "Your marks: 40 (20 Pass, 20 Fail), made on the page in 1 sitting, about 9 seconds " \
            "each." in page
-    assert "This set can see a drop of 35 points or more. Smaller changes need more marks." \
+    assert "This set can see a drop of 25 points or more. Smaller changes need more marks." \
            in page
-    assert "right on 9 in 10 answers" in page  # the model, in the details
+    assert "how often your judge is right now" in page  # the model, in the details
     assert "report.html" in page and "result.html" not in page
 
 
@@ -119,7 +119,7 @@ def test_one_history_line_per_new_set_of_marks(ws):
     assert (second["pass"], second["fail"]) == (20, 20)
     assert set(second["tpr"]) == {"value", "low", "high"}
     assert set(second["tnr"]) == {"value", "low", "high"}
-    assert second["smallest_drop"] == 35 and second["marks_hash"] != first["marks_hash"]
+    assert second["smallest_drop"] == 25 and second["marks_hash"] != first["marks_hash"]
     assert isinstance(second["kappa"], float) and second["time"].endswith("Z")
 
 

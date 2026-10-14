@@ -298,3 +298,73 @@ def test_the_new_judges_own_pass_share_comes_from_the_new_results():
                                    {"pass": 16, "fail": 20}, draws=20)
     assert r["judge_pass_rate"] == pytest.approx(16 / 36)
     assert r["groups"]["pass"]["pool"] == 20  # weighted by the pool the marks came from
+
+
+# check: a range on the paired change ---------------------------------------------------------
+
+@pytest.mark.parametrize("right,wrong,n,low,high,verdict", [
+    (11, 19, 30, -52, 3, "not_sure"),
+    (0, 12, 30, -55, -27, "worse"),
+    (0, 0, 30, -8, 8, "no_drop"),
+    (1, 1, 30, -11, 11, "no_drop"),
+    (0, 2, 30, -18, 2, "no_drop"),
+    (3, 6, 30, -27, 7, "not_sure"),
+    (0, 0, 15, -15, 15, "no_drop"),
+    (0, 0, 60, -4, 4, "no_drop"),
+    (2, 4, 60, -11, 4, "no_drop"),
+])
+def test_the_paired_range(right, wrong, n, low, high, verdict):
+    """now_right (old wrong, new right) and now_wrong (old right, new wrong) of n marks."""
+    lo, hi = targets.paired_range(right, wrong, n)
+    assert lo * 100 == pytest.approx(low, abs=1)
+    assert hi * 100 == pytest.approx(high, abs=1)
+    assert targets.paired_verdict(right, wrong, n)["verdict"] == verdict
+
+
+@pytest.mark.parametrize("right,wrong,n,worse", [
+    (11, 19, 30, True),   # not sure, and down 27 points: more than 20
+    (0, 12, 30, True),    # worse
+    (3, 6, 30, False),    # not sure, down 10 points
+    (0, 2, 30, False),    # no drop bigger than 20
+])
+def test_which_paired_verdicts_exit_1(right, wrong, n, worse):
+    assert targets.paired_verdict(right, wrong, n)["exit_worse"] is worse
+
+
+@pytest.mark.parametrize("right,wrong,n,words", [
+    (11, 19, 30, [("Not sure: 19 turned wrong and 11 turned right. It could be up to 52 "
+                  "points worse.")]),
+    (0, 12, 30, ["Worse: 12 turned wrong and none turned right.",
+                 "That is down 40 points, and it could be as much as 55."]),
+    (0, 2, 30, ["No drop bigger than 20 points: 2 turned wrong, none turned right.",
+                "These marks can't rule out a drop of up to 18 points."]),
+    (1, 1, 30, ["No drop bigger than 20 points: 1 turned wrong, 1 turned right.",
+                "These marks can't rule out a drop of up to 11 points."]),
+])
+def test_the_paired_words(right, wrong, n, words):
+    from judgekeeper import check
+
+    assert check.paired_lines(targets.paired_verdict(right, wrong, n)) == words
+
+
+def test_check_rates_are_the_reports():
+    """S2: judge passes 90%; of 20 marks in its pass group 18 Pass, of 20 in its fail group 4
+    Pass. The old judge's TNR in check is the report's (47%), not the raw 89%."""
+    from judgekeeper import check
+
+    marked, old, groups = {}, {}, {}
+    for g, (n, c) in (("pass", (20, 18)), ("fail", (20, 4))):
+        for k in range(n):
+            i = f"{g}-{k}"
+            groups[i] = old[i] = g
+            marked[i] = "pass" if k < c else "fail"
+    out = check.groups(marked, old, dict(old), groups, {"pass": 900, "fail": 100})
+    report = result(0.9, (20, 18), (20, 4))
+    assert out["failed"]["old_rate"] == pytest.approx(report["tnr"], abs=1e-9)
+    assert round(out["failed"]["old_rate"], 2) == 0.47
+    assert out["passed"]["old_rate"] == pytest.approx(report["tpr"], abs=1e-9)
+
+
+def test_the_smallest_drop_follows_the_judges_own_rates():
+    assert targets.smallest_drop(30, 30, 0.32, 0.32) != targets.smallest_drop(30, 30, 0.9, 0.9)
+    assert targets.smallest_drop(14, 30, 0.9, 0.9) is None  # no first result yet

@@ -1033,7 +1033,8 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     if data.get("judge_check"):
         r["judge_check"] = data["judge_check"]
     r["made"] = marks.made(marks.read(ws.marks), ids=set(session.by_id))
-    r["smallest_drop"] = targets.smallest_drop(r["labels"]["correct"], r["labels"]["wrong"])
+    r["smallest_drop"] = targets.smallest_drop(r["labels"]["correct"], r["labels"]["wrong"],
+                                               r["tpr"], r["tnr"])
     return r
 
 
