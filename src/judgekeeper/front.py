@@ -120,6 +120,11 @@ NEXT_RESULT = ("nothing to do. When you change your judge or update your eval to
                "`{command}`.")
 NEXT_CONTINUE = "run `{command}` when you want to continue."
 STILL_OPEN = "The marking page is still open if you want to mark more answers."
+VS_MARKS = "Your judge vs your marks, on {n}:"
+ESTIMATES = ("These are estimates from {n} marked answers.",
+             "Mark more answers to make them more precise.")
+TOO_EARLY = "too early to tell"
+NEXT_MARK_MORE = "run `{command}` to mark more answers."
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
@@ -883,26 +888,27 @@ def _pct(x: float) -> str:
     return f"{x:.0%}"
 
 
-def _rate(said: str, did: str, value, interval) -> str:
-    start_words = f"Of the answers you {said}, your judge {did}"
-    if value is None:
-        return f"{start_words}: not known yet."
-    lo, hi = interval or (None, None)
-    if lo is None or hi is None:
-        return f"{start_words} {_pct(value)}."
-    if hi - lo <= 1e-12:
-        return f"{start_words} {_pct(value)} (exactly)."
-    return f"{start_words} {_pct(value)} (range {_pct(lo)} to {_pct(hi)})."
+def side_line(said: str, value, interval) -> str:
+    """One side of the result: "  You passed:  your judge also passed about 61% (could be 42%
+    to 78%)"; too early to tell when its range is wider than targets.TOO_WIDE."""
+    head = f"  You {said}:  "
+    known = value is not None and bool(interval) and interval[0] is not None
+    word = targets.width_word(interval) if known else None
+    if not known or word == "too_wide":
+        return head + TOO_EARLY
+    if word == "exact":
+        return f"{head}your judge also {said} {_pct(value)} (exactly)"
+    lo, hi = interval
+    return (f"{head}your judge also {said} about {_pct(value)} (could be {_pct(lo)} to "
+            f"{_pct(hi)})")
 
 
-def verdict_line(r: dict) -> str:
-    """The one line on how good the judge is: which way it goes wrong, when it is not good
-    enough and leans one way."""
-    tpr, tnr = r["tpr"], r["tnr"]
-    if r["verdict_level"] == "not_gate" and None not in (tpr, tnr) and tpr != tnr:
-        return ("Your judge passes too many answers you failed." if tnr < tpr
-                else "Your judge fails too many answers you passed.")
-    return r["verdict"]
+def verdict_line(r: dict) -> str | None:
+    """The one line on how good the judge is, "Result: ..."; None while a side is too early
+    to tell (no verdict then)."""
+    if r["verdict_level"] in (None, "too_early"):
+        return None
+    return f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}"
 
 
 def _which_judge(ws: Workspace, found: start.Found) -> str | None:
@@ -944,24 +950,28 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say()
     session = StartSession(ws)
     r = start_label.store_result(ws, session, _command_of(talk, saved, "start"))
+    n = r["labels"]["correct"] + r["labels"]["wrong"]
     made = r.get("made") or marks.made(marks.read(ws.marks), ids=set(session.by_id))
-    for line in made_lines(made):
+    for line in made_lines(made)[1:]:  # the notes on how they were made; the count is below
         talk.para(line)
+        talk.say()
+    talk.say(VS_MARKS.format(n=_n(n, "answer")))
     talk.say()
-    talk.para(_rate("passed", "passed", r["tpr"], r.get("tpr_interval")))
-    talk.para(_rate("failed", "failed", r["tnr"], r.get("tnr_interval")))
-    kappa = "unknown" if r["kappa"] is None else f"{r['kappa']:.2f}"
-    talk.say(f"Kappa (agreement beyond chance): {kappa}.")
-    talk.para(verdict_line(r))
+    talk.say(side_line("passed", r["tpr"], r.get("tpr_interval")))
+    talk.say(side_line("failed", r["tnr"], r.get("tnr_interval")))
+    talk.say()
+    for line in ESTIMATES:
+        talk.say(line.format(n=n))
+    verdict = verdict_line(r)
+    if verdict:
+        talk.say()
+        talk.para(verdict)
     which = _which_judge(ws, found)
     if which:
+        talk.say()
         talk.para(which)
     talk.say()
-    drop = targets.drop_line(r.get("smallest_drop", targets.smallest_drop(
-        r["labels"]["correct"], r["labels"]["wrong"])))
-    if drop:
-        talk.para(drop)
-    talk.say(f"Report: {shown_folder(ws)}/{ws.report_html.name}")
+    talk.say(f"Full report: {shown_folder(ws)}/{ws.report_html.name} (open it in your browser)")
     talk.say()
     opened = None
     if is_open(ws.dir):
@@ -972,8 +982,13 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     else:
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
     talk.say()
-    next_step = NEXT_CHECK if check else NEXT_RESULT
-    talk.para("Next: " + next_step.format(command=_check_command(talk)))
+    if check:
+        next_step = NEXT_CHECK.format(command=_check_command(talk))
+    elif r["verdict_level"] in ("too_early", "check"):  # marking more will tell
+        next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
+    else:
+        next_step = NEXT_RESULT.format(command=_check_command(talk))
+    talk.para("Next: " + next_step)
     if opened is not None:
         page.serve(opened.server)
     return EXIT_OK

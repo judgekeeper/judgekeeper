@@ -244,19 +244,21 @@ def _result(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f):
     return start_label.describe(weighted.corrected(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f))
 
 
-def test_the_verdict_levels_use_the_report_thresholds():
-    top = _result(100, 100, 20, 19, 20, 1)        # TPR 0.95, TNR 0.95, kappa 0.9
-    middle = _result(100, 100, 20, 17, 20, 2)     # TPR 17/19 = 0.89, TNR 18/21 = 0.86
-    bottom = _result(100, 100, 20, 14, 20, 6)     # TPR 0.7
-    too_few = _result(100, 100, 10, 9, 10, 1)     # 10 Pass, 10 Fail
-    assert top["verdict"] == "Your judge agrees with you often enough to use."
-    assert middle["verdict"] == ("Nearly there: look at where it disagrees with you before you "
-                                 "rely on it.")
-    assert bottom["verdict"] == "Not good enough yet: look at where it disagrees with you."
+def test_the_verdict_levels_follow_the_ranges():
+    green = _result(500, 500, 50, 50, 50, 0)
+    amber = _result(500, 500, 15, 13, 15, 2)       # 87% each side, ranges reach below 80%
+    red = _result(500, 500, 40, 38, 40, 24)        # many answers it failed should pass
+    early = _result(900, 100, 15, 15, 15, 0)       # the Fail side's range is too wide
+    too_few = _result(100, 100, 10, 9, 10, 1)      # 10 Pass, 10 Fail
+    assert green["verdict"] == "Your judge agrees with you often enough to use."
+    assert amber["verdict"] == ("Can't tell yet if your judge is good enough. Marking more "
+                                "answers will tell.")
+    assert red["verdict"] == "Your judge fails too many answers you would pass."
+    assert early["verdict_level"] == "too_early"
     assert too_few["verdict"] == "Mark a few more answers to see your result."
     assert start_label.sentences(too_few) == [
         "Mark a few more answers to see your result. So far: 10 Pass, 10 Fail."]
-    assert [r["check"] for r in (top, too_few)] == ["rough", "too_few"]
+    assert [r["check"] for r in (amber, too_few)] == ["reliable", "too_few"]
     assert _result(100, 100, 50, 48, 50, 2)["check"] == "reliable"
 
 
@@ -266,9 +268,11 @@ def test_the_terminal_result():
     tpr_lo, tpr_hi = r["tpr_interval"]
     tnr_lo, tnr_hi = r["tnr_interval"]
     assert lines[0] == "Your result, from the 50 answers you marked (30 Pass, 20 Fail):"
-    assert "When you said Pass, your judge also said Pass 95% of the time." in lines
-    assert "When you said Fail, your judge also said Fail 25% of the time." in lines
-    assert "Not good enough yet: look at where it disagrees with you." in lines
+    assert (f"You passed: your judge also passed about 95% (could be {tpr_lo:.0%} to "
+            f"{tpr_hi:.0%}).") in lines
+    assert (f"You failed: your judge also failed about 25% (could be {tnr_lo:.0%} to "
+            f"{tnr_hi:.0%}).") in lines
+    assert "Your judge passes too many answers you would fail." in lines
     assert (f"  TPR 0.95 ({tpr_lo:.2f}–{tpr_hi:.2f})   TNR 0.25 ({tnr_lo:.2f}–"
             f"{tnr_hi:.2f})   kappa 0.25") in lines
     lo, hi = r["real_pass_rate_interval"]
@@ -310,7 +314,7 @@ def test_a_reliable_result_has_both_ranges_narrow_enough():
 
 
 def test_the_targets_are_the_shared_ones():
-    assert (start_label.ROUGH, start_label.RELIABLE) == (targets.ROUGH, targets.RELIABLE)
+    assert start_label.ROUGH == targets.ROUGH
 
 
 def test_too_few_marks_say_to_mark_more():  # a rate is unknown only then

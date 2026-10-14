@@ -67,7 +67,6 @@ EXIT_USAGE = 2
 EXIT_QUESTION = 3  # stopped at a question it cannot ask (no terminal); nothing went wrong
 
 ROUGH = targets.ROUGH  # the label targets every command shares
-RELIABLE = targets.RELIABLE
 MIN_POOL = 2 * ROUGH  # a rough check needs ROUGH of each
 RUBRIC_WIDTH = 70  # characters of the rule's first line shown in the first block
 COLUMN = 16  # the first block's label column

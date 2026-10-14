@@ -8,7 +8,7 @@ No test runs the page's script: what the script shows comes from tables that Pyt
 from __future__ import annotations
 
 import re
-from html import unescape
+from html import escape, unescape
 
 import pytest
 
@@ -158,14 +158,14 @@ def test_the_page_shows_the_question_without_its_name(tmp_path):
 # (pool passes, pool fails, marked in the pass group, of them Pass, in the fail group, of
 # them Pass). No target and no number is ever on the page: only what to do.
 FEW = "Mark a few more answers to see your result."
-ROUGH = "You can see your result now. Marking more answers narrows its ranges."
+BOTH_WIDE = "Marking more answers narrows the range for the answers you marked Pass and Fail."
 
 
 @pytest.mark.parametrize("counts, text, ready", [
     ((100, 100, 0, 0, 0, 0), FEW, False),
     ((100, 100, 22, 14, 22, 0), FEW, False),  # 14 marked Pass
-    ((100, 100, 15, 14, 15, 1), ROUGH, True),
-    ((100, 100, 25, 24, 25, 2), ROUGH, True),
+    ((100, 100, 15, 12, 15, 3), BOTH_WIDE, True),  # both ranges still over 30 points wide
+    ((100, 100, 15, 14, 15, 1), "Your result is ready.", True),  # narrow enough already
     ((100, 100, 50, 48, 50, 2), "Your result is ready.", True),
 ])
 def test_the_status_line(counts, text, ready):
@@ -197,9 +197,9 @@ def _result(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f, **extra):
 
 
 GATE = (100, 100, 20, 19, 20, 1)
-CHECK = (100, 100, 20, 17, 20, 2)
-NOT_GATE_TNR = (100, 100, 25, 17, 25, 1)   # 18 Correct, 32 Wrong: TPR 0.94, TNR 0.75
-NOT_GATE_TPR = (100, 100, 25, 24, 25, 8)   # 32 Correct, 18 Wrong: TPR 0.75, TNR 0.94
+CHECK = (100, 100, 15, 12, 15, 3)          # both ranges reach below 80%, and are wide
+NOT_GATE_TNR = (100, 100, 40, 22, 40, 2)   # the TNR range stays below 80%
+NOT_GATE_TPR = (100, 100, 40, 38, 40, 18)  # the TPR range stays below 80%
 TOO_FEW = (100, 100, 10, 9, 10, 1)
 
 
@@ -210,14 +210,14 @@ def _verdict(html: str) -> str:
 @pytest.mark.parametrize("counts, colour, icon, second", [
     (GATE, "green", "tick", "Keep checking it after changes to its model or rule."),
     (CHECK, "amber", "warn", None),
-    (NOT_GATE_TNR, "red", "cross", "It passes many answers you marked Fail."),
+    (NOT_GATE_TNR, "red", "cross", None),
     (TOO_FEW, "grey", None, None),
 ])
 def test_each_level_has_its_colour_icon_and_second_line(counts, colour, icon, second):
     r = _result(*counts)
     box = _verdict(start_label.result_html(r))
     assert f'class="verdict {colour}"' in box
-    assert r["verdict"] in box
+    assert escape(r["verdict"]) in box
     if icon:
         assert f'class="vicon {icon}"' in box and 'aria-hidden="true"' in box
     else:
@@ -232,11 +232,11 @@ def test_a_bad_result_names_the_weaker_side():
     low_tnr = _result(*NOT_GATE_TNR)
     assert low_tnr["tnr"] < low_tnr["tpr"]
     box = _verdict(start_label.result_html(low_tnr))
-    assert "<span>It passes many answers you marked Fail.</span>" in box
+    assert "Your judge passes too many answers you would fail." in box
     low_tpr = _result(*NOT_GATE_TPR)
     assert low_tpr["verdict_level"] == "not_gate" and low_tpr["tpr"] < low_tpr["tnr"]
     box = _verdict(start_label.result_html(low_tpr))
-    assert "<span>It fails many answers you marked Pass.</span>" in box
+    assert "Your judge fails too many answers you would pass." in box
 
 
 def test_the_number_boxes():
@@ -245,11 +245,10 @@ def test_the_number_boxes():
     lo, hi = r["tpr_interval"]
     for needed in ("When you said Pass", "When you said Fail", "How much you agree beyond luck",
                    f"{r['tpr']:.0%}</b>", f"{r['tnr']:.0%}</b>", f"{r['kappa']:.2f}</b>",
-                   (f"Probably between {lo:.0%} and {hi:.0%}. Marking more answers narrows "
-                    "this."),
-                   (f"Probably between {r['tnr_interval'][0]:.0%} and "
+                   f"Rough: could be {lo:.0%} to {hi:.0%}. Marking more answers narrows this.",
+                   (f"Rough: could be {r['tnr_interval'][0]:.0%} to "
                     f"{r['tnr_interval'][1]:.0%}. Marking more answers narrows this."),
-                   "from 40 answers · 0.6 or more is good"):
+                   "from 30 answers · 0.6 or more is good"):
         assert needed in html, needed
     tiles = re.findall(r'<div class="tile">.*?</div>\s*</div>', start_label.result_html(r),
                        re.DOTALL)
@@ -287,7 +286,7 @@ def test_the_pass_rate_box():
 
 def test_the_title_line_says_the_check_the_counts_and_the_date():
     html = _flat(start_label.result_html(_result(*CHECK)))
-    assert "From the 40 answers you marked: 19 Pass, 21 Fail · 5 October 2026" in html
+    assert "From the 30 answers you marked: 15 Pass, 15 Fail · 5 October 2026" in html
     assert "How often your judge agrees with you" in html
     assert "From the 20 answers you marked: 10 Pass, 10 Fail" in _flat(start_label.result_html(
         _result(*TOO_FEW)))
@@ -295,10 +294,8 @@ def test_the_title_line_says_the_check_the_counts_and_the_date():
 
 def test_mark_more_answers_says_why_with_no_target():
     html = _flat(start_label.result_html(_result(*CHECK), back="/?token=t"))
-    assert "<b>Mark more answers</b>Marking more answers narrows the ranges." in html
+    assert f"<b>Mark more answers</b>{BOTH_WIDE}" in html
     assert '<a class="btn" href="/?token=t">Mark more answers</a>' in html
-    one_side = _flat(start_label.result_html(_result(100, 100, 30, 26, 20, 1)))  # 27, 23
-    assert "<b>Mark more answers</b>Marking more answers narrows the ranges." in one_side
     reliable = start_label.result_html(_result(100, 100, 30, 28, 30, 2))
     assert "Mark more answers" not in reliable
 
@@ -326,7 +323,7 @@ def test_what_next_holds_the_three_steps():
 def test_the_saved_page_has_commands_not_buttons():
     html = start_label.result_html(_result(*CHECK))
     assert "<button" not in html and 'class="btn"' not in html and "<a " not in html
-    assert "Marking more answers narrows the ranges. <code>judgekeeper start</code>" in _flat(html)
+    assert f"{BOTH_WIDE} <code>judgekeeper start</code>" in _flat(html)
 
 
 def test_the_judge_card_shows_the_full_rule(tmp_path):

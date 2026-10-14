@@ -7,12 +7,13 @@ from __future__ import annotations
 from judgekeeper import start_label, targets, weighted
 
 
-def test_a_rate_of_exactly_090_is_not_below_090():
-    tpr = 0.5 * 1 / (0.5 * 1 + 0.5 * 2 / 18)  # 9/10, worked out as 0.8999999999999999
-    assert tpr < 0.9 and round(tpr, 9) == 0.9
-    r = {"check": "rough", "tpr": tpr, "tnr": 1.0, "kappa": 0.89}
-    assert start_label._level(r) == "gate"  # green, not amber
-    assert start_label._level({**r, "tpr": 0.8999}) == "check"
+def test_a_range_ending_exactly_on_the_bar_reaches_it():
+    low = 0.4 * 2  # 0.8, worked out as 0.8000000000000002 one way, 0.7999999999999999 another
+    end = 0.7 + 0.1
+    assert end < 0.8 and round(end, 9) == 0.8
+    assert targets.side([end, 0.95]) == "yes"  # green, not amber
+    assert targets.side([low, 0.95]) == "yes"
+    assert targets.side([0.7999, 0.95]) == "cant_tell"
 
 
 def test_a_judge_that_passes_every_answer_has_exact_numbers():
@@ -28,9 +29,9 @@ def test_a_judge_that_passes_every_answer_has_exact_numbers():
 
 def test_a_range_never_shows_as_one_point():
     assert start_label.range_words([0.997, 1.0]) == (
-        "Probably between 99.7% and 100.0%. Marking more answers narrows this.")
+        "Sharp: could be 99.7% to 100.0%. Marking more answers narrows this.")
     assert start_label.range_words([0.66, 0.93]) == (
-        "Probably between 66% and 93%. Marking more answers narrows this.")
+        "Could be 66% to 93%. Marking more answers narrows this.")
 
 
 def test_a_group_with_nothing_counted_gives_unknown_numbers():

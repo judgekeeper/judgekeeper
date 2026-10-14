@@ -67,7 +67,6 @@ from judgekeeper.textio import jsonl_lines, link_in, plural, program, write_repl
 FOLDER = ".judgekeeper"
 BLOCK = 10
 ROUGH = targets.ROUGH
-RELIABLE = targets.RELIABLE
 GITIGNORE = ("# judgekeeper's files hold your app's answers. Commit them only if your data "
              "may live here.\n*\n!.gitignore\n!judge.json\n!history.jsonl\n")
 OLD_GITIGNORE = ("# judgekeeper's files hold your app's answers. Commit them only if your data "
@@ -98,20 +97,31 @@ LEVELS = {  # verdict level: (colour, icon, second line)
     "gate": ("green", "tick", "Keep checking it after changes to its model or rule."),
     "check": ("amber", "warn", None),
     "not_gate": ("red", "cross", None),
+    "too_early": ("grey", None, None),
     None: ("grey", None, None),
 }
 MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August",
           "September", "October", "November", "December")
-VERDICTS = {  # the one coloured line under the two sentences
+VERDICTS = {  # the one coloured line under the two sentences (targets.level decides)
     "gate": "Your judge agrees with you often enough to use.",
-    "check": "Nearly there: look at where it disagrees with you before you rely on it.",
-    "not_gate": "Not good enough yet: look at where it disagrees with you.",
+    "check": "Can't tell yet if your judge is good enough. Marking more answers will tell.",
+    "not_gate": "Your judge disagrees with you too often.",
+    "too_early": "Too early to tell: mark more answers.",
     None: "Mark a few more answers to see your result.",
 }
+# Red, by the side whose range stays below the bar
+TOO_MANY = {"tnr": "Your judge passes too many answers you would fail.",
+            "tpr": "Your judge fails too many answers you would pass."}
 MORE = "Marking more answers narrows this."
 ASKABLE = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools whose judge can be run again
 ALL_LABELED = "Every saved answer is marked. Run your eval again for more answers, then:"
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
+DID = {"tpr": "passed", "tnr": "failed"}
+TOO_EARLY = "too early to tell"
+WIDTH_WORDS = {"too_wide": "Not enough marks yet", "rough": "Rough", "sharp": "Sharp"}
+# Under a range too wide to give a number, when few of the answers are of that kind
+FEW = ("Few of these answers should {kind}, so it takes more marks to measure how your judge "
+       "handles the ones that do.")
 
 
 class Workspace:
@@ -490,19 +500,25 @@ def plain(x: float | None) -> float | None:
 
 
 def _level(r: dict) -> str | None:
+    """The verdict from the ranges (targets.level); None before a first result."""
     if r["check"] == "too_few":
         return None
-    tpr, tnr, kappa = plain(r["tpr"]), plain(r["tnr"]), plain(r["kappa"])
-    if kappa is None or tpr is None or tnr is None or kappa < targets.KAPPA_GATE \
-            or min(tpr, tnr) < targets.RATE_GATE:
-        return "not_gate"
-    return "check" if min(tpr, tnr) < targets.RATE_CARE else "gate"
+    return targets.level(r["tpr_interval"], r["tnr_interval"])
+
+
+def _verdict(r: dict) -> str:
+    """The verdict's words; when red, the side whose range stays below the bar (of two, the
+    one with the lower high end)."""
+    if r["verdict_level"] != "not_gate":
+        return VERDICTS[r["verdict_level"]]
+    below = [k for k in ("tpr", "tnr") if targets.side(r[f"{k}_interval"]) == "no"]
+    return TOO_MANY[min(below, key=lambda k: r[f"{k}_interval"][1])]
 
 
 def describe(corrected: dict) -> dict:
     """The corrected numbers plus the mark counts (`labels`: correct is marked Pass, wrong is
-    marked Fail), how far along they are, and the one coloured line (`verdict`: the thresholds
-    of `report`, with wording that only says how often it agrees)."""
+    marked Fail), how far along they are, and the one coloured line (`verdict`: from the two
+    ranges, never a number alone, with wording that only says how often it agrees)."""
     g = corrected["groups"]
     correct = g["pass"]["correct"] + g["fail"]["correct"]
     wrong = g["pass"]["labeled"] + g["fail"]["labeled"] - correct
@@ -510,7 +526,7 @@ def describe(corrected: dict) -> dict:
     r["labels"] = {"correct": correct, "wrong": wrong}
     r.update(targets.check(correct, wrong, r["tpr_interval"], r["tnr_interval"]))
     r["verdict_level"] = _level(r)
-    r["verdict"] = VERDICTS[r["verdict_level"]]
+    r["verdict"] = _verdict(r)
     return r
 
 
@@ -540,16 +556,26 @@ def sentences(r: dict) -> list[str]:
                      f"Pass and {ROUGH} you mark Fail; you have {short_words(r['labels'])}. Run "
                      f"your eval on more questions, then {command_of(r, '--label-more')}.")]
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
-    out = []
-    for key, said in SAID.items():
-        value = r[key]
-        if value is None:
-            out.append(f"When you said {said}: no answers yet, so nothing to compare. Mark "
-                       "more answers to find out.")
-        else:
-            out.append(f"When you said {said}, your judge also said {said} {_pct(value)} of "
-                       "the time.")
-    return out
+    return [side_sentence(key, r[key], r[f"{key}_interval"]) for key in SAID]
+
+
+def too_early(value, interval) -> bool:
+    """Whether a number can't be given yet: unknown, or its range wider than
+    targets.TOO_WIDE."""
+    known = value is not None and bool(interval) and interval[0] is not None
+    return not known or targets.width_word(interval) == "too_wide"
+
+
+def side_sentence(key: str, value, interval) -> str:
+    """One side of the result, as the terminal says it: "You passed: your judge also passed
+    about 61% (could be 42% to 78%)."; too early to tell while its range is too wide."""
+    did = DID[key]
+    if too_early(value, interval):
+        return f"You {did}: {TOO_EARLY}."
+    if targets.width_word(interval) == "exact":
+        return f"You {did}: your judge also {did} {_pct(value)} (exactly)."
+    return (f"You {did}: your judge also {did} about {_pct(value)} (could be "
+            f"{_pct(interval[0])} to {_pct(interval[1])}).")
 
 
 def statements(r: dict) -> list[dict]:
@@ -559,7 +585,7 @@ def statements(r: dict) -> list[dict]:
         return [{"text": sentences(r)[0], "rate": None, "pct": None, "side": None}]
     out = []
     for text, (key, said) in zip(sentences(r), SAID.items(), strict=True):
-        value = r[key]
+        value = None if too_early(r[key], r[f"{key}_interval"]) else r[key]
         out.append({"text": text, "rate": value, "pct": None if value is None else _pct(value),
                     "side": said.lower()})
     return out
@@ -569,17 +595,21 @@ EXACT_RANGE = "exactly: marking more answers won't change it."
 
 
 def range_words(interval) -> str | None:
-    """"Probably between 66% and 93%. Marking more answers narrows this.", or None. A range of
-    no width is exact ("100%, exactly: ..."): a judge that passes (or fails) every answer.
-    Ends that round to the same percent are shown with one decimal, never one point."""
+    """"Rough: could be 64% to 97%. Marking more answers narrows this.", or None: the word for
+    its width (targets.width_word: "Not enough marks yet", "Rough", none, "Sharp"), then the
+    range. A range of no width is exact ("100%, exactly: ..."): a judge that passes (or
+    fails) every answer. Ends that round to the same percent are shown with one decimal,
+    never one point."""
     if interval is None or interval[0] is None:
         return None
     lo, hi = interval
-    if hi - lo <= 1e-12:
+    word = targets.width_word(interval)
+    if word == "exact":
         return f"{_pct(lo)}, {EXACT_RANGE}"
-    if _pct(lo) == _pct(hi):
-        return f"Probably between {lo:.1%} and {hi:.1%}. {MORE}"
-    return f"Probably between {_pct(lo)} and {_pct(hi)}. {MORE}"
+    ends = (f"{lo:.1%} to {hi:.1%}" if _pct(lo) == _pct(hi) else f"{_pct(lo)} to {_pct(hi)}")
+    if word in WIDTH_WORDS:
+        return f"{WIDTH_WORDS[word]}: could be {ends}. {MORE}"
+    return f"Could be {ends}. {MORE}"
 
 
 def _number(name: str, value, interval) -> str:
@@ -724,13 +754,8 @@ def _made_on(made_at: str | None) -> str | None:
 
 
 def _detail(r: dict) -> str | None:
-    """The coloured line's second line: for a bad result, the weaker side."""
-    detail = LEVELS[r["verdict_level"]][2]
-    tpr, tnr = r["tpr"], r["tnr"]
-    if r["verdict_level"] != "not_gate" or tpr is None or tnr is None or tpr == tnr:
-        return detail
-    return ("It passes many answers you marked Fail." if tnr < tpr
-            else "It fails many answers you marked Pass.")
+    """The coloured line's second line (a bad result names its weaker side in the first)."""
+    return LEVELS[r["verdict_level"]][2]
 
 
 def still_needed(r: dict) -> str | None:
@@ -804,6 +829,17 @@ def page_content(r: dict, marking: str | None = None) -> dict:
                 "interval": (interval[0], interval[1]) if span else None,
                 "mark": value if known else None,
                 "line": range_words(interval) if span else count}
+
+    def few(shown: dict, key: str) -> dict:
+        """Under a range too wide to give a number: why, when few answers are of that kind
+        (the wide side is Fail and most answers should pass, or the other way round)."""
+        real = r.get("real_pass_rate")
+        if too_few or real is None or targets.width_word(r[f"{key}_interval"]) != "too_wide":
+            return shown
+        if (key == "tnr" and real > 0.5) or (key == "tpr" and real < 0.5):
+            kind = "fail" if key == "tnr" else "pass"
+            shown["line"] = f"{shown['line']} {FEW.format(kind=kind)}"
+        return shown
 
     colour, icon, _ = LEVELS[r["verdict_level"]]
     judge = r.get("judge") or {}
@@ -888,10 +924,10 @@ def page_content(r: dict, marking: str | None = None) -> dict:
         "made": made_lines(r.get("made")),
         "drop": targets.drop_line(r.get("smallest_drop")),
         "drop_model": targets.DROP_MODEL if r.get("smallest_drop") is not None else None,
-        "tiles": [tile("TPR", "When you said Pass", r["tpr"], r["tpr_interval"],
-                       f"{labels['correct']} marked Pass so far"),
-                  tile("TNR", "When you said Fail", r["tnr"], r["tnr_interval"],
-                       f"{labels['wrong']} marked Fail so far"),
+        "tiles": [few(tile("TPR", "When you said Pass", r["tpr"], r["tpr_interval"],
+                           f"{labels['correct']} marked Pass so far"), "tpr"),
+                  few(tile("TNR", "When you said Fail", r["tnr"], r["tnr_interval"],
+                           f"{labels['wrong']} marked Fail so far"), "tnr"),
                   tile("kappa", "How much you agree beyond luck", r["kappa"], None,
                        f"from {n} answers · {targets.KAPPA_GATE:g} or more is good", as_pct=False)],
         "pass_rate": None if too_few else _pass_rate(r),

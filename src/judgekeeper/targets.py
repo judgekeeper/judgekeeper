@@ -3,10 +3,15 @@
 `start` uses these: its result and the line under the labeling page's meters. The two kinds
 of label are the answers marked Pass and Fail.
 
-- A rough check: at least ROUGH of each kind.
-- A reliable result: at least RELIABLE of each kind, and both the TPR range and the TNR range
-  no wider than MAX_WIDTH (from the low end to the high end). The TPR range is about the
-  answers marked Pass, the TNR range about those marked Fail.
+- A first result: at least ROUGH of each kind (a count rule).
+- A result that is ready: both the TPR range and the TNR range no wider than MAX_WIDTH (from
+  the low end to the high end), whatever the counts. The TPR range is about the answers marked
+  Pass, the TNR range about those marked Fail.
+
+The words for a number follow the width of its range (width_word): wider than TOO_WIDE, too
+early to give a number; down to ROUGH_WIDTH, rough; SHARP_WIDTH or less, sharp. The verdict
+follows the ranges, never a number alone (level): each side is "yes" when the low end of its
+range reaches RATE_GATE, "no" when the high end stays below it, else "can't tell".
 
 The smallest drop a set of marks can see (`smallest_drop`): the smallest fall in how often the
 judge is right, in steps of 5 points, that checking these marks again would catch at least 80
@@ -17,13 +22,11 @@ answers that changed. It uses the fewer kind of mark (Pass or Fail). Once judgek
 asked the judge again about the marked answers (the baseline), it uses the judge's measured
 steadiness instead: how often its verdict changed (at least 1%) and how often it was right.
 
-`got_worse` is that same test on a re-check: of the answers whose verdict changed, the ones
-the new judge now gets wrong against the ones it now gets right.
-
 Why 0.30: about what 25 + 25 gives when the judge agrees with the person about 85% of the
-time and passes half the answers, so such checks are reliable at 25 of each; when the judge
-passes most answers, its TNR range stays wide for longer, and the result is not called
-reliable until it is really that narrow (docs/examples/coverage/coverage.md).
+time and passes half the answers; when the judge passes most answers, its TNR range stays wide
+for longer, and the result is not called ready until it is really that narrow
+(docs/examples/coverage/coverage.md). The width cut-offs are a judgement, kept as names so they
+can change after real use.
 """
 
 from __future__ import annotations
@@ -31,16 +34,19 @@ from __future__ import annotations
 import math
 
 ROUGH = 15
-RELIABLE = 25
 MAX_WIDTH = 0.30
 EPS = 1e-9
-START_NAMES = ("answers you marked Correct", "answers you marked Wrong")
 
-# What the result calls good. Kappa at or above KAPPA_GATE is good. TPR and TNR are the
-# numbers to act on: below RATE_GATE the judge is not fit to be a gate, below RATE_CARE it is
-# usable with care.
-KAPPA_GATE = 0.6
+# The words for a number, by the width of its range (in points / 100)
+TOO_WIDE = 0.40  # wider: too early to give a number
+ROUGH_WIDTH = 0.30  # wider (up to TOO_WIDE): rough
+SHARP_WIDTH = 0.20  # this wide or less: sharp
+
+# The bar a judge is good enough at: the low end of both the TPR and the TNR range reach it.
 RATE_GATE = 0.80
+# The thresholds of the committed LLMBar example report and the learn page that quotes it;
+# the verdict here uses neither (kappa moves with how many answers pass).
+KAPPA_GATE = 0.6
 RATE_CARE = 0.90
 
 # The smallest drop: the model and the test (see the top of this file)
@@ -62,16 +68,60 @@ def _width(interval) -> float | None:
     return interval[1] - interval[0]
 
 
+def _points(width: float) -> float:
+    """A width rounded to a hundredth of a point, so 0.4 worked out in floating point is 40."""
+    return round(width * 100, 2)
+
+
+def width_word(interval) -> str | None:
+    """"too_wide", "rough", None (plain), "sharp" or "exact" for a range; None when it is
+    unknown. A width on a cut-off takes the narrower side: 40 points is rough, 30 plain, 20
+    sharp."""
+    width = _width(interval)
+    if width is None:
+        return None
+    points = _points(width)
+    if points <= 0:
+        return "exact"
+    if points > TOO_WIDE * 100:
+        return "too_wide"
+    if points > ROUGH_WIDTH * 100:
+        return "rough"
+    return "sharp" if points <= SHARP_WIDTH * 100 else None
+
+
+def side(interval) -> str | None:
+    """"yes", "no" or "cant_tell" for one rate's range against RATE_GATE; None unknown."""
+    if not interval or interval[0] is None or interval[1] is None:
+        return None
+    lo, hi = round(interval[0], 9), round(interval[1], 9)
+    if lo >= RATE_GATE:
+        return "yes"
+    if hi < RATE_GATE:
+        return "no"
+    return "cant_tell"
+
+
+def level(tpr_interval, tnr_interval) -> str:
+    """The verdict from the two ranges: "not_gate" (red) when a side is "no", whatever its
+    width; "too_early" (no colour) when a side is wider than TOO_WIDE or unknown; "gate"
+    (green) when both are "yes"; else "check" (can't tell yet)."""
+    sides = [side(tpr_interval), side(tnr_interval)]
+    if "no" in sides:
+        return "not_gate"
+    if None in sides or "too_wide" in (width_word(tpr_interval), width_word(tnr_interval)):
+        return "too_early"
+    return "gate" if sides == ["yes", "yes"] else "check"
+
+
 def check(correct: int, wrong: int, tpr_interval, tnr_interval) -> dict:
     """{"check": "too_few" | "rough" | "reliable", "wide": {"tpr" | "tnr": width or None}}.
 
-    `wide` names a range that keeps a check with RELIABLE of each from being reliable: wider
-    than MAX_WIDTH, or unknown (None). It is empty below RELIABLE of each."""
-    least = min(correct, wrong)
-    if least < ROUGH:
+    Under ROUGH of each kind there is no result yet (a count rule). After that the result is
+    reliable when both ranges are MAX_WIDTH wide or less; `wide` names each one that is wider,
+    or unknown (None)."""
+    if min(correct, wrong) < ROUGH:
         return {"check": "too_few", "wide": {}}
-    if least < RELIABLE:
-        return {"check": "rough", "wide": {}}
     wide = {}
     exact = False  # a range of no width: exact, but no sign that the marks are enough
     for key, interval in (("tpr", tpr_interval), ("tnr", tnr_interval)):
@@ -81,28 +131,6 @@ def check(correct: int, wrong: int, tpr_interval, tnr_interval) -> dict:
         elif width <= EPS:
             exact = True
     return {"check": "rough" if wide or exact else "reliable", "wide": wide}
-
-
-def line(result: dict, names: tuple[str, str] = START_NAMES) -> str:
-    """How far along a check is and what to do, in one or two sentences."""
-    if result["check"] == "too_few":
-        return f"A rough check needs {ROUGH} of each."
-    if result["check"] == "reliable":
-        return "Reliable result ready."
-    wide = result["wide"]
-    if not wide:
-        return f"Rough check ready. A reliable result needs {RELIABLE} of each."
-    sides = [names[0] if key == "tpr" else names[1] for key in wide]
-    if None in wide.values():
-        unknown = [names[0] if key == "tpr" else names[1] for key, w in wide.items() if w is None]
-        return (f"Not reliable yet: the range for {' and '.join(unknown)} is not known yet. "
-                "Label more answers.")
-    widths = " and ".join(f"{w:.2f}" for w in wide.values())
-    if len(sides) == 1:
-        return (f"Not reliable yet: the range for {sides[0]} is still {widths} wide. Label "
-                "more answers to narrow it.")
-    return (f"Not reliable yet: the ranges for {sides[0]} and {sides[1]} are still {widths} "
-            "wide. Label more answers to narrow them.")
 
 
 def _pmf(n: int, p: float) -> list[float]:
