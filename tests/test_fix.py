@@ -516,3 +516,33 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys, judge):
     split = _split(ws)
     assert sorted(split["hidden"]) == sorted(new) and split["set"] == 2
     assert [t["kind"] for t in split["tests"]] == ["rule"]
+
+
+# The result points at fix ---------------------------------------------------------------------
+
+def test_the_result_shows_where_the_judge_goes_wrong_and_points_at_fix(here, capsys):
+    project(here)
+    capsys.readouterr()
+    assert main([]) == 0
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    at = lines.index("Where it goes wrong:")
+    block = []
+    for line in lines[at + 1:]:
+        if not line.startswith("  "):
+            break
+        block.append(line)
+    assert 1 <= len(block) <= 3
+    assert block[0].startswith("  10 of its 13 mistakes are answers it passed but you failed")
+    assert " ".join(out.split()).endswith("Next: to try a better rule, run `judgekeeper fix`.")
+
+
+def test_the_result_uses_only_the_seen_marks_once_some_are_hidden(here, capsys):
+    ws = project(here)
+    run(capsys)
+    split, marks = _split(ws), fix.Marks(ws)
+    seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
+    capsys.readouterr()
+    main([])
+    out = capsys.readouterr().out
+    assert f"of its {len(seen)} mistakes" in out

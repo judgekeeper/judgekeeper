@@ -317,6 +317,18 @@ def pattern_lines(rows: list[dict], mark: float | None = None) -> list[str]:
     return [line for p in patterns(rows, mark) for line in p]
 
 
+def where_wrong(ws: Workspace, most: int = 3) -> tuple[list[str], int]:
+    """For the result: at most `most` pattern lines and how many mistakes the judge made, on
+    the marks the person can see (all of them until some are hidden)."""
+    m = Marks(ws)
+    split = read_split(ws)
+    ids = [i for i in split.seen if i in m.person] if split else list(m.person)
+    rows = [m.row(i) for i in ids]
+    pm = m.data.get("pass_mark")
+    lines = pattern_lines(rows, pm["mark"] if _follows(m, pm) else None)
+    return lines[:most], len(mistakes(rows))
+
+
 # mistakes.md --------------------------------------------------------------------------------
 
 def mistakes_md(rule: str | None, rows: list[dict]) -> str:
