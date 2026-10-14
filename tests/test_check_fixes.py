@@ -123,3 +123,16 @@ def test_too_few_marks_says_so_without_a_number(here, capsys):
     assert "You have not marked enough answers yet for a re-check." in out
     assert "15" not in out
     assert _next(out) == "Next: run `judgekeeper mark` to mark more answers."
+
+
+# N21 ------------------------------------------------------------------------------------------
+
+def test_deleted_results_are_said_plainly(here, capsys, no_calls):
+    _marked(here)
+    (here / "results.json").unlink()
+    code, out = run(capsys)
+    assert code == 3
+    assert f"judgekeeper finds no promptfoo results in this folder ({here.name})." in _flat(out)
+    assert str(here) not in out
+    assert "would have to ask" not in out
+    assert _next(out) == "Next: run your eval once, then run `judgekeeper check` again."

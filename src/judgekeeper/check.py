@@ -158,8 +158,13 @@ def _newest(state: State):
                 raise
             return start.find_judge(root, **options), None  # the results name it now
     except (start.StartError, start.Stop, RecordsError, OSError, ValueError) as e:
+        tool = data.get("tool")
+        if tool in find.TOOLS and not find.search(root).readable(tool):
+            return None, (f"judgekeeper finds no {find.NAMES.get(tool, tool)} results in this "
+                          f"folder ({Path(root).name})")
         why = (scrub(str(e)) if str(e) and not isinstance(e, start.Stop)
-               else "it would have to ask which results to read")
+               else "they need a choice first, such as which results to read: run "
+                    f"`{program()}` to make it")
         return None, (f"judgekeeper can't read your judge {data.get('metric')} in your newest "
                       f"results: {why}")
 
