@@ -2,10 +2,11 @@
 
 Every command, file format, flag, exit code and config key. The README has the short version.
 
-Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. `judgekeeper` does Find, Mark and Measure; `judgekeeper mark` marks more; `judgekeeper check` re-checks your judge after a change. Fix is coming soon. Run them in your own terminal: each run ends with one `Next:` line that says what you do.
+Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. `judgekeeper` does Find, Mark and Measure; `judgekeeper mark` marks more; `judgekeeper fix` shows where your judge goes wrong and tests a better rule; `judgekeeper check` re-checks your judge after a change. Run them in your own terminal: each run ends with one `Next:` line that says what you do.
 
 - [judgekeeper: find, mark, measure](#judgekeeper-find-mark-measure)
 - [mark: mark more answers](#mark-mark-more-answers)
+- [fix: see where your judge goes wrong and test a better rule](#fix-see-where-your-judge-goes-wrong-and-test-a-better-rule)
 - [check: re-check your judge after a change](#check-re-check-your-judge-after-a-change)
 - [start: find your results, label, see the result](#start-find-your-results-label-see-the-result)
 - [setup: set a project up in one step](#setup-set-a-project-up-in-one-step)
@@ -66,6 +67,36 @@ judgekeeper mark [PATH] [the flags of judgekeeper]
 ```
 
 Opens a new marking page, to mark more answers; more marks make your numbers more precise. Run `judgekeeper` afterwards to see your updated result. When every answer is marked, it says so and opens no page: run your eval again to get new answers.
+
+## fix: see where your judge goes wrong and test a better rule
+
+```
+judgekeeper fix [PATH] [--yes] [--new]
+```
+
+It needs a result (15 Pass and 15 Fail marks). Each run does the next step:
+
+| What is there | What `judgekeeper fix` does |
+|---|---|
+| No new rule in `.judgekeeper/fix/rule.txt` | Sets some of your marks aside, hidden (about 30% of each group: your judge's passes and fails, where you agree with it and where not; at least 5 marked Pass and 5 marked Fail). On the other marks: where your judge goes wrong (too easy or too strict, mistakes near the pass mark, long answers, words found in many of its mistakes) and `.judgekeeper/fix/mistakes.md`, each mistake with your mark, its grade, the question, the answer, your note and its own reason, fenced as data. Where your judge's rule is written (file and line) |
+| A judge with a score and a pass mark | Also tests the pass mark that fits the other marks best on the hidden marks, with the saved scores: free, no AI call. Shown when it is better or safe to try |
+| A new rule in `rule.txt` | Checks it (empty, a template part dropped or added: refused; a big change or text copied from an answer: said), says how many AI calls the test makes, and asks `Go ahead? [y/N]` (without a terminal, `--yes`). Then it asks your judge about the hidden answers, once with the old rule and once with the new one, in the same run, and gives the result |
+
+The hidden marks stay hidden: nothing prints them or writes them anywhere but `.judgekeeper/fix/split.json`, so a new rule is never written from them. They stay the same until `--new`.
+
+**The result**, from the hidden marks: fixed (the old rule was wrong, the new one right) and broke (the other way round).
+
+| Result | When |
+|---|---|
+| Better / Worse | The exact two-sided sign test on fixed against broke, at 5% |
+| Safe to try | Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 points worse |
+| Can't tell yet | Else; it says whether it leans toward better, looks the same, or looks worse |
+
+Each extra test on the same hidden marks is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". After a "can't tell yet" that leans toward better, it asks once for a few more marks (7 when about 10 are hidden, 9 when about 15): they join the hidden marks and the same rule is tested again. After 3 rules, 10 new marks become a new set of hidden marks.
+
+Your judge's rule is swapped in by judgekeeper when it asks: promptfoo's assertion value, a DeepEval GEval's evaluation steps (or criteria), an Inspect scorer's instructions, an MLflow `make_judge`'s instructions or a `Guidelines` text. A judge whose rule can't be swapped (a table, your own code, a registered or built-in MLflow judge) is told to change the rule itself, run its eval and `judgekeeper check`. judgekeeper never changes your files. Each test is saved: the rule in `.judgekeeper/rules/<hash>.txt`, and a line in `history.jsonl` (the rule's hash, the counts and the result; no answer text). `report.html` has a Fix section and a History row for each test.
+
+**Exit codes:** 0 the step is done, 3 you are needed (more marks, a rule to change, or the question needs your answer), 2 a usage error.
 
 ## check: re-check your judge after a change
 
