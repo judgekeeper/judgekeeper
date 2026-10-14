@@ -4,9 +4,9 @@
 
 <p><a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/v/judgekeeper" alt="PyPI version"></a> <a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/pyversions/judgekeeper" alt="Python 3.11 to 3.14"></a> <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests on main"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/judgekeeper/judgekeeper" alt="MIT license"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"><img src="https://img.shields.io/pypi/status/judgekeeper" alt="Status: beta"></a></p>
 
-**Check your LLM-as-a-judge.**
+**Check your LLM-as-a-judge in 5 steps.**
 
-See how often it agrees with human labels, in one command.
+Find. Mark. Measure. Fix. Re-check.
 
 An LLM-as-a-judge is an AI model that grades the answers of another AI model. Teams use one because reading every answer by hand is slow.
 
@@ -24,21 +24,15 @@ pip install judgekeeper==1.0.0b2
 judgekeeper
 ```
 
-- It reads the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV) and checks your judge's verdicts for free.
-- It opens a page in your browser. You mark answers Pass or Fail without seeing what your judge said.
-- Run it again the same way when you are done: it shows how often your judge agrees with you.
-- Marking and the result make no AI call and need no API key. judgekeeper never runs your app.
+Run it in your own terminal. Each run does the next step and ends with one `Next:` line. (With uv, type `uvx judgekeeper@1.0.0b2` where it says `judgekeeper`; judgekeeper prints its commands that way too.)
 
-This is a beta: fixing your judge is coming.
+1. **Find.** `judgekeeper` reads the results your eval tool already saved (promptfoo, DeepEval, Inspect AI, MLflow, or a CSV or JSONL file), names your judge and checks its grades for free.
+2. **Mark.** It opens a page in your browser. You mark answers Pass or Fail without seeing what your judge said. `judgekeeper mark` opens it again to mark more.
+3. **Measure.** Run `judgekeeper` again: it shows how often your judge agrees with you.
+4. **Fix.** Coming soon: see where your judge goes wrong, and test a better rule on marks kept hidden.
+5. **Re-check.** After you change your judge or update your eval tool, run `judgekeeper check`. It re-tests your judge on your marks. When that needs AI calls, it says how many and asks first.
 
-## Then it keeps checking by itself
-
-Once you have marked 25 Pass and 25 Fail, judgekeeper asks on the page whether it should keep checking your judge. Only your click turns this on. Then, when your judge's model, rule, pass mark or eval tool changes, judgekeeper re-tests it on your marks and says if it got worse.
-
-- Turning on adds a hook for Claude Code and Cursor (in `.claude/settings.local.json`), a check before each git commit (no AI call), judgekeeper to your dev requirements when it is installed in your project, and asks your judge once about your marked answers, to learn how steady it is.
-- A re-check first uses the verdicts your newest results already hold, for free. It asks your own judge only about the rest, with the key your evals already use.
-- To turn it off: `uvx judgekeeper@1.0.0b2 check --off`. It takes out exactly what it added; your marks stay.
-- In GitHub Actions: `uses: judgekeeper/judgekeeper@v1.0.0b2`, after the step that runs your eval. See [action.yml](https://github.com/judgekeeper/judgekeeper/blob/main/action.yml).
+Finding, marking and the result make no AI call and need no API key. judgekeeper never runs your app, and it writes only inside `.judgekeeper/` in your project.
 
 ## What you get
 

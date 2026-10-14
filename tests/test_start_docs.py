@@ -214,10 +214,15 @@ def test_the_readme_makes_uvx_the_main_path():
     assert len(README.read_text(encoding="utf-8").splitlines()) <= 80
 
 
-def test_the_guide_starts_with_start():
+def test_the_guide_starts_with_the_five_steps():
     sections = _sections(GUIDE)
     assert next(iter(sections)) == "Start here"
-    assert "judgekeeper start" in sections["Start here"]
+    here = sections["Start here"]
+    assert "Find. Mark. Measure. Fix. Re-check." in here
+    for command in ("\njudgekeeper\n", "`judgekeeper mark`", "`judgekeeper check`"):
+        assert command in here, command
+    for gone in ("judgekeeper start", "coding agent", "Claude Code", "Cursor"):
+        assert gone not in here, gone
 
 
 # The version -----------------------------------------------------------------------------
@@ -249,17 +254,17 @@ def test_the_own_format_section_shows_the_table_and_the_agent_prompt():
 def test_the_reference_and_the_guide_explain_the_own_format():
     reference = " ".join(REFERENCE.read_text(encoding="utf-8").split())
     guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
-    for text in (reference, guide):
-        for needed in ("judge_model", "--agent-prompt", "first 3 rows"):
-            assert needed in text, needed
+    for needed in ("judge_model", "--agent-prompt", "first 3 rows"):
+        assert needed in reference, needed
+    for needed in ("judge_model", "`judgekeeper your-table.csv`", "judgekeeper.toml"):
+        assert needed in guide, needed
     assert "calling a metric's `measure()` directly saves nothing" in reference
 
 
-def test_the_guide_says_what_comes_after_the_first_result():
-    text = GUIDE.read_text(encoding="utf-8")
-    section = text[text.index("### After your first result"):text.index("## Why")]
-    for needed in ("--review", "--ask-again", "--try-new-judge", "--label-more",
-                   "Go ahead? [y/N]", "by name only", "10 Pass and 10 Fail"):
+def test_the_guide_says_how_a_re_check_asks_before_it_spends():
+    section = " ".join(_sections(GUIDE)["Start here"].split())
+    for needed in ("`judgekeeper check`", "Go ahead? [y/N]", "`--yes`", "with your own key",
+                   "History", "`--no-browser`", "`judgekeeper --stop`"):
         assert needed in section, needed
 
 

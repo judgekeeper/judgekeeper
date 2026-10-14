@@ -70,7 +70,8 @@ def footer() -> str:
         f'<div><a class="brand" href="index.html">{LOGO}judgekeeper</a>\n'
         '<p class="fine">Free and open source, MIT license. It shows how often your judge '
         "agrees with you; it never decides for you.</p>\n"
-        '<p class="fine">Not affiliated with the tools and models it works with. Names belong '
+        '<p class="fine">Not affiliated with the tools it can read results from, or their '
+        'models. Names belong '
         f'to their owners: see <a href="{GITHUB}/blob/main/TRADEMARKS.md">the name and logo '
         "note</a>.</p>\n"
         '<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your '

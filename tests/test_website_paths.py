@@ -302,7 +302,7 @@ OLD_PYTHON = ("Could not find a version that satisfies the requirement judgekeep
               "(from versions: none)")  # what pip says when the environment's Python is older
 REMAKE = "python3.12 -m venv .venv"
 UV_OLDER_PYTHONS = "uv add --dev \"judgekeeper; python_version >= '3.11'\""
-UV_RUN = "uv run judgekeeper start"
+UV_RUN = "uv run judgekeeper"
 
 
 def _install_texts() -> dict[str, str]:
