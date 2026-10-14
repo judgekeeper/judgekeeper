@@ -36,7 +36,8 @@ def screen(capsys, *argv) -> tuple[int, list[str]]:
     lines = (out + err).splitlines()
     for line in lines:
         assert len(line) <= 80, line
-        assert "verdict" not in line.lower() or line.strip().startswith("input,"), line
+        column = line.strip().startswith(("input,", "Read the columns"))  # its real name
+        assert "verdict" not in line.lower() or column, line
         assert "tell the person" not in line and "ask the person" not in line, line
     return code, lines
 
@@ -365,3 +366,18 @@ def test_wrapping_keeps_commands_whole_and_never_starts_a_line_with_next():
     for n in range(20, 34):
         lines = wrap("a " * n + "Inspect AI, MLflow")
         assert not [line for line in lines if line.endswith("Inspect")], lines
+
+
+def test_too_few_answers_says_so_without_a_target_number(here, capsys):
+    """No target numbers on screen: the page shows how far the marks are."""
+    from judgekeeper.again.fresh import TOO_FEW_NUMBERS
+
+    promptfoo_project(here, split(4, 3), rubric=RULE)
+    code, lines = screen(capsys)
+    assert code == 3
+    text = " ".join(" ".join(lines).split())
+    assert ("You have 7 answers with a clear grade. That is not enough answers for a first "
+            "result.") in text
+    assert "15" not in text
+    assert not any(ch.isdigit() for ch in TOO_FEW_NUMBERS)
+

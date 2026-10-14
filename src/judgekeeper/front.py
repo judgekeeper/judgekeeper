@@ -602,8 +602,8 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     n = len(pool.answers)
     if n < start.MIN_POOL:
         talk.say()
-        talk.para(f"You have {_n(n, 'answer')} with a clear grade. A first result needs at "
-                  f"least {start.ROUGH} you mark Pass and {start.ROUGH} you mark Fail.")
+        talk.para(f"You have {_n(n, 'answer')} with a clear grade. That is not enough answers "
+                  "for a first result.")
         raise talk.stop(EXIT_QUESTION, (
             "run your eval to make more answers first (that makes model calls), then run "
             f"`{talk.command()}` again; or mark {'this one' if n == 1 else f'these {n}'} now "
