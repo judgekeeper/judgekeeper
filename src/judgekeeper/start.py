@@ -540,8 +540,8 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
 OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({names}). "
                 "judgekeeper reads judges run with mlflow.genai.evaluate() and scorers "
                 "(MLflow 3). Reading these older results isn't supported.")
-OLD_EVALUATE_NEXT = ("nothing judgekeeper can read here: run your judge with "
-                     "mlflow.genai.evaluate() and scorers, then run judgekeeper again.")
+OLD_EVALUATE_NEXT = ("run your judge with mlflow.genai.evaluate() and scorers, then run "
+                     "`judgekeeper` again.")
 # The run metrics mlflow.evaluate() logs for a judged metric: faithfulness/v1/mean, ...
 _OLD_METRIC = re.compile(r"(.+/v\d+)/(mean|variance|p90)")
 
