@@ -20,6 +20,7 @@ import os
 
 from judgekeeper import judge_setup
 from judgekeeper.cli import main
+from tests.start_projects import promptfoo_data
 from tests.test_check import (  # noqa: F401
     HAIKU,
     LENIENT,
@@ -201,3 +202,22 @@ def test_after_worse_judgekeeper_still_points_at_check(here, capsys, no_calls):
         _flat(out)
     assert "`judgekeeper check`" in _next(out)
     assert ws.report_html.is_file()
+
+
+# N06 ------------------------------------------------------------------------------------------
+
+def test_no_marked_answer_in_the_new_results_says_why_and_what_to_do(here, capsys, judge):
+    ws = _marked(here)
+    data = promptfoo_data(LENIENT, model=HAIKU, tag=" OTHER")  # other questions
+    data["metadata"]["promptfooVersion"] = "0.124.1"
+    _write(here / "results.json", data)
+    code, out = run(capsys, "--yes")
+    assert code == 3
+    flat = _flat(out)
+    assert ("Your newest results don't contain the answers you marked, so your judge can't "
+            "grade them again.") in flat
+    assert "labeled" not in flat
+    assert _next(out) == ("Next: run your eval on the questions you marked, then run "
+                          "`judgekeeper check` again; or start over on your new answers with "
+                          "`judgekeeper --new`.")
+    assert _history(ws) == []

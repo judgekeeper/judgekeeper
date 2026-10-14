@@ -42,7 +42,16 @@ import re
 from collections import Counter
 
 from judgekeeper import again, keys, prices
-from judgekeeper.again import CANT, CLOSE, EXACT, Plan, cant, left_out_line, worker_run
+from judgekeeper.again import (
+    CANT,
+    CLOSE,
+    EXACT,
+    Plan,
+    cant,
+    left_out_line,
+    not_marked,
+    worker_run,
+)
 from judgekeeper.again.fresh import Fresh
 from judgekeeper.anchors import canonical_json
 from judgekeeper.readers.deepeval import (
@@ -329,8 +338,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         cases = _cases(root, data["results_files"], metric)
         found = [(a, *cases[a["id"]]) for a in answers if a["id"] in cases]
     if not found:
-        return cant("deepeval", judge, "none of your labeled answers is in your results files "
-                    "any more", short="your answers are not in your results files")
+        return not_marked("deepeval", judge)
     first_md = found[0][2]
     reason = cant_reason(first_md)
     if reason:

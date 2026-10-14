@@ -67,6 +67,8 @@ CAN_WRITE = "Your judge is an agent that can change files when it runs."
 NOT_ASKED = "Your judge was not asked."
 NEXT_YES = "Next: run `{command}` in your terminal to answer, or `{command} --yes` to go ahead."
 NEXT_LATER = "Next: run `{command}` again when you are ready to re-check your judge."
+NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
+                   "again; or start over on your new answers with `{new}`.")
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
@@ -381,6 +383,7 @@ class Asked:
     calls: int = 0
     reasons: list[str] = field(default_factory=list)
     close: str | None = None  # why it was a close copy
+    not_marked: bool = False  # the newest results hold none of the marked answers
 
 
 def _can_write(setup: dict) -> bool:
@@ -425,6 +428,7 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     plan = again.make_plan(ws, again.AgainOptions(times=1), dry=True, new=view, only=set(ids))
     if plan.status == again.CANT:
         out.reasons.append(plan.plain or f"Your judge can't be asked again: {plan.why}.")
+        out.not_marked = plan.why == again.NOT_MARKED
         return out
     if not plan.key_ok:
         out.reasons.append(NO_KEY)
@@ -706,7 +710,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         for line in asked.reasons:
             said.say(line)
         said.say()
-        said.say(NEXT_LATER.format(command=_command(state)))
+        later = NEXT_NOT_MARKED if asked.not_marked else NEXT_LATER
+        said.say(later.format(command=_command(state), new=program("--new")))
         return EXIT_NEEDS_YOU
 
     n, total = len(tested), len(state.marks)
