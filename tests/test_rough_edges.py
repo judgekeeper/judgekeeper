@@ -150,7 +150,8 @@ def test_a_file_where_the_workspace_folder_should_be_is_said_plainly(tmp_path, c
     monkeypatch.chdir(tmp_path)
     capsys.readouterr()
     assert main(["start", "--no-browser", "--yes"]) == 2
-    _plain_error(capsys, str(blocker), "is a file, but a folder is needed there")
+    _plain_error(capsys, ".judgekeeper", "is a file, but judgekeeper keeps its files in a "
+                 ".judgekeeper/ folder there")
     assert blocker.read_text(encoding="utf-8") == "a file\n"
 
 
@@ -169,7 +170,8 @@ def test_debug_adds_the_traceback_to_the_plain_line(tmp_path, capsys, monkeypatc
     assert main(["--debug", "start", "--no-browser", "--yes"]) == 2
     err = capsys.readouterr().err
     assert "Traceback" in err
-    assert err.splitlines()[-2].startswith(f"error: {blocker} is a file, but a folder")
+    assert err.splitlines()[-2].startswith("error: .judgekeeper is a file, but judgekeeper")
+    assert blocker.is_file()
 
 
 def test_file_errors_in_plain_words(monkeypatch):

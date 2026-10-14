@@ -302,6 +302,32 @@ def _cannot_write(path) -> str:
     return message
 
 
+WORKSPACE = ".judgekeeper"  # where judgekeeper keeps its files, in the project
+WORKSPACE_FILE = (".judgekeeper is a file, but judgekeeper keeps its files in a .judgekeeper/ "
+                  "folder there.")
+WORKSPACE_FILE_NEXT = "move or rename the file .judgekeeper, then run `{command}`."
+WORKSPACE_DENIED = ("judgekeeper can't write in .judgekeeper/ (permission denied): it keeps "
+                    "its files there.")
+WORKSPACE_DENIED_NEXT = ("give your user permission to write in .judgekeeper/ (or remove the "
+                         "folder: judgekeeper makes it again), then run `{command}`.")
+
+
+def workspace_problem(e: OSError) -> tuple[str, str] | None:
+    """(the error, the Next: step) when `e` is about .judgekeeper/: named so, never a
+    temporary file inside it or a whole path. None for any other path."""
+    if not isinstance(e.filename, str | bytes | os.PathLike):
+        return None
+    parts = Path(os.fsdecode(e.filename)).parts
+    if WORKSPACE not in parts:
+        return None
+    folder = Path(*parts[:parts.index(WORKSPACE) + 1])
+    if folder.is_file():
+        return WORKSPACE_FILE, WORKSPACE_FILE_NEXT
+    if isinstance(e, PermissionError) and folder.is_dir():  # else the project folder's
+        return WORKSPACE_DENIED, WORKSPACE_DENIED_NEXT
+    return None
+
+
 def describe_os_error(e: OSError) -> str | None:
     """One plain line for a file-system error, naming the path and what to do.
 
