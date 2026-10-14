@@ -551,11 +551,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         talk.ask_noted()
         _write(found)
         talk.say()
-        talk.say("No answer has a clear Pass or Fail from your judge, so there is nothing to "
-                 "mark.")
-        raise talk.stop(EXIT_OK, f"nothing. Tell the person their judge made no real decision "
-                                 f"on any answer (the list is in {listed}); run judgekeeper "
-                                 "again after their next eval run.")
+        raise _nothing_to_mark(talk, found, listed)
     new = _to_save(talk, found, mapped)
     talk.ask_noted()  # without a terminal, nothing is written before they are answered
     _write(found)
@@ -572,6 +568,20 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
             f"`{_command_of(talk, saved, 'mark')}`."))
     talk.say()
     return _marking(talk, Workspace(found.root), found, wait, saved, marking=False, first=True)
+
+
+def _nothing_to_mark(talk: FrontTalk, found: start.Found, listed: str | None) -> Stop:
+    """No answer has a clear Pass or Fail: the person fixes the judge and runs the eval
+    again (exit 3)."""
+    failed = {kind for kind, _ in found.pool.left.values()} == {judge_check.ERROR}
+    talk.say("Your judge's calls failed on every answer, so there is nothing to mark."
+             if failed else "No answer has a clear Pass or Fail from your judge: nothing to "
+                            "mark.")
+    if listed:
+        talk.say(f"The list is in {listed}.")
+    fix = "fix your judge's calls" if failed else "fix your judge"
+    return talk.stop(EXIT_QUESTION, f"{fix}, run your eval again, then run "
+                                    f"`{talk.command()}`.")
 
 
 def answered(talk: FrontTalk, saved: bool) -> tuple[str, dict]:
@@ -658,11 +668,7 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
     why = _why_start_over(talk, ws, found)
     if not found.pool.answers and (why is not None or not ws.start.is_file()):
         talk.ask_noted()
-        talk.say("No answer has a clear Pass or Fail from your judge, so there is nothing to "
-                 "mark.")
-        raise talk.stop(EXIT_OK, "nothing. Tell the person their judge made no real decision "
-                                 f"on any answer; run {program()} again after their next eval "
-                                 "run.")
+        raise _nothing_to_mark(talk, found, None)
     over = why is not None
     if over:
         for line in why:

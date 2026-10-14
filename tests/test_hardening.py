@@ -78,3 +78,18 @@ def test_the_free_check_says_what_it_saw_not_more(project, capsys):
     assert ("Your judge gave a Pass or Fail on every answer (no errors or empty "
             "replies).") in text
     assert "real decision" not in text
+
+
+def test_every_judge_call_failed_needs_the_person(project, capsys):
+    from tests.test_judge_check import promptfoo_with_problems
+
+    data = promptfoo_with_problems([True, False], errors=[0, 1])
+    _write(project / "results.json", __import__("json").dumps(data))
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code == 3
+    assert text.splitlines()[-4:] == [
+        "Your judge's calls failed on every answer, so there is nothing to mark.",
+        "The list is in .judgekeeper/judge-check.csv.", "",
+        ("Next: fix your judge's calls, run your eval again, then run "
+         "`judgekeeper --no-browser`.")]

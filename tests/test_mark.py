@@ -112,9 +112,10 @@ def test_too_few_answers_are_marked_anyway(here, capsys, pages):
 def test_no_clear_verdict_means_nothing_to_mark(here, capsys, pages):
     promptfoo_project(here, [None] * 6)
     code, out, _ = run(capsys, "mark")
-    assert code == 0
+    assert code == 3
     assert "nothing to mark" in out
-    assert _check(out).startswith("Next: nothing.")
+    assert _check(out) == ("Next: fix your judge, run your eval again, then run "
+                           "`judgekeeper mark`.")
     assert pages[0] == []
 
 
