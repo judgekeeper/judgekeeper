@@ -67,3 +67,14 @@ def test_a_link_in_judgekeepers_folder_names_the_main_command(project, capsys):
     code, text = run(capsys, "--no-browser")
     assert code == 2
     assert "Remove it, then run judgekeeper again." in text
+
+
+def test_the_free_check_says_what_it_saw_not_more(project, capsys):
+    from tests.start_projects import promptfoo_project, split
+
+    promptfoo_project(project, split(20, 16))
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert ("Your judge gave a Pass or Fail on every answer (no errors or empty "
+            "replies).") in text
+    assert "real decision" not in text

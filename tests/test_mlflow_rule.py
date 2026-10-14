@@ -292,7 +292,7 @@ def test_failed_judge_calls_are_counted(tmp_path, failing_stores, capsys):
     shutil.copy2(failing_stores / "some.db", tmp_path / "mlflow.db")
     _, out, _ = run(capsys, tmp_path, "--no-browser")
     assert "Its decisions   19 answers" in out, out
-    assert "Your judge made a real decision on every answer" not in out
+    assert "Your judge gave a Pass or Fail on every answer" not in out
     assert re.search(r"5 calls failed", out), out
     found = start.find_judge(tmp_path)
     errors = [r for r in found.pool.answers if r.verdict not in ("pass", "fail")]

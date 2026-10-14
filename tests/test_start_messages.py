@@ -16,7 +16,7 @@ import types
 
 import pytest
 
-from judgekeeper import start, start_label
+from judgekeeper import judge_check, start, start_label
 from judgekeeper.cli import _parser, main
 from judgekeeper.textio import split_command
 from tests import keyboard
@@ -142,7 +142,7 @@ def test_the_next_lines_say_what_to_do_and_why(tmp_path, capsys):
     _, out, _ = run(capsys, tmp_path, "--yes")
     after = out[out.index("Its decisions"):]
     assert after.splitlines()[1:5] == [
-        f"  {ok()} Your judge made a real decision on every answer.", "",
+        f"  {ok()} {judge_check.EVERY_ANSWER}", "",
         "Next: in your browser, mark each answer Pass or Fail.",
         "This shows how often your judge agrees with you."]
     for gone in ("rough check", "reliable", "minutes", "you mark Correct", "You will label",

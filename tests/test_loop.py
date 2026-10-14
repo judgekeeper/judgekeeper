@@ -105,7 +105,7 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "Your judge passed 20 and failed 16.",
         "",
         "Checked first (no AI call):",
-        "  Your judge made a real decision on every answer.",
+        "  Your judge gave a Pass or Fail on every answer (no errors or empty replies).",
         "",
         OPEN,
         "It shows one answer at a time. Your judge's verdict is hidden.",

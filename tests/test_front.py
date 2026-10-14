@@ -16,7 +16,7 @@ import tomllib
 
 import pytest
 
-from judgekeeper import __version__, front, judge_setup, start
+from judgekeeper import __version__, front, judge_check, judge_setup, start
 from judgekeeper.cli import main
 from judgekeeper.textio import quote_arg
 from tests.start_projects import (
@@ -93,7 +93,7 @@ def test_promptfoo(here, capsys):
     assert ('Your judge: openai:gpt-4.1-mini, rule "Is polite and correct. Second line of the '
             'rubric."') in out
     assert "Your judge passed 20 and failed 16." in out
-    assert "Checked first (no AI call):\n  Your judge made a real decision on every answer." \
+    assert f"Checked first (no AI call):\n  {judge_check.EVERY_ANSWER}" \
         in out
     assert assert_one_next_at_the_end(out) == START
     assert err == ""
