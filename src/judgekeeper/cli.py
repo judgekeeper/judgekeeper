@@ -4,7 +4,7 @@
 free, opens the page to mark answers on, and prints the result once there are enough marks; it
 ends with one `Next:` line. `judgekeeper mark` (mark.py) opens the page to mark more.
 `judgekeeper check` (check.py) re-tests a changed judge on the marks (exit 1: the new judge
-got worse); `--fast` only says whether it changed.
+got worse); it asks before any call to the judge.
 `judgekeeper start` (not in the help) still has its review, fix and asking again. Exit codes: 0
 success, 1 runtime failure, 2 usage error, 3 the person is needed (`judgekeeper` and `mark`:
 the Next: line says what to ask), 8 stopped at a question (`start`, below), 130 Ctrl-C.
@@ -34,7 +34,6 @@ import traceback
 from judgekeeper import __version__
 from judgekeeper.anchors import AnchorError
 from judgekeeper.custom import CallableError
-from judgekeeper.dev_requirements import RequirementsError
 from judgekeeper.find import TOOLS
 from judgekeeper.judgments import JudgmentsError
 from judgekeeper.label import LabelError
@@ -74,11 +73,16 @@ REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import",
 
 
 class _Parser(argparse.ArgumentParser):
-    """argparse echoes bad argument values in its errors; scrub them too."""
+    """argparse echoes bad argument values in its errors; scrub them too. An error of
+    `judgekeeper check` ends in one Next: line (its flags for automatic checks, --on, --off,
+    --hook, --fast, --ci, --baseline and --port, are gone)."""
 
     def error(self, message):
         self.print_usage(sys.stderr)
-        self.exit(EXIT_USAGE, f"{self.prog}: error: {printable(scrub(message))}\n")
+        after = ""
+        if self.prog.endswith(" check"):
+            after = f"Next: run `{program('check')}` yourself after you change your judge.\n"
+        self.exit(EXIT_USAGE, f"{self.prog}: error: {printable(scrub(message))}\n{after}")
 
 
 class _TopParser(_Parser):
@@ -224,25 +228,10 @@ def _parser() -> argparse.ArgumentParser:
                         help="when your judge changed, re-check it on your marks")
     ck.add_argument("path", nargs="?", default=".", metavar="PATH",
                     help="your project folder (default: this folder)")
-    how = ck.add_mutually_exclusive_group()
-    how.add_argument("--fast", action="store_true",
-                     help="only say whether your judge changed: no AI call, no network (for "
-                          "git pre-commit)")
-    how.add_argument("--hook", action="store_true",
-                     help="for a coding agent's hook: read the hook's JSON on stdin, answer in "
-                          "JSON")
-    how.add_argument("--on", action="store_true",
-                     help="open the page where you can turn on automatic checks")
-    how.add_argument("--off", action="store_true",
-                     help="turn automatic checks off: take out the hooks judgekeeper added")
-    how.add_argument("--baseline", action="store_true", help=argparse.SUPPRESS)
-    how.add_argument("--ci", action="store_true", help=argparse.SUPPRESS)
     ck.add_argument("--yes", action="store_true",
                     help="without a terminal: go ahead and ask your judge (it makes AI calls, "
                          "paid with your own key)")
-    ck.add_argument("--port", type=_port, default=None,
-                    help="with --on: port on 127.0.0.1 for the page (default 8765, or the next "
-                         "free one)")
+    p.check = ck
 
     st = sub.add_parser("start", parents=[common],
                         help="find your judge's saved results and check them against your own "
@@ -378,9 +367,7 @@ def cmd_mark(args) -> int:
 def cmd_check(args) -> int:
     from judgekeeper import check
 
-    return check.run(args.path, fast_only=args.fast, hook=args.hook,
-                     baseline_only=args.baseline, on=args.on, off=args.off, port=args.port,
-                     ci=args.ci, yes=args.yes)
+    return check.run(args.path, yes=args.yes)
 
 
 def cmd_front(args) -> int:
@@ -412,7 +399,13 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
         print(f"judgekeeper {command} was removed. Run {program()} in your project.",
               file=sys.stderr)
         raise SystemExit(EXIT_USAGE)
-    args = (_parser() if command else _front_parser()).parse_args(args_list)
+    parser = _parser() if command else _front_parser()
+    if command == "check":  # an unknown flag is said by `check` itself, with its Next: line
+        args, extra = parser.parse_known_args(args_list)
+        if extra:
+            parser.check.error(f"unrecognized arguments: {' '.join(extra)}")
+    else:
+        args = parser.parse_args(args_list)
     if not command:
         args.command = None
     return args
@@ -431,7 +424,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\nStopped.")
         return EXIT_STOPPED
     except (AnchorError, JudgmentsError, NormaliseError, TableError, CallableError,
-            LabelError, StartError, SettingsError, MapError, RequirementsError) as e:
+            LabelError, StartError, SettingsError, MapError) as e:
         _error(str(e))
         return EXIT_USAGE
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see

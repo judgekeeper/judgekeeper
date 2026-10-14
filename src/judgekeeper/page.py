@@ -42,8 +42,6 @@ NO_BROWSER = ("judgekeeper could not open a browser, so the link is printed here
               "coding agent can read it.")
 DONE = "When you're done, tell your coding agent, or run {program} in your terminal."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
-KEEP = "keep"  # the "Turn on" page (keep.py), in place of marking
-NOT_SHOWN = "not shown"  # no browser, no terminal, and the link is not for the agent
 OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
 ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
 
@@ -69,14 +67,6 @@ def choose_port(port: int, say) -> int:
     if is_page(port):
         say(ANOTHER_PROJECT.format(command=textio.program("--stop")))
     return next((other for other in OTHER_PORTS if port_free(other)), port)
-
-
-def name_of(folder: Path) -> str:
-    """The page open for this project, as the output names it."""
-    from judgekeeper.label import read_lock
-
-    lock = read_lock(folder) or {}
-    return "the judgekeeper page" if lock.get("view") == KEEP else "the marking page"
 
 
 def marking_status(session: StartSession) -> dict:
@@ -113,11 +103,7 @@ def page_server(ws: Workspace, port: int, command: str,
 
 
 def server_for(ws: Workspace, settings: dict, token: str):
-    """The page `settings` ask for: the "Turn on" page (view KEEP), else the marking page."""
-    if settings.get("view") == KEEP:
-        from judgekeeper import keep
-
-        return keep.keep_server(ws, int(settings["port"]), token)
+    """The marking page `settings` ask for."""
     return page_server(ws, int(settings["port"]), str(settings["command"]),
                        str(settings["start_command"]), token=token)
 
@@ -131,11 +117,10 @@ class Page:
 
 
 def open_new(ws: Workspace, port: int, command: str, start_command: str,
-             here: bool = False, view: str | None = None, say=lambda line: None) -> Page | None:
+             here: bool = False, say=lambda line: None) -> Page | None:
     """Close the page open for this project, then start a new one (on a free port when the
     default is taken, choose_port; `say` says why): in the background, or served by this
-    process (`here`, for --wait). `view` KEEP: the "Turn on" page, always in the
-    background. None when it could not start."""
+    process (`here`, for --wait). None when it could not start."""
     if is_open(ws.dir):
         background.stop(ws.dir)
     port = choose_port(port, say)
@@ -144,7 +129,7 @@ def open_new(ws: Workspace, port: int, command: str, start_command: str,
         return Page(server.url, server.port, server.token, server)
     token = secrets.token_urlsafe(32)
     settings = {"root": str(ws.root.resolve()), "port": port, "command": command,
-                "start_command": start_command, **({"view": view} if view else {})}
+                "start_command": start_command}
     url = background.start(ws.dir, settings, token)
     if url is None:
         return None
@@ -175,20 +160,17 @@ def terminal() -> bool:
 
 
 def show(say, page: Page, no_browser: bool, wait: bool, opened: str = OPEN,
-         name: str = "Marking page", for_agent: bool = True) -> str | None:
+         name: str = "Marking page") -> str | None:
     """Open the page in the person's browser and say so (BROWSER). At a terminal, print the
     link when no browser opened or with --wait (TERMINAL). Without one, when no browser
     opened: say so, stamp the page's marks, then print the link (PRINTED). None when the
     marks could not be stamped: then the link is not printed. `opened` is said when the
-    browser opened it, and `name` names the printed link. Not `for_agent` (a page only the
-    person may answer): without a browser or a terminal nothing is printed (NOT_SHOWN)."""
+    browser opened it, and `name` names the printed link."""
     at_terminal = terminal()
     in_browser = not no_browser and webbrowser.open(page.url)
     if in_browser and not (at_terminal and wait):
         say(opened)
         return BROWSER
-    if not at_terminal and not for_agent:
-        return NOT_SHOWN
     if not at_terminal:
         say(NO_BROWSER)
         if not _stamp_printed(page):
@@ -219,14 +201,14 @@ def _watch() -> None:
 
 def main() -> int:
     """`python -m judgekeeper.page`, as background.start runs it: one JSON line on stdin holds
-    the token, the project's root, the port, the two commands the page shows and which page
-    (`view`). Errors go to stderr (page.log), never the token."""
+    the token, the project's root, the port and the two commands the page shows. Errors go to
+    stderr (page.log), never the token."""
     _watch()
     try:
         given = json.loads(sys.stdin.readline())
         token, root = str(given["token"]), Path(given["root"])
         settings = {"port": int(given["port"]), "command": str(given["command"]),
-                    "start_command": str(given["start_command"]), "view": given.get("view")}
+                    "start_command": str(given["start_command"])}
     except (ValueError, KeyError, TypeError):
         faulthandler.cancel_dump_traceback_later()
         print("judgekeeper: the page got no token on its input, so it did not start.",

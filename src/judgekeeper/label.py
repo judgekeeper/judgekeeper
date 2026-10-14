@@ -214,15 +214,13 @@ RELEASE_PAUSE = 0.05
 
 
 def read_lock(folder: Path) -> dict | None:
-    """{"pid", "port", "stop", "view"} of the page named in the project's lock, or None.
-    `view` names a page that is not for marking ("keep": the "Turn on" page), else None.
-    When server.json can't be read, its copy (page.json) is."""
+    """{"pid", "port", "stop"} of the page named in the project's lock, or None. When
+    server.json can't be read, its copy (page.json) is."""
     for name in (LOCK, LOCK_COPY):
         try:
             lock = json.loads((Path(folder) / name).read_text(encoding="utf-8"))
-            view = lock.get("view")
             return {"pid": int(lock["pid"]), "port": int(lock["port"]),
-                    "stop": str(lock["stop"]), "view": view if isinstance(view, str) else None}
+                    "stop": str(lock["stop"])}
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             continue
     return None
@@ -316,12 +314,11 @@ class LabelServer:
         self._stopped = False
         self.lock: Path | None = None  # the lock file this server wrote (make_server)
 
-    def hold(self, folder: Path, view: str | None = None) -> None:
-        """Write the project's lock and its copy: this process, port, stop secret and which
-        page (never the token: a coding agent can read .judgekeeper/)."""
+    def hold(self, folder: Path) -> None:
+        """Write the project's lock and its copy: this process, port and stop secret (never
+        the token: any program that can read .judgekeeper/ can read the lock)."""
         self.lock = Path(folder) / LOCK
-        held = {"pid": os.getpid(), "port": self.port, "stop": self.stop_secret}
-        text = json.dumps({**held, **({"view": view} if view else {})})
+        text = json.dumps({"pid": os.getpid(), "port": self.port, "stop": self.stop_secret})
         write_replacing(self.lock, text)
         write_replacing(self.lock.with_name(LOCK_COPY), text)
 
@@ -571,12 +568,12 @@ def _handler(server: LabelServer):
 def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
                 page: str, switches: dict | None = None,
                 lock: Path | None = None, stays: bool = False,
-                token: str | None = None, view: str | None = None) -> LabelServer:
+                token: str | None = None) -> LabelServer:
     """A server for `session`, or a LabelError that says why there cannot be one. With `lock`
     (the project's .judgekeeper/), one server per project: when its page is already open,
     that is the error; else this server holds the lock until it stops. Two pages on one
     project would each write their marks over the other's. `token`: the one its caller made
-    (default: a new one). `view` goes in the lock: which page it is, when not for marking."""
+    (default: a new one)."""
     if lock is not None and is_open(lock):
         from judgekeeper.textio import program
 
@@ -592,7 +589,7 @@ def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
         raise LabelError(f"cannot listen on {HOST}:{port} ({e.strerror}); try --port") from None
     if lock is not None:
         try:
-            server.hold(lock, view)
+            server.hold(lock)
         except OSError:
             pass  # no lock: the labels' own write still says when it can't save
     return server

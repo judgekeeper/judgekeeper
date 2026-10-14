@@ -913,14 +913,14 @@ def page_content(r: dict, marking: str | None = None) -> dict:
 
 def result_html(r: dict, back: str | None = None, marking: str | None = None,
                 history: list[dict] | None = None) -> str:
-    """The result page; `history`: the History rows of report.html (keep.report_rows)."""
+    """The result page; `history`: the History rows of report.html (check.report_rows)."""
     return result_page({**page_content(r, marking), "history": history or []}, back)
 
 
 def write_report(ws: Workspace) -> None:
     """report.html again from the saved result, with the checks so far in its History; nothing
     when there is no result yet."""
-    from judgekeeper import keep
+    from judgekeeper import check
 
     try:
         r = json.loads(ws.result_json.read_text(encoding="utf-8"))
@@ -928,7 +928,7 @@ def write_report(ws: Workspace) -> None:
         return
     if isinstance(r, dict):
         write_replacing(ws.report_html, result_html(_scrubbed(r),
-                                                    history=_scrubbed(keep.report_rows(ws))))
+                                                    history=_scrubbed(check.report_rows(ws))))
 
 
 def page_template(about: dict | None = None, command: str | None = None) -> str:
@@ -1046,10 +1046,10 @@ def store_result(ws: Workspace, session: StartSession,
             n += 1
         ws.result_json.replace(target)
     _write_json(ws.result_json, r)
-    from judgekeeper import keep
+    from judgekeeper import check
 
     write_replacing(ws.report_html, result_html(_scrubbed(r),
-                                                history=_scrubbed(keep.report_rows(ws))))
+                                                history=_scrubbed(check.report_rows(ws))))
     if ws.result_html.is_file() and not ws.result_html.is_symlink():
         ws.result_html.unlink()
     marks.append(ws.history_jsonl, _scrubbed(history_line(ws, r)))
