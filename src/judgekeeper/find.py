@@ -152,7 +152,13 @@ def sniff_json(head: bytes) -> str | None:
         return "promptfoo"
     if re.search(r'"(testCases|conversationalTestCases|testRunData)"\s*:', text):
         return "deepeval"
+    if re.match(r'\{\s*"head"\s*:\s*\{', text) and re.search(r'"body"\s*:\s*\[', text):
+        return PROMPTFOO_TABLE
     return None
+
+
+PROMPTFOO_TABLE = "promptfoo-table"  # `promptfoo eval -o table.json`: no judge's decisions
+TABLE_OUTPUT = "is promptfoo's table output, which doesn't keep the judge's own decisions"
 
 
 def table_columns(path: Path) -> list[str]:
@@ -218,10 +224,18 @@ def classify_file(path: Path) -> str | None:
     if suffix == ".json":
         if DEEPEVAL_RUN.fullmatch(path.name) or path.name in DEEPEVAL_COPIES:
             return "deepeval"
-        return sniff_json(_head(path))
+        tool = sniff_json(_head(path))
+        return None if tool == PROMPTFOO_TABLE else tool
     if not suffix and DEEPEVAL_RUN.fullmatch(path.name) and sniff_json(_head(path)) == "deepeval":
         return "deepeval"  # DeepEval before 3.9.9: results/<date>_<time>
     return None
+
+
+def is_promptfoo_table(path: Path) -> bool:
+    try:
+        return path.suffix.lower() == ".json" and sniff_json(_head(path)) == PROMPTFOO_TABLE
+    except OSError:
+        return False
 
 
 def _made_at(result: Result) -> datetime | None:
@@ -336,7 +350,9 @@ class _Walk:
             elif name not in (INSPECT_SKIP, DEEPEVAL_TEMP) and self.json_sniffed < MAX_JSON:
                 self.json_sniffed += 1
                 tool = sniff_json(_head(path))
-                if tool:
+                if tool == PROMPTFOO_TABLE:
+                    self.search.unreadable.append((self.rel(path), TABLE_OUTPUT))
+                elif tool:
                     self.add(tool, path, size)
         elif suffix in TABLE_SUFFIXES and depth <= TABLE_DEPTH:
             if _head(path)[:2] in (b"\xff\xfe", b"\xfe\xff"):  # UTF-16: not read, but said

@@ -303,7 +303,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     o = talk.options
     if path.is_file():
         if o["tool"] is not None or find.classify_file(path) is not None or \
-                path.suffix.lower() not in own_format.SUFFIXES:
+                path.suffix.lower() not in own_format.SUFFIXES or find.is_promptfoo_table(path):
             return path, None
         file, here = path.resolve(), Path.cwd().resolve()
         root = here if file.is_relative_to(here) else project_root(file.parent)
@@ -314,7 +314,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
             or start._saved(root)):
         return path, None
     search = find.search(root)
-    if (any(search.readable(t) for t in find.TOOLS) or search.too_big()
+    if (any(search.readable(t) for t in find.TOOLS) or search.too_big() or search.unreadable
             or find.records_above(root) is not None or "promptfoo" in search.signs):
         return path, None  # find_judge reads them, or says how
     own = own_format.search(root)
