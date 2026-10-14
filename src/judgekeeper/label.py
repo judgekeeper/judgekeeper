@@ -56,6 +56,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 from judgekeeper.anchors import LABELS
 from judgekeeper.marks import PRINTED
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue
+from judgekeeper.redact import visible_value
 from judgekeeper.table import (
     TEMPLATE_COLUMNS,
     TableError,
@@ -197,9 +198,16 @@ class LabelSession:
         self.out.parent.mkdir(parents=True, exist_ok=True)
         write_replacing(self.out, buf.getvalue(), newline="")
 
+def shown(data) -> str:
+    """`data` as the JSON a page is sent: no value holds a hidden character (ESC, zero-width,
+    bidirectional controls: redact.visible)."""
+    return json.dumps(visible_value(data), ensure_ascii=False)
+
+
 def _json_for_html(data) -> str:
-    """JSON that is safe inside a <script> element: no <, > or & characters at all."""
-    return (json.dumps(data, ensure_ascii=False).replace("&", "\\u0026")
+    """JSON that is safe inside a <script> element: no <, > or & characters at all, and no
+    hidden character (shown)."""
+    return (shown(data).replace("&", "\\u0026")
             .replace("<", "\\u003c").replace(">", "\\u003e")
             .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
 
@@ -414,8 +422,7 @@ def _handler(server: LabelServer):
                 self.wfile.write(body)
 
         def _json(self, status: int, data) -> None:
-            self._send(status, json.dumps(data, ensure_ascii=False).encode("utf-8"),
-                       "application/json; charset=utf-8")
+            self._send(status, shown(data).encode("utf-8"), "application/json; charset=utf-8")
 
         def _allowed(self, url) -> bool:
             """The token, or the stop secret on the two paths it opens (/alive, /stop)."""

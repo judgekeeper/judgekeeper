@@ -782,3 +782,41 @@ def test_inspect_loggers_say_nothing_below_critical():
     with quiet():
         assert not logging.getLogger("inspect_ai.log").isEnabledFor(logging.ERROR)
     assert logging.getLogger("inspect_ai").level == logging.NOTSET
+
+
+# Hidden characters ------------------------------------------------------------------------
+
+HIDDEN = ("\u200b\u200c\u200d\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068"
+          "\u2069\ufeff\x1b")
+
+
+def test_names_lose_bidi_and_zero_width_characters():
+    from judgekeeper.redact import one_line, printable
+
+    for show in (printable, one_line):
+        assert show(f"safe{HIDDEN}name") == "safename"
+    assert printable("tab\tand\nnew line") == "tab\tand\nnew line"
+
+
+def test_report_and_page_show_no_hidden_characters(project, capsys):
+    """A results file whose judge name, answers and reasons hold bidi controls, zero-width
+    characters and ESC: none reach report.html or what the marking page is sent."""
+
+    from judgekeeper import label, start, start_label
+    from tests.start_projects import promptfoo_data, split
+    from tests.test_leak import _label_everything
+
+    data = promptfoo_data(split(20, 16), metric=f"polite{HIDDEN}", tag=f" {HIDDEN}[31m")
+    for row in data["results"]["results"]:
+        for c in row["gradingResult"]["componentResults"]:
+            c["reason"] = f"why{HIDDEN}"
+    _dump(project / "results.json", data)
+    ws = start_label.prepare(start.find_judge(project), say=lambda line: None)
+    start_label.save_result(ws, _label_everything(ws), say=lambda line: None)
+    report = ws.report_html.read_text(encoding="utf-8")
+    state = label.shown(start_label.StartSession(ws).state())
+    for c in HIDDEN:
+        assert c not in report, hex(ord(c))
+        assert c not in state, hex(ord(c))
+    assert "\\u001b" not in state and "[31m" in state
+    assert "polite" in report
