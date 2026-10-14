@@ -583,9 +583,12 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
 
 OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({names}). "
                 "judgekeeper reads judges run with mlflow.genai.evaluate() and scorers "
-                "(MLflow 3). Reading these older results isn't supported.")
+                "(MLflow 3). Reading these older results isn't supported. To check this judge, "
+                "run it with mlflow.genai.evaluate() and scorers, or save its verdicts as a CSV "
+                "with input, output and verdict columns.")
 OLD_EVALUATE_NEXT = ("run your judge with mlflow.genai.evaluate() and scorers, then run "
-                     "`judgekeeper` again.")
+                     "`{command}` again; or save its verdicts as a CSV and run "
+                     "`{program} <the CSV>`.")
 # The run metrics mlflow.evaluate() logs for a judged metric: faithfulness/v1/mean, ...
 _OLD_METRIC = re.compile(r"(.+/v\d+)/(mean|variance|p90)")
 
@@ -647,8 +650,9 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
             raise usage_error(missing[0])
         old = [] if found else _old_evaluate(uri)
         if old:
-            talk.say(OLD_EVALUATE.format(names=", ".join(old)))
-            raise talk.stop(EXIT_USAGE, OLD_EVALUATE_NEXT)
+            _note(talk, OLD_EVALUATE.format(names=", ".join(old)))
+            raise talk.stop(EXIT_USAGE, OLD_EVALUATE_NEXT.format(command=talk.command(),
+                                                                 program=talk.program))
         if not found:
             raise StartError(f"no MLflow experiment in {store.rel} has judge assessments")
         if len(found) > 1:
