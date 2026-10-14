@@ -36,7 +36,10 @@ with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, option
 
 from __future__ import annotations
 
+import logging
 import math
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from judgekeeper.anchors import canonical_json
@@ -84,6 +87,19 @@ def _mark(score: dict, label) -> Mark:
     return Mark(problem=problem, tool_counted_as=counted if problem else None)
 
 
+@contextmanager
+def quiet() -> Iterator[None]:
+    """Around inspect_ai's reading: its loggers show only CRITICAL (a log it cannot read is
+    said here, in plain words, never with its text). Put back afterwards."""
+    logger = logging.getLogger("inspect_ai")
+    level = logger.level
+    logger.setLevel(logging.CRITICAL)
+    try:
+        yield
+    finally:
+        logger.setLevel(level)
+
+
 def _load(path: Path) -> dict:
     try:
         from inspect_ai.log import read_eval_log
@@ -91,7 +107,8 @@ def _load(path: Path) -> dict:
         read_eval_log = None
     if read_eval_log is not None:
         try:
-            return read_eval_log(str(path)).model_dump(mode="json")
+            with quiet():
+                return read_eval_log(str(path)).model_dump(mode="json")
         except Exception:  # noqa: BLE001 - a log cut short, empty or not Inspect's
             raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
                                               "an Inspect AI log") from None
@@ -110,7 +127,8 @@ def eval_header(path: str | Path) -> dict:
         read_eval_log = None
     if read_eval_log is not None:
         try:
-            spec = read_eval_log(str(path), header_only=True).eval.model_dump(mode="json")
+            with quiet():
+                spec = read_eval_log(str(path), header_only=True).eval.model_dump(mode="json")
         except Exception:  # noqa: BLE001 - Inspect's own errors: the header only shapes advice
             return {}
     elif path.suffix.lower() == ".eval":

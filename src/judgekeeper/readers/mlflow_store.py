@@ -71,6 +71,7 @@ from judgekeeper.records import (
     HUMAN,
     LLM,
     NO_MARK,
+    Damaged,
     Mark,
     RecordList,
     RecordsError,
@@ -78,6 +79,9 @@ from judgekeeper.records import (
     derive_record_id,
 )
 from judgekeeper.textio import get_extra
+
+# The loggers MLflow's reading goes through: MLflow's own, and the database layers under it
+LOGGERS = ("mlflow", "alembic", "sqlalchemy")
 
 NEEDS_EXTRA = "reading MLflow needs mlflow. To read it, {get}."
 KINDS = {"LLM_JUDGE": LLM, "AI_JUDGE": LLM, "HUMAN": HUMAN, "CODE": CODE}
@@ -166,9 +170,11 @@ def is_folder_store(uri) -> bool:
 def quiet() -> Iterator[None]:
     """Around judgekeeper's own MLflow calls: MLflow says nothing of its own. Its hint for
     coding agents (logged on `import mlflow` when an agent runs it) is switched off with
-    MLFLOW_DISABLE_AGENT_HINT=1, and its loggers show errors only (it warns once per trace it
-    cannot download, for example). Both are put back afterwards, also after an error; a
-    value the user set is left as it is. Never for the user's shell, never in a file."""
+    MLFLOW_DISABLE_AGENT_HINT=1, and its loggers (and the database layers' under it) show
+    only CRITICAL: it warns once per trace it cannot download, and logs a traceback that
+    holds the stored text when a trace has a byte that isn't UTF-8. Both are put back
+    afterwards, also after an error; a value the user set is left as it is. Never for the
+    user's shell, never in a file."""
     set_hint = HINT not in os.environ
     if set_hint:
         os.environ[HINT] = "1"
@@ -176,13 +182,15 @@ def quiet() -> Iterator[None]:
         import mlflow  # noqa: F401 - MLflow sets its loggers' level on import
     except ImportError:
         pass
-    logger = logging.getLogger("mlflow")
-    level = logger.level
-    logger.setLevel(logging.ERROR)
+    loggers = [logging.getLogger(name) for name in LOGGERS]
+    levels = [logger.level for logger in loggers]
+    for logger in loggers:
+        logger.setLevel(logging.CRITICAL)
     try:
         yield
     finally:
-        logger.setLevel(level)
+        for logger, level in zip(loggers, levels):
+            logger.setLevel(level)
         if set_hint:
             os.environ.pop(HINT, None)
 
@@ -423,14 +431,50 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     said: list[str] = []
     uri = tracking_uri or os.environ.get("MLFLOW_TRACKING_URI")
     with folder_store_allowed(uri, say=said.append), quiet():
-        files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric,
-                             folder_of(uri))
+        try:
+            files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature,
+                                 metric, folder_of(uri))
+        except UNREADABLE:  # caught before MLflow says more: its words can hold the text
+            raise damaged_store(uri) from None
     files[-1][1].notes[:0] = said
     return files
 
 
+def _unreadable() -> tuple[type[BaseException], ...]:
+    """What reading a damaged store raises: a byte that isn't text, a database that isn't
+    one; and SQLAlchemy's own errors, which wrap them."""
+    import sqlite3
+
+    found: list[type[BaseException]] = [UnicodeDecodeError, sqlite3.DatabaseError,
+                                        RecursionError, OverflowError]
+    try:
+        from sqlalchemy.exc import DatabaseError
+    except ImportError:
+        pass
+    else:
+        found.append(DatabaseError)
+    return tuple(found)
+
+
+UNREADABLE = _unreadable()
+
+
+def damaged_store(uri) -> Damaged:
+    """A store judgekeeper can't read, in plain words: its name, never MLflow's error."""
+    folder = folder_of(uri)
+    name = folder.name if folder is not None else Path(
+        str(uri).removeprefix("sqlite:///")).name if uri else "Your MLflow store"
+    return Damaged(f"{name} is damaged: judgekeeper can't read one of its traces.",
+                   "find the damaged trace with `mlflow ui` (or log your evaluation again), "
+                   "then run `{command}`.")
+
+
 class JudgeCallsFailed(RecordsError):
-    """Every call of the experiment's judge failed: MLflow saved only errors."""
+    """Every call of the experiment's judge failed: MLflow saved only errors. The errors'
+    text is never said: it can hold an answer's text."""
+
+    next_step = ("fix your judge's calls (MLflow keeps each error with its trace), run your "
+                 "evaluation again, then run `{command}`.")
 
 
 def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, experiment) -> None:
@@ -445,10 +489,9 @@ def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, exper
     gone = [f for f in failed if not wanted or f[0] in wanted]
     if not judged and gone:
         names = sorted({str(f[1]["name"]) for f in gone})
-        first = " ".join(str(gone[0][2]).split())[:300]
         raise JudgeCallsFailed(
             f"MLflow experiment {experiment!r}: every call of your judge "
-            f"{', '.join(names)} failed ({len(gone)} saved as errors). First error: {first}")
+            f"{', '.join(names)} failed ({len(gone)} saved as errors).")
     for run, fields, error in gone:
         evaluator = evaluators.get((run, fields["name"])) or evaluators.get((None,
                                                                              fields["name"]))

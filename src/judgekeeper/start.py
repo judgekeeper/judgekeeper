@@ -45,6 +45,7 @@ from judgekeeper.records import (
     HUMAN,
     LLM,
     NO_MARK,
+    Damaged,
     Mark,
     RecordList,
     RecordsError,
@@ -618,7 +619,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         try:
             found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
         except (TracesMissing, JudgeCallsFailed) as e:
-            raise StartError(str(e)) from None
+            raise usage_error(e) from None
         except RecordsError as e:
             if not str(e).startswith("no MLflow experiment named"):
                 raise
@@ -633,6 +634,8 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
             except (TracesMissing, JudgeCallsFailed) as e:
                 missing.append(str(e))
                 continue
+            except Damaged:
+                raise
             except RecordsError:  # an experiment with no traces
                 continue
             if any(r.annotator_kind == LLM for _, recs in runs for r in recs):

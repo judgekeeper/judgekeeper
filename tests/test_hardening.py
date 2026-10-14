@@ -727,3 +727,58 @@ def test_an_answer_over_several_lines_is_not_a_broken_quote(project, capsys):
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert "quote" not in text
+
+
+# Third-party loggers --------------------------------------------------------------------------
+
+def test_a_bad_byte_in_an_mlflow_store_prints_no_answer_and_no_traceback(tmp_path, monkeypatch,
+                                                                        capsys):
+    """MLflow logs a traceback holding the stored text when a trace has a byte that isn't
+    UTF-8: nothing of it reaches the output."""
+    import logging
+    import sqlite3
+
+    from tests.conftest import build_mlflow_store
+
+    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+    root = tmp_path / "proj"
+    root.mkdir()
+    build_mlflow_store(root)
+    db = sqlite3.connect(root / "mlflow.db")
+    trace, span, content = db.execute("select trace_id, span_id, content from spans").fetchone()
+    bad = content.encode("utf-8")
+    bad = bad[:200] + b"\xff\xfe ZQOUT the stored answer" + bad[200:]
+    db.execute("update spans set content = ? where trace_id = ? and span_id = ?",
+               (bad, trace, span))
+    db.commit()
+    db.close()
+    monkeypatch.chdir(root)
+    handler = logging.StreamHandler(__import__("sys").stderr)  # as a person's setup may log
+    logging.getLogger().addHandler(handler)
+    try:
+        code, text = run(capsys, "--no-browser")
+    finally:
+        logging.getLogger().removeHandler(handler)
+    assert_rules(code, text)
+    assert code == 2
+    assert "mlflow.db is damaged: judgekeeper can't read one of its traces." in text
+
+
+def test_mlflow_loggers_say_nothing_below_critical():
+    import logging
+
+    from judgekeeper.readers.mlflow_store import quiet
+
+    with quiet():
+        for name in ("mlflow", "mlflow.store.tracking", "alembic", "sqlalchemy"):
+            assert not logging.getLogger(name).isEnabledFor(logging.ERROR), name
+
+
+def test_inspect_loggers_say_nothing_below_critical():
+    import logging
+
+    from judgekeeper.readers.inspect_logs import quiet
+
+    with quiet():
+        assert not logging.getLogger("inspect_ai.log").isEnabledFor(logging.ERROR)
+    assert logging.getLogger("inspect_ai").level == logging.NOTSET
