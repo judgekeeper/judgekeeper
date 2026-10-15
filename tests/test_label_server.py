@@ -510,7 +510,7 @@ def test_a_body_over_the_limit_gets_413_not_a_dropped_connection(tmp_path, serve
         answer = b""
         while chunk := s.recv(65536):  # a reset raises here instead of ending cleanly
             answer += chunk
-    assert answer.split(b"\r\n", 1)[0] == b"HTTP/1.0 413 Request Entity Too Large"
+    assert answer.startswith(b"HTTP/1.0 413 ")  # its words differ by Python version
     assert b"too large" in answer.lower()
     assert not (tmp_path / "labels.csv").exists()
 
