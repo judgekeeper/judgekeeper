@@ -19,7 +19,7 @@ NAV = [("index.html", "Home"), ("start.html", "Guide"), ("docs.html", "Docs"),
        ("reference.html", "Reference"), (GITHUB, "GitHub")]
 START_HERE = [("start.html", "Guide"), ("docs.html", "Docs"), ("reference.html", "Reference"),
               (GITHUB, "GitHub")]
-MORE = [("setup.html", "Setup and API keys"),
+MORE = [("check.html", "Free check in your browser"), ("setup.html", "Setup and API keys"),
         ("learn.html", "How it works, in depth")]
 FONTS = ("bricolage-grotesque-latin-800-normal.woff2",)  # body text uses the system font
 LOGO = ('<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">'

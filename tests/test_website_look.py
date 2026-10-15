@@ -30,6 +30,7 @@ HOME = WEBSITE / "index.html"
 CSS = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
 SRC = ROOT / "src" / "judgekeeper"
 OLDER = {"setup.html", "learn.html"}
+CHECK = "check.html"  # the free check in the browser: a tool, not an older page
 STEPS = [("install", "Install"), ("connect", "Connect your results"), ("start", "Start"),
          ("label", "Mark"), ("result", "Your result"), ("improve", "Improve your judge")]
 ROUTE = ["Install", "Connect", "Start", "Mark", "Result", "Improve"]
@@ -98,7 +99,7 @@ def test_every_page_has_the_footer_with_start_here_and_more():
 def test_more_names_every_page_outside_the_navigation():
     in_nav = {href for href, _ in NAV}
     outside = {p.name for p in pages()} - in_nav
-    assert outside == {href for href, _ in MORE} == OLDER
+    assert outside == {href for href, _ in MORE} == OLDER | {CHECK}
 
 
 # Nothing from another server -------------------------------------------------------------
@@ -531,7 +532,7 @@ def test_the_llmbar_result_names_the_datasets_makers_and_licence():
         a.attrs.get("href") for a in _all(section, "a")]
 
 
-ORDER = ["index.html", "start.html", "docs.html", "reference.html", "setup.html",
+ORDER = ["index.html", "start.html", "check.html", "docs.html", "reference.html", "setup.html",
          "learn.html"]
 
 

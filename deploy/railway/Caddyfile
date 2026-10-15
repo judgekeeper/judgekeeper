@@ -22,6 +22,10 @@
 	root * /srv
 	encode zstd gzip
 	import security
+	# The free check reads a file inside the page: it may connect to nothing, not even this
+	# site. ">" sets the policy when the response is written, after the site's own above.
+	@check path /check /check.html
+	header @check >Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 	# /start finds start.html.
 	try_files {path} {path}.html
 	file_server

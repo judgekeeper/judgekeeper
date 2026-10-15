@@ -887,7 +887,8 @@
     var zone = document.getElementById('fc-drop');
     var input = document.getElementById('fc-file');
     var out = document.getElementById('fc-result');
-    if (!zone || !input || !out) return;
+    var next = document.getElementById('fc-next');
+    if (!zone || !input || !out || !next) return;
 
     zone.addEventListener('click', function () { input.click(); });
     input.addEventListener('change', function () { if (input.files && input.files[0]) take(input.files[0], input.files.length); input.value = ''; });
@@ -920,7 +921,8 @@
 
     function showError(message) {
       out.replaceChildren();
-      var card = el('div', 'fc-card fc-problem');
+      next.hidden = true;
+      var card = el('div', 'card fc-problem');
       card.appendChild(el('p', 'fc-problem-h', message));
       card.appendChild(el('p', 'small', 'Pick another file, or run uvx judgekeeper in your project: it finds your results by itself.'));
       out.appendChild(card);
@@ -929,15 +931,9 @@
     function show(result, count) {
       if (!result.ok) return showError(result.message);
       out.replaceChildren();
-      if (count > 1) out.appendChild(el('p', 'small fc-note', 'You gave ' + count + ' files. This page reads one at a time: it read ' + result.file + '.'));
+      if (count > 1) out.appendChild(el('p', 'small', 'You gave ' + count + ' files. This page reads one at a time: it read ' + result.file + '.'));
       var current = 0;
-      var term = el('div', 'term term-static fc-term');
-      var top = el('div', 'top');
-      top.append(el('i'), el('i'), el('i'), el('span', null, 'Free check · in this page'));
-      var body = el('div', 'body');
-      var pre = el('pre');
-      body.appendChild(pre);
-      term.append(top, body);
+      var pre = el('pre', 'output fc-term');
 
       if (result.judges.length > 1) {
         var pick = el('div', 'fc-pick');
@@ -947,7 +943,7 @@
         group.setAttribute('role', 'radiogroup');
         group.setAttribute('aria-labelledby', id);
         var buttons = result.judges.map(function (j, i) {
-          var b = el('button', 'vbtn', j.name);
+          var b = el('button', 'btn secondary', j.name);
           b.type = 'button';
           b.setAttribute('role', 'radio');
           b.addEventListener('click', function () { select(i, false); });
@@ -966,42 +962,28 @@
           current = i;
           buttons.forEach(function (b, k) {
             b.setAttribute('aria-checked', k === i ? 'true' : 'false');
-            b.setAttribute('aria-pressed', k === i ? 'true' : 'false');
             b.tabIndex = k === i ? 0 : -1;
           });
           if (focus) buttons[i].focus();
           paint();
         };
-        out.appendChild(term);
+        out.appendChild(pre);
         select(0, false);
       } else {
-        out.appendChild(term);
+        out.appendChild(pre);
         paint();
       }
+      next.hidden = false;
 
       function paint() {
         pre.replaceChildren();
         reportLines(result, result.judges[current]).forEach(function (line) {
           var row = el('span', 'ln');
           if (line.k) row.appendChild(el('span', 'dim', line.k));
-          row.appendChild(el('span', line.tone || null, line.text));
+          row.appendChild(el('span', { g: 'ok', y: 'care', dim: 'dim' }[line.tone] || null, line.text));
           pre.appendChild(row);
         });
       }
-
-      var next = el('div', 'fc-card fc-next');
-      next.appendChild(el('p', 'fc-limit', LIMIT));
-      var box = el('div', 'copybox');
-      box.appendChild(el('span', 'cmd', 'uvx judgekeeper'));
-      var copy = el('button', 'copy', 'Copy');
-      copy.type = 'button';
-      copy.addEventListener('click', function () {
-        var ok = function () { copy.textContent = 'Copied'; copy.classList.add('done'); setTimeout(function () { copy.textContent = 'Copy'; copy.classList.remove('done'); }, 1500); };
-        if (navigator.clipboard) navigator.clipboard.writeText('uvx judgekeeper').then(ok, ok); else ok();
-      });
-      box.appendChild(copy);
-      next.appendChild(box);
-      out.appendChild(next);
     }
   }
 
