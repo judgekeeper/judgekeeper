@@ -13,7 +13,8 @@ decides what happens.
 |                                     | question, run), nothing; --review, --fix, --ask-again  |
 |                                     | and --label-more answer                                |
 | a result, and new verdicts from the | a re-check: the saved labels against the new verdicts, |
-| same tool and judge name            | with the new pool's group sizes, next to the last one  |
+| same tool and judge name            | weighted by the groups the marks were picked by and    |
+|                                     | that pool's sizes, next to the last one                |
 | anything, with --new                | moves it all (except .gitignore, baseline.json and     |
 |                                     | records/) to previous-<date>/ and starts fresh;        |
 |                                     | deletes nothing                                        |
@@ -43,6 +44,7 @@ from judgekeeper.start_label import (
     ROUGH,
     StartSession,
     Workspace,
+    _write_json,
     compute,
     marks_words,
     prepare,
@@ -639,8 +641,16 @@ def _recheck(ws: Workspace, found, last: dict, talk, port: int, open_browser: bo
         if p.is_file():
             shutil.copy2(p, archive / p.name)
     old = marks.read(ws.marks)
+    before = ws.data()  # the groups the marks were picked by, and that pool's sizes
+    picked = before.get("picked") or {
+        "pool": {g: before["pool"][g] for g in ("pass", "fail")},
+        "groups": {q["id"]: q["group"] for q in before["queue"]}}
     ws.marks.unlink(missing_ok=True)
     prepare(found, talk.say)
+    data = ws.data()
+    data["picked"] = {"pool": picked["pool"],
+                      "groups": {i: g for i, g in picked["groups"].items() if i in back}}
+    _write_json(ws.start, data)
     for item_id in back:  # the marks still in the results keep their stamps
         marks.append(ws.marks, old.last[item_id])
     session = StartSession(ws)

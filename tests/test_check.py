@@ -217,11 +217,17 @@ SCENE_6 = [
     "Step 5 of 5: Re-check",
     "",
     f"Your judge changed: model {MODEL} -> {HAIKU}.",
-    "Re-checked on your 50 marks (50 free from your new results).",
+    "Re-checked for free from your new results.",
     "",
-    "  Answers you passed:  old judge 100%, new judge 100%.  No drop seen.",
-    "  Answers you failed:  old judge 100%, new judge 64%.  Worse: it",
-    "  now passes 9 answers you failed.",
+    "Re-checked on all 50 of your marks:",
+    "",
+    "  You passed:  old judge right on 25 of 25, new judge on 25 of 25",
+    "    No drop bigger than 20 points: none turned wrong, none turned right.",
+    "    These marks can't rule out a drop of up to 10 points.",
+    "",
+    "  You failed:  old judge right on 25 of 25, new judge on 16 of 25",
+    "    Worse: 9 turned wrong and none turned right.",
+    "    That is down 36 points, and it could be as much as 52.",
     "",
 ]
 
@@ -234,8 +240,8 @@ def test_a_model_change_rechecked_free(here, capsys, no_calls):
     lines = out.splitlines()
     start_at = lines.index(SCENE_6[0])
     assert lines[start_at:start_at + len(SCENE_6)] == SCENE_6
-    assert re.search(r"^This check can see a drop of \d+ points or more\.$", out, re.MULTILINE)
-    assert "Your new judge passes 9 answers you failed." in out
+    for gone in ("can see a drop", "No drop seen", "%"):  # counts only on this screen
+        assert gone not in out, gone
     assert _next(out) == ("Next: go back to the old judge, or change your judge and run "
                           "`judgekeeper check` again.")
     saved = judge_setup.read(ws)["setup"]
@@ -247,7 +253,8 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_c
     _results(here, MARKED, model=HAIKU)
     code, out = run(capsys)
     assert code == 0
-    assert "  Answers you failed:  old judge 100%, new judge 100%.  No drop seen." in out
+    assert "  You failed:  old judge right on 25 of 25, new judge on 25 of 25" in out
+    assert "    No drop bigger than 20 points: none turned wrong, none turned right." in out
     assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
                           "change your judge.")
     code, out = run(capsys)
@@ -297,7 +304,8 @@ def test_a_promptfoo_version_bump_only(here, capsys, no_calls):
     assert code == 0
     assert ("Your eval tool changed: promptfoo 0.124.1 -> 0.125.0. Your judge's rule and model "
             "are the same.") in _flat(out)
-    assert "Re-checked on your 50 marks (50 free from your new results)." in out
+    assert "Re-checked for free from your new results." in out
+    assert "Re-checked on all 50 of your marks:" in out
 
 
 def test_an_inspect_version_bump_only(here, capsys, no_calls):
@@ -360,8 +368,9 @@ def test_with_yes_the_rest_is_asked_again(here, capsys, judge):
     _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
     code, out = run(capsys, "--yes")
     assert code == 1
-    assert "Re-checked on your 50 marks (50 asked again)." in out
-    assert "it now passes 9 answers you failed" in _flat(out)
+    assert "Re-checked on all 50 of your marks:" in out
+    assert "Re-checked for free" not in out
+    assert "Worse: 9 turned wrong and none turned right." in _flat(out)
     assert _evals(judge) == 1
     tests = judge["fake"].files_seen["tests"]
     assert len(tests) == 50
@@ -411,8 +420,7 @@ def test_some_free_and_a_no_tests_the_free_ones(here, capsys, judge, terminal):
     assert code == 0
     assert ("judgekeeper asks your new judge about the other 10 marked answers. That is 10 AI "
             "calls") in " ".join(out.split())
-    assert "Re-checked on 40 of your 50 marks (40 free from your new results)." in out
-    assert re.search(r"^This check can see a drop of \d+ points or more", out, re.MULTILINE)
+    assert "Re-checked on 40 of your 50 marks:" in out
 
 
 def test_a_close_copy_is_said(here, capsys, judge):
@@ -430,7 +438,7 @@ def test_free_first_then_asked(here, capsys, judge):
     _results(here, MARKED, model=HAIKU, outputs=outputs)
     code, out = run(capsys, "--yes")
     assert code == 0
-    assert "Re-checked on your 50 marks (25 free from your new results, 25 asked again)." in out
+    assert "Re-checked on all 50 of your marks:" in out
     assert len(judge["fake"].files_seen["tests"]) == 25
 
 
@@ -461,7 +469,7 @@ def test_the_next_check_compares_with_the_last_checks_verdicts(here, capsys, no_
     _results(here, LENIENT, model="anthropic:claude-sonnet-5")
     code, out = run(capsys)
     assert code == 1  # against the last check's verdicts (all agreed): 9 new mistakes
-    assert "old judge 100%, new judge 64%." in _flat(out)
+    assert "old judge right on 25 of 25, new judge on 16 of 25" in _flat(out)
     assert f"Your judge changed: model {HAIKU} -> anthropic:claude-sonnet-5." in _flat(out)
 
 
@@ -479,7 +487,9 @@ def test_a_history_line_per_check(here, capsys, no_calls):
     assert line["exact"] == "exact"
     failed = line["groups"]["failed"]
     assert (failed["now_wrong"], failed["now_right"], failed["verdict"]) == (9, 0, "worse")
-    assert line["groups"]["passed"]["verdict"] == "no drop seen"
+    assert line["groups"]["passed"]["verdict"] == "no_drop"
+    assert failed["high"] < 0 < line["groups"]["passed"]["high"]  # the range ends are kept
+    assert failed["old_rate"] == 1.0 and failed["new_rate"] < 1.0
     assert len(line["flipped"]) == 9
     assert isinstance(line["smallest_drop"], int) and line["time"].endswith("Z")
 

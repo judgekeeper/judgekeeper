@@ -15,15 +15,20 @@ For a changed setup:
    ask about and asks `Go ahead? [y/N]` at a terminal (Enter is no); without a terminal only
    `--yes` says yes, else it stops (exit 3) before anything is asked or saved. The person's
    own judge is then asked once about each, through `again/` (no menu);
-3. a one-sided paired test per group (the answers the person passed, and failed): the old
-   verdicts (the last check's for the previous setup, `verdicts/<hash>.jsonl`; else the
-   results the marks were made on) against the new;
+3. per group (the answers the person passed, and failed), every mark with an old and a new
+   verdict: how many turned wrong and turned right, and a range on the paired change
+   (targets.paired_verdict): "Worse", "No drop bigger than 20 points" or "Not sure", always
+   with the worst drop the marks could hide. The old verdicts are the last check's for the
+   previous setup (`verdicts/<hash>.jsonl`), else the results the marks were made on. The
+   screen shows counts; the rates the report and history.jsonl keep are re-weighted by the
+   groups the marks were picked from, so the old one is the report's;
 4. the lines below, a `history.jsonl` line (no answer text), the new verdicts in
    `verdicts/<hash>.jsonl` (ids and verdicts only, under a header with the setup and the
    judge's fingerprint), and judge.json moves to the new setup. When no answer could be
    tested, nothing is saved: the check stays pending.
 
-Exit 0 (no drop seen, or nothing changed), 1 (worse in either group), 3 (the person is
+Exit 0 (no drop bigger than 20 points, not sure with a smaller drop, or nothing changed), 1
+(worse, or not sure with a drop bigger than 20 points, in either group), 3 (the person is
 needed: not enough marks, nothing could be tested, or the question needs an answer).
 report.html shows one History row per check (report_rows).
 """
@@ -39,7 +44,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from judgekeeper import __version__, find, judge_setup, marks, start, targets
+from judgekeeper import __version__, find, judge_setup, marks, start, targets, weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_value
@@ -55,6 +60,10 @@ ENDS = 64 * 1024  # bytes read from each end of a bigger one
 MAX_ENTRIES = 20_000  # files in a results folder (an MLflow store) looked at, at most
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers you failed"))
+SAID = {"passed": "You passed", "failed": "You failed"}
+NEXT_NOT_SURE = ("Next: mark more answers with `{mark}`, then run `{command}` again.")
+VERDICT_WORDS = {"worse": "Worse", "not_sure": "Not sure",
+                 "no_drop": f"No drop bigger than {round(targets.NO_DROP_MARGIN * 100)} points"}
 
 CONFIG_NEWER = ("Your judge's settings changed after your last eval run, so the grades "
                 "judgekeeper has are out of date.")
@@ -481,40 +490,91 @@ def _old_verdicts(state: State) -> dict[str, str]:
     return {**pool, **_read_verdicts(state.ws, state.saved["setup_hash"])}
 
 
-def groups(marked: dict[str, str], old: dict[str, str], new: dict[str, str]) -> dict:
-    """Per group of marks (passed, failed): how often the old and the new judge agree with
-    the person, how many answers turned wrong and right, and the one-sided sign test."""
+def _picks(state: State) -> tuple[dict[str, str], dict[str, int]]:
+    """(the group each mark was picked from, that pool's sizes): start.json's queue, or the
+    groups a re-check kept (start_label.picked_numbers)."""
+    data = state.data
+    queue = {q["id"]: q["group"] for q in data.get("queue") or []}
+    picked = data.get("picked") or {}
+    pool = picked.get("pool") or data.get("pool") or {}
+    return {**queue, **(picked.get("groups") or {})}, {g: int(pool.get(g) or 0)
+                                                       for g in ("pass", "fail")}
+
+
+def _rates(marked: dict[str, str], verdicts: dict[str, str], picked: dict[str, str],
+           pool: dict[str, int]) -> dict:
+    """TPR and TNR of `verdicts` on the marks, re-weighted by the groups they were picked
+    from (weighted.general): the numbers the report shows."""
+    items = [(picked.get(i, v), marked[i], v) for i, v in verdicts.items() if i in marked]
+    if not items or not pool.get("pass", 0) + pool.get("fail", 0):
+        return {"tpr": None, "tnr": None}
+    out = weighted.general(items, pool["pass"], pool["fail"], draws=200)
+    return {"tpr": out["tpr"], "tnr": out["tnr"]}
+
+
+def groups(marked: dict[str, str], old: dict[str, str], new: dict[str, str],
+           picked: dict[str, str] | None = None, pool: dict[str, int] | None = None) -> dict:
+    """Per group of marks (passed, failed): of the marks with an old and a new verdict, how
+    many each judge got right, how many turned wrong and right, the range on the paired change
+    and its verdict (targets.paired_verdict); and each judge's re-weighted rate (`old_rate`,
+    `new_rate`) when the pick groups and pool sizes are given."""
+    both = [i for i in new if i in old and i in marked]
+    rates = None
+    if picked is not None and pool is not None:
+        rates = (_rates(marked, {i: old[i] for i in both}, picked, pool),
+                 _rates(marked, {i: new[i] for i in both}, picked, pool))
     out = {}
     for key, mark, _ in GROUPS:
-        ids = [i for i in new if marked.get(i) == mark and i in old]
+        ids = [i for i in both if marked[i] == mark]
         n = len(ids)
         wrong = sum(old[i] == mark and new[i] != mark for i in ids)
         right = sum(old[i] != mark and new[i] == mark for i in ids)
-        out[key] = {"n": n,
-                    "old": sum(old[i] == mark for i in ids) / n if n else None,
-                    "new": sum(new[i] == mark for i in ids) / n if n else None,
-                    "now_wrong": wrong, "now_right": right,
-                    "verdict": ("not tested" if not n else
-                                "worse" if targets.got_worse(wrong, right) else "no drop seen")}
+        g = {"n": n, "old_right": sum(old[i] == mark for i in ids),
+             "new_right": sum(new[i] == mark for i in ids),
+             "old": sum(old[i] == mark for i in ids) / n if n else None,
+             "new": sum(new[i] == mark for i in ids) / n if n else None,
+             "now_wrong": wrong, "now_right": right, "verdict": "not tested"}
+        if n:
+            paired = targets.paired_verdict(right, wrong, n)
+            g.update(verdict=paired["verdict"], change=paired["change"], low=paired["low"],
+                     high=paired["high"], exit_worse=paired["exit_worse"])
+        if rates is not None:
+            rate = "tpr" if mark == "pass" else "tnr"
+            g.update(old_rate=rates[0][rate], new_rate=rates[1][rate])
+        out[key] = g
     return out
 
 
-def _group_line(key: str, title: str, g: dict) -> str:
-    if not g["n"]:
-        return f"  {title}:  none could be re-checked."
+def _points(x: float) -> int:
+    return round(abs(x) * 100)
+
+
+def _count(k: int) -> str:
+    return str(k) if k else "none"
+
+
+def paired_lines(g: dict) -> list[str]:
+    """The verdict on one group, in counts only (never which answers changed)."""
+    wrong, right = g["now_wrong"], g["now_right"]
     if g["verdict"] == "worse":
-        did = "fails" if key == "passed" else "passes"
-        said = "passed" if key == "passed" else "failed"
-        end = f"Worse: it now {did} {_n(g['now_wrong'], 'answer')} you {said}."
-    else:
-        end = "No drop seen."
-    return f"  {title}:  old judge {_pct(g['old'])}, new judge {_pct(g['new'])}.  {end}"
+        return [f"Worse: {_count(wrong)} turned wrong and {_count(right)} turned right.",
+                (f"That is down {_points(g['change'])} points, and it could be as much as "
+                f"{_points(g['low'])}.")]
+    if g["verdict"] == "not_sure":
+        return [(f"Not sure: {_count(wrong)} turned wrong and {_count(right)} turned right. It "
+                f"could be up to {_points(g['low'])} points worse.")]
+    first = f"{VERDICT_WORDS['no_drop']}: {_count(wrong)} turned wrong, {_count(right)} turned right."
+    if g["low"] >= 0:
+        return [first, "None of its range is a drop."]
+    return [first, f"These marks can't rule out a drop of up to {_points(g['low'])} points."]
 
 
-def _drop_line(drop: int | None) -> str | None:
-    if drop is None:
-        return None
-    return f"This check can see a drop of {drop} points or more."
+def _group_lines(key: str, g: dict) -> list[str]:
+    head = f"  {SAID[key]}:  "
+    if not g["n"]:
+        return [head + "none could be re-checked."]
+    return [(f"{head}old judge right on {g['old_right']} of {g['n']}, new judge on "
+            f"{g['new_right']} of {g['n']}"), *(f"    {line}" for line in paired_lines(g))]
 
 
 # Saving -----------------------------------------------------------------------------------------
@@ -762,40 +822,38 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         return EXIT_NEEDS_YOU
 
     n, total = len(tested), len(state.marks)
-    parts = [f"{len(free)} free from your new results"] if free else []
-    parts += [f"{len(cached)} from your last check"] if cached else []
-    parts += [f"{len(asked.verdicts)} asked again"] if asked.verdicts else []
-    on = f"your {_n(total, 'mark')}" if n == total else f"{n} of your {_n(total, 'mark')}"
-    said.say(f"Re-checked on {on} ({', '.join(parts)}).")
+    if free and not asked.verdicts and not cached:
+        said.say("Re-checked for free from your new results.")
     for line in asked.reasons:
         said.say(line)
     said.say()
-    old_verdicts = _old_verdicts(state)
-    g = groups(state.marks, old_verdicts, tested)
-    for key, _, title in GROUPS:
-        said.say(_group_line(key, title, g[key]))
+    on = f"all {total} of your marks" if n == total else f"{n} of your {_n(total, 'mark')}"
+    said.say(f"Re-checked on {on}:")
     said.say()
+    old_verdicts = _old_verdicts(state)
+    picked, pool = _picks(state)
+    g = groups(state.marks, old_verdicts, tested, picked, pool)
+    for key, _, _title in GROUPS:
+        for line in _group_lines(key, g[key]):
+            said.say(line)
+        said.say()
     if asked.close:
         said.say(CLOSE.format(why=asked.close))
-    drop = targets.smallest_drop(g["passed"]["n"], g["failed"]["n"])
-    line = _drop_line(drop)
-    if line:
-        said.say(line)
+        said.say()
+    drop = targets.smallest_drop(g["passed"]["n"], g["failed"]["n"], g["passed"]["old"],
+                                 g["failed"]["old"])
     worse = [k for k in ("failed", "passed") if g[k]["verdict"] == "worse"]
+    unsure = [k for k in ("failed", "passed") if g[k]["verdict"] == "not_sure"]
     if worse:
-        def what(who: str) -> str:
-            return " and ".join(f"{'passes' if k == 'failed' else 'fails'} "
-                                f"{_n(g[k]['now_wrong'], 'answer')} {who} {k}" for k in worse)
-
         tool = find.NAMES.get(new.get("tool"), new.get("tool"))
         back = (f"the old version of {tool} ({old.get('tool_version')})"
                 if judge_setup.tool_only(old, new) else "the old judge")
-        said.say(f"Your new judge {what('you')}.")
-        said.say()
         said.say(NEXT_WORSE.format(back=back, command=_command(state)))
+    elif unsure:
+        said.say(NEXT_NOT_SURE.format(mark=program("mark"), command=_command(state)))
     else:
-        said.say()
         said.say(NEXT_SAME.format(command=_command(state)))
+    exit_worse = any(g[k].get("exit_worse") for k in g)
 
     flipped = [i for i in tested if i in old_verdicts and old_verdicts[i] != tested[i]]
     line = scrub_value({
@@ -809,7 +867,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     if not worse:  # after "Worse" the old judge stays the reference until it comes back
         judge_setup.save(state.ws, new, found.metric)
     _report(state.ws)
-    return EXIT_WORSE if worse else EXIT_OK
+    return EXIT_WORSE if exit_worse else EXIT_OK
 
 
 def _same_as_last(state: State, line: dict) -> bool:
@@ -869,6 +927,16 @@ def _rate(x) -> str:
     return "?" if x is None else f"{x:.0%}"
 
 
+def _row_verdict(said: list) -> str:
+    """The History row's verdict: the worst of the groups'. A check from before the ranges
+    (a sign test) that saw no drop is "Not sure": it could not tell a small one."""
+    if "worse" in said:
+        return VERDICT_WORDS["worse"]
+    if "not_sure" in said or "no drop seen" in said:
+        return VERDICT_WORDS["not_sure"]
+    return VERDICT_WORDS["no_drop"] if "no_drop" in said else "Not tested"
+
+
 def history_rows(lines: list[dict]) -> list[dict]:
     """One row per check in history.jsonl lines (in their order): date, what changed, marks
     tested, old against new per group, the verdict, exact or close."""
@@ -893,15 +961,17 @@ def history_rows(lines: list[dict]) -> list[dict]:
         shown = []
         for key, _, title in GROUPS:
             g = groups_.get(key) or {}
-            shown.append(f"{title}: {_rate(g.get('old'))} → {_rate(g.get('new'))}"
+            old, new = (g.get("old_rate"), g.get("new_rate")) if "old_rate" in g else (
+                g.get("old"), g.get("new"))  # the re-weighted rates, as the report shows
+            shown.append(f"{title}: {_rate(old)} → {_rate(new)}"
                          if g.get("n") else f"{title}: not tested")
-        worse = any((groups_.get(k) or {}).get("verdict") == "worse" for k in groups_)
+        said = [(groups_.get(k) or {}).get("verdict") for k in groups_]
         rows.append({"date": _day(line.get("time")) or "",
                      "tested": (f"{plural(free + asked, 'mark')} ({', '.join(parts)})" if parts
                                 else "0 marks"),
                      "exact": "close copy" if line.get("exact") == "close" else "exact",
                      "changed": ", ".join(line.get("changed") or []), "groups": shown,
-                     "verdict": "Worse" if worse else "No drop seen"})
+                     "verdict": _row_verdict(said)})
     return rows
 
 

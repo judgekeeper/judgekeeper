@@ -30,7 +30,7 @@ def _result(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f, **extra):
     return r
 
 
-CHECK = (100, 100, 20, 17, 20, 2)
+CHECK = (100, 100, 15, 12, 15, 3)  # amber, both ranges still wide
 
 
 def _pages() -> dict[str, str]:
@@ -295,13 +295,13 @@ def test_the_result_reveal_is_css_alone_and_plays_once():
 def test_the_result_has_two_columns_with_the_sentences_left_and_the_details_right():
     html = start_label.result_html(_result(*CHECK), back="/?token=t")
     left, right = html.split('<div class="col lead">')[1].split('<div class="col">')
-    for needed in ("Your result", "When you said Pass, your judge also said Pass",
-                   "When you said Fail, your judge also said Fail", 'class="verdict amber"',
+    for needed in ("Your result", "You passed: your judge also passed about",
+                   "You failed: your judge also failed about", 'class="verdict amber"',
                    "What next", '<a class="btn" href="/?token=t">Mark more answers</a>',
                    "Check again after your next eval run", "<code>judgekeeper start</code>"):
         assert needed in left, needed
     for needed in ("<h3>Details</h3>", "When you said Pass", "TPR", "TNR",
-                   "How much you agree beyond luck", "<h3>Your judge</h3>"):
+                   "Kappa on your real mix", "<h3>Your judge</h3>"):
         assert needed in right, needed
     assert "<h3>Details</h3>" not in left and "What next" not in right
     assert ".split { grid-template-columns: minmax(0, 1fr) 400px; }" in html

@@ -200,13 +200,13 @@ def test_enough_marks_print_the_result(here, capsys, pages):
     assert _check(out, err) == NEXT_RESULT
     lines = out.splitlines()
     assert lines[2:4] == ["Step 3 of 5: Measure", ""]
-    assert ("Your marks: 36 (20 Pass, 16 Fail), made on the page in 1 sitting, about 7 seconds "
-            "each.") in _flat(out)
-    assert "Of the answers you passed, your judge passed 100% (range" in _flat(out)
-    assert "Of the answers you failed, your judge failed 100% (range" in _flat(out)
-    assert "Kappa (agreement beyond chance): 1.00." in out
-    assert "This set can see a drop of 40 points or more." in out
-    assert "Report: .judgekeeper/report.html" in out
+    assert "Your judge vs your marks, on 36 answers:" in lines
+    assert "  You passed:  your judge also passed about 100% (could be " in out
+    assert "  You failed:  your judge also failed about 100% (could be " in out
+    assert "These are estimates from 36 marked answers." in lines
+    for gone in ("Your marks:", "Kappa", "can see a drop"):
+        assert gone not in out, gone
+    assert ("Full report: .judgekeeper/report.html (open it in your browser)") in out
     assert "The marking page is still open if you want to mark more answers." in out
     assert len(pages[0]) == 1  # no page started for the result
     assert (ws.dir / "report.html").is_file()
@@ -225,7 +225,7 @@ def test_the_result_without_an_open_page_says_nothing_about_it(here, capsys, pag
     assert len(pages[0]) == 1
 
 
-def test_a_judge_that_passes_too_many_is_said(here, capsys, pages):
+def test_a_judge_that_fails_few_of_the_answers_you_failed_is_measured(here, capsys, pages):
     promptfoo_project(here, split(20, 16))
     run(capsys)
     ws = start_label.Workspace(here)
@@ -239,8 +239,8 @@ def test_a_judge_that_passes_too_many_is_said(here, capsys, pages):
         session.update({"id": item["id"], "label": said, "seconds": 5})
     code, out, _ = run(capsys)
     assert code == 0
-    assert "Your marks: 36 (15 Pass, 21 Fail)" in _flat(out)
-    assert "\nYour judge passes too many answers you failed.\n" in out
+    assert "Your judge vs your marks, on 36 answers:" in out
+    assert "  You failed:  your judge also failed about 76% (could be 62% to 89%)" in out
 
 
 def test_a_changed_rule_carries_on_and_says_which_judge(here, capsys, pages):
@@ -292,7 +292,7 @@ def test_from_a_promptfoo_project_the_person_runs_judgekeeper_twice(here, capsys
         argv = command.split()[1:]
     assert ran == [["judgekeeper"], ["judgekeeper"]]
     assert person_marked == 1
-    assert "Of the answers you passed, your judge passed" in out
+    assert "  You passed:  your judge also passed about " in out
 
 
 # Marks for another judge, or from 0.2 -----------------------------------------------------
@@ -368,7 +368,7 @@ def test_after_a_new_eval_run_the_result_goes_on(here, capsys, pages):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert _flat(out).count(RAN_AGAIN) == 1
-    assert "Your marks: 36 (20 Pass, 16 Fail)" in _flat(out)
+    assert "Your judge vs your marks, on 36 answers:" in out
     assert _check(out) == NEXT_RESULT
 
 
