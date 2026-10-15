@@ -30,9 +30,16 @@ The level for start is the first of 0.95, 0.96 and 0.97 whose ranges hold the tr
 and real pass rate at least FLOOR_CELL of the time in every cell and FLOOR_MEAN on average.
 
 Two more checks: how far another seed moves a range (STABILITY), and how often a check that
-reached targets.RELIABLE Correct and Wrong labels has both ranges no wider than each
-candidate width (RELIABLE_RUNS simulated labelings per case, picking 5 from each group per
-block as `start` does).
+reached RELIABLE Correct and Wrong labels has both ranges no wider than each candidate width
+(RELIABLE_RUNS simulated labelings per case, picking 5 from each group per block as `start`
+does).
+
+The numbers on screen (`accuracy`): kappa's range; the ranges at the real stopping rule
+(marking 5 + 5 per block until 15 Pass and 15 Fail, and until 25 + 25); how often each width
+word is said at the first result; how often the verdict is green when the lower of the true
+TPR and TNR is 75% and 80%; weighted.general when the judge asked again changes its mind; and
+how often `check` says "Worse" (and exits 1) when nothing changed, with and without the judge's
+own wobble when asked again.
 
 Standard library only. Uses every processor core; the full grid takes a few minutes.
 """
@@ -71,6 +78,18 @@ STABILITY_SEEDS = (1, 2, 3, 4, 5)
 RELIABLE_CASES = [(0.5, 0.85, 0.85), (0.7, 0.85, 0.85), (0.9, 0.85, 0.85), (0.5, 0.95, 0.95),
                   (0.7, 0.95, 0.60), (0.9, 0.95, 0.60)]
 RELIABLE_RUNS = 1000
+RELIABLE = 25  # Correct and Wrong labels a labeling goes on to (an earlier "reliable" target)
+FIRST = 15  # Correct and Wrong labels the first result needs (targets.ROUGH)
+ACCURACY_RUNS = 1000
+KAPPA_CELLS = [(pi, a, w, n) for pi in SHARES for a, w in ((0.8, 0.8), (0.95, 0.95), (0.95, 0.6))
+               for n in (15, 25, 40)]
+KAPPA_CHECKS = 500
+STOP_CASES = RELIABLE_CASES
+# (judge's pass share, true TPR, true TNR): the lower of TPR and TNR at 75% and at 80%
+GREEN_CASES = [(0.9, 0.98, 0.75), (0.9, 0.98, 0.80), (0.5, 0.75, 0.95), (0.5, 0.80, 0.95)]
+CHANGES_MIND = (0.05, 0.10)  # the share of grades a judge asked again turns round
+WOBBLES = (0.0, 0.05, 0.10)  # the same judge asked again: the share of answers whose grade
+# comes out different, half of them turning wrong and half turning right (nothing changed)
 WIDTHS = (0.25, 0.30, 0.35, 0.40)
 BOOT_SEED = 20261005
 RESAMPLES = 2000
@@ -351,7 +370,7 @@ def _labeling(args: tuple) -> list[float | None]:
     c = {"pass": 0, "fail": 0}
     while True:
         correct, wrong = c["pass"] + c["fail"], n["pass"] + n["fail"] - c["pass"] - c["fail"]
-        if min(correct, wrong) >= targets.RELIABLE:
+        if min(correct, wrong) >= RELIABLE:
             break
         for group, chance in (("pass", a), ("fail", 1 - w)):
             for _ in range(5):
@@ -376,6 +395,206 @@ def reliable_widths(runs: int = RELIABLE_RUNS, workers: int | None = None) -> li
             out.append({"pi": pi, "a": a, "w": w, "runs": runs, "reliable_share": share,
                         "mean_width": mean})
     return out
+
+
+# The numbers on screen -----------------------------------------------------------------------
+
+def _kappa_cell(args: tuple) -> dict:
+    """Kappa's range in one cell: how often it holds the true kappa, and its width."""
+    pi, a, w, n = args
+    rng = random.Random(SEED + int(pi * 1000) + int(a * 100) + int(w * 10) + n)
+    n_pass, n_fail = pool_counts(pi)
+    true = weighted._kappa(pi, a, 1 - w)
+    hits = tried = 0
+    width = 0.0
+    for _ in range(KAPPA_CHECKS):
+        c_p, c_f = _binomial(rng, n, a), _binomial(rng, n, 1 - w)
+        r = weighted.corrected(n_pass, n_fail, n, c_p, n, c_f)
+        lo, hi = r["kappa_interval"]
+        if lo is None:
+            continue
+        tried += 1
+        hits += lo - 1e-12 <= true <= hi + 1e-12
+        width += hi - lo
+    return {"pi": pi, "a": a, "w": w, "n": n, "true": true,
+            "coverage": hits / tried if tried else None,
+            "width": width / tried if tried else None}
+
+
+def _marked_until(rng: random.Random, a: float, b: float, each: int) -> dict:
+    """Marks in blocks of 5 from each of the judge's groups until `each` Pass and Fail: per
+    group [marked, marked Pass]."""
+    g = {"pass": [0, 0], "fail": [0, 0]}
+    while True:
+        passed = g["pass"][1] + g["fail"][1]
+        if min(passed, g["pass"][0] + g["fail"][0] - passed) >= each:
+            return g
+        for group, share in (("pass", a), ("fail", b)):
+            for _ in range(5):
+                g[group][0] += 1
+                g[group][1] += rng.random() < share
+
+
+def _stopping(args: tuple) -> dict:
+    """One case under the real stopping rule: coverage of TPR and TNR at the stop, and at
+    the first result the share of each width word."""
+    pi, a, w, each = args
+    rng = random.Random(SEED + int(pi * 100) + int(a * 1000) + int(w * 10000) + each)
+    n_pass, n_fail = pool_counts(pi)
+    true = truth(pi, a, 1 - w)
+    hits = {"tpr": 0, "tnr": 0}
+    words = {"tpr": {}, "tnr": {}}
+    for _ in range(ACCURACY_RUNS):
+        g = _marked_until(rng, a, 1 - w, each)
+        r = weighted.corrected(n_pass, n_fail, *g["pass"], *g["fail"], draws=4000)
+        for k in ("tpr", "tnr"):
+            lo, hi = r[f"{k}_interval"]
+            hits[k] += lo is not None and lo - 1e-12 <= true[k] <= hi + 1e-12
+            word = str(targets.width_word(r[f"{k}_interval"]) or "plain")
+            words[k][word] = words[k].get(word, 0) + 1
+    return {"pi": pi, "a": a, "w": w, "each": each,
+            "coverage": {k: v / ACCURACY_RUNS for k, v in hits.items()},
+            "words": {k: {x: c / ACCURACY_RUNS for x, c in v.items()} for k, v in words.items()}}
+
+
+def _green(args: tuple) -> dict:
+    """How often the verdict is green at the stop, for a judge with these true rates."""
+    from judgekeeper import start_label
+
+    judge, tpr, tnr, each = args
+    real = (judge - (1 - tnr)) / (tpr - (1 - tnr))
+    a, b = real * tpr / judge, real * (1 - tpr) / (1 - judge)
+    rng = random.Random(SEED + int(tpr * 1000) + int(tnr * 100) + each)
+    n_pass = round(judge * POOL)
+    green = 0
+    for _ in range(ACCURACY_RUNS):
+        g = _marked_until(rng, a, b, each)
+        r = start_label.describe(weighted.corrected(n_pass, POOL - n_pass, *g["pass"],
+                                                    *g["fail"], draws=4000))
+        green += r["verdict_level"] == "gate"
+    return {"judge_passes": judge, "tpr": tpr, "tnr": tnr, "each": each,
+            "green": green / ACCURACY_RUNS}
+
+
+def _changes_mind(args: tuple) -> dict:
+    """weighted.general when the judge asked again turns round a share `flip` of its grades
+    at random: how often its TPR and TNR ranges hold the asked judge's true rates."""
+    pi, a, w, n, flip = args
+    rng = random.Random(SEED + int(flip * 1000) + n + int(pi * 10))
+    n_pass, n_fail = pool_counts(pi)
+    old = truth(pi, a, 1 - w)
+    true = {"tpr": old["tpr"] * (1 - flip) + (1 - old["tpr"]) * flip,
+            "tnr": old["tnr"] * (1 - flip) + (1 - old["tnr"]) * flip}
+    hits = {"tpr": 0, "tnr": 0}
+    tried = {"tpr": 0, "tnr": 0}
+    for _ in range(ACCURACY_RUNS // 2):
+        items = []
+        for group, share in (("pass", a), ("fail", 1 - w)):
+            for _ in range(n):
+                label = "pass" if rng.random() < share else "fail"
+                turned = rng.random() < flip
+                verdict = ("fail" if group == "pass" else "pass") if turned else group
+                items.append((group, label, verdict))
+        r = weighted.general(items, n_pass, n_fail, draws=4000)
+        for k in ("tpr", "tnr"):
+            lo, hi = r[f"{k}_interval"]
+            if lo is None:
+                continue
+            tried[k] += 1
+            hits[k] += lo - 1e-12 <= true[k] <= hi + 1e-12
+    return {"pi": pi, "a": a, "w": w, "n": n, "flip": flip,
+            "coverage": {k: hits[k] / tried[k] if tried[k] else None for k in hits}}
+
+
+def false_worse(n: int, right: float, wobble: float) -> dict:
+    """How often `check` says "Worse" (and how often it exits 1) on one group of n marks when
+    the judge did not change, worked out exactly: asked again, a share `wobble` of the answers
+    get another grade, half of them turning wrong and half turning right. (How often the judge
+    is right does not enter: unchanged, it is as often right as before.)"""
+    turn_wrong = turn_right = wobble / 2
+    worse = exits = 0.0
+    for k_wrong, p_wrong in enumerate(targets._pmf(n, turn_wrong)):
+        if p_wrong < 1e-15:
+            continue
+        rest = n - k_wrong
+        share = turn_right / (1 - turn_wrong) if turn_wrong < 1 else 0.0
+        for k_right, p_right in enumerate(targets._pmf(rest, share)):
+            if p_right < 1e-15:
+                continue
+            v = targets.paired_verdict(k_right, k_wrong, n)
+            worse += p_wrong * p_right * (v["verdict"] == "worse")
+            exits += p_wrong * p_right * v["exit_worse"]
+    return {"n": n, "wobble": wobble, "worse": worse, "exit_1": exits}
+
+
+def accuracy(workers: int | None = None) -> dict:
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        kappa = list(ex.map(_kappa_cell, KAPPA_CELLS))
+        stopping = list(ex.map(_stopping, [(pi, a, w, each) for pi, a, w in STOP_CASES
+                                           for each in (FIRST, RELIABLE)]))
+        green = list(ex.map(_green, [(*c, each) for c in GREEN_CASES
+                                     for each in (FIRST, RELIABLE)]))
+        mind = list(ex.map(_changes_mind, [(pi, 0.9, 0.85, n, flip) for pi in SHARES
+                                           for n in (15, 25) for flip in CHANGES_MIND]))
+    worse = [false_worse(n, 0.9, wobble) for n in (15, 25, 40) for wobble in WOBBLES]
+    return {"kappa": kappa, "stopping": stopping, "green": green, "changes_mind": mind,
+            "false_worse": worse}
+
+
+def accuracy_markdown(acc: dict) -> list[str]:
+    lines = ["", "## The numbers on screen", "",
+             "### Kappa's range", "",
+             (f"{KAPPA_CHECKS} simulated checks per cell, the same labels per group as the grid. "
+              "How often kappa's range holds the true kappa of the pool's real mix, and its "
+              "average width."), "",
+             "| pi | a | w | n | true kappa | coverage | width |", "|---|---|---|---|---|---|---|"]
+    for row in acc["kappa"]:
+        lines.append(f"| {row['pi']:.0%} | {row['a']} | {row['w']} | {row['n']} | "
+                     f"{row['true']:.2f} | {_pct(row['coverage'])} | {_w(row['width'])} |")
+    lines += ["", "### The real stopping rule", "",
+              (f"{ACCURACY_RUNS:,} simulated markings per case: 5 from each of the judge's "
+               f"groups per block, until {FIRST} Pass and {FIRST} Fail (the first result), and "
+               f"until {RELIABLE} of each. How often the TPR and TNR ranges hold the true value "
+               "at the stop, and at the first result how often each width word is said "
+               "(Not enough marks yet: over 40 points; Rough: over 30; plain: over 20; Sharp: "
+               "20 or less)."), "",
+              "| pi | a | w | stop | TPR | TNR | TPR words | TNR words |",
+              "|---|---|---|---|---|---|---|---|"]
+    names = {"too_wide": "not enough", "rough": "rough", "plain": "plain", "sharp": "sharp",
+             "exact": "exact"}
+    for row in acc["stopping"]:
+        said = {k: ", ".join(f"{names[x]} {v:.0%}" for x, v in sorted(row["words"][k].items()))
+                for k in ("tpr", "tnr")}
+        lines.append(f"| {row['pi']:.0%} | {row['a']} | {row['w']} | {row['each']} + "
+                     f"{row['each']} | {_pct(row['coverage']['tpr'])} | "
+                     f"{_pct(row['coverage']['tnr'])} | {said['tpr']} | {said['tnr']} |")
+    lines += ["", "### How often the verdict is green", "",
+              (f"{ACCURACY_RUNS:,} simulated markings per case, stopped at {FIRST} + {FIRST} and "
+               f"at {RELIABLE} + {RELIABLE}. Green needs the low end of both ranges at 80% or "
+               "more, so a judge whose weaker side is 80% or less should rarely be green. In "
+               "percent."), "",
+              "| judge passes | TPR | TNR | stop | green |", "|---|---|---|---|---|"]
+    for row in acc["green"]:
+        lines.append(f"| {row['judge_passes']:.0%} | {row['tpr']:.0%} | {row['tnr']:.0%} | "
+                     f"{row['each']} + {row['each']} | {_pct(row['green'])} |")
+    lines += ["", "### After asking again, a judge that changes its mind", "",
+              ("weighted.general when the judge asked again turns round a share of its grades "
+               "at random (a = 0.9, w = 0.85). How often the ranges hold the asked judge's true "
+               "TPR and TNR."), "",
+              "| pi | n | turned | TPR | TNR |", "|---|---|---|---|---|"]
+    for row in acc["changes_mind"]:
+        lines.append(f"| {row['pi']:.0%} | {row['n']} | {row['flip']:.0%} | "
+                     f"{_pct(row['coverage']['tpr'])} | {_pct(row['coverage']['tnr'])} |")
+    lines += ["", "### `check` when nothing changed", "",
+              ("Worked out exactly for one group of marks: the same judge asked again, a share "
+               "of the answers getting another grade (the wobble), half turning wrong and half "
+               "turning right. How often `check` says Worse, and how often it exits 1 (Worse, "
+               "or Not sure with a drop of more than 20 points), in percent."),
+              "", "| marks | wobble | Worse | exit 1 |", "|---|---|---|---|"]
+    for row in acc["false_worse"]:
+        lines.append(f"| {row['n']} | {row['wobble']:.0%} | {100 * row['worse']:.1f} | "
+                     f"{100 * row['exit_1']:.1f} |")
+    return lines
 
 
 # Writing it down ----------------------------------------------------------------------------
@@ -453,7 +672,7 @@ def markdown(result: dict) -> str:
               f"most {s['largest_change']:.4f} on the counts tried."), "",
               "## When is a check reliable?", "",
               (f"{RELIABLE_RUNS:,} simulated labelings per case, 5 from each group per block as "
-              f"`start` picks, until {targets.RELIABLE} Correct and {targets.RELIABLE} Wrong. "
+              f"`start` picks, until {RELIABLE} Correct and {RELIABLE} Wrong. "
               "The share whose TPR and TNR ranges are both no wider than each width, and the "
               f"average widths. The width judgekeeper uses: {targets.MAX_WIDTH:.2f}."), "",
               "| pi | a | w | " + " | ".join(f"≤ {m:.2f}" for m in WIDTHS)
@@ -463,6 +682,8 @@ def markdown(result: dict) -> str:
         lines.append(f"| {case['pi']:.0%} | {case['a']} | {case['w']} | "
                      + " | ".join(f"{case['reliable_share'][str(m)]:.0%}" for m in WIDTHS)
                      + f" | {_w(case['mean_width']['tpr'])} | {_w(case['mean_width']['tnr'])} |")
+    if result.get("accuracy"):
+        lines += accuracy_markdown(result["accuracy"])
     return "\n".join(lines) + "\n"
 
 
@@ -480,6 +701,7 @@ def main() -> None:
                     "now_method": general_method()},
         "stability": stability(),
         "reliable": reliable_widths(),
+        "accuracy": accuracy(),
         "rows": rows,
     }
     OUT.mkdir(parents=True, exist_ok=True)

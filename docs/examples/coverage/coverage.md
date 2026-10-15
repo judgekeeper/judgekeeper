@@ -267,3 +267,108 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 | 50% | 0.95 | 0.95 | 100% | 100% | 100% | 100% | 0.15 | 0.14 |
 | 70% | 0.95 | 0.6 | 13% | 22% | 50% | 100% | 0.10 | 0.33 |
 | 90% | 0.95 | 0.6 | 0% | 0% | 1% | 4% | 0.03 | 0.54 |
+
+## The numbers on screen
+
+### Kappa's range
+
+500 simulated checks per cell, the same labels per group as the grid. How often kappa's range holds the true kappa of the pool's real mix, and its average width.
+
+| pi | a | w | n | true kappa | coverage | width |
+|---|---|---|---|---|---|---|
+| 50% | 0.8 | 0.8 | 15 | 0.60 | 97.6 | 0.55 |
+| 50% | 0.8 | 0.8 | 25 | 0.60 | 95.8 | 0.44 |
+| 50% | 0.8 | 0.8 | 40 | 0.60 | 95.8 | 0.36 |
+| 50% | 0.95 | 0.95 | 15 | 0.90 | 92.4 | 0.35 |
+| 50% | 0.95 | 0.95 | 25 | 0.90 | 96.4 | 0.26 |
+| 50% | 0.95 | 0.95 | 40 | 0.90 | 93.6 | 0.20 |
+| 50% | 0.95 | 0.6 | 15 | 0.55 | 94.8 | 0.53 |
+| 50% | 0.95 | 0.6 | 25 | 0.55 | 95.2 | 0.42 |
+| 50% | 0.95 | 0.6 | 40 | 0.55 | 95.0 | 0.34 |
+| 70% | 0.8 | 0.8 | 15 | 0.56 | 95.6 | 0.56 |
+| 70% | 0.8 | 0.8 | 25 | 0.56 | 96.4 | 0.46 |
+| 70% | 0.8 | 0.8 | 40 | 0.56 | 96.0 | 0.37 |
+| 70% | 0.95 | 0.95 | 15 | 0.88 | 97.2 | 0.39 |
+| 70% | 0.95 | 0.95 | 25 | 0.88 | 96.6 | 0.30 |
+| 70% | 0.95 | 0.95 | 40 | 0.88 | 96.2 | 0.24 |
+| 70% | 0.95 | 0.6 | 15 | 0.60 | 95.2 | 0.55 |
+| 70% | 0.95 | 0.6 | 25 | 0.60 | 96.6 | 0.43 |
+| 70% | 0.95 | 0.6 | 40 | 0.60 | 96.6 | 0.35 |
+| 90% | 0.8 | 0.8 | 15 | 0.35 | 94.0 | 0.55 |
+| 90% | 0.8 | 0.8 | 25 | 0.35 | 95.6 | 0.45 |
+| 90% | 0.8 | 0.8 | 40 | 0.35 | 96.4 | 0.37 |
+| 90% | 0.95 | 0.95 | 15 | 0.76 | 95.6 | 0.57 |
+| 90% | 0.95 | 0.95 | 25 | 0.76 | 97.2 | 0.49 |
+| 90% | 0.95 | 0.95 | 40 | 0.76 | 98.8 | 0.41 |
+| 90% | 0.95 | 0.6 | 15 | 0.54 | 97.2 | 0.61 |
+| 90% | 0.95 | 0.6 | 25 | 0.54 | 96.6 | 0.51 |
+| 90% | 0.95 | 0.6 | 40 | 0.54 | 96.8 | 0.43 |
+
+### The real stopping rule
+
+1,000 simulated markings per case: 5 from each of the judge's groups per block, until 15 Pass and 15 Fail (the first result), and until 25 of each. How often the TPR and TNR ranges hold the true value at the stop, and at the first result how often each width word is said (Not enough marks yet: over 40 points; Rough: over 30; plain: over 20; Sharp: 20 or less).
+
+| pi | a | w | stop | TPR | TNR | TPR words | TNR words |
+|---|---|---|---|---|---|---|---|
+| 50% | 0.85 | 0.85 | 15 + 15 | 92.6 | 93.1 | plain 82%, rough 13%, sharp 6% | plain 82%, rough 11%, sharp 7% |
+| 50% | 0.85 | 0.85 | 25 + 25 | 96.0 | 95.7 | plain 74%, sharp 26% | plain 72%, sharp 28% |
+| 70% | 0.85 | 0.85 | 15 + 15 | 93.9 | 94.4 | plain 2%, sharp 98% | plain 5%, rough 46%, not enough 49% |
+| 70% | 0.85 | 0.85 | 25 + 25 | 96.6 | 95.8 | sharp 100% | plain 6%, rough 93%, sharp 0% |
+| 90% | 0.85 | 0.85 | 15 + 15 | 94.1 | 95.0 | sharp 100% | plain 5%, rough 11%, sharp 1%, not enough 83% |
+| 90% | 0.85 | 0.85 | 25 + 25 | 95.3 | 95.8 | sharp 100% | plain 11%, rough 32%, sharp 1%, not enough 56% |
+| 50% | 0.95 | 0.95 | 15 + 15 | 98.4 | 98.2 | plain 46%, rough 0%, sharp 54% | plain 40%, rough 0%, sharp 60% |
+| 50% | 0.95 | 0.95 | 25 + 25 | 98.3 | 98.7 | plain 4%, sharp 96% | plain 3%, sharp 97% |
+| 70% | 0.95 | 0.6 | 15 + 15 | 96.9 | 97.4 | plain 0%, sharp 100% | plain 24%, rough 7%, not enough 68% |
+| 70% | 0.95 | 0.6 | 25 + 25 | 95.5 | 97.1 | sharp 100% | plain 18%, rough 69%, sharp 11%, not enough 2% |
+| 90% | 0.95 | 0.6 | 15 + 15 | 96.6 | 98.4 | sharp 100% | plain 0%, rough 1%, not enough 99% |
+| 90% | 0.95 | 0.6 | 25 + 25 | 95.9 | 96.6 | sharp 100% | plain 0%, rough 4%, not enough 96% |
+
+### How often the verdict is green
+
+1,000 simulated markings per case, stopped at 15 + 15 and at 25 + 25. Green needs the low end of both ranges at 80% or more, so a judge whose weaker side is 80% or less should rarely be green. In percent.
+
+| judge passes | TPR | TNR | stop | green |
+|---|---|---|---|---|
+| 90% | 98% | 75% | 15 + 15 | 0.0 |
+| 90% | 98% | 75% | 25 + 25 | 0.0 |
+| 90% | 98% | 80% | 15 + 15 | 0.0 |
+| 90% | 98% | 80% | 25 + 25 | 0.0 |
+| 50% | 75% | 95% | 15 + 15 | 0.2 |
+| 50% | 75% | 95% | 25 + 25 | 0.1 |
+| 50% | 80% | 95% | 15 + 15 | 2.8 |
+| 50% | 80% | 95% | 25 + 25 | 1.0 |
+
+### After asking again, a judge that changes its mind
+
+weighted.general when the judge asked again turns round a share of its grades at random (a = 0.9, w = 0.85). How often the ranges hold the asked judge's true TPR and TNR.
+
+| pi | n | turned | TPR | TNR |
+|---|---|---|---|---|
+| 50% | 15 | 5% | 93.6 | 94.6 |
+| 50% | 15 | 10% | 95.6 | 94.8 |
+| 50% | 25 | 5% | 94.6 | 95.6 |
+| 50% | 25 | 10% | 94.4 | 94.6 |
+| 70% | 15 | 5% | 93.6 | 96.4 |
+| 70% | 15 | 10% | 85.0 | 95.0 |
+| 70% | 25 | 5% | 91.4 | 95.2 |
+| 70% | 25 | 10% | 90.6 | 94.0 |
+| 90% | 15 | 5% | 52.4 | 96.8 |
+| 90% | 15 | 10% | 75.0 | 93.8 |
+| 90% | 25 | 5% | 66.8 | 96.8 |
+| 90% | 25 | 10% | 88.4 | 94.4 |
+
+### `check` when nothing changed
+
+Worked out exactly for one group of marks: the same judge asked again, a share of the answers getting another grade (the wobble), half turning wrong and half turning right. How often `check` says Worse, and how often it exits 1 (Worse, or Not sure with a drop of more than 20 points), in percent.
+
+| marks | wobble | Worse | exit 1 |
+|---|---|---|---|
+| 15 | 0% | 0.0 | 0.0 |
+| 15 | 5% | 0.4 | 0.4 |
+| 15 | 10% | 1.9 | 1.9 |
+| 25 | 0% | 0.0 | 0.0 |
+| 25 | 5% | 1.4 | 1.4 |
+| 25 | 10% | 4.0 | 4.0 |
+| 40 | 0% | 0.0 | 0.0 |
+| 40 | 5% | 3.0 | 3.0 |
+| 40 | 10% | 5.0 | 5.0 |
