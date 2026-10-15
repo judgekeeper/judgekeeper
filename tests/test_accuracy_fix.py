@@ -74,11 +74,11 @@ def test_enough_mistakes_hidden_say_nothing_more(here, capsys, judge):
     assert json.dumps(NEW_RULE) not in out
 
 
-def test_the_guide_says_how_extra_tests_stay_fair():
+def test_the_reference_says_how_extra_tests_stay_fair():
     from pathlib import Path
 
-    guide = (Path(__file__).parent.parent / "docs" / "guide.md").read_text(encoding="utf-8")
-    assert "under about 1 in 20" in guide
+    reference = (Path(__file__).parent.parent / "docs" / "reference.md").read_text(encoding="utf-8")
+    assert "under about 1 in 20" in reference
 
 
 # Hidden marks from the first result on ---------------------------------------------------------
