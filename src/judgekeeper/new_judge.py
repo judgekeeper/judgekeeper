@@ -209,7 +209,10 @@ def finish(ws: Workspace, view: View, plan, fresh, new: NewJudge) -> dict:
     data = ws.data()
     counted = [a for a in plan.payload_answers() if a["id"] in fresh.verdicts]
     items = [(a["verdict"], a["label"], fresh.verdicts[a["id"]][0]) for a in counted]
-    numbers = weighted.general(items, data["pool"]["pass"], data["pool"]["fail"])
+    twice = ([len(set(fresh.verdicts[a["id"]])) > 1 for a in counted]
+             if (plan.times or 1) > 1 else [])
+    numbers = weighted.general(items, data["pool"]["pass"], data["pool"]["fail"],
+                               wobble=sum(twice) / len(twice) if twice else None)
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     block = {
         "made_at": utc_now(), "folder": f"{FOLDER}/{fresh.folder.name}", "tool": plan.tool,

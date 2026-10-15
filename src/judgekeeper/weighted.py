@@ -47,6 +47,16 @@ judge got every one right again, or none), that range draws q and r from
 Beta(k + 0.5, m - k + 0.5) too ("jeffreys, verdicts too" in `interval_methods`). A group of
 the pool with no labels leaves the ranges unknown.
 
+A judge asked twice may give an answer two grades (its wobble: `wobble`, the share of answers
+whose two grades differ). Then each fresh grade may have turned round by itself about
+e = (1 - sqrt(1 - 2 wobble)) / 2 of the time, and "every answer agreed" is no longer exact. So
+in each saved group, of the marked Correct answers and of the marked Wrong ones, the share whose
+fresh grade turned from the saved one is drawn from
+Beta(turned + 0.5 + s e, same + 0.5 + s (1 - e)), s = max(0, WOBBLE_MARKS - m), m the answers
+counted: a few marks lean on the wobble, many on themselves ("jeffreys, with the judge's
+wobble" in `interval_methods`). q and r follow from it. The numbers stay the same. No wobble
+(None or 0) keeps the ranges above.
+
 Steadiness, the share of answers whose fresh verdicts are not all the same, is weighted like
 the real pass rate, pi f_p + (1 - pi) f_f, with Wilson intervals at 97.5% for each group
 joined at the corners.
@@ -65,6 +75,10 @@ Z = 2.2414  # two-sided 97.5%: steadiness, and the corners of a range of zero wi
 LEVEL = 0.96  # 0.95 held the true value only 91.6 times in 100 in its lowest cell
 DRAWS = 20_000  # enough that another seed moves no range by more than about 0.01
 SEED = 20261008
+# How many marks a share of turned grades weighs the judge's wobble as, less the marks counted.
+# Chosen by scripts/coverage_check.py: 20 held a true TNR only 94 times in 100 in its lowest
+# cell after asking again, 10 at least 93 in every cell.
+WOBBLE_MARKS = 10
 
 
 def wilson(k: int, n: int, z: float = Z) -> tuple[float | None, float | None]:
@@ -214,8 +228,17 @@ def _verdict_shares(rng: random.Random, k: int, m: int, saved: float, draws: int
     return [rng.betavariate(k, m - k) for _ in range(draws)]
 
 
+def _turned_shares(rng: random.Random, turned: int, m: int, slip: float,
+                   draws: int) -> list[float]:
+    """Draws of the share of m answers whose fresh grade turned from the saved one, `turned`
+    of them, when the judge's grades turn round by themselves `slip` of the time."""
+    s = max(0, WOBBLE_MARKS - m)
+    return [rng.betavariate(turned + 0.5 + s * slip, m - turned + 0.5 + s * (1 - slip))
+            for _ in range(draws)]
+
+
 def _general_draws(by_group: dict, pool: dict, draws: int, seed: int,
-                   jeffreys: bool) -> dict[str, list[float]]:
+                   jeffreys: bool, slip: float = 0.0) -> dict[str, list[float]]:
     """Sorted draws of TPR, TNR and kappa of the weighted table (see `general`)."""
     rng = random.Random(seed)
     shares = []  # per group: (pool, draws of p, of q, of r)
@@ -226,13 +249,18 @@ def _general_draws(by_group: dict, pool: dict, draws: int, seed: int,
         wrong = [x for x in xs if x[1] != "pass"]
         passed = sum(x[2] == "pass" for x in correct)
         failed = sum(x[2] != "pass" for x in wrong)
-        shares.append((pool[g],
-                       [rng.betavariate(len(correct) + 0.5, len(wrong) + 0.5)
-                        for _ in range(draws)],
-                       _verdict_shares(rng, passed, len(correct), float(g == "pass"), draws,
-                                       jeffreys),
-                       _verdict_shares(rng, failed, len(wrong), float(g == "fail"), draws,
-                                       jeffreys)))
+        p = [rng.betavariate(len(correct) + 0.5, len(wrong) + 0.5) for _ in range(draws)]
+        if slip > 0:
+            turned_c = _turned_shares(rng, sum(x[2] != g for x in correct), len(correct), slip,
+                                      draws)
+            turned_w = _turned_shares(rng, sum(x[2] != g for x in wrong), len(wrong), slip,
+                                      draws)
+            q = [1 - t if g == "pass" else t for t in turned_c]  # passed again
+            r = [t if g == "pass" else 1 - t for t in turned_w]  # failed again
+        else:
+            q = _verdict_shares(rng, passed, len(correct), float(g == "pass"), draws, jeffreys)
+            r = _verdict_shares(rng, failed, len(wrong), float(g == "fail"), draws, jeffreys)
+        shares.append((pool[g], p, q, r))
     values: dict[str, list[float]] = {"tpr": [], "tnr": [], "kappa": []}
     for i in range(draws):
         tp = fn = fp = tn = 0.0
@@ -247,11 +275,14 @@ def _general_draws(by_group: dict, pool: dict, draws: int, seed: int,
 
 
 def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: int,
-            level: float = LEVEL, draws: int = DRAWS, seed: int = SEED) -> dict:
+            level: float = LEVEL, draws: int = DRAWS, seed: int = SEED,
+            wobble: float | None = None) -> dict:
     """TPR, TNR and kappa of the person's labels against fresh verdicts, weighted by the saved
     groups, each with its range. `items` are (saved group, label,
     fresh verdict), each "pass" or "fail". A group of the pool with no labeled answer counts
-    for nothing in the numbers, and leaves the ranges unknown, as in `corrected`."""
+    for nothing in the numbers, and leaves the ranges unknown, as in `corrected`. `wobble`: the
+    share of answers whose grades differed when the judge was asked twice, which widens the
+    ranges (see the module)."""
     pool = {"pass": n_pool_pass, "fail": n_pool_fail}
     by_group = {g: [x for x in items if x[0] == g] for g in pool}
     weights = {g: _div(pool[g], len(xs)) or 0.0 for g, xs in by_group.items()}
@@ -262,6 +293,13 @@ def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: in
         for key in keys:  # a group of the judge with nothing counted: unknown, as in corrected
             out[key], out[f"{key}_interval"] = None, [None, None]
         out["kappa"], out["kappa_interval"] = None, [None, None]
+    elif wobble:
+        slip = (1 - max(1 - 2 * wobble, 0.0) ** 0.5) / 2  # as targets.slip_rate
+        drawn = _general_draws(by_group, pool, draws, seed, jeffreys=False, slip=slip)
+        for key in keys:
+            out[f"{key}_interval"] = middle(drawn[key], level, out[key])
+            methods[key] = "jeffreys, with the judge's wobble"
+        out["kappa_interval"] = middle(drawn["kappa"], level, out["kappa"])
     else:
         drawn = _general_draws(by_group, pool, draws, seed, jeffreys=False)
         again = None
@@ -273,7 +311,7 @@ def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: in
                 methods[key] = "jeffreys, verdicts too"
             out[f"{key}_interval"] = interval
         out["kappa_interval"] = middle(drawn["kappa"], level, out["kappa"])
-    out.update(interval_methods=methods, level=level, draws=draws, seed=seed,
+    out.update(interval_methods=methods, level=level, draws=draws, seed=seed, wobble=wobble,
                groups={g: {"pool": pool[g], "labeled": len(by_group[g])} for g in pool})
     return out
 
