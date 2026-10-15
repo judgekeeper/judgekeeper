@@ -458,3 +458,62 @@ def test_no_message_while_marking_compares_a_number_with_the_bar():
     for text in texts:
         for word in ("80%", "good enough", "clearly", "below the", "above the"):
             assert word not in text, (word, text)
+
+
+# Paid re-checks ask the judge twice ------------------------------------------------------------
+
+ASK_TWICE = ("To re-check, judgekeeper asks your new judge about your 50 marked answers, twice "
+             "each. That is 100 AI calls, paid with your own key. Asking twice shows how much "
+             "the judge varies by itself.")
+
+
+@pytest.fixture
+def check_judge(monkeypatch, here):
+    from tests import test_check
+
+    return test_check.judge.__wrapped__(monkeypatch, here)
+
+
+def _new_judge(here):
+    from tests.test_check import HAIKU, LENIENT, _marked, _new_outputs, _results
+
+    ws = _marked(here)
+    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
+    return ws
+
+
+def test_a_paid_recheck_says_it_asks_twice(here, capsys, check_judge):
+    from judgekeeper.cli import main
+
+    _new_judge(here)
+    assert main(["check"]) == 3  # no terminal, no --yes: nothing is asked
+    assert ASK_TWICE in _flat(capsys.readouterr().out)
+
+
+def test_asked_twice_the_wobble_is_said_and_the_first_grades_decide(here, capsys, check_judge):
+    from judgekeeper import start_label
+    from judgekeeper.cli import main
+    from tests.test_again_run import FakePromptfoo
+
+    ws = _new_judge(here)
+    fake = check_judge["fake"] = FakePromptfoo(start_label.Workspace(here), version="0.124.1")
+    ids = [q["id"] for q in ws.data()["queue"]]
+    fake.flips = {(i, 1) for i in ids[:3]}  # 3 answers get another grade the second time
+    assert main(["check", "--yes"]) == 1
+    out = _flat(capsys.readouterr().out)
+    evals = [c.argv for c in fake.calls if "eval" in c.argv]
+    assert len(evals) == 1 and evals[0][evals[0].index("--repeat") + 1] == "2"
+    assert ("Asked twice, your new judge changed its own grade on 3 of your 50 answers. "
+            "Differences that small can come from that alone.") in out
+    assert "Worse: 9 turned wrong and none turned right." in out  # the first grades
+
+
+def test_a_free_recheck_asks_nothing_extra(here, capsys):
+    from judgekeeper.cli import main
+    from tests.test_check import HAIKU, LENIENT, _marked, _results
+
+    _marked(here)
+    _results(here, LENIENT, model=HAIKU)
+    main(["check"])
+    out = _flat(capsys.readouterr().out)
+    assert "Asked twice" not in out and "twice each" not in out

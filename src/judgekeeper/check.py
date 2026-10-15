@@ -69,8 +69,13 @@ CONFIG_NEWER = ("Your judge's settings changed after your last eval run, so the 
                 "judgekeeper has are out of date.")
 SAME = "Same model, same rule, same eval tool."
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
-ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}. That is {calls}, "
-             "paid with your own key.")
+ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}, twice each. That "
+             "is {calls}, paid with your own key. Asking twice shows how much the judge varies "
+             "by itself.")
+ASK_TIMES = 2  # a paid re-check asks each answer twice: its own wobble is seen
+WOBBLE = ("Asked twice, your new judge changed its own grade on {k} of your {n}. Differences "
+          "that small can come from that alone.")
+STEADY = "Asked twice, your new judge kept its own grade on all {n}."
 GO_AHEAD = "Go ahead? [y/N] "
 CAN_WRITE = "Your judge is an agent that can change files when it runs."
 NOT_ASKED = "Your judge was not asked."
@@ -393,6 +398,7 @@ class Asked:
     reasons: list[str] = field(default_factory=list)
     close: str | None = None  # why it was a close copy
     not_marked: bool = False  # the newest results hold none of the marked answers
+    wobble: tuple[int, int] | None = None  # asked twice: (answers whose grades differ, of)
 
 
 def _can_write(setup: dict) -> bool:
@@ -434,7 +440,8 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     out = Asked()
     ws = state.ws
     view = new_judge.View(ws, found)
-    plan = again.make_plan(ws, again.AgainOptions(times=1), dry=True, new=view, only=set(ids))
+    plan = again.make_plan(ws, again.AgainOptions(times=ASK_TIMES), dry=True, new=view,
+                           only=set(ids))
     if plan.status == again.CANT:
         out.reasons.append(plan.plain or f"Your judge can't be asked again: {plan.why}.")
         out.not_marked = plan.why == again.NOT_MARKED
@@ -464,7 +471,8 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
         out.calls = plan.calls
         return out
     write_files(ws, plan, fresh, prefix="check", metric=found.metric)
-    out.verdicts = {i: v[0] for i, v in fresh.verdicts.items()}
+    out.verdicts = {i: v[0] for i, v in fresh.verdicts.items()}  # the first, like one run
+    out.wobble = (sum(len(set(v)) > 1 for v in fresh.verdicts.values()), len(fresh.verdicts))
     out.calls = plan.calls
     left: dict[str, int] = {}
     for why in fresh.not_counted.values():
@@ -961,6 +969,11 @@ def full(path: str, said: Said, yes: bool = False) -> int:
             said.say()
     if asked.close:
         said.say(CLOSE.format(why=asked.close))
+        said.say()
+    if asked.wobble and asked.wobble[1]:
+        k, of = asked.wobble
+        said.say(WOBBLE.format(k=k, n=_n(of, "answer")) if k
+                 else STEADY.format(n=_n(of, "answer")))
         said.say()
     drop = targets.smallest_drop(g["passed"]["n"], g["failed"]["n"], g["passed"]["old"],
                                  g["failed"]["old"])
