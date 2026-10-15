@@ -848,15 +848,13 @@ def test_a_paste_over_what_the_page_takes_says_too_long(tmp_path, seeded):
             s.sendall((f"POST /fix/rule?token={server.token} HTTP/1.1\r\n"
                        f"Host: 127.0.0.1:{server.port}\r\nContent-Type: application/json\r\n"
                        f"Origin: http://127.0.0.1:{server.port}\r\n"
-                       f"Content-Length: {label_mod.MAX_BODY + 1}\r\n\r\n").encode())
+                       f"Content-Length: {label_mod.MAX_BODY + 1}\r\n\r\n").encode()
+                      + b"x" * (label_mod.MAX_BODY + 1))
             chunks = []  # the headers and the body may come in separate packets
-            try:
-                while chunk := s.recv(65536):
-                    chunks.append(chunk)
-            except ConnectionResetError:  # the server closed before reading the body
-                assert b"\r\n\r\n" in b"".join(chunks)
+            while chunk := s.recv(65536):  # never reset: the body is read first
+                chunks.append(chunk)
             reply = b"".join(chunks).decode()
-        assert reply.startswith(("HTTP/1.0 400", "HTTP/1.1 400"))
+        assert reply.startswith(("HTTP/1.0 413", "HTTP/1.1 413"))
         assert "Too long to save. Paste only the new rule." in reply
         assert fix.state()["rule_change"]["max_paste"] == start_fix_rule.MAX_PASTE
     finally:
