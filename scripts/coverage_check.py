@@ -37,8 +37,8 @@ does).
 The numbers on screen (`accuracy`): kappa's range; the ranges at the real stopping rule
 (marking 5 + 5 per block until 15 Pass and 15 Fail, and until 25 + 25); how often each width
 word is said at the first result; how often the verdict is green when the lower of the true
-TPR and TNR is 75% and 80%; weighted.general when the judge asked again changes its mind; and
-how often `check` says "Worse" (and exits 1) when nothing changed, with and without the judge's
+TPR and TNR is 75% and 80%; weighted.general when the judge asked again (twice, as a paid
+re-check does) changes its mind, with and without the wobble it showed; and how often `check` says "Worse" (and exits 1) when nothing changed, with and without the judge's
 own wobble when asked again.
 
 Standard library only. Uses every processor core; the full grid takes a few minutes.
@@ -88,6 +88,8 @@ STOP_CASES = RELIABLE_CASES
 # (judge's pass share, true TPR, true TNR): the lower of TPR and TNR at 75% and at 80%
 GREEN_CASES = [(0.9, 0.98, 0.75), (0.9, 0.98, 0.80), (0.5, 0.75, 0.95), (0.5, 0.80, 0.95)]
 CHANGES_MIND = (0.05, 0.10)  # the share of grades a judge asked again turns round
+# the judge also changed: the share of the answers it failed, that should fail, it now passes
+ALSO_CHANGED = (0.0, 0.3)
 WOBBLES = (0.0, 0.05, 0.10)  # the same judge asked again: the share of answers whose grade
 # comes out different, half of them turning wrong and half turning right (nothing changed)
 WIDTHS = (0.25, 0.30, 0.35, 0.40)
@@ -477,33 +479,48 @@ def _green(args: tuple) -> dict:
 
 
 def _changes_mind(args: tuple) -> dict:
-    """weighted.general when the judge asked again turns round a share `flip` of its grades
-    at random: how often its TPR and TNR ranges hold the asked judge's true rates."""
-    pi, a, w, n, flip = args
-    rng = random.Random(SEED + int(flip * 1000) + n + int(pi * 10))
+    """weighted.general when the judge, asked again twice, turns round a share `flip` of its
+    grades at random each time (and, `changed`, now passes that share of the answers it failed
+    that should fail): how often its TPR and TNR ranges hold the asked judge's true rates, with
+    the wobble the two asks showed (`coverage`) and without it (`without`)."""
+    pi, a, w, n, flip, changed = args
+    rng = random.Random(SEED + int(flip * 1000) + n + int(pi * 10) + int(changed * 100))
     n_pass, n_fail = pool_counts(pi)
     old = truth(pi, a, 1 - w)
+    tnr = old["tnr"] * (1 - changed)
     true = {"tpr": old["tpr"] * (1 - flip) + (1 - old["tpr"]) * flip,
-            "tnr": old["tnr"] * (1 - flip) + (1 - old["tnr"]) * flip}
-    hits = {"tpr": 0, "tnr": 0}
-    tried = {"tpr": 0, "tnr": 0}
-    for _ in range(ACCURACY_RUNS // 2):
-        items = []
+            "tnr": tnr * (1 - flip) + (1 - tnr) * flip}
+    hits = {f"{how}/{k}": 0 for how in ("with", "without") for k in ("tpr", "tnr")}
+    tried = dict.fromkeys(hits, 0)
+    wobble_seen = 0.0
+    for _ in range(ACCURACY_RUNS):
+        items, differ = [], 0
         for group, share in (("pass", a), ("fail", 1 - w)):
             for _ in range(n):
                 label = "pass" if rng.random() < share else "fail"
-                turned = rng.random() < flip
-                verdict = ("fail" if group == "pass" else "pass") if turned else group
-                items.append((group, label, verdict))
-        r = weighted.general(items, n_pass, n_fail, draws=4000)
-        for k in ("tpr", "tnr"):
-            lo, hi = r[f"{k}_interval"]
-            if lo is None:
-                continue
-            tried[k] += 1
-            hits[k] += lo - 1e-12 <= true[k] <= hi + 1e-12
-    return {"pi": pi, "a": a, "w": w, "n": n, "flip": flip,
-            "coverage": {k: hits[k] / tried[k] if tried[k] else None for k in hits}}
+                base = "pass" if group == "fail" and label == "fail" and \
+                    rng.random() < changed else group
+                other = "fail" if base == "pass" else "pass"
+                first = other if rng.random() < flip else base
+                second = other if rng.random() < flip else base
+                differ += first != second
+                items.append((group, label, first))  # the first grade counts, as in check
+        wobble = differ / len(items)
+        wobble_seen += wobble
+        for how, r in (("with", weighted.general(items, n_pass, n_fail, draws=4000,
+                                                 wobble=wobble)),
+                       ("without", weighted.general(items, n_pass, n_fail, draws=4000))):
+            for k in ("tpr", "tnr"):
+                lo, hi = r[f"{k}_interval"]
+                if lo is None:
+                    continue
+                tried[f"{how}/{k}"] += 1
+                hits[f"{how}/{k}"] += lo - 1e-12 <= true[k] <= hi + 1e-12
+    share = {key: hits[key] / tried[key] if tried[key] else None for key in hits}
+    return {"pi": pi, "a": a, "w": w, "n": n, "flip": flip, "changed": changed,
+            "wobble": wobble_seen / ACCURACY_RUNS,
+            "coverage": {k: share[f"with/{k}"] for k in ("tpr", "tnr")},
+            "without": {k: share[f"without/{k}"] for k in ("tpr", "tnr")}}
 
 
 def false_worse(n: int, right: float, wobble: float) -> dict:
@@ -534,7 +551,8 @@ def accuracy(workers: int | None = None) -> dict:
                                            for each in (FIRST, RELIABLE)]))
         green = list(ex.map(_green, [(*c, each) for c in GREEN_CASES
                                      for each in (FIRST, RELIABLE)]))
-        mind = list(ex.map(_changes_mind, [(pi, 0.9, 0.85, n, flip) for pi in SHARES
+        mind = list(ex.map(_changes_mind, [(pi, 0.9, 0.85, n, flip, changed)
+                                           for changed in ALSO_CHANGED for pi in SHARES
                                            for n in (15, 25) for flip in CHANGES_MIND]))
     worse = [false_worse(n, 0.9, wobble) for n in (15, 25, 40) for wobble in WOBBLES]
     return {"kappa": kappa, "stopping": stopping, "green": green, "changes_mind": mind,
@@ -577,14 +595,25 @@ def accuracy_markdown(acc: dict) -> list[str]:
     for row in acc["green"]:
         lines.append(f"| {row['judge_passes']:.0%} | {row['tpr']:.0%} | {row['tnr']:.0%} | "
                      f"{row['each']} + {row['each']} | {_pct(row['green'])} |")
+    mind = acc["changes_mind"]
+    low = min(row["coverage"][k] for row in mind for k in ("tpr", "tnr")
+              if row["coverage"][k] is not None)
     lines += ["", "### After asking again, a judge that changes its mind", "",
-              ("weighted.general when the judge asked again turns round a share of its grades "
-               "at random (a = 0.9, w = 0.85). How often the ranges hold the asked judge's true "
-               "TPR and TNR."), "",
-              "| pi | n | turned | TPR | TNR |", "|---|---|---|---|---|"]
-    for row in acc["changes_mind"]:
+              (f"{ACCURACY_RUNS:,} simulated re-checks per row. weighted.general when the judge, "
+               "asked again twice as a paid re-check does, turns round a share of its grades at "
+               "random each time (a = 0.9, w = 0.85); in the lower half it also changed, and "
+               "now passes 30% of the answers it failed that should fail. The first grade "
+               "counts. How often the ranges hold the asked judge's true TPR and TNR, with the "
+               "wobble the two asks showed (the share of answers whose two grades differ, "
+               "averaged) and, before, without it. In percent; lowest with the wobble: "
+               f"{_pct(low)}."), "",
+              ("| pi | n | turned | also changed | wobble seen | TPR | TNR | TPR before | "
+               "TNR before |"), "|---|---|---|---|---|---|---|---|---|"]
+    for row in mind:
         lines.append(f"| {row['pi']:.0%} | {row['n']} | {row['flip']:.0%} | "
-                     f"{_pct(row['coverage']['tpr'])} | {_pct(row['coverage']['tnr'])} |")
+                     f"{row['changed']:.0%} | {row['wobble']:.0%} | "
+                     f"{_pct(row['coverage']['tpr'])} | {_pct(row['coverage']['tnr'])} | "
+                     f"{_pct(row['without']['tpr'])} | {_pct(row['without']['tnr'])} |")
     lines += ["", "### `check` when nothing changed", "",
               ("Worked out exactly for one group of marks: the same judge asked again, a share "
                "of the answers getting another grade (the wobble), half turning wrong and half "
