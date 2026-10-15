@@ -980,7 +980,8 @@ def test_nothing_outside_judgekeeper_is_written(tmp_path, capsys, served, seeded
         thread.join(5)
     assert snapshot() == before
     assert sorted(p.name for p in (ws.dir / "fix").iterdir()) == ["pass-mark.json",
-                                                                  "patterns.json"]
+                                                                  "patterns.json",
+                                                                  "split.json"]
     assert os.path.isfile(ws.dir / "fix.json")
 
 

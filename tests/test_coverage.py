@@ -71,3 +71,28 @@ def test_the_coverage_figures_in_the_docs_come_from_the_committed_grid():
     reference = " ".join((root / "docs" / "reference.md").read_text(encoding="utf-8").split())
     for figure in figures:
         assert figure in reference, figure
+
+
+def test_the_numbers_on_screen_are_in_the_committed_grid():
+    """Kappa's range, the real stopping rule, the width words, green near the bar, a judge
+    that changes its mind, and check's false "Worse": run, committed, and what the docs say
+    about them comes from there."""
+    import json
+
+    root = SCRIPT.parent.parent
+    folder = root / "docs" / "examples" / "coverage"
+    grid = json.loads((folder / "coverage.json").read_text(encoding="utf-8"))
+    acc = grid["accuracy"]
+    for key in ("kappa", "stopping", "green", "changes_mind", "false_worse"):
+        assert acc[key], key
+    assert all(row["coverage"] >= 0.9 for row in acc["kappa"])
+    weak = [row for row in acc["green"] if min(row["tpr"], row["tnr"]) == 0.75]
+    assert weak and all(row["green"] <= 0.05 for row in weak)
+    # the reference says: in about 1 check in 10 at most, coincidence flags one of two groups
+    assert 2 * max(row["exit_1"] for row in acc["false_worse"]) <= 0.11
+    md = (folder / "coverage.md").read_text(encoding="utf-8")
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    for figure in ("93.6", "96.2"):  # the README's coverage figures
+        assert figure in readme and figure in md, figure
+    for page in (readme, (root / "docs" / "reference.md").read_text(encoding="utf-8")):
+        assert "examples/coverage" in page

@@ -89,7 +89,7 @@ def test_a_link_in_a_folder_inside_stops_the_review(tmp_path, capsys, monkeypatc
     monkeypatch.setattr(start_review, "make_server", no_server)
     ws, _ = _reviewable(tmp_path / "project")
     victim = _victim(tmp_path)
-    (ws.dir / "fix").mkdir()
+    (ws.dir / "fix").mkdir(exist_ok=True)  # the result set some marks aside in it already
     _link(ws.dir / "fix" / "prompt.txt", victim)
     code, _, err = _start(capsys, ws.root, "--review")
     assert code == 2

@@ -69,8 +69,13 @@ CONFIG_NEWER = ("Your judge's settings changed after your last eval run, so the 
                 "judgekeeper has are out of date.")
 SAME = "Same model, same rule, same eval tool."
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
-ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}. That is {calls}, "
-             "paid with your own key.")
+ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}, twice each. That "
+             "is {calls}, paid with your own key. Asking twice shows how much the judge varies "
+             "by itself.")
+ASK_TIMES = 2  # a paid re-check asks each answer twice: its own wobble is seen
+WOBBLE = ("Asked twice, your new judge changed its own grade on {k} of your {n}. Differences "
+          "that small can come from that alone.")
+STEADY = "Asked twice, your new judge kept its own grade on all {n}."
 GO_AHEAD = "Go ahead? [y/N] "
 CAN_WRITE = "Your judge is an agent that can change files when it runs."
 NOT_ASKED = "Your judge was not asked."
@@ -393,6 +398,7 @@ class Asked:
     reasons: list[str] = field(default_factory=list)
     close: str | None = None  # why it was a close copy
     not_marked: bool = False  # the newest results hold none of the marked answers
+    wobble: tuple[int, int] | None = None  # asked twice: (answers whose grades differ, of)
 
 
 def _can_write(setup: dict) -> bool:
@@ -434,7 +440,8 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     out = Asked()
     ws = state.ws
     view = new_judge.View(ws, found)
-    plan = again.make_plan(ws, again.AgainOptions(times=1), dry=True, new=view, only=set(ids))
+    plan = again.make_plan(ws, again.AgainOptions(times=ASK_TIMES), dry=True, new=view,
+                           only=set(ids))
     if plan.status == again.CANT:
         out.reasons.append(plan.plain or f"Your judge can't be asked again: {plan.why}.")
         out.not_marked = plan.why == again.NOT_MARKED
@@ -464,7 +471,8 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
         out.calls = plan.calls
         return out
     write_files(ws, plan, fresh, prefix="check", metric=found.metric)
-    out.verdicts = {i: v[0] for i, v in fresh.verdicts.items()}
+    out.verdicts = {i: v[0] for i, v in fresh.verdicts.items()}  # the first, like one run
+    out.wobble = (sum(len(set(v)) > 1 for v in fresh.verdicts.values()), len(fresh.verdicts))
     out.calls = plan.calls
     left: dict[str, int] = {}
     for why in fresh.not_counted.values():
@@ -543,6 +551,59 @@ def groups(marked: dict[str, str], old: dict[str, str], new: dict[str, str],
             g.update(old_rate=rates[0][rate], new_rate=rates[1][rate])
         out[key] = g
     return out
+
+
+# After a rule change: marks made after it (they were not looked at to write it) ---------------
+
+WRITTEN_FROM = ("This includes marks you looked at to write this rule, so it may read a few "
+                "points high.")
+AFTER_NONE = ("On marks made after this change: {said}. Mark more answers to see it on answers "
+              "it was not written for.")
+AFTER_NUMBERS = 10  # of each kind: their numbers are shown
+AFTER_HEADLINE = 15  # of each kind: they decide the verdict
+
+
+def _checked_before(state: State, old: dict, new: dict) -> list[str]:
+    """The times this same change was checked before (history.jsonl)."""
+    pair = (judge_setup.hash_of(old), judge_setup.hash_of(new))
+    return [str(x.get("time") or "") for x in _history(state.ws)
+            if (judge_setup.hash_of(x.get("before") or {}),
+                judge_setup.hash_of(x.get("after") or {})) == pair]
+
+
+def _first_seen(state: State, old: dict, new: dict) -> str:
+    """When this change was first checked, else now."""
+    return min(_checked_before(state, old, new), default=utc_now())
+
+
+def _made_after(state: State, since: str, tested: dict[str, str]) -> dict[str, str]:
+    """The marks made after `since` that the new judge was tested on: {id: mark}."""
+    last = marks.read(state.ws.marks).last
+    return {i: m for i, m in state.marks.items()
+            if i in tested and str((last.get(i) or {}).get("at") or "") > since}
+
+
+def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str, str],
+                 pool: dict[str, int]) -> list[str]:
+    """The new judge on the marks made after the change: none yet, how many so far, or (with
+    AFTER_NUMBERS of each) its numbers with their ranges."""
+    from judgekeeper.start_label import side_sentence
+
+    kinds = list(fresh.values())
+    n_pass, n_fail = kinds.count("pass"), kinds.count("fail")
+    if min(n_pass, n_fail) < AFTER_NUMBERS:
+        return [AFTER_NONE.format(said=f"{len(fresh)} so far" if fresh else "none yet")]
+    items = [(picked.get(i, tested[i]), fresh[i], tested[i]) for i in fresh]
+    out = weighted.general(items, pool["pass"], pool["fail"])
+    return [f"On marks made after this change ({n_pass} Pass, {n_fail} Fail):",
+            *(f"  {side_sentence(k, out[k], out[f'{k}_interval'])}" for k in ("tpr", "tnr"))]
+
+
+def _say_groups(said: Said, g: dict) -> None:
+    for key, _, _title in GROUPS:
+        for line in _group_lines(key, g[key]):
+            said.say(line)
+        said.say()
 
 
 def _points(x: float) -> int:
@@ -728,6 +789,59 @@ def _no_change(state: State) -> str:
     return f"Your judge has not changed since your last check{f' ({day})' if day else ''}."
 
 
+# How many changes the marks have helped pick -------------------------------------------------
+# A pick: a `fix` test on these marks, or a check of a rule or pass-mark change (a change made
+# by looking at the marks). A model change or a tool update is not one. After PICKS_ASK picks,
+# until PICK_MARKS marks are made after the last one, the marks may flatter the judge.
+
+PICKS_ASK = 3
+PICK_MARKS = 10
+NEXT_NEW_MARKS = ("Next: run `{mark}` to mark {n} new answers, then run `{command}` again.")
+
+
+def is_pick(line: dict) -> bool:
+    """Whether a history.jsonl line is a pick (above)."""
+    if line.get("kind") == "fix":
+        return True
+    changed = line.get("changed") or []
+    return line.get("kind") == "check" and any(
+        c == "rule changed" or str(c).startswith("pass mark") for c in changed)
+
+
+def rule_changed(changed: list[str]) -> bool:
+    return is_pick({"kind": "check", "changed": changed})
+
+
+def picks(ws: Workspace, now: bool = False) -> dict:
+    """{"n": picks, "new_marks": marks made after the last, "ask": whether to ask for
+    PICK_MARKS new marks}: counted from these marks on (marks.jsonl's start, or `fix --new`).
+    `now`: this run is a pick too."""
+    from judgekeeper import fix
+
+    read = marks.read(ws.marks)
+    split = fix.read_split(ws)
+    since = max(str((read.header or {}).get("created_at") or ""),
+                str(split.reset_at if split else ""))
+    times = [str(x.get("time") or "") for x in _history_all(ws) if is_pick(x)]
+    times = [t for t in times if t >= since] + ([utc_now()] if now else [])
+    last = max(times) if times else None
+    made = sum(str(x.get("at") or "") > last for i, x in read.last.items()
+               if i in read.counted()) if last else 0
+    return {"n": len(times), "new_marks": made,
+            "ask": len(times) >= PICKS_ASK and made < PICK_MARKS}
+
+
+def picks_lines(p: dict) -> list[str]:
+    if not p["n"]:
+        return []
+    out = [f"These marks have helped pick {plural(p['n'], 'change')}."]
+    if p["ask"]:
+        out.append(f"Your marks have been used to pick {plural(p['n'], 'change')}, so they may "
+                   f"now flatter your judge. Mark {PICK_MARKS} new answers to keep the check "
+                   "honest.")
+    return out
+
+
 def _history(ws: Workspace) -> list[dict]:
     try:
         text = ws.history_jsonl.read_text(encoding="utf-8")
@@ -828,27 +942,57 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say(line)
     said.say()
     on = f"all {total} of your marks" if n == total else f"{n} of your {_n(total, 'mark')}"
-    said.say(f"Re-checked on {on}:")
-    said.say()
     old_verdicts = _old_verdicts(state)
     picked, pool = _picks(state)
     g = groups(state.marks, old_verdicts, tested, picked, pool)
-    for key, _, _title in GROUPS:
-        for line in _group_lines(key, g[key]):
-            said.say(line)
+    fresh = (_made_after(state, _first_seen(state, old, new), tested)
+             if rule_changed(changed) else None)
+    kinds = list(fresh.values()) if fresh is not None else []
+    if min(kinds.count("pass"), kinds.count("fail")) >= AFTER_HEADLINE:
+        g = groups(fresh, old_verdicts, tested, picked, pool)  # the headline now
+        said.say(f"Re-checked on the {len(fresh)} marks you made after this change:")
         said.say()
+        _say_groups(said, g)
+        said.say(f"On {on}:")
+        said.say()
+        _say_groups(said, groups(state.marks, old_verdicts, tested, picked, pool))
+        said.say(WRITTEN_FROM)
+        said.say()
+    else:
+        said.say(f"Re-checked on {on}:")
+        said.say()
+        _say_groups(said, g)
+        if fresh is not None:
+            said.say(WRITTEN_FROM)
+            for line in _after_lines(fresh, tested, picked, pool):
+                said.say(line)
+            said.say()
     if asked.close:
         said.say(CLOSE.format(why=asked.close))
+        said.say()
+    if asked.wobble and asked.wobble[1]:
+        k, of = asked.wobble
+        said.say(WOBBLE.format(k=k, n=_n(of, "answer")) if k
+                 else STEADY.format(n=_n(of, "answer")))
         said.say()
     drop = targets.smallest_drop(g["passed"]["n"], g["failed"]["n"], g["passed"]["old"],
                                  g["failed"]["old"])
     worse = [k for k in ("failed", "passed") if g[k]["verdict"] == "worse"]
     unsure = [k for k in ("failed", "passed") if g[k]["verdict"] == "not_sure"]
+    picked = picks(state.ws, now=rule_changed(changed)  # a pick, unless checked before
+                   and not _checked_before(state, old, new))
+    for line in picks_lines(picked):
+        said.say(line)
+    if picks_lines(picked):
+        said.say()
     if worse:
         tool = find.NAMES.get(new.get("tool"), new.get("tool"))
         back = (f"the old version of {tool} ({old.get('tool_version')})"
                 if judge_setup.tool_only(old, new) else "the old judge")
         said.say(NEXT_WORSE.format(back=back, command=_command(state)))
+    elif picked["ask"]:
+        said.say(NEXT_NEW_MARKS.format(mark=program("mark"), n=PICK_MARKS - picked["new_marks"],
+                                       command=_command(state)))
     elif unsure:
         said.say(NEXT_NOT_SURE.format(mark=program("mark"), command=_command(state)))
     else:
@@ -860,7 +1004,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         "time": utc_now(), "kind": "check", "trigger": "by hand", "before": old, "after": new,
         "changed": changed, "marks": total, "free": len(free), "asked": len(asked.verdicts),
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": g,
-        "smallest_drop": drop, "flipped": flipped})
+        "smallest_drop": drop, "flipped": flipped,
+        "made_after_change": None if fresh is None else len(fresh)})
     if not _same_as_last(state, line):
         marks.append(state.ws.history_jsonl, line)
     _save_verdicts(state.ws, new, found, tested)

@@ -1002,6 +1002,7 @@ def result_page(content: dict, back: str | None = None) -> str:
     corrected = f'<p>{escape(content["corrected"])}</p>' if content["corrected"] else ""
     model = content.get("drop_model")
     model = f"<p>{escape(model)}</p>" if model else ""
+    model += "".join(f"<p>{escape(x)}</p>" for x in content.get("picks") or [])
     facts = (f'<div class="facts">{rate}{corrected}{model}</div>' if rate or corrected or model
              else "")
     made = "".join(f'<p class="small">{escape(x)}</p>'
