@@ -361,7 +361,7 @@ def test_package_metadata_links_the_repo_while_the_website_is_offline():
 
 def test_contributing_says_issues_not_pull_requests_and_how_to_report_privately():
     text = (ROOT / ".github" / "CONTRIBUTING.md").read_text(encoding="utf-8")
-    assert "does not accept pull requests" in text
+    assert "accepts issues, not pull requests" in text
     assert "https://github.com/judgekeeper/judgekeeper/security/advisories/new" in text
     assert "Never paste API keys" in text
 

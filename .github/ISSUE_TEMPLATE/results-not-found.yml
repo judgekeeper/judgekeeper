@@ -1,0 +1,45 @@
+name: Results not found
+description: judgekeeper did not find or could not read your judge's results.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tell us where your judge's results are and how they are saved. Describe the file's shape (its keys or columns) with made-up values: never paste real answers, data you are not allowed to share, or API keys.
+  - type: input
+    id: tool
+    attributes:
+      label: Your eval tool or file format
+      description: The tool and its version, or the kind of file (for example a JSON file your own script writes).
+      placeholder: DeepEval 4.2.8, or a JSONL file from my own script
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: How the results are saved
+      description: Where the file is in your project, and one made-up item showing its keys or columns.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: saw
+    attributes:
+      label: What judgekeeper printed
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: judgekeeper version
+      description: What `judgekeeper --version` prints.
+      placeholder: judgekeeper 1.0.0
+    validations:
+      required: true
+  - type: checkboxes
+    id: agree
+    attributes:
+      label: Before you send it
+      options:
+        - label: Any code, design or text I share here may be used in judgekeeper under the MIT license.
+          required: true

@@ -57,7 +57,7 @@ Beta (1.0.0b2): commands and report fields may still change. `judgekeeper --help
 
 ## Issues
 
-This project is maintained by one person and does not accept pull requests. Bug reports and ideas are welcome as [issues](https://github.com/judgekeeper/judgekeeper/issues).
+This project is maintained by one person and accepts issues, not pull requests. Bug reports, results it could not find, ideas and designs are welcome as [issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose).
 
 ## License
 
