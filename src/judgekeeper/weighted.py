@@ -76,9 +76,9 @@ LEVEL = 0.96  # 0.95 held the true value only 91.6 times in 100 in its lowest ce
 DRAWS = 20_000  # enough that another seed moves no range by more than about 0.01
 SEED = 20261008
 # How many marks a share of turned grades weighs the judge's wobble as, less the marks counted.
-# Chosen by scripts/coverage_check.py: 20 held a true TNR only 94 times in 100 in its lowest
-# cell after asking again, 10 at least 93 in every cell.
-WOBBLE_MARKS = 10
+# Chosen by scripts/coverage_check.py: the first of 0, 5, 10 and 20 whose ranges after asking
+# again hold the true TPR and TNR at least 93 times in 100 in every cell and 95 on average.
+WOBBLE_MARKS = 5  # 0 held the true TNR only 90.3 times in 100 in its lowest cell
 
 
 def wilson(k: int, n: int, z: float = Z) -> tuple[float | None, float | None]:
