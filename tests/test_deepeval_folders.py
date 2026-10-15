@@ -77,3 +77,35 @@ def test_a_file_with_several_metrics_asks_which(here, capsys):
     assert "These results hold more than one judge:" in out
     assert "--metric NAME" in assert_one_next_at_the_end(out)
     assert code == 3
+
+
+def test_a_folder_is_listed_with_its_run_time_never_the_files_time(two_apps, capsys):
+    code, out, _ = run(capsys)  # .latest_run_full.json: no time inside, so no date
+    assert "  app1/.deepeval/ (app1/.deepeval/.latest_run_full.json)\n" in out
+    assert "saved" not in out
+    assert code == 3
+
+
+def test_a_saved_run_is_listed_with_the_time_in_its_name(here, capsys):
+    for app, stamp in (("app1", "20261001_090000"), ("app2", "20261002_100000")):
+        deepeval_project(here / app, split(9, 9), name=f"results/test_run_{stamp}.json")
+    code, out, _ = run(capsys)
+    assert ("  app2/results/ (app2/results/test_run_20261002_100000.json, saved "
+            "2026-10-02 10:00)\n") in out
+    assert code == 3
+
+
+def test_every_folder_only_linking_to_confident_ai_is_said_not_asked(here, capsys):
+    for app in ("app1", "app2"):
+        path = here / app / ".deepeval" / ".latest_test_run.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({"testRunLink": "https://app.confident-ai.com/r"}),
+                        encoding="utf-8")
+    code, out, err = run(capsys)
+    text = " ".join((out + err).split())
+    assert "more than one folder" not in text
+    assert "Each DeepEval results folder here (app" in text
+    assert ("/.deepeval) only links to Confident AI; your results aren't saved on this "
+            "computer.") in text
+    assert "Next: set DEEPEVAL_RESULTS_FOLDER=results and run your eval once" in text
+    assert code == 2

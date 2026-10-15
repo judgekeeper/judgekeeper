@@ -494,6 +494,27 @@ def test_a_refused_post_is_answered_after_its_body_is_read(tmp_path, serve, quer
     assert not (tmp_path / "labels.csv").exists()
 
 
+def test_a_body_over_the_limit_gets_413_not_a_dropped_connection(tmp_path, serve):
+    """A POST over MAX_BODY is read and dropped, then answered 413: never a reset."""
+    import socket
+
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    port = client.server.port
+    body = b"x" * (label_mod.MAX_BODY + 1)
+    head = (f"POST /label?token={client.server.token} HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{port}\r\nContent-Type: application/json\r\n"
+            f"Origin: http://127.0.0.1:{port}\r\n"
+            f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n").encode()
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
+        s.sendall(head + body)
+        answer = b""
+        while chunk := s.recv(65536):  # a reset raises here instead of ending cleanly
+            answer += chunk
+    assert answer.startswith(b"HTTP/1.0 413 ")  # its words differ by Python version
+    assert b"too large" in answer.lower()
+    assert not (tmp_path / "labels.csv").exists()
+
+
 # Stopping by itself once the result is served (the page `judgekeeper start` passes)
 
 def _serve_until_done(tmp_path, **kw):

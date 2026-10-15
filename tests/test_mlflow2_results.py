@@ -44,9 +44,11 @@ def test_judge_scores_from_mlflow_evaluate_are_named_and_not_read(here, capsys):
     code, out, err = run(capsys)
     assert ("Your MLflow runs hold judge scores from mlflow.evaluate() (answer_relevance/v1, "
             "faithfulness/v1). judgekeeper reads judges run with mlflow.genai.evaluate() and "
-            "scorers (MLflow 3). Reading these older results isn't supported.") in out
+            "scorers (MLflow 3). Reading these older results isn't supported. To check this "
+            "judge, run it with mlflow.genai.evaluate() and scorers, or save its verdicts as a "
+            "CSV with input, output and verdict columns.") in " ".join(out.split())
     assert "no MLflow experiment" not in out + err
     assert assert_one_next_at_the_end(out) == (
-        "Next: run your judge with mlflow.genai.evaluate() and scorers, then run `judgekeeper` "
-        "again.")
+        "Next: run your judge with mlflow.genai.evaluate() and scorers, then run "
+        "`judgekeeper` again; or save its verdicts as a CSV and run `judgekeeper <the CSV>`.")
     assert code == 3

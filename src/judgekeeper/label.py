@@ -11,7 +11,8 @@ through textContent, and the data is embedded as JSON with <, > and & escaped. E
 connection is read in a thread of its own, so a slow or silent one never holds up the rest;
 it is dropped after CONNECTION_TIMEOUT seconds. Requests are then handled one at a time
 (LabelServer.busy). A POST's body is read before any answer: a connection closed with unread
-data is reset on Windows, and the answer is lost. Any other method (OPTIONS, HEAD...) gets the
+data is reset on Windows, and the answer is lost. A body over MAX_BODY is read and dropped,
+then answered 413. Any other method (OPTIONS, HEAD...) gets the
 same Host and token checks, then 405; no answer names the Python version. The server stops on Ctrl-C, on a
 POST to /stop (it works the same on every system), and after IDLE_TIMEOUT seconds without a
 request. The project's lock (server.json) holds a separate stop secret, never the token: with
@@ -80,6 +81,8 @@ IDLE_TIMEOUT = 30 * 60  # seconds
 # Seconds one connection may stay silent (a browser's spare one) before it is dropped.
 CONNECTION_TIMEOUT = 5
 MAX_BODY = 1_000_000
+MAX_DRAIN = 64_000_000  # a body over MAX_BODY is read and dropped up to this, then 413
+TOO_LARGE = "too large: the page sends at most 1 MB"
 # Seconds a page may take to fetch its result after the last item before the server stops.
 RESULT_WAIT = 60
 
@@ -460,7 +463,15 @@ def _handler(server: LabelServer):
                 length = int(self.headers.get("Content-Length") or 0)
             except ValueError:
                 return None
-            return self.rfile.read(length) if 0 < length <= MAX_BODY else None
+            if length > MAX_BODY:  # read and dropped: unread data would reset the answer
+                left = min(length, MAX_DRAIN)
+                try:
+                    while left > 0 and (chunk := self.rfile.read(min(left, 65536))):
+                        left -= len(chunk)
+                except OSError:
+                    pass
+                return None
+            return self.rfile.read(length) if length > 0 else None
 
         def do_GET(self):
             with server.busy:
@@ -539,9 +550,13 @@ def _handler(server: LabelServer):
                 return
             try:
                 length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                length = 0
+            if length > MAX_BODY:
                 too_long = getattr(server.session, "too_long", {})
-                if length > MAX_BODY and url.path in too_long:
-                    raise ValueError(too_long[url.path])
+                self._json(413, {"error": too_long.get(url.path, TOO_LARGE)})
+                return
+            try:
                 if raw is None:
                     raise ValueError("expected a JSON body")
                 body = json.loads(raw)

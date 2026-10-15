@@ -93,6 +93,25 @@ def test_fingerprint_when_every_row_names_its_grader(tmp_path):
     assert fp.prompt_hash == hashlib.sha256(RUBRIC.encode()).hexdigest()
 
 
+@pytest.mark.parametrize("pid", [
+    "file:///Users/someone/support-bot/claude_provider.js",
+    "file://providers/claude_provider.js",
+    "file://C:\\Users\\someone\\bot\\claude_provider.js",
+    "file:///home/someone/bot/claude_provider.js:callApi",
+])
+def test_a_local_provider_file_is_named_without_its_path(tmp_path, pid):
+    data = json.loads(RESULTS.read_text(encoding="utf-8"))
+    for row in data["results"]["results"]:
+        for c in row["gradingResult"]["componentResults"]:
+            if c["assertion"].get("metric") == "helpfulness":
+                c["assertion"]["provider"] = {"id": pid}
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    rec = next(r for r in read_promptfoo(path) if r.name == "helpfulness")
+    assert rec.evaluator["model"] == "your own provider (claude_provider.js)"
+    assert rec.evaluator["provider"] == "file"
+
+
 def test_assertion_provider_wins_over_test_and_default_options(tmp_path):
     data = json.loads(RESULTS.read_text(encoding="utf-8"))
     data["config"]["defaultTest"]["options"]["provider"] = "anthropic:messages:default-model"

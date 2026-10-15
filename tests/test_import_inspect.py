@@ -77,6 +77,38 @@ def test_fingerprint_from_model_roles_and_scorer_options():
     assert fp.prompt_hash == hashlib.sha256(canonical_json(prompt).encode()).hexdigest()
 
 
+def _no_grader(tmp_path, rename=None, metadata=None):
+    data = json.loads(LOG.read_text(encoding="utf-8"))
+    data["eval"].pop("model_roles", None)
+    for sample in data["samples"]:
+        scores = sample["scores"]
+        score = scores.pop("model_graded_qa")
+        score["metadata"] = metadata or {}
+        scores[rename or "model_graded_qa"] = score
+    path = tmp_path / "log.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return [r for r in read_inspect(path) if r.annotator_kind == LLM and r.name != "match"]
+
+
+def test_a_model_in_the_scores_name_is_the_judges_model(tmp_path):
+    # as R's vitals package writes it: the grader's model after the scorer's name
+    name = "model_graded_qa(partial_credit = TRUE) (claude-sonnet-4-5)"
+    recs = _no_grader(tmp_path, rename=name)
+    assert recs and {r.evaluator.get("model") for r in recs} == {"claude-sonnet-4-5"}
+    assert {r.name for r in recs} == {name}
+
+
+def test_a_model_in_the_scores_metadata_is_the_judges_model(tmp_path):
+    recs = _no_grader(tmp_path, metadata={"grader_model": "openai/gpt-4.1"})
+    assert {r.evaluator.get("model") for r in recs} == {"openai/gpt-4.1"}
+    assert {r.evaluator.get("provider") for r in recs} == {"openai"}
+
+
+def test_no_model_anywhere_is_no_model(tmp_path):
+    recs = _no_grader(tmp_path, rename="bluff_scorer (strict)", metadata={"grading": []})
+    assert {r.evaluator.get("model") for r in recs} == {None}
+
+
 def test_scorer_without_options_hashes_the_default_template_not_the_grading_prompt(tmp_path):
     data = json.loads(LOG.read_text(encoding="utf-8"))
     data["eval"]["scorers"] = [s for s in data["eval"]["scorers"]

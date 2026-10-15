@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -110,11 +111,27 @@ def _load(path: Path) -> dict:
             with quiet():
                 return read_eval_log(str(path)).model_dump(mode="json")
         except Exception:  # noqa: BLE001 - a log cut short, empty or not Inspect's
+            if _eval_part_damaged(path):
+                raise damaged(path, "Inspect AI", EVAL_DAMAGED) from None
             raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
                                               "an Inspect AI log") from None
     if path.suffix.lower() == ".eval":
         raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path, get=get_extra("inspect")))
     return load_json(path, "Inspect AI")
+
+
+EVAL_DAMAGED = "can't be read: its eval part is damaged"
+
+
+def _eval_part_damaged(path: Path) -> bool:
+    """A JSON log whose "eval" is there but is not an object."""
+    if path.suffix.lower() != ".json":
+        return False
+    try:
+        data = load_json(path, "Inspect AI")
+    except RecordsError:
+        return False
+    return isinstance(data, dict) and "eval" in data and not isinstance(data["eval"], dict)
 
 
 def eval_header(path: str | Path) -> dict:
@@ -182,6 +199,25 @@ def trajectory(sample: dict) -> list[dict] | None:
     """A sample's messages as OpenAI-style steps, or None when it has none."""
     messages = [m for m in sample.get("messages") or [] if isinstance(m, dict)]
     return [_step(m) for m in messages] or None
+
+
+_NAMED_MODEL = re.compile(r"\s\(([A-Za-z][\w.:@-]*(?:/[\w.:@-]+)*)\)\Z")
+_MODEL_KEYS = ("grader_model", "judge_model", "model", "grader")
+
+
+def _model_said(name: str, score: dict) -> str | None:
+    """The grader's model when the log has no grader role: in the score's metadata, or after
+    the scorer's name as R's vitals package writes it (`model_graded_qa() (claude-sonnet-4-5)`).
+    A word in brackets is a model only when it looks like one (a digit and a - . or /)."""
+    metadata = score.get("metadata")
+    for key in _MODEL_KEYS:
+        value = metadata.get(key) if isinstance(metadata, dict) else None
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    m = _NAMED_MODEL.search(name or "")
+    if m and re.search(r"\d", m[1]) and re.search(r"[-./]", m[1]):
+        return m[1]
+    return None
 
 
 def sample_key(sample: dict) -> str:
@@ -252,7 +288,8 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
     data = _load(path)
     spec = data.get("eval") if isinstance(data, dict) else None
     if not isinstance(spec, dict):
-        raise damaged(path, "Inspect AI", "is not an Inspect AI log (no eval)")
+        raise damaged(path, "Inspect AI", EVAL_DAMAGED if isinstance(data, dict) and "eval" in data
+                      else "is not an Inspect AI log (no eval)")
     samples = data.get("samples")
     samples = samples if isinstance(samples, list) else None
     if not samples:
@@ -289,6 +326,8 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
             model, temp = grader_model, temperature
             if model is None and options.get("model"):
                 model, temp = _model(options["model"])[0], None
+            if model is None:
+                model, temp = _model_said(name, score), None
             evaluator = {}
             if model:
                 evaluator["model"] = model

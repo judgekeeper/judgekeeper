@@ -360,7 +360,7 @@ def test_the_default_grader_is_named_as_such(tmp_path, capsys):
     promptfoo_project(tmp_path, split(20, 12), model=None)
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
-    assert "  Judge model     not named in the results (add --judge-model NAME)" in out
+    assert "  Judge model     not found in the results (add --judge-model NAME)" in out
 
 
 def test_judge_model_fills_a_missing_model(tmp_path, capsys):

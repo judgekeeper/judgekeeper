@@ -105,6 +105,16 @@ def test_deepeval_latest_run(tmp_path, capsys):
     assert "  Its decisions   32 answers: 20 passed, 12 failed" in out
 
 
+def test_deepevals_temporary_run_file_is_not_results(tmp_path, capsys):
+    deepeval_project(tmp_path, split(20, 12))
+    deepeval_project(tmp_path, split(3, 3), name=".temp_test_run_data.json")  # a run going on
+    deepeval_project(tmp_path, split(3, 3), name=".deepeval/.temp_test_run_data.json")
+    assert [r.rel for r in find.search(tmp_path).readable("deepeval")] == [
+        ".deepeval/.latest_run_full.json"]
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0 and "  Its decisions   32 answers: 20 passed, 12 failed" in out
+
+
 def test_deepeval_results_folder_from_its_variable(tmp_path, capsys, monkeypatch):
     deepeval_project(tmp_path, split(20, 12), name="evals/runs/test_run_20261002_090000.json")
     (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["deepeval"]\n',
@@ -159,7 +169,7 @@ def test_a_plain_table(tmp_path, capsys):
     assert "  Eval tool       a table (results.csv)" in out
     assert "  Results file    data/results.csv (saved " in out
     assert "  What it checks  not in the file" in out
-    assert "  Judge model     not named in the results (add --judge-model NAME)" in out
+    assert "  Judge model     not found in the results (add --judge-model NAME)" in out
     assert "  Its decisions   32 answers: 16 passed, 16 failed" in out
 
 
@@ -205,7 +215,7 @@ def test_a_table_deeper_than_two_folders_is_not_a_table(tmp_path, capsys):
     table_project(tmp_path, split(16, 16), name="a/b/results.csv")
     code, out, _ = run(capsys, tmp_path)
     assert code == 2
-    assert "No saved eval results found" in out
+    assert "  a/b/results.csv (2 folders down)" in out and "Eval tool" not in out
 
 
 def test_mlflow_store(tmp_path, capsys):
@@ -272,7 +282,7 @@ def test_skipped_folders_are_skipped(tmp_path, capsys, folder):
 def test_files_deeper_than_four_folders_are_not_found(tmp_path, capsys):
     promptfoo_project(tmp_path / "a" / "b" / "c" / "d" / "e", split(20, 12), config=False)
     code, out, _ = run(capsys, tmp_path)
-    assert code == 2 and "No saved eval results found" in out
+    assert code == 2 and "  a/b/c/d/e/results.json (5 folders down)" in out
     promptfoo_project(tmp_path / "a" / "b" / "c" / "d", split(20, 12), config=False)
     code, out, _ = run(capsys, tmp_path)
     assert code == 0 and "a/b/c/d/results.json" in out
@@ -291,7 +301,8 @@ def test_symbolic_links_are_not_followed(tmp_path, capsys):
         pytest.skip("symbolic links not allowed here")
     code, out, _ = run(capsys, project)
     assert code == 2
-    assert "No saved eval results found" in out
+    assert "results.json (a link: judgekeeper doesn't follow links)" in out
+    assert "Eval tool" not in out
 
 
 def test_the_search_stops_after_the_file_limit(tmp_path, capsys, monkeypatch):
@@ -326,7 +337,7 @@ def test_known_places_are_looked_at_before_the_limit(tmp_path, capsys, monkeypat
     deepeval_project(tmp_path, split(20, 12))
     code, out, _ = run(capsys, tmp_path)
     assert "  Results file    .deepeval/.latest_run_full.json" in out
-    assert "Stopped looking after 5 files." in out
+    assert "Stopped looking" not in out  # said only when nothing was found
     assert code == 0
 
 

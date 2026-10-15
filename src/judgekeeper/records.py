@@ -44,7 +44,7 @@ from judgekeeper.table import (
     _delimiter,
     derive_id,
 )
-from judgekeeper.textio import MAX_NESTING, jsonl_lines, plural, read_utf8, too_deep
+from judgekeeper.textio import MAX_NESTING, jsonl_lines, plural, read_utf8, reading, too_deep
 
 SCHEMA_VERSION = 2
 LLM, HUMAN, CODE = "LLM", "HUMAN", "CODE"
@@ -421,6 +421,7 @@ def read_rows(records: RecordList, rows, read_one) -> None:
     `records`. A damaged row (ROW_DAMAGE, check_record) adds nothing: its number goes to
     `records.left_out`. A RecordsError still stops the file."""
     for n, row in rows:
+        reading(n)
         before = len(records)
         try:
             read_one(row)

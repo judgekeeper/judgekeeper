@@ -79,7 +79,7 @@ from judgekeeper.records import (
     check_record,
     derive_record_id,
 )
-from judgekeeper.textio import get_extra
+from judgekeeper.textio import get_extra, reading
 
 # The loggers MLflow's reading goes through: MLflow's own, and the database layers under it
 LOGGERS = ("mlflow", "alembic", "sqlalchemy")
@@ -94,6 +94,11 @@ TRACE_INPUTS = "mlflow.traceInputs"
 TRACE_OUTPUTS = "mlflow.traceOutputs"
 SCORER_ERROR = "SCORER_ERROR"  # how mlflow.genai.evaluate saves a scorer that raised
 PAGE_SIZE = 100
+# Traces read from one experiment, newest first (MLflow's order): reading takes about 1 ms
+# each, so 100,000 took minutes. Past it, CAPPED says so.
+MAX_TRACES = 30_000
+CAPPED = ("{experiment} has more than {n:,} traces: judgekeeper read the newest {n:,} (reading "
+          "every trace of a very big experiment takes minutes).")
 NO_RUN = "(no run)"
 BIG_STORE = 1_000_000_000  # bytes: a store this big gets a line before it is copied
 SQLITE_SIDE_FILES = ("-wal", "-shm")  # SQLite keeps recent writes there until a checkpoint
@@ -539,8 +544,13 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     n_traces = 0
     missing: list[str] = []
     damaged: list[str] = []  # the ids of traces left out for a damaged field
+    capped = False
     for trace in _traces(client, exp.experiment_id, folder, missing):
+        if n_traces >= MAX_TRACES:
+            capped = True
+            break
         n_traces += 1
+        reading(n_traces, store_name(tracking_uri))
         sizes = (len(humans), len(failed), len(on_spans),
                  {run: len(recs) for run, recs in judged.items()})
         try:
@@ -669,6 +679,8 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
                             "name it with --metric.")
     if missing:
         humans.notes.append(missing_line(len(missing), folder.name if folder else "the store"))
+    if capped:
+        humans.notes.append(CAPPED.format(experiment=exp.name, n=MAX_TRACES))
     if files and damaged:
         files[0][1].left_out, files[0][1].unit = damaged, "trace"
     files.append(("human assessments", humans))

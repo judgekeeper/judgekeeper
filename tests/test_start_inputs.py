@@ -134,3 +134,73 @@ def test_decisions_it_cant_read_are_said_plainly(tmp_path, capsys, values, said)
     code, out = run(capsys, tmp_path)
     assert code == 2 and said in out, out
     assert "Its decisions" not in out and "verdict values" not in out
+
+
+@pytest.mark.parametrize("eval_part", ["x", None, [1, 2]])
+def test_an_inspect_log_with_a_damaged_eval_part_is_named_as_inspect(tmp_path, capsys,
+                                                                      eval_part):
+    data = inspect_data(split(10, 10))
+    data["eval"] = eval_part
+    (tmp_path / "logs").mkdir()
+    log = tmp_path / "logs" / "2026-10-13T10-00-00+00-00_quiz_T.json"
+    log.write_text(json.dumps(data), encoding="utf-8")
+    assert find.classify_file(log) == "inspect"
+    code, out = run(capsys, tmp_path)
+    assert code == 2, out
+    assert ("2026-10-13T10-00-00+00-00_quiz_T.json can't be read: its eval part is damaged. "
+            "Save it again from Inspect AI.") in " ".join(out.split())
+    assert "promptfoo" not in out
+
+
+def test_a_damaged_eval_part_is_named_when_inspect_is_installed(tmp_path, capsys,
+                                                                monkeypatch):
+    def read_eval_log(path):
+        raise ValueError("1 validation error for EvalLog")
+
+    log = types.ModuleType("inspect_ai.log")
+    log.read_eval_log = read_eval_log
+    monkeypatch.setitem(sys.modules, "inspect_ai", types.ModuleType("inspect_ai"))
+    monkeypatch.setitem(sys.modules, "inspect_ai.log", log)
+    data = inspect_data(split(10, 10))
+    data["eval"] = "x"
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "2026-10-13_quiz.json").write_text(json.dumps(data), encoding="utf-8")
+    code, out = run(capsys, tmp_path)
+    assert code == 2 and "its eval part is damaged" in out, out
+    assert "validation" not in out
+
+
+def test_an_empty_promptfoo_results_file_is_named_not_exported(tmp_path, capsys):
+    (tmp_path / "promptfooconfig.yaml").write_text("description: x\n", encoding="utf-8")
+    (tmp_path / "results.json").write_bytes(b"")
+    code, out = run(capsys, tmp_path)
+    assert code == 2, out
+    assert "results.json is empty, so judgekeeper can't read it." in out
+    assert "`promptfoo export eval latest -o results.json`" in out
+    assert "no saved results file" not in out.lower() and "own database" not in out
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0,
+                    reason="file permissions: POSIX, not as root")
+def test_a_results_file_that_cant_be_read_says_permission_denied(tmp_path, capsys):
+    (tmp_path / "promptfooconfig.yaml").write_text("description: x\n", encoding="utf-8")
+    results = tmp_path / "results.json"
+    results.write_text("{}", encoding="utf-8")
+    results.chmod(0)
+    try:
+        code, out = run(capsys, tmp_path)
+    finally:
+        results.chmod(0o600)
+    assert code == 2, out
+    assert "results.json can't be read: permission denied." in out
+    assert "give your user permission to read results.json" in out
+
+
+def test_an_empty_results_file_next_to_good_results_is_left_out(tmp_path, capsys):
+    _csv(tmp_path / "results.csv", _rows())
+    (tmp_path / "eval_output.json").write_bytes(b"")
+    (tmp_path / "notes.json").write_bytes(b"")  # not results by its name: not said
+    code, out = run(capsys, tmp_path)
+    assert code == 0, out
+    assert "eval_output.json is empty, so it was left out." in out
+    assert "notes.json" not in out

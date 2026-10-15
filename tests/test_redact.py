@@ -1,5 +1,7 @@
 """scrub(): credential env values and key-shaped strings become [REDACTED]."""
 
+import os
+
 import pytest
 
 from judgekeeper import redact
@@ -142,3 +144,22 @@ def test_scrub_is_fast_on_long_dotted_text():
 ])
 def test_url_credentials_are_still_redacted(text, expected):
     assert scrub(text) == expected
+
+
+def test_scrubbing_many_strings_reads_the_environment_once(monkeypatch):
+    calls = []
+    real = redact._is_credential_var
+    monkeypatch.setattr(redact, "_is_credential_var",
+                        lambda name: calls.append(name) or real(name))
+    monkeypatch.setenv("MY_SERVICE_API_KEY", "sk-cached-" + "x" * 24)
+    for i in range(1000):
+        assert redact.scrub(f"answer {i} sk-cached-{'x' * 24}") == f"answer {i} [REDACTED]"
+    assert len(calls) <= 2 * len(os.environ)  # once, not once per string
+
+
+def test_a_changed_environment_is_read_again(monkeypatch):
+    monkeypatch.setenv("MY_SERVICE_API_KEY", "first-secret-" + "y" * 20)
+    assert redact.scrub("first-secret-" + "y" * 20) == "[REDACTED]"
+    monkeypatch.setenv("MY_SERVICE_API_KEY", "second-secret-" + "z" * 20)
+    assert redact.scrub("second-secret-" + "z" * 20) == "[REDACTED]"
+    assert redact.scrub("first-secret-" + "y" * 20) == "first-secret-" + "y" * 20

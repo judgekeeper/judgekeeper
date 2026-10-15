@@ -54,7 +54,9 @@ def _alive(pid: int) -> bool:
     return bool(out) and not out.startswith("Z")
 
 
-def _until(test, limit=10.0):
+def _until(test, limit=30.0):
+    """Whether `test()` comes true within `limit` seconds: a busy machine (two test suites
+    at once) can take seconds to start or stop a process, so no fixed sleep is trusted."""
     end = time.monotonic() + limit
     while time.monotonic() < end:
         if test():
@@ -74,11 +76,11 @@ def test_stopping_judgekeeper_stops_the_worker_and_its_children(tmp_path, sig):
         assert _until(lambda: _calls(tmp_path) >= 3), "the worker never started"
         worker, child = map(int, (tmp_path / "pids.txt").read_text(encoding="utf-8").split())
         wrapper.send_signal(sig)  # to judgekeeper only, as an agent or CI does
-        wrapper.wait(timeout=15)
+        wrapper.wait(timeout=60)
         assert _until(lambda: not _alive(worker) and not _alive(child)), "still running"
-        made = _calls(tmp_path)
-        time.sleep(0.4)
-        assert _calls(tmp_path) == made, "the worker went on making calls"
+        made = _calls(tmp_path)  # both are gone: no call can be added after this
+        assert not _until(lambda: _calls(tmp_path) != made, limit=0.5), \
+            "the worker went on making calls"
     finally:
         if wrapper.poll() is None:
             wrapper.kill()

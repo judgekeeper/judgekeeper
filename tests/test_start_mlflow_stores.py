@@ -233,8 +233,8 @@ def test_two_stores_at_a_terminal_ask(two, capsys, monkeypatch):
     monkeypatch.setattr(builtins, "input", lambda prompt="": answers.pop(0))
     found = start.find_judge(two, talk=start.Talk(path=two, flags=(str(two),)))
     out = capsys.readouterr().out
-    assert "Two MLflow stores found: mlflow.db (qa-db) and mlruns/ (qa-folder)." in out
-    assert "  1. mlflow.db (qa-db)\n  2. mlruns/ (qa-folder)" in out
+    assert "Two MLflow stores found:\n  1. mlflow.db (qa-db)\n  2. mlruns/ (qa-folder)" in out
+    assert out.count("qa-db") == 1  # each store said once
     assert found.store == "mlruns"
     assert f"(Next time: judgekeeper start {quote_arg(two / 'mlruns')})" in out
 
@@ -388,3 +388,23 @@ def test_judgekeeper_asks_which_store_at_a_terminal_and_saves_it(two, capsys, mo
     monkeypatch.setattr(start, "_interactive", lambda: False)
     main([str(two)])  # asked once: read from judgekeeper.toml now
     assert "(read from mlruns, " in capsys.readouterr().out
+
+
+# A very big experiment: the newest traces, said ----------------------------------------------
+
+def test_a_big_experiment_is_read_up_to_the_newest_traces_and_said(made, tmp_path, capsys,
+                                                                   monkeypatch):
+    monkeypatch.setattr(mlflow_store, "MAX_TRACES", 3)
+    monkeypatch.setattr(start_label, "run_labeling", lambda *a, **kw: 0)
+    project = tmp_path / "docs-qa"
+    project.mkdir()
+    shutil.copy2(made / "mlflow.db", project / "mlflow.db")
+    runs = mlflow_store.read_mlflow("qa-db", tracking_uri=f"sqlite:///{project / 'mlflow.db'}")
+    assert sum(len(recs) for label, recs in runs if label != "human assessments") == 3
+    _, out = run(capsys, project, "--yes", "--no-browser")
+    assert ("qa-db has more than 3 traces: judgekeeper read the newest 3 (reading every "
+            "trace of a very big experiment takes minutes).") in " ".join(out.split())
+
+
+def test_the_limit_is_thirty_thousand():
+    assert mlflow_store.MAX_TRACES == 30_000
