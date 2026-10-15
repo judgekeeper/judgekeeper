@@ -1,0 +1,3 @@
+{"schema_version": 2, "target_id": "c0", "name": "tone", "annotator_kind": "LLM", "label": "pass", "input": "Question 0?", "output": "Answer 0."}
+{"schema_version": 2, "target_id": "c1", "name": "tone", "annotator_kind": "LLM", "label": "pass", "input": "Question 1?", "output": "Answer 1."}
+{"schema_version": 2, "target_id": "c2", "name": "tone", "annotator_kind": "LLM", "label": "pass", "input": "Question 2?", "output": "Answer 2."}

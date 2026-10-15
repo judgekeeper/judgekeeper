@@ -1,0 +1,12 @@
+{"input": "Question 0?", "output": "Answer 0.", "verdict": "fail", "reason": "Reason 0.", "judge_model": "claude-haiku-4-5"}
+{"input": "Question 1?", "output": "Answer 1.", "verdict": "pass", "reason": "Reason 1.", "judge_model": "claude-haiku-4-5"}
+{"input": "Question 2?", "output": "Answer 2.", "verdict": "pass", "reason": "Reason 2.", "judge_model": "claude-haiku-4-5"}
+{"input": "Question 3?", "output": "Answer 3.", "verdict": "fail", "reason": "Reason 3.", "judge_model": "claude-haiku-4-5"}
+{"input": "Question 4?", "output": "Answer 4.", "verdict": "pass", "reason": "FAIL: it never answers the question.", "judge_model": "claude-haiku-4-5"}
+{"input": "Question 5?", "output": "Answer 5.", "verdict": "pass", "reason": "Reason 5.", "judge_model": "claude-haiku-4-5"}
+{"input": "Question 6?", "output": "Answer 6.", "verdict": "fail", "reason": "Reason 6.", "judge_model": "claude-haiku-4-5"}
+{"input": "Question 7?", "output": "Answer 7.", "verdict": "pass", "reason": "Reason 7.", "judge_model": "claude-haiku-4-5"}
+{"input": "Question 8?", "output": "Answer 8.", "verdict": "pass", "reason": "Reason 8.", "judge_model": "claude-haiku-4-5"}
+{"input": "Question 9?", "output": "Answer 9.", "verdict": "fail", "reason": "Reason 9.", "judge_model": "claude-haiku-4-5"}
+{"input": "Question 10?", "output": "Answer 10.", "verdict": "pass", "reason": "Reason 10.", "judge_model": "claude-haiku-4-5"}
+{"input": "Question 11?", "output": "Answer 11.", "verdict": "pass", "reason": "Reason 11.", "judge_model": "claude-haiku-4-5"}
