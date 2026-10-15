@@ -667,7 +667,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
     name, runs = found[0]
     for label, recs in runs:
         for note in recs.notes if label == "human assessments" else ():
-            if "trace files are missing" in note:
+            if "trace files are missing" in note or "judgekeeper read the newest" in note:
                 talk.say(f"  {note}")
     judged = [Loaded(label, recs) for label, recs in runs if label != "human assessments"]
     humans = [r for label, recs in runs if label == "human assessments" for r in recs

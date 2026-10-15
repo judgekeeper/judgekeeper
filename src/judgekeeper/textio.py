@@ -187,9 +187,12 @@ def _clock() -> float:
     return time.monotonic()
 
 
-def reading(n: int) -> None:
-    """While a file takes long to read (`n` answers so far): after PROGRESS_AFTER seconds, a
-    line on stderr every PROGRESS_EVERY seconds, so a person or an agent sees it working."""
+def reading(n: int, name: str | None = None) -> None:
+    """While a file (or a store, `name`) takes long to read (`n` answers so far): after
+    PROGRESS_AFTER seconds, a line on stderr every PROGRESS_EVERY seconds, so a person or an
+    agent sees it working."""
+    if n == 1 and name is not None:  # a store: read_utf8 never starts its clock
+        _reading.update(since=_clock(), said=None)
     if n % 500:
         return
     now, said = _clock(), _reading["said"]
@@ -197,8 +200,8 @@ def reading(n: int) -> None:
                                                     and now - said < PROGRESS_EVERY):
         return
     _reading["said"] = now
-    print(f"Reading {last_read or 'your results'} ({n:,} answers so far)...", file=sys.stderr,
-          flush=True)
+    print(f"Reading {name or last_read or 'your results'} ({n:,} answers so far)...",
+          file=sys.stderr, flush=True)
 
 
 def read_utf8(path: str | Path, error: type[Exception]) -> str:
