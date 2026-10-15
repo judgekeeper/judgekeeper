@@ -379,8 +379,8 @@ SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url",
               "twitter:title", "twitter:description", "twitter:image"]
 SHARE_ALT = ("judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, "
              "in one command.")
-SIX_PAGES = {"index.html", "start.html", "docs.html", "learn.html", "reference.html",
-             "setup.html"}
+SITE_PAGES = {"index.html", "start.html", "docs.html", "learn.html", "reference.html",
+             "setup.html", "check.html"}
 
 
 def _head(page: Path) -> tuple[str, str, list[tuple[str, str, str]]]:
@@ -402,7 +402,7 @@ def _png_size(path: Path) -> tuple[int, int]:
 
 
 def test_every_page_has_the_share_preview_tags():
-    assert {p.relative_to(WEBSITE).as_posix() for p in pages()} == SIX_PAGES
+    assert {p.relative_to(WEBSITE).as_posix() for p in pages()} == SITE_PAGES
     for page in pages():
         name = page.relative_to(WEBSITE).as_posix()
         title, description, share = _head(page)
@@ -485,3 +485,62 @@ def test_css_respects_motion_theme_and_focus():
 def test_logo_is_the_split_shield():
     svg = (WEBSITE / "assets/logo.svg").read_text(encoding="utf-8")
     assert "#1E293B" in svg and "#10B981" in svg and "#FFFFFF" in svg.upper()
+
+
+# The free check in the browser: nothing leaves the page ------------------------------------
+
+CHECK = WEBSITE / "check.html"
+CADDYFILE = (ROOT / "deploy/railway/Caddyfile").read_text(encoding="utf-8")
+CHECK_POLICY = ("default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+                "connect-src 'none'; base-uri 'none'; form-action 'none'")
+SITE_POLICY = re.search(r'Content-Security-Policy "([^"]+)"', CADDYFILE)[1]
+
+
+def test_the_check_page_loads_its_script_and_has_no_inline_script():
+    els = list(parse(CHECK).iter())
+    scripts = [el.attrs.get("src") for el in els if el.tag == "script"]
+    assert scripts == ["assets/theme.js", "assets/site.js", "assets/freecheck.js"]
+    assert all(not el.text().strip() for el in els if el.tag == "script")
+    ids = {el.attrs.get("id") for el in els}
+    assert {"fc-drop", "fc-file", "fc-result", "fc-next"} <= ids  # what freecheck.js uses
+    (file_input,) = [el for el in els if el.tag == "input"]
+    assert file_input.attrs["type"] == "file"
+
+
+def test_the_check_page_blocks_every_connection_in_its_own_policy():
+    (meta,) = [el for el in parse(CHECK).iter() if el.tag == "meta"
+               and el.attrs.get("http-equiv") == "Content-Security-Policy"]
+    assert meta.attrs["content"] == CHECK_POLICY
+
+
+def test_caddy_sends_the_check_page_the_stricter_policy():
+    assert "@check path /check /check.html" in CADDYFILE
+    (rule,) = re.findall(r'header @check >Content-Security-Policy "([^"]+)"', CADDYFILE)
+    assert rule == CHECK_POLICY + "; frame-ancestors 'none'"
+    # everything the site's policy allows or forbids, and no connection at all on top
+    for part in SITE_POLICY.split("; "):
+        assert part in rule, part
+    assert "connect-src 'none'" not in SITE_POLICY
+
+
+def test_home_guide_and_docs_link_to_the_check_page():
+    line = ("Have results from promptfoo or DeepEval, or your own CSV or JSONL file? Run the "
+            "free check in your browser.")
+    for name in ("index.html", "start.html"):
+        text = " ".join(parse(WEBSITE / name).text().split())
+        assert line in text, name
+        assert 'href="check.html"' in (WEBSITE / name).read_text(encoding="utf-8"), name
+    assert 'href="check.html"' in (WEBSITE / "docs.html").read_text(encoding="utf-8")
+    assert "https://www.judgekeeper.com/check.html" in (WEBSITE / "sitemap.xml").read_text(
+        encoding="utf-8")
+    assert "(https://www.judgekeeper.com/check.html)" in (WEBSITE / "llms.txt").read_text(
+        encoding="utf-8")
+
+
+def test_the_check_page_says_what_it_reads_and_that_the_file_stays():
+    text = " ".join(parse(CHECK).text().split())
+    assert ("Your file never leaves this page: it is read on your computer. Turn off Wi-Fi and "
+            "it still works.") in text
+    assert "Older runs are not read here." in text  # DeepEval: one file, one run
+    assert ("This shows whether your judge is really judging, not whether it agrees with you. "
+            "To see that, run uvx judgekeeper in your project and mark some answers.") in text
