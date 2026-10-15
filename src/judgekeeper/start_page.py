@@ -374,6 +374,7 @@ LABEL_BODY = """<div class="app">
   var TOKEN = "__TOKEN__", MAX_DOTS = 60;
   var data = JSON.parse(document.getElementById("data").textContent);
   var items = data.items, counts = data.counts, pos = data.start, busy = false, history = [];
+  var total = data.total || items.length;  // the page holds the next answers, not all of them
   var shownAt = Date.now();  // when the answer on screen was shown: each mark sends its seconds
   var status = data.status;  // the line in the right column, from the server
   var ended = false;         // nothing left to mark: the page shows what comes next
@@ -454,9 +455,9 @@ LABEL_BODY = """<div class="app">
   }
 
   function renderHeader() {
-    setText("at", Math.min(pos + 1, items.length)); setText("all", items.length);
+    setText("at", Math.min(pos + 1, total)); setText("all", total);
     var done = counts.correct + counts.wrong;
-    $("bar").style.width = (items.length ? done / items.length * 100 : 0) + "%";
+    $("bar").style.width = (total ? done / total * 100 : 0) + "%";
     setText("ready", status.text);
     each(".see", function (a) { a.hidden = !status.ready; });
     renderDots();
@@ -479,7 +480,7 @@ LABEL_BODY = """<div class="app">
       b.setAttribute("aria-label", "Answer " + (k + 1));
       dots.appendChild(b);
     }
-    if (to < n) { dots.appendChild(el("span", "more", "+" + (n - to))); }
+    if (to < total) { dots.appendChild(el("span", "more", "+" + (total - to))); }
   }
   $("dots").addEventListener("click", function (e) {
     var k = e.target.getAttribute && e.target.getAttribute("data-k");
@@ -510,9 +511,13 @@ LABEL_BODY = """<div class="app">
   }
 
   function next() {
+    // past the answers this page holds: ask for the next ones
+    if (!walkingSkipped && total > items.length && pos + 1 >= items.length) {
+      window.location.reload(); return; }
     var i = nextIndex(pos + 1);
     if (i === null && walkingSkipped) { walkingSkipped = false; i = nextIndex(pos + 1); }
     if (i !== null) { open(i); return; }
+    if (total > items.length) { window.location.reload(); return; }
     finish();
   }
 

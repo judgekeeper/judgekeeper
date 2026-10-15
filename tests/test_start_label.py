@@ -99,7 +99,7 @@ def test_the_page_never_holds_the_judges_verdict(workspace):
     server, thread, client = _server(ws)
     try:
         data = _page_data(server)
-        assert set(data) == {"items", "start", "counts", "status"}
+        assert set(data) == {"items", "total", "start", "counts", "status"}
         assert set(data["status"]) == {"text", "ready"}
         for item in data["items"]:
             assert set(item) == {"id", "input", "output", "label", "skipped"}
@@ -628,3 +628,39 @@ def test_every_answer_marked_but_a_kind_short_says_why_there_is_no_result(correc
     assert line in start_label.result_lines({**r, "wide": {}})  # the terminal
     r["left"] = 3  # answers still to mark: mark more, as before
     assert start_label.sentences(r)[0].startswith("Mark a few more answers")
+
+
+# A big pool: the page gets the answers it needs, never the whole pool ---------------------
+
+@pytest.fixture
+def big(tmp_path):
+    found = _found(tmp_path, n_pass=1500, n_fail=1500)
+    return start_label.prepare(found, say=lambda line: None)
+
+
+def test_the_page_gets_the_next_answers_not_the_whole_pool(big):
+    session = start_label.StartSession(big)
+    state = session.state()
+    assert state["total"] == 3000
+    assert len(state["items"]) == start_label.AHEAD
+    assert len(json.dumps(state)) < 100_000
+
+
+def test_marking_moves_the_window_and_keeps_every_mark_before_it(big):
+    session = start_label.StartSession(big)
+    ids = [i["id"] for i in session.items]
+    for k in range(150):
+        session.update({"id": ids[k], "label": "pass" if k % 2 else "fail"})
+    session.update({"id": ids[150], "deferred": True})
+    state = start_label.StartSession(big).state()
+    assert len(state["items"]) == 151 + start_label.AHEAD
+    assert state["start"] == 151 and state["items"][150]["skipped"] is True
+    assert [i["id"] for i in state["items"]] == ids[:151 + start_label.AHEAD]
+    assert state["counts"] == {"correct": 75, "wrong": 75, "skipped": 1}
+    assert state["total"] == 3000
+
+
+def test_a_small_pool_is_sent_whole(workspace):
+    _, ws = workspace
+    state = start_label.StartSession(ws).state()
+    assert len(state["items"]) == state["total"] == 32

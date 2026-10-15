@@ -187,6 +187,8 @@ def _write_json(path: Path, data) -> None:
 
 # The queue -------------------------------------------------------------------------------
 
+AHEAD = 100  # answers past the furthest one marked that the page gets at once
+
 def build_queue(answers, seed: int) -> list[dict]:
     """[{"id", "group"}] for every answer in the pool, in the order the page shows them."""
     rng = random.Random(seed)
@@ -472,13 +474,19 @@ class StartSession(LabelSession):
                 "status": self.status(self)}
 
     def state(self) -> dict:
-        start = next((n for n, i in enumerate(self.items)
+        """What the page needs: the answers up to the furthest one marked or skipped and the
+        next AHEAD after it (never the whole pool: it can hold 100,000 answers), and `total`.
+        Past them the page asks again."""
+        touched = max((n for n, i in enumerate(self.items) if i["label"] or i["deferred"]),
+                      default=-1)
+        shown = self.items[:touched + 1 + AHEAD]
+        start = next((n for n, i in enumerate(shown)
                       if not i["label"] and not i["deferred"]), 0)
         items = [{"id": i["id"], "input": question_view(self.raw[i["id"]].get("input")),
                   "output": display(self.raw[i["id"]].get("output")), "label": i["label"],
-                  "skipped": i["deferred"]} for i in self.items]
-        return {"items": items, "start": start, "counts": self.counts(),
-                "status": self.status(self)}
+                  "skipped": i["deferred"]} for i in shown]
+        return {"items": items, "total": len(self.items), "start": start,
+                "counts": self.counts(), "status": self.status(self)}
 
 
 # The result ------------------------------------------------------------------------------
