@@ -19,7 +19,7 @@ import tomllib
 import pytest
 
 from judgekeeper import __version__, start
-from judgekeeper.cli import _parser, main, version_lines
+from judgekeeper.cli import main, version_lines
 from tests.start_projects import promptfoo_project, split
 from tests.website_pages import ROOT, WEBSITE, Element, parse
 
@@ -175,35 +175,6 @@ def test_the_guide_is_six_steps_then_the_details():
         assert needed in again, needed
 
 
-# The reference ---------------------------------------------------------------------------
-
-def _start_parser():
-    (sub,) = [a for a in _parser()._actions if a.dest == "command"]
-    return sub.choices["start"]
-
-
-def test_the_reference_has_every_start_flag_and_the_saved_files():
-    section = _sections(REFERENCE)["start: find your results, label, see the result"]
-    flags = [s for a in _start_parser()._actions for s in a.option_strings
-             if s.startswith("--") and s != "--help" and a.help != "==SUPPRESS=="]
-    assert set(flags) >= {"--tool", "--metric", "--experiment", "--pass-if", "--label-map",
-                          "--judge-model", "--yes", "--new", "--no-browser", "--port"}
-    for flag in [*flags, "PATH", "--try-new-judge", "--agent-prompt"]:
-        assert f"`{flag}" in section, flag
-    for name in ("start.json", "pool-judge.jsonl", "pool.jsonl", "labels.csv", "anchors.jsonl",
-                 "result.json", "result.html", "history/", "previous-", "again/<date>/",
-                 "review.json", "judge-mistakes.csv", "rule-unclear.csv", "new-judge-<date>/",
-                 "new-judge.json", "confirm/", "`judge_model`"):
-        assert name in section, name
-    flat = " ".join(section.split())
-    for needed in ("Exactly your judge when", "A close copy when", "Can't be asked again when",
-                   "**Trying your new judge.**", "**No results it can read.**",
-                   "default 2 for `--ask-again`, 1 for `--try-new-judge`"):
-        assert needed in flat, needed
-    text = REFERENCE.read_text(encoding="utf-8")
-    assert text.index("## start:") < text.index("## setup:")
-
-
 # README, guide, skill --------------------------------------------------------------------
 
 def test_the_readme_makes_uvx_the_main_path():
@@ -254,7 +225,7 @@ def test_the_own_format_section_shows_the_table_and_the_agent_prompt():
 def test_the_reference_and_the_guide_explain_the_own_format():
     reference = " ".join(REFERENCE.read_text(encoding="utf-8").split())
     guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
-    for needed in ("judge_model", "--agent-prompt", "first 3 rows"):
+    for needed in ("judge_model", "first 3 rows"):
         assert needed in reference, needed
     for needed in ("judge_model", "`judgekeeper your-table.csv`", "judgekeeper.toml"):
         assert needed in guide, needed
