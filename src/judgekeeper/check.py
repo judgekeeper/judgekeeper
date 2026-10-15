@@ -545,6 +545,59 @@ def groups(marked: dict[str, str], old: dict[str, str], new: dict[str, str],
     return out
 
 
+# After a rule change: marks made after it (they were not looked at to write it) ---------------
+
+WRITTEN_FROM = ("This includes marks you looked at to write this rule, so it may read a few "
+                "points high.")
+AFTER_NONE = ("On marks made after this change: {said}. Mark more answers to see it on answers "
+              "it was not written for.")
+AFTER_NUMBERS = 10  # of each kind: their numbers are shown
+AFTER_HEADLINE = 15  # of each kind: they decide the verdict
+
+
+def _checked_before(state: State, old: dict, new: dict) -> list[str]:
+    """The times this same change was checked before (history.jsonl)."""
+    pair = (judge_setup.hash_of(old), judge_setup.hash_of(new))
+    return [str(x.get("time") or "") for x in _history(state.ws)
+            if (judge_setup.hash_of(x.get("before") or {}),
+                judge_setup.hash_of(x.get("after") or {})) == pair]
+
+
+def _first_seen(state: State, old: dict, new: dict) -> str:
+    """When this change was first checked, else now."""
+    return min(_checked_before(state, old, new), default=utc_now())
+
+
+def _made_after(state: State, since: str, tested: dict[str, str]) -> dict[str, str]:
+    """The marks made after `since` that the new judge was tested on: {id: mark}."""
+    last = marks.read(state.ws.marks).last
+    return {i: m for i, m in state.marks.items()
+            if i in tested and str((last.get(i) or {}).get("at") or "") > since}
+
+
+def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str, str],
+                 pool: dict[str, int]) -> list[str]:
+    """The new judge on the marks made after the change: none yet, how many so far, or (with
+    AFTER_NUMBERS of each) its numbers with their ranges."""
+    from judgekeeper.start_label import side_sentence
+
+    kinds = list(fresh.values())
+    n_pass, n_fail = kinds.count("pass"), kinds.count("fail")
+    if min(n_pass, n_fail) < AFTER_NUMBERS:
+        return [AFTER_NONE.format(said=f"{len(fresh)} so far" if fresh else "none yet")]
+    items = [(picked.get(i, tested[i]), fresh[i], tested[i]) for i in fresh]
+    out = weighted.general(items, pool["pass"], pool["fail"])
+    return [f"On marks made after this change ({n_pass} Pass, {n_fail} Fail):",
+            *(f"  {side_sentence(k, out[k], out[f'{k}_interval'])}" for k in ("tpr", "tnr"))]
+
+
+def _say_groups(said: Said, g: dict) -> None:
+    for key, _, _title in GROUPS:
+        for line in _group_lines(key, g[key]):
+            said.say(line)
+        said.say()
+
+
 def _points(x: float) -> int:
     return round(abs(x) * 100)
 
@@ -881,15 +934,31 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say(line)
     said.say()
     on = f"all {total} of your marks" if n == total else f"{n} of your {_n(total, 'mark')}"
-    said.say(f"Re-checked on {on}:")
-    said.say()
     old_verdicts = _old_verdicts(state)
     picked, pool = _picks(state)
     g = groups(state.marks, old_verdicts, tested, picked, pool)
-    for key, _, _title in GROUPS:
-        for line in _group_lines(key, g[key]):
-            said.say(line)
+    fresh = (_made_after(state, _first_seen(state, old, new), tested)
+             if rule_changed(changed) else None)
+    kinds = list(fresh.values()) if fresh is not None else []
+    if min(kinds.count("pass"), kinds.count("fail")) >= AFTER_HEADLINE:
+        g = groups(fresh, old_verdicts, tested, picked, pool)  # the headline now
+        said.say(f"Re-checked on the {len(fresh)} marks you made after this change:")
         said.say()
+        _say_groups(said, g)
+        said.say(f"On {on}:")
+        said.say()
+        _say_groups(said, groups(state.marks, old_verdicts, tested, picked, pool))
+        said.say(WRITTEN_FROM)
+        said.say()
+    else:
+        said.say(f"Re-checked on {on}:")
+        said.say()
+        _say_groups(said, g)
+        if fresh is not None:
+            said.say(WRITTEN_FROM)
+            for line in _after_lines(fresh, tested, picked, pool):
+                said.say(line)
+            said.say()
     if asked.close:
         said.say(CLOSE.format(why=asked.close))
         said.say()
@@ -897,7 +966,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
                                  g["failed"]["old"])
     worse = [k for k in ("failed", "passed") if g[k]["verdict"] == "worse"]
     unsure = [k for k in ("failed", "passed") if g[k]["verdict"] == "not_sure"]
-    picked = picks(state.ws, now=rule_changed(changed))
+    picked = picks(state.ws, now=rule_changed(changed)  # a pick, unless checked before
+                   and not _checked_before(state, old, new))
     for line in picks_lines(picked):
         said.say(line)
     if picks_lines(picked):
@@ -921,7 +991,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         "time": utc_now(), "kind": "check", "trigger": "by hand", "before": old, "after": new,
         "changed": changed, "marks": total, "free": len(free), "asked": len(asked.verdicts),
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": g,
-        "smallest_drop": drop, "flipped": flipped})
+        "smallest_drop": drop, "flipped": flipped,
+        "made_after_change": None if fresh is None else len(fresh)})
     if not _same_as_last(state, line):
         marks.append(state.ws.history_jsonl, line)
     _save_verdicts(state.ws, new, found, tested)

@@ -262,3 +262,100 @@ def test_fix_new_counts_the_picks_again(tmp_path, monkeypatch):
     time.sleep(1.1)
     fix.current_split(ws, fix.Marks(ws), new=True)
     assert check.picks(ws)["n"] == 0
+
+
+# After a rule change: numbers on marks made after it ---------------------------------------------
+
+WARN = ("This includes marks you looked at to write this rule, so it may read a few points "
+        "high.")
+NONE_YET = ("On marks made after this change: none yet. Mark more answers to see it on answers "
+            "it was not written for.")
+
+
+def _rule_change(here, lenient: bool = True):
+    from tests.test_check import LENIENT, MARKED, _marked, _results
+
+    ws = _marked(here)
+    _results(here, LENIENT if lenient else MARKED, rubric="Is polite, correct and short.")
+    return ws
+
+
+def _backdate(ws, before: int) -> None:
+    """The first check's line goes back to 2026-01-01, and the first `before` marks in the
+    page's order to 2025: the rest were made after the change was first seen."""
+    path = ws.history_jsonl
+    lines = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines()]
+    for x in lines:
+        if x.get("kind") == "check":
+            x["time"] = "2026-01-01T00:00:00Z"
+    path.write_text("".join(json.dumps(x) + "\n" for x in lines), encoding="utf-8")
+    first = {q["id"] for q in ws.data()["queue"][:before]}
+    rows = [json.loads(x) for x in ws.marks.read_text(encoding="utf-8").splitlines()]
+    for x in rows:
+        if x.get("id") in first:
+            x["at"] = "2025-06-01T00:00:00Z"
+    ws.marks.write_text("".join(json.dumps(x) + "\n" for x in rows), encoding="utf-8")
+
+
+def test_a_rule_change_says_its_marks_helped_write_it(here, capsys):
+    from judgekeeper.cli import main
+
+    _rule_change(here)
+    main(["check"])
+    out = _flat(capsys.readouterr().out)
+    assert WARN in out and NONE_YET in out
+
+
+def test_a_model_change_says_none_of_it(here, capsys):
+    from judgekeeper.cli import main
+    from tests.test_check import HAIKU, LENIENT, _marked, _results
+
+    _marked(here)
+    _results(here, LENIENT, model=HAIKU)
+    main(["check"])
+    out = _flat(capsys.readouterr().out)
+    assert WARN not in out and "made after this change" not in out
+
+
+def test_ten_of_each_made_after_the_change_show_their_numbers(here, capsys):
+    from judgekeeper.cli import main
+
+    ws = _rule_change(here)
+    main(["check"])  # worse: the old judge stays the reference, the change stays open
+    capsys.readouterr()
+    _backdate(ws, 28)  # 22 marks after the change, at least 10 of each kind
+    main(["check"])
+    out = capsys.readouterr().out
+    flat = _flat(out)
+    assert "On marks made after this change (" in flat
+    assert "  You passed: your judge also passed about " in out
+    assert flat.index("Re-checked on all 50 of your marks:") < flat.index(
+        "On marks made after this change (")
+    assert WARN in flat
+
+
+def test_fifteen_of_each_made_after_the_change_become_the_headline(here, capsys):
+    from judgekeeper.cli import main
+
+    ws = _rule_change(here)
+    main(["check"])
+    capsys.readouterr()
+    _backdate(ws, 10)  # 40 marks after the change
+    code = main(["check"])
+    flat = _flat(capsys.readouterr().out)
+    head = "Re-checked on the 40 marks you made after this change:"
+    assert head in flat
+    assert flat.index(head) < flat.index("On all 50 of your marks:") < flat.index(WARN)
+    assert code == 1  # the verdict now comes from the new marks: still worse
+
+
+def test_checking_the_same_change_again_is_not_another_pick(here, capsys):
+    from judgekeeper import check
+    from judgekeeper.cli import main
+    from judgekeeper.start_label import Workspace
+
+    _rule_change(here)
+    main(["check"])  # worse: the change stays open
+    main(["check"])
+    capsys.readouterr()
+    assert check.picks(Workspace(here))["n"] == 1
