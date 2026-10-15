@@ -135,6 +135,43 @@ def level(tpr_interval, tnr_interval) -> str:
     return "gate" if sides == ["yes", "yes"] else "check"
 
 
+# A range for a share that stays honest however often it is looked at while marks come in: a
+# message shown while the person is still marking that compares a number with the bar must use
+# it. Robbins' mixture: the chance of k of n under a uniform mix of shares, against the chance
+# under the share p; p is in the range while that ratio stays under 1/ANYTIME_ALPHA.
+ANYTIME_ALPHA = 0.05
+
+
+def _log_mixture(p: float, k: int, n: int) -> float:
+    """log of B(k + 1, n - k + 1) / (p^k (1 - p)^(n - k))."""
+    if p <= 0 or p >= 1:
+        return math.inf if (k if p <= 0 else n - k) else -math.inf
+    log_beta = math.lgamma(k + 1) + math.lgamma(n - k + 1) - math.lgamma(n + 2)
+    return log_beta - k * math.log(p) - (n - k) * math.log1p(-p)
+
+
+def anytime_holds(p: float, k: int, n: int, alpha: float = ANYTIME_ALPHA) -> bool:
+    """Whether the share p is in the anytime range for k of n."""
+    return _log_mixture(p, k, n) < math.log(1 / alpha)
+
+
+def anytime_range(k: int, n: int, alpha: float = ANYTIME_ALPHA) -> tuple[float, float]:
+    """The anytime range for k of n: each end found by halving, from the share k / n (always
+    in it) outwards."""
+    seen = k / n
+
+    def end(inside: float, outside: float) -> float:
+        for _ in range(60):
+            mid = (inside + outside) / 2
+            if anytime_holds(mid, k, n, alpha):
+                inside = mid
+            else:
+                outside = mid
+        return inside
+
+    return end(seen, 0.0), end(seen, 1.0)
+
+
 def slip_rate(changed: float) -> float:
     """How often the person slips when marking, from the share of repeats (the same answer
     marked twice) marked differently: two marks differ when one of them slips, so
