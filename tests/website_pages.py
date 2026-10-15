@@ -98,7 +98,7 @@ GENERATED_PAGES = {"reference.html"}
 NAV = [("index.html", "Home"), ("start.html", "Guide"), ("docs.html", "Docs"),
        ("reference.html", "Reference"), ("https://github.com/judgekeeper/judgekeeper", "GitHub")]
 # The footer's "More" column: every page outside the navigation, in this order.
-MORE = [("setup.html", "Setup and API keys"),
+MORE = [("check.html", "Free check in your browser"), ("setup.html", "Setup and API keys"),
         ("learn.html", "How it works, in depth")]
 
 

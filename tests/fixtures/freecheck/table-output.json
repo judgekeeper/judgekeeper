@@ -1,0 +1,1 @@
+{"head": {"prompts": [{"raw": "Answer: {{question}}"}], "vars": ["question"]}, "body": [{"outputs": [{"pass": true, "text": "Yes."}], "vars": ["Is it open?"]}]}
