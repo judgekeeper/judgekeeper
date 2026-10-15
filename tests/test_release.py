@@ -263,11 +263,7 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     assert not (tmp_path / "CNAME").exists()  # the build sets no custom domain
 
 
-# README and the guide (the short README's own contract is in test_front_door.py)
-
-def _guide() -> str:
-    return (ROOT / "docs" / "guide.md").read_text(encoding="utf-8")
-
+# The README and the changelog (the README's own contract is in test_docs.py)
 
 def test_changelog_entry_says_1_0_is_commands_you_run():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
@@ -349,15 +345,8 @@ def test_readme_has_no_link_to_the_website_while_it_is_offline():
         in readme
 
 
-def test_guide_links_the_published_report_and_the_file():
-    guide = _guide()
-    assert "https://www.judgekeeper.com/examples/llmbar-haiku/" in guide
-    assert "](examples/llmbar-haiku/report.html)" in guide
-
-
 def test_docs_do_not_point_at_the_unused_pages_address():
-    for path in (ROOT / "README.md", ROOT / "docs" / "guide.md"):
-        assert "judgekeeper.github.io" not in path.read_text(encoding="utf-8"), path
+    assert "judgekeeper.github.io" not in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
 def test_package_metadata_links_the_repo_while_the_website_is_offline():
@@ -375,41 +364,6 @@ def test_contributing_says_issues_not_pull_requests_and_how_to_report_privately(
     assert "does not accept pull requests" in text
     assert "https://github.com/judgekeeper/judgekeeper/security/advisories/new" in text
     assert "Never paste API keys" in text
-
-
-def _first_results() -> str:
-    text = _guide()
-    start = text.index("## First results")
-    return text[start:text.index("\n## ", start + 1)]
-
-
-def test_first_results_lead_with_the_measured_claim():
-    report = json.loads((EXAMPLE / "report.json").read_text(encoding="utf-8"))
-    slices = {s["slice"]: s for s in report["slices"]}
-    natural = f"{slices['Natural']['kappa_mean']:.2f}"
-    gptout = f"{slices['Adversarial/GPTOut']['kappa_mean']:.2f}"
-    section = _first_results()
-    lead = section.split("\n\n")[1]
-    assert natural in lead and gptout in lead
-    assert "Natural" in lead and "GPTOut" in lead
-    assert "docs/examples/llmbar-haiku/" in lead
-
-
-def test_first_results_numbers_come_from_the_committed_report():
-    report = json.loads((EXAMPLE / "report.json").read_text(encoding="utf-8"))
-    section = _first_results()
-    rows = {}
-    for line in section.splitlines():
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) >= 4 and re.fullmatch(r"\d\.\d\d", cells[-1]):
-            rows[cells[0]] = [float(c) for c in cells[-3:]]
-    for run in report["runs"]:
-        assert rows[str(run["run"])] == [round(run[k], 2) for k in ("kappa", "tpr", "tnr")]
-    h = report["headline"]
-    assert rows["Mean"] == [round(h[k], 2) for k in ("kappa_mean", "tpr_mean", "tnr_mean")]
-    for s in report["slices"]:
-        assert rows[s["slice"]] == [round(s[k], 2) for k in ("kappa_mean", "tpr_mean",
-                                                             "tnr_mean")]
 
 
 LEVEL_WORDS = {"usable": "usable as a gate", "usable_with_care": "usable with care",
@@ -441,12 +395,8 @@ def test_llmbar_report_verdict_follows_the_current_thresholds():
         assert f"{other}:" not in page.lower(), other
 
 
-def test_guide_and_learn_page_quote_the_llmbar_verdict_as_the_report_states_it():
+def test_the_learn_page_quotes_the_llmbar_verdict_as_the_report_states_it():
     report = _llmbar_report()
-    summary = report["verdict"]["summary"].split(" Read the flags")[0]
-    assert f"Verdict: **{summary}**" in _first_results()
-    for flag in report["verdict"]["flags"]:
-        assert flag["message"] in _first_results()
     learn = (ROOT / "website" / "learn.html").read_text(encoding="utf-8")
     result = learn[learn.index('<section id="result"'):]
     result = re.sub(r"<[^>]+>", "", result[:result.index("</section>")])

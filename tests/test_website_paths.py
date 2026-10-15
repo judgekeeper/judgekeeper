@@ -157,7 +157,6 @@ REFUSED = "error: externally-managed-environment"
 NO_PIP = "pip: command not found"
 NO_PIP_WINDOWS = "'pip' is not recognized as an internal or external command"
 PY_PIP = ".venv\\Scripts\\python -m pip install judgekeeper"  # the project's own Python
-GUIDE = ROOT / "docs" / "guide.md"
 # An install that is not inside a project: the system Python, a shared environment in the
 # home folder, or a tool that installs for the whole computer.
 OUTSIDE = ("pip3 install judgekeeper", "judgekeeper-env", "uv tool install",
@@ -225,10 +224,6 @@ def test_making_the_environment_is_shown_outside_the_fold_and_linux_has_its_own_
     whole = " ".join(f"{k} {v}" for k, v in _help("install").items())
     assert "On Linux, get Python 3.11 or newer from your package manager" in whole
     assert "ensurepip is not available" in whole and "python3.12-venv" in whole
-    guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
-    for needed in ("on Linux, get Python 3.11 or newer from your package manager",
-                   "ensurepip is not available", "python3.12-venv"):
-        assert needed in guide, needed
 
 
 def test_the_home_page_install_has_two_tabs_and_the_python_line():
@@ -265,7 +260,7 @@ def test_nothing_shows_an_install_outside_a_project():
 
 
 def test_the_site_names_no_installer_it_does_not_use_and_no_unsafe_flag():
-    sources = [*pages(), GUIDE, ROOT / "README.md"]
+    sources = [*pages(), ROOT / "README.md"]
     for source in sources:
         text = source.read_text(encoding="utf-8")
         for gone in ("astral.sh/uv/install", "uv tool install", "brew install uv", "winget",
@@ -281,21 +276,6 @@ def test_the_python_version_on_the_site_is_the_one_the_package_needs():
     assert needs == ">=3.11"
     assert "Python 3.11 or newer" in _flat(_main("start.html"))
     assert "You need Python 3.11 or newer." in _flat(_main("index.html"))
-    assert "`Python 3.11` or a higher number" in GUIDE.read_text(encoding="utf-8")
-
-
-def test_the_guide_shows_the_install():
-    text = GUIDE.read_text(encoding="utf-8")
-    section = text[text.index("### Install\n"):text.index("See a real report without installing")]
-    for line in (*CHECK.values(), *MAKE_VENV.values(), "pip install judgekeeper", *DEV_TOOLS,
-                 "judgekeeper --version", MODULE_FORM, PY_PIP):
-        assert f"`{line}`" in section, line
-    for key in ("mac", "win"):
-        assert f"```\n{ACTIVATE[key]}\n```" in section, key
-    for needed in (f"`{REFUSED}`", f"`{NO_PIP}`", f"`{NO_PIP_WINDOWS}`", "`python --version`",
-                   "https://www.python.org/downloads/", "like pytest", "never on your computer",
-                   "It is not about judgekeeper", "(.venv)", "Scripts\\activate.bat"):
-        assert needed in section, needed
 
 
 OLD_PYTHON = ("Could not find a version that satisfies the requirement judgekeeper "
@@ -306,11 +286,8 @@ UV_RUN = "uv run judgekeeper"
 
 
 def _install_texts() -> dict[str, str]:
-    """The Guide's install step (start.html) and guide.md's."""
-    guide = GUIDE.read_text(encoding="utf-8")
-    return {"start.html": _flat(_by_id("start.html", "install")),
-            "guide.md": guide[guide.rindex("\n## ", 0, guide.index("### Install\n")):guide.index(
-                "See a real report without installing")]}
+    """The Guide's install step (start.html)."""
+    return {"start.html": _flat(_by_id("start.html", "install"))}
 
 
 def test_the_python_version_is_next_to_the_first_install_command():
@@ -327,9 +304,6 @@ def test_didnt_work_explains_an_older_python_and_a_project_that_allows_one():
     assert "needs Python 3.11 or newer" in older and "delete" in older and REMAKE in older
     (dev,) = [v for k, v in help_box.items() if "uv or Poetry" in k]
     assert UV_OLDER_PYTHONS in dev and UV_RUN in dev
-    guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
-    for needed in (OLD_PYTHON, "needs Python 3.11 or newer", REMAKE, UV_OLDER_PYTHONS, UV_RUN):
-        assert needed in guide, needed
 
 
 def test_the_uv_line_shows_how_to_run_it():
@@ -400,9 +374,8 @@ def test_the_docs_page_links_every_page_and_the_places_on_github():
         if page.name not in {"docs.html", "index.html"}:
             assert page.name in hrefs, page.name
     blob = "https://github.com/judgekeeper/judgekeeper/blob/main/"
-    for tool in ("promptfoo", "deepeval", "inspect", "mlflow"):
-        assert f"{blob}docs/integrations/{tool}.md" in hrefs, tool
-        assert (ROOT / "docs" / "integrations" / f"{tool}.md").is_file(), tool
+    for tool in ("promptfoo", "deepeval", "inspect-ai", "mlflow"):
+        assert f"reference.html#{tool}" in hrefs, tool
     for needed in (f"{blob}CHANGELOG.md", f"{blob}SECURITY.md",
                    "https://pypi.org/project/judgekeeper/",
                    "https://github.com/judgekeeper/judgekeeper/issues/new/choose",
