@@ -176,6 +176,29 @@ def decode_utf8(data: bytes, path: str | Path, error: type[Exception]) -> str:
 
 
 last_read: str | None = None  # the name of the last file read_utf8 read, for an error
+PROGRESS_AFTER = 2  # seconds of reading before the first "Reading ..." line
+PROGRESS_EVERY = 5  # seconds between those lines
+_reading = {"since": 0.0, "said": None}
+
+
+def _clock() -> float:
+    import time
+
+    return time.monotonic()
+
+
+def reading(n: int) -> None:
+    """While a file takes long to read (`n` answers so far): after PROGRESS_AFTER seconds, a
+    line on stderr every PROGRESS_EVERY seconds, so a person or an agent sees it working."""
+    if n % 500:
+        return
+    now, said = _clock(), _reading["said"]
+    if now - _reading["since"] < PROGRESS_AFTER or (said is not None
+                                                    and now - said < PROGRESS_EVERY):
+        return
+    _reading["said"] = now
+    print(f"Reading {last_read or 'your results'} ({n:,} answers so far)...", file=sys.stderr,
+          flush=True)
 
 
 def read_utf8(path: str | Path, error: type[Exception]) -> str:
@@ -185,6 +208,7 @@ def read_utf8(path: str | Path, error: type[Exception]) -> str:
     """
     global last_read
     last_read = Path(path).name
+    _reading.update(since=_clock(), said=None)
     return decode_utf8(Path(path).read_bytes(), path, error).removeprefix(BOM)
 
 

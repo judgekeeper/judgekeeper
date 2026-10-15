@@ -389,7 +389,8 @@ def read_results_table(path: Path) -> RecordList:
                          f"{', '.join(columns)}")
     human = next((c for c in HUMAN_COLUMNS if c in columns), None)
     records = RecordList(ids_derived=True)
-    for row in rows:
+    for n, row in enumerate(rows, 1):
+        textio.reading(n)
         content = {"target_id": derive_record_id(row.get("input"), row.get("output")),
                    "input": row.get("input"), "output": row.get("output")}
         model = row.get("model") if not _blank(row.get("model")) else row.get("judge_model")
