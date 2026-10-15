@@ -151,3 +151,114 @@ def test_three_rules_retire_the_set(here, capsys, judge):
     fix.save_split(ws, split)
     split = fix.current_split(ws, fix.Marks(ws))
     assert split.hidden == [] and split.fresh == {"want": fix.FRESH}
+
+
+# How many changes the marks have helped pick ---------------------------------------------------
+
+def _marked_some(root, first: int):
+    """A promptfoo project marked as the judge graded, the first `first` answers only."""
+    from judgekeeper import judge_setup, start, start_label
+    from judgekeeper.start_label import StartSession
+    from tests.start_projects import split as both
+    from tests.test_check import _results
+
+    (root / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    _results(root, both(25, 25))
+    found = start.find_judge(root)
+    ws = start_label.Workspace(root)
+    judge_setup.save(ws, judge_setup.of(found), found.metric)
+    ws = start_label.prepare(found, say=lambda line: None)
+    session = StartSession(ws)
+    queue = ws.data()["queue"]
+    for q in queue[:first]:
+        session.update({"id": q["id"], "label": q["group"], "seconds": 5})
+    return ws, session, queue
+
+
+def _pick(ws, kind: str = "fix") -> None:
+    from judgekeeper import marks
+    from judgekeeper.fingerprint import utc_now
+
+    line = {"time": utc_now(), "kind": kind}
+    if kind == "check":
+        line.update(changed=["rule changed"], groups={})
+    marks.append(ws.history_jsonl, line)
+
+
+def test_three_picks_ask_for_new_marks_and_ten_new_marks_end_it(tmp_path, monkeypatch):
+    import time
+
+    from judgekeeper import check
+
+    monkeypatch.chdir(tmp_path)
+    ws, session, queue = _marked_some(tmp_path, 40)
+    assert check.picks(ws)["n"] == 0
+    for kind in ("fix", "check", "fix"):
+        _pick(ws, kind)
+    p = check.picks(ws)
+    assert p["n"] == 3 and p["ask"]
+    assert check.picks_lines(p) == [
+        "These marks have helped pick 3 changes.",
+        ("Your marks have been used to pick 3 changes, so they may now flatter your judge. "
+        "Mark 10 new answers to keep the check honest.")]
+    time.sleep(1.1)  # marks are stamped to the second
+    for q in queue[40:50]:
+        session.update({"id": q["id"], "label": q["group"], "seconds": 5})
+    p = check.picks(ws)
+    assert p["n"] == 3 and not p["ask"]
+    assert check.picks_lines(p) == ["These marks have helped pick 3 changes."]
+
+
+def test_a_model_update_is_not_a_pick(tmp_path, monkeypatch):
+    from judgekeeper import check, marks
+    from judgekeeper.fingerprint import utc_now
+
+    monkeypatch.chdir(tmp_path)
+    ws, _, _ = _marked_some(tmp_path, 40)
+    marks.append(ws.history_jsonl, {"time": utc_now(), "kind": "check",
+                                    "changed": ["model a -> b"], "groups": {}})
+    assert check.picks(ws)["n"] == 0
+    assert check.picks_lines(check.picks(ws)) == []
+
+
+def test_check_asks_for_new_marks_after_three_picks(here, capsys):
+    from judgekeeper.cli import main
+    from tests.test_check import MARKED, _marked, _results
+
+    ws = _marked(here)
+    for kind in ("fix", "fix", "check"):
+        _pick(ws, kind)
+    _results(here, MARKED, rubric="Is polite, correct and short.")  # a rule change: a pick
+    code = main(["check"])
+    out = _flat(capsys.readouterr().out)
+    assert "These marks have helped pick 4 changes." in out
+    assert "Mark 10 new answers to keep the check honest." in out
+    assert out.endswith("Next: run `judgekeeper mark` to mark 10 new answers, then run "
+                        "`judgekeeper check` again.")
+    assert code == 0
+
+
+def test_the_report_says_how_many_changes_the_marks_helped_pick(tmp_path, monkeypatch):
+    from judgekeeper import start_label
+
+    monkeypatch.chdir(tmp_path)
+    ws, session, _ = _marked_some(tmp_path, 40)
+    _pick(ws)
+    _pick(ws, "check")
+    start_label.store_result(ws, session)
+    assert "These marks have helped pick 2 changes." in ws.report_html.read_text(encoding="utf-8")
+
+
+def test_fix_new_counts_the_picks_again(tmp_path, monkeypatch):
+    import time
+
+    from judgekeeper import check
+
+    monkeypatch.chdir(tmp_path)
+    ws, _, _ = _marked_some(tmp_path, 40)
+    for _ in range(3):
+        _pick(ws)
+    assert check.picks(ws)["n"] == 3
+    time.sleep(1.1)
+    fix.current_split(ws, fix.Marks(ws), new=True)
+    assert check.picks(ws)["n"] == 0

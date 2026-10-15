@@ -938,6 +938,7 @@ def page_content(r: dict, marking: str | None = None) -> dict:
         "made": made_lines(r.get("made")),
         "drop": targets.drop_line(r.get("smallest_drop")),
         "drop_model": targets.DROP_MODEL if r.get("smallest_drop") is not None else None,
+        "picks": list(r.get("picks") or []),
         "tiles": [few(tile("TPR", "When you said Pass", r["tpr"], r["tpr_interval"],
                            f"{labels['correct']} marked Pass so far"), "tpr"),
                   few(tile("TNR", "When you said Fail", r["tnr"], r["tnr_interval"],
@@ -1052,6 +1053,9 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     r["made"] = marks.made(marks.read(ws.marks), ids=set(session.by_id))
     r["smallest_drop"] = targets.smallest_drop(r["labels"]["correct"], r["labels"]["wrong"],
                                                r["tpr"], r["tnr"])
+    from judgekeeper import check
+
+    r["picks"] = check.picks_lines(check.picks(ws))  # how many changes the marks helped pick
     return r
 
 

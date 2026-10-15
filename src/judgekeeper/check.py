@@ -728,6 +728,59 @@ def _no_change(state: State) -> str:
     return f"Your judge has not changed since your last check{f' ({day})' if day else ''}."
 
 
+# How many changes the marks have helped pick -------------------------------------------------
+# A pick: a `fix` test on these marks, or a check of a rule or pass-mark change (a change made
+# by looking at the marks). A model change or a tool update is not one. After PICKS_ASK picks,
+# until PICK_MARKS marks are made after the last one, the marks may flatter the judge.
+
+PICKS_ASK = 3
+PICK_MARKS = 10
+NEXT_NEW_MARKS = ("Next: run `{mark}` to mark {n} new answers, then run `{command}` again.")
+
+
+def is_pick(line: dict) -> bool:
+    """Whether a history.jsonl line is a pick (above)."""
+    if line.get("kind") == "fix":
+        return True
+    changed = line.get("changed") or []
+    return line.get("kind") == "check" and any(
+        c == "rule changed" or str(c).startswith("pass mark") for c in changed)
+
+
+def rule_changed(changed: list[str]) -> bool:
+    return is_pick({"kind": "check", "changed": changed})
+
+
+def picks(ws: Workspace, now: bool = False) -> dict:
+    """{"n": picks, "new_marks": marks made after the last, "ask": whether to ask for
+    PICK_MARKS new marks}: counted from these marks on (marks.jsonl's start, or `fix --new`).
+    `now`: this run is a pick too."""
+    from judgekeeper import fix
+
+    read = marks.read(ws.marks)
+    split = fix.read_split(ws)
+    since = max(str((read.header or {}).get("created_at") or ""),
+                str(split.reset_at if split else ""))
+    times = [str(x.get("time") or "") for x in _history_all(ws) if is_pick(x)]
+    times = [t for t in times if t >= since] + ([utc_now()] if now else [])
+    last = max(times) if times else None
+    made = sum(str(x.get("at") or "") > last for i, x in read.last.items()
+               if i in read.counted()) if last else 0
+    return {"n": len(times), "new_marks": made,
+            "ask": len(times) >= PICKS_ASK and made < PICK_MARKS}
+
+
+def picks_lines(p: dict) -> list[str]:
+    if not p["n"]:
+        return []
+    out = [f"These marks have helped pick {plural(p['n'], 'change')}."]
+    if p["ask"]:
+        out.append(f"Your marks have been used to pick {plural(p['n'], 'change')}, so they may "
+                   f"now flatter your judge. Mark {PICK_MARKS} new answers to keep the check "
+                   "honest.")
+    return out
+
+
 def _history(ws: Workspace) -> list[dict]:
     try:
         text = ws.history_jsonl.read_text(encoding="utf-8")
@@ -844,11 +897,19 @@ def full(path: str, said: Said, yes: bool = False) -> int:
                                  g["failed"]["old"])
     worse = [k for k in ("failed", "passed") if g[k]["verdict"] == "worse"]
     unsure = [k for k in ("failed", "passed") if g[k]["verdict"] == "not_sure"]
+    picked = picks(state.ws, now=rule_changed(changed))
+    for line in picks_lines(picked):
+        said.say(line)
+    if picks_lines(picked):
+        said.say()
     if worse:
         tool = find.NAMES.get(new.get("tool"), new.get("tool"))
         back = (f"the old version of {tool} ({old.get('tool_version')})"
                 if judge_setup.tool_only(old, new) else "the old judge")
         said.say(NEXT_WORSE.format(back=back, command=_command(state)))
+    elif picked["ask"]:
+        said.say(NEXT_NEW_MARKS.format(mark=program("mark"), n=PICK_MARKS - picked["new_marks"],
+                                       command=_command(state)))
     elif unsure:
         said.say(NEXT_NOT_SURE.format(mark=program("mark"), command=_command(state)))
     else:

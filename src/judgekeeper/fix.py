@@ -178,11 +178,13 @@ class Split:
     fresh: dict | None = None  # {"want"}: after MAX_RULES rules, new marks make a new set
     pending: list[str] = field(default_factory=list)  # new marks waiting for a top-up or set
     retest: bool = False  # a top-up was just completed: test its rule again
+    reset_at: str = ""  # `fix --new`: the picks are counted again from here (check.picks)
 
     def to_json(self) -> dict:
         return {"set": self.set, "seed": self.seed, "made_at": self.made_at,
                 "visible": self.seen, "hidden": self.hidden, "tests": self.tests,
-                "pass_mark": self.pass_mark, "topup": self.topup, "fresh": self.fresh}
+                "pass_mark": self.pass_mark, "topup": self.topup, "fresh": self.fresh,
+                "reset_at": self.reset_at}
 
     def rules(self) -> list[str]:
         """The rules tested on this set, once each."""
@@ -199,7 +201,8 @@ def read_split(ws: Workspace) -> Split | None:
         return Split(seed=int(d["seed"]), seen=list(d["visible"]), hidden=list(d["hidden"]),
                      set=int(d.get("set") or 1), made_at=str(d.get("made_at") or ""),
                      tests=list(d.get("tests") or []), pass_mark=d.get("pass_mark"),
-                     topup=d.get("topup"), fresh=d.get("fresh"))
+                     topup=d.get("topup"), fresh=d.get("fresh"),
+                     reset_at=str(d.get("reset_at") or ""))
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -218,7 +221,8 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
     if split is None:
         seed = secrets.randbelow(2 ** 31)
         seen, hidden = make_split(m, seed)
-        split = Split(seed=seed, seen=seen, hidden=hidden, made_at=utc_now())
+        split = Split(seed=seed, seen=seen, hidden=hidden, made_at=utc_now(),
+                      reset_at=utc_now() if new else "")
     if not split.fresh and (len(split.rules()) >= MAX_RULES or _adopted(ws, split)):
         retire(split)
     known = set(split.seen) | set(split.hidden)
