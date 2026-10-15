@@ -12,10 +12,13 @@ It needs a result (enough marks of each kind). Each run does the next step:
 
 The hidden marks: about 30% of each group of marks (the judge's passes and fails, where the
 person agrees and where not, rounded up; a group of one stays seen), at least 5 marked Pass
-and 5 marked Fail, picked with a random seed and kept in fix/split.json until `fix --new`. The
-patterns, mistakes.md and every number shown before the test use only the other marks, so the
-new rule is never written from a hidden answer. Nothing about a hidden mark (its id or its
-text) is printed or written anywhere but split.json.
+and 5 marked Fail, picked with a random seed when the first result appears (prepare_split),
+before any mistake is shown, and kept in fix/split.json. The patterns, mistakes.md and every
+number shown before the test use only the other marks, so the new rule is never written from a
+hidden answer. Nothing about a hidden mark (its id or its text) is printed or written anywhere
+but split.json while the set is in use. A set is retired when a rule tested on it is the
+judge's rule now (adopted), after MAX_RULES rules, or with `fix --new`: then its marks are seen
+like the others, and the next FRESH new marks make a new set.
 
 mistakes.md: each mistake on the seen marks (the person's mark, the judge's grade, the
 question, the answer, the person's note and the judge's own reason), each text cut and fenced
@@ -175,11 +178,13 @@ class Split:
     fresh: dict | None = None  # {"want"}: after MAX_RULES rules, new marks make a new set
     pending: list[str] = field(default_factory=list)  # new marks waiting for a top-up or set
     retest: bool = False  # a top-up was just completed: test its rule again
+    reset_at: str = ""  # `fix --new`: the picks are counted again from here (check.picks)
 
     def to_json(self) -> dict:
         return {"set": self.set, "seed": self.seed, "made_at": self.made_at,
                 "visible": self.seen, "hidden": self.hidden, "tests": self.tests,
-                "pass_mark": self.pass_mark, "topup": self.topup, "fresh": self.fresh}
+                "pass_mark": self.pass_mark, "topup": self.topup, "fresh": self.fresh,
+                "reset_at": self.reset_at}
 
     def rules(self) -> list[str]:
         """The rules tested on this set, once each."""
@@ -196,7 +201,8 @@ def read_split(ws: Workspace) -> Split | None:
         return Split(seed=int(d["seed"]), seen=list(d["visible"]), hidden=list(d["hidden"]),
                      set=int(d.get("set") or 1), made_at=str(d.get("made_at") or ""),
                      tests=list(d.get("tests") or []), pass_mark=d.get("pass_mark"),
-                     topup=d.get("topup"), fresh=d.get("fresh"))
+                     topup=d.get("topup"), fresh=d.get("fresh"),
+                     reset_at=str(d.get("reset_at") or ""))
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -215,7 +221,10 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
     if split is None:
         seed = secrets.randbelow(2 ** 31)
         seen, hidden = make_split(m, seed)
-        split = Split(seed=seed, seen=seen, hidden=hidden, made_at=utc_now())
+        split = Split(seed=seed, seen=seen, hidden=hidden, made_at=utc_now(),
+                      reset_at=utc_now() if new else "")
+    if not split.fresh and (len(split.rules()) >= MAX_RULES or _adopted(ws, split)):
+        retire(split)
     known = set(split.seen) | set(split.hidden)
     new_ids = [i for i in m.order if i not in known]
     if split.fresh:  # MAX_RULES rules tested: the next FRESH new marks are a new set
@@ -238,6 +247,33 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
     split.hidden = [i for i in split.hidden if i in m.person]
     save_split(ws, split)
     return split
+
+
+def _adopted(ws: Workspace, split: Split) -> bool:
+    """Whether a rule tested on this set is the judge's rule now (judge.json)."""
+    from judgekeeper import judge_setup
+
+    setup = (judge_setup.read(ws) or {}).get("setup") or {}
+    return bool(split.tests) and setup.get("rule_hash") in split.rules()
+
+
+def retire(split: Split) -> None:
+    """The set's hidden marks are seen like the others from now on; the next FRESH new marks
+    make a new set."""
+    split.seen = sorted(set(split.seen) | set(split.hidden))
+    split.hidden = []
+    split.fresh = {"want": FRESH}
+
+
+def prepare_split(ws: Workspace) -> None:
+    """Set the hidden marks aside when the first result appears (and take in marks made
+    since), before any mistake is shown; nothing when there are too few marks."""
+    try:
+        m = Marks(ws)
+    except (OSError, ValueError, KeyError):
+        return
+    if m.enough():
+        current_split(ws, m)
 
 
 # The patterns -------------------------------------------------------------------------------
@@ -522,10 +558,6 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
         return EXIT_NEEDS_YOU
     if split.fresh or (split.topup and not split.topup.get("done")):
         return _waiting(talk, ws, split)
-    if rule is not None and not split.retest and len(split.rules()) >= MAX_RULES:
-        split.fresh = {"want": FRESH}
-        save_split(ws, split)
-        return _waiting(talk, ws, split)
     if rule is not None:
         return test_rule(talk, ws, m, split, rule, yes)
     return first_run(talk, ws, m, split)
@@ -673,6 +705,31 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
     return grades[0], grades[1], reasons
 
 
+def next_test(split: Split) -> int:
+    """Which test on this set of hidden marks the next one is: every test counts, whatever
+    its verdict (after "safe to try", a re-test after a top-up), so each is stricter."""
+    return len(split.tests) + 1
+
+
+def few_mistakes(m: Marks, split: Split) -> str | None:
+    """Said before the question when the hidden marks hold fewer than targets.FIX_FEW of the
+    judge's mistakes: a test that can then only catch a worse rule. The counts it needs come
+    from the verdict's own math, for this test."""
+    wrong = sum(m.judge[i] != m.person[i] for i in split.hidden)
+    if wrong >= targets.FIX_FEW:
+        return None
+    n, k = len(split.hidden), next_test(split)
+
+    def fewest(kinds):
+        return next((f for f in range(n + 1)
+                     if targets.fix_verdict(f, 0, n, test=k).kind in kinds), n)
+
+    return (f"Your hidden marks hold only {plural(wrong, 'answer')} your judge got wrong. A new "
+            f"rule needs at least {fewest(('safe', 'better'))} of those fixed to be called safe "
+            f"to try, and about {fewest(('better',))} to be called better, so this test can "
+            "only catch a worse rule.")
+
+
 def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes: bool) -> int:
     """Screen 5b: the new rule from rule.txt, checked, then tested on the hidden marks with
     the old rule asked the same way, in the same run; the verdict from the math."""
@@ -690,6 +747,10 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
         return EXIT_NEEDS_YOU
     if problems:
         talk.say()
+    few = few_mistakes(m, split)
+    if few:
+        talk.para(few)
+        talk.say()
     asked = _ask_both(ws, m, split, rule, talk, yes)
     if isinstance(asked, int):
         return asked
@@ -697,7 +758,7 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     ids = [i for i in split.hidden if i in old and i in new]
     fixed = sum(old[i] != m.person[i] and new[i] == m.person[i] for i in ids)
     broke = sum(old[i] == m.person[i] and new[i] != m.person[i] for i in ids)
-    v = targets.fix_verdict(fixed, broke, len(ids), test=len(split.tests) + 1)
+    v = targets.fix_verdict(fixed, broke, len(ids), test=next_test(split))
     talk.say()
     talk.say(f"Tested on your {len(ids)} hidden marks:")
     talk.say(f"  Old rule agreed with you on {sum(old[i] == m.person[i] for i in ids)}. New "

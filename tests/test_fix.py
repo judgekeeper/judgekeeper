@@ -533,7 +533,12 @@ def test_the_result_shows_where_the_judge_goes_wrong_and_points_at_fix(here, cap
             break
         block.append(line)
     assert 1 <= len(block) <= 3
-    assert block[0].startswith("  10 of its 13 mistakes are answers it passed but you failed")
+    seen = fix.read_split(Workspace(here)).seen  # hidden from the first result on
+    m = fix.Marks(Workspace(here))
+    wrong = [i for i in seen if m.judge[i] != m.person[i]]
+    passed = sum(m.judge[i] == "pass" for i in wrong)
+    assert block[0].startswith(f"  {passed} of its {len(wrong)} mistakes are answers it passed "
+                               "but you failed")
     assert " ".join(out.split()).endswith("Next: to try a better rule, run `judgekeeper fix`.")
 
 

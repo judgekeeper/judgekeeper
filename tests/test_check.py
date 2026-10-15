@@ -328,8 +328,9 @@ def test_an_inspect_version_bump_only(here, capsys, no_calls):
 
 # check: asking the judge, only after a yes -----------------------------------------------------
 
-ASK = ("To re-check, judgekeeper asks your new judge about your 50 marked answers. That is 50 "
-       "AI calls, paid with your own key.")
+ASK = ("To re-check, judgekeeper asks your new judge about your 50 marked answers, twice each. "
+       "That is 100 AI calls, paid with your own key. Asking twice shows how much the judge "
+       "varies by itself.")
 
 
 @pytest.fixture
@@ -418,8 +419,8 @@ def test_some_free_and_a_no_tests_the_free_ones(here, capsys, judge, terminal):
     _results(here, MARKED, model=HAIKU, outputs=outputs)
     code, out = run(capsys)
     assert code == 0
-    assert ("judgekeeper asks your new judge about the other 10 marked answers. That is 10 AI "
-            "calls") in " ".join(out.split())
+    assert ("judgekeeper asks your new judge about the other 10 marked answers, twice each. That "
+            "is 20 AI calls") in _flat(out)
     assert "Re-checked on 40 of your 50 marks:" in out
 
 
