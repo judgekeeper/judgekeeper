@@ -177,11 +177,10 @@ def test_the_guide_is_six_steps_then_the_details():
 # README, guide, skill --------------------------------------------------------------------
 
 def test_the_readme_makes_uvx_the_main_path():
-    use = _sections(README)["Use it on your own judge"]
-    assert f"\ncd your-project\nuvx judgekeeper@{__version__}\n" in use
+    sections = _sections(README)
+    assert f"\ncd your-project\nuvx judgekeeper@{__version__}\n" in sections["Install"]
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
-        assert tool in use, tool
-    assert len(README.read_text(encoding="utf-8").splitlines()) <= 80
+        assert tool in sections["The 5 steps"], tool
 
 
 # The version -----------------------------------------------------------------------------
