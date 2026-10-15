@@ -122,7 +122,7 @@ def test_a_different_run_in_the_hidden_copy_is_named(tmp_path, capsys):
     assert "  Results file    results/test_run_20261006_154129.json" in out
     assert ("DeepEval's hidden copy .deepeval/.latest_test_run.json holds a different run. "
             "Using the newest file in your results folder, results/test_run_20261006_154129."
-            "json; to use the other: judgekeeper start .deepeval/.latest_test_run.json") in out
+            "json; to use the other: judgekeeper .deepeval/.latest_test_run.json") in out
 
 
 def test_the_two_hidden_copies_count_once(tmp_path, capsys):

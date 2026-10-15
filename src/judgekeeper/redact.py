@@ -95,13 +95,25 @@ def _is_credential_var(name: str) -> bool:
             or name.upper().endswith(CREDENTIAL_SUFFIXES))
 
 
+_cached: tuple = (None, [])  # (the environment and named variables read, their secrets)
+
+
 def _secret_values() -> list[str]:
+    """The credentials in the environment, longest first. Worked out again only when the
+    environment changed: a big results file has hundreds of thousands of strings to scrub."""
+    global _cached
+    data = getattr(os.environ, "_data", None)  # the raw environment: compared, not decoded
+    key = None if data is None else (tuple(data.items()), frozenset(_named_vars))
+    if key is not None and _cached[0] == key:
+        return _cached[1]
     values = {
         value for name, value in os.environ.items()
         if _is_credential_var(name) and len(value) >= MIN_SECRET_LENGTH
     }
     # Longest first, so a value that contains another is replaced whole.
-    return sorted(values, key=len, reverse=True)
+    found = sorted(values, key=len, reverse=True)
+    _cached = (key, found)
+    return found
 
 
 def scrub(text: str | None) -> str | None:

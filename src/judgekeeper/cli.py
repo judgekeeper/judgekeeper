@@ -528,6 +528,11 @@ def _main(argv: list[str] | None) -> int:
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see
         if args.debug:
             _say(scrub(traceback.format_exc()), file=sys.stderr, end="")
+        workspace = textio.workspace_problem(e) if isinstance(e, OSError) else None
+        if workspace:
+            _error(workspace[0])
+            _next(_step(workspace[1], args_list))
+            return EXIT_USAGE
         file_problem = describe_os_error(e) if isinstance(e, OSError) else None
         if file_problem:
             _error(file_problem)

@@ -320,7 +320,7 @@ def test_marks_from_0_2_ask_to_start_over(here, capsys, pages):
     (folder / "labels.csv").write_text("id,input,output,human_label,notes\n", encoding="utf-8")
     code, out, err = run(capsys)
     assert code == 3
-    assert ".judgekeeper/labels.csv holds marks from judgekeeper 0.2" in _flat(out)
+    assert ".judgekeeper/labels.csv holds marks from an older judgekeeper" in _flat(out)
     assert START_OVER in _flat(out)
     _check(out, err)
     assert pages[0] == []

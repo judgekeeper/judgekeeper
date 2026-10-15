@@ -176,6 +176,32 @@ def decode_utf8(data: bytes, path: str | Path, error: type[Exception]) -> str:
 
 
 last_read: str | None = None  # the name of the last file read_utf8 read, for an error
+PROGRESS_AFTER = 2  # seconds of reading before the first "Reading ..." line
+PROGRESS_EVERY = 5  # seconds between those lines
+_reading = {"since": 0.0, "said": None}
+
+
+def _clock() -> float:
+    import time
+
+    return time.monotonic()
+
+
+def reading(n: int, name: str | None = None) -> None:
+    """While a file (or a store, `name`) takes long to read (`n` answers so far): after
+    PROGRESS_AFTER seconds, a line on stderr every PROGRESS_EVERY seconds, so a person or an
+    agent sees it working."""
+    if n == 1 and name is not None:  # a store: read_utf8 never starts its clock
+        _reading.update(since=_clock(), said=None)
+    if n % 500:
+        return
+    now, said = _clock(), _reading["said"]
+    if now - _reading["since"] < PROGRESS_AFTER or (said is not None
+                                                    and now - said < PROGRESS_EVERY):
+        return
+    _reading["said"] = now
+    print(f"Reading {name or last_read or 'your results'} ({n:,} answers so far)...",
+          file=sys.stderr, flush=True)
 
 
 def read_utf8(path: str | Path, error: type[Exception]) -> str:
@@ -185,6 +211,7 @@ def read_utf8(path: str | Path, error: type[Exception]) -> str:
     """
     global last_read
     last_read = Path(path).name
+    _reading.update(since=_clock(), said=None)
     return decode_utf8(Path(path).read_bytes(), path, error).removeprefix(BOM)
 
 
@@ -302,6 +329,32 @@ def _cannot_write(path) -> str:
     return message
 
 
+WORKSPACE = ".judgekeeper"  # where judgekeeper keeps its files, in the project
+WORKSPACE_FILE = (".judgekeeper is a file, but judgekeeper keeps its files in a .judgekeeper/ "
+                  "folder there.")
+WORKSPACE_FILE_NEXT = "move or rename the file .judgekeeper, then run `{command}`."
+WORKSPACE_DENIED = ("judgekeeper can't write in .judgekeeper/ (permission denied): it keeps "
+                    "its files there.")
+WORKSPACE_DENIED_NEXT = ("give your user permission to write in .judgekeeper/ (or remove the "
+                         "folder: judgekeeper makes it again), then run `{command}`.")
+
+
+def workspace_problem(e: OSError) -> tuple[str, str] | None:
+    """(the error, the Next: step) when `e` is about .judgekeeper/: named so, never a
+    temporary file inside it or a whole path. None for any other path."""
+    if not isinstance(e.filename, str | bytes | os.PathLike):
+        return None
+    parts = Path(os.fsdecode(e.filename)).parts
+    if WORKSPACE not in parts:
+        return None
+    folder = Path(*parts[:parts.index(WORKSPACE) + 1])
+    if folder.is_file():
+        return WORKSPACE_FILE, WORKSPACE_FILE_NEXT
+    if isinstance(e, PermissionError) and folder.is_dir():  # else the project folder's
+        return WORKSPACE_DENIED, WORKSPACE_DENIED_NEXT
+    return None
+
+
 def describe_os_error(e: OSError) -> str | None:
     """One plain line for a file-system error, naming the path and what to do.
 
@@ -355,6 +408,9 @@ def quote_arg(arg: str | Path) -> str:
     """`arg` as one argument of a command the user pastes; quoted only when it needs it."""
     if is_windows():
         return subprocess.list2cmdline([str(arg)])  # double quotes: cmd.exe and PowerShell
+    if "`" in str(arg):  # $'...' with \x60: no backtick, so it survives inside `...`
+        escaped = str(arg).replace("\\", "\\\\").replace("'", "\\'").replace("`", "\\x60")
+        return f"$'{escaped}'"
     return shlex.quote(str(arg))
 
 

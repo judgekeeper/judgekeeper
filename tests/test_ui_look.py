@@ -217,7 +217,7 @@ def test_clicking_a_dot_opens_that_answer():
             '    walkingSkipped = false; open(+k);') in script
     assert "function open(index) { ended = false; pos = index; render(); }" in script
     # Over 60 answers, a window of dots with "+N" for the rest.
-    assert "MAX_DOTS = 60" in script and '"+" + from' in script and '"+" + (n - to)' in script
+    assert "MAX_DOTS = 60" in script and '"+" + from' in script and '"+" + (total - to)' in script
     page = start_page.label_page(None, None)
     assert "Click a dot at the top to go back to any answer, skipped ones too." in page
 

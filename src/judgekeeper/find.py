@@ -49,6 +49,7 @@ MAX_JSON = 200
 HEAD_BYTES = 64 * 1024
 MAX_BYTES = 200 * 1000 * 1000
 TABLE_DEPTH = 2
+DEEPER = 4  # nothing found: folders further down where results-like files are named
 
 SKIP_DIRS = frozenset({".git", "node_modules", ".venv", "venv", "site-packages",
                        "dist-packages", "__pycache__", ".judgekeeper"})
@@ -65,6 +66,7 @@ VERDICT_COLUMNS = ("verdict", "judge_verdict", "judge")
 TABLE_SUFFIXES = (".csv", ".tsv", ".jsonl")
 RESULTS_VARS = {"deepeval": "DEEPEVAL_RESULTS_FOLDER", "inspect": "INSPECT_LOG_DIR"}
 INSPECT_SKIP = "logs.json"  # Inspect's listing of a log folder, not a log
+DEEPEVAL_TEMP = ".temp_test_run_data.json"  # DeepEval's file while a run goes on, not results
 
 _DEPENDENCY = {"deepeval": re.compile(r"(?<![\w-])deepeval(?![\w-])", re.IGNORECASE),
                "inspect": re.compile(r"(?<![\w-])inspect[-_]ai(?![\w-])", re.IGNORECASE)}
@@ -94,6 +96,10 @@ class Result:
         return (f"{self.rel} is {self.size / 1_000_000:,.0f} MB. Run {program} "
                 f"{self.rel} to read it anyway.")
 
+    def run_date(self) -> datetime | None:
+        """The tool's own date for the results, when the file has one."""
+        return _made_at(self)
+
     def date(self) -> datetime:
         """When the results were made: the tool's own date when the file has one, else the
         file's modified time. Always with a time zone."""
@@ -110,6 +116,8 @@ class Search:
     signs: dict[str, list[str]] = field(default_factory=dict)  # tool -> configs, folders
     stopped: str | None = None  # why the walk stopped early, as a sentence
     notes: list[str] = field(default_factory=list)
+    unreadable: list[tuple[str, str]] = field(default_factory=list)  # results-like: (rel, how)
+    skipped: list[tuple[str, str]] = field(default_factory=list)  # results-like, not looked in
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -125,20 +133,38 @@ def _head(path: Path) -> bytes:
         return f.read(HEAD_BYTES)
 
 
+_RESULTS_WORDS = re.compile(r"result|output|eval|judg|score|verdict", re.IGNORECASE)
+
+
+def _results_like(path: Path) -> bool:
+    """A file judgekeeper would read if it could: one whose name says results."""
+    suffix = path.suffix.lower()
+    return ((suffix in (".json", ".eval") or suffix in TABLE_SUFFIXES)
+            and bool(_RESULTS_WORDS.search(path.stem)))
+
+
 def sniff_json(head: bytes) -> str | None:
     """The tool that wrote a JSON file, from its first bytes, or None."""
     text = head.decode("utf-8", errors="replace").lstrip("﻿ \t\r\n")
     if not text.startswith("{"):
         return None
-    # Inspect first: its logs also have a "results" object (the scores) and "stats".
-    if re.search(r'"eval"\s*:\s*\{', text) and re.search(r'"(status|samples)"\s*:', text):
+    # Inspect first: its logs also have a "results" object (the scores) and "stats". An "eval"
+    # that is not an object is still Inspect's, damaged, and its reader says so.
+    if (re.search(r'"eval"\s*:', text) and re.search(r'"(status|samples)"\s*:', text)
+            and not re.search(r'"(evalId|promptfooVersion)"\s*:', text)):
         return "inspect"
     if re.search(r'"results"\s*:\s*\{', text) and re.search(
             r'"(evalId|promptfooVersion|prompts|stats)"\s*:', text):
         return "promptfoo"
     if re.search(r'"(testCases|conversationalTestCases|testRunData)"\s*:', text):
         return "deepeval"
+    if re.match(r'\{\s*"head"\s*:\s*\{', text) and re.search(r'"body"\s*:\s*\[', text):
+        return PROMPTFOO_TABLE
     return None
+
+
+PROMPTFOO_TABLE = "promptfoo-table"  # `promptfoo eval -o table.json`: no judge's decisions
+TABLE_OUTPUT = "is promptfoo's table output, which doesn't keep the judge's own decisions"
 
 
 def table_columns(path: Path) -> list[str]:
@@ -204,10 +230,18 @@ def classify_file(path: Path) -> str | None:
     if suffix == ".json":
         if DEEPEVAL_RUN.fullmatch(path.name) or path.name in DEEPEVAL_COPIES:
             return "deepeval"
-        return sniff_json(_head(path))
+        tool = sniff_json(_head(path))
+        return None if tool == PROMPTFOO_TABLE else tool
     if not suffix and DEEPEVAL_RUN.fullmatch(path.name) and sniff_json(_head(path)) == "deepeval":
         return "deepeval"  # DeepEval before 3.9.9: results/<date>_<time>
     return None
+
+
+def is_promptfoo_table(path: Path) -> bool:
+    try:
+        return path.suffix.lower() == ".json" and sniff_json(_head(path)) == PROMPTFOO_TABLE
+    except OSError:
+        return False
 
 
 def _made_at(result: Result) -> datetime | None:
@@ -251,6 +285,13 @@ class _Walk:
         self.seen_dirs: set[Path] = set()
         self.seen_files: set[Path] = set()
         self.started = _clock()
+        self.edge: list[Path] = []  # folders one below MAX_DEPTH, not walked
+
+    def skip(self, path: Path, why: str, rel: str | None = None) -> None:
+        """A results-like file the walk does not read: said when nothing is found."""
+        item = (rel or self.rel(path), why)
+        if item not in self.search.skipped:
+            self.search.skipped.append(item)
 
     def rel(self, path: Path) -> str:
         return path.relative_to(self.root).as_posix()
@@ -284,7 +325,15 @@ class _Walk:
         self.seen_files.add(path)
         self.files += 1
         try:
-            self._classify(path, entry.name, entry.stat(follow_symlinks=False).st_size)
+            size = entry.stat(follow_symlinks=False).st_size
+            if size == 0 and _results_like(path):
+                self.search.unreadable.append((self.rel(path), "is empty"))
+                return
+            self._classify(path, entry.name, size)
+        except PermissionError:
+            if _results_like(path):
+                denied = "can't be read: permission denied"
+                self.search.unreadable.append((self.rel(path), denied))
         except OSError:
             pass  # unreadable: not results
 
@@ -311,10 +360,12 @@ class _Walk:
         elif suffix == ".json":
             if DEEPEVAL_RUN.fullmatch(name) or name in DEEPEVAL_COPIES:
                 self.add("deepeval", path, size)
-            elif name != INSPECT_SKIP and self.json_sniffed < MAX_JSON:
+            elif name not in (INSPECT_SKIP, DEEPEVAL_TEMP) and self.json_sniffed < MAX_JSON:
                 self.json_sniffed += 1
                 tool = sniff_json(_head(path))
-                if tool:
+                if tool == PROMPTFOO_TABLE:
+                    self.search.unreadable.append((self.rel(path), TABLE_OUTPUT))
+                elif tool:
                     self.add(tool, path, size)
         elif suffix in TABLE_SUFFIXES and depth <= TABLE_DEPTH:
             if _head(path)[:2] in (b"\xff\xfe", b"\xfe\xff"):  # UTF-16: not read, but said
@@ -327,6 +378,10 @@ class _Walk:
                 self.add("records", path, size)
             elif is_table(columns):
                 self.add("table", path, size)
+        elif suffix in TABLE_SUFFIXES and _results_like(path):  # deeper than tables are read
+            columns = table_columns(path)
+            if is_table(columns) or (suffix == ".jsonl" and is_records(columns)):
+                self.skip(path, _down(depth - 1))
 
     def folder(self, path: Path) -> None:
         """Walk `path` breadth first, at most MAX_DEPTH folders below the root."""
@@ -342,6 +397,8 @@ class _Walk:
                 continue
             for entry in entries:
                 if entry.is_symlink():
+                    if _results_like(Path(entry.path)) and entry.is_file():
+                        self.skip(Path(entry.path), LINK)
                     continue
                 if entry.is_dir(follow_symlinks=False):
                     sub = Path(entry.path)
@@ -353,6 +410,8 @@ class _Walk:
                             self.sign("mlflow", self.rel(sub) + "/")
                     elif _walked(entry.name) and self.depth(sub) <= MAX_DEPTH:
                         queue.append(sub)
+                    elif _walked(entry.name):
+                        self.edge.append(sub)
                 elif entry.is_file(follow_symlinks=False):
                     self.file(entry)
 
@@ -449,7 +508,94 @@ def search(root: str | Path) -> Search:
     except _Stop:
         pass
     _prefer_saved_runs(walk.search)
+    if not any(walk.search.results.values()) and walk.search.stopped is None:
+        _look_deeper(walk)
+        _look_above(walk)
     return walk.search
+
+
+LINK = "a link: judgekeeper doesn't follow links"
+ABOVE = "in the folder above"
+PROJECT_MARKERS = ("pyproject.toml", "package.json", ".git", "judgekeeper.toml", "setup.py")
+
+
+def _down(n: int) -> str:
+    return f"{n} folder down" if n == 1 else f"{n} folders down"
+
+
+def looked(root: Path) -> str:
+    """How far the walk looks, said when nothing is found."""
+    return f"{_down(MAX_DEPTH)} from {root.name} (tables: {_down(TABLE_DEPTH - 1)})"
+
+
+def _look_deeper(walk: _Walk) -> None:
+    """Nothing found: name results-like files up to DEEPER folders below where the walk
+    stopped, by their names only, within the walk's own limits."""
+    queue, files, started = list(walk.edge), 0, _clock()
+    while queue:
+        folder = queue.pop(0)
+        try:
+            entries = sorted(os.scandir(folder), key=lambda e: e.name)
+        except OSError:
+            continue
+        for entry in entries:
+            if files >= MAX_FILES or _clock() - started > MAX_SECONDS:
+                return
+            if entry.is_symlink():
+                continue
+            path = Path(entry.path)
+            if entry.is_dir(follow_symlinks=False):
+                if _walked(entry.name) and walk.depth(path) <= MAX_DEPTH + DEEPER:
+                    queue.append(path)
+            elif entry.is_file(follow_symlinks=False):
+                files += 1
+                if _results_like(path) or entry.name == "mlflow.db":
+                    walk.skip(path, _down(walk.depth(path) - 1))
+
+
+def project_folder(folder: Path) -> Path | None:
+    """The nearest folder above `folder` that looks like a project's own (PROJECT_MARKERS),
+    below the home folder; None when there is none."""
+    try:
+        home = Path.home().resolve()
+    except (RuntimeError, OSError):
+        home = None
+    for above in folder.parents:
+        if above == home:
+            return None
+        try:
+            if any((above / m).exists() for m in PROJECT_MARKERS):
+                return above
+        except OSError:
+            return None
+    return None
+
+
+def results_above(root: Path) -> Path | None:
+    """The project folder above `root` when it holds results judgekeeper reads."""
+    up = project_folder(root)
+    if up is None:
+        return None
+    found = search(up)
+    return up if any(found.readable(t) for t in TOOLS) or found.too_big() else None
+
+
+def _look_above(walk: _Walk) -> None:
+    """Nothing found and no project folder above: name results-like files in the folder
+    just above."""
+    root = walk.root
+    if root.parent == root or project_folder(root) is not None:
+        return
+    try:
+        if root.parent == Path.home().resolve():
+            return
+        entries = sorted(os.scandir(root.parent), key=lambda e: e.name)
+    except (OSError, RuntimeError):
+        return
+    for entry in entries:
+        path = Path(entry.path)
+        if not entry.is_symlink() and entry.is_file() and _results_like(path):
+            walk.skip(path, ABOVE, rel=f"../{entry.name}")
 
 
 def _run_of(path: Path):
@@ -487,8 +633,8 @@ def _prefer_saved_runs(found: Search) -> None:
             if theirs is not None and ours is not None and theirs != ours:
                 found.notes.append(
                     f"DeepEval's hidden copy {copy.rel} holds a different run. Using the newest "
-                    f"file in your results folder, {newest.rel}; to use the other: judgekeeper "
-                    f"start {copy.rel}")
+                    f"file in your results folder, {newest.rel}; to use the other: "
+                    f"{textio.program()} {textio.quote_arg(copy.rel)}")
         copies = {}
     if "deepeval" in found.results:
         found.results["deepeval"] = [r for r in runs if r.path.name not in DEEPEVAL_COPIES

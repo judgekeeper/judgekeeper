@@ -96,8 +96,8 @@ READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLf
 FIND = ("tool", "metric", "experiment", "tracking_uri", "pass_if", "label_map", "judge_model")
 ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
 START_OVER = f"Start over with these results? Your old marks move to {FOLDER}/previous-<date>/."
-OLD_MARKS = (f"{FOLDER}/labels.csv holds marks from judgekeeper 0.2. They have no time stamps, "
-             "so this version does not use them.")
+OLD_MARKS = (f"{FOLDER}/labels.csv holds marks from an older judgekeeper. They have no time "
+             "stamps, so this version does not use them.")
 RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
 JUDGE_CHANGED = "Your judge changed since your marks: {what}."
 STEP = "Step {n} of 5: {name}"
@@ -308,7 +308,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     o = talk.options
     if path.is_file():
         if o["tool"] is not None or find.classify_file(path) is not None or \
-                path.suffix.lower() not in own_format.SUFFIXES:
+                path.suffix.lower() not in own_format.SUFFIXES or find.is_promptfoo_table(path):
             return path, None
         file, here = path.resolve(), Path.cwd().resolve()
         root = here if file.is_relative_to(here) else project_root(file.parent)
@@ -319,8 +319,9 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
             or start._saved(root)):
         return path, None
     search = find.search(root)
-    if (any(search.readable(t) for t in find.TOOLS) or search.too_big()
-            or find.records_above(root) is not None or "promptfoo" in search.signs):
+    if (any(search.readable(t) for t in find.TOOLS) or search.too_big() or search.unreadable
+            or search.skipped or find.records_above(root) is not None
+            or "promptfoo" in search.signs or find.results_above(root) is not None):
         return path, None  # find_judge reads them, or says how
     own = own_format.search(root)
     if own is None:
@@ -343,8 +344,22 @@ def _find(talk: FrontTalk, path: Path, saved) -> start.Found:
         except RecordsError as e:
             raise start.usage_error(e) from None
         if not found.pool.unmapped:
+            _ignored(talk, found)
             return found
         _unread_values(talk, found)
+
+
+IGNORED = {"experiment": ("mlflow", "--experiment is for MLflow results, so it was ignored."),
+           "fields": ("deepeval", "--fields is for a DeepEval judge, so it was ignored.")}
+
+
+def _ignored(talk: FrontTalk, found: start.Found) -> None:
+    """A flag for another tool's results: said, and left out of the commands printed."""
+    for option, (tool, said) in IGNORED.items():
+        if talk.options.get(option) and found.tool != tool:
+            talk.para(said)
+            talk.say()
+            talk.set(option, None)
 
 
 def _shown(values) -> str:
@@ -438,10 +453,13 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict) -> Stop:
             talk.para(f"Found {name} in this folder ({where[0]}), but no saved results yet. "
                       + SAVES.get(tool, ""))
     else:
-        talk.say(f"No eval results found in this folder ({root.name}).")
+        down = find.looked(root).replace(f" from {root.name}", "")
+        talk.para(f"No eval results found in this folder ({root.name}). judgekeeper looked "
+                  f"{down}.")
         talk.para(READS)
     again = f"`{talk.command()}`"
-    other = "" if signs else f" If your results are in another folder, run {again} from there."
+    other = "" if signs else (f" If your results are somewhere else, run "
+                              f"`{talk.command_at('PATH')}` with their file or folder.")
     return talk.stop(EXIT_QUESTION, f"run your eval once from this folder, then run {again} "
                                     f"again.{other}")
 
@@ -560,7 +578,7 @@ def _judge_value(found: start.Found) -> str:
         elif found.model_source:
             model += f" ({found.model_source})"
     else:
-        model = "model not named in your results (add --judge-model NAME)"
+        model = "model not found in your results (add --judge-model NAME)"
     return ", ".join([*parts, model])
 
 

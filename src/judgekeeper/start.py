@@ -42,6 +42,7 @@ from judgekeeper.readers import read_deepeval, read_inspect, read_mlflow, read_p
 from judgekeeper.readers.inspect_logs import DEFAULT_PROMPT
 from judgekeeper.readers.promptfoo import is_stripped_warning
 from judgekeeper.records import (
+    CODE,
     CUT_END,
     HUMAN,
     LLM,
@@ -399,7 +400,8 @@ def read_results_table(path: Path) -> RecordList:
                          f"{', '.join(columns)}")
     human = next((c for c in HUMAN_COLUMNS if c in columns), None)
     records = RecordList(ids_derived=True)
-    for row in rows:
+    for n, row in enumerate(rows, 1):
+        textio.reading(n)
         content = {"target_id": derive_record_id(row.get("input"), row.get("output")),
                    "input": row.get("input"), "output": row.get("output")}
         model = row.get("model") if not _blank(row.get("model")) else row.get("judge_model")
@@ -535,7 +537,10 @@ def _read_mapped(result: find.Result, saved) -> list[Loaded]:
 
 
 def _where(result: find.Result) -> str:
-    return f"{result.rel}, saved {result.date():%Y-%m-%d %H:%M}"
+    """The file, and when it was saved: for DeepEval only the run's own time (a file's time
+    can be when the project was copied), else no date."""
+    date = result.run_date() if result.tool == "deepeval" else result.date()
+    return result.rel if date is None else f"{result.rel}, saved {date:%Y-%m-%d %H:%M}"
 
 
 def _folder_of(result: find.Result) -> str:
@@ -590,9 +595,12 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
 
 OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({names}). "
                 "judgekeeper reads judges run with mlflow.genai.evaluate() and scorers "
-                "(MLflow 3). Reading these older results isn't supported.")
+                "(MLflow 3). Reading these older results isn't supported. To check this judge, "
+                "run it with mlflow.genai.evaluate() and scorers, or save its verdicts as a CSV "
+                "with input, output and verdict columns.")
 OLD_EVALUATE_NEXT = ("run your judge with mlflow.genai.evaluate() and scorers, then run "
-                     "`judgekeeper` again.")
+                     "`{command}` again; or save its verdicts as a CSV and run "
+                     "`{program} <the CSV>`.")
 # The run metrics mlflow.evaluate() logs for a judged metric: faithfulness/v1/mean, ...
 _OLD_METRIC = re.compile(r"(.+/v\d+)/(mean|variance|p90)")
 
@@ -654,8 +662,9 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
             raise usage_error(missing[0])
         old = [] if found else _old_evaluate(uri)
         if old:
-            talk.say(OLD_EVALUATE.format(names=", ".join(old)))
-            raise talk.stop(EXIT_USAGE, OLD_EVALUATE_NEXT)
+            _note(talk, OLD_EVALUATE.format(names=", ".join(old)))
+            raise talk.stop(EXIT_USAGE, OLD_EVALUATE_NEXT.format(command=talk.command(),
+                                                                 program=talk.program))
         if not found:
             raise StartError(f"no MLflow experiment in {store.rel} has judge assessments")
         if len(found) > 1:
@@ -669,7 +678,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
     name, runs = found[0]
     for label, recs in runs:
         for note in recs.notes if label == "human assessments" else ():
-            if "trace files are missing" in note:
+            if "trace files are missing" in note or "judgekeeper read the newest" in note:
                 talk.say(f"  {note}")
     judged = [Loaded(label, recs) for label, recs in runs if label != "human assessments"]
     humans = [r for label, recs in runs if label == "human assessments" for r in recs
@@ -776,7 +785,8 @@ NO_RESULTS = {
 def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     from judgekeeper import own_format
 
-    talk.say(f"No saved eval results found in {root}.")
+    talk.say(f"No saved eval results found in {root}. judgekeeper looked "
+             f"{find.looked(root).replace(' from ' + root.name, '')}.")
     for tool, where in signs.items():
         talk.say(f"{find.NAMES[tool]} is used here ({where[0]}), "
                  + NO_RESULTS.get(tool, "but it has no saved results in this folder yet.")
@@ -865,6 +875,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         kind = tool or find.classify_file(path)
         if kind is None and path.suffix.lower() in find.TABLE_SUFFIXES:
             read_utf8(path, StartError)  # not UTF-8 (a UTF-16 export): how to save it again
+        if kind is None and find.is_promptfoo_table(path):
+            raise table_output(path.name)
         if kind is None:
             raise StartError(f"{path.name} is not a results file judgekeeper start can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "
@@ -876,15 +888,23 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     found = find.search(root)
     for note in found.notes:
         talk.say(note)
-    if found.stopped:
-        talk.say(f"{found.stopped} {POINT_ME.format(program=talk.program)}")
     for big in found.too_big():
         talk.say(big.too_big_message(talk.program))
     available = [t for t in find.TOOLS if found.readable(t)]
+    if found.unreadable and (available or found.too_big()):
+        for rel, how in found.unreadable:
+            _note(talk, f"{rel} {how}, so it was left out.")
     if "records" not in available and (tool == "records" or tool is None and not available):
         above = find.records_above(root)
         if above is not None:  # record() saves at the project root, from any subfolder
             talk.say(RECORDS_ABOVE.format(root=above))
+            talk.say()
+            return _locate(talk, above, tool)
+    if not available and tool is None and not found.too_big() and not found.unreadable:
+        above = find.results_above(root)
+        if above is not None:  # run from a subfolder (src/, say) of the project
+            _note(talk, f"No eval results in {root.name}. Reading the project folder above it "
+                        f"({above.name}).")
             talk.say()
             return _locate(talk, above, tool)
     if tool is not None:
@@ -898,6 +918,12 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     if not available:
         if found.too_big():  # said above, with how to read them anyway
             raise _too_big(talk, found)
+        if found.unreadable:
+            raise _unreadable(found)
+        if found.skipped:
+            raise _left_out(talk, root, found)
+        if found.stopped:  # only when nothing was found: results found are what was asked
+            talk.say(f"{found.stopped} {POINT_ME.format(program=talk.program)}")
         if "promptfoo" in found.signs:
             return _export(talk, path, tool, root, found.signs["promptfoo"][0])
         _nothing_found(talk, root, found.signs)
@@ -928,12 +954,29 @@ def _eval_folder(result: find.Result) -> str | None:
     return None
 
 
+def _link_only(result: find.Result) -> bool:
+    from judgekeeper.readers.deepeval import is_link_only
+
+    if result.size > 4096:  # a link-only file is a few lines
+        return False
+    try:
+        return is_link_only(textio.read_json(result.path, ValueError))
+    except (OSError, ValueError):
+        return False
+
+
 def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None) -> list:
     """DeepEval results in more than one folder are separate evals, never one pool: the
     results of one folder, the last check's (`prefer`) or the one the person picks."""
     folders = list(dict.fromkeys(f for f in map(_eval_folder, results) if f))  # newest first
     if len(folders) < 2:
         return results
+    if all(_link_only(r) for r in results):
+        from judgekeeper.readers.deepeval import LinkOnly
+
+        raise StartError(f"Each DeepEval results folder here ({', '.join(folders)}) only links "
+                         "to Confident AI; your results aren't saved on this computer.",
+                         LinkOnly.next_step)
     if prefer not in folders:
         shown = [f"{f}/ ({_where(next(r for r in results if _eval_folder(r) == f))})"
                  for f in folders]
@@ -944,6 +987,45 @@ def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None) -
             flag="PATH", values=folders, what="which DeepEval results to check")]
         talk.remember("PATH", prefer, f"(Next time: {talk.command_at(prefer)})")
     return [r for r in results if _eval_folder(r) in (prefer, None)]
+
+
+def table_output(rel: str) -> Damaged:
+    """promptfoo's table output: each test's overall pass, never the judge's own decision."""
+    return Damaged(f"{rel} {find.TABLE_OUTPUT}.",
+                   "save the full results with `promptfoo eval -o results.json`, then run "
+                   "`{command}` again.")
+
+
+def _unreadable(found: find.Search) -> Damaged:
+    """The results-like file judgekeeper found but could not read, when it found no other."""
+    rel, how = found.unreadable[0]
+    if how == find.TABLE_OUTPUT:
+        return table_output(rel)
+    if how != "is empty":
+        return Damaged(f"{rel} {how}.", f"give your user permission to read {rel}, then run "
+                                        "`{command}` again.")
+    if "promptfoo" in found.signs and rel.endswith(".json"):
+        return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
+                       f"save your last promptfoo run to it with `promptfoo export eval latest "
+                       f"-o {rel}` (free: it runs no test), then run `{{command}}` again.")
+    return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
+                   f"save your results to {rel} again, then run `{{command}}` again.")
+
+
+def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
+    """Nothing found where judgekeeper looks, but results-like files elsewhere: name them
+    and the command that reads the first."""
+    _note(talk, f"No eval results found where judgekeeper looks: {find.looked(root)}. It "
+                "left out:")
+    for rel, why in found.skipped[:5]:
+        talk.say(f"  {rel} ({why})")
+    if len(found.skipped) > 5:
+        talk.say(f"  and {len(found.skipped) - 5} more")
+    which = "that is" if len(found.skipped) == 1 else "one of these is"
+    next_step = f"if {which} your results, run `{talk.command_at(found.skipped[0][0])}`."
+    if not getattr(talk, "screens", False):
+        talk.say(f"Next: {next_step[0].upper()}{next_step[1:]}")
+    return talk.stop(EXIT_USAGE, next_step)
 
 
 def _too_big(talk: Talk, found: find.Search) -> Stop:
@@ -984,22 +1066,31 @@ def results_description(result: find.Result) -> str | None:
 
 
 def _check_description(talk: Talk, root: Path, theirs: str | None,
-                       result: find.Result) -> None:
+                       result: find.Result, others: list[find.Result] = ()) -> None:
     """Ask before using promptfoo results whose description is in none of the project's
-    promptfoo configs (when they have one)."""
+    promptfoo configs (when they have one), before anything is read. After No: the newest
+    of `others` from this project, or how to name your own."""
     mine = _project_descriptions(root)
     if theirs is None or not mine or theirs in mine:
         return
-    question = (f'{result.rel} looks like it is from another project (its description is '
-                f'"{theirs}", and no promptfoo config here has it). Use it anyway? If not, '
-                f"nothing is read: run {textio.program()} with the path of your own results "
-                "file.")
-    if not talk.confirm(question, default=False, with_yes=False,
-                        hint=f"{question} Run {textio.program('start')} in a terminal to "
-                             "answer, or "
-                             "point me at the right results file."):
-        raise talk.stop(EXIT_OK, f"nothing. {result.rel} was left alone: it looks like it is "
-                                 "from another project.")
+    said = (f'{result.rel} looks like it is from another project (its description is '
+            f'"{theirs}", and no promptfoo config here has it).')
+    own = f"`{talk.command_at('PATH')}` with the path of your own results file"
+    question = f"{said} Use it anyway?"
+    if getattr(talk, "screens", False) and not _interactive() and not talk.yes:
+        raise _stop_with(talk, question, f"run `{talk.command('--yes')}` to use it anyway, or "
+                                         f"{own}.")
+    if talk.confirm(question, default=False, with_yes=False,
+                    hint=f"{question} Run {textio.program('start')} in a terminal to answer, "
+                         "or point me at the right results file."):
+        return
+    other = next((r for r in others if r.path != result.path
+                  and results_description(r) in mine), None)
+    if other is not None:
+        raise _stop_with(talk, f"{result.rel} was left alone.",
+                         f"run `{talk.command_at(other.rel)}` to read {other.rel}, the newest "
+                         "results from this project.", EXIT_OK)
+    raise _stop_with(talk, f"{result.rel} was left alone.", f"run {own}.", EXIT_OK)
 
 
 # A promptfoo config: `prompts` and `providers` or `tests` at the top
@@ -1095,12 +1186,60 @@ def _project_description(root: Path) -> str | None:
     return None
 
 
+def _judges(records, kind: str | None = None) -> Counter:
+    """How many decisions each LLM judge in `records` made. A DeepEval metric with no model
+    (Exact Match, a check written in Python) is a rule in code, not a judge."""
+    counts = Counter(r.name for r in records if r.annotator_kind == LLM)
+    if kind == "deepeval":
+        judged = {r.name for r in records
+                  if r.annotator_kind == LLM and (r.evaluator or {}).get("model")}
+        counts = Counter({n: c for n, c in counts.items() if n in judged})
+    return counts
+
+
+def _rules_in_code(records, kind: str | None) -> bool:
+    """`records` hold checks, but each is a rule in code."""
+    return any(r.annotator_kind == CODE for r in records) or (
+        kind == "deepeval" and any(r.annotator_kind == LLM for r in records))
+
+
+NO_JUDGE_NOUN = {"inspect": "Inspect logs", "table": "results tables"}
+RULES_WORD = {"deepeval": "metrics", "inspect": "scorers"}
+NO_JUDGE_NEXT = "add an LLM judge to your eval and run it once, then run `{command}` again."
+
+
+def _no_judge(talk: Talk, kind: str, files: list, rules: bool) -> Stop:
+    """None of `files` (rels, newest first) holds an LLM judge's decisions: said once."""
+    if len(files) == 1:
+        text = f"{files[0]} holds no decisions from an LLM judge."
+    else:
+        noun = NO_JUDGE_NOUN.get(kind, f"{find.NAMES.get(kind, kind)} results files")
+        text = f"None of your {len(files)} {noun} holds decisions from an LLM judge."
+    if rules:
+        text += (f" These {RULES_WORD.get(kind, 'checks')} are rules in code, not an LLM "
+                 "judge. judgekeeper checks LLM judges.")
+    return _stop_with(talk, text, NO_JUDGE_NEXT.format(command=talk.command()))
+
+
+def _stop_with(talk: Talk, text: str, next_step: str, code: int = EXIT_USAGE) -> Stop:
+    """Say `text`, then stop with `next_step` (`judgekeeper` says it in its Next: line)."""
+    _note(talk, text)
+    if not getattr(talk, "screens", False):
+        talk.say(f"Next: {next_step}")
+    return talk.stop(code, next_step)
+
+
+def _note(talk: Talk, text: str) -> None:
+    """One line of the finder's, wrapped on `judgekeeper`'s screens."""
+    getattr(talk, "para", talk.say)(text)
+
+
 def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
-                   prefer: str | None = None) -> str:
-    counts = Counter(r.name for r in newest.records if r.annotator_kind == LLM)
+                   prefer: str | None = None, kind: str | None = None) -> str:
+    counts = _judges(newest.records, kind)
     names = sorted(counts)
     if not names:
-        raise StartError(f"{newest.label} holds no decisions from an LLM judge")
+        raise _no_judge(talk, kind, [newest.label], _rules_in_code(newest.records, kind))
     if metric is None and prefer in counts:
         return prefer
     if metric is not None:
@@ -1277,7 +1416,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             results, newest = json_logs, json_logs[0]
         if kind == "promptfoo":
             description = results_description(newest)
-            _check_description(talk, root, description, newest)
+            _check_description(talk, root, description, newest, results)
         if kind in ("records", "mapped"):  # every file (or run) the newest judge wrote
             loaded = (_read_records(talk, results) if kind == "records"
                       else _read_mapped(results[0], saved))
@@ -1297,34 +1436,38 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             first, read_older = loaded[0], iter(loaded[1:])
         else:
             first, rest = None, list(results)
-            unjudged = None  # Inspect: the newest log, when it holds no judge decisions
-            while first is None:  # a log that can't be read never hides a good one beside it
+            unjudged, rules = [], True  # files with no judge's decisions (a smoke test, say)
+            while first is None:  # a file that can't be read never hides a good one beside it
                 newest = rest.pop(0)
                 try:
                     first = _read(newest)
                 except RecordsError as e:
-                    if not rest:
+                    if not rest and not unjudged:
                         raise usage_error(e, _unread(e, newest, root)) from None
                     talk.say(f"{_unread(e, newest, root)} It is left out.")
+                    if not rest:
+                        raise _no_judge(talk, kind, [r.rel for r in unjudged], rules) from None
                     continue
-                if kind == "inspect" and not any(r.annotator_kind == LLM
-                                                 for r in first.records):
-                    unjudged = unjudged or newest
-                    if rest:
-                        first = None
-                    elif unjudged is not newest:
-                        raise StartError(NO_JUDGE_LOG.format(
-                            n=len(results), program=textio.program()))
-            if unjudged is not None and unjudged is not newest:
-                talk.say(f"Your newest Inspect log, {unjudged.rel}, holds no judge decisions. "
-                         f"Using {newest.rel}, the newest that does.")
+                if not _judges(first.records, kind):
+                    unjudged.append(newest)
+                    rules = rules and _rules_in_code(first.records, kind)
+                    if not rest:
+                        raise _no_judge(talk, kind, [r.rel for r in unjudged], rules)
+                    first = None
+            for r in unjudged[:3]:
+                _note(talk, f"{r.rel} is left out: no LLM judge in it.")
+            if len(unjudged) > 3:
+                _note(talk, f"{len(unjudged) - 3} more files are left out: no LLM judge in "
+                            "them.")
+            if unjudged:
+                talk.say()
             results = [newest, *rest]
             read_older = _readable(talk, rest, root)
     if kind in ("records", "mapped"):
         metrics = sorted({r.name for r in every.records if r.annotator_kind == LLM})
     else:
-        metric = _choose_metric(talk, first, metric, prefer)
-        metrics = sorted({r.name for r in first.records if r.annotator_kind == LLM})
+        metric = _choose_metric(talk, first, metric, prefer, kind)
+        metrics = sorted(_judges(first.records, kind))
 
     norm = Normaliser(pass_if=pass_if,
                       label_map={**first.records.label_map, **parse_label_map(label_map)})
@@ -1379,10 +1522,6 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                           if n.startswith("Your Inspect run stopped early")]
                  + [n for x in used if (n := left_out_note(x.records, x.label))],
                  label_map=label_map or None)
-
-
-NO_JUDGE_LOG = ("none of your {n} Inspect logs holds decisions from an LLM judge. To check one "
-                "log, run {program} with its path.")
 
 
 def _rule_key(r, kind: str) -> str | None:
@@ -1492,8 +1631,9 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
         talk.say(f"For the other one: {others[0]}" if len(others) == 1
                  else f"For another one: {_or(others)}")
         return stores
-    chosen = stores[talk.choose(title, shown, "", flag="PATH", values=[s.rel for s in stores],
-                                what="which MLflow store to read")]
+    chosen = stores[talk.choose(f"{count} MLflow stores found:", shown, "", flag="PATH",
+                                values=[s.rel for s in stores],
+                                what="which MLflow store to read")]  # each said once: listed
     talk.remember("PATH", chosen.rel, f"(Next time: {talk.command_at(chosen.rel)})")
     return first(chosen)
 
@@ -1541,7 +1681,7 @@ def when_words(d) -> str:
 NOT_IN_FILE = "not in the file"
 PARTIAL = ("Inspect gave partial credit (P) on {n}: should they count as Pass or Fail? Run "
            "again with --label-map P=pass or --label-map P=fail.")
-NO_MODEL = "not named in the results (add --judge-model NAME)"
+NO_MODEL = "not found in the results (add --judge-model NAME)"
 
 
 def _tool_words(found: Found) -> str:
