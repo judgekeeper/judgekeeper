@@ -121,6 +121,10 @@ TOO_EARLY = "too early to tell"
 WIDTH_WORDS = {"too_wide": "Not enough marks yet", "rough": "Rough", "sharp": "Sharp"}
 # Under a range too wide to give a number, when few of the answers are of that kind
 KAPPA_PLAIN = "Kappa on your real mix (agreement beyond coincidence)"
+SLIPS = ("If you sometimes slip when marking, the number for answers you failed looks lower "
+         "than it is, most when few answers fail.")
+BEST = ("You gave the same mark on {same} of {of} repeats. With slips like that, even a perfect "
+        "judge would show about {best} here.")
 RANGE_MEANS = ("'Could be' means: in judgekeeper's tests, ranges made this way held the true "
                "number about 95 times in 100.")
 RANGE_COVERS = ("Ranges cover the coincidence of which answers you marked. They don't cover "
@@ -847,6 +851,19 @@ def page_content(r: dict, marking: str | None = None) -> dict:
             shown["line"] = f"{shown['line']} {FEW.format(kind=kind)}"
         return shown
 
+    def best(shown: dict, key: str) -> dict:
+        """Under a number, when the marks include repeats: the most even a perfect judge
+        could show against marks that slip as often as these (below 99% only)."""
+        repeats = r.get("repeats") or {}
+        if too_few or not repeats.get("of") or r.get("real_pass_rate") is None:
+            return shown
+        slip = targets.slip_rate(1 - repeats["same"] / repeats["of"])
+        top = targets.best_possible(r["real_pass_rate"], slip)[key]
+        if top < 0.99:
+            shown["line"] = (f"{shown['line']} " + BEST.format(same=repeats["same"],
+                                                               of=repeats["of"], best=_pct(top)))
+        return shown
+
     def kappa_tile(shown: dict) -> dict:
         """Kappa's tile: its range in words (it has no bar: it moves with how many answers
         pass, so it is no target)."""
@@ -938,11 +955,11 @@ def page_content(r: dict, marking: str | None = None) -> dict:
         "made": made_lines(r.get("made")),
         "drop": targets.drop_line(r.get("smallest_drop")),
         "drop_model": targets.DROP_MODEL if r.get("smallest_drop") is not None else None,
-        "picks": list(r.get("picks") or []),
-        "tiles": [few(tile("TPR", "When you said Pass", r["tpr"], r["tpr_interval"],
-                           f"{labels['correct']} marked Pass so far"), "tpr"),
-                  few(tile("TNR", "When you said Fail", r["tnr"], r["tnr_interval"],
-                           f"{labels['wrong']} marked Fail so far"), "tnr"),
+        "picks": list(r.get("picks") or []) + ([] if too_few else [SLIPS]),
+        "tiles": [best(few(tile("TPR", "When you said Pass", r["tpr"], r["tpr_interval"],
+                                f"{labels['correct']} marked Pass so far"), "tpr"), "tpr"),
+                  best(few(tile("TNR", "When you said Fail", r["tnr"], r["tnr_interval"],
+                                f"{labels['wrong']} marked Fail so far"), "tnr"), "tnr"),
                   kappa_tile(tile("kappa", KAPPA_PLAIN, r["kappa"], None,
                                   f"from {n} answers", as_pct=False))],
         "pass_rate": None if too_few else _pass_rate(r),

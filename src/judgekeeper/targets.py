@@ -135,6 +135,21 @@ def level(tpr_interval, tnr_interval) -> str:
     return "gate" if sides == ["yes", "yes"] else "check"
 
 
+def slip_rate(changed: float) -> float:
+    """How often the person slips when marking, from the share of repeats (the same answer
+    marked twice) marked differently: two marks differ when one of them slips, so
+    changed = 2e(1 - e)."""
+    return (1 - math.sqrt(max(1 - 2 * changed, 0.0))) / 2
+
+
+def best_possible(real_pass: float, slip: float) -> dict:
+    """The TPR and TNR even a perfect judge would show against marks that slip this often,
+    when this share of the answers should pass. Never used to change a number."""
+    p, e = real_pass, slip
+    return {"tpr": p * (1 - e) / (p * (1 - e) + (1 - p) * e),
+            "tnr": (1 - p) * (1 - e) / ((1 - p) * (1 - e) + p * e)}
+
+
 def check(correct: int, wrong: int, tpr_interval, tnr_interval) -> dict:
     """{"check": "too_few" | "rough" | "reliable", "wide": {"tpr" | "tnr": width or None}}.
 
