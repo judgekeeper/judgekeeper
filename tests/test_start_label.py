@@ -130,7 +130,7 @@ def test_the_page_shows_the_question_and_the_answer_as_written(workspace):
     server, thread, _ = _server(ws)
     try:
         page = " ".join(server.page()[0].split())
-        for needed in ("The question", "The answer", "white-space: pre-wrap",
+        for needed in (">Question</span>", ">Answer</span>", "white-space: pre-wrap",
                        "<span>Fail</span><kbd>←</kbd>", "<span>Pass</span><kbd>→</kbd>",
                        "<span>Skip this one</span><kbd>S</kbd>", "<kbd>Z</kbd>Undo",
                        "See your result", "#1E293B", "#10B981", '"Manrope"'):

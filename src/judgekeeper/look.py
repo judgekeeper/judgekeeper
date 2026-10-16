@@ -121,9 +121,9 @@ code { font-size: 12.5px; padding: 1px 5px; border-radius: 4px; background: var(
   overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
 .chips .sep { width: 1px; height: 16px; background: var(--rule); }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); justify-self: center;
-  font-size: 24px; font-weight: 800; letter-spacing: -.4px; }
+  font-size: 21px; font-weight: 800; letter-spacing: -.4px; }
 .logo-mark { display: inline-flex; flex: none; }
-.logo-mark svg { width: 34px; height: 38px; }
+.logo-mark svg { width: 30px; height: 33px; }
 .theme { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--rule);
   background: var(--sheet); color: var(--ink-3); display: inline-flex; align-items: center;
   justify-content: center; padding: 0; flex: none; }
@@ -146,7 +146,7 @@ code { font-size: 12.5px; padding: 1px 5px; border-radius: 4px; background: var(
 @media (max-width: 600px) {
   .top { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 16px; }
   .top .left { grid-column: 1 / -1; grid-row: 2; }
-  .brand { justify-self: start; grid-column: 1; grid-row: 1; font-size: 20px; }
+  .brand { justify-self: start; grid-column: 1; grid-row: 1; font-size: 18px; }
   .top .right { grid-column: 2; grid-row: 1; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important;

@@ -155,14 +155,14 @@ def _run(scenario: str, data: dict | None = None, seen_intro: bool = True,
 
 def test_the_arrow_keys_mark_pass_and_fail_and_the_next_answer_comes():
     got = _run("""
-      var before = ids["ans-pos"].textContent;
+      var before = ids["q-text"].textContent;
       key("ArrowRight"); await settle();
-      var after = ids["ans-pos"].textContent;
+      var after = ids["q-text"].textContent;
       later(400); key("ArrowLeft"); await settle();
-      console.log(JSON.stringify({before: before, after: after, now: ids["ans-pos"].textContent,
+      console.log(JSON.stringify({before: before, after: after, now: ids["q-text"].textContent,
         sent: sent.map(function (s) { return [s.body.id, s.body.label]; }),
         url: sent[0].url, focus: document.activeElement === ids["answer-card"]}));""")
-    assert got["before"] == "Answer 1" and got["after"] == "Answer 2" and got["now"] == "Answer 3"
+    assert got["before"] == "Question 0?" and got["after"] == "Question 1?" and got["now"] == "Question 2?"
     assert got["sent"] == [["a0", "pass"], ["a1", "fail"]]
     assert got["url"] == "/label?token=t0k" and got["focus"]
 
@@ -193,18 +193,18 @@ def test_skip_and_undo_by_key_and_skipped_answers_come_back_at_the_end():
       var skipped = sent[0].body;
       key("z"); await settle(); later(500);
       var undone = sent[1].body;
-      var back = ids["ans-pos"].textContent;
+      var back = ids["q-text"].textContent;
       key("s"); await settle(); later(500);
       for (var i = 0; i < 2; i++) { key("ArrowRight"); await settle(); later(500); }
       var end = ids["end"].hidden, title = ids["end-title"].textContent;
       ids["again"].fire("click"); await settle();
       console.log(JSON.stringify({skipped: skipped, undone: undone, back: back, end: end,
-        title: title, again: ids["ans-pos"].textContent}));""", data=_data(3))
+        title: title, again: ids["q-text"].textContent}));""", data=_data(3))
     assert got["skipped"] == {"deferred": True, "id": "a0", "seconds": 0}
     assert got["undone"] == {"label": None, "deferred": False, "id": "a0", "seconds": 0}
-    assert got["back"] == "Answer 1"
+    assert got["back"] == "Question 0?"
     assert got["end"] is False and got["title"] == "1 skipped answer. Look again, or leave it out."
-    assert got["again"] == "Answer 1"
+    assert got["again"] == "Question 0?"
 
 
 def test_going_back_to_a_marked_answer_says_its_mark():
@@ -216,8 +216,7 @@ def test_going_back_to_a_marked_answer_says_its_mark():
       ids["queue"].fire("click", {target: link}); await settle();
       console.log(JSON.stringify({status: ids["ans-status"].textContent,
         pressed: ids["fail"].getAttribute("aria-pressed")}));""", data=data)
-    assert got == {"status": "Your mark: Fail. Press the other button to change it.",
-                   "pressed": "true"}
+    assert got == {"status": "Marked Fail", "pressed": "true"}
 
 
 def test_the_bar_follows_answers_looked_at_and_no_number_is_a_target():
@@ -233,12 +232,12 @@ def test_the_bar_follows_answers_looked_at_and_no_number_is_a_target():
       key("ArrowLeft"); await settle();
       console.log(JSON.stringify({start: start, two: two,
         ready: [ids["bar"].style.width, ids["see"].hidden, ids["progress-label"].textContent],
-        texts: [ids["ans-pos"].textContent, ids["ans-status"].textContent]}));""")
+        texts: [ids["q-text"].textContent, ids["ans-status"].textContent]}));""")
     assert got["start"] == ["0", "0 answers looked at"]
     share = round(2 / mark_page.FIRST * 100)
     assert got["two"] == [str(share), "2 answers looked at", True, "Toward your first result"]
     assert got["ready"] == ["100%", False, "Ready for your first result"]
-    assert not any(re.search(r"\bof \d", t) for t in got["texts"])  # "Answer 4", no total
+    assert got["texts"] == ["Question 3?", "Not marked yet"]  # the state: no position, no total
 
 
 def test_the_welcome_box_opens_once_and_keys_wait_until_it_is_closed():
@@ -269,9 +268,9 @@ def test_the_welcome_box_keeps_tab_on_its_button_and_esc_starts_too():
 def test_a_blocked_storage_still_shows_the_page_and_the_box():
     got = _run("""
       console.log(JSON.stringify({open: !ids["intro"].hidden,
-        shown: ids["ans-pos"].textContent}));""", seen_intro=False,
+        shown: ids["q-text"].textContent}));""", seen_intro=False,
                before="storageWorks = false;\n")
-    assert got == {"open": True, "shown": "Answer 1"}
+    assert got == {"open": True, "shown": "Question 0?"}
 
 
 def test_the_theme_switch_turns_light_and_back_and_remembers():
@@ -295,5 +294,5 @@ def test_a_failed_save_says_so_and_keeps_the_answer():
         return Promise.resolve({error: "no space left"}); }}); };
       key("ArrowRight"); await settle(); await settle();
       console.log(JSON.stringify({status: ids["status"].textContent,
-        at: ids["ans-pos"].textContent}));""")
-    assert got == {"status": "Not saved: no space left", "at": "Answer 1"}
+        at: ids["q-text"].textContent}));""")
+    assert got == {"status": "Not saved: no space left", "at": "Question 0?"}

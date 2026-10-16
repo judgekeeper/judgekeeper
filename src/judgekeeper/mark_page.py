@@ -85,24 +85,17 @@ main.mark { flex: 1 1 auto; width: 100%; max-width: 1280px; margin: 0 auto; padd
 .answer { overflow: clip; flex: 1 1 auto; display: flex; flex-direction: column; }
 .strip { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 20px;
   background: var(--tint); border-bottom: 1px solid var(--rule); }
-#ans-pos { font-size: 14px; font-weight: 800; color: var(--accent); text-transform: uppercase;
-  letter-spacing: .8px; }
-.strip .sep { width: 4px; height: 4px; border-radius: 50%; background: var(--dash); }
-#ans-status { font-size: 14px; font-weight: 600; color: var(--ink-3); }
+#ans-status { font-size: 14px; font-weight: 700; color: var(--ink-2); }
 .hidden-grade { margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px; border-radius: 999px; border: 1px solid var(--rule); background: var(--sheet);
   font-size: 12px; font-weight: 700; color: var(--ink-3); }
-.hidden-grade svg, .avatar svg, .saved svg { fill: none; stroke: currentColor;
+.hidden-grade svg, .saved svg { fill: none; stroke: currentColor;
   stroke-linecap: round; stroke-linejoin: round; }
 .hidden-grade svg { width: 12px; height: 12px; stroke-width: 2.4; }
-.qa { padding: 24px 24px 22px; display: flex; gap: 16px; align-items: flex-start; }
+.qa { padding: 24px 24px 22px; display: flex; flex-direction: column; gap: 6px; }
 .qa.reply { border-top: 1px solid var(--rule); background: var(--tint-2); padding: 22px 24px 26px;
   flex: 1 1 auto; }
-.qa > div { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.avatar { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--chip);
-  color: var(--ink-2); display: inline-flex; align-items: center; justify-content: center; }
-.avatar svg { width: 20px; height: 20px; stroke-width: 2; }
-.reply .avatar { background: var(--accent-bg); color: var(--accent); }
+.qa > * { min-width: 0; }
 .lbl { font-size: 12px; font-weight: 700; color: var(--ink-3); text-transform: uppercase;
   letter-spacing: .6px; }
 #q-text { margin: 0; font-size: 20px; line-height: 1.35; font-weight: 700; letter-spacing: -.2px;
@@ -217,13 +210,10 @@ __TOP__
 </nav>
 <section class="work" aria-label="The answer to mark">
   <div class="card answer" id="answer-card" tabindex="-1" aria-label="The answer to mark">
-    <div class="strip"><span id="ans-pos">Answer</span><span class="sep" aria-hidden="true"></span>
-      <span id="ans-status" aria-live="polite">Not marked yet</span>
+    <div class="strip"><span id="ans-status" aria-live="polite">Not marked yet</span>
       <span class="hidden-grade"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Judge's grade hidden</span></div>
-    <div class="qa ask"><span class="avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
-      <div><span class="lbl">The question</span><h1 id="q-text"></h1></div></div>
-    <div class="qa reply"><span class="avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 14h.01M15 14h.01"/></svg></span>
-      <div><span class="lbl">The answer</span><p id="a-text"></p></div></div>
+    <div class="qa ask"><span class="lbl">Question</span><h1 id="q-text"></h1></div>
+    <div class="qa reply"><span class="lbl">Answer</span><p id="a-text"></p></div>
     <div class="decide" id="decide">
       <div class="pair">
         <button type="button" class="dec fail" id="fail" aria-pressed="false" aria-keyshortcuts="ArrowLeft">__CROSS__<span>Fail</span><kbd>←</kbd></button>
@@ -350,10 +340,8 @@ __THEME_SWITCH__
   function render() {
     var it = items[pos];
     $("answer-card").hidden = false; $("end").hidden = true;
-    setText("ans-pos", "Answer " + (pos + 1));
-    setText("ans-status", it.label ? "Your mark: " + (it.label === "pass" ? "Pass" : "Fail") +
-      ". Press the other button to change it." : it.skipped ? "Skipped for now" :
-      "Not marked yet");
+    setText("ans-status", it.label ? (it.label === "pass" ? "Marked Pass" : "Marked Fail") :
+      it.skipped ? "Skipped" : "Not marked yet");
     showQuestion(it.input, $("q-text"));
     setText("a-text", it.output);
     $("fail").setAttribute("aria-pressed", String(it.label === "fail"));

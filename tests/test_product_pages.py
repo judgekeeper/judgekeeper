@@ -212,14 +212,20 @@ def test_the_marking_page_shows_nothing_the_judge_decided():
 def test_the_marking_page_words():
     text = _text(_marking())
     for line in ("Judge: openai:gpt-4.1-mini", "Eval tool: promptfoo", "Toward your first result",
-                 "The question", "The answer", "Fail ←", "Pass →", "Skip this one S",
+                 "Not marked yet", "Judge's grade hidden", "Fail ←", "Pass →", "Skip this one S",
                  "Judge's rule", mark_page.HOW, "Shortcuts", "Saved locally as you go",
                  "To come back later, run judgekeeper mark.", mark_page.TITLE,
                  "Start marking"):
         assert line in text, line
     assert "support bot" not in text  # one source, the same on every answer: no tag
-    for gone in ("Your app's answer", "customer", "of 40", "Resume with", "drag"):
+    for gone in ("Your app's answer", "The question", "The answer", "customer", "of 40",
+                 "Resume with", "drag"):
         assert gone not in text, gone
+    page = _marking()
+    assert '<span class="lbl">Question</span>' in page and '<span class="lbl">Answer</span>' in page
+    assert "avatar" not in page and "ans-pos" not in page  # no icons, no "Answer 4" heading
+    assert '<div class="strip"><span id="ans-status" aria-live="polite">Not marked yet</span>' \
+        in page  # the state is the card's top line, and its live region
 
 
 def test_the_welcome_box_is_a_modal_over_the_whole_window():
