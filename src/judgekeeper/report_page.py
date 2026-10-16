@@ -1,9 +1,9 @@
 """The result page: what the marking page shows at /result, and `.judgekeeper/report.html`.
 
 One self-contained page (look.py: nothing loaded from anywhere else); every string in it is
-escaped. Its one script (opening rows and sections, Copy) is fixed text: the page's
-Content-Security-Policy lets exactly that script run (by its hash) and nothing else, both when
-it is served and in the saved copy, which opens with no server.
+escaped. Its two scripts (the theme, read first; the switch, opening rows and sections, Copy)
+are fixed text: the page's Content-Security-Policy lets exactly those run (by their hashes)
+and nothing else, both when it is served and in the saved copy, which opens with no server.
 
 The numbers: the top rows count every mark ("too strict on 6": answers you passed that the
 judge failed); "Where it goes wrong" shows only the mistakes on the marks the person can see,
@@ -28,7 +28,7 @@ KAPPA_MEANS = "0 means no better than coincidence, 1 means it always agrees."
 ADJUSTED = "of your marks, adjusted for how the answers were picked"
 
 # The page's script: fixed text, so its hash can be in the Content-Security-Policy.
-SCRIPT = """
+SCRIPT = look.THEME_SWITCH + """
   (function () {
     function each(selector, fn) {
       Array.prototype.forEach.call(document.querySelectorAll(selector), fn); }
@@ -71,8 +71,8 @@ SCRIPT = """
     });
   })();
 """
-CSP = ("default-src 'none'; script-src " + look.script_hash(SCRIPT)
-       + "; style-src 'unsafe-inline'; font-src data:; "
+CSP = ("default-src 'none'; script-src " + look.script_hash(look.THEME_FIRST) + " "
+       + look.script_hash(SCRIPT) + "; style-src 'unsafe-inline'; font-src data:; "
        "img-src 'none'; base-uri 'none'; form-action 'none'")
 
 STYLE = """
@@ -605,7 +605,7 @@ def page(r: dict, content: dict, back: str | None = None, history: list[dict] | 
     more = (_history(history or []) + _details(r, c, content, back)
             + f'<p class="saved-line">{SAVED}</p>')
     meta = f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
-    return (look.head("judgekeeper: your result", STYLE, meta)
+    return (look.head("judgekeeper: your result", STYLE, "<script>", meta)
             + look.top(left, marks)
             + '<main class="result">'
             + f'<div class="row1">{_result_card(r, c, content)}{_next_card(step, back)}</div>'

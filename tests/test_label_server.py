@@ -593,7 +593,7 @@ def test_a_result_before_the_end_keeps_serving(tmp_path):
     csp = resp.getheader("Content-Security-Policy")
     assert csp == f"{CSP}; frame-ancestors 'none'"
     scripts = csp.split("script-src ")[1].split(";")[0].split()
-    assert len(scripts) == 1 and scripts[0].startswith("'sha256-")  # its own, by its hash
+    assert len(scripts) == 2 and all(x.startswith("'sha256-") for x in scripts)  # its own two
     thread.join(timeout=0.5)
     assert thread.is_alive()
     server.stop()

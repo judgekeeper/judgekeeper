@@ -1,5 +1,10 @@
-"""The look every page judgekeeper serves shares: the logo, the fonts, the colours (dark, as
-the website: black page, #111 cards, white text), the top bar and the focus ring.
+"""The look every page judgekeeper serves shares: the logo, the fonts, the colours, the top
+bar and the focus ring.
+
+The pages open dark (black page, #111 cards, white text, as the website); a switch in the top
+bar turns them light (white page, black text) and back. The choice is kept in the browser's
+storage under `jk-theme` and read before the page is drawn, so it never flashes; a browser
+that blocks the storage shows dark.
 
 The fonts (Manrope and JetBrains Mono, both under the SIL Open Font License) are embedded as
 base64 from this package's `fonts/` folder, so a page loads nothing from anywhere else.
@@ -17,17 +22,14 @@ FONTS = (("manrope-latin-wght-normal.woff2", SANS, "200 800"),
          ("jetbrains-mono-latin-400-normal.woff2", MONO, "400"))
 FONT_LICENCES = ("OFL-Manrope.txt", "OFL-JetBrainsMono.txt")
 NAVY, GREEN = "#1E293B", "#10B981"  # the logo's two halves: the judge and the person
-# The logo keeps its own colours; a thin light outline keeps the navy half visible on black.
-LOGO_OUTLINE = ("filter: drop-shadow(0 0 1px rgba(255,255,255,.55)) "
-             "drop-shadow(0 0 8px rgba(255,255,255,.22));")
 
-# The logo: the paths of the website's logo.svg.
+# The logo: the website's logo.svg, its paths and colours as they are.
 SHIELD = ('<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
           f'<path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="{NAVY}"/>'
           f'<path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="{GREEN}"/>'
           '<path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" '
           'stroke-linecap="round" stroke-linejoin="round"/></svg>')
-LOGO = f'<span class="logo-tile">{SHIELD}</span>'
+LOGO = f'<span class="logo-mark">{SHIELD}</span>'
 BRAND = f'<span class="brand">{LOGO}<span>judgekeeper</span></span>'
 
 
@@ -44,8 +46,8 @@ def font_faces() -> str:
     return "\n".join(rules)
 
 
-# The colours. Red and green colour only Fail and Pass (and the logo); amber marks a weak
-# number.
+# The colours: dark by default, light when the person picks it. Red and green colour only Fail
+# and Pass (and the logo, and in light the thin accent lines); amber marks a weak number.
 TOKENS = """
 :root { color-scheme: dark;
   --paper: #000000; --sheet: #111111; --tint: #1A1A1A; --tint-2: #161616; --chip: #0A0A0A;
@@ -66,6 +68,23 @@ TOKENS = """
   --shadow-lg: 0 24px 56px rgba(0,0,0,.7), 0 2px 6px rgba(0,0,0,.5);
   --sans: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
+:root[data-theme="light"] { color-scheme: light;
+  --paper: #FFFFFF; --sheet: #F5F5F5; --tint: #EDEDED; --tint-2: #F0F0F0; --chip: #FAFAFA;
+  --ink: #000000; --ink-2: #1F1F1F; --ink-3: #4D4D4D;
+  --rule: #D9D9D9; --rule-2: #E6E6E6; --rule-3: #C7C7C7; --track: #DDDDDD; --dash: #A6A6A6;
+  --accent: #000000; --accent-2: #1F1F1F; --accent-bg: #EBEBEB; --accent-line: #BDBDBD;
+  --mark-line: #10B981;
+  --btn: #000000; --btn-hover: #1F1F1F; --btn-active: #333333; --on-btn: #FFFFFF;
+  --pass: #1F6B4A; --pass-bg: #EEF6F1; --pass-line: #3D9A6A; --pass-dot: #E3EFE8;
+  --pass-on: #1F6B4A; --pass-kbd: #EAF3EE; --pass-kbd-line: #A9D2BC;
+  --fail: #9E3A2E; --fail-bg: #FDF1EF; --fail-line: #D27A6E; --fail-dot: #FBE9E6;
+  --fail-on: #9E3A2E; --fail-kbd: #FFF6F5; --fail-kbd-line: #D9A9A2;
+  --amber: #8A5213; --amber-solid: #D98B3A; --amber-bg: #FBF1E6; --amber-line: #EACDAB;
+  --amber-band: #F3DFC4; --good-band: #C7C7C7;
+  --blue: #4D4D4D; --blue-solid: #4D4D4D; --blue-bg: #F0F0F0; --blue-line: #D0D0D0;
+  --focus: #000000; --scrim: rgba(0,0,0,.45);
+  --shadow: 0 1px 2px rgba(0,0,0,.06);
+  --shadow-lg: 0 24px 56px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.06); }
 """
 
 # What every page shares beyond the colours. Focus rings are solid and sit on the edge
@@ -102,10 +121,17 @@ code { font-size: 12.5px; padding: 1px 5px; border-radius: 4px; background: var(
   overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
 .chips .sep { width: 1px; height: 16px; background: var(--rule); }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); justify-self: center;
-  font-size: 20px; font-weight: 800; letter-spacing: -.4px; }
-.logo-tile { display: inline-flex; align-items: center; justify-content: center; flex: none;
-  width: 30px; height: 30px; border-radius: 8px; }
-.logo-tile svg { width: 25px; height: 28px; }
+  font-size: 24px; font-weight: 800; letter-spacing: -.4px; }
+.logo-mark { display: inline-flex; flex: none; }
+.logo-mark svg { width: 34px; height: 38px; }
+.theme { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--rule);
+  background: var(--sheet); color: var(--ink-3); display: inline-flex; align-items: center;
+  justify-content: center; padding: 0; flex: none; }
+.theme svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; }
+.theme .moon { display: none; }
+:root[data-theme="light"] .theme .moon { display: block; }
+:root[data-theme="light"] .theme .sun { display: none; }
 .card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px;
   box-shadow: var(--shadow); }
 .head { display: flex; align-items: center; gap: 10px; padding: 12px 16px;
@@ -120,14 +146,43 @@ code { font-size: 12.5px; padding: 1px 5px; border-radius: 4px; background: var(
 @media (max-width: 600px) {
   .top { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 16px; }
   .top .left { grid-column: 1 / -1; grid-row: 2; }
-  .brand { justify-self: start; grid-column: 1; grid-row: 1; }
+  .brand { justify-self: start; grid-column: 1; grid-row: 1; font-size: 20px; }
   .top .right { grid-column: 2; grid-row: 1; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important;
   animation: none !important; scroll-behavior: auto !important; } }
 """
 
-BASE += f".logo-tile svg {{ {LOGO_OUTLINE} }}\n"
+# Read before the page is drawn: light when the person picked it, else dark.
+THEME_FIRST = ("try { if (window.localStorage.getItem(\"jk-theme\") === \"light\") { "
+               "document.documentElement.setAttribute(\"data-theme\", \"light\"); } } "
+               "catch (e) { /* storage blocked: dark */ }")
+
+# The switch: light or dark, remembered when the browser allows it.
+THEME_SWITCH = """
+  (function () {
+    var root = document.documentElement, b = document.getElementById("theme");
+    function sync() { b.setAttribute("aria-pressed", String(root.getAttribute("data-theme") !==
+      "light")); }
+    b.addEventListener("click", function () {
+      var light = root.getAttribute("data-theme") !== "light";
+      if (light) { root.setAttribute("data-theme", "light"); }
+      else { root.removeAttribute("data-theme"); }
+      try { window.localStorage.setItem("jk-theme", light ? "light" : "dark"); }
+      catch (e) { /* not remembered */ }
+      sync();
+    });
+    sync();
+  })();
+"""
+
+SWITCH = ('<button type="button" class="theme" id="theme" aria-label="Dark mode" '
+          'aria-pressed="true"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true" '
+          'focusable="false"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>'
+          '<svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+          '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 '
+          '12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>'
+          '</svg></button>')
 
 
 def script_hash(script: str) -> str:
@@ -152,15 +207,16 @@ def chips(judge: str | None, tool: str | None) -> str:
 
 
 def top(left: str, right: str) -> str:
-    """The top bar: the judge and tool left, the logo and name centred, the page's state
-    right."""
+    """The top bar: the judge and tool left, the logo and name centred, the page's state and
+    the theme switch right."""
     return (f'<header class="top"><div class="left">{left}</div>{BRAND}'
-            f'<div class="right">{right}</div></header>')
+            f'<div class="right">{right}{SWITCH}</div></header>')
 
 
-def head(title: str, style: str, meta: str = "") -> str:
-    """The page up to <body>."""
+def head(title: str, style: str, script: str, meta: str = "") -> str:
+    """The page up to <body>: `script` is the opening tag of the theme script (with its nonce,
+    or plain where a hash lets it run)."""
     return ("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
-            f"{meta}<title>{title}</title>\n"
+            f"{meta}<title>{title}</title>\n{script}{THEME_FIRST}</script>\n"
             f"<style>{font_faces()}\n{TOKENS}{BASE}{style}</style>\n</head>\n<body>\n")

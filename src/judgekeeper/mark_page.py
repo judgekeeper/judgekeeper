@@ -24,12 +24,7 @@ FIRST = 2 * targets.ROUGH
 
 HOW = ("Mark each answer the way you want your judge to decide. Its current rule is shown "
        "here, for reference.")
-TITLE = "Mark each answer the way you want your judge to decide."
-WELCOME = [("You'll see one answer at a time. Your judge's grade stays hidden, so your marks "
-            "are your own."),
-           "Mark honestly, even if most answers look alike. That is a finding too."]
-# Shown in the welcome box only when the rule card is out of view when it opens
-RULE_HINT = "Your judge's rule is {where} of the page: read it first."
+TITLE = "Mark each answer Pass or Fail."  # the welcome box: its logo, this headline and one button
 SHORT_SIDE = ("Your result needs some answers you pass and some you fail. Keep marking "
               "honestly; if most look alike, that is a finding too.")
 
@@ -190,12 +185,9 @@ main.mark { flex: 1 1 auto; width: 100%; max-width: 1280px; margin: 0 auto; padd
   overflow: auto; background: var(--sheet); border: 1px solid var(--rule); border-radius: 16px;
   padding: 28px 40px 32px; box-shadow: var(--shadow-lg); display: flex; flex-direction: column;
   align-items: center; gap: 14px; text-align: center; }
-.intro .brand { margin-bottom: 8px; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.intro .brand { margin-bottom: 8px; }
 .intro h2 { margin: 0; max-width: 32ch; font-size: 24px; line-height: 1.3; font-weight: 700;
   letter-spacing: -.015em; text-wrap: balance; }
-.intro p { margin: 0; max-width: 34ch; font-size: 15px; line-height: 1.55; font-weight: 500;
-  color: var(--ink-3); text-wrap: balance; }
-#intro-text { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .intro .go { margin-top: 10px; width: 100%; }
 #answer-card:focus-visible, .intro:focus-visible { outline: none; }
 @media (max-height: 760px) { #app { min-height: auto; } }
@@ -259,19 +251,19 @@ __TOP__
 </main>
 </div>
 <div class="scrim" id="intro" hidden>
-  <div class="intro" id="intro-box" role="dialog" aria-modal="true" aria-labelledby="intro-title" aria-describedby="intro-text" tabindex="-1">
+  <div class="intro" id="intro-box" role="dialog" aria-modal="true" aria-labelledby="intro-title" tabindex="-1">
     __BRAND__
     <h2 id="intro-title">__TITLE__</h2>
-    <div id="intro-text">__WELCOME__<p id="rule-hint" hidden></p></div>
     <button type="button" class="go" id="intro-ok">Start marking</button>
   </div>
 </div>
 <script type="application/json" id="data">__DATA__</script>
 <script nonce="__NONCE__">
 "use strict";
+__THEME_SWITCH__
 (function () {
   var TOKEN = "__TOKEN__", FIRST = __FIRST__, LOCK_MS = 400;
-  var SHORT_SIDE = "__SHORT_SIDE__", RULE_HINT = "__RULE_HINT__";
+  var SHORT_SIDE = "__SHORT_SIDE__";
   var data = JSON.parse(document.getElementById("data").textContent);
   var items = data.items, counts = data.counts, pos = data.start, busy = false, history = [];
   var total = data.total || items.length;  // the page holds the next answers, not all of them
@@ -548,14 +540,6 @@ __TOP__
   if (left) { open(pos); } else { finish(); }
   if (!seenIntro()) {
     $("intro").hidden = false;
-    if (rule) {
-      var r = rule.getBoundingClientRect(), c = card.getBoundingClientRect();
-      if (r.top < 0 || r.bottom > window.innerHeight || r.right > window.innerWidth) {
-        setText("rule-hint", RULE_HINT.replace("{where}", r.left >= c.right ? "on the right" :
-          "further down"));
-        $("rule-hint").hidden = false;
-      }
-    }
     box.focus();
   } else if (left) { focusCard(); }
 })();
@@ -597,16 +581,16 @@ def label_page(description: str | None, rule: str | None, command: str | None = 
 
     command = command or program("mark")
     left = look.chips(_text(model) if model else None, _text(tool) if tool else None)
-    welcome = "".join(f"<p>{_text(line)}</p>" for line in WELCOME)
     body = (BODY.replace("__TOP__", look.top(left, _progress()))
             .replace("__RULE_CARD__", _rule_card(rule))
             .replace("__COMMAND__", _text(command))
-            .replace("__TITLE__", _text(TITLE)).replace("__WELCOME__", welcome)
+            .replace("__TITLE__", _text(TITLE))
+            .replace("__THEME_SWITCH__", look.THEME_SWITCH)
             .replace("__FIRST__", str(FIRST))
-            .replace("__SHORT_SIDE__", SHORT_SIDE).replace("__RULE_HINT__", RULE_HINT)
+            .replace("__SHORT_SIDE__", SHORT_SIDE)
             .replace("__BRAND__", look.BRAND)
             .replace("__CROSS__", CROSS).replace("__TICK__", TICK))
-    return look.head("judgekeeper: mark answers", STYLE) + body
+    return look.head("judgekeeper: mark answers", STYLE, '<script nonce="__NONCE__">') + body
 
 
 OLD_LINK_STYLE = """
@@ -617,8 +601,10 @@ main.old p { margin: 0; font-size: 15px; color: var(--ink-2); }
 """
 OLD_LINK = ("Each time judgekeeper opens its page, it makes a new private link, and older links "
             "stop working. Your marks are saved.")
-OLD_LINK_CSP = ("default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src 'none'; "
-                "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")  # no script
+OLD_LINK_SCRIPT = look.THEME_SWITCH
+OLD_LINK_CSP = (f"default-src 'none'; script-src {look.script_hash(look.THEME_FIRST)} "
+                f"{look.script_hash(OLD_LINK_SCRIPT)}; style-src 'unsafe-inline'; font-src data:; "
+                "img-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
 
 def old_link_page() -> str:
@@ -626,9 +612,9 @@ def old_link_page() -> str:
     open the page again."""
     from judgekeeper.textio import program
 
-    return (look.head("judgekeeper: this link no longer works", OLD_LINK_STYLE)
+    return (look.head("judgekeeper: this link no longer works", OLD_LINK_STYLE, "<script>")
             + look.top("", "")
             + '<main class="old"><div class="card"><h1>This link no longer works.</h1>'
             + f"<p>{escape(OLD_LINK)}</p>"
             + f"<p>To open the page again, run <code>{escape(program('mark'))}</code>.</p>"
-            + "</div></main>\n</body>\n</html>\n")
+            + f"</div></main>\n<script>{OLD_LINK_SCRIPT}</script>\n</body>\n</html>\n")
