@@ -1,4 +1,4 @@
-"""The look of `judgekeeper start`'s pages: navy only, the heading font embedded, nothing
+"""The look of judgekeeper's pages: navy only, the heading font embedded, nothing
 loaded from outside; the labeling page's card (one fixed height, drag rules, dots, the skipped
 prompt, the first-time card); the result's reveal in CSS alone.
 

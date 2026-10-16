@@ -1,4 +1,4 @@
-"""The numbers `judgekeeper start` reports, corrected for picking half from the judge's passes
+"""The numbers judgekeeper reports, corrected for picking half from the judge's passes
 and half from its fails (weighted.py). Every expected value is worked out by hand below.
 
 Words: the pool holds N_pass answers the judge passed and N_fail it failed, pi = N_pass / N.

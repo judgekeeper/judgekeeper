@@ -1,4 +1,4 @@
-"""The labeling server `judgekeeper start` builds on (label.py): a local page on 127.0.0.1, its
+"""The labeling server `judgekeeper` builds on (label.py): a local page on 127.0.0.1, its
 security (token, Host check, CSP) and the labels CSV it writes on every click.
 
 `start` gives the session its page data and progress (start_label.StartSession); here a small
@@ -515,7 +515,7 @@ def test_a_body_over_the_limit_gets_413_not_a_dropped_connection(tmp_path, serve
     assert not (tmp_path / "labels.csv").exists()
 
 
-# Stopping by itself once the result is served (the page `judgekeeper start` passes)
+# Stopping by itself once the result is served (a page that does not stay)
 
 def _serve_until_done(tmp_path, **kw):
     server = LabelServer(Session(_items(tmp_path, n=3), tmp_path / "labels.csv"), port=0,

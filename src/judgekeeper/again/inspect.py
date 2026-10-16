@@ -158,8 +158,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         out = again.run_worker("inspect", python, {"mode": "dry", "scorer": metric}, root)
         if not out.get("ok"):
             if out.get("missing"):
-                return cant("inspect", judge, f"Inspect AI is not installed in {python}. Use "
-                            "--python to point at the Python you run your evals with",
+                return cant("inspect", judge, f"Inspect AI is not installed in {python}. Activate "
+                            "the virtual environment you run your evals with, then try again",
                             short="Inspect AI is not installed here")
             return cant("inspect", judge, f"Inspect AI could not load your scorer in {python}: "
                         f"{out.get('error')}", short="Inspect AI could not load your scorer")
@@ -168,7 +168,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             return cant("inspect", judge, (
                 f"asking your judge again needs Inspect AI {'.'.join(map(str, MIN_VERSION))} "
                 f"or newer, and your Python has {installed}. Update it with pip install -U "
-                "inspect-ai, or use --python to point at another Python"),
+                "inspect-ai, or activate a virtual environment that has a newer one"),
                 short=f"needs Inspect AI {'.'.join(map(str, MIN_VERSION))} or newer")
     reason = cant_reason(metric, options, builtin)
     if reason:

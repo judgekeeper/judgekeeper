@@ -26,8 +26,6 @@ GONE_FLAGS = ("--review", "--fix", "--ask-again", "--try-new-judge", "--label-mo
               "--judge-command", "--agent-prompt")
 # The code prints a link to this heading's id, so its words stay.
 RECORD_HEADING = "record(): save your own judge's verdicts with one line"
-# Printed only by `judgekeeper start`, which is not a 1.0 command.
-START_ONLY_LINKS = {"reference.html#bring-your-own-judge"}
 
 
 def _text() -> str:
@@ -237,6 +235,6 @@ def test_every_site_link_the_code_prints_points_at_an_id_a_page_has():
                                 path.read_text(encoding="utf-8")))
     assert {"reference.html#record-save-your-own-judges-verdicts-with-one-line",
             "start.html#own-format", "start.html#install"} <= links
-    for link in sorted(links - START_ONLY_LINKS):
+    for link in sorted(links):
         page, wanted = link.split("#")
         assert wanted in _ids(page), link

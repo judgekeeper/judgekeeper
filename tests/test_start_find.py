@@ -1,4 +1,4 @@
-"""`judgekeeper start`, finding: which eval tool a project uses, where its saved results are,
+"""`judgekeeper`, finding: which eval tool a project uses, where its saved results are,
 and which judge made them. Standard library only; nothing here runs a tool or calls an API.
 
 Each test builds a small project in a temporary folder (tests/start_projects.py). Without a
@@ -26,8 +26,8 @@ from tests.start_projects import (
 
 
 def run(capsys, *argv, yes=True):
-    """`judgekeeper start` without a terminal; with --yes unless `yes` is False, so the run
-    goes on to labeling (replaced here) where a person would say yes."""
+    """`judgekeeper` without a terminal; with --yes unless `yes` is False, so the run goes
+    on to the marking page where a person would say yes."""
     argv = [*map(str, argv)] + (["--yes"] if yes and "--yes" not in argv else [])
     code = main([*argv])
     out, err = capsys.readouterr()

@@ -1,9 +1,8 @@
-"""What `judgekeeper start` says: a judge that fails few answers, hints that must work as
-printed, `--no-browser` and No, the exit code for "stopped at a question", resuming, the
-judge's rule cut short, choosing a judge, and `--ask-again` before any labels.
+"""What `judgekeeper` says when finding: a judge that passes nearly everything, an Inspect
+.eval log, the question code in the reference, and the judge's rule cut short.
 
 The person's marks decide Pass and Fail; the judge's fails only decide how the answers
-are picked. So a judge that passes nearly everything goes on to labeling, with a note.
+are picked. So a judge that passes nearly everything goes on to marking.
 """
 
 from __future__ import annotations

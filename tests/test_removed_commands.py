@@ -3,6 +3,7 @@ are `judgekeeper`, `mark`, `fix` and `check` now) are gone: each name prints one
 and is not in the help. (`check` is a command again.)"""
 
 import re
+from pathlib import Path
 
 import pytest
 
@@ -52,3 +53,22 @@ def test_start_with_its_old_flags_is_removed_too(flags, capsys, tmp_path, monkey
     assert out == ""
     assert err.count("Next:") == 1 and "judgekeeper start was removed" in err
     assert list(tmp_path.iterdir()) == []
+
+
+ROOT = Path(__file__).resolve().parent.parent
+# The website keeps naming `start` until it is rewritten (tests/website_pages.STILL_NAMED), and
+# the changelog says what each release had.
+NAMED_OUTSIDE = [ROOT / "SECURITY.md", ROOT / "README.md", ROOT / ".github" / "CONTRIBUTING.md",
+                 *(ROOT / "docs").rglob("*.md"), *(ROOT / "docs").rglob("*.json"),
+                 *(ROOT / "src").rglob("*.py"), *(ROOT / "src").rglob("*.json"),
+                 *(ROOT / "scripts").glob("*.py")]
+
+
+@pytest.mark.parametrize("path", NAMED_OUTSIDE, ids=lambda p: str(p.relative_to(ROOT)))
+def test_nothing_outside_the_website_names_start(path):
+    assert not re.search(r"judgekeeper start\b", path.read_text(encoding="utf-8"))
+
+
+def test_asking_again_names_no_flag_that_check_and_fix_lack():
+    for path in (ROOT / "src" / "judgekeeper" / "again").glob("*.py"):
+        assert "--python" not in path.read_text(encoding="utf-8"), path.name

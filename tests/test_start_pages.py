@@ -1,4 +1,4 @@
-"""The look of `judgekeeper start`'s two pages: the labeling page (two columns, a side panel
+"""The look of judgekeeper's two pages: the labeling page (two columns, a side panel
 with the progress, the judge's rule and the keys) and the result page (one line coloured by
 its level, number boxes, the judge and what next).
 
@@ -115,8 +115,8 @@ def test_at_1024_px_the_answer_gets_the_room():
 
 
 def test_the_labeling_page_names_the_runs_command():
-    page = start_label.page_template({}, "judgekeeper start evals --port 8805")
-    assert "<code>judgekeeper start evals --port 8805</code> to continue." in page
+    page = start_label.page_template({}, "judgekeeper evals --port 8805")
+    assert "<code>judgekeeper evals --port 8805</code> to continue." in page
 
 
 def test_the_rule_card_holds_no_reason_from_the_judge(tmp_path):
