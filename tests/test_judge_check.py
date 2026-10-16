@@ -722,8 +722,9 @@ def test_a_clean_result_page_has_one_quiet_line(tmp_path, capsys):
     ws = start_label.Workspace(tmp_path)
     start_label.save_result(ws, start_label.StartSession(ws), say=lambda line: None)
     html = ws.report_html.read_text(encoding="utf-8")
-    assert "<details" in html and judge_check.EVERY_ANSWER in html
-    assert "Did your judge actually judge?" in html.split("<details")[1]
+    details = html.split('<div id="more" hidden>')[1]  # under History and details
+    assert f"<li><b>Did your judge actually judge?</b> {judge_check.EVERY_ANSWER}</li>" in \
+        details.replace("&#x27;", "'")
 
 
 def test_an_old_result_without_the_block_shows_nothing_new():

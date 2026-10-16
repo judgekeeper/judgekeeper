@@ -104,7 +104,8 @@ def test_the_page_starts_with_the_commands_of_the_flags_given(here, capsys, page
     settings = pages[0][0]
     assert settings["root"] == str(here.resolve())
     assert settings["port"] == 0
-    assert settings["command"] == "judgekeeper --tool promptfoo --port 0 --no-browser"
+    # the page says how to come back to it: `judgekeeper mark`, with the flags given
+    assert settings["command"] == "judgekeeper mark --tool promptfoo --port 0 --no-browser"
     assert settings["start_command"] == ("judgekeeper start --tool promptfoo --port 0 "
                                          "--no-browser")
     assert _check(out) == NEXT_LINK.replace(

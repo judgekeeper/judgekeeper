@@ -539,13 +539,12 @@ def test_the_report_has_a_history_row_per_check(here, capsys, no_calls):
     _results(here, LENIENT, model=HAIKU)
     assert run(capsys)[0] == 1
     html = ws.report_html.read_text(encoding="utf-8")
-    assert "<h3>History</h3>" in html
-    row = html.split("<h3>History</h3>")[1]
+    assert '<h3 class="sub">History</h3>' in html
+    row = html.split('<h3 class="sub">History</h3>')[1].split("</ul>")[0]
     assert f"model {MODEL} -&gt; {HAIKU}" in row
     assert "50 marks (50 free)" in row
     assert "Answers you failed: 100% → 64%" in row
-    assert "Worse" in row and "exact" in row
-    assert "<script" not in html
+    assert "Worse" in row and "Not an exact copy" not in row  # an exact copy: said only when not
 
 
 def test_the_report_has_no_history_before_a_check(here, capsys):
@@ -554,7 +553,7 @@ def test_the_report_has_no_history_before_a_check(here, capsys):
     ws = _marked(here)
     cli([])
     capsys.readouterr()
-    assert "<h3>History</h3>" not in ws.report_html.read_text(encoding="utf-8")
+    assert '<h3 class="sub">History</h3>' not in ws.report_html.read_text(encoding="utf-8")
 
 
 def test_history_rows():

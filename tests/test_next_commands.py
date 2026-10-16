@@ -74,8 +74,7 @@ def test_the_next_commands_keep_the_path_and_flags(project, marked, served, caps
     assert all(c.startswith(BASE) for c in commands), commands
 
     page = Workspace(project / "evals").report_html.read_text(encoding="utf-8")
-    assert f"{BASE} --review".replace("_", "&#95;") in page.replace("_", "&#95;")
-    assert "<code>judgekeeper start --review</code>" not in page
+    assert "--review" not in page  # the page names the four commands only; `start` prints its own
 
     review = next(c for c in commands if c.endswith("--review"))
     code = main(shlex.split(review)[1:])  # run as printed

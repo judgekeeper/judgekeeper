@@ -121,11 +121,10 @@ def test_the_page_shows_the_question_and_the_answer_as_written(workspace):
     server, thread, _ = _server(ws)
     try:
         page = " ".join(server.page()[0].split())
-        for needed in ("The question", "Your app's answer", "white-space: pre-wrap", "17px",
-                       "Fail <kbd>←</kbd>", "Pass <kbd>→</kbd>", "Skip <kbd>S</kbd>",
-                       "Undo <kbd>U</kbd>", "See your result", "#0E1525", "#10B981",
-                       "Bricolage Grotesque",
-                       "Mark a few more answers to see your result."):
+        for needed in ("The question", "The answer", "white-space: pre-wrap",
+                       "<span>Fail</span><kbd>←</kbd>", "<span>Pass</span><kbd>→</kbd>",
+                       "<span>Skip this one</span><kbd>S</kbd>", "<kbd>Z</kbd>Undo",
+                       "See your result", "#1E293B", "#10B981", '"Manrope"'):
             assert needed in page, needed
         data = _page_data(server)
         assert re.fullmatch(r"Question \d+\?", data["items"][0]["input"])
@@ -213,11 +212,12 @@ def test_see_my_result_works_before_everything_is_labeled(workspace):
         resp, payload = client.request("GET", "/result")
         assert resp.status == 200
         assert resp.getheader("Content-Type").startswith("text/html")
-        assert "script-src" not in resp.getheader("Content-Security-Policy")
+        from judgekeeper.report_page import CSP
+
+        assert resp.getheader("Content-Security-Policy") == f"{CSP}; frame-ancestors 'none'"
         assert "font-src data:" in resp.getheader("Content-Security-Policy")
         html = payload.decode()
         assert "Mark a few more answers to see your result." in html
-        assert "<script" not in html
         assert "Mark more answers</a>" in html
         assert thread.is_alive()  # answers are left: the person may go on
     finally:
@@ -340,10 +340,10 @@ def test_the_word_trust_is_nowhere():
 
 def test_the_result_page_stands_alone():
     html = start_label.result_html(_result(900, 100, 25, 20, 25, 10))
-    for needed in ("Your result", "When you said Pass", "TPR", "TNR", "kappa",
-                   "What next", "judgekeeper start", "Bricolage Grotesque"):
+    for needed in ("Your result", "You passed 30", "TPR", "TNR", "kappa", "Next step",
+                   "judgekeeper mark", '"Manrope"'):
         assert needed in html, needed
-    assert "<script" not in html and 'class="btn"' not in html
+    assert "<a " not in html.split("<body>")[1]  # no link back: commands only
     assert not re.search(r"https?://(?!www\.w3\.org/2000/svg)", html)
     assert "<link" not in html and "@import" not in html
 
@@ -403,7 +403,7 @@ def test_a_result_writes_anchors_and_the_result_files(workspace):
     html = ws.report_html.read_text(encoding="utf-8")
     assert html.startswith("<!doctype html>")
     date = json.loads(ws.start.read_text(encoding="utf-8"))["results_date"]
-    assert "<b>llm-rubric</b> · openai:gpt-4.1-mini" in html
+    assert "<code>openai:gpt-4.1-mini</code> (llm-rubric)" in html
     when = f"{start_label.in_words(date[:10])}, {date[11:]}"
     assert f"From results.json (promptfoo), saved {when}" in html
 

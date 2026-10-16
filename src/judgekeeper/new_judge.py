@@ -339,7 +339,7 @@ def confirmation_workspace(ws: Workspace, new: NewJudge, block: dict, talk) -> W
 
 
 def confirmation_page(cws: Workspace) -> str:
-    from judgekeeper.start_page import label_page
+    from judgekeeper.mark_page import label_page
 
     data = cws.data()
     return label_page(data.get("description"), data.get("rule"))

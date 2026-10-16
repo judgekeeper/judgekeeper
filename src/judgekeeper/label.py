@@ -444,6 +444,13 @@ def _handler(server: LabelServer):
             if url.path in ("/alive", "/stop") and hmac.compare_digest(
                     stop.encode(), server.stop_secret.encode()):
                 return True
+            if self.command in ("GET", "HEAD") and url.path == "/" and \
+                    "text/html" in (self.headers.get("Accept") or ""):  # a browser: a page
+                from judgekeeper.mark_page import OLD_LINK_CSP, old_link_page
+
+                self._send(403, old_link_page().encode("utf-8"), "text/html; charset=utf-8",
+                           {"Content-Security-Policy": OLD_LINK_CSP})
+                return False
             self._json(403, {"error": "missing or wrong token"})
             return False
 
@@ -522,9 +529,9 @@ def _handler(server: LabelServer):
                                      "saved; try again once the folder can be written."
                                      ).encode(), "text/plain; charset=utf-8")
                     return
-                csp = ("default-src 'none'; style-src 'unsafe-inline'; font-src data:; "
-                       "img-src 'none'; base-uri 'none'; form-action 'none'; "
-                       "frame-ancestors 'none'")
+                from judgekeeper.report_page import CSP
+
+                csp = f"{CSP}; frame-ancestors 'none'"
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
                            {"Content-Security-Policy": csp})
                 if server.finished() and not server.stays:

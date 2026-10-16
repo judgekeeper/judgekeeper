@@ -528,7 +528,7 @@ def test_next_says_how_to_ask_again(tmp_path):
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert "  Ask your judge again:  judgekeeper start --ask-again" in start_label.result_lines(r)
     page = ws.report_html.read_text(encoding="utf-8")
-    assert "Ask your judge again" in page and "<code>judgekeeper start --ask-again</code>" in page
+    assert "--ask-again" not in page  # the page names the four commands only
 
 
 # The real promptfoo (optional) -----------------------------------------------------------------

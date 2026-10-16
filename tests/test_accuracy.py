@@ -11,6 +11,7 @@ its fail group, and how many of each the person marked Pass.
 from __future__ import annotations
 
 import random
+import re
 
 import pytest
 
@@ -242,10 +243,10 @@ def test_kappa_is_in_the_details_with_its_range_and_no_bar():
     from html import unescape
 
     r = result(0.5, (15, 13), (15, 2))
-    html = " ".join(unescape(start_label.result_html(r)).split())
+    html = " ".join(unescape(re.sub(r"<[^>]+>", "", start_label.result_html(r))).split())
     lo, hi = r["kappa_interval"]
-    assert "Kappa on your real mix (agreement beyond coincidence)" in html
-    assert f"could be {lo:.2f} to {hi:.2f}" in html
+    assert (f"Agreement beyond coincidence (kappa): {r['kappa']:.2f} (could be {lo:.2f} to "
+            f"{hi:.2f})") in html
     assert "or more is good" not in html and "beyond luck" not in html
 
 
@@ -404,7 +405,7 @@ def test_the_details_say_what_a_range_means_and_what_it_does_not_cover():
     from html import unescape
 
     r = result(0.5, (30, 26), (30, 3))
-    html = " ".join(unescape(start_label.result_html(r)).split())
+    html = " ".join(unescape(re.sub(r"<[^>]+>", "", start_label.result_html(r))).split())
     assert ("'Could be' means: in judgekeeper's tests, ranges made this way held the true "
             "number about 95 times in 100.") in html
     assert ("Ranges cover the coincidence of which answers you marked. They don't cover your "

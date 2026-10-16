@@ -15,6 +15,8 @@ your own terminal.
 - The marking page saves a mark only when it comes from the page itself.
 - Broken results files give a clear message instead of a Python error.
 - Every number comes with its range, and the result calls a judge good only when the ranges do.
+- A new look for the marking page and the report: light, with a dark switch; the report's next
+  step follows from your result, and its counts of the judge's mistakes add up.
 - Removed: automatic checks, the GitHub Action and the agent skill. 1.0 is commands you run
   yourself; agent support may come back later.
 

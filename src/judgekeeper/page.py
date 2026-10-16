@@ -92,8 +92,12 @@ def page_server(ws: Workspace, port: int, command: str,
     session = marking_session(ws)
 
     def result(session: StartSession, back: str) -> str:
+        from judgekeeper import check
+
         r = start_label.store_result(ws, session, start_command)
-        return start_label.result_html(start_label._scrubbed(r), back, marking=command)
+        return start_label.result_html(start_label._scrubbed(r), back, marking=command,
+                                       history=start_label._scrubbed(check.report_rows(ws)),
+                                       fixing=start_label._fixing(ws))
 
     return make_server(session, port, result=result,
                        page=start_label.page_template(ws.data(), command), lock=ws.dir,

@@ -60,7 +60,6 @@ from judgekeeper.label import LabelSession, make_server
 from judgekeeper.records import AGENT_FIELDS
 from judgekeeper.redact import scrub, scrub_fingerprint, scrub_value, visible
 from judgekeeper.runners.base import Judgment
-from judgekeeper.start_page import label_page, result_page
 from judgekeeper.table import guard_cell, write_anchor_file
 from judgekeeper.textio import jsonl_lines, link_in, plural, program, write_replacing
 
@@ -993,8 +992,9 @@ def result_html(r: dict, back: str | None = None, marking: str | None = None,
     """The result page; `history`: the History rows of report.html (check.report_rows);
     `fixing`: its Fix section (fix.report_section). No value on it holds a hidden character
     (redact.visible)."""
-    return visible(result_page({**page_content(r, marking), "history": history or [],
-                                "fixing": fixing}, back))
+    from judgekeeper.report_page import page
+
+    return visible(page(r, page_content(r, marking), back, history or [], fixing))
 
 
 def _fixing(ws: Workspace) -> dict | None:
@@ -1023,13 +1023,16 @@ def write_report(ws: Workspace) -> None:
 
 
 def page_template(about: dict | None = None, command: str | None = None) -> str:
-    """The labeling page for a check whose start.json is `about`: its description and its
-    judge's rule are shown; nothing else from it is. `command`: what the person runs to
-    continue."""
+    """The marking page for a check whose start.json is `about`: its judge's rule, model and
+    tool are shown; nothing else from it is. `command`: what the person runs to continue."""
+    from judgekeeper.mark_page import label_page
+
     command = command or program("start")
     about = about or {}
+    tool = about.get("tool")
     return label_page(about.get("description") or about.get("app_version"), about.get("rule"),
-                      command)
+                      command, model=(about.get("fingerprint") or {}).get("model"),
+                      tool=find.NAMES.get(tool, tool))
 
 
 def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict, **draws) -> dict:

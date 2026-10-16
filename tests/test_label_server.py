@@ -205,9 +205,10 @@ def test_every_post_the_pages_send_keeps_their_origin():
     the page's own origin."""
     import re
 
-    from judgekeeper import start_page
+    from judgekeeper import mark_page, start_page
 
-    source = Path(start_page.__file__).read_text(encoding="utf-8")
+    source = "".join(Path(m.__file__).read_text(encoding="utf-8")
+                     for m in (mark_page, start_page))
     posts = re.findall(r'fetch\([^)]*\), \{\s*method: "POST".*?body:', source, re.DOTALL)
     assert len(posts) >= 4
     for post in posts:
@@ -588,7 +589,12 @@ def test_a_result_before_the_end_keeps_serving(tmp_path):
     client.label(id="it0", label="pass")
     resp, payload = client.request("GET", "/result")
     assert resp.status == 200 and b"1 labeled" in payload
-    assert "script-src" not in resp.getheader("Content-Security-Policy")
+    from judgekeeper.report_page import CSP
+
+    csp = resp.getheader("Content-Security-Policy")
+    assert csp == f"{CSP}; frame-ancestors 'none'"
+    scripts = csp.split("script-src ")[1].split(";")[0].split()
+    assert len(scripts) == 2 and all(x.startswith("'sha256-") for x in scripts)  # its own two
     thread.join(timeout=0.5)
     assert thread.is_alive()
     server.stop()
@@ -636,3 +642,19 @@ def test_a_result_that_cant_be_saved_is_said_plainly(tmp_path):
     finally:
         server.stop()
         thread.join(timeout=5)
+
+
+def test_a_browser_with_an_old_link_gets_a_page_and_a_script_gets_json(tmp_path, serve):
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    resp, payload = client.request("GET", "/?token=old", token=False,
+                                   headers={"Accept": "text/html,*/*"})
+    page = payload.decode()
+    assert resp.status == 403 and resp.getheader("Content-Type").startswith("text/html")
+    assert "This link no longer works." in page and "Your marks are saved." in page
+    assert "<code>judgekeeper mark</code>" in page
+    assert "default-src 'none'" in resp.getheader("Content-Security-Policy")
+    resp, payload = client.request("GET", "/?token=old", token=False)
+    assert resp.status == 403 and json.loads(payload) == {"error": "missing or wrong token"}
+    resp, payload = client.request("GET", "/state?token=old", token=False,
+                                   headers={"Accept": "text/html"})
+    assert json.loads(payload) == {"error": "missing or wrong token"}  # only the page itself

@@ -12,7 +12,15 @@ from html import unescape
 
 import pytest
 
-from judgekeeper import judge_check, new_judge, start, start_fix, start_label, start_page
+from judgekeeper import (
+    judge_check,
+    mark_page,
+    new_judge,
+    start,
+    start_fix,
+    start_label,
+    start_page,
+)
 from judgekeeper.start_review import review_lines
 from tests.start_projects import (
     deepeval_project,
@@ -149,9 +157,9 @@ def test_the_terminal_says_the_block_then_next_then_the_question(tmp_path, capsy
 # The keys ---------------------------------------------------------------------------------
 
 def test_the_labeling_page_keys_are_the_arrows_and_the_old_digits():
-    page = start_page.label_page(None, None)
+    page = mark_page.label_page(None, None)
     assert '{arrowright: "pass", arrowleft: "fail", "1": "pass", "2": "fail"}' in page
-    assert "Fail <kbd>←</kbd>" in page and "Pass <kbd>→</kbd>" in page
+    assert "<span>Fail</span><kbd>←</kbd>" in page and "<span>Pass</span><kbd>→</kbd>" in page
     assert "<kbd>1</kbd>" not in page and "<kbd>2</kbd>" not in page  # shown: the arrows only
     assert page.index('id="fail"') < page.index('id="pass"')  # Fail on the left
 
@@ -193,7 +201,8 @@ def _result(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f, **extra):
 
 
 def test_the_templates_hold_no_banned_word():
-    for name, page in (("label", start_page.label_page("support bot", "Be kind.")),
+    for name, page in (("label", mark_page.label_page("support bot", "Be kind.")),
+                       ("old link", mark_page.old_link_page()),
                        ("review", start_page.review_page("support bot", "Be kind.")),
                        ("fix", start_page.fix_page("support bot"))):
         _scan(visible_text(page), name)

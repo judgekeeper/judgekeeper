@@ -139,7 +139,8 @@ def test_a_retired_set_may_show_its_answers(here, capsys, judge):
     assert split.fresh == {"want": fix.FRESH}
     wrong = [i for i in hidden if fix.Marks(ws).judge[i] != fix.Marks(ws).person[i]]
     shown = json.dumps(fix.report_section(ws))
-    assert wrong and all(fix.Marks(ws).row(i)["input"][:40] in shown for i in wrong)
+    m = fix.Marks(ws)
+    assert wrong and all(fix._question(m, m.row(i))[:40] in shown for i in wrong)
 
 
 def test_three_rules_retire_the_set(here, capsys, judge):

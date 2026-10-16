@@ -473,8 +473,7 @@ def test_the_result_counts_the_disagreements_and_says_how_to_review(tmp_path):
     lines = start_label.result_lines(r)
     assert "  See where you disagree (5):  judgekeeper start --review" in lines
     page = ws.report_html.read_text(encoding="utf-8")
-    assert "See where you disagree (5)" in page
-    assert "<code>judgekeeper start --review</code>" in page
+    assert "--review" not in page  # the page names the four commands only; `start` prints its own
 
 
 def test_no_review_line_without_disagreements(tmp_path):
@@ -501,7 +500,7 @@ def test_the_result_after_a_review_shows_the_lines_and_the_files(tmp_path):
     page = ws.report_html.read_text(encoding="utf-8")
     assert "your judge was wrong on 3 answers" in page
     assert "judge-mistakes.csv" in page and "rule-unclear.csv" in page
-    assert page.count('<div class="stmt">') == 2  # the main sentences are unchanged
+    assert page.count('class="est-label"') == 2  # the main rows are unchanged
 
 
 def test_the_live_result_page_has_a_review_button(tmp_path):

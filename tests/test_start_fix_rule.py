@@ -667,7 +667,7 @@ def test_the_result_gets_a_fix_your_judge_card_with_the_latest_test(tmp_path, se
     assert r["fix"]["tests"][0]["sentence"] == (
         "On the 30 answers kept aside, the change did better: it fixed 6 and broke none.")
     page = ws.report_html.read_text(encoding="utf-8")
-    assert "<h3>Fix your judge</h3>" in page
+    assert '<h3 class="sub">Fix your judge</h3>' in page
     assert ("Latest test (pass mark 0.5 to 0.7): On the 30 answers kept aside, the change did "
             "better: it fixed 6 and broke none.") in page
     lines = start_label.result_lines(r)
