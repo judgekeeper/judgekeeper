@@ -7,9 +7,8 @@ ends with one `Next:` line. `judgekeeper mark` (mark.py) opens the page to mark 
 got worse); it asks before any call to the judge.
 `judgekeeper fix` (fix.py) shows where the judge goes wrong and tests a new rule on marks it
 keeps hidden; it asks before any call to the judge.
-`judgekeeper start` (not in the help) still has its review, fix and asking again. Exit codes: 0
-success, 2 usage error, 3 the person is needed (the Next: line says what to do), 130 Ctrl-C;
-`start` also 1 (asking again: the tool failed).
+Exit codes: 0 success, 2 usage error, 3 the person is needed (the Next: line says what to do),
+130 Ctrl-C.
 
 Every error ends with one `Next:` line, printed here. Everything printed as an error goes
 through redact.scrub. A failure with no better message never prints its own text (it can hold
@@ -18,13 +17,9 @@ it, exit 2; --debug adds the traceback, also scrubbed. A path that cannot be wri
 (no permission, a file where a folder should be) is a usage error: one line that names the
 path and what to do.
 
-`start` exits 0 when it is done (also when the person stops), 3 when it stopped at a question
-it cannot ask (no terminal: the line before says the flag or command that answers it, and
-nothing went wrong), 2 when the command is wrong or it finds nothing it can use.
-
-Removed commands (`REMOVED`: the 0.1 CI gate, and `setup`, now part of `judgekeeper`) print
-one line that says so and exit 2. They are not in the help. `check` is a command again, with
-a new meaning.
+Removed commands (`REMOVED`: the 0.1 CI gate, `setup`, now part of `judgekeeper`, and `start`,
+now `judgekeeper`, `mark`, `fix` and `check`) print one line that says so and exit 2. They are
+not in the help. `check` is a command again, with a new meaning.
 """
 
 from __future__ import annotations
@@ -91,9 +86,10 @@ COMMANDS_HELP = (
     ("check", "re-check your judge on your marks after a change"),
 )
 HELP_WIDTH = 80
-# Removed commands: the 0.1 CI gate, and setup (part of judgekeeper now). Each prints one line
-# and exits 2.
-REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "setup")
+# Removed commands: the 0.1 CI gate, setup (part of judgekeeper now) and start (its steps are
+# judgekeeper, mark, fix and check now). Each prints one line and exits 2.
+REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "setup",
+           "start")
 
 
 class _Parser(argparse.ArgumentParser):
@@ -198,17 +194,6 @@ def _port(value: str) -> int:
     return port
 
 
-def _times(value: str) -> int:
-    """`start --times`: 1 to 5."""
-    try:
-        n = int(value)
-    except ValueError:
-        n = 0
-    if not 1 <= n <= 5:
-        raise argparse.ArgumentTypeError(f"{value!r} is not a whole number from 1 to 5")
-    return n
-
-
 def _front_parser() -> argparse.ArgumentParser:
     """`judgekeeper` with no command. Each option answers a question its Next: line asks."""
     p = _TopParser(prog="judgekeeper", usage="judgekeeper [PATH] [options]",
@@ -293,77 +278,6 @@ def _parser() -> argparse.ArgumentParser:
     fx.add_argument("--new", action="store_true",
                     help="hide a new set of your marks to test rules on")
 
-    st = sub.add_parser("start", parents=[common],
-                        help="find your judge's saved results and check them against your own "
-                             "labels")
-    st.add_argument("path", nargs="?", default=".", metavar="PATH",
-                    help="your project folder (default: this folder), one results file, or "
-                         "an MLflow store (mlflow.db or an mlruns/ folder)")
-    st.add_argument("--tool", choices=TOOLS,
-                    help="which eval tool's results to use, when several are found")
-    st.add_argument("--metric", metavar="NAME",
-                    help="the judge metric or scorer to check, when the results hold several")
-    st.add_argument("--experiment", metavar="NAME_OR_ID",
-                    help="MLflow: the experiment to read, when several have judge results")
-    st.add_argument("--tracking-uri", metavar="URI",
-                    help="MLflow: the store to read, when the folder has several (mlflow.db, "
-                         "sqlite:///..., an mlruns/ folder or file:...; default: "
-                         "MLFLOW_TRACKING_URI when it names one)")
-    _normaliser_args(st)
-    st.add_argument("--judge-model", metavar="NAME",
-                    help="the judge's model, when the results do not record it")
-    st.add_argument("--port", type=_port, default=8765,
-                    help="port on 127.0.0.1 for the page that opens (default 8765)")
-    st.add_argument("--no-browser", action="store_true",
-                    help="print the page's link instead of opening a browser")
-    then = st.add_mutually_exclusive_group()
-    then.add_argument("--new", action="store_true",
-                      help="start a new check: move what is saved in .judgekeeper/ (except "
-                           ".gitignore, baseline.json and records/) to .judgekeeper/previous-<date>/; "
-                           "nothing is deleted")
-    then.add_argument("--review", action="store_true",
-                      help="after a result: review the answers where you and your judge "
-                           "disagree (no AI call)")
-    then.add_argument("--ask-again", action="store_true",
-                      help="after a result: ask your judge again about your marked answers, "
-                           "through your own eval tool; it shows the plan (calls, cost, key "
-                           "name) and asks before any call")
-    then.add_argument("--try-new-judge", action="store_true",
-                      help="after a result: try the new version of your judge (found in your "
-                           "newest results) on the answers you already marked; it asks before "
-                           "any call")
-    then.add_argument("--label-more", action="store_true",
-                      help="after a result: open the page to mark more answers")
-    then.add_argument("--fix", action="store_true",
-                      help="after the review: what your judge gets wrong, and a fair test of "
-                           "a change on answers kept aside (no AI call)")
-    st.add_argument("--test-pass-mark", action="store_true",
-                    help="with --fix: test the pass mark that fits your marks best, in the "
-                         "terminal (free)")
-    st.add_argument("--rule-file", metavar="PATH",
-                    help="with --fix: check the new rule in this file (as your coding agent "
-                         "writes it), save it and say where it goes; no page (free)")
-    st.add_argument("--times", type=_times, default=None, metavar="N",
-                    help="asking again: how many times to ask about each answer, 1 to 5 "
-                         "(default 2; 1 with --try-new-judge)")
-    st.add_argument("--allow-calls", type=int, metavar="N",
-                    help="asking again: approve up to N judge calls without the question "
-                         "(needed without a terminal, and above 1,000 calls)")
-    st.add_argument("--python", metavar="PATH",
-                    help="asking again: the Python you run your evals with (default: the "
-                         "active virtual environment, else the project's .venv or venv)")
-    st.add_argument("--fields", metavar="LIST",
-                    help="asking a DeepEval GEval judge again: the parts it reads, e.g. "
-                         "input,actual_output")
-    st.add_argument("--judge-command", metavar="CMD",
-                    help="asking again: your own judge as a command (one answer as JSON on "
-                         "stdin, the verdict on stdout)")
-    st.add_argument("--yes", action="store_true",
-                    help="without a terminal, answer yes/no questions with the default (it "
-                         "never picks a tool or a judge)")
-    st.add_argument("--agent-prompt", action="store_true",
-                    help="print a prompt for your coding agent that turns judge results saved "
-                         "in your own format into judgekeeper's table, then exit")
     return p
 
 
@@ -390,30 +304,6 @@ def _normaliser_args(p: argparse.ArgumentParser) -> None:
                    help="more spellings of your judge's grades, e.g. 'good=pass,bad=fail' "
                         "(added to pass/fail, true/false, yes/no, correct/incorrect, "
                         "right/wrong, 1/0)")
-
-
-def cmd_start(args) -> int:
-    from judgekeeper.start import run
-
-    if args.agent_prompt:
-        from judgekeeper.own_format import agent_prompt
-
-        print(agent_prompt())
-        return 0
-    for flag, given in (("--test-pass-mark", args.test_pass_mark),
-                        ("--rule-file", args.rule_file is not None)):
-        if given and not args.fix:
-            print(f"judgekeeper start: error: {flag} works only with --fix", file=sys.stderr)
-            _next(f"run `{program('start')} --fix {flag}`, or leave {flag} out.")
-            return EXIT_USAGE
-    return run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
-               tracking_uri=args.tracking_uri, pass_if=args.pass_if, label_map=args.label_map, judge_model=args.judge_model,
-               yes=args.yes, port=args.port, no_browser=args.no_browser, new=args.new,
-               review=args.review, label_more=args.label_more, ask_again=args.ask_again,
-               try_new_judge=args.try_new_judge, fix=args.fix,
-               test_pass_mark=args.test_pass_mark, rule_file=args.rule_file,
-               times=args.times, python=args.python, fields=args.fields,
-               judge_command=args.judge_command, allow_calls=args.allow_calls)
 
 
 def cmd_mark(args) -> int:
@@ -448,8 +338,7 @@ def cmd_front(args) -> int:
                      no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop)
 
 
-COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, "start": cmd_start,
-            None: cmd_front}
+COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, None: cmd_front}
 
 
 def _command(args_list: list[str]) -> str | None:
