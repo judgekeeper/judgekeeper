@@ -180,7 +180,11 @@ def test_wheel_ships_the_package_and_no_demo(tmp_path):
                    "judgekeeper/schemas/records.schema.json",
                    "judgekeeper/fonts/bricolage-grotesque-latin-600-normal.woff2",
                    "judgekeeper/fonts/bricolage-grotesque-latin-800-normal.woff2",
-                   "judgekeeper/fonts/OFL-BricolageGrotesque.txt"):  # the page's font, OFL
+                   "judgekeeper/fonts/OFL-BricolageGrotesque.txt",
+                   "judgekeeper/fonts/manrope-latin-wght-normal.woff2",
+                   "judgekeeper/fonts/OFL-Manrope.txt",
+                   "judgekeeper/fonts/jetbrains-mono-latin-400-normal.woff2",
+                   "judgekeeper/fonts/OFL-JetBrainsMono.txt"):  # the pages' fonts, OFL
         assert needed in names, needed
     for gone in ("judgekeeper/demo_data/", "judgekeeper/demo.py", "judgekeeper/templates/",
                  "judgekeeper/pytest_plugin.py", "judgekeeper/gate.py"):
