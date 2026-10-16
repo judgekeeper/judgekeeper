@@ -7,10 +7,6 @@ import pytest
 from judgekeeper import prices
 
 
-def test_the_table_is_dated():
-    assert prices.PRICES_READ == "2026-10-05"
-
-
 @pytest.mark.parametrize("model, expected", [
     ("gpt-4.1-mini", (0.40, 1.60)),
     ("openai:gpt-4.1-mini", (0.40, 1.60)),
@@ -42,51 +38,6 @@ def test_an_estimate_is_a_range_from_half_to_two_and_a_half_times():
     # 100 x (1500 x 4 + 200 x 20) / 1e6 = $1.00, so $0.50 to $2.50.
     low, high = prices.estimate("gpt-5.6-sol", [(1500, 200)] * 100)
     assert (low, high) == pytest.approx((0.50, 2.50))
-
-
-def test_the_cost_line():
-    line = prices.cost_line("openai:gpt-5.6-sol", "openai", [(1500, 200)] * 100)
-    assert line == "About $0.50 to $2.50 at OpenAI's prices from 2026-10-05; check your provider."
-
-
-def test_a_tiny_cost():
-    line = prices.cost_line("gpt-4.1-mini", "openai", [(100, 10)])
-    assert line.startswith("Less than $0.01")
-
-
-def test_a_range_that_starts_below_a_cent():
-    line = prices.cost_line("gpt-4.1-mini", "openai", [(1000, 200)] * 10)  # $0.0036 to $0.018
-    assert line == "Up to $0.02 at OpenAI's prices from 2026-10-05; check your provider."
-
-
-def test_the_menu_words_for_a_cost():
-    from judgekeeper.again import Plan, cost_words
-
-    plan = Plan(tool="promptfoo", judge="j", status="exact", why="w", model="gpt-4.1-mini",
-                calls_each=[1] * 10, tokens=[(1000, 200)] * 10, times=1)
-    assert cost_words(plan) == "up to $0.02"
-    plan.tokens = [(100, 10)]
-    assert cost_words(plan) == "less than $0.01"
-    plan.tokens = [(1500, 200)] * 1000
-    assert cost_words(plan) == "about $0.46 to $2.30"
-
-
-def test_a_judge_on_ollama_is_free():
-    from judgekeeper.again import Plan, cost_words
-
-    for model, provider in (("ollama:chat:llama3.2:3b", None), ("ollama/llama3.2:3b", None),
-                            ("llama3.2:3b (Ollama)", "ollama")):
-        assert prices.cost_line(model, provider, [(1500, 200)]) == (
-            "Free: it runs on your computer.")
-        plan = Plan(tool="promptfoo", judge="j", status="exact", why="w", model=model,
-                    provider=provider, calls_each=[1], tokens=[(1500, 200)], times=1)
-        assert cost_words(plan) == "free"
-
-
-def test_an_unknown_model_has_no_cost():
-    assert prices.estimate("my-own-model", [(1500, 200)]) is None
-    assert prices.cost_line("my-own-model", None, [(1500, 200)]) == (
-        "Cost unknown for this model (my-own-model).")
 
 
 def test_no_network_is_used(monkeypatch):

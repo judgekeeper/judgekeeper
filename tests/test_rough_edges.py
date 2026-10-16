@@ -18,10 +18,8 @@ import pytest
 from judgekeeper import __version__, textio
 from judgekeeper.anchors import AnchorError, load_anchors
 from judgekeeper.cli import main
-from judgekeeper.custom import exec_judge
 from judgekeeper.judgments import JudgmentsError, read_run
 from judgekeeper.label import LabelError, LabelSession, make_server
-from judgekeeper.normalise import NormaliseError, unmapped_error
 from judgekeeper.readers import read_deepeval, read_inspect, read_promptfoo, read_records
 from judgekeeper.records import RecordsError
 from judgekeeper.table import TableError, read_table
@@ -59,16 +57,22 @@ def _plain_error(capsys, *needles: str) -> str:
 # A file that is not UTF-8 --------------------------------------------------------------------
 
 @pytest.mark.parametrize("encoding", ENCODINGS)
-def test_start_says_a_spreadsheet_file_is_not_utf8_and_how_to_fix_it(tmp_path, capsys,
+def test_a_spreadsheet_file_not_in_utf8_is_said_with_how_to_fix_it(tmp_path, capsys,
                                                                     monkeypatch, encoding):
     table_project(tmp_path, split(20, 20))
     path = tmp_path / "results.csv"
     _write(path, path.read_text(encoding="utf-8").replace("Answer", "Answ\u00e9r"), encoding)
     monkeypatch.chdir(tmp_path)
-    assert main(["start", "results.csv", "--no-browser"]) == 2
-    _plain_error(capsys, "results.csv", "not saved as UTF-8",
-                 'In Excel, save it again as "CSV UTF-8 (Comma delimited)"',
-                 "in Google Sheets")
+    if encoding == "utf-16":  # it may be a format of its own: the person is needed (3)
+        assert main(["results.csv", "--no-browser"]) == 3
+        out = " ".join(capsys.readouterr().out.split())
+        assert "is not saved as UTF-8 text" in out
+        assert 'In Excel, save it again as "CSV UTF-8 (Comma delimited)"' in out
+    else:
+        assert main(["results.csv", "--no-browser"]) == 2
+        _plain_error(capsys, "results.csv", "not saved as UTF-8",
+                     'In Excel, save it again as "CSV UTF-8 (Comma delimited)"',
+                     "in Google Sheets")
     with pytest.raises(TableError, match="UTF-8"):
         read_table(path)
 
@@ -149,7 +153,7 @@ def test_a_file_where_the_workspace_folder_should_be_is_said_plainly(tmp_path, c
     blocker = _write(tmp_path / ".judgekeeper", "a file\n")
     monkeypatch.chdir(tmp_path)
     capsys.readouterr()
-    assert main(["start", "--no-browser", "--yes"]) == 2
+    assert main(["--no-browser", "--yes"]) == 2
     _plain_error(capsys, ".judgekeeper", "is a file, but judgekeeper keeps its files in a "
                  ".judgekeeper/ folder there")
     assert blocker.read_text(encoding="utf-8") == "a file\n"
@@ -167,7 +171,7 @@ def test_debug_adds_the_traceback_to_the_plain_line(tmp_path, capsys, monkeypatc
     promptfoo_project(tmp_path, split(20, 20))
     blocker = _write(tmp_path / ".judgekeeper", "a file\n")
     monkeypatch.chdir(tmp_path)
-    assert main(["--debug", "start", "--no-browser", "--yes"]) == 2
+    assert main(["--debug", "--no-browser", "--yes"]) == 2
     err = capsys.readouterr().err
     assert "Traceback" in err
     assert err.splitlines()[-2].startswith("error: .judgekeeper is a file, but judgekeeper")
@@ -211,7 +215,7 @@ def _terminal(encoding: str) -> io.TextIOWrapper:
 def test_a_terminal_that_cannot_show_a_character_gets_a_question_mark(tmp_path, monkeypatch):
     err = _terminal("cp1252")
     monkeypatch.setattr(sys, "stderr", err)
-    assert main(["start", str(tmp_path / "missing \u2192.csv")]) == 2
+    assert main([str(tmp_path / "missing \u2192.csv")]) == 2
     err.flush()
     assert b"missing ?.csv" in err.buffer.getvalue()
 
@@ -219,15 +223,15 @@ def test_a_terminal_that_cannot_show_a_character_gets_a_question_mark(tmp_path, 
 def test_a_utf8_terminal_gets_the_characters_unchanged(tmp_path, monkeypatch):
     err = _terminal("utf-8")
     monkeypatch.setattr(sys, "stderr", err)
-    assert main(["start", str(tmp_path / "missing \u2192.csv")]) == 2
+    assert main([str(tmp_path / "missing \u2192.csv")]) == 2
     err.flush()
     assert "missing \u2192.csv".encode() in err.buffer.getvalue()
 
 
-def test_start_prints_on_a_cp1252_terminal(tmp_path):
+def test_judgekeeper_prints_on_a_cp1252_terminal(tmp_path):
     env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
     proc = subprocess.run(
-        [sys.executable, "-m", "judgekeeper", "start", str(tmp_path / "caf\u00e9 \u2192.csv")],
+        [sys.executable, "-m", "judgekeeper", str(tmp_path / "caf\u00e9 \u2192.csv")],
         capture_output=True, env=env, check=False)
     assert proc.returncode == 2, proc.stderr
     assert b"Traceback" not in proc.stderr
@@ -269,53 +273,6 @@ def test_a_folder_with_a_backtick_gives_a_command_that_can_be_copied(tmp_path, m
     assert next_line.count("`") % 2 == 0 and "\\x60v2\\x60" in next_line, next_line
 
 
-def test_exec_command_keeps_backslashes_on_windows(monkeypatch):
-    assert textio.split_command('python "my judge.py" --fast') == ["python", "my judge.py",
-                                                                    "--fast"]
-    monkeypatch.setattr(sys, "platform", "win32")
-    assert textio.split_command(r"python C:\x\judge.py") == ["python", r"C:\x\judge.py"]
-    assert textio.split_command(r'"C:\Program Files\py\python.exe" "C:\my judges\judge.py" -v') \
-        == [r"C:\Program Files\py\python.exe", r"C:\my judges\judge.py", "-v"]
-    assert textio.split_command("node 'judge one.js'") == ["node", "judge one.js"]
-
-
-def test_exec_judge_sends_and_reads_utf8_whatever_the_locale(monkeypatch):
-    seen = {}
-
-    def fake_run(argv, **kwargs):
-        seen.update(kwargs, argv=argv)
-        return subprocess.CompletedProcess(argv, 0, stdout="pass", stderr="")
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
-    assert exec_judge("judge-prog --flag")({"id": "a", "input": "caf\u00e9"}) == "pass"
-    assert seen["argv"] == ["judge-prog", "--flag"]
-    assert seen["encoding"] == "utf-8"
-    assert "caf\u00e9" in seen["input"]
-    # A Python judge would read stdin in the locale's encoding: it is told to use UTF-8 too,
-    # unless the user chose an encoding.
-    assert seen["env"]["PYTHONIOENCODING"] == "utf-8"
-    assert seen["env"]["PATH"] == os.environ["PATH"]
-    monkeypatch.setenv("PYTHONIOENCODING", "latin-1")
-    exec_judge("judge-prog")({"id": "a"})
-    assert seen["env"]["PYTHONIOENCODING"] == "latin-1"
-
-
-def test_exec_judge_passes_non_ascii_text_both_ways(tmp_path):
-    script = tmp_path / "echo.py"
-    script.write_text(
-        "import json, sys\n"
-        "item = json.loads(sys.stdin.buffer.read().decode('utf-8'))\n"
-        "sys.stdout.buffer.write(json.dumps({'verdict': 'pass', 'reason': item['input']},"
-        " ensure_ascii=False).encode('utf-8'))\n", encoding="utf-8")
-    judge = exec_judge(f'"{sys.executable}" "{script}"')
-    assert judge({"id": "a", "input": "caf\u00e9 \u2192"}) == {"verdict": "pass",
-                                                               "reason": "caf\u00e9 \u2192"}
-    # The ordinary way to write a Python judge: text streams, no encoding named.
-    script.write_text("import json, sys\nprint('pass: ' + json.load(sys.stdin)['input'])\n",
-                      encoding="utf-8")
-    assert judge({"id": "a", "input": "caf\u00e9 \u2192"}) == "pass: caf\u00e9 \u2192"
-
-
 # Wording of rare cases ------------------------------------------------------------------------
 
 @pytest.mark.parametrize("separator", [";", "\t"])
@@ -333,13 +290,3 @@ def test_a_comma_csv_with_semicolons_in_its_text_is_still_a_comma_csv(tmp_path):
                                  "label": "pass"}]
 
 
-def test_numbers_and_words_get_both_hints_and_human_labels_only_the_map():
-    mixed = str(unmapped_error(["0.9", "good", 0.2, "bad"], "judge verdict"))
-    hint = '--label-map "good=pass" or --label-map "good=fail", whichever it means'
-    assert '--pass-if "score>=0.5"' in mixed and hint in mixed
-    words = str(unmapped_error(["good", "bad"], "judge verdict"))
-    assert "--pass-if" not in words and hint in words
-    human = str(unmapped_error(["4", "2"], "human label", pass_if=False))
-    assert "--pass-if" not in human and '--label-map "4=pass" or --label-map "4=fail"' in human
-    assert isinstance(unmapped_error([0.5]), NormaliseError)
-    assert "'" not in str(unmapped_error([0.5]))  # no single quotes: cmd.exe does not strip them

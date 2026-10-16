@@ -65,7 +65,7 @@ def test_uv_without_its_cache_folder_is_the_judgekeeper_command(monkeypatch, pre
     monkeypatch.setenv("UV", "uv")
     monkeypatch.setattr(sys, "prefix", prefix)
     assert textio.program() == "judgekeeper"
-    assert textio.program("start") == "judgekeeper start"
+    assert textio.program("mark") == "judgekeeper mark"
 
 
 def test_the_cache_folder_without_uv_is_the_judgekeeper_command(monkeypatch):
@@ -157,12 +157,6 @@ def test_the_page_says_to_run_uvx_in_the_terminal(here, capsys, by_uvx):
         session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 5})
     text = page.marking_session(ws).summary()["status"]["text"]
     assert text.endswith(f"When you're done, run {UVX} in your terminal."), text
-
-
-def test_start_names_uvx_start(here, capsys, by_uvx):
-    promptfoo_project(here, split(20, 16))
-    _, out, _ = run(capsys, "start", "--no-browser", "--port", "0")
-    assert f"{UVX} start" in out and not _bare_commands(out), out
 
 
 def test_without_uvx_nothing_changes(here, capsys, no_browser, monkeypatch):

@@ -10,28 +10,18 @@ import subprocess
 
 import pytest
 
-from judgekeeper import start, start_label, start_review
+from judgekeeper import start, start_label
 from judgekeeper.cli import main
 from judgekeeper.start_again import move_to_previous
 from judgekeeper.start_label import GITIGNORE, Workspace
 from judgekeeper.textio import link_in, write_replacing
 from tests.start_projects import promptfoo_project, records_project, split
-from tests.test_start_review import _reviewable
 
 VICTIM = "a file outside the project\n"
 
 
 def _quiet(line=""):
     pass
-
-
-@pytest.fixture
-def served(monkeypatch):
-    """Serving the page is replaced, so a run that went too far ends instead of waiting."""
-    calls = []
-    monkeypatch.setattr(start_label, "serve_workspace",
-                        lambda ws, *a, **k: calls.append(ws) or 0)
-    return calls
 
 
 def _link(link, target, folder=False):
@@ -48,53 +38,38 @@ def _victim(tmp_path):
     return victim
 
 
-def _start(capsys, *argv):
-    code = main(["start", *map(str, argv), "--yes", "--no-browser"])
+def _run(capsys, *argv):
+    code = main([*map(str, argv), "--yes", "--no-browser"])
     out, err = capsys.readouterr()
     return code, out, err
 
 
 @pytest.mark.parametrize("name", ["pool.jsonl", "result.html", "start.json"])
-def test_a_link_in_judgekeeper_stops_start_and_the_file_it_points_to_is_unchanged(
-        tmp_path, capsys, served, name):
+def test_a_link_in_judgekeeper_stops_it_and_the_file_it_points_to_is_unchanged(
+        tmp_path, capsys, pages, name):
     project = tmp_path / "project"
     promptfoo_project(project, split(20, 16))
     victim = _victim(tmp_path)
     (project / ".judgekeeper").mkdir()
     _link(project / ".judgekeeper" / name, victim)
-    code, _, err = _start(capsys, project)
-    assert code == 2 and served == []
+    code, _, err = _run(capsys, project)
+    assert code == 2 and pages[0] == []
     assert (f".judgekeeper/{name} is a link to another file. judgekeeper does not write "
             "through links. Remove it, then run judgekeeper again.") in err
     assert victim.read_text(encoding="utf-8") == VICTIM
     assert sorted(p.name for p in (project / ".judgekeeper").iterdir()) == [name]
 
 
-def test_judgekeeper_itself_as_a_link_stops_start(tmp_path, capsys, served):
+def test_judgekeeper_itself_as_a_link_stops_it(tmp_path, capsys, pages):
     project = tmp_path / "project"
     promptfoo_project(project, split(20, 16))
     outside = tmp_path / "outside"
     outside.mkdir()
     _link(project / ".judgekeeper", outside, folder=True)
-    code, _, err = _start(capsys, project)
-    assert code == 2 and served == []
+    code, _, err = _run(capsys, project)
+    assert code == 2 and pages[0] == []
     assert ".judgekeeper is a link to another folder. judgekeeper does not write" in err
     assert list(outside.iterdir()) == []
-
-
-def test_a_link_in_a_folder_inside_stops_the_review(tmp_path, capsys, monkeypatch):
-    def no_server(*a, **k):
-        raise AssertionError("the review page must not open")
-
-    monkeypatch.setattr(start_review, "make_server", no_server)
-    ws, _ = _reviewable(tmp_path / "project")
-    victim = _victim(tmp_path)
-    (ws.dir / "fix").mkdir(exist_ok=True)  # the result set some marks aside in it already
-    _link(ws.dir / "fix" / "prompt.txt", victim)
-    code, _, err = _start(capsys, ws.root, "--review")
-    assert code == 2
-    assert ".judgekeeper/fix/prompt.txt is a link to another file." in err
-    assert victim.read_text(encoding="utf-8") == VICTIM
 
 
 def test_writing_replaces_a_link_and_leaves_its_target(tmp_path):

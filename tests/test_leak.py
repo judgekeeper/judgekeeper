@@ -14,7 +14,7 @@ import pytest
 
 from judgekeeper import redact, start, start_label
 from judgekeeper.cli import main
-from tests.start_projects import promptfoo_project, split
+from tests.start_projects import promptfoo_project, save_result, split
 
 SENTINELS = {
     "ANTHROPIC_API_KEY": "sentinel-anthropic-4f1c9e",
@@ -72,13 +72,13 @@ def _label_everything(ws):
 
 def test_no_key_leaks_anywhere(env, capsys):
     results = _results_with_keys(env)
-    assert main(["start"]) == 3  # no terminal: it stops at the first question
+    assert main([]) == 0  # the page opens in the background
     printed = capsys.readouterr()
-    assert "Its decisions" in printed.out
+    assert "Your judge's grades:" in printed.out
     # What the page does next: save the marks and the result.
     said = []
     ws = start_label.prepare(start.find_judge(env), say=said.append)
-    start_label.save_result(ws, _label_everything(ws), say=said.append)
+    save_result(ws, _label_everything(ws), say=said.append)
     saved = [p for p in ws.dir.rglob("*") if p.is_file()]
     assert len(saved) >= 8
     results.unlink()  # the judge's own file holds the keys; judgekeeper's files must not
@@ -99,12 +99,12 @@ def test_a_failure_message_is_scrubbed_and_has_no_traceback(env, capsys, monkeyp
                               f"{SENTINELS['OPENAI_API_KEY']}. Request headers: "
                               f"{{'X-Other': '{SENTINELS['MY_GATEWAY_API_KEY']}'}}")
 
-    monkeypatch.setitem(cli.COMMANDS, "start", fails)
-    assert main(["start"]) == 2
+    monkeypatch.setitem(cli.COMMANDS, None, fails)
+    assert main([]) == 2
     err = capsys.readouterr().err
     assert "error: judgekeeper hit a problem it didn't expect" in err and "401" not in err
     assert "Traceback" not in err and "--debug" in err
-    assert main(["--debug", "start"]) == 2
+    assert main(["--debug"]) == 2
     debug = capsys.readouterr().err
     assert "Traceback" in debug
     for value in SENTINELS.values():
@@ -119,9 +119,9 @@ def test_an_mlflow_store_with_keys_never_shows_them(env, capsys, monkeypatch):
     monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
     monkeypatch.setattr(mlflow_store, "_noted", False)
     build_mlflow_store(env, note=f" (debug: {KEYS})")
-    assert main(["start", "--metric", "correctness"]) == 3
+    assert main(["--metric", "correctness"]) == 3  # too few answers for a result
     printed = capsys.readouterr()
-    assert "Its decisions" in printed.out
+    assert "Your judge's grades:" in printed.out
     for value in SENTINELS.values():
         assert value not in printed.out + printed.err
     said = []

@@ -1,4 +1,4 @@
-"""The local labeling page that `judgekeeper start` serves: a session of items and labels, and
+"""The local labeling page that judgekeeper serves: a session of items and labels, and
 the server for it.
 
 Standard library only. The server binds 127.0.0.1, serves one self-contained page (inline CSS
@@ -27,17 +27,11 @@ link (judgekeeper's own requests, `ask`, send the Origin).
 The caller passes the page (start_page.py) and a `result` function: GET /result answers with
 the result page, a static HTML page that runs no script. Once every item is labeled, none
 deferred (finished), the server stops right after serving that page, or RESULT_WAIT seconds
-after the last item if nobody fetches it; not after a click the session's `asks_why` says
-leaves the page on its Why? box, which can take longer. While an item is deferred, the page
+after the last item if nobody fetches it. While an item is deferred, the page
 offers to look at it again, so the server keeps serving (until Ctrl-C or IDLE_TIMEOUT), also
 after the result page; the page asking again (GET /, /state) or a label taken back (undo)
 stops the RESULT_WAIT count. A server that `stays` (the page `judgekeeper mark` serves) never
-stops by itself after the result: the person may mark more. It may also pass `switches`: a GET of one of their paths swaps
-the session, the page and the result function (from labeling to the review of the
-disagreements) and sends the browser back to the page; a switch that returns None leaves them
-as they are. A session may answer POSTs to paths of its own (`posts`: path -> a function from
-the JSON body to the JSON answer), under the same token and Host rules, and say what a body
-too big to read means on one (`too_long`: path -> the error).
+stops by itself after the result: the person may mark more.
 """
 
 from __future__ import annotations
@@ -309,15 +303,12 @@ class _HTTPServer(ThreadingHTTPServer):
 
 class LabelServer:
     def __init__(self, session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
-                 page: str, switches: dict | None = None, stays: bool = False,
-                 token: str | None = None):
+                 page: str, stays: bool = False, token: str | None = None):
         self.session = session
         self.stays = stays  # never stops by itself after the result
         # (session, link back to the labeling page) -> the result page (HTML), for GET /result
         self.result = result
         self.template = page
-        # path -> a function returning the (session, page, result) to switch to, or None
-        self.switches = switches or {}
         self.done_at: float | None = None
         self.token = token or secrets.token_urlsafe(32)
         self.stop_secret = secrets.token_urlsafe(32)  # closes the page; can't read or mark
@@ -507,13 +498,6 @@ def _handler(server: LabelServer):
                            {"Content-Security-Policy": csp})
             elif url.path == "/state":
                 self._json(200, server.session.state())
-            elif url.path in server.switches:
-                swapped = server.switches[url.path]()
-                if swapped is not None:
-                    server.session, server.template, server.result = swapped
-                    server.done_at = None
-                self._send(303, b"", "text/plain; charset=utf-8",
-                           {"Location": f"/?token={server.token}"})
             elif url.path == "/result" and server.result is not None:
                 try:
                     page = server.result(server.session, f"/?token={server.token}")
@@ -544,8 +528,7 @@ def _handler(server: LabelServer):
                 server.session.link = PRINTED
                 self._json(200, {"printed": True})
                 return
-            posts = getattr(server.session, "posts", {})
-            if url.path != "/label" and url.path not in posts:
+            if url.path != "/label":
                 self._json(404, {"error": "not found"})
                 return
             try:
@@ -553,8 +536,7 @@ def _handler(server: LabelServer):
             except ValueError:
                 length = 0
             if length > MAX_BODY:
-                too_long = getattr(server.session, "too_long", {})
-                self._json(413, {"error": too_long.get(url.path, TOO_LARGE)})
+                self._json(413, {"error": TOO_LARGE})
                 return
             try:
                 if raw is None:
@@ -562,18 +544,10 @@ def _handler(server: LabelServer):
                 body = json.loads(raw)
                 if not isinstance(body, dict):
                     raise TypeError("expected a JSON object")
-                if url.path == "/label" and not isinstance(body.get("id"), str):
+                if not isinstance(body.get("id"), str):
                     raise TypeError("expected a JSON object with an id")
             except (ValueError, TypeError, UnicodeDecodeError) as e:
                 self._json(400, {"error": str(e)})
-                return
-            if url.path in posts:
-                try:
-                    self._json(200, posts[url.path](body))
-                except (ValueError, TypeError) as e:
-                    self._json(400, {"error": str(e)})
-                except OSError as e:
-                    self._json(500, {"error": describe_os_error(e) or str(e)})
                 return
             if body["id"] not in server.session.by_id:
                 self._json(404, {"error": "no item with that id"})
@@ -592,9 +566,7 @@ def _handler(server: LabelServer):
             if server.stays:
                 return
             if server.result is not None and server.finished():
-                if getattr(server.session, "asks_why", lambda body: False)(body):
-                    server.done_at = None  # the page waits for a why; its GET /result stops
-                elif server.done_at is None:
+                if server.done_at is None:
                     server.done_at = time.monotonic()
             else:  # a skip, or a label taken back: the page goes on
                 server.done_at = None
@@ -603,8 +575,7 @@ def _handler(server: LabelServer):
 
 
 def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
-                page: str, switches: dict | None = None,
-                lock: Path | None = None, stays: bool = False,
+                page: str, lock: Path | None = None, stays: bool = False,
                 token: str | None = None) -> LabelServer:
     """A server for `session`, or a LabelError that says why there cannot be one. With `lock`
     (the project's .judgekeeper/), one server per project: when its page is already open,
@@ -620,8 +591,8 @@ def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
     if unwritable:
         raise LabelError(unwritable)
     try:
-        server = LabelServer(session, port, result=result, page=page, switches=switches,
-                             stays=stays, token=token)
+        server = LabelServer(session, port, result=result, page=page, stays=stays,
+                             token=token)
     except OSError as e:
         raise LabelError(f"cannot listen on {HOST}:{port} ({e.strerror}); try --port") from None
     if lock is not None:

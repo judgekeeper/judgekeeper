@@ -44,7 +44,6 @@ _LEADING = re.compile(r"\A\s*(pass|fail)\b", re.IGNORECASE)
 _RULE = re.compile(r"\A\s*([A-Za-z_]\w*)?\s*(>=|<=|==|>|<)\s*(-?\d+(?:\.\d+)?|-?\.\d+)\s*\Z")
 _OPS = {">=": operator.ge, "<=": operator.le, ">": operator.gt, "<": operator.lt,
         "==": operator.eq}
-_MAX_LISTED = 20
 # Double quotes: they work in every shell, cmd.exe included.
 PASS_IF_EXAMPLE = '--pass-if "score>=0.5"'
 
@@ -215,32 +214,3 @@ def _numeric(v) -> bool:
     return True
 
 
-def unmapped_error(values, what: str = "verdict", pass_if: bool = True) -> NormaliseError:
-    """One usage error listing every unmapped value, and what to do about them.
-
-    Words are mapped with --label-map. Numbers need a --pass-if rule; `pass_if=False` is for
-    human labels and pairwise verdicts, which take no such rule, so numbers there are mapped
-    like words.
-    """
-    seen = list(dict.fromkeys(values))
-    shown = ", ".join(repr(v) for v in seen[:_MAX_LISTED])
-    more = f" and {len(seen) - _MAX_LISTED} more" if len(seen) > _MAX_LISTED else ""
-    listed = f"unmapped {what} values: {shown}{more}."
-    numbers = [v for v in seen if pass_if and _numeric(v)]
-    words = [v for v in seen if not (pass_if and _numeric(v))]
-    if numbers and not words:
-        return NormaliseError(f"{listed} These are numbers: say which scores pass with "
-                              f"--pass-if, e.g. {PASS_IF_EXAMPLE}")
-    hint = f"; numbers need --pass-if, e.g. {PASS_IF_EXAMPLE}" if numbers else ""
-    return NormaliseError(
-        f"{listed} judgekeeper does not guess: map them with {label_map_hint(words)}{hint}"
-    )
-
-
-def label_map_hint(seen: list) -> str:
-    """How to map unknown words, without guessing which side a word is on: a wrong guess
-    would turn fails into passes."""
-    words = [str(v) for v in seen if isinstance(v, str)] or ["good"]
-    w = words[0]
-    more = "; map several at once with commas" if len(words) > 1 else ""
-    return f'--label-map "{w}=pass" or --label-map "{w}=fail", whichever it means{more}'

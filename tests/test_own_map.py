@@ -16,13 +16,11 @@ import pytest
 
 from judgekeeper import background, start
 from judgekeeper.cli import main
-from judgekeeper.readers.mapped import CHANGED_SHAPE
 from judgekeeper.textio import quote_arg
 from tests.start_projects import (
     flat_jsonl,
     nested_runs_project,
     promptfoo_project,
-    records_project,
     split,
 )
 from tests.test_front import next_lines
@@ -44,19 +42,6 @@ def terminal(monkeypatch):
 
     monkeypatch.setattr(builtins, "input", fake_input)
     return answers, asked
-
-
-@pytest.fixture(autouse=True)
-def no_labeling(monkeypatch):
-    calls = []
-
-    def run_labeling(found, port, open_browser, say, command="judgekeeper start"):
-        calls.append(found)
-        say("(labeling page)")
-        return 0
-
-    monkeypatch.setattr("judgekeeper.start_label.run_labeling", run_labeling)
-    return calls
 
 
 def check(capsys, *argv):
@@ -122,22 +107,6 @@ def test_nested_runs_files_after_the_yes(tmp_path, capsys, terminal):
     assert table["map"]["leave_out"] is True
     assert not (tmp_path / ".gitignore").exists()  # .judgekeeper/ has its own
     assert (tmp_path / "requirements-dev.txt").read_text(encoding="utf-8") == "pytest\n"
-
-
-def test_then_start_reads_judgekeeper_toml(tmp_path, capsys, terminal, no_labeling):
-    answers, _ = terminal
-    nested_runs_project(tmp_path, runs=3, cases=8, rule_rows=1)
-    answers += ["", "", "1", "", ""]
-    check(capsys, tmp_path)
-    fresh(tmp_path)
-    answers += [""]  # start: open the labeling page? yes
-    code = main(["start", str(tmp_path)])
-    out = capsys.readouterr().out
-    assert code == 0
-    assert "  Eval tool       your own format (read as judgekeeper.toml says)" in out
-    assert "  Judge model     claude-opus-5" in out
-    (found,) = no_labeling
-    assert found.tool == "mapped" and len(found.pool.answers) == 42  # 48 less 6 rule-made
 
 
 def test_then_judgekeeper_reads_it_without_a_question(tmp_path, capsys, terminal):
@@ -315,19 +284,6 @@ def test_an_eval_tool_is_read_as_it_is(tmp_path, capsys):
     assert not (tmp_path / "judgekeeper.toml").exists()  # nothing was asked
 
 
-def test_the_saved_tool_is_used_without_asking(tmp_path, capsys, no_labeling):
-    promptfoo_project(tmp_path, split(20, 16))
-    records_project(tmp_path, split(20, 16))
-    (tmp_path / "judgekeeper.toml").write_text('[start]\nsource = "promptfoo"\n',
-                                                encoding="utf-8")
-    code, out = check(capsys, tmp_path)
-    assert code == 0 and "Eval tool:   promptfoo" in out
-    fresh(tmp_path)
-    code = main(["start", str(tmp_path), "--yes"])
-    capsys.readouterr()
-    assert code == 0 and no_labeling[0].tool == "promptfoo"
-
-
 # judgekeeper.toml ------------------------------------------------------------------------
 
 def test_saving_replaces_only_its_own_table(tmp_path, capsys):
@@ -349,20 +305,6 @@ def test_a_shape_judgekeeper_does_not_edit_is_left_alone(tmp_path, capsys):
     code, out = check(capsys, tmp_path, "--yes")
     assert code == 2 and "judgekeeper.toml" in out
     assert (tmp_path / "judgekeeper.toml").read_text(encoding="utf-8") == odd
-
-
-def test_a_changed_shape_says_how_to_map_it_again(tmp_path, capsys, terminal):
-    answers, _ = terminal
-    path = nested_runs_project(tmp_path, rule_rows=0)
-    answers += ["", "", "1", ""]
-    check(capsys, tmp_path)
-    fresh(tmp_path)
-    path.write_text(path.read_text(encoding="utf-8").replace('"cases"', '"items"'),
-                    encoding="utf-8")
-    code, out = check(capsys, "start", tmp_path, "--yes")
-    assert code == 2
-    assert CHANGED_SHAPE.format(program="judgekeeper") in out
-    assert "judgekeeper setup" not in CHANGED_SHAPE
 
 
 @pytest.mark.parametrize("line_end", [b"\r\n", b"\n"])

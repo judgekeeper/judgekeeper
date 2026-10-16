@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import re
 
-PRICES_READ = "2026-10-05"
 PRICES = {
     "gpt-4.1": (2.00, 8.00),
     "gpt-4.1-mini": (0.40, 1.60),
@@ -92,28 +91,3 @@ def money(x: float) -> str:
     return "less than $0.01" if x < 0.01 else f"${x:,.2f}"
 
 
-FREE = "Free: it runs on your computer."
-
-
-def amount(low: float, high: float) -> str:
-    """A cost range in words: "less than $0.01", "up to $0.02" or "about $0.50 to $2.50"."""
-    if high < 0.01:
-        return "less than $0.01"
-    if low < 0.01:
-        return f"up to {money(high)}"
-    return f"about {money(low)} to {money(high)}"
-
-
-def cost_line(model: str | None, provider: str | None,
-              tokens: list[tuple[int, int]]) -> str:
-    from judgekeeper.keys import PROVIDERS, provider_of
-
-    if provider_of(model, provider) == "ollama":
-        return FREE
-    est = estimate(model, tokens)
-    if est is None:
-        return f"Cost unknown for this model ({model})."
-    low, high = est
-    who = f"{PROVIDERS[provider].label}'s" if provider in PROVIDERS else "list"
-    words = amount(low, high)
-    return f"{words[0].upper()}{words[1:]} at {who} prices from {PRICES_READ}; check your provider."

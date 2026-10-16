@@ -1,6 +1,6 @@
-"""TPR, TNR and kappa corrected for how `judgekeeper start` picks answers. Plain Python.
+"""TPR, TNR and kappa corrected for how judgekeeper picks answers. Plain Python.
 
-`start` shows the person half answers the judge passed and half it failed, far more fails
+judgekeeper shows the person half answers the judge passed and half it failed, far more fails
 than the pool usually holds, so plain rates over the labeled answers would be wrong. The
 rates are worked out per group and weighted by group size (the Begg-Greenes correction).
 
@@ -316,29 +316,3 @@ def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: in
     return out
 
 
-def steadiness(groups: dict[str, tuple[int, int]], n_pool_pass: int,
-               n_pool_fail: int) -> dict:
-    """The share of answers whose fresh verdicts are not all the same, weighted by the pool's
-    groups. `groups` maps "pass" and "fail" (the saved verdicts) to (answers asked, of them
-    changed)."""
-    total = n_pool_pass + n_pool_fail
-    pi = _div(n_pool_pass, total)
-    rates, ends = {}, {}
-    for g, pool in (("pass", n_pool_pass), ("fail", n_pool_fail)):
-        n, changed = groups.get(g, (0, 0))
-        if pool == 0:
-            rates[g], ends[g] = 0.0, (0.0, 0.0)
-        else:
-            rates[g], ends[g] = _div(changed, n), wilson(changed, n)
-    out = {"changed": sum(c for _, c in groups.values()),
-           "of": sum(n for n, _ in groups.values()),
-           "groups": {g: {"asked": n, "changed": c} for g, (n, c) in groups.items()}}
-    if pi is None or None in (rates["pass"], rates["fail"]):
-        return {**out, "rate": None, "interval": [None, None]}
-
-    def mix(a, b):
-        return pi * a + (1 - pi) * b
-
-    return {**out, "rate": mix(rates["pass"], rates["fail"]),
-            "interval": [mix(ends["pass"][0], ends["fail"][0]),
-                         mix(ends["pass"][1], ends["fail"][1])]}

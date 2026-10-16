@@ -1,9 +1,9 @@
-"""Temporary projects for `judgekeeper start`, one per eval tool, built from the fixtures.
+"""Temporary projects for `judgekeeper`, one per eval tool, built from the fixtures.
 
 Each writer takes the judge's verdicts as a list: True (pass), False (fail), or a raw value
 written as it is (None for a judge error, "maybe" for a value no label map knows). Answer
 `i` has the question `Question {i}?` and the answer `Answer {i}.`; `tag` is put into both, so
-a test can look for answer text in what `start` prints.
+a test can look for answer text in what judgekeeper prints.
 """
 
 from __future__ import annotations
@@ -330,3 +330,11 @@ def coach_project(root: Path, **kwargs) -> Path:
     path.write_text("".join(json.dumps(line) + "\n" for line in coach_runs_data(**kwargs)),
                     encoding="utf-8")
     return path
+
+
+def save_result(ws, session, say=None, command: str | None = None) -> dict:
+    """The result of the marks so far, as `judgekeeper` makes it (start_label.store_result);
+    `say` is not used: the result is said by the command, not here."""
+    from judgekeeper import start_label
+
+    return start_label.store_result(ws, session, command)

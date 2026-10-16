@@ -8,7 +8,7 @@ import json
 import pytest
 
 from judgekeeper import marks, start, start_label
-from tests.start_projects import promptfoo_project, split
+from tests.start_projects import promptfoo_project, save_result, split
 
 
 @pytest.fixture
@@ -75,19 +75,19 @@ def test_marks_made_through_a_printed_link_are_said(ws):
 
 
 def test_the_result_keeps_how_the_marks_were_made_and_the_smallest_drop(ws):
-    r = start_label.save_result(ws, _mark(ws, seconds=0.5), say=lambda line: None)
+    r = save_result(ws, _mark(ws, seconds=0.5), say=lambda line: None)
     assert r["made"] == {"marks": 40, "pass": 20, "fail": 20, "sittings": 1, "seconds": 0,
                          "under_second": 40, "not_counted": 0, "printed": 0}
     assert r["smallest_drop"] == 25
 
 
 def test_no_smallest_drop_under_fifteen_of_each(ws):
-    r = start_label.save_result(ws, _mark(ws, n=20), say=lambda line: None)
+    r = save_result(ws, _mark(ws, n=20), say=lambda line: None)
     assert r["smallest_drop"] is None
 
 
 def test_the_report_page_says_both_new_lines(ws):
-    start_label.save_result(ws, _mark(ws), say=lambda line: None)
+    save_result(ws, _mark(ws), say=lambda line: None)
     page = (ws.dir / "report.html").read_text(encoding="utf-8")
     assert "Your marks: 40 (20 Pass, 20 Fail), made on the page in 1 sitting, about 9 seconds " \
            "each." in page
@@ -99,7 +99,7 @@ def test_the_report_page_says_both_new_lines(ws):
 
 def test_report_html_replaces_result_html(ws):
     (ws.dir / "result.html").write_text("<p>old</p>", encoding="utf-8")
-    start_label.save_result(ws, _mark(ws), say=lambda line: None)
+    save_result(ws, _mark(ws), say=lambda line: None)
     assert (ws.dir / "report.html").is_file()
     assert not (ws.dir / "result.html").exists()
 
@@ -108,10 +108,10 @@ def test_report_html_replaces_result_html(ws):
 
 def test_one_history_line_per_new_set_of_marks(ws):
     session = _mark(ws, n=34)
-    start_label.save_result(ws, session, say=lambda line: None)
-    start_label.save_result(ws, start_label.StartSession(ws), say=lambda line: None)
+    save_result(ws, session, say=lambda line: None)
+    save_result(ws, start_label.StartSession(ws), say=lambda line: None)
     assert len(_history(ws)) == 1
-    start_label.save_result(ws, _mark(ws), say=lambda line: None)
+    save_result(ws, _mark(ws), say=lambda line: None)
     first, second = _history(ws)
     assert (first["marks"], second["marks"]) == (34, 40)
     assert second["kind"] == "result"
@@ -124,7 +124,7 @@ def test_one_history_line_per_new_set_of_marks(ws):
 
 
 def test_no_answer_text_or_ids_in_the_history(ws):
-    start_label.save_result(ws, _mark(ws), say=lambda line: None)
+    save_result(ws, _mark(ws), say=lambda line: None)
     text = (ws.dir / "history.jsonl").read_text(encoding="utf-8")
     assert "SECRET-TEXT" not in text and "Question" not in text
     for q in ws.data()["queue"]:

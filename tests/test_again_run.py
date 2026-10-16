@@ -11,9 +11,7 @@ from __future__ import annotations
 
 import builtins
 import json
-import re
 import shutil
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -24,11 +22,15 @@ from judgekeeper.again import AgainOptions, make_plan
 from judgekeeper.again import promptfoo as pf
 from judgekeeper.cli import main
 from judgekeeper.judgments import read_run
-from judgekeeper.start_label import StartSession, save_result
-from judgekeeper.textio import quote_arg
+from judgekeeper.start_label import StartSession
 from tests import keyboard
 from tests.conftest import FIXTURES
-from tests.start_projects import project_promptfoo, promptfoo_project, split, table_project
+from tests.start_projects import (
+    project_promptfoo,
+    promptfoo_project,
+    save_result,
+    split,
+)
 
 CONFIG = ".judgekeeper-regrade.promptfoo.json"
 TESTS = ".judgekeeper-regrade.tests.json"
@@ -58,15 +60,6 @@ def _edit(root, change):
 
 def _version(data):
     data.setdefault("metadata", {})["promptfooVersion"] = "0.123.1"
-
-
-def _rendered(text="the grading prompt"):
-    def change(data):
-        for row in data["results"]["results"]:
-            for c in row["gradingResult"]["componentResults"]:
-                c.setdefault("metadata", {})["renderedGradingPrompt"] = (
-                    f"{text} for {row['vars']['question']}")
-    return change
 
 
 class FakePromptfoo:
@@ -160,8 +153,53 @@ def terminal(monkeypatch):
     return answers
 
 
+class _Said:
+    """The talk a tool's run gets, as `judgekeeper check` gives it: every line kept."""
+
+    quiet = False
+    yes = False
+
+    def __init__(self):
+        self.lines: list[str] = []
+
+    def say(self, text: str = "") -> None:
+        self.lines.append(text)
+
+
+def ask_again(ws, *argv) -> tuple[int, str]:
+    """Ask the judge again about the marked answers, as `judgekeeper check` and `fix` do: the
+    plan, the tool's run, and one run file per time asked. `argv` may hold --times N,
+    --fields LIST and --python PATH. (exit code, what the run said)."""
+    from judgekeeper.again.fresh import AgainError, write_files
+
+    args = [str(a) for a in argv]
+    value = {flag: args[args.index(flag) + 1] for flag in
+             ("--times", "--fields", "--python") if flag in args}
+    options = AgainOptions(times=int(value["--times"]) if "--times" in value else None,
+                           fields=value.get("--fields"), python=value.get("--python"))
+    plan = make_plan(ws, options, dry=True)
+    if plan.status == again.CANT:
+        return 0, plan.why
+    said = _Said()
+    try:
+        fresh = again.run_tool(ws, plan, said)
+    except AgainError as e:
+        return 1, str(e)
+    except KeyboardInterrupt:
+        return 130, "\n".join(said.lines)
+    write_files(ws, plan, fresh)
+    return 0, "\n".join(said.lines)
+
+
 def run(capsys, *argv):
-    code = main(["start", *map(str, argv)])
+    """`judgekeeper` with `argv`; with --ask-again, the judge asked again (ask_again)."""
+    args = [str(a) for a in argv]
+    if "--ask-again" in args:
+        ws = start_label.Workspace(Path(args[0]))
+        code, out = ask_again(ws, *args[1:])
+        capsys.readouterr()
+        return code, out, ""
+    code = main(args)
     out, err = capsys.readouterr()
     return code, out, err
 
@@ -175,7 +213,7 @@ def _again_dir(ws):
 
 def test_the_two_files_follow_promptfoos_shape(fake, capsys):
     ws = fake.ws
-    code, _, _ = run(capsys, ws.root, "--ask-again", "--allow-calls", "72")
+    code, _, _ = run(capsys, ws.root, "--ask-again")
     assert code == 0
     config, tests = fake.files_seen["config"], fake.files_seen["tests"]
     assert config == {"description": "judgekeeper re-check (temporary file)",
@@ -197,7 +235,7 @@ def test_the_two_files_follow_promptfoos_shape(fake, capsys):
 
 def test_the_command_has_every_flag_and_setting_and_never_grader(fake, capsys):
     ws = fake.ws
-    run(capsys, ws.root, "--ask-again", "--allow-calls", "72")
+    run(capsys, ws.root, "--ask-again")
     (call,) = [c for c in fake.calls if "eval" in c.argv]
     argv = call.argv
     assert argv[:4] == [again.node_bin(ws.root, "promptfoo"), "eval", "-c", CONFIG]
@@ -216,13 +254,13 @@ def test_the_command_has_every_flag_and_setting_and_never_grader(fake, capsys):
 
 
 def test_the_two_files_are_removed_after_success(fake, capsys):
-    run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
+    run(capsys, fake.ws.root, "--ask-again")
     assert not (fake.ws.root / CONFIG).exists() and not (fake.ws.root / TESTS).exists()
 
 
 def test_the_two_files_are_removed_after_an_error(fake, capsys):
     fake.code, fake.stderr = 1, f"Error: provider failed with key {SECRET}\n"
-    code, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
+    code, out, _ = run(capsys, fake.ws.root, "--ask-again")
     assert code == 1
     assert "promptfoo did not finish: Error: provider failed with key [REDACTED]" in out
     assert SECRET not in out
@@ -231,36 +269,24 @@ def test_the_two_files_are_removed_after_an_error(fake, capsys):
 
 def test_the_two_files_are_removed_after_ctrl_c(fake, capsys):
     fake.interrupt = True
-    code, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
+    code, _out, _ = run(capsys, fake.ws.root, "--ask-again")
     assert code == 130
-    assert "Stopped. Nothing was saved." in out
     assert not (fake.ws.root / CONFIG).exists() and not (fake.ws.root / TESTS).exists()
 
 
 def test_the_run_says_the_files_before_it_starts(fake, capsys):
-    _, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
+    _, out, _ = run(capsys, fake.ws.root, "--ask-again")
     assert (f"Writing {CONFIG} and {TESTS} next to promptfooconfig.yaml; they are removed "
             "when promptfoo is done.") in out
 
 
 def test_exit_100_is_finished(fake, capsys):
     fake.flips = {(a["id"], 0) for a in again.labeled_answers(fake.ws)[:3]}
-    code, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
+    code, out, _ = run(capsys, fake.ws.root, "--ask-again")
     assert code == 0 and "promptfoo did not finish" not in out
 
 
 # Which promptfoo ---------------------------------------------------------------------------
-
-def test_npx_is_asked_about_and_defaults_to_no(fake, capsys, terminal, monkeypatch):
-    (fake.ws.root / "node_modules").rename(fake.ws.root / "node_modules-gone")
-    monkeypatch.setattr(again, "which", lambda name: "/usr/bin/npx" if name == "npx" else None)
-    terminal += ["y", ""]  # yes to spending, then Enter at the download question
-    code, out, _ = run(capsys, fake.ws.root, "--ask-again")
-    assert code == 0
-    assert ("promptfoo 0.123.1 is not installed here. Download it with npx --yes "
-            "promptfoo@0.123.1? [y/N]") in out
-    assert "Your judge was not called; nothing was spent." in out
-    assert not any("eval" in c.argv for c in fake.calls)
 
 
 def test_npx_runs_after_a_yes(fake, capsys, terminal, monkeypatch):
@@ -272,152 +298,18 @@ def test_npx_runs_after_a_yes(fake, capsys, terminal, monkeypatch):
     assert code == 0 and call.argv[:4] == ["/usr/bin/npx", "--yes", "promptfoo@0.123.1", "eval"]
 
 
-def test_npx_needs_a_terminal(fake, capsys, monkeypatch):
-    (fake.ws.root / "node_modules").rename(fake.ws.root / "node_modules-gone")
-    monkeypatch.setattr(again, "which", lambda name: "/usr/bin/npx" if name == "npx" else None)
-    code, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    assert code == start.EXIT_QUESTION
-    assert "npm install --save-dev promptfoo@0.123.1" in out
-
-
-# The spending question ---------------------------------------------------------------------
-
-def test_no_spends_nothing(fake, capsys, terminal):
-    code, out, _ = run(capsys, fake.ws.root, "--ask-again")
-    assert code == 0
-    assert "Go ahead? [y/N]" in out
-    assert out.rstrip().endswith("Your judge was not called; nothing was spent.")
-    assert not any("eval" in c.argv for c in fake.calls)
-    assert not (fake.ws.dir / "again").exists()
-
-
-def test_yes_at_the_terminal_runs(fake, capsys, terminal):
-    terminal += ["y"]
-    code, out, _ = run(capsys, fake.ws.root, "--ask-again")
-    assert code == 0 and "Asked twice more" in out
-
-
-def test_without_a_terminal_allow_calls_is_needed(fake, capsys):
-    code, out, _ = run(capsys, fake.ws.root, "--ask-again", "--yes")
-    assert code == start.EXIT_QUESTION
-    assert (f"To go ahead without a terminal: judgekeeper start {quote_arg(fake.ws.root)} "
-            "--ask-again --allow-calls 72") in out
-    assert not any("eval" in c.argv for c in fake.calls)
-
-
-def test_allow_calls_below_the_count_refuses(fake, capsys):
-    code, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "50")
-    assert code == 2 and ("--allow-calls 50 is below the 72 calls planned. Your judge was not "
-                          "called; nothing was spent.") in out
-
-
-def test_the_menu_choice_asks_too(fake, capsys, terminal):
-    terminal += ["1", ""]  # ask again; then Enter at Go ahead? (No)
-    code, out, _ = run(capsys, fake.ws.root)
-    assert code == 0 and "Go ahead? [y/N]" in out
-    assert "Your judge was not called; nothing was spent." in out
-
-
-# The numbers --------------------------------------------------------------------------------
-
-def test_steadiness_agreement_and_matches(fake, capsys):
-    ids = [a["id"] for a in again.labeled_answers(fake.ws)]
-    # three answers change their mind in the second repeat; one in the first (and so also
-    # differs from its saved verdict)
-    fake.flips = {(ids[0], 1), (ids[1], 1), (ids[2], 1), (ids[3], 0)}
-    code, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    assert code == 0
-    assert "Asked twice more, your judge changed its mind on 4 of your 36 answers." in out
-    assert "Across all your answers that is about" in out
-    assert ("When you said Pass, your judge also said Pass about 100% of the time before and "
-            "about ") in out
-    assert "Its first new decision matched the saved one on 35 of 36 answers (97%)." in out
-    block = json.loads(fake.ws.result_json.read_text(encoding="utf-8"))["again"]
-    assert block["steadiness"]["changed"] == 4 and block["matches_saved"] == pytest.approx(35 / 36)
-    assert block["status"] == "exact" and block["times"] == 2
-
-
-def test_when_every_answer_agrees_the_ranges_keep_their_width(fake, capsys):
-    run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    for block in (json.loads(fake.ws.result_json.read_text(encoding="utf-8"))["again"],
-                  json.loads((_again_dir(fake.ws) / "again.json").read_text(encoding="utf-8"))):
-        today = block["today"]
-        for key in ("tpr", "tnr"):
-            lo, hi = today[f"{key}_interval"]
-            assert today[key] == 1.0 and lo < hi == 1.0
-        assert today["interval_methods"]["tpr"] == "jeffreys"
-
-
-def test_the_kappa_value_is_saved_but_no_kappa_range(fake, capsys):
-    run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    for block in (json.loads(fake.ws.result_json.read_text(encoding="utf-8"))["again"],
-                  json.loads((_again_dir(fake.ws) / "again.json").read_text(encoding="utf-8"))):
-        today = block["today"]
-        assert today["kappa"] is not None
-        assert "kappa_interval" not in today
-        assert set(today["interval_methods"]) == {"tpr", "tnr"}
-
-
-def test_below_ninety_percent_asks_if_the_judge_changed(fake, capsys):
-    ids = [a["id"] for a in again.labeled_answers(fake.ws)]
-    fake.flips = {(i, r) for i in ids[:6] for r in (0, 1)}
-    _, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    assert ("Your judge answers differently than when your eval ran. Did its model or prompt "
-            "change?") in out
-
-
-def test_a_changed_grading_prompt_drops_that_answer(fake, capsys, tmp_path):
-    _edit(fake.ws.root, _rendered())
-    fake.saved = FakePromptfoo(fake.ws).saved
-    first = again.labeled_answers(fake.ws)[0]["id"]
-    fake.prompt_changed = {first}
-    _, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    assert ("1 answer was not counted: its grading prompt differs from the saved one, so it "
-            "was not the same judge input.") in out
-    block = json.loads(fake.ws.result_json.read_text(encoding="utf-8"))["again"]
-    assert block["counted"] == 35
-    assert block["not_counted"] == [{"id": first, "why": "grading prompt differs"}]
-
-
-def test_an_error_is_not_counted(fake, capsys):
-    first = again.labeled_answers(fake.ws)[0]["id"]
-    fake.errors = {first}
-    _, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    assert "1 answer was not counted: the judge gave no clear decision." in out
-
-
-def test_a_close_copy_says_why_once_and_so_on_every_line(fake, capsys):
-    _edit(fake.ws.root, lambda d: d.pop("metadata"))  # no promptfoo version recorded
-    fake.saved = FakePromptfoo(fake.ws).saved
-    _, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    after = out.split("Asking your judge")[-1] if "Asking your judge" in out else \
-        out.split("Go ahead")[-1]
-    after = after[after.index("This was a close copy"):]
-    assert after.count("promptfoo version not recorded") == 1
-    assert after.startswith("This was a close copy of your judge: promptfoo version not "
-                            "recorded.\n")
-    lines = [x for x in after.splitlines() if x.startswith((
-        "Asked twice", "When you said", "Its first new decision"))]
-    assert len(lines) == 4 and all(x.endswith(" (close copy)") for x in lines)
-    page = fake.ws.report_html.read_text(encoding="utf-8")
-    assert page.count("promptfoo version not recorded") == 1 and "(close copy)" in page
-
+# What it says -------------------------------------------------------------------------------
 
 def test_exactly_your_judge_has_no_close_copy_words(fake, capsys):
-    _, out, _ = run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
+    _, out, _ = run(capsys, fake.ws.root, "--ask-again")
     assert "close copy" not in out
-
-
-def test_one_time_says_steadiness_needs_two(fake, capsys):
-    _, out, _ = run(capsys, fake.ws.root, "--ask-again", "--times", "1", "--allow-calls", "36")
-    assert "Asked once more: ask at least twice to see whether it changes its mind." in out
 
 
 # The saved files ----------------------------------------------------------------------------
 
 def test_every_line_carries_the_full_fingerprint(fake, capsys):
     fake.extra = f" (key {SECRET})"
-    run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
+    run(capsys, fake.ws.root, "--ask-again")
     folder = _again_dir(fake.ws)
     assert (folder / "promptfoo.json").is_file()
     runs = sorted(folder.glob("judge-again-*.jsonl"))
@@ -441,94 +333,19 @@ def test_every_line_carries_the_full_fingerprint(fake, capsys):
 
 def test_setting_names_go_into_the_fingerprint(fake, capsys, monkeypatch):
     monkeypatch.setenv("OPENAI_TEMPERATURE", "0.9")
-    run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
+    run(capsys, fake.ws.root, "--ask-again")
     _, records = read_run(_again_dir(fake.ws) / "judge-again-1.jsonl")
     assert all(r["fingerprint"]["settings"] == ["OPENAI_TEMPERATURE"] for r in records.values())
-
-
-def test_an_earlier_again_block_goes_to_history(fake, capsys):
-    run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    first = json.loads(fake.ws.result_json.read_text(encoding="utf-8"))["again"]
-    run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    kept = list(fake.ws.history.glob("again-*.json"))
-    assert len(kept) == 1 and json.loads(kept[0].read_text(encoding="utf-8")) == first
-
-
-def test_the_result_page_shows_the_again_lines(fake, capsys):
-    run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
-    page = fake.ws.report_html.read_text(encoding="utf-8")
-    assert "Your judge, asked again" in page and "Asked twice more" in page
 
 
 def test_the_main_result_does_not_change(fake, capsys):
     before = json.loads(fake.ws.result_json.read_text(encoding="utf-8"))
     labels = fake.ws.marks.read_bytes()
-    run(capsys, fake.ws.root, "--ask-again", "--allow-calls", "72")
+    run(capsys, fake.ws.root, "--ask-again")
     after = json.loads(fake.ws.result_json.read_text(encoding="utf-8"))
     for key in ("tpr", "tnr", "kappa", "made_at", "labels"):
         assert after[key] == before[key]
     assert fake.ws.marks.read_bytes() == labels
-
-
-# Your own judge command ----------------------------------------------------------------------
-
-EXEC = FIXTURES / "exec"
-
-
-def test_the_judge_command_runs_through_exec(tmp_path, capsys, monkeypatch):
-    ws = _checked(tmp_path, maker=table_project)
-    command = f"{sys.executable} {EXEC / 'bare.py'}"
-    code, out, _ = run(capsys, ws.root, "--ask-again", "--judge-command", command,
-                       "--allow-calls", "72")
-    assert code == 0
-    assert (f"This runs `{command}` 72 times, waiting up to 5 minutes for each "
-            "answer.") in out
-    assert "  72 of 72 asked" in out  # how far it got, as it goes
-    assert "Asked twice more" in out
-    _, records = read_run(_again_dir(ws) / "judge-again-1.jsonl")
-    assert len(records) == 36
-    assert all(r["fingerprint"]["tool"] == "command" for r in records.values())
-
-
-def test_a_judge_command_that_fails_is_not_counted(tmp_path, capsys):
-    ws = _checked(tmp_path, maker=table_project)
-    command = f"{sys.executable} {EXEC / 'fails_some.py'}"
-    code, out, _ = run(capsys, ws.root, "--ask-again", "--judge-command", command,
-                       "--allow-calls", "72")
-    assert code == 0 and "not counted" in out
-    assert re.search(r"Your judge command failed on \d+ of 72 calls; those answers are not "
-                     r"counted\. First error: ", out), out
-
-
-@pytest.mark.parametrize("command", [
-    "{python} -c \"import sys; sys.exit(3)\"",  # a non-zero exit
-    "{python} -c \"print('no verdict here')\"",  # output it can't read
-    "{missing}",  # a program that is not there
-])
-def test_a_judge_command_that_always_fails_says_why_and_keeps_the_saved_numbers(
-        tmp_path, capsys, command):
-    ws = _checked(tmp_path, maker=table_project)
-    run(capsys, ws.root, "--ask-again", "--judge-command", f"{sys.executable} {EXEC / 'bare.py'}",
-        "--allow-calls", "72")  # the saved "asked again" numbers
-    before = json.loads(ws.result_json.read_text(encoding="utf-8"))["again"]
-    folders = sorted((ws.dir / "again").iterdir())
-    command = command.format(python=sys.executable, missing=tmp_path / "no-such-judge")
-    code, out, _ = run(capsys, ws.root, "--ask-again", "--judge-command", command,
-                       "--allow-calls", "72")
-    assert code == 1
-    assert "Your judge command failed on every call (72 of 72). First error: " in out
-    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["again"] == before
-    assert sorted((ws.dir / "again").iterdir()) == folders
-
-
-# Next lines ----------------------------------------------------------------------------------
-
-def test_next_says_how_to_ask_again(tmp_path):
-    ws = _checked(tmp_path)
-    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
-    assert "  Ask your judge again:  judgekeeper start --ask-again" in start_label.result_lines(r)
-    page = ws.report_html.read_text(encoding="utf-8")
-    assert "Ask your judge again" in page and "<code>judgekeeper start --ask-again</code>" in page
 
 
 # The real promptfoo (optional) -----------------------------------------------------------------

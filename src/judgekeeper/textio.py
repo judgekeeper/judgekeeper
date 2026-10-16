@@ -13,8 +13,7 @@ Four things every command shares:
   that names the path and what to do: `describe_os_error`.
 - printing a command the user can paste: `program` says how judgekeeper was started
   (`uvx judgekeeper@<version>` or `judgekeeper`), `quote_arg` and `open_command` write it for the
-  shell in use, and `split_command` reads `--judge-command` the way that shell would. On Windows that
-  is cmd.exe or PowerShell: double quotes, backslashes in paths, `start` instead of `open`.
+  shell in use. On Windows that is cmd.exe or PowerShell: double quotes, backslashes in paths, `start` instead of `open`.
 
 `tick()` is the mark in front of a line that says something was found or is ready, and
 `plural` says a count as people say it ("1 answer", "2 answers").
@@ -412,18 +411,6 @@ def quote_arg(arg: str | Path) -> str:
         escaped = str(arg).replace("\\", "\\\\").replace("'", "\\'").replace("`", "\\x60")
         return f"$'{escaped}'"
     return shlex.quote(str(arg))
-
-
-def split_command(command: str) -> list[str]:
-    """A command line as arguments.
-
-    POSIX rules elsewhere. On Windows a backslash is a path separator, not an escape, so
-    `python C:\\x\\judge.py` keeps its path; quotes around an argument are dropped.
-    """
-    if not is_windows():
-        return shlex.split(command)
-    return [a[1:-1] if len(a) >= 2 and a[0] == a[-1] and a[0] in "\"'" else a
-            for a in shlex.split(command, posix=False)]
 
 
 WIDTH = 64  # what judgekeeper says wraps here; a command in backticks is never split

@@ -15,16 +15,22 @@ import sys
 import pytest
 
 from judgekeeper import again, keys, start, start_label
-from judgekeeper.again import AgainOptions, make_plan, plan_lines, user_python
+from judgekeeper.again import AgainOptions, make_plan, user_python
 from judgekeeper.again import deepeval as de
 from judgekeeper.again import mlflow as mf
-from judgekeeper.start_label import StartSession, save_result
+from judgekeeper.start_label import StartSession
 from tests import keyboard
 from tests.again_stubs import write
 from tests.conftest import FIXTURES
-from tests.start_projects import deepeval_project, inspect_project, split
+from tests.start_projects import deepeval_project, inspect_project, save_result, split
 
 DEEPEVAL_FILE = FIXTURES / "deepeval" / "results" / "test_run_20260930_120000.json"
+
+
+@pytest.fixture(autouse=True)
+def no_keys(monkeypatch):
+    for name in keys.all_names():
+        monkeypatch.delenv(name, raising=False)
 
 
 def _quiet(line=""):
@@ -39,12 +45,6 @@ def _checked(root, maker, n_pass=20, n_fail=16, **kwargs):
         session.update({"id": q["id"], "label": q["group"]})
     save_result(ws, session, say=_quiet)
     return ws
-
-
-@pytest.fixture(autouse=True)
-def no_keys(monkeypatch):
-    for name in keys.all_names():
-        monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture
@@ -178,10 +178,6 @@ def test_the_deepeval_plan(tmp_path, stubs, terminal):
     terminal += ["", "y"]  # the fields question takes its default; the version is confirmed
     p = make_plan(ws, PY, talk=start.Talk())
     assert (p.tool, p.status, p.answers, p.calls) == ("deepeval", "exact", 36, 72)
-    lines = plan_lines(p)
-    assert any("This is exactly your judge: DeepEval 4.2.8 measures your GEval metric" in x
-               for x in lines)
-    assert any("never deepeval.evaluate()" in x for x in lines)
 
 
 def test_the_field_question_and_version_question(tmp_path, stubs, terminal, capsys):
@@ -226,8 +222,6 @@ def test_a_bare_saved_name_is_built_by_name(tmp_path, stubs, monkeypatch, termin
     terminal += ["", "y"]  # the fields as pre-selected; the version
     p = make_plan(ws, PY, talk=start.Talk())
     assert p.status == "exact" and p.model == "gpt-4.1"
-    assert ("  Your DeepEval settings pick gpt-5.4; judgekeeper builds your judge with the "
-            "model your results name, gpt-4.1, and DeepEval confirms it.") in plan_lines(p)
     checks = [e["kwargs"]["model"] for e in stubs("construct")]
     assert checks == [None, "gpt-4.1"]  # DeepEval's own pick first, then the saved name
     assert all(item["metric"]["model"] == {"name": "gpt-4.1"} for _, item in p.payload)
@@ -270,21 +264,7 @@ def test_a_deepeval_judge_on_ollama_is_said_plainly(tmp_path, stubs, monkeypatch
     ws = _deepeval_model(tmp_path, "llama3.2:3b (Ollama)", monkeypatch)
     p = make_plan(ws, PY)
     assert p.status == "cant"
-    lines = plan_lines(p)
-    assert "  A DeepEval judge on Ollama can't be asked again yet." in lines
-    assert any("--judge-command" in x for x in lines)
-    assert not any("Your judge can't be asked again" in x for x in lines)
     assert stubs("model") == []
-
-
-def test_a_deepeval_judge_on_ollama_never_shows_the_openai_error(tmp_path, stubs,
-                                                                 monkeypatch):
-    ws = _deepeval_model(tmp_path, "llama3.2:3b (Ollama)", monkeypatch)
-    monkeypatch.setattr(again, "run_worker", lambda *a, **k: {
-        "ok": False, "error": "OpenAI API key is not configured"})
-    lines = plan_lines(make_plan(ws, PY))
-    assert "  A DeepEval judge on Ollama can't be asked again yet." in lines
-    assert not any("OpenAI" in x for x in lines)
 
 
 def test_a_deepeval_judge_on_ollama_its_settings_pick_is_asked(tmp_path, stubs, monkeypatch):
@@ -292,7 +272,6 @@ def test_a_deepeval_judge_on_ollama_its_settings_pick_is_asked(tmp_path, stubs, 
                          picks="llama3.2:3b (Ollama)")
     p = make_plan(ws, PY)
     assert p.status == "close" and p.key_lines == ["Your judge runs on Ollama; it needs no key."]
-    assert "  Free: it runs on your computer." in plan_lines(p)
 
 
 @pytest.mark.parametrize("saved, spec", [
@@ -385,10 +364,6 @@ def test_the_inspect_plan(tmp_path, stubs):
     ws = _checked(tmp_path, inspect_project)
     p = make_plan(ws, PY)
     assert (p.tool, p.status, p.answers, p.calls) == ("inspect", "exact", 36, 72)
-    lines = plan_lines(p)
-    assert any("Inspect re-scores a copy of your log with the same scorer and grader" in x
-               for x in lines)
-    assert any("your log is never changed" in x for x in lines)
     assert all(0 < inp and out == 200 for inp, out in p.tokens)
 
 
@@ -401,7 +376,6 @@ def test_inspect_before_0_3_242_says_which_version_is_needed(tmp_path, stubs, mo
     assert p.status == "cant"
     assert p.why.startswith(f"asking your judge again needs Inspect AI 0.3.242 or newer, and "
                             f"your Python has {version}")
-    assert "exactly your judge" not in " ".join(plan_lines(p))
     monkeypatch.setenv("STUB_VERSION", "0.3.242")
     assert make_plan(ws, PY).status != "cant"
 
@@ -444,69 +418,6 @@ def test_inspect_classification():
                                                 builtin=True)
     assert ins.cant_reason("model_graded_qa", {"template": "Grade {answer}"},
                            builtin=True) is None
-
-
-def test_no_grader_means_the_model_under_test_judges(tmp_path, stubs):
-    ws = _checked(tmp_path, inspect_project)
-
-    def no_grader(data):
-        data["eval"]["model_roles"] = {}
-        data["eval"]["model"] = "openai/gpt-4o"
-
-    _inspect_log(tmp_path, no_grader)
-    lines = plan_lines(make_plan(ws, PY))
-    assert ("  Your judge is your model under test, openai/gpt-4o; asking again calls it as a "
-            "judge and needs its key.") in lines
-
-
-def test_the_inspect_cache_is_said(tmp_path, stubs):
-    ws = _checked(tmp_path, inspect_project)
-
-    def cached(data):
-        data["eval"].setdefault("model_generate_config", {})["cache"] = True
-
-    _inspect_log(tmp_path, cached)
-    lines = plan_lines(make_plan(ws, PY))
-    assert any("Inspect's cache is on in your log; judgekeeper turns it off" in x
-               for x in lines)
-
-
-def _openai_grader(root):
-    def change(data):
-        data["eval"]["model_roles"] = {"grader": {"model": "openai/gpt-4.1-mini", "config": {}}}
-
-    _inspect_log(root, change)
-    (root / ".env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
-
-
-def test_inspect_loads_env_with_its_own_loader(tmp_path, stubs):
-    ws = _checked(tmp_path, inspect_project)
-    _openai_grader(tmp_path)
-    lines = plan_lines(make_plan(ws, PY))
-    assert ("  Your judge will use your OpenAI key (OPENAI_API_KEY, in .env in this folder; "
-            "Inspect AI loads it).") in lines
-
-
-def test_inspect_finds_the_nearest_env_upward_as_inspect_does(tmp_path, stubs):
-    project = tmp_path / "project"
-    project.mkdir()
-    ws = _checked(project, inspect_project)
-    _openai_grader(project)
-    (project / ".env").unlink()
-    (tmp_path / ".env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
-    lines = plan_lines(make_plan(ws, PY))
-    assert any("OPENAI_API_KEY, in ../.env" in x and "Inspect AI loads it" in x for x in lines)
-
-
-def test_without_inspects_loader_the_key_must_be_in_the_shell(tmp_path, stubs, monkeypatch):
-    ws = _checked(tmp_path, inspect_project)
-    _openai_grader(tmp_path)
-    monkeypatch.setenv("STUB_NO_DOTENV", "1")
-    lines = plan_lines(make_plan(ws, PY))
-    assert any(x.startswith("  Your judge needs OPENAI_API_KEY. It is in .env in this folder, "
-                            "but Inspect AI does not load .env files when judgekeeper runs it: "
-                            "set it in your shell (")
-               and keys.set_in_shell("OPENAI_API_KEY") in x for x in lines)
 
 
 def test_the_inspect_worker_reports_its_env_loader(tmp_path, stubs, monkeypatch):
@@ -582,22 +493,6 @@ def test_the_mlflow_plan(tmp_path, stubs, monkeypatch, terminal):
     terminal += ["y"]
     p = make_plan(ws, PY, talk=start.Talk())
     assert p.status == "exact" and p.model == "openai:/gpt-4.1-mini"
-    lines = plan_lines(p)
-    assert any("never mlflow.genai.evaluate()" in x for x in lines)
-    assert ("  Your judge will use your OpenAI key (OPENAI_API_KEY, set in your shell)."
-            in lines)
-
-
-def test_a_trace_judge_is_up_to_thirty_calls(tmp_path, stubs, monkeypatch):
-    ws = _checked(tmp_path, inspect_project)
-    data = ws.data()
-    data["tool"] = "mlflow"
-    ws.start.write_text(json.dumps(data), encoding="utf-8")
-    monkeypatch.setattr(mf, "assessment_info", lambda ws, metric: _info(
-        name="tone", instructions=True, trace=True, traces=_traces(ws)))
-    p = make_plan(ws, PY)
-    assert "  36 marked answers × 2 times × 30 calls each = up to 2,160 judge calls." in \
-        plan_lines(p)
 
 
 def test_one_assessment_is_read_from_a_real_store(tmp_path):
@@ -652,6 +547,39 @@ def test_an_inspect_panel_checks_the_key_of_every_grader(tmp_path, stubs, monkey
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
     p = make_plan(ws, PY)
     assert not p.key_ok
-    assert any("ANTHROPIC_API_KEY" in x for x in plan_lines(p))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "y" * 30)
     assert make_plan(ws, PY).key_ok
+
+
+def _openai_grader(root):
+    def change(data):
+        data["eval"]["model_roles"] = {"grader": {"model": "openai/gpt-4.1-mini", "config": {}}}
+
+    _inspect_log(root, change)
+    (root / ".env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
+
+
+def test_inspect_loads_env_with_its_own_loader(tmp_path, stubs, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    ws = _checked(tmp_path, inspect_project)
+    _openai_grader(tmp_path)
+    assert make_plan(ws, PY).key_ok
+
+
+def test_inspect_finds_the_nearest_env_upward_as_inspect_does(tmp_path, stubs, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    project = tmp_path / "project"
+    project.mkdir()
+    ws = _checked(project, inspect_project)
+    _openai_grader(project)
+    (project / ".env").unlink()
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
+    assert make_plan(ws, PY).key_ok
+
+
+def test_without_inspects_loader_the_key_must_be_in_the_shell(tmp_path, stubs, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    ws = _checked(tmp_path, inspect_project)
+    _openai_grader(tmp_path)
+    monkeypatch.setenv("STUB_NO_DOTENV", "1")
+    assert not make_plan(ws, PY).key_ok
