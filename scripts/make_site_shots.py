@@ -8,18 +8,15 @@ judge, "Is polite and correct." with the model name openai:gpt-4.1-mini, decided
 answers. The judge's verdicts are saved with judgekeeper.record(), so the pages know the
 judge's rule. No judge is called, no API key is read, and nothing costs money.
 
-Then it runs `judgekeeper start` in that folder, the way a person does, and marks the answers
+Then it runs `judgekeeper --wait` in that folder, the way a person does, and marks the answers
 through the same HTTP calls the page makes (POST /label). Headless Chrome, driven over its
 DevTools protocol, takes each picture at 1440 x 900, twice the pixels, as WebP:
 
 - label.webp: the labeling page part of the way through, the dots at the top showing the marks;
-- result.webp: the result page once every answer is marked;
-- fix.webp: "What your judge gets wrong", with its "Change the rule" panel. To get there the
-  script looks again at the disagreements (`judgekeeper start --review`), says the judge was
-  wrong on each, and opens Fix your judge from that page (GET /fix).
+- result.webp: the result page once every answer is marked.
 
-Each picture must be under 250 KB; the WebP quality goes down until it is. The servers use
-ports 8801 to 8803, and the script stops them and deletes the folder when it is done.
+Each picture must be under 250 KB; the WebP quality goes down until it is. The page uses port
+8801 and Chrome 8803, and the script stops them and deletes the folder when it is done.
 Standard library only, plus judgekeeper itself.
 """
 
@@ -46,8 +43,7 @@ import judgekeeper
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "website" / "assets" / "shots"
-LABEL_PORT = 8801  # judgekeeper start
-REVIEW_PORT = 8802  # judgekeeper start --review, then Fix your judge
+LABEL_PORT = 8801  # judgekeeper --wait
 CHROME_PORT = 8803  # Chrome's DevTools
 WIDTH, HEIGHT, SCALE = 1440, 900, 2
 MAX_BYTES = 250_000
@@ -157,14 +153,6 @@ ANSWERS = [
      "them on the Refunds page."), F, P, "Says no refund: not helpful."),
 ]
 HOME = [question for question, *_ in ANSWERS[:4]]
-WHY = {  # the person's one line of why, for each disagreement, in the review
-    "Can I get a refund after 30 days?": "Made up: refunds end after 30 days.",
-    "Is my order shipped?": "Right to say it can't see orders, and it says where to look.",
-    "Is there a student discount?": "There is no student discount.",
-    "Do you price match?": "We don't price match.",
-    "Can you tell me my account password?": "It must never share a password.",
-    "Can I get a refund for a flight I missed?": "Correct policy, and polite.",
-}
 
 
 # The sample project -----------------------------------------------------------------------
@@ -197,12 +185,13 @@ def question_of(item: dict) -> str:
 # judgekeeper's own server -----------------------------------------------------------------
 
 class Start:
-    """`judgekeeper start` running in the project, with the link it prints."""
+    """`judgekeeper --wait` serving the marking page in the project, with the link it
+    prints."""
 
     def __init__(self, folder: Path, port: int, *flags: str):
         env = {**os.environ, "PYTHONUNBUFFERED": "1", "NO_COLOR": "1"}
         self.process = subprocess.Popen(
-            [sys.executable, "-m", "judgekeeper", "start", "--yes", "--no-browser",
+            [sys.executable, "-m", "judgekeeper", "--wait", "--yes", "--no-browser",
              "--port", str(port), *flags], cwd=folder, env=env, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
         self.said: list[str] = []
@@ -217,7 +206,7 @@ class Start:
             self.said.append(line.rstrip())
             if "http://127.0.0.1:" in line:
                 return line[line.index("http://"):].strip()
-        raise SystemExit("judgekeeper start printed no link:\n" + "\n".join(self.said))
+        raise SystemExit("judgekeeper printed no link:\n" + "\n".join(self.said))
 
     def _drain(self) -> None:
         for line in self.process.stdout:
@@ -235,7 +224,7 @@ class Start:
     def post(self, path: str, body: dict) -> dict:
         request = urllib.request.Request(
             self.address(path), data=json.dumps(body).encode("utf-8"), method="POST",
-            headers={"Content-Type": "application/json"})
+            headers={"Content-Type": "application/json", "Origin": self.base})
         with urllib.request.urlopen(request, timeout=30) as reply:
             return json.loads(reply.read())
 
@@ -453,30 +442,6 @@ def label_and_result(chrome: Chrome, folder: Path, out: Path) -> list[Path]:
         start.stop()
 
 
-def fix(chrome: Chrome, folder: Path, out: Path) -> list[Path]:
-    """Look again at the disagreements, say the judge was wrong, and take Fix your judge."""
-    start = Start(folder, REVIEW_PORT, "--review")
-    try:
-        state = start.get("/state")
-        for item in state["items"]:  # step 1: the second look, the same as the first
-            start.post("/label", {"id": item["id"], "second": my_mark(item)})
-        state = start.get("/state")
-        if state["step"] != "b":
-            raise SystemExit(f"the review is at step {state['step']!r}, not b")
-        for item in state["items"]:  # step 2: the judge was wrong, and why
-            start.post("/label", {"id": item["id"], "choice": "judge_wrong"})
-            start.post("/label", {"id": item["id"], "why": WHY[question_of(item)]})
-        start.get("/fix")  # the review page's link to Fix your judge
-        chrome.visit(start.url)
-        if chrome.run("document.getElementById('rc').hidden"):
-            raise SystemExit("the Change the rule panel is hidden")
-        shot = out / "fix.webp"
-        report(shot, chrome.shot(shot))
-        return [shot]
-    finally:
-        start.stop()
-
-
 def report(path: Path, saved: tuple[int, int]) -> None:
     size, quality = saved
     width, height = webp_size(path)
@@ -499,7 +464,6 @@ def main(argv: list[str] | None = None) -> int:
         make_project(folder)
         chrome = Chrome(chrome_path, work / "chrome")
         label_and_result(chrome, folder, args.out)
-        fix(chrome, folder, args.out)
     finally:
         if chrome is not None:
             chrome.close()
