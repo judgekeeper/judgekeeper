@@ -41,14 +41,6 @@ def test_the_page_link_is_read_from_the_output(ic):
     assert ic.page_link("judgekeeper found your LLM-as-a-judge:") is None
 
 
-def test_n_is_read_from_the_plan(ic):
-    plan = ("  40 marked answers × 2 times = 1,080 judge calls.\n\nTo go ahead without a "
-            "terminal: judgekeeper start --port 50000 --ask-again --allow-calls 1,080")
-    assert ic.planned_calls(plan) == 1080
-    assert ic.planned_calls("  40 marked answers × 1 time = 40 judge calls.") == 40
-    assert ic.planned_calls("Your judge can't be asked again: a custom scorer.") is None
-
-
 def test_question_numbers_come_from_any_shape(ic):
     assert ic.question_number("Question 12: what is 12 + 12?") == 12
     assert ic.question_number({"input": {"question": "Question 7: what is 7 + 7?"}}) == 7
@@ -256,8 +248,7 @@ def _walk(ic, monkeypatch, tool, project, jk=None):
 
     monkeypatch.setattr(check, "run", run, raising=False)
     monkeypatch.setattr(check, "call", call, raising=False)
-    for name in ("make_results", "serve", "fix_rule", "plan_then_go"):
-        monkeypatch.setattr(check, name, lambda *a, **k: True, raising=False)
+    monkeypatch.setattr(check, "make_results", lambda *a, **k: True, raising=False)
     check.walk()
     return ran, posted, check.steps
 
@@ -273,8 +264,7 @@ def _front(ic, commands):
 def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
     """`judgekeeper` (found, checked, the page in the background, its link printed: no
     browser), the stand-in person's marks posted to it, `judgekeeper` with the result, then
-    `judgekeeper --stop`, before `judgekeeper start` takes over the result. No page turns on
-    automatic checks."""
+    `judgekeeper --stop`. No page turns on automatic checks."""
     ran, posted, steps = _walk(ic, monkeypatch, "table", tmp_path)
     fronts, after = _front(ic, [args for args, _ in ran])
     assert fronts == [["--no-browser", "--port", "5"], ["--no-browser", "--port", "5"]]
@@ -308,9 +298,13 @@ def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tm
 
 def test_the_walk_ends_with_the_re_check(ic, monkeypatch, tmp_path):
     """With the new rule in the results: `check --yes` (the person's yes to any calls, with no
-    terminal) re-tests it on the marks; no flag of the automatic checks is run."""
+    terminal) re-tests it on the marks; no flag of the automatic checks is run, and no step
+    runs `judgekeeper start`, which is gone."""
     ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path)
     commands = [args for args, _ in ran]
+    assert not [c for c in commands if c[:1] == ["start"]]
+    end = commands.index(["--stop"])
+    assert commands[end + 1:] == [["fix"], ["fix", "--yes"], ["check", "--yes"]]
     assert [c for c in commands if c[:1] == ["check"]] == [["check", "--yes"]]
     assert commands[-1] == ["check", "--yes"]
     assert any("Re-checked on" in e for e in ran[-1][1])
@@ -334,8 +328,7 @@ def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch, tmp_p
 
 def test_the_walk_runs_fix_after_the_result(ic, monkeypatch, tmp_path):
     """`judgekeeper fix` (where the judge goes wrong), then for a judge whose rule it can swap,
-    a new rule in .judgekeeper/fix/rule.txt and `judgekeeper fix --yes` (the test); then
-    `judgekeeper start` takes over as before."""
+    a new rule in .judgekeeper/fix/rule.txt and `judgekeeper fix --yes` (the test)."""
     ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path)
     commands = [args for args, _ in ran]
     end = commands.index(["--stop"])
