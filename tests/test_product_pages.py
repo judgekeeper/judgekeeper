@@ -74,7 +74,8 @@ def test_every_page_carries_the_two_colour_logo():
         assert "#1F6B4A\"/>" not in page, name  # never a one-colour shield
     for name, page in _new().items():
         assert page.count(look.SHIELD) == page.count('class="logo-tile"') >= 1, name
-        assert look.SLATE in page, name  # the left half in dark
+        assert f'.logo-tile svg {{ {look.DARK_LOGO} }}' in page, name  # outlined in dark
+        assert "#64748B" not in page, name  # the official colours in dark too
 
 
 def test_the_logo_is_the_websites():

@@ -21,12 +21,13 @@ FONTS = (("manrope-latin-wght-normal.woff2", SANS, "200 800"),
          ("jetbrains-mono-latin-400-normal.woff2", MONO, "400"))
 FONT_LICENCES = ("OFL-Manrope.txt", "OFL-JetBrainsMono.txt")
 NAVY, GREEN = "#1E293B", "#10B981"  # the logo's two halves: the judge and the person
-SLATE = "#64748B"  # the judge's half in dark
+# In dark the logo keeps its colours; a thin light outline keeps the navy half visible on black.
+DARK_LOGO = ("filter: drop-shadow(0 0 1px rgba(255,255,255,.55)) "
+             "drop-shadow(0 0 8px rgba(255,255,255,.22));")
 
-# The logo: the paths of the website's logo.svg. In dark its left half is slate, so it shows on
-# black.
+# The logo: the paths of the website's logo.svg.
 SHIELD = ('<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
-          f'<path class="l" d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="{NAVY}"/>'
+          f'<path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="{NAVY}"/>'
           f'<path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="{GREEN}"/>'
           '<path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" '
           'stroke-linecap="round" stroke-linejoin="round"/></svg>')
@@ -65,7 +66,7 @@ TOKENS = """
   --amber: #8A5213; --amber-solid: #D98B3A; --amber-bg: #FBF1E6; --amber-line: #EACDAB;
   --amber-band: #F3DFC4; --good-band: #C7C7C7;
   --blue: #4D4D4D; --blue-solid: #4D4D4D; --blue-bg: #F0F0F0; --blue-line: #D0D0D0;
-  --logo-l: #1E293B; --focus: #000000; --scrim: rgba(0,0,0,.45);
+  --focus: #000000; --scrim: rgba(0,0,0,.45);
   --shadow: 0 1px 2px rgba(0,0,0,.06);
   --shadow-lg: 0 24px 56px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.06);
   --sans: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -84,7 +85,7 @@ TOKENS = """
   --amber: #F0B45A; --amber-solid: #E09A45; --amber-bg: #2A2010; --amber-line: #6E5020;
   --amber-band: #5C4219; --good-band: #3A3A3A;
   --blue: #B3B3B3; --blue-solid: #B3B3B3; --blue-bg: #1A1A1A; --blue-line: #3A3A3A;
-  --logo-l: #64748B; --focus: #FFFFFF; --scrim: rgba(0,0,0,.7);
+  --focus: #FFFFFF; --scrim: rgba(0,0,0,.7);
   --shadow: 0 1px 2px rgba(0,0,0,.6);
   --shadow-lg: 0 24px 56px rgba(0,0,0,.7), 0 2px 6px rgba(0,0,0,.5); }
 """
@@ -127,7 +128,6 @@ code { font-size: 12.5px; padding: 1px 5px; border-radius: 4px; background: var(
 .logo-tile { display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 30px; height: 30px; border-radius: 8px; }
 .logo-tile svg { width: 25px; height: 28px; }
-:root[data-theme="dark"] .logo-tile .l { fill: var(--logo-l); }
 .theme { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--rule);
   background: var(--sheet); color: var(--ink-3); display: inline-flex; align-items: center;
   justify-content: center; padding: 0; flex: none; }
@@ -156,6 +156,8 @@ code { font-size: 12.5px; padding: 1px 5px; border-radius: 4px; background: var(
 @media (prefers-reduced-motion: reduce) { * { transition: none !important;
   animation: none !important; scroll-behavior: auto !important; } }
 """
+
+BASE += f':root[data-theme="dark"] .logo-tile svg {{ {DARK_LOGO} }}\n'
 
 # Read before the page is drawn: the theme the person picked, else light.
 THEME_FIRST = ("try { if (window.localStorage.getItem(\"jk-theme\") === \"dark\") { "
