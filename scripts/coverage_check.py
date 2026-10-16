@@ -3,7 +3,7 @@
     python scripts/coverage_check.py     # the full grid; writes docs/examples/coverage/
 
 A "95%" range should hold the true value about 95 times in 100. This script checks that by
-simulation, for the ranges `judgekeeper start` shows (weighted.corrected) and the ranges after
+simulation, for the ranges `judgekeeper` shows (weighted.corrected) and the ranges after
 asking the judge again (weighted.general).
 
 One simulated check: the pool holds POOL answers, a share `pi` of them passed by the judge. An
@@ -649,7 +649,7 @@ def markdown(result: dict) -> str:
              f"checks per cell, fixed seed {SEED}. Jeffreys ranges: {result['draws']:,} draws, "
              f"seed {result['seed']}. Checks where a number is unknown (TNR when every labeled "
              "answer is Correct, say) are left out of that number's coverage and counted."), "",
-             "## `judgekeeper start`: the level", "",
+             "## `judgekeeper`: the level", "",
              (f"Rule: the first of {', '.join(f'{x:.0%}' for x in CANDIDATES)} whose ranges hold "
              f"the true TPR, TNR and real pass rate at least {FLOOR_CELL:.0%} of the time in "
              f"every cell and {FLOOR_MEAN:.0%} on average."), "",
@@ -663,7 +663,7 @@ def markdown(result: dict) -> str:
               f"change (Wilson corners): lowest cell {_pct(before['min_cell'])}, average "
               f"{_pct(before['mean'])}. The ranges now are {_pct(n['mean'])}% narrower on "
               f"average ({_pct(n['min'])}% to {_pct(n['max'])}% by cell and number)."), "",
-              (f"## `judgekeeper start`: per cell, before (Wilson corners) and now (Jeffreys "
+              (f"## `judgekeeper`: per cell, before (Wilson corners) and now (Jeffreys "
               f"{'n/a' if level is None else f'{level:.0%}'})"), "",
               "Coverage % / average width, before → now.", "",
               "| pi | a | w | n | TPR | TNR | Real pass rate |", "|---|---|---|---|---|---|---|"]

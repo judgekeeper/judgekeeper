@@ -1,4 +1,4 @@
-"""`judgekeeper start` reads `.judgekeeper/records/`, the files `judgekeeper.record()` writes.
+"""`judgekeeper` reads `.judgekeeper/records/`, the files `judgekeeper.record()` writes.
 
 All the files whose judge is the newest file's judge are used (one eval run can be many
 processes, so many files); a newer file wins for a repeated answer. Several judge names:

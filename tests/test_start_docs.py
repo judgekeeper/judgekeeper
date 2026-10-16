@@ -1,10 +1,5 @@
-"""`judgekeeper start` in the docs and on the website: the terminal text the site shows, the
-Guide (start.html), the reference, the README and the version.
-
-The terminal text on the website is real: `start_screen` runs `judgekeeper start` on a test
-project (212 promptfoo answers, the judge passed 171 and failed 41) in a folder named
-support-bot, up to its last question. Two things are fixed so the text is the same
-on every machine: the time zone (UTC) and the folder's place, shown as /Users/me/support-bot.
+"""The docs and the website: the version line the site shows, the Guide (start.html), the
+reference, the README and the version.
 """
 
 from __future__ import annotations
