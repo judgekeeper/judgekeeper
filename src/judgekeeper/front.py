@@ -554,6 +554,14 @@ TOOL_NAMES = {**find.NAMES, "records": "judgekeeper.record() in your code",
               "mapped": "your own format"}
 
 
+def tool_name(tool: str | None, files: list[str] | None = None) -> str | None:
+    """The eval tool as every screen and page names it; a table by its kind ("your own CSV
+    file", from the first of `files`)."""
+    if tool == "table" and files:
+        return f"your own {Path(files[0]).suffix.lstrip('.').upper()} file"
+    return TOOL_NAMES.get(tool, tool)
+
+
 def _read_from(found: start.Found) -> str:
     """Where the answers were read, in the shape of found_line's brackets."""
     newest = found.results[0]
@@ -604,9 +612,7 @@ def _rule_lines(found: start.Found) -> list[str]:
 def found_block(found: start.Found) -> list[str]:
     """Screen 1's "Find" block: the eval tool, the answers, the judge and its rule."""
     answers = found.check.answers if found.check else len(found.pool.answers)
-    tool = TOOL_NAMES.get(found.tool, found.tool)
-    if found.tool == "table":  # named by its kind: "your own CSV file"
-        tool = f"your own {Path(found.results[0].rel).suffix.lstrip('.').upper()} file"
+    tool = tool_name(found.tool, [str(found.results[0].rel)])
     lines = [f"Eval tool:   {tool}",
              f"Answers:     {_n(answers, 'answer')} from your app, each graded by your judge",
              f"{INDENT}(read from {_read_from(found)})",

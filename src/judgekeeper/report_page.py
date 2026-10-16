@@ -589,11 +589,11 @@ def page(r: dict, content: dict, back: str | None = None, history: list[dict] | 
     `back`: the link to the marking page while it runs (None in report.html); `history`: the
     History rows (check.report_rows); `fixing`: fix.report_section. The page carries its
     Content-Security-Policy in a meta tag, so the saved copy keeps it too."""
-    from judgekeeper.find import NAMES
+    from judgekeeper.front import tool_name
 
     c = counts(r)
     judge = r.get("judge") or {}
-    tool = NAMES.get(judge.get("tool"), judge.get("tool"))
+    tool = tool_name(judge.get("tool"), judge.get("results_files"))
     model = (r.get("fingerprint") or {}).get("model")
     left = look.chips(_e(model) if model else None, _e(tool) if tool else None)
     marks = (f'<span class="marks">Your marks: {c["passed"]} Pass · {c["failed"]} Fail</span>')

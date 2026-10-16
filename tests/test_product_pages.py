@@ -462,3 +462,21 @@ def test_every_page_fits_a_phone_width_viewport():
     for name, page in _new().items():
         assert '<meta name="viewport" content="width=device-width, initial-scale=1">' in page, \
             name
+
+
+@pytest.mark.parametrize("tool, files, name", [
+    ("table", ["evals/results.csv"], "your own CSV file"),
+    ("table", ["graded.jsonl"], "your own JSONL file"),
+    ("records", None, "judgekeeper.record() in your code"),
+    ("mapped", ["out.json"], "your own format"),
+    ("promptfoo", ["results.json"], "promptfoo")])
+def test_the_pages_name_the_eval_tool_as_the_terminal_does(tool, files, name):
+    from judgekeeper.front import tool_name
+
+    assert tool_name(tool, files) == name
+    marking = start_label.page_template({"tool": tool, "results_files": files,
+                                         "fingerprint": {"model": "m"}})
+    result = start_label.result_html(_result(*CHECK, judge={"tool": tool,
+                                                            "results_files": files}))
+    for page in (marking, result):
+        assert f'Eval tool:</span><span class="v">{escape(name)}</span>' in page

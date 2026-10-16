@@ -1025,14 +1025,14 @@ def write_report(ws: Workspace) -> None:
 def page_template(about: dict | None = None, command: str | None = None) -> str:
     """The marking page for a check whose start.json is `about`: its judge's rule, model and
     tool are shown; nothing else from it is. `command`: what the person runs to continue."""
+    from judgekeeper.front import tool_name
     from judgekeeper.mark_page import label_page
 
     command = command or program("start")
     about = about or {}
-    tool = about.get("tool")
     return label_page(about.get("description") or about.get("app_version"), about.get("rule"),
                       command, model=(about.get("fingerprint") or {}).get("model"),
-                      tool=find.NAMES.get(tool, tool))
+                      tool=tool_name(about.get("tool"), about.get("results_files")))
 
 
 def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict, **draws) -> dict:
