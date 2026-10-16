@@ -779,7 +779,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             html = report.read_text(encoding="utf-8")
         except OSError:
             html = ""
-        self.step("7. report.html has the check in its History", "<h3>History</h3>" in html)
+        self.step("7. report.html has the check in its History",
+                  '<h3 class="sub">History</h3>' in html)
 
     def mark_step(self, name: str, args, expect, env=None):
         """A step that opens or closes the page; when it fails, what the page's own process
