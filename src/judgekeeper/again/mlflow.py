@@ -257,8 +257,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             env=worker_env(info.get("uri")))
         if not worker.get("ok"):
             if worker.get("missing"):
-                return cant("mlflow", judge, f"MLflow is not installed in {python}. Use "
-                            "--python to point at the Python you run your evals with",
+                return cant("mlflow", judge, f"MLflow is not installed in {python}. Activate "
+                            "the virtual environment you run your evals with, then try again",
                             short="MLflow is not installed here")
             return cant("mlflow", judge, f"MLflow could not load your judge in {python}: "
                         f"{worker.get('error')}", short="MLflow could not load your judge")

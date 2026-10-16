@@ -52,7 +52,7 @@ EXACT, CLOSE, CANT = "exact", "close", "cant"
 @dataclass
 class AgainOptions:
     times: int | None = None  # --times; None: TIMES, or 1 when trying a new judge
-    python: str | None = None  # --python
+    python: str | None = None  # the Python to run the eval tool with (default: user_python)
     fields: str | None = None  # --fields, DeepEval GEval: the parts the judge reads
     judge_model: str | None = None
     rule: str | None = None  # `judgekeeper fix`: a new rule, swapped in for the judge's own
@@ -287,7 +287,7 @@ def node_bin(root: Path, name: str) -> str | None:
 
 
 def user_python(root: Path, given: str | None) -> str:
-    """The Python the user runs their evals with: --python, the active virtual environment,
+    """The Python the user runs their evals with: `given`, the active virtual environment,
     the project's .venv or venv, else the Python running judgekeeper."""
     if given:
         return given

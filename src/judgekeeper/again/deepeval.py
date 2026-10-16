@@ -376,8 +376,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             found[0][2], fields)}, root, env=WORKER_ENV, drop=WORKER_DROP)
         if not out.get("ok"):
             if out.get("missing"):
-                return cant("deepeval", judge, f"DeepEval is not installed in {python}. Use "
-                            "--python to point at the Python you run your evals with",
+                return cant("deepeval", judge, f"DeepEval is not installed in {python}. Activate "
+                            "the virtual environment you run your evals with, then try again",
                             short="DeepEval is not installed here")
             if _on_ollama(model):
                 return _ollama_cant(judge)
