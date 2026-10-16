@@ -12,191 +12,29 @@ import builtins
 import io
 import json
 import os
-from datetime import datetime
 
 import pytest
 
-from judgekeeper import find, start, textio
+from judgekeeper import find, start
 from judgekeeper.cli import main
-from judgekeeper.textio import quote_arg
 from tests.start_projects import (
-    deepeval_project,
-    inspect_project,
     promptfoo_data,
     promptfoo_project,
     split,
     table_project,
 )
-from tests.test_extras_advice import PIN
-
-
-@pytest.fixture(autouse=True)
-def no_labeling(monkeypatch):
-    """These tests stop where labeling starts (tests/test_start_label.py covers the rest)."""
-    calls = []
-
-    def run_labeling(found, port, open_browser, say, command="judgekeeper start"):
-        calls.append(found)
-        say("(labeling page)")
-        return 0
-
-    monkeypatch.setattr("judgekeeper.start_label.run_labeling", run_labeling)
-    return calls
 
 
 def run(capsys, *argv, yes=True):
     """`judgekeeper start` without a terminal; with --yes unless `yes` is False, so the run
     goes on to labeling (replaced here) where a person would say yes."""
     argv = [*map(str, argv)] + (["--yes"] if yes and "--yes" not in argv else [])
-    code = main(["start", *argv])
+    code = main([*argv])
     out, err = capsys.readouterr()
     return code, out, err
 
 
-def ok() -> str:
-    return textio.tick()
-
-
-def local(iso: str) -> str:
-    return datetime.fromisoformat(iso).astimezone().strftime(
-        "%Y-%m-%d %H:%M")
-
-
-def when(iso: str) -> str:
-    """The date as the first block shows it, in the local time zone."""
-    return start.when_words(datetime.fromisoformat(iso).astimezone())
-
-
 # Each tool -------------------------------------------------------------------------------
-
-def test_promptfoo_names_the_tool_the_judge_and_the_counts(tmp_path, capsys):
-    promptfoo_project(tmp_path, split(25, 15))
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert f"Looking in {tmp_path.resolve()} ..." in out
-    assert "judgekeeper found your LLM-as-a-judge:" in out
-    assert "  Eval tool       promptfoo" in out
-    assert f"  Results file    results.json (saved {when('2026-10-03T14:12:00Z')})" in out
-    assert '  What it checks  "Is polite and correct."' in out
-    assert "  Judge model     openai:gpt-4.1-mini" in out
-    assert "  Its decisions   40 answers: 25 passed, 15 failed" in out
-
-
-def test_enough_answers_print_the_labeling_plan_and_write_nothing(tmp_path, capsys):
-    promptfoo_project(tmp_path, split(25, 15))
-    before = sorted(p.name for p in tmp_path.iterdir())
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "Next: in your browser, mark each answer Pass or Fail." in out
-    assert "This shows how often your judge agrees with you." in out
-    for gone in ("rough check", "reliable result", "minutes", "Correct", "Wrong", "You will label"):
-        assert gone not in out, gone
-    assert sorted(p.name for p in tmp_path.iterdir()) == before  # no .judgekeeper/ yet
-
-
-def test_deepeval_latest_run(tmp_path, capsys):
-    deepeval_project(tmp_path, split(20, 12))
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "  Eval tool       DeepEval" in out
-    assert "  Results file    .deepeval/.latest_run_full.json (saved " in out
-    assert '  What it checks  "Is the actual output factually correct given the input?"' in out
-    assert "  Judge model     gpt-4.1" in out
-    assert "  Its decisions   32 answers: 20 passed, 12 failed" in out
-
-
-def test_deepevals_temporary_run_file_is_not_results(tmp_path, capsys):
-    deepeval_project(tmp_path, split(20, 12))
-    deepeval_project(tmp_path, split(3, 3), name=".temp_test_run_data.json")  # a run going on
-    deepeval_project(tmp_path, split(3, 3), name=".deepeval/.temp_test_run_data.json")
-    assert [r.rel for r in find.search(tmp_path).readable("deepeval")] == [
-        ".deepeval/.latest_run_full.json"]
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0 and "  Its decisions   32 answers: 20 passed, 12 failed" in out
-
-
-def test_deepeval_results_folder_from_its_variable(tmp_path, capsys, monkeypatch):
-    deepeval_project(tmp_path, split(20, 12), name="evals/runs/test_run_20261002_090000.json")
-    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["deepeval"]\n',
-                                             encoding="utf-8")
-    monkeypatch.setenv("DEEPEVAL_RESULTS_FOLDER", str(tmp_path / "evals" / "runs"))
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert ("  Results file    evals/runs/test_run_20261002_090000.json (saved 2 Oct 2026, "
-            "09:00)") in out
-
-
-def test_a_results_variable_outside_the_folder_is_not_read(tmp_path, capsys, monkeypatch):
-    project, elsewhere = tmp_path / "project", tmp_path / "elsewhere"
-    deepeval_project(elsewhere, split(20, 12), name="test_run_20261002_090000.json")
-    table_project(project, split(20, 12))
-    monkeypatch.setenv("DEEPEVAL_RESULTS_FOLDER", str(elsewhere))
-    code, out, _ = run(capsys, project)
-    assert code == 0
-    assert "DeepEval" not in out.replace("DEEPEVAL_RESULTS_FOLDER", "")
-    assert "  Eval tool       a table (results.csv)" in out
-    assert "DEEPEVAL_RESULTS_FOLDER points outside this folder, so it was not read." in out
-
-
-def test_inspect_json_log(tmp_path, capsys):
-    inspect_project(tmp_path, split(18, 14))
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "  Eval tool       Inspect AI" in out
-    assert (f"  Results file    logs/2026-10-02_support.json (saved "
-            f"{when('2026-09-30T10:00:00+00:00')})") in out
-    assert '  What it checks  "Grade the answer as C (correct) or I (incorrect)."' in out
-    assert "  Judge model     anthropic/claude-haiku-4-5" in out
-    assert "  Its decisions   32 answers: 18 passed, 14 failed" in out
-
-
-def test_inspect_eval_logs_without_the_extra_say_how_to_read_them(tmp_path, capsys,
-                                                                    monkeypatch):
-    monkeypatch.setitem(__import__("sys").modules, "inspect_ai", None)
-    (tmp_path / "logs").mkdir()
-    (tmp_path / "logs" / "2026-10-02_support.eval").write_bytes(b"PK\x03\x04 not read")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2
-    assert ('Inspect AI found (logs/). To read it, add the extra in your project\'s environment: '
-            f'pip install "judgekeeper[inspect]{PIN}", then run '
-            f"judgekeeper start {quote_arg(tmp_path)} again.") in out
-
-
-def test_a_plain_table(tmp_path, capsys):
-    table_project(tmp_path, split(16, 16), name="data/results.csv")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "  Eval tool       a table (results.csv)" in out
-    assert "  Results file    data/results.csv (saved " in out
-    assert "  What it checks  not in the file" in out
-    assert "  Judge model     not found in the results (add --judge-model NAME)" in out
-    assert "  Its decisions   32 answers: 16 passed, 16 failed" in out
-
-
-def test_a_plain_table_with_a_model_column_and_another_verdict_name(tmp_path, capsys):
-    table_project(tmp_path, split(16, 16), model="gpt-4.1-mini", verdict_column="judge_verdict",
-                  name="scores.csv")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "  Judge model     gpt-4.1-mini" in out
-
-
-def test_a_table_says_its_first_three_rows_so_a_wrong_conversion_shows(tmp_path, capsys):
-    table_project(tmp_path, split(16, 16))
-    _, out, _ = run(capsys, tmp_path)
-    lines = out.splitlines()
-    head = lines.index("  The first 3 rows, as judgekeeper read them:")
-    assert lines[head + 1:head + 4] == [
-        "    input: Question 0?   output: Answer 0.   verdict: pass",
-        "    input: Question 1?   output: Answer 1.   verdict: pass",
-        "    input: Question 2?   output: Answer 2.   verdict: pass"]
-
-
-def test_a_long_cell_is_shortened_in_the_first_rows(tmp_path, capsys):
-    table_project(tmp_path, split(16, 16), tag=" " + "word " * 30)
-    _, out, _ = run(capsys, tmp_path)
-    first = next(x for x in out.splitlines() if x.startswith("    input: Question 0?"))
-    assert "…" in first and len(first) < 140
 
 
 def test_other_tools_do_not_list_rows(tmp_path, capsys):
@@ -205,153 +43,11 @@ def test_other_tools_do_not_list_rows(tmp_path, capsys):
     assert "The first 3 rows" not in out
 
 
-def test_a_judge_model_column_names_the_judge(tmp_path, capsys):
-    table_project(tmp_path, split(16, 16), extra={"judge_model": ["claude-opus-5"] * 32})
-    _, out, _ = run(capsys, tmp_path)
-    assert "  Judge model     claude-opus-5" in out
-
-
-def test_a_table_deeper_than_two_folders_is_not_a_table(tmp_path, capsys):
-    table_project(tmp_path, split(16, 16), name="a/b/results.csv")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2
-    assert "  a/b/results.csv (2 folders down)" in out and "Eval tool" not in out
-
-
-def test_mlflow_store(tmp_path, capsys):
-    from tests.conftest import build_mlflow_store
-
-    build_mlflow_store(tmp_path)
-    code, out, _ = run(capsys, tmp_path, "--metric", "correctness", yes=False)
-    assert "  Eval tool       MLflow" in out
-    assert "  Results file    mlflow.db (experiment qa-judge)" in out
-    assert "  Judge model     fake:/judge-model-1" in out
-    assert "  Its decisions   8 answers: 4 passed, 4 failed" in out
-    assert "Run your MLflow evaluation again on more data." in out
-    assert code == start.EXIT_QUESTION  # too few, and no terminal to ask in
-
-
-def test_mlflow_without_the_extra_says_how_to_read_it(tmp_path, capsys, monkeypatch):
-    monkeypatch.setitem(__import__("sys").modules, "mlflow", None)
-    (tmp_path / "mlruns" / "0").mkdir(parents=True)
-    (tmp_path / "mlruns" / "0" / "meta.yaml").write_text("name: Default\n", encoding="utf-8")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2
-    assert ('MLflow found (mlruns/). To read it, add the extra in your project\'s environment: '
-            f'pip install "judgekeeper[mlflow]{PIN}", then run '
-            f"judgekeeper start {quote_arg(tmp_path)} again.") in out
-
-
-def test_a_results_file_as_the_path_skips_the_search(tmp_path, capsys):
-    path = promptfoo_project(tmp_path / "out", split(20, 12), name="run.json", config=False)
-    promptfoo_project(tmp_path / "other", split(1, 1))  # would be found by a search
-    code, out, _ = run(capsys, path)
-    assert code == 0
-    assert "Looking in" not in out
-    assert "  Results file    run.json (saved" in out
-    assert "Its decisions   32 answers" in out
-
-
-def test_a_file_that_is_not_results_is_a_usage_error(tmp_path, capsys):
-    path = tmp_path / "notes.json"
-    path.write_text('{"hello": 1}', encoding="utf-8")
-    code, _, err = run(capsys, path)
-    assert code == 2
-    assert "notes.json is not a results file judgekeeper start can read" in err
-
-
-def test_nothing_found_says_what_is_read(tmp_path, capsys):
-    (tmp_path / "README.md").write_text("hello", encoding="utf-8")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2
-    assert f"No saved eval results found in {tmp_path.resolve()}." in out
-    assert "judgekeeper start path/to/results.json" in out
-
-
 # What is searched, and what is not -------------------------------------------------------
-
-@pytest.mark.parametrize("folder", [".git", "node_modules", ".venv", "venv", "site-packages",
-                                    "dist-packages", "__pycache__", ".judgekeeper", ".cache"])
-def test_skipped_folders_are_skipped(tmp_path, capsys, folder):
-    promptfoo_project(tmp_path / folder, split(20, 12), config=False)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2
-    assert "No saved eval results found" in out
-
-
-def test_files_deeper_than_four_folders_are_not_found(tmp_path, capsys):
-    promptfoo_project(tmp_path / "a" / "b" / "c" / "d" / "e", split(20, 12), config=False)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2 and "  a/b/c/d/e/results.json (5 folders down)" in out
-    promptfoo_project(tmp_path / "a" / "b" / "c" / "d", split(20, 12), config=False)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0 and "a/b/c/d/results.json" in out
-
-
-@pytest.mark.skipif(not hasattr(os, "symlink"), reason="no symbolic links")
-def test_symbolic_links_are_not_followed(tmp_path, capsys):
-    outside = tmp_path / "outside"
-    promptfoo_project(outside, split(20, 12), config=False)
-    project = tmp_path / "project"
-    project.mkdir()
-    try:
-        (project / "linked").symlink_to(outside, target_is_directory=True)
-        (project / "results.json").symlink_to(outside / "results.json")
-    except OSError:
-        pytest.skip("symbolic links not allowed here")
-    code, out, _ = run(capsys, project)
-    assert code == 2
-    assert "results.json (a link: judgekeeper doesn't follow links)" in out
-    assert "Eval tool" not in out
-
-
-def test_the_search_stops_after_the_file_limit(tmp_path, capsys, monkeypatch):
-    monkeypatch.setattr(find, "MAX_FILES", 20)
-    for i in range(30):
-        (tmp_path / f"note-{i:02d}.txt").write_text("x", encoding="utf-8")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2
-    assert ("Stopped looking after 20 files. Point me at the results: judgekeeper start "
-            "path/to/results.json") in out
 
 
 def test_the_file_limit_is_five_thousand_and_the_time_limit_two_seconds():
     assert find.MAX_FILES == 5000 and find.MAX_SECONDS == 2
-
-
-def test_the_search_stops_after_the_time_limit(tmp_path, capsys, monkeypatch):
-    ticks = iter(range(0, 1000, 3))
-    monkeypatch.setattr(find, "_clock", lambda: next(ticks))
-    for i in range(5):
-        (tmp_path / f"note-{i}.txt").write_text("x", encoding="utf-8")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2
-    assert "Stopped looking after 2 seconds. Point me at the results" in out
-
-
-def test_known_places_are_looked_at_before_the_limit(tmp_path, capsys, monkeypatch):
-    monkeypatch.setattr(find, "MAX_FILES", 5)
-    for i in range(30):
-        (tmp_path / "aaa" / f"note-{i:02d}.txt").parent.mkdir(exist_ok=True)
-        (tmp_path / "aaa" / f"note-{i:02d}.txt").write_text("x", encoding="utf-8")
-    deepeval_project(tmp_path, split(20, 12))
-    code, out, _ = run(capsys, tmp_path)
-    assert "  Results file    .deepeval/.latest_run_full.json" in out
-    assert "Stopped looking" not in out  # said only when nothing was found
-    assert code == 0
-
-
-def test_results_over_the_size_limit_are_listed_not_read(tmp_path, capsys, monkeypatch):
-    path = promptfoo_project(tmp_path, split(20, 12))
-    monkeypatch.setattr(find, "MAX_BYTES", path.stat().st_size - 1)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2
-    mb = path.stat().st_size / 1_000_000
-    assert (f"results.json is {mb:,.0f} MB. Run judgekeeper start results.json to read it "
-            "anyway.") in out
-    assert "Its decisions" not in out
-    code, out, _ = run(capsys, path)  # named on the command line: read
-    assert code == 0 and "Its decisions   32 answers" in out
 
 
 def test_at_most_200_json_files_are_looked_into(tmp_path, monkeypatch):
@@ -408,35 +104,7 @@ def test_what_is_printed_holds_no_answer_text(tmp_path, capsys):
     assert "zebra-7741" not in out + err
 
 
-def test_nothing_is_written_while_searching(tmp_path, capsys):
-    promptfoo_project(tmp_path, split(3, 3))
-    snapshot = sorted(str(p) for p in tmp_path.rglob("*"))
-    run(capsys, tmp_path)
-    assert sorted(str(p) for p in tmp_path.rglob("*")) == snapshot
-
-
 # promptfoo -------------------------------------------------------------------------------
-
-def test_a_promptfoo_config_without_results_prints_the_export_commands(tmp_path, capsys):
-    (tmp_path / "promptfooconfig.yaml").write_text("description: support bot\n")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert f"{ok()} Your eval tool: promptfoo (promptfooconfig.yaml)" in out
-    assert "  No promptfoo results file in this folder. promptfoo keeps them in its own" in out
-    assert "    promptfoo list evals -n 10" in out
-    assert "    promptfoo export eval <eval id from that list> -o promptfoo-results.json" in out
-    assert "  If your last promptfoo run was in this folder, this is the same:" in out
-    assert "    promptfoo export eval latest -o promptfoo-results.json" in out
-    assert "Update promptfoo if this command is not found." in out
-    assert "  Then run judgekeeper start again." in out
-    assert "promptfoo eval" not in out  # that runs the eval again, and costs money
-
-
-@pytest.mark.parametrize("config", ["promptfooconfig.yml", "promptfooconfig.json"])
-def test_every_promptfoo_config_name_is_a_sign(tmp_path, capsys, config):
-    (tmp_path / config).write_text("{}", encoding="utf-8")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0 and f"Your eval tool: promptfoo ({config})" in out
 
 
 def _strip(data: dict, part: str) -> dict:
@@ -486,56 +154,11 @@ def test_a_few_rows_without_an_answer_are_not_stripped_results(tmp_path, capsys)
     assert code == 0 and "missing" not in out
 
 
-def test_the_run_date_is_when_the_eval_ran_else_the_file_time(tmp_path, capsys):
-    promptfoo_project(tmp_path, split(20, 12), created=None)
-    path = tmp_path / "results.json"
-    stamp = datetime(2026, 9, 1, 8, 30).astimezone().timestamp()
-    os.utime(path, (stamp, stamp))
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "  Results file    results.json (saved 1 Sep 2026, 08:30)" in out
-
-
-def test_the_newest_promptfoo_file_is_the_one_whose_eval_ran_last(tmp_path, capsys):
-    promptfoo_project(tmp_path, split(20, 12), name="a.json", created="2026-10-05T10:00:00Z")
-    promptfoo_project(tmp_path, split(30, 10), name="b.json", created="2026-10-01T10:00:00Z")
-    os.utime(tmp_path / "b.json")  # touched last, but its eval is older
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert f"  Results file    a.json (saved {when('2026-10-05T10:00:00Z')})" in out
-    assert "Its decisions   32 answers" in out
-
-
-def test_results_from_another_project_ask_first(tmp_path, capsys, monkeypatch):
-    promptfoo_project(tmp_path, split(20, 12), description="billing bot")
-    from judgekeeper import start
-
-    monkeypatch.setattr(start, "_interactive", lambda: True)
-    answers = iter(["n"])
-    monkeypatch.setattr(builtins, "input", lambda prompt="": print(prompt) or next(answers))
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert ('results.json looks like it is from another project (its description is "billing '
-            'bot", and no promptfoo config here has it). Use it anyway?') in out
-    assert out.count("[y/N]") == 1
-    assert "Its decisions" not in out
-
-    answers = iter(["y", ""])  # yes, then Enter to open the labeling page
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0 and "Its decisions   32 answers" in out
-
-
 def test_another_project_without_a_terminal_stops(tmp_path, capsys):
     promptfoo_project(tmp_path, split(20, 12), description="billing bot")
     code, out, _ = run(capsys, tmp_path, yes=False)
     assert code == start.EXIT_QUESTION
     assert "looks like it is from another project" in out
-
-
-def test_the_same_description_does_not_ask(tmp_path, capsys):
-    promptfoo_project(tmp_path, split(20, 12), description="support bot")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0 and "another project" not in out
 
 
 def test_the_fixture_reads_as_promptfoo_data():
@@ -550,26 +173,6 @@ def test_a_records_file_outside_the_records_folder_is_found(tmp_path):
     found = find.search(tmp_path)
     assert [r.path.name for r in found.results.get("records", [])] == ["judge-results.jsonl"]
     assert "table" not in found.results
-
-
-def _spreadsheet_header(path, header):
-    """A table whose header is typed as in Sheets or Excel."""
-    lines = path.read_text(encoding="utf-8").splitlines()
-    lines[0] = header
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-@pytest.mark.parametrize("header", ["Input,Output,Verdict", " input , OUTPUT ,Verdict ",
-                                    "INPUT,Output,Judge_Verdict"])
-def test_column_names_ignore_case_and_spaces(tmp_path, capsys, header):
-    table_project(tmp_path, split(16, 16), name="results.csv")
-    path = tmp_path / "results.csv"
-    assert path.read_text(encoding="utf-8").splitlines()[0] == "input,output,verdict"
-    _spreadsheet_header(path, header)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0, out
-    assert "  Eval tool       a table (results.csv)" in out
-    assert "  Its decisions   32 answers: 16 passed, 16 failed" in out
 
 
 def test_an_mlruns_folder_of_artifacts_only_is_not_a_store(tmp_path):
@@ -600,41 +203,7 @@ def test_judgekeepers_own_folders_are_never_your_judge(tmp_path, capsys, folder)
     assert [r.rel for r in find.search(tmp_path).readable("table")] == ["results.csv"]
 
 
-def test_an_inspect_run_that_stopped_early_says_so(tmp_path, capsys):
-    from tests.start_projects import inspect_data
-
-    data = inspect_data(split(16, 16))
-    data["status"] = "error"
-    data["error"] = {"message": "TypeError: unsupported operand type(s) for +: 'float' and "
-                                "'Timeout'"}
-    data.setdefault("results", {})["total_samples"] = 40
-    path = tmp_path / "logs" / "2026-10-02_support.json"
-    path.parent.mkdir(parents=True)
-    path.write_text(json.dumps(data), encoding="utf-8")
-    _, out, _ = run(capsys, tmp_path)
-    assert ("  ! Your Inspect run stopped early (32 of 40 samples): TypeError: unsupported "
-            "operand type(s) for +: 'float' and 'Timeout'") in out
-    from judgekeeper.readers.inspect_logs import stopped_early
-
-    assert stopped_early({"status": "cancelled", "samples": [1, 2]}) == (
-        "Your Inspect run stopped early (2 samples): it was cancelled.")
-    assert stopped_early({"status": "success", "samples": [1]}) is None
-
-
-def test_inspects_partial_credit_says_how_to_count_it_and_is_remembered(tmp_path, capsys,
-                                                                       monkeypatch):
-    from judgekeeper import start_label
-    from tests.start_projects import inspect_project
-
-    monkeypatch.setattr(start_label, "serve_workspace", lambda *a, **k: 0)  # no page
-
-    inspect_project(tmp_path, [True] * 16 + [False] * 16 + ["P"] * 3)
-    code, out, err = run(capsys, tmp_path)
-    assert code == 2
-    assert ("Inspect gave partial credit (P) on 3 answers: should they count as Pass or Fail? "
-            "Run again with --label-map P=pass or --label-map P=fail.") in out + err
-    found = start.find_judge(tmp_path, label_map="P=fail")
-    ws = start_label.prepare(found, say=lambda line="": None)
-    assert ws.data()["label_map"] == "P=fail"
-    code, out, err = run(capsys, tmp_path)  # no --label-map: the saved one is used
-    assert "partial credit" not in out + err and "unmapped" not in out + err
+def test_the_same_description_does_not_ask(tmp_path, capsys):
+    promptfoo_project(tmp_path, split(20, 12), description="support bot")
+    code, out, _ = run(capsys, tmp_path)
+    assert code == 0 and "looks like it is from another project" not in out

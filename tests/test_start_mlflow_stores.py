@@ -109,7 +109,7 @@ def fresh(monkeypatch):
 
 
 def run(capsys, *argv):
-    code = main(["start", *map(str, argv)])
+    code = main([*map(str, argv)])
     out, err = capsys.readouterr()
     return code, out + err
 
@@ -121,11 +121,11 @@ def test_mlflow_prints_nothing_of_its_own(folder_only):
     on import), on a moved store (MLflow then warns once per trace)."""
     env = {k: v for k, v in os.environ.items() if k not in (ALLOW, HINT)}
     env.update(CLAUDECODE="1", PYTHONPATH=str(ROOT / "src"))
-    result = subprocess.run([sys.executable, "-m", "judgekeeper", "start", str(folder_only),
+    result = subprocess.run([sys.executable, "-m", "judgekeeper", str(folder_only),
                              "--no-browser"], capture_output=True, text=True, env=env,
                             stdin=subprocess.DEVNULL, timeout=300, check=False)
     out = result.stdout + result.stderr
-    assert "  Results file    mlruns (experiment qa-folder)" in out, out
+    assert "(read from mlruns, experiment qa-folder)" in out, out
     assert "mlflow." not in out and "INFO" not in out and "WARNING" not in out, out
     assert "MLFLOW_DISABLE_AGENT_HINT" not in out
 
@@ -218,44 +218,6 @@ def test_some_missing_trace_files_leave_those_answers_out(folder_only, capsys):
 
 # Two stores in one folder -----------------------------------------------------------------
 
-def test_two_stores_without_a_terminal_use_mlflow_db_and_name_the_other(two, capsys):
-    code, out = run(capsys, two)
-    assert code == start.EXIT_QUESTION  # the labeling question, as for any project
-    assert ("Two MLflow stores found: mlflow.db (qa-db) and mlruns/ (qa-folder). Using "
-            "mlflow.db.") in out
-    assert f"For the other one: judgekeeper start {quote_arg(two / 'mlruns')}" in out
-    assert "  Results file    mlflow.db (experiment qa-db)" in out
-
-
-def test_two_stores_at_a_terminal_ask(two, capsys, monkeypatch):
-    monkeypatch.setattr(start, "_interactive", lambda: True)
-    answers = ["2"]
-    monkeypatch.setattr(builtins, "input", lambda prompt="": answers.pop(0))
-    found = start.find_judge(two, talk=start.Talk(path=two, flags=(str(two),)))
-    out = capsys.readouterr().out
-    assert "Two MLflow stores found:\n  1. mlflow.db (qa-db)\n  2. mlruns/ (qa-folder)" in out
-    assert out.count("qa-db") == 1  # each store said once
-    assert found.store == "mlruns"
-    assert f"(Next time: judgekeeper start {quote_arg(two / 'mlruns')})" in out
-
-
-@pytest.mark.parametrize("name, experiment", [("mlruns", "qa-folder"),
-                                              ("mlflow.db", "qa-db")])
-def test_start_reads_the_store_it_is_given(two, capsys, name, experiment):
-    found = start.find_judge(two / name, talk=start.Talk())
-    out = capsys.readouterr().out
-    assert found.root == two.resolve()  # .judgekeeper/ goes next to the store, not inside
-    assert found.store == name
-    assert "Two MLflow stores" not in out
-    assert f"  Results file    {name} (experiment {experiment})" in start.found_lines(found)
-
-
-def test_the_workspace_of_a_store_path_is_the_project(two):
-    from judgekeeper import start_again
-
-    assert start_again._project(two / "mlruns") == two.resolve()
-    assert start.known_tool(two / "mlruns") == "mlflow"
-
 
 def test_the_tracking_uri_variable_picks_the_store(two, capsys, monkeypatch):
     monkeypatch.setenv("MLFLOW_TRACKING_URI", str(two / "mlruns"))
@@ -271,15 +233,6 @@ def test_the_tracking_uri_flag_picks_the_store(two, capsys, uri):
     found = start.find_judge(two, tracking_uri=uri, talk=start.Talk())
     assert found.store == ("mlflow.db" if "sqlite" in uri else "mlruns")
     assert "Two MLflow stores" not in capsys.readouterr().out
-
-
-def test_a_server_tracking_uri_says_what_start_reads(two, capsys):
-    code, out = run(capsys, two, "--tracking-uri", "http://localhost:5000")
-    assert code == start.EXIT_USAGE
-    assert "http://localhost:5000 is a tracking server." in out
-    assert "judgekeeper reads a local MLflow store instead: an mlflow.db file or an mlruns/ " \
-        "folder in your project." in out
-    assert "judgekeeper import" not in out
 
 
 def test_the_experiment_picks_the_store_that_has_it(two, capsys):
@@ -317,43 +270,6 @@ def test_a_re_check_keeps_the_chosen_store(two, capsys):
     again = start.find_judge(two, store="mlruns", talk=start.Talk())
     assert again.store == "mlruns"
     assert "Two MLflow stores" not in capsys.readouterr().out
-
-
-ARTIFACTS = r"""
-import os, sys
-os.environ["MLFLOW_DISABLE_AGENT_HINT"] = "1"
-os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
-import mlflow
-from mlflow.entities import AssessmentSource
-
-mlflow.set_tracking_uri("sqlite:///mlflow.db")  # artifacts go to ./mlruns, MLflow's default
-mlflow.set_experiment("qa")
-judge = AssessmentSource(source_type="LLM_JUDGE", source_id="openai:/gpt-4.1-mini")
-
-@mlflow.trace(name="app")
-def app(question):
-    return f"answer to {question}"
-
-with mlflow.start_run():
-    mlflow.log_text("an artifact", "notes.txt")
-    for i, question in enumerate(["one", "two", "three", "four"]):
-        app(question)
-        mlflow.flush_trace_async_logging()
-        trace_id = mlflow.get_last_active_trace_id()
-        mlflow.log_feedback(trace_id=trace_id, name="helpful", value=i % 2 == 0, source=judge)
-"""
-
-
-def test_mlflow_db_with_logged_artifacts_is_one_store(tmp_path, capsys):
-    pytest.importorskip("mlflow")
-    (tmp_path / "make.py").write_text(ARTIFACTS, encoding="utf-8")
-    subprocess.run([sys.executable, "make.py"], check=True, cwd=tmp_path, capture_output=True)
-    (tmp_path / "make.py").unlink()
-    assert any((tmp_path / "mlruns").rglob("notes.txt"))  # the artifact, next to mlflow.db
-    _, said = run(capsys, tmp_path, "--no-browser")
-    assert "Eval tool       MLflow" in said and "mlflow.db (experiment qa)" in said, said
-    for unwanted in ("Malformed experiment", "Traceback", "Two MLflow stores"):
-        assert unwanted not in said, unwanted
 
 
 # `judgekeeper` (no command): two stores are a question, answered by naming one -------------
@@ -395,7 +311,6 @@ def test_judgekeeper_asks_which_store_at_a_terminal_and_saves_it(two, capsys, mo
 def test_a_big_experiment_is_read_up_to_the_newest_traces_and_said(made, tmp_path, capsys,
                                                                    monkeypatch):
     monkeypatch.setattr(mlflow_store, "MAX_TRACES", 3)
-    monkeypatch.setattr(start_label, "run_labeling", lambda *a, **kw: 0)
     project = tmp_path / "docs-qa"
     project.mkdir()
     shutil.copy2(made / "mlflow.db", project / "mlflow.db")

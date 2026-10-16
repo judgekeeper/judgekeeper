@@ -92,7 +92,7 @@ class Result:
         return self.tool != "mlflow" and self.size > MAX_BYTES
 
     def too_big_message(self, program: str | None = None) -> str:
-        program = program or textio.program("start")
+        program = program or textio.program()
         return (f"{self.rel} is {self.size / 1_000_000:,.0f} MB. Run {program} "
                 f"{self.rel} to read it anyway.")
 

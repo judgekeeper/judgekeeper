@@ -12,7 +12,6 @@ import pytest
 
 from judgekeeper import label as label_mod
 from judgekeeper import start, start_label
-from judgekeeper.cli import main
 from judgekeeper.label import LabelError, make_server
 from judgekeeper.start_label import StartSession
 from tests.start_projects import split, table_project
@@ -91,19 +90,6 @@ def test_a_lock_nobody_answers_is_ignored(ws):
     finally:
         server.release()
         server.httpd.server_close()
-
-
-def test_a_second_start_says_where_the_page_is_and_stops(ws, tmp_path, capsys):
-    server, thread = _serving(ws)
-    try:
-        code = main(["start", str(tmp_path), "--no-browser", "--yes", "--port", "8806"])
-        out, err = capsys.readouterr()
-    finally:
-        server.stop()
-        thread.join(timeout=5)
-    assert code == 2
-    assert "A judgekeeper page is already open for this project." in out + err
-    assert server.token not in out + err
 
 
 def test_the_lock_is_removed_while_another_reader_has_it_open(ws):

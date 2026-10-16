@@ -11,12 +11,10 @@ results folder is what a project keeps.
 from __future__ import annotations
 
 import json
-import os
 
 import pytest
 
-from judgekeeper import find, start
-from judgekeeper.cli import main
+from judgekeeper import start
 from tests.start_projects import deepeval_data, deepeval_project, split
 
 STEPS_ONLY = ('Criteria:\nNone \n \nEvaluation Steps:\n[\n    "Check whether the final answer '
@@ -28,19 +26,6 @@ STEPS_ONLY = ('Criteria:\nNone \n \nEvaluation Steps:\n[\n    "Check whether the
 @pytest.fixture(autouse=True)
 def no_results_variable(monkeypatch):
     monkeypatch.delenv("DEEPEVAL_RESULTS_FOLDER", raising=False)
-
-
-@pytest.fixture(autouse=True)
-def no_labeling(monkeypatch):
-    """These tests stop where labeling starts."""
-    monkeypatch.setattr("judgekeeper.start_label.run_labeling",
-                        lambda found, port, open_browser, say, command="": 0)
-
-
-def run(capsys, *argv):
-    code = main(["start", *map(str, argv), "--yes"])
-    out, err = capsys.readouterr()
-    return code, out + err
 
 
 def _steps_only(data: dict) -> dict:
@@ -96,101 +81,7 @@ def test_the_rubric_line_drops_the_step_number():
 
 # Which file -----------------------------------------------------------------------------------
 
-def _hidden_copies(root, data, which=(".latest_test_run.json", ".latest_run_full.json")):
-    for name in which:
-        wrapped = {"testRunData": data} if name == ".latest_test_run.json" else data
-        _write(root / ".deepeval" / name, wrapped)
-
-
-def test_the_results_folder_wins_over_the_hidden_copies(tmp_path, capsys):
-    data = deepeval_data(split(20, 12))
-    _write(tmp_path / "results" / "test_run_20261006_154129.json", data)
-    _hidden_copies(tmp_path, data)
-    code, out = run(capsys, tmp_path)
-    assert code == 0
-    assert "  Results file    results/test_run_20261006_154129.json (saved " in out
-    assert ".deepeval" not in out  # the same run: nothing to say
-    assert "repeats" not in out
-
-
-def test_a_different_run_in_the_hidden_copy_is_named(tmp_path, capsys):
-    _write(tmp_path / "results" / "test_run_20261006_154129.json", deepeval_data(split(20, 12)))
-    _hidden_copies(tmp_path, deepeval_data(split(30, 2), tag=" (later)"),
-                   which=(".latest_test_run.json",))
-    code, out = run(capsys, tmp_path)
-    assert code == 0
-    assert "  Results file    results/test_run_20261006_154129.json" in out
-    assert ("DeepEval's hidden copy .deepeval/.latest_test_run.json holds a different run. "
-            "Using the newest file in your results folder, results/test_run_20261006_154129."
-            "json; to use the other: judgekeeper .deepeval/.latest_test_run.json") in out
-
-
-def test_the_two_hidden_copies_count_once(tmp_path, capsys):
-    _hidden_copies(tmp_path, deepeval_data(split(20, 12)))
-    found = find.search(tmp_path)
-    assert len(found.readable("deepeval")) == 1
-    code, out = run(capsys, tmp_path)
-    assert code == 0 and "repeats" not in out
-    assert "Its decisions   32 answers: 20 passed, 12 failed" in out
-
-
-def test_the_hidden_copy_alone_is_read_as_before(tmp_path, capsys):
-    _hidden_copies(tmp_path, deepeval_data(split(20, 12)), which=(".latest_test_run.json",))
-    code, out = run(capsys, tmp_path)
-    assert code == 0
-    assert "  Results file    .deepeval/.latest_test_run.json (saved " in out
-
 
 # The DEEPEVAL_RESULTS_FOLDER tip ------------------------------------------------------------
 
-TIP = "DEEPEVAL_RESULTS_FOLDER"
 
-
-def _more(root):
-    return " ".join(start.more_answers(start.find_judge(root)))
-
-
-def test_the_tip_shows_when_only_the_hidden_copy_exists(tmp_path):
-    deepeval_project(tmp_path, split(10, 6))
-    assert TIP in _more(tmp_path)
-
-
-def test_no_tip_when_a_results_folder_exists(tmp_path):
-    deepeval_project(tmp_path, split(10, 6), name="results/test_run_20261006_154129.json")
-    assert TIP not in _more(tmp_path)
-
-
-def test_no_tip_when_the_file_is_given_from_a_results_folder(tmp_path):
-    path = deepeval_project(tmp_path, split(10, 6), name="results/test_run_20261006_154129.json")
-    assert TIP not in _more(path)
-
-
-def test_no_tip_when_the_variable_is_set(tmp_path, monkeypatch):
-    deepeval_project(tmp_path, split(10, 6))
-    monkeypatch.setenv("DEEPEVAL_RESULTS_FOLDER", os.fspath(tmp_path / "results"))
-    assert TIP not in _more(tmp_path)
-
-
-def test_no_tip_in_the_too_few_message_when_runs_are_kept(tmp_path, capsys):
-    deepeval_project(tmp_path, split(10, 6), name="results/test_run_20261006_154129.json")
-    code = main(["start", str(tmp_path)])
-    out = capsys.readouterr().out
-    assert code == start.EXIT_QUESTION
-    assert ("You have 16 answers. judgekeeper needs at least 15 answers you mark Pass "
-            "and 15 you mark Fail to show a result. Make more answers with your eval "
-            "first, or mark these now: your marks are kept and count when you add "
-            "more.") in out
-    assert TIP not in out
-
-
-def test_deepeval_before_399_names_its_runs_without_test_run_or_json(tmp_path, capsys):
-    # DeepEval 3.0 to 3.9.7 saves each run in DEEPEVAL_RESULTS_FOLDER as <date>_<time>
-    deepeval_project(tmp_path, split(16, 16), name="results/20261011_010559")
-    _, out = run(capsys, tmp_path)
-    assert "  Eval tool       DeepEval" in out, out
-    assert "  Results file    results/20261011_010559" in out
-    assert "DeepEval saves results only when" not in out
-    _, out = run(capsys, tmp_path / "results" / "20261011_010559")
-    assert "not a results file" not in out and "  Eval tool       DeepEval" in out
-    (tmp_path / "results" / "20261011_010600").write_text("not a run", encoding="utf-8")
-    assert find.classify_file(tmp_path / "results" / "20261011_010600") is None

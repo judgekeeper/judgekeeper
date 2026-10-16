@@ -16,9 +16,7 @@ from judgekeeper import (
     judge_check,
     records,
     start,
-    start_fix,
     start_label,
-    start_review,
     textio,
 )
 from tests.start_projects import inspect_data, promptfoo_data, split
@@ -50,7 +48,7 @@ def test_plural():
 
 def test_one_helper_everywhere():
     helpers = [check._n, front._n, judge_check._n, records._plural, start._plural,
-               start_fix._plural, start_label._plural, start_review._plural]
+               start_label._plural]
     assert all(h is textio.plural for h in helpers)
 
 

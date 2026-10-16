@@ -12,18 +12,17 @@ run. Before anything is spent, `make_plan` says what would run:
 - what the run touches.
 
 One planner per tool, each `plan(ws, answers, opts, talk, dry) -> Plan`: `promptfoo`,
-`deepeval`, `inspect`, `mlflow`, and `command` for the user's own judge command
-(`--judge-command`: one answer as JSON on stdin, the verdict on stdout). With `dry`, the plan
+`deepeval`, `inspect` and `mlflow`. With `dry`, the plan
 also checks the judge where it would run: the installed promptfoo's version, or for the
 Python tools a small worker script (`workers/`) run with the user's own Python, which builds
 the judge and checks it with no API call. judgekeeper never imports DeepEval, Inspect AI or
-MLflow itself for this. The menu's line uses a plan made without `dry`: it runs nothing.
+MLflow itself for this. A plan made without `dry` runs nothing.
 
-Every process goes through `run_process`, which tests replace. After the plan, `approve` asks
-before anything is spent (default No; `--yes` never answers it; without a terminal only
-`--allow-calls N` does). Then each tool's `run` asks for real (`promptfoo.run`, `command.run`,
-and for the Python tools `deepeval.run`, `inspect.run` and `mlflow.run`, which run their worker
-in "run" mode through `worker_run`), and `fresh.finish` works out the numbers and saves them.
+Every process goes through `run_process`, which tests replace. After the plan, `judgekeeper
+check` and `fix` ask before anything is spent. Then each tool's `run` asks for real
+(`promptfoo.run`, and for the Python tools `deepeval.run`, `inspect.run` and `mlflow.run`, which
+run their worker in "run" mode through `worker_run`), and `fresh.write_files` saves the run
+files.
 """
 
 from __future__ import annotations
@@ -41,22 +40,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper import prices, textio
+from judgekeeper import prices
 from judgekeeper.redact import scrub
 from judgekeeper.textio import jsonl_lines
 
 TIMES = 2
-ALWAYS_ASK_ABOVE = 1000
 WORKER_TIMEOUT = 300
-NEEDS_COMMAND = "needs --judge-command"  # the menu's note for a judge only your code can run
-REFERENCE = "https://www.judgekeeper.com/reference.html#bring-your-own-judge"
-WRAP = ("To ask your judge again yourself, wrap it as a command: {command} {flag} "
-        "--judge-command '...' (see " + REFERENCE + ").")
-EXACT, CLOSE, CANT, OWN = "exact", "close", "cant", "own"
-CHANGED = ("Your judge changed since your marks ({change}): this asks the judge in your newest "
-           "results, not the one you checked.")
-CHANGED_AFTER = ("Before is the judge you checked; now is the judge in your newest results: two "
-                 "different judges.")
+EXACT, CLOSE, CANT = "exact", "close", "cant"
 
 
 @dataclass
@@ -64,9 +54,7 @@ class AgainOptions:
     times: int | None = None  # --times; None: TIMES, or 1 when trying a new judge
     python: str | None = None  # --python
     fields: str | None = None  # --fields, DeepEval GEval: the parts the judge reads
-    judge_command: str | None = None
     judge_model: str | None = None
-    allow_calls: int | None = None  # --allow-calls
     rule: str | None = None  # `judgekeeper fix`: a new rule, swapped in for the judge's own
 
 
@@ -74,7 +62,7 @@ class AgainOptions:
 class Plan:
     tool: str
     judge: str
-    status: str  # EXACT, CLOSE, CANT or OWN
+    status: str  # EXACT, CLOSE or CANT
     why: str  # one sentence, no final full stop
     short: str = ""  # a few words, for the menu, when the judge can't be asked again
     plain: str = ""  # instead of "Your judge can't be asked again: <why>.", a whole sentence
@@ -354,16 +342,20 @@ def run_worker(tool: str, python: str, job: dict, cwd: Path, env: dict | None = 
 def labeled_answers(ws) -> list[dict]:
     """[{id, input, output, label, verdict}] for every answer labeled Correct or Wrong, in the
     order the person saw them (skips left out)."""
-    from judgekeeper.start_review import labeled
+    from judgekeeper.judgments import read_run
+    from judgekeeper.start_again import _labels
 
+    labels = _labels(ws)
+    _, records = read_run(ws.pool_judge)
     raw = {}
     for line in jsonl_lines(ws.pool.read_text(encoding="utf-8")):
         if line.strip():
             row = json.loads(line)
             raw[row["id"]] = row
     return [{"id": r["id"], "input": raw.get(r["id"], {}).get("input"),
-             "output": raw.get(r["id"], {}).get("output"), "label": r["first"],
-             "verdict": r["judge"]} for r in labeled(ws)]
+             "output": raw.get(r["id"], {}).get("output"), "label": labels[r["id"]],
+             "verdict": records[r["id"]]["verdict"]}
+            for r in ws.data()["queue"] if r["id"] in labels]
 
 
 def left_out_line(n: int, why: str, why_many: str | None = None) -> str:
@@ -380,12 +372,12 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
     (no API call); without it nothing runs (for the menu). `talk`, at a terminal, asks the
     few questions a plan may need (DeepEval's fields, a tool's version).
 
-    With `new` (a new_judge.View), the judge is the new one in the newest results, rebuilt
+    With `new` (a check.View), the judge is the new one in the newest results, rebuilt
     from them, and it grades the same labeled answers; it is asked once unless --times.
     `only` (answer ids) keeps the plan to those labeled answers."""
     from dataclasses import replace
 
-    from judgekeeper.again import command, deepeval, inspect, mlflow, promptfoo
+    from judgekeeper.again import deepeval, inspect, mlflow, promptfoo
     from judgekeeper.records import RecordsError
 
     opts = opts or AgainOptions()
@@ -396,24 +388,21 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
     planners = {"promptfoo": promptfoo.plan, "deepeval": deepeval.plan,
                 "inspect": inspect.plan, "mlflow": mlflow.plan}
     try:
-        if opts.judge_command:
-            plan = command.plan(source, answers, opts)
-        elif data["tool"] in planners:
+        if data["tool"] in planners:
             plan = planners[data["tool"]](source, answers, opts, talk, dry,
                                           new=new is not None)
         elif data["tool"] == "mapped":
             plan = cant("mapped", data["judge"],
                         "your judge's decisions are in your own results file, and judgekeeper "
-                        "can't run the judge that made them", short=NEEDS_COMMAND)
+                        "can't run the judge that made them")
         elif data["tool"] == "records":
             plan = cant("records", data["judge"],
                         "your judge's decisions were saved by judgekeeper.record() in your own "
-                        "code, and judgekeeper can't run the judge that made them",
-                        short=NEEDS_COMMAND)
+                        "code, and judgekeeper can't run the judge that made them")
         else:
             plan = cant(data["tool"], data["judge"],
                         "your judge's decisions are a table, and judgekeeper can't run the "
-                        "judge that made them", short=NEEDS_COMMAND)
+                        "judge that made them")
     except (OSError, ValueError, KeyError, RecordsError) as e:
         plan = cant(data["tool"], data["judge"],
                     f"your saved results could not be read again ({scrub(str(e))})",
@@ -423,107 +412,19 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
     return plan
 
 
-def _s(n: int, word: str) -> str:
-    return f"{n:,} {word}{'' if n == 1 else 's'}"
-
-
-def calls_line(p: Plan) -> str:
-    each = set(p.calls_each)
-    per = f" × {next(iter(each))} calls each" if len(each) == 1 and max(each) > 1 else ""
-    note = f"{p.calls_note} " if p.calls_note else ""
-    line = (f"{_s(p.answers, 'marked answer')} × {_s(p.times, 'time')}{per} = "
-            f"{note}{p.calls:,} judge calls")
-    if len(each) > 1:
-        line += " (calls per answer differ by answer)"
-    if p.extra_calls:
-        line += f", {p.extra_calls}"
-    return line + "."
-
-
-def cost_words(p: Plan) -> str:
-    from judgekeeper.keys import provider_of
-
-    if provider_of(p.model, p.provider) == "ollama":
-        return "free"
-    if p.cost is None:
-        return "cost unknown"
-    return prices.amount(*p.cost)
-
-
-def plan_lines(p: Plan, title: str = "Ask your judge again", command: str | None = None,
-               flag: str = "--ask-again") -> list[str]:
-    """The plan as the terminal shows it. `command` (start.Talk.command) and `flag` make the
-    hint for a judge that can't be asked: run as printed, it is the same step again."""
-    command = command or textio.program("start")
-    lines = [title, "", f"  Your judge: {p.judge}"]
-    if p.status == CANT:
-        said = p.plain or f"Your judge can't be asked again: {p.why}."
-        return lines + [f"  {said}", f"  {WRAP.format(command=command, flag=flag)}"]
-    if p.changed:  # never "exactly your judge" when it is not the judge that was checked
-        lines.append(f"  {CHANGED.format(change=p.changed)}")
-    else:
-        lines.append({EXACT: f"  This is exactly your judge: {p.why}.",
-                      CLOSE: f"  This is a close copy of your judge: {p.why}.",
-                      OWN: f"  This is your own judge command. {p.why}."}[p.status])
-    lines += [f"  {x}" for x in (*p.key_lines, *p.notes)]
-    lines += ["", f"  {calls_line(p)}"]
-    lines.append(f"  {p.cost_text or prices.cost_line(p.model, p.provider, p.tokens * p.times)}")
-    lines += [f"  {x}" for x in (*p.left_out, *p.side_effects)]
-    return lines
-
-
-def menu_text(p: Plan) -> tuple[str, str]:
-    """The menu's line for asking again, and its note in brackets."""
-    text = f"Ask your judge again about your {_s(p.labeled, 'marked answer')}"
-    if p.status == CANT:
-        return text, f"(can't: {p.short})"
-    note = f"{p.calls_note} " if p.calls_note else ""
-    return text, f"({note}{p.calls:,} calls, {cost_words(p)})"
-
-
 def run_tool(ws, plan: Plan, talk):
     """Ask for real with the plan's tool (after the yes): its Fresh."""
-    from judgekeeper.again import command, deepeval, inspect, mlflow, promptfoo
+    from judgekeeper.again import deepeval, inspect, mlflow, promptfoo
 
-    runs = {"promptfoo": promptfoo.run, "command": command.run, "deepeval": deepeval.run,
+    runs = {"promptfoo": promptfoo.run, "deepeval": deepeval.run,
             "inspect": inspect.run, "mlflow": mlflow.run}
     return runs[plan.tool](ws, plan, talk)
-
-
-# Spending --------------------------------------------------------------------------------------
-
-def approve(p: Plan, talk, allow_calls: int | None, command: str = "--ask-again") -> bool:
-    """Whether to spend the plan's calls. The question defaults to No and `--yes` never
-    answers it. Without a terminal, and above 1,000 calls at a terminal too, only
-    `--allow-calls N` (N at least the planned calls) approves."""
-    from judgekeeper.start import EXIT_QUESTION, EXIT_USAGE, Stop, _interactive
-
-    if p.status == CANT:
-        return False
-    flag = talk.command(command, "--allow-calls", str(p.calls))
-    if allow_calls is not None:
-        if allow_calls >= p.calls:
-            return True
-        talk.say(f"--allow-calls {allow_calls:,} is below the {p.calls:,} calls planned. "
-                 "Your judge was not called; nothing was spent.")
-        raise Stop(EXIT_USAGE)
-    if p.calls > ALWAYS_ASK_ABOVE:
-        talk.say(f"More than 1,000 calls: to go ahead, run {flag}")
-        raise Stop(EXIT_QUESTION)
-    if not _interactive():
-        talk.say(f"To go ahead without a terminal: {flag}")
-        raise Stop(EXIT_QUESTION)
-    return talk.confirm("Go ahead?", default=False, with_yes=False,
-                        hint=f"To go ahead: {flag}")
 
 
 __all__ = [
     "AgainOptions",
     "Plan",
-    "approve",
     "make_plan",
-    "menu_text",
-    "plan_lines",
     "run_process",
     "run_worker",
     "start_worker",

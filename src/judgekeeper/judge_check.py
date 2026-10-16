@@ -263,26 +263,11 @@ def setup_lines(found, setup: dict) -> list[str]:
     return out
 
 
-def terminal_lines(block: dict | None, tick: str) -> list[str]:
-    """The lines `start` prints: `tick` (textio.tick) in front of the one line when nothing
-    was found, else "!" in front of each finding, and where to see the answers."""
-    found = lines(block)
-    if not found:
-        return [f"  {tick} {EVERY_ANSWER}"]
-    out = []
-    for first, *rest in found:
-        out += [f"  ! {first}"] + [f"    {line}" for line in rest]
-    if has_rows(block):
-        out.append(f"    {LIST_LINE}")
-    return out
-
-
 def page_lines(block: dict | None) -> list[str]:
     """The result page's card: one paragraph per finding."""
     return [" ".join(found) for found in lines(block)]
 
 
 __all__ = ["CSV_COLUMNS", "EVERY_ANSWER", "KINDS", "LEFT_OUT", "LIST_LINE", "TITLE", "Finding",
-           "Result",
-           "check", "has_rows", "is_empty_answer", "lines", "page_lines",
-           "says_opposite", "setup_lines", "stated_decisions", "terminal_lines"]
+           "Result", "check", "has_rows", "is_empty_answer", "lines", "page_lines", "says_opposite",
+           "setup_lines", "stated_decisions"]

@@ -8,14 +8,9 @@ import csv
 
 import pytest
 
-from judgekeeper import start_label, textio
+from judgekeeper import textio
 from judgekeeper.cli import main
 from tests.start_projects import promptfoo_project, split
-
-
-@pytest.fixture(autouse=True)
-def no_labeling(monkeypatch):
-    monkeypatch.setattr(start_label, "run_labeling", lambda *a, **kw: 0)
 
 
 @pytest.fixture
@@ -39,7 +34,7 @@ def _big_csv(path, n):
 
 def test_a_slow_table_says_how_far_it_got(tmp_path, capsys, slow):
     _big_csv(tmp_path / "results.csv", 3000)
-    main(["start", str(tmp_path / "results.csv"), "--yes"])
+    main([str(tmp_path / "results.csv"), "--yes"])
     err = capsys.readouterr().err
     lines = [x for x in err.splitlines() if x.startswith("Reading results.csv (")]
     assert lines and lines[0].endswith(" answers so far)...")
@@ -48,11 +43,11 @@ def test_a_slow_table_says_how_far_it_got(tmp_path, capsys, slow):
 
 def test_a_slow_promptfoo_file_says_it_too(tmp_path, capsys, slow):
     promptfoo_project(tmp_path, split(1500, 1500))
-    main(["start", str(tmp_path / "results.json"), "--yes"])
+    main([str(tmp_path / "results.json"), "--yes"])
     assert "Reading results.json (" in capsys.readouterr().err
 
 
 def test_a_quick_read_says_nothing(tmp_path, capsys):
     _big_csv(tmp_path / "results.csv", 3000)
-    main(["start", str(tmp_path / "results.csv"), "--yes"])
+    main([str(tmp_path / "results.csv"), "--yes"])
     assert "Reading " not in capsys.readouterr().err

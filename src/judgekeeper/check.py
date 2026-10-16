@@ -429,17 +429,33 @@ def _go_ahead(yes: bool) -> bool | None:
             return True
 
 
+class View:
+    """A workspace seen through the newest results: the new judge's tool, files, name and
+    fingerprint; everything else (the marked answers, the pool's groups) is the saved check's.
+    `data()["saved"]` is the saved check's own start.json."""
+
+    def __init__(self, ws: Workspace, found):
+        self.ws, self.found = ws, found
+        self.root, self.dir, self.start = ws.root, ws.dir, ws.start
+
+    def data(self) -> dict:
+        saved = self.ws.data()
+        f = self.found
+        return {**saved, "tool": f.tool, "results_files": list(f.used), "metric": f.metric,
+                "judge": f.judge, "fingerprint": f.fingerprint, "saved": saved}
+
+
 def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
         rest: bool = False) -> Asked | None:
     """Ask the judge in the newest results about the marked answers `ids` (`rest`: the ones
     not found free), once the person said yes to the calls it makes. None without a terminal
     and without --yes: the question is said, nothing is asked."""
-    from judgekeeper import again, new_judge
+    from judgekeeper import again
     from judgekeeper.again.fresh import NOT_COUNTED, AgainError, write_files
 
     out = Asked()
     ws = state.ws
-    view = new_judge.View(ws, found)
+    view = View(ws, found)
     plan = again.make_plan(ws, again.AgainOptions(times=ASK_TIMES), dry=True, new=view,
                            only=set(ids))
     if plan.status == again.CANT:

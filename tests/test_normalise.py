@@ -10,7 +10,6 @@ from judgekeeper.normalise import (
     UnmappedValue,
     parse_label_map,
     parse_pass_if,
-    unmapped_error,
 )
 
 
@@ -121,18 +120,6 @@ def test_bad_label_map_is_usage_error(text):
         parse_label_map(text)
 
 
-def test_unmapped_value_lists_values_seen():
-    norm, seen = Normaliser(), []
-    for value in ["pass", "good", "bad", "good", "fail"]:
-        try:
-            norm(value)
-        except UnmappedValue as e:
-            seen.append(e.value)
-    msg = str(unmapped_error(seen, "verdict"))
-    assert "'good'" in msg and "'bad'" in msg and "--label-map" in msg
-    assert "'pass'" not in msg
-
-
 @pytest.mark.parametrize("raw", [None, "", "   ", float("nan"), [], [1, 2, 3], {"other": 1},
                                  {"verdict": None}, (None, "no verdict")])
 def test_nothing_or_unparseable_is_error_not_fail(n, raw):
@@ -161,14 +148,6 @@ def test_describe_records_rule_and_map():
     assert d["pass_if"] == "score>=0.5"
     assert d["label_map"]["good"] == "pass"
     assert d["label_map"]["yes"] == "pass"
-
-
-def test_the_label_map_advice_never_guesses_a_side():
-    from judgekeeper.normalise import unmapped_error
-
-    msg = str(unmapped_error(["Meh"]))
-    assert '--label-map "Meh=pass" or --label-map "Meh=fail", whichever it means' in msg
-    assert "Meh=pass," not in msg
 
 
 def test_right_and_wrong_are_default_spellings():

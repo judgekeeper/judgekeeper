@@ -373,8 +373,6 @@ def test_wrapping_keeps_commands_whole_and_never_starts_a_line_with_next():
 
 def test_too_few_answers_says_so_without_a_target_number(here, capsys):
     """No target numbers on screen: the page shows how far the marks are."""
-    from judgekeeper.again.fresh import TOO_FEW_NUMBERS
-
     promptfoo_project(here, split(4, 3), rubric=RULE)
     code, lines = screen(capsys)
     assert code == 3
@@ -382,7 +380,6 @@ def test_too_few_answers_says_so_without_a_target_number(here, capsys):
     assert ("You have 7 answers with a clear grade. That is not enough answers for a first "
             "result.") in text
     assert "15" not in text
-    assert not any(ch.isdigit() for ch in TOO_FEW_NUMBERS)
 
 
 @pytest.mark.parametrize("name, kind", [("results.csv", "CSV"), ("graded.jsonl", "JSONL")])

@@ -209,7 +209,7 @@ def test_every_post_the_pages_send_keeps_their_origin():
 
     source = Path(start_page.__file__).read_text(encoding="utf-8")
     posts = re.findall(r'fetch\([^)]*\), \{\s*method: "POST".*?body:', source, re.DOTALL)
-    assert len(posts) >= 4
+    assert posts  # the marking page's one POST: every mark
     for post in posts:
         assert 'referrerPolicy: "same-origin"' in post, post
 

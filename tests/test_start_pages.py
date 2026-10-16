@@ -13,7 +13,7 @@ from html import escape, unescape
 import pytest
 
 from judgekeeper import start, start_label, weighted
-from tests.start_projects import RUBRIC, promptfoo_project, split
+from tests.start_projects import RUBRIC, promptfoo_project, save_result, split
 
 
 def _ws(root, n_pass=20, n_fail=12, **kwargs):
@@ -59,7 +59,7 @@ def test_the_labeling_page_has_the_bar_the_rule_and_the_key_hints(tmp_path):
                    "<kbd>←</kbd> or drag left: Fail", "<kbd>→</kbd> or drag right: Pass",
                    "Click a dot at the top to go back to any answer, skipped ones too.",
                    ("Every click is saved. Close the tab any time; run "
-                    "<code>judgekeeper start</code> to continue."),
+                    "<code>judgekeeper</code> to continue."),
                    'aria-live="polite"', '<span class="saved" id="saved">Saved</span>'):
         assert needed in page, needed
     body = page.split("<main")[1].split("<script")[0]
@@ -309,13 +309,11 @@ def test_mark_more_answers_says_which_range_is_still_wide():
     assert not re.search(r"\d\.\d\d wide", html)
 
 
-def test_what_next_holds_the_three_steps():
+def test_what_next_holds_the_two_steps():
     html = start_label.result_html(_result(*CHECK), back="/?token=t")
     assert re.findall(r"<li><b>(.*?)</b>", html) == ["Mark more answers",
-                                                    "Ask your judge again",
                                                     "Check again after your next eval run"]
-    assert "<code>judgekeeper start --ask-again</code>" in html  # a command: no button
-    assert "<b>Check again after your next eval run</b> <code>judgekeeper start</code>" \
+    assert "<b>Check again after your next eval run</b> <code>judgekeeper</code>" \
         in _flat(html)
     assert ("Saved in <code>.judgekeeper/</code> in your project. This page is "
             "<code>report.html</code> there.") in _flat(html)
@@ -324,7 +322,7 @@ def test_what_next_holds_the_three_steps():
 def test_the_saved_page_has_commands_not_buttons():
     html = start_label.result_html(_result(*CHECK))
     assert "<button" not in html and 'class="btn"' not in html and "<a " not in html
-    assert f"{BOTH_WIDE} <code>judgekeeper start</code>" in _flat(html)
+    assert f"{BOTH_WIDE} <code>judgekeeper</code>" in _flat(html)
 
 
 def test_the_judge_card_shows_the_full_rule(tmp_path):
@@ -333,7 +331,7 @@ def test_the_judge_card_shows_the_full_rule(tmp_path):
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
     for item in session.items:
         session.update({"id": item["id"], "label": groups[item["id"]]})
-    start_label.save_result(ws, session, say=lambda line: None)
+    save_result(ws, session, say=lambda line: None)
     html = _flat(ws.report_html.read_text(encoding="utf-8"))
     assert "<b>llm-rubric</b> · openai:gpt-4.1-mini" in html
     assert ('<div class="rule">&quot;Is polite and correct. Second line of the rubric.&quot;'
@@ -361,16 +359,7 @@ def test_both_pages_are_navy_with_the_amber_and_respect_reduced_motion():
         assert "transition: all" not in page
 
 
-# When labeling more or asking again cannot help ------------------------------------------
-
-def test_with_every_answer_marked_it_does_not_offer_to_mark_more():
-    r = _result(*CHECK, left=0)
-    html = _flat(start_label.result_html(r, back="/?token=t"))
-    assert 'href="/?token=t"' not in html
-    assert ("<b>Mark more answers</b>Every saved answer is marked. Run your eval again for "
-            "more answers, then:") in html
-    lines = start_label.result_lines(r)
-    assert not any(line.startswith("  Mark more answers") for line in lines)
+# When labeling more cannot help ----------------------------------------------------------
 
 
 def test_with_answers_left_it_still_offers_to_mark_more():
@@ -378,31 +367,7 @@ def test_with_answers_left_it_still_offers_to_mark_more():
     assert '<a class="btn" href="/?token=t">Mark more answers</a>' in html
 
 
-@pytest.mark.parametrize("tool", ["records", "table", "mapped"])
-def test_a_judge_it_cannot_ask_again_is_not_offered(tool):
-    r = _result(*CHECK, judge={"tool": tool})
-    assert "--ask-again" not in start_label.result_html(r)
-    assert not any("--ask-again" in line for line in start_label.result_lines(r))
-
-
-@pytest.mark.parametrize("tool", ["promptfoo", "deepeval", "inspect", "mlflow"])
-def test_a_judge_it_can_ask_again_is_offered(tool):
-    r = _result(*CHECK, judge={"tool": tool})
-    assert "judgekeeper start --ask-again" in start_label.result_html(r)
-
-
 # Too few marks: no numbers yet -----------------------------------------------------------
-
-def test_too_few_marks_show_no_numbers():
-    r = _result(100, 100, 2, 1, 1, 0)  # 1 Pass, 2 Fail
-    body = _flat(start_label.result_html(r).split("<main")[1])
-    assert "-0." not in body and "0.00" not in body and "%" not in body
-    assert "Mark a few more answers to see your result. So far: 1 Pass, 2 Fail." in body
-    assert body.count('<b class="val">–</b>') == 3 and "rangebar" not in body
-    assert "ring" not in body and 'class="stmt"' not in body  # nothing to draw yet
-    assert "judgekeeper showed you" not in body and 'class="facts"' not in body
-    lines = start_label.result_lines(r)
-    assert not any("TPR" in line or "%" in line for line in lines)
 
 
 def test_the_result_links_start_hidden_until_a_rough_check():

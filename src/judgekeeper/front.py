@@ -842,7 +842,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown)."""
     opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved),
-                           _command_of(talk, saved, "start"), here=wait, say=talk.say)
+                           _command_of(talk, saved), here=wait, say=talk.say)
     shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait)
     if not shown:
         if opened is not None and opened.server is None:
@@ -972,7 +972,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
 
     fix.prepare_split(ws)  # before any mistake is shown or written: some marks are hidden
     session = StartSession(ws)
-    r = start_label.store_result(ws, session, _command_of(talk, saved, "start"))
+    r = start_label.store_result(ws, session, _command_of(talk, saved))
     n = r["labels"]["correct"] + r["labels"]["wrong"]
     made = r.get("made") or marks.made(marks.read(ws.marks), ids=set(session.by_id))
     for line in made_lines(made)[1:]:  # the notes on how they were made; the count is below

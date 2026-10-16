@@ -10,16 +10,7 @@ import time
 import pytest
 
 from judgekeeper import own_format
-from judgekeeper.cli import main
-from judgekeeper.textio import quote_arg
 from tests.start_projects import own_format_project, promptfoo_project, split
-
-
-def run(capsys, *argv):
-    code = main(["start", *map(str, argv)])
-    out, err = capsys.readouterr()
-    return code, out, err
-
 
 # Spotting the file ---------------------------------------------------------------------------
 
@@ -99,68 +90,4 @@ def test_the_most_recently_changed_file_is_named(tmp_path):
 
 # What start says ------------------------------------------------------------------------------
 
-def test_start_names_the_file_and_prints_the_prompt(tmp_path, capsys):
-    own_format_project(tmp_path)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2
-    assert "data/prompt_evals.jsonl looks like saved judge results in your own format." in out
-    setup = f"judgekeeper {quote_arg(tmp_path)}"
-    assert (f"To use it as it is, run {setup}: it asks how to read it and saves that in "
-            "judgekeeper.toml.") in out
-    assert ("Or turn it into a table with input, output and verdict columns (see "
-            "www.judgekeeper.com/start.html#own-format), or ask your coding agent with the "
-            "prompt below.") in out
-    assert own_format.AGENT_PROMPT in out
-    # judgekeeper first, then the table or the coding agent, then judgekeeper.record()
-    assert (out.index("looks like saved judge results") < out.index(setup)
-            < out.index("Or turn it into") < out.index(own_format.AGENT_PROMPT)
-            < out.index("judgekeeper.record() line"))
 
-
-def test_deepeval_says_measure_saves_nothing_and_never_run_your_eval_again(tmp_path, capsys):
-    own_format_project(tmp_path)
-    _, out, _ = run(capsys, tmp_path)
-    assert ("DeepEval is used here (requirements.txt), but DeepEval saves results only when "
-            "your tests run through deepeval test run or evaluate(); calling a metric's "
-            "measure() directly saves nothing.") in out
-    assert "run your eval" not in out.lower()
-
-
-def test_deepeval_without_an_own_file_still_gives_the_prompt(tmp_path, capsys):
-    _write(tmp_path / "requirements.txt", "deepeval\n")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2 and "run your eval" not in out.lower()
-    assert ("If your judge saves its results in a format of its own: turn them into a table "
-            "with input, output and verdict columns (see "
-            "www.judgekeeper.com/start.html#own-format), or ask your coding agent with the "
-            "prompt below.") in out
-    assert own_format.AGENT_PROMPT in out
-
-
-def test_inspect_still_says_to_run_the_eval(tmp_path, capsys):
-    _write(tmp_path / "requirements.txt", "inspect-ai\n")
-    _, out, _ = run(capsys, tmp_path)
-    assert ("Inspect AI is used here (requirements.txt), but it has no saved logs in this "
-            "folder yet. Run your eval (inspect eval saves its logs in logs/), then run "
-            "judgekeeper again.") in out
-
-
-def test_an_empty_folder_prints_no_prompt(tmp_path, capsys):
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2 and "No saved eval results found" in out
-    assert own_format.AGENT_PROMPT not in out
-
-
-def test_the_agent_prompt_flag(tmp_path, capsys):
-    code, out, _ = run(capsys, tmp_path / "not-there", "--agent-prompt")
-    assert code == 0 and out == own_format.AGENT_PROMPT + "\n"
-
-
-def test_the_agent_prompt_installs_inside_the_project_only():
-    text = own_format.AGENT_PROMPT
-    assert "this project's own Python environment" in text
-    for outside in ("pipx", "uv tool", "uvx", "pip3 install", "--user", "-g "):
-        assert outside not in text
-    for column in ("id, input, output, verdict and reason", "judge_model", "pass or fail",
-                   "never send the data anywhere", "judgekeeper start <the CSV file>"):
-        assert column in text

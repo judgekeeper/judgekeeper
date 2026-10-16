@@ -38,7 +38,7 @@ In this project, my LLM judge saves its results in its own format. Please:
 3. Write one CSV per judge or criterion. Leave out rows where the judge gave an error, and
    scores made by a rule instead of an LLM.
 4. Keep everything on this computer: never send the data anywhere.
-5. Run `judgekeeper start <the CSV file>` and show me what it prints, so I can check the
+5. Run `judgekeeper <the CSV file>` and show me what it prints, so I can check the
    counts and the example rows."""
 
 SCORE_KEYS = frozenset({"score", "scores", "verdict", "pass", "passed", "success", "label"})
@@ -163,7 +163,7 @@ def agent_prompt() -> str:
     """AGENT_PROMPT, naming judgekeeper the way it was started (textio.program)."""
     from judgekeeper.textio import program
 
-    return AGENT_PROMPT.replace("`judgekeeper start ", f"`{program('start')} ")
+    return AGENT_PROMPT.replace("`judgekeeper ", f"`{program()} ")
 
 
 __all__ = ["AGENT_PROMPT", "OwnFile", "agent_prompt", "looks_judged", "search"]

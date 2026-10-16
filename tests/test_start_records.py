@@ -12,32 +12,8 @@ from __future__ import annotations
 import json
 import time
 
-import pytest
-
 from judgekeeper import again, find, start, start_again, start_label
-from judgekeeper.cli import main
-from judgekeeper.textio import quote_arg
-from tests.start_projects import promptfoo_project, records_project, split
-
-
-@pytest.fixture(autouse=True)
-def no_labeling(monkeypatch):
-    calls = []
-
-    def run_labeling(found, port, open_browser, say, command="judgekeeper start"):
-        calls.append(found)
-        say("(labeling page)")
-        return 0
-
-    monkeypatch.setattr("judgekeeper.start_label.run_labeling", run_labeling)
-    return calls
-
-
-def run(capsys, *argv):
-    code = main(["start", *map(str, argv), "--yes"])
-    out, err = capsys.readouterr()
-    return code, out, err
-
+from tests.start_projects import records_project, split
 
 NOW = time.time()
 
@@ -48,20 +24,6 @@ def two_processes(root, **kwargs):
     records_project(root, split(8, 8), pid=4102, start=20, mtime=NOW - 30, **kwargs)
 
 
-def test_start_finds_the_records_of_every_process(tmp_path, capsys, no_labeling):
-    two_processes(tmp_path)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "  Eval tool       your own code (judgekeeper.record())" in out
-    assert "  Results file    .judgekeeper/records/ (2 files)" in out
-    assert '  What it checks  "Be polite."' in out
-    assert "  Judge model     claude-opus-5" in out
-    assert "Its decisions   36 answers: 20 passed, 16 failed" in out
-    assert "older results" not in out
-    (found,) = no_labeling
-    assert found.tool == "records" and len(found.used) == 2
-
-
 def test_the_search_sees_the_records_folder_only(tmp_path):
     records_project(tmp_path, split(2, 2))
     (tmp_path / ".judgekeeper" / "pool.jsonl").write_text("{}\n", encoding="utf-8")
@@ -69,89 +31,6 @@ def test_the_search_sees_the_records_folder_only(tmp_path):
     assert [r.rel for r in found.readable("records")] == [
         ".judgekeeper/records/Safe-wording-2026-10-05-4101.jsonl"]
     assert "table" not in found.results
-
-
-def test_several_judges_ask_which_and_metric_answers(tmp_path, capsys):
-    records_project(tmp_path, split(20, 16), name="Safe wording", pid=1)
-    records_project(tmp_path, split(18, 18), name="Plain language", pid=1, tag=" plain")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == start.EXIT_QUESTION
-    assert "--metric 'Plain language'" in out or '--metric "Plain language"' in out
-    code, out, _ = run(capsys, tmp_path, "--metric", "Plain language")
-    assert code == 0
-    assert "  Results file    .judgekeeper/records/ (1 file)" in out
-    assert '  What it checks  Plain language: "' in out  # two judges: which one is said
-
-
-def test_a_changed_judge_leaves_the_older_records_out(tmp_path, capsys, no_labeling):
-    records_project(tmp_path, split(20, 16), pid=1, rule="Be polite.", mtime=NOW - 600)
-    records_project(tmp_path, split(20, 16), pid=2, rule="Be polite and brief.",
-                    tag=" v2", mtime=NOW - 60)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "  Results file    .judgekeeper/records/ (1 file)" in out
-    assert '  What it checks  "Be polite and brief."' in out
-    (found,) = no_labeling
-    assert found.used == [".judgekeeper/records/Safe-wording-2026-10-05-2.jsonl"]
-
-
-def test_a_newer_file_wins_for_the_same_answer(tmp_path, no_labeling, capsys):
-    records_project(tmp_path, [True] * 36, pid=1, mtime=NOW - 600)
-    records_project(tmp_path, [False] * 4, pid=2, mtime=NOW - 60)
-    _, out, _ = run(capsys, tmp_path)
-    (found,) = no_labeling
-    assert found.pool.n_pass == 32 and found.pool.n_fail == 4
-    assert "4 repeats of the same answer were merged." in out
-
-
-def test_a_last_line_cut_short_is_left_out(tmp_path, capsys, no_labeling):
-    path = records_project(tmp_path, split(20, 16))
-    with path.open("a", encoding="utf-8") as f:
-        f.write('{"schema_version": 2, "name": "Safe wording", "inp')
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "the last line of .judgekeeper/records/Safe-wording-2026-10-05-4101.jsonl was cut " \
-           "short (the program stopped while writing it) and was left out" in out
-    assert len(no_labeling[0].pool.answers) == 36
-
-
-def test_a_line_it_cannot_read_is_left_out_and_counted(tmp_path, capsys):
-    two_processes(tmp_path)
-    bad = records_project(tmp_path, [True, False], pid=9, mtime=NOW - 90)
-    lines = bad.read_text(encoding="utf-8").splitlines()
-    bad.write_text('{"label": "pass", "score": "high"}\n' + lines[1] + "\n", encoding="utf-8")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "1 answer in Safe-wording-2026-10-05-9.jsonl was left out: line 1 has a damaged " \
-           "field." in out
-    assert "  Eval tool       your own code (judgekeeper.record())" in out
-
-
-def test_records_and_another_tool_ask_which(tmp_path, capsys):
-    two_processes(tmp_path)
-    promptfoo_project(tmp_path, split(20, 16))
-    code, out, _ = run(capsys, tmp_path)
-    assert code == start.EXIT_QUESTION
-    assert "--tool records" in out
-    code, out, _ = run(capsys, tmp_path, "--tool", "records")
-    assert code == 0 and "  Eval tool       your own code (judgekeeper.record())" in out
-
-
-def test_start_reads_one_records_file_named_on_the_command_line(tmp_path, capsys):
-    path = records_project(tmp_path, split(20, 16))
-    code, out, _ = run(capsys, path)
-    assert code == 0
-    assert "  Eval tool       your own code (judgekeeper.record())" in out
-    assert " (1 file)" in out
-
-
-def test_more_answers_come_from_running_the_eval_again(tmp_path):
-    records_project(tmp_path, split(3, 2))
-    found = start.find_judge(tmp_path)
-    assert start.more_answers(found) == [
-        ("  Run your eval on more answers: each judgekeeper.record() call saves one more "
-         "decision."),
-        "  Running your eval again makes model calls, so it costs money."]
 
 
 def test_new_keeps_the_records(tmp_path, capsys):
@@ -174,15 +53,6 @@ def test_asking_again_says_record_judges_cannot_be_run(tmp_path):
     assert "table" not in plan.why
 
 
-def test_nothing_found_offers_the_record_line(tmp_path, capsys):
-    (tmp_path / "requirements.txt").write_text("deepeval\n", encoding="utf-8")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 2
-    assert ("Or save your judge's decisions from now on with one judgekeeper.record() line "
-            "where it runs: www.judgekeeper.com/reference.html#record-save-your-own-judges-"
-            "verdicts-with-one-line shows the line.") in out
-
-
 def test_records_reach_the_labeling_page_like_any_other_results(tmp_path):
     two_processes(tmp_path)
     ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line="": None)
@@ -193,68 +63,3 @@ def test_records_reach_the_labeling_page_like_any_other_results(tmp_path):
     assert len(pool) == 36
 
 
-def test_asking_again_on_records_ends_with_the_judge_command_way(tmp_path, capsys):
-    """Like every "can't": the last line says how to wrap the judge as a command."""
-    from judgekeeper.start_label import StartSession, save_result
-
-    two_processes(tmp_path)
-    ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line="": None)
-    session = StartSession(ws)
-    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
-    for item in session.items:
-        session.update({"id": item["id"], "label": groups[item["id"]]})
-    save_result(ws, session, say=lambda line="": None)
-    capsys.readouterr()
-    assert main(["start", str(tmp_path), "--ask-again"]) == 0
-    lines = [line.strip() for line in capsys.readouterr().out.splitlines() if line.strip()]
-    assert any("saved by judgekeeper.record()" in line for line in lines)
-    assert lines[-1] == again.WRAP.format(command=f"judgekeeper start {quote_arg(tmp_path)}",
-                                          flag="--ask-again")
-    assert lines[-1].startswith("To ask your judge again yourself, wrap it as a command: "
-                                f"judgekeeper start {quote_arg(tmp_path)} --ask-again "
-                                "--judge-command '...'")
-
-
-def test_from_a_subfolder_start_finds_the_project_roots_records(tmp_path, capsys, no_labeling,
-                                                                monkeypatch):
-    # record() saves at the project root from any subfolder (recorder.project_root)
-    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'app'\n", encoding="utf-8")
-    two_processes(tmp_path)
-    (tmp_path / "app" / "evals").mkdir(parents=True)
-    monkeypatch.chdir(tmp_path / "app" / "evals")
-    code, out, _ = run(capsys, ".")
-    assert code == 0, out
-    assert ("Nothing to read here, but judgekeeper.record() saves your judge's decisions at the "
-            f"project root: reading them in {tmp_path.resolve()}.") in out
-    assert "  Eval tool       your own code (judgekeeper.record())" in out
-    (found,) = no_labeling
-    assert found.root == tmp_path.resolve()
-    assert find.records_above(tmp_path) is None  # at the root itself: the normal search
-
-
-def test_from_a_subfolder_with_its_own_results_those_win(tmp_path, capsys, no_labeling,
-                                                       monkeypatch):
-    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'app'\n", encoding="utf-8")
-    two_processes(tmp_path)
-    promptfoo_project(tmp_path / "app", split(16, 16))
-    monkeypatch.chdir(tmp_path / "app")
-    _, out, _ = run(capsys, ".")
-    assert "Nothing to read here" not in out and "  Eval tool       promptfoo" in out
-
-
-def test_judgekeeper_from_a_subfolder_finds_the_project_roots_records(tmp_path, capsys,
-                                                                     monkeypatch):
-    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'app'\n", encoding="utf-8")
-    two_processes(tmp_path)
-    (tmp_path / "app").mkdir()
-    monkeypatch.chdir(tmp_path / "app")
-    code = main([])
-    out = capsys.readouterr().out
-    assert code == 0, out
-    assert "judgekeeper.record() saves your judge's decisions at the project root" in " ".join(
-        out.split())
-    assert "Eval tool:   judgekeeper.record() in your code" in out
-    assert not (tmp_path / "app" / ".judgekeeper").exists()  # it would make app a root
-    assert (tmp_path / ".judgekeeper" / "judge.json").is_file()
-    code, out, _ = run(capsys, ".")
-    assert code == 0 and "  Eval tool       your own code (judgekeeper.record())" in out, out

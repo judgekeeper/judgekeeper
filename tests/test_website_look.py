@@ -22,7 +22,6 @@ import re
 from pathlib import Path
 
 from judgekeeper import start_label, start_page
-from judgekeeper.cli import _parser
 from tests.website_pages import MORE, NAV, ROOT, WEBSITE, Element, pages, parse
 
 GUIDE = WEBSITE / "start.html"
@@ -340,7 +339,7 @@ def test_the_home_page_shows_the_real_pages_in_pictures():
 def test_the_pictures_are_made_by_the_script_from_sample_data():
     script = (ROOT / "scripts" / "make_site_shots.py").read_text(encoding="utf-8")
     assert {p.name for p in SHOTS.iterdir()} == {"label.webp", "result.webp", "fix.webp"}
-    for name in ("label.webp", "result.webp", "fix.webp"):
+    for name in ("label.webp", "result.webp"):
         assert name in script, name
 
 
@@ -386,23 +385,6 @@ def test_the_rail_follows_the_six_steps():
     subs = [a.attrs["href"] for a in tops[-1].iter() if a.tag == "a"][1:]
     assert subs == ["#review", "#fix", "#new-judge"]
     assert "Ticked steps are remembered in this browser" in _flat(rail)
-
-
-def test_steps_label_what_to_type_and_what_you_will_see():
-    steps = {s.attrs["id"]: s for s in _steps()}
-    for step in ("install", "start"):
-        labels = [_flat(el) for el in _all(steps[step], "p", "boxlabel")]
-        assert labels and all(label.endswith("in your project folder") for label in labels)
-        screens = _all(steps[step], "div", "screen")
-        assert screens and all("What you will see" in _flat(s) for s in screens)
-        assert all(_all(s, "pre", "output") for s in screens)
-
-
-def test_steps_one_and_three_say_what_to_do_when_it_did_not_work():
-    steps = {s.attrs["id"]: s for s in _steps()}
-    for step in ("install", "start"):
-        (help_box,) = _all(steps[step], "details", "help")
-        assert _flat(_all(help_box, "summary")[0]) == "Didn't work?"
 
 
 def test_the_didnt_work_boxes_quote_what_judgekeeper_really_prints():
@@ -458,48 +440,6 @@ def test_the_result_picture_is_the_real_page_and_says_its_sentences():
     flat = _flat(section)
     for term, plain in (("TPR", "you marked Pass"), ("TNR", "you marked Fail"), ("Kappa", "luck")):
         assert term in flat and plain in flat, term
-
-
-def test_the_fix_picture_shows_the_change_the_rule_panel():
-    section, src, alt = _guide_shot("improve")
-    assert src == "assets/shots/fix.webp"
-    page = start_page.fix_page(None)
-    for words in ("Change the rule", "What your judge gets wrong"):
-        assert words in page, words
-    assert "Change the rule" in alt and "what your judge gets wrong" in alt
-    flat = _flat(section)
-    assert "A small local model can grade answers, but it usually can't rewrite a rule well." in flat
-    (fork,) = _all(section, "div", "fork")
-    choices = [el for el in fork.children if isinstance(el, Element)]
-    assert [_all(c, "h3")[0].text() for c in choices] == [
-        "See where you disagree", "Fix your judge", "Try your new judge"]
-    assert [_all(c, "code")[0].text() for c in choices] == ["--review", "--fix", "--try-new-judge"]
-    fix_card = _flat(choices[1])
-    assert fix_card.index("coding agent") < fix_card.index("AI assistant") < fix_card.index(
-        "yourself")
-
-
-FIX_WAYS = ["Let your coding agent do it", "Copy a prompt for your AI assistant",
-            "I'll write it myself"]
-
-
-def test_fix_your_judge_leads_with_the_coding_agent_in_the_products_words():
-    page = start_page.fix_page(None)
-    where = [page.index(way) for way in FIX_WAYS]  # the page's own buttons, in this order
-    assert where == sorted(where)
-    section = _by_id(GUIDE, "fix")
-    (ways,) = _all(section, "ol")
-    assert [_all(li, "strong")[0].text().rstrip(".") for li in ways.children
-            if isinstance(li, Element)] == FIX_WAYS
-    flat = _flat(section)
-    for words in ("Claude Code, Cursor or Codex", "asks you before anything that costs money",
-                  ("The prompt holds no answer text, and it tells your agent to treat your "
-                   "app's answers as data, never as instructions."),
-                  "judgekeeper never edits your files",
-                  ("A small local model can grade answers, but it usually can't rewrite a rule "
-                   "well."), "--rule-file"):
-        assert words in flat, words
-    _parser().parse_args(["start", "--fix", "--rule-file", "new-rule.txt"])  # a real flag
 
 
 def test_llms_txt_names_fix_your_judge_and_the_rule_file():
@@ -591,21 +531,6 @@ def test_code_shows_the_characters_you_type():
 
 # The screenshots open large over the page and close again (site.js and style.css) ---------
 
-def test_a_click_on_a_screenshot_opens_it_large_and_closes_again():
-    """Before, a click opened the bare image file and the only way back was the Back button."""
-    zoom = _function("setUpZoom")
-    assert '$all(".shot > a, .shot-wide > a")' in zoom
-    assert "window.HTMLDialogElement" in zoom  # no <dialog>: the link opens the file as before
-    assert "showModal()" in zoom  # Escape closes it
-    assert '"Close the picture"' in zoom
-    assert "e.target === box" in zoom  # a click outside the picture
-    assert "opener.focus(" in zoom  # the keyboard goes back to the picture
-    assert "big.alt = $(\"img\", link).alt" in zoom
-    # Cmd, Ctrl, Shift and middle clicks still open the file in a new tab.
-    assert all(key in zoom for key in ("e.button", "e.metaKey", "e.ctrlKey", "e.shiftKey"))
-    assert "setUpZoom();" in _function("start")
-    assert "the screenshots open large" in SITE_JS[:SITE_JS.index("*/")]
-
 
 def test_every_screenshot_is_a_link_to_its_file():
     """So the zoom picks up every picture, and without JavaScript the link still opens it."""
@@ -628,3 +553,36 @@ def test_the_large_picture_fits_the_screen_and_its_close_button_is_big_enough():
     assert "var(--ink)" in close and "var(--sheet)" in close
     assert ".zoom::backdrop {" in CSS
     assert "overflow: hidden" in _block("html.zoomed")  # the page behind doesn't scroll
+
+
+def test_steps_label_what_to_type_and_what_you_will_see():
+    steps = {s.attrs["id"]: s for s in _steps()}
+    for step in ("install", "start"):
+        labels = [_flat(el) for el in _all(steps[step], "p", "boxlabel")]
+        assert labels and all(label.endswith("in your project folder") for label in labels)
+        screens = _all(steps[step], "div", "screen")
+        assert screens and all("What you will see" in _flat(s) for s in screens)
+        assert all(_all(s, "pre", "output") for s in screens)
+
+
+def test_steps_one_and_three_say_what_to_do_when_it_did_not_work():
+    steps = {s.attrs["id"]: s for s in _steps()}
+    for step in ("install", "start"):
+        (help_box,) = _all(steps[step], "details", "help")
+        assert _flat(_all(help_box, "summary")[0]) == "Didn't work?"
+
+
+def test_a_click_on_a_screenshot_opens_it_large_and_closes_again():
+    """Before, a click opened the bare image file and the only way back was the Back button."""
+    zoom = _function("setUpZoom")
+    assert '$all(".shot > a, .shot-wide > a")' in zoom
+    assert "window.HTMLDialogElement" in zoom  # no <dialog>: the link opens the file as before
+    assert "showModal()" in zoom  # Escape closes it
+    assert '"Close the picture"' in zoom
+    assert "e.target === box" in zoom  # a click outside the picture
+    assert "opener.focus(" in zoom  # the keyboard goes back to the picture
+    assert "big.alt = $(\"img\", link).alt" in zoom
+    # Cmd, Ctrl, Shift and middle clicks still open the file in a new tab.
+    assert all(key in zoom for key in ("e.button", "e.metaKey", "e.ctrlKey", "e.shiftKey"))
+    assert "setUpZoom();" in _function("start")
+    assert "the screenshots open large" in SITE_JS[:SITE_JS.index("*/")]

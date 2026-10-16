@@ -32,7 +32,6 @@ import traceback
 
 from judgekeeper import __version__, textio
 from judgekeeper.anchors import AnchorError
-from judgekeeper.custom import CallableError
 from judgekeeper.find import TOOLS
 from judgekeeper.judgments import JudgmentsError
 from judgekeeper.label import LabelError
@@ -408,7 +407,7 @@ def _main(argv: list[str] | None) -> int:
         return EXIT_STOPPED
     except BrokenPipeError:
         raise  # said by main: nothing went wrong
-    except (AnchorError, JudgmentsError, NormaliseError, TableError, CallableError,
+    except (AnchorError, JudgmentsError, NormaliseError, TableError,
             LabelError, StartError, SettingsError, MapError) as e:
         _error(str(e))
         _next(_step(getattr(e, "next_step", None) or NEXT_FIX, args_list,
