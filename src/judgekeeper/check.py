@@ -584,9 +584,10 @@ def _made_after(state: State, since: str, tested: dict[str, str]) -> dict[str, s
 
 
 def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str, str],
-                 pool: dict[str, int]) -> list[str]:
+                 pool: dict[str, int], wobble: float | None = None) -> list[str]:
     """The new judge on the marks made after the change: none yet, how many so far, or (with
-    AFTER_NUMBERS of each) its numbers with their ranges."""
+    AFTER_NUMBERS of each) its numbers with their ranges, widened for its `wobble` (the share
+    of answers it graded differently when asked twice)."""
     from judgekeeper.start_label import side_sentence
 
     kinds = list(fresh.values())
@@ -594,7 +595,7 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
     if min(n_pass, n_fail) < AFTER_NUMBERS:
         return [AFTER_NONE.format(said=f"{len(fresh)} so far" if fresh else "none yet")]
     items = [(picked.get(i, tested[i]), fresh[i], tested[i]) for i in fresh]
-    out = weighted.general(items, pool["pass"], pool["fail"])
+    out = weighted.general(items, pool["pass"], pool["fail"], wobble=wobble)
     return [f"On marks made after this change ({n_pass} Pass, {n_fail} Fail):",
             *(f"  {side_sentence(k, out[k], out[f'{k}_interval'])}" for k in ("tpr", "tnr"))]
 
@@ -964,7 +965,9 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         _say_groups(said, g)
         if fresh is not None:
             said.say(WRITTEN_FROM)
-            for line in _after_lines(fresh, tested, picked, pool):
+            wobble = asked.wobble[0] / asked.wobble[1] if asked.wobble and asked.wobble[1] \
+                else None
+            for line in _after_lines(fresh, tested, picked, pool, wobble):
                 said.say(line)
             said.say()
     if asked.close:

@@ -340,22 +340,34 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 
 ### After asking again, a judge that changes its mind
 
-weighted.general when the judge asked again turns round a share of its grades at random (a = 0.9, w = 0.85). How often the ranges hold the asked judge's true TPR and TNR.
+1,000 simulated re-checks per row. weighted.general when the judge, asked again twice as a paid re-check does, turns round a share of its grades at random each time (a = 0.9, w = 0.85); in the lower half it also changed, and now passes 30% of the answers it failed that should fail. The first grade counts. How often the ranges hold the asked judge's true TPR and TNR, with the wobble the two asks showed (the share of answers whose two grades differ, averaged) and, before, without it. In percent; lowest with the wobble: 93.2.
 
-| pi | n | turned | TPR | TNR |
-|---|---|---|---|---|
-| 50% | 15 | 5% | 93.6 | 94.6 |
-| 50% | 15 | 10% | 95.6 | 94.8 |
-| 50% | 25 | 5% | 94.6 | 95.6 |
-| 50% | 25 | 10% | 94.4 | 94.6 |
-| 70% | 15 | 5% | 93.6 | 96.4 |
-| 70% | 15 | 10% | 85.0 | 95.0 |
-| 70% | 25 | 5% | 91.4 | 95.2 |
-| 70% | 25 | 10% | 90.6 | 94.0 |
-| 90% | 15 | 5% | 52.4 | 96.8 |
-| 90% | 15 | 10% | 75.0 | 93.8 |
-| 90% | 25 | 5% | 66.8 | 96.8 |
-| 90% | 25 | 10% | 88.4 | 94.4 |
+| pi | n | turned | also changed | wobble seen | TPR | TNR | TPR before | TNR before |
+|---|---|---|---|---|---|---|---|---|
+| 50% | 15 | 5% | 0% | 9% | 97.5 | 98.5 | 93.6 | 97.9 |
+| 50% | 15 | 10% | 0% | 18% | 96.8 | 97.9 | 94.5 | 92.7 |
+| 50% | 25 | 5% | 0% | 9% | 97.5 | 97.8 | 94.5 | 95.3 |
+| 50% | 25 | 10% | 0% | 18% | 95.9 | 96.1 | 94.2 | 94.3 |
+| 70% | 15 | 5% | 0% | 10% | 96.3 | 98.5 | 93.1 | 97.6 |
+| 70% | 15 | 10% | 0% | 18% | 97.6 | 98.6 | 86.3 | 96.3 |
+| 70% | 25 | 5% | 0% | 10% | 97.9 | 97.4 | 91.0 | 94.6 |
+| 70% | 25 | 10% | 0% | 18% | 96.3 | 97.0 | 91.8 | 94.2 |
+| 90% | 15 | 5% | 0% | 9% | 93.2 | 99.7 | 52.0 | 94.8 |
+| 90% | 15 | 10% | 0% | 18% | 97.1 | 99.8 | 74.1 | 92.8 |
+| 90% | 25 | 5% | 0% | 9% | 97.3 | 96.2 | 67.9 | 96.5 |
+| 90% | 25 | 10% | 0% | 18% | 98.4 | 96.3 | 91.9 | 94.6 |
+| 50% | 15 | 5% | 30% | 10% | 98.0 | 96.4 | 94.1 | 94.4 |
+| 50% | 15 | 10% | 30% | 18% | 96.8 | 97.0 | 94.6 | 95.8 |
+| 50% | 25 | 5% | 30% | 9% | 97.0 | 95.7 | 94.1 | 94.7 |
+| 50% | 25 | 10% | 30% | 18% | 96.4 | 96.1 | 94.5 | 95.1 |
+| 70% | 15 | 5% | 30% | 9% | 95.6 | 96.3 | 91.9 | 93.6 |
+| 70% | 15 | 10% | 30% | 18% | 97.5 | 97.9 | 85.8 | 94.8 |
+| 70% | 25 | 5% | 30% | 10% | 96.5 | 96.9 | 88.4 | 95.4 |
+| 70% | 25 | 10% | 30% | 18% | 96.3 | 96.6 | 91.3 | 93.4 |
+| 90% | 15 | 5% | 30% | 10% | 94.6 | 98.0 | 59.3 | 95.0 |
+| 90% | 15 | 10% | 30% | 18% | 97.5 | 99.4 | 73.0 | 92.0 |
+| 90% | 25 | 5% | 30% | 9% | 97.0 | 96.7 | 71.4 | 94.6 |
+| 90% | 25 | 10% | 30% | 18% | 96.4 | 97.5 | 87.6 | 93.7 |
 
 ### `check` when nothing changed
 
