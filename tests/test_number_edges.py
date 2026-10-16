@@ -4,7 +4,7 @@ counted when it is asked again."""
 
 from __future__ import annotations
 
-from judgekeeper import start_label, targets, weighted
+from judgekeeper import start_label, targets
 
 
 def test_a_range_ending_exactly_on_the_bar_reaches_it():
@@ -34,11 +34,3 @@ def test_a_range_never_shows_as_one_point():
         "Could be 66% to 93%. Marking more answers narrows this.")
 
 
-def test_a_group_with_nothing_counted_gives_unknown_numbers():
-    # only the judge's pass group came back: 17 marked Pass, 3 Fail
-    items = [("pass", "pass", "pass")] * 17 + [("pass", "fail", "pass")] * 3
-    out = weighted.general(items, 100, 100)
-    assert out["tpr"] is None and out["tnr"] is None and out["kappa"] is None
-    assert out["tpr_interval"] == [None, None]
-    from judgekeeper.again.fresh import _share
-    assert _share(out["tpr"]) == "an unknown share"

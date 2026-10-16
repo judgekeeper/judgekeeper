@@ -1,4 +1,4 @@
-"""When promptfoo keeps its results only in its own database, `start` offers to run promptfoo's
+"""When promptfoo keeps its results only in its own database, judgekeeper offers to run promptfoo's
 `export` command for the user, at a terminal only. Without a terminal, or on No, it prints the
 commands.
 
@@ -10,7 +10,7 @@ tests and calls no model. It runs with promptfoo's telemetry, update check and l
 "latest" is the user's last promptfoo run, which may be from another project, so the file is
 checked against this project's config: its `config.description`, else its prompts. A run from
 another project is deleted with a message saying how to find the right one. A match moves to
-`promptfoo-results.json` in the project (asking first if that name is taken) and `start`
+`promptfoo-results.json` in the project (asking first if that name is taken) and judgekeeper
 carries on.
 """
 
@@ -100,7 +100,7 @@ def offer(talk, root: Path) -> str:
     if target.exists() and not talk.confirm(f"{TARGET} is already here. Replace it?",
                                             default=False, with_yes=False, hint=TARGET):
         talk.say(f"Your last promptfoo run is saved as {LATEST}. To use it: "
-                 f"{textio.program('start')} {LATEST}")
+                 f"{textio.program()} {LATEST}")
         return "stop"
     out.replace(target)
     talk.say(f"Saved your last promptfoo run as {TARGET}.")

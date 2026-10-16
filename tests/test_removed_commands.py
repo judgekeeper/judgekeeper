@@ -1,11 +1,15 @@
-"""The commands of the 0.1 CI gate, and `setup` (part of `judgekeeper` now), are gone: each
-name prints one line, exits 2, and is not in the help. (`check` is a command again.)"""
+"""The commands of the 0.1 CI gate, `setup` (part of `judgekeeper` now) and `start` (its steps
+are `judgekeeper`, `mark`, `fix` and `check` now) are gone: each name prints one line, exits 2,
+and is not in the help. (`check` is a command again.)"""
+
+import re
 
 import pytest
 
 from judgekeeper.cli import REMOVED, main
 
-NAMES = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "setup")
+NAMES = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "setup",
+         "start")
 
 
 def test_every_old_name_is_listed():
@@ -30,15 +34,21 @@ def test_debug_before_the_name_still_finds_it(capsys):
     assert "judgekeeper gate was removed" in capsys.readouterr().err
 
 
-def test_the_help_names_only_start(capsys):
+def test_the_help_names_no_removed_command(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
-    assert "  start " in out
     for name in NAMES:
-        assert f"  {name} " not in out and f"{name}," not in out
+        assert not re.search(rf"^  {name} ", out, re.MULTILINE) and f"{name}," not in out
     assert "CI" not in out
 
 
-def test_start_still_parses(capsys):
-    assert main(["start", "--help"]) == 0
-    assert "--review" in capsys.readouterr().out
+@pytest.mark.parametrize("flags", [["--review"], ["--fix", "--test-pass-mark"],
+                                   ["--fix", "--rule-file", "rule.txt"], ["--ask-again"],
+                                   ["--agent-prompt"]])
+def test_start_with_its_old_flags_is_removed_too(flags, capsys, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert main(["start", *flags]) == 2
+    out, err = capsys.readouterr()
+    assert out == ""
+    assert err.count("Next:") == 1 and "judgekeeper start was removed" in err
+    assert list(tmp_path.iterdir()) == []

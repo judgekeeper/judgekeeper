@@ -10,7 +10,6 @@ The store is made by the installed MLflow in another process (skipped without it
 
 from __future__ import annotations
 
-import json
 import re
 import shutil
 import subprocess
@@ -18,11 +17,9 @@ import sys
 
 import pytest
 
-from judgekeeper import keys, start, start_fix, start_label
+from judgekeeper import keys, start
 from judgekeeper.cli import main
 from judgekeeper.readers.mlflow_store import judge_instructions
-from judgekeeper.start_label import StartSession, save_result
-from judgekeeper.start_review import ReviewSession
 
 OLD = "Pass only if the sum is right. Question: {{ inputs }} Answer: {{ outputs }}"
 NEW = ("Pass only if the sum is right, written as a number. Question: {{ inputs }} "
@@ -76,6 +73,13 @@ wait_until_saved(result.run_id, "sum_check")
 """
 
 
+@pytest.fixture(autouse=True)
+def keyed(monkeypatch):
+    for name in keys.all_names():
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
+
+
 @pytest.fixture(scope="module")
 def stores(tmp_path_factory):
     """mlflow.db after one run with OLD ("old") and after a second run with NEW ("both")."""
@@ -90,13 +94,6 @@ def stores(tmp_path_factory):
     return out
 
 
-@pytest.fixture(autouse=True)
-def keyed(monkeypatch):
-    for name in keys.all_names():
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
-
-
 def _project(root, stores, which="old"):
     shutil.copy2(stores / f"{which}.db", root / "mlflow.db")
     (root / "quiz_eval.py").write_text(
@@ -106,27 +103,8 @@ def _project(root, stores, which="old"):
     return root
 
 
-def _checked(root):
-    """The project checked: every answer marked as the judge said except four, and the
-    review done, the judge wrong on those four."""
-    ws = start_label.prepare(start.find_judge(root), say=lambda line="": None)
-    session = StartSession(ws)
-    flip = {"pass": "fail", "fail": "pass"}
-    for n, q in enumerate(ws.data()["queue"]):
-        session.update({"id": q["id"], "label": flip[q["group"]] if n < 4 else q["group"]})
-    save_result(ws, session, say=lambda line="": None)
-    review = ReviewSession(ws)
-    for item in review.items:
-        review.update({"id": item["id"], "second": item["first"]})
-    for item in review.items:
-        if item["disagreement"]:
-            review.update({"id": item["id"], "choice": "judge_wrong"})
-    assert start_fix.ready(ws)
-    return ws
-
-
 def run(capsys, *argv):
-    code = main(["start", *map(str, argv)])
+    code = main([*map(str, argv)])
     out, err = capsys.readouterr()
     return code, out, err
 
@@ -134,42 +112,7 @@ def run(capsys, *argv):
 def test_the_instructions_are_the_rule_and_in_the_prompt_hash(tmp_path, stores):
     found = start.find_judge(_project(tmp_path, stores))
     assert found.rule == OLD and found.one_rule
-    line = next(x for x in start.found_lines(found) if "What it checks" in x)
-    assert '"Pass only if the sum is right.' in line and start.NOT_IN_FILE not in line
     assert found.fingerprint["prompt_hash"]
-
-
-def test_fix_writes_the_prompt_and_a_rule_file_is_checked_and_saved(tmp_path, stores, capsys,
-                                                                    monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    ws = _checked(_project(tmp_path, stores))
-    prompt = start_fix.Fix(ws).prompt()
-    assert f"<<<RULE\n{OLD}\nRULE>>>" in prompt
-    assert "KEEP EXACTLY these template parts: {{ inputs }} {{ outputs }}" in prompt
-    assert "--rule-file" in start_fix.Fix(ws).agent_prompt()
-
-    rule_file = tmp_path / "agent-rule.txt"
-    rule_file.write_text("Pass only if the sum is right. Question: {{ inputs }}\n",
-                         encoding="utf-8")
-    code, out, _ = run(capsys, "--fix", "--rule-file", rule_file)
-    assert code != 0 and "dropped {{ outputs }}" in out
-    rule_file.write_text(NEW + "\n", encoding="utf-8")
-    code, out, _ = run(capsys, "--fix", "--rule-file", rule_file)
-    assert code == 0 and "Saved" in out
-    hand = json.loads((ws.dir / "fix" / "rule.json").read_text(encoding="utf-8"))["hand_over"]
-    assert hand["where_short"] == "Probably in quiz_eval.py, line 5."
-
-
-def test_a_changed_rule_is_a_new_judge(tmp_path, stores, capsys, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    _checked(_project(tmp_path, stores))
-    shutil.copy2(stores / "both.db", tmp_path / "mlflow.db")  # the eval ran with NEW
-    found = start.find_judge(tmp_path)
-    assert found.rule == NEW
-    code, out, _ = run(capsys, "--try-new-judge", "--no-browser")
-    assert "Your judge changed since your last check: the prompt changed." in out
-    assert "same judge as your last check" not in out
-    assert code == 3 and "judge calls" in out and "make_judge" in out  # the plan, then stop
 
 
 @pytest.mark.parametrize(("meta", "want"), [
@@ -210,16 +153,6 @@ def test_a_make_judge_named_correctness_is_not_the_built_in_one(tmp_path):
         assert mf.is_builtin(scorers, name, saved) is want  # the copy says the same
     info = {"name": "correctness", "instructions": True}
     assert mf.classify(info, {"version": "3.17.0", "builtin": False})[0] == "close"
-
-
-def test_the_menu_says_what_asking_again_will_do(tmp_path, stores, monkeypatch):
-    from judgekeeper import again
-    from judgekeeper.again import AgainOptions
-
-    monkeypatch.chdir(tmp_path)
-    ws = _checked(_project(tmp_path, stores))
-    _, note = again.menu_text(again.make_plan(ws, AgainOptions(), dry=False))
-    assert "can't" not in note and "calls" in note, note
 
 
 # Failed judge calls ------------------------------------------------------------------------
@@ -291,7 +224,7 @@ def failing_stores(tmp_path_factory):
 def test_failed_judge_calls_are_counted(tmp_path, failing_stores, capsys):
     shutil.copy2(failing_stores / "some.db", tmp_path / "mlflow.db")
     _, out, _ = run(capsys, tmp_path, "--no-browser")
-    assert "Its decisions   19 answers" in out, out
+    assert "Your judge's grades: 11 Pass, 8 Fail." in out, out
     assert "Your judge gave a Pass or Fail on every answer" not in out
     assert re.search(r"5 calls failed", out), out
     found = start.find_judge(tmp_path)

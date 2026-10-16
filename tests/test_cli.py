@@ -24,7 +24,7 @@ def test_printable_strips_control_characters_but_keeps_newline_and_tab():
 
 def test_error_messages_print_no_escape_sequence(tmp_path, capsys):
     missing = tmp_path / f"results{ESCAPES}.csv"
-    assert main(["start", str(missing)]) == 2
+    assert main([str(missing)]) == 2
     printed = capsys.readouterr()
     assert "PWNED-TITLE" in printed.err
     _no_control(printed.out, printed.err)
@@ -36,16 +36,16 @@ def test_ctrl_c_stops_with_one_line_and_no_traceback(monkeypatch, capsys):
     def stopped(args):
         raise KeyboardInterrupt
 
-    monkeypatch.setitem(cli.COMMANDS, "start", stopped)
-    assert main(["start"]) == 130
+    monkeypatch.setitem(cli.COMMANDS, None, stopped)
+    assert main([]) == 130
     out = capsys.readouterr()
     assert "Traceback" not in out.out + out.err
-    assert out.out == "\nStopped.\nNext: run `judgekeeper start` to carry on.\n"
+    assert out.out == "\nStopped.\nNext: run `judgekeeper` to carry on.\n"
 
 
 @pytest.mark.parametrize("port", ["99999", "-1", "65536", "eighty"])
 def test_a_port_out_of_range_is_a_usage_error_before_anything_is_written(tmp_path, capsys,
                                                                           port):
-    assert main(["start", str(tmp_path), "--port", port]) == 2
+    assert main([str(tmp_path), "--port", port]) == 2
     assert "is not a port: give a number from 1 to 65535" in capsys.readouterr().err
     assert not (tmp_path / ".judgekeeper").exists()

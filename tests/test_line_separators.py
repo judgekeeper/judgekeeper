@@ -6,13 +6,11 @@ from __future__ import annotations
 
 import json
 
-from judgekeeper import start, start_fix, start_label
+from judgekeeper import start, start_label
 from judgekeeper.again import AgainOptions, labeled_answers, make_plan
-from judgekeeper.start_label import StartSession, save_result
-from judgekeeper.start_review import ReviewSession
+from judgekeeper.start_label import StartSession
 from judgekeeper.textio import jsonl_lines
-from tests.start_projects import records_project, split
-from tests.test_start_review import _reviewable, _second_look
+from tests.start_projects import promptfoo_project, records_project, save_result, split
 
 SEPARATED = "Line one line two line three\u0085end."
 
@@ -29,24 +27,15 @@ def test_jsonl_lines_split_at_newlines_only():
 
 def test_an_answer_with_line_separators_goes_through_every_step(tmp_path):
     outputs = [f"Answer {i}. {SEPARATED}" for i in range(36)]
-    ws, _ = _reviewable(tmp_path, outputs=outputs)  # start, marks and the result
-    assert " " in ws.pool.read_text(encoding="utf-8")  # written as it is
+    promptfoo_project(tmp_path, split(20, 16), outputs=outputs)
+    ws = start_label.prepare(start.find_judge(tmp_path), say=_quiet)
+    assert "\u0085" in ws.pool.read_text(encoding="utf-8")  # written as it is
+    session = StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"]})
+    save_result(ws, session)
     session = StartSession(ws)
     assert sorted(r["output"] for r in session.raw.values()) == sorted(outputs)
-
-    review = ReviewSession(ws)
-    _second_look(review)
-    for item in review.items:
-        if item["disagreement"]:
-            review.update({"id": item["id"], "choice": "judge_wrong"})
-    assert all(r["output"] in outputs for r in review.raw.values())
-    mistakes = (ws.dir / "judge-mistakes.csv").read_text(encoding="utf-8")
-    assert SEPARATED in mistakes
-
-    fix = start_fix.Fix(ws)
-    fix.write_patterns()
-    assert fix.state()["lists"]
-    assert SEPARATED in fix.prompt()
 
     assert sorted(a["output"] for a in labeled_answers(ws)) == sorted(outputs)
     assert make_plan(ws, AgainOptions(), dry=False).status != "cant"

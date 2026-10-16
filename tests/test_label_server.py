@@ -205,12 +205,11 @@ def test_every_post_the_pages_send_keeps_their_origin():
     the page's own origin."""
     import re
 
-    from judgekeeper import mark_page, start_page
+    from judgekeeper import mark_page
 
-    source = "".join(Path(m.__file__).read_text(encoding="utf-8")
-                     for m in (mark_page, start_page))
+    source = Path(mark_page.__file__).read_text(encoding="utf-8")
     posts = re.findall(r'fetch\([^)]*\), \{\s*method: "POST".*?body:', source, re.DOTALL)
-    assert len(posts) >= 4
+    assert posts  # the marking page's one POST: every mark
     for post in posts:
         assert 'referrerPolicy: "same-origin"' in post, post
 
@@ -594,7 +593,7 @@ def test_a_result_before_the_end_keeps_serving(tmp_path):
     csp = resp.getheader("Content-Security-Policy")
     assert csp == f"{CSP}; frame-ancestors 'none'"
     scripts = csp.split("script-src ")[1].split(";")[0].split()
-    assert len(scripts) == 2 and all(x.startswith("'sha256-") for x in scripts)  # its own two
+    assert len(scripts) == 1 and scripts[0].startswith("'sha256-")  # its own, by its hash
     thread.join(timeout=0.5)
     assert thread.is_alive()
     server.stop()

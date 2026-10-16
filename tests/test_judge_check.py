@@ -19,7 +19,7 @@ import math
 
 import pytest
 
-from judgekeeper import judge_check, start, start_label, textio
+from judgekeeper import judge_check, start, start_label
 from judgekeeper.cli import main
 from judgekeeper.normalise import Normaliser
 from judgekeeper.readers import read_deepeval, read_inspect, read_promptfoo
@@ -31,34 +31,15 @@ from tests.start_projects import (
     promptfoo_data,
     promptfoo_project,
     records_project,
+    save_result,
     split,
-    table_project,
 )
 
 
-@pytest.fixture(autouse=True)
-def no_labeling(monkeypatch):
-    """These tests stop where labeling starts."""
-    calls = []
-
-    def run_labeling(found, port, open_browser, say, command="judgekeeper start"):
-        calls.append(found)
-        start_label.prepare(found, say)
-        say("(labeling page)")
-        return 0
-
-    monkeypatch.setattr("judgekeeper.start_label.run_labeling", run_labeling)
-    return calls
-
-
 def run(capsys, *argv):
-    code = main(["start", *map(str, argv), "--yes"])
+    code = main([*map(str, argv), "--yes"])
     out, err = capsys.readouterr()
     return code, out, err
-
-
-def ok() -> str:
-    return textio.tick()
 
 
 # Shaped like each tool's output ----------------------------------------------------------
@@ -176,96 +157,6 @@ def test_the_reason_says_the_opposite_only_when_it_states_the_other_decision():
 
 # What the terminal says ------------------------------------------------------------------
 
-def _block(**counts):
-    block = {"answers": 57, "error": 0, "unreadable": 0, "empty": 0, "nothing_checked": 0,
-             "empty_answer_passed": 0, "reason_says_opposite": 0, "same_decision": None,
-             "tool": "promptfoo", "tool_counted_as": None}
-    block.update(counts)
-    return block
-
-
-def test_nothing_found_is_one_line():
-    assert judge_check.terminal_lines(_block(), "✓") == [
-        "  ✓ Your judge gave a Pass or Fail on every answer (no errors or empty replies)."]
-
-
-def test_every_finding_has_its_line():
-    block = _block(error=5, unreadable=2, nothing_checked=4, empty_answer_passed=3,
-                   reason_says_opposite=2, same_decision="pass", tool_counted_as="fail")
-    lines = judge_check.terminal_lines(block, "✓")
-    assert lines == [
-        ("  ! Your judge made no real decision on 7 of 57 answers: 5 calls failed, 2 replies "
-         "could not be read."),
-        "    promptfoo counted them as fails. They are left out here.",
-        ("  ! On 4 answers your judge checked nothing, and promptfoo gave them full marks. "
-         "They are left out here."),
-        "  ! Your judge passed 3 empty answers.",
-        "  ! On 2 answers, your judge's reason says the opposite of its decision.",
-        ("  ! Your judge passed every answer. It may not be checking anything: your marks will "
-         "show it."),
-        "    The list is in .judgekeeper/judge-check.csv",
-    ]
-
-
-def test_deepeval_gave_full_marks():
-    lines = judge_check.terminal_lines(_block(nothing_checked=4, tool="deepeval"), "✓")
-    assert lines[0] == ("  ! On 4 answers your judge checked nothing, and DeepEval gave them "
-                        "full marks. They are left out here.")
-
-
-def test_the_fail_version_of_the_same_decision():
-    lines = judge_check.terminal_lines(_block(same_decision="fail"), "✓")
-    assert lines == [("  ! Your judge failed every answer. It may be too strict, or not "
-                      "checking anything: your marks will show it.")]
-
-
-@pytest.mark.parametrize("counted, said", [
-    ("pass", "promptfoo counted them as passes."),
-    ("fail", "promptfoo counted them as fails."),
-    ("pass and fail", "promptfoo counted them as some passes and some fails."),
-    ("left out", "promptfoo left them out."),
-])
-def test_what_the_tool_counted_them_as(counted, said):
-    lines = judge_check.terminal_lines(_block(error=2, tool_counted_as=counted), "✓")
-    assert lines[1] == f"    {said} They are left out here."
-
-
-def test_tables_and_records_say_only_that_they_are_left_out():
-    for tool in ("table", "records", "mapped"):
-        lines = judge_check.terminal_lines(_block(empty=2, tool=tool), "✓")
-        assert lines == [("  ! Your judge made no real decision on 2 of 57 answers: 2 empty "
-                          "decisions."), "    They are left out here.",
-                         "    The list is in .judgekeeper/judge-check.csv"]
-
-
-def test_one_of_each_is_said_in_the_singular():
-    block = _block(error=1, nothing_checked=1, empty_answer_passed=1, reason_says_opposite=1,
-                   tool="deepeval", tool_counted_as="fail")
-    assert judge_check.terminal_lines(block, "✓") == [
-        "  ! Your judge made no real decision on 1 of 57 answers: 1 call failed.",
-        "    DeepEval counted it as a fail. It is left out here.",
-        ("  ! On 1 answer your judge checked nothing, and DeepEval gave it full marks. It is "
-         "left out here."),
-        "  ! Your judge passed 1 empty answer.",
-        "  ! On 1 answer, your judge's reason says the opposite of its decision.",
-        "    The list is in .judgekeeper/judge-check.csv",
-    ]
-
-
-def test_the_kinds_of_no_decision_are_listed():
-    block = _block(error=1, unreadable=1, empty_answer_refused=2, empty=3)
-    lines = judge_check.terminal_lines(block, "✓")
-    assert lines[0] == ("  ! Your judge made no real decision on 7 of 57 answers: 1 call failed, "
-                        "1 reply could not be read, 2 empty answers it could not judge, "
-                        "3 empty decisions.")
-
-
-def test_the_words_follow_the_agreed_rules():
-    block = _block(error=5, unreadable=2, empty=1, nothing_checked=4, empty_answer_passed=3,
-                   reason_says_opposite=2, same_decision="fail", tool_counted_as="fail")
-    text = " ".join(judge_check.terminal_lines(block, "✓") + judge_check.page_lines(block))
-    assert "verdict" not in text.lower() and "minute" not in text
-
 
 # Readers mark problems, in memory only ---------------------------------------------------
 
@@ -311,21 +202,6 @@ def test_deepeval_errors_and_empty_checks_are_marked(tmp_path):
     assert _marks(records) == [("error", "fail"), ("nothing_checked", "pass"), (None, None),
                                (None, None), ("error", "fail")]
     assert records[0].explanation == "RateLimitError: Error code: 429"
-
-
-def test_deepeval_refusing_an_empty_answer_has_its_own_name(tmp_path, capsys):
-    data = deepeval_with_problems(split(20, 20), refused=[0], silent=[1])
-    path = _write_json(tmp_path / ".deepeval" / ".latest_run_full.json", data)
-    assert _marks(read_deepeval(path))[:2] == [("empty_answer_refused", "fail"),
-                                                ("error", "fail")]
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert ("  ! Your judge made no real decision on 2 of 40 answers: 1 call failed, 1 empty answer "
-            "it could not judge.\n") in out
-    assert "passed 1 empty answer" not in out
-    with (tmp_path / ".judgekeeper" / "judge-check.csv").open(encoding="utf-8") as f:
-        assert sorted(r["problem"] for r in csv.DictReader(f)) == ["empty_answer_refused",
-                                                                   "error"]
 
 
 def test_a_deepeval_score_below_full_marks_with_no_verdicts_is_not_marked(tmp_path):
@@ -492,170 +368,7 @@ def test_score_judges_with_a_pass_mark_skip_the_contradiction_check():
     assert result.block()["reason_says_opposite"] == 0
 
 
-def _with_pass_mark(path, opposite: int) -> None:
-    """A judgekeeper.record() file rewritten as a score judge: score and pass_mark on every
-    line, and on line `opposite` a pass whose reason starts with FAIL."""
-    lines = []
-    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines()):
-        row = json.loads(line)
-        row["score"] = 0.9 if row["label"] == "pass" else 0.1
-        row["metadata"] = {"pass_mark": 0.5}
-        if i == opposite:
-            row["explanation"] = "FAIL: the answer is rude."
-        lines.append(json.dumps(row))
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def test_records_with_a_pass_mark_skip_the_contradiction_check(tmp_path, capsys):
-    path = records_project(tmp_path, split(16, 16))
-    _with_pass_mark(path, opposite=0)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "reason says the opposite" not in out
-    assert f"{ok()} {judge_check.EVERY_ANSWER}" in out
-
-
-def test_records_without_a_pass_mark_keep_the_contradiction_check(tmp_path, capsys):
-    path = records_project(tmp_path, split(16, 16))
-    lines = path.read_text(encoding="utf-8").splitlines()
-    row = json.loads(lines[0])
-    row["explanation"] = "FAIL: the answer is rude."
-    path.write_text("\n".join([json.dumps(row), *lines[1:]]) + "\n", encoding="utf-8")
-    _, out, _ = run(capsys, tmp_path)
-    assert "On 1 answer, your judge's reason says the" in out
-
-
 # `judgekeeper start`, end to end ---------------------------------------------------------
-
-def test_a_clean_judge_gets_one_line(tmp_path, capsys):
-    promptfoo_project(tmp_path, split(20, 12))
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    lines = out.splitlines()
-    where = lines.index("  Its decisions   32 answers: 20 passed, 12 failed")
-    assert lines[where + 1] == f"  {ok()} {judge_check.EVERY_ANSWER}"
-    assert "no clear verdict" not in out
-
-
-def test_promptfoo_grader_errors_are_left_out_and_named(tmp_path, capsys, no_labeling):
-    data = promptfoo_with_problems(split(25, 32), errors=range(25, 30), unreadable=[30, 31])
-    _write_json(tmp_path / "results.json", data)
-    (tmp_path / "promptfooconfig.yaml").write_text("description: support bot\n",
-                                                   encoding="utf-8")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert ("  Its decisions   50 answers: 25 passed, 25 failed\n"
-            "  ! Your judge made no real decision on 7 of 57 answers: 5 calls failed, 2 replies "
-            "could not be read.\n"
-            "    promptfoo counted them as fails. They are left out here.\n"
-            "    The list is in .judgekeeper/judge-check.csv\n") in out
-    (found,) = no_labeling
-    assert found.pool.n_fail == 25
-    saved = json.loads((tmp_path / ".judgekeeper" / "start.json").read_text(encoding="utf-8"))
-    assert saved["left_out"]["no_clear_verdict"] == 7
-    assert saved["judge_check"]["error"] == 5 and saved["judge_check"]["unreadable"] == 2
-    assert saved["pool"] == {"answers": 50, "pass": 25, "fail": 25}
-
-
-def test_deepeval_checks_of_nothing_are_left_out(tmp_path, capsys):
-    data = deepeval_with_problems(split(30, 20), errors=[40], nothing=[0, 1, 2, 3])
-    _write_json(tmp_path / ".deepeval" / ".latest_run_full.json", data)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert ("  ! Your judge made no real decision on 1 of 50 answers: 1 call failed.\n"
-            "    DeepEval counted it as a fail. It is left out here.\n"
-            "  ! On 4 answers your judge checked nothing, and DeepEval gave them full marks. "
-            "They are left out here.\n") in out
-    assert "  Its decisions   45 answers: 26 passed, 19 failed" in out
-
-
-def test_deepeval_silent_errors_and_its_score_judges(tmp_path, capsys):
-    data = deepeval_with_problems(split(30, 20), silent=[40, 41])
-    data["testCases"][0]["metricsData"][0]["reason"] = "FAIL: the sum is wrong."  # score 0.9
-    _write_json(tmp_path / ".deepeval" / ".latest_run_full.json", data)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert ("  ! Your judge made no real decision on 2 of 50 answers: 2 calls failed.\n"
-            "    DeepEval counted them as fails. They are left out here.\n") in out
-    assert "opposite" not in out  # a GEval score and a threshold decide, not the reason
-
-
-def test_inspect_samples_whose_grader_call_failed_are_left_out(tmp_path, capsys):
-    data = inspect_data(split(16, 18))
-    grader_call_failed(data["samples"][0])
-    data["samples"][1]["scores"]["model_graded_qa"]["explanation"] = "FAIL: wrong.\nGRADE: C"
-    _write_json(tmp_path / "logs" / "2026-10-02_support.json", data)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert ("  ! Your judge made no real decision on 1 of 34 answers: 1 call failed.\n"
-            "    Inspect AI left it out. It is left out here.\n"
-            "  ! On 1 answer, your judge's reason says the opposite of its decision.\n") in out
-
-
-def test_inspect_grader_failures_are_left_out(tmp_path, capsys):
-    data = inspect_data(split(16, 18))
-    unscored(data["samples"][0])
-    unscored(data["samples"][1], new=False)
-    path = tmp_path / "logs" / "2026-10-02_support.json"
-    path.parent.mkdir()
-    path.write_text(json.dumps(data), encoding="utf-8")
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    # Inspect left the new shape out and counted the old one as a fail: no one sentence fits
-    assert ("  ! Your judge made no real decision on 2 of 34 answers: 2 replies could not be "
-            "read.\n    They are left out here.\n") in out
-
-
-def test_a_table_with_blank_decisions(tmp_path, capsys):
-    table_project(tmp_path, split(20, 12) + [None, None])
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert ("  ! Your judge made no real decision on 2 of 34 answers: 2 empty decisions.\n"
-            "    They are left out here.\n") in out
-    assert "no clear verdict" not in out
-
-
-def test_a_records_file_with_a_blank_decision(tmp_path, capsys):
-    records_project(tmp_path, split(16, 16) + [None])
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert ("  ! Your judge made no real decision on 1 of 33 answers: 1 empty decision.\n"
-            "    It is left out here.\n") in out
-
-
-def test_passing_every_answer_is_said_below_thirty_too(tmp_path, capsys):
-    promptfoo_project(tmp_path, split(12, 0))
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert ("  ! Your judge passed every answer. It may not be checking anything: your marks "
-            "will show it.") in out
-    assert "none of your" not in out
-
-
-def test_failing_every_answer(tmp_path, capsys):
-    promptfoo_project(tmp_path, split(0, 40))
-    _, out, _ = run(capsys, tmp_path)
-    assert ("  ! Your judge failed every answer. It may be too strict, or not checking "
-            "anything: your marks will show it.") in out
-    assert "none of your" not in out and "The list is in" not in out
-
-
-def test_the_only_c_of_n_note_stays(tmp_path, capsys):
-    promptfoo_project(tmp_path, split(37, 3))
-    _, out, _ = run(capsys, tmp_path)
-    assert ("Your judge failed only 3 of 40 answers. That may mean it passes too much: your "
-            "marks will show it.") in out
-
-
-def test_an_empty_answer_passed_is_flagged_and_kept(tmp_path, capsys, no_labeling):
-    data = promptfoo_data(split(20, 12))
-    data["results"]["results"][0]["response"]["output"] = ""
-    data["results"]["results"][1]["response"]["output"] = "   "
-    _write_json(tmp_path / "results.json", data)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "  ! Your judge passed 2 empty answers.\n" in out
-    assert len(no_labeling[0].pool.answers) == 32
 
 
 def test_the_saved_files(tmp_path, capsys):
@@ -707,7 +420,7 @@ def test_the_result_carries_the_counts_and_the_page_shows_the_card(tmp_path, cap
     run(capsys, tmp_path)
     ws = start_label.Workspace(tmp_path)
     session = start_label.StartSession(ws)
-    r = start_label.save_result(ws, session, say=lambda line: None)
+    r = save_result(ws, session, say=lambda line: None)
     assert r["judge_check"]["error"] == 1
     html = ws.report_html.read_text(encoding="utf-8")
     assert "Did your judge actually judge?" in html
@@ -720,7 +433,7 @@ def test_a_clean_result_page_has_one_quiet_line(tmp_path, capsys):
     promptfoo_project(tmp_path, split(20, 12))
     run(capsys, tmp_path)
     ws = start_label.Workspace(tmp_path)
-    start_label.save_result(ws, start_label.StartSession(ws), say=lambda line: None)
+    save_result(ws, start_label.StartSession(ws), say=lambda line: None)
     html = ws.report_html.read_text(encoding="utf-8")
     details = html.split('<div id="more" hidden>')[1]  # under History and details
     assert f"<li><b>Did your judge actually judge?</b> {judge_check.EVERY_ANSWER}</li>" in \
@@ -738,37 +451,9 @@ def _old_result():
     return start_label.describe(weighted.corrected(100, 100, 20, 19, 20, 1))
 
 
-def test_a_recheck_runs_the_check_again_and_keeps_the_old_files(tmp_path, capsys):
-    promptfoo_project(tmp_path, split(20, 12))
-    run(capsys, tmp_path)
-    ws = start_label.Workspace(tmp_path)
-    session = start_label.StartSession(ws)
-    for item in session.items:
-        session.update({"id": item["id"], "label": "pass"})
-    start_label.save_result(ws, session, say=lambda line: None)
-    first = (ws.dir / "judge-check.json").read_text(encoding="utf-8")
-    data = promptfoo_with_problems(split(20, 12) + [False], errors=[32])
-    data["results"]["results"][0]["gradingResult"]["componentResults"][0]["pass"] = False
-    data["results"]["results"][0]["success"] = False
-    _write_json(tmp_path / "results.json", data)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "  ! Your judge made no real decision on 1 of 33 answers: 1 call failed." in out
-    archived = list((ws.dir / "history").glob("check-*/judge-check.json"))
-    assert len(archived) == 1 and archived[0].read_text(encoding="utf-8") == first
-    assert json.loads((ws.dir / "judge-check.json").read_text(
-        encoding="utf-8"))["counts"]["error"] == 1
-
-
 def test_a_records_file_keeps_no_mark(tmp_path):
     """read_records marks nothing: a blank label is the pool's own "empty"."""
     records = read_records(records_project(tmp_path, [True, None]))
     assert all(r.mark.problem is None for r in records)
 
 
-def test_unmapped_words_still_stop_and_say_no_check(tmp_path, capsys):
-    table_project(tmp_path, split(20, 12) + ["maybe"])
-    code, out, err = run(capsys, tmp_path)
-    assert code == 2
-    assert "--label-map" in out + err
-    assert "real decision" not in out

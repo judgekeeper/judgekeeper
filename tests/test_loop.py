@@ -260,15 +260,15 @@ def test_a_changed_rule_carries_on_and_says_which_judge(here, capsys, pages):
                            "your marks.")
 
 
-def test_the_result_keeps_the_start_command_for_starts_next_steps(here, capsys, pages):
-    """`judgekeeper start` builds --review and --fix from the command a result keeps."""
+def test_the_result_keeps_the_command_for_its_next_steps(here, capsys, pages):
+    """The result keeps the command that made it: its next steps on report.html name it."""
     promptfoo_project(here, split(20, 16))
     run(capsys, "--port", "0")
     ws = start_label.Workspace(here)
     _click(ws)
     run(capsys, "--port", "0")
     saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
-    assert saved["command"] == "judgekeeper start --port 0"
+    assert saved["command"] == "judgekeeper --port 0"
 
 
 # The exit test: one prompt to a result ----------------------------------------------------
@@ -413,16 +413,6 @@ def test_the_help_has_the_page_flags_and_hides_start(capsys):
         assert flag in out
     assert "mark" in out
     assert "start" not in out.split("Commands:")[1].split("Options:")[0]
-
-
-def test_start_still_works(here, capsys, pages):
-    promptfoo_project(here, split(20, 16))
-    run(capsys)
-    _click(start_label.Workspace(here))
-    assert run(capsys)[0] == 0  # the result
-    code, out, _ = run(capsys, "start", "--no-browser")
-    assert code in (0, 3), out
-    assert "Your last result" in out
 
 
 # The printed link: the fallback -----------------------------------------------------------

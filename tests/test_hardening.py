@@ -180,12 +180,6 @@ def test_a_folder_judgekeeper_cannot_write_in(project, capsys):
     assert "Next: make this folder writable" in flat(text)
 
 
-def test_start_stopped_at_a_question_exits_3(project, capsys):
-    _promptfoo(project)
-    code, _ = run(capsys, "start")
-    assert code == 3
-
-
 def test_errors_are_printed_in_one_place():
     """Each `error:` line is printed by cli.main, which adds the Next: line; `judgekeeper`
     and `mark` never end with exit 2 on their own."""
@@ -806,7 +800,7 @@ def test_report_and_page_show_no_hidden_characters(project, capsys):
     characters and ESC: none reach report.html or what the marking page is sent."""
 
     from judgekeeper import label, start, start_label
-    from tests.start_projects import promptfoo_data, split
+    from tests.start_projects import promptfoo_data, save_result, split
     from tests.test_leak import _label_everything
 
     data = promptfoo_data(split(20, 16), metric=f"polite{HIDDEN}", tag=f" {HIDDEN}[31m")
@@ -815,7 +809,7 @@ def test_report_and_page_show_no_hidden_characters(project, capsys):
             c["reason"] = f"why{HIDDEN}"
     _dump(project / "results.json", data)
     ws = start_label.prepare(start.find_judge(project), say=lambda line: None)
-    start_label.save_result(ws, _label_everything(ws), say=lambda line: None)
+    save_result(ws, _label_everything(ws), say=lambda line: None)
     report = ws.report_html.read_text(encoding="utf-8")
     state = label.shown(start_label.StartSession(ws).state())
     for c in HIDDEN:

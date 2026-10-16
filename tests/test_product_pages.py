@@ -1,7 +1,7 @@
 """The pages judgekeeper serves, as built: the marking page with its welcome box (mark_page.py),
 the result page and report.html (report_page.py) and the page for an old link, on the shared
-look (look.py): the logo, the fonts, light by default with a dark switch, contrast, focus
-rings, equal Fail and Pass, and the words.
+look (look.py): the logo, the fonts, dark colours, contrast, focus rings, equal Fail and Pass,
+and the words.
 
 The marking page's behaviour is in test_mark_page_script.py.
 """
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import look, mark_page, report_page, start_label, start_page, weighted
+from judgekeeper import look, mark_page, report_page, start_label, weighted
 from judgekeeper.textio import program
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -40,18 +40,14 @@ def _marking() -> str:
 
 
 def _served() -> dict[str, str]:
-    """Every page judgekeeper serves, with the ones only `judgekeeper start` shows."""
+    """Every page judgekeeper serves."""
     return {"marking": _marking(),
             "result": start_label.result_html(_result(*CHECK), back="/?token=t"),
             "report.html": start_label.result_html(_result(*CHECK)),
-            "old link": mark_page.old_link_page(),
-            "review": start_page.review_page("support bot", "Be kind."),
-            "fix": start_page.fix_page("support bot")}
+            "old link": mark_page.old_link_page()}
 
 
-def _new() -> dict[str, str]:
-    pages = _served()
-    return {k: pages[k] for k in ("marking", "result", "report.html", "old link")}
+_new = _served
 
 
 def _flat(html: str) -> str:
@@ -74,8 +70,8 @@ def test_every_page_carries_the_two_colour_logo():
         assert "#1F6B4A\"/>" not in page, name  # never a one-colour shield
     for name, page in _new().items():
         assert page.count(look.SHIELD) == page.count('class="logo-tile"') >= 1, name
-        assert f'.logo-tile svg {{ {look.DARK_LOGO} }}' in page, name  # outlined in dark
-        assert "#64748B" not in page, name  # the official colours in dark too
+        assert f".logo-tile svg {{ {look.LOGO_OUTLINE} }}" in page, name  # outlined on black
+        assert "#64748B" not in page, name  # the official colours
 
 
 def test_the_logo_is_the_websites():
@@ -83,7 +79,6 @@ def test_the_logo_is_the_websites():
     assert re.findall(r' d="([^"]+)"', site) == re.findall(r' d="([^"]+)"', look.SHIELD)
     assert re.findall(r'fill="(#[0-9A-F]{6})"', site) == re.findall(
         r'fill="(#[0-9A-F]{6})"', look.SHIELD)
-    assert start_page.LOGO == look.SHIELD
 
 
 # Fonts and loads -----------------------------------------------------------------------------
@@ -99,6 +94,9 @@ def test_the_fonts_are_embedded_from_the_package_with_their_licences():
     for licence, family in zip(look.FONT_LICENCES, ("Manrope", "JetBrains Mono"), strict=True):
         text = (PACKAGE_FONTS / licence).read_text(encoding="utf-8")
         assert "SIL Open Font License" in text and family in text
+    for name, page in _new().items():  # and the pages use them
+        assert '--sans: "Manrope", system-ui,' in page and "var(--sans)" in page, name
+        assert '--mono: "JetBrains Mono", ui-monospace,' in page, name
     site = ROOT / "website" / "assets" / "fonts"
     assert (PACKAGE_FONTS / "jetbrains-mono-latin-400-normal.woff2").read_bytes() == \
         (site / "jetbrains-mono-latin-400-normal.woff2").read_bytes()
@@ -117,32 +115,26 @@ def test_no_page_loads_anything_from_outside():
 
 # Light, dark, contrast ---------------------------------------------------------------------
 
-def _tokens(theme: str) -> dict[str, str]:
-    start = look.TOKENS.index(':root[data-theme="dark"]' if theme == "dark" else ":root {")
-    block = look.TOKENS[start:look.TOKENS.index("}", start)]
-    return dict(re.findall(r"--([\w-]+): (#[0-9A-Fa-f]{6})", block))
+def _tokens() -> dict[str, str]:
+    return dict(re.findall(r"--([\w-]+): (#[0-9A-Fa-f]{6})", look.TOKENS))
 
 
-def test_light_by_default_and_dark_only_by_the_switch():
+def test_dark_only_with_no_switch():
     for name, page in _new().items():
-        assert "<html lang=\"en\">" in page, name  # no theme set: light
+        assert "<html lang=\"en\">" in page and "color-scheme: dark;" in page, name
+        assert "data-theme" not in page and "jk-theme" not in page, name
         assert "prefers-color-scheme" not in page and "invert(" not in page, name
-        assert look.THEME_FIRST in page and look.SWITCH in page, name
-        assert page.index(look.THEME_FIRST) < page.index("<style>"), name  # before drawing
-    assert look.THEME_FIRST.startswith("try {") and '"jk-theme"' in look.THEME_FIRST
-    assert 'aria-label="Dark mode" aria-pressed="false"' in look.SWITCH
+        assert 'id="theme"' not in page, name  # no switch
 
 
-def test_the_colours_are_the_websites():
-    light, dark = _tokens("light"), _tokens("dark")
-    assert (light["paper"], light["sheet"], light["ink"], light["ink-3"], light["rule"],
-            light["btn"]) == ("#FFFFFF", "#F5F5F5", "#000000", "#4D4D4D", "#D9D9D9", "#000000")
-    assert (dark["paper"], dark["sheet"], dark["ink"], dark["btn"]) == (
+def test_the_colours_are_the_websites_dark_ones():
+    colours = _tokens()
+    assert (colours["paper"], colours["sheet"], colours["ink"], colours["btn"]) == (
         "#000000", "#111111", "#FFFFFF", "#FFFFFF")
-    for theme in (light, dark):  # green and red only on Pass and Fail, and the accent lines
-        greens = {k for k, v in theme.items() if v in ("#1F6B4A", "#6FCF9B", "#10B981",
-                                                       "#3D9A6A", "#1E7A4E")}
-        assert greens <= {"pass", "pass-line", "pass-on", "pass-kbd-line", "mark-line"}, greens
+    greens = {k for k, v in colours.items() if v in ("#6FCF9B", "#10B981", "#3D9A6A",
+                                                      "#1E7A4E", "#12291C", "#0E1C14")}
+    assert greens <= {"pass", "pass-bg", "pass-line", "pass-on", "pass-dot", "pass-kbd",
+                      "pass-kbd-line"}, greens  # green only on Pass (and the logo)
 
 
 def _luminance(colour: str) -> float:
@@ -167,13 +159,12 @@ PAIRS = [(text, ground, 4.5) for text in ("ink", "ink-2", "ink-3", "accent")
     ("focus", "paper", 3), ("focus", "sheet", 3)]
 
 
-@pytest.mark.parametrize("theme", ["light", "dark"])
-def test_text_contrast_in_both_themes(theme):
-    colours = _tokens(theme)
+def test_text_contrast():
+    colours = _tokens()
     for text, ground, least in PAIRS:
-        assert _contrast(colours[text], colours[ground]) >= least, (theme, text, ground)
+        assert _contrast(colours[text], colours[ground]) >= least, (text, ground)
     for pressed in ("pass-on", "fail-on"):  # white text on a pressed button
-        assert _contrast("#FFFFFF", colours[pressed]) >= 4.5, (theme, pressed)
+        assert _contrast("#FFFFFF", colours[pressed]) >= 4.5, pressed
 
 
 def test_focus_rings_sit_on_the_edge_and_nothing_is_focused_on_load():
@@ -260,7 +251,7 @@ def test_text_from_results_can_never_hold_a_server_name():
     page = mark_page.label_page(None, "__DATA__ __TOKEN__", "judgekeeper mark __NONCE__",
                                 model="__TOKEN__", tool="__DATA__")
     assert page.count("__DATA__") == 1 and page.count("__TOKEN__") == 1
-    assert page.count("__NONCE__") == 2  # the two scripts' own
+    assert page.count("__NONCE__") == 1  # the script's own
 
 
 # The result page ---------------------------------------------------------------------------
@@ -325,7 +316,7 @@ def test_details_define_tpr_and_tnr_and_show_the_raw_counts_beside_the_estimates
 def test_the_page_runs_only_its_own_script():
     html = start_label.result_html(_result(*CHECK))
     scripts = re.findall(r"<script>(.*?)</script>", html, re.DOTALL)
-    assert scripts == [look.THEME_FIRST, report_page.SCRIPT]
+    assert scripts == [report_page.SCRIPT]
     meta = re.search(r'<meta http-equiv="Content-Security-Policy" content="([^"]+)">', html)[1]
     assert meta == report_page.CSP
     assert all(look.script_hash(s) in meta for s in scripts)
@@ -455,8 +446,7 @@ def test_the_old_link_page():
     assert "This link no longer works." in text and mark_page.OLD_LINK in text
     assert f"To open the page again, run {program('mark')}." in text
     assert "Judge:" not in text  # the logo only
-    assert all(look.script_hash(s) in mark_page.OLD_LINK_CSP
-               for s in re.findall(r"<script>(.*?)</script>", page, re.DOTALL))
+    assert "<script" not in page and "script-src" not in mark_page.OLD_LINK_CSP
 
 
 def test_every_page_fits_a_phone_width_viewport():

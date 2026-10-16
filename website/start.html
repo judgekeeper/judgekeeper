@@ -164,7 +164,7 @@ This shows how often your judge agrees with you.
       <dd>It found no file it can read as your judge&#39;s results. Pick one of the three ways it lists: give it your file&#39;s path, add the <code>record()</code> line, or write a table (<a href="#own-format">all three</a>).</dd>
       <dt><code data-said-by="start">No promptfoo results file in this folder.</code></dt>
       <dd>promptfoo kept your results in its own database. judgekeeper offers to run <code>promptfoo export</code> for you, which writes them to a file. It asks first.</dd>
-      <dt>It says judgekeeper <code data-said-by="start">needs at least</code> 15 answers you mark Pass and 15 you mark Fail to show a result</dt>
+      <dt>It says judgekeeper <code data-said-by="start_label">needs at least</code> 15 answers you mark Pass and 15 you mark Fail to show a result</dt>
       <dd>Your judge graded fewer than 30 answers. It prints the command that makes more with your own eval, naming your config, test file or task: run it (it calls your models, so it costs money), then <code>judgekeeper start</code> again. Or mark these now: your marks are kept and count when you add more. A judge that failed only a few answers is not a reason to stop: your marks decide what should fail.</dd>
       <dt><code data-said-by="start">Saved results from more than one eval tool:</code> or <code data-said-by="start">These results hold more than one judge:</code></dt>
       <dd>It lists them and asks which one. Pick the judge you want to check.</dd>
@@ -341,7 +341,7 @@ judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
 3. Write one CSV per judge or criterion. Leave out rows where the judge gave an error, and
    scores made by a rule instead of an LLM.
 4. Keep everything on this computer: never send the data anywhere.
-5. Run `judgekeeper start &lt;the CSV file&gt;` and show me what it prints, so I can check the
+5. Run `judgekeeper &lt;the CSV file&gt;` and show me what it prints, so I can check the
    counts and the example rows.</code></pre></div>
     <p class="note"><code>judgekeeper start --agent-prompt</code> prints the same prompt in your terminal.</p>
 

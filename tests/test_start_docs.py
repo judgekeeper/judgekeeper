@@ -9,47 +9,19 @@ on every machine: the time zone (UTC) and the folder's place, shown as /Users/me
 
 from __future__ import annotations
 
-import builtins
 import io
 import re
 import sys
-import time
 import tomllib
 
 import pytest
 
-from judgekeeper import __version__, start
-from judgekeeper.cli import main, version_lines
-from tests.start_projects import promptfoo_project, split
+from judgekeeper import __version__
+from judgekeeper.cli import version_lines
 from tests.website_pages import ROOT, WEBSITE, Element, parse
 
 README = ROOT / "README.md"
 REFERENCE = ROOT / "docs" / "reference.md"
-SHOWN_PROJECT = "/Users/me/support-bot"
-
-
-@pytest.fixture
-def utc(monkeypatch):
-    if not hasattr(time, "tzset"):
-        pytest.skip("the time zone cannot be set here")
-    monkeypatch.setenv("TZ", "UTC")
-    time.tzset()
-    yield
-    monkeypatch.undo()
-    time.tzset()
-
-
-def start_screen(tmp_path, monkeypatch, capsys) -> list[str]:
-    project = tmp_path / "support-bot"
-    promptfoo_project(project, split(171, 41), rubric="is polite and correct")
-    monkeypatch.chdir(project)
-    monkeypatch.setattr(start, "_interactive", lambda: True)
-    monkeypatch.setattr(builtins, "input", lambda prompt="": print(prompt) or "n")
-    capsys.readouterr()
-    assert main(["start"]) == 0
-    out = capsys.readouterr().out.replace(str(project.resolve()), SHOWN_PROJECT)
-    lines = [line.rstrip() for line in out.strip("\n").splitlines()]
-    return lines[:lines.index("Open it now? [Y/n]") + 1]  # up to the question
 
 
 def _els(page: str) -> list[Element]:
@@ -82,22 +54,6 @@ def _sections(path) -> dict[str, str]:
 
 
 # The terminal text on the website --------------------------------------------------------
-
-def test_the_screen_shows_what_was_found_then_asks_to_open_the_page(tmp_path, monkeypatch, capsys, utc):
-    screen = start_screen(tmp_path, monkeypatch, capsys)
-    assert screen[0] == f"Looking in {SHOWN_PROJECT} ..."
-    assert "judgekeeper found your LLM-as-a-judge:" in screen
-    assert "  Results file    results.json (saved 3 Oct 2026, 14:12)" in screen
-    assert screen[-1] == "Open it now? [Y/n]"
-
-
-@pytest.mark.parametrize("page", ["start.html"])
-def test_the_start_output_on_the_site_is_real(tmp_path, monkeypatch, capsys, utc, page):
-    shown = _output(page, "start")
-    assert shown, f"{page} shows what judgekeeper start prints"
-    screen = start_screen(tmp_path, monkeypatch, capsys)
-    for block in shown:
-        assert block == screen
 
 
 @pytest.mark.parametrize("page", ["index.html", "start.html"])

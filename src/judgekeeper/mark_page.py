@@ -269,7 +269,6 @@ __TOP__
 <script type="application/json" id="data">__DATA__</script>
 <script nonce="__NONCE__">
 "use strict";
-__THEME_SWITCH__
 (function () {
   var TOKEN = "__TOKEN__", FIRST = __FIRST__, LOCK_MS = 400;
   var SHORT_SIDE = "__SHORT_SIDE__", RULE_HINT = "__RULE_HINT__";
@@ -603,12 +602,11 @@ def label_page(description: str | None, rule: str | None, command: str | None = 
             .replace("__RULE_CARD__", _rule_card(rule))
             .replace("__COMMAND__", _text(command))
             .replace("__TITLE__", _text(TITLE)).replace("__WELCOME__", welcome)
-            .replace("__THEME_SWITCH__", look.THEME_SWITCH)
             .replace("__FIRST__", str(FIRST))
             .replace("__SHORT_SIDE__", SHORT_SIDE).replace("__RULE_HINT__", RULE_HINT)
             .replace("__BRAND__", look.BRAND)
             .replace("__CROSS__", CROSS).replace("__TICK__", TICK))
-    return look.head("judgekeeper: mark answers", STYLE, '<script nonce="__NONCE__">') + body
+    return look.head("judgekeeper: mark answers", STYLE) + body
 
 
 OLD_LINK_STYLE = """
@@ -619,10 +617,8 @@ main.old p { margin: 0; font-size: 15px; color: var(--ink-2); }
 """
 OLD_LINK = ("Each time judgekeeper opens its page, it makes a new private link, and older links "
             "stop working. Your marks are saved.")
-OLD_LINK_SCRIPT = look.THEME_SWITCH
-OLD_LINK_CSP = (f"default-src 'none'; script-src {look.script_hash(look.THEME_FIRST)} "
-                f"{look.script_hash(OLD_LINK_SCRIPT)}; style-src 'unsafe-inline'; font-src data:; "
-                "img-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+OLD_LINK_CSP = ("default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src 'none'; "
+                "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")  # no script
 
 
 def old_link_page() -> str:
@@ -630,9 +626,9 @@ def old_link_page() -> str:
     open the page again."""
     from judgekeeper.textio import program
 
-    return (look.head("judgekeeper: this link no longer works", OLD_LINK_STYLE, "<script>")
+    return (look.head("judgekeeper: this link no longer works", OLD_LINK_STYLE)
             + look.top("", "")
             + '<main class="old"><div class="card"><h1>This link no longer works.</h1>'
             + f"<p>{escape(OLD_LINK)}</p>"
             + f"<p>To open the page again, run <code>{escape(program('mark'))}</code>.</p>"
-            + f"</div></main>\n<script>{OLD_LINK_SCRIPT}</script>\n</body>\n</html>\n")
+            + "</div></main>\n</body>\n</html>\n")

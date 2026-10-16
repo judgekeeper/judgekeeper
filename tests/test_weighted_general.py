@@ -106,24 +106,6 @@ def test_a_group_with_nobody_to_tell_is_unknown():
     assert r["tnr"] is None and r["tnr_interval"] == [None, None]
 
 
-def test_steadiness_by_hand():
-    # pi = 20/36. Pass group: 1 of 4 changed (f_p = 0.25); fail group: 2 of 4 (f_f = 0.5).
-    # Rate = 20/36 x 0.25 + 16/36 x 0.5 = 5/36 + 8/36 = 13/36.
-    r = weighted.steadiness({"pass": (4, 1), "fail": (4, 2)}, 20, 16)
-    assert r["rate"] == pytest.approx(13 / 36)
-    lo, hi = r["interval"]
-    p_lo, p_hi = weighted.wilson(1, 4)
-    f_lo, f_hi = weighted.wilson(2, 4)
-    assert lo == pytest.approx(20 / 36 * p_lo + 16 / 36 * f_lo)
-    assert hi == pytest.approx(20 / 36 * p_hi + 16 / 36 * f_hi)
-    assert r["changed"] == 3 and r["of"] == 8
-
-
-def test_steadiness_when_nothing_changed():
-    r = weighted.steadiness({"pass": (4, 0), "fail": (4, 0)}, 20, 16)
-    assert r["rate"] == 0 and r["interval"][0] == 0 and 0 < r["interval"][1] < 1
-
-
 # A range never collapses to one point from a finite sample ----------------------------------
 
 def _all_agree(n_pass=15, n_fail=15):

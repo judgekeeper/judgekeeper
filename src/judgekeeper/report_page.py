@@ -1,7 +1,7 @@
 """The result page: what the marking page shows at /result, and `.judgekeeper/report.html`.
 
 One self-contained page (look.py: nothing loaded from anywhere else); every string in it is
-escaped. Its one script (the theme switch, opening rows, Copy) is fixed text: the page's
+escaped. Its one script (opening rows and sections, Copy) is fixed text: the page's
 Content-Security-Policy lets exactly that script run (by its hash) and nothing else, both when
 it is served and in the saved copy, which opens with no server.
 
@@ -28,7 +28,7 @@ KAPPA_MEANS = "0 means no better than coincidence, 1 means it always agrees."
 ADJUSTED = "of your marks, adjusted for how the answers were picked"
 
 # The page's script: fixed text, so its hash can be in the Content-Security-Policy.
-SCRIPT = look.THEME_SWITCH + """
+SCRIPT = """
   (function () {
     function each(selector, fn) {
       Array.prototype.forEach.call(document.querySelectorAll(selector), fn); }
@@ -71,8 +71,8 @@ SCRIPT = look.THEME_SWITCH + """
     });
   })();
 """
-CSP = ("default-src 'none'; script-src " + look.script_hash(look.THEME_FIRST) + " "
-       + look.script_hash(SCRIPT) + "; style-src 'unsafe-inline'; font-src data:; "
+CSP = ("default-src 'none'; script-src " + look.script_hash(SCRIPT)
+       + "; style-src 'unsafe-inline'; font-src data:; "
        "img-src 'none'; base-uri 'none'; form-action 'none'")
 
 STYLE = """
@@ -309,18 +309,35 @@ def _eval_command(r: dict) -> str | None:
     return EVAL_COMMANDS.get(tool)
 
 
+def commands(r: dict) -> dict[str, str]:
+    """The commands the page names, from the one that made the result (r["command"]: the path
+    and the person's flags), as the terminal prints them: `mark` keeps every flag, `check` and
+    `fix` the path only."""
+    from judgekeeper.textio import program
+
+    run = r.get("command") or program()
+    flags = run[len(program()):].strip() if run.startswith(program()) else ""
+    if flags == "start" or flags.startswith("start "):  # a result made before 1.0
+        flags = flags[len("start"):].strip()
+        run = " ".join(x for x in (program(), flags) if x)
+    path = "" if not flags or flags.startswith("-") else flags.split(" --")[0]
+    return {"run": run, "mark": " ".join(x for x in (program("mark"), flags) if x),
+            "check": " ".join(x for x in (program("check"), path) if x),
+            "fix": " ".join(x for x in (program("fix"), path) if x)}
+
+
 def next_step(r: dict, fixing: dict | None) -> dict:
     """The one next step, chosen from the result: {"kind", "title", "text", "command"} (and
     "rule", "where", "eval" for a tested rule). Like the terminal's Next: line."""
     from judgekeeper.front import FIX_FROM
     from judgekeeper.start_label import all_labeled
-    from judgekeeper.textio import program
 
-    mark = {"kind": "mark", "title": "Mark more answers", "command": program("mark")}
+    cmd = commands(r)
+    mark = {"kind": "mark", "title": "Mark more answers", "command": cmd["mark"]}
     if all_labeled(r):  # nothing left to mark: more answers come from the eval
         mark = {"kind": "eval", "title": "Run your eval on more questions",
                 "text": "Every saved answer is marked. Run your eval again for more answers, "
-                        "then:", "command": program()}
+                        "then:", "command": cmd["run"]}
     if r["check"] == "too_few" or r.get("verdict_level") == "too_early":
         return {"text": "Your result needs more marks before it can say how often your judge "
                         "agrees with you.", **mark}
@@ -328,16 +345,16 @@ def next_step(r: dict, fixing: dict | None) -> dict:
     if tested:
         return {"kind": "use", "title": "Use your tested rule", "rule": tested["rule"],
                 "where": tested.get("where"), "eval": _eval_command(r),
-                "command": program("check")}
+                "command": cmd["check"]}
     if len((fixing or {}).get("mistakes") or []) >= FIX_FROM:
         return {"kind": "fix", "title": "Try a better rule",
                 "text": "See where your judge goes wrong, and test a new rule on marks kept "
-                        "aside.", "command": program("fix")}
+                        "aside.", "command": cmd["fix"]}
     if r.get("verdict_level") == "check":
         return {"text": "More marks make your numbers more precise.", **mark}
     return {"kind": "done", "title": "Nothing to do",
             "text": "When you change your judge or update your eval tool, check it again:",
-            "command": program("check")}
+            "command": cmd["check"]}
 
 
 def _next_card(step: dict, back: str | None) -> str:
@@ -532,7 +549,6 @@ def _notes(r: dict, key: str) -> list[str]:
 
 
 def _details(r: dict, c: dict, content: dict, back: str | None) -> str:
-    from judgekeeper.textio import program
 
     facts = []
     if r["check"] != "too_few":
@@ -561,26 +577,14 @@ def _details(r: dict, c: dict, content: dict, back: str | None) -> str:
         from judgekeeper.judge_check import TITLE
 
         facts.append(f"<li><b>{_e(TITLE)}</b> {_e(content['judge_check_quiet'])}</li>")
-    others = (f"<code>{_e(program('mark'))}</code> to mark more answers · "
-              f"<code>{_e(program('check'))}</code> after you change your judge · "
-              f"<code>{_e(program('fix'))}</code> to try a better rule")
+    cmd = commands(r)
+    others = (f"<code>{_e(cmd['mark'])}</code> to mark more answers · "
+              f"<code>{_e(cmd['check'])}</code> after you change your judge · "
+              f"<code>{_e(cmd['fix'])}</code> to try a better rule")
     if back:
         others += f' · <a href="{_e(back)}">back to the marking page</a>'
-        for step in content.get("next") or []:  # `judgekeeper start`'s own pages
-            if step.get("link") in ("/review", "/fix"):
-                href = f'{step["link"]}?{back.partition("?")[2]}'
-                others += f' · <a href="{_e(href)}">{_e(step["button"])}</a>'
     facts.append(f"<li><b>Other commands:</b> {others}</li>")
-    extra = []
-    for key in ("review", "fix", "again", "new_judge"):
-        block = content.get(key)
-        if block:
-            extra.append(f'<div><h3 class="sub">{_e(block["title"])}</h3><ul class="facts">'
-                         + "".join(f"<li>{_e(x)}</li>" for x in block["lines"])
-                         + "".join(f"<li>Saved: <code>{_e(f)}</code></li>" for f in block["files"])
-                         + "</ul></div>")
-    return (f'<div><h3 class="sub">Details</h3><ul class="facts">{"".join(facts)}</ul></div>'
-            + "".join(extra))
+    return f'<div><h3 class="sub">Details</h3><ul class="facts">{"".join(facts)}</ul></div>'
 
 
 def page(r: dict, content: dict, back: str | None = None, history: list[dict] | None = None,
@@ -601,7 +605,7 @@ def page(r: dict, content: dict, back: str | None = None, history: list[dict] | 
     more = (_history(history or []) + _details(r, c, content, back)
             + f'<p class="saved-line">{SAVED}</p>')
     meta = f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
-    return (look.head("judgekeeper: your result", STYLE, "<script>", meta)
+    return (look.head("judgekeeper: your result", STYLE, meta)
             + look.top(left, marks)
             + '<main class="result">'
             + f'<div class="row1">{_result_card(r, c, content)}{_next_card(step, back)}</div>'

@@ -16,7 +16,7 @@ import pytest
 
 from judgekeeper import __version__, background, label, marks, page, start, start_label
 from judgekeeper.cli import main
-from tests.start_projects import promptfoo_project, records_project, split
+from tests.start_projects import promptfoo_project, records_project, save_result, split
 from tests.test_front import assert_one_next_at_the_end, next_lines, run
 
 TAG = " SECRET-7f3a"  # in every question and answer: a leak shows
@@ -106,8 +106,7 @@ def test_the_page_starts_with_the_commands_of_the_flags_given(here, capsys, page
     assert settings["port"] == 0
     # the page says how to come back to it: `judgekeeper mark`, with the flags given
     assert settings["command"] == "judgekeeper mark --tool promptfoo --port 0 --no-browser"
-    assert settings["start_command"] == ("judgekeeper start --tool promptfoo --port 0 "
-                                         "--no-browser")
+    assert settings["start_command"] == "judgekeeper --tool promptfoo --port 0 --no-browser"
     assert _check(out) == NEXT_LINK.replace(
         "`judgekeeper`", "`judgekeeper --tool promptfoo --port 0 --no-browser`")
 
@@ -361,6 +360,6 @@ def test_start_marks_on_the_same_file(here, capsys, pages):
     ws = start_label.Workspace(here)
     _click(ws)
     session = start_label.StartSession(ws)
-    r = start_label.save_result(ws, session, say=lambda line: None)
+    r = save_result(ws, session, say=lambda line: None)
     assert r["labels"] == {"correct": 20, "wrong": 16}
     assert start.ROUGH == 15

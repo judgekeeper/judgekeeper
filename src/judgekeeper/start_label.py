@@ -1,4 +1,4 @@
-"""Labeling with `judgekeeper start`: the queue, the `.judgekeeper/` folder, the session the
+"""Labeling with `judgekeeper`: the queue, the `.judgekeeper/` folder, the session the
 labeling page writes to, and the result.
 
 The queue: a seeded shuffle of each group (the judge's passes and its fails), then blocks of
@@ -19,14 +19,12 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
 - anchors.jsonl and its manifest: the labeled answers as a frozen anchor set (with the
   pool's trajectory, outcome and app_version, frozen too). Written with each result.
 - judge-check.json and judge-check.csv: did the judge actually judge? (judge_check.py): the
-  counts and each answer found, written when labeling starts (and when `start` names the
-  CSV). A re-check copies the old ones to history/ with the other start files.
+  counts and each answer found, written when labeling starts (and when judgekeeper names the
+  CSV). A re-check copies the old ones to history/ with the other files it started from.
 - result.json and report.html (the result page), with the earlier result moved to history/;
   and one line in history.jsonl for each result made from marks that changed: the judge, the
   counts and the numbers, no answer text and no ids.
-- review.json, judge-mistakes.csv and rule-unclear.csv: the review of the disagreements
-  (start_review.py).
-- fix.json and fix/: fixing the judge after the review (start_fix.py).
+- fix/: fixing the judge with `judgekeeper fix` (fix.py).
 - .gitignore: written when a first check starts in the folder, if there is none, so the
   answers stay off Git (all but judge.json and history.jsonl). Never overwritten, except the
   exact text judgekeeper 0.2 wrote, which is replaced.
@@ -34,7 +32,7 @@ Every string from a results file is scrubbed of credentials before it is written
 written anywhere else, and the user's own .gitignore is never touched.
 
 A cloned project controls `.judgekeeper/`. Before anything is written there, a link in it
-(or the folder itself being one) stops `start` (`refuse_links`): writing through it would
+(or the folder itself being one) stops judgekeeper (`refuse_links`): writing through it would
 change a file outside the project. Every file is written as a new file renamed over the old
 one (`write_replacing`), which replaces a link instead of following it.
 """
@@ -47,8 +45,6 @@ import json
 import os
 import random
 import secrets
-import sys
-import webbrowser
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -56,7 +52,7 @@ from judgekeeper import __version__, find, judge_check, marks, targets, weighted
 from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import JudgeFingerprint, rule_hash, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
-from judgekeeper.label import LabelSession, make_server
+from judgekeeper.label import LabelSession
 from judgekeeper.records import AGENT_FIELDS
 from judgekeeper.redact import scrub, scrub_fingerprint, scrub_value, visible
 from judgekeeper.runners.base import Judgment
@@ -91,7 +87,6 @@ def shown_folder(ws: Workspace) -> str:
         return folder.as_posix()
     # a folder nearby as ../elsewhere/.judgekeeper; one far away as its whole path
     return rel.as_posix() if rel.parts.count("..") <= 2 else folder.as_posix()
-CORRECTED = "Corrected for picking half from the judge's passes and half from its fails."
 LEVELS = {  # verdict level: (colour, icon, second line)
     "gate": ("green", "tick", "Keep checking it after changes to its model or rule."),
     "check": ("amber", "warn", None),
@@ -112,7 +107,6 @@ VERDICTS = {  # the one coloured line under the two sentences (targets.level dec
 TOO_MANY = {"tnr": "Your judge passes too many answers you would fail.",
             "tpr": "Your judge fails too many answers you would pass."}
 MORE = "Marking more answers narrows this."
-ASKABLE = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools whose judge can be run again
 ALL_LABELED = "Every saved answer is marked. Run your eval again for more answers, then:"
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
@@ -150,9 +144,6 @@ class Workspace:
         self.result_html = self.dir / "result.html"  # the result page's name before 1.0
         self.history = self.dir / "history"
         self.history_jsonl = self.dir / "history.jsonl"
-        self.review = self.dir / "review.json"
-        self.judge_mistakes = self.dir / "judge-mistakes.csv"
-        self.rule_unclear = self.dir / "rule-unclear.csv"
         self.judge_check_json = self.dir / judge_check.JSON_FILE
         self.judge_check_csv = self.dir / judge_check.CSV_FILE
 
@@ -570,7 +561,7 @@ def sentences(r: dict) -> list[str]:
         if all_labeled(r):
             return [(f"You've marked every answer. A result needs at least {ROUGH} you mark "
                      f"Pass and {ROUGH} you mark Fail; you have {short_words(r['labels'])}. Run "
-                     f"your eval on more questions, then {command_of(r, '--label-more')}.")]
+                     f"your eval on more questions, then {command_of(r)}.")]
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     return [side_sentence(key, r[key], r[f"{key}_interval"]) for key in SAID]
 
@@ -628,125 +619,14 @@ def range_words(interval) -> str | None:
     return f"Could be {ends}. {MORE}"
 
 
-def _number(name: str, value, interval) -> str:
-    if value is None:
-        return f"{name} unknown"
-    if interval is None or interval[0] is None:
-        return f"{name} {value:.2f}"
-    return f"{name} {value:.2f} ({interval[0]:.2f}–{interval[1]:.2f})"
-
-
-def pass_rate_line(r: dict) -> str:
-    if r["judge_pass_rate"] is None:
-        return ""
-    line = f"Your judge passes {_pct(r['judge_pass_rate'])} of the answers in your results."
-    if r["real_pass_rate"] is None:
-        return f"{line} How many should pass is unknown yet."
-    lo, hi = r["real_pass_rate_interval"]
-    return (f"{line} From your marks, about {_pct(r['real_pass_rate'])} should pass "
-            f"(could be {_pct(lo)} to {_pct(hi)}).")
-
-
-def to_review(r: dict) -> int:
-    """How many disagreements are left to review: none once the review is done."""
-    return 0 if (r.get("review") or {}).get("done") else r.get("disagreements") or 0
-
-
-def can_fix(r: dict) -> bool:
-    """Whether the review is done and found something to fix the judge with."""
-    review = r.get("review") or {}
-    return bool(review.get("done") and review.get("to_fix"))
-
-
-def can_ask_again(r: dict) -> bool:
-    """Whether judgekeeper can run this judge again: not for verdicts saved by your own code
-    or in a table. A result that does not name its tool is offered it."""
-    tool = (r.get("judge") or {}).get("tool")
-    return tool is None or tool in ASKABLE
-
-
 def all_labeled(r: dict) -> bool:
     return r.get("left") == 0
 
 
 def command_of(r: dict, *extra: str) -> str:
-    """The command the person runs next: `judgekeeper start` with the path and flags of the
+    """The command the person runs next: `judgekeeper` with the path and flags of the
     run that made the result (start.Talk.command, kept in it), then `extra`."""
-    return " ".join((r.get("command") or program("start"), *extra))
-
-
-def _next(r: dict) -> list[tuple[str, str]]:
-    steps = []
-    if r["check"] != "reliable" and not all_labeled(r):
-        steps.append(("Mark more answers:", command_of(r)))
-    if to_review(r):
-        steps.append((f"See where you disagree ({to_review(r)}):", command_of(r, "--review")))
-    if can_fix(r):
-        steps.append(("Fix your judge (free):", command_of(r, "--fix")))
-    if can_ask_again(r):
-        steps.append(("Ask your judge again:", command_of(r, "--ask-again")))
-    if r.get("new_judge"):
-        steps.append(("Check your new judge from now on:", command_of(r, "--new")))
-    return steps + [("Check again after your next eval run:", command_of(r))]
-
-
-def _again_lines(r: dict) -> list[str]:
-    from judgekeeper.again.fresh import again_lines
-
-    return again_lines(r["again"]) if r.get("again") else []
-
-
-def _new_judge_lines(r: dict) -> list[str]:
-    from judgekeeper.new_judge import lines
-
-    return lines(r["new_judge"]) if r.get("new_judge") else []
-
-
-def _review_lines(r: dict) -> list[str]:
-    from judgekeeper.start_review import review_lines
-
-    return review_lines(r["review"]) if r.get("review") else []
-
-
-def _fix_lines(r: dict) -> list[str]:
-    from judgekeeper.start_fix import result_lines as fix_lines
-
-    return fix_lines(r["fix"]) if r.get("fix") else []
-
-
-def result_lines(r: dict, saved: str = FOLDER) -> list[str]:
-    """The result as the terminal shows it."""
-    labels = r["labels"]
-    n = labels["correct"] + labels["wrong"]
-    title = (f"Your result, from the {_plural(n, 'answer', 'answers')} you marked "
-             f"({marks_words(labels)}):")
-    lines = [title, ""]
-    lines += sentences(r)
-    if r["check"] != "too_few":
-        lines.append(r["verdict"])
-    if r.get("wide"):
-        lines.append(status_line(r))
-    if r["check"] != "too_few":
-        lines.append("")
-        lines.append("  " + "   ".join([_number("TPR", r["tpr"], r["tpr_interval"]),
-                                        _number("TNR", r["tnr"], r["tnr_interval"]),
-                                        _number("kappa", r["kappa"],
-                                                r.get("kappa_interval"))]))
-        if pass_rate_line(r):
-            lines.append(f"  {pass_rate_line(r)}")
-        lines.append(f"  {CORRECTED}")
-    if r.get("review"):
-        lines += [""] + [f"  {line}" for line in _review_lines(r)]
-    if r.get("fix"):
-        lines += ["", "  Fix your judge:"] + [f"  {line}" for line in _fix_lines(r)]
-    if r.get("again"):
-        lines += ["", "  Your judge, asked again:"] + [f"  {line}" for line in _again_lines(r)]
-    if r.get("new_judge"):
-        lines += ["", "  Your new judge:"] + [f"  {line}" for line in _new_judge_lines(r)]
-    lines += ["", "Next:"]
-    lines += [f"  {text}  {command}" for text, command in _next(r)]
-    lines += ["", f"Saved in {saved}/ (report.html is the page you just saw)."]
-    return lines
+    return " ".join((r.get("command") or program(), *extra))
 
 
 _plural = plural  # textio.plural
@@ -824,7 +704,7 @@ def made_lines(made: dict | None) -> list[str]:
 
 
 def page_content(r: dict, marking: str | None = None) -> dict:
-    """The result page's text and numbers (start_page.result_page lays them out). `marking`:
+    """The result page's text and numbers (report_page.page lays them out). `marking`:
     for the page `judgekeeper mark` serves, its command; the one next step is marking more."""
     labels = r["labels"]
     n = labels["correct"] + labels["wrong"]
@@ -900,29 +780,6 @@ def page_content(r: dict, marking: str | None = None) -> dict:
     elif needed:
         steps.append({"title": "Mark more answers", "text": needed,
                       "command": command_of(r), "link": "/", "button": "Mark more answers"})
-    if to_review(r):
-        steps.append({"title": f"See where you disagree ({to_review(r)})",
-                      "text": ("Each answer where you and your judge disagree, with its "
-                               "reason. Free."),
-                      "command": command_of(r, "--review"), "link": "/review",
-                      "button": "See where you disagree"})
-    if can_fix(r):
-        steps.append({"title": "Fix your judge",
-                      "text": ("See what your judge gets wrong, and test a change on answers "
-                               "kept aside. Free."),
-                      "command": command_of(r, "--fix"), "link": "/fix",
-                      "button": "Fix your judge"})
-    if can_ask_again(r):
-        steps.append({"title": "Ask your judge again",
-                      "text": ("How often it changes its mind, and how well it agrees with "
-                               "you today. It asks before any call:"),
-                      "command": command_of(r, "--ask-again"), "link": None,
-                      "button": None})
-    if r.get("new_judge"):
-        steps.append({"title": "Check your new judge from now on",
-                      "text": ("Your last check moves to .judgekeeper/previous-<date>/; nothing "
-                               "is deleted:"),
-                      "command": command_of(r, "--new"), "link": None, "button": None})
     if not (needed and all_labeled(r)):  # else the first step already says it
         steps.append({"title": "Check again after your next eval run", "text": "",
                       "command": command_of(r), "link": None, "button": None})
@@ -932,22 +789,6 @@ def page_content(r: dict, marking: str | None = None) -> dict:
                  {"title": "Mark more answers", "text": needed or "Marking more answers "
                   "narrows the ranges.", "command": marking, "link": "/",
                   "button": "Mark more answers"}]
-    review = None
-    if r.get("review"):
-        review = {"title": "Where you disagree", "lines": _review_lines(r),
-                  "files": [f"{FOLDER}/{name}" for name in r["review"].get("files", [])]}
-    fixed = None
-    if r.get("fix"):
-        fixed = {"title": "Fix your judge", "lines": _fix_lines(r), "files": [f"{FOLDER}/fix/"]}
-    asked_again = None
-    if r.get("again"):
-        asked_again = {"title": "Your judge, asked again", "lines": _again_lines(r),
-                       "files": [r["again"]["folder"] + "/"]}
-    new_judge = None
-    if r.get("new_judge"):
-        files = [r["new_judge"]["folder"] + "/"]
-        new_judge = {"title": "Your new judge", "lines": [x for x in _new_judge_lines(r) if x],
-                     "files": files}
     checked = r.get("judge_check")
     judged = None
     if judge_check.lines(checked):
@@ -976,10 +817,6 @@ def page_content(r: dict, marking: str | None = None) -> dict:
             f"be in. {RANGE_MEANS} {RANGE_COVERS}"),
         "judge": {"name": judge.get("metric") or judge.get("name"), "model": model,
                   "rule": judge.get("rule"), "source": source},
-        "review": review,
-        "fix": fixed,
-        "again": asked_again,
-        "new_judge": new_judge,
         "judge_check": judged,
         "judge_check_quiet": judge_check.EVERY_ANSWER if checked and not judged else None,
         "next": steps,
@@ -1028,7 +865,7 @@ def page_template(about: dict | None = None, command: str | None = None) -> str:
     from judgekeeper.front import tool_name
     from judgekeeper.mark_page import label_page
 
-    command = command or program("start")
+    command = command or program("mark")
     about = about or {}
     return label_page(about.get("description") or about.get("app_version"), about.get("rule"),
                       command, model=(about.get("fingerprint") or {}).get("model"),
@@ -1106,17 +943,6 @@ def _same_result(ws: Workspace, digest: str) -> dict | None:
     return saved if isinstance(saved, dict) and saved.get("marks_sha256") == digest else None
 
 
-def save_result(ws: Workspace, session: StartSession, say,
-                command: str | None = None) -> dict:
-    """store_result, then say the result in the terminal."""
-    command = command or program("start")
-    r = store_result(ws, session, command)
-    say("")
-    for line in result_lines(r, shown_folder(ws)):
-        say(line)
-    return r
-
-
 def history_line(ws: Workspace, r: dict) -> dict:
     """The line history.jsonl gets for a new result: the judge as marks.jsonl's header keeps
     it, the counts and the numbers. No answer text, no ids."""
@@ -1138,10 +964,9 @@ def store_result(ws: Workspace, session: StartSession,
     """Make a result from the marks so far: anchors, result.json and report.html (the last
     result moves to history/; a result.html from before goes), and a line in history.jsonl.
     `command` (start.Talk.command) is kept in it: every next command it shows starts with it.
-    With no new marks since the saved result, that result stays as it is (with its review,
-    fix and asking again), and history.jsonl gets no line: a new one would move the finished
-    review and fix to history/."""
-    command = command or program("start")
+    With no new marks since the saved result, that result stays as it is, and history.jsonl
+    gets no line."""
+    command = command or program()
     digest = marks_digest(ws, session)
     same = _same_result(ws, digest)
     if same is not None:
@@ -1180,82 +1005,3 @@ def store_result(ws: Workspace, session: StartSession,
     return r
 
 
-def result_maker(ws: Workspace, say, made: list | None = None,
-                 command: str | None = None):
-    """The server's result function: each call makes and saves a new result."""
-    command = command or program("start")
-
-    def make(session: StartSession, back: str) -> str:
-        r = save_result(ws, session, say, command)
-        done = session.summary()["done"]
-        if made is not None:
-            made.append(done)
-        return result_html(_scrubbed(r), None if done else back)
-
-    return make
-
-
-def run_labeling(found, port: int, open_browser: bool, say,
-                 command: str | None = None) -> int:
-    """Save the pool of `found`, then serve the labeling page for it."""
-    command = command or program("start")
-    return serve_workspace(prepare(found, say), port, open_browser, say, command)
-
-
-def say_opened(url: str, open_browser: bool, say, command: str | None = None,
-               more: str = "", session=None) -> None:
-    """What the terminal says once a page is served: that it opened (or its link), that every
-    click is saved, and how to stop and come back. `more` is added to the come-back command
-    (--review, say). The link holds the token, so it is printed whole, and only where a
-    coding agent can't read it, or when no browser opened: without a terminal that is said,
-    and the marks on `session` are stamped (page.py)."""
-    command = command or program("start")
-    from judgekeeper.page import NO_BROWSER
-    from judgekeeper.page import terminal as at_terminal
-    from judgekeeper.textio import tick
-
-    terminal = at_terminal()
-    if open_browser and webbrowser.open(url) is not False:
-        say(f"{tick()} Opened in your browser. Every click is saved.")
-        if terminal:
-            print(f"  If it did not open, use this link: {url}")
-    else:
-        if not terminal:
-            say(NO_BROWSER)
-            if session is not None and hasattr(session, "link"):
-                session.link = marks.PRINTED
-        print(f"Open this link in your browser: {url}")
-        say("Every click is saved.")
-    say(f"  To stop: Ctrl-C. To carry on later: {command}{more}")
-    sys.stdout.flush()
-
-
-def serve_workspace(ws: Workspace, port: int, open_browser: bool, say,
-                    command: str | None = None) -> int:
-    """Serve the labeling page until the last answer, Ctrl-C or 30 minutes idle. `command`
-    (start.Talk.command) is what the person runs to continue."""
-    command = command or program("start")
-    from judgekeeper import start_fix, start_review
-
-    session = StartSession(ws)
-    made: list[bool] = []
-    reviewed: list[bool] = []
-    server = make_server(session, port, result=result_maker(ws, say, made, command),
-                         page=page_template(ws.data(), command),
-                         switches={"/review": start_review.switch(ws, say, reviewed),
-                                   "/fix": start_fix.switch(ws, say, command)}, lock=ws.dir)
-    say_opened(server.url, open_browser, say, command, session=session)
-    try:
-        server.serve()
-    except KeyboardInterrupt:
-        pass
-    summary = session.summary()
-    if summary["done"] and not any(made):
-        save_result(ws, session, say, command)  # nobody fetched the last result: make it
-    elif not summary["done"]:
-        say("")
-        say(f"Stopped. You marked {_plural(summary['n_labeled'], 'answer', 'answers')}. To "
-            f"carry on later: {command}")
-    if reviewed:
-        start_review.finish(ws, say, command)
-    return 0

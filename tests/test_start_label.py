@@ -6,7 +6,6 @@ No test opens a browser: the server runs in a thread and a test client clicks fo
 
 from __future__ import annotations
 
-import builtins
 import json
 import re
 import threading
@@ -16,12 +15,10 @@ import pytest
 from judgekeeper import label as label_mod
 from judgekeeper import marks, start, start_label, targets, weighted
 from judgekeeper.anchors import canonical_hash, load_anchors, manifest_path_for
-from judgekeeper.cli import main
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.judgments import read_run
 from judgekeeper.records import LLM, RecordList, ScoreRecord
-from judgekeeper.textio import quote_arg
-from tests.start_projects import promptfoo_project, split
+from tests.start_projects import promptfoo_project, save_result, split
 from tests.test_label_server import Client
 
 
@@ -79,10 +76,22 @@ def workspace(tmp_path):
     return found, ws
 
 
+def _result_page(ws):
+    """The server's result function, as the marking page has it: each call makes and saves a
+    new result."""
+
+    def make(session, back):
+        r = start_label.store_result(ws, session)
+        done = session.summary()["done"]
+        return start_label.result_html(start_label._scrubbed(r), None if done else back)
+
+    return make
+
+
 def _server(ws):
     session = start_label.StartSession(ws)
     server = label_mod.LabelServer(session, port=0, page=start_label.page_template(),
-                                   result=start_label.result_maker(ws, say=lambda line: None))
+                                   result=_result_page(ws))
     thread = threading.Thread(target=server.serve, daemon=True)
     thread.start()
     return server, thread, Client(server)
@@ -262,79 +271,19 @@ def test_the_verdict_levels_follow_the_ranges():
     assert _result(100, 100, 50, 48, 50, 2)["check"] == "reliable"
 
 
-def test_the_terminal_result():
-    r = _result(900, 100, 25, 20, 25, 10)
-    lines = start_label.result_lines(r, saved=".judgekeeper")
-    tpr_lo, tpr_hi = r["tpr_interval"]
-    tnr_lo, tnr_hi = r["tnr_interval"]
-    assert lines[0] == "Your result, from the 50 answers you marked (30 Pass, 20 Fail):"
-    assert (f"You passed: your judge also passed about 95% (could be {tpr_lo:.0%} to "
-            f"{tpr_hi:.0%}).") in lines
-    assert (f"You failed: your judge also failed about 25% (could be {tnr_lo:.0%} to "
-            f"{tnr_hi:.0%}).") in lines
-    assert "Your judge passes too many answers you would fail." in lines
-    k_lo, k_hi = r["kappa_interval"]
-    assert (f"  TPR 0.95 ({tpr_lo:.2f}–{tpr_hi:.2f})   TNR 0.25 ({tnr_lo:.2f}–"
-            f"{tnr_hi:.2f})   kappa 0.25 ({k_lo:.2f}–{k_hi:.2f})") in lines
-    lo, hi = r["real_pass_rate_interval"]
-    assert (f"  Your judge passes 90% of the answers in your results. From your marks, about "
-            f"76% should pass (could be {lo:.0%} to {hi:.0%}).") in lines
-    assert ("  Corrected for picking half from the judge's passes and half from its fails."
-            in lines)
-    assert "  Mark more answers:  judgekeeper start" in lines
-    assert "  Check again after your next eval run:  judgekeeper start" in lines
-    assert lines[-2:] == ["", "Saved in .judgekeeper/ (report.html is the page you just saw)."]
-
-
 # 900 passes and 100 fails in the pool, 25 marked in each group, 24 and 1 marked Pass: 25
 # marked Pass and 25 Fail, but the judge passes most answers, so the TNR range stays wide.
-LOPSIDED = (900, 100, 25, 24, 25, 1)
-
-
-def test_twenty_five_of_each_with_a_wide_range_is_not_reliable_yet():
-    r = _result(*LOPSIDED)
-    assert r["labels"] == {"correct": 25, "wrong": 25}
-    assert r["check"] == "rough" and set(r["wide"]) == {"tnr"}
-    width = r["tnr_interval"][1] - r["tnr_interval"][0]
-    assert width > targets.MAX_WIDTH and r["wide"]["tnr"] == pytest.approx(width)
-    lines = start_label.result_lines(r, saved=".judgekeeper")
-    assert lines[0] == "Your result, from the 50 answers you marked (25 Pass, 25 Fail):"
-    assert "Marking more answers narrows the range for the answers you marked Fail." in lines
-    assert f"{width:.2f}" not in " ".join(lines)  # no number about the range in the words
-    assert "  Mark more answers:  judgekeeper start" in lines
-
-
-def test_a_reliable_result_has_both_ranges_narrow_enough():
-    r = _result(100, 100, 50, 48, 50, 2)
-    assert r["check"] == "reliable" and r["wide"] == {}
-    for key in ("tpr", "tnr"):
-        lo, hi = r[f"{key}_interval"]
-        assert hi - lo <= targets.MAX_WIDTH
-    assert not any(line.startswith("Marking more answers narrows")
-                   for line in start_label.result_lines(r))
 
 
 def test_the_targets_are_the_shared_ones():
     assert start_label.ROUGH == targets.ROUGH
 
 
-def test_too_few_marks_say_to_mark_more():  # a rate is unknown only then
-    r = _result(100, 100, 20, 15, 0, 0)
-    text = "\n".join(start_label.result_lines(r, saved=".judgekeeper"))
-    assert "None" not in text and "nan" not in text
-    assert "Mark a few more answers to see your result. So far: 15 Pass, 5 Fail." in text
-    assert "TNR" not in text  # no numbers before a result
-
-
 def test_the_word_trust_is_nowhere():
     texts = [start_label.page_template()]
     for counts in ((100, 100, 20, 19, 20, 1), (100, 100, 20, 14, 20, 6), (100, 100, 2, 1, 0, 0)):
         r = _result(*counts)
-        texts += start_label.result_lines(r, saved=".judgekeeper")
         texts.append(start_label.result_html(r))
-    for n_pass, n_fail in ((171, 41), (58, 2), (20, 2), (40, 0)):
-        texts.append(start.picking_line(n_pass, n_fail))
-    texts += start.NEXT
     assert not any("trust" in t.lower() for t in texts)
 
 
@@ -392,7 +341,7 @@ def _sealed(path):
 def test_a_result_writes_anchors_and_the_result_files(workspace):
     _, ws = workspace
     session = _label_everything(ws)
-    start_label.save_result(ws, session, say=lambda line: None)
+    save_result(ws, session, say=lambda line: None)
     items, manifest = _sealed(ws.anchors)
     assert len(items) == 32 and manifest["label_distribution"] == {"fail": 12, "pass": 20}
     result = json.loads(ws.result_json.read_text(encoding="utf-8"))
@@ -411,11 +360,11 @@ def test_a_result_writes_anchors_and_the_result_files(workspace):
 def test_a_second_result_moves_the_first_to_history(workspace):
     _, ws = workspace
     session = _label_everything(ws)
-    start_label.save_result(ws, session, say=lambda line: None)
+    save_result(ws, session, say=lambda line: None)
     first = ws.result_json.read_text(encoding="utf-8")
     item = session.items[0]
     session.update({"id": item["id"], "label": "fail" if item["label"] == "pass" else "pass"})
-    start_label.save_result(ws, session, say=lambda line: None)
+    save_result(ws, session, say=lambda line: None)
     history = sorted((ws.dir / "history").glob("result-*.json"))
     assert len(history) == 1 and history[0].read_text(encoding="utf-8") == first
 
@@ -425,14 +374,12 @@ def test_no_new_marks_keep_the_saved_result(workspace):
     # finished review and fix to history/
     _, ws = workspace
     session = _label_everything(ws)
-    start_label.save_result(ws, session, say=lambda line: None)
+    save_result(ws, session, say=lambda line: None)
     first = ws.result_json.read_bytes()
-    said = []
-    again = start_label.save_result(ws, start_label.StartSession(ws), say=said.append)
+    again = save_result(ws, start_label.StartSession(ws))
     assert ws.result_json.read_bytes() == first
     assert not (ws.dir / "history").exists()
     assert again["made_at"] == json.loads(first)["made_at"]
-    assert any(line.startswith("Your result, from the") for line in said)
 
 
 def test_skipped_answers_are_not_in_the_anchors(workspace):
@@ -441,7 +388,7 @@ def test_skipped_answers_are_not_in_the_anchors(workspace):
     ids = [i["id"] for i in session.items]
     session.update({"id": ids[0], "label": "pass"})
     session.update({"id": ids[1], "deferred": True})
-    start_label.save_result(ws, session, say=lambda line: None)
+    save_result(ws, session, say=lambda line: None)
     items, _ = _sealed(ws.anchors)
     assert [i["id"] for i in items] == [ids[0]]
 
@@ -451,7 +398,7 @@ def test_secrets_in_the_results_are_scrubbed_in_every_saved_file(tmp_path):
     found = _found(tmp_path, tag=f" {secret}")
     ws = start_label.prepare(found, say=lambda line: None)
     session = _label_everything(ws)
-    start_label.save_result(ws, session, say=lambda line: None)
+    save_result(ws, session, say=lambda line: None)
     saved = [p for p in ws.dir.rglob("*") if p.is_file()]
     assert len(saved) >= 8
     for path in saved:
@@ -492,132 +439,12 @@ def test_nothing_is_written_outside_the_folder(tmp_path):
     found = _found(tmp_path)
     before = {p for p in tmp_path.rglob("*") if ".judgekeeper" not in p.parts}
     ws = start_label.prepare(found, say=lambda line: None)
-    start_label.save_result(ws, _label_everything(ws), say=lambda line: None)
+    save_result(ws, _label_everything(ws), say=lambda line: None)
     assert {p for p in tmp_path.rglob("*") if ".judgekeeper" not in p.parts} == before
     assert not (tmp_path / ".gitignore").exists()
 
 
 # The whole flow --------------------------------------------------------------------------
-
-@pytest.fixture
-def clicker(monkeypatch):
-    """Replace the server loop: a client labels like the person would, then stops."""
-    plan = {"labels": "agree", "stop_after": None, "opened": []}
-    original = label_mod.LabelServer.serve
-    monkeypatch.setattr("webbrowser.open", lambda url: plan["opened"].append(url))
-
-    def serve(self, idle_timeout=None):
-        thread = threading.Thread(target=original, args=(self, idle_timeout), daemon=True)
-        thread.start()
-        client = Client(self)
-        ws = self.session.workspace
-        groups = {q["id"]: q["group"] for q in json.loads(ws.start.read_text(
-            encoding="utf-8"))["queue"]}
-        for n, item in enumerate(client.state()["items"]):
-            if plan["stop_after"] is not None and n == plan["stop_after"]:
-                self.stop()
-                thread.join(timeout=5)
-                raise KeyboardInterrupt
-            client.label(id=item["id"], label=groups[item["id"]])
-        plan["page"] = client.request("GET", "/result")[1].decode()
-        thread.join(timeout=5)
-
-    monkeypatch.setattr(label_mod.LabelServer, "serve", serve)
-    return plan
-
-
-def _run(capsys, *argv):
-    code = main(["start", *map(str, argv)])
-    out, err = capsys.readouterr()
-    return code, out, err
-
-
-def test_start_labels_and_shows_the_result(tmp_path, capsys, clicker):
-    promptfoo_project(tmp_path, split(20, 16))
-    code, out, _ = _run(capsys, tmp_path, "--yes", "--port", "0")
-    assert code == 0
-    assert "Opened in your browser. Every click is saved." in out
-    assert "token=" not in out  # no terminal: the link is not printed where an agent reads it
-    assert "  To stop: Ctrl-C. To carry on later: judgekeeper start" in out
-    assert len(clicker["opened"]) == 1
-    assert "Your result, from the 36 answers you marked (20 Pass, 16 Fail):" in out
-    assert "Your judge agrees with you often enough to use." in out
-    # run from elsewhere: the folder's whole path
-    assert (f"Saved in {(tmp_path / '.judgekeeper').resolve().as_posix()}/. It holds your "
-            "answers' text") in out
-    assert "Your judge agrees with you often enough to use." in clicker["page"]
-    assert (tmp_path / ".judgekeeper" / "report.html").is_file()
-
-
-def test_no_browser_prints_the_link_only(tmp_path, capsys, clicker):
-    promptfoo_project(tmp_path, split(20, 12))
-    code, out, _ = _run(capsys, tmp_path, "--yes", "--no-browser", "--port", "0")
-    assert code == 0
-    assert clicker["opened"] == []
-    assert "judgekeeper could not open a browser, so the link is printed here." in out
-    assert "Open this link in your browser: http://127.0.0.1:" in out
-    assert "Opened in your browser" not in out
-    lines = (tmp_path / ".judgekeeper" / "marks.jsonl").read_text(encoding="utf-8")
-    clicks = [json.loads(x) for x in lines.splitlines()[1:]]
-    assert clicks and all(x["link"] == "printed" for x in clicks)
-
-
-def test_at_a_terminal_start_prints_the_link_as_before(tmp_path, capsys, clicker, monkeypatch):
-    monkeypatch.setattr(start, "_interactive", lambda: True)
-    monkeypatch.setattr("judgekeeper.page.terminal", lambda: True)
-    monkeypatch.setattr("builtins.input", lambda prompt="": "")  # yes, open the page
-    promptfoo_project(tmp_path, split(20, 16))
-    code, out, err = _run(capsys, tmp_path, "--port", "0")
-    assert code == 0, out + err
-    assert "  If it did not open, use this link: http://127.0.0.1:" in out
-    assert "could not open a browser" not in out
-    lines = (tmp_path / ".judgekeeper" / "marks.jsonl").read_text(encoding="utf-8")
-    assert all("link" not in json.loads(x) for x in lines.splitlines()[1:])
-
-
-def test_ctrl_c_says_everything_is_saved(tmp_path, capsys, clicker):
-    promptfoo_project(tmp_path, split(20, 12))
-    clicker["stop_after"] = 5
-    code, out, _ = _run(capsys, tmp_path, "--yes", "--no-browser", "--port", "0")
-    assert code == 0
-    assert (f"Stopped. You marked 5 answers. To carry on later: judgekeeper start "
-            f"{quote_arg(tmp_path)} --port 0 --no-browser") in out
-    assert "Your result" not in out
-
-
-def test_a_person_is_asked_before_the_page_opens(tmp_path, capsys, clicker, monkeypatch):
-    promptfoo_project(tmp_path, split(20, 12))
-    monkeypatch.setattr(start, "_interactive", lambda: True)
-    answers = ["n"]
-    monkeypatch.setattr(builtins, "input", lambda prompt="": print(prompt) or answers.pop(0))
-    code, out, _ = _run(capsys, tmp_path, "--port", "0")
-    assert code == 0
-    assert "Open it now? [Y/n]" in out
-    assert not (tmp_path / ".judgekeeper").exists()
-
-
-def test_without_a_terminal_the_page_needs_yes(tmp_path, capsys, clicker):
-    promptfoo_project(tmp_path, split(20, 12))
-    code, out, _ = _run(capsys, tmp_path)
-    assert code == start.EXIT_QUESTION
-    assert (f"Open it now? Run judgekeeper start {quote_arg(tmp_path)} --yes to open "
-            "it.") in out
-    assert not (tmp_path / ".judgekeeper").exists()
-
-
-def test_a_port_in_use_is_a_usage_error(tmp_path, capsys, monkeypatch):
-    import socket
-
-    promptfoo_project(tmp_path, split(20, 12))
-    busy = socket.socket()
-    busy.bind(("127.0.0.1", 0))
-    busy.listen()
-    try:
-        code, _, err = _run(capsys, tmp_path, "--yes", "--no-browser", "--port",
-                            busy.getsockname()[1])
-    finally:
-        busy.close()
-    assert code == 2 and "try --port" in err
 
 
 @pytest.mark.parametrize("correct, wrong, have", [(20, 4, "4 Fail"), (3, 30, "3 Pass"),
@@ -626,11 +453,9 @@ def test_every_answer_marked_but_a_kind_short_says_why_there_is_no_result(correc
                                                                           have):
     r = {"check": "too_few", "left": 0, "labels": {"correct": correct, "wrong": wrong}}
     line = (f"You've marked every answer. A result needs at least 15 you mark Pass and 15 you "
-            f"mark Fail; you have {have}. Run your eval on more questions, then judgekeeper "
-            "start --label-more.")
+            f"mark Fail; you have {have}. Run your eval on more questions, then judgekeeper.")
     assert start_label.sentences(r) == [line]
     assert start_label.statements(r)[0]["text"] == line  # the page
-    assert line in start_label.result_lines({**r, "wide": {}})  # the terminal
     r["left"] = 3  # answers still to mark: mark more, as before
     assert start_label.sentences(r)[0].startswith("Mark a few more answers")
 

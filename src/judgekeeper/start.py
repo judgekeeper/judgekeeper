@@ -1,4 +1,4 @@
-"""`judgekeeper start`: find the judge's saved results, make the pool of answers and say what
+"""Finding the judge for `judgekeeper` and `mark`: find the judge's saved results, make the pool of answers and say what
 was found.
 
 No AI call and no API key: everything comes from files the user's eval tool already saved
@@ -11,9 +11,9 @@ and output, plus the agent's steps when the results keep them (`derive_record_id
 repeat of the same answer counts once: the newest results file wins, and inside it the
 majority of its verdicts, a tie going to fail. An answer with no real decision from the judge
 (judge_check: an error, a reply it could not read, none at all, or a check of nothing) is
-left out and counted, and said; a verdict that cannot be mapped stops `start`.
+left out and counted, and said; a verdict that cannot be mapped stops judgekeeper.
 
-Questions are asked only at a terminal (stdin). Without one, `start` prints the question as
+Questions are asked only at a terminal (stdin). Without one, judgekeeper prints the question as
 the flag that answers it and exits 3 (EXIT_QUESTION: nothing went wrong); `--yes` takes the
 default answer of a yes/no question, but never picks between tools or judges. Every printed
 "run this next" command comes from `Talk.command`, so it repeats the flags the person gave.
@@ -29,7 +29,6 @@ import os
 import re
 import sqlite3
 import sys
-import textwrap
 from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -71,17 +70,13 @@ EXIT_QUESTION = 3  # stopped at a question it cannot ask (no terminal); nothing 
 ROUGH = targets.ROUGH  # the label targets every command shares
 MIN_POOL = 2 * ROUGH  # a rough check needs ROUGH of each
 RUBRIC_WIDTH = 70  # characters of the rule's first line shown in the first block
-COLUMN = 16  # the first block's label column
-MONTHS_SHORT = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov",
-                "Dec")
 GIVEN_BY_YOU = "given by you"
 POINT_ME = "Point me at the results: {program} path/to/results.json"
 RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your judge's decisions at "
                  "the project root: reading them in {root}.")
-PAIRWISE = "These are A/B comparisons. judgekeeper start handles pass/fail answers for now."
+PAIRWISE = "These are A/B comparisons. judgekeeper handles pass/fail answers for now."
 HUMAN_COLUMNS = ("human_label", "label")
 FILE_READERS = {"promptfoo": read_promptfoo, "deepeval": read_deepeval, "inspect": read_inspect}
-_TEST_FILE = re.compile(rb'"testFile"\s*:\s*"([^"\\]{1,200})"')
 _DESCRIPTION = re.compile(r"^description:\s*(.*?)\s*$", re.MULTILINE)
 
 
@@ -111,15 +106,12 @@ def _interactive() -> bool:
 
 
 # The flags a printed "run this next" command repeats, in this order: (run's parameter,
-# flag). --port and --no-browser follow them. Left out on purpose (NOT_REPEATED): the menu's
-# answers, --yes and --allow-calls, which each hint adds when it needs them.
+# flag). --port and --no-browser follow them. Left out on purpose (NOT_REPEATED): --yes, which
+# each hint adds when it needs it, and --new, --wait and --stop, which do one thing once.
 REPEATED = (("tool", "--tool"), ("metric", "--metric"), ("experiment", "--experiment"),
             ("tracking_uri", "--tracking-uri"), ("pass_if", "--pass-if"), ("label_map", "--label-map"),
-            ("judge_model", "--judge-model"), ("times", "--times"), ("python", "--python"),
-            ("fields", "--fields"), ("judge_command", "--judge-command"))
-NOT_REPEATED = frozenset({"new", "review", "fix", "test_pass_mark", "ask_again",
-                          "try_new_judge", "label_more", "yes", "allow_calls", "agent_prompt",
-                          "rule_file"})
+            ("judge_model", "--judge-model"), ("fields", "--fields"))
+NOT_REPEATED = frozenset({"new", "wait", "stop", "yes"})
 DEFAULT_PORT = 8765
 
 
@@ -139,10 +131,10 @@ def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser:
 
 
 class Talk:
-    """What `start` says, and the questions it asks when there is a person to answer.
-    `flags` (repeated_flags) are what every printed command repeats."""
+    """What finding the judge says, and the questions it asks when there is a person to
+    answer. `flags` (repeated_flags) are what every printed command repeats."""
 
-    subcommand = "start"  # every printed command starts with textio.program(subcommand)
+    subcommand = ""  # every printed command starts with textio.program(subcommand)
     asks_everything = False  # without a terminal, ask instead of taking a default (front.py)
 
     def __init__(self, yes: bool = False, quiet: bool = False, flags: tuple[str, ...] = (),
@@ -155,11 +147,11 @@ class Talk:
 
     @property
     def program(self) -> str:
-        """`judgekeeper start`, or `uvx judgekeeper@<version> start` when uvx started it."""
+        """`judgekeeper`, or `uvx judgekeeper@<version>` when uvx started it."""
         return textio.program(self.subcommand)
 
     def command(self, *extra: str) -> str:
-        """`judgekeeper start` with the person's flags, then `extra`: run as printed, it gets
+        """`judgekeeper` with the person's flags, then `extra`: run as printed, it gets
         past the question it answers."""
         return " ".join((self.program, *self.flags, *extra))
 
@@ -812,7 +804,7 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
         talk.say()
         talk.say("Or save your judge's decisions from now on with one judgekeeper.record() line "
                  f"where it runs: {own_format.RECORD_URL} shows the line.")
-    talk.say("judgekeeper start reads the results that promptfoo, DeepEval, Inspect AI and "
+    talk.say("judgekeeper reads the results that promptfoo, DeepEval, Inspect AI and "
              "MLflow save, or a CSV or JSONL file with input, output and verdict columns.")
     talk.say(POINT_ME.format(program=talk.program))
 
@@ -878,7 +870,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         if kind is None and find.is_promptfoo_table(path):
             raise table_output(path.name)
         if kind is None:
-            raise StartError(f"{path.name} is not a results file judgekeeper start can read "
+            raise StartError(f"{path.name} is not a results file judgekeeper can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "
                              "with input, output and verdict columns)")
         path = path.resolve()
@@ -1034,27 +1026,6 @@ def _too_big(talk: Talk, found: find.Search) -> Stop:
                                  f"`{talk.command_at(big.rel)}`.")
 
 
-def known_tool(path: str | Path, tool: str | None = None) -> str | None:
-    """The tool `start` would read at `path` when that needs no question and no reading of
-    results: --tool, judgekeeper.toml's [start] table, a results file's kind, or the one tool
-    found. None when it cannot tell."""
-    path = Path(path)
-    if tool is not None:
-        return tool
-    if path.is_file():
-        return find.classify_file(path)
-    if find.is_mlflow_folder(path):
-        return "mlflow"
-    if not path.is_dir():
-        return None
-    saved = _saved(path)
-    if saved is not None:
-        return "mapped" if saved.source == "map" else saved.source
-    found = find.search(path.resolve())
-    tools = [t for t in find.TOOLS if found.readable(t)]
-    return tools[0] if len(tools) == 1 else None
-
-
 def results_description(result: find.Result) -> str | None:
     """The `config.description` of a promptfoo results file, or None."""
     try:
@@ -1081,7 +1052,7 @@ def _check_description(talk: Talk, root: Path, theirs: str | None,
         raise _stop_with(talk, question, f"run `{talk.command('--yes')}` to use it anyway, or "
                                          f"{own}.")
     if talk.confirm(question, default=False, with_yes=False,
-                    hint=f"{question} Run {textio.program('start')} in a terminal to answer, "
+                    hint=f"{question} Run {textio.program()} in a terminal to answer, "
                          "or point me at the right results file."):
         return
     other = next((r for r in others if r.path != result.path
@@ -1643,85 +1614,6 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
 _plural = plural  # textio.plural
 
 
-ROW_CELL = 40  # characters of a cell shown in a table's first rows
-
-
-def _cell(value) -> str:
-    text = " ".join(str("" if value is None else value).split())
-    return text[:ROW_CELL - 1] + "…" if len(text) > ROW_CELL else text
-
-
-def _first_rows(talk: Talk, found: Found) -> None:
-    """A plain table's first 3 rows as read, so a wrong conversion shows at once."""
-    try:
-        rows = read_table(found.results[0].path)[:3]
-    except (OSError, ValueError, RecordsError):
-        return
-    verdict = next((c for c in find.VERDICT_COLUMNS if rows and c in rows[0]), None)
-    if not rows or verdict is None:
-        return
-    talk.say(f"  The first {len(rows)} rows, as judgekeeper read them:")
-    for row in rows:
-        talk.say(f"    input: {_cell(row.get('input'))}   output: {_cell(row.get('output'))}   "
-                 f"{verdict}: {_cell(row.get(verdict))}")
-
-
-def say_check(talk: Talk, found: Found) -> None:
-    """Did the judge actually judge? Its lines (judge_check.terminal_lines)."""
-    if found.check is not None:
-        for line in judge_check.terminal_lines(found.check.block(), tick()):
-            talk.say(line)
-
-
-def when_words(d) -> str:
-    """A date and time as the first block shows it: "3 Oct 2026, 10:00"."""
-    return f"{d.day} {MONTHS_SHORT[d.month - 1]} {d.year}, {d:%H:%M}"
-
-
-NOT_IN_FILE = "not in the file"
-PARTIAL = ("Inspect gave partial credit (P) on {n}: should they count as Pass or Fail? Run "
-           "again with --label-map P=pass or --label-map P=fail.")
-NO_MODEL = "not found in the results (add --judge-model NAME)"
-
-
-def _tool_words(found: Found) -> str:
-    if found.tool == "table":
-        return f"a table ({Path(found.results[0].rel).name})"
-    if found.tool == "records":
-        return "your own code (judgekeeper.record())"
-    if found.tool == "mapped":
-        return f"your own format (read as {settings.FILE} says)"
-    return find.NAMES[found.tool]
-
-
-def _results_words(found: Found) -> str:
-    newest = found.results[0]
-    if found.tool == "mlflow":
-        return f"{newest.rel} (experiment {found.experiment})"
-    if found.tool == "records":
-        return f"{_folder_of(newest)} ({_plural(len(found.used), 'file', 'files')})"
-    return f"{newest.rel} (saved {when_words(newest.date())})"
-
-
-def _checks_words(found: Found) -> str:
-    line = rubric_line(found.rule)
-    value = f'"{line}"' if line else NOT_IN_FILE
-    if len(found.metrics) > 1:  # several judges in the results: say which one this is
-        value = f"{found.metric}: {value}"
-    return value
-
-
-def _model_words(found: Found) -> str:
-    if not found.models:
-        return NO_MODEL
-    model = ", ".join(found.models)
-    if found.model_source == GIVEN_BY_YOU:
-        return f"{model} (as you told me)"
-    if found.model_source:
-        return f"{model} ({found.model_source})"
-    return model
-
-
 def _pass_mark_words(pm: dict) -> str:
     mark = f"{pm['mark']:g}"
     words = {">=": f"{mark} or more", ">": f"more than {mark}", "<=": f"{mark} or less",
@@ -1746,281 +1638,4 @@ def shown_value(value) -> str:
     return f'"{text}"' if "," in text else text
 
 
-def unknown_values(values) -> str:
-    """What to do about decisions judgekeeper can't read as Pass or Fail, in plain words: never
-    a guess, since a wrong one would turn fails into passes."""
-    from judgekeeper.normalise import PASS_IF_EXAMPLE, _numeric
-
-    seen = list(dict.fromkeys(values))
-    shown = ", ".join(shown_value(v) for v in seen[:10]) + (f" and {len(seen) - 10} more"
-                                                     if len(seen) > 10 else "")
-    numbers = [v for v in seen if _numeric(v)]
-    if len(numbers) == len(seen):
-        return (f"Your judge's decisions are numbers ({shown}): say which scores pass with "
-                f"--pass-if, e.g. {PASS_IF_EXAMPLE}")
-    words = [str(v) for v in seen if not _numeric(v)]
-    long = [w for w in words if not verdict_like(w)]
-    if long:
-        return ("judgekeeper can't tell which of your judge's decisions mean Pass and which "
-                f"mean Fail: they hold long text ({_plural(len(long), 'value')}).")
-    example = (f'--label-map "{words[0]}=pass,{words[1]}=fail"' if len(words) > 1
-               else f'--label-map "{words[0]}=pass" or --label-map "{words[0]}=fail"')
-    tail = f" Numbers need --pass-if, e.g. {PASS_IF_EXAMPLE}" if numbers else ""
-    which = "each one means" if len(words) > 1 else "it means"
-    return (f"judgekeeper can't tell which of these values mean Pass and Fail: {shown}. Map them "
-            f"with {example}, whichever {which}.{tail}")
-
-
-def found_lines(found: Found) -> list[str]:
-    """The first block `start` prints: what judgekeeper found, as a small table."""
-    pool = found.pool
-    rows = [("Eval tool", _tool_words(found)), ("Results file", _results_words(found)),
-            ("What it checks", _checks_words(found)), ("Judge model", _model_words(found)),
-            ("Its decisions", (f"{_plural(len(pool.answers), 'answer', 'answers')}: "
-                               f"{pool.n_pass} passed, {pool.n_fail} failed"))]
-    if pool.unmapped:  # start stops on them, and says so: no count of what it could read
-        rows.pop()
-    if found.pass_mark:
-        rows.append(("Pass mark", _pass_mark_words(found.pass_mark)))
-    lines = ["judgekeeper found your LLM-as-a-judge:", ""]
-    lines += [f"  {name:<{COLUMN}}{value}" for name, value in rows]
-    lines += [f"  ! {note}" for note in found.stopped]  # the eval run itself did not finish
-    if found.tool not in ("records", "mapped") and len(found.used) > 1:
-        lines.append(f"  Fewer than {MIN_POOL} answers in the newest results, so older results "
-                     f"from the same judge were added: {', '.join(found.used[1:])}")
-    return lines
-
-
-def say_found(talk: Talk, found: Found) -> None:
-    """The first block, then the judge check and the notes on the pool."""
-    pool = found.pool
-    for line in found_lines(found):
-        talk.say(line)
-    if not pool.unmapped:  # else start stops below, and says why
-        say_check(talk, found)
-    if found.tool == "table":
-        _first_rows(talk, found)
-    if pool.n_merged:
-        talk.say("  " + (f"{pool.n_merged} repeats of the same answer were merged."
-                         if pool.n_merged != 1 else
-                         "1 repeat of the same answer was merged."))
-    if pool.unmapped:  # stop: a result without those answers would be wrong
-        if found.tool == "inspect" and "P" in pool.unmapped:  # model_graded_qa(partial_credit)
-            raise StartError(PARTIAL.format(n=_plural(pool.n_unmapped.get(repr("P"), 0),
-                                                      "answer", "answers")))
-        raise StartError(unknown_values(pool.unmapped))
-    if pool.n_human:
-        where = (f"{Path(found.used[0]).name} also holds" if len(found.used) == 1
-                 else "These results also hold")
-        talk.say(f"  {where} {_plural(pool.n_human, 'human label', 'human labels')}. "
-                 "judgekeeper start does not use them: you mark the answers yourself.")
-
-
-def _head_value(found: Found, pattern: re.Pattern) -> str | None:
-    try:
-        m = pattern.search(find._head(found.results[0].path))
-    except OSError:
-        m = None
-    return quote_arg(m[1].decode("utf-8", errors="replace")) if m else None
-
-
-COSTS = "  Running your eval again makes model calls, so it costs money."
-
-
-def _inspect_eval(found: Found) -> tuple[str, str] | None:
-    """(task file, the `inspect eval` command with the models and log folder of the newest
-    log), or None when the log does not name its task file."""
-    from judgekeeper.readers.inspect_logs import eval_header
-
-    newest = found.results[0].path
-    header = eval_header(newest)
-    task = header.get("task_file")
-    if not isinstance(task, str) or not task.strip():
-        return None
-    words = ["inspect eval", quote_arg(task)]
-    if isinstance(header.get("model"), str):
-        words += ["--model", quote_arg(header["model"])]
-    roles = header.get("model_roles")
-    for role, spec in (roles.items() if isinstance(roles, dict) else ()):
-        model = spec.get("model") if isinstance(spec, dict) else spec
-        if isinstance(model, str):
-            words += ["--model-role", quote_arg(f"{role}={model}")]
-    here, folder = Path.cwd().resolve(), newest.parent.resolve()
-    if folder != here / "logs":  # Inspect's own default
-        shown = folder.relative_to(here).as_posix() if folder.is_relative_to(here) else folder
-        words += ["--log-dir", quote_arg(shown)]
-    return task, " ".join(words)
-
-
-def more_answers(found: Found) -> list[str]:
-    """How to make more answers with the user's own tool, naming the files judgekeeper read
-    (never a placeholder). judgekeeper runs none of it."""
-    newest = found.results[0]
-    if found.tool == "promptfoo":
-        configs = [s for s in found.signs.get("promptfoo", [])
-                   if Path(s).name in find.PROMPTFOO_CONFIGS]
-        config = configs[0] if configs else "your promptfoo config"
-        return [(f"  Add more tests to {config}, then run: promptfoo eval -o "
-                 f"{quote_arg(newest.rel)}"), COSTS]
-    if found.tool == "deepeval":
-        test_file = _head_value(found, _TEST_FILE)
-        add = (f"  Add more test cases to {test_file}, then run: deepeval test run {test_file}"
-               if test_file else "  Add more test cases, then run them with deepeval test run.")
-        kept = os.environ.get("DEEPEVAL_RESULTS_FOLDER") or any(
-            find.DEEPEVAL_RUN.fullmatch(r.path.name) for r in found.results)
-        tip = ("  Tip: set DEEPEVAL_RESULTS_FOLDER so DeepEval keeps every run, not only the "
-               "latest.")
-        return [add, COSTS] + ([] if kept else [tip])
-    if found.tool == "inspect":
-        inspect_eval = _inspect_eval(found)
-        if inspect_eval is None:
-            return ["  Add more samples to your Inspect task's dataset, then run it again.",
-                    COSTS]
-        task, command = inspect_eval
-        return [f"  Add more samples to the dataset in {task}, then run: {command}", COSTS]
-    if found.tool == "mlflow":
-        return ["  Run your MLflow evaluation again on more data.", COSTS]
-    if found.tool == "records":
-        return [("  Run your eval on more answers: each judgekeeper.record() call saves one "
-                 "more decision."), COSTS]
-    if found.tool == "mapped":
-        return [f"  Run your eval on more answers: it adds them to {newest.rel}.", COSTS]
-    return [f"  Add more rows to {newest.rel}."]
-
-
-def picking_line(n_pass: int, n_fail: int) -> str:
-    """How the page picks answers, from the real counts (start_label.build_queue: blocks of
-    10, half from each group, the other group filling in once one runs out)."""
-    from judgekeeper.start_label import BLOCK
-
-    few, did, other = ((n_fail, "failed", "passed") if n_fail <= n_pass
-                       else (n_pass, "passed", "failed"))
-    if few >= ROUGH:
-        return ("judgekeeper picks half from the judge's passes and half from its fails, so "
-                "you see enough of both.")
-    if not few:
-        return f"You'll see only answers it {other}."
-    within = min(-(-few // (BLOCK // 2)) * BLOCK, n_pass + n_fail)
-    then = f", then answers it {other}" if n_pass + n_fail > within else ""
-    return (f"You'll see {'the one' if few == 1 else f'all {few}'} it {did} among the first "
-            f"{within}{then}.")
-
-
-NEXT = ("Next: in your browser, mark each answer Pass or Fail.",
-        "This shows how often your judge agrees with you.")
-
-
-def _label_anyway(talk: Talk, found: Found) -> bool:
-    """Too few answers for a rough check: say so, and how to make more; then ask."""
-    n = len(found.pool.answers)
-    talk.say()
-    talk.say(f"You have {_plural(n, 'answer', 'answers')}. judgekeeper needs at least {ROUGH} "
-             f"answers you mark Pass and {ROUGH} you mark Fail to show a result. Make more "
-             "answers with your eval first, or mark these now: your marks are kept and count "
-             "when you add more.")
-    if talk.yes and not _interactive():
-        talk.say("Going on anyway, as you asked (--yes).")
-        return True
-    talk.say()
-    talk.say(f"Make more answers with your own eval, then run {talk.command()} again:")
-    for line in more_answers(found):
-        talk.say(line)
-    talk.say()
-    question = f"Mark the {n} you have now?"
-    return talk.confirm(question, default=False, with_yes=True,
-                        hint=f"{question} Run {talk.command('--yes')} to say yes.")
-
-
-def _few_note(talk: Talk, pool: Pool) -> None:
-    """A judge that fails (or passes) few answers is the one most worth checking: go on, and
-    say when its few fails (or passes) come up. One that fails (or passes) none was said with
-    the judge check."""
-    n = len(pool.answers)
-    for count, did, too in ((pool.n_fail, "failed", "passes too much"),
-                            (pool.n_pass, "passed", "fails too much")):
-        if 0 < count < ROUGH:
-            talk.say(f"Your judge {did} only {count} of {n} answers. That may mean it {too}: "
-                     "your marks will show it.")
-    if min(pool.n_pass, pool.n_fail) < ROUGH:
-        for line in textwrap.wrap(picking_line(pool.n_pass, pool.n_fail), width=74):
-            talk.say(line)
-
-
-def label_found(talk: Talk, found: Found, port: int, open_browser: bool) -> int:
-    """Say the pool and how labeling goes, then open the labeling page."""
-    from judgekeeper import start_label
-
-    say_found(talk, found)
-    if found.check is not None and judge_check.has_rows(found.check.block()):
-        start_label.save_judge_check(start_label.Workspace(found.root), found)
-    pool = found.pool
-    if not pool.answers:
-        raise StartError("no answer has a clear pass or fail from the judge, so there is "
-                         "nothing to mark")
-    if len(pool.answers) < MIN_POOL:
-        if not _label_anyway(talk, found):
-            return EXIT_OK
-    else:
-        _few_note(talk, pool)
-    talk.say()
-    for line in NEXT:
-        talk.say(line)
-    if open_browser:
-        asked = "Open it now?"
-        hint = f"Open it now? Run {talk.command('--yes')} to open it."
-    else:
-        asked = "Start it now? It prints a link."
-        hint = f"Start it now? Run {talk.command('--yes')} to start it (it prints a link)."
-    if not talk.confirm(asked, default=True, with_yes=True, hint=hint):
-        talk.say(f"OK. Run {talk.command()} when you're ready.")
-        return EXIT_OK
-    return start_label.run_labeling(found, port=port, open_browser=open_browser, say=talk.say,
-                                    command=talk.command())
-
-
-def run(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
-        experiment: str | None = None, tracking_uri: str | None = None,
-        pass_if: str | None = None,
-        label_map: str | None = None, judge_model: str | None = None,
-        yes: bool = False, port: int = DEFAULT_PORT, no_browser: bool = False,
-        new: bool = False, review: bool = False, label_more: bool = False,
-        ask_again: bool = False, try_new_judge: bool = False, fix: bool = False,
-        test_pass_mark: bool = False, times: int | None = None,
-        python: str | None = None, rule_file: str | None = None,
-        fields: str | None = None, judge_command: str | None = None,
-        allow_calls: int | None = None) -> int:
-    """`judgekeeper start`: say what was found, then open the labeling page and make the
-    result. What is already saved in `.judgekeeper/` decides where it starts (start_again).
-    `review`, `fix`, `ask_again`, `try_new_judge` and `label_more` answer the menu shown
-    after a result (`test_pass_mark`, with `fix`, tests the pass mark in the terminal;
-    `rule_file`, with `fix`, saves the new rule in that file); `times` (default 2, or 1 when
-    trying a new judge), `python`, `fields`,
-    `judge_command` and `allow_calls` shape asking the judge again. Returns the exit code."""
-    from judgekeeper import start_again
-    from judgekeeper.again import AgainOptions
-
-    talk = Talk(yes=yes, path=path, flags=repeated_flags(
-        path, port=port, no_browser=no_browser, tool=tool, metric=metric,
-        experiment=experiment, tracking_uri=tracking_uri, pass_if=pass_if,
-        label_map=label_map, judge_model=judge_model, times=times, python=python,
-        fields=fields, judge_command=judge_command))
-    again_options = AgainOptions(times=times, python=python, fields=fields,
-                                 judge_command=judge_command, judge_model=judge_model,
-                                 allow_calls=allow_calls)
-    options = {"tool": tool, "metric": metric, "experiment": experiment,
-               "tracking_uri": tracking_uri, "pass_if": pass_if, "label_map": label_map,
-               "judge_model": judge_model}
-    try:
-        then = ("review" if review else "fix" if fix else "ask" if ask_again
-                else "try" if try_new_judge else "label" if label_more else None)
-        return start_again.run(Path(path), talk, options, port=port,
-                               open_browser=not no_browser, new=new, then=then,
-                               again_options=again_options, test_pass_mark=test_pass_mark,
-                               rule_file=rule_file)
-    except Stop as stop:
-        return stop.code
-
-
-__all__ = ["NEXT", "Answer", "Found", "Pool", "StartError", "Talk", "build_pool", "find_judge",
-           "found_lines", "label_found", "more_answers", "picking_line", "run", "say_check",
-           "say_found", "when_words"]
+__all__ = ["Answer", "Found", "Pool", "StartError", "Talk", "build_pool", "find_judge"]

@@ -24,8 +24,8 @@ from judgekeeper.cli import main
 from judgekeeper.normalise import Normaliser
 from judgekeeper.readers import read_inspect
 from judgekeeper.readers.inspect_logs import sample_key, trajectory
-from judgekeeper.start_label import StartSession, save_result
-from tests.start_projects import inspect_data, split, table_project
+from judgekeeper.start_label import StartSession
+from tests.start_projects import inspect_data, save_result, split, table_project
 
 STEPS = [
     {"id": "m1", "role": "user", "content": "Refund order 7", "source": "input"},
@@ -258,23 +258,12 @@ def _recheck(root, capsys, version):
     verdicts = split(20, 16)
     verdicts[0] = False  # one new verdict: a re-check, not the menu
     table_project(root, verdicts, extra={"app_version": [version] * 36})
-    code = main(["start", str(root), "--yes", "--no-browser"])
+    code = main([str(root), "--yes", "--no-browser"])
     return code, capsys.readouterr().out
-
-
-def test_a_recheck_says_when_the_app_version_changed(tmp_path, capsys, monkeypatch):
-    monkeypatch.setattr(start_label, "serve_workspace", lambda *a, **k: 0)
-    _table_check(tmp_path, "support-agent 2.3")
-    capsys.readouterr()
-    code, out = _recheck(tmp_path, capsys, "support-agent 2.4")
-    assert code == 0
-    assert ("Your app changed since your last check: its version was support-agent 2.3, "
-            "now support-agent 2.4.") in out
 
 
 def test_a_recheck_says_nothing_when_the_app_version_is_the_same(tmp_path, capsys,
                                                                  monkeypatch):
-    monkeypatch.setattr(start_label, "serve_workspace", lambda *a, **k: 0)
     _table_check(tmp_path, "support-agent 2.3")
     capsys.readouterr()
     code, out = _recheck(tmp_path, capsys, "support-agent 2.3")
@@ -283,7 +272,6 @@ def test_a_recheck_says_nothing_when_the_app_version_is_the_same(tmp_path, capsy
 
 
 def test_a_check_saved_before_app_versions_says_nothing(tmp_path, capsys, monkeypatch):
-    monkeypatch.setattr(start_label, "serve_workspace", lambda *a, **k: 0)
     _, ws = _table_check(tmp_path, "support-agent 2.3")
     data = ws.data()
     del data["app_version"]

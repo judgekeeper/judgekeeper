@@ -19,14 +19,11 @@ What a stranger does, with nobody at the keyboard and no API key:
 4. The way a person goes: `judgekeeper` (the first look and the page in the background; with
    `--no-browser` its link is printed), every answer marked on the page (25 Pass, 25 Fail),
    `judgekeeper` again for the result, `judgekeeper --stop`, `judgekeeper fix` (and for a
-   judge whose rule it can swap, a new rule tested with `fix --yes`); then `judgekeeper
-   start`: the
-   review, Fix your judge (the coding-agent prompt, then a new rule saved with --rule-file),
-   the new rule put in the tool's own file and the tool run again, Try your new judge, and Ask
-   your judge again; then, with the new rule in the results, `check --yes` (the re-check on
-   the marks; --yes answers its question about judge calls, as there is no terminal) and the
-   report's History. judgekeeper's input is a closed pipe; the pages are used through their
-   own HTTP calls, with a stand-in person whose marks are fixed.
+   judge whose rule it can swap, a new rule tested with `fix --yes`); then the new rule put in
+   the tool's own file and the tool run again, and `check --yes` (the re-check on the marks;
+   --yes answers its question about judge calls, as there is no terminal) and the report's
+   History. judgekeeper's input is a closed pipe; the page is used through its own HTTP calls,
+   with a stand-in person whose marks are fixed.
 5. Every command's output, then "N of N steps OK". Exit 1 on any failed step or "Traceback".
 
 Tools: table, promptfoo, deepeval, inspect, mlflow, record (your own judge code with
@@ -70,7 +67,6 @@ JUDGE_PASSES = frozenset(range(1, 29))  # the fake judge passes 1-28 and fails 2
 PERSON_PASSES = frozenset(range(1, 23)) | {31, 32, 33}  # the stand-in: 25 Pass, 25 Fail
 RULE_OLD = "Pass only if the answer gives the right sum."
 RULE_NEW = "Pass only if the answer gives the right sum, written as a number."
-WHY = {"pass": "The sum is right.", "fail": "The sum in the answer is wrong."}
 OLLAMA_MODEL = "llama3.2:3b"
 PLACEHOLDER_KEY = "placeholder-not-a-real-key"
 AVOID_PORTS = frozenset({8765, *range(8801, 8811)})
@@ -87,17 +83,10 @@ JUDGE_NAME = {"table": "my-judge-1", "promptfoo": MODELS["promptfoo"],
               "deepeval": MODELS["deepeval"], "inspect": MODELS["inspect"],
               "mlflow": MODELS["mlflow"], "record": MODELS["own"], "own-format": MODELS["own"],
               "promptfoo-ollama": OLLAMA_MODEL, "inspect-ollama": OLLAMA_MODEL}
-# The file the hand-over says the rule is in. A table and a file in your own format hold no
-# rule: there a new judge is a new model name in the results.
-RULE_FILE = {"promptfoo": "promptfooconfig.yaml", "deepeval": "test_quiz.py",
-             "inspect": "quiz.py", "mlflow": "quiz_eval.py", "record": "quiz_judge.py",
-             "promptfoo-ollama": "promptfooconfig.yaml", "inspect-ollama": "quiz.py"}
 NEW_MODEL = "my-judge-2"
 # Tools whose rule `judgekeeper fix` swaps in when it asks the judge
 SWAP_TOOLS = ("promptfoo", "deepeval", "inspect", "mlflow", "promptfoo-ollama",
               "inspect-ollama")
-NO_RULE_SAID = "Your results do not say your judge's rule, so judgekeeper can't write a prompt"
-OWN_JUDGE = ("table", "record", "own-format")  # asked again through --judge-command
 PIP = {"deepeval": ["deepeval"], "inspect": ["inspect-ai", "openai"], "mlflow": ["mlflow"],
        "inspect-ollama": ["inspect-ai", "openai"]}
 
@@ -125,13 +114,6 @@ def page_link(text: str) -> tuple[str, str] | None:
     """The page's address and token from judgekeeper's output."""
     m = re.search(r"(http://127\.0\.0\.1:\d+)/\?token=([\w-]+)", text)
     return (m.group(1), m.group(2)) if m else None
-
-
-def planned_calls(text: str) -> int | None:
-    """N from a plan: the `--allow-calls N` it says to add, else its "= N judge calls" line."""
-    m = re.search(r"--allow-calls\s+([\d,]+)", text) or re.search(r"=\s*([\d,]+) judge calls",
-                                                                  text)
-    return int(m.group(1).replace(",", "")) if m else None
 
 
 def source_version(source: str) -> str:
@@ -362,56 +344,6 @@ class Check:
             self.step(name, p.returncode in ok_codes and not missing and not bad, detail)
         return p
 
-    def serve(self, name: str, args, act, expect=(), wait=300) -> bool:
-        """Run a command that serves a page, read its link, let `act(base, token)` use the
-        page, then wait for the command to end (it stops itself after the last click). Its
-        output must hold every pattern in `expect`."""
-        args = [str(a) for a in args]
-        print(f"\n--- {name}: {' '.join(args)}", flush=True)
-        proc = subprocess.Popen(args, cwd=self.project, stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                encoding="utf-8", errors="replace", env=self.env)
-        proc.stdin.close()
-        lines: list[str] = []
-        found: list[tuple[str, str]] = []
-
-        def read():
-            for line in proc.stdout:
-                print(line, end="", flush=True)
-                lines.append(line)
-                if not found and page_link(line):
-                    found.append(page_link(line))
-
-        reader = threading.Thread(target=read, daemon=True)
-        reader.start()
-        deadline = time.monotonic() + wait
-        while not found and proc.poll() is None and time.monotonic() < deadline:
-            time.sleep(0.2)
-        ok, detail = False, "(no page link)"
-        if found:
-            try:
-                ok, detail = act(*found[0])
-            except Exception as e:  # noqa: BLE001 - any failure is this step's failure
-                ok, detail = False, f"({type(e).__name__}: {e})"
-        try:
-            code = proc.wait(timeout=60)
-        except subprocess.TimeoutExpired:
-            proc.kill()  # the page this script started; nothing else is stopped
-            proc.wait(timeout=30)
-            code, ok, detail = "killed", False, detail + " (still serving after 60 s)"
-        reader.join(10)
-        out = "".join(lines)
-        missing = [e for e in expect if not re.search(e, out)]
-        if missing:
-            ok, detail = False, detail + "".join(f" (missing: {m})" for m in missing)
-        if "Traceback" in out:
-            ok, detail = False, detail + " (traceback)"
-        self.step(name, ok and code == 0, f"{detail} (exit {code})")
-        return ok and code == 0
-
-    def start(self, *flags) -> list[str]:
-        return [*self.jk, "start", *flags, "--port", self.port]
-
     def front(self, *flags, browser: bool = False) -> list[str]:
         """`judgekeeper` with no command; the page's link printed, never a browser (with
         `browser`, the fake one fake_browser makes)."""
@@ -440,21 +372,6 @@ class Check:
             self.call(base, token, "/label", {"id": item["id"], "label": person_mark(item),
                                               "seconds": 4})
         return True, f"({len(state['items'])} marked)"
-
-    def review(self, base: str, token: str):
-        """Step 1: a second look at each answer, the judge hidden. Step 2: on each
-        disagreement, "Your judge was wrong", with a why."""
-        state = self.call(base, token, "/state")
-        for item in state["items"]:
-            self.call(base, token, "/label", {"id": item["id"], "second": person_mark(item)})
-        state = self.call(base, token, "/state")
-        shown = len(state["items"])
-        for item in state["items"]:
-            self.call(base, token, "/label", {"id": item["id"], "choice": "judge_wrong"})
-            self.call(base, token, "/label", {"id": item["id"], "why": WHY[person_mark(item)]})
-        after = self.call(base, token, "/state")
-        self.call(base, token, "/result")
-        return after.get("step") == "done", f"({shown} disagreements; step {after.get('step')})"
 
     # Installing
 
@@ -551,8 +468,6 @@ class Check:
                 "mlflow": self.make_mlflow, "record": self.make_record,
                 "own-format": self.make_own_format, "promptfoo-ollama": self.make_promptfoo,
                 "inspect-ollama": self.make_inspect}
-        if self.tool == "table":
-            self.write_own_judge(rule)  # the judge that made the table, for --judge-command
         make[self.tool](rule_for(self.tool, rule), label)
         if self.tool != "table":
             made = len(self.judge.calls) - before
@@ -677,16 +592,6 @@ def judge(question, answer):
         said = json.loads(json.loads(reply.read())["choices"][0]["message"]["content"])
     return said["verdict"], said["reason"]
 ''')
-        # The --exec contract: one answer as JSON on stdin, the verdict as JSON on stdout.
-        self.write("judge_command.py", '''import json
-import sys
-
-from quiz_judge import judge
-
-answer = json.load(sys.stdin)
-verdict, reason = judge(answer["input"], answer["output"])
-print(json.dumps({"verdict": verdict, "reason": reason}))
-''')
 
     def make_record(self, rule: str, label: str):
         self.write_own_judge(rule)
@@ -771,7 +676,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
     def recheck(self):
         """The new rule is in the results: `check --yes` re-tests it on the marks, and the
         report holds the check."""
-        self.run("7. check re-tests the new judge on the marks", [*self.jk, "check", "--yes"],
+        self.run("3. check re-tests the new judge on the marks", [*self.jk, "check", "--yes"],
                  expect=[r"Re-checked on (all 50 of your marks|\d+ of your 50 marks):",
                          r"You passed:  old judge right on", r"You failed:  old judge right on"])
         report = self.project / ".judgekeeper" / "report.html"
@@ -779,7 +684,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             html = report.read_text(encoding="utf-8")
         except OSError:
             html = ""
-        self.step("7. report.html has the check in its History",
+        self.step("3. report.html has the check in its History",
                   '<h3 class="sub">History</h3>' in html)
 
     def mark_step(self, name: str, args, expect, env=None):
@@ -797,50 +702,12 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
                   flush=True)
         return p
 
-    def plan_then_go(self, name: str, flags: list[str]) -> bool:
-        """Run a step that asks before spending: once for its plan (it stops, exit 3), then
-        with --allow-calls N, N read from the plan."""
-        # MLflow's own judge is a make_judge, never one of MLflow's built-in judges.
-        expect = [r"judge calls", *([r"make_judge"] if self.tool == "mlflow" else [])]
-        plan = self.run(f"{name}: the plan", self.start(*flags, "--no-browser"),
-                        ok_codes=(3,), expect=expect)
-        n = planned_calls(plan.stdout) if plan else None
-        if not self.step(f"{name}: N read from the plan", n is not None, f"(N = {n})"):
-            return False
-        if self.tool.endswith("ollama"):
-            for line in ("Your judge runs on Ollama; it needs no key.",
-                         "Free: it runs on your computer."):
-                self.step(f"{name}: the plan says {line!r}", line in plan.stdout)
-        before = len(self.judge.calls)
-        p = self.run(f"{name}: --allow-calls {n}",
-                     self.start(*flags, "--allow-calls", n, "--no-browser"))
-        made = len(self.judge.calls) - before
-        self.step(f"{name}: the judge was called", made > 0, f"({made} calls)")
-        return bool(p and p.returncode == 0)
-
     def walk(self):
         self.make_results(RULE_OLD, "old rule")
         self.mark_path()
         self.fix_path()
-        self.run("2. start: the last result and what next", self.start("--no-browser"),
-                 ok_codes=(0, 3), expect=[r"Your last result", r"--review"])
-        self.serve("3. review the disagreements (start --review --yes)",
-                   self.start("--review", "--no-browser", "--yes"), self.review)
-
-        if self.tool not in RULE_FILE:  # no rule in the results: nothing to write a prompt for
-            self.run("4. Fix your judge in the terminal (start --fix --no-browser)",
-                     self.start("--fix", "--no-browser"),
-                     expect=[r"Passed, but you said Fail", NO_RULE_SAID])
-            print("These results hold no rule, so there is no agent prompt and no rule to save.")
-        else:
-            self.fix_rule()
-
-        # What a coding agent does with the hand-over: the new rule in the tool's own file.
+        # The person puts the new rule in the tool's own file and runs their eval again.
         self.make_results(RULE_NEW, "new rule")
-        extra = (["--judge-command", "python judge_command.py"] if self.tool in OWN_JUDGE
-                 else ["--fields", "input,actual_output"] if self.tool == "deepeval" else [])
-        self.plan_then_go("5. try your new judge", ["--try-new-judge", *extra])
-        self.plan_then_go("6. ask your judge again", ["--ask-again", "--times", "1", *extra])
         self.recheck()
 
     def fix_path(self):
@@ -866,31 +733,6 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             made = len(judge.calls) - before
             self.step("2. the judge was asked with the old and the new rule", made > 0,
                       f"({made} calls)")
-
-    def fix_rule(self):
-        """Fix your judge as a coding agent does: the terminal's prompt, then a new rule
-        saved with --rule-file, and the hand-over that says where it goes."""
-        fix = self.run("4. Fix your judge in the terminal (start --fix --no-browser)",
-                       self.start("--fix", "--no-browser"),
-                       expect=[r"paste this:", r"--rule-file"])
-        agent_text = fix.stdout.split("paste this:")[-1] if fix else ""
-        self.step("4. the agent prompt holds no answer text",
-                  bool(fix) and "The answer is" not in agent_text
-                  and (self.project / ".judgekeeper" / "fix" / "prompt.txt").is_file())
-        rule_file = self.project / ".judgekeeper" / "fix" / "agent-rule.txt"
-        rule_file.parent.mkdir(parents=True, exist_ok=True)
-        rule_file.write_text(rule_for(self.tool, RULE_NEW) + "\n", encoding="utf-8")
-        self.run("4. save a hand-written rule (start --fix --rule-file)",
-                 self.start("--fix", "--rule-file", rule_file.relative_to(self.project)),
-                 expect=[r"Saved"])
-        try:
-            meta = json.loads((self.project / ".judgekeeper" / "fix" / "rule.json")
-                              .read_text(encoding="utf-8"))
-            where = json.dumps(meta.get("hand_over"))
-        except (OSError, ValueError) as e:
-            where = f"{type(e).__name__}: {e}"
-        self.step(f"4. the hand-over says the rule is in {RULE_FILE[self.tool]}",
-                  RULE_FILE[self.tool] in where, f"({where[:300]})")
 
     def summary(self) -> int:
         print("\n\n==================== SUMMARY ====================")

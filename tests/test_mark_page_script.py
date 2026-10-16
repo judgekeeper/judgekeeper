@@ -269,22 +269,9 @@ def test_the_welcome_box_keeps_tab_on_its_button_and_esc_starts_too():
 def test_a_blocked_storage_still_shows_the_page_and_the_box():
     got = _run("""
       console.log(JSON.stringify({open: !ids["intro"].hidden,
-        theme: document.documentElement.getAttribute("data-theme"),
         shown: ids["ans-pos"].textContent}));""", seen_intro=False,
                before="storageWorks = false;\n")
-    assert got == {"open": True, "theme": None, "shown": "Answer 1"}  # light by default
-
-
-def test_the_theme_switch_is_a_button_that_remembers_dark():
-    got = _run("""
-      ids["theme"].fire("click");
-      var dark = [document.documentElement.getAttribute("data-theme"), stored["jk-theme"],
-                  ids["theme"].getAttribute("aria-pressed")];
-      ids["theme"].fire("click");
-      console.log(JSON.stringify({dark: dark,
-        light: [document.documentElement.getAttribute("data-theme"), stored["jk-theme"],
-                ids["theme"].getAttribute("aria-pressed")]}));""")
-    assert got == {"dark": ["dark", "dark", "true"], "light": [None, "light", "false"]}
+    assert got == {"open": True, "shown": "Answer 1"}
 
 
 def test_a_failed_save_says_so_and_keeps_the_answer():

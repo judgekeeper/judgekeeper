@@ -149,15 +149,8 @@ def test_dates_in_words():
     assert start_label.in_words("not a date") == "not a date"
 
 
-# When labeling more or asking again cannot help ------------------------------------------
+# Marking more ----------------------------------------------------------------------------
 
 def test_with_answers_left_it_still_offers_to_mark_more():
     html = _flat(start_label.result_html(_result(*CHECK, left=7), back="/?token=t"))
     assert '<a class="btn" href="/?token=t">Mark more answers</a>' in html
-
-
-@pytest.mark.parametrize("tool", ["records", "table", "mapped"])
-def test_a_judge_it_cannot_ask_again_is_not_offered(tool):
-    r = _result(*CHECK, judge={"tool": tool})
-    assert "--ask-again" not in start_label.result_html(r)
-    assert not any("--ask-again" in line for line in start_label.result_lines(r))

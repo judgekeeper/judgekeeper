@@ -423,7 +423,8 @@ def test_no_shown_string_overclaims():
     from pathlib import Path
 
     src = Path(start_label.__file__).parent
-    shown = ("start_label.py", "front.py", "check.py", "targets.py", "start_page.py")
+    shown = ("start_label.py", "front.py", "check.py", "targets.py", "mark_page.py",
+             "report_page.py")
     for name in shown:
         text = (src / name).read_text(encoding="utf-8")
         strings = re.findall(r'"(?:[^"\\\n]|\\.)*"', text)

@@ -118,10 +118,12 @@ def test_ci_builds_and_runs_the_installed_wheel_on_every_push():
     assert "push" in wf["on"]
     text = "\n".join(_steps_text(j) for j in wf["jobs"].values())
     for needed in ("python -m build", "venv", "judgekeeper --version", "judgekeeper --help",
-                   "judgekeeper start --help", "judgekeeper.record(", ".judgekeeper/records",
+                   "judgekeeper mark --help", "judgekeeper fix --help",
+                   "judgekeeper check --help", "judgekeeper.record(", ".judgekeeper/records",
                    "twine check"):
         assert needed in text, needed
     assert "demo" not in text and "pytest-judgekeeper" not in text
+    assert "judgekeeper start" not in text
 
 
 def test_release_runs_the_installed_wheel_end_to_end_before_publishing():
@@ -178,9 +180,6 @@ def test_wheel_ships_the_package_and_no_demo(tmp_path):
     names = set(zipfile.ZipFile(wheel).namelist())
     for needed in ("judgekeeper/label.py", "judgekeeper/start.py",
                    "judgekeeper/schemas/records.schema.json",
-                   "judgekeeper/fonts/bricolage-grotesque-latin-600-normal.woff2",
-                   "judgekeeper/fonts/bricolage-grotesque-latin-800-normal.woff2",
-                   "judgekeeper/fonts/OFL-BricolageGrotesque.txt",
                    "judgekeeper/fonts/manrope-latin-wght-normal.woff2",
                    "judgekeeper/fonts/OFL-Manrope.txt",
                    "judgekeeper/fonts/jetbrains-mono-latin-400-normal.woff2",

@@ -56,32 +56,9 @@ def terminal(monkeypatch):
 
 
 def run(capsys, *argv):
-    code = main(["start", *map(str, argv)])
+    code = main([*map(str, argv)])
     out, err = capsys.readouterr()
     return code, out, err
-
-
-QUESTION = ("Run promptfoo export for you? It reads promptfoo's database in your home folder "
-            "and writes one file here. No AI call. [Y/n]")
-
-
-def test_yes_exports_checks_and_carries_on(tmp_path, capsys, export, terminal):
-    _config(tmp_path)
-    terminal += ["", "n"]  # yes to the export, no to opening the labeling page
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert QUESTION in out
-    (call,) = export.calls
-    assert call.argv == [PROMPTFOO, "export", "eval", "latest", "-o",
-                         ".judgekeeper/promptfoo-latest.json"]
-    assert call.cwd == tmp_path.resolve()
-    for name in ("PROMPTFOO_DISABLE_TELEMETRY", "PROMPTFOO_DISABLE_UPDATE",
-                 "PROMPTFOO_DISABLE_DEBUG_LOG", "PROMPTFOO_DISABLE_ERROR_LOG"):
-        assert call.env[name] == "1", name
-    assert (tmp_path / "promptfoo-results.json").is_file()
-    assert not (tmp_path / ".judgekeeper" / "promptfoo-latest.json").exists()
-    assert "  Results file    promptfoo-results.json (saved" in out
-    assert "Its decisions   36 answers" in out
 
 
 def test_a_run_from_another_project_is_deleted(tmp_path, capsys, export, terminal):
@@ -113,49 +90,3 @@ def test_matching_prompts_carry_on_without_a_description(tmp_path, capsys, expor
     assert (tmp_path / "promptfoo-results.json").is_file()
 
 
-def test_an_existing_file_is_asked_about(tmp_path, capsys, export, terminal):
-    _config(tmp_path)
-    (tmp_path / "promptfoo-results.json").write_text("not results", encoding="utf-8")
-    terminal += ["", "n"]  # yes to the export, no to replacing the file
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "promptfoo-results.json is already here. Replace it? [y/N]" in out
-    assert (tmp_path / "promptfoo-results.json").read_text(encoding="utf-8") == "not results"
-    assert (tmp_path / ".judgekeeper" / "promptfoo-latest.json").is_file()
-    assert "judgekeeper start .judgekeeper/promptfoo-latest.json" in out
-
-
-def test_no_prints_the_commands(tmp_path, capsys, export, terminal):
-    _config(tmp_path)
-    terminal += ["n"]
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0 and export.calls == []
-    assert "promptfoo export eval latest -o promptfoo-results.json" in out
-
-
-def test_never_without_a_terminal(tmp_path, capsys, export):
-    _config(tmp_path)
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0 and export.calls == []
-    assert QUESTION not in out
-    assert "promptfoo list evals -n 10" in out
-
-
-def test_promptfoo_not_installed(tmp_path, capsys, export, terminal):
-    _config(tmp_path)
-    export.installed = False
-    terminal += [""]
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0 and export.calls == []
-    assert "promptfoo was not found here, so judgekeeper can't run the export for you." in out
-    assert "promptfoo list evals -n 10" in out
-
-
-def test_a_failed_export_says_why(tmp_path, capsys, export, terminal):
-    _config(tmp_path)
-    export.code, export.stderr = 1, "Error: no evals found\n"
-    terminal += [""]
-    code, out, _ = run(capsys, tmp_path)
-    assert code == 0
-    assert "promptfoo export did not work: Error: no evals found" in out
-    assert "promptfoo list evals -n 10" in out
