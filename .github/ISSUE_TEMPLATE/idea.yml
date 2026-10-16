@@ -1,0 +1,32 @@
+name: Idea or design
+description: Something you would change in judgekeeper, its pages or the website.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Designers and developers are welcome to show a change instead of describing it: a picture, a Figma link, or a version you changed yourself. Hide any answers or data you are not allowed to share.
+  - type: textarea
+    id: change
+    attributes:
+      label: What you would change, and why
+      description: What it is now, what you would make it, and what was hard, slow or unclear for you.
+    validations:
+      required: true
+  - type: textarea
+    id: picture
+    attributes:
+      label: A screenshot or a Figma link
+      description: Optional. Drag a picture in here, or paste a link.
+  - type: textarea
+    id: version-link
+    attributes:
+      label: Your changed version
+      description: Optional. A link to your fork or branch, or paste a code change here.
+  - type: checkboxes
+    id: agree
+    attributes:
+      label: Before you send it
+      options:
+        - label: Any code, design or text I share here may be used in judgekeeper under the MIT license.
+          required: true

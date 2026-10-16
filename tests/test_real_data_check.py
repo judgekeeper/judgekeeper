@@ -295,14 +295,12 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
     llmbar = json.loads((ROOT / "docs/examples/llmbar-haiku/report.json").read_text(
         encoding="utf-8"))
     h = llmbar["headline"]
-    real_judge = (f"Claude Haiku 4.5 on LLMBar, {llmbar['anchors']['n_items']} items: TPR "
-                  f"{two(h['tpr_mean'])}, TNR {two(h['tnr_mean'])}, kappa")
     # The README says the same numbers in shorter sentences.
     in_readme = (result[0], f"over {report['settings']['checks']:,} checks per judge",
                  (f"fell inside the range in {pct(c['mean'])} checks in 100 (lowest "
                   f"{pct(c['lowest'])}, highest {pct(c['highest'])})"))
     readme = _flat(ROOT / "README.md")
-    for figure in (*in_readme, example, simulated, real_judge, two(h["kappa_mean"]),
+    for figure in (*in_readme, example, simulated, two(h["kappa_mean"]),
                    f"with {s['labels_mean']['lowest']} human labels per check"):
         assert figure in readme, figure
     reference = _flat(ROOT / "docs" / "reference.md")

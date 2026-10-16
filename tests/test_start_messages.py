@@ -386,7 +386,8 @@ def test_the_reference_lists_the_question_code():
     from tests.website_pages import ROOT
 
     text = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
-    assert f"| {QUESTION} | stopped at a question it cannot ask" in text
+    assert f"| {QUESTION} | you are needed" in text
+    assert "stopped at a question it cannot ask (no terminal)" in text
 
 
 def test_a_choice_without_a_terminal_is_a_question(tmp_path, capsys):

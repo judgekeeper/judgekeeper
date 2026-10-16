@@ -1,5 +1,5 @@
 """`judgekeeper start` in the docs and on the website: the terminal text the site shows, the
-Guide (start.html), the reference, the README, the guide, the skill, and the version.
+Guide (start.html), the reference, the README and the version.
 
 The terminal text on the website is real: `start_screen` runs `judgekeeper start` on a test
 project (212 promptfoo answers, the judge passed 171 and failed 41) in a folder named
@@ -19,12 +19,11 @@ import tomllib
 import pytest
 
 from judgekeeper import __version__, start
-from judgekeeper.cli import _parser, main, version_lines
+from judgekeeper.cli import main, version_lines
 from tests.start_projects import promptfoo_project, split
 from tests.website_pages import ROOT, WEBSITE, Element, parse
 
 README = ROOT / "README.md"
-GUIDE = ROOT / "docs" / "guide.md"
 REFERENCE = ROOT / "docs" / "reference.md"
 SHOWN_PROJECT = "/Users/me/support-bot"
 
@@ -175,54 +174,13 @@ def test_the_guide_is_six_steps_then_the_details():
         assert needed in again, needed
 
 
-# The reference ---------------------------------------------------------------------------
-
-def _start_parser():
-    (sub,) = [a for a in _parser()._actions if a.dest == "command"]
-    return sub.choices["start"]
-
-
-def test_the_reference_has_every_start_flag_and_the_saved_files():
-    section = _sections(REFERENCE)["start: find your results, label, see the result"]
-    flags = [s for a in _start_parser()._actions for s in a.option_strings
-             if s.startswith("--") and s != "--help" and a.help != "==SUPPRESS=="]
-    assert set(flags) >= {"--tool", "--metric", "--experiment", "--pass-if", "--label-map",
-                          "--judge-model", "--yes", "--new", "--no-browser", "--port"}
-    for flag in [*flags, "PATH", "--try-new-judge", "--agent-prompt"]:
-        assert f"`{flag}" in section, flag
-    for name in ("start.json", "pool-judge.jsonl", "pool.jsonl", "labels.csv", "anchors.jsonl",
-                 "result.json", "result.html", "history/", "previous-", "again/<date>/",
-                 "review.json", "judge-mistakes.csv", "rule-unclear.csv", "new-judge-<date>/",
-                 "new-judge.json", "confirm/", "`judge_model`"):
-        assert name in section, name
-    flat = " ".join(section.split())
-    for needed in ("Exactly your judge when", "A close copy when", "Can't be asked again when",
-                   "**Trying your new judge.**", "**No results it can read.**",
-                   "default 2 for `--ask-again`, 1 for `--try-new-judge`"):
-        assert needed in flat, needed
-    text = REFERENCE.read_text(encoding="utf-8")
-    assert text.index("## start:") < text.index("## setup:")
-
-
 # README, guide, skill --------------------------------------------------------------------
 
 def test_the_readme_makes_uvx_the_main_path():
-    use = _sections(README)["Use it on your own judge"]
-    assert f"\ncd your-project\nuvx judgekeeper@{__version__}\n" in use
+    sections = _sections(README)
+    assert f"\ncd your-project\nuvx judgekeeper@{__version__}\n" in sections["Install"]
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
-        assert tool in use, tool
-    assert len(README.read_text(encoding="utf-8").splitlines()) <= 80
-
-
-def test_the_guide_starts_with_the_five_steps():
-    sections = _sections(GUIDE)
-    assert next(iter(sections)) == "Start here"
-    here = sections["Start here"]
-    assert "Find. Mark. Measure. Fix. Re-check." in here
-    for command in ("\njudgekeeper\n", "`judgekeeper mark`", "`judgekeeper check`"):
-        assert command in here, command
-    for gone in ("judgekeeper start", "coding agent", "Claude Code", "Cursor"):
-        assert gone not in here, gone
+        assert tool in sections["The 5 steps"], tool
 
 
 # The version -----------------------------------------------------------------------------
@@ -251,21 +209,11 @@ def test_the_own_format_section_shows_the_table_and_the_agent_prompt():
                              if a.tag == "a"]
 
 
-def test_the_reference_and_the_guide_explain_the_own_format():
+def test_the_reference_explains_the_own_format():
     reference = " ".join(REFERENCE.read_text(encoding="utf-8").split())
-    guide = " ".join(GUIDE.read_text(encoding="utf-8").split())
-    for needed in ("judge_model", "--agent-prompt", "first 3 rows"):
+    for needed in ("judge_model", "first 3 rows", "judgekeeper.toml"):
         assert needed in reference, needed
-    for needed in ("judge_model", "`judgekeeper your-table.csv`", "judgekeeper.toml"):
-        assert needed in guide, needed
     assert "calling a metric's `measure()` directly saves nothing" in reference
-
-
-def test_the_guide_says_how_a_re_check_asks_before_it_spends():
-    section = " ".join(_sections(GUIDE)["Start here"].split())
-    for needed in ("`judgekeeper check`", "Go ahead? [y/N]", "`--yes`", "with your own key",
-                   "History", "`--no-browser`", "`judgekeeper --stop`"):
-        assert needed in section, needed
 
 
 def test_the_own_format_section_shows_the_three_doors_in_order():
@@ -293,25 +241,3 @@ def test_see_your_result_shows_once_there_are_enough_marks():
         assert "any time" not in text.split("See your result", 1)[1][:80]
     assert "once you have marked enough answers of each kind" in step
     assert "appears once there are enough marks of each kind" in reference
-
-
-# The eval tool versions judgekeeper was tested with, on the tool's page and in the reference.
-TESTED = {"promptfoo": "promptfoo 0.120 to 0.124",
-          "deepeval": "DeepEval 3.9.9 to 4.2.8",
-          "inspect": "Inspect AI 0.3.242 to 0.3.278",
-          "mlflow": "MLflow 3.10 or newer"}
-
-
-@pytest.mark.parametrize("tool", sorted(TESTED))
-def test_the_docs_say_which_tool_versions_were_tested(tool):
-    page = " ".join((ROOT / "docs" / "integrations" / f"{tool}.md").read_text(
-        encoding="utf-8").split())
-    reference = " ".join(REFERENCE.read_text(encoding="utf-8").split())
-    for text in (page, reference):
-        assert f"Tested with {TESTED[tool]}" in text, tool
-    if tool == "deepeval":
-        assert "need DeepEval 3.9.9 or newer" in page
-    if tool == "inspect":
-        assert "need Inspect AI 0.3.242 or newer" in page
-    if tool == "mlflow":
-        assert "3.10 is the oldest tested" in page

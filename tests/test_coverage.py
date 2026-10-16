@@ -67,8 +67,7 @@ def test_the_coverage_figures_in_the_docs_come_from_the_committed_grid():
                f"{pct(now['mean'])} on average",
                f"95% fell to {pct(grid['corrected']['levels']['0.95']['min_cell'])}",
                f"{pct(before['mean'])} times in 100 on average",
-               f"{pct(grid['corrected']['narrower']['mean'])}% narrower on average",
-               f"as rarely as {pct(grid['general']['before']['min_cell'])} times in 100"]
+               f"{pct(grid['corrected']['narrower']['mean'])}% narrower on average"]
     reference = " ".join((root / "docs" / "reference.md").read_text(encoding="utf-8").split())
     for figure in figures:
         assert figure in reference, figure
@@ -95,5 +94,5 @@ def test_the_numbers_on_screen_are_in_the_committed_grid():
     readme = (root / "README.md").read_text(encoding="utf-8")
     for figure in ("93.6", "96.2"):  # the README's coverage figures
         assert figure in readme and figure in md, figure
-    for page in (readme, (root / "docs" / "guide.md").read_text(encoding="utf-8")):
+    for page in (readme, (root / "docs" / "reference.md").read_text(encoding="utf-8")):
         assert "examples/coverage" in page

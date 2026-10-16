@@ -357,7 +357,7 @@ def test_the_converter_formats_links_and_bold_that_hold_code():
     # pages on the site stay on the site; other docs and example folders open on GitHub
     assert module.link("reference.md#y") == "reference.html#y"
     assert module.link("reference.md") == "reference.html"
-    assert module.link("integrations/mlflow.md").startswith("https://github.com/")
+    assert module.link("records.schema.json").startswith("https://github.com/")
     assert module.link("examples/coverage/").endswith("/tree/main/docs/examples/coverage/")
     assert module.link("examples/coverage/items.csv") == "examples/coverage/items.csv"
 

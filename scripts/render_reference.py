@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS_URL = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/"
 PAGES = {  # source stem: (target page, title, description, who the page is for)
     "reference": ("reference.html", "Reference: every command and flag",
-                  "Every judgekeeper command, file format, flag, exit code and config key.", ""),
+                  "Every judgekeeper command, flag, exit code, file and format.", ""),
 }
 NEW_HERE = ('<p class="newhere">New here? Start with the <a href="start.html">Guide</a>. '
             "This page is for {who}.</p>\n")
