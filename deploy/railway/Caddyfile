@@ -26,6 +26,21 @@
 	# site. ">" sets the policy when the response is written, after the site's own above.
 	@check path /check /check.html
 	header @check >Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+	# Old addresses go to the page that has their content now.
+	redir /docs /reference 301
+	redir /docs.html /reference 301
+	redir /setup /start#keys 301
+	redir /setup.html /start#keys 301
+	redir /assistant /start 301
+	redir /assistant.html /start 301
+	redir /own-metric /start#own-format 301
+	redir /own-metric.html /start#own-format 301
+	redir /tutorial /start 301
+	redir /tutorial.html /start 301
+	redir /guide /start 301
+	redir /guide.html /start 301
+	redir /how-it-works /learn 301
+	redir /how-it-works.html /learn 301
 	# /start finds start.html.
 	try_files {path} {path}.html
 	file_server

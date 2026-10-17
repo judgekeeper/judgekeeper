@@ -57,8 +57,8 @@ def test_start_with_its_old_flags_is_removed_too(flags, capsys, tmp_path, monkey
 
 
 ROOT = Path(__file__).resolve().parent.parent
-# The website keeps naming `start` until it is rewritten (tests/website_pages.STILL_NAMED), and
-# the changelog says what each release had.
+# The website has its own test (tests/test_website.py), and the changelog says what each
+# release had.
 NAMED_OUTSIDE = [ROOT / "SECURITY.md", ROOT / "README.md", ROOT / ".github" / "CONTRIBUTING.md",
                  *(ROOT / "docs").rglob("*.md"), *(ROOT / "docs").rglob("*.json"),
                  *(ROOT / "src").rglob("*.py"), *(ROOT / "src").rglob("*.json"),

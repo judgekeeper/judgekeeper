@@ -1,17 +1,19 @@
-"""The frame and the look every page shares, the home page's hero and route, and the Guide.
+"""The look every page shares, and the parts of each page the design pins.
 
-- The frame: every page carries the head lines, the header (navigation and theme switch) and
-  the footer that scripts/site_frame.py writes.
-- Nothing loads from another server: the fonts are files of the site, with their licences.
-- The theme is dark unless the system or the visitor asks for light; the visitor's choice and
-  the ticked steps are kept in the browser only inside try/catch.
-- The home page: the headline that never breaks inside "LLM-as-a-judge", the two buttons, the
-  demo that shows what the judge said only after you mark, the real pages in pictures and the
-  six-step route.
-- The Guide: six steps, each with "You're done when" and a done tick, "Didn't work?" quoting
-  what judgekeeper really prints, and pictures of the real pages with the product's own
-  words around them.
-- Every older page starts with "New here?".
+- The frame: every page carries the head lines, the menu and the footer that
+  scripts/site_frame.py writes. The menu is four links, the logo and GitHub; the footer is the
+  logo, Privacy, Trademarks, Security and the copyright.
+- Dark only: the product's dark colours, no switch, no light rules, nothing kept in the browser.
+- Fonts from the site only: Manrope and JetBrains Mono with their licences; no ligatures in
+  monospace, so "->" shows as typed.
+- Motion: only the green underline over the five words and the terminal typing, and neither
+  under reduced motion.
+- Phone: tables and code scroll inside their box.
+- Home: the hero, the demo card that works like the marking page, the steps with their
+  terminal, the closing box. The Guide, How it works, Privacy, the browser check and the
+  Reference: their side lists and their parts.
+
+The tests run no JavaScript: the pages were checked in Chrome at 1440 and 390 wide.
 """
 
 from __future__ import annotations
@@ -23,20 +25,30 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import mark_page, start_label
-from tests.website_pages import MORE, NAV, ROOT, WEBSITE, Element, pages, parse
+from judgekeeper import targets
+from tests.website_pages import (
+    GITHUB,
+    LEGAL,
+    NAV,
+    ROOT,
+    WEBSITE,
+    Element,
+    hand_written_pages,
+    pages,
+    parse,
+)
 
-GUIDE = WEBSITE / "start.html"
 HOME = WEBSITE / "index.html"
+GUIDE = WEBSITE / "start.html"
+LEARN = WEBSITE / "learn.html"
+PRIVACY = WEBSITE / "privacy.html"
+CHECK = WEBSITE / "check.html"
+REFERENCE = WEBSITE / "reference.html"
+NOT_FOUND = WEBSITE / "errors" / "404.html"
 CSS = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
-SRC = ROOT / "src" / "judgekeeper"
-OLDER = {"setup.html", "learn.html"}
-CHECK = "check.html"  # the free check in the browser: a tool, not an older page
-STEPS = [("install", "Install"), ("connect", "Connect your results"), ("start", "Start"),
-         ("label", "Mark"), ("result", "Your result"), ("improve", "Improve your judge")]
-ROUTE = ["Install", "Connect", "Start", "Mark", "Result", "Improve"]
-SHOTS = WEBSITE / "assets" / "shots"
-NB_HYPHEN = "‑"
+JS = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
+FONTS = WEBSITE / "assets" / "fonts"
+PACKAGE_FONTS = ROOT / "src" / "judgekeeper" / "fonts"
 
 
 def _frame():
@@ -59,65 +71,69 @@ def _all(root: Element, tag: str, cls: str | None = None) -> list[Element]:
 
 
 def _flat(el: Element) -> str:
-    return " ".join(el.text().split())
+    """The text of an element as it reads: a line break counts as a space."""
+    parts = [c if isinstance(c, str) else " " if c.tag == "br" else _flat(c)
+             for c in el.children]
+    return " ".join("".join(parts).split())
+
+
+def _rule(selector: str, css: str = CSS) -> str:
+    """The declarations of the first rule for `selector` (written `selector { ... }`)."""
+    start = css.index(selector + " {")
+    return css[start + len(selector) + 2:css.index("}", start)]
+
+
+def _rules(css: str = CSS) -> list[tuple[str, str]]:
+    """(selector, declarations) for every rule, those inside @media included."""
+    inner = re.sub(r"@media[^{]*\{", "", css)
+    return [(s.strip(), d) for s, d in re.findall(r"([^{}]+)\{([^{}]*)\}", inner)]
 
 
 # The frame -------------------------------------------------------------------------------
 
 def test_every_page_carries_the_frame_site_frame_writes():
     frame = _frame()
-    assert frame.NAV == NAV and frame.MORE == MORE
+    assert frame.NAV == NAV and frame.LEGAL == LEGAL and frame.GITHUB == GITHUB
     for page in pages():
         text = page.read_text(encoding="utf-8")
-        assert frame.header(page.name) in text, f"{page.name}: run python scripts/site_frame.py"
-        assert frame.head_links() in text, f"{page.name}: run python scripts/site_frame.py"
-        assert frame.footer() in text, f"{page.name}: run python scripts/site_frame.py"
+        for block in (frame.head_links(), frame.header(page.name), frame.footer()):
+            assert block in text, f"{page.name}: run python scripts/site_frame.py"
 
 
-def test_the_navigation_is_home_guide_docs_reference_github_and_the_theme_switch():
+def test_the_menu_is_four_links_the_logo_and_github():
     for page in pages():
-        (header,) = _all(parse(page), "header", "site-header")
-        (nav,) = _all(header, "nav", "site-nav")
+        (header,) = _all(parse(page), "header", "menu")
+        (nav,) = _all(header, "nav", "menu-l")
         assert [(a.attrs["href"], a.text().strip()) for a in _all(nav, "a")] == NAV, page.name
-        buttons = _all(header, "button")
-        assert [b.classes() for b in buttons] == [{"theme-btn"}, {"menu-btn"}], page.name
-        assert buttons[0].attrs.get("aria-label"), page.name
-        assert buttons[1].attrs.get("aria-controls") == "site-nav", page.name
-        assert [a.text().strip() for a in _all(header, "a")][1:] == [label for _, label in NAV]
+        (brand,) = _all(header, "a", "brand")
+        assert brand.attrs["href"] == "index.html" and _flat(brand) == "judgekeeper"
+        assert _all(brand, "svg", "logo"), page.name
+        (github,) = _all(header, "a", "gh")
+        assert (github.attrs["href"], _flat(github)) == (GITHUB, "GitHub"), page.name
+        assert not _all(header, "button"), f"{page.name}: no theme switch, no menu button"
 
 
-def test_every_page_has_the_footer_with_start_here_and_more():
-    for page in pages():
-        (footer,) = _all(parse(page), "footer", "site-footer")
-        columns = {h.text(): h.parent for h in _all(footer, "h2")}
-        assert list(columns) == ["Start here", "More"], page.name
-        more = [(a.attrs["href"], a.text()) for a in _all(columns["More"], "a")]
-        assert more == MORE, page.name
-        assert [a.text() for a in _all(columns["Start here"], "a")] == [
-            "Guide", "Docs", "Reference", "GitHub"]
+def test_the_footer_is_the_logo_the_legal_links_and_the_copyright():
+    for page in [*pages(), NOT_FOUND]:
+        (footer,) = _all(parse(page), "footer", "foot")
+        (brand,) = [el for el in footer.iter() if "brand" in el.classes()]
+        assert _flat(brand) == "judgekeeper" and _all(brand, "svg", "logo"), page.name
+        (links,) = [el for el in footer.iter() if "foot-r" in el.classes()]
+        assert links.attrs.get("role") == "navigation", page.name  # a nav would get menu styles
+        found = [(a.attrs["href"].lstrip("/"), _flat(a)) for a in _all(links, "a")]
+        assert found == [*LEGAL, (f"{GITHUB}/blob/main/LICENSE", "MIT license")], page.name
+        (copy,) = _all(links, "span", "copy")
+        assert _flat(copy) == "© 2026 Sathvik Thota · MIT license", page.name
+        assert not _all(footer, "h2") and "More" not in _flat(footer), page.name
 
 
-def test_more_names_every_page_outside_the_navigation():
-    in_nav = {href for href, _ in NAV}
-    outside = {p.name for p in pages()} - in_nav
-    assert outside == {href for href, _ in MORE} == OLDER | {CHECK}
+def test_the_footer_names_match_the_licence():
+    assert "Copyright (c) 2026 Sathvik Thota" in (ROOT / "LICENSE").read_text(encoding="utf-8")
+    for path in ("TRADEMARKS.md", "SECURITY.md", "LICENSE"):
+        assert (ROOT / path).is_file(), path
 
 
-# Nothing from another server -------------------------------------------------------------
-
-FAMILIES = {"Bricolage Grotesque": ("BricolageGrotesque", {"600", "800"}),
-            "JetBrains Mono": ("JetBrainsMono", {"400", "600"})}
-SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-
-
-def test_body_text_uses_the_system_font_as_the_product_does():
-    """Atkinson Hyperlegible draws a slashed zero; the product moved its text to the system
-    font for that, and so does the site. Bricolage stays for headings."""
-    assert f"--body: {SYSTEM_FONT};" in _block(":root")
-    assert "Atkinson" not in CSS
-    assert "--display: \"Bricolage Grotesque\"" in _block(":root")
-    assert _frame().FONTS == ("bricolage-grotesque-latin-800-normal.woff2",)
-
+# Fonts: from the site only -----------------------------------------------------------------
 
 def _font_faces() -> list[dict[str, str]]:
     faces = []
@@ -127,29 +143,39 @@ def _font_faces() -> list[dict[str, str]]:
     return faces
 
 
-def test_the_fonts_are_files_of_the_site_with_their_licences():
-    faces = _font_faces()
-    seen: dict[str, set[str]] = {}
-    for face in faces:
+def test_the_fonts_are_manrope_and_jetbrains_mono_served_by_the_site():
+    seen = set()
+    for face in _font_faces():
         family = face["font-family"].strip("\"'")
         (src,) = re.findall(r"url\(([^)]+)\)", face["src"])
         assert src.startswith("fonts/") and src.endswith(".woff2"), src
         assert (WEBSITE / "assets" / src).is_file(), src
-        assert "font-display" in face, family
-        seen.setdefault(family, set()).add(face["font-weight"])
-    for family, (licence, weights) in FAMILIES.items():
-        assert weights <= seen.get(family, set()), family
-        text = (WEBSITE / "assets" / "fonts" / f"OFL-{licence}.txt").read_text(encoding="utf-8")
-        assert "SIL OPEN FONT LICENSE" in text.upper(), licence
-    for url in re.findall(r"url\(([^)]+)\)", CSS):
-        assert not re.match(r"['\"]?(https?:)?//", url), url
+        assert face["font-display"] == "swap", family
+        seen.add((family, face["font-weight"], src.removeprefix("fonts/")))
+    assert seen == {("Manrope", "200 800", "manrope-latin-wght-normal.woff2"),
+                    ("JetBrains Mono", "400", "jetbrains-mono-latin-400-normal.woff2"),
+                    ("JetBrains Mono", "500", "jetbrains-mono-latin-500-normal.woff2")}
+    assert {p.name for p in FONTS.iterdir()} == {
+        "manrope-latin-wght-normal.woff2", "jetbrains-mono-latin-400-normal.woff2",
+        "jetbrains-mono-latin-500-normal.woff2", "OFL-Manrope.txt", "OFL-JetBrainsMono.txt"}
+    for name in ("manrope-latin-wght-normal.woff2", "jetbrains-mono-latin-400-normal.woff2",
+                 "jetbrains-mono-latin-500-normal.woff2", "OFL-Manrope.txt",
+                 "OFL-JetBrainsMono.txt"):  # the same files the product pages embed
+        assert (FONTS / name).read_bytes() == (PACKAGE_FONTS / name).read_bytes(), name
+    for licence, family in (("Manrope", "Manrope"), ("JetBrainsMono", "JetBrains Mono")):
+        text = (FONTS / f"OFL-{licence}.txt").read_text(encoding="utf-8")
+        assert "SIL Open Font License" in text and family in text, licence
+    assert '--sans: "Manrope",' in _rule(":root") and '--mono: "JetBrains Mono",' in _rule(":root")
+    assert _frame().FONTS == ("manrope-latin-wght-normal.woff2",)  # preloaded: the text font
 
 
 def test_no_page_or_asset_asks_another_server_for_anything():
-    files = [*pages(), *(WEBSITE / "assets").glob("*.css"), *(WEBSITE / "assets").glob("*.js")]
+    files = [*pages(), NOT_FOUND, *(WEBSITE / "assets").glob("*.css"),
+             *(WEBSITE / "assets").glob("*.js")]
     for path in files:
         text = path.read_text(encoding="utf-8")
-        for host in ("fonts.googleapis", "fonts.gstatic", "cdn.", "unpkg", "googletagmanager"):
+        for host in ("fonts.googleapis", "fonts.gstatic", "cdn.", "unpkg", "googletagmanager",
+                     "Bricolage"):
             assert host not in text, (path.name, host)
         if path.suffix == ".html":
             for el in parse(path).iter():
@@ -157,63 +183,42 @@ def test_no_page_or_asset_asks_another_server_for_anything():
                     url = el.attrs.get(attr, "")
                     if el.tag in {"link", "script", "img"} and url:
                         assert not re.match(r"(https?:)?//", url), (path.name, url)
+    for url in re.findall(r"url\(([^)]+)\)", CSS):
+        assert not re.match(r"['\"]?(https?:)?//", url), url
 
 
-# Theme and the browser's storage ---------------------------------------------------------
-
-DARK_PAPER, LIGHT_PAPER = "#0F172A", "#F6F8FB"
-
-
-def _block(selector: str) -> str:
-    start = CSS.index(selector + " {")
-    return CSS[start:CSS.index("}", start)]
-
-
-def test_the_theme_is_dark_unless_the_system_or_the_visitor_asks_for_light():
-    assert f"--paper: {DARK_PAPER}" in _block(":root")  # the first :root block: no condition
-    light = CSS.index("@media (prefers-color-scheme: light)")
-    assert ':root:not([data-theme="dark"])' in CSS[light:light + 200]
-    assert f"--paper: {LIGHT_PAPER}" in CSS[light:light + 400]
-    assert f"--paper: {LIGHT_PAPER}" in _block(':root[data-theme="light"]')
-    assert CSS.count(LIGHT_PAPER) == 2
-    assert "prefers-color-scheme: dark" not in CSS  # dark needs no condition
+def test_monospace_text_shows_what_you_type():
+    """JetBrains Mono joins "->", "=>" and ">=" into one sign; a command must show both
+    characters. Every rule that sets the mono font turns ligatures off."""
+    mono = [(s, d) for s, d in _rules() if "var(--mono)" in d and "--mono:" not in d]
+    assert len(mono) > 10
+    for selector, declarations in mono:
+        assert "font-variant-ligatures: none" in declarations, selector
+    base = _rule("code, pre, kbd, samp")
+    assert "var(--mono)" in base and "font-variant-ligatures: none" in base
 
 
-def test_the_theme_is_set_before_the_page_is_drawn():
-    for page in pages():
-        (head,) = _all(parse(page), "head")
-        scripts = _all(head, "script")
-        theme = [s for s in scripts if s.attrs.get("src") == "assets/theme.js"]
-        assert len(theme) == 1, page.name
-        assert "defer" not in theme[0].attrs and "async" not in theme[0].attrs, page.name
-    js = (WEBSITE / "assets" / "theme.js").read_text(encoding="utf-8")
-    assert "dataset.theme" in js and "jk-theme" in js
+# Dark only ---------------------------------------------------------------------------------
+
+DARK = {"bg": "#0b0c0e", "fg": "#e6e8eb", "muted": "#8b919a", "faint": "#585e68",
+        "line": "#262a30", "hover": "#121418", "current": "#17191e", "panel": "#0b0c0e",
+        "green": "#10B981", "green-fill": "#0d9668", "red": "#e5484d", "red-fill": "#c73b40"}
 
 
-def test_the_browser_storage_is_used_only_inside_try_and_only_for_two_things():
-    keys = set()
-    for path in (WEBSITE / "assets").glob("*.js"):
+def _tokens() -> dict[str, str]:
+    return dict(re.findall(r"--([a-z0-9-]+):\s*(#[0-9A-Fa-f]{6})", _rule(":root")))
+
+
+def test_the_site_is_dark_only_with_the_products_colours():
+    assert "color-scheme: dark" in _rule(":root")
+    assert _tokens() == DARK
+    for path in [*pages(), NOT_FOUND, *(WEBSITE / "assets").glob("*.css"),
+                 *(WEBSITE / "assets").glob("*.js")]:
         text = path.read_text(encoding="utf-8")
-        for line in text.splitlines():
-            if "localStorage" in line:
-                assert path.name in {"theme.js", "site.js"}, path.name
-                before, _, after = line.partition("localStorage")
-                assert "try {" in before and "catch" in after, (path.name, line.strip())
-        keys |= set(re.findall(r'"(jk-[a-z]+)"', text))
-    assert keys == {"jk-theme", "jk-done"}
-
-
-# Text on a background, in both themes: WCAG AA asks for 4.5 to 1 for body-size text.
-PAIRS = [("ink", "paper"), ("ink-2", "paper"), ("ink-3", "paper"), ("ink-2", "sheet"),
-         ("ink-3", "sheet"), ("ink-2", "tint"), ("ink-3", "tint"), ("link", "paper"),
-         ("link", "sheet"), ("agree", "agree-bg"), ("agree", "sheet"), ("fail", "fail-bg"),
-         ("fail", "sheet"), ("care", "care-bg"), ("ink", "agree-bg"), ("ink", "care-bg"),
-         ("code-ink", "code-bg"), ("code-dim", "code-bg"), ("code-ok", "code-bg"),
-         ("code-dim", "code-bar")]
-
-
-def _tokens(block: str) -> dict[str, str]:
-    return dict(re.findall(r"--([a-z0-9-]+):\s*(#[0-9A-Fa-f]{6})", block))
+        for gone in ("prefers-color-scheme", "data-theme", "jk-theme", "theme.js",
+                     "localStorage", "sessionStorage"):
+            assert gone not in text, (path.name, gone)
+    assert CSS.count(":root {") == 1  # one set of colours
 
 
 def _contrast(a: str, b: str) -> float:
@@ -225,367 +230,362 @@ def _contrast(a: str, b: str) -> float:
     return (hi + 0.05) / (lo + 0.05)
 
 
-def test_text_colours_meet_wcag_aa_in_both_themes():
-    dark = _tokens(_block(":root"))
-    light = {**dark, **_tokens(_block(':root[data-theme="light"]'))}
-    media = CSS[CSS.index("@media (prefers-color-scheme: light)"):]
-    assert _tokens(media[:media.index("}")]) == _tokens(_block(':root[data-theme="light"]'))
-    for name, theme in (("dark", dark), ("light", light)):
-        for text, back in PAIRS:
-            ratio = _contrast(theme[text], theme[back])
-            assert ratio >= 4.5, f"{name}: {text} on {back} is {ratio:.2f} to 1"
+def test_text_colours_meet_wcag_aa():
+    """Body text 4.5 to 1 on every ground it sits on; the small labels in the faint colour,
+    the green underline and white on the bold Pass and Fail fills 3 to 1, as on the
+    product's pages."""
+    t = _tokens()
+    for text in ("fg", "muted"):
+        for ground in ("bg", "hover", "current"):
+            assert _contrast(t[text], t[ground]) >= 4.5, (text, ground)
+    assert _contrast(t["green"], t["bg"]) >= 3 and _contrast(t["faint"], t["bg"]) >= 2.9
+    for fill in ("green-fill", "red-fill"):
+        assert _contrast("#FFFFFF", t[fill]) >= 3, fill
 
 
-def test_motion_is_reduced_when_the_visitor_asks():
+def test_keyboard_focus_shows():
+    assert "outline: 2px solid var(--fg)" in _rule(":focus-visible")
+    assert ".skip:focus" in CSS
+
+
+# Motion ------------------------------------------------------------------------------------
+
+COLOUR_ONLY = {"color", "background", "background-color", "border-color", "filter",
+               "text-decoration-color"}
+
+
+def test_the_only_motion_is_the_underline_and_the_terminal_typing():
+    """Hover colours may fade; nothing moves, slides, turns or appears by itself."""
+    assert "@keyframes" not in CSS and "animation:" not in CSS.replace("animation: none", "")
+    for selector, declarations in _rules():
+        for value in re.findall(r"transition:\s*([^;]+)", declarations):
+            if value.startswith("none"):
+                continue
+            props = {part.split()[0] for part in value.split(",")}
+            assert props <= COLOUR_ONLY, (selector, value)
     reduce = CSS[CSS.index("@media (prefers-reduced-motion: reduce)"):]
-    assert "animation: none" in reduce and "transition: none" in reduce
-    assert "@media (prefers-reduced-motion: no-preference)" in CSS  # the card's slips
+    assert "transition: none !important" in reduce[:200]
+    # the two moving parts, and both stop under reduced motion
+    assert JS.count("prefers-reduced-motion: reduce") == 1
+    assert "function type(" in JS and "function sweep(" in JS
+    for gone in ("smooth", "IntersectionObserver(function (e) { reveal", "animate(", "count-up",
+                 "parallax", "pointermove"):
+        assert gone not in JS, gone
 
 
-# Home ------------------------------------------------------------------------------------
-
-def test_the_headline_never_breaks_inside_llm_as_a_judge():
-    (h1,) = _all(parse(HOME), "h1")
-    (keep,) = [el for el in h1.iter() if "nobr" in el.classes()]
-    assert keep.text() == f"LLM{NB_HYPHEN}as{NB_HYPHEN}a{NB_HYPHEN}judge."
-    assert h1.text().replace(NB_HYPHEN, "-") == "Check your LLM-as-a-judge."
-    assert ".nobr { white-space: nowrap; }" in CSS
+def test_each_screen_types_once_and_replay_types_it_again():
+    typing = JS[JS.index("function type("):]
+    assert "if (reduce || !animate)" in typing  # at once: reduced motion, or seen before
+    assert "seen[key]" in JS and 'replay.addEventListener("click"' in JS
 
 
-def test_the_hero_has_its_two_buttons_and_the_demo():
-    main = next(el for el in _els(HOME) if el.tag == "main")
-    hero = next(el for el in main.children if isinstance(el, Element))
-    assert "hero" in hero.classes()
-    buttons = [(a.attrs["href"], a.text().strip()) for a in _all(hero, "a", "btn")]
-    assert buttons == [("start.html", "Get started"), ("#how", "How it works")]
-    (demo,) = _all(hero, "figure", "demo")
-    assert _flat(_by_id(HOME, "demo-tag")) == "A demo with sample answers"
-    assert demo.attrs.get("aria-labelledby") == "demo-tag"
-    flat = _flat(demo)
-    for words in ("The question", "Your app's answer", "Fail", "Pass"):
-        assert words in flat, words
-    # Fail on the left, Pass on the right, equally strong, each with its key
-    marks = [(b.attrs["data-mark"], b.classes(), b.attrs.get("aria-keyshortcuts"))
-             for b in _all(demo, "button") if "data-mark" in b.attrs]
-    assert marks == [("Fail", {"mark", "fail"}, "ArrowLeft"), ("Pass", {"mark", "pass"}, "ArrowRight")]
-    (data,) = [el for el in demo.iter() if el.attrs.get("id") == "demo-examples"]
+# Phone -------------------------------------------------------------------------------------
+
+def test_tables_and_code_scroll_inside_their_box():
+    for page in [*hand_written_pages(), REFERENCE]:
+        for table in _all(parse(page), "table"):
+            assert "tw" in table.parent.classes(), page.name
+    assert "overflow-x: auto" in _rule(".tw")
+    assert "overflow: auto" in _rule(".term-out")
+    assert "overflow-x: auto" in _rule(".g-ref .g-main pre")
+    assert "@media (max-width: 760px)" in CSS and "@media (max-width: 860px)" in CSS
+    for page in [*pages(), NOT_FOUND]:
+        (meta,) = [el for el in parse(page).iter() if el.attrs.get("name") == "viewport"]
+        assert meta.attrs["content"] == "width=device-width, initial-scale=1", page.name
+
+
+# Home --------------------------------------------------------------------------------------
+
+DEMO = [["Can I return a lamp after 60 days?",
+         "Of course! We accept returns at any time, no questions asked.", "pass"],
+        ["Is there a student discount?",
+         "Yes, 10% with a valid student email through our partner page.", "pass"],
+        ["My lamp arrived broken. What now?",
+         ("Sorry about that. Reply with a photo and your order number, and we will send a free "
+         "replacement."), "fail"],
+        ["Do you ship to Canada?",
+         "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]
+STEPS = [("find", "Find", "Finds your eval results and the judge that graded them."),
+         ("mark", "Mark", "You mark answers Pass or Fail in your browser."),
+         ("measure", "Measure",
+          "Shows how often your judge agrees with you, and where it goes wrong."),
+         ("fix", "Fix",
+          "If your judge needs work, write a better rule and test it on marks kept aside."),
+         ("check", "Re-check", "After you change your judge, see if it still agrees with you.")]
+
+
+def _main(page: Path) -> Element:
+    return next(el for el in _els(page) if el.tag == "main")
+
+
+def test_home_is_the_hero_the_steps_and_the_closing_box():
+    sections = [el for el in _main(HOME).children if isinstance(el, Element)]
+    assert [s.classes() for s in sections] == [{"hero"}, {"steps"}, {"close"}]
+
+
+def test_the_hero_is_the_headline_the_five_words_two_buttons_and_the_demo():
+    hero = _all(_main(HOME), "section", "hero")[0]
+    (h1,) = _all(hero, "h1")
+    assert _flat(h1) == "Check your LLM-as-a-judge in 5 steps."
+    (five,) = _all(hero, "nav", "five")
+    words = [(a.attrs["href"], a.attrs["data-step"], _flat(a)) for a in _all(five, "a")]
+    assert words == [("#steps", key, f"{label}.") for key, label, _ in STEPS]
+    buttons = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(hero, "a")
+               if {"b-main", "b-side"} & a.classes()]
+    assert buttons == [("start.html", {"b-main"}, "Get started"),
+                       ("check.html", {"b-side"}, "Check in your browser")]
+    assert not _all(hero, "p", None) or all(
+        any("jk-card" in a.classes() for a in p.ancestors()) for p in _all(hero, "p"))
+    assert ".five a.is-on" in CSS and "var(--green)" in _rule(".five a.is-on")
+
+
+def test_the_demo_card_is_drawn_like_the_marking_page():
+    demo = _by_id(HOME, "demo")
+    assert demo.attrs.get("aria-label") == "Live demo of the marking page"
+    labels = [_flat(el) for el in demo.iter() if "jk-label" in el.classes()]
+    assert labels == ["Question", "Answer"]
+    assert _flat(_by_id(HOME, "d-state")) == "Not marked yet"
+    assert _by_id(HOME, "d-state").attrs.get("aria-live") == "polite"
+    assert [_flat(_by_id(HOME, i)) for i in ("d-fail", "d-pass", "d-skip", "d-undo")] == [
+        "Fail ←", "Pass →", "Skip this one S", "Undo Z"]
+    # Without JavaScript the card shows the first answer.
+    assert [_flat(_by_id(HOME, "d-q")), _flat(_by_id(HOME, "d-a"))] == DEMO[0][:2]
+    data = _by_id(HOME, "demo-items")
     assert data.tag == "script" and data.attrs.get("type") == "application/json"
-    examples = json.loads(data.text())
-    assert [e["q"] for e in examples] == [
-        "How do I reset my password?", "Can I get a refund after 30 days?",
-        "Is my order shipped?", "What is the weight limit for carry-on bags?"]
-    assert [e["j"] for e in examples] == ["Pass", "Pass", "Fail", "Pass"]
-    first = examples[0]  # shown without JavaScript too
-    assert _flat(_by_id(HOME, "dq")) == first["q"] and _flat(_by_id(HOME, "da")) == first["a"]
-    # What the judge said stays hidden until you mark, as in the product
-    said = _by_id(HOME, "demo-said")
-    assert "hidden" in said.attrs and "Your judge said" in _flat(said)
-    assert "Your judge said" not in flat.replace(_flat(said), "")
-    assert _flat(_by_id(HOME, "dtally")) == "Mark it first. Then you see what your judge said."
-    assert _by_id(HOME, "dlive").attrs.get("aria-live") == "polite"
-    js = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
-    for words in ("So far: your judge agrees with you on ", "Start with the Guide", "You agree",
-                  "You disagree", "prefers-reduced-motion: reduce"):
-        assert words in js, words
+    assert json.loads(data.text()) == DEMO
+    end = _by_id(HOME, "d-end")
+    assert _flat(_all(end, "h2")[0]) == "You marked every answer."
+    (go,) = _all(end, "a", "jk-go")
+    assert (go.attrs["href"], _flat(go)) == ("start.html", "Check your own LLM-as-a-judge")
+    assert _flat(_by_id(HOME, "d-again")) == "↻ Try again"
+    for words in ('"Marked "', '"Skipped"', '"Not marked yet"',
+                  '"You and your judge disagreed on "', '" of "',
+                  '"You and your judge agreed on all "', 'ArrowLeft: "fail"',
+                  'ArrowRight: "pass"'):
+        assert words in JS, words
+    # the judge's grade stays hidden while you mark, as on the real page
+    assert "Your judge said" not in JS
+    sizes = {"jk-question": "font-size: 26px", "jk-answer": "font-size: 20px",
+             "jk-btn": "height: 50px"}
+    for cls, size in sizes.items():
+        assert size in _rule(f".{cls}"), cls
 
 
-def test_the_home_page_is_hero_check_how_route_install_and_what_you_get():
-    main = next(el for el in _els(HOME) if el.tag == "main")
-    ids = [el.attrs.get("id") for el in main.children
-           if isinstance(el, Element) and el.tag == "section"]
-    assert ids == [None, "check", "how", "look", "route", "install", "get"]
-    roles = [h.text() for h in _all(_by_id(HOME, "how"), "h3")]
-    assert roles == ["Your app answers", "Your judge grades it", "You check your judge"]
-    assert "not a promise about the next ones" in _flat(_by_id(HOME, "get"))
+def test_the_steps_list_picks_a_screen_for_the_terminal():
+    steps = _all(_main(HOME), "section", "steps")[0]
+    assert steps.attrs.get("id") == "steps"
+    assert _flat(_all(steps, "h2")[0]) == "What each step looks like."
+    (tabs,) = _all(steps, "ol", "steplist")
+    found = [(b.attrs["data-step"], _flat(_all(b, "b")[0]), _flat(_all(b, "span", "d")[0]))
+             for b in _all(tabs, "button")]
+    assert found == STEPS
+    assert [b.attrs.get("aria-selected") for b in _all(tabs, "button")] == [
+        "true", "false", "false", "false", "false"]
+    (term,) = [el for el in steps.iter() if el.attrs.get("id") == "term"]
+    assert _flat(_all(term, "span", "term-title")[0]) == "example project"
+    fix_tabs = _by_id(HOME, "t-tabs")
+    assert "hidden" in fix_tabs.attrs
+    assert [(_flat(b), b.attrs["data-screen"]) for b in _all(fix_tabs, "button")] == [
+        ("First run", "fix"), ("Testing your rule", "fix_test")]
+    assert _flat(_by_id(HOME, "t-replay")) == "Replay"
 
 
-def test_the_real_check_under_the_hero_takes_every_number_from_the_report():
-    """The numbers themselves are compared with the report by tests/test_website.py."""
-    check = _by_id(HOME, "check")
-    numbers = [el.attrs["data-report"] for el in check.iter() if "data-report" in el.attrs]
-    for path in ("headline.kappa_mean", "slices[Natural].kappa_mean",
-                 "slices[Adversarial/GPTOut].kappa_mean", "anchors.n_items"):
-        assert path in numbers, path
-    flat = _flat(check)
-    assert "A judge that looks fine on average can be weak where it matters." in flat
-    assert "LLMBar by Princeton NLP, MIT license." in flat
-    hrefs = [a.attrs["href"] for a in _all(check, "a")]
-    assert "examples/llmbar-haiku/report.html" in hrefs
+def test_the_closing_box_points_to_the_browser_check():
+    close = _all(_main(HOME), "section", "close")[0]
+    assert _flat(_all(close, "h2")[0]) == "Have eval results?"
+    assert _flat(_all(close, "p")[0]) == ("Check your LLM-as-a-judge. Your file stays on your "
+                                          "computer.")
+    (button,) = _all(close, "a", "b-main")
+    assert (button.attrs["href"], _flat(button)) == ("check.html", "Check in your browser")
 
 
-def _shot(figure: Element) -> tuple[str, str]:
-    (img,) = _all(figure, "img")
-    (link,) = _all(figure, "a")
-    src = img.attrs["src"]
-    assert link.attrs["href"] == src  # a click opens it full size
-    assert (WEBSITE / src).is_file(), src
-    assert (WEBSITE / src).stat().st_size < 250_000, src
-    assert (img.attrs.get("width"), img.attrs.get("height")) == ("1440", "900"), src
-    assert img.attrs.get("alt", "").strip(), src
-    (caption,) = _all(figure, "figcaption")
-    assert "Sample data" in _flat(caption), src
-    return src, img.attrs["alt"]
+# The pages with a side list -----------------------------------------------------------------
+
+def _side(page: Path) -> list[tuple[str, str]]:
+    (nav,) = _all(_main(page), "nav", "g-nav")
+    return [(a.attrs["href"], _flat(a)) for a in _all(nav, "a")]
 
 
-def test_the_home_page_shows_the_real_pages_in_pictures():
-    figures = _all(_by_id(HOME, "look"), "figure", "shot")
-    assert [_shot(f)[0] for f in figures] == [
-        "assets/shots/label.webp", "assets/shots/result.webp", "assets/shots/fix.webp"]
-    # The marking page large, across the whole width; the other two side by side below it.
-    assert ["big" in f.classes() for f in figures] == [True, False, False]
-    assert "grid-column: 1 / -1" in _block(".shot.big")
-    assert not re.search(r"\.big\b[^{]*\{[^}]*max-width", CSS)  # nothing narrows it
-    assert "repeat(2, minmax(0, 1fr))" in _block(".shots")
+def test_each_side_list_points_at_its_sections():
+    for page in (GUIDE, LEARN, PRIVACY, REFERENCE):
+        ids = {el.attrs.get("id") for el in _els(page)}
+        side = _side(page)
+        assert side, page.name
+        for href, _ in side:
+            assert href.startswith("#") and href[1:] in ids, (page.name, href)
+        (head,) = _all(_main(page), "header", "g-head")
+        assert len(_all(head, "h1")) == 1 and _all(head, "p", "g-lede"), page.name
 
 
-def test_the_pictures_are_made_by_the_script_from_sample_data():
-    script = (ROOT / "scripts" / "make_site_shots.py").read_text(encoding="utf-8")
-    assert {p.name for p in SHOTS.iterdir()} == {"label.webp", "result.webp", "fix.webp"}
-    for name in ("label.webp", "result.webp"):
-        assert name in script, name
-
-
-def test_the_route_has_six_stops_each_a_link_to_its_step_in_the_guide():
-    (route,) = _all(_by_id(HOME, "route"), "ol", "route")
-    stops = [li for li in route.children if isinstance(li, Element)]
-    assert [_all(li, "b")[0].text() for li in stops] == ROUTE
-    assert [_all(li, "a")[0].attrs["href"] for li in stops] == [
-        f"start.html#{step}" for step, _ in STEPS]
-
-
-# The Guide -------------------------------------------------------------------------------
-
-def _steps() -> list[Element]:
-    return [el for el in _els(GUIDE) if el.tag == "section" and "stop" in el.classes()]
-
-
-def test_the_guide_is_named_the_guide():
-    text = GUIDE.read_text(encoding="utf-8")
-    assert "<title>Guide | judgekeeper</title>" in text
-    (h1,) = _all(parse(GUIDE), "h1")
-    assert h1.text() == "Check your judge, step by step"
-
-
-def test_the_guide_has_six_steps_each_with_done_when_and_a_tick():
-    steps = _steps()
-    assert [(s.attrs["id"], _all(s, "h2")[0].text()) for s in steps] == STEPS
-    for n, step in enumerate(steps, start=1):
-        assert _all(step, "p", "why"), step.attrs["id"]
-        (done,) = _all(step, "div", "donewhen")
-        assert _flat(done).startswith("You're done when "), step.attrs["id"]
-        (box,) = [el for el in done.iter() if el.tag == "input"]
-        assert box.attrs.get("type") == "checkbox" and box.attrs.get("data-step") == str(n)
-        assert _flat(box.parent) == f"Mark step {n} done" and box.parent.tag == "label"
-
-
-def test_the_rail_follows_the_six_steps():
-    (rail,) = _all(parse(GUIDE), "aside", "rail")
-    (route,) = _all(rail, "ol")
-    tops = [li for li in route.children if isinstance(li, Element)]
-    firsts = [next(a for a in li.iter() if a.tag == "a") for li in tops]
-    assert [a.attrs["href"] for a in firsts] == [f"#{step}" for step, _ in STEPS]
-    subs = [a.attrs["href"] for a in tops[-1].iter() if a.tag == "a"][1:]
-    assert subs == ["#review", "#fix", "#new-judge"]
-    assert "Ticked steps are remembered in this browser" in _flat(rail)
-
-
-def test_the_didnt_work_boxes_quote_what_judgekeeper_really_prints():
-    quoted = [el for el in _els(GUIDE) if "data-said-by" in el.attrs]
-    assert len(quoted) >= 6
-    for el in quoted:
-        if el.attrs["data-said-by"] == "setup_project":  # the removed setup command
-            continue
-        source = (SRC / f"{el.attrs['data-said-by']}.py").read_text(encoding="utf-8")
-        said = el.text().removesuffix("…").strip()
-        assert said and said in source, (el.attrs["data-said-by"], said)
-
-
-def test_the_you_need_box_comes_first():
-    (ready,) = _all(parse(GUIDE), "div", "ready")
-    assert [h.text() for h in _all(ready, "h2")] == ["You need", "You will end with"]
-    assert "Python 3.11 or newer" in _flat(ready)
-
-
-# The pictures: the real pages, with the product's own words around them ------------------
-
-def _guide_shot(step: str) -> tuple[Element, str, str]:
-    section = _by_id(GUIDE, step)
-    (figure,) = _all(section, "figure", "shot-wide")
-    src, alt = _shot(figure)
-    return section, src, alt
-
-
-@pytest.mark.skip(reason="the guide's marking picture and words show the page before its new "
-                         "look; they are retaken with the website's update")
-def test_the_marking_picture_is_the_real_page_and_its_words_are_the_products():
-    section, src, alt = _guide_shot("label")
-    assert src == "assets/shots/label.webp"
-    page = mark_page.label_page(None, None)
-    for words in ("The question", "Your app's answer", "Fail", "Pass", "dots"):
-        assert words.lower() in alt.lower(), words
-    flat = _flat(section).replace(alt, "")
-    for words in ("See your result", "drag", "What your judge decided stays hidden", "dots"):
-        assert words.lower() in flat.lower() and words.lower() in page.lower(), words
-    assert "Fail" in flat and "Pass" in flat
-
-
-def test_the_result_picture_is_the_real_page_and_says_its_sentences():
-    section, src, alt = _guide_shot("result")
-    assert src == "assets/shots/result.webp"
-    # The sentences in the alt text are the product's, with the sample's numbers.
-    r = {"labels": {"correct": 22, "wrong": 18}, "tpr": 0.86, "tpr_interval": (0.72, 0.96),
-         "tnr": 0.83, "tnr_interval": (0.66, 0.95), "kappa": 0.70, "check": "rough",
-         "judge_pass_rate": None, "real_pass_rate": None}
-    r["verdict_level"] = start_label._level(r)
-    r["verdict"] = start_label.VERDICTS[r["verdict_level"]]
-    for sentence in start_label.sentences(r):
-        assert sentence in alt, sentence
-    flat = _flat(section)
-    for term, plain in (("TPR", "you marked Pass"), ("TNR", "you marked Fail"), ("Kappa", "luck")):
-        assert term in flat and plain in flat, term
-
-
-def test_llms_txt_names_fix_your_judge_and_the_rule_file():
-    llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
-    assert "fixing your judge's rule" in llms and "`--rule-file`" in llms
-
-
-# Older pages -----------------------------------------------------------------------------
-
-def test_every_older_page_starts_with_new_here():
-    for name in OLDER:
-        main = next(el for el in _els(WEBSITE / name) if el.tag == "main")
-        first = next(el for el in main.iter() if el.tag == "p")
-        assert "newhere" in first.classes(), name
-        assert _flat(first).startswith("New here? Start with the Guide. This page is for "), name
-        assert next(a.attrs["href"] for a in _all(first, "a")) == "start.html", name
-
-
-def test_the_setup_page_says_first_that_start_needs_no_key():
-    main = next(el for el in _els(WEBSITE / "setup.html") if el.tag == "main")
-    first = _flat(next(el for el in main.iter() if el.tag == "p"))
-    assert "only when you ask your judge again" in first
-
-
-def test_the_llmbar_result_names_the_datasets_makers_and_licence():
-    section = _by_id(WEBSITE / "learn.html", "result")
-    assert "LLMBar by Princeton NLP, MIT license: https://github.com/princeton-nlp/LLMBar" in (
-        _flat(section))
-    assert "https://github.com/princeton-nlp/LLMBar" in [
-        a.attrs.get("href") for a in _all(section, "a")]
-
-
-ORDER = ["index.html", "start.html", "check.html", "docs.html", "reference.html", "setup.html",
-         "learn.html"]
-
-
-def test_the_sitemap_and_llms_txt_list_the_pages_in_the_new_order():
-    site = "https://www.judgekeeper.com/"
-    urls = [site + ("" if p == "index.html" else p) for p in ORDER]
-    locs = re.findall(r"<loc>(.*?)</loc>", (WEBSITE / "sitemap.xml").read_text(encoding="utf-8"))
-    assert [u for u in locs if u in urls] == urls
-    llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
-    found = [u for u in re.findall(r"\]\((https://www\.judgekeeper\.com/[^)]*)\)", llms)]
-    assert found == urls
-
-
-# Small behaviours of site.js and the footer (the tests run no JavaScript: checked in Chrome) --
-
-SITE_JS = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
-
-
-def _function(name: str) -> str:
-    start = SITE_JS.index(f"function {name}(")
-    return SITE_JS[start:SITE_JS.index("\n  }\n", start)]
-
-
-def test_a_link_to_a_section_opens_the_fold_inside_it():
-    """The Guide's Details links point at a section that holds its fold, not into the fold."""
-    opener = _function("openLinkedDetails")
-    assert 'target.querySelector(":scope > details")' in opener
-    for target in ("review", "fix", "new-judge", "again", "own-format"):
-        section = _by_id(GUIDE, target)
-        assert section.tag == "section", target
-        assert next(c.tag for c in section.children if isinstance(c, Element)) == "details"
-    # Only the fold that is the section itself: a link to a step leaves "Didn't work?" shut.
-    for step, _ in STEPS:
+def test_the_guide_is_install_five_steps_then_keys_format_and_more():
+    assert _side(GUIDE) == [
+        ("#install", "Install"), ("#find", "Step 1 · Find"), ("#mark", "Step 2 · Mark"),
+        ("#measure", "Step 3 · Measure"), ("#fix", "Step 4 · Fix"),
+        ("#recheck", "Step 5 · Re-check"), ("#keys", "Keys and costs"),
+        ("#own-format", "Your own format"), ("#misc", "Start over, stop, remote")]
+    assert _flat(_all(_main(GUIDE), "h1")[0]) == "Guide"
+    for step in ("find", "mark", "measure", "fix", "recheck"):
         section = _by_id(GUIDE, step)
-        assert "details" not in [c.tag for c in section.children if isinstance(c, Element)]
+        (eyebrow,) = _all(section, "p", "eyebrow")
+        assert _flat(eyebrow).startswith("Step "), step
+        done = [_flat(p) for p in _all(section, "p", "done")]
+        assert done == [] if step == "recheck" else done[0].startswith("Done when "), step
+    (fold,) = _all(_by_id(GUIDE, "find"), "details")
+    assert _flat(_all(fold, "summary")[0]) == "Didn't work?"
+    (nxt,) = _all(_main(GUIDE), "a", "next")
+    assert (nxt.attrs["href"], _flat(nxt)) == ("learn.html", "Next · How it works")
 
 
-def test_the_phone_menu_takes_the_keyboard_to_its_links_and_closes_on_escape():
-    menu = _function("setUpMenu")
-    assert '"Escape"' in menu and '"Tab"' in menu
-    assert "button.focus()" in menu
-    assert 'nav.querySelector("a")' in menu
+def test_every_command_box_has_a_copy_button_that_ticks():
+    boxes = [box for page in (GUIDE, CHECK) for box in _all(parse(page), "div", "cmd")]
+    assert [_flat(_all(b, "code")[0]) for b in boxes] == [
+        "uvx judgekeeper", "judgekeeper", "judgekeeper fix", "judgekeeper check",
+        "uvx judgekeeper"]
+    for box in boxes:
+        (button,) = _all(box, "button", "copy")
+        assert "data-copy" in button.attrs and button.attrs["aria-label"] == "Copy"
+        assert _all(button, "svg", "i-copy") and _all(button, "svg", "i-tick")
+        (said,) = _all(button, "span", "copied")
+        assert said.attrs.get("aria-live") == "polite"
+    assert '"Copied"' in JS and "clipboard" in JS
 
 
-def test_the_footer_link_in_running_text_is_underlined():
-    """Its colour is close to the text around it, so the underline shows it is a link."""
-    rule = re.search(r"\.site-footer \.fine a \{([^}]*)\}", CSS)
-    assert rule and "text-decoration: underline" in rule.group(1)
+def test_the_guide_shows_the_existing_pictures_of_the_real_pages():
+    """New pictures come later; until then the pictures in assets/shots/."""
+    for step, src in (("mark", "assets/shots/label.webp"), ("measure", "assets/shots/result.webp")):
+        (figure,) = _all(_by_id(GUIDE, step), "figure", "shot")
+        (link,) = _all(figure, "a")
+        (img,) = _all(figure, "img")
+        assert link.attrs["href"] == img.attrs["src"] == src
+        assert (WEBSITE / src).is_file() and (WEBSITE / src).stat().st_size < 250_000
+        assert (img.attrs.get("width"), img.attrs.get("height")) == ("1440", "900")
+        assert img.attrs.get("alt", "").strip(), src
+    assert "width: 100%" in _rule(".shot img") and "height: auto" in _rule(".shot img")
 
 
-def test_code_shows_the_characters_you_type():
-    """The code font joins >= into one sign; a command must show the two characters."""
-    rule = re.search(r"^code, pre, kbd \{([^}]*)\}", CSS, flags=re.MULTILINE)
-    assert rule and "font-variant-ligatures: none" in rule.group(1)
+def test_the_guide_tables():
+    def rows(section: str) -> list[list[str]]:
+        (table,) = _all(_by_id(GUIDE, section), "table")
+        return [[_flat(td) for td in _all(tr, "td")] for tr in _all(table, "tr")][1:]
+    assert rows("fix") == [
+        ["Better", "Use the new rule."],
+        ["Safe to try", ("Not clearly better yet, and very unlikely to be more than 10 points "
+                        "worse. You can try it.")],
+        ["Can't tell yet", "Mark a few more answers and test again."],
+        ["Looks worse, or Worse", "Keep the old rule."]]
+    assert [r[0] for r in rows("own-format")] == ["input", "output", "verdict"]
+    assert [r[1] for r in rows("misc")] == ["judgekeeper --stop", "judgekeeper --new",
+                                            "judgekeeper --no-browser", "judgekeeper --help"]
 
 
-# The screenshots open large over the page and close again (site.js and style.css) ---------
+def test_how_it_works_has_its_side_list_the_range_and_the_marks_kept_aside():
+    assert _side(LEARN) == [
+        ("#why", "Why check an LLM-as-a-judge"), ("#first-check", "The first check"),
+        ("#numbers", "What the numbers mean"), ("#kept-aside", "Marks kept aside"),
+        ("#recheck", "How a re-check works"), ("#questions", "Questions")]
+    slider = _by_id(LEARN, "n")
+    assert {k: slider.attrs[k] for k in ("type", "min", "max", "step", "value")} == {
+        "type": "range", "min": "10", "max": "200", "step": "5", "value": "15"}
+    assert _flat(_by_id(LEARN, "n-out")) == "15"
+    sim = _by_id(LEARN, "sim")
+    assert "data-example" in sim.attrs
+    assert ("An example: a judge that agrees with you about 61% of the time. Move the slider: "
+            "more marks, smaller range.") in _flat(sim)
+    kept = _by_id(LEARN, "kept")
+    assert _flat(_all(kept, "p", "kept-h")[0]) == "10 marks kept aside"
+    buttons = [(int(b.attrs["data-fixed"]), int(b.attrs["data-broke"]), _flat(b))
+               for b in _all(kept, "button")]
+    assert buttons == [(6, 0, "Fixed 6, broke 0"), (4, 0, "Fixed 4, broke 0"),
+                       (4, 2, "Fixed 4, broke 2"), (1, 3, "Fixed 1, broke 3")]
+    assert _flat(_all(kept, "p", "kept-cap")[0]) == (
+        "Examples. Your result always comes from your own marks.")
+    assert _by_id(LEARN, "kept-out").attrs.get("aria-live") == "polite"
 
 
-def test_every_screenshot_is_a_link_to_its_file():
-    """So the zoom picks up every picture, and without JavaScript the link still opens it."""
-    for page, cls in ((HOME, "shot"), (GUIDE, "shot-wide")):
-        figures = [f for f in _all(parse(page), "figure") if f.attrs.get("id") != "demo"]
-        assert len(figures) == 3, page.name
-        for figure in figures:
-            assert cls in figure.classes(), page.name
-            link = next(c for c in figure.children if isinstance(c, Element))
-            assert link.tag == "a" and link.attrs["href"].startswith("assets/shots/")
-            assert [c.tag for c in link.children if isinstance(c, Element)] == ["img"]
+@pytest.mark.parametrize(("fixed", "broke"), [(6, 0), (4, 0), (4, 2), (1, 3)])
+def test_each_kept_aside_example_says_what_judgekeeper_would(fixed, broke):
+    """The readout for each example is the line judgekeeper prints for its verdict on 10
+    marks kept aside."""
+    from judgekeeper import fix
+
+    kind = targets.fix_verdict(fixed, broke, 10).kind
+    assert f'"{fixed},{broke}": {json.dumps(fix.RESULT[kind])}' in JS
 
 
-def test_the_large_picture_fits_the_screen_and_its_close_button_is_big_enough():
-    assert "cursor: zoom-in" in _block(".js .shot > a, .js .shot-wide > a")
-    picture = _block(".zoom img")
-    assert "max-width: 96vw" in picture and "max-height: 92vh" in picture
-    close = _block(".zoom-close")
-    assert "width: 44px" in close and "height: 44px" in close
-    assert "var(--ink)" in close and "var(--sheet)" in close
-    assert ".zoom::backdrop {" in CSS
-    assert "overflow: hidden" in _block("html.zoomed")  # the page behind doesn't scroll
+def test_the_result_table_takes_its_bar_from_the_code():
+    (table,) = _all(_by_id(LEARN, "numbers"), "table")
+    bars = [el for el in table.iter() if "data-const" in el.attrs]
+    assert [el.attrs["data-const"] for el in bars] == ["judgekeeper.targets:RATE_GATE"] * 3
+    assert targets.RATE_GATE == 0.80
 
 
-def test_steps_label_what_to_type_and_what_you_will_see():
-    steps = {s.attrs["id"]: s for s in _steps()}
-    for step in ("install", "start"):
-        labels = [_flat(el) for el in _all(steps[step], "p", "boxlabel")]
-        assert labels and all(label.endswith("in your project folder") for label in labels)
-        screens = _all(steps[step], "div", "screen")
-        assert screens and all("What you will see" in _flat(s) for s in screens)
-        assert all(_all(s, "pre", "output") for s in screens)
+def test_privacy_says_what_the_site_and_the_tool_do_with_data():
+    assert _side(PRIVACY) == [("#site", "This website"), ("#local", "judgekeeper on your computer"),
+                              ("#questions", "Questions")]
+    site, local = (_all(_by_id(PRIVACY, s), "li") for s in ("site", "local"))
+    assert len(site) == 4 and len(local) == 4
+    text = _flat(_main(PRIVACY))
+    assert "light or dark" not in text and "local storage" not in text  # dark only, no store
+    assert "Railway" in text and "never uploaded" in text
+    hrefs = [a.attrs["href"] for a in _all(_main(PRIVACY), "a")]
+    assert f"{GITHUB}/issues" in hrefs and f"{GITHUB}/blob/main/SECURITY.md" in hrefs
 
 
-def test_steps_one_and_three_say_what_to_do_when_it_did_not_work():
-    steps = {s.attrs["id"]: s for s in _steps()}
-    for step in ("install", "start"):
-        (help_box,) = _all(steps[step], "details", "help")
-        assert _flat(_all(help_box, "summary")[0]) == "Didn't work?"
+def test_the_browser_check_is_one_column_with_the_drop_area_and_its_result():
+    main = _main(CHECK)
+    assert {"g", "g-check"} <= main.classes()
+    drop = _by_id(CHECK, "fc-drop")
+    assert drop.tag == "button" and drop.attrs.get("type") == "button"
+    assert [_flat(el) for el in drop.iter() if {"fc-main", "fc-kinds"} & el.classes()] == [
+        "Drop your results file here, or click to choose one.",
+        "promptfoo · DeepEval · CSV · JSONL"]
+    file_input = _by_id(CHECK, "fc-file")
+    assert file_input.attrs["type"] == "file" and "sr" in file_input.classes()
+    result = _by_id(CHECK, "fc-result")
+    assert result.attrs.get("aria-live") == "polite" and not result.children
+    after = _by_id(CHECK, "fc-next")
+    assert "hidden" in after.attrs and _all(after, "div", "cmd")
+    (alt,) = _all(main, "p", "fc-alt")
+    assert [a.attrs["href"] for a in _all(alt, "a")] == ["start.html#install"]
+    # what freecheck.js writes into the result has its look
+    for selector in (".fc-result .fc-term", ".fc-problem", ".fc-pick-list .btn"):
+        assert selector + " {" in CSS, selector
 
 
-def test_a_click_on_a_screenshot_opens_it_large_and_closes_again():
-    """Before, a click opened the bare image file and the only way back was the Back button."""
-    zoom = _function("setUpZoom")
-    assert '$all(".shot > a, .shot-wide > a")' in zoom
-    assert "window.HTMLDialogElement" in zoom  # no <dialog>: the link opens the file as before
-    assert "showModal()" in zoom  # Escape closes it
-    assert '"Close the picture"' in zoom
-    assert "e.target === box" in zoom  # a click outside the picture
-    assert "opener.focus(" in zoom  # the keyboard goes back to the picture
-    assert "big.alt = $(\"img\", link).alt" in zoom
-    # Cmd, Ctrl, Shift and middle clicks still open the file in a new tab.
-    assert all(key in zoom for key in ("e.button", "e.metaKey", "e.ctrlKey", "e.shiftKey"))
-    assert "setUpZoom();" in _function("start")
-    assert "the screenshots open large" in SITE_JS[:SITE_JS.index("*/")]
+# The reference: rendered from docs/reference.md -----------------------------------------------
+
+def test_the_reference_has_a_side_list_of_its_sections_and_keeps_the_usage_lines():
+    markdown = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
+    headings = re.findall(r"^## (.+)$", markdown, flags=re.MULTILINE)
+    assert [label for _, label in _side(REFERENCE)] == [
+        h.replace("`", "").replace("**", "") for h in headings]
+    head = _all(_main(REFERENCE), "header", "g-head")[0]
+    assert _flat(_all(head, "h1")[0]) == "judgekeeper reference"
+    assert _flat(_all(head, "p")[0]) == ("Every command, flag, exit code, file and format. The "
+                                         "README has the short version.")
+    blocks = re.findall(r"^```[a-z]*\n(.*?)\n```$", markdown, flags=re.MULTILINE | re.DOTALL)
+    shown = [el.text() for el in _els(REFERENCE) if el.tag == "code" and el.parent.tag == "pre"]
+    assert shown == blocks  # every line break kept
+    assert {"g", "g-ref"} <= _main(REFERENCE).classes()
+
+
+def test_a_line_quoted_from_judgekeeper_is_what_it_prints():
+    """`data-said-by` names the module that prints the quoted line (cut at its last full
+    stop when the page quotes only the start)."""
+    quoted = [el for page in hand_written_pages() for el in parse(page).iter()
+              if "data-said-by" in el.attrs]
+    assert quoted
+    for el in quoted:
+        source = (ROOT / "src" / "judgekeeper" / f"{el.attrs['data-said-by']}.py").read_text(
+            encoding="utf-8")
+        assert el.text().strip().removesuffix(".") in source, el.text()
+
+
+def test_the_reference_table_headers_are_plain_text():
+    """A header is a label, not something to type: no code box, even where the Markdown has
+    backticks in it."""
+    markdown = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
+    assert re.search(r"^\|[^\n]*`[^\n]*\|\n\|[ :|-]+\|$", markdown, flags=re.MULTILINE)
+    headers = [th for th in _els(REFERENCE) if th.tag == "th"]
+    assert headers and not [th for th in headers if _all(th, "code")]
+    assert not [th for th in headers if "`" in th.text()]

@@ -19,50 +19,29 @@
 <meta name="twitter:description" content="Every judgekeeper command, flag, exit code, file and format.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-<link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
-<script src="assets/theme.js"></script>
 <script src="assets/site.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
-<header class="site-header">
-<div class="wrap">
-<a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<nav class="site-nav" id="site-nav" aria-label="Site">
-<ul><li><a href="index.html">Home</a></li><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html" aria-current="page">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul>
-</nav>
-<button class="theme-btn" type="button" aria-label="Switch to the light theme"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
-<button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
-</div>
-</header>
-<main id="main" class="wrap narrow doc">
-<h1 id="judgekeeper-reference">judgekeeper reference</h1>
-<p>Every command, flag, exit code, file and format. The README has the short version.</p>
+<header class="menu"><div class="wrap">
+<nav class="menu-l" aria-label="Pages"><a href="index.html">Home</a><a href="start.html">Guide</a><a href="learn.html">How it works</a><a href="reference.html" aria-current="page">Reference</a></nav>
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></a>
+<div class="menu-r"><a class="gh" href="https://github.com/judgekeeper/judgekeeper">GitHub</a></div>
+</div></header>
+<main id="main" class="g g-ref"><div class="wrap">
+<nav class="g-nav" aria-label="On this page"><a href="#judgekeeper-find-mark-measure">judgekeeper: find, mark, measure</a><a href="#mark-mark-more-answers">mark: mark more answers</a><a href="#fix-see-where-your-judge-goes-wrong-and-test-a-better-rule">fix: see where your judge goes wrong and test a better rule</a><a href="#check-re-check-your-llm-as-a-judge-after-a-change">check: re-check your LLM-as-a-judge after a change</a><a href="#how-the-numbers-are-worked-out">How the numbers are worked out</a><a href="#what-it-reads">What it reads</a><a href="#how-grades-are-read">How grades are read</a><a href="#records-format">Records format</a><a href="#record-save-your-own-judges-verdicts-with-one-line">record(): save your own judge's verdicts with one line</a><a href="#unknown-judge-fields">Unknown judge fields</a><a href="#the-judgekeeper-folder">The .judgekeeper/ folder</a><a href="#your-api-keys">Your API keys</a><a href="#exit-codes">Exit codes</a></nav><div class="g-main">
+<header class="g-head"><h1>judgekeeper reference</h1><p class="g-lede">Every command, flag, exit code, file and format. The README has the short version.</p></header>
 <p>Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. <code>judgekeeper</code> does Find, Mark and Measure; <code>judgekeeper mark</code> marks more; <code>judgekeeper fix</code> shows where your judge goes wrong and tests a better rule; <code>judgekeeper check</code> re-checks your LLM-as-a-judge after a change. Run them in your own terminal: each run ends with one <code>Next:</code> line that says what you do. <code>judgekeeper --help</code> lists the commands, and <code>judgekeeper &lt;command&gt; --help</code> each command's flags.</p>
-<ul>
-<li><a href="#judgekeeper-find-mark-measure">judgekeeper: find, mark, measure</a></li>
-<li><a href="#mark-mark-more-answers">mark: mark more answers</a></li>
-<li><a href="#fix-see-where-your-judge-goes-wrong-and-test-a-better-rule">fix: see where your judge goes wrong and test a better rule</a></li>
-<li><a href="#check-re-check-your-llm-as-a-judge-after-a-change">check: re-check your LLM-as-a-judge after a change</a></li>
-<li><a href="#how-the-numbers-are-worked-out">How the numbers are worked out</a></li>
-<li><a href="#what-it-reads">What it reads</a></li>
-<li><a href="#how-grades-are-read">How grades are read</a></li>
-<li><a href="#records-format">Records format</a></li>
-<li><a href="#record-save-your-own-judges-verdicts-with-one-line">record(): save your own judge's verdicts with one line</a></li>
-<li><a href="#unknown-judge-fields">Unknown judge fields</a></li>
-<li><a href="#the-judgekeeper-folder">The .judgekeeper/ folder</a></li>
-<li><a href="#your-api-keys">Your API keys</a></li>
-<li><a href="#exit-codes">Exit codes</a></li>
-</ul>
-<h2 id="judgekeeper-find-mark-measure">judgekeeper: find, mark, measure</h2>
+<section><h2 id="judgekeeper-find-mark-measure">judgekeeper: find, mark, measure</h2>
 <pre><code>judgekeeper [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
             [--tracking-uri URI] [--pass-if RULE] [--label-map MAP] [--judge-model NAME]
             [--fields LIST] [--yes] [--port PORT] [--no-browser] [--new | --wait | --stop]
             [--version] [--debug]</code></pre>
 <p>Each run does the next step:</p>
-<table>
-<thead><tr><th>What is there</th><th>What <code>judgekeeper</code> does</th></tr></thead>
+<div class="tw"><table>
+<thead><tr><th>What is there</th><th>What judgekeeper does</th></tr></thead>
 <tbody>
 <tr><td>Nothing marked yet</td><td>Step 1, Find: names your eval tool, the answers, your judge and its rule, and checks its grades with no AI call. Step 2, Mark: opens the marking page in your browser; mark until "See your result" appears, then click it</td></tr>
 <tr><td>Some marks, not enough yet</td><td>Says how many you marked; the marking page stays open, or opens again when it was closed</td></tr>
@@ -72,12 +51,12 @@
 <tr><td>Something to choose (several eval tools, judges or MLflow stores, a pass mark)</td><td>Asks at a terminal. Without one, it prints the flag that answers the question and exits 3</td></tr>
 <tr><td>No results found</td><td>Names the eval tool it found with no saved results yet, or says what it can read</td></tr>
 </tbody>
-</table>
+</table></div>
 <p>A new eval run does not start over: the answers you are marking are kept in <code>.judgekeeper/pool.jsonl</code>, so marking goes on with them. When your judge changed since your marks, it says what changed, and once there are enough marks its <code>Next:</code> line is <code>judgekeeper check</code>. A judge whose results hold no rule (a CSV or JSONL table) changes only in its grades: when its grades on your marked answers differ in the newest results, it says "Your judge's grades changed on 7 of your marked answers." and its <code>Next:</code> line is <code>judgekeeper check</code>.</p>
 <p><strong>Your project folder.</strong> Every command keeps <code>.judgekeeper/</code> in your project folder and finds it the same way: from the folder it runs in (or the <code>PATH</code> folder), the nearest folder up whose <code>.judgekeeper/</code> holds your marks, without leaving the project (a folder with <code>pyproject.toml</code>, <code>package.json</code>, <code>.git</code>, <code>setup.py</code> or <code>judgekeeper.toml</code>). So <code>judgekeeper</code>, <code>mark</code>, <code>--stop</code>, <code>check</code> and <code>fix</code> find the same marks and page from the project and from a folder inside it. A results file or MLflow store given as <code>PATH</code> never moves it: the file is read where it is, <code>.judgekeeper/</code> stays in the project you run from, and later runs without a <code>PATH</code> read that file again. Run from a folder that holds several projects, it says which project the results are from and names the others with the command that checks them.</p>
 <p>Options may come before the command: <code>judgekeeper --no-browser mark</code> is <code>judgekeeper mark --no-browser</code>. A flag a command does not have prints that command's usage and points to <code>judgekeeper &lt;command&gt; --help</code>.</p>
 <p>judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV or JSONL file with <code>input</code>, <code>output</code> and <code>verdict</code> columns (<a href="#what-it-reads">What it reads</a>).</p>
-<table>
+<div class="tw"><table>
 <thead><tr><th>Flag</th><th>What it does</th></tr></thead>
 <tbody>
 <tr><td><code>PATH</code></td><td>Your project folder (default: this folder), one results file, or an MLflow store (<code>mlflow.db</code> or an <code>mlruns/</code> folder). A file or store is read where it is; <code>.judgekeeper/</code> stays in your project, and later runs remember the file</td></tr>
@@ -98,51 +77,51 @@
 <tr><td><code>--version</code></td><td>Show the version and exit</td></tr>
 <tr><td><code>--debug</code></td><td>On an unexpected error, also print the traceback (credentials are still scrubbed)</td></tr>
 </tbody>
-</table>
+</table></div>
 <p><strong>The marking page</strong> shows one answer at a time, with your judge's grade hidden; you mark it Pass or Fail, the way you want your judge to decide (keys <code>←</code> Fail and <code>→</code> Pass, <code>S</code> to skip, <code>Z</code> to undo). Your judge's rule is not shown. "See your result" appears once there are enough marks of each kind. The page runs on 127.0.0.1 with a random token in its link, and saves a mark only from the page itself (its own origin), so the marks are yours. Every click is saved at once.</p>
-<p><strong>Exit codes:</strong> 0 the next step is done, 3 you are needed (the <code>Next:</code> line says what to do), 2 a usage error, 130 Ctrl-C.</p>
-<h2 id="mark-mark-more-answers">mark: mark more answers</h2>
+<p><strong>Exit codes:</strong> 0 the next step is done, 3 you are needed (the <code>Next:</code> line says what to do), 2 a usage error, 130 Ctrl-C.</p></section>
+<section><h2 id="mark-mark-more-answers">mark: mark more answers</h2>
 <pre><code>judgekeeper mark [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
                  [--tracking-uri URI] [--pass-if RULE] [--label-map MAP] [--judge-model NAME]
                  [--fields LIST] [--yes] [--port PORT] [--no-browser] [--new | --wait | --stop]</code></pre>
-<p>Opens the marking page again, to mark more answers; more marks make your numbers more precise. Run <code>judgekeeper</code> afterwards to see your updated result. When every answer is marked, it says so and opens no page. New answers do not join your marks, so it says to run your eval on more questions, then <code>judgekeeper --new</code> to mark the new results; with too few of one kind for a result it says it as <code>judgekeeper</code> does, and the marking page's last card says the same. When two runs open the page of one project at the same time, the second says "judgekeeper is already opening the marking page for this folder", waits, then opens it and prints its link. It takes the same flags as <code>judgekeeper</code>, without <code>--version</code> and <code>--debug</code>.</p>
-<h2 id="fix-see-where-your-judge-goes-wrong-and-test-a-better-rule">fix: see where your judge goes wrong and test a better rule</h2>
+<p>Opens the marking page again, to mark more answers; more marks make your numbers more precise. Run <code>judgekeeper</code> afterwards to see your updated result. When every answer is marked, it says so and opens no page. New answers do not join your marks, so it says to run your eval on more questions, then <code>judgekeeper --new</code> to mark the new results; with too few of one kind for a result it says it as <code>judgekeeper</code> does, and the marking page's last card says the same. When two runs open the page of one project at the same time, the second says "judgekeeper is already opening the marking page for this folder", waits, then opens it and prints its link. It takes the same flags as <code>judgekeeper</code>, without <code>--version</code> and <code>--debug</code>.</p></section>
+<section><h2 id="fix-see-where-your-judge-goes-wrong-and-test-a-better-rule">fix: see where your judge goes wrong and test a better rule</h2>
 <pre><code>judgekeeper fix [PATH] [--yes] [--new]</code></pre>
 <p>It needs a result (enough marks of each kind). Each run does the next step:</p>
-<table>
-<thead><tr><th>What is there</th><th>What <code>judgekeeper fix</code> does</th></tr></thead>
+<div class="tw"><table>
+<thead><tr><th>What is there</th><th>What judgekeeper fix does</th></tr></thead>
 <tbody>
 <tr><td>No new rule in <code>.judgekeeper/fix/rule.txt</code></td><td>Keeps some of your marks aside (about 30% of each group: your judge's passes and fails, where you agree with it and where not; at least 5 marked Pass and 5 marked Fail). On the other marks: the clues, under "Clues:" (too easy or too strict, mistakes near the pass mark, long answers, words found in many of its mistakes), and <code>.judgekeeper/fix/mistakes.md</code>: what to do in one line, the same clues, your judge's rule, then each mistake with your mark, its grade, the question, the answer, your note and its own reason, fenced as data. You can hand the file to a coding agent. Where your judge's rule is written (file and line)</td></tr>
 <tr><td>A judge with a score and a pass mark</td><td>Also tests the pass mark that fits the other marks best on the marks kept aside, with the saved scores: free, no AI call. Shown when it is better or safe to try</td></tr>
 <tr><td>A new rule in <code>rule.txt</code></td><td>Checks it (empty, a template part dropped or added: refused; a big change or text copied from an answer: said), says how many AI calls the test makes, and asks <code>Go ahead? [y/N]</code> (without a terminal, <code>--yes</code>). Then it asks your judge about the answers kept aside, once with the old rule and once with the new one, in the same run, and gives the result</td></tr>
 <tr><td>A judge whose rule judgekeeper can't swap in (a table, <code>record()</code>, your own format, or a rule per test)</td><td>Says "judgekeeper can't ask this judge itself.", then: change its rule where your eval keeps it, run your eval, then run <code>judgekeeper check</code>. It says the same on every run and never reads <code>rule.txt</code>; the report's Fix it says the same</td></tr>
 </tbody>
-</table>
-<table>
+</table></div>
+<div class="tw"><table>
 <thead><tr><th>Flag</th><th>What it does</th></tr></thead>
 <tbody>
 <tr><td><code>PATH</code></td><td>Your project folder (default: this folder)</td></tr>
 <tr><td><code>--yes</code></td><td>Without a terminal: go ahead and test the new rule (it makes AI calls, paid with your own key)</td></tr>
 <tr><td><code>--new</code></td><td>Keep a new set of your marks aside to test rules on</td></tr>
 </tbody>
-</table>
+</table></div>
 <p>The marks kept aside are never shown: nothing prints them or writes them anywhere but <code>.judgekeeper/fix/split.json</code>, so a new rule is never written from them. They stay the same until <code>--new</code>.</p>
 <p><strong>The result</strong>, from the marks kept aside: fixed (the old rule was wrong, the new one right) and broke (the other way round).</p>
-<table>
+<div class="tw"><table>
 <thead><tr><th>Result</th><th>When</th></tr></thead>
 <tbody>
 <tr><td>Better / Worse</td><td>The exact two-sided sign test on fixed against broke, at 5%</td></tr>
 <tr><td>Safe to try</td><td>Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 points worse</td></tr>
 <tr><td>Can't tell yet</td><td>Else; it says whether it leans toward better, looks the same, or looks worse</td></tr>
 </tbody>
-</table>
+</table></div>
 <p>Each extra test on the same marks kept aside is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". Over all tries on one set, a wrong "safe to try" stays under about 1 in 20. After a "can't tell yet" that leans toward better, it asks once for a few more marks (7 when about 10 are kept aside, 9 when about 15): they join the marks kept aside and the same rule is tested again. After 3 rules, 10 new marks become a new set of marks kept aside.</p>
 <p>Your judge's rule is swapped in by judgekeeper when it asks: promptfoo's assertion value, a DeepEval GEval's evaluation steps (or criteria), an Inspect scorer's instructions, an MLflow <code>make_judge</code>'s instructions or a <code>Guidelines</code> text. A judge whose rule can't be swapped (a table, your own code, a registered or built-in MLflow judge) is told to change the rule itself, run its eval and <code>judgekeeper check</code>. judgekeeper never changes your files. Each test is saved: the rule in <code>.judgekeeper/rules/&lt;hash&gt;.txt</code>, and a line in <code>history.jsonl</code> (the rule's hash, the counts and the result; no answer text).</p>
-<p><strong>Exit codes:</strong> 0 the step is done, 3 you are needed (more marks, a rule to change, or the question needs your answer), 2 a usage error.</p>
-<h2 id="check-re-check-your-llm-as-a-judge-after-a-change">check: re-check your LLM-as-a-judge after a change</h2>
+<p><strong>Exit codes:</strong> 0 the step is done, 3 you are needed (more marks, a rule to change, or the question needs your answer), 2 a usage error.</p></section>
+<section><h2 id="check-re-check-your-llm-as-a-judge-after-a-change">check: re-check your LLM-as-a-judge after a change</h2>
 <pre><code>judgekeeper check [PATH] [--yes]</code></pre>
 <p>Run it after you change your judge or update your eval tool, and run your eval. It needs a result (enough marks of each kind). It compares the judge in your newest results with the one your marks were made on:</p>
-<table>
+<div class="tw"><table>
 <thead><tr><th>What changed</th><th>Noticed</th></tr></thead>
 <tbody>
 <tr><td>The model, or models</td><td>Yes</td></tr>
@@ -158,17 +137,17 @@
 <tr><td>A switch to another eval tool</td><td>No: it says your results now come from another eval tool and that it can't compare judges across two eval tools, and gives no result. Run <code>judgekeeper</code> to start fresh</td></tr>
 <tr><td>The answers themselves</td><td>No, on purpose: marks are tests for the judge, so a re-check grades the answers you marked</td></tr>
 </tbody>
-</table>
-<table>
+</table></div>
+<div class="tw"><table>
 <thead><tr><th>Flag</th><th>What it does</th></tr></thead>
 <tbody>
 <tr><td><code>PATH</code></td><td>Your project folder (default: this folder)</td></tr>
 <tr><td><code>--yes</code></td><td>Without a terminal: go ahead and ask your judge (it makes AI calls, paid with your own key)</td></tr>
 </tbody>
-</table>
+</table></div>
 <p>When something changed, it re-checks the new judge on your marks. Free first: answers you marked whose exact text is in your newest results already have the new judge's grade. For the rest it asks your own judge, through your own eval tool and with your own key: it says how many answers and AI calls that is, and asks <code>Go ahead? [y/N]</code> (Enter is No). Without a terminal it needs <code>--yes</code>, else it stops before any call (exit 3). It asks about each answer twice and compares the first grade; the second shows how often your judge changes its own grade, so a small difference can be told from that. Then, for the answers you passed and those you failed, how many of your marks the old and the new judge agreed with, how many went from right to wrong and how many from wrong to right, and a result from a range on that change: "Worse" (the whole range is a drop), "No drop bigger than 20 points" (its low end is above that), or "Not sure". It always says the worst drop the marks could hide. Each group is checked on its own. In about 1 check in 10 at most, coincidence alone flags a drop in one of the two groups; mark more answers before acting on a small one. The rates <code>history.jsonl</code> keeps are corrected for how the marks were picked, the same as the result's. Each check is a line in <code>.judgekeeper/history.jsonl</code> (no answer text). Marks you add after a check are re-checked by the next <code>check</code> ("You added 10 marks since your last check."). After a check that is not "Worse", your marks test the new judge: the result, its "This result is about your judge as it was on…" line and <code>fix</code>'s <code>mistakes.md</code> describe the judge in your newest results. After a "Worse", your marks keep testing the new judge against the old one: every <code>check</code> says it is worse until you go back to the old judge or change it again.</p>
-<p><strong>Exit codes:</strong> 0 no drop bigger than 20 points, not sure with a smaller drop, or nothing changed; 1 worse, or not sure with a drop bigger than 20 points; 3 you are needed (not enough marks, nothing could be re-checked, or the question needs your answer), 2 a usage error.</p>
-<h2 id="how-the-numbers-are-worked-out">How the numbers are worked out</h2>
+<p><strong>Exit codes:</strong> 0 no drop bigger than 20 points, not sure with a smaller drop, or nothing changed; 1 worse, or not sure with a drop bigger than 20 points; 3 you are needed (not enough marks, nothing could be re-checked, or the question needs your answer), 2 a usage error.</p></section>
+<section><h2 id="how-the-numbers-are-worked-out">How the numbers are worked out</h2>
 <p><strong>What it checks first, with no AI call.</strong> Before you mark anything, <code>judgekeeper</code> looks at the judge's own grades: no marks, no AI call, no key. It says what it found, one line each, each starting with "Checked:":</p>
 <ul>
 <li><strong>No real decision.</strong> The judge's call failed (DeepEval's <code>error</code>, or no score with <code>success</code> false; promptfoo's <code>graderError</code>, or in older files its grader-failure reasons such as "API error:"; Inspect AI's <code>grader_failed</code>, or a sample that errored before it was scored; MLflow's <code>feedback.error</code>), its reply could not be read (promptfoo's "Could not extract JSON" or "Error parsing output"; Inspect AI's "Grade not found in model output"), or there is no decision at all (a blank cell). These answers are left out, and it says what your eval tool counted them as: promptfoo and DeepEval count them as fails.</li>
@@ -180,10 +159,10 @@
 <p>None of these stops it. When nothing is found it says "Checked: your judge gave every answer a clear Pass or Fail." The answers found are listed in <code>.judgekeeper/judge-check.csv</code> and <code>judge-check.json</code>.</p>
 <p><strong>Which answers you mark.</strong> From the newest results it takes every answer with a clear Pass or Fail, counted once (the same input and output; the newest file wins). With too few answers for a first result, it says so and says how to make more with your own eval tool. The page shows the answers in blocks of 10 in a seeded order, 5 from the judge's passes and 5 from its fails, so you see both kinds early. Your marks decide Pass and Fail; the judge's grades only decide how answers are picked.</p>
 <p><strong>The result.</strong> TPR (of the answers you passed, how many your judge passed), TNR (of the answers you failed, how many it failed) and the real pass rate are corrected for showing far more of the judge's fails than the pool holds: worked out per group and weighted by the group's size. Their ranges come from Jeffreys draws: each group's share of answers you marked Pass gets the distribution Beta(passes + 0.5, marked − passes + 0.5); 20,000 pairs of draws, with a fixed seed so the same marks always give the same ranges, go through the same formulas, and a range is the middle 96% of what comes out (widened, if needed, to hold the number itself). The 96% was chosen by a coverage check, not assumed: <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md"><code>docs/examples/coverage/coverage.md</code></a> simulates thousands of checks for judges that pass 50%, 70% and 90% of answers, agree weakly to strongly, and 10 to 40 labels per group. At 96% the ranges held the true value at least 93.6 times in 100 in every case and 96.2 on average; 95% fell to 91.6 in one case. The ranges before (Wilson at 97.5% per group, joined at the corners) held it 99.1 times in 100 on average: too cautious, so they were wider than needed; the ranges now are 27.1% narrower on average. On real data too: on 5 real judges from 3 public datasets, with 25 + 25 labels, the TPR and TNR ranges held the value worked out from all of the dataset's human labels in 96.0 checks in 100 on average (lowest 94.6, highest 98.4), over 1,000 checks per judge: <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/real-data-check/report.md"><code>docs/examples/real-data-check/report.md</code></a>. Kappa is Cohen's kappa on the weighted table (your real mix of answers), with its range from the same draws. Kappa moves with how many answers pass, so it is in the report's More details only and never decides the result.</p>
-<p><strong>What it says.</strong> The terminal and the report say the same, in the same order. First one result line, from the ranges, never a number alone: "Your judge is good enough to use." when the low end of both ranges is at least 80%; "Your judge needs work." when a range stays below 80%; else "Too early to tell. Mark more answers to get a result." Then how many answers you and your judge disagreed on (or "agreed on all N answers"), and plain counts: of the answers you passed, how many your judge passed and failed, and the same for those you failed. Then "How often your judge agrees with you (estimates)": "When you say Pass, it also says Pass: about N% (between A% and B%)" and the same for Fail. A side whose range is more than 40 points wide says "too early to tell". While the result is "Too early to tell", the terminal shows the counts only, no estimates; the report keeps its More details once neither range is that wide. Both end with the same next step: <code>judgekeeper mark</code> while it is too early to tell, <code>judgekeeper fix</code> when your judge needs work, nothing when it is good enough. While it is too early to tell, <code>fix</code> is never the next step. With every answer marked there is nothing left to mark: neither offers the page, and both say "You've marked every answer: 29 Pass, 26 Fail. That's still too few to tell." (or, with under 15 of one kind, what a result needs), then to run your eval on more questions and <code>judgekeeper --new</code>. The report also lists the answers where you and your judge disagree, in two groups, with your judge's own reason; marks kept aside for <code>judgekeeper fix</code> are counted, not shown. Kappa is under its More details. <code>judgekeeper fix</code> prints where your judge goes wrong: which side most of its mistakes are on, and words found in many of them.</p>
-<h2 id="what-it-reads">What it reads</h2>
+<p><strong>What it says.</strong> The terminal and the report say the same, in the same order. First one result line, from the ranges, never a number alone: "Your judge is good enough to use." when the low end of both ranges is at least 80%; "Your judge needs work." when a range stays below 80%; else "Too early to tell. Mark more answers to get a result." Then how many answers you and your judge disagreed on (or "agreed on all N answers"), and plain counts: of the answers you passed, how many your judge passed and failed, and the same for those you failed. Then "How often your judge agrees with you (estimates)": "When you say Pass, it also says Pass: about N% (between A% and B%)" and the same for Fail. A side whose range is more than 40 points wide says "too early to tell". While the result is "Too early to tell", the terminal shows the counts only, no estimates; the report keeps its More details once neither range is that wide. Both end with the same next step: <code>judgekeeper mark</code> while it is too early to tell, <code>judgekeeper fix</code> when your judge needs work, nothing when it is good enough. While it is too early to tell, <code>fix</code> is never the next step. With every answer marked there is nothing left to mark: neither offers the page, and both say "You've marked every answer: 29 Pass, 26 Fail. That's still too few to tell." (or, with under 15 of one kind, what a result needs), then to run your eval on more questions and <code>judgekeeper --new</code>. The report also lists the answers where you and your judge disagree, in two groups, with your judge's own reason; marks kept aside for <code>judgekeeper fix</code> are counted, not shown. Kappa is under its More details. <code>judgekeeper fix</code> prints where your judge goes wrong: which side most of its mistakes are on, and words found in many of them.</p></section>
+<section><h2 id="what-it-reads">What it reads</h2>
 <p>It looks only inside the folder, to a depth of four folders, skipping <code>.git</code>, <code>node_modules</code>, virtual environments and hidden folders (except <code>.deepeval</code>, and <code>.judgekeeper/records/</code>, where <code>judgekeeper.record()</code> writes). It stops after 5,000 files or 2 seconds and, when it found nothing, says so. It does not follow symbolic links, and results files over 200 MB are listed, not read. A results file with no LLM-as-a-judge in it (checks written in code, DeepEval metrics with no model, promptfoo's table output) is left out with one line; an empty file or one it can't open is named. When it finds nothing, it says how deep it looked, names the results-like files it left out (further down, a link, or in the folder above) with the command that reads one, and, run from a subfolder of a project (a folder above with <code>pyproject.toml</code>, <code>package.json</code> or <code>.git</code>), reads the project folder instead. A big file says how far reading has got on stderr every few seconds after the first two. From an MLflow experiment it reads the newest 30,000 traces and says so when there are more (reading each trace takes about a millisecond). The marking page gets the answers up to the furthest one marked and the next 100, never the whole pool. Your eval tool's files are only read, never changed.</p>
-<table>
+<div class="tw"><table>
 <thead><tr><th>Tool</th><th>How it is found</th><th>What is read</th></tr></thead>
 <tbody>
 <tr><td>promptfoo</td><td><code>promptfooconfig.yaml</code>, <code>.yml</code> or <code>.json</code></td><td>JSON results files (<code>promptfoo eval -o</code> or <code>promptfoo export eval</code>)</td></tr>
@@ -193,7 +172,7 @@
 <tr><td>A CSV or JSONL file</td><td>A CSV, TSV or JSONL file at most two folders deep with <code>input</code>, <code>output</code> and <code>verdict</code> columns</td><td>That file</td></tr>
 <tr><td><code>judgekeeper.record()</code></td><td><code>.judgekeeper/records/*.jsonl</code></td><td>The lines your eval code saved (<a href="#record-save-your-own-judges-verdicts-with-one-line">below</a>)</td></tr>
 </tbody>
-</table>
+</table></div>
 <h3 id="promptfoo">promptfoo</h3>
 <pre><code>promptfoo eval -o results.json
 judgekeeper</code></pre>
@@ -258,8 +237,8 @@ judgekeeper --experiment my-app-eval --metric correctness</code></pre>
 <p>A CSV, TSV or JSONL file with <code>input</code>, <code>output</code> and <code>verdict</code> columns (<code>judge_verdict</code> or <code>judge</code> work as the grade column too); a <code>model</code> or <code>judge_model</code> column names the judge's model, and <code>id</code> and <code>reason</code> are read when they are there. One file per judge or criterion. It prints the counts, the pass/fail split and the first 3 rows, so a wrong table shows. Give its path when it is deeper than two folders: <code>judgekeeper results/judge.csv</code>.</p>
 <p><strong>Results in a format of its own.</strong> When it finds no eval tool's results but a recent JSON, JSONL or CSV file (changed in the last 90 days, at most four folders deep) that holds, at any depth, a score-like key (<code>score</code>, <code>scores</code>, <code>verdict</code>, <code>pass</code>, <code>passed</code>, <code>success</code>, <code>label</code>) next to an input-like and an output-like key, or when you give it such a file, it shows the file's paths (never their values) and how it would read them: what one answer is, the input, the answer, the score, the reason, the id and the judge's model. It asks whether that is right, and then only what the file cannot tell (which of several judges, the pass mark when the scores are not between 0 and 1, whether to leave out answers with an error). A part is the judge's grade only when its name says so (<code>score</code>, <code>verdict</code>, <code>grade</code>, <code>label</code> and the like, or a part inside a judge object) and most of its values are grades: pass or fail, true or false, yes or no, correct or incorrect, or numbers from 0 to 100. Ids, free text and a judge's settings (its pass mark, its criteria's text, a run id) never are. A reading it is not sure of (a part told by its values alone, or one answer from a file that holds a list of many) is never accepted by <code>--yes</code>: run it in a terminal to check it. With your yes it saves how to read the file in a <code>[start]</code> table of <code>judgekeeper.toml</code>, which it reads first next time. When the file cannot be read this way, it says so: turn it into a CSV with the columns <code>id</code>, <code>input</code>, <code>output</code>, <code>verdict</code> (pass or fail) and <code>reason</code>, one CSV per judge, and run <code>judgekeeper &lt;the CSV&gt;</code>; or save your judge's grades with <a href="#record-save-your-own-judges-verdicts-with-one-line"><code>judgekeeper.record()</code></a>.</p>
 <h3 id="judgekeeperrecord">judgekeeper.record()</h3>
-<p>When your judge runs in your own code, one <code>judgekeeper.record()</code> line saves each grade in <code>.judgekeeper/records/</code> (<a href="#record-save-your-own-judges-verdicts-with-one-line">below</a>). <code>judgekeeper</code> reads every file written by the newest file's judge (one eval run can be many processes, so many files; a newer file wins for a repeated answer). Several judge names: it asks which, <code>--metric</code> answers. A last line cut short is left out; a file it cannot read is left out, and it says so.</p>
-<h2 id="how-grades-are-read">How grades are read</h2>
+<p>When your judge runs in your own code, one <code>judgekeeper.record()</code> line saves each grade in <code>.judgekeeper/records/</code> (<a href="#record-save-your-own-judges-verdicts-with-one-line">below</a>). <code>judgekeeper</code> reads every file written by the newest file's judge (one eval run can be many processes, so many files; a newer file wins for a repeated answer). Several judge names: it asks which, <code>--metric</code> answers. A last line cut short is left out; a file it cannot read is left out, and it says so.</p></section>
+<section><h2 id="how-grades-are-read">How grades are read</h2>
 <p>One normaliser reads every grade from your judge (with <code>--pass-if</code> and <code>--label-map</code>) and every mark. It turns a raw judge output into <code>pass</code>/<code>fail</code> or <code>error</code>, plus a reason:</p>
 <ul>
 <li>a bool: <code>True</code> is pass;</li>
@@ -268,11 +247,11 @@ judgekeeper --experiment my-app-eval --metric correctness</code></pre>
 <li>a <code>(grade, reason)</code> tuple or two-element list;</li>
 <li>a dict with the grade under <code>verdict</code>, <code>pass</code>, <code>passed</code>, <code>label</code> or <code>score</code> (first found) and the reason under <code>reason</code>, <code>rationale</code>, <code>explanation</code> or <code>comment</code>.</li>
 </ul>
-<p>A value that looks like a grade but is not in the map (<code>good</code>), or a number with no rule, is a usage error that lists every such value seen. judgekeeper never guesses. A judge that raised, returned nothing (None, an empty string, NaN) or returned something unreadable (a dict with no grade key, a list of three) is recorded as <code>error</code>, never as fail: errors are left out of every agreement number.</p>
-<h2 id="records-format">Records format</h2>
+<p>A value that looks like a grade but is not in the map (<code>good</code>), or a number with no rule, is a usage error that lists every such value seen. judgekeeper never guesses. A judge that raised, returned nothing (None, an empty string, NaN) or returned something unreadable (a dict with no grade key, a list of three) is recorded as <code>error</code>, never as fail: errors are left out of every agreement number.</p></section>
+<section><h2 id="records-format">Records format</h2>
 <p>judgekeeper's own format for judge results: one judged answer per line of a JSONL file (CSV and TSV work too). Use it when your judge saves its results in a way judgekeeper does not read: write these lines (or let <a href="#record-save-your-own-judges-verdicts-with-one-line"><code>record()</code></a> write them), then run <code>judgekeeper</code>. Field names follow OpenInference annotations, so other tools' exports map onto it by renaming. Only a grade is needed in practice; every field is optional. The smallest useful line:</p>
 <pre><code>{"name": "Safe wording", "input": "Do you ship to Canada?", "output": "Yes, in 5 to 8 working days.", "label": "pass"}</code></pre>
-<table>
+<div class="tw"><table>
 <thead><tr><th>field</th><th>meaning</th></tr></thead>
 <tbody>
 <tr><td><code>schema_version</code></td><td>the format version: <code>2</code> now. A line without one is version 1, which has the same fields minus <code>metadata</code>, <code>rule</code>, <code>trajectory</code>, <code>outcome</code> and <code>app_version</code></td></tr>
@@ -291,15 +270,15 @@ judgekeeper --experiment my-app-eval --metric correctness</code></pre>
 <tr><td><code>outcome</code></td><td>for agents: an automatic check of the result, <code>{passed, score, source, detail}</code>, e.g. <code>{&quot;passed&quot;: true, &quot;source&quot;: &quot;unit tests&quot;}</code></td></tr>
 <tr><td><code>app_version</code></td><td>the version of the app or agent that gave the answer</td></tr>
 </tbody>
-</table>
-<p>Fields judgekeeper does not know are kept, at the top level and inside <code>evaluator</code>; a file of a newer version is read as far as this version understands it, with one warning. A line over 1 MB is kept, with a warning. The rules are published as a JSON Schema (draft 2020-12): <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json">records.schema.json</a>, also inside the package as <code>judgekeeper/schemas/records.schema.json</code>. Example files: <a href="examples/records/minimal.jsonl">minimal.jsonl</a> (four fields per line), <a href="examples/records/full.jsonl">full.jsonl</a> (every field) and <a href="examples/records/with-human-labels.jsonl">with-human-labels.jsonl</a>.</p>
-<h2 id="record-save-your-own-judges-verdicts-with-one-line">record(): save your own judge's verdicts with one line</h2>
+</table></div>
+<p>Fields judgekeeper does not know are kept, at the top level and inside <code>evaluator</code>; a file of a newer version is read as far as this version understands it, with one warning. A line over 1 MB is kept, with a warning. The rules are published as a JSON Schema (draft 2020-12): <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json">records.schema.json</a>, also inside the package as <code>judgekeeper/schemas/records.schema.json</code>. Example files: <a href="examples/records/minimal.jsonl">minimal.jsonl</a> (four fields per line), <a href="examples/records/full.jsonl">full.jsonl</a> (every field) and <a href="examples/records/with-human-labels.jsonl">with-human-labels.jsonl</a>.</p></section>
+<section><h2 id="record-save-your-own-judges-verdicts-with-one-line">record(): save your own judge's verdicts with one line</h2>
 <p>When your judge runs in your own code and saves nothing judgekeeper reads, add one line right after it gives each grade, in your eval code:</p>
 <pre><code>import judgekeeper
 judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
                    reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")</code></pre>
 <p>Then run your eval once and <code>judgekeeper</code>: it finds the records. Install judgekeeper inside your project's environment (<code>pip install judgekeeper</code>) for the import.</p>
-<table>
+<div class="tw"><table>
 <thead><tr><th>Argument</th><th>What</th></tr></thead>
 <tbody>
 <tr><td><code>input</code>, <code>output</code></td><td>The question and the answer the judge looked at: text or any JSON value (anything else is written as text)</td></tr>
@@ -311,7 +290,7 @@ judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
 <tr><td><code>name</code></td><td>Which judge or criterion (default <code>judge</code>); with several names, <code>judgekeeper</code> asks which to check</td></tr>
 <tr><td><code>temperature</code>, <code>id</code>, <code>metadata</code></td><td>The judge's temperature, the answer's id (else one is made from the input and output), and a dict of anything else</td></tr>
 </tbody>
-</table>
+</table></div>
 <p>Each call writes one line in the <a href="#records-format">records format</a> (version 2, <code>annotator_kind</code> <code>LLM</code>) to <code>.judgekeeper/records/&lt;name&gt;-&lt;date&gt;-&lt;process id&gt;.jsonl</code> under your project root: the nearest folder upward from where your eval runs that has <code>judgekeeper.toml</code>, <code>pyproject.toml</code>, <code>setup.py</code>, <code>.git</code> or a <code>requirements*.txt</code> (never your home folder), else the current folder. One file per process, so evals that run in several processes never write to the same file. <code>judgekeeper</code> reads the files of the same judge together, as one set: an answer saved in more than one file (a second run, or the same day again) counts once, with the grade from the newest file. Each line is written whole and the file closed at once; a lock keeps threads' lines apart.</p>
 <p>A score or pass mark may be any real number: an int or float, a numpy number, a <code>Decimal</code>, or text such as <code>&quot;0.8&quot;</code>. It never breaks your program: any error inside it is caught and it returns nothing. The first grade it can't save is logged to the <code>judgekeeper</code> logger at once; any more are counted, and the count is logged when your program ends. It uses only Python's standard library, and <code>import judgekeeper</code> loads nothing else until you call it. The file holds your inputs and outputs: use it in your eval code, not in code that serves real users. <code>JUDGEKEEPER_RECORD=0</code> (or <code>false</code>, <code>off</code>, <code>no</code>) turns it off.</p>
 <p><strong>Without the import, or in another language.</strong> Copy one of these into your eval code. The Python function, <code>jk_record</code>, takes the same arguments as <code>judgekeeper.record()</code> and writes the same lines, with nothing to install; the TypeScript one does the same for Node.js (<code>jkRecord(input, output, { score, pass_mark, ... })</code>, the same names in its options). Run them from your project folder: unlike <code>record()</code>, they do not look upward for the project root.</p>
@@ -384,12 +363,12 @@ export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): voi
     appendFileSync(join(folder, `${file}-${now.slice(0, 10)}-${process.pid}.jsonl`),
       JSON.stringify(line) + "\n");
   } catch { /* a record never stops your program */ }
-}</code></pre>
-<h2 id="unknown-judge-fields">Unknown judge fields</h2>
-<p>Every fingerprint field except <code>created_at</code> may be unknown: provider, model, snapshot, prompt hash, rubric version and temperature are <code>null</code>, and an unknown endpoint is the string <code>&quot;unknown&quot;</code> (because <code>endpoint: null</code> already means the provider's default endpoint). Files from earlier versions still load: a missing field reads as unknown, except a missing <code>endpoint</code>, which reads as the provider default.</p>
-<h2 id="the-judgekeeper-folder">The .judgekeeper/ folder</h2>
+}</code></pre></section>
+<section><h2 id="unknown-judge-fields">Unknown judge fields</h2>
+<p>Every fingerprint field except <code>created_at</code> may be unknown: provider, model, snapshot, prompt hash, rubric version and temperature are <code>null</code>, and an unknown endpoint is the string <code>&quot;unknown&quot;</code> (because <code>endpoint: null</code> already means the provider's default endpoint). Files from earlier versions still load: a missing field reads as unknown, except a missing <code>endpoint</code>, which reads as the provider default.</p></section>
+<section><h2 id="the-judgekeeper-folder">The .judgekeeper/ folder</h2>
 <p>judgekeeper writes only inside <code>.judgekeeper/</code> in your project. Every string from a results file is scrubbed of credentials before it is written. It does not write through links: if <code>.judgekeeper/</code>, or anything in it, is a link (a symlink, as a cloned repository can hold), it stops and says which, before writing anything. Every file is written as a new file that replaces the old one. Your own <code>.gitignore</code> is never changed: the folder holds your answers' text, so commit it only if your data may live in your repository.</p>
-<table>
+<div class="tw"><table>
 <thead><tr><th>File</th><th>What it holds</th><th>When it is written</th></tr></thead>
 <tbody>
 <tr><td><code>.gitignore</code></td><td><code>*</code>, <code>!.gitignore</code>, <code>!judge.json</code>, <code>!history.jsonl</code>: your answers stay off Git. Never overwritten</td><td>When marking first starts, if there is none</td></tr>
@@ -416,17 +395,17 @@ export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): voi
 <tr><td><code>records/</code></td><td>Your judge's grades, saved by <code>judgekeeper.record()</code> in your eval; <code>--new</code> leaves them in place</td><td>By your eval</td></tr>
 <tr><td><code>previous-&lt;date&gt;/</code></td><td>Everything that was here before you started over</td><td>On <code>--new</code>, or a yes to start over</td></tr>
 </tbody>
-</table>
-<h2 id="your-api-keys">Your API keys</h2>
+</table></div></section>
+<section><h2 id="your-api-keys">Your API keys</h2>
 <ul>
 <li>Your key is used only by your own eval tool, when it asks your judge. judgekeeper has no server: your eval tool's requests go from your machine straight to the provider.</li>
 <li>judgekeeper never prints a key or writes one to a file. Before any text reaches disk or your terminal, the value of <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, <code>MLFLOW_TRACKING_PASSWORD</code> and any variable ending in <code>_API_KEY</code>, <code>_TOKEN</code> or <code>_SECRET</code> (<code>DATABRICKS_TOKEN</code>, <code>MLFLOW_TRACKING_TOKEN</code>) is replaced with <code>[REDACTED]</code>, as is anything shaped like a provider key (<code>sk-ant-…</code>, <code>sk-…</code>, <code>Bearer …</code>, <code>Basic …</code>) and the <code>user:password@</code> part of a URL.</li>
 <li>Finding, marking and the result make no AI call and need no key. Before any AI call, judgekeeper says how many calls it makes and asks first (<code>Go ahead? [y/N]</code>, Enter is No). Without a terminal only <code>--yes</code> says yes.</li>
 <li>Error text is scrubbed too. An unexpected error prints one line, never its own text (it can hold an answer's text), and exits 2; <code>--debug</code> adds the traceback, still scrubbed.</li>
 <li>There is no flag that takes a key, and there never will be.</li>
-</ul>
-<h2 id="exit-codes">Exit codes</h2>
-<table>
+</ul></section>
+<section><h2 id="exit-codes">Exit codes</h2>
+<div class="tw"><table>
 <thead><tr><th>exit code</th><th>meaning</th><th>commands</th></tr></thead>
 <tbody>
 <tr><td>0</td><td>success: the step is done</td><td>all</td></tr>
@@ -435,18 +414,11 @@ export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): voi
 <tr><td>3</td><td>you are needed: the <code>Next:</code> line says what to do (no eval results found, every answer marked with too few of one kind, a judge to change). Also: stopped at a question it cannot ask (no terminal), and the line before says the flag that answers it; nothing went wrong</td><td>all</td></tr>
 <tr><td>130</td><td>stopped with Ctrl-C: it prints "Stopped." and what was saved before stays saved</td><td>all</td></tr>
 </tbody>
-</table>
-<p class="note">This page is generated from <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md">docs/reference.md</a> by <code>scripts/render_reference.py</code>.</p>
-</main>
-<footer class="site-footer">
-<div class="wrap cols">
-<div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with you; it never decides for you.</p>
-<p class="fine">Not affiliated with the tools it can read results from, or their models. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
-<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
-<div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
-<div><h2>More</h2><ul><li><a href="check.html">Free check in your browser</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
-</div>
-</footer>
+</table></div></section>
+</div></div></main>
+<footer class="foot"><div class="wrap">
+<div class="brand"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></div>
+<div class="foot-r" role="navigation" aria-label="Legal"><a href="privacy.html">Privacy</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">Trademarks</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md">Security</a><span class="copy">© 2026 Sathvik Thota · <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE">MIT license</a></span></div>
+</div></footer>
 </body>
 </html>

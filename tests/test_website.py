@@ -9,7 +9,8 @@ Conventions the pages follow, so these tests can check every figure:
   docs/examples/real-data-check/report.json.
 - `data-coverage="corrected/levels/0.96/min_cell"`: a number from
   docs/examples/coverage/coverage.json (its keys hold dots, so the path uses slashes).
-- `data-illustration` on a container: made-up numbers, labelled as such on the page.
+- `data-example` on a container: made-up numbers, and the container says it is an example.
+- `data-ratio="7/10"`: a percentage worked out from the two numbers in the same sentence.
 Any other decimal or percentage in a hand-written page fails test_no_unsourced_numbers.
 """
 
@@ -19,7 +20,6 @@ import importlib
 import importlib.util
 import json
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -27,12 +27,10 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from judgekeeper.cli import _parser, parse_args
-from judgekeeper.metrics import agreement, wilson
+from judgekeeper.cli import _front_parser, _parser, parse_args
 from tests.website_pages import (
     GENERATED_PAGES,
     ROOT,
-    STILL_NAMED,
     WEBSITE,
     commands,
     hand_written_pages,
@@ -48,11 +46,14 @@ SOURCE_ATTRS = ("data-report", "data-const", "data-realcheck", "data-coverage")
 
 
 def test_site_has_its_pages():
-    for name in ("index.html", "start.html", "docs.html", "learn.html",
-                 "setup.html", "reference.html", "llms.txt",
-                 "assets/style.css", "assets/site.js", "assets/theme.js", "assets/metrics.js",
-                 "assets/logo.svg", "assets/social-preview.png"):
+    for name in ("index.html", "start.html", "learn.html", "check.html", "privacy.html",
+                 "reference.html", "errors/404.html", "llms.txt", "assets/style.css",
+                 "assets/site.js", "assets/freecheck.js", "assets/logo.svg",
+                 "assets/social-preview.png"):
         assert (WEBSITE / name).is_file(), name
+    for gone in ("docs.html", "setup.html", "assets/theme.js", "assets/metrics.js",
+                 "assets/freecheck.css"):
+        assert not (WEBSITE / gone).exists(), gone
 
 
 def test_the_sitemap_lists_every_page():
@@ -88,9 +89,7 @@ def _all_commands():
 @pytest.mark.parametrize("argv", list(_all_commands()))
 def test_every_command_on_the_site_parses(argv):
     if len(argv) == 1 and argv[0] in _subcommands():
-        return  # a mention of a command by name in a sentence, such as `judgekeeper start`
-    if argv and argv[0] in STILL_NAMED:
-        return
+        return  # a mention of a command by name in a sentence, such as `judgekeeper fix`
     try:
         parse_args(argv)
     except SystemExit as e:
@@ -100,9 +99,51 @@ def test_every_command_on_the_site_parses(argv):
 
 def test_the_pages_show_commands():
     counts = {p.name: len(commands(p)) for p in hand_written_pages()}
-    # --version on each install tab
-    assert counts["index.html"] == 2
-    assert counts["start.html"] >= 6  # judgekeeper start, then the four other steps
+    assert counts["index.html"] == 0  # Home is about judgekeeper; setup lives on the Guide
+    assert counts["start.html"] >= 6  # the install, then a command for each step
+    assert counts["check.html"] == 1  # uvx judgekeeper, under the result
+
+
+def _options() -> set[str]:
+    """Every flag of today's CLI: `judgekeeper` alone, and each command's."""
+    parser = _parser()
+    (sub,) = [a for a in parser._actions if a.dest == "command"]
+    found = set()
+    for p in (_front_parser(), parser, *sub.choices.values()):
+        for action in p._actions:
+            found |= {s for s in action.option_strings if s.startswith("--")}
+    return found
+
+
+# Flags of the eval tools whose commands the Reference shows (promptfoo, Inspect AI)
+OTHER_FLAGS = {"--output-file", "--grader", "--repeat", "--log-format", "--no-log-samples"}
+
+
+def _every_text(page: Path) -> str:
+    """Everything on a page a visitor can read or copy, terminal screens included, in the
+    page's order."""
+    def walk(el) -> str:
+        return "".join(c if isinstance(c, str) else "" if c.tag in {"script", "style"}
+                       else " " + walk(c) + " " for c in el.children)
+    return walk(parse(page))
+
+
+@pytest.mark.parametrize("page", [*pages(), WEBSITE / "errors/404.html"], ids=lambda p: p.name)
+def test_no_page_names_a_removed_command_or_flag(page):
+    from judgekeeper.cli import REMOVED
+
+    text = _every_text(page)
+    for name in REMOVED:
+        assert not re.search(rf"(?<!from )\bjudgekeeper {name}\b", text), name
+    named = {m for m in re.findall(r"(?<![\w-])--[a-z][a-z-]*", text)}
+    assert named <= _options() | OTHER_FLAGS, sorted(named - _options() - OTHER_FLAGS)
+
+
+def test_the_flag_rule_finds_a_removed_flag(tmp_path):
+    page = tmp_path / "page.html"
+    page.write_text("<p>Run <code>judgekeeper --review</code>.</p>", encoding="utf-8")
+    named = set(re.findall(r"(?<![\w-])--[a-z][a-z-]*", _every_text(page)))
+    assert named == {"--review"} and not named <= _options()
 
 
 # Numbers
@@ -149,18 +190,14 @@ def _sourced(attr: str):
 
 
 def test_report_numbers_match_the_committed_report():
-    found = list(_sourced("data-report"))
-    assert len(found) >= 15
-    for page, el in found:
+    for page, el in _sourced("data-report"):
         value = _lookup(REPORT, el.attrs["data-report"])
         fmt = el.attrs.get("data-format", "2f")
         assert el.text().strip() == render(value, fmt), (page.name, el.attrs)
 
 
 def test_real_data_numbers_match_the_committed_report():
-    found = list(_sourced("data-realcheck"))
-    assert len(found) >= 15
-    for page, el in found:
+    for page, el in _sourced("data-realcheck"):
         value = _lookup(REALCHECK, el.attrs["data-realcheck"])
         fmt = el.attrs.get("data-format", "2f")
         assert el.text().strip() == render(value, fmt), (page.name, el.attrs)
@@ -168,7 +205,6 @@ def test_real_data_numbers_match_the_committed_report():
 
 def test_coverage_numbers_match_the_committed_grid():
     found = list(_sourced("data-coverage"))
-    assert found
     level = str(COVERAGE["corrected"]["chosen_level"])
     for page, el in found:
         path = el.attrs["data-coverage"]
@@ -189,9 +225,9 @@ def test_constants_match_the_code():
 
 
 NUMBER = re.compile(r"\d+\.\d+|\d+(?:\.\d+)?\s?%")
-NAMES = ("Claude Haiku 4.5", "Python 3.11 to 3.14", "Python 3.11", "Python 3.10",
-         "Ubuntu 22.04")  # names, not measurements
-EXEMPT_TAGS = {"pre", "code", "script", "style", "svg"}
+NAMES = ("Python 3.11", "judgekeeper 1.0", "in 1.0")  # names, not measurements
+EXEMPT_TAGS = {"pre", "code", "script", "style", "svg", "template"}
+EXAMPLE_ATTRS = ("data-example", "data-ratio")
 
 
 def test_no_unsourced_numbers():
@@ -208,61 +244,37 @@ def test_no_unsourced_numbers():
                 if not NUMBER.search(text):
                     continue
                 chain = [el, *el.ancestors()]
-                if any(a.tag in EXEMPT_TAGS or "data-illustration" in a.attrs
-                       or any(s in a.attrs for s in SOURCE_ATTRS) for a in chain):
+                if any(a.tag in EXEMPT_TAGS
+                       or any(s in a.attrs for s in (*SOURCE_ATTRS, *EXAMPLE_ATTRS))
+                       for a in chain):
                     continue
                 bad.append(f"{page.name}: {child.strip()[:80]!r}")
     assert not bad, "\n".join(bad)
 
 
-def test_illustrations_say_so():
+def test_examples_say_so_and_ratios_add_up():
+    examples = ratios = 0
     for page in hand_written_pages():
         for el in parse(page).iter():
-            if "data-illustration" in el.attrs:
-                assert "illustration" in el.text().lower(), (page.name, el.attrs)
+            if "data-example" in el.attrs:
+                assert "example" in el.text().lower(), (page.name, el.attrs)
+                examples += 1
+            if "data-ratio" in el.attrs:
+                k, n = (int(x) for x in el.attrs["data-ratio"].split("/"))
+                assert el.text().strip() == render(k / n, "pct0"), (page.name, el.attrs)
+                sentence = el.parent.text()
+                assert f"{n} times" in sentence and f"{k} heads" in sentence, sentence
+                ratios += 1
+    assert examples >= 3 and ratios == 1  # the range, the re-check table, the kept-aside marks
 
 
-# The JavaScript metrics against judgekeeper.metrics
-
-CASES = [  # (tp, fn, fp, tn): judge vs human counts
-    (18, 2, 3, 17), (20, 0, 20, 0), (36, 0, 4, 0), (20, 0, 0, 20), (0, 20, 20, 0),
-    (10, 10, 10, 10), (7, 0, 1, 2), (1, 0, 0, 0), (0, 0, 3, 5), (196, 10, 28, 185),
-    (5, 15, 0, 20), (0, 0, 0, 1),
-]
-
-
-def _python(tp, fn, fp, tn) -> dict:
-    human = ["pass"] * (tp + fn) + ["fail"] * (fp + tn)
-    judge = ["pass"] * tp + ["fail"] * fn + ["pass"] * fp + ["fail"] * tn
-    a = agreement(human, judge, "pass", "fail")
-    tpr_ci, tnr_ci = wilson(tp, tp + fn), wilson(tn, tn + fp)
-    return {"kappa": a["kappa"], "tpr": a["tpr"], "tnr": a["tnr"], "accuracy": a["accuracy"],
-            "tpr_lo": tpr_ci["lo"], "tpr_hi": tpr_ci["hi"],
-            "tnr_lo": tnr_ci["lo"], "tnr_hi": tnr_ci["hi"]}
-
-
-def test_js_metrics_match_python():
-    node = shutil.which("node")
-    if node is None:
-        pytest.skip("node is not installed (CI has it)")
-    script = (
-        "const m = require(process.argv[1]);"
-        "const cases = JSON.parse(process.argv[2]);"
-        "console.log(JSON.stringify(cases.map(([tp, fn, fp, tn]) => {"
-        "  const a = m.agreement(tp, fn, fp, tn);"
-        "  return {kappa: a.kappa, tpr: a.tpr, tnr: a.tnr, accuracy: a.accuracy,"
-        "    tpr_lo: a.tprCi.lo, tpr_hi: a.tprCi.hi, tnr_lo: a.tnrCi.lo, tnr_hi: a.tnrCi.hi};"
-        "})));")
-    out = subprocess.run([node, "-e", script, str(WEBSITE / "assets/metrics.js"),
-                          json.dumps(CASES)], capture_output=True, text=True, check=True)
-    for case, js in zip(CASES, json.loads(out.stdout), strict=True):
-        py = _python(*case)
-        for key, expected in py.items():
-            got = js[key]
-            if expected is None:
-                assert got is None, (case, key, got)
-            else:
-                assert got == pytest.approx(expected, abs=1e-12), (case, key)
+def test_the_number_rule_finds_a_number_with_no_source(tmp_path, monkeypatch):
+    page = tmp_path / "page.html"
+    page.write_text('<p>It agrees <b>87%</b> of the time.</p><p data-example>An example: '
+                    '61%.</p><pre>about 57%</pre>', encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "hand_written_pages", lambda: [page])
+    with pytest.raises(AssertionError, match="87%"):
+        test_no_unsourced_numbers()
 
 
 # Assets and links
@@ -275,9 +287,6 @@ def _assets():
 IMAGES = {".png", ".jpg", ".jpeg", ".gif", ".webp"}  # pictures: bytes, with no text to read
 # The fonts and their licence texts: no page reads the licences, and fonts are bytes.
 FONTS = WEBSITE / "assets" / "fonts"
-# Kept in the visitor's own browser only: the theme they chose and the steps they ticked
-# (test_website_look.py checks each use sits inside try/catch).
-STORES = {"theme.js", "site.js"}
 
 
 def _is_external(url: str) -> bool:
@@ -301,8 +310,6 @@ def test_no_external_assets_and_no_tracking():
         assert "http://" not in text and "https://" not in text, path.name
         for banned in ("@import", "document.cookie", "localStorage", "sessionStorage", "fetch(",
                        "XMLHttpRequest", "sendBeacon", "WebSocket", "indexedDB"):
-            if banned == "localStorage" and path.name in STORES:
-                continue
             assert banned not in text, (path.name, banned)
     assert {p.suffix for p in FONTS.iterdir()} == {".woff2", ".txt"}
 
@@ -379,8 +386,8 @@ SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url",
               "twitter:title", "twitter:description", "twitter:image"]
 SHARE_ALT = ("judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, "
              "in one command.")
-SITE_PAGES = {"index.html", "start.html", "docs.html", "learn.html", "reference.html",
-             "setup.html", "check.html"}
+SITE_PAGES = {"index.html", "start.html", "learn.html", "reference.html", "check.html",
+              "privacy.html"}
 
 
 def _head(page: Path) -> tuple[str, str, list[tuple[str, str, str]]]:
@@ -473,13 +480,12 @@ def test_pages_are_accessible_basics():
                 ), (page.name, el.attrs)
 
 
-def test_css_respects_motion_theme_and_focus():
+def test_css_respects_motion_and_focus_and_is_dark_only():
     css = (WEBSITE / "assets/style.css").read_text(encoding="utf-8")
     assert "prefers-reduced-motion: reduce" in css
-    assert "prefers-color-scheme: light" in css  # dark by default
+    assert "prefers-color-scheme" not in css and "data-theme" not in css
     assert ":focus-visible" in css
-    for colour in ("#1E293B", "#10B981"):
-        assert colour.lower() in css.lower(), colour
+    assert "#10b981" in css.lower()
 
 
 def test_logo_is_the_split_shield():
@@ -499,7 +505,7 @@ SITE_POLICY = re.search(r'Content-Security-Policy "([^"]+)"', CADDYFILE)[1]
 def test_the_check_page_loads_its_script_and_has_no_inline_script():
     els = list(parse(CHECK).iter())
     scripts = [el.attrs.get("src") for el in els if el.tag == "script"]
-    assert scripts == ["assets/theme.js", "assets/site.js", "assets/freecheck.js"]
+    assert scripts == ["assets/site.js", "assets/freecheck.js"]
     assert all(not el.text().strip() for el in els if el.tag == "script")
     ids = {el.attrs.get("id") for el in els}
     assert {"fc-drop", "fc-file", "fc-result", "fc-next"} <= ids  # what freecheck.js uses
@@ -511,6 +517,8 @@ def test_the_check_page_blocks_every_connection_in_its_own_policy():
     (meta,) = [el for el in parse(CHECK).iter() if el.tag == "meta"
                and el.attrs.get("http-equiv") == "Content-Security-Policy"]
     assert meta.attrs["content"] == CHECK_POLICY
+    # fonts too come only from the site: default-src 'self', and no font-src opens it wider
+    assert "font-src" not in CHECK_POLICY and "default-src 'self'" in CHECK_POLICY
 
 
 def test_caddy_sends_the_check_page_the_stricter_policy():
@@ -523,14 +531,10 @@ def test_caddy_sends_the_check_page_the_stricter_policy():
     assert "connect-src 'none'" not in SITE_POLICY
 
 
-def test_home_guide_and_docs_link_to_the_check_page():
-    line = ("Have results from promptfoo or DeepEval, or your own CSV or JSONL file? Run the "
-            "free check in your browser.")
-    for name in ("index.html", "start.html"):
-        text = " ".join(parse(WEBSITE / name).text().split())
-        assert line in text, name
-        assert 'href="check.html"' in (WEBSITE / name).read_text(encoding="utf-8"), name
-    assert 'href="check.html"' in (WEBSITE / "docs.html").read_text(encoding="utf-8")
+def test_home_links_to_the_check_page_twice():
+    links = [el for el in parse(WEBSITE / "index.html").iter()
+             if el.tag == "a" and el.attrs.get("href") == "check.html"]
+    assert [" ".join(a.text().split()) for a in links] == ["Check in your browser"] * 2
     assert "https://www.judgekeeper.com/check.html" in (WEBSITE / "sitemap.xml").read_text(
         encoding="utf-8")
     assert "(https://www.judgekeeper.com/check.html)" in (WEBSITE / "llms.txt").read_text(
@@ -539,8 +543,12 @@ def test_home_guide_and_docs_link_to_the_check_page():
 
 def test_the_check_page_says_what_it_reads_and_that_the_file_stays():
     text = " ".join(parse(CHECK).text().split())
-    assert ("Your file never leaves this page: it is read on your computer. Turn off Wi-Fi and "
-            "it still works.") in text
-    assert "Older runs are not read here." in text  # DeepEval: one file, one run
-    assert ("This shows whether your judge is really judging, not whether it agrees with you. "
-            "To see that, run uvx judgekeeper in your project and mark some answers.") in text
+    for words in ("Check your LLM-as-a-judge",
+                  "Drop the results file your eval tool saved. It stays on your computer.",
+                  "Drop your results file here, or click to choose one.",
+                  "promptfoo · DeepEval · CSV · JSONL",
+                  "Using Inspect AI or MLflow? The full tool reads those too.",
+                  ("This shows whether your judge gives real Pass or Fail grades, not whether it "
+                  "agrees with you. To see that, run uvx judgekeeper in your project and mark "
+                  "some answers.")):
+        assert words in text, words

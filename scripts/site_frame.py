@@ -1,5 +1,4 @@
-"""The frame every page shares: the lines in <head> that load the look, the header with the
-navigation and the theme switch, and the footer.
+"""The frame every page shares: the lines in <head> that load the look, the menu and the footer.
 
 Written here, once. scripts/render_reference.py puts them into the generated pages; the
 hand-written pages carry the same blocks, and tests/test_website_look.py compares every page
@@ -15,77 +14,60 @@ from pathlib import Path
 
 WEBSITE = Path(__file__).resolve().parent.parent / "website"
 GITHUB = "https://github.com/judgekeeper/judgekeeper"
-NAV = [("index.html", "Home"), ("start.html", "Guide"), ("docs.html", "Docs"),
-       ("reference.html", "Reference"), (GITHUB, "GitHub")]
-START_HERE = [("start.html", "Guide"), ("docs.html", "Docs"), ("reference.html", "Reference"),
-              (GITHUB, "GitHub")]
-MORE = [("check.html", "Free check in your browser"), ("setup.html", "Setup and API keys"),
-        ("learn.html", "How it works, in depth")]
-FONTS = ("bricolage-grotesque-latin-800-normal.woff2",)  # body text uses the system font
-LOGO = ('<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
+NAV = [("index.html", "Home"), ("start.html", "Guide"), ("learn.html", "How it works"),
+       ("reference.html", "Reference")]
+LEGAL = [("privacy.html", "Privacy"), (f"{GITHUB}/blob/main/TRADEMARKS.md", "Trademarks"),
+         (f"{GITHUB}/blob/main/SECURITY.md", "Security")]
+FONTS = ("manrope-latin-wght-normal.woff2",)  # the text font, so the first screen never jumps
+LOGO = ('<svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
         '<path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>'
         '<path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>'
         '<path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" '
         'stroke-linecap="round" stroke-linejoin="round"/></svg>')
-SUN = ('<svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-       '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2'
-       'M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>')
-MOON = ('<svg class="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-        '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>')
 
 
 def head_links() -> str:
-    """The icon, the heading font every page shows first, the styles and the theme, which is set
-    before the page is drawn (assets/theme.js, not deferred) so it never flashes."""
+    """The icon, the text font every page shows first, and the styles."""
     preload = "".join(f'<link rel="preload" href="assets/fonts/{f}" as="font" type="font/woff2" '
                       "crossorigin>\n" for f in FONTS)
     return ('<link rel="icon" href="assets/logo.svg" type="image/svg+xml">\n' + preload
-            + '<link rel="stylesheet" href="assets/style.css">\n'
-            + '<script src="assets/theme.js"></script>')
+            + '<link rel="stylesheet" href="assets/style.css">')
 
 
 def _links(items, target: str = "") -> str:
     current = ' aria-current="page"'
-    return "".join(f'<li><a href="{href}"{current if href == target else ""}>{label}</a></li>'
+    return "".join(f'<a href="{href}"{current if href == target else ""}>{label}</a>'
                    for href, label in items)
 
 
 def header(target: str) -> str:
-    """The skip link and the header of the page `target`, with that page marked as current."""
+    """The skip link and the menu of the page `target`, with that page marked as current."""
     return (
         '<a class="skip" href="#main">Skip to the content</a>\n'
-        '<header class="site-header">\n<div class="wrap">\n'
-        f'<a class="brand" href="index.html">{LOGO}judgekeeper</a>\n'
-        '<nav class="site-nav" id="site-nav" aria-label="Site">\n'
-        f"<ul>{_links(NAV, target)}</ul>\n</nav>\n"
-        '<button class="theme-btn" type="button" aria-label="Switch to the light theme">'
-        f"{SUN}{MOON}</button>\n"
-        '<button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">'
-        "Menu</button>\n</div>\n</header>")
+        '<header class="menu"><div class="wrap">\n'
+        f'<nav class="menu-l" aria-label="Pages">{_links(NAV, target)}</nav>\n'
+        f'<a class="brand" href="index.html">{LOGO}<span>judgekeeper</span></a>\n'
+        f'<div class="menu-r"><a class="gh" href="{GITHUB}">GitHub</a></div>\n'
+        "</div></header>")
 
 
 def footer() -> str:
+    """The logo, then only the links the menu does not have, and the copyright. The links are a
+    div with role="navigation": a nav would pick up the menu's styles."""
     return (
-        '<footer class="site-footer">\n<div class="wrap cols">\n'
-        f'<div><a class="brand" href="index.html">{LOGO}judgekeeper</a>\n'
-        '<p class="fine">Free and open source, MIT license. It shows how often your judge '
-        "agrees with you; it never decides for you.</p>\n"
-        '<p class="fine">Not affiliated with the tools it can read results from, or their '
-        'models. Names belong '
-        f'to their owners: see <a href="{GITHUB}/blob/main/TRADEMARKS.md">the name and logo '
-        "note</a>.</p>\n"
-        '<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your '
-        "computer and sends nothing to us.</p></div>\n"
-        f'<div><h2>Start here</h2><ul>{_links(START_HERE)}</ul></div>\n'
-        f'<div><h2>More</h2><ul>{_links(MORE)}</ul></div>\n'
-        "</div>\n</footer>")
+        '<footer class="foot"><div class="wrap">\n'
+        f'<div class="brand">{LOGO}<span>judgekeeper</span></div>\n'
+        f'<div class="foot-r" role="navigation" aria-label="Legal">{_links(LEGAL)}'
+        f'<span class="copy">© 2026 Sathvik Thota · <a href="{GITHUB}/blob/main/LICENSE">'
+        "MIT license</a></span></div>\n"
+        "</div></footer>")
 
 
 BLOCKS = [  # (pattern of the block in a page, what it becomes)
-    ((r'<link rel="icon".*?<link rel="stylesheet" href="assets/style.css">'
-      r'(\n<script src="assets/theme.js"></script>)?'), lambda name: head_links()),
+    (r'<link rel="icon".*?<link rel="stylesheet" href="assets/style.css">',
+     lambda name: head_links()),
     (r'<a class="skip".*?</header>', header),
-    (r'<footer class="site-footer">.*?</footer>', lambda name: footer()),
+    (r'<footer class="foot">.*?</footer>', lambda name: footer()),
 ]
 
 

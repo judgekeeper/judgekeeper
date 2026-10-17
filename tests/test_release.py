@@ -250,7 +250,7 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     _build_pages(tmp_path)
     assert (tmp_path / "index.html").read_bytes() == (ROOT / "website" / "index.html").read_bytes()
     assert not (tmp_path / "examples.html").exists()
-    for page in ("start.html", "learn.html", "setup.html",
+    for page in ("start.html", "learn.html", "check.html", "privacy.html",
                  "reference.html", "llms.txt", "assets/style.css"):
         assert (tmp_path / page).is_file(), page
     assert not (tmp_path / "README.md").exists()
@@ -397,17 +397,6 @@ def test_llmbar_report_verdict_follows_the_current_thresholds():
     assert report["verdict"]["summary"].split(":")[0] in page
     for other in set(LEVEL_WORDS.values()) - {LEVEL_WORDS[level]}:
         assert f"{other}:" not in page.lower(), other
-
-
-def test_the_learn_page_quotes_the_llmbar_verdict_as_the_report_states_it():
-    report = _llmbar_report()
-    learn = (ROOT / "website" / "learn.html").read_text(encoding="utf-8")
-    result = learn[learn.index('<section id="result"'):]
-    result = re.sub(r"<[^>]+>", "", result[:result.index("</section>")])
-    words = LEVEL_WORDS[report["verdict"]["level"]]
-    assert f"Verdict: {words}" in result
-    for other in set(LEVEL_WORDS.values()) - {words}:
-        assert f"Verdict: {other}" not in result
 
 
 # Pins

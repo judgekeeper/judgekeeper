@@ -10,9 +10,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WEBSITE = ROOT / "website"
-# Removed commands that the website, and the Markdown it is made from (docs/reference.md),
-# still name. They go when those pages are rewritten for the `judgekeeper` command.
-STILL_NAMED = ("setup", "start")
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
         "track", "wbr", "path", "circle", "rect", "line", "polyline", "polygon", "ellipse",
         "stop", "use"}
@@ -93,13 +90,13 @@ def pages() -> list[Path]:
 
 # reference comes from docs/reference.md (scripts/render_reference.py).
 GENERATED_PAGES = {"reference.html"}
-# The navigation bar every page carries, in order: (href, label). The theme switch sits next
-# to it.
-NAV = [("index.html", "Home"), ("start.html", "Guide"), ("docs.html", "Docs"),
-       ("reference.html", "Reference"), ("https://github.com/judgekeeper/judgekeeper", "GitHub")]
-# The footer's "More" column: every page outside the navigation, in this order.
-MORE = [("check.html", "Free check in your browser"), ("setup.html", "Setup and API keys"),
-        ("learn.html", "How it works, in depth")]
+GITHUB = "https://github.com/judgekeeper/judgekeeper"
+# The menu every page carries, in order: (href, label). The GitHub button sits at its right.
+NAV = [("index.html", "Home"), ("start.html", "Guide"), ("learn.html", "How it works"),
+       ("reference.html", "Reference")]
+# The footer's links: only what the menu does not have.
+LEGAL = [("privacy.html", "Privacy"), (f"{GITHUB}/blob/main/TRADEMARKS.md", "Trademarks"),
+         (f"{GITHUB}/blob/main/SECURITY.md", "Security")]
 
 
 def hand_written_pages() -> list[Path]:
@@ -108,10 +105,11 @@ def hand_written_pages() -> list[Path]:
 
 
 def in_output(el: Element) -> bool:
-    """Inside a block that shows what a command printed, or a message judgekeeper prints
-    quoted in a sentence (`data-said-by`), not a command to type."""
-    return any("output" in a.classes() or "data-said-by" in a.attrs
-               for a in [el, *el.ancestors()])
+    """Inside a block that shows what a command printed (a terminal screen, or a screen the
+    home page's terminal types), or a message judgekeeper prints quoted in a sentence
+    (`data-said-by`), not a command to type."""
+    return any({"output", "term-out"} & a.classes() or "data-said-by" in a.attrs
+               or a.tag == "template" for a in [el, *el.ancestors()])
 
 
 def command_lines(text: str) -> list[str]:

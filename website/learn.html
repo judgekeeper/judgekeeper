@@ -3,283 +3,141 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>How it works, in depth | judgekeeper</title>
-<meta name="description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to check again, the tools it can read results from, a real result, and where your keys go.">
+<title>How it works | judgekeeper</title>
+<meta name="description" content="What the numbers mean, why some marks are kept aside, and how a re-check works.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
-<meta property="og:title" content="How it works, in depth | judgekeeper">
-<meta property="og:description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to check again, the tools it can read results from, a real result, and where your keys go.">
+<meta property="og:title" content="How it works | judgekeeper">
+<meta property="og:description" content="What the numbers mean, why some marks are kept aside, and how a re-check works.">
 <meta property="og:url" content="https://www.judgekeeper.com/learn.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
 <meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="How it works, in depth | judgekeeper">
-<meta name="twitter:description" content="Why an LLM-as-a-judge needs checking, what judgekeeper's numbers mean, how to check again, the tools it can read results from, a real result, and where your keys go.">
+<meta name="twitter:title" content="How it works | judgekeeper">
+<meta name="twitter:description" content="What the numbers mean, why some marks are kept aside, and how a re-check works.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-<link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
-<script src="assets/theme.js"></script>
-<script src="assets/metrics.js" defer></script>
 <script src="assets/site.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
-<header class="site-header">
-<div class="wrap">
-<a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<nav class="site-nav" id="site-nav" aria-label="Site">
-<ul><li><a href="index.html">Home</a></li><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul>
-</nav>
-<button class="theme-btn" type="button" aria-label="Switch to the light theme"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
-<button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
-</div>
+<header class="menu"><div class="wrap">
+<nav class="menu-l" aria-label="Pages"><a href="index.html">Home</a><a href="start.html">Guide</a><a href="learn.html" aria-current="page">How it works</a><a href="reference.html">Reference</a></nav>
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></a>
+<div class="menu-r"><a class="gh" href="https://github.com/judgekeeper/judgekeeper">GitHub</a></div>
+</div></header>
+<main id="main" class="g"><div class="wrap"><nav class="g-nav" aria-label="On this page">
+  <a href="#why">Why check an LLM-as-a-judge</a>
+  <a href="#first-check">The first check</a>
+  <a href="#numbers">What the numbers mean</a>
+  <a href="#kept-aside">Marks kept aside</a>
+  <a href="#recheck">How a re-check works</a>
+  <a href="#questions">Questions</a>
+</nav><div class="g-main">
+<header class="g-head">
+  <h1>How it works</h1>
+  <p class="g-lede">What the numbers mean, why some marks are kept aside, and how a re-check works.</p>
 </header>
-
-<main id="main">
-
-<section id="top" aria-labelledby="top-title">
-  <div class="wrap narrow">
-    <p class="newhere">New here? Start with the <a href="start.html">Guide</a>. This page is for the background: you do not need it to check your judge.</p>
-    <h1 id="top-title">How it works, in depth</h1>
-    <p class="lead">Why the check matters, what each number means, and what else judgekeeper can do.</p>
-    <ul class="toc">
-      <li><a href="#problem">Three ways a judge goes wrong</a></li>
-      <li><a href="#numbers">What the numbers mean</a></li>
-      <li><a href="#works">Reads what your tools already save</a></li>
-      <li><a href="#result">A real result</a></li>
-      <li><a href="#real-data">Do the ranges hold on real data?</a></li>
-      <li><a href="#keys">Your data and keys</a></li>
-      <li><a href="#faq">Questions</a></li>
-    </ul>
-  </div>
+<section id="why">
+  <h2>Why check an LLM-as-a-judge</h2>
+  <p>An LLM-as-a-judge grades answers Pass or Fail with a rule you wrote. Your eval scores are only as good as those grades. A judge can pass answers you would fail, fail answers you would pass, or change when you switch models.</p>
+  <p>To know, compare it with a person. You mark a few dozen answers once, and judgekeeper shows how often your judge agrees with you.</p>
 </section>
-
-<section class="alt" id="problem" aria-labelledby="problem-title">
-  <div class="wrap">
-    <p class="kicker">The problem</p>
-    <h2 id="problem-title">Why check your judge</h2>
-    <p class="lead">Your AI product writes answers. To know whether they are good, you could read them all yourself, but that is slow. So teams ask another AI model to grade them: the judge. A judge is fast and cheap. It can also be wrong, in three ways.</p>
-    <div class="grid three">
-      <article class="card">
-        <svg class="anim" viewBox="0 0 300 150" role="img" aria-label="An answer says Saturn is the largest planet. The human marked it fail. The judge marked it pass.">
-          <rect class="frame" x="6" y="6" width="288" height="78" rx="10"/>
-          <text x="20" y="32">Question: Which planet is the largest?</text>
-          <text x="20" y="58" class="muted-text">Answer: Saturn is the largest planet.</text>
-          <rect class="fail-fill" x="20" y="102" width="118" height="34" rx="8"/>
-          <text class="chip-text" x="79" y="124" text-anchor="middle">HUMAN: FAIL</text>
-          <g class="stamp">
-            <rect class="pass-fill" x="162" y="102" width="118" height="34" rx="8"/>
-            <text class="chip-text" x="221" y="124" text-anchor="middle">JUDGE: PASS</text>
-          </g>
-        </svg>
-        <h3>It disagrees with people</h3>
-        <p>A judge can pass an answer a person would fail. A judge that passes everything makes every test look fine.</p>
-      </article>
-      <article class="card">
-        <svg class="anim" viewBox="0 0 300 150" role="img" aria-label="The same question judged three times. Runs 1 and 2 say pass. Run 3 says fail.">
-          <text x="20" y="30">The same question, judged three times</text>
-          <text x="20" y="64" class="muted-text">Run 1</text>
-          <rect class="pass-fill" x="80" y="46" width="90" height="28" rx="7"/>
-          <text class="chip-text" x="125" y="65" text-anchor="middle">PASS</text>
-          <text x="20" y="100" class="muted-text">Run 2</text>
-          <rect class="pass-fill" x="80" y="82" width="90" height="28" rx="7"/>
-          <text class="chip-text" x="125" y="101" text-anchor="middle">PASS</text>
-          <text x="20" y="136" class="muted-text">Run 3</text>
-          <rect class="flip-fill" x="80" y="118" width="90" height="28" rx="7"/>
-          <text class="chip-text flip-pass" x="125" y="137" text-anchor="middle">PASS</text>
-          <text class="chip-text flip-fail" x="125" y="137" text-anchor="middle">FAIL</text>
-          <text x="186" y="137" class="muted-text">changed its mind</text>
-        </svg>
-        <h3>It is inconsistent</h3>
-        <p>Ask a judge the same question three times and you can get two different answers.</p>
-      </article>
-      <article class="card">
-        <svg class="anim" viewBox="0 0 300 150" role="img" aria-label="A model update arrives and every score bar drops, although the product did not change.">
-          <text x="20" y="30">Scores for the same product</text>
-          <g class="update">
-            <rect x="186" y="12" width="104" height="26" rx="13" fill="#B45309"/>
-            <text x="238" y="30" text-anchor="middle" class="chip-text">model update</text>
-          </g>
-          <line x1="20" y1="140" x2="285" y2="140" stroke="currentColor" stroke-opacity="0.3"/>
-          <g class="drift" style="--shift:18px">
-            <rect class="pass-fill" x="40" y="60" width="40" height="80" rx="4"/>
-            <rect class="pass-fill" x="110" y="70" width="40" height="70" rx="4"/>
-            <rect class="pass-fill" x="180" y="56" width="40" height="84" rx="4"/>
-            <rect class="pass-fill" x="250" y="66" width="30" height="74" rx="4"/>
-          </g>
-        </svg>
-        <h3>It changes silently</h3>
-        <p>The company behind the judge model can update it. Then every score moves, although your product did not change.</p>
-      </article>
+<section id="first-check">
+  <h2>The first check</h2>
+  <p>Before you mark anything, judgekeeper looks at your judge's grades for signs it isn't really judging. No AI call.</p>
+  <ul>
+    <li>The same grade on every answer.</li>
+    <li>Errors or empty replies counted as Pass.</li>
+    <li>Answers with no clear Pass or Fail.</li>
+  </ul>
+  <p>If it finds one, it says so, for example: <code class="long" data-said-by="judge_check">Your judge passed every answer. It may not be checking anything.</code></p>
+</section>
+<section id="numbers">
+  <h2>What the numbers mean</h2>
+  <p>judgekeeper measures two things, separately:</p>
+  <ul>
+    <li>When you say Pass, how often your judge also says Pass.</li>
+    <li>When you say Fail, how often your judge also says Fail.</li>
+  </ul>
+  <p>They are kept apart on purpose. A judge that passes almost everything looks great on the first and bad on the second. One combined score would hide that.</p>
+  <h3>Why every number has a range</h3>
+  <p>Flip a coin 10 times and get 7 heads: the coin doesn't land heads <span data-ratio="7/10">70%</span> of the time. With few flips, the result moves a lot. Your marks are the same: a sample of your answers. So each number is an estimate, and the range shows where the real number could be.</p>
+  <div class="sim" id="sim" data-example>
+    <div class="sim-ctl"><label for="n">Answers you marked Pass</label><output id="n-out" for="n">15</output></div>
+    <input type="range" id="n" min="10" max="200" step="5" value="15">
+    <div class="sim-bar" aria-hidden="true">
+      <div class="sim-track"><div class="sim-range" id="sim-range"><span class="sim-lo" id="sim-lo"></span><span class="sim-hi" id="sim-hi"></span></div><div class="sim-dot" id="sim-dot"></div></div>
+      <div class="sim-axis"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
     </div>
+    <p class="sim-note">An example: a judge that agrees with you about 61% of the time. Move the slider: more marks, smaller range.</p>
   </div>
+  <h3>How the result is decided</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Result</th><th>When</th></tr></thead>
+    <tbody>
+      <tr><td>Good enough to use</td><td>Both ranges sit fully at <span data-const="judgekeeper.targets:RATE_GATE" data-format="pct0">80%</span> or above.</td></tr>
+      <tr><td>Needs work</td><td>A range sits fully below <span data-const="judgekeeper.targets:RATE_GATE" data-format="pct0">80%</span>.</td></tr>
+      <tr><td>Too early to tell</td><td>A range crosses <span data-const="judgekeeper.targets:RATE_GATE" data-format="pct0">80%</span>, or is still too wide. Mark more answers.</td></tr>
+    </tbody>
+  </table></div>
 </section>
-
-<section id="numbers" aria-labelledby="numbers-title">
-  <div class="wrap" data-illustration>
-    <p class="kicker">What the numbers mean</p>
-    <h2 id="numbers-title">Try it: how good is this judge?</h2>
-    <p class="tag-illustration">Illustration: you choose the numbers</p>
-    <p class="lead">Move the sliders. The table counts the four ways a judge and a person can line up. The numbers below it are the ones judgekeeper reports, computed the same way.</p>
-    <div class="matrix-wrap" id="matrix">
-      <div class="controls">
-        <label for="m-pos">Answers the people passed: <output id="m-pos-out" for="m-pos">20</output></label>
-        <input type="range" id="m-pos" min="0" max="40" value="20">
-        <label for="m-neg">Answers the people failed: <output id="m-neg-out" for="m-neg">20</output></label>
-        <input type="range" id="m-neg" min="0" max="40" value="20">
-        <label for="m-tp">Of the people's passes, the judge also passed: <output id="m-tp-out" for="m-tp">18</output></label>
-        <input type="range" id="m-tp" min="0" max="20" value="18">
-        <label for="m-tn">Of the people's fails, the judge also failed: <output id="m-tn-out" for="m-tn">17</output></label>
-        <input type="range" id="m-tn" min="0" max="20" value="17">
-        <div class="presets" role="group" aria-label="Example judges">
-          <button type="button" data-preset="20,20,19,19">A good judge</button>
-          <button type="button" data-preset="36,4,36,0">Passes everything</button>
-          <button type="button" data-preset="20,20,10,10">Coin flip</button>
-          <button type="button" data-preset="20,20,12,20">Too strict</button>
-        </div>
-      </div>
-      <div>
-        <table class="cm">
-          <caption class="note">Each answer lands in one box</caption>
-          <thead><tr><th scope="col"></th><th scope="col">Judge passed</th><th scope="col">Judge failed</th></tr></thead>
-          <tbody>
-            <tr><th scope="row">People passed</th><td class="good" id="cm-tp">18<small>agree</small></td><td class="bad" id="cm-fn">2<small>judge too harsh</small></td></tr>
-            <tr><th scope="row">People failed</th><td class="bad" id="cm-fp">3<small>judge too lenient</small></td><td class="good" id="cm-tn">17<small>agree</small></td></tr>
-          </tbody>
-        </table>
-        <div class="stats" aria-live="polite">
-          <div class="stat"><div class="label">TPR (true positive rate)</div><div class="value" id="s-tpr">0.90</div><p class="why" id="s-tpr-why">Of the answers people passed, the judge passed 18 of 20.</p></div>
-          <div class="stat"><div class="label">TNR (true negative rate)</div><div class="value" id="s-tnr">0.85</div><p class="why" id="s-tnr-why">Of the answers people failed, the judge failed 17 of 20.</p></div>
-          <div class="stat"><div class="label">Kappa</div><div class="value" id="s-kappa">0.75</div><p class="why" id="s-kappa-why">Agreement after taking away what lucky guessing would give. 0 is no better than chance, 1 is perfect.</p></div>
-          <div class="stat muted"><div class="label">Raw agreement (for comparison only)</div><div class="value" id="s-acc">88%</div><p class="why">The share of all answers where judge and people agree. It can look high for a useless judge.</p></div>
-        </div>
-        <p class="verdict-line care" id="s-verdict">Usable with care: TNR is between 0.80 and 0.90.</p>
-        <p class="note" id="s-ci">Likely ranges with this few answers (95 percent Wilson intervals): TPR 0.70 to 0.97, TNR 0.64 to 0.95.</p>
-      </div>
+<section id="kept-aside">
+  <h2>Marks kept aside</h2>
+  <p>A rule written from your judge's mistakes will do well on those mistakes. That says little about other answers. So judgekeeper keeps some of your marks aside, like exam questions you have not seen, and tests a new rule only on those.</p>
+  <p>It asks your judge about each of them with the old rule and the new one, then counts:</p>
+  <ul>
+    <li><b>Fixed:</b> the old rule got it wrong, the new rule gets it right.</li>
+    <li><b>Broke:</b> the old rule got it right, the new rule gets it wrong.</li>
+  </ul>
+  <div class="kept" id="kept" data-example>
+    <p class="kept-h">10 marks kept aside</p>
+    <div class="kept-row" id="kept-row" aria-hidden="true"></div>
+    <div class="kept-btns" role="group" aria-label="Examples">
+      <button type="button" data-fixed="6" data-broke="0" aria-pressed="true">Fixed 6, broke 0</button>
+      <button type="button" data-fixed="4" data-broke="0" aria-pressed="false">Fixed 4, broke 0</button>
+      <button type="button" data-fixed="4" data-broke="2" aria-pressed="false">Fixed 4, broke 2</button>
+      <button type="button" data-fixed="1" data-broke="3" aria-pressed="false">Fixed 1, broke 3</button>
     </div>
-    <p class="note">The report's verdict uses these rules: <em>not trustworthy as a gate</em> if TPR or TNR is below <span data-const="judgekeeper.targets:RATE_GATE" id="th-rate-gate">0.80</span> or kappa is below <span data-const="judgekeeper.targets:KAPPA_GATE" data-format="1f" id="th-kappa-gate">0.6</span>; <em>usable with care</em> if TPR or TNR is below <span data-const="judgekeeper.targets:RATE_CARE" id="th-rate-care">0.90</span>; otherwise <em>usable as a gate</em>. A <strong>gate</strong> is an automatic check that can stop a release.</p>
+    <p class="kept-out" id="kept-out" aria-live="polite"></p>
+    <p class="kept-cap">Examples. Your result always comes from your own marks.</p>
   </div>
+  <p>Each new rule you test on the same marks has to clear a higher bar, so trying many rules can't win a "Better" by coincidence. judgekeeper never changes your files: you copy a rule you like into your config yourself.</p>
 </section>
-
-<section class="alt" id="works" aria-labelledby="works-title">
-  <div class="wrap">
-    <p class="kicker">Integrations</p>
-    <h2 id="works-title">Reads what your tools already save</h2>
-    <p class="lead">judgekeeper does not replace your tools. It reads what they already save: the results of promptfoo, DeepEval, Inspect AI and MLflow, or a CSV or JSONL table. Run <code>judgekeeper start</code> in your project; the <a href="start.html">Guide</a> shows each step.</p>
-  </div>
+<section id="recheck">
+  <h2>How a re-check works</h2>
+  <p>Your marks belong to the answers, not to the judge. So after a change they are a fair test: the same exam, before and after. <code>judgekeeper check</code> compares the old and the new judge on every answer you marked, and counts which went from right to wrong and which from wrong to right.</p>
+  <p>It notices when you change:</p>
+  <div class="tw" data-example><table>
+    <thead><tr><th>What</th><th>Example</th></tr></thead>
+    <tbody>
+      <tr><td>The model</td><td>gpt-4.1-mini → gpt-4.1-nano</td></tr>
+      <tr><td>The rule</td><td>You edited the rule text</td></tr>
+      <tr><td>The pass mark</td><td>A score of 0.5 → 0.7 counts as Pass</td></tr>
+      <tr><td>The temperature</td><td>How random the model's replies are</td></tr>
+      <tr><td>The endpoint</td><td>A different server for the same model</td></tr>
+      <tr><td>Your eval tool's version</td><td>promptfoo 0.124 → 0.125</td></tr>
+    </tbody>
+  </table></div>
+  <p>If your new results already hold the new judge's grades, it needs no AI call. Otherwise it asks your new judge about each marked answer twice, to see how much the judge changes by itself. A change that small is not called a drop.</p>
+  <p>The result is Worse, No drop bigger than 20 points or Not sure.</p>
 </section>
-
-<section id="result" aria-labelledby="result-title">
-  <div class="wrap">
-    <p class="kicker">A real result</p>
-    <h2 id="result-title">Claude Haiku 4.5 as a judge, on LLMBar</h2>
-    <p class="lead">LLMBar is a public set of questions, each with two answers, where people already marked the better one. We ran <code>claude-haiku-4-5-20251001</code> as the judge on <span data-report="anchors.n_items" data-format="int">419</span> of them, <span data-report="n_runs" data-format="int">3</span> times, in both answer orders.</p>
-    <div class="headline-stats">
-      <div class="stat"><div class="label">TPR</div><div class="value" data-report="headline.tpr_mean">0.95</div></div>
-      <div class="stat"><div class="label">TNR</div><div class="value" data-report="headline.tnr_mean">0.88</div></div>
-      <div class="stat"><div class="label">Kappa</div><div class="value" data-report="headline.kappa_mean">0.83</div></div>
-    </div>
-    <p><strong>Verdict: usable with care</strong>, because TNR is below <span data-const="judgekeeper.targets:RATE_CARE">0.90</span>. And the average hides something. LLMBar groups its questions into <strong>slices</strong>: <em>Natural</em> questions are ordinary ones, and the <em>Adversarial</em> slices were built to be hard for judges. Kappa by slice:</p>
-    <div class="bars" role="list" aria-label="Kappa by slice">
-      <div class="bar-row" role="listitem"><span class="bar-label">Natural</span><span class="bar-track"><span class="bar-fill"></span></span><span class="num" data-report="slices[Natural].kappa_mean">0.94</span></div>
-      <div class="bar-row" role="listitem"><span class="bar-label">Adversarial/GPTInst</span><span class="bar-track"><span class="bar-fill"></span></span><span class="num" data-report="slices[Adversarial/GPTInst].kappa_mean">0.92</span></div>
-      <div class="bar-row" role="listitem"><span class="bar-label">Adversarial/Neighbor</span><span class="bar-track"><span class="bar-fill"></span></span><span class="num" data-report="slices[Adversarial/Neighbor].kappa_mean">0.84</span></div>
-      <div class="bar-row" role="listitem"><span class="bar-label">Adversarial/Manual</span><span class="bar-track"><span class="bar-fill weak"></span></span><span class="num" data-report="slices[Adversarial/Manual].kappa_mean">0.64</span></div>
-      <div class="bar-row" role="listitem"><span class="bar-label">Adversarial/GPTOut</span><span class="bar-track"><span class="bar-fill weak"></span></span><span class="num" data-report="slices[Adversarial/GPTOut].kappa_mean">0.56</span></div>
-    </div>
-    <p>Strong on ordinary questions (kappa <span data-report="slices[Natural].kappa_mean">0.94</span>), much weaker on the hardest adversarial ones (<span data-report="slices[Adversarial/GPTOut].kappa_mean">0.56</span> and <span data-report="slices[Adversarial/Manual].kappa_mean">0.64</span>). A judge that looks great on average can be weak exactly where it matters. The report shows it; an average hides it.</p>
-    <p><a class="btn primary" href="examples/llmbar-haiku/report.html">Open the full report</a></p>
-    <p class="small">LLMBar by Princeton NLP, MIT license: <a href="https://github.com/princeton-nlp/LLMBar">https://github.com/princeton-nlp/LLMBar</a></p>
-  </div>
+<section id="questions">
+  <h2>Questions</h2>
+  <details><summary>Does my data leave my computer?</summary><p>No. Your answers, marks and results stay in the <code>.judgekeeper</code> folder in your project. An AI call happens only when you say yes, through your own eval tool.</p></details>
+  <details><summary>How many answers do I need to mark?</summary><p>A few dozen, with enough Pass and enough Fail marks. "See your result" appears on the marking page when you have enough. More marks make the ranges smaller.</p></details>
+  <details><summary>Which judges does it work for?</summary><p>Any judge your eval tool runs, including open-source models on your own computer. judgekeeper reads the grades; it doesn't matter which model made them.</p></details>
+  <details><summary>Can I switch eval tools and keep my marks?</summary><p>Not in 1.0. judgekeeper says so and tells you how to start fresh.</p></details>
+  <details><summary>Does it check my app?</summary><p>No. It checks the LLM-as-a-judge, not whatever made the answers.</p></details>
 </section>
-
-<section class="alt" id="real-data" aria-labelledby="real-data-title">
-  <div class="wrap narrow">
-    <p class="kicker">Numbers</p>
-    <h2 id="real-data-title">Do the ranges hold on real data?</h2>
-    <p class="lead">Each number in a result comes with a range. In public datasets where a judge and people both decided on the same answers, we pretended a person marked only a few of them, and counted how often the range held the value worked out from all of the dataset's human labels. No judge was called.</p>
-    <ul>
-      <li><strong>On real data.</strong> On <span data-realcheck="summary.25+25.judges" data-format="int">5</span> real judges from <span data-realcheck="summary.25+25.datasets" data-format="int">3</span> public datasets (LLMBar, MT-Bench and LLMJudge), with <span data-realcheck="summary.25+25.labels_mean.lowest" data-format="int">50</span> human labels per check, the ranges for how often the judge passed answers people passed (TPR) and how often it failed answers people failed (TNR) held that value in <span data-realcheck="summary.25+25.tpr_tnr.mean" data-format="per100">96.0</span> checks in 100 on average (lowest <span data-realcheck="summary.25+25.tpr_tnr.lowest" data-format="per100">94.6</span>, highest <span data-realcheck="summary.25+25.tpr_tnr.highest" data-format="per100">98.4</span>), over <span data-realcheck="settings.checks" data-format="count">1,000</span> checks per judge.</li>
-      <li><strong>One of those checks.</strong> GPT-4 as the judge on MT-Bench, <span data-realcheck="summary.25+25.labels_mean.lowest" data-format="int">50</span> labels: TPR <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tpr.value">0.82</span> (range <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tpr.range.0">0.71</span> to <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tpr.range.1">0.91</span>), and the value from all <span data-realcheck="pools.mtbench-gpt4.truth.n" data-format="count">1,814</span> human labels is <span data-realcheck="pools.mtbench-gpt4.truth.tpr">0.85</span>; TNR <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tnr.value">0.49</span> (range <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tnr.range.0">0.36</span> to <span data-realcheck="pools.mtbench-gpt4.designs.25+25.first_check.tnr.range.1">0.65</span>), and from all labels <span data-realcheck="pools.mtbench-gpt4.truth.tnr">0.56</span>.</li>
-      <li><strong>In simulation too.</strong> The ranges held the true value at least <span data-coverage="corrected/levels/0.96/min_cell" data-format="per100">93.6</span> times in 100 in every tested case, and <span data-coverage="corrected/levels/0.96/mean" data-format="per100">96.2</span> on average.</li>
-      <li><strong>Tested</strong> on Python 3.11 to 3.14 on Linux, and on Windows.</li>
-    </ul>
-    <p><a class="btn primary" href="examples/real-data-check/report.md">Open the real-data check</a> <a class="btn secondary" href="examples/coverage/coverage.md">Open the coverage check</a></p>
-  </div>
-</section>
-
-<section id="keys" aria-labelledby="keys-title">
-  <div class="wrap">
-    <p class="kicker">Privacy</p>
-    <h2 id="keys-title">Your data and keys stay with you</h2>
-    <p class="lead">An <strong>API key</strong> is the password your code uses to call a model provider. With judgekeeper, your key goes from your machine straight to your provider, and nowhere else.</p>
-    <svg class="diagram" viewBox="0 0 720 230" role="img" aria-label="Your machine runs judgekeeper with your data and your key. It talks directly to your model provider. There is no judgekeeper server in between.">
-      <rect class="box" x="10" y="30" width="260" height="170" rx="14"/>
-      <text x="30" y="62">Your computer or your CI</text>
-      <text x="30" y="96" class="small">judgekeeper</text>
-      <text x="30" y="122" class="small">your examples and marks</text>
-      <text x="30" y="148" class="small">your key, in an environment variable</text>
-      <text x="30" y="174" class="small">reports, written to your disk</text>
-      <rect class="box" x="450" y="30" width="260" height="80" rx="14"/>
-      <text x="470" y="64">Your model provider</text>
-      <text x="470" y="90" class="small">Anthropic, OpenAI or your own server</text>
-      <path class="wire" d="M270 70 H450"/>
-      <rect class="box" x="450" y="140" width="260" height="60" rx="14" stroke-dasharray="6 6"/>
-      <text x="470" y="176" class="small">a judgekeeper server: none exists</text>
-      <path class="cross" d="M300 150 L330 180 M330 150 L300 180"/>
-    </svg>
-    <ul>
-      <li><strong>No server.</strong> judgekeeper runs where you run it. Nothing is sent to its makers.</li>
-      <li><strong>No key flag.</strong> No option takes a key.</li>
-      <li><strong>Keys come only from environment variables</strong>, settings your shell or CI passes to programs, such as <code>ANTHROPIC_API_KEY</code>.</li>
-      <li><strong>A test checks it.</strong> judgekeeper's own test suite checks that no key appears in any file or message it writes.</li>
-      <li><strong>Error messages are scrubbed.</strong> Anything that looks like a key is replaced with <code>[REDACTED]</code> before it is printed.</li>
-    </ul>
-    <p><a href="setup.html">Step-by-step key setup for your laptop</a></p>
-  </div>
-</section>
-
-<section class="alt" id="faq" aria-labelledby="faq-title">
-  <div class="wrap narrow faq">
-    <p class="kicker">FAQ</p>
-    <h2 id="faq-title">Questions</h2>
-    <details>
-      <summary>How many answers do I need to mark?</summary>
-      <p>judgekeeper shows a result once you have marked enough of each; marking more narrows the ranges.</p>
-    </details>
-    <details>
-      <summary>Why TPR and TNR first, and not kappa?</summary>
-      <p>They are easier to act on. TNR in particular catches a judge that passes everything, which raw agreement hides. Kappa is in the report too, next to them.</p>
-    </details>
-    <details>
-      <summary>Does it cost anything?</summary>
-      <p>judgekeeper is free. The only cost is your judge's own API calls, which you pay to your model provider. Reading your saved results and marking answers call no model.</p>
-    </details>
-    <details>
-      <summary>Does it replace my eval framework?</summary>
-      <p>No. It works alongside promptfoo, DeepEval, Inspect AI, MLflow or your own code, and reads the files they already save.</p>
-    </details>
-    <details>
-      <summary>Does my data leave my machine?</summary>
-      <p>No. judgekeeper has no server. The only network calls are the ones your judge makes to your model provider, and reads from your MLflow server when your results live there.</p>
-    </details>
-  </div>
-</section>
-
-</main>
-
-<footer class="site-footer">
-<div class="wrap cols">
-<div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with you; it never decides for you.</p>
-<p class="fine">Not affiliated with the tools it can read results from, or their models. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
-<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
-<div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
-<div><h2>More</h2><ul><li><a href="check.html">Free check in your browser</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
-</div>
-</footer>
+</div></div></main>
+<footer class="foot"><div class="wrap">
+<div class="brand"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></div>
+<div class="foot-r" role="navigation" aria-label="Legal"><a href="privacy.html">Privacy</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">Trademarks</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md">Security</a><span class="copy">© 2026 Sathvik Thota · <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE">MIT license</a></span></div>
+</div></footer>
 </body>
 </html>

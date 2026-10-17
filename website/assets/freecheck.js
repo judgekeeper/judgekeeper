@@ -48,8 +48,8 @@
   var TOO_BIG = 'This file is bigger than 50 MB, so this page does not read it. Run uvx judgekeeper in your project instead: it reads big files too.';
   var NOT_UTF8 = 'This file is not saved as UTF-8 text, so it cannot be read.';
   var NOT_JSON = "This file isn't valid JSON that judgekeeper can read.";
-  var EVERY_ANSWER = 'every answer got a clear Pass or Fail.';
-  var FREE_CHECK = 'Free check (no AI call): ';
+  var EVERY_ANSWER = 'your judge gave every answer a clear Pass or Fail.';
+  var FREE_CHECK = 'Checked: ';
   var MODEL_NOT_WRITTEN = "Your judge's model isn't written in your config. promptfoo picks it from whichever API key is set, so it can change without any file changing. Write it in your config (defaultTest.options.provider).";
   var NO_CLEAR = 'No answer has a clear Pass or Fail from your judge, so there is nothing to mark.';
   var ALL_FAILED = "Your judge's calls failed on every answer, so there is nothing to mark.";
@@ -826,7 +826,7 @@
     var L = [];
     var pad = '             ';
     L.push({ k: 'Eval tool:   ', text: result.toolName, tone: 'g' });
-    L.push({ k: 'Answers:     ', text: n(j.answers, 'answer') + ' from your app, each graded by your judge' });
+    L.push({ k: 'Answers:     ', text: n(j.answers, 'answer') + ', each graded by your judge' });
     L.push({ k: pad, text: '(read from ' + result.file + ')', tone: 'dim' });
     var model = j.models.length ? j.models.join(', ') : 'model not found in your file';
     L.push({ k: 'Judge:       ', text: (j.showName ? j.name + ', ' : '') + model });

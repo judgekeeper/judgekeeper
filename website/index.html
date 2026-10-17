@@ -3,208 +3,238 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Check your LLM-as-a-judge. | judgekeeper</title>
-<meta name="description" content="Check your LLM-as-a-judge: see how often it agrees with human labels, in one command.">
+<title>Check your LLM-as-a-judge in 5 steps | judgekeeper</title>
+<meta name="description" content="See if your LLM-as-a-judge grades the way you would, find where it goes wrong, and test a better rule before you use it. It all runs in your own terminal.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
-<meta property="og:title" content="Check your LLM-as-a-judge. | judgekeeper">
-<meta property="og:description" content="Check your LLM-as-a-judge: see how often it agrees with human labels, in one command.">
+<meta property="og:title" content="Check your LLM-as-a-judge in 5 steps | judgekeeper">
+<meta property="og:description" content="See if your LLM-as-a-judge grades the way you would, find where it goes wrong, and test a better rule before you use it. It all runs in your own terminal.">
 <meta property="og:url" content="https://www.judgekeeper.com/">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
 <meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Check your LLM-as-a-judge. | judgekeeper">
-<meta name="twitter:description" content="Check your LLM-as-a-judge: see how often it agrees with human labels, in one command.">
+<meta name="twitter:title" content="Check your LLM-as-a-judge in 5 steps | judgekeeper">
+<meta name="twitter:description" content="See if your LLM-as-a-judge grades the way you would, find where it goes wrong, and test a better rule before you use it. It all runs in your own terminal.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-<link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
-<script src="assets/theme.js"></script>
 <script src="assets/site.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
-<header class="site-header">
-<div class="wrap">
-<a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<nav class="site-nav" id="site-nav" aria-label="Site">
-<ul><li><a href="index.html" aria-current="page">Home</a></li><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul>
-</nav>
-<button class="theme-btn" type="button" aria-label="Switch to the light theme"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
-<button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
-</div>
-</header>
-
+<header class="menu"><div class="wrap">
+<nav class="menu-l" aria-label="Pages"><a href="index.html" aria-current="page">Home</a><a href="start.html">Guide</a><a href="learn.html">How it works</a><a href="reference.html">Reference</a></nav>
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></a>
+<div class="menu-r"><a class="gh" href="https://github.com/judgekeeper/judgekeeper">GitHub</a></div>
+</div></header>
 <main id="main">
-
-<section class="hero">
-  <div class="wrap">
-    <div class="hero-text">
-      <h1>Check your <span class="nobr">LLM&#8209;as&#8209;a&#8209;judge.</span></h1>
-      <p class="lead">See how often it agrees with human labels, in one command.</p>
-      <p>An <strong>LLM-as-a-judge</strong> is an AI model that grades the answers of another AI model. Teams use one because reading every answer by hand is slow.</p>
-      <div class="actions">
-        <a class="btn primary" href="start.html">Get started</a>
-        <a class="btn secondary" href="#how">How it works</a>
+<section class="hero"><div class="wrap">
+  <div class="hero-l">
+    <h1>Check your<br><span class="nb">LLM-as-a-judge</span><br><span class="nb">in 5 steps.</span></h1>
+    <nav class="five" aria-label="The five steps"><a href="#steps" data-step="find" class="is-on">Find.</a><a href="#steps" data-step="mark">Mark.</a><a href="#steps" data-step="measure">Measure.</a><a href="#steps" data-step="fix">Fix.</a><a href="#steps" data-step="check">Re-check.</a></nav>
+    <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-side" href="check.html">Check in your browser</a></div>
+  </div>
+  <div class="hero-r"><section class="jk-card" id="demo" tabindex="0" aria-label="Live demo of the marking page">
+    <div class="jk-live">
+      <div class="jk-row jk-row-q">
+        <div><div class="jk-label">Question</div><h2 class="jk-question" id="d-q">Can I return a lamp after 60 days?</h2></div>
+        <div class="jk-state" id="d-state" aria-live="polite">Not marked yet</div>
       </div>
-      <p class="small">Free and open source. Runs on your computer, inside your project. No account, no server.</p>
-    </div>
-
-    <figure class="demo" id="demo" aria-labelledby="demo-tag">
-      <div class="demo-top"><p class="demo-tag" id="demo-tag">A demo with sample answers</p><p class="demo-count" id="demo-count" aria-hidden="true">1 of 4</p></div>
-      <div class="demo-card" id="demo-card">
-        <div class="ask"><p class="who">The question</p><p class="bubble" id="dq" tabindex="-1">How do I reset my password?</p></div>
-        <div class="reply"><p class="who">Your app&#39;s answer</p><p class="bubble" id="da">Go to Settings, then Security, and choose Reset password. We will email you a link.</p></div>
+      <div class="jk-row jk-row-a">
+        <div class="jk-label">Answer</div>
+        <p class="jk-answer" id="d-a">Of course! We accept returns at any time, no questions asked.</p>
       </div>
-      <div class="demo-act">
-        <div class="marks" id="demo-marks" role="group" aria-label="Your mark">
-          <button class="mark fail" type="button" data-mark="Fail" aria-keyshortcuts="ArrowLeft"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>Fail <kbd aria-hidden="true">&larr;</kbd></button>
-          <button class="mark pass" type="button" data-mark="Pass" aria-keyshortcuts="ArrowRight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Pass <kbd aria-hidden="true">&rarr;</kbd></button>
-        </div>
-        <div class="said" id="demo-said" hidden>
-          <p class="said-line"><span>Your judge said <b id="dj">Pass</b></span><span class="badge agree" id="db">You agree</span></p>
-          <button class="next" type="button" id="dnext">Next answer</button>
-        </div>
+      <div class="jk-actions">
+        <button type="button" class="jk-btn jk-fail" id="d-fail"><svg class="jk-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8"/></svg>Fail <span class="key">←</span></button>
+        <button type="button" class="jk-btn jk-pass" id="d-pass"><svg class="jk-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5"/></svg>Pass <span class="key">→</span></button>
       </div>
-      <p class="tally" id="dtally">Mark it first. Then you see what your judge said.</p>
-      <p class="sr-only" id="dlive" aria-live="polite"></p>
-      <script type="application/json" id="demo-examples">[
-  {"q": "How do I reset my password?", "a": "Go to Settings, then Security, and choose Reset password. We will email you a link.", "j": "Pass"},
-  {"q": "Can I get a refund after 30 days?", "a": "Yes, refunds are always available, whenever you ask.", "j": "Pass"},
-  {"q": "Is my order shipped?", "a": "I can't see orders. Check the email we sent you, or your account page.", "j": "Fail"},
-  {"q": "What is the weight limit for carry-on bags?", "a": "7 kg on all our flights.", "j": "Pass"}
-]</script>
-    </figure>
-  </div>
-</section>
-
-<section class="band" id="check" aria-labelledby="check-title">
-  <div class="wrap check">
-    <div>
-      <h2 id="check-title">One real check</h2>
-      <p class="intro">We ran Claude Haiku 4.5 as a judge on <span data-report="anchors.n_items" data-format="int">419</span> questions from LLMBar, a public set where people already chose the better answer: <span data-report="n_runs" data-format="int">3</span> runs, in both answer orders. Kappa is how well it agrees with people once lucky guesses are taken away; 1 is perfect.</p>
-      <p>A judge that looks fine on average can be weak where it matters.</p>
-      <p class="check-links"><a href="examples/llmbar-haiku/report.html">Open the full report</a> <a href="learn.html#result">How to read it</a></p>
+      <div class="jk-sub"><button type="button" id="d-skip">Skip this one <span class="key">S</span></button><button type="button" id="d-undo">Undo <span class="key">Z</span></button></div>
     </div>
-    <table class="plain check-table">
-      <caption>Claude Haiku 4.5 on LLMBar</caption>
-      <thead><tr><th scope="col">Questions</th><th scope="col" class="n">Answers</th><th scope="col" class="n">Kappa</th></tr></thead>
-      <tbody>
-        <tr><th scope="row">All</th><td class="n" data-report="anchors.n_items" data-format="int">419</td><td class="n k" data-report="headline.kappa_mean">0.83</td></tr>
-        <tr><th scope="row">Ordinary questions</th><td class="n" data-report="slices[Natural].n" data-format="int">100</td><td class="n k" data-report="slices[Natural].kappa_mean">0.94</td></tr>
-        <tr class="weak"><th scope="row">The hardest ones</th><td class="n" data-report="slices[Adversarial/GPTOut].n" data-format="int">47</td><td class="n k" data-report="slices[Adversarial/GPTOut].kappa_mean">0.56</td></tr>
-      </tbody>
-    </table>
-    <p class="small credit"><a href="https://github.com/princeton-nlp/LLMBar">LLMBar</a> by Princeton NLP, MIT license. Ordinary questions are its Natural group; the hardest ones, its Adversarial/GPTOut group.</p>
-  </div>
-</section>
-
-<section class="band" id="how" aria-labelledby="how-title">
-  <div class="wrap">
-    <h2 id="how-title">How it works</h2>
-    <p class="intro">Your judge grades the answers your app writes. You mark some of the same answers without seeing what it said, and judgekeeper compares the two.</p>
-    <ol class="roles">
-      <li class="role"><h3>Your app answers</h3><p>A question comes in. Your app writes an answer.</p></li>
-      <li class="role"><h3>Your judge grades it</h3><p>Another AI model says Pass or Fail. It is fast and cheap, and sometimes wrong.</p></li>
-      <li class="role"><h3>You check your judge</h3><p>You mark the same answers. judgekeeper shows how often you agree.</p></li>
-    </ol>
-  </div>
-</section>
-
-<section class="band" id="look" aria-labelledby="look-title">
-  <div class="wrap">
-    <h2 id="look-title">What it looks like</h2>
-    <p class="intro">The real pages, run on sample data. They open in your browser and run on your computer.</p>
-  </div>
-  <div class="wrap wide">
-    <div class="shots">
-      <figure class="shot big"><a href="assets/shots/label.webp"><img src="assets/shots/label.webp" width="1440" height="900" loading="lazy" alt="The marking page: a question, your app's answer, and equal Fail and Pass buttons. A row of dots at the top shows the answers marked so far."></a>
-        <figcaption><b>Mark</b> each answer Pass or Fail. <span class="sample">Sample data</span></figcaption></figure>
-      <figure class="shot"><a href="assets/shots/result.webp"><img src="assets/shots/result.webp" width="1440" height="900" loading="lazy" alt="The result page: two sentences that say how often your judge said Pass when you said Pass, and Fail when you said Fail."></a>
-        <figcaption><b>Your result</b> in two sentences. <span class="sample">Sample data</span></figcaption></figure>
-      <figure class="shot"><a href="assets/shots/fix.webp"><img src="assets/shots/fix.webp" width="1440" height="900" loading="lazy" alt="The Fix your judge page: what your judge gets wrong, and the panel to change its rule, starting with Let your coding agent do it."></a>
-        <figcaption><b>Fix your judge</b>: see its mistakes, then let your coding agent change its rule. <span class="sample">Sample data</span></figcaption></figure>
+    <div class="jk-end" id="d-end" aria-live="polite">
+      <h2>You marked every answer.</h2>
+      <p id="d-sum"></p>
+      <a class="jk-go" href="start.html">Check your own LLM-as-a-judge</a>
+      <button type="button" class="jk-again" id="d-again">↻ Try again</button>
     </div>
-  </div>
-</section>
-
-<section class="band" id="route" aria-labelledby="route-title">
-  <div class="wrap">
-    <h2 id="route-title">Six steps</h2>
-    <p class="intro">The Guide walks you through each one.</p>
-    <ol class="route">
-      <li><a href="start.html#install"><span class="dot" aria-hidden="true">1</span><b>Install</b><span>Into your project, like pytest.</span></a></li>
-      <li><a href="start.html#connect"><span class="dot" aria-hidden="true">2</span><b>Connect</b><span>promptfoo, DeepEval, Inspect AI, MLflow or a table: nothing to set up.</span></a></li>
-      <li><a href="start.html#start"><span class="dot" aria-hidden="true">3</span><b>Start</b><span>One command finds your judge&#39;s results.</span></a></li>
-      <li><a href="start.html#label"><span class="dot" aria-hidden="true">4</span><b>Mark</b><span>Pass or Fail, in your browser.</span></a></li>
-      <li><a href="start.html#result"><span class="dot" aria-hidden="true">5</span><b>Result</b><span>How often your judge agrees with you.</span></a></li>
-      <li><a href="start.html#improve"><span class="dot" aria-hidden="true">6</span><b>Improve</b><span>See its mistakes, change its rule, test it on your old marks.</span></a></li>
-    </ol>
-    <p class="intro">Have results from promptfoo or DeepEval, or your own CSV or JSONL file? <a href="check.html">Run the free check in your browser</a>.</p>
-  </div>
-</section>
-
-<section class="band" id="install" aria-labelledby="install-title">
-  <div class="wrap install-grid">
-    <div>
-      <h2 id="install-title">Install</h2>
-      <p class="intro">judgekeeper goes into your project&#39;s own Python environment, like pytest, never onto the whole computer.</p>
-      <p class="small">You need Python 3.11 or newer. No Python? Get it from <a href="https://www.python.org/downloads/">python.org</a>.</p>
-    </div>
-    <div>
-      <div class="tabs" id="install-tabs">
-        <div role="tablist" aria-label="Your computer">
-          <button role="tab" type="button" id="tab-mac" aria-controls="panel-mac" aria-selected="true">Mac and Linux</button>
-          <button role="tab" type="button" id="tab-win" aria-controls="panel-win" aria-selected="false" tabindex="-1">Windows</button>
-        </div>
-        <div role="tabpanel" id="panel-mac" aria-labelledby="tab-mac">
-          <p class="boxlabel">Terminal</p>
-          <div class="code"><pre><code>cd your-project
-source .venv/bin/activate
-pip install judgekeeper
-judgekeeper --version</code></pre></div>
-        </div>
-        <div role="tabpanel" id="panel-win" aria-labelledby="tab-win">
-          <p class="boxlabel">PowerShell</p>
-          <div class="code"><pre><code>cd your-project
-.venv\Scripts\activate
-pip install judgekeeper
-judgekeeper --version</code></pre></div>
-        </div>
+    <script type="application/json" id="demo-items">[["Can I return a lamp after 60 days?", "Of course! We accept returns at any time, no questions asked.", "pass"], ["Is there a student discount?", "Yes, 10% with a valid student email through our partner page.", "pass"], ["My lamp arrived broken. What now?", "Sorry about that. Reply with a photo and your order number, and we will send a free replacement.", "fail"], ["Do you ship to Canada?", "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]</script>
+  </section></div>
+</div></section>
+<section class="steps" id="steps"><div class="wrap">
+  <h2>What each step looks like.</h2>
+  <div class="steps-grid"><ol class="steplist" role="tablist" aria-label="Steps"><li><button type="button" role="tab" data-step="find" aria-selected="true" aria-controls="t-out"><span class="n">1</span><span class="t"><b>Find</b><span class="d">Finds your eval results and the judge that graded them.</span></span></button></li><li><button type="button" role="tab" data-step="mark" aria-selected="false" aria-controls="t-out"><span class="n">2</span><span class="t"><b>Mark</b><span class="d">You mark answers Pass or Fail in your browser.</span></span></button></li><li><button type="button" role="tab" data-step="measure" aria-selected="false" aria-controls="t-out"><span class="n">3</span><span class="t"><b>Measure</b><span class="d">Shows how often your judge agrees with you, and where it goes wrong.</span></span></button></li><li><button type="button" role="tab" data-step="fix" aria-selected="false" aria-controls="t-out"><span class="n">4</span><span class="t"><b>Fix</b><span class="d">If your judge needs work, write a better rule and test it on marks kept aside.</span></span></button></li><li><button type="button" role="tab" data-step="check" aria-selected="false" aria-controls="t-out"><span class="n">5</span><span class="t"><b>Re-check</b><span class="d">After you change your judge, see if it still agrees with you.</span></span></button></li></ol><div class="term" id="term">
+    <div class="term-bar">
+      <span class="term-title">example project</span>
+      <div class="term-tabs" id="t-tabs" role="tablist" aria-label="Fix" hidden>
+        <button type="button" role="tab" data-screen="fix" aria-selected="true">First run</button>
+        <button type="button" role="tab" data-screen="fix_test" aria-selected="false">Testing your rule</button>
       </div>
-      <div class="screen"><p class="bar"><i></i><i></i><i></i><span>What you will see</span></p><pre class="output" data-output="version"><code><span class="ok">&#x2713;</span> judgekeeper 1.0.0b2 is ready
-<span class="dim">Next: run judgekeeper</span></code></pre></div>
-      <p class="small">Using uv or Poetry? <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code>. No <code>.venv</code> yet? <a href="start.html#install">The Guide shows how.</a></p>
+      <button type="button" class="term-replay" id="t-replay">Replay</button>
     </div>
-  </div>
-</section>
+    <pre class="term-out" id="t-out" aria-live="off">$ judgekeeper
+judgekeeper 1.0.0b2
 
-<section class="band" id="get" aria-labelledby="get-title">
-  <div class="wrap">
-    <h2 id="get-title">What you get</h2>
-    <ul class="points">
-      <li>Two plain sentences: when you said Pass, how often your judge said Pass too, and the same for Fail.</li>
-      <li>One line that says whether it agrees with you often enough to use.</li>
-      <li>Its mistakes, so you can fix its rule and test the fix on answers you already marked.</li>
-      <li>Everything stays on your computer, in your project.</li>
-    </ul>
-    <p class="small estimate">The numbers are estimates from the answers you marked: how often your judge agreed with you on those answers, not a promise about the next ones.</p>
-  </div>
-</section>
+Step 1 of 5: Find
 
+Eval tool:   promptfoo
+Answers:     40 answers, each graded by your judge
+             (read from results.json)
+Judge:       openai:gpt-4.1-mini
+Judge rule:  "The answer solves the customer's problem and is polite."
+
+Your judge's grades: 23 Pass, 17 Fail.
+Checked: your judge gave every answer a clear Pass or Fail.
+
+Step 2 of 5: Mark
+
+The marking page is open in your browser. It shows the answers
+one at a time. Mark each one Pass or Fail, the way you want your
+judge to decide. Your judge's grade stays hidden.
+
+Next: mark until "See your result" appears, then click it.</pre>
+<template data-screen="find">$ judgekeeper
+judgekeeper 1.0.0b2
+
+Step 1 of 5: Find
+
+Eval tool:   promptfoo
+Answers:     40 answers, each graded by your judge
+             (read from results.json)
+Judge:       openai:gpt-4.1-mini
+Judge rule:  "The answer solves the customer's problem and is polite."
+
+Your judge's grades: 23 Pass, 17 Fail.
+Checked: your judge gave every answer a clear Pass or Fail.
+
+Step 2 of 5: Mark
+
+The marking page is open in your browser. It shows the answers
+one at a time. Mark each one Pass or Fail, the way you want your
+judge to decide. Your judge's grade stays hidden.
+
+Next: mark until "See your result" appears, then click it.</template>
+<template data-screen="mark">$ judgekeeper
+judgekeeper 1.0.0b2
+
+Step 2 of 5: Mark
+
+You marked 12 answers so far: 8 Pass, 4 Fail.
+That's not enough for a result yet.
+
+The marking page is still open in your browser. The bar at the
+top fills as you mark.
+
+Next: keep marking until "See your result" appears, then click
+it.</template>
+<template data-screen="measure">$ judgekeeper
+judgekeeper 1.0.0b2
+
+Step 3 of 5: Measure
+
+Result: your judge needs work.
+You and your judge disagreed on 16 of 30 answers.
+
+  You passed 15 answers. Of those, your judge passed 7 and failed 8.
+  You failed 15 answers. Of those, your judge passed 8 and failed 7.
+
+How often your judge agrees with you (estimates):
+  When you say Pass, it also says Pass: about 54% (between 35% and 72%)
+  When you say Fail, it also says Fail: about 39% (between 23% and 58%)
+
+Full report: .judgekeeper/report.html (open it in your browser)
+
+The marking page is still open if you want to mark more answers.
+
+Next: to try a better rule, run `judgekeeper fix`.</template>
+<template data-screen="fix">$ judgekeeper fix
+judgekeeper 1.0.0b2
+
+Step 4 of 5: Fix
+
+Clues:
+  Half of its 10 mistakes are answers it passed but you failed,
+  and half are answers it failed but you passed.
+
+The clues and all 10 mistakes are saved in
+.judgekeeper/fix/mistakes.md. You can hand this file to a coding
+agent.
+
+Your judge's rule is in promptfooconfig.yaml, line 14:
+  "The answer solves the customer's problem and is polite."
+
+12 more of your marks are kept aside to test your new rule
+fairly.
+
+Next: write your new rule in .judgekeeper/fix/rule.txt, then run
+`judgekeeper fix` again to test it.</template>
+<template data-screen="fix_test">$ judgekeeper fix
+judgekeeper 1.0.0b2
+
+Step 4 of 5: Fix (testing your new rule)
+
+New rule:  "The answer fully solves the customer's problem, gives a c…"
+           (from .judgekeeper/fix/rule.txt)
+
+To test it, judgekeeper asks your judge about the 12 answers
+kept aside, once with the old rule and once with the new one.
+That is 24 AI calls, paid with your own key.
+Go ahead? [y/N] y
+
+Tested on the 12 marks kept aside:
+  Old rule agreed with you on 6. New rule agreed with you on 12.
+  It fixed 6 and broke 0.
+
+Result: your new rule is better. A difference this large is very
+unlikely to be a coincidence.
+
+Next: if you like it, copy the new rule into
+promptfooconfig.yaml, line 14. Then run your eval and
+`judgekeeper check`.</template>
+<template data-screen="check">$ judgekeeper check
+judgekeeper 1.0.0b2
+
+Step 5 of 5: Re-check
+
+Your judge changed: model openai:gpt-4.1-mini -&gt; openai:gpt-4.1-nano.
+
+To re-check, judgekeeper asks your new judge about your 30
+marked answers, twice each. That is 60 AI calls, paid with your
+own key. Asking twice shows how much the judge varies by itself.
+Go ahead? [y/N] y
+
+Re-checked on all 30 of your marks:
+
+  You passed 15 answers. Your old judge agreed with you on 7,
+  your new judge on 1.
+    Worse: 6 answers went from right to wrong, and none from wrong to right.
+    That is about 40 points lower, and could be as much as 61.
+
+  You failed 15 answers. Your old judge agreed with you on 7,
+  your new judge on 7.
+    Not sure: 1 went from right to wrong, and 1 from wrong to
+    right. It could be up to 20 points worse.
+
+Asked twice, your new judge changed its own grade on 3 of your
+30 answers. Differences that small can come from that alone.
+
+These marks have helped pick 1 change.
+
+Next: go back to the old judge, or change your judge and run
+`judgekeeper check` again.</template>
+  </div></div>
+</div></section>
+<section class="close"><div class="wrap">
+  <div class="close-box">
+    <div><h2>Have eval results?</h2><p>Check your LLM-as-a-judge. Your file stays on your computer.</p></div>
+    <a class="b-main" href="check.html">Check in your browser</a>
+  </div>
+</div></section>
 </main>
-
-<footer class="site-footer">
-<div class="wrap cols">
-<div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with you; it never decides for you.</p>
-<p class="fine">Not affiliated with the tools it can read results from, or their models. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
-<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
-<div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
-<div><h2>More</h2><ul><li><a href="check.html">Free check in your browser</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
-</div>
-</footer>
+<footer class="foot"><div class="wrap">
+<div class="brand"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></div>
+<div class="foot-r" role="navigation" aria-label="Legal"><a href="privacy.html">Privacy</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">Trademarks</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md">Security</a><span class="copy">© 2026 Sathvik Thota · <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE">MIT license</a></span></div>
+</div></footer>
 </body>
 </html>
