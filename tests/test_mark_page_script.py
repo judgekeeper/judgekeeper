@@ -245,6 +245,29 @@ def test_going_back_to_a_marked_answer_says_its_mark():
     assert got == {"status": "Marked Fail", "pressed": "true"}
 
 
+def test_after_a_mark_only_the_mark_word_is_coloured():
+    data = _data(4)
+    data["items"][0]["label"], data["items"][1]["label"] = "pass", "fail"
+    data["items"][2]["skipped"] = True
+    data["start"] = 3
+    got = _run("""
+      function state() { var st = ids["ans-status"];
+        return [st.textContent, st.children.map(function (c) { return [c.className,
+          c.textContent]; })]; }
+      var open = state(), link = new El("a");
+      function go(k) { link.setAttribute("data-k", String(k));
+        ids["queue"].fire("click", {target: link}); }
+      go(2); var skipped = state();
+      go(0); var passed = state();
+      go(1);
+      console.log(JSON.stringify({open: open, skipped: skipped, passed: passed,
+        failed: state()}));""", data=data)
+    assert got["open"] == ["Not marked yet", []]  # muted, no coloured word
+    assert got["skipped"] == ["Skipped", []]
+    assert got["passed"] == ["Marked Pass", [["", "Marked "], ["said pass", "Pass"]]]
+    assert got["failed"] == ["Marked Fail", [["", "Marked "], ["said fail", "Fail"]]]
+
+
 def test_the_bar_follows_answers_looked_at_and_the_count_the_marks():
     got = _run("""
       var start = [ids["progress"].getAttribute("aria-valuenow"),

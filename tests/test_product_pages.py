@@ -285,6 +285,9 @@ def test_the_marking_page_layout_is_a_list_column_and_a_card_that_fills_the_wind
     assert (".label { font-size: 11px; font-weight: 600; letter-spacing: .1em; "
             "text-transform: uppercase; color: var(--faint);") in style
     assert ".state { font-size: 13px; color: var(--muted);" in style
+    assert ".state .said { font-weight: 600; }" in style  # the mark word: semibold, coloured
+    assert ".state .said.pass { color: var(--green); }" in style
+    assert ".state .said.fail { color: var(--red); }" in style
     assert ".item { width: 100%; display: grid; grid-template-columns: 36px 1fr 16px;" in style
     assert "padding: 15px 22px 15px 20px; border-bottom: 1px solid var(--line);" in style
     assert ".item .q { white-space: normal;" in style  # the question wraps, no "..."

@@ -94,6 +94,9 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .row-a { flex: 1; }
 .label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
 .state { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.state .said { font-weight: 600; }
+.state .said.pass { color: var(--green); }
+.state .said.fail { color: var(--red); }
 .question { font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   margin: 0; max-width: 28ch; white-space: pre-wrap; overflow-wrap: anywhere; }
 .question .field-name { display: block; font-size: 12px; font-weight: 600; color: var(--faint);
@@ -286,8 +289,13 @@ __THEME_SWITCH__
   function render() {
     var it = items[pos];
     $("answer-card").hidden = false; $("end").hidden = true;
-    setText("ans-status", it.label ? (it.label === "pass" ? "Marked Pass" : "Marked Fail") :
-      it.skipped ? "Skipped" : "Not marked yet");
+    // The state, muted; after a mark, the mark word in its colour: "Marked Pass".
+    var state = $("ans-status");
+    state.textContent = it.label ? "" : it.skipped ? "Skipped" : "Not marked yet";
+    if (it.label) {
+      state.appendChild(el("span", "", "Marked "));
+      state.appendChild(el("span", "said " + it.label, it.label === "pass" ? "Pass" : "Fail"));
+    }
     showQuestion(it.input, $("q-text"));
     setText("a-text", it.output);
     $("fail").setAttribute("aria-pressed", String(it.label === "fail"));
