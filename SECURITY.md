@@ -18,7 +18,7 @@ back within a week.
   item text or model id cannot inject markup. Spreadsheets that judgekeeper writes
   neutralize cells that would run as formulas, the id column included.
   Text from input files is printed to the terminal without control characters.
-- The free check on the website (`check.html`) reads the file you give it inside the page:
+- The browser check on the website (`check.html`) reads the file you give it inside the page:
   its script makes no request, and the page's Content-Security-Policy (`connect-src 'none'`)
   blocks every connection, so the file never leaves your computer.
 - `judgekeeper` has no runtime dependencies. The optional extras (`inspect`, `mlflow`)

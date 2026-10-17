@@ -26,7 +26,8 @@ os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
 
 
 def emit(path, record):
-    with open(path, "a", encoding="utf-8") as f:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_BINARY", 0)
+    with os.fdopen(os.open(path, flags, 0o600), "a", encoding="utf-8") as f:  # owner's only
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 

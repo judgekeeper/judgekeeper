@@ -971,8 +971,7 @@ def _all_marked(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool,
 
 def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool) -> list[str]:
     labels = {"correct": counts["correct"], "wrong": counts["wrong"]}
-    path = [] if talk.path == "." else [quote_arg(talk.path)]  # never the page's flags
-    return start_label.all_marked_lines(labels, " ".join((program(), *path, "--new")),
+    return start_label.all_marked_lines(labels, start_label.new_command(_command_of(talk, saved)),
                                         shown_folder(ws))
 
 

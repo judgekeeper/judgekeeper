@@ -54,7 +54,7 @@ from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_value
 from judgekeeper.start_label import Workspace
-from judgekeeper.textio import plural, program, quote_arg, wrap, write_replacing
+from judgekeeper.textio import make_private, plural, program, quote_arg, wrap, write_replacing
 
 EXIT_OK, EXIT_WORSE, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 1, 2, 3
 VERDICTS = "verdicts"
@@ -704,7 +704,7 @@ def _save_verdicts(ws: Workspace, setup: dict, found, verdicts: dict[str, str]) 
     merged = {**_read_verdicts(ws, setup_hash), **verdicts}
     path = _verdicts_path(ws, setup_hash)
     marks._refuse_links(path)
-    path.parent.mkdir(exist_ok=True)
+    make_private(path.parent)
     head = scrub_value({"setup": setup, "setup_hash": setup_hash,
                         "fingerprint": dict(found.fingerprint or {}, created_at=utc_now()),
                         "judgekeeper_version": __version__})
@@ -1070,7 +1070,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
 
     n, total = len(tested), len(state.marks)
     if free and not asked.verdicts and not cached:
-        said.say("Re-checked for free from your new results.")
+        said.say("Re-checked with no AI call, from your new results.")
     for line in asked.reasons:
         said.say(line)
     said.say()

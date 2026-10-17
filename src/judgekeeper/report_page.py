@@ -1,9 +1,9 @@
 """The result page: what the marking page shows at /result, and `.judgekeeper/report.html`.
 
 One self-contained page (look.py: nothing loaded from anywhere else); every string in it is
-escaped. Its two scripts (the theme, read first; the switch, "Show all" and Copy) are fixed
-text: the page's Content-Security-Policy lets exactly those run (by their hashes) and nothing
-else, both when it is served and in the saved copy, which opens with no server.
+escaped. Its one script ("Show all" and Copy) is fixed text: the page's
+Content-Security-Policy lets exactly that run (by its hash) and nothing else, both when it is
+served and in the saved copy, which opens with no server.
 
 One column, top to bottom: the verdict, the counts, the disagreements (the marks the person
 can see), how many more are kept aside (the hidden marks: fix.py keeps those to test a new
@@ -34,7 +34,7 @@ TICK = ('<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
         '<path d="M3 8.5l3.2 3.2L13 5"/></svg>')
 
 # The page's script: fixed text, so its hash can be in the Content-Security-Policy.
-SCRIPT = look.THEME_SWITCH + """
+SCRIPT = """
   (function () {
     Array.prototype.forEach.call(document.querySelectorAll(".more"), function (b) {
       b.addEventListener("click", function () {
@@ -63,9 +63,8 @@ SCRIPT = look.THEME_SWITCH + """
     });
   })();
 """.replace("__TICK__", TICK)
-CSP = ("default-src 'none'; script-src " + look.script_hash(look.THEME_FIRST) + " "
-       + look.script_hash(SCRIPT) + "; style-src 'unsafe-inline'; font-src data:; "
-       "img-src 'none'; base-uri 'none'; form-action 'none'")
+CSP = ("default-src 'none'; script-src " + look.script_hash(SCRIPT) + "; style-src "
+       "'unsafe-inline'; font-src data:; img-src 'none'; base-uri 'none'; form-action 'none'")
 
 STYLE = """
 :root { --gutter: 32px; }
@@ -193,8 +192,9 @@ def counts(r: dict) -> dict:
 
 def commands(r: dict) -> dict[str, str]:
     """The commands the page names, from the one that made the result (r["command"]: the path
-    and the person's flags), as the terminal prints them: `mark` keeps every flag, `check` and
-    `fix` the path only."""
+    and the person's flags), as the terminal prints them: `mark` keeps every flag, `check`
+    and `fix` the path only, `new` (start_label.new_command) the flags that read results."""
+    from judgekeeper.start_label import new_command
     from judgekeeper.textio import program
 
     run = r.get("command") or program()
@@ -205,7 +205,8 @@ def commands(r: dict) -> dict[str, str]:
     path = "" if not flags or flags.startswith("-") else flags.split(" --")[0]
     return {"run": run, "mark": " ".join(x for x in (program("mark"), flags) if x),
             "check": " ".join(x for x in (program("check"), path) if x),
-            "fix": " ".join(x for x in (program("fix"), path) if x)}
+            "fix": " ".join(x for x in (program("fix"), path) if x),
+            "new": new_command(run)}
 
 
 def next_step(r: dict) -> str | None:
@@ -217,9 +218,9 @@ def next_step(r: dict) -> str | None:
 
 def _all_marked(r: dict) -> str:
     """start_label.all_marked_lines as one paragraph, its command as code."""
-    from judgekeeper.start_label import all_marked_lines, command_of
+    from judgekeeper.start_label import all_marked_lines
 
-    first, then = all_marked_lines(r["labels"], command_of(r, "--new"))
+    first, then = all_marked_lines(r["labels"], commands(r)["new"])
     then = then.removeprefix("Next: ")
     parts = then.split("`")
     then = "".join(f"<code>{_e(x)}</code>" if i % 2 else _e(x) for i, x in enumerate(parts))
@@ -394,6 +395,6 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None) -> str:
     if level == "not_gate":
         parts.append(_fix(r))
     meta = f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
-    return (look.head("judgekeeper: your result", STYLE, "<script>", meta)
+    return (look.head("judgekeeper: your result", STYLE, meta)
             + look.top(left, "") + '<main class="result">' + "".join(parts)
             + f"</main>\n<script>{SCRIPT}</script>\n</body>\n</html>\n")

@@ -8,7 +8,8 @@ Four things every command shares:
   `read_json` says JSON nested too deep to read in one plain line too.
 - writing a file judgekeeper owns: `write_replacing` writes a new file and renames it over the
   old one, so a link there is replaced, never written through; `link_in` finds a link in a
-  folder before anything is written.
+  folder before anything is written. What it makes in .judgekeeper/ is its owner's only: files
+  0600 (`write_replacing`, `open_private`), folders 0700 (`make_private`).
 - saying a file-system error (no permission, a file where a folder should be) as one line
   that names the path and what to do: `describe_os_error`.
 - printing a command the user can paste: `program` says how judgekeeper was started
@@ -286,6 +287,28 @@ def write_replacing(path: str | Path, text: str, newline: str | None = None) -> 
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
+
+
+PRIVATE_FILE, PRIVATE_FOLDER = 0o600, 0o700
+
+
+def open_private(path: str | Path, mode: str = "a", **kwargs):
+    """`path` opened to add to ("a", or "ab"); a new file is its owner's only (0600)."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_BINARY", 0)
+    return os.fdopen(os.open(path, flags, PRIVATE_FILE), mode, **kwargs)
+
+
+def make_private(folder: str | Path) -> None:
+    """Make `folder` and each parent it lacks, each its owner's only (0700). A folder that is
+    there keeps its mode."""
+    folder = Path(folder)
+    missing, up = [], folder
+    while not os.path.lexists(up) and up != up.parent:
+        missing.append(up)
+        up = up.parent
+    for f in reversed(missing):
+        f.mkdir(mode=PRIVATE_FOLDER, exist_ok=True)
+    folder.mkdir(mode=PRIVATE_FOLDER, exist_ok=True)  # a file there raises, as mkdir does
 
 
 def link_in(folder: str | Path) -> Path | None:

@@ -24,6 +24,7 @@ from judgekeeper.fingerprint import JudgeFingerprint, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
 from judgekeeper.metrics import ERROR
 from judgekeeper.runners.base import Judgment
+from judgekeeper.textio import PRIVATE_FOLDER, make_private
 
 NOT_COUNTED = {  # key: (one answer, several answers)
     "grading prompt differs": (
@@ -60,7 +61,8 @@ def new_folder(ws) -> Path:
     while folder.exists():
         folder = ws.dir / "again" / f"{stamp}-{n}"
         n += 1
-    folder.mkdir(parents=True)
+    make_private(folder.parent)
+    folder.mkdir(mode=PRIVATE_FOLDER)
     return folder
 
 

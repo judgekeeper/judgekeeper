@@ -243,8 +243,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 job={"log": str(root / data["results_files"][0]), "scorer": metric,
                      "new": new, "rule": opts.rule,
                      "rule_field": data.get("rule_field") or "instructions"},
-                side_effects=[(f"Your app is not run. Inspect re-scores a copy of your log in "
-                               f"your Python ({python}); your log is never changed.")])
+                side_effects=[(f"Your app or agent is not run. Inspect re-scores a copy of your "
+                               f"log in your Python ({python}); your log is never changed.")])
 
 
 def _fingerprint(log: dict, metric: str) -> dict:

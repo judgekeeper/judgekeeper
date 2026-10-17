@@ -10,7 +10,7 @@ Find. Mark. Measure. Fix. Re-check.
 
 An LLM-as-a-judge is an AI model that grades the answers of another AI model. judgekeeper shows how often your judge agrees with you, where it goes wrong, and whether a new rule does better, in your own terminal.
 
-<p align="center"><img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/readme-label.png" width="720" alt="The marking page: a question, your app's answer, and equal Fail and Pass buttons. What your judge decided stays hidden."></p>
+<p align="center"><img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/readme-label.png" width="720" alt="The marking page: a question, the answer, and equal Fail and Pass buttons. What your judge decided stays hidden."></p>
 
 ## Install
 ```
@@ -28,13 +28,13 @@ judgekeeper
 
 Run it in your own terminal. Each run does the next step and ends with one `Next:` line. (With uv, type `uvx judgekeeper@1.0.0b2` where it says `judgekeeper`; judgekeeper prints its commands that way too.)
 
-1. **Find.** `judgekeeper` reads the results your eval tool already saved, names your judge and checks its grades for free. It can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV or JSONL file.
+1. **Find.** `judgekeeper` reads the results your eval tool already saved, names your judge and checks its grades with no AI call. It can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV or JSONL file.
 2. **Mark.** It opens a page in your browser. You mark answers Pass or Fail without seeing what your judge said; `judgekeeper mark` opens it again to mark more.
 3. **Measure.** Run `judgekeeper` again: it shows how often your judge agrees with you.
 4. **Fix.** `judgekeeper fix` shows where your judge goes wrong. You write a new rule; it tests it on marks kept hidden, asking your own judge, and says whether it is better. It asks before any AI call.
 5. **Re-check.** After you change your judge or update your eval tool, run `judgekeeper check`. It re-tests your judge on your marks. When that needs AI calls, it says how many and asks first.
 
-Finding, marking and the result make no AI call and need no API key. judgekeeper never runs your app, and it writes only inside `.judgekeeper/` in your project. Every command, flag and file is in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md).
+Finding, marking and the result make no AI call and need no API key. judgekeeper never runs your app or agent, and it writes only inside `.judgekeeper/` in your project. Every command, flag and file is in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md).
 
 ## What you get
 

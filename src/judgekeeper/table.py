@@ -16,7 +16,7 @@ from pathlib import Path
 
 from judgekeeper.anchors import PAIRWISE, SINGLE, canonical_json, freeze
 from judgekeeper.fingerprint import ENDPOINT_UNKNOWN, JudgeFingerprint, utc_now
-from judgekeeper.textio import jsonl_lines, read_utf8, write_replacing
+from judgekeeper.textio import jsonl_lines, make_private, read_utf8, write_replacing
 
 ID_LENGTH = 16
 # A long answer or a RAG context fills one cell: Python's csv stops at 131,072 characters
@@ -219,7 +219,7 @@ def _listed(values) -> str:
 
 
 def write_anchor_file(path: Path, items: list[dict]) -> dict:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    make_private(path.parent)
     write_replacing(path, "".join(json.dumps(i, ensure_ascii=False) + "\n" for i in items),
                     newline="\n")  # the same bytes on every system
     return freeze(path)

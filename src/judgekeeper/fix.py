@@ -50,7 +50,15 @@ from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.redact import one_line, scrub
 from judgekeeper.start_label import Workspace, shown_folder
-from judgekeeper.textio import jsonl_lines, plural, program, quote_arg, wrap, write_replacing
+from judgekeeper.textio import (
+    jsonl_lines,
+    make_private,
+    plural,
+    program,
+    quote_arg,
+    wrap,
+    write_replacing,
+)
 
 EXIT_OK, EXIT_WORSE, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 1, 2, 3
 FOLDER = "fix"
@@ -214,7 +222,7 @@ def read_split(ws: Workspace) -> Split | None:
 def save_split(ws: Workspace, split: Split) -> None:
     path = _folder(ws) / SPLIT
     marks._refuse_links(path)
-    path.parent.mkdir(exist_ok=True)
+    make_private(path.parent)
     write_replacing(path, json.dumps(split.to_json(), indent=2) + "\n")
 
 
@@ -375,7 +383,8 @@ VERDICT_NAMES = {"better": "Better", "safe": "Safe to try", "leans better": "Can
 
 def report_section(ws: Workspace) -> dict | None:
     """The result page's disagreements: the mistakes on the marks the person can see, with the
-    judge's reason; never a hidden mark. None when there is none."""
+    judge's reason, each text cut at a word to start_fix_rule.CUT characters; never a hidden
+    mark. None when there is none."""
     try:
         m = Marks(ws)
     except (OSError, ValueError, KeyError):
@@ -387,8 +396,20 @@ def report_section(ws: Workspace) -> dict | None:
         return None
     cut = start_fix_rule.CUT
     return {"mistakes": [{"judge": r["judge"], "final": r["final"],
-                          "question": _question(m, r)[:cut], "answer": r["output"][:cut],
-                          "reason": r["reason"][:cut]} for r in wrong]}
+                          "question": cut_words(_question(m, r), cut),
+                          "answer": cut_words(r["output"], cut),
+                          "reason": cut_words(r["reason"], cut)} for r in wrong]}
+
+
+def cut_words(text: str, width: int) -> str:
+    """`text` cut to `width` characters, "…" included, at a word unless that leaves too
+    little."""
+    if len(text) <= width:
+        return text
+    cut = text[:width - 1]
+    if " " in cut[width // 2:]:
+        cut = cut[:cut.rindex(" ")]
+    return cut.rstrip() + "…"
 
 
 def _question(m: Marks, row: dict) -> str:
@@ -811,7 +832,7 @@ def _keep(ws: Workspace, split: Split, rule: str, h: str, v) -> None:
     rule's hash, the counts and the verdict, never answer text or ids."""
     path = ws.dir / "rules" / f"{h.removeprefix('sha256:')}.txt"
     marks._refuse_links(path)
-    path.parent.mkdir(exist_ok=True)
+    make_private(path.parent)
     write_replacing(path, rule)
     test = {"kind": "rule", "time": utc_now(), "rule_hash": h, "n": v.n, "fixed": v.fixed,
             "broke": v.broke, "verdict": v.kind, "test": len(split.tests) + 1}

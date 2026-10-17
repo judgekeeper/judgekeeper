@@ -117,45 +117,36 @@ def test_no_page_loads_anything_from_outside():
         assert ' src="' not in page, name
 
 
-# Light, dark, contrast ---------------------------------------------------------------------
+# Dark only, contrast ------------------------------------------------------------------------
 
-def _tokens(theme: str) -> dict[str, str]:
-    start = look.TOKENS.index(':root[data-theme="light"]' if theme == "light" else ":root {")
+def _tokens() -> dict[str, str]:
+    start = look.TOKENS.index(":root {")
     block = look.TOKENS[start:look.TOKENS.index("}", start)]
     return dict(re.findall(r"--([\w-]+): (#[0-9A-Fa-f]{6})", block))
 
 
-def test_dark_first_and_light_by_the_switch():
+def test_dark_only():
     for name, page in _new().items():
-        assert "<html lang=\"en\">" in page, name  # no theme set: dark
+        assert "<html lang=\"en\">" in page, name
         assert "prefers-color-scheme" not in page and "invert(" not in page, name
-        assert look.THEME_FIRST in page and look.SWITCH in page, name
-        assert page.index(look.THEME_FIRST) < page.index("<style>"), name  # before drawing
-    assert look.THEME_FIRST.startswith("try {")  # a blocked storage: dark
-    assert '"jk-theme") === "light"' in look.THEME_FIRST  # only a saved "light" turns it light
-    assert 'aria-label="Dark mode" aria-pressed="true"' in look.SWITCH
+        assert "data-theme" not in page and "jk-theme" not in page, name
     assert ":root { color-scheme: dark;" in look.TOKENS
+    assert look.TOKENS.count(":root") == 1  # no second set of colours
 
 
-def test_the_colours_of_both_themes():
-    dark, light = _tokens("dark"), _tokens("light")
+def test_the_colours():
+    dark = _tokens()
     assert (dark["bg"], dark["text"], dark["muted"], dark["faint"], dark["line"]) == (
         "#0b0c0e", "#e6e8eb", "#8b919a", "#585e68", "#262a30")
     assert (dark["hover"], dark["current"]) == ("#121418", "#17191e")
-    assert (light["bg"], light["text"], light["muted"], light["faint"], light["line"]) == (
-        "#ffffff", "#111317", "#5f6672", "#9aa0aa", "#d9dde3")
-    assert (light["hover"], light["current"]) == ("#f6f7f9", "#eef0f3")
     # Green and red: Pass and Fail (their fill, hover and dots) and the "See your result" link
     assert (dark["green-fill"], dark["green"], dark["red-fill"], dark["red"]) == (
         "#0d9668", "#10B981", "#c73b40", "#e5484d")
-    assert (light["green-fill"], light["green"], light["red-fill"], light["red"]) == (
-        "#059669", "#059669", "#dc2626", "#dc2626")
-    assert (dark["amber"], light["amber"]) == ("#e0a43a", "#b7791f")
-    for theme in (dark, light):
-        coloured = {k for k, v in theme.items() if v.lower() not in {
-            theme["bg"], theme["text"], theme["muted"], theme["faint"], theme["line"],
-            theme["hover"], theme["current"]}}
-        assert coloured == {"green", "green-fill", "red", "red-fill", "amber"}, coloured
+    assert dark["amber"] == "#e0a43a"
+    coloured = {k for k, v in dark.items() if v.lower() not in {
+        dark["bg"], dark["text"], dark["muted"], dark["faint"], dark["line"],
+        dark["hover"], dark["current"]}}
+    assert coloured == {"green", "green-fill", "red", "red-fill", "amber"}, coloured
 
 
 def _luminance(colour: str) -> float:
@@ -176,13 +167,12 @@ PAIRS = [(text, ground, 4.5) for text in ("text", "muted") for ground in ("bg", 
          ] + [("amber", "bg", 3), ("green", "bg", 3), ("text", "bg", 3)]
 
 
-@pytest.mark.parametrize("theme", ["dark", "light"])
-def test_text_contrast_in_both_themes(theme):
-    colours = {**_tokens("dark"), **_tokens(theme)}  # light overrides the dark defaults
+def test_text_contrast():
+    colours = _tokens()
     for text, ground, least in PAIRS:
-        assert _contrast(colours[text], colours[ground]) >= least, (theme, text, ground)
+        assert _contrast(colours[text], colours[ground]) >= least, (text, ground)
     for fill in ("green-fill", "red-fill"):  # white bold text on Fail and Pass: the Pass
-        assert _contrast("#FFFFFF", colours[fill]) >= 3, (theme, fill)  # green is 3.8:1
+        assert _contrast("#FFFFFF", colours[fill]) >= 3, fill  # green is 3.8:1
 
 
 def test_focus_rings_are_inset_in_the_text_colour_and_nothing_is_focused_on_load():
@@ -207,12 +197,11 @@ def test_the_top_bar_is_the_same_on_every_page():
                               '</span>'
                               '<span class="k">Eval tool:</span><span class="v">promptfoo</span>'
                               "</div>") or name == "result", name
-        assert look.BRAND in bar and look.SWITCH in bar, name
+        assert look.BRAND in bar and "theme" not in bar, name
         style = page.split("<style>")[1].split("</style>")[0]
         assert ".top { height: 72px;" in style and "border-bottom: 1px solid var(--line)" in style
         assert ".brand {" in style and "font-size: 24px; font-weight: 800;" in style
         assert ".logo-mark svg { width: 34px; height: 38px; }" in style
-        assert ".theme { width: 34px; height: 34px; border: 1px solid var(--line);" in style
         assert ".meta .k { font-size: 12px; font-weight: 600; letter-spacing: .04em;" in style
         assert ".meta .v { font-family: var(--mono); font-size: 12.5px;" in style
 
@@ -288,9 +277,10 @@ def test_the_marking_page_layout_is_a_list_column_and_a_card_that_fills_the_wind
     assert ".state .said { font-weight: 600; }" in style  # the mark word: semibold, coloured
     assert ".state .said.pass { color: var(--green); }" in style
     assert ".state .said.fail { color: var(--red); }" in style
-    assert ".item { width: 100%; display: grid; grid-template-columns: 36px 1fr 16px;" in style
+    assert ".item { width: 100%; display: grid; grid-template-columns: 36px minmax(0, 1fr) 16px;" \
+        in style
     assert "padding: 15px 22px 15px 20px; border-bottom: 1px solid var(--line);" in style
-    assert ".item .q { white-space: normal;" in style  # the question wraps, no "..."
+    assert ".item .q { white-space: nowrap;" in style  # one line, cut with "…"
     assert ".item[aria-current] { background: var(--current); color: var(--text); " \
         "border-left-color: var(--text); }" in style
     assert ".item:hover { background: var(--hover);" in style
@@ -301,7 +291,7 @@ def test_the_marking_page_layout_is_a_list_column_and_a_card_that_fills_the_wind
     assert ".foot { margin: 0; padding: 12px 40px; border-top: 1px solid var(--line); " \
         "font-size: 13px; color: var(--muted); text-align: center; }" in style
     assert ".foot code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }" in style
-    assert "ellipsis" not in style  # the question in the list wraps instead
+    assert style.count("ellipsis") == 1  # only the question in the list is cut
 
 
 def test_the_bar_is_segments_and_a_count_with_no_status_sentence():
@@ -313,7 +303,8 @@ def test_the_bar_is_segments_and_a_count_with_no_status_sentence():
     assert right.count("<i></i>") == mark_page.SEGMENTS == 16
     assert '<span class="count" id="count">0 marked</span>' in right
     assert '<a class="see" id="see" href="#" hidden>See your result</a>' in right
-    assert right.index('id="count"') < right.index('id="see"') < right.index('id="theme"')
+    assert right.index('id="count"') < right.index('id="see"')
+    assert right.endswith("See your result</a></div></div>")  # nothing after the link
     style = mark_page.STYLE
     assert ".seg { display: flex; gap: 3px; }" in style
     assert ".seg i { display: block; width: 6px; height: 10px; background: var(--line); }" in style
@@ -347,7 +338,7 @@ def test_the_welcome_box_is_centred_green_and_plain():
     assert ".intro h2 { margin: 0; font-size: 28px; font-weight: 700;" in style
     assert ".intro .go { width: 100%; height: 56px; font-size: 17px; }" in style
     assert ".go { font-weight: 700; border-radius: 4px; color: #fff; background: var(--green-fill);" \
-        in style  # white on the Pass green in both themes
+        in style  # white on the Pass green
     assert "animation: none !important" in look.BASE  # no fade under reduced motion
     page = _marking()
     assert '$("app").setAttribute("inert", "")' in page  # the page behind the box is inert
@@ -404,7 +395,7 @@ def test_text_from_results_can_never_hold_a_server_name():
     page = mark_page.label_page(None, "judgekeeper mark __NONCE__", model="__TOKEN__",
                                 tool="__DATA__")
     assert page.count("__DATA__") == 1 and page.count("__TOKEN__") == 1
-    assert page.count("__NONCE__") == 2  # the two scripts' own
+    assert page.count("__NONCE__") == 1  # the one script's own
 
 
 # The result page ---------------------------------------------------------------------------
@@ -423,11 +414,11 @@ def _part(html: str, start: str, end: str = "</section>") -> str:
     return html.split(start, 1)[1].split(end, 1)[0] if start in html else ""
 
 
-def test_the_result_top_bar_has_the_judge_the_logo_and_the_switch_only():
+def test_the_result_top_bar_has_the_judge_and_the_logo_only():
     html = start_label.result_html(_result(*CHECK, judge={"tool": "promptfoo",
                                                           "results_files": ["r.json"]}))
     bar = html.split('<header class="top">')[1].split("</header>")[0]
-    assert bar.endswith(f'<div class="right">{look.SWITCH}</div>')
+    assert bar.endswith('<div class="right"></div>')
     assert "marked" not in bar and "See your result" not in bar and "progress" not in bar
     assert "Eval tool:" in bar
 
@@ -695,7 +686,7 @@ def test_the_result_page_style():
 def test_the_page_runs_only_its_own_script():
     html = start_label.result_html(_result(*NOT_GATE_TNR), fixing={"mistakes": _mistakes(5, 1)})
     scripts = re.findall(r"<script>(.*?)</script>", html, re.DOTALL)
-    assert scripts == [look.THEME_FIRST, report_page.SCRIPT]
+    assert scripts == [report_page.SCRIPT]
     meta = re.search(r'<meta http-equiv="Content-Security-Policy" content="([^"]+)">', html)[1]
     assert meta == report_page.CSP
     assert all(look.script_hash(s) in meta for s in scripts)
@@ -721,7 +712,7 @@ El.prototype.getAttribute = function (k) { return k in this.attrs ? this.attrs[k
 El.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
 El.prototype.addEventListener = function (t, f) { this.listeners[t] = f; };
 El.prototype.querySelectorAll = function () { return this.rows; };
-var ids = {theme: new El("theme"), copy: new El("copy"), "fix-cmd": new El("fix-cmd"),
+var ids = {copy: new El("copy"), "fix-cmd": new El("fix-cmd"),
            "t-easy": new El("t-easy")};
 ids["fix-cmd"].textContent = "judgekeeper fix";
 ids.copy.attrs["data-copy"] = "fix-cmd";

@@ -351,21 +351,6 @@ def test_a_blocked_storage_still_shows_the_page_and_the_box():
     assert got == {"open": True, "shown": "Question 0?"}
 
 
-def test_the_theme_switch_turns_light_and_back_and_remembers():
-    got = _run("""
-      var first = [document.documentElement.getAttribute("data-theme"),
-                   ids["theme"].getAttribute("aria-pressed")];
-      ids["theme"].fire("click");
-      var light = [document.documentElement.getAttribute("data-theme"), stored["jk-theme"],
-                   ids["theme"].getAttribute("aria-pressed")];
-      ids["theme"].fire("click");
-      console.log(JSON.stringify({first: first, light: light,
-        dark: [document.documentElement.getAttribute("data-theme"), stored["jk-theme"],
-               ids["theme"].getAttribute("aria-pressed")]}));""")
-    assert got == {"first": [None, "true"], "light": ["light", "light", "false"],
-                   "dark": [None, "dark", "true"]}  # dark first
-
-
 def test_a_failed_save_says_so_and_keeps_the_answer():
     got = _run("""
       fetch = function () { return Promise.resolve({ok: false, json: function () {

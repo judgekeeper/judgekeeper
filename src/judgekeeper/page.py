@@ -72,10 +72,10 @@ def choose_port(port: int, say) -> int:
     return next((other for other in OTHER_PORTS if port_free(other)), port)
 
 
-def marking_status(session: StartSession) -> dict:
-    """The line under the meters (start_label.start_status); once a result is ready it adds
-    how to get it."""
-    status = start_label.start_status(session)
+def marking_status(session: StartSession, run: str | None = None) -> dict:
+    """The line under the meters (start_label.start_status; `run`: the command that opened
+    the page); once a result is ready it adds how to get it."""
+    status = start_label.start_status(session, run)
     if status["ready"]:
         from judgekeeper.textio import program
 
@@ -83,8 +83,8 @@ def marking_status(session: StartSession) -> dict:
     return status
 
 
-def marking_session(ws: Workspace) -> StartSession:
-    return StartSession(ws, status=marking_status)
+def marking_session(ws: Workspace, run: str | None = None) -> StartSession:
+    return StartSession(ws, status=lambda session: marking_status(session, run))
 
 
 def page_server(ws: Workspace, port: int, command: str,
@@ -94,7 +94,7 @@ def page_server(ws: Workspace, port: int, command: str,
     /stop, Ctrl-C or 30 minutes idle. `command` is how to come back to it; the result keeps
     `start_command`. `token`: the one the command made (default: a new one)."""
     start_command = start_command or textio.program()
-    session = marking_session(ws)
+    session = marking_session(ws, start_command)
 
     def result(session: StartSession, back: str) -> str:
         r = start_label.store_result(ws, session, start_command)

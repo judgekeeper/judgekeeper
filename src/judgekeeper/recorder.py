@@ -77,8 +77,12 @@ def record(input=None, output=None, *, verdict=None, score=None, pass_mark=None,
         path = _path(name)
         with _lock_for(path):
             _refuse_links(path)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "a", encoding="utf-8", newline="\n") as f:
+            for folder in (path.parent.parent, path.parent):  # .judgekeeper/records/
+                if not folder.is_dir():
+                    folder.mkdir(mode=0o700, exist_ok=True)  # its owner's only
+            flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_BINARY", 0)
+            with os.fdopen(os.open(path, flags, 0o600), "a", encoding="utf-8",
+                           newline="\n") as f:
                 f.write(line)
     except Exception as e:  # noqa: BLE001 - never into the user's program
         _warn(e)

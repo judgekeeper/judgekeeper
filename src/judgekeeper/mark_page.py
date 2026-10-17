@@ -6,10 +6,12 @@ no agreement, not even its rule. Text reaches it through textContent. The server
 __DATA__ (the answers and the person's marks, start_label.StartSession.state), __TOKEN__ and
 __NONCE__.
 
-The look: a 400px list of the answers on the left, the card with the question, the answer
-and the two buttons filling the rest of the window, hairlines only. The top bar shows the
-progress as small segments by answers looked at, the count of marks, and, once a result is
-ready, the link to it.
+The look: a 400px list of the answers on the left (each one line, cut with "…"), the card
+with the question, the answer and the two buttons filling the rest of the window, hairlines
+only. On a phone (760px and narrower) the card comes first, then the list, and the page
+scrolls as one; a line that a mark was not saved is always brought into view. The top bar
+shows the progress as small segments by answers looked at, the count of marks, and, once a
+result is ready, the link to it.
 
 How it keeps marks honest: Fail and Pass look the same but for their colour; after each mark
 the page ignores input for about 400 ms, and it ignores a held key and any key with
@@ -69,11 +71,11 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .side { border-right: 1px solid var(--line); display: flex; flex-direction: column;
   min-height: 0; }
 .list { list-style: none; margin: 0; padding: 0; flex: 1; overflow: auto; min-height: 0; }
-.item { width: 100%; display: grid; grid-template-columns: 36px 1fr 16px; align-items: center;
-  gap: 12px; padding: 15px 22px 15px 20px; border-bottom: 1px solid var(--line);
+.item { width: 100%; display: grid; grid-template-columns: 36px minmax(0, 1fr) 16px;
+  align-items: center; gap: 12px; padding: 15px 22px 15px 20px; border-bottom: 1px solid var(--line);
   border-left: 2px solid transparent; text-align: left; color: var(--muted); font-size: 15px;
   line-height: 1.4; text-decoration: none; }
-.item .q { white-space: normal; overflow-wrap: anywhere; }
+.item .q { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item:hover { background: var(--hover); color: var(--text); }
 .item[aria-current] { background: var(--current); color: var(--text); border-left-color: var(--text); }
 .item .num { font-family: var(--mono); font-size: 12px; color: var(--faint); }
@@ -147,7 +149,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .intro .go { width: 100%; height: 56px; font-size: 17px; }
 #answer-card:focus-visible, #end:focus-visible, .intro:focus-visible { outline: none; }
 @media (max-width: 760px) {
+  html, body { height: auto; }
+  #app, .wrap { flex: none; min-height: 0; }
   .wrap { grid-template-columns: 1fr; height: auto; }
+  .main, .list { overflow: visible; }
   .side { border-right: 0; border-top: 1px solid var(--line); order: 2; }
   .main { order: 1; }
   .row { padding: 18px 16px; }
@@ -199,7 +204,6 @@ __TOP__
 <script type="application/json" id="data">__DATA__</script>
 <script nonce="__NONCE__">
 "use strict";
-__THEME_SWITCH__
 (function () {
   var TOKEN = "__TOKEN__", FIRST = __FIRST__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400;
   var data = JSON.parse(document.getElementById("data").textContent);
@@ -220,6 +224,11 @@ __THEME_SWITCH__
     return e;
   }
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
+  // A line that a mark was not saved is brought into view, also on a phone.
+  function say(text) {
+    setText("status", text);
+    if (text && $("status").scrollIntoView) { $("status").scrollIntoView({block: "nearest"}); }
+  }
   function focusCard() { (ended ? $("end") : card).focus({preventScroll: true}); }
   $("see").setAttribute("href", url("/result"));
 
@@ -371,13 +380,13 @@ __THEME_SWITCH__
     }).then(function (r) {
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
-      if (!res.ok) { render(); setText("status", "Not saved: " + res.body.error); return; }
+      if (!res.ok) { render(); say("Not saved: " + res.body.error); return; }
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
       then();
     }).catch(function () {
       render();
-      setText("status", "Not saved: this page lost its link to judgekeeper. Is it still " +
+      say("Not saved: this page lost its link to judgekeeper. Is it still " +
         "running in your terminal? Your earlier marks are saved.");
     });
     return true;
@@ -407,7 +416,7 @@ __THEME_SWITCH__
   }
 
   function undo() {
-    if (!history.length) { setText("status", "Nothing to undo."); return; }
+    if (!history.length) { say("Nothing to undo."); return; }
     if (locked()) { return; }
     var back = history.pop();
     walkingSkipped = false; open(back);
@@ -494,14 +503,13 @@ def label_page(description: str | None, command: str | None = None,
     body = (BODY.replace("__TOP__", look.top(left, _progress()))
             .replace("__COMMAND__", _text(command))
             .replace("__TITLE__", _text(TITLE))
-            .replace("__THEME_SWITCH__", look.THEME_SWITCH)
             .replace("__FIRST__", str(FIRST))
             .replace("__SEGMENTS__", str(SEGMENTS))
             .replace("__BRAND__", look.BRAND)
             .replace("__CROSS__", CROSS).replace("__TICK__", TICK)
             .replace("__DOT_NONE__", DOTS["none"]).replace("__DOT_PASS__", DOTS["pass"])
             .replace("__DOT_FAIL__", DOTS["fail"]))
-    return look.head("judgekeeper: mark answers", STYLE, '<script nonce="__NONCE__">') + body
+    return look.head("judgekeeper: mark answers", STYLE) + body
 
 
 OLD_LINK_STYLE = """
@@ -514,10 +522,8 @@ main.old code { color: var(--text); font-size: 14px; }
 """
 OLD_LINK = ("Each time judgekeeper opens its page, it makes a new private link, and older links "
             "stop working. Your marks are saved.")
-OLD_LINK_SCRIPT = look.THEME_SWITCH
-OLD_LINK_CSP = (f"default-src 'none'; script-src {look.script_hash(look.THEME_FIRST)} "
-                f"{look.script_hash(OLD_LINK_SCRIPT)}; style-src 'unsafe-inline'; font-src data:; "
-                "img-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+OLD_LINK_CSP = ("default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src 'none'; "
+                "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
 
 def old_link_page() -> str:
@@ -525,9 +531,9 @@ def old_link_page() -> str:
     open the page again."""
     from judgekeeper.textio import program
 
-    return (look.head("judgekeeper: this link no longer works", OLD_LINK_STYLE, "<script>")
+    return (look.head("judgekeeper: this link no longer works", OLD_LINK_STYLE)
             + look.top("", "")
             + '<main class="old"><div class="box"><h1>This link no longer works.</h1>'
             + f"<p>{escape(OLD_LINK)}</p>"
             + f"<p>To open the page again, run <code>{escape(program('mark'))}</code>.</p>"
-            + f"</div></main>\n<script>{OLD_LINK_SCRIPT}</script>\n</body>\n</html>\n")
+            + "</div></main>\n</body>\n</html>\n")

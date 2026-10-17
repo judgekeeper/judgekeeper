@@ -306,8 +306,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 settings=check.settings, key_ok=check.ok, tool_version=version, left_out=left,
                 runner=[python], payload=payload,
                 job={"uri": info.get("uri"), "judge": job},
-                side_effects=[(f"Your app is not run. MLflow calls your judge directly in "
-                               f"your Python ({python}); never mlflow.genai.evaluate(), so "
+                side_effects=[(f"Your app or agent is not run. MLflow calls your judge directly "
+                               f"in your Python ({python}); never mlflow.genai.evaluate(), so "
                                "nothing is added to your MLflow store.")])
 
 
