@@ -274,7 +274,7 @@ def test_screen_8_help(capsys):
     ]
     assert lines[20:23] == [
         "  fix     see where your judge goes wrong and test a better rule",
-        "  check   re-check your judge on your marks after a change", ""]
+        "  check   re-check your LLM-as-a-judge on your marks after a change", ""]
     assert "Options:" in lines
     for gone in ("--fast", "--hook", "--on", "--off", "Turn on", "coding agent"):
         assert gone not in out, gone

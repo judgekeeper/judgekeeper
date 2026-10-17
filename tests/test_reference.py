@@ -20,7 +20,7 @@ REFERENCE = ROOT / "docs" / "reference.md"
 COMMANDS = {None: "judgekeeper: find, mark, measure",
             "mark": "mark: mark more answers",
             "fix": "fix: see where your judge goes wrong and test a better rule",
-            "check": "check: re-check your judge after a change"}
+            "check": "check: re-check your LLM-as-a-judge after a change"}
 GONE_FLAGS = ("--review", "--fix", "--ask-again", "--try-new-judge", "--label-more",
               "--test-pass-mark", "--rule-file", "--times", "--allow-calls", "--python",
               "--judge-command", "--agent-prompt")

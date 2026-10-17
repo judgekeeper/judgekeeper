@@ -89,3 +89,12 @@ def test_the_guide_and_the_tool_pages_are_gone_and_nothing_links_them():
         text = path.read_text(encoding="utf-8")
         for gone in ("guide.md", "docs/integrations"):
             assert gone not in text, (path.relative_to(ROOT).as_posix(), gone)
+
+
+def test_checking_names_the_llm_as_a_judge_in_full():
+    """"Judge" alone can read like a court judge, so checking it names the LLM-as-a-judge."""
+    sources = [README, *(ROOT / "docs").glob("*.md"), *(ROOT / "src").rglob("*.py")]
+    for path in sources:
+        text = _flat(path.read_text(encoding="utf-8")).lower()
+        for words in ("check your judge", "checks your judge", "check a judge"):
+            assert words not in text, (path.relative_to(ROOT).as_posix(), words)

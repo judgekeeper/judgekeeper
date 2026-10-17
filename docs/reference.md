@@ -2,12 +2,12 @@
 
 Every command, flag, exit code, file and format. The README has the short version.
 
-Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. `judgekeeper` does Find, Mark and Measure; `judgekeeper mark` marks more; `judgekeeper fix` shows where your judge goes wrong and tests a better rule; `judgekeeper check` re-checks your judge after a change. Run them in your own terminal: each run ends with one `Next:` line that says what you do. `judgekeeper --help` lists the commands, and `judgekeeper <command> --help` each command's flags.
+Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. `judgekeeper` does Find, Mark and Measure; `judgekeeper mark` marks more; `judgekeeper fix` shows where your judge goes wrong and tests a better rule; `judgekeeper check` re-checks your LLM-as-a-judge after a change. Run them in your own terminal: each run ends with one `Next:` line that says what you do. `judgekeeper --help` lists the commands, and `judgekeeper <command> --help` each command's flags.
 
 - [judgekeeper: find, mark, measure](#judgekeeper-find-mark-measure)
 - [mark: mark more answers](#mark-mark-more-answers)
 - [fix: see where your judge goes wrong and test a better rule](#fix-see-where-your-judge-goes-wrong-and-test-a-better-rule)
-- [check: re-check your judge after a change](#check-re-check-your-judge-after-a-change)
+- [check: re-check your LLM-as-a-judge after a change](#check-re-check-your-llm-as-a-judge-after-a-change)
 - [How the numbers are worked out](#how-the-numbers-are-worked-out)
 - [What it reads](#what-it-reads)
 - [How grades are read](#how-grades-are-read)
@@ -31,7 +31,7 @@ Each run does the next step:
 
 | What is there | What `judgekeeper` does |
 |---|---|
-| Nothing marked yet | Step 1, Find: names your eval tool, the answers, your judge and its rule, and checks its grades for free (no AI call). Step 2, Mark: opens the marking page in your browser; mark until "See your result" appears, then click it |
+| Nothing marked yet | Step 1, Find: names your eval tool, the answers, your judge and its rule, and checks its grades with no AI call. Step 2, Mark: opens the marking page in your browser; mark until "See your result" appears, then click it |
 | Some marks, not enough yet | Says how many you marked; the marking page stays open, or opens again when it was closed |
 | Enough marks of each kind | Step 3, Measure: how often your judge agrees with you, and where it goes wrong. The report is saved in `.judgekeeper/report.html`: the result, your counts, the answers where you and your judge disagree, and the estimates |
 | Marks for another judge or eval tool | Says why, and asks before it starts over (your old marks move to `.judgekeeper/previous-<date>/`; nothing is deleted) |
@@ -113,7 +113,7 @@ Your judge's rule is swapped in by judgekeeper when it asks: promptfoo's asserti
 
 **Exit codes:** 0 the step is done, 3 you are needed (more marks, a rule to change, or the question needs your answer), 2 a usage error.
 
-## check: re-check your judge after a change
+## check: re-check your LLM-as-a-judge after a change
 
 ```
 judgekeeper check [PATH] [--yes]
@@ -133,7 +133,7 @@ Run it after you change your judge or update your eval tool, and run your eval. 
 | An agent judge's settings | Yes |
 | The eval tool's version | Yes |
 | A switch to another eval tool | No: it says your results now come from another eval tool and that it can't compare judges across two eval tools, and gives no result. Run `judgekeeper` to start fresh |
-| Your app's answers | No, on purpose: marks are tests for the judge, so a re-check grades the answers you marked |
+| The answers themselves | No, on purpose: marks are tests for the judge, so a re-check grades the answers you marked |
 
 | Flag | What it does |
 |---|---|
@@ -146,7 +146,7 @@ When something changed, it re-checks the new judge on your marks. Free first: an
 
 ## How the numbers are worked out
 
-**What it checks first, for free.** Before you mark anything, `judgekeeper` looks at the judge's own grades: no marks, no AI call, no key. It says what it found, one line each, each starting with "Checked:":
+**What it checks first, with no AI call.** Before you mark anything, `judgekeeper` looks at the judge's own grades: no marks, no AI call, no key. It says what it found, one line each, each starting with "Checked:":
 
 - **No real decision.** The judge's call failed (DeepEval's `error`, or no score with `success` false; promptfoo's `graderError`, or in older files its grader-failure reasons such as "API error:"; Inspect AI's `grader_failed`, or a sample that errored before it was scored; MLflow's `feedback.error`), its reply could not be read (promptfoo's "Could not extract JSON" or "Error parsing output"; Inspect AI's "Grade not found in model output"), or there is no decision at all (a blank cell). These answers are left out, and it says what your eval tool counted them as: promptfoo and DeepEval count them as fails.
 - **Checked nothing.** A DeepEval metric whose judge returned nothing to check scores a full 1.0 and passes (its logs show an empty `Verdicts:` list). Left out too.

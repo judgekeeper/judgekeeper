@@ -85,7 +85,7 @@ MLflow, or a CSV or JSONL file with these columns:
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
     ("fix", "see where your judge goes wrong and test a better rule"),
-    ("check", "re-check your judge on your marks after a change"),
+    ("check", "re-check your LLM-as-a-judge on your marks after a change"),
 )
 HELP_WIDTH = 80
 # Removed commands: the 0.1 CI gate, setup (part of judgekeeper now) and start (its steps are

@@ -79,7 +79,7 @@ GO_AHEAD = "Go ahead? [y/N] "
 CAN_WRITE = "Your judge is an agent that can change files when it runs."
 NOT_ASKED = "Your judge was not asked."
 NEXT_YES = "Next: run `{command}` in your terminal to answer, or `{command} --yes` to go ahead."
-NEXT_LATER = "Next: run `{command}` again when you are ready to re-check your judge."
+NEXT_LATER = "Next: run `{command}` again when you are ready to re-check your LLM-as-a-judge."
 NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
                    "again; or start over on your new answers with `{new}`.")
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your judge."
