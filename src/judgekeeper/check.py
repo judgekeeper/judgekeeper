@@ -24,8 +24,14 @@ For a changed setup:
    are re-weighted by the groups the marks were picked from, so the old one is the report's;
 4. the lines below, a `history.jsonl` line (no answer text), the new verdicts in
    `verdicts/<hash>.jsonl` (ids and verdicts only, under a header with the setup and the
-   judge's fingerprint), and judge.json moves to the new setup. When no answer could be
-   tested, nothing is saved: the check stays pending.
+   judge's fingerprint), and judge.json moves to the new setup. Unless it is "Worse", the
+   marks then test the new judge: start.json and pool-judge.jsonl take its grades (_adopt),
+   so the result and `fix` are about it. When no answer could be tested, nothing is saved:
+   the check stays pending.
+
+A setup counts as changed too when its judge's results hold no rule (a table) and its grades
+on marked answers differ in the newest results (grades_changed), and the last check's change
+is checked again when marks were made after it (_added_since_check).
 
 Exit 0 (no drop bigger than 20 points, not sure with a smaller drop, or nothing changed), 1
 (worse, or not sure with a drop bigger than 20 points, in either group), 3 (the person is
@@ -46,7 +52,7 @@ from pathlib import Path
 from judgekeeper import __version__, find, judge_setup, marks, start, targets, weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
-from judgekeeper.redact import one_line, scrub, scrub_value
+from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_value
 from judgekeeper.start_label import Workspace
 from judgekeeper.textio import plural, program, quote_arg, wrap, write_replacing
 
@@ -163,20 +169,23 @@ def _newest(state: State):
                "pass_if": pm.get("rule") if pm.get("source") == "pass_if" else None,
                "store": data.get("mlflow_store")}
     try:
+        where = root
         if start._saved(root) is None:
             options["tool"] = data.get("tool")
+            where = start.results_path(root, data)  # a file given by path: read there
         given = fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU else None
         try:
-            return start.find_judge(root, judge_model=given, **options), None
+            found = start.find_judge(where, judge_model=given, **options)
         except start.StartError:
             if given is None:
                 raise
-            return start.find_judge(root, **options), None  # the results name it now
+            found = start.find_judge(where, **options)  # the results name it now
+        return (start.rebased(found, root) if where != root else found), None
     except (start.StartError, start.Stop, RecordsError, OSError, ValueError) as e:
         tool = data.get("tool")
         if tool in find.TOOLS and not find.search(root).readable(tool):
-            return None, (f"judgekeeper finds no {find.NAMES.get(tool, tool)} results in this "
-                          f"folder ({Path(root).name})")
+            name = "" if tool == "table" else f"{find.NAMES.get(tool, tool)} "
+            return None, f"judgekeeper finds no {name}results in this folder ({Path(root).name})"
         why = (scrub(str(e)) if str(e) and not isinstance(e, start.Stop)
                else "they need a choice first, such as which results to read: run "
                     f"`{program()}` to make it")
@@ -506,11 +515,16 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
 
 # The paired test --------------------------------------------------------------------------------
 
-def _old_verdicts(state: State) -> dict[str, str]:
-    """The old judge's verdicts on the marked answers: the last check's (or the baseline's)
-    for the setup judge.json keeps, else the results the marks were made on."""
-    pool = {q["id"]: q["group"] for q in state.data.get("queue") or []}
-    return {**pool, **_read_verdicts(state.ws, state.saved["setup_hash"])}
+def _old_verdicts(state: State, old: dict) -> dict[str, str]:
+    """The old judge's (`old`, a setup) verdicts on the marked answers: the last check's for
+    that setup, else start.json's: the grades of the judge judge.json keeps (_adopt), or for
+    an earlier judge the grades the marks were made on (`picked`)."""
+    data = state.data
+    pool = {q["id"]: q["group"] for q in data.get("queue") or []}
+    setup_hash = judge_setup.hash_of(old)
+    if setup_hash != state.saved["setup_hash"]:
+        pool.update((data.get("picked") or {}).get("groups") or {})
+    return {**pool, **_read_verdicts(state.ws, setup_hash)}
 
 
 def _picks(state: State) -> tuple[dict[str, str], dict[str, int]]:
@@ -889,6 +903,94 @@ def _free(found, marked: dict[str, str]) -> dict[str, str]:
             if a.id in marked and a.source in newest}
 
 
+GRADES = "Your judge's grades changed on {k} of your marked answers."
+ADDED = "You added {n} since your last check."
+
+
+def grades_changed(ws: Workspace, found) -> int:
+    """For a judge whose results hold no rule (a table, say): on how many marked answers its
+    grades in the newest results differ from the ones judge.json's judge gave. A rule changed
+    in code shows only there; the new grades are in the file, so no AI call re-checks them."""
+    saved = judge_setup.read(ws)
+    if saved is None or saved["setup"].get("rule_hash") is not None or found.rule is not None:
+        return 0
+    try:
+        data = ws.data()
+    except (OSError, ValueError):
+        return 0
+    marked = marks.read(ws.marks).counted()
+    old = {**{q["id"]: q["group"] for q in data.get("queue") or []},
+           **_read_verdicts(ws, saved["setup_hash"])}
+    return sum(1 for i, v in _free(found, marked).items() if i in old and old[i] != v)
+
+
+def _added_since_check(state: State, new: dict | None) -> tuple[dict | None, list[str]]:
+    """(the judge before the last check, the marks made since it) when that check moved
+    judge.json to `new` and marks were made after it: they were not re-checked."""
+    if new is None or judge_setup.hash_of(new) != state.saved["setup_hash"]:
+        return None, []
+    last = next((x for x in reversed(_history(state.ws))
+                 if judge_setup.hash_of(x.get("after") or {}) == state.saved["setup_hash"]),
+                None)
+    if last is None or not isinstance(last.get("before"), dict):
+        return None, []
+    before = last["before"]
+    if not judge_setup.changes(before, new):
+        return None, []
+    tested = _read_verdicts(state.ws, state.saved["setup_hash"])
+    return before, [i for i in state.marks if i not in tested]
+
+
+def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
+    """After a check that is not "Worse", the marks test the new judge: start.json takes its
+    grades (on the marks re-checked and the answers in the newest results), its rule, model
+    and fingerprint, and pool-judge.jsonl its grades and reasons, so the result and `fix` are
+    about the judge in the newest results. The groups the marks were picked from, and those
+    groups' sizes, stay in `picked` (start_label.picked_numbers)."""
+    from judgekeeper.fingerprint import JudgeFingerprint
+    from judgekeeper.judgments import judgment_to_record, read_run, write_run
+    from judgekeeper.runners.base import Judgment
+    from judgekeeper.start_label import _write_json
+
+    data = ws.data()
+    queue = data.get("queue") or []
+    newest = set(found.used) if found.tool in ("records", "mapped") else {found.used[0]}
+    answers = {a.id: a for a in found.pool.answers if a.source in newest}
+    now = {**{i: a.verdict for i, a in answers.items()}, **tested}
+    picked = data.get("picked") or {"pool": data.get("pool"),
+                                    "groups": {q["id"]: q["group"] for q in queue}}
+    queue = [{**q, "group": now.get(q["id"], q["group"])} for q in queue]
+    kinds = [q["group"] for q in queue]
+    data.update(picked=picked, queue=queue, rule=found.rule, one_rule=found.one_rule,
+                judge=found.judge, fingerprint=scrub_fingerprint(found.fingerprint),
+                pass_mark=found.pass_mark, results_files=list(found.used),
+                pool={**(data.get("pool") or {}), "pass": kinds.count("pass"),
+                      "fail": kinds.count("fail")},
+                checked_at=utc_now())
+    try:
+        head, records = read_run(ws.pool_judge)
+    except (OSError, ValueError):
+        head, records = None, {}
+    if head is not None:
+        given = found.fingerprint.get("model_source") is not None
+        fp = JudgeFingerprint.from_dict(found.fingerprint)
+        lines = []
+        for i, rec in records.items():
+            a = answers.get(i)
+            if a is not None and i in now:
+                rec = judgment_to_record(i, Judgment(verdict=a.verdict, raw_score=a.score,
+                                                     rationale=a.reason),
+                                         a.fingerprint.with_(model=found.fingerprint["model"])
+                                         if given else a.fingerprint)
+            elif i in now and now[i] != rec.get("verdict"):  # asked again: no reason kept
+                rec = judgment_to_record(i, Judgment(verdict=now[i], raw_score=None,
+                                                     rationale=""), fp)
+            lines.append(rec)
+        write_run(ws.pool_judge, head.get("run", 1), head.get("anchors_sha256", ""), fp,
+                  lines, source=head.get("source"), normaliser=head.get("normaliser"))
+    _write_json(ws.start, data)
+
+
 def full(path: str, said: Said, yes: bool = False) -> int:
     state = _state(path)
     if state is None or not state.enough:
@@ -896,7 +998,10 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     old = state.saved["setup"]
     now, problem = _now(state)
     found, new = (now.found, now.setup) if now is not None else (None, None)
-    if now is not None and found is None and judge_setup.changes(old, new):
+    before, added = _added_since_check(state, new) if now is not None else (None, [])
+    no_rule = new is not None and new.get("rule_hash") is None  # its grades tell a change
+    if now is not None and found is None and (judge_setup.changes(old, new) or added or
+                                               no_rule):
         found, problem = _newest(state)  # remembered, but a re-check needs the answers
         new = judge_setup.of(found) if found is not None else new
     switched = _switched(state) if problem else None
@@ -915,7 +1020,10 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say(NEXT_RUN_EVAL.format(command=_command(state)))
         return EXIT_NEEDS_YOU
     changed = judge_setup.changes(old, new)
-    if not changed:
+    if not changed and added:  # marks made since the last check: that change again
+        old, changed = before, judge_setup.changes(before, new)
+    grades = 0 if changed or found is None else grades_changed(state.ws, found)
+    if not changed and not grades:
         if now.config is not None:  # one line per case, never "no change" with it
             said.say(CONFIG_NEWER)
             said.say()
@@ -927,8 +1035,10 @@ def full(path: str, said: Said, yes: bool = False) -> int:
             said.say(NEXT_SAME.format(command=_command(state)))
         return EXIT_OK
 
-    change = _change_line(old, new, changed, full=True)
-    said.say(change)
+    said.say(_change_line(old, new, changed, full=True) if changed
+             else GRADES.format(k=grades))
+    if added:
+        said.say(ADDED.format(n=_n(len(added), "mark")))
     tested = _tested_rule(state, found) if found is not None and old.get("rule_hash") != \
         new.get("rule_hash") else None
     if tested:
@@ -965,7 +1075,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say(line)
     said.say()
     on = f"all {total} of your marks" if n == total else f"{n} of your {_n(total, 'mark')}"
-    old_verdicts = _old_verdicts(state)
+    old_verdicts = _old_verdicts(state, old)
     picked, pool = _picks(state)
     g = groups(state.marks, old_verdicts, tested, picked, pool)
     fresh = (_made_after(state, _first_seen(state, old, new), tested)
@@ -1027,15 +1137,19 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     flipped = [i for i in tested if i in old_verdicts and old_verdicts[i] != tested[i]]
     line = scrub_value({
         "time": utc_now(), "kind": "check", "trigger": "by hand", "before": old, "after": new,
-        "changed": changed, "marks": total, "free": len(free), "asked": len(asked.verdicts),
+        "changed": changed or [f"grades changed on {_n(grades, 'marked answer')}"],
+        "marks": total, "free": len(free), "asked": len(asked.verdicts),
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": g,
         "smallest_drop": drop, "flipped": flipped,
         "made_after_change": None if fresh is None else len(fresh)})
     if not _same_as_last(state, line):
         marks.append(state.ws.history_jsonl, line)
-    _save_verdicts(state.ws, new, found, tested)
+    if not worse or judge_setup.hash_of(old) != judge_setup.hash_of(new):
+        _save_verdicts(state.ws, new, found, tested)  # a "Worse" of the same setup (a table's
+        # new grades) keeps the old grades: the next check says worse again
     if not worse:  # after "Worse" the old judge stays the reference until it comes back
         judge_setup.save(state.ws, new, found.metric)
+        _adopt(state.ws, found, tested)
     _report(state.ws)
     return EXIT_WORSE if exit_worse else EXIT_OK
 

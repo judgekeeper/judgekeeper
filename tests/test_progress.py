@@ -13,6 +13,13 @@ from judgekeeper.cli import main
 from tests.start_projects import promptfoo_project, split
 
 
+@pytest.fixture(autouse=True)
+def in_its_folder(tmp_path, monkeypatch):
+    """Each test runs from its own folder: a results file given by path keeps .judgekeeper/
+    in the folder the command runs from."""
+    monkeypatch.chdir(tmp_path)
+
+
 @pytest.fixture
 def slow(monkeypatch):
     """A clock that moves 1 s each time it is read: a big file takes long."""

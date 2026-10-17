@@ -445,14 +445,14 @@ def test_nothing_is_written_outside_the_folder(tmp_path):
 # The whole flow --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("correct, wrong, have", [(20, 4, "4 Fail"), (3, 30, "3 Pass"),
-                                                  (9, 2, "9 Pass and 2 Fail")])
-def test_every_answer_marked_but_a_kind_short_says_why_there_is_no_result(correct, wrong,
-                                                                          have):
+@pytest.mark.parametrize("correct, wrong", [(20, 4), (3, 30), (9, 2)])
+def test_every_answer_marked_but_a_kind_short_says_why_there_is_no_result(correct, wrong):
     r = {"check": "too_few", "left": 0, "labels": {"correct": correct, "wrong": wrong}}
-    line = (f"You've marked every answer. A result needs at least 15 you mark Pass and 15 you "
-            f"mark Fail; you have {have}. Run your eval on more questions, then judgekeeper.")
-    assert start_label.sentences(r) == [line]
+    first = (f"You've marked every answer: {correct} Pass, {wrong} Fail. A result needs at "
+             "least 15 of each.")
+    then = ("Next: run your eval on more questions, then run `judgekeeper --new` to mark the "
+            "new results. Your marks so far are kept in .judgekeeper/previous-<date>/.")
+    assert start_label.sentences(r) == [first, then]
     r["left"] = 3  # answers still to mark: mark more, as before
     assert start_label.sentences(r)[0].startswith("Mark a few more answers")
 

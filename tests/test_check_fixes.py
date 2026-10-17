@@ -100,13 +100,22 @@ def test_a_path_that_does_not_exist(here, capsys):
     assert _next(out) == "Next: run `judgekeeper check` in your project folder."
 
 
-def test_a_folder_under_the_project_says_where_the_marks_are(here, capsys, monkeypatch):
+def test_a_folder_inside_the_project_finds_the_marks(here, capsys, monkeypatch, no_calls):
     _marked(here)
     (here / "src").mkdir()
     monkeypatch.chdir(here / "src")
     code, out = run(capsys)
+    assert code == 0, out
+    assert "Your judge has not changed since you marked your answers." in out
+
+
+def test_another_project_inside_says_where_the_marks_are(here, capsys, monkeypatch):
+    _marked(here)
+    (here / "app" / ".git").mkdir(parents=True)
+    monkeypatch.chdir(here / "app")
+    code, out = run(capsys)
     assert code == 3
-    assert "No marks in this folder (src). Your marks are in the folder above it" in _flat(out)
+    assert "No marks in this folder (app). Your marks are in the folder above it" in _flat(out)
     assert _next(out) == "Next: run `judgekeeper check ..`."
 
 

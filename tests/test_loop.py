@@ -214,16 +214,16 @@ def test_enough_marks_print_the_result(here, capsys, pages):
     for gone in ("Your marks:", "Kappa", "can see a drop", "Your judge vs your marks",
                  "These are estimates", "could be", "Where it goes wrong"):
         assert gone not in out, gone
-    assert "The marking page is still open if you want to mark more answers." in out
+    assert "still open" not in out  # every answer is marked: nothing left on the page
     assert len(pages[0]) == 1  # no page started for the result
     assert (ws.dir / "report.html").is_file()
 
 
 def test_the_result_without_an_open_page_says_nothing_about_it(here, capsys, pages):
-    promptfoo_project(here, split(20, 16))
+    promptfoo_project(here, split(30, 30))
     run(capsys)
     ws = start_label.Workspace(here)
-    _click(ws)
+    _click(ws, 50)  # 10 answers left to mark
     assert background.stop(ws.dir)
     code, out, _ = run(capsys)
     assert code == 0
@@ -245,10 +245,10 @@ def test_a_judge_that_fails_few_of_the_answers_you_failed_is_measured(here, caps
             said, failed = "fail", failed + 1
         session.update({"id": item["id"], "label": said, "seconds": 5})
     code, out, _ = run(capsys)
-    assert code == 0
+    assert code == 3  # every answer marked, too early to tell: more answers are needed
     assert "You and your judge disagreed on 5 of 36 answers." in out
     assert "  You failed 21 answers. Of those, your judge passed 5 and failed 16." in out
-    assert "  When you say Fail, it also says Fail: about 76% (between 62% and 89%)" in out
+    assert "estimates" not in out  # too early to tell: the counts only
 
 
 def test_a_changed_rule_carries_on_and_says_which_judge(here, capsys, pages):

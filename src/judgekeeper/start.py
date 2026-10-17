@@ -712,6 +712,35 @@ class Found:
     experiment: str | None = None  # MLflow: the experiment read
     stopped: list[str] = field(default_factory=list)  # Inspect runs that stopped early; rows left out
     label_map: str | dict | None = None  # --label-map as given, kept in start.json
+    # a results file (or MLflow store) given by path: where it is from `root`, kept in
+    # start.json, so later runs without a path read it again (rebased)
+    given: str | None = None
+
+
+def rebased(found: Found, root: Path) -> Found:
+    """`found` read from a results file (or MLflow store) given by path, with `root` as its
+    project folder: .judgekeeper/ stays in the project, never next to the file. Each file is
+    named from `root`, and `given` says where the file is."""
+    root = Path(root).resolve()
+
+    def rel(path: Path) -> str:
+        path = path.resolve()
+        return path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
+
+    results = [replace(r, rel=rel(r.path)) for r in found.results]
+    given = rel(found.results[0].path) if found.tool != "mapped" else None
+    return replace(found, root=root, results=results, given=given)
+
+
+def results_path(root: Path, data: dict) -> Path:
+    """Where the results of the marks in `root` are read: the file (or MLflow store) given by
+    path when marking started, while it is there; else the project folder."""
+    given = data.get("given") if isinstance(data, dict) else None
+    if isinstance(given, str) and given:
+        path = Path(root) / given
+        if path.exists():
+            return path
+    return Path(root)
 
 
 PASS_OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt}

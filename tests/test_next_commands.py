@@ -39,7 +39,7 @@ def _mark_all(ws: Workspace) -> None:
 
 def test_the_result_names_only_the_command_that_was_run(project, capsys):
     assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
-    ws = Workspace(project / "evals")
+    ws = Workspace(project)  # in the project, never next to the file
     _mark_all(ws)
     capsys.readouterr()
     code = main(["evals/results.csv", *FLAGS, "--yes"])
@@ -61,4 +61,4 @@ def test_the_result_names_only_the_command_that_was_run(project, capsys):
 
 def test_every_marked_line_names_the_runs_command():
     r = {"check": "too_few", "left": 0, "labels": {"correct": 20, "wrong": 4}, "command": BASE}
-    assert start_label.sentences(r)[0].endswith(f"then {BASE}.")
+    assert f"`{BASE} --new`" in start_label.sentences(r)[1]

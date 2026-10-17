@@ -37,8 +37,9 @@ def test_a_judgekeeper_folder_that_cant_be_written(here, capsys):
     text = _flat(out + err)
     assert ("judgekeeper can't write in .judgekeeper/ (permission denied): it keeps its files "
             "there.") in text
-    assert ("Next: give your user permission to write in .judgekeeper/ (or remove the folder: "
-            "judgekeeper makes it again), then run `judgekeeper --no-browser`.") in text
+    assert ("Next: give your user permission to write in .judgekeeper/, then run "
+            "`judgekeeper --no-browser`.") in text
+    assert "remove" not in text  # the folder holds the marks
     assert ".tmp" not in text and str(here) not in text and "location" not in text
     assert code == 2
 

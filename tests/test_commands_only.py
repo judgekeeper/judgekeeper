@@ -104,7 +104,7 @@ def test_a_removed_check_flag_is_a_usage_error_with_one_next_line(here, capsys, 
     assert "Traceback" not in out + err
     assert f"unrecognized arguments: {flags[0]}" in err
     assert assert_one_next_at_the_end(out + err) == (
-        "Next: run `judgekeeper check` yourself after you change your judge.")
+        "Next: run `judgekeeper check --help` to see the options.")
 
 
 def test_check_help_shows_only_the_path_and_yes(capsys):

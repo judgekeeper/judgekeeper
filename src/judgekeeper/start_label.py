@@ -101,6 +101,13 @@ VERDICTS = {  # the result line (targets.level decides)
     None: "Mark a few more answers to see your result.",
 }
 ALL_LABELED = "Every saved answer is marked. Run your eval again for more answers, then:"
+# Every answer marked, and a result still needs more: the same words in the terminal, `mark`,
+# the Measure screen, the marking page's end card and the result page
+ALL_MARKED = "You've marked every answer: {marks}."
+NEEDS_EACH = " A result needs at least {n} of each."
+TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges still too wide
+NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}` to mark the new "
+                   "results. Your marks so far are kept in {folder}/previous-<date>/.")
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
@@ -275,6 +282,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "description": found.description,
         "app_version": found.app_version,
         **({"mlflow_store": found.store} if found.store else {}),
+        **({"given": found.given} if getattr(found, "given", None) else {}),
         "fingerprint": scrub_fingerprint(found.fingerprint),
         "pass_mark": found.pass_mark,
         "one_rule": found.one_rule,
@@ -372,10 +380,17 @@ def progress_status(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f:
 
 
 def start_status(session: StartSession) -> dict:
-    """The line under the meters for `start`'s labeling: from the session's labels."""
+    """The line under the meters for `start`'s labeling: from the session's labels. With
+    every answer marked and no result yet, `done` holds what the end card says
+    (all_marked_lines)."""
     counted = session.group_counts()
-    return progress_status(session.pool["pass"], session.pool["fail"], *counted["pass"],
-                           *counted["fail"])
+    status = progress_status(session.pool["pass"], session.pool["fail"], *counted["pass"],
+                             *counted["fail"])
+    if not status["ready"] and session.items and all(i["label"] for i in session.items):
+        counts = session.counts()  # nothing left to mark: the end card says what comes next
+        done = all_marked_lines({"correct": counts["correct"], "wrong": counts["wrong"]})
+        status.update(text=done[0], done=done)
+    return status
 
 
 class StartSession(LabelSession):
@@ -535,9 +550,7 @@ def sentences(r: dict) -> list[str]:
     place a count is said: it explains a stop, it is not a target)."""
     if r["check"] == "too_few":
         if all_labeled(r):
-            return [(f"You've marked every answer. A result needs at least {ROUGH} you mark "
-                     f"Pass and {ROUGH} you mark Fail; you have {short_words(r['labels'])}. Run "
-                     f"your eval on more questions, then {command_of(r)}.")]
+            return all_marked_lines(r["labels"], command_of(r, "--new"))
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     return [side_sentence(key, r[key], r[f"{key}_interval"]) for key in SAID]
 
@@ -563,6 +576,19 @@ def side_sentence(key: str, value, interval) -> str:
 
 def all_labeled(r: dict) -> bool:
     return r.get("left") == 0
+
+
+def all_marked_lines(labels: dict, command: str | None = None,
+                     folder: str = FOLDER) -> list[str]:
+    """Every answer is marked, so there is none left to mark: the line that says so (what a
+    result needs while a kind is under ROUGH, else that it is still too early to tell), and the
+    Next: line. New answers do not join the marks: `command` (`judgekeeper --new`) marks the
+    new results from the start."""
+    command = command or program("--new")
+    short = min(labels["correct"], labels["wrong"]) < ROUGH
+    first = ALL_MARKED.format(marks=marks_words(labels)) + (NEEDS_EACH.format(n=ROUGH)
+                                                             if short else TOO_FEW_TO_TELL)
+    return [first, "Next: " + NEXT_ALL_MARKED.format(command=command, folder=folder)]
 
 
 def command_of(r: dict, *extra: str) -> str:
@@ -672,6 +698,11 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     if data.get("picked"):  # a re-check: the marks keep the groups they were picked by
         labels = {i["id"]: i["label"] for i in session.items if i["label"]}
         r = describe(picked_numbers(data["picked"], labels, groups, data["pool"]))
+        r["groups"] = {g: {"pool": data["pool"][g],  # the counts: by the judge's grades now
+                           "labeled": sum(groups[i] == g for i in labels),
+                           "correct": sum(groups[i] == g and m == "pass"
+                                          for i, m in labels.items())}
+                       for g in ("pass", "fail")}
     else:
         r = describe(weighted.corrected(data["pool"]["pass"], data["pool"]["fail"],
                                         *counted["pass"], *counted["fail"]))
@@ -680,7 +711,8 @@ def compute(ws: Workspace, session: StartSession) -> dict:
              made_at=utc_now(),
              judgekeeper_version=__version__, fingerprint=data["fingerprint"],
              judge={"name": data["judge"], "tool": data["tool"], "metric": data["metric"],
-                    "rule": data.get("rule"), "description": data.get("description"),
+                    "rule": data.get("rule"), "one_rule": data.get("one_rule", True),
+                    "description": data.get("description"),
                     "results_files": data["results_files"],
                     "results_date": data.get("results_date")})
     if data.get("judge_check"):
