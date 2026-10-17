@@ -375,7 +375,8 @@ VERDICT_NAMES = {"better": "Better", "safe": "Safe to try", "leans better": "Can
 
 def report_section(ws: Workspace) -> dict | None:
     """The result page's disagreements: the mistakes on the marks the person can see, with the
-    judge's reason; never a hidden mark. None when there is none."""
+    judge's reason, each text cut at a word to start_fix_rule.CUT characters; never a hidden
+    mark. None when there is none."""
     try:
         m = Marks(ws)
     except (OSError, ValueError, KeyError):
@@ -387,8 +388,20 @@ def report_section(ws: Workspace) -> dict | None:
         return None
     cut = start_fix_rule.CUT
     return {"mistakes": [{"judge": r["judge"], "final": r["final"],
-                          "question": _question(m, r)[:cut], "answer": r["output"][:cut],
-                          "reason": r["reason"][:cut]} for r in wrong]}
+                          "question": cut_words(_question(m, r), cut),
+                          "answer": cut_words(r["output"], cut),
+                          "reason": cut_words(r["reason"], cut)} for r in wrong]}
+
+
+def cut_words(text: str, width: int) -> str:
+    """`text` cut to `width` characters, "…" included, at a word unless that leaves too
+    little."""
+    if len(text) <= width:
+        return text
+    cut = text[:width - 1]
+    if " " in cut[width // 2:]:
+        cut = cut[:cut.rindex(" ")]
+    return cut.rstrip() + "…"
 
 
 def _question(m: Marks, row: dict) -> str:
