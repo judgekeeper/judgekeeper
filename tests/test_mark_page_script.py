@@ -195,15 +195,30 @@ def test_skip_and_undo_by_key_and_skipped_answers_come_back_at_the_end():
       var back = ids["q-text"].textContent;
       key("s"); await settle(); later(500);
       for (var i = 0; i < 2; i++) { key("ArrowRight"); await settle(); later(500); }
-      var end = ids["end"].hidden, title = ids["end-title"].textContent;
+      var end = [ids["end"].hidden, ids["answer-card"].hidden, ids["again"].hidden,
+                 ids["end-note"].hidden, ids["again"].textContent, ids["count"].textContent,
+                 window.location.href];
+      var title = ids["end-title"].textContent;
       ids["again"].fire("click"); await settle();
       console.log(JSON.stringify({skipped: skipped, undone: undone, back: back, end: end,
         title: title, again: ids["q-text"].textContent}));""", data=_data(3))
     assert got["skipped"] == {"deferred": True, "id": "a0", "seconds": 0}
     assert got["undone"] == {"label": None, "deferred": False, "id": "a0", "seconds": 0}
     assert got["back"] == "Question 0?"
-    assert got["end"] is False and got["title"] == "1 skipped answer. Look again, or leave it out."
+    # The end card in the answer card's place: the title, one button, no note, no result yet
+    assert got["end"] == [False, True, False, True, "Look at it", "2 marked", ""]
+    assert got["title"] == "1 skipped answer. Look again, or leave it out."
     assert got["again"] == "Question 0?"
+
+
+def test_with_every_answer_marked_the_end_card_says_so_and_the_result_opens():
+    got = _run("""
+      for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      console.log(JSON.stringify({end: ids["end"].hidden, card: ids["answer-card"].hidden,
+        title: ids["end-title"].textContent, note: ids["end-note"].hidden,
+        again: ids["again"].hidden, href: window.location.href}));""", data=_data(3))
+    assert got == {"end": False, "card": True, "title": "You marked every answer.",
+                   "note": False, "again": True, "href": "/result?token=t0k"}
 
 
 def test_going_back_to_a_marked_answer_says_its_mark():

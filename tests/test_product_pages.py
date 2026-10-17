@@ -348,6 +348,22 @@ def test_the_welcome_box_is_centred_green_and_plain():
     assert '$("app").removeAttribute("inert")' in page
 
 
+def test_the_end_card_is_one_centred_card_in_the_answers_place():
+    page = _marking()
+    assert ('<section class="card end" id="end" hidden aria-live="polite"><h2 id="end-title"></h2>'
+            '\n    <p class="note" id="end-note" hidden>Opening your result…</p>'
+            '\n    <button type="button" class="go" id="again" hidden>Look at them</button>'
+            "</section>") in page
+    style = mark_page.STYLE
+    assert (".end { padding: 56px 28px; display: flex; flex-direction: column; "
+            "align-items: center; gap: 24px;") in style
+    assert ".end h2 { margin: 0; font-size: 26px; font-weight: 700;" in style
+    assert "max-width: 32ch; }" in style
+    assert ".end .note { margin: 0; color: var(--muted); font-size: 15px; }" in style
+    assert "height: 50px; padding: 0 28px; font-size: 16px;" in style.split(".go {")[1]
+    assert "You marked every answer." in page and "skipped answer" in page
+
+
 def test_the_marking_page_has_one_h1_a_progressbar_and_hidden_words_for_each_row():
     page = _marking()
     assert page.count("<h1") == 1 and '<h1 class="question" id="q-text">' in page
