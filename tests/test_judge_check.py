@@ -252,7 +252,7 @@ def test_inspect_samples_that_errored_before_scoring(tmp_path):
     path = _write_json(tmp_path / "log.json", data)
     assert _marks(read_inspect(path)) == [(None, None)]  # import reads them as before
     records = read_inspect(path, with_errors=True)
-    assert _marks(records) == [("error", "left out"), (None, None)]
+    assert _marks(records) == [("not_scored", "left out"), (None, None)]  # not a failed call
     assert records[0].label is None and records[0].output == "Answer 0."
     assert records[0].explanation.startswith("ModelGenerateError")
 

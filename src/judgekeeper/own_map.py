@@ -88,7 +88,8 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
             where = f" ({g.pass_mark_key} in the file)"
         else:
             where = " (the scores are between 0 and 1)" if g.pass_mark_sure else ""
-        lines.append(f"  pass mark:       {g.pass_mark}{where}")
+        mark = g.pass_mark if g.pass_op == ">=" else f"{g.pass_op} {g.pass_mark}"
+        lines.append(f"  pass mark:       {mark}{where}")
     return lines
 
 
@@ -172,18 +173,26 @@ def _choose_judge(talk: Talk, units, g: mapper.Guess, metric: str | None) -> str
     return "*" if i == len(g.judges) else g.judges[i]
 
 
+def _given(g: mapper.Guess, pass_if: str | None) -> mapper.Guess:
+    """The guess with --pass-if's pass mark and operator, so the box shows the pass mark that
+    is used; the guess itself without one."""
+    import dataclasses
+
+    if pass_if is None or g.kind != "score":
+        return g
+    try:
+        rule = parse_pass_if(pass_if)
+    except NormaliseError as e:
+        raise StartError(str(e)) from None
+    mark = int(rule.threshold) if rule.threshold.is_integer() else rule.threshold
+    return dataclasses.replace(g, pass_mark=mark, pass_mark_sure=True, pass_mark_given=True,
+                               pass_mark_key=None, pass_op=rule.op)
+
+
 def _pass_mark(talk: Talk, g: mapper.Guess, pass_if: str | None):
-    """The pass mark of a score judge: --pass-if's, the guess's when it is sure, else asked."""
-    if pass_if is not None:
-        try:
-            rule = parse_pass_if(pass_if)
-        except NormaliseError as e:
-            raise StartError(str(e)) from None
-        if rule.op != ">=":
-            raise StartError(f"for a results file in your own format, give the pass mark as "
-                             f"--pass-if {PASS_IF}")
-        return int(rule.threshold) if rule.threshold.is_integer() else rule.threshold
-    if g.pass_mark_sure:
+    """The pass mark of a score judge: --pass-if's (_given), the guess's when it is sure, else
+    asked."""
+    if pass_if is not None or g.pass_mark_sure:
         return g.pass_mark
     if start._interactive():
         answer = talk.ask("Pass when the score is at least", str(g.pass_mark))
@@ -222,6 +231,7 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
         talk.say(f"  and {len(listed) - MAX_PATHS} more")
     talk.say()
     while True:
+        g = _given(g, pass_if)
         talk.say("How judgekeeper reads it:")
         for line in how_lines(g, judge_model):
             talk.say(line)
@@ -259,11 +269,12 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
             '"Rule"), not by your judge. Leave them out?', default=True, with_yes=True,
             hint=""):
         m["leave_out"] = True
+    op = g.pass_op if mark is not None and g.pass_op != ">=" else None
     saved = settings.StartSettings(source="map", file=rel, judge=judge, pass_mark=mark,
-                                   model=judge_model, map=m)
+                                   pass_op=op, model=judge_model, map=m)
     try:
         records = [r for _, recs in read_mapped(path, {**m, "judge": judge, "pass_mark": mark,
-                                                        "model": judge_model})
+                                                        "pass_op": op, "model": judge_model})
                    for r in recs if r.annotator_kind == LLM]
     except RecordsError:
         records = []

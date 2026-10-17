@@ -670,7 +670,7 @@ def test_short_unknown_grades_are_listed_but_never_in_the_next_line(project, cap
     next_line = flat(text[text.index("Next:"):])
     for value in ("good", "bad", "ok, sure"):
         assert value not in next_line
-    assert '--label-map "VALUE=pass,VALUE=fail"' in next_line
+    assert '--label-map "VALUE=pass,VALUE=fail,VALUE=error"' in next_line
 
 
 def test_long_text_grades_are_counted_not_shown(project, capsys):

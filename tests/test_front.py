@@ -356,7 +356,8 @@ def test_words_need_a_label_map(here, capsys):
     assert code == 3
     line = assert_one_next_at_the_end(out)
     assert "Fail: bad, good." in out
-    assert "which of the values above mean Pass and which mean Fail" in line
+    assert ("which of the values above mean Pass, which mean Fail and which mean no decision "
+            "(error)") in line
     assert "--label-map" in line and "good" not in line  # never a value in the Next: line
     code, out, _ = run(capsys, "--label-map", "good=pass,bad=fail")
     assert code == 0, out

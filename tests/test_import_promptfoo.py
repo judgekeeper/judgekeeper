@@ -67,7 +67,7 @@ def test_repeats_are_numbered_in_order_of_appearance():
 def test_default_grader_is_flagged_and_its_model_unknown():
     records = read_promptfoo(RESULTS)
     [warning] = records.per_metric["helpfulness"]["warnings"]
-    assert "default grader model not recorded by promptfoo" in warning
+    assert "came from promptfoo's default grader" in warning
     # each judgment keeps its own grader: t2's model is unknown, the others are known
     models = {r.target_id: r.evaluator.get("model") for r in records
               if r.annotator_kind == LLM and r.name == "helpfulness" and r.run == 1}

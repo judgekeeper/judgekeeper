@@ -20,6 +20,8 @@ with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, option
 - The prompt hash covers the scorer's `template` and `instructions` options, or Inspect's
   default for that scorer when they are unset; never the per-sample `metadata.grading`.
 - Values `C`/`I` read as pass/fail; `P` (partial) and anything else need --label-map.
+- The scorers that check text in code (CODE_SCORERS: match, includes, exact, pattern, f1,
+  answer) are code checks, not judges: read as CODE records, so they are left out.
 - A grader whose reply held no grade: current versions save `Score.unscored(reason=
   "grader_failed", explanation="Grade not found in model output: ...")` (a NaN value that
   Inspect's metrics skip; scorer/_model.py, scorer/_metric.py; logs before 0.3.245 keep the
@@ -27,8 +29,9 @@ with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, option
   Read as saved, with an in-memory mark (records.Mark) for `start`'s judge check.
 - A sample whose grader call failed (an HTTP 400, say) has `samples[].error` (a
   ModelGenerateError) and no scores, while the app's answer is fine. By default no record is
-  read for it; with `with_errors` (what `start` uses) it gives one record per scorer of
-  the eval, with no verdict, the error as its explanation and an "error" mark.
+  read for it; with `with_errors` (what `start` uses) it gives one record per judge of
+  the eval (each key of a scorer whose value is a dict), with no verdict, the error as its
+  explanation and a "not_scored" mark: the run failed before scoring, no judge was called.
 - A human edit (`edit_score`, log/_score.py) appends to `history`: the first entry is the
   original score (no provenance), later ones carry `provenance.author`. The original value is
   the judge's verdict and the edited value is the human label.
@@ -45,6 +48,7 @@ from pathlib import Path
 
 from judgekeeper.anchors import canonical_json
 from judgekeeper.records import (
+    CODE,
     HUMAN,
     LLM,
     Mark,
@@ -60,6 +64,8 @@ from judgekeeper.records import (
 from judgekeeper.textio import get_extra, read_json
 
 DEFAULT_LABELS = {"C": "pass", "I": "fail"}
+# Inspect's scorers that check text in code, never with a model: not judges, left out
+CODE_SCORERS = frozenset({"match", "includes", "exact", "pattern", "f1", "answer"})
 # Stands in for a template or instructions the scorer leaves at Inspect's default.
 DEFAULT_PROMPT = "inspect_ai default for {name}"
 EVAL_NEEDS_EXTRA = ("{path}: reading .eval logs needs inspect_ai. To read it, {get}; or run "
@@ -83,7 +89,8 @@ def _mark(score: dict, label) -> Mark:
         score.get("reason"), (score.get("metadata") or {}).get("unscored_reason"))
     explanation = score.get("explanation")
     no_grade = isinstance(explanation, str) and explanation.startswith(NO_GRADE)
-    problem = "unreadable" if no_grade else "error" if unscored else None
+    problem = ("not_scored" if score.get("reason") == SAMPLE_ERROR else "unreadable" if no_grade
+               else "error" if unscored else None)
     counted = "left out" if unscored else DEFAULT_LABELS.get(label)  # C or I
     return Mark(problem=problem, tool_counted_as=counted if problem else None)
 
@@ -301,6 +308,15 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
                       for s in spec.get("scorers") or [] if isinstance(s, dict)}
 
     records = RecordList(version=data.get("version"), label_map=DEFAULT_LABELS)
+    keys: dict[str, list[str]] = {}  # each scorer's judges, as its scores name them
+    for sample in samples:
+        scores = sample.get("scores") if isinstance(sample, dict) else None
+        for name, score in (scores if isinstance(scores, dict) else {}).items():
+            if isinstance(score, dict):
+                for key, _ in _verdicts(name, score.get("value")):
+                    keys.setdefault(name, [])
+                    if key not in keys[name]:
+                        keys[name].append(key)
     stopped = stopped_early(data)
     if stopped:
         records.notes.append(stopped)
@@ -338,10 +354,14 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
             evaluator["prompt"] = scorer_prompt(name, options)
             edit = _human_edit(score)
             judged = edit[0] if edit else score
-            for key, value in _verdicts(name, judged.get("value")):
+            code = name in CODE_SCORERS and not options.get("model")
+            judges = ([(key, None) for key in keys.get(name) or [name]]
+                      if judged.get("reason") == SAMPLE_ERROR else _verdicts(name, judged.get("value")))
+            for key, value in judges:
                 label, number = _value(value)
                 records.append(ScoreRecord(
-                    target_id=item_id, name=key, annotator_kind=LLM, label=label, score=number,
+                    target_id=item_id, name=key, annotator_kind=CODE if code else LLM,
+                    label=label, score=number,
                     explanation=judged.get("explanation") or None, run=epoch, **content,
                     evaluator=dict(evaluator), created_at=created_at,
                     mark=_mark(judged, label)))

@@ -24,9 +24,8 @@ answers; the keys that differ between two answers or two scores).
 
 from __future__ import annotations
 
-import csv
-import io
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -135,11 +134,10 @@ def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[i
     suffix = path.suffix.lower()
     text = read_utf8(path, MapError).removeprefix("﻿")
     if suffix in (".csv", ".tsv"):
-        from judgekeeper.table import _delimiter
+        from judgekeeper.table import csv_numbered
 
-        reader = csv.DictReader(io.StringIO(text, newline=""), delimiter=_delimiter(text, suffix))
-        return [(reader.line_num, {k: v for k, v in row.items() if k is not None})
-                for row in reader]
+        return [(n, {k: v for k, v in row.items() if k is not None})
+                for n, row in csv_numbered(text, suffix)]
     if suffix == ".json":
         try:
             doc = json.loads(text)
@@ -269,6 +267,7 @@ class Guess:
     pass_mark_sure: bool = True
     pass_mark_key: str | None = None  # where the file states its pass mark (item or around it)
     pass_mark_given: bool = False  # typed in by the person
+    pass_op: str = ">="  # how a score is held against the pass mark (--pass-if's)
     model_key: str | None = None  # a path, in the item or around it (nearest first)
     model: str | None = None  # the model's name in the first item, for showing
     unsure: list[str] = field(default_factory=list)  # roles guessed from value types only
@@ -321,9 +320,20 @@ def _verdict_value(value) -> bool:
     return isinstance(value, str) and value.strip().lower() in VERDICT_VALUES
 
 
+def blank(value) -> bool:
+    """No score at all: missing, an empty cell, or a word for none (NaN, N/A, null, error: a
+    failed call, normalise.NO_DECISION)."""
+    from judgekeeper.normalise import NO_DECISION
+
+    if isinstance(value, float):
+        return math.isnan(value)
+    return value is None or isinstance(value, str) and (
+        not value.strip() or value.strip().lower() in NO_DECISION)
+
+
 def _verdict_like(values) -> bool:
     """Most of an answer's values (MOST, empty ones aside) are verdicts."""
-    values = [v for v in values if v is not None and v != ""]
+    values = [v for v in values if not blank(v)]
     return bool(values) and sum(map(_verdict_value, values)) >= MOST * len(values)
 
 
@@ -580,7 +590,7 @@ def _values(guess: Guess, sample: list[dict]) -> list:
 
 
 def _kind_and_pass_mark(guess: Guess, sample: list[dict]) -> None:
-    values = [v for v in _values(guess, sample) if v is not None]
+    values = [v for v in _values(guess, sample) if not blank(v)]
     numbers = [number(v) for v in values]
     if values and all(n is not None for n in numbers):
         guess.kind = "score"
@@ -696,8 +706,12 @@ def judges_read(m: dict) -> list:
 
 def made_by_a_rule(value, reason) -> bool:
     """An error instead of a score, or a score made by a rule (a reason starting "Rule")."""
-    return value is None or (isinstance(reason, str) and reason.strip().lower().startswith(
-        "rule"))
+    return blank(value) or by_a_rule(reason)
+
+
+def by_a_rule(reason) -> bool:
+    """A score made by a rule, not the judge: its reason starts "Rule"."""
+    return isinstance(reason, str) and reason.strip().lower().startswith("rule")
 
 
 def left_out(units: list, guess: Guess, judges: list[str]) -> int:

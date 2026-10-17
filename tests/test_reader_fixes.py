@@ -40,7 +40,7 @@ def test_a_grader_object_without_an_id_is_a_set_grader_not_the_default(tmp_path)
     assert all("provider" not in r.evaluator for r in judged)
     warnings = records.per_metric["helpfulness"]["warnings"]
     assert not any("default grader" in w for w in warnings)
-    assert any("--grader" in w and "provider unknown" in w for w in warnings)
+    assert any("--grader" in w and "only the model's name" in w for w in warnings)
 
 
 def test_default_test_provider_is_the_last_grader_fallback(tmp_path):

@@ -353,12 +353,15 @@ def test_a_grader_written_down_is_not_said(tmp_path, monkeypatch, capsys):
 
 
 def test_an_unknown_tool_version_is_said(tmp_path, monkeypatch, capsys):
+    from judgekeeper import judge_check
+
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(judge_check, "installed", lambda package: "4.3.0")
     deepeval_project(tmp_path, split(20, 16))
     front.run()
     out = " ".join(capsys.readouterr().out.split())
     assert ("judgekeeper can't see your eval tool's version, so an update to it won't be "
-            "noticed. Pin it in your project (e.g. `deepeval==4.2.8`).") in out
+            "noticed. Pin it in your project (e.g. `deepeval==4.3.0`).") in out  # installed
 
 
 def test_a_pinned_tool_version_is_not_said(tmp_path, monkeypatch, capsys):

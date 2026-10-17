@@ -89,10 +89,11 @@ from judgekeeper.textio import plural, program, quote_arg, wrap
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_NEEDS_YOU = 3
+FIRST_SHOWN = 30  # characters of the first rule shown when they differ per test
 RULE_SHOWN = 58  # characters of the judge's rule shown, "…" included, on one line
 VALUE_WIDTH = 40  # characters of a judge's decision value shown
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
-LABEL_MAP = '"VALUE=pass,VALUE=fail"'
+LABEL_MAP = '"VALUE=pass,VALUE=fail,VALUE=error"'
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
@@ -105,6 +106,7 @@ ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
 START_OVER = f"Start over with these results? Your old marks move to {FOLDER}/previous-<date>/."
 OLD_MARKS = (f"{FOLDER}/labels.csv holds marks from an older judgekeeper. They have no time "
              "stamps, so this version does not use them.")
+SCORE_READ = "Read the score column with your pass mark; the verdict column is not used."
 RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
 JUDGE_CHANGED = "Your judge changed since your marks: {what}."
 STEP = "Step {n} of 5: {name}"
@@ -136,6 +138,7 @@ SAVES = {"deepeval": "DeepEval saves results only when you run deepeval test run
          "inspect": "Inspect AI saves its logs in logs/ when you run inspect eval.",
          "mlflow": "MLflow keeps the judge's assessments once mlflow.genai.evaluate() runs."}
 OTHERS = 3  # other projects named when run from a folder that holds several
+FEW_SHARE = 0.2  # a side under this share of the answers: the judge may pass (fail) too much
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
@@ -327,8 +330,9 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     o = talk.options
     if path.is_file():
         if o["tool"] is not None or find.classify_file(path) is not None or \
-                path.suffix.lower() not in own_format.SUFFIXES or find.is_promptfoo_table(path):
-            return path, None
+                path.suffix.lower() not in own_format.SUFFIXES or find.is_promptfoo_table(path) \
+                or find.title_row(path):
+            return path, None  # find_judge reads it, or says why it can't
         root = start_again._project(path)
         return root, own_map.map_file(talk, root, path.resolve(), o["metric"], o["judge_model"],
                                       o["pass_if"], found=False)
@@ -451,8 +455,8 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
               f"Fail: {_shown(words)}.")
     if not terminal:
         raise talk.stop(EXIT_QUESTION, (
-            "decide which of the values above mean Pass and which mean Fail, then run "
-            f"`{talk.command('--label-map', LABEL_MAP)}`."))
+            "decide which of the values above mean Pass, which mean Fail and which mean no "
+            f"decision (error), then run `{talk.command('--label-map', LABEL_MAP)}`."))
     picked = []
     for w in words:
         i = talk.choose(f"Does {w!r} mean Pass or Fail?", ["Pass", "Fail"], "")
@@ -521,10 +525,13 @@ def _tracking_server(talk: FrontTalk, path: Path, uri: str) -> Stop:
 _n = plural  # textio.plural
 
 
-def _columns_line(found: start.Found) -> str | None:
-    """Which columns of a table were read (never the rows)."""
+def _columns_line(found: start.Found, pass_if: str | None = None) -> str | None:
+    """Which columns of a table were read (never the rows); with --pass-if and a score column
+    next to the verdict column, that the score is read."""
     columns = find.table_columns(found.results[0].path)
     verdict = next((c for c in find.VERDICT_COLUMNS if c in columns), None)
+    if pass_if and verdict and "score" in columns:
+        return SCORE_READ
     read = ("input", "output", verdict, "reason", "model", "judge_model", "app_version",
             *start.HUMAN_COLUMNS)
     used = [c for c in columns if c in read]
@@ -542,7 +549,7 @@ def _map_line(saved: settings.StartSettings) -> str:
 
 
 def _notes(found: start.Found) -> list[str]:
-    pool, out = found.pool, list(found.stopped)
+    pool, out = found.pool, [*found.stopped, *found.warnings]
     if pool.n_merged:
         out.append(f"{_n(pool.n_merged, 'repeat')} of the same answer "
                    f"{'was' if pool.n_merged == 1 else 'were'} merged.")
@@ -552,10 +559,24 @@ def _notes(found: start.Found) -> list[str]:
     n = len(pool.answers)
     for count, did, too in ((pool.n_fail, "failed", "passes too much"),
                             (pool.n_pass, "passed", "fails too much")):
-        if 0 < count < start.ROUGH and n >= start.MIN_POOL:  # a small pool is said below
+        # under a fifth of the answers; a small pool is said below
+        if 0 < count < FEW_SHARE * n and n >= start.MIN_POOL:
             out.append(f"Your judge {did} only {count} of {n} answers. That may mean it {too}: "
                        "your marks will show it.")
     return out
+
+
+def _other_files(found: start.Found) -> str | None:
+    """Tables of results found next to the one read, never read with it: named (at most
+    OTHERS), with the command that checks one."""
+    if found.tool != "table" or found.given:
+        return None
+    others = [r.rel for r in found.results if r.rel not in found.used][:OTHERS]
+    if not others:
+        return None
+    commands = start._or([f"`{program()} {quote_arg(r)}`" for r in others])
+    return (f"Also found {start._and(others)}. To check "
+            f"{'it' if len(others) == 1 else 'one'}, run {commands}.")
 
 
 def _other_projects(found: start.Found) -> str | None:
@@ -667,8 +688,15 @@ def _rule_file(found: start.Found) -> str | None:
 
 
 def _rule_lines(found: start.Found) -> list[str]:
+    if found.reference:
+        return ["Judge rule:  compared with each test's reference answer"]
     if not found.rule:
         return ["Judge rule:  not in your results"]
+    if not found.one_rule:
+        first = " ".join(found.rule.split())
+        if len(first) > FIRST_SHOWN:
+            first = first[:FIRST_SHOWN - 1].rstrip() + "…"
+        return [f'Judge rule:  differs per test ({found.n_rules} rules). First: "{first}"']
     text = " ".join(found.rule.split())
     if len(text) <= RULE_SHOWN:
         return [f'Judge rule:  "{text}"']
@@ -681,8 +709,10 @@ def found_block(found: start.Found) -> list[str]:
     """Screen 1's "Find" block: the eval tool, the answers, the judge and its rule."""
     answers = found.check.answers if found.check else len(found.pool.answers)
     tool = tool_name(found.tool, [str(found.results[0].rel)])
+    graded = ("each graded by your judge" if found.pool.answers or found.pool.unread
+              else "none with a clear grade from your judge")
     lines = [f"Eval tool:   {tool}",
-             f"Answers:     {_n(answers, 'answer')}, each graded by your judge",
+             f"Answers:     {_n(answers, 'answer')}, {graded}",
              f"{INDENT}(read from {_read_from(found)})",
              f"Judge:       {_judge_value(found)}", *_rule_lines(found)]
     if found.pass_mark:
@@ -713,7 +743,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     for line in found_block(found):
         talk.say(line)
     if found.tool == "table":
-        talk.para(_columns_line(found) or "")
+        talk.para(_columns_line(found, talk.options["pass_if"]) or "")
     if found.tool == "mapped" and mapped is None:
         saved = start._saved(found.root)
         if saved is not None and saved.map:
@@ -724,9 +754,9 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         talk.say(f"Your judge's grades: {pool.n_pass} Pass, {pool.n_fail} Fail.")
     for note in _notes(found):
         talk.para(note)
-    others = _other_projects(found)
-    if others:
-        talk.para(others)
+    for others in (_other_files(found), _other_projects(found)):
+        if others:
+            talk.para(others)
     _free_check(talk, found, listed)
     if not pool.answers:
         talk.ask_noted()

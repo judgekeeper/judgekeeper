@@ -33,7 +33,7 @@ from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from judgekeeper import find, judge_check, settings, targets, textio
+from judgekeeper import find, judge_check, mapper, settings, targets, textio
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map
@@ -60,7 +60,7 @@ from judgekeeper.records import (
     read_records,
 )
 from judgekeeper.redact import one_line, scrub
-from judgekeeper.table import _blank, make_fingerprint, open_quote, read_table
+from judgekeeper.table import _blank, make_fingerprint, open_quote, read_table, sheet_id
 from judgekeeper.textio import plural, quote_arg, read_utf8, tick
 
 EXIT_OK = 0
@@ -262,6 +262,7 @@ class Pool:
     n_human: int = 0
     n_tied: int = 0  # answers asked more than once whose grades split evenly
     left: dict = field(default_factory=dict)  # answer id: (judge_check kind, its record)
+    unread: set = field(default_factory=set)  # answers whose grades no label map reads yet
 
     @property
     def n_unclear(self) -> int:
@@ -300,7 +301,7 @@ def _mark_of(r: ScoreRecord, v, norm: Normaliser, threshold) -> tuple[float | No
         return norm.pass_if.threshold, norm.pass_if.op
     mark = _number(r.metadata.get("pass_mark"))
     if mark is not None:
-        return mark, ">="
+        return mark, r.metadata.get("pass_op") or ">="
     return _number(threshold), None
 
 
@@ -310,13 +311,21 @@ def tie_break(key: str) -> str:
     return ("pass", "fail")[int(hashlib.sha256(key.encode("utf-8")).hexdigest(), 16) % 2]
 
 
-def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normaliser) -> Pool:
+def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normaliser,
+               own_ids: bool = False) -> Pool:
     """The pool from the judge `metric`'s verdicts in `files`, newest file first. An answer
     whose verdicts are all no real decision (the reader's mark, or nothing the normaliser can
-    read) goes to `left` with its kind instead."""
+    read) goes to `left` with its kind instead. An answer's id is made from its text, or with
+    `own_ids` (a table, an own format) the file's own id when the reader kept it."""
     pool = Pool()
     chosen: dict[str, Answer] = {}
     for source, records in files:
+
+        def key_of(r, records=records) -> str:
+            if own_ids and not records.ids_derived and r.target_id:
+                return str(r.target_id)
+            return derive_record_id(r.input, r.output, r.trajectory)
+
         extra = records.per_metric.get(metric, {})
         threshold = None if extra.get("strict_mode") else extra.get("threshold")
         groups: dict[str, list] = {}
@@ -331,6 +340,7 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                 try:
                     v = norm(_verdict_value(r, norm.pass_if))
                 except UnmappedValue as e:
+                    pool.unread.add(key_of(r))
                     if e.value not in pool.unmapped:
                         pool.unmapped.append(e.value)
                     key = repr(e.value)
@@ -338,8 +348,7 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                     continue
                 if v.verdict == ERROR:
                     kind = judge_check.EMPTY
-            groups.setdefault(derive_record_id(r.input, r.output, r.trajectory),
-                              []).append((r, v, kind))
+            groups.setdefault(key_of(r), []).append((r, v, kind))
         for key, seen in groups.items():
             judged = [(r, v) for r, v, kind in seen if kind is None]
             if key in chosen or key in pool.left:  # a newer file has this answer
@@ -369,11 +378,15 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
 
 # Reading ---------------------------------------------------------------------------------
 
+MADE_IDS = "The id column has blank or repeated ids, so judgekeeper made its own."
+
+
 def read_results_table(path: Path) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
     column, when there is one, as human records (counted, not used). A `model` (or
-    `judge_model`) column names the judge's model, an `app_version` column the app's. A quote
-    that never closes stops it: the rows after it would be read as one cell."""
+    `judge_model`) column names the judge's model, an `app_version` column the app's, and a
+    `score` column the score --pass-if reads in place of the verdict. A quote that never
+    closes stops it: the rows after it would be read as one cell."""
     line = open_quote(path)
     if line is not None:
         raise StartError(f"line {line} of {path.name} has a quote that never closes, so the "
@@ -383,6 +396,8 @@ def read_results_table(path: Path) -> RecordList:
     rows = read_table(path)
     if not rows:  # a header and nothing under it
         raise StartError(f"{path.name} has no rows")
+    ids = [None if _blank(row.get("id")) else sheet_id(row["id"]) for row in rows]
+    own = "id" in rows[0] and None not in ids and len(set(ids)) == len(ids)
     columns = list(dict.fromkeys(k for row in rows for k in row))
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
@@ -391,14 +406,18 @@ def read_results_table(path: Path) -> RecordList:
         raise StartError(f"{path.name} needs input, output and verdict columns; columns are: "
                          f"{', '.join(columns)}")
     human = next((c for c in HUMAN_COLUMNS if c in columns), None)
-    records = RecordList(ids_derived=True)
+    records = RecordList(ids_derived=not own)
+    if "id" in columns and not own:
+        records.per_metric = {verdict: {"warnings": [MADE_IDS]}}
     for n, row in enumerate(rows, 1):
         textio.reading(n)
-        content = {"target_id": derive_record_id(row.get("input"), row.get("output")),
+        content = {"target_id": ids[n - 1] if own else derive_record_id(row.get("input"),
+                                                                        row.get("output")),
                    "input": row.get("input"), "output": row.get("output")}
         model = row.get("model") if not _blank(row.get("model")) else row.get("judge_model")
+        score = _number(mapper.number(row.get("score"))) if "score" in columns else None
         records.append(ScoreRecord(
-            name=verdict, annotator_kind=LLM,
+            name=verdict, annotator_kind=LLM, score=score,
             label=None if _blank(row.get(verdict)) else row[verdict],
             explanation=None if _blank(row.get("reason")) else str(row["reason"]),
             evaluator={} if _blank(model) else {"model": str(model)},
@@ -520,7 +539,8 @@ def _mapped_source(talk: Talk, root: Path, saved) -> tuple[Path, str, list, dict
 def _read_mapped(result: find.Result, saved) -> list[Loaded]:
     from judgekeeper.readers.mapped import read_mapped
 
-    m = {**saved.map, "judge": saved.judge, "pass_mark": saved.pass_mark, "model": saved.model}
+    m = {**saved.map, "judge": saved.judge, "pass_mark": saved.pass_mark,
+         "pass_op": saved.pass_op, "model": saved.model}
     try:
         read = read_mapped(result.path, m, label=result.rel)
     except UNREADABLE:
@@ -538,6 +558,11 @@ def _where(result: find.Result) -> str:
 def _folder_of(result: find.Result) -> str:
     parent = Path(result.rel).parent.as_posix()
     return result.rel if parent == "." else f"{parent}/"
+
+
+EVAL_SKIPPED = ("Your newest Inspect AI log, {eval}, is a .eval log, which judgekeeper reads only "
+                "with its Inspect extra, so it read {json}, an older one. To read the newest, "
+                "{get}.")
 
 
 def _needs_extra(talk: Talk, tool: str, where: str) -> Stop:
@@ -715,6 +740,9 @@ class Found:
     # a results file (or MLflow store) given by path: where it is from `root`, kept in
     # start.json, so later runs without a path read it again (rebased)
     given: str | None = None
+    warnings: list[str] = field(default_factory=list)  # the reader's, about this judge
+    n_rules: int = 1  # how many rules the judge's verdicts have (one per test, say)
+    reference: bool = False  # it compares each answer with its test's reference answer
 
 
 def rebased(found: Found, root: Path) -> Found:
@@ -743,7 +771,8 @@ def results_path(root: Path, data: dict) -> Path:
     return Path(root)
 
 
-PASS_OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt}
+PASS_OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt,
+            "==": operator.eq}
 
 
 def passes(score: float, op: str, mark: float) -> str:
@@ -898,6 +927,12 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
             read_utf8(path, StartError)  # not UTF-8 (a UTF-16 export): how to save it again
         if kind is None and find.is_promptfoo_table(path):
             raise table_output(path.name)
+        if kind is None and find.title_row(path):
+            raise title_row(path.name)
+        if kind is None and path.suffix.lower() in find.EXCEL:
+            raise StartError(EXCEL.format(file=path.name),
+                             f"save {path.name} as CSV UTF-8, then run "
+                             f"`{textio.program()} {quote_arg(path.with_suffix('.csv').name)}`.")
         if kind is None:
             raise StartError(f"{path.name} is not a results file judgekeeper can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "
@@ -908,7 +943,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     talk.looking(root)
     found = find.search(root)
     for note in found.notes:
-        talk.say(note)
+        _note(talk, note)
     for big in found.too_big():
         talk.say(big.too_big_message(talk.program))
     available = [t for t in find.TOOLS if found.readable(t)]
@@ -1010,6 +1045,16 @@ def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None) -
     return [r for r in results if _eval_folder(r) in (prefer, None)]
 
 
+TITLE_ROW = "{file}: Row 2 looks like the header. Delete row 1 and run again."
+EXCEL = "{file}: Excel files aren't read. Save it as CSV UTF-8 and run again."
+
+
+def title_row(rel: str) -> Damaged:
+    """A table whose first row is a title: row 2 is its header."""
+    return Damaged(TITLE_ROW.format(file=rel),
+                   f"delete row 1 of {rel}, then run `{{command}}` again.")
+
+
 def table_output(rel: str) -> Damaged:
     """promptfoo's table output: each test's overall pass, never the judge's own decision."""
     return Damaged(f"{rel} {find.TABLE_OUTPUT}.",
@@ -1022,6 +1067,8 @@ def _unreadable(found: find.Search) -> Damaged:
     rel, how = found.unreadable[0]
     if how == find.TABLE_OUTPUT:
         return table_output(rel)
+    if how == find.TITLE_ROW:
+        return title_row(rel)
     if how != "is empty":
         return Damaged(f"{rel} {how}.", f"give your user permission to read {rel}, then run "
                                         "`{command}` again.")
@@ -1208,8 +1255,20 @@ RULES_WORD = {"deepeval": "metrics", "inspect": "scorers"}
 NO_JUDGE_NEXT = "add an LLM judge to your eval and run it once, then run `{command}` again."
 
 
-def _no_judge(talk: Talk, kind: str, files: list, rules: bool) -> Stop:
-    """None of `files` (rels, newest first) holds an LLM judge's decisions: said once."""
+def _run_has_no_cases(result: find.Result) -> bool:
+    """A DeepEval run file that holds no test case at all."""
+    cases = find._run_of(result.path)
+    return cases is not None and not any(cases)
+
+
+def _no_judge(talk: Talk, kind: str, files: list, rules: bool, empty: bool = False) -> Stop:
+    """None of `files` (rels, newest first) holds an LLM judge's decisions: said once. A run
+    with no test case at all (`empty`) is said as that: no judge was missing."""
+    if empty:
+        text = (f"{files[0]}: The run has no test cases." if len(files) == 1 else
+                f"None of your {len(files)} runs has a test case.")
+        return _stop_with(talk, text,
+                          f"run your eval with its test cases, then run `{talk.command()}`.")
     if len(files) == 1:
         text = f"{files[0]} holds no decisions from an LLM judge."
     else:
@@ -1413,6 +1472,10 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             json_logs = [r for r in results if r.path.suffix.lower() != ".eval"]
             if not json_logs:
                 raise _needs_extra(talk, "inspect", _folder_of(newest))
+            if newest.path.suffix.lower() == ".eval":  # never read an older log in silence
+                _note(talk, EVAL_SKIPPED.format(eval=newest.rel, json=json_logs[0].rel,
+                                                get=textio.get_extra("inspect")))
+                talk.say()
             results, newest = json_logs, json_logs[0]
         if kind == "promptfoo":
             description = results_description(newest)
@@ -1437,6 +1500,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         else:
             first, rest = None, list(results)
             unjudged, rules = [], True  # files with no judge's decisions (a smoke test, say)
+            empty = True  # every one of them holds no test case at all
             while first is None:  # a file that can't be read never hides a good one beside it
                 newest = rest.pop(0)
                 try:
@@ -1446,13 +1510,15 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                         raise usage_error(e, _unread(e, newest, root)) from None
                     talk.say(f"{_unread(e, newest, root)} It is left out.")
                     if not rest:
-                        raise _no_judge(talk, kind, [r.rel for r in unjudged], rules) from None
+                        raise _no_judge(talk, kind, [r.rel for r in unjudged], rules,
+                                        False) from None
                     continue
                 if not _judges(first.records, kind):
                     unjudged.append(newest)
                     rules = rules and _rules_in_code(first.records, kind)
+                    empty = empty and kind == "deepeval" and _run_has_no_cases(newest)
                     if not rest:
-                        raise _no_judge(talk, kind, [r.rel for r in unjudged], rules)
+                        raise _no_judge(talk, kind, [r.rel for r in unjudged], rules, empty)
                     first = None
             for r in unjudged[:3]:
                 _note(talk, f"{r.rel} is left out: no LLM judge in it.")
@@ -1472,14 +1538,15 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     norm = Normaliser(pass_if=pass_if,
                       label_map={**first.records.label_map, **parse_label_map(label_map)})
     used = [first]
-    pool = build_pool([(x.label, x.records) for x in used], metric, norm)
+    own_ids = kind in ("table", "mapped")
+    pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids)
     identity = _identity(first.records, metric)
     for older in read_older:
         if len(pool.answers) >= MIN_POOL and kind != "records":
             break
         if _identity(older.records, metric) == identity:
             used.append(older)
-            pool = build_pool([(x.label, x.records) for x in used], metric, norm)
+            pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids)
 
     records = [r for x in used for r in x.records
                if r.annotator_kind == LLM and r.name == metric]
@@ -1499,7 +1566,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         fingerprint.update(model=saved.model, model_source=model_source)
         models = [saved.model]
     rule = rule_of(records)
-    one_rule = len({k for k in (_rule_key(r, kind) for r in records) if k is not None}) <= 1
+    n_rules = len({k for k in (_rule_key(r, kind) for r in records) if k is not None})
+    one_rule = n_rules <= 1
     rubric = rubric_line(rule)
     judge = _judge_name(kind, metric, rubric, models, judge_model is not None,
                         Path(newest.rel).name)
@@ -1515,13 +1583,16 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  store=newest.rel if kind == "mlflow" else None,
                  check=judge_check.check(pool, kind, score_judge=score_judge),
                  pass_mark=pass_mark_of(pool, kind, norm.pass_if, key), one_rule=one_rule,
+                 n_rules=n_rules, reference=bool(records) and all(
+                     (r.metadata or {}).get("reference") for r in records),
                  task_file=_task_file(newest.path) if kind == "inspect" else None,
                  rule_field=_inspect_field(records) if kind == "inspect" and rule else None,
                  models=models, model_source=model_source, experiment=name,
                  stopped=[n for x in used for n in x.records.notes
                           if n.startswith("Your Inspect run stopped early")]
                  + [n for x in used if (n := left_out_note(x.records, x.label))],
-                 label_map=label_map or None)
+                 label_map=label_map or None,
+                 warnings=list(first.records.per_metric.get(metric, {}).get("warnings") or []))
 
 
 def _rule_key(r, kind: str) -> str | None:
