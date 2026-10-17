@@ -5,8 +5,9 @@ can see: ANTHROPIC_API_KEY, OPENAI_API_KEY, the platform credentials (LANGFUSE_P
 LANGFUSE_SECRET_KEY, MLFLOW_TRACKING_PASSWORD), the AWS keys (AWS_ACCESS_KEY_ID,
 AWS_SECRET_ACCESS_KEY), every key name `keys.py` found for a judge, and any variable whose name ends in _API_KEY, _TOKEN or _SECRET. Values shorter
 than 8 characters are ignored, since they would match ordinary text. Second, as a backstop for
-keys that are not in the environment, strings shaped like provider keys (sk-ant-..., sk-...),
-Bearer and Basic headers, and the user:password part of a URL.
+keys that are not in the environment, strings shaped like a key (_KEY_SHAPES: OpenAI and
+Anthropic, AWS, GitHub, Google and Slack), an AWS secret after its name, Bearer and Basic
+headers, and the user:password part of a URL.
 
 `printable` is the other half of "shown to the user": text taken from an input file may hold
 terminal escape sequences, which could retitle or clear the terminal it is printed to.
@@ -42,7 +43,15 @@ _URL_USERINFO = re.compile(r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}://)[^/@\s:]+:[^/@\s
 _KEY_SHAPES = (
     re.compile(r"\bsk-ant-[A-Za-z0-9_-]{8,}"),
     re.compile(r"\bsk-[A-Za-z0-9_-]{20,}"),
+    re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"),  # AWS access keys
+    re.compile(r"\bgh[opsu]_[A-Za-z0-9]{30,}"),  # GitHub tokens
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{30,}"),
+    re.compile(r"\bAIza[A-Za-z0-9_-]{30,}"),  # Google API keys
+    re.compile(r"\bxox[bp]-[A-Za-z0-9-]{20,}"),  # Slack tokens
 )
+# An AWS secret has no shape of its own: it is found after its name.
+_AWS_SECRET = re.compile(r"(\baws_secret_access_key[\"']?\s*[:=]\s*[\"']?)[A-Za-z0-9/+=]{40}",
+                         re.IGNORECASE)
 
 
 # C0 controls other than tab and newline, DEL, and the C1 range: what a terminal acts on.
@@ -125,6 +134,7 @@ def scrub(text: str | None) -> str | None:
     text = _BEARER.sub(rf"\g<1>{REDACTED}", text)
     text = _BASIC.sub(rf"\g<1>{REDACTED}", text)
     text = _URL_USERINFO.sub(rf"\g<1>{REDACTED}@", text)
+    text = _AWS_SECRET.sub(rf"\g<1>{REDACTED}", text)
     for pattern in _KEY_SHAPES:
         text = pattern.sub(REDACTED, text)
     return text
