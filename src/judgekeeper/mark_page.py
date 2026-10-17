@@ -142,7 +142,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .intro .logo-mark svg { width: 30px; height: 33px; }
 .intro h2 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
 .intro .go { width: 100%; height: 56px; font-size: 17px; }
-#answer-card:focus-visible, .intro:focus-visible { outline: none; }
+#answer-card:focus-visible, #end:focus-visible, .intro:focus-visible { outline: none; }
 @media (max-width: 760px) {
   .wrap { grid-template-columns: 1fr; height: auto; }
   .side { border-right: 0; border-top: 1px solid var(--line); order: 2; }
@@ -179,7 +179,7 @@ __TOP__
     <div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S"><span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" id="undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>
     <p class="status" id="status" role="status"></p>
   </section>
-  <section class="card end" id="end" hidden aria-live="polite"><h2 id="end-title"></h2>
+  <section class="card end" id="end" hidden aria-live="polite" tabindex="-1"><h2 id="end-title"></h2>
     <p class="note" id="end-note" hidden>Opening your result…</p>
     <button type="button" class="go" id="again" hidden>Look at them</button></section>
   <p class="foot">Come back any time: <code>__COMMAND__</code></p>
@@ -217,7 +217,7 @@ __THEME_SWITCH__
     return e;
   }
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
-  function focusCard() { card.focus({preventScroll: true}); }
+  function focusCard() { (ended ? $("end") : card).focus({preventScroll: true}); }
   $("see").setAttribute("href", url("/result"));
 
   // A question is text, or [[name, value], ...]: each name a small label above its value.
@@ -337,10 +337,15 @@ __THEME_SWITCH__
     setText("end-title", (skipped === 1 ? "1 skipped answer" : skipped + " skipped answers") +
       ". Look again, or leave " + (skipped === 1 ? "it" : "them") + " out.");
     setText("again", skipped === 1 ? "Look at it" : "Look at them");
-    $("again").hidden = false; $("again").focus();
+    $("again").hidden = false;
+    focusCard();  // the end card, not its button: no ring on open; Enter looks again
   }
-  $("again").addEventListener("click", function () {
-    walkingSkipped = true; open(nextIndex(0)); focusCard(); });
+  function lookAgain() { walkingSkipped = true; open(nextIndex(0)); focusCard(); }
+  $("again").addEventListener("click", lookAgain);
+  $("end").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target === $("end") && !$("again").hidden) {
+      e.preventDefault(); lookAgain(); }
+  });
 
   function send(change, then) {
     if (busy) { return false; }

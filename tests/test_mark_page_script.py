@@ -211,6 +211,18 @@ def test_skip_and_undo_by_key_and_skipped_answers_come_back_at_the_end():
     assert got["again"] == "Question 0?"
 
 
+def test_the_end_card_takes_focus_not_its_button_and_enter_opens_the_skipped():
+    got = _run("""
+      key("s"); await settle(); later(500);
+      key("ArrowRight"); await settle(); later(500);
+      var focus = [document.activeElement === ids["end"],
+                   document.activeElement === ids["again"]];
+      ids["end"].fire("keydown", {key: "Enter"}); await settle();
+      console.log(JSON.stringify({focus: focus, at: ids["q-text"].textContent,
+        card: ids["answer-card"].hidden}));""", data=_data(2))
+    assert got == {"focus": [True, False], "at": "Question 0?", "card": False}  # no ring on open
+
+
 def test_with_every_answer_marked_the_end_card_says_so_and_the_result_opens():
     got = _run("""
       for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
