@@ -40,6 +40,7 @@ one (`write_replacing`), which replaces a link instead of following it.
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import os
@@ -61,10 +62,10 @@ from judgekeeper.textio import jsonl_lines, link_in, plural, program, write_repl
 FOLDER = ".judgekeeper"
 BLOCK = 10
 ROUGH = targets.ROUGH
-GITIGNORE = ("# judgekeeper's files hold your app's answers. Commit them only if your data "
+GITIGNORE = ("# judgekeeper's files hold your answers. Commit them only if your data "
              "may live here.\n*\n!.gitignore\n!judge.json\n!history.jsonl\n")
-OLD_GITIGNORE = ("# judgekeeper's files hold your app's answers. Commit them only if your data "
-                 "may live here.\n*\n!.gitignore\n!baseline.json\n!migrations/\n!migrations/*\n")
+# The exact text 0.2 wrote, by its SHA-256 (its first line has older words)
+OLD_GITIGNORE_SHA256 = "fbefa615c803cdd5410b6da92a3d848d329dcb64930a47830f9e834fa4d44663"
 LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
         "Remove it, then run {program} again.")
 SAVED_NOTE = ("Saved in {folder}/. It holds your answers' text: commit it only if your data "
@@ -165,7 +166,8 @@ def make_folder(ws: Workspace) -> None:
         write_replacing(gitignore, GITIGNORE)
     elif gitignore.is_file() and not gitignore.is_symlink():
         try:  # 0.2 wrote it with the system's line endings
-            old = gitignore.read_text(encoding="utf-8") == OLD_GITIGNORE
+            text = gitignore.read_text(encoding="utf-8")
+            old = hashlib.sha256(text.encode("utf-8")).hexdigest() == OLD_GITIGNORE_SHA256
         except (OSError, ValueError):
             old = False
         if old:

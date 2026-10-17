@@ -88,7 +88,8 @@ RUN_ENV = {"PROMPTFOO_CACHE_ENABLED": "false", "PROMPTFOO_DISABLE_TELEMETRY": "1
 FLAGS = ("--no-cache", "--no-write", "--no-share", "--no-table", "--no-progress-bar")
 # Test options that change the saved answer or prompt, which already hold their effect.
 DROPPED_OPTIONS = ("transform", "postprocess", "prefix", "suffix", "provider", "storeOutputAs")
-SIDE_EFFECT = "Your app is not run. Nothing is written to promptfoo's database or shared."
+SIDE_EFFECT = ("Your app or agent is not run. Nothing is written to promptfoo's database or "
+               "shared.")
 EXACT_WHY = "promptfoo re-grades your saved answers with your own settings"
 NEW_WHY = "promptfoo grades your marked answers with your new judge's own settings"
 NO_TEST = ("no test in your newest results matches it",
@@ -385,8 +386,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         return not_marked("promptfoo", judge)
     types = {judge_type(c["assertion"].get("type")) for j in judged for c in j[2]}
     if TRAJECTORY in types:
-        return cant("promptfoo", judge, "your judge reads the trace of your app's run, which "
-                                        "your results don't keep", short="your judge reads a trace")
+        return cant("promptfoo", judge, "your judge reads the trace of your app or agent's run, "
+                                        "which your results don't keep",
+                    short="your judge reads a trace")
 
     config = _config(root)
     grader = next(iter(graders.values()))

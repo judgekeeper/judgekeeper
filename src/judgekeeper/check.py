@@ -1070,7 +1070,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
 
     n, total = len(tested), len(state.marks)
     if free and not asked.verdicts and not cached:
-        said.say("Re-checked for free from your new results.")
+        said.say("Re-checked with no AI call, from your new results.")
     for line in asked.reasons:
         said.say(line)
     said.say()
