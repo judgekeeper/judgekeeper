@@ -74,7 +74,7 @@
       <button type="button" class="term-replay" id="t-replay">Replay</button>
     </div>
     <pre class="term-out" id="t-out" aria-live="off">$ judgekeeper
-judgekeeper 1.0.0
+judgekeeper 1.0.0b2
 
 Step 1 of 5: Find
 
@@ -95,7 +95,7 @@ judge to decide. Your judge's grade stays hidden.
 
 Next: mark until "See your result" appears, then click it.</pre>
 <template data-screen="find">$ judgekeeper
-judgekeeper 1.0.0
+judgekeeper 1.0.0b2
 
 Step 1 of 5: Find
 
@@ -116,7 +116,7 @@ judge to decide. Your judge's grade stays hidden.
 
 Next: mark until "See your result" appears, then click it.</template>
 <template data-screen="mark">$ judgekeeper
-judgekeeper 1.0.0
+judgekeeper 1.0.0b2
 
 Step 2 of 5: Mark
 
@@ -126,9 +126,10 @@ That's not enough for a result yet.
 The marking page is still open in your browser. The bar at the
 top fills as you mark.
 
-Next: keep marking until "See your result" appears, then click it.</template>
+Next: keep marking until "See your result" appears, then click
+it.</template>
 <template data-screen="measure">$ judgekeeper
-judgekeeper 1.0.0
+judgekeeper 1.0.0b2
 
 Step 3 of 5: Measure
 
@@ -139,60 +140,64 @@ You and your judge disagreed on 16 of 30 answers.
   You failed 15 answers. Of those, your judge passed 8 and failed 7.
 
 How often your judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 57% (between 37% and 74%)
-  When you say Fail, it also says Fail: about 37% (between 21% and 55%)
+  When you say Pass, it also says Pass: about 54% (between 35% and 72%)
+  When you say Fail, it also says Fail: about 39% (between 23% and 58%)
 
 Full report: .judgekeeper/report.html (open it in your browser)
+
 The marking page is still open if you want to mark more answers.
 
 Next: to try a better rule, run `judgekeeper fix`.</template>
 <template data-screen="fix">$ judgekeeper fix
-judgekeeper 1.0.0
+judgekeeper 1.0.0b2
 
 Step 4 of 5: Fix
 
 Clues:
-  7 of its 10 mistakes are answers it passed but you failed.
-  Its rule may be too easy.
+  Half of its 10 mistakes are answers it passed but you failed,
+  and half are answers it failed but you passed.
 
 The clues and all 10 mistakes are saved in
-.judgekeeper/fix/mistakes.md. You can hand this file to a coding agent.
+.judgekeeper/fix/mistakes.md. You can hand this file to a coding
+agent.
 
 Your judge's rule is in promptfooconfig.yaml, line 14:
   "The answer solves the customer's problem and is polite."
 
-10 more of your marks are kept aside to test your new rule fairly.
+12 more of your marks are kept aside to test your new rule
+fairly.
 
 Next: write your new rule in .judgekeeper/fix/rule.txt, then run
 `judgekeeper fix` again to test it.</template>
 <template data-screen="fix_test">$ judgekeeper fix
-judgekeeper 1.0.0
+judgekeeper 1.0.0b2
 
 Step 4 of 5: Fix (testing your new rule)
 
-New rule:  "The answer fully solves the customer's problem, gives a…"
+New rule:  "The answer fully solves the customer's problem, gives a c…"
            (from .judgekeeper/fix/rule.txt)
 
-To test it, judgekeeper asks your judge about the 10 answers kept
-aside, once with the old rule and once with the new one.
-That is 20 AI calls, paid with your own key.
+To test it, judgekeeper asks your judge about the 12 answers
+kept aside, once with the old rule and once with the new one.
+That is 24 AI calls, paid with your own key.
 Go ahead? [y/N] y
 
-Tested on the 10 marks kept aside:
-  Old rule agreed with you on 3. New rule agreed with you on 9.
+Tested on the 12 marks kept aside:
+  Old rule agreed with you on 6. New rule agreed with you on 12.
   It fixed 6 and broke 0.
 
-Result: your new rule is better. A difference this large is
-very unlikely to be a coincidence.
+Result: your new rule is better. A difference this large is very
+unlikely to be a coincidence.
 
-Next: if you like it, copy the new rule into promptfooconfig.yaml,
-line 14. Then run your eval and `judgekeeper check`.</template>
+Next: if you like it, copy the new rule into
+promptfooconfig.yaml, line 14. Then run your eval and
+`judgekeeper check`.</template>
 <template data-screen="check">$ judgekeeper check
-judgekeeper 1.0.0
+judgekeeper 1.0.0b2
 
 Step 5 of 5: Re-check
 
-Your judge changed: model gpt-4.1-mini -&gt; gpt-4.1-nano.
+Your judge changed: model openai:gpt-4.1-mini -&gt; openai:gpt-4.1-nano.
 
 To re-check, judgekeeper asks your new judge about your 30
 marked answers, twice each. That is 60 AI calls, paid with your
@@ -201,21 +206,23 @@ Go ahead? [y/N] y
 
 Re-checked on all 30 of your marks:
 
-  You passed 15 answers. Your old judge agreed with you on 14,
-  your new judge on 8.
+  You passed 15 answers. Your old judge agreed with you on 7,
+  your new judge on 1.
     Worse: 6 answers went from right to wrong, and none from wrong to right.
-    That is about 40 points lower, and could be as much as 55.
+    That is about 40 points lower, and could be as much as 61.
 
-  You failed 15 answers. Your old judge agreed with you on 11,
-  your new judge on 11.
-    No drop bigger than 20 points: 1 went from right to wrong, 1 from wrong to right.
-    These marks can't rule out a drop of up to 15 points.
+  You failed 15 answers. Your old judge agreed with you on 7,
+  your new judge on 7.
+    Not sure: 1 went from right to wrong, and 1 from wrong to
+    right. It could be up to 20 points worse.
 
 Asked twice, your new judge changed its own grade on 3 of your
 30 answers. Differences that small can come from that alone.
 
-Next: keep your old model, or run `judgekeeper fix` to adjust
-the rule for the new model.</template>
+These marks have helped pick 1 change.
+
+Next: go back to the old judge, or change your judge and run
+`judgekeeper check` again.</template>
   </div></div>
 </div></section>
 <section class="close"><div class="wrap">

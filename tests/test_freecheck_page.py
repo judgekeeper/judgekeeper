@@ -127,7 +127,7 @@ def test_the_report_keeps_the_tools_word_rules(name):
     result = browser(FREECHECK / name)
     text = "\n".join(line for j in result["judges"] for line in j["lines"]
                      if not line.startswith("Read the columns")).lower()  # its real names
-    assert "free check (no ai call): " in text
+    assert "checked: " in text and "free check" not in text and "your app" not in text
     for banned in ("verdict", "trusted", "proven", "luck", "chance", "works with"):
         assert banned not in text, (name, banned)
 
@@ -138,12 +138,23 @@ def test_the_report_names_the_file_tool_judge_and_grades():
     (judge,) = result["judges"]
     assert judge["lines"][:4] == [
         "Eval tool:   your own CSV file",
-        "Answers:     12 answers from your app, each graded by your judge",
+        "Answers:     12 answers, each graded by your judge",
         "             (read from table.csv)",
         "Judge:       claude-haiku-4-5"]
     assert "Your judge's grades: 8 Pass, 4 Fail." in judge["lines"]
-    assert ("Free check (no AI call): on 1 answer, your judge's reason says the opposite of its "
+    assert ("Checked: on 1 answer, your judge's reason says the opposite of its "
             "decision.") in judge["lines"]
+
+
+def test_the_check_words_are_the_tools():
+    """The page prints the lines judgekeeper prints in Find (front.py)."""
+    from judgekeeper import front
+
+    code = SCRIPT.read_text(encoding="utf-8")
+    assert f"var FREE_CHECK = '{front.FREE_CHECK}';" in code
+    assert f"var EVERY_ANSWER = '{front.EVERY_ANSWER}';" in code
+    assert "' answers, each graded by your judge'" not in code  # n() names the count
+    assert "from your app" not in code and "Free check" not in code
 
 
 def test_the_limit_and_privacy_lines_are_the_pages_own():

@@ -99,7 +99,7 @@ def render(markdown: str) -> str:
                 rows.append([c.strip() for c in lines[i].strip().strip("|").split("|")])
                 i += 1
             head, body = rows[0], [r for r in rows[1:] if not set("".join(r)) <= set("-: ")]
-            th = "".join(f"<th>{inline(c)}</th>" for c in head)
+            th = "".join(f"<th>{inline(c.replace('`', ''))}</th>" for c in head)  # labels
             trs = "".join("<tr>" + "".join(f"<td>{inline(c)}</td>" for c in r) + "</tr>\n"
                           for r in body)
             out.append(f'<div class="tw"><table>\n<thead><tr>{th}</tr></thead>\n<tbody>\n{trs}'

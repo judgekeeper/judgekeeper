@@ -1,11 +1,12 @@
 """The website's paths: the menu on every page, llms.txt and the sitemap, the install on the
-Guide, and the terminal screens, which are what judgekeeper prints.
+Guide, and the terminal screens.
 
 tests/test_website.py already checks, for every page, that commands parse, links resolve and
 nothing loads from another site; tests/test_website_look.py checks the frame, the look and the
-parts of each page. This file checks that every page carries the same menu; the install is
-inside the project; the screens on the Home page and the Guide are one set, and the first one
-is what the tool prints today; and the links in llms.txt point at real files.
+parts of each page; tests/test_website_screens.py checks each screen against what judgekeeper
+prints. This file checks that every page carries the same menu; the install is inside the
+project; the Home page and the Guide show one set of screens; and the links in llms.txt point
+at real files.
 """
 
 from __future__ import annotations
@@ -15,8 +16,6 @@ import tomllib
 from pathlib import Path
 
 from judgekeeper import __version__
-from judgekeeper.cli import main
-from tests.start_projects import promptfoo_project, split
 from tests.website_pages import NAV, ROOT, WEBSITE, Element, pages, parse
 
 PAGES = ["index.html", "start.html", "learn.html", "check.html", "privacy.html",
@@ -121,7 +120,7 @@ def test_the_home_terminal_has_a_screen_for_each_step_and_the_fix_test():
         lines = text.splitlines()
         command = "judgekeeper fix" if name.startswith("fix") else \
             "judgekeeper check" if name == "check" else "judgekeeper"
-        assert lines[:2] == [f"$ {command}", "judgekeeper 1.0.0"], name
+        assert lines[:2] == [f"$ {command}", f"judgekeeper {__version__}"], name
         assert lines[-1] and not lines[-1].startswith(" "), name
     # Without JavaScript the terminal shows the first screen.
     assert _by_id("index.html", "t-out").text().strip("\n") == screens["find"]
@@ -132,25 +131,6 @@ def test_the_guide_shows_the_same_screens():
              if el.tag == "pre" and "term-out" in el.classes()]
     screens = _screens()
     assert shown == [screens[name] for name in ("find", "fix", "fix_test", "check")]
-
-
-def test_the_find_screen_is_what_judgekeeper_prints(tmp_path, monkeypatch, capsys, pages):
-    """Run on a project like the screen's (promptfoo, 23 Pass and 17 Fail, the same rule),
-    judgekeeper prints the screen line for line. The site shows the version of the coming
-    release."""
-    project = tmp_path / "example-project"
-    project.mkdir()
-    monkeypatch.chdir(project)
-    promptfoo_project(project, split(23, 17),
-                      rubric="The answer solves the customer's problem and is polite.")
-    assert main([]) == 0
-    out, err = capsys.readouterr()
-    printed = (out + err).rstrip("\n").splitlines()
-    site = _screens()["find"].splitlines()
-    assert site[0] == "$ judgekeeper"
-    assert printed[0] == f"judgekeeper {__version__}"
-    assert site[1] == f"judgekeeper {re.match(r'[0-9.]+', __version__)[0].rstrip('.')}"
-    assert site[2:] == printed[1:]
 
 
 # llms.txt and the sitemap

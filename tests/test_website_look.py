@@ -502,21 +502,14 @@ def test_how_it_works_has_its_side_list_the_range_and_the_marks_kept_aside():
     assert _by_id(LEARN, "kept-out").attrs.get("aria-live") == "polite"
 
 
-READOUTS = {
-    "better": "Result: your new rule is better. A difference this large is very unlikely to be "
-              "a coincidence.",
-    "safe": "Result: safe to try. Not clearly better yet, but very unlikely to be more than 10 "
-            "points worse.",
-    "leans better": "Result: can't tell yet. It leans toward better, but a split this small "
-                    "could easily be a coincidence.",
-    "leans worse": "Result: it looks worse. Keep the old rule."}
-
-
 @pytest.mark.parametrize(("fixed", "broke"), [(6, 0), (4, 0), (4, 2), (1, 3)])
 def test_each_kept_aside_example_says_what_judgekeeper_would(fixed, broke):
-    """The readout for each example is the verdict judgekeeper gives on 10 marks kept aside."""
+    """The readout for each example is the line judgekeeper prints for its verdict on 10
+    marks kept aside."""
+    from judgekeeper import fix
+
     kind = targets.fix_verdict(fixed, broke, 10).kind
-    assert f'"{fixed},{broke}": "{READOUTS[kind]}"'.replace('"', "'") in JS.replace('"', "'")
+    assert f'"{fixed},{broke}": {json.dumps(fix.RESULT[kind])}' in JS
 
 
 def test_the_result_table_takes_its_bar_from_the_code():
@@ -586,3 +579,13 @@ def test_a_line_quoted_from_judgekeeper_is_what_it_prints():
         source = (ROOT / "src" / "judgekeeper" / f"{el.attrs['data-said-by']}.py").read_text(
             encoding="utf-8")
         assert el.text().strip().removesuffix(".") in source, el.text()
+
+
+def test_the_reference_table_headers_are_plain_text():
+    """A header is a label, not something to type: no code box, even where the Markdown has
+    backticks in it."""
+    markdown = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
+    assert re.search(r"^\|[^\n]*`[^\n]*\|\n\|[ :|-]+\|$", markdown, flags=re.MULTILINE)
+    headers = [th for th in _els(REFERENCE) if th.tag == "th"]
+    assert headers and not [th for th in headers if _all(th, "code")]
+    assert not [th for th in headers if "`" in th.text()]
