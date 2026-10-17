@@ -1,4 +1,4 @@
-"""The pages, the saved files and the words, as the bug hunt of the 1.0 code found them.
+"""The pages, the saved files and the words.
 
 - The wording sweep: no "for free", no "your app" on its own, in the package and the docs.
 - The marking page at phone width scrolls as one, and a "Not saved" line is always on
@@ -350,7 +350,7 @@ def test_the_page_log_is_private(tmp_path, monkeypatch):
 
 
 @private
-def test_every_file_and_folder_judgekeeper_writes_is_private(here, capsys):
+def test_every_file_and_folder_judgekeeper_writes_is_private(here, capsys, monkeypatch):
     table_project(here, split(20, 16))
     assert run(capsys)[0] == 0
     _mark(Workspace(here))
@@ -360,7 +360,9 @@ def test_every_file_and_folder_judgekeeper_writes_is_private(here, capsys):
     run(capsys, "check")
     from judgekeeper import recorder
 
+    monkeypatch.setattr(recorder, "_paths", {})  # the file's path, kept for this test only
     recorder.record(input="q", output="a", verdict="pass", judge="gpt-4.1")
+    assert any((here / ".judgekeeper" / "records").iterdir())
     bad = []
     for top, dirs, files in os.walk(here / ".judgekeeper"):
         for name in [top, *(os.path.join(top, f) for f in files)]:
