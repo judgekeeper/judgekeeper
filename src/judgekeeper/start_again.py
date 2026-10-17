@@ -52,13 +52,39 @@ def _labels(ws: Workspace) -> dict[str, str]:
 
 
 def _project(path: Path) -> Path:
-    """The project folder: the folder of a results file or of an MLflow store given as the
-    path, so .judgekeeper/ is never made inside an mlruns/ folder."""
+    """The project folder every command keeps .judgekeeper/ in. A results file or an MLflow
+    store given as the path never moves it: it is found from the folder the command runs in.
+    From there (or the folder given), the nearest folder up whose .judgekeeper/ holds marks,
+    without leaving the project (a folder with find.PROJECT_MARKERS); else, for a file, the
+    project the folder is in; else the folder itself."""
     from judgekeeper import find
 
-    if path.is_file() or find.is_mlflow_folder(path):
-        return path.resolve().parent
-    return path.resolve()
+    given = path.is_file() or find.is_mlflow_folder(path)
+    here = Path.cwd().resolve() if given else path.resolve()
+    try:
+        home = Path.home().resolve()
+    except (RuntimeError, OSError):
+        home = None
+    for folder in (here, *here.parents):
+        if folder == home:
+            break
+        ws = Workspace(folder)
+        if ws.start.is_file() or ws.labels.is_file():
+            return folder
+        if _is_project(folder):
+            break
+    if given and not _is_project(here):
+        return find.project_folder(here) or here
+    return here
+
+
+def _is_project(folder: Path) -> bool:
+    from judgekeeper import find
+
+    try:
+        return any((folder / m).exists() for m in find.PROJECT_MARKERS)
+    except OSError:
+        return False
 
 
 def judge_change(old: dict, new: dict) -> str | None:

@@ -77,9 +77,10 @@ RESULT = {
     "leans worse": "Result: it looks worse. Keep the old rule.",
     "worse": "Result: worse. Keep the old rule.",
 }
-CANT_SWAP = {"table": "its grades come from a table",
-             "records": "your own code gives its grades",
-             "mapped": "its grades come from your own results file"}
+# A judge judgekeeper can't ask (can_test): the same words on every run and in report.html
+CANT_ASK = "judgekeeper can't ask this judge itself."
+NEXT_CANT_ASK = ("change its rule where your eval keeps it, run your eval, then run "
+                 "`{command}`.")
 
 # The patterns: only when strong, from at least FEW mistakes
 FEW = 3
@@ -545,7 +546,9 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     ws = state.ws if state is not None else None
     m = Marks(ws) if ws is not None else None
     split = current_split(ws, m, new=new) if m is not None and m.enough() else None
-    rule = _new_rule(ws, split) if split is not None and not new else None
+    testable = m is not None and can_test(m.data.get("tool"), m.data.get("rule") if
+                                          m.data.get("one_rule", True) else None)
+    rule = _new_rule(ws, split) if split is not None and not new and testable else None
     if split is not None and split.retest:  # a top-up was just marked: the same rule again
         rule = (ws.dir / "rules" / f"{split.topup['rule_hash'].removeprefix('sha256:')}.txt"
                 ).read_text(encoding="utf-8")
@@ -613,7 +616,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.para(line)
         talk.say()
     tool = data.get("tool")
-    if tool in SWAPPABLE and rule:
+    if can_test(tool, rule):
         where = start_fix_rule.found_rule(ws.root, rule, tool)
         talk.say(f"Your judge's rule is in {where[0]}, line {where[1]}:" if where
                  else "Your judge's rule:")
@@ -622,16 +625,21 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     talk.para(f"{len(split.hidden)} more of your marks "
               f"{'is' if len(split.hidden) == 1 else 'are'} kept aside to test your new rule "
               "fairly.")
-    if tool not in SWAPPABLE or not rule:
-        why = CANT_SWAP.get(tool) or "its rule is not in your results"
+    if not can_test(tool, rule):
         talk.say()
-        talk.para(f"judgekeeper can't test a new rule for this judge by itself: {why}.")
-        talk.next(f"change the rule where your eval keeps it, run your eval, then run "
-                  f"`{talk.command('check')}`.")
+        talk.para(CANT_ASK)
+        talk.next(NEXT_CANT_ASK.format(command=talk.command("check")))
         return EXIT_NEEDS_YOU
     talk.next(f"write your new rule in {folder}/{RULE}, then run `{talk.command()}` again to "
               "test it.")
     return EXIT_OK
+
+
+def can_test(tool: str | None, rule: str | None) -> bool:
+    """Whether judgekeeper can test a new rule for this judge: it swaps the rule into the
+    judge's own eval tool. Not for a table, record() or an own format, nor without one rule
+    for every answer."""
+    return tool in SWAPPABLE and bool(rule)
 
 
 # The test of a new rule (Screen 5b) ------------------------------------------------------

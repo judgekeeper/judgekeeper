@@ -10,16 +10,20 @@ terminal (the person's own) a printed link is not stamped.
 
 An open page can't be shown again without its token, so opening a page closes the open one
 first (with the stop secret in server.json) and starts a new one, with a new token. The marks
-are on disk: nothing is lost.
+are on disk: nothing is lost. One run at a time opens a project's page: while one does,
+.judgekeeper/opening is there, and a second run says so and waits for it (`_opening`).
 """
 
 from __future__ import annotations
 
 import faulthandler
 import json
+import os
 import secrets
 import sys
+import time
 import webbrowser
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +45,8 @@ DONE = "When you're done, run {program} in your terminal."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
 OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
 ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
+OPENING = "opening"  # in .judgekeeper/ while a run opens the page
+OPENING_NOW = "judgekeeper is already opening the marking page for this folder."
 
 
 def port_free(port: int) -> bool:
@@ -119,21 +125,62 @@ def open_new(ws: Workspace, port: int, command: str, start_command: str,
     """Close the page open for this project, then start a new one (on a free port when the
     default is taken, choose_port; `say` says why): in the background, or served by this
     process (`here`, for --wait). None when it could not start."""
-    if is_open(ws.dir):
-        background.stop(ws.dir)
-    port = choose_port(port, say)
-    if here:
-        server = page_server(ws, port, command, start_command)
-        return Page(server.url, server.port, server.token, server)
-    token = secrets.token_urlsafe(32)
-    settings = {"root": str(ws.root.resolve()), "port": port, "command": command,
-                "start_command": start_command}
-    url = background.start(ws.dir, settings, token)
+    with _opening(ws.dir, say):
+        if is_open(ws.dir):
+            background.stop(ws.dir)
+        port = choose_port(port, say)
+        if here:
+            server = page_server(ws, port, command, start_command)
+            return Page(server.url, server.port, server.token, server)
+        token = secrets.token_urlsafe(32)
+        settings = {"root": str(ws.root.resolve()), "port": port, "command": command,
+                    "start_command": start_command}
+        url = background.start(ws.dir, settings, token)
     if url is None:
         return None
     from urllib.parse import urlsplit
 
     return Page(url, urlsplit(url).port, token)
+
+
+@contextmanager
+def _opening(folder: Path, say):
+    """While this run opens the project's page: .judgekeeper/opening. Another run that is
+    opening it is said and waited for (an older mark, left by a run that stopped, is not)."""
+    path = Path(folder) / OPENING
+    wait = 2 * background.WAIT
+    said, made = False, False
+    while not made:
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            try:
+                old = time.time() - path.stat().st_mtime > wait
+            except OSError:
+                old = False  # gone meanwhile: try again
+            if old:
+                _remove(path)
+            elif not said:
+                say(OPENING_NOW)
+                said = True
+            time.sleep(0.1)
+            continue
+        except OSError:
+            break  # no mark can be made here: open it all the same
+        os.close(fd)
+        made = True
+    try:
+        yield
+    finally:
+        if made:
+            _remove(path)
+
+
+def _remove(path: Path) -> None:
+    try:
+        path.unlink()
+    except OSError:
+        pass
 
 
 def _stamp_printed(page: Page) -> bool:

@@ -334,8 +334,8 @@ WORKSPACE_FILE = (".judgekeeper is a file, but judgekeeper keeps its files in a 
 WORKSPACE_FILE_NEXT = "move or rename the file .judgekeeper, then run `{command}`."
 WORKSPACE_DENIED = ("judgekeeper can't write in .judgekeeper/ (permission denied): it keeps "
                     "its files there.")
-WORKSPACE_DENIED_NEXT = ("give your user permission to write in .judgekeeper/ (or remove the "
-                         "folder: judgekeeper makes it again), then run `{command}`.")
+WORKSPACE_DENIED_NEXT = ("give your user permission to write in .judgekeeper/, then run "
+                         "`{command}`.")  # never "remove it": it holds the marks
 
 
 def workspace_problem(e: OSError) -> tuple[str, str] | None:

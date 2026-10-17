@@ -13,6 +13,7 @@
 |                                                | opens a new page (page.py) and prints    |      |
 |                                                | the count so far                         |      |
 | the page could not start in the background     | says so in one line                      | 3    |
+| every answer marked, under 15 of one kind      | says so as `judgekeeper` does; no page   | 3    |
 
 The result is `judgekeeper`'s: its Next: line says to run `judgekeeper` when the person is
 done. `--wait` serves the page in this terminal instead, `--stop` closes it, `--new` starts

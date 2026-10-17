@@ -23,6 +23,13 @@ from tests.start_projects import coach_project, coach_runs_data
 from tests.test_front import next_lines
 
 
+@pytest.fixture(autouse=True)
+def in_its_folder(tmp_path, monkeypatch):
+    """Each test runs from its own folder: a results file given by path keeps .judgekeeper/
+    in the folder the command runs from."""
+    monkeypatch.chdir(tmp_path)
+
+
 @pytest.fixture
 def terminal(monkeypatch):
     """A person at a terminal: `answers` are typed in order; `asked` keeps every prompt."""

@@ -328,8 +328,9 @@ __THEME_SWITCH__
   }
 
   // Nothing left to mark: the end card in the answer card's place. Every answer marked: the
-  // result opens. Some skipped: one button to look at them again (the bar keeps the link to
-  // the result, to leave them out).
+  // result opens, or, when there is none yet (status.done), the end card says what comes
+  // next. Some skipped: one button to look at them again (the bar keeps the link to the
+  // result, to leave them out).
   function finish() {
     ended = true; busy = false;
     $("answer-card").hidden = true; $("end").hidden = false;
@@ -338,6 +339,10 @@ __THEME_SWITCH__
     if (!skipped) {
       setText("end-title", "You marked every answer.");
       $("again").hidden = true; $("end-note").hidden = false;
+      if (status.done) {
+        setText("end-title", status.done[0]); setText("end-note", status.done[1]);
+        focusCard(); return;
+      }
       window.location.href = url("/result");
       return;
     }

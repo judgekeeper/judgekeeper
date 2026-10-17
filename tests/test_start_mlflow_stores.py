@@ -274,7 +274,7 @@ def test_a_re_check_keeps_the_chosen_store(two, capsys):
 
 # `judgekeeper` (no command): two stores are a question, answered by naming one -------------
 
-def test_judgekeeper_asks_which_store_without_a_terminal(two, capsys):
+def test_judgekeeper_asks_which_store_without_a_terminal(two, capsys, monkeypatch):
     code = main([str(two)])
     out = capsys.readouterr().out
     assert code == 3
@@ -283,6 +283,7 @@ def test_judgekeeper_asks_which_store_without_a_terminal(two, capsys):
     assert assert_one_next_at_the_end(out) == (
         f"Next: choose which MLflow store to read (mlflow.db, mlruns), then run "
         f"`judgekeeper {db}` or `judgekeeper {folder}`.")
+    monkeypatch.chdir(two)  # a store given by path: .judgekeeper/ is made where it runs
     code = main([str(two / "mlruns")])
     out = capsys.readouterr().out
     assert code in (0, 3) and "Eval tool:   MLflow" in out

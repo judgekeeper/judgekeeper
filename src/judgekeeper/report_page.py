@@ -208,14 +208,37 @@ def commands(r: dict) -> dict[str, str]:
             "fix": " ".join(x for x in (program("fix"), path) if x)}
 
 
+def next_step(r: dict) -> str | None:
+    """What comes after this result, the same in the terminal and on this page: "fix" when
+    the judge needs work, None when it is good enough, else "mark" (too early to tell)."""
+    level = r.get("verdict_level") if r["check"] != "too_few" else None
+    return "fix" if level == "not_gate" else None if level == "gate" else "mark"
+
+
+def _all_marked(r: dict) -> str:
+    """start_label.all_marked_lines as one paragraph, its command as code."""
+    from judgekeeper.start_label import all_marked_lines, command_of
+
+    first, then = all_marked_lines(r["labels"], command_of(r, "--new"))
+    then = then.removeprefix("Next: ")
+    parts = then.split("`")
+    then = "".join(f"<code>{_e(x)}</code>" if i % 2 else _e(x) for i, x in enumerate(parts))
+    return f"{_e(first)} {then[:1].upper()}{then[1:]}"
+
+
 def _verdict(r: dict, c: dict, back: str | None) -> str:
     """The headline, and under it the disagreements, or (too early) how to mark more: a link
-    to the marking page while it runs, the command in the saved copy."""
+    to the marking page while it runs, the command in the saved copy; with every answer
+    marked, what comes next (start_label.all_marked_lines)."""
+    from judgekeeper.start_label import all_labeled
+
     level = r.get("verdict_level") if r["check"] != "too_few" else None
     cls, headline = STATES.get(level, STATES[None])
     if cls != "plain":
         lead = (f"You and your judge disagreed on <b>{c['strict'] + c['easy']}</b> of "
                 f"<b>{c['passed'] + c['failed']}</b> answers.")
+    elif all_labeled(r):
+        lead = _all_marked(r)
     elif back:
         lead = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
     else:
@@ -330,13 +353,24 @@ def _details(r: dict) -> str:
 
 
 def _fix(r: dict) -> str:
-    """Fix it: the command that saves the clues and tests a new rule, with Copy."""
+    """Fix it: the command that saves the clues and tests a new rule, with Copy. For a judge
+    judgekeeper can't ask (fix.can_test), the same words as `judgekeeper fix`."""
+    from judgekeeper.fix import CANT_ASK, NEXT_CANT_ASK, can_test
+
     fix = _e(commands(r)["fix"])
+    judge = r.get("judge") or {}
+    rule = judge.get("rule") if judge.get("one_rule", True) else None
+    if judge.get("tool") is None or can_test(judge.get("tool"), rule):
+        then = ("the clues and tells you where to write a better rule. Then run "
+                f"<code>{fix}</code> again to test it.")
+    else:
+        check = NEXT_CANT_ASK.format(command=commands(r)["check"]).split("`")
+        then = (f"the clues. {_e(CANT_ASK)} {_e(check[0][:1].upper() + check[0][1:])}"
+                f"<code>{_e(check[1])}</code>{_e(check[2])}")
     return ('<section class="fix band" aria-labelledby="fix-h"><div class="fix-in">'
             '<h2 id="fix-h">Fix it</h2>'
             f"<p>In your project folder, open a terminal and run <code>{fix}</code>. It saves "
-            "the clues and tells you where to write a better rule. Then run "
-            f"<code>{fix}</code> again to test it.</p>"
+            f"{then}</p>"
             f'<div class="cmd"><code id="fix-cmd">{fix}</code><button type="button" '
             'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div></div></section>')
 

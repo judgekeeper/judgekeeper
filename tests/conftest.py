@@ -20,6 +20,16 @@ def no_browser(monkeypatch):
     return opened
 
 
+@pytest.fixture(autouse=True)
+def repo_stays_clean():
+    """No test leaves judgekeeper's own files in the repo it runs from."""
+    root = Path(__file__).parent.parent
+    before = {n for n in (".judgekeeper", "judgekeeper.toml") if (root / n).exists()}
+    yield
+    after = {n for n in (".judgekeeper", "judgekeeper.toml") if (root / n).exists()}
+    assert after <= before, f"a test wrote {sorted(after - before)} in {root}"
+
+
 def pytest_configure(config):
     config.addinivalue_line("markers", "real_page: the marking page runs as its own process, "
                                        "as it does for a person")

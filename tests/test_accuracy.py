@@ -149,7 +149,7 @@ def _measured(project, capsys, marks, limit: int | None = None) -> str:
         seen[g] += 1
         session.update({"id": item["id"], "label": marks(g, seen[g]), "seconds": 5})
     capsys.readouterr()
-    assert main(["--no-browser"]) == 0
+    assert main(["--no-browser"]) in (0, 3)  # 3: every answer marked, more are needed
     return capsys.readouterr().out
 
 
@@ -163,7 +163,7 @@ def test_the_result_has_each_side_on_one_line_with_its_range(project, capsys):
     from tests.start_projects import promptfoo_project, split
 
     promptfoo_project(project, split(30, 30))
-    out = _measured(project, capsys, lambda g, n: g if n > 4 else ("fail" if g == "pass"
+    out = _measured(project, capsys, lambda g, n: g if n > 2 else ("fail" if g == "pass"
                                                                     else "pass"))
     lines = out.splitlines()
     assert "Step 3 of 5: Measure" in lines

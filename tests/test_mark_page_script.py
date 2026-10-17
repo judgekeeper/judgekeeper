@@ -233,6 +233,22 @@ def test_with_every_answer_marked_the_end_card_says_so_and_the_result_opens():
                    "note": False, "again": True, "href": "/result?token=t0k"}
 
 
+def test_with_every_answer_marked_and_no_result_the_end_card_says_what_comes_next():
+    """The server says every answer is marked and a kind is still short (status.done): the end
+    card says it in the terminal's words, and no result opens."""
+    lines = ["You've marked every answer: 3 Pass, 0 Fail. A result needs at least 15 of each.",
+             "Next: run your eval on more questions, then run `judgekeeper --new`."]
+    got = _run("""
+      status = {text: "x", ready: false, done: DONE};
+      for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      console.log(JSON.stringify({end: ids["end"].hidden, title: ids["end-title"].textContent,
+        note: ids["end-note"].textContent, shown: !ids["end-note"].hidden,
+        again: ids["again"].hidden, href: window.location.href}));""",
+        data=_data(3), before=f"var DONE = {json.dumps(lines)};\n")
+    assert got == {"end": False, "title": lines[0], "note": lines[1], "shown": True,
+                   "again": True, "href": ""}
+
+
 def test_going_back_to_a_marked_answer_says_its_mark():
     data = _data(3)
     data["items"][0]["label"] = "fail"

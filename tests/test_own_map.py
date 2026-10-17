@@ -26,6 +26,13 @@ from tests.start_projects import (
 from tests.test_front import next_lines
 
 
+@pytest.fixture(autouse=True)
+def in_its_folder(tmp_path, monkeypatch):
+    """Each test runs from its own folder: a results file given by path keeps .judgekeeper/
+    in the folder the command runs from."""
+    monkeypatch.chdir(tmp_path)
+
+
 @pytest.fixture
 def terminal(monkeypatch):
     """A person at a terminal: `answers` are typed in order; `asked` keeps every prompt."""
@@ -181,7 +188,7 @@ def test_a_guess_none_of_whose_parts_fit_asks_for_a_converter(tmp_path, capsys, 
     assert code == 3
     assert "Is this how judgekeeper should read " in asked[0]
     last = next_lines(out)[-1]
-    assert last.startswith("Next: turn graded.jsonl into a CSV")
+    assert last.startswith("Next: turn out/graded.jsonl into a CSV")  # named from the project
     assert "id, input, output, verdict (pass or fail) and reason" in last
     assert not (tmp_path / "judgekeeper.toml").exists()
 

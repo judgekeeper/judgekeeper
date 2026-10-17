@@ -95,16 +95,12 @@ REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import",
 
 
 class _Parser(argparse.ArgumentParser):
-    """argparse echoes bad argument values in its errors; scrub them too. An error of
-    `judgekeeper check` ends in one Next: line (its flags for automatic checks, --on, --off,
-    --hook, --fast, --ci, --baseline and --port, are gone)."""
+    """argparse echoes bad argument values in its errors; scrub them too. The Next: line that
+    follows is said by `_main`."""
 
     def error(self, message):
         self.print_usage(sys.stderr)
-        after = ""
-        if self.prog.endswith(" check"):
-            after = f"Next: run `{program('check')}` yourself after you change your judge.\n"
-        self.exit(EXIT_USAGE, f"{self.prog}: error: {printable(scrub(message))}\n{after}")
+        self.exit(EXIT_USAGE, f"{self.prog}: error: {printable(scrub(message))}\n")
 
 
 class _TopParser(_Parser):
@@ -261,6 +257,7 @@ def _parser() -> argparse.ArgumentParser:
                     help="without a terminal: yes to the questions judgekeeper printed")
     _page_args(mk)
 
+    p.commands = {"mark": mk}  # each command's parser: an unknown flag shows its own usage
     ck = sub.add_parser("check", parents=[common],
                         help="when your judge changed, re-check it on your marks")
     ck.add_argument("path", nargs="?", default=".", metavar="PATH",
@@ -268,7 +265,7 @@ def _parser() -> argparse.ArgumentParser:
     ck.add_argument("--yes", action="store_true",
                     help="without a terminal: go ahead and ask your judge (it makes AI calls, "
                          "paid with your own key)")
-    p.check = ck
+    p.commands["check"] = ck
 
     fx = sub.add_parser("fix", parents=[common],
                         help="see where your judge goes wrong and test a better rule")
@@ -279,7 +276,7 @@ def _parser() -> argparse.ArgumentParser:
                          "calls, paid with your own key)")
     fx.add_argument("--new", action="store_true",
                     help="keep a new set of your marks aside to test rules on")
-
+    p.commands["fix"] = fx
     return p
 
 
@@ -341,12 +338,34 @@ def cmd_front(args) -> int:
 
 
 COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, None: cmd_front}
+# The options that take a value: the word after one is never the command
+VALUED = ("--tool", "--metric", "--experiment", "--tracking-uri", "--pass-if", "--label-map",
+          "--judge-model", "--fields", "--port")
+
+
+def command_first(args_list: list[str]) -> list[str]:
+    """The arguments with the command first, so options may come before it:
+    `judgekeeper --no-browser mark` is `judgekeeper mark --no-browser`. The command is the
+    first word that is no option and no option's value."""
+    after_option = False
+    for i, arg in enumerate(args_list):
+        if after_option:
+            after_option = False
+        elif arg == "--":
+            break
+        elif arg.startswith("-"):
+            after_option = arg in VALUED
+        elif arg in (*COMMANDS, *REMOVED):
+            return [arg, *args_list[:i], *args_list[i + 1:]]
+        else:
+            break
+    return list(args_list)
 
 
 def _command(args_list: list[str]) -> str | None:
-    """The command named on the command line: the first word after any --debug (the only
-    option that may come before a command), when it is a command or a removed one."""
-    name = next((a for a in args_list if a != "--debug"), None)
+    """The command named on the command line (command_first), when it is a command or a
+    removed one."""
+    name = next(iter(command_first(args_list)), None)
     return name if name in (*COMMANDS, *REMOVED) else None
 
 
@@ -354,6 +373,7 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
     """The arguments as `main` reads them: a command's own, or those of `judgekeeper` with no
     command (`command` None). A removed command, or arguments that do not parse, raise
     SystemExit with argparse's code (0 after --help or --version)."""
+    args_list = command_first(args_list)
     command = _command(args_list)
     if command in REMOVED:
         print(f"judgekeeper {command} was removed. Run {program()} in your project.",
@@ -361,10 +381,10 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
         _next(NEXT_REMOVED.replace("{command}", program()))
         raise SystemExit(EXIT_USAGE)
     parser = _parser() if command else _front_parser()
-    if command == "check":  # an unknown flag is said by `check` itself, with its Next: line
+    if command:  # an unknown flag is said by the command itself, with its own usage
         args, extra = parser.parse_known_args(args_list)
         if extra:
-            parser.check.error(f"unrecognized arguments: {' '.join(extra)}")
+            parser.commands[command].error(f"unrecognized arguments: {' '.join(extra)}")
     else:
         args = parser.parse_args(args_list)
     if not command:
@@ -392,14 +412,14 @@ def _quiet_stdout() -> None:
 
 
 def _main(argv: list[str] | None) -> int:
-    args_list = sys.argv[1:] if argv is None else argv
+    args_list = command_first(sys.argv[1:] if argv is None else argv)
     lenient_streams()  # a terminal that cannot show a character prints "?", never a crash
     try:
         args = parse_args(args_list)
     except SystemExit as e:
         if e.code in (0, None):
             return EXIT_OK
-        if _command(args_list) not in (*REMOVED, "check"):  # these said their Next: line
+        if _command(args_list) not in REMOVED:  # a removed command said its Next: line
             _next(NEXT_HELP.replace("{command}", program(_command(args_list) or "") + " --help"))
         return EXIT_USAGE
     try:
