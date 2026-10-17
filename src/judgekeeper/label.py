@@ -18,7 +18,9 @@ POST to /stop (it works the same on every system), and after IDLE_TIMEOUT second
 request. The project's lock (server.json) holds a separate stop secret, never the token: with
 it a request can only ask whether the page is open (GET /alive) or close it (POST /stop). A
 copy of the lock (page.json) lets --stop find the page when server.json is gone.
-POST /printed (with the token) says the link was printed where a coding agent could read it:
+GET /favicon.ico needs no token and gets 204 No Content: the page has no icon, and a 403
+there would be two errors in the browser's console on every load. POST /printed (with the
+token) says the link was printed where a coding agent could read it:
 every later mark is stamped so. Every POST also needs the page's own Origin
 (http://127.0.0.1:<port>, or localhost) and, when the browser sends it, `Sec-Fetch-Site:
 same-origin`: only the page's own script marks, never another site or a program that has the
@@ -404,10 +406,11 @@ def _handler(server: LabelServer):
                 return self._other
             raise AttributeError(name)
 
-        def _send(self, status: int, body: bytes, content_type: str, extra=None) -> None:
+        def _send(self, status: int, body: bytes, content_type: str | None, extra=None) -> None:
             self.send_response(status)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(body)))
+            if status != 204:  # No Content: no type, no length
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
@@ -427,6 +430,8 @@ def _handler(server: LabelServer):
             if self.headers.get("Host") != f"{HOST}:{server.port}":
                 self._json(403, {"error": "wrong Host header"})
                 return False
+            if url.path == "/favicon.ico" and self.command == "GET":
+                return True  # a browser asks for it without the token
             query = parse_qs(url.query)
             token = query.get("token", [""])[0]
             if hmac.compare_digest(token.encode(), server.token.encode()):
@@ -493,7 +498,9 @@ def _handler(server: LabelServer):
                 return
             if url.path in ("/", "/state"):
                 server.done_at = None  # the page is open and asking: keep serving it
-            if url.path == "/alive":
+            if url.path == "/favicon.ico":
+                self._send(204, b"", None)  # no icon
+            elif url.path == "/alive":
                 self._json(200, {"open": True})
             elif url.path == "/":
                 page, nonce = server.page()
