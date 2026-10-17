@@ -803,7 +803,8 @@ def test_report_and_page_show_no_hidden_characters(project, capsys):
     from tests.start_projects import promptfoo_data, save_result, split
     from tests.test_leak import _label_everything
 
-    data = promptfoo_data(split(20, 16), metric=f"polite{HIDDEN}", tag=f" {HIDDEN}[31m")
+    data = promptfoo_data(split(20, 16), metric=f"polite{HIDDEN}", tag=f" {HIDDEN}[31m",
+                          model=f"openai:gpt-polite{HIDDEN}")
     for row in data["results"]["results"]:
         for c in row["gradingResult"]["componentResults"]:
             c["reason"] = f"why{HIDDEN}"
@@ -816,7 +817,7 @@ def test_report_and_page_show_no_hidden_characters(project, capsys):
         assert c not in report, hex(ord(c))
         assert c not in state, hex(ord(c))
     assert "\\u001b" not in state and "[31m" in state
-    assert "polite" in report
+    assert "openai:gpt-polite" in report  # the judge's model, in the top bar
 
 
 def test_a_damaged_mlflow_assessment_leaves_out_its_trace(tmp_path, monkeypatch, capsys):

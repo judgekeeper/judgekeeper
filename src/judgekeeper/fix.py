@@ -372,44 +372,21 @@ VERDICT_NAMES = {"better": "Better", "safe": "Safe to try", "leans better": "Can
 
 
 def report_section(ws: Workspace) -> dict | None:
-    """report.html's Fix section: the patterns and the mistakes on the marks the person can
-    see (with the judge's reason), and every rule tested (history.jsonl); never a hidden
-    mark. None when there is nothing to show."""
-    from judgekeeper.check import _day
-
+    """The result page's disagreements: the mistakes on the marks the person can see, with the
+    judge's reason; never a hidden mark. None when there is none."""
     try:
         m = Marks(ws)
     except (OSError, ValueError, KeyError):
         return None
     split = read_split(ws)
     ids = [i for i in split.seen if i in m.person] if split else list(m.person)
-    rows = [m.row(i) for i in ids]
-    pm = m.data.get("pass_mark")
-    wrong = mistakes(rows)
-    tested = []
-    for line in jsonl_lines(ws.history_jsonl.read_text(encoding="utf-8")
-                            if ws.history_jsonl.is_file() else ""):
-        try:
-            x = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(x, dict) and x.get("kind") == "fix":
-            tested.append({"date": _day(x.get("time")) or "",
-                           "rule": str(x.get("rule_hash") or "").removeprefix("sha256:")[:8],
-                           "n": x.get("hidden"), "fixed": x.get("fixed"),
-                           "broke": x.get("broke"),
-                           "result": VERDICT_NAMES.get(x.get("verdict"), "")})
-    to_use = tested_rule(ws, m)
-    if not wrong and not tested and not to_use:
+    wrong = mistakes([m.row(i) for i in ids])
+    if not wrong:
         return None
     cut = start_fix_rule.CUT
-    return {"patterns": pattern_lines(rows, pm["mark"] if _follows(m, pm) else None),
-            "mistakes": [{"said": f"Your judge said {r['judge'].upper()}. You said "
-                                  f"{r['final'].upper()}.",
-                          "judge": r["judge"], "final": r["final"],
+    return {"mistakes": [{"judge": r["judge"], "final": r["final"],
                           "question": _question(m, r)[:cut], "answer": r["output"][:cut],
-                          "reason": r["reason"][:cut]} for r in wrong],
-            "rules": tested, "tested": to_use}
+                          "reason": r["reason"][:cut]} for r in wrong]}
 
 
 def _question(m: Marks, row: dict) -> str:
@@ -418,39 +395,6 @@ def _question(m: Marks, row: dict) -> str:
 
     shown = question_view(m.rows.get(row["id"], {}).get("input"))
     return "\n".join(f"{k}: {v}" for k, v in shown) if isinstance(shown, list) else shown
-
-
-def tested_rule(ws: Workspace, m: Marks) -> dict | None:
-    """The newest rule a test called better or safe to try that is not the judge's rule yet:
-    {"rule": its text (rules/<hash>.txt), "verdict", "where": [file, line] or None}; None when
-    there is none."""
-    from judgekeeper import judge_setup
-    from judgekeeper.fingerprint import rule_hash
-
-    best = None
-    for line in jsonl_lines(ws.history_jsonl.read_text(encoding="utf-8")
-                            if ws.history_jsonl.is_file() else ""):
-        try:
-            x = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(x, dict) and x.get("kind") == "fix" and str(x.get("rule_hash") or ""):
-            best = x if x.get("verdict") in VERDICT_WORDS else None
-    if best is None:
-        return None
-    h = str(best["rule_hash"])
-    setup = (judge_setup.read(ws) or {}).get("setup") or {}
-    if h in (rule_hash(m.data.get("rule")), setup.get("rule_hash")):
-        return None  # in the eval config already
-    path = ws.dir / "rules" / f"{h.removeprefix('sha256:')}.txt"
-    try:
-        rule = path.read_text(encoding="utf-8")
-    except (OSError, ValueError):
-        return None
-    tool, old = m.data.get("tool") or "", m.data.get("rule")
-    where = start_fix_rule.found_rule(ws.root, old, tool) if old and tool in SWAPPABLE else None
-    return {"rule": scrub(rule), "verdict": best["verdict"],
-            "where": [where[0], where[1]] if where else None}
 
 
 # mistakes.md --------------------------------------------------------------------------------

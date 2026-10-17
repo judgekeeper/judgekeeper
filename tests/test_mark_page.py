@@ -98,9 +98,7 @@ def test_it_stays_open_after_the_result(ws, served, monkeypatch):
     text = body.decode("utf-8")
     assert resp.status == 200
     assert "/review" not in text and "/fix" not in text
-    assert "Mark more answers" in text
-    assert "This set can see a drop of" in text
-    assert "made on the page in 1 sitting, about 5 seconds each" in text
+    assert 'id="verdict-h"' in text and 'class="counts"' in text
     time.sleep(0.5)
     assert thread.is_alive() and client.state()
     assert (ws.dir / "report.html").is_file() and not (ws.dir / "result.html").exists()

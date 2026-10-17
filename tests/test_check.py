@@ -529,56 +529,21 @@ def test_history_and_verdicts_stay_on_new(here, capsys, no_calls):
     assert not (moved / "history.jsonl").exists()
 
 
-# The report's History -------------------------------------------------------------------------
+# The report after a check ----------------------------------------------------------------------
 
-def test_the_report_has_a_history_row_per_check(here, capsys, no_calls):
+def test_a_check_writes_the_report_again_with_no_history_on_it(here, capsys, no_calls):
     from judgekeeper.cli import main as cli
 
     ws = _marked(here)
     assert cli([]) == 0  # the result: report.html
+    ws.report_html.unlink()
     _results(here, LENIENT, model=HAIKU)
     assert run(capsys)[0] == 1
-    html = ws.report_html.read_text(encoding="utf-8")
-    assert '<h3 class="sub">History</h3>' in html
-    row = html.split('<h3 class="sub">History</h3>')[1].split("</ul>")[0]
-    assert f"model {MODEL} -&gt; {HAIKU}" in row
-    assert "50 marks (50 free)" in row
-    assert "Answers you failed: 100% → 64%" in row
-    assert "Worse" in row and "Not an exact copy" not in row  # an exact copy: said only when not
-
-
-def test_the_report_has_no_history_before_a_check(here, capsys):
-    from judgekeeper.cli import main as cli
-
-    ws = _marked(here)
-    cli([])
-    capsys.readouterr()
-    assert '<h3 class="sub">History</h3>' not in ws.report_html.read_text(encoding="utf-8")
-
-
-def test_history_rows():
-    rows = check.history_rows([
-        {"time": "2026-10-19T10:00:00Z", "kind": "check", "trigger": "by hand",
-         "changed": ["model a -> b"], "marks": 50, "free": 12, "asked": 38, "exact": "close",
-         "groups": {"passed": {"n": 25, "old": 0.96, "new": 0.92, "verdict": "no drop seen"},
-                    "failed": {"n": 25, "old": 0.9, "new": 0.6, "verdict": "worse"}}},
-        {"time": "2026-10-12T10:00:00Z", "kind": "check", "trigger": "baseline", "changed": [],
-         "marks": 50, "free": 0, "asked": 50, "exact": "exact", "groups": None,
-         "flipped": ["a"]},
-        {"time": "2026-10-12T09:00:00Z", "kind": "result"},
-    ])
-    assert [r["changed"] for r in rows] == ["model a -> b"]  # a beta's baseline is not a check
-    assert rows[0]["tested"] == "50 marks (12 free, 38 asked again)"
-    assert rows[0]["groups"] == ["Answers you passed: 96% → 92%",
-                                 "Answers you failed: 90% → 60%"]
-    assert rows[0]["verdict"] == "Worse" and rows[0]["exact"] == "close copy"
-
-
-def test_one_mark_is_said_as_one():
-    (row,) = check.history_rows([{"time": "2026-10-19T10:00:00Z", "kind": "check",
-                                  "trigger": "by hand", "changed": [], "free": 0, "asked": 1,
-                                  "exact": "exact", "groups": {}}])
-    assert row["tested"] == "1 mark (1 asked again)"
+    html = ws.report_html.read_text(encoding="utf-8")  # written again by the check
+    assert 'id="verdict-h"' in html
+    assert "History" not in html and HAIKU not in html.split("<body>")[1].split("</header>")[1]
+    assert any(json.loads(x).get("kind") == "check"  # history.jsonl is still written
+               for x in ws.history_jsonl.read_text(encoding="utf-8").splitlines())
 
 
 def test_no_internal_words_in_the_code():

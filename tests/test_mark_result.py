@@ -1,5 +1,5 @@
 """The result made from marks.jsonl: how the marks were made, the smallest drop the set can
-see, report.html, and one history.jsonl line per new set of marks."""
+see (both kept in result.json), report.html, and one history.jsonl line per new set of marks."""
 
 from __future__ import annotations
 
@@ -86,15 +86,16 @@ def test_no_smallest_drop_under_fifteen_of_each(ws):
     assert r["smallest_drop"] is None
 
 
-def test_the_report_page_says_both_new_lines(ws):
-    save_result(ws, _mark(ws), say=lambda line: None)
+def test_the_report_page_shows_neither_line_and_the_result_keeps_both(ws):
+    r = save_result(ws, _mark(ws), say=lambda line: None)
+    saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert start_label.made_lines(saved["made"])[0] == (
+        "Your marks: 40 (20 Pass, 20 Fail), made on the page in 1 sitting, about 9 seconds "
+        "each.")
+    assert saved["smallest_drop"] == r["smallest_drop"] == 25
     page = (ws.dir / "report.html").read_text(encoding="utf-8")
-    assert "Your marks: 40 (20 Pass, 20 Fail), made on the page in 1 sitting, about 9 seconds " \
-           "each." in page
-    assert "This set can see a drop of 25 points or more. Smaller changes need more marks." \
-           in page
-    assert "how often your judge is right now" in page  # the model, in the details
-    assert "report.html" in page and "result.html" not in page
+    for gone in ("Your marks:", "can see a drop", "result.html"):  # not on the page
+        assert gone not in page, gone
 
 
 def test_report_html_replaces_result_html(ws):

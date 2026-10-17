@@ -43,7 +43,7 @@ def _served() -> dict[str, str]:
     """Every page judgekeeper serves."""
     return {"marking": _marking(),
             "result": start_label.result_html(_result(*CHECK), back="/?token=t"),
-            "report.html": start_label.result_html(_result(*CHECK)),
+            "report.html": start_label.result_html(_result(*NOT_GATE_TNR)),
             "old link": mark_page.old_link_page()}
 
 
@@ -402,65 +402,280 @@ def test_text_from_results_can_never_hold_a_server_name():
 
 # The result page ---------------------------------------------------------------------------
 
-def test_the_rows_say_what_the_percentages_are():
-    r = _result(*CHECK)
-    text = _text(start_label.result_html(r))
-    (plo, phi), (flo, fhi) = r["tpr_interval"], r["tnr_interval"]
-    for line in ((f"You passed 15: your judge also passed about {r['tpr']:.0%} (could be "
-                  f"{plo:.0%} to {phi:.0%})."),
-                 (f"You failed 15: your judge also failed about {r['tnr']:.0%} (could be "
-                  f"{flo:.0%} to {fhi:.0%})."),
-                 "too strict on 3", "too easy on 3",
-                 report_page.ESTIMATES.format(n=30), "30 marks · made on 5 Oct",
-                 "Your marks: 15 Pass · 15 Fail", r["verdict"]):
-        assert line in text, line
+TOO_EARLY = (900, 100, 25, 24, 25, 1)  # one range too wide: too early to tell
+MISTAKE = {"judge": "pass", "final": "fail", "question": "q", "answer": "a", "reason": "r"}
 
 
-def test_a_side_too_early_to_tell_has_no_number_or_bar():
-    r = _result(100, 100, 30, 29, 15, 1)
-    html = start_label.result_html(r)
-    if start_label.too_early(r["tnr"], r["tnr_interval"]):
-        row = html.split('You failed 15')[1].split('<div class="est')[0]
-        assert "too early to tell" in row and 'class="fill"' not in row
+def _mistakes(n_easy: int, n_strict: int) -> list[dict]:
+    return ([{**MISTAKE, "question": f"easy {i}"} for i in range(n_easy)]
+            + [{**MISTAKE, "judge": "fail", "final": "pass", "question": f"strict {i}",
+                "reason": f"why strict {i}"} for i in range(n_strict)])
 
 
-def test_too_few_marks_show_no_numbers():
-    r = _result(100, 100, 2, 1, 1, 0)
-    body = _text(start_label.result_html(r))
-    assert "%" not in body and "0.00" not in body and "about" not in body
-    assert "Mark a few more answers to see your result. So far: 1 Pass, 2 Fail." in body
+def _part(html: str, start: str, end: str = "</section>") -> str:
+    return html.split(start, 1)[1].split(end, 1)[0] if start in html else ""
 
 
-@pytest.mark.parametrize("counts", [GATE, CHECK, NOT_GATE_TNR, NOT_GATE_TPR, TOO_FEW])
-def test_the_headline_is_the_verdict_and_weak_rows_are_amber(counts):
-    from judgekeeper import targets
+def test_the_result_top_bar_has_the_judge_the_logo_and_the_switch_only():
+    html = start_label.result_html(_result(*CHECK, judge={"tool": "promptfoo",
+                                                          "results_files": ["r.json"]}))
+    bar = html.split('<header class="top">')[1].split("</header>")[0]
+    assert bar.endswith(f'<div class="right">{look.SWITCH}</div>')
+    assert "marked" not in bar and "See your result" not in bar and "progress" not in bar
+    assert "Eval tool:" in bar
 
+
+@pytest.mark.parametrize("counts, state, headline", [
+    (GATE, "good", "Your judge is good enough to use."),
+    (NOT_GATE_TNR, "needs", "Your judge needs work."),
+    (NOT_GATE_TPR, "needs", "Your judge needs work."),
+    (CHECK, "plain", "Too early to tell."),
+    (TOO_EARLY, "plain", "Too early to tell."),
+    (TOO_FEW, "plain", "Too early to tell.")])
+def test_each_result_level_shows_its_state(counts, state, headline):
+    html = start_label.result_html(_result(*counts))
+    assert f'<h1 id="verdict-h" class="{state}">{headline}</h1>' in html
+    assert html.count("<h1") == 1
+
+
+def test_good_and_needs_work_lead_with_the_disagreements():
+    for counts, d, n in ((GATE, 2, 40), (NOT_GATE_TNR, 20, 80)):
+        html = start_label.result_html(_result(*counts))
+        assert (f'<p class="lead">You and your judge disagreed on <b>{d}</b> of <b>{n}</b> '
+                "answers.</p>") in html
+
+
+@pytest.mark.parametrize("counts", [CHECK, TOO_EARLY, TOO_FEW])
+def test_too_early_leads_to_the_marking_page_or_says_the_command(counts):
+    served = start_label.result_html(_result(*counts), back="/?token=t")
+    assert ('<p class="lead"><a href="/?token=t">Mark more answers to get a result.</a></p>'
+            in served)
+    saved = start_label.result_html(_result(*counts))
+    assert (f'<p class="lead">Run <code>{program("mark")}</code> to mark more answers.</p>'
+            in saved)
+    assert "<a " not in saved.split("<body>")[1]  # the saved copy has no server to go back to
+
+
+def test_the_counts_row_in_every_state():
+    for counts in (GATE, CHECK, NOT_GATE_TNR, TOO_EARLY, TOO_FEW):
+        r = _result(*counts)
+        c = report_page.counts(r)
+        text = _text(start_label.result_html(r))
+        assert (f"You passed {c['passed']} answers. Of those, your judge passed "
+                f"{c['passed'] - c['strict']} and failed {c['strict']}.") in text, counts
+        assert (f"You failed {c['failed']} answers. Of those, your judge passed {c['easy']} "
+                f"and failed {c['failed'] - c['easy']}.") in text, counts
+    html = start_label.result_html(_result(*NOT_GATE_TNR))
+    assert ('<div class="counts"><p>You passed <span class="mono">24</span> answers. Of those, '
+            'your judge passed <span class="mono">22</span> and failed <span class="mono">2'
+            "</span>.</p><p>") in html
+
+
+def test_one_answer_is_said_in_the_singular():
+    assert report_page.count_line("passed", 1, 1, 0) == (
+        'You passed <span class="mono">1</span> answer. Of those, your judge passed '
+        '<span class="mono">1</span> and failed <span class="mono">0</span>.')
+
+
+def test_answers_with_no_pass_or_fail_from_the_judge_are_said_under_the_counts():
+    check = {"answers": 57, "error": 2, "unreadable": 1, "nothing_checked": 4,
+             "tool": "promptfoo", "tool_counted_as": "fail"}
+    html = start_label.result_html(_result(*CHECK, judge_check=check))
+    assert ('<p class="left-out band">Your judge gave no Pass or Fail on 3 answers. They are '
+            "left out.</p>") in html
+    one = start_label.result_html(_result(*CHECK, judge_check={"answers": 9, "empty": 1}))
+    assert "Your judge gave no Pass or Fail on 1 answer. It is left out." in _text(one)
+    for clean in ({"answers": 57}, None):
+        assert 'class="left-out' not in start_label.result_html(_result(*CHECK,
+                                                                         judge_check=clean))
+
+
+def test_the_disagreement_groups_show_three_rows_then_show_all():
+    r = _result(*NOT_GATE_TNR)
+    html = start_label.result_html(r, fixing={"mistakes": _mistakes(5, 2)})
+    first = _part(html, '<section class="group band" aria-labelledby="g-easy">')
+    assert '<h2 id="g-easy">You said Fail, your judge said Pass (5)</h2>' in first
+    assert ('<button type="button" class="more" aria-expanded="false" aria-controls="t-easy">'
+            "Show all</button>") in first
+    assert ('<thead><tr><th scope="col">Question</th><th scope="col">Answer</th>'
+            '<th scope="col">Why your judge passed it</th></tr></thead>') in first
+    rows = re.findall(r"<tr( class=\"extra\" hidden)?><td data-label", first)
+    assert [bool(x) for x in rows] == [False] * 3 + [True] * 2
+    assert ('<td data-label="Question">easy 0</td><td data-label="Answer">a</td>'
+            '<td data-label="Why your judge passed it">r</td>') in first
+    second = _part(html, '<section class="group band" aria-labelledby="g-strict">')
+    assert '<h2 id="g-strict">You said Pass, your judge said Fail (2)</h2>' in second
+    assert '<th scope="col">Why your judge failed it</th>' in second and "why strict 1" in second
+    assert 'class="more"' not in second  # 3 rows or fewer: no link
+    assert html.index('id="g-easy"') < html.index('id="g-strict"')
+    only = start_label.result_html(r, fixing={"mistakes": _mistakes(0, 2)})
+    assert 'id="g-easy"' not in only and 'id="g-strict"' in only  # a group with no rows: gone
+
+
+def test_the_judges_text_in_the_tables_is_escaped():
+    html = start_label.result_html(_result(*NOT_GATE_TNR), fixing={"mistakes": [
+        {**MISTAKE, "question": "<b>q</b>", "answer": "a & b", "reason": None}]})
+    assert "&lt;b&gt;q&lt;/b&gt;" in html and "a &amp; b" in html and "<b>q</b>" not in html
+    assert '<td data-label="Why your judge passed it">No reason given</td>' in html
+
+
+def test_the_kept_aside_note_counts_the_hidden_marks_and_has_the_only_star():
+    r = _result(*NOT_GATE_TNR)
+    c = report_page.counts(r)
+    shown = c["easy"] + c["strict"] - 6
+    html = start_label.result_html(r, fixing={"mistakes": _mistakes(shown - 1, 1)})
+    note = '<p class="note">* 6 more are kept aside to test your new rule fairly.</p>'
+    assert note in html and _text(html).count("*") == 1  # no star anywhere else
+    assert html.index('id="g-strict"') < html.index(note) < html.index('id="details-h"')
+    one = start_label.result_html(r, fixing={"mistakes": _mistakes(shown + 4, 1)})
+    assert "* 1 more is kept aside to test your new rule fairly." in one
+    none = start_label.result_html(r, fixing={"mistakes": _mistakes(shown + 5, 1)})
+    assert 'class="note"' not in none
+    early = start_label.result_html(_result(*TOO_EARLY), fixing={"mistakes": []})
+    assert 'class="note"' not in early and 'class="group' not in early
+
+
+@pytest.mark.parametrize("counts", [GATE, CHECK, NOT_GATE_TNR])
+def test_more_details_is_open_with_the_estimates_and_kappa(counts):
     r = _result(*counts)
     html = start_label.result_html(r)
-    assert f'<h1 id="result-h">{escape(r["verdict"])}</h1>' in html and html.count("<h1") == 1
-    if r["check"] != "too_few":
-        rows = re.findall(r'<div class="est( weak)?">', html)
-        assert [bool(w) for w in rows] == [targets.side(r[f"{k}_interval"]) != "yes"
-                                           for k in ("tpr", "tnr")]
+    part = _part(html, '<section class="details band" aria-labelledby="details-h">')
+    assert '<h2 id="details-h">More details</h2>' in part
+    assert "<caption>How often your judge agrees with you (estimates)</caption>" in part
+    assert ('<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
+            "</tr></thead>") in part
+    (plo, phi), (flo, fhi), (klo, khi) = (r["tpr_interval"], r["tnr_interval"],
+                                          r["kappa_interval"])
+    text = _text(part)
+    assert (f"When you say Pass, your judge also says Pass about {r['tpr']:.0%} {plo:.0%} and "
+            f"{phi:.0%}") in text
+    assert (f"When you say Fail, your judge also says Fail about {r['tnr']:.0%} {flo:.0%} and "
+            f"{fhi:.0%}") in text
+    kappa = f"{r['kappa']:.2f} {klo:.2f} and {khi:.2f}".replace("-", "−")
+    assert f"Kappa ⓘ {report_page.KAPPA_MEANS} {kappa}" in text
+    assert ('<button type="button" class="i" aria-describedby="kappa-tip" '
+            'aria-label="What kappa means">ⓘ</button>') in part
+    assert "<details" not in html and 'hidden' not in part  # not folded
 
 
-def test_details_define_tpr_and_tnr_and_show_the_raw_counts_beside_the_estimates():
+def test_a_side_still_too_early_has_no_number_in_more_details():
+    r = _result(100, 100, 40, 22, 40, 2)
+    r["tnr_interval"] = [0.1, 0.9]  # wider than a number can be given for
+    part = _part(start_label.result_html(r), 'aria-labelledby="details-h">')
+    assert "When you say Fail, your judge also says Fail too early to tell –" in _text(part)
+
+
+@pytest.mark.parametrize("counts", [TOO_EARLY, TOO_FEW])
+def test_the_too_early_state_shows_the_counts_only(counts):
+    html = start_label.result_html(_result(*counts), fixing={"mistakes": _mistakes(3, 3)})
+    assert 'class="counts"' in html
+    for gone in ('class="group', 'id="details-h"', 'class="fix', 'class="note"'):
+        assert gone not in html, gone
+
+
+def test_can_t_tell_yet_keeps_everything_but_fix_it():
     r = _result(*CHECK)
-    text = _text(start_label.result_html(r))
-    assert (f"TPR (true positive rate): about {r['tpr']:.0%} (12 of 15 of your marks, adjusted "
-            "for how the answers were picked)") in text
-    assert "Of the answers you passed, how many your judge also passed." in text
-    assert (f"TNR (true negative rate): about {r['tnr']:.0%} (12 of 15 of your marks, adjusted "
-            "for how the answers were picked)") in text
-    assert "Of the answers you failed, how many your judge also failed." in text
-    lo, hi = r["kappa_interval"]
-    assert (f"Agreement beyond coincidence (kappa): {r['kappa']:.2f} (could be {lo:.2f} to "
-            f"{hi:.2f}). 0 means no better than coincidence, 1 means it always agrees.") in text
-    assert "Your judge passes" in text and "judgekeeper showed you half" in text
+    c = report_page.counts(r)
+    html = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"] - 1, c["strict"])})
+    for needed in ('class="counts"', 'id="g-easy"', 'id="g-strict"', 'class="note"',
+                   'id="details-h"'):
+        assert needed in html, needed
+    assert 'class="fix' not in html and "Keep checking it" not in html
+
+
+def test_fix_it_is_only_for_a_judge_that_needs_work():
+    html = start_label.result_html(_result(*NOT_GATE_TNR))
+    part = _part(html, '<section class="fix band" aria-labelledby="fix-h">')
+    fix = program("fix")
+    assert '<h2 id="fix-h">Fix it</h2>' in part
+    assert (f"<p>In your project folder, open a terminal and run <code>{fix}</code>. It saves "
+            "the clues and tells you where to write a better rule. Then run "
+            f"<code>{fix}</code> again to test it.</p>") in part
+    assert (f'<div class="cmd"><code id="fix-cmd">{fix}</code><button type="button" '
+            'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div>') in part
+    for counts in (GATE, CHECK, TOO_EARLY, TOO_FEW):
+        assert 'class="fix' not in start_label.result_html(_result(*counts)), counts
+
+
+def test_fix_it_keeps_the_path_the_result_was_made_for():
+    html = start_label.result_html(_result(*NOT_GATE_TNR, command=f"{program()} evals/app"))
+    assert f'<code id="fix-cmd">{program("fix")} evals/app</code>' in html
+
+
+GONE = ("History", "Your marks:", "Where it goes wrong", "Its rule may be", "results.json",
+        "made on", "This page is saved", "Changed your judge", "judgekeeper check",
+        "showed you half", "Your judge passes", "Next step", "Did your judge actually judge?",
+        "Nothing to do", "Use your tested rule", "Keep checking it", "Details</h3>",
+        "too strict on", "too easy on", "Your judge's rule")
+
+
+@pytest.mark.parametrize("counts", [GATE, CHECK, NOT_GATE_TNR, TOO_EARLY, TOO_FEW])
+def test_what_is_gone_from_the_result_page(counts):
+    r = _result(*counts, left=7, judge={"tool": "promptfoo", "results_files": ["results.json"],
+                                        "rule": "Be kind.", "results_date": "2026-10-05 05:30"},
+                judge_check={"answers": 57, "reason_says_opposite": 1, "tool": "promptfoo"})
+    fixing = {"patterns": ["7 of its 10 mistakes are answers it passed but you failed.",
+                           "Its rule may be too easy."], "mistakes": _mistakes(2, 1),
+              "tested": {"rule": "Be fair.", "verdict": "better", "where": None}}
+    for back in (None, "/?token=t"):
+        html = start_label.result_html(r, back, fixing=fixing)
+        text = _text(html)
+        for gone in GONE:
+            assert gone not in text, (gone, back)
+        above = _text(html.split('id="details-h"')[0])
+        assert "%" not in above  # no percentage above More details
+        if r["verdict_level"] not in ("too_early", None, "check"):
+            assert "Mark more answers" not in text
+
+
+def test_the_result_page_style_follows_the_locked_poster():
+    style = report_page.STYLE
+    for rule in (".band { padding-left: var(--gutter); padding-right: var(--gutter); }",
+                 ":root { --gutter: 32px; }",
+                 ".verdict { padding-top: 88px; padding-bottom: 72px; text-align: center; }",
+                 (".verdict h1 { margin: 0 auto; font-size: clamp(34px, 4vw, 56px); "
+                  "line-height: 1.1;"),
+                 ".verdict h1.needs { color: var(--amber); }",
+                 ".verdict h1.good { color: var(--green); }",
+                 ".verdict h1.plain { color: var(--text); }",
+                 (".lead b { font-family: var(--mono); font-weight: 400; font-size: 18px; "
+                  "color: var(--text); }"),
+                 (".counts { border-top: 1px solid var(--line); border-bottom: 1px solid "
+                  "var(--line); display: grid; grid-template-columns: 1fr 1fr; }"),
+                 (".counts p { margin: 0; padding: 32px var(--gutter); font-size: 19px; "
+                  "line-height: 1.4; font-weight: 500; }"),
+                 ".left-out { margin: 16px 0 0; font-size: 15px; color: var(--muted); }",
+                 ".group { padding-top: 64px; }",
+                 (".gh h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; "
+                  "color: var(--amber); }"),
+                 ".more { font-size: 14px; color: var(--text); text-decoration: underline;",
+                 (".tbl col.c1 { width: 26%; } .tbl col.c2 { width: 48%; } "
+                  ".tbl col.c3 { width: 26%; }"),
+                 ".tbl td { font-size: 17px; line-height: 1.55; padding: 24px 32px 24px 0;",
+                 (".note { margin: 16px 0 0; font-size: 13px; color: var(--muted); "
+                  "text-align: left; }"),
+                 ".details { padding-top: 64px; }",
+                 (".panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } "
+                  ".panel col.d3 { width: 26%; }"),
+                 ".panel td { font-size: 17px; padding: 20px 32px 20px 0;",
+                 ".kappa:hover .tip, .kappa:focus-within .tip { display: block; }",
+                 (".fix { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 48px; "
+                  "padding-bottom: 72px; }"),
+                 (".fix p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); "
+                  "max-width: 64ch; }"),
+                 (".cmd button { font-size: 13px; padding: 0 18px; border-left: 1px solid "
+                  "var(--line); color: var(--muted); min-width: 92px; }"),
+                 "@media (max-width: 720px) {"):
+        assert rule in style, rule
+    assert "box-shadow" not in style and "border-radius" not in style
+    narrow = style.split("@media (max-width: 720px) {")[1]
+    assert ":root { --gutter: 16px; }" in narrow
+    assert ".tbl, .tbl tbody, .tbl tr, .tbl td { display: block; }" in narrow
+    assert ".tbl td::before { content: attr(data-label);" in narrow
 
 
 def test_the_page_runs_only_its_own_script():
-    html = start_label.result_html(_result(*CHECK))
+    html = start_label.result_html(_result(*NOT_GATE_TNR), fixing={"mistakes": _mistakes(5, 1)})
     scripts = re.findall(r"<script>(.*?)</script>", html, re.DOTALL)
     assert scripts == [look.THEME_FIRST, report_page.SCRIPT]
     meta = re.search(r'<meta http-equiv="Content-Security-Policy" content="([^"]+)">', html)[1]
@@ -470,95 +685,67 @@ def test_the_page_runs_only_its_own_script():
     assert "default-src 'none'" in meta and "connect-src" not in meta  # it sends nothing
 
 
-def test_report_html_has_commands_and_the_served_page_a_way_back():
-    saved = start_label.result_html(_result(*CHECK))
-    assert "<a " not in saved.split("<body>")[1]
-    served = start_label.result_html(_result(*CHECK), back="/?token=t")
-    assert '<a class="btn" href="/?token=t">Mark more answers</a>' in served
-    assert '<a href="/?token=t">back to the marking page</a>' in served
-    assert ("This page is saved as <code>.judgekeeper/report.html</code>. Your marks and "
-            "answers stay on this computer.") in saved
+def test_show_all_and_copy_work(tmp_path):
+    """The page's script in node, against a small stand-in for the browser."""
+    import json
+    import shutil
+    import subprocess
 
-
-# The next step: from the result --------------------------------------------------------------
-
-MISTAKE = {"judge": "pass", "final": "fail", "question": "q", "answer": "a", "reason": "r"}
-
-
-def test_the_next_step_follows_the_result():
-    step = report_page.next_step
-    assert step(_result(*TOO_FEW), None)["kind"] == "mark"
-    assert step(_result(*TOO_FEW, left=0), None)["kind"] == "eval"
-    assert step(_result(*CHECK), None) == {"kind": "mark", "title": "Mark more answers",
-                                           "text": "More marks make your numbers more precise.",
-                                           "command": program("mark")}
-    assert step(_result(*CHECK, left=0), None)["kind"] == "eval"
-    assert step(_result(*GATE), None) == {
-        "kind": "done", "title": "Nothing to do", "command": program("check"),
-        "text": "When you change your judge or update your eval tool, check it again:"}
-    fixing = {"mistakes": [MISTAKE] * 3}
-    assert step(_result(*NOT_GATE_TNR), fixing)["kind"] == "fix"
-    assert step(_result(*NOT_GATE_TNR), {"mistakes": [MISTAKE] * 2})["kind"] == "done"
-    tested = {**fixing, "tested": {"rule": "Be fair.", "verdict": "better",
-                                   "where": ["promptfooconfig.yaml", 14]}}
-    assert step(_result(*NOT_GATE_TNR), tested)["kind"] == "use"
-    assert step(_result(*TOO_FEW), tested)["kind"] == "mark"  # no result: mark first
-
-
-def test_use_your_tested_rule_shows_the_rule_with_its_own_copy():
-    r = _result(*NOT_GATE_TNR, judge={"tool": "promptfoo", "results_files": ["results.json"]})
-    fixing = {"mistakes": [], "tested": {"rule": "Be <fair>.", "verdict": "safe",
-                                         "where": ["promptfooconfig.yaml", 14]}}
-    html = start_label.result_html(r, fixing=fixing)
-    text = _text(html)
-    assert "Use your tested rule" in text
-    assert "Put it in promptfooconfig.yaml, line 14: Be <fair>. Copy" in text
-    assert "Run your eval: promptfoo eval -o results.json" in text
-    assert f"Check again: {program('check')} Copy" in text
-    assert '<pre class="rulebox" id="rule-text">Be &lt;fair&gt;.</pre>' in html
-    assert 'data-copy="rule-text"' in html and 'data-copy="next-cmd"' in html
-
-
-# Where it goes wrong -------------------------------------------------------------------------
-
-def _mistakes(n_easy: int, n_strict: int) -> list[dict]:
-    return ([{**MISTAKE, "question": f"easy {i}"} for i in range(n_easy)]
-            + [{**MISTAKE, "judge": "fail", "final": "pass", "question": f"strict {i}"}
-               for i in range(n_strict)])
-
-
-def test_where_it_goes_wrong_is_a_table_with_the_first_rows_shown():
-    r = _result(*NOT_GATE_TNR)
-    c = report_page.counts(r)
-    shown = c["easy"] + c["strict"] - 4
-    fixing = {"patterns": ["7 of its 10 mistakes are answers it passed but you failed.",
-                           "Its rule may be too easy.", "Words found in many: refund (4)."],
-              "mistakes": _mistakes(shown - 1, 1)}
-    html = start_label.result_html(r, fixing=fixing)
-    part = html.split('<section class="card wrong"')[1].split("</section>")[0]
-    assert '<table class="mistakes" id="mistakes">' in part
-    assert part.count('scope="col"') == 3 and part.count('scope="rowgroup"') == 2
-    assert 'data-label="Question"' in part and 'data-label="Judge\'s reason"' in part
-    rows = re.findall(r'<tr class="(easy|strict)-row( extra)?"', part)
-    assert len(rows) == shown and [bool(x) for _, x in rows][:4] == [False] * 3 + [True]
-    text = _text(part)
-    assert f"On the {shown} answers you can see:" in text
-    assert "<strong>7 of its 10 mistakes" in part and "Its rule may be too easy." in text
-    assert f"It passed, you failed ({shown - 1})" in text and "It failed, you passed (1)" in text
-    assert f"Show all {shown} disagreements" in text
-    assert "4 more are among your hidden marks, kept aside to test a new rule fairly." in text
-
-
-def test_before_any_marks_are_hidden_all_mistakes_show_and_no_hidden_line():
-    r = _result(*NOT_GATE_TNR)
-    c = report_page.counts(r)
-    fixing = {"patterns": [], "mistakes": _mistakes(c["easy"], c["strict"])}
-    text = _text(start_label.result_html(r, fixing=fixing))
-    assert "hidden marks" not in text and "you can see" not in text
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("needs node to run the page's script")
+    stub = r"""
+var timers = [], copied = [];
+function El(id) { this.id = id; this.attrs = {}; this.hidden = false; this.listeners = {};
+  this.textContent = ""; this.innerHTML = ""; this.className = ""; var self = this;
+  this.classList = { toggle: function (c, on) { self.className = on ? c : ""; } }; }
+El.prototype.getAttribute = function (k) { return k in this.attrs ? this.attrs[k] : null; };
+El.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
+El.prototype.addEventListener = function (t, f) { this.listeners[t] = f; };
+El.prototype.querySelectorAll = function () { return this.rows; };
+var ids = {theme: new El("theme"), copy: new El("copy"), "fix-cmd": new El("fix-cmd"),
+           "t-easy": new El("t-easy")};
+ids["fix-cmd"].textContent = "judgekeeper fix";
+ids.copy.attrs["data-copy"] = "fix-cmd";
+var more = new El("more"); more.attrs["aria-controls"] = "t-easy"; more.textContent = "Show all";
+ids["t-easy"].rows = [new El(), new El()]; ids["t-easy"].rows.forEach(function (r) { r.hidden = true; });
+var document = {documentElement: new El("html"),
+  getElementById: function (id) { return ids[id] || null; },
+  querySelectorAll: function (s) { return s === ".more" ? [more] : []; }};
+var window = {localStorage: {getItem: function () { return null; }, setItem: function () {}}};
+var navigator = {clipboard: {writeText: function (t) { copied.push(t); return Promise.resolve(); }}};
+function setTimeout(f, ms) { timers.push([f, ms]); return timers.length; }
+function clearTimeout() {}
+"""
+    scenario = r"""
+(async function () {
+  more.listeners.click();
+  var opened = [more.textContent, more.getAttribute("aria-expanded"),
+                ids["t-easy"].rows.map(function (r) { return r.hidden; })];
+  more.listeners.click();
+  var closed = [more.textContent, ids["t-easy"].rows.map(function (r) { return r.hidden; })];
+  ids.copy.listeners.click(); await Promise.resolve(); await Promise.resolve();
+  var done = [copied, ids.copy.innerHTML.indexOf("<svg") === 0,
+              ids.copy.innerHTML.slice(-6), ids.copy.className, timers[0][1]];
+  timers[0][0]();
+  console.log(JSON.stringify({opened: opened, closed: closed, done: done,
+    back: [ids.copy.textContent, ids.copy.className]}));
+})();
+"""
+    script = tmp_path / "page.js"
+    script.write_text(stub + report_page.SCRIPT + scenario, encoding="utf-8")
+    out = subprocess.run([node, str(script)], check=True, capture_output=True, text=True,
+                         encoding="utf-8", timeout=60)
+    got = json.loads(out.stdout.strip().splitlines()[-1])
+    assert got["opened"] == ["Show fewer", "true", [False, False]]
+    assert got["closed"] == ["Show all", [True, True]]
+    assert got["done"] == [["judgekeeper fix"], True, "Copied", "done", 1500]
+    assert got["back"] == ["Copy", ""]
 
 
 def test_the_counts_on_the_page_add_up(tmp_path, monkeypatch):
-    """Top rows (every mark) = the mistakes you can see + those among the hidden marks."""
+    """The counts row (every mark) = the disagreements in the tables (the marks you can see)
+    + those kept aside (the hidden marks)."""
     import json
 
     from judgekeeper import fix
@@ -578,11 +765,9 @@ def test_the_counts_on_the_page_add_up(tmp_path, monkeypatch):
     seen = sum(m.person[i] != m.judge[i] for i in split["visible"])
     hidden = sum(m.person[i] != m.judge[i] for i in split["hidden"])
     assert c["easy"] + c["strict"] == seen + hidden and hidden > 0
-    text = _text(ws.report_html.read_text(encoding="utf-8"))
-    assert f"On the {seen} answers you can see:" in text
-    assert f"{hidden} more are among your hidden marks" in text
-    assert f"too strict on {c['strict']}" in text and f"too easy on {c['easy']}" in text
-
+    html = ws.report_html.read_text(encoding="utf-8")
+    assert html.count('<td data-label="Question">') == seen
+    assert f"* {hidden} more are kept aside to test your new rule fairly." in _text(html)
 
 # The page for an old link ------------------------------------------------------------------
 

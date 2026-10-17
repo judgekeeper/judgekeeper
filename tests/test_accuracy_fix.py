@@ -239,7 +239,7 @@ def test_check_asks_for_new_marks_after_three_picks(here, capsys):
     assert code == 0
 
 
-def test_the_report_says_how_many_changes_the_marks_helped_pick(tmp_path, monkeypatch):
+def test_the_result_keeps_how_many_changes_the_marks_helped_pick(tmp_path, monkeypatch):
     from judgekeeper import start_label
 
     monkeypatch.chdir(tmp_path)
@@ -247,7 +247,8 @@ def test_the_report_says_how_many_changes_the_marks_helped_pick(tmp_path, monkey
     _pick(ws)
     _pick(ws, "check")
     start_label.store_result(ws, session)
-    assert "These marks have helped pick 2 changes." in ws.report_html.read_text(encoding="utf-8")
+    saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert "These marks have helped pick 2 changes." in saved["picks"]
 
 
 def test_fix_new_counts_the_picks_again(tmp_path, monkeypatch):
@@ -374,40 +375,6 @@ def test_the_slip_rate_from_repeats():
     assert targets.slip_rate(0.0) == 0.0
     e = targets.slip_rate(0.1)  # 1 in 10 repeats marked differently
     assert 2 * e * (1 - e) == pytest.approx(0.1)
-
-
-def _result(p_pass=0.9):
-    from judgekeeper import start_label, weighted
-
-    n_pass = round(1000 * p_pass)
-    return start_label.describe(weighted.corrected(n_pass, 1000 - n_pass, 40, 39, 40, 10))
-
-
-def test_the_details_always_say_slips_lower_the_fail_side():
-    from html import unescape
-
-    from judgekeeper import start_label
-
-    html = _flat(unescape(start_label.result_html(_result())))
-    assert ("If you sometimes slip when marking, the number for answers you failed looks lower "
-            "than it is, most when few answers fail.") in html
-    assert "even a perfect judge" not in html  # no repeats
-
-
-def test_repeats_give_the_best_possible_line_and_change_no_number():
-    from html import unescape
-
-    from judgekeeper import start_label
-
-    r = _result()
-    plain = {k: r[k] for k in ("tpr", "tnr", "kappa")}
-    with_repeats = {**r, "repeats": {"same": 9, "of": 10}}
-    html = _flat(unescape(start_label.result_html(with_repeats)))
-    e = targets.slip_rate(0.1)
-    best = targets.best_possible(r["real_pass_rate"], e)
-    assert (f"You gave the same mark on 9 of 10 repeats. With slips like that, even a perfect "
-            f"judge would show about {best['tnr']:.0%} here.") in html
-    assert {k: with_repeats[k] for k in ("tpr", "tnr", "kappa")} == plain
 
 
 # A range that stays honest while the person is still marking ---------------------------------------

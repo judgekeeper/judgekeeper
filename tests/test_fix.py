@@ -583,7 +583,7 @@ def test_the_result_uses_only_the_seen_marks_once_some_are_hidden(here, capsys):
 
 # report.html ----------------------------------------------------------------------------------
 
-def test_the_report_has_a_fix_section_and_history_rows(here, capsys, judge):
+def test_the_report_shows_the_seen_mistakes_and_never_a_hidden_one(here, capsys, judge):
     import html as html_lib
 
     ws = project(here)
@@ -592,25 +592,15 @@ def test_the_report_has_a_fix_section_and_history_rows(here, capsys, judge):
     _write_rule(ws)
     run(capsys, "--yes")
     page = ws.report_html.read_text(encoding="utf-8")
-    wrong_part = page.split('<section class="card wrong"')[1].split("</section>")[0]
-    text = html_lib.unescape(wrong_part)
-    assert "Where it goes wrong" in text and "Its rule may be too easy." in text
     split, marks = _split(ws), fix.Marks(ws)
     seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
-    assert wrong_part.count('class="row-open"') == len(seen)
-    assert "reason " in text  # the judge's own reason
+    assert page.count('<td data-label="Question">') == len(seen)
+    assert "reason " in html_lib.unescape(page)  # the judge's own reason
     rows = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
     for i in split["hidden"]:
         assert i not in page and rows[i]["output"] not in page
-    history = html_lib.unescape(page.split('<h3 class="sub">History</h3>')[1])
-    assert "New rule tested on" in history and "Fixed" in history
-    assert "Safe to try" in history or "Better" in history
-    # The rule did better and is not in the eval yet: the next step is to use it.
-    step = page.split('<aside class="card next"')[1].split("</aside>")[0]
-    step = html_lib.unescape(re.sub(r"<[^>]+>", "", step))
-    assert "Use your tested rule" in step and NEW_RULE in step
-    assert "Put it in promptfooconfig.yaml, line " in step
-    assert "judgekeeper check" in step
+    for gone in ("History", "Use your tested rule", NEW_RULE):  # 1.0: the page shows neither
+        assert gone not in page, gone
 
 
 def test_check_names_a_rule_tested_with_fix(here, capsys, judge):

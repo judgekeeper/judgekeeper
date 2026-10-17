@@ -438,8 +438,7 @@ def test_the_result_picture_is_the_real_page_and_says_its_sentences():
          "judge_pass_rate": None, "real_pass_rate": None}
     r["verdict_level"] = start_label._level(r)
     r["verdict"] = start_label.VERDICTS[r["verdict_level"]]
-    content = start_label.page_content(r)
-    for sentence in content["sentences"]:
+    for sentence in start_label.sentences(r):
         assert sentence in alt, sentence
     flat = _flat(section)
     for term, plain in (("TPR", "you marked Pass"), ("TNR", "you marked Fail"), ("Kappa", "luck")):

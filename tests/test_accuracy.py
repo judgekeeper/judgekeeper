@@ -15,7 +15,7 @@ import re
 
 import pytest
 
-from judgekeeper import start_label, targets, weighted
+from judgekeeper import report_page, start_label, targets, weighted
 
 
 def result(judge_passes: float, pass_group: tuple[int, int], fail_group: tuple[int, int],
@@ -76,7 +76,7 @@ def test_green_is_reachable():
 def test_red_when_a_side_is_clearly_below_the_bar():
     r = result(0.5, (40, 38), (40, 24))  # many answers it failed should pass
     assert r["tpr_interval"][1] < targets.RATE_GATE
-    assert r["verdict"] == "Your judge fails too many answers you would pass."
+    assert r["verdict"] == "Your judge needs work."
     assert r["verdict_level"] == "not_gate"
 
 
@@ -239,14 +239,14 @@ def test_kappa_after_asking_again_has_a_range():
     assert lo < out["kappa"] < hi
 
 
-def test_kappa_is_in_the_details_with_its_range_and_no_bar():
+def test_kappa_is_in_more_details_with_its_range_and_no_bar():
     from html import unescape
 
     r = result(0.5, (15, 13), (15, 2))
-    html = " ".join(unescape(re.sub(r"<[^>]+>", "", start_label.result_html(r))).split())
+    html = " ".join(unescape(re.sub(r"<[^>]+>", " ", start_label.result_html(r))).split())
     lo, hi = r["kappa_interval"]
-    assert (f"Agreement beyond coincidence (kappa): {r['kappa']:.2f} (could be {lo:.2f} to "
-            f"{hi:.2f})") in html
+    kappa = f"{r['kappa']:.2f} {lo:.2f} and {hi:.2f}".replace("-", "\u2212")
+    assert f"Kappa ⓘ {report_page.KAPPA_MEANS} {kappa}" in html
     assert "or more is good" not in html and "beyond luck" not in html
 
 
@@ -401,18 +401,6 @@ def test_tied_answers_are_counted_in_the_free_check(tmp_path):
             "the two, the same each time.") in said
 
 
-def test_the_details_say_what_a_range_means_and_what_it_does_not_cover():
-    from html import unescape
-
-    r = result(0.5, (30, 26), (30, 3))
-    html = " ".join(unescape(re.sub(r"<[^>]+>", "", start_label.result_html(r))).split())
-    assert ("'Could be' means: in judgekeeper's tests, ranges made this way held the true "
-            "number about 95 times in 100.") in html
-    assert ("Ranges cover the coincidence of which answers you marked. They don't cover your "
-            "own slips or answers unlike these.") in html
-    assert "of the answers in your results" in html and "app's answers" not in html
-
-
 WORDS_NEVER_SHOWN = ("Probably", "probably", "No drop seen", "trusted", "proven", "guaranteed",
                      "significant", "p-value", "confidence", "likely")
 
@@ -442,7 +430,7 @@ def test_the_readme_names_kappas_range():
 
 
 def test_check_shows_counts_only(tmp_path, monkeypatch, capsys):
-    """No line of check's output or the report's History names a flipped answer's id."""
+    """No line of check's output or the report names a flipped answer's id."""
     import json
 
     from judgekeeper.cli import main
@@ -450,7 +438,7 @@ def test_check_shows_counts_only(tmp_path, monkeypatch, capsys):
 
     monkeypatch.chdir(tmp_path)
     ws = _marked(tmp_path)
-    start_label.store_result(ws, start_label.StartSession(ws))  # the report the History is in
+    start_label.store_result(ws, start_label.StartSession(ws))  # report.html
     _results(tmp_path, LENIENT, model=HAIKU)
     assert main(["check"]) == 1
     out = capsys.readouterr().out
@@ -460,4 +448,3 @@ def test_check_shows_counts_only(tmp_path, monkeypatch, capsys):
     assert len(line["flipped"]) == 9  # kept in history.jsonl only
     for answer_id in line["flipped"]:
         assert answer_id not in out and answer_id not in report
-    assert "Worse" in report

@@ -30,7 +30,6 @@ For a changed setup:
 Exit 0 (no drop bigger than 20 points, not sure with a smaller drop, or nothing changed), 1
 (worse, or not sure with a drop bigger than 20 points, in either group), 3 (the person is
 needed: not enough marks, nothing could be tested, or the question needs an answer).
-report.html shows one History row per check (report_rows).
 """
 
 from __future__ import annotations
@@ -1047,7 +1046,7 @@ def _same_as_last(state: State, line: dict) -> bool:
 
 
 def _report(ws: Workspace) -> None:
-    """report.html again, with this check in its History (when there is a result)."""
+    """report.html again (when there is a result)."""
     from judgekeeper.start_label import write_report
 
     try:
@@ -1085,73 +1084,4 @@ def run(path: str = ".", yes: bool = False) -> int:
     return full(path, _Printed(), yes=yes)
 
 
-# The report's History ------------------------------------------------------------------------
-
-def _rate(x) -> str:
-    return "?" if x is None else f"{x:.0%}"
-
-
-def _row_verdict(said: list) -> str:
-    """The History row's verdict: the worst of the groups'. A check from before the ranges
-    (a sign test) that saw no drop is "Not sure": it could not tell a small one."""
-    if "worse" in said:
-        return VERDICT_WORDS["worse"]
-    if "not_sure" in said or "no drop seen" in said:
-        return VERDICT_WORDS["not_sure"]
-    return VERDICT_WORDS["no_drop"] if "no_drop" in said else "Not tested"
-
-
-def history_rows(lines: list[dict]) -> list[dict]:
-    """One row per check in history.jsonl lines (in their order): date, what changed, marks
-    tested, old against new per group, the verdict, exact or close."""
-    rows = []
-    for line in lines:
-        if isinstance(line, dict) and line.get("kind") == "fix":  # a rule tested by fix
-            from judgekeeper.fix import VERDICT_NAMES
-
-            n = int(line.get("hidden") or 0)
-            rows.append({"date": _day(line.get("time")) or "",
-                         "changed": f"New rule tested on {plural(n, 'hidden mark')}",
-                         "tested": plural(n, "hidden mark"),
-                         "groups": [f"Fixed {line.get('fixed')}, broke {line.get('broke')}"],
-                         "verdict": VERDICT_NAMES.get(line.get("verdict"), ""), "exact": ""})
-            continue
-        if not isinstance(line, dict) or line.get("kind") != "check" or \
-                line.get("trigger") == "baseline":  # asked by automatic checks (1.0 betas)
-            continue
-        free, asked = int(line.get("free") or 0), int(line.get("asked") or 0)
-        parts = ([f"{free} free"] if free else []) + ([f"{asked} asked again"] if asked else [])
-        groups_ = line.get("groups") or {}
-        shown = []
-        for key, _, title in GROUPS:
-            g = groups_.get(key) or {}
-            old, new = (g.get("old_rate"), g.get("new_rate")) if "old_rate" in g else (
-                g.get("old"), g.get("new"))  # the re-weighted rates, as the report shows
-            shown.append(f"{title}: {_rate(old)} → {_rate(new)}"
-                         if g.get("n") else f"{title}: not tested")
-        said = [(groups_.get(k) or {}).get("verdict") for k in groups_]
-        rows.append({"date": _day(line.get("time")) or "",
-                     "tested": (f"{plural(free + asked, 'mark')} ({', '.join(parts)})" if parts
-                                else "0 marks"),
-                     "exact": "close copy" if line.get("exact") == "close" else "exact",
-                     "changed": ", ".join(line.get("changed") or []), "groups": shown,
-                     "verdict": _row_verdict(said)})
-    return rows
-
-
-def report_rows(ws: Workspace) -> list[dict]:
-    """The History rows for report.html: newest first."""
-    try:
-        text = ws.history_jsonl.read_text(encoding="utf-8")
-    except OSError:
-        return []
-    lines = []
-    for raw in text.splitlines():
-        try:
-            lines.append(json.loads(raw))
-        except ValueError:
-            continue
-    return list(reversed(history_rows(lines)))
-
-
-__all__ = ["full", "groups", "history_rows", "report_rows", "run"]
+__all__ = ["full", "groups", "run"]

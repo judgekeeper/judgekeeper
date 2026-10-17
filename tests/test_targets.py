@@ -53,9 +53,7 @@ def test_the_smallest_drop_follows_the_fewer_kind_of_mark():
 
 def test_no_smallest_drop_under_fifteen_of_each():
     assert targets.smallest_drop(14, 100) is None
-    assert targets.drop_line(None) is None
-    assert targets.drop_line(targets.smallest_drop(16, 16)) == (
-        "This set can see a drop of 30 points or more. Smaller changes need more marks.")
+    assert targets.smallest_drop(16, 16) == 30
 
 
 def test_many_marks_see_a_drop_of_five_points_quickly():

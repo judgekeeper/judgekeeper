@@ -45,10 +45,9 @@ import json
 import os
 import random
 import secrets
-from datetime import UTC, date, datetime
 from pathlib import Path
 
-from judgekeeper import __version__, find, judge_check, marks, targets, weighted
+from judgekeeper import __version__, judge_check, marks, targets, weighted
 from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import JudgeFingerprint, rule_hash, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
@@ -87,43 +86,24 @@ def shown_folder(ws: Workspace) -> str:
         return folder.as_posix()
     # a folder nearby as ../elsewhere/.judgekeeper; one far away as its whole path
     return rel.as_posix() if rel.parts.count("..") <= 2 else folder.as_posix()
-LEVELS = {  # verdict level: (colour, icon, second line)
-    "gate": ("green", "tick", "Keep checking it after changes to its model or rule."),
-    "check": ("amber", "warn", None),
-    "not_gate": ("red", "cross", None),
-    "too_early": ("grey", None, None),
-    None: ("grey", None, None),
-}
-MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August",
-          "September", "October", "November", "December")
-VERDICTS = {  # the one coloured line under the two sentences (targets.level decides)
-    "gate": "Your judge agrees with you often enough to use.",
-    "check": "Can't tell yet if your judge is good enough. Marking more answers will tell.",
-    "not_gate": "Your judge disagrees with you too often.",
-    "too_early": "Too early to tell: mark more answers.",
+
+
+# The three headlines, the same in the terminal and on the result page (report_page.STATES)
+GOOD = "Your judge is good enough to use."
+NEEDS = "Your judge needs work."
+EARLY = "Too early to tell."
+MARK_MORE = "Mark more answers to get a result."
+VERDICTS = {  # the result line (targets.level decides)
+    "gate": GOOD,
+    "check": f"{EARLY} {MARK_MORE}",
+    "not_gate": NEEDS,
+    "too_early": f"{EARLY} {MARK_MORE}",
     None: "Mark a few more answers to see your result.",
 }
-# Red, by the side whose range stays below the bar
-TOO_MANY = {"tnr": "Your judge passes too many answers you would fail.",
-            "tpr": "Your judge fails too many answers you would pass."}
-MORE = "Marking more answers narrows this."
 ALL_LABELED = "Every saved answer is marked. Run your eval again for more answers, then:"
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
-WIDTH_WORDS = {"too_wide": "Not enough marks yet", "rough": "Rough", "sharp": "Sharp"}
-# Under a range too wide to give a number, when few of the answers are of that kind
-KAPPA_PLAIN = "Kappa on your real mix (agreement beyond coincidence)"
-SLIPS = ("If you sometimes slip when marking, the number for answers you failed looks lower "
-         "than it is, most when few answers fail.")
-BEST = ("You gave the same mark on {same} of {of} repeats. With slips like that, even a perfect "
-        "judge would show about {best} here.")
-RANGE_MEANS = ("'Could be' means: in judgekeeper's tests, ranges made this way held the true "
-               "number about 95 times in 100.")
-RANGE_COVERS = ("Ranges cover the coincidence of which answers you marked. They don't cover "
-                "your own slips or answers unlike these.")
-FEW = ("Few of these answers should {kind}, so it takes more marks to measure how your judge "
-       "handles the ones that do.")
 
 
 class Workspace:
@@ -514,12 +494,8 @@ def _level(r: dict) -> str | None:
 
 
 def _verdict(r: dict) -> str:
-    """The verdict's words; when red, the side whose range stays below the bar (of two, the
-    one with the lower high end)."""
-    if r["verdict_level"] != "not_gate":
-        return VERDICTS[r["verdict_level"]]
-    below = [k for k in ("tpr", "tnr") if targets.side(r[f"{k}_interval"]) == "no"]
-    return TOO_MANY[min(below, key=lambda k: r[f"{k}_interval"][1])]
+    """The verdict's words."""
+    return VERDICTS[r["verdict_level"]]
 
 
 def describe(corrected: dict) -> dict:
@@ -585,40 +561,6 @@ def side_sentence(key: str, value, interval) -> str:
             f"{_pct(interval[0])} to {_pct(interval[1])}).")
 
 
-def statements(r: dict) -> list[dict]:
-    """The result's sentences for the page, each with the rate its ring draws to, the number
-    the page counts up to and its side ("pass" or "fail"); before a result, the one line."""
-    if r["check"] == "too_few":
-        return [{"text": sentences(r)[0], "rate": None, "pct": None, "side": None}]
-    out = []
-    for text, (key, said) in zip(sentences(r), SAID.items(), strict=True):
-        value = None if too_early(r[key], r[f"{key}_interval"]) else r[key]
-        out.append({"text": text, "rate": value, "pct": None if value is None else _pct(value),
-                    "side": said.lower()})
-    return out
-
-
-EXACT_RANGE = "exactly: marking more answers won't change it."
-
-
-def range_words(interval) -> str | None:
-    """"Rough: could be 64% to 97%. Marking more answers narrows this.", or None: the word for
-    its width (targets.width_word: "Not enough marks yet", "Rough", none, "Sharp"), then the
-    range. A range of no width is exact ("100%, exactly: ..."): a judge that passes (or
-    fails) every answer. Ends that round to the same percent are shown with one decimal,
-    never one point."""
-    if interval is None or interval[0] is None:
-        return None
-    lo, hi = interval
-    word = targets.width_word(interval)
-    if word == "exact":
-        return f"{_pct(lo)}, {EXACT_RANGE}"
-    ends = (f"{lo:.1%} to {hi:.1%}" if _pct(lo) == _pct(hi) else f"{_pct(lo)} to {_pct(hi)}")
-    if word in WIDTH_WORDS:
-        return f"{WIDTH_WORDS[word]}: could be {ends}. {MORE}"
-    return f"Could be {ends}. {MORE}"
-
-
 def all_labeled(r: dict) -> bool:
     return r.get("left") == 0
 
@@ -630,52 +572,6 @@ def command_of(r: dict, *extra: str) -> str:
 
 
 _plural = plural  # textio.plural
-
-
-def in_words(day: str) -> str:
-    """"2026-10-05" as "5 October 2026"; anything else as it is."""
-    try:
-        d = date.fromisoformat(day)
-    except ValueError:
-        return day
-    return f"{d.day} {MONTHS[d.month - 1]} {d.year}"
-
-
-def _made_on(made_at: str | None) -> str | None:
-    """The local date a result was made (`made_at` is UTC), in words."""
-    try:
-        made = datetime.strptime(made_at or "", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
-    except ValueError:
-        return None
-    return in_words(f"{made.astimezone():%Y-%m-%d}")
-
-
-def _detail(r: dict) -> str | None:
-    """The coloured line's second line (a bad result names its weaker side in the first)."""
-    return LEVELS[r["verdict_level"]][2]
-
-
-def still_needed(r: dict) -> str | None:
-    """Why marking more answers helps, while the result is not reliable: the range that is
-    still wide (status_line), else that more marks narrow the ranges; None once reliable."""
-    if r["check"] == "reliable" or not r.get("wide") and _all_exact(r):
-        return None
-    if r.get("wide"):
-        return status_line(r)
-    return "Marking more answers narrows the ranges."
-
-
-def _pass_rate(r: dict) -> list[tuple[str, bool]] | None:
-    """The pass-rate line as (text, bold) parts."""
-    if r["judge_pass_rate"] is None:
-        return None
-    parts = [("Your judge passes ", False), (_pct(r["judge_pass_rate"]), True),
-             (" of the answers in your results.", False)]
-    if r["real_pass_rate"] is None:
-        return parts + [(" How many should pass is unknown yet.", False)]
-    lo, hi = r["real_pass_rate_interval"]
-    return parts + [(" From your marks, about ", False), (_pct(r["real_pass_rate"]), True),
-                    (f" should pass (could be {_pct(lo)} to {_pct(hi)}).", False)]
 
 
 def made_lines(made: dict | None) -> list[str]:
@@ -703,139 +599,17 @@ def made_lines(made: dict | None) -> list[str]:
         if printed else [])
 
 
-def page_content(r: dict, marking: str | None = None) -> dict:
-    """The result page's text and numbers (report_page.page lays them out). `marking`:
-    for the page `judgekeeper mark` serves, its command; the one next step is marking more."""
-    labels = r["labels"]
-    n = labels["correct"] + labels["wrong"]
-    kind = [f"From the {_plural(n, 'answer', 'answers')} you marked: {marks_words(labels)}"
-            + (f", {r['skipped']} skipped" if r.get("skipped") else "")]
-    if _made_on(r.get("made_at")):
-        kind.append(_made_on(r.get("made_at")))
-
-    too_few = r["check"] == "too_few"
-
-    def tile(name, plain, value, interval, count, as_pct=True):
-        if too_few:
-            return {"name": name, "plain": plain, "value": "–", "interval": None,
-                    "mark": None, "line": count}
-        known = value is not None
-        span = known and interval is not None and interval[0] is not None
-        shown = (_pct(value) if as_pct else f"{value:.2f}") if known else "unknown"
-        return {"name": name, "plain": plain, "value": shown,
-                "interval": (interval[0], interval[1]) if span else None,
-                "mark": value if known else None,
-                "line": range_words(interval) if span else count}
-
-    def few(shown: dict, key: str) -> dict:
-        """Under a range too wide to give a number: why, when few answers are of that kind
-        (the wide side is Fail and most answers should pass, or the other way round)."""
-        real = r.get("real_pass_rate")
-        if too_few or real is None or targets.width_word(r[f"{key}_interval"]) != "too_wide":
-            return shown
-        if (key == "tnr" and real > 0.5) or (key == "tpr" and real < 0.5):
-            kind = "fail" if key == "tnr" else "pass"
-            shown["line"] = f"{shown['line']} {FEW.format(kind=kind)}"
-        return shown
-
-    def best(shown: dict, key: str) -> dict:
-        """Under a number, when the marks include repeats: the most even a perfect judge
-        could show against marks that slip as often as these (below 99% only)."""
-        repeats = r.get("repeats") or {}
-        if too_few or not repeats.get("of") or r.get("real_pass_rate") is None:
-            return shown
-        slip = targets.slip_rate(1 - repeats["same"] / repeats["of"])
-        top = targets.best_possible(r["real_pass_rate"], slip)[key]
-        if top < 0.99:
-            shown["line"] = (f"{shown['line']} " + BEST.format(same=repeats["same"],
-                                                               of=repeats["of"], best=_pct(top)))
-        return shown
-
-    def kappa_tile(shown: dict) -> dict:
-        """Kappa's tile: its range in words (it has no bar: it moves with how many answers
-        pass, so it is no target)."""
-        lo, hi = r.get("kappa_interval") or (None, None)
-        if not too_few and r["kappa"] is not None and lo is not None:
-            shown["line"] = f"could be {lo:.2f} to {hi:.2f}, from {n} answers"
-        return shown
-
-    colour, icon, _ = LEVELS[r["verdict_level"]]
-    judge = r.get("judge") or {}
-    fingerprint = r.get("fingerprint") or {}
-    model = fingerprint.get("model") or "model not found in the results"
-    if fingerprint.get("model_source"):
-        model += " (as you told me)"
-    source = None
-    if judge.get("results_files"):
-        tool = find.NAMES.get(judge.get("tool"), judge.get("tool"))
-        source = f"From {', '.join(judge['results_files'])}" + (f" ({tool})" if tool else "")
-        saved = judge.get("results_date")  # "2026-10-05 05:30"
-        if saved:
-            source += f", saved {in_words(saved[:10])}{saved[10:].replace(' ', ', ', 1)}"
-    steps = []
-    needed = still_needed(r)
-    if needed and all_labeled(r):
-        steps.append({"title": "Mark more answers", "text": ALL_LABELED,
-                      "command": command_of(r), "link": None, "button": None})
-    elif needed:
-        steps.append({"title": "Mark more answers", "text": needed,
-                      "command": command_of(r), "link": "/", "button": "Mark more answers"})
-    if not (needed and all_labeled(r)):  # else the first step already says it
-        steps.append({"title": "Check again after your next eval run", "text": "",
-                      "command": command_of(r), "link": None, "button": None})
-    if marking:
-        steps = [{"title": "Mark more answers", "text": ALL_LABELED, "command": marking,
-                  "link": None, "button": None} if all_labeled(r) else
-                 {"title": "Mark more answers", "text": needed or "Marking more answers "
-                  "narrows the ranges.", "command": marking, "link": "/",
-                  "button": "Mark more answers"}]
-    checked = r.get("judge_check")
-    judged = None
-    if judge_check.lines(checked):
-        judged = {"title": judge_check.TITLE, "lines": judge_check.page_lines(checked)
-                  + ([judge_check.LIST_LINE] if judge_check.has_rows(checked) else []),
-                  "files": []}
-    return {
-        "kind": " · ".join(kind),
-        "sentences": sentences(r),
-        "statements": statements(r),
-        "verdict": {"colour": colour, "icon": icon, "text": r["verdict"], "detail": _detail(r)},
-        "made": made_lines(r.get("made")),
-        "drop": targets.drop_line(r.get("smallest_drop")),
-        "drop_model": targets.DROP_MODEL if r.get("smallest_drop") is not None else None,
-        "picks": list(r.get("picks") or []) + ([] if too_few else [SLIPS]),
-        "tiles": [best(few(tile("TPR", "When you said Pass", r["tpr"], r["tpr_interval"],
-                                f"{labels['correct']} marked Pass so far"), "tpr"), "tpr"),
-                  best(few(tile("TNR", "When you said Fail", r["tnr"], r["tnr_interval"],
-                                f"{labels['wrong']} marked Fail so far"), "tnr"), "tnr"),
-                  kappa_tile(tile("kappa", KAPPA_PLAIN, r["kappa"], None,
-                                  f"from {n} answers", as_pct=False))],
-        "pass_rate": None if too_few else _pass_rate(r),
-        "corrected": None if too_few else (
-            "judgekeeper showed you half of your judge's passes and half of its fails, and "
-            "corrects the numbers for that. The bar under each number is the range it could "
-            f"be in. {RANGE_MEANS} {RANGE_COVERS}"),
-        "judge": {"name": judge.get("metric") or judge.get("name"), "model": model,
-                  "rule": judge.get("rule"), "source": source},
-        "judge_check": judged,
-        "judge_check_quiet": judge_check.EVERY_ANSWER if checked and not judged else None,
-        "next": steps,
-        "folder": f"{FOLDER}/",
-    }
-
-
-def result_html(r: dict, back: str | None = None, marking: str | None = None,
-                history: list[dict] | None = None, fixing: dict | None = None) -> str:
-    """The result page; `history`: the History rows of report.html (check.report_rows);
-    `fixing`: its Fix section (fix.report_section). No value on it holds a hidden character
+def result_html(r: dict, back: str | None = None, fixing: dict | None = None) -> str:
+    """The result page; `back`: the link to the marking page while it runs; `fixing`: the
+    mistakes the person can see (fix.report_section). No value on it holds a hidden character
     (redact.visible)."""
     from judgekeeper.report_page import page
 
-    return visible(page(r, page_content(r, marking), back, history or [], fixing))
+    return visible(page(r, back, fixing))
 
 
 def _fixing(ws: Workspace) -> dict | None:
-    """The Fix section, after the hidden marks are set aside (fix.prepare_split): no mistake
+    """The disagreements, after the hidden marks are set aside (fix.prepare_split): no mistake
     is shown from a mark that a later test hides."""
     from judgekeeper import fix
 
@@ -845,18 +619,13 @@ def _fixing(ws: Workspace) -> dict | None:
 
 
 def write_report(ws: Workspace) -> None:
-    """report.html again from the saved result, with the checks so far in its History; nothing
-    when there is no result yet."""
-    from judgekeeper import check
-
+    """report.html again from the saved result; nothing when there is no result yet."""
     try:
         r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
     if isinstance(r, dict):
-        write_replacing(ws.report_html, result_html(_scrubbed(r),
-                                                    history=_scrubbed(check.report_rows(ws)),
-                                                    fixing=_fixing(ws)))
+        write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws)))
 
 
 def page_template(about: dict | None = None, command: str | None = None) -> str:
@@ -995,11 +764,7 @@ def store_result(ws: Workspace, session: StartSession,
             n += 1
         ws.result_json.replace(target)
     _write_json(ws.result_json, r)
-    from judgekeeper import check
-
-    write_replacing(ws.report_html, result_html(_scrubbed(r),
-                                                history=_scrubbed(check.report_rows(ws)),
-                                                fixing=_fixing(ws)))
+    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws)))
     if ws.result_html.is_file() and not ws.result_html.is_symlink():
         ws.result_html.unlink()
     marks.append(ws.history_jsonl, _scrubbed(history_line(ws, r)))

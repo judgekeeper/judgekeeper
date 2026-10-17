@@ -226,8 +226,8 @@ def test_see_my_result_works_before_everything_is_labeled(workspace):
         assert resp.getheader("Content-Security-Policy") == f"{CSP}; frame-ancestors 'none'"
         assert "font-src data:" in resp.getheader("Content-Security-Policy")
         html = payload.decode()
-        assert "Mark a few more answers to see your result." in html
-        assert "Mark more answers</a>" in html
+        assert '<h1 id="verdict-h" class="plain">Too early to tell.</h1>' in html
+        assert f'<a href="/?token={server.token}">Mark more answers to get a result.</a>' in html
         assert thread.is_alive()  # answers are left: the person may go on
     finally:
         server.stop()
@@ -242,7 +242,7 @@ def test_after_the_last_answer_the_result_is_served_and_the_server_stops(tmp_pat
         assert client.label(id=item_id, label=group)[0] == 200
     resp, payload = client.request("GET", "/result")
     assert resp.status == 200
-    assert "Your judge agrees with you often enough to use." in payload.decode()
+    assert "Your judge is good enough to use." in payload.decode()
     thread.join(timeout=5)
     assert not thread.is_alive()
 
@@ -259,11 +259,11 @@ def test_the_verdict_levels_follow_the_ranges():
     red = _result(500, 500, 40, 38, 40, 24)        # many answers it failed should pass
     early = _result(900, 100, 15, 15, 15, 0)       # the Fail side's range is too wide
     too_few = _result(100, 100, 10, 9, 10, 1)      # 10 Pass, 10 Fail
-    assert green["verdict"] == "Your judge agrees with you often enough to use."
-    assert amber["verdict"] == ("Can't tell yet if your judge is good enough. Marking more "
-                                "answers will tell.")
-    assert red["verdict"] == "Your judge fails too many answers you would pass."
+    assert green["verdict"] == "Your judge is good enough to use."
+    assert amber["verdict"] == "Too early to tell. Mark more answers to get a result."
+    assert red["verdict"] == "Your judge needs work."
     assert early["verdict_level"] == "too_early"
+    assert early["verdict"] == "Too early to tell. Mark more answers to get a result."
     assert too_few["verdict"] == "Mark a few more answers to see your result."
     assert start_label.sentences(too_few) == [
         "Mark a few more answers to see your result. So far: 10 Pass, 10 Fail."]
@@ -289,8 +289,8 @@ def test_the_word_trust_is_nowhere():
 
 def test_the_result_page_stands_alone():
     html = start_label.result_html(_result(900, 100, 25, 20, 25, 10))
-    for needed in ("Your result", "You passed 30", "TPR", "TNR", "kappa", "Next step",
-                   "judgekeeper mark", '"Manrope"'):
+    for needed in ("Your judge needs work.", "You passed", "Kappa", "More details", "Fix it",
+                   "judgekeeper fix", '"Manrope"'):
         assert needed in html, needed
     assert "<a " not in html.split("<body>")[1]  # no link back: commands only
     assert not re.search(r"https?://(?!www\.w3\.org/2000/svg)", html)
@@ -351,10 +351,8 @@ def test_a_result_writes_anchors_and_the_result_files(workspace):
     assert result["tpr"] == 1 and result["tnr"] == 1
     html = ws.report_html.read_text(encoding="utf-8")
     assert html.startswith("<!doctype html>")
-    date = json.loads(ws.start.read_text(encoding="utf-8"))["results_date"]
-    assert "<code>openai:gpt-4.1-mini</code> (llm-rubric)" in html
-    when = f"{start_label.in_words(date[:10])}, {date[11:]}"
-    assert f"From results.json (promptfoo), saved {when}" in html
+    assert 'Judge:</span><span class="v" title="openai:gpt-4.1-mini">openai:gpt-4.1-mini' in html
+    assert "results.json" not in html.split("<body>")[1]  # no file names or dates on the page
 
 
 def test_a_second_result_moves_the_first_to_history(workspace):
@@ -455,7 +453,6 @@ def test_every_answer_marked_but_a_kind_short_says_why_there_is_no_result(correc
     line = (f"You've marked every answer. A result needs at least 15 you mark Pass and 15 you "
             f"mark Fail; you have {have}. Run your eval on more questions, then judgekeeper.")
     assert start_label.sentences(r) == [line]
-    assert start_label.statements(r)[0]["text"] == line  # the page
     r["left"] = 3  # answers still to mark: mark more, as before
     assert start_label.sentences(r)[0].startswith("Mark a few more answers")
 

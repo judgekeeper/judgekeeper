@@ -6,7 +6,6 @@ lines of the result. The pages themselves are tested in test_product_pages.py.
 from __future__ import annotations
 
 import re
-from html import unescape
 
 import pytest
 
@@ -131,26 +130,8 @@ def _result(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f, **extra):
 CHECK = (100, 100, 15, 12, 15, 3)          # both ranges reach below 80%, and are wide
 
 
-def test_the_pass_rate_box():
-    r = _result(*CHECK)
-    html = _flat(start_label.result_html(r))
-    lo, hi = r["real_pass_rate_interval"]
-    assert (f"Your judge passes <b>{r['judge_pass_rate']:.0%}</b> of the answers in your "
-            f"results. From your marks, about <b>{r['real_pass_rate']:.0%}</b> should pass "
-            f"(could be {lo:.0%} to {hi:.0%}).") in unescape(html)
-    assert ("judgekeeper showed you half of your judge's passes and half of its fails, and "
-            "corrects the numbers for that. The bar under each number is the range it could "
-            "be in.") in unescape(html)
-
-
-def test_dates_in_words():
-    assert start_label.in_words("2026-10-05") == "5 October 2026"
-    assert start_label.in_words("2026-01-31") == "31 January 2026"
-    assert start_label.in_words("not a date") == "not a date"
-
-
 # Marking more ----------------------------------------------------------------------------
 
 def test_with_answers_left_it_still_offers_to_mark_more():
     html = _flat(start_label.result_html(_result(*CHECK, left=7), back="/?token=t"))
-    assert '<a class="btn" href="/?token=t">Mark more answers</a>' in html
+    assert '<a href="/?token=t">Mark more answers to get a result.</a>' in html

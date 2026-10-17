@@ -21,9 +21,9 @@ What a stranger does, with nobody at the keyboard and no API key:
    `judgekeeper` again for the result, `judgekeeper --stop`, `judgekeeper fix` (and for a
    judge whose rule it can swap, a new rule tested with `fix --yes`); then the new rule put in
    the tool's own file and the tool run again, and `check --yes` (the re-check on the marks;
-   --yes answers its question about judge calls, as there is no terminal) and the report's
-   History. judgekeeper's input is a closed pipe; the page is used through its own HTTP calls,
-   with a stand-in person whose marks are fixed.
+   --yes answers its question about judge calls, as there is no terminal) and that the report
+   is still there. judgekeeper's input is a closed pipe; the page is used through its own HTTP
+   calls, with a stand-in person whose marks are fixed.
 5. Every command's output, then "N of N steps OK". Exit 1 on any failed step or "Traceback".
 
 Tools: table, promptfoo, deepeval, inspect, mlflow, record (your own judge code with
@@ -684,8 +684,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             html = report.read_text(encoding="utf-8")
         except OSError:
             html = ""
-        self.step("3. report.html has the check in its History",
-                  '<h3 class="sub">History</h3>' in html)
+        self.step("3. report.html is there after the check", 'id="verdict-h"' in html)
 
     def mark_step(self, name: str, args, expect, env=None):
         """A step that opens or closes the page; when it fails, what the page's own process
