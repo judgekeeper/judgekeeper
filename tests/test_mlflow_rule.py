@@ -226,7 +226,7 @@ def test_failed_judge_calls_are_counted(tmp_path, failing_stores, capsys):
     _, out, _ = run(capsys, tmp_path, "--no-browser")
     assert "Your judge's grades: 11 Pass, 8 Fail." in out, out
     assert "Your judge gave a Pass or Fail on every answer" not in out
-    assert re.search(r"5 calls failed", out), out
+    assert re.search(r"5\s+calls failed", out), out
     found = start.find_judge(tmp_path)
     errors = [r for r in found.pool.answers if r.verdict not in ("pass", "fail")]
     assert not errors  # failed calls give no decision: they are not in the pool

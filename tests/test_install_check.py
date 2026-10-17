@@ -214,7 +214,7 @@ def test_with_uvx_the_project_has_no_virtual_environment(ic, tmp_path):
 def test_the_marking_page_link_is_read_from_the_output(ic):
     out = ("Open this link in your browser to mark answers:\n"
            "http://127.0.0.1:54321/?token=Ab-c_9\n"
-           "It shows the same answers one at a time.")
+           "It shows the answers one at a time.")
     assert ic.page_link(out) == ("http://127.0.0.1:54321", "Ab-c_9")
 
 
@@ -317,7 +317,9 @@ def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_p
     assert fronts[0] == ["--no-browser", "--port", "5"] and len(fronts) == 2
     assert after[0][:1] == ["fix"]
     first, result = " ".join(ran[0][1]), " ".join(ran[1][1])
-    assert "Next: [^`]*`uvx judgekeeper@" in first and "Next: [^`]*`uvx judgekeeper@" in result
+    # The first look's Next: line names no command (mark, then click "See your result");
+    # the result's does, through uvx.
+    assert "uvx" not in first and "Next: [^`]*`uvx judgekeeper@" in result
 
 
 def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch, tmp_path):

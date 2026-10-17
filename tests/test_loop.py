@@ -22,10 +22,9 @@ from tests.test_front import assert_one_next_at_the_end, next_lines, run
 
 TAG = " SECRET-7f3a"  # in every question and answer: a leak shows
 OPEN = "The marking page is open in your browser."
-NEXT_OPEN = "Next: mark until the page says you have enough, then run `judgekeeper` again."
+NEXT_OPEN = 'Next: mark until "See your result" appears, then click it.'
 NEXT_LINK = NEXT_OPEN
-NEXT_KEEP = ("Next: keep marking until the page says you have enough, then run `judgekeeper` "
-             "again.")
+NEXT_KEEP = 'Next: keep marking until "See your result" appears, then click it.'
 NEXT_RESULT = ("Next: nothing to do. When you change your judge or update your eval tool, run "
                "`judgekeeper check`.")
 RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
@@ -113,23 +112,21 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "Step 1 of 5: Find",
         "",
         "Eval tool:   promptfoo",
-        "Answers:     36 answers from your app, each graded by your judge",
+        "Answers:     36 answers, each graded by your judge",
         "             (read from results.json)",
         "Judge:       openai:gpt-4.1-mini",
         'Judge rule:  "Is polite and correct. Second line of the rubric."',
         "",
         "Your judge's grades: 20 Pass, 16 Fail.",
-        "Free check (no AI call): every answer got a clear Pass or Fail.",
+        "Checked: your judge gave every answer a clear Pass or Fail.",
         "",
         "Step 2 of 5: Mark",
         "",
-        "The marking page is open in your browser. It shows the same",
-        "answers one at a time. Mark each one Pass or Fail, the way you",
-        "want your judge to decide. Your judge's grade stays hidden, so",
-        "you decide on your own.",
+        "The marking page is open in your browser. It shows the answers",
+        "one at a time. Mark each one Pass or Fail, the way you want your",
+        "judge to decide. Your judge's grade stays hidden.",
         "",
-        "Next: mark until the page says you have enough, then run",
-        "`judgekeeper` again."]
+        'Next: mark until "See your result" appears, then click it.']
     assert len(pages[0]) == 1 and len(no_browser) == 1
     assert label.is_open(here / ".judgekeeper")
     ws = start_label.Workspace(here)
@@ -176,15 +173,15 @@ def test_marking_started_keeps_the_open_page_and_says_the_count(here, capsys, pa
     assert out.splitlines()[2:] == [
         "Step 2 of 5: Mark",
         "",
-        "You have marked 10 answers so far (5 Pass, 5 Fail).",
-        "That is not enough for a first result yet.",
+        "You marked 10 answers so far: 5 Pass, 5 Fail.",
+        "That's not enough for a result yet.",
         "",
         "The marking page is still open in your browser. The bar at the",
-        "top shows how close you are.",
+        "top fills as you mark.",
         "",
-        "Next: keep marking until the page says you have enough, then run",
-        "`judgekeeper` again."]
-    assert "Step 1 of 5" not in out and "Free check" not in out
+        'Next: keep marking until "See your result" appears, then click',
+        "it."]
+    assert "Step 1 of 5" not in out and "Checked:" not in out
     assert len(pages[0]) == 1  # the open page stays: its tab still works
 
 
@@ -273,26 +270,26 @@ def test_the_result_keeps_the_command_for_its_next_steps(here, capsys, pages):
 
 # The exit test: one prompt to a result ----------------------------------------------------
 
-def test_from_a_promptfoo_project_the_person_runs_judgekeeper_twice(here, capsys, pages):
-    """The person runs `judgekeeper` and does what each Next: line says. From the first run to
-    the result it runs exactly `judgekeeper` twice; marking is the only other step."""
+def test_from_a_promptfoo_project_the_person_runs_judgekeeper_once_then_clicks(here, capsys,
+                                                                              pages):
+    """The person runs `judgekeeper` and does what the Next: line says: mark until "See your
+    result" appears, then click it. One command and one click from the first run to the
+    result; `judgekeeper` again shows the same result in the terminal."""
     promptfoo_project(here, split(20, 16), tag=TAG)
-    ran, argv, person_marked = [], [], 0
-    while len(ran) < 5:
-        ran.append(["judgekeeper", *argv])
-        code, out, err = run(capsys, *argv)
-        assert code == 0, out + err
-        said = _check(out, err)
-        if said.startswith("Next: nothing"):
-            break
-        if said.startswith("Next: mark until the page says you have enough"):
-            _click(start_label.Workspace(here))  # the person marks until the page has enough
-            person_marked += 1
-        (command,) = re.findall(r"run `(judgekeeper[^`]*)`", said)
-        argv = command.split()[1:]
-    assert ran == [["judgekeeper"], ["judgekeeper"]]
-    assert person_marked == 1
-    assert "  You passed:  your judge also passed about " in out
+    code, out, err = run(capsys)
+    assert code == 0, out + err
+    assert _check(out, err) == NEXT_OPEN
+    ws = start_label.Workspace(here)
+    _click(ws)  # the person marks on the page
+    session = start_label.StartSession(ws)
+    assert session.summary()["status"]["ready"]  # "See your result" appears
+    started, _ = pages
+    # The click: the page's /result makes the result as page.page_server's result() does.
+    r = start_label.store_result(ws, session, started[-1]["start_command"])
+    html = ws.report_html.read_text(encoding="utf-8")
+    assert r["verdict"].split(".")[0] in html and 'class="counts"' in html
+    code, out, err = run(capsys)
+    assert code == 0 and "  You passed:  your judge also passed about " in out
 
 
 # Marks for another judge, or from 0.2 -----------------------------------------------------
@@ -337,7 +334,7 @@ def test_new_starts_over_after_a_yes(here, capsys, pages):
     code, out, _ = run(capsys, "--new", "--yes")
     assert code == 0, out
     assert len(list(ws.dir.glob("previous-*"))) == 1
-    assert "You have marked" not in out and "It shows the same answers" in _flat(out)
+    assert "You marked" not in out and "It shows the answers one at a time." in _flat(out)
 
 
 # A new eval run no longer asks to start over ----------------------------------------------
@@ -353,7 +350,7 @@ def test_a_new_eval_run_keeps_the_marks_and_marking_goes_on(here, capsys, pages)
     assert code == 0, out
     assert START_OVER not in _flat(out) and "other results" not in out
     assert _flat(out).count(RAN_AGAIN) == 1
-    assert "You have marked 6 answers so far (" in out
+    assert "You marked 6 answers so far: " in out
     assert _check(out, err) == NEXT_KEEP
     assert ws.pool.read_text(encoding="utf-8") == pool  # the answers being marked are kept
     assert not list(ws.dir.glob("previous-*"))

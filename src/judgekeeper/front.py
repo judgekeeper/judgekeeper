@@ -102,17 +102,15 @@ RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still te
 JUDGE_CHANGED = "Your judge changed since your marks: {what}."
 STEP = "Step {n} of 5: {name}"
 INDENT = " " * 13  # under the value of "Eval tool:   "
-EVERY_ANSWER = "every answer got a clear Pass or Fail."
-FREE_CHECK = "Free check (no AI call): "
-SHOWS = ("It shows the same answers one at a time. Mark each one Pass or Fail, the way you "
-         "want your judge to decide. Your judge's grade stays hidden, so you decide on your "
-         "own.")
-BAR = "The bar at the top shows how close you are."
+EVERY_ANSWER = "your judge gave every answer a clear Pass or Fail."
+FREE_CHECK = "Checked: "  # every free-check line starts with it
+SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the way you want "
+         "your judge to decide. Your judge's grade stays hidden.")
+BAR = "The bar at the top fills as you mark."
 PRECISE = "Each new mark makes your numbers more precise."
-NOT_ENOUGH = "That is not enough for a first result yet."
-NEXT_MARK = "mark until the page says you have enough, then run `{command}` again."
-NEXT_KEEP_MARKING = ("keep marking until the page says you have enough, then run `{command}` "
-                     "again.")
+NOT_ENOUGH = "That's not enough for a result yet."
+NEXT_MARK = 'mark until "See your result" appears, then click it.'
+NEXT_KEEP_MARKING = 'keep marking until "See your result" appears, then click it.'
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
 NEXT_ALL_MARKED = "run your eval again to get new answers, then run `{command}`."
 NEXT_CHECK = "run `{command}` to re-check your changed judge on your marks."
@@ -614,7 +612,7 @@ def found_block(found: start.Found) -> list[str]:
     answers = found.check.answers if found.check else len(found.pool.answers)
     tool = tool_name(found.tool, [str(found.results[0].rel)])
     lines = [f"Eval tool:   {tool}",
-             f"Answers:     {_n(answers, 'answer')} from your app, each graded by your judge",
+             f"Answers:     {_n(answers, 'answer')}, each graded by your judge",
              f"{INDENT}(read from {_read_from(found)})",
              f"Judge:       {_judge_value(found)}", *_rule_lines(found)]
     if found.pass_mark:
@@ -623,14 +621,14 @@ def found_block(found: start.Found) -> list[str]:
 
 
 def _free_check(talk: FrontTalk, found: start.Found, listed: str) -> None:
-    """The free checks, each a paragraph: what was found, where its list is, then what can
-    change the judge without judgekeeper seeing it."""
+    """The free checks, each a paragraph starting "Checked:": what was found, where its list
+    is, then what can change the judge without judgekeeper seeing it."""
     block = found.check.block() if found.check else None
     findings = [" ".join(f) for f in judge_check.lines(block)]
     if not findings:
         talk.para(FREE_CHECK + EVERY_ANSWER)
-    for i, finding in enumerate(findings):
-        talk.para(FREE_CHECK + finding[:1].lower() + finding[1:] if i == 0 else finding)
+    for finding in findings:
+        talk.para(FREE_CHECK + finding[:1].lower() + finding[1:])
     if findings and judge_check.has_rows(block):
         talk.para(f"The list is in {listed}.")
     for line in judge_check.setup_lines(found, judge_setup.of(found)):
@@ -887,7 +885,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if head:
         talk.say()
     if n:
-        talk.say(f"You have marked {_n(n, 'answer')} so far ({n_pass} Pass, {n_fail} Fail).")
+        talk.say(f"You marked {_n(n, 'answer')} so far: {n_pass} Pass, {n_fail} Fail.")
         if not enough:
             talk.say(NOT_ENOUGH)
         talk.say()

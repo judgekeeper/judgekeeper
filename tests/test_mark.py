@@ -21,10 +21,9 @@ from tests.test_front import assert_one_next_at_the_end, next_lines, run
 
 TAG = " SECRET-7f3a"  # in every question and answer: a leak shows
 OPEN = "The marking page is open in your browser."
-NEXT_OPEN = "Next: mark until the page says you have enough, then run `judgekeeper` again."
+NEXT_OPEN = 'Next: mark until "See your result" appears, then click it.'
 NEXT_LINK = NEXT_OPEN
-NEXT_KEEP = ("Next: keep marking until the page says you have enough, then run `judgekeeper` "
-             "again.")
+NEXT_KEEP = 'Next: keep marking until "See your result" appears, then click it.'
 NEXT_MORE = "Next: mark more answers, then run `judgekeeper` to see your updated result."
 LINK = "Open this link in your browser to mark answers:"
 COULD_NOT = ("Next: run `judgekeeper mark --wait` in your own terminal (it keeps the page open "
@@ -83,13 +82,11 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
     assert out.splitlines()[2:] == [
         "Step 2 of 5: Mark",
         "",
-        "The marking page is open in your browser. It shows the same",
-        "answers one at a time. Mark each one Pass or Fail, the way you",
-        "want your judge to decide. Your judge's grade stays hidden, so",
-        "you decide on your own.",
+        "The marking page is open in your browser. It shows the answers",
+        "one at a time. Mark each one Pass or Fail, the way you want your",
+        "judge to decide. Your judge's grade stays hidden.",
         "",
-        "Next: mark until the page says you have enough, then run",
-        "`judgekeeper` again."]
+        'Next: mark until "See your result" appears, then click it.']
     assert len(no_browser) == 1 and label.is_open(here / ".judgekeeper")
     ws = start_label.Workspace(here)
     assert marks.read(ws.marks).header["pool"] == {"pass": 20, "fail": 16}
@@ -115,7 +112,7 @@ def test_too_few_answers_are_marked_anyway(here, capsys, pages):
     promptfoo_project(here, split(6, 4))
     code, out, _ = run(capsys, "mark")
     assert code == 0, out
-    assert "Step 2 of 5: Mark" in out and "You have marked" not in out
+    assert "Step 2 of 5: Mark" in out and "You marked" not in out
 
 
 def test_no_clear_verdict_means_nothing_to_mark(here, capsys, pages):
@@ -139,8 +136,8 @@ def test_marking_started_opens_a_new_page_with_the_count(here, capsys, pages):
     code, out, err = run(capsys, "mark")
     assert code == 0
     assert len(started) == 2  # the open page was replaced
-    assert "You have marked 10 answers so far (5 Pass, 5 Fail)." in out
-    assert "That is not enough for a first result yet." in out
+    assert "You marked 10 answers so far: 5 Pass, 5 Fail." in out
+    assert "That's not enough for a result yet." in out
     assert "The marking page is open in your browser. The bar at the top" in out
     assert _check(out, err) == NEXT_KEEP
 
@@ -154,7 +151,7 @@ def test_a_closed_page_is_started_again(here, capsys, pages):
     assert background.stop(ws.dir)
     code, out, _ = run(capsys, "mark")
     assert code == 0 and len(started) == 2
-    assert "You have marked 10 answers so far (5 Pass, 5 Fail)." in out
+    assert "You marked 10 answers so far: 5 Pass, 5 Fail." in out
 
 
 def test_enough_marks_open_the_page_and_leave_the_result_to_judgekeeper(here, capsys, pages):
@@ -165,7 +162,7 @@ def test_enough_marks_open_the_page_and_leave_the_result_to_judgekeeper(here, ca
     code, out, err = run(capsys, "mark")
     assert code == 0, out
     assert "Step 2 of 5: Mark (more answers)" in out
-    assert "You have marked 34 answers so far (" in out and "not enough" not in out
+    assert "You marked 34 answers so far: " in out and "not enough" not in out
     assert "Each new mark makes your numbers more precise." in _flat(out)
     assert "Your marks:" not in out and "Kappa" not in out
     assert _check(out, err) == NEXT_MORE
@@ -196,7 +193,7 @@ def test_a_new_eval_run_goes_on_with_the_marks(here, capsys, pages):
     assert code == 0, out
     assert START_OVER not in _flat(out)
     assert _flat(out).count(RAN_AGAIN) == 1
-    assert "You have marked 6 answers so far (" in out
+    assert "You marked 6 answers so far: " in out
     assert marks.read(ws.marks).header["pool"] == {"pass": 20, "fail": 16}
     assert _check(out, err) == NEXT_KEEP
 
@@ -217,7 +214,7 @@ def test_another_judge_asks_to_start_over(here, capsys, pages):
     ws = start_label.Workspace(here)
     previous = [p for p in ws.dir.iterdir() if p.name.startswith("previous-")]
     assert len(previous) == 1 and (previous[0] / "marks.jsonl").is_file()
-    assert "You have marked" not in out and "It shows the same answers" in _flat(out)
+    assert "You marked" not in out and "It shows the answers one at a time." in _flat(out)
 
 
 def test_marks_from_0_2_are_never_used(here, capsys, pages):
@@ -249,7 +246,7 @@ def test_start_over_now_is_asked_first(here, capsys, pages):
     code, out, _ = run(capsys, "mark", "--new", "--yes")
     assert code == 0, out
     assert len(list(ws.dir.glob("previous-*"))) == 1
-    assert "You have marked" not in out
+    assert "You marked" not in out
     assert label.is_open(ws.dir)  # the old page was closed, a new one opened
 
 

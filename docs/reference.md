@@ -31,7 +31,7 @@ Each run does the next step:
 
 | What is there | What `judgekeeper` does |
 |---|---|
-| Nothing marked yet | Step 1, Find: names your eval tool, the answers, your judge and its rule, and checks its grades for free (no AI call). Step 2, Mark: opens the marking page in your browser |
+| Nothing marked yet | Step 1, Find: names your eval tool, the answers, your judge and its rule, and checks its grades for free (no AI call). Step 2, Mark: opens the marking page in your browser; mark until "See your result" appears, then click it |
 | Some marks, not enough yet | Says how many you marked; the marking page stays open, or opens again when it was closed |
 | Enough marks of each kind | Step 3, Measure: how often your judge agrees with you, and where it goes wrong. The report is saved in `.judgekeeper/report.html`: the result, your counts, the answers where you and your judge disagree, and the estimates |
 | Marks for another judge or eval tool | Says why, and asks before it starts over (your old marks move to `.judgekeeper/previous-<date>/`; nothing is deleted) |
@@ -146,7 +146,7 @@ When something changed, it re-checks the new judge on your marks. Free first: an
 
 ## How the numbers are worked out
 
-**What it checks first, for free.** Before you mark anything, `judgekeeper` looks at the judge's own grades: no marks, no AI call, no key. It says what it found, one line each:
+**What it checks first, for free.** Before you mark anything, `judgekeeper` looks at the judge's own grades: no marks, no AI call, no key. It says what it found, one line each, each starting with "Checked:":
 
 - **No real decision.** The judge's call failed (DeepEval's `error`, or no score with `success` false; promptfoo's `graderError`, or in older files its grader-failure reasons such as "API error:"; Inspect AI's `grader_failed`, or a sample that errored before it was scored; MLflow's `feedback.error`), its reply could not be read (promptfoo's "Could not extract JSON" or "Error parsing output"; Inspect AI's "Grade not found in model output"), or there is no decision at all (a blank cell). These answers are left out, and it says what your eval tool counted them as: promptfoo and DeepEval count them as fails.
 - **Checked nothing.** A DeepEval metric whose judge returned nothing to check scores a full 1.0 and passes (its logs show an empty `Verdicts:` list). Left out too.
@@ -154,7 +154,7 @@ When something changed, it re-checks the new judge on your marks. Free first: an
 - **The same grade for every answer.** The judge passed (or failed) all of them.
 - **The reason says the opposite.** The judge's reason starts with PASS, PASSED, FAIL or FAILED, or its last `verdict:`, `grade:`, `result:`, `decision:`, `final verdict:` or `final answer:` says pass, fail, correct or incorrect (or Inspect AI's `GRADE: C` or `GRADE: I`), and either of them is the other grade. No other words count, so "does not fail" or "partially correct" are never flagged. Skipped for a judge that grades with a score and a pass mark.
 
-None of these stops it. When nothing is found it says every answer got a clear Pass or Fail. The answers found are listed in `.judgekeeper/judge-check.csv` and `judge-check.json`.
+None of these stops it. When nothing is found it says "Checked: your judge gave every answer a clear Pass or Fail." The answers found are listed in `.judgekeeper/judge-check.csv` and `judge-check.json`.
 
 **Which answers you mark.** From the newest results it takes every answer with a clear Pass or Fail, counted once (the same input and output; the newest file wins). With too few answers for a first result, it says so and says how to make more with your own eval tool. The page shows the answers in blocks of 10 in a seeded order, 5 from the judge's passes and 5 from its fails, so you see both kinds early. Your marks decide Pass and Fail; the judge's grades only decide how answers are picked.
 

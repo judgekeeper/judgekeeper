@@ -78,7 +78,7 @@ def test_nested_runs_asks_four_questions_and_one_yes(tmp_path, capsys, terminal)
     assert "cases[].A.output" in out and "cases[].A.scores.<criterion>.score" in out
     assert "Question " not in out and "Answer " not in out  # paths, never values
     assert "Eval tool:   your own format" in out
-    assert "42 answers from your app" in out
+    assert "42 answers, each graded by your judge" in out
     assert "(read from history/evals.jsonl, 3 lines)" in out
     assert "The marking page is open in your browser." in out
 

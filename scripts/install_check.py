@@ -643,12 +643,12 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         first run maps it (answers given by --yes) and goes on: it is the first look."""
         decisions = (rf"Your judge's grades: {len(JUDGE_PASSES)} Pass, "
                      rf"{N - len(JUDGE_PASSES)} Fail\.")
-        # Started by uvx, every Next: line names `uvx judgekeeper@<version>` (it may wrap).
+        # Started by uvx, a Next: line that names a command names `uvx judgekeeper@<version>`
+        # (it may wrap). The first look's names none: mark, then click "See your result".
         uvx = [r"Next: [^`]*`uvx judgekeeper@"] if self.via == "uvx" else []
         expect = [r"Step 1 of 5: Find", rf"Judge: .*{re.escape(JUDGE_NAME[self.tool])}",
                   decisions, r"Step 2 of 5: Mark",
-                  r"Open this link in your browser to mark answers:\s+http://127\.0\.0\.1:",
-                  *uvx]
+                  r"Open this link in your browser to mark answers:\s+http://127\.0\.0\.1:"]
         if self.tool == "own-format":
             p = self.mark_step("1. judgekeeper maps the file (answers given by --yes, no "
                                "terminal): the first look, and the page in the background",

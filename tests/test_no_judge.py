@@ -43,7 +43,7 @@ def test_a_promptfoo_file_with_no_judge_is_left_out(here, capsys):
                                                           created="2026-10-05T10:00:00.000Z")))
     code, out, err = run(capsys, "--no-browser")
     assert "smoke.json is left out: no LLM judge in it." in _flat(out)
-    assert "32 answers from your app" in out
+    assert "32 answers, each graded by your judge" in out
     assert code == 0, out + err
 
 
@@ -136,5 +136,5 @@ def test_table_output_next_to_full_results_is_left_out(here, capsys):
     _write(here / "results.json", promptfoo_data(split(16, 16)))
     code, out, err = run(capsys, "--no-browser")
     assert "table.json is promptfoo's table output" in _flat(out)
-    assert "32 answers from your app" in out
+    assert "32 answers, each graded by your judge" in out
     assert code == 0, out + err

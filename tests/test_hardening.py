@@ -80,7 +80,7 @@ def test_the_free_check_says_what_it_saw_not_more(project, capsys):
     promptfoo_project(project, split(20, 16))
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
-    assert "Free check (no AI call): every answer got a clear Pass or Fail." in flat(text)
+    assert "Checked: your judge gave every answer a clear Pass or Fail." in flat(text)
     assert "real decision" not in flat(text)
 
 

@@ -89,7 +89,7 @@ def assert_one_next_at_the_end(out: str) -> str:
     return next_lines(out)[0]
 
 
-START = "Next: mark until the page says you have enough, then run `judgekeeper` again."
+START = 'Next: mark until "See your result" appears, then click it.'
 
 
 def flat(out: str) -> str:
@@ -107,12 +107,12 @@ def test_promptfoo(here, capsys):
     assert out.splitlines()[2:10] == [
         "Step 1 of 5: Find", "",
         "Eval tool:   promptfoo",
-        "Answers:     36 answers from your app, each graded by your judge",
+        "Answers:     36 answers, each graded by your judge",
         "             (read from results.json)",
         "Judge:       openai:gpt-4.1-mini",
         'Judge rule:  "Is polite and correct. Second line of the rubric."', ""]
     assert "Your judge's grades: 20 Pass, 16 Fail." in out
-    assert "Free check (no AI call): every answer got a clear Pass or Fail." in out
+    assert "Checked: your judge gave every answer a clear Pass or Fail." in out
     assert assert_one_next_at_the_end(out) == START
     assert err == ""
 
@@ -173,12 +173,11 @@ def test_own_format_with_yes_saves_the_map_and_reads_it(here, capsys):
     assert assert_one_next_at_the_end(out) == START
 
 
-def test_a_path_is_repeated_in_the_next_line(tmp_path, capsys):
+def test_a_run_with_a_path_ends_with_the_marking_next_line(tmp_path, capsys):
     promptfoo_project(tmp_path / "proj", split(20, 16))
     code, out, _ = run(capsys, tmp_path / "proj")
     assert code == 0
-    assert assert_one_next_at_the_end(out) == START.replace(
-        "`judgekeeper`", f"`judgekeeper {quote_arg(tmp_path / 'proj')}`")
+    assert assert_one_next_at_the_end(out) == START  # it names no command to copy
 
 
 def test_a_long_rule_is_one_line_cut_short(here, capsys):
@@ -198,15 +197,26 @@ def test_answers_with_no_real_verdict_are_left_out_and_listed(here, capsys):
     promptfoo_project(here, [*split(18, 16), None, None, None])
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert "37 answers from your app" in out
+    assert "37 answers, each graded by your judge" in out
     assert "Your judge's grades: 18 Pass, 16 Fail." in out
-    block = flat(out[out.index("Free check (no AI call):"):out.index("Next:")])
-    assert "Free check (no AI call): your judge made no real decision on 3 of 37 answers" \
+    block = flat(out[out.index("Checked:"):out.index("Next:")])
+    assert "Checked: your judge made no real decision on 3 of 37 answers" \
         in block
     assert "left out" in block
     assert "The list is in .judgekeeper/judge-check.csv." in block
     rows = (here / ".judgekeeper" / "judge-check.csv").read_text(encoding="utf-8").splitlines()
     assert len(rows) == 1 + 3
+
+
+def test_every_free_check_finding_starts_with_checked(here, capsys):
+    promptfoo_project(here, [*split(18, 16), None, None, None],
+                      outputs=["", *[f"text{i}" for i in range(36)]])
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    findings = [p for p in flat(out).split("Checked: ")[1:]]
+    assert len(findings) == 2, out
+    assert findings[0].startswith("your judge made no real decision on 3 of 37 answers")
+    assert findings[1].startswith("your judge passed 1 empty answer.")
 
 
 def test_judge_json_has_every_field(here, capsys):
@@ -283,7 +293,7 @@ def test_empty_answers_passed_are_counted_without_their_text(here, capsys):
     promptfoo_project(here, split(18, 16), outputs=["", *[f"text{i}{TAG}" for i in range(33)]])
     code, out, _ = run(capsys)
     assert code == 0
-    assert "Free check (no AI call): your judge passed 1 empty answer." in flat(out)
+    assert "Checked: your judge passed 1 empty answer." in flat(out)
     assert "SECRET-7f3a" not in out
 
 
@@ -301,8 +311,7 @@ def test_several_tools(here, capsys):
     assert not (here / ".judgekeeper" / "judge.json").exists()
     code, out, _ = run(capsys, "--tool", "promptfoo")
     assert code == 0
-    assert assert_one_next_at_the_end(out) == START.replace(
-        "`judgekeeper`", "`judgekeeper --tool promptfoo`")
+    assert assert_one_next_at_the_end(out) == START  # it names no command to copy
 
 
 def test_several_judges(here, capsys):
@@ -444,10 +453,10 @@ def test_the_questions_are_listed_together_after_the_checks(here, capsys):
     code, out, _ = run(capsys, "--metric", "Safe wording")
     assert code == 3
     assert "(read from history/evals.jsonl, 3 lines)" in out  # the counts the questions lead to
-    assert "42 answers from your app" in out
+    assert "42 answers, each graded by your judge" in out
     heading = front.QUESTIONS.format(which="these 3 questions")
     listed = flat(out[out.index(heading):])
-    assert out.index("Free check") < out.index(heading)
+    assert out.index("Checked:") < out.index(heading)
     assert "1. Each item has 2 answers (A and B). Count each as its own answer?" in listed
     assert "2. 6 answers have an error or a score made by a rule" in listed
     assert "3. Save how to read history/evals.jsonl in judgekeeper.toml?" in listed
@@ -534,18 +543,19 @@ def test_at_a_terminal_no_keeps_judgekeeper_toml_away(here, capsys, terminal):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert not (here / "judgekeeper.toml").exists()
-    assert assert_one_next_at_the_end(out) == START.replace(
-        "`judgekeeper`", "`judgekeeper --metric safety`")
+    assert assert_one_next_at_the_end(out) == START  # it names no command to copy
 
 
-def test_at_a_terminal_the_pass_mark_is_asked(here, capsys, terminal):
+def test_at_a_terminal_the_pass_mark_is_asked(here, capsys, terminal, pages):
     answers, asked = terminal
     table_project(here, ["0.9"] * 16 + ["0.2"] * 16)
     answers += ["0.5"]
     code, out, _ = run(capsys)
     assert code == 0, out
     assert "Pass when the score is at least" in asked[0]
-    assert "--pass-if" in next_lines(out)[0]
+    assert next_lines(out) == [START]  # mark, then "See your result": no command to copy
+    started, _ = pages
+    assert "--pass-if" in started[-1]["start_command"]  # the result's commands keep it
 
 
 def test_at_a_terminal_an_own_format_is_mapped_and_saved(here, capsys, terminal):
