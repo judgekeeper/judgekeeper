@@ -114,7 +114,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .btn.pass { background: var(--green-fill); }
 .btn.fail:hover { background: var(--red); }
 .btn.pass:hover { background: var(--green); }
-.sub { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 0 24px 6px; }
+.sub { display: flex; align-items: center; justify-content: center; padding: 0 24px 6px; }
 .quiet { padding: 8px 20px; font-size: 14px; color: var(--muted); }
 .quiet:hover { color: var(--text); background: var(--hover); }
 .quiet kbd { font-family: var(--mono); font-size: 12px; color: var(--text); margin-left: 8px; }

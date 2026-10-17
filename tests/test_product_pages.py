@@ -267,6 +267,9 @@ def test_the_marking_page_words():
             '<span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" '
             'id="undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>') in page
     assert '<p class="foot">Come back any time: <code>judgekeeper mark</code></p>' in page
+    # Skip and Undo side by side as in the reference: each has its own padding, no gap
+    assert (".sub { display: flex; align-items: center; justify-content: center; "
+            "padding: 0 24px 6px; }") in mark_page.STYLE
 
 
 def test_the_marking_page_layout_is_a_list_column_and_a_card_that_fills_the_window():
