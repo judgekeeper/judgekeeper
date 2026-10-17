@@ -192,8 +192,8 @@ def counts(r: dict) -> dict:
 
 def commands(r: dict) -> dict[str, str]:
     """The commands the page names, from the one that made the result (r["command"]: the path
-    and the person's flags), as the terminal prints them: `mark` keeps every flag, `check` and
-    `fix` the path only."""
+    and the person's flags), as the terminal prints them: `mark` keeps every flag, `check`,
+    `fix` and `new` (`judgekeeper --new`) the path only."""
     from judgekeeper.textio import program
 
     run = r.get("command") or program()
@@ -204,7 +204,8 @@ def commands(r: dict) -> dict[str, str]:
     path = "" if not flags or flags.startswith("-") else flags.split(" --")[0]
     return {"run": run, "mark": " ".join(x for x in (program("mark"), flags) if x),
             "check": " ".join(x for x in (program("check"), path) if x),
-            "fix": " ".join(x for x in (program("fix"), path) if x)}
+            "fix": " ".join(x for x in (program("fix"), path) if x),
+            "new": " ".join(x for x in (program(), path, "--new") if x)}
 
 
 def next_step(r: dict) -> str | None:
@@ -216,9 +217,9 @@ def next_step(r: dict) -> str | None:
 
 def _all_marked(r: dict) -> str:
     """start_label.all_marked_lines as one paragraph, its command as code."""
-    from judgekeeper.start_label import all_marked_lines, command_of
+    from judgekeeper.start_label import all_marked_lines
 
-    first, then = all_marked_lines(r["labels"], command_of(r, "--new"))
+    first, then = all_marked_lines(r["labels"], commands(r)["new"])
     then = then.removeprefix("Next: ")
     parts = then.split("`")
     then = "".join(f"<code>{_e(x)}</code>" if i % 2 else _e(x) for i, x in enumerate(parts))

@@ -552,7 +552,9 @@ def sentences(r: dict) -> list[str]:
     place a count is said: it explains a stop, it is not a target)."""
     if r["check"] == "too_few":
         if all_labeled(r):
-            return all_marked_lines(r["labels"], command_of(r, "--new"))
+            from judgekeeper.report_page import commands
+
+            return all_marked_lines(r["labels"], commands(r)["new"])  # never the page's flags
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     return [side_sentence(key, r[key], r[f"{key}_interval"]) for key in SAID]
 
@@ -591,12 +593,6 @@ def all_marked_lines(labels: dict, command: str | None = None,
     first = ALL_MARKED.format(marks=marks_words(labels)) + (NEEDS_EACH.format(n=ROUGH)
                                                              if short else TOO_FEW_TO_TELL)
     return [first, "Next: " + NEXT_ALL_MARKED.format(command=command, folder=folder)]
-
-
-def command_of(r: dict, *extra: str) -> str:
-    """The command the person runs next: `judgekeeper` with the path and flags of the
-    run that made the result (start.Talk.command, kept in it), then `extra`."""
-    return " ".join((r.get("command") or program(), *extra))
 
 
 _plural = plural  # textio.plural

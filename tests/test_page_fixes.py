@@ -7,6 +7,8 @@
 - A long answer cut in the report ends with "…", at a word.
 - Every file judgekeeper writes in `.judgekeeper/` is its owner's only (0600, folders 0700).
 - The pages are dark only: no theme switch, no light colours.
+- With every answer marked, the result page and report.html name `judgekeeper --new`, never
+  the flags the page was opened with, as the terminal does.
 No test calls an AI API.
 """
 
@@ -26,7 +28,7 @@ from judgekeeper.start_label import Workspace
 from tests.start_projects import split, table_project
 from tests.test_flow_fixes import _mark
 from tests.test_front import run
-from tests.test_product_pages import CHECK, NOT_GATE_TNR, _result
+from tests.test_product_pages import CHECK, NOT_GATE_TNR, TOO_FEW, _result, _text
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = ROOT / "src" / "judgekeeper"
@@ -413,3 +415,20 @@ def test_the_old_link_page_runs_no_script():
     assert "<script" not in mark_page.old_link_page()
     assert "script-src" not in mark_page.OLD_LINK_CSP
 
+
+
+# 46. The Next step on the page, every answer marked -----------------------------------------
+
+@pytest.mark.parametrize(("run", "new"), [
+    ("judgekeeper --port 8801 --no-browser", "judgekeeper --new"),
+    ("judgekeeper results.csv --port 8801 --no-browser", "judgekeeper results.csv --new"),
+])
+def test_every_answer_marked_names_judgekeeper_new_without_the_page_flags(run, new):
+    r = _result(*TOO_FEW, command=run, left=0)
+    assert r["check"] == "too_few"
+    for name, html in (("result page", start_label.result_html(r, back="/?token=t")),
+                       ("report.html", start_label.result_html(r))):
+        text = _text(html)
+        assert f"Run your eval on more questions, then run {new} to mark the new" in text, name
+        assert "--port" not in text and "--no-browser" not in text, name
+    assert f"`{new}`" in start_label.sentences(r)[1]

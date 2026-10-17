@@ -1,6 +1,6 @@
 """Every command judgekeeper prints for the person to run next works when copied: it keeps the
 results path and the person's own flags (start.Talk.command), in the terminal and on the result
-page (`mark` with every flag, `check` and `fix` with the path). No page names `judgekeeper
+page (`mark` with every flag, `check`, `fix` and `--new` with the path). No page names `judgekeeper
 start` or one of its flags: that command is gone."""
 
 from __future__ import annotations
@@ -61,4 +61,5 @@ def test_the_result_names_only_the_command_that_was_run(project, capsys):
 
 def test_every_marked_line_names_the_runs_command():
     r = {"check": "too_few", "left": 0, "labels": {"correct": 20, "wrong": 4}, "command": BASE}
-    assert f"`{BASE} --new`" in start_label.sentences(r)[1]
+    # as the terminal says it: the path only, never the run's flags
+    assert "`judgekeeper evals/results.csv --new`" in start_label.sentences(r)[1]
