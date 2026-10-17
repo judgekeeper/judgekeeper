@@ -1,4 +1,4 @@
-"""`judgekeeper start`, choosing and counting: which results to use when there are several,
+"""`judgekeeper`, choosing and counting: which results to use when there are several,
 the pool of answers (repeats merged, unclear verdicts left out), the judge's name, too few
 answers, and what happens without a terminal.
 """
@@ -21,8 +21,8 @@ from tests.start_projects import (
 
 
 def run(capsys, *argv, yes=True):
-    """`judgekeeper start` without a terminal; with --yes unless `yes` is False, so the run
-    goes on to labeling (replaced here) where a person would say yes."""
+    """`judgekeeper` without a terminal; with --yes unless `yes` is False, so the run goes
+    on to the marking page where a person would say yes."""
     argv = [*map(str, argv)] + (["--yes"] if yes and "--yes" not in argv else [])
     code = main([*argv])
     out, err = capsys.readouterr()

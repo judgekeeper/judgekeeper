@@ -1,4 +1,4 @@
-"""`judgekeeper start` on MLflow stores: MLflow's own log lines stay out of what `start` says,
+"""`judgekeeper` on MLflow stores: MLflow's own log lines stay out of what judgekeeper says,
 two stores in one folder are both named and can be chosen (a question at a terminal, a path
 or --tracking-uri otherwise), and a folder store (`mlruns/`) that was moved or cloned from
 another computer is read from its own folder.

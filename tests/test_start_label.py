@@ -1,5 +1,5 @@
-"""`judgekeeper start`, labeling and the result: the queue, the labeling page, the result in
-the terminal and the page, and the files saved in `.judgekeeper/`.
+"""`judgekeeper`, labeling and the result: the queue, the labeling page, the result page, and
+the files saved in `.judgekeeper/`.
 
 No test opens a browser: the server runs in a thread and a test client clicks for the person.
 """

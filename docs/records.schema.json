@@ -116,7 +116,7 @@
       ]
     },
     "app_version": {
-      "description": "The version of the app or agent that produced the output. judgekeeper start says when it changes between checks.",
+      "description": "The version of the app or agent that produced the output.",
       "$ref": "#/$defs/text"
     }
   },

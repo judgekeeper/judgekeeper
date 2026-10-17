@@ -1,19 +1,7 @@
-"""Running `judgekeeper start` again: what is saved in `.judgekeeper/` decides what happens.
-
-| saved                                   | start                                              |
-|-----------------------------------------|----------------------------------------------------|
-| nothing                                 | the full flow                                      |
-| labeling not finished, no result        | "Continue?", then the page at the next answer      |
-| a result, the same results              | the menu: review, label more, or nothing           |
-| a result, newer results, same judge name| a re-check: the saved labels against new verdicts  |
-| anything, with --new                    | moves it all to previous-<date>/ and starts fresh  |
-
-No test opens a page: serving is replaced with a recorder.
-"""
+"""Running `judgekeeper` again on what is saved in `.judgekeeper/`: `--new` moves it all to
+previous-<date>/ (nothing is deleted), and what changed in the judge is said in words."""
 
 from __future__ import annotations
-
-import pytest
 
 from judgekeeper import start, start_label
 from judgekeeper.cli import main
@@ -39,38 +27,19 @@ def _checked(root, n_pass=20, n_fail=16, labeled=None, result=True, **kwargs):
     return ws
 
 
-@pytest.fixture
-def served(monkeypatch):
-    """Serving the page is replaced: the workspaces it would have served are kept."""
-    calls = []
-
-    def serve(ws, port, open_browser, say, command="judgekeeper start"):
-        calls.append(ws)
-        say("(labeling page)")
-        return 0
-
-    return calls
-
-
 def run(capsys, *argv):
     code = main([*map(str, argv)])
     out, err = capsys.readouterr()
     return code, out, err
 
 
-# Labeling not finished -------------------------------------------------------------------
-
-
 # A result, and the same results ----------------------------------------------------------
-
-
-# Re-check --------------------------------------------------------------------------------
 
 
 # --new -----------------------------------------------------------------------------------
 
 
-def test_new_twice_keeps_both_earlier_checks(tmp_path, capsys, served, monkeypatch):
+def test_new_twice_keeps_both_earlier_checks(tmp_path, capsys, monkeypatch):
     _checked(tmp_path, n_pass=20, n_fail=16)
     stamps = iter(["2026-10-05T10-00-00Z", "2026-10-06T10-00-00Z"])
     monkeypatch.setattr("judgekeeper.start_again._stamp", lambda: next(stamps))

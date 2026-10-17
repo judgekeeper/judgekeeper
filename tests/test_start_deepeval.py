@@ -1,4 +1,4 @@
-"""`judgekeeper start` on DeepEval results: the judge's rule when GEval was built with
+"""`judgekeeper` on DeepEval results: the judge's rule when GEval was built with
 evaluation steps and no criteria, which file is read when DeepEval saved both its hidden
 copies and a results folder, and when the DEEPEVAL_RESULTS_FOLDER tip is shown.
 

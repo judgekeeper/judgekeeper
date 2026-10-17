@@ -294,8 +294,8 @@ def test_deepeval_not_installed(tmp_path, monkeypatch):
     _missing(tmp_path / "nothing", monkeypatch, "deepeval")
     p = make_plan(ws, PY)
     assert p.status == "cant"
-    assert p.why == (f"DeepEval is not installed in {sys.executable}. Use --python to point at "
-                     "the Python you run your evals with")
+    assert p.why == (f"DeepEval is not installed in {sys.executable}. Activate the virtual "
+                     "environment you run your evals with, then try again")
 
 
 def test_the_menu_plan_runs_no_worker(tmp_path, stubs):

@@ -368,7 +368,7 @@ def test_score_judges_with_a_pass_mark_skip_the_contradiction_check():
     assert result.block()["reason_says_opposite"] == 0
 
 
-# `judgekeeper start`, end to end ---------------------------------------------------------
+# `judgekeeper`, end to end ---------------------------------------------------------------
 
 
 def test_the_saved_files(tmp_path, capsys):

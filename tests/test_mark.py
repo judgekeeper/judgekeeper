@@ -354,7 +354,7 @@ def test_the_marks_file_holds_no_text(here, capsys, pages):
 
 
 def test_start_marks_on_the_same_file(here, capsys, pages):
-    """`judgekeeper start` keeps working on marks.jsonl until later steps replace it."""
+    """A result made from marks.jsonl, as `judgekeeper` makes it."""
     promptfoo_project(here, split(20, 16))
     run(capsys, "mark")
     ws = start_label.Workspace(here)

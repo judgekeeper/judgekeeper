@@ -435,9 +435,11 @@ def test_security_policy_says_what_judgekeeper_writes_and_that_agents_are_not_su
 
 def test_security_policy_and_dependabot_exist():
     policy = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
-    for needed in ("--judge-command", "judgekeeper start"):
+    for needed in ("judgekeeper check", "judgekeeper fix", "127.0.0.1"):
         assert needed in policy, needed
-    for gone in ("judgekeeper label", "`template`", "--callable", "--api-key-env", "gate.md"):
+    for gone in ("judgekeeper label", "`template`", "--callable", "--api-key-env", "gate.md",
+                 "judgekeeper start", "--judge-command", "--python", "--ask-again",
+                 "--try-new-judge", "the review"):
         assert gone not in policy, gone
     import yaml
     config = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8"))

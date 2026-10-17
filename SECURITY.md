@@ -12,13 +12,11 @@ back within a week.
   environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, any name ending in `_API_KEY`,
   the Langfuse and MLflow credentials) is never written to a file, and any page or error text
   is scrubbed for it before it is written.
-- `judgekeeper start` opens its pages (marking answers, the review, fixing your judge, the
-  result) from a local web server on 127.0.0.1 with a random token in the URL. It does not
-  listen on the network.
-- The pages `judgekeeper start` writes escape the values they show, so a hostile model
-  response, item text or model id cannot inject markup. Spreadsheets that
-  `judgekeeper start` writes neutralize cells that would run as formulas, the id column
-  included.
+- `judgekeeper` and `judgekeeper mark` open the marking page and the result from a local
+  web server on 127.0.0.1 with a random token in the URL. It does not listen on the network.
+- The pages judgekeeper writes escape the values they show, so a hostile model response,
+  item text or model id cannot inject markup. Spreadsheets that judgekeeper writes
+  neutralize cells that would run as formulas, the id column included.
   Text from input files is printed to the terminal without control characters.
 - The free check on the website (`check.html`) reads the file you give it inside the page:
   its script makes no request, and the page's Content-Security-Policy (`connect-src 'none'`)
@@ -26,7 +24,7 @@ back within a week.
 - `judgekeeper` has no runtime dependencies. The optional extras (`inspect`, `mlflow`)
   are the platform SDKs.
 
-- `judgekeeper start` does not write through links. If `.judgekeeper/`, or anything in it,
+- judgekeeper does not write through links. If `.judgekeeper/`, or anything in it,
   is a link (a symlink, which a cloned repository can hold), it stops before writing and says
   which. Every file there is written as a new file that replaces the old one. The first time
   a check starts in it, the folder gets its own `.gitignore`, so your answers stay off Git.
@@ -51,18 +49,14 @@ when the browser sends it).
 
 ## Things that run your own code, by design
 
-`judgekeeper start --judge-command` runs a command you give, so that any judge can be
-measured. It runs with your permissions, like any script you run yourself, so point it only at code you trust. This is
-not a vulnerability.
-
 Asking your judge again runs your project's own Python and eval tool, from the project
 folder. Run it only in projects you trust, as you would run their tests. It happens when
-you pick "Ask your judge again" or "Try your new judge" (`--ask-again`, `--try-new-judge`),
-already while the plan is made, before the "Go ahead?" question: judgekeeper runs the
-project's `node_modules/.bin/promptfoo` (or promptfoo on your PATH) to read its version, and
-for DeepEval, Inspect AI and MLflow a small script with the project's `.venv` Python (or the
-one you name with `--python`). Those tools load the project's `.env` and config as they do
-when you run your evals. judgekeeper treats a promptfoo judge that runs code of its own (a
-`file://` or `exec:` grader or rubric, a `transform`, or a grader that is a URL) as one it
-cannot ask again, and uses a promptfoo version from a results file only when it reads as a
-plain version number.
+`judgekeeper check` re-checks a changed judge or `judgekeeper fix` tests a new rule, already
+while the plan is made, before the "Go ahead?" question: judgekeeper runs the project's
+`node_modules/.bin/promptfoo` (or promptfoo on your PATH) to read its version, and for
+DeepEval, Inspect AI and MLflow a small script with your Python (the active virtual
+environment, else the project's `.venv` or `venv`). Those tools load the project's `.env`
+and config as they do when you run your evals. judgekeeper treats a promptfoo judge that
+runs code of its own (a `file://` or `exec:` grader or rubric, a `transform`, or a grader
+that is a URL) as one it cannot ask again, and uses a promptfoo version from a results file
+only when it reads as a plain version number.

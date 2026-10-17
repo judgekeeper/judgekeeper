@@ -4,7 +4,7 @@ Written by `scripts/coverage_check.py`; do not edit by hand. How often a range h
 
 Grid: the judge's pass share (pi) 50%, 70%, 90%; the chance an answer the judge passed is Correct (a) 0.6, 0.8, 0.95; the chance an answer it failed is Wrong (w) 0.6, 0.8, 0.95; 10, 15, 25, 40 answers labeled in each group. 4,000 simulated checks per cell, fixed seed 20261008. Jeffreys ranges: 20,000 draws, seed 20261008. Checks where a number is unknown (TNR when every labeled answer is Correct, say) are left out of that number's coverage and counted.
 
-## `judgekeeper start`: the level
+## `judgekeeper`: the level
 
 Rule: the first of 95%, 96%, 97% whose ranges hold the true TPR, TNR and real pass rate at least 93% of the time in every cell and 95% on average.
 
@@ -17,7 +17,7 @@ Rule: the first of 95%, 96%, 97% whose ranges hold the true TPR, TNR and real pa
 
 Chosen level: **96%**. Before this change (Wilson corners): lowest cell 96.0, average 99.1. The ranges now are 27.1% narrower on average (7.3% to 52.4% by cell and number).
 
-## `judgekeeper start`: per cell, before (Wilson corners) and now (Jeffreys 96%)
+## `judgekeeper`: per cell, before (Wilson corners) and now (Jeffreys 96%)
 
 Coverage % / average width, before → now.
 
