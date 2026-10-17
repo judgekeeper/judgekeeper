@@ -63,12 +63,13 @@ SWAPPABLE = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools whose rule f
 RULE_SHOWN = 58  # characters of the rule shown, "…" included
 STEP = "Step 4 of 5: Fix"
 STEP_TEST = "Step 4 of 5: Fix (testing your new rule)"
-ASK = ("To test it, judgekeeper asks your judge about your {n} hidden answers, once with the "
-       "old rule and once with the new one. That is {calls}, paid with your own key.")
+ASK = ("To test it, judgekeeper asks your judge about the {n} answers kept aside, once with "
+       "the old rule and once with the new one. That is {calls}, paid with your own key.")
 RESULT = {
-    "better": "Result: better. A difference this large is very unlikely to be a coincidence.",
-    "safe": ("Result: safe to try. We can't say it's better yet, but it's very unlikely to be "
-             "more than 10 points worse."),
+    "better": ("Result: your new rule is better. A difference this large is very unlikely to "
+               "be a coincidence."),
+    "safe": ("Result: safe to try. Not clearly better yet, but very unlikely to be more than "
+             "10 points worse."),
     "leans better": ("Result: can't tell yet. That leans toward better, but a split this small "
                      "could easily be a coincidence."),
     "same": ("Result: can't tell yet. The two rules look about the same here. More marks are "
@@ -485,7 +486,7 @@ def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
         where = f"Change it in {found[0]}, line {found[1]}."
     else:
         where = re.sub(r'(--pass-if "[^"]*")', r"`\1`", where_lines(pm, test["new"])[0])
-    return (f"A better pass mark: {new} instead of {old} (tested on your hidden marks: fixed "
+    return (f"A better pass mark: {new} instead of {old} (tested on the marks kept aside: fixed "
             f"{test['fixed']}, broke {test['broke']}, {words}). {where}")
 
 
@@ -564,8 +565,8 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
 def _waiting(talk: Talk, ws: Workspace, split: Split) -> int:
     """New marks are needed first: for the top-up, or for a new set of hidden marks."""
     if split.fresh:
-        want, then = split.fresh["want"], ": they become a new set of hidden marks"
-        talk.para(f"You have tested {len(split.rules())} rules on these hidden marks. More "
+        want, then = split.fresh["want"], ": they become a new set of marks kept aside"
+        talk.para(f"You have tested {len(split.rules())} rules on these marks kept aside. More "
                   "tests on the same marks would make a coincidence look like a better rule.")
     else:
         want, then = split.topup["want"], ""
@@ -591,7 +592,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     mark = pm["mark"] if pm and pm.get("follows") else None
     found = patterns(seen_rows, mark)
     if found:
-        talk.say("Where your judge goes wrong:")
+        talk.say("Clues:")
         for p in found:
             for sentence in p:
                 talk.para(sentence, indent="  ")
@@ -603,8 +604,9 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     path = _folder(ws) / MISTAKES
     marks._refuse_links(path)
     write_replacing(path, mistakes_md(rule, seen_rows, mark))
-    talk.say("Each mistake, with your judge's own reason:")
-    talk.say(f"  {folder}/{MISTAKES} ({plural(len(wrong), 'answer')})")
+    every = f"all {len(wrong)} mistakes" if len(wrong) > 1 else "the 1 mistake"
+    talk.para(f"The clues and {every} are saved in {folder}/{MISTAKES}. You can hand this "
+              "file to a coding agent.")
     talk.say()
     line = tested and pass_mark_line(ws, pm, tested)
     if line:
@@ -617,8 +619,9 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
                  else "Your judge's rule:")
         talk.say(f"  {_rule_quote(rule)}")
         talk.say()
-    talk.para(f"{len(split.hidden)} more of your marks are set aside and hidden. They test "
-              "your new rule fairly, on answers the new rule was not written from.")
+    talk.para(f"{len(split.hidden)} more of your marks "
+              f"{'is' if len(split.hidden) == 1 else 'are'} kept aside to test your new rule "
+              "fairly.")
     if tool not in SWAPPABLE or not rule:
         why = CANT_SWAP.get(tool) or "its rule is not in your results"
         talk.say()
@@ -723,7 +726,7 @@ def few_mistakes(m: Marks, split: Split) -> str | None:
         return next((f for f in range(n + 1)
                      if targets.fix_verdict(f, 0, n, test=k).kind in kinds), n)
 
-    return (f"Your hidden marks hold only {plural(wrong, 'answer')} your judge got wrong. A new "
+    return (f"The marks kept aside hold only {plural(wrong, 'answer')} your judge got wrong. A new "
             f"rule needs at least {fewest(('safe', 'better'))} of those fixed to be called safe "
             f"to try, and about {fewest(('better',))} to be called better, so this test can "
             "only catch a worse rule.")
@@ -759,7 +762,7 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     broke = sum(old[i] == m.person[i] and new[i] != m.person[i] for i in ids)
     v = targets.fix_verdict(fixed, broke, len(ids), test=next_test(split))
     talk.say()
-    talk.say(f"Tested on your {len(ids)} hidden marks:")
+    talk.say(f"Tested on the {len(ids)} marks kept aside:")
     talk.say(f"  Old rule agreed with you on {sum(old[i] == m.person[i] for i in ids)}. New "
              f"rule agreed with you on {sum(new[i] == m.person[i] for i in ids)}.")
     talk.say(f"  It fixed {fixed} and broke {broke}.")
@@ -772,9 +775,9 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     if v.kind in ("better", "safe"):
         old_rule = m.data.get("rule") or ""
         where = start_fix_rule.found_rule(ws.root, old_rule, m.data.get("tool") or "")
-        place = (f"in {where[0]}, line {where[1]}" if where else
-                 f"where your eval keeps it ({start_fix_rule.field(m.data.get('tool') or '')})")
-        talk.next(f"if you like it, put the new rule {place}. Then run your eval, and run "
+        place = (f"into {where[0]}, line {where[1]}" if where else
+                 f"to where your eval keeps it ({start_fix_rule.field(m.data.get('tool') or '')})")
+        talk.next(f"if you like it, copy the new rule {place}. Then run your eval and "
                   f"`{talk.command('check')}`.")
         return EXIT_OK
     if v.kind == "leans better" and split.topup is None:
@@ -788,7 +791,7 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
         save_split(ws, split)
         talk.next(f"keep the old rule for now, or mark {FRESH} more answers with "
                   f"`{program('mark')}`, then run `{talk.command()}` again: they become a new "
-                  "set of hidden marks.")
+                  "set of marks kept aside.")
         return EXIT_OK
     talk.next(f"keep the old rule, or write another rule in {folder}/{RULE} and run "
               f"`{talk.command()}` again.")

@@ -86,20 +86,20 @@ It needs a result (enough marks of each kind). Each run does the next step:
 
 | What is there | What `judgekeeper fix` does |
 |---|---|
-| No new rule in `.judgekeeper/fix/rule.txt` | Sets some of your marks aside, hidden (about 30% of each group: your judge's passes and fails, where you agree with it and where not; at least 5 marked Pass and 5 marked Fail). On the other marks: where your judge goes wrong (too easy or too strict, mistakes near the pass mark, long answers, words found in many of its mistakes) and `.judgekeeper/fix/mistakes.md`: what to do in one line, the same clues, your judge's rule, then each mistake with your mark, its grade, the question, the answer, your note and its own reason, fenced as data. You can hand the file to a coding agent. Where your judge's rule is written (file and line) |
-| A judge with a score and a pass mark | Also tests the pass mark that fits the other marks best on the hidden marks, with the saved scores: free, no AI call. Shown when it is better or safe to try |
-| A new rule in `rule.txt` | Checks it (empty, a template part dropped or added: refused; a big change or text copied from an answer: said), says how many AI calls the test makes, and asks `Go ahead? [y/N]` (without a terminal, `--yes`). Then it asks your judge about the hidden answers, once with the old rule and once with the new one, in the same run, and gives the result |
+| No new rule in `.judgekeeper/fix/rule.txt` | Keeps some of your marks aside (about 30% of each group: your judge's passes and fails, where you agree with it and where not; at least 5 marked Pass and 5 marked Fail). On the other marks: the clues, under "Clues:" (too easy or too strict, mistakes near the pass mark, long answers, words found in many of its mistakes), and `.judgekeeper/fix/mistakes.md`: what to do in one line, the same clues, your judge's rule, then each mistake with your mark, its grade, the question, the answer, your note and its own reason, fenced as data. You can hand the file to a coding agent. Where your judge's rule is written (file and line) |
+| A judge with a score and a pass mark | Also tests the pass mark that fits the other marks best on the marks kept aside, with the saved scores: free, no AI call. Shown when it is better or safe to try |
+| A new rule in `rule.txt` | Checks it (empty, a template part dropped or added: refused; a big change or text copied from an answer: said), says how many AI calls the test makes, and asks `Go ahead? [y/N]` (without a terminal, `--yes`). Then it asks your judge about the answers kept aside, once with the old rule and once with the new one, in the same run, and gives the result |
 | A judge whose rule judgekeeper can't swap in | Says so: change the rule yourself, run your eval and `judgekeeper check` |
 
 | Flag | What it does |
 |---|---|
 | `PATH` | Your project folder (default: this folder) |
 | `--yes` | Without a terminal: go ahead and test the new rule (it makes AI calls, paid with your own key) |
-| `--new` | Hide a new set of your marks to test rules on |
+| `--new` | Keep a new set of your marks aside to test rules on |
 
-The hidden marks stay hidden: nothing prints them or writes them anywhere but `.judgekeeper/fix/split.json`, so a new rule is never written from them. They stay the same until `--new`.
+The marks kept aside are never shown: nothing prints them or writes them anywhere but `.judgekeeper/fix/split.json`, so a new rule is never written from them. They stay the same until `--new`.
 
-**The result**, from the hidden marks: fixed (the old rule was wrong, the new one right) and broke (the other way round).
+**The result**, from the marks kept aside: fixed (the old rule was wrong, the new one right) and broke (the other way round).
 
 | Result | When |
 |---|---|
@@ -107,7 +107,7 @@ The hidden marks stay hidden: nothing prints them or writes them anywhere but `.
 | Safe to try | Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 points worse |
 | Can't tell yet | Else; it says whether it leans toward better, looks the same, or looks worse |
 
-Each extra test on the same hidden marks is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". Over all tries on one set, a wrong "safe to try" stays under about 1 in 20. After a "can't tell yet" that leans toward better, it asks once for a few more marks (7 when about 10 are hidden, 9 when about 15): they join the hidden marks and the same rule is tested again. After 3 rules, 10 new marks become a new set of hidden marks.
+Each extra test on the same marks kept aside is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". Over all tries on one set, a wrong "safe to try" stays under about 1 in 20. After a "can't tell yet" that leans toward better, it asks once for a few more marks (7 when about 10 are kept aside, 9 when about 15): they join the marks kept aside and the same rule is tested again. After 3 rules, 10 new marks become a new set of marks kept aside.
 
 Your judge's rule is swapped in by judgekeeper when it asks: promptfoo's assertion value, a DeepEval GEval's evaluation steps (or criteria), an Inspect scorer's instructions, an MLflow `make_judge`'s instructions or a `Guidelines` text. A judge whose rule can't be swapped (a table, your own code, a registered or built-in MLflow judge) is told to change the rule itself, run its eval and `judgekeeper check`. judgekeeper never changes your files. Each test is saved: the rule in `.judgekeeper/rules/<hash>.txt`, and a line in `history.jsonl` (the rule's hash, the counts and the result; no answer text).
 
@@ -436,10 +436,10 @@ judgekeeper writes only inside `.judgekeeper/` in your project. Every string fro
 | `history/` | Earlier results | When a new result replaces one |
 | `history.jsonl` | One line per result, fix test and check: the judge, the counts and the numbers, no answer text | With each result, fix test and check |
 | `anchors.jsonl`, `anchors.manifest.json` | The answers you marked, as a frozen set: the manifest holds the counts and a sha256 of the set | With each result |
-| `fix/split.json` | Which marks are hidden, the seed, and every test done on them | On the first `judgekeeper fix` |
+| `fix/split.json` | Which marks are kept aside, the seed, and every test done on them | On the first `judgekeeper fix` |
 | `fix/mistakes.md` | The task, the clues and your judge's rule, then each mistake on the marks you can see, fenced as data | With `judgekeeper fix` |
 | `fix/rule.txt` | Your new rule, written by you | By you |
-| `fix/runs/` | The grades your judge gave when it was asked about the hidden answers, each line with the full fingerprint | When you say yes to a test |
+| `fix/runs/` | The grades your judge gave when it was asked about the answers kept aside, each line with the full fingerprint | When you say yes to a test |
 | `rules/` | Each rule tested, as `<hash>.txt` | With each fix test |
 | `results-seen.json` | The judge's setup in the results read last, so a check with nothing new reads nothing again | With `judgekeeper check` |
 | `checks/` | The grades your judge gave when `check` asked it, each line with the full fingerprint | When you say yes to a check |

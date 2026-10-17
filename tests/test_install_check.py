@@ -336,7 +336,7 @@ def test_the_walk_runs_fix_after_the_result(ic, monkeypatch, tmp_path):
     end = commands.index(["--stop"])
     assert commands[end + 1:end + 3] == [["fix"], ["fix", "--yes"]]
     assert any("Step 4 of 5: Fix" in e for e in ran[end + 1][1])
-    assert any("Tested on your" in e for e in ran[end + 2][1])
+    assert any("Tested on the" in e and "kept aside" in e for e in ran[end + 2][1])
     rule = tmp_path / ".judgekeeper" / "fix" / "rule.txt"
     assert rule.read_text(encoding="utf-8").strip() == ic.rule_for("promptfoo", ic.RULE_NEW)
     ran, _, _ = _walk(ic, monkeypatch, "table", tmp_path / "t")

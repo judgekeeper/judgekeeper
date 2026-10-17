@@ -725,9 +725,9 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         rule.write_text(rule_for(self.tool, RULE_NEW) + "\n", encoding="utf-8")
         judge = getattr(self, "judge", None)
         before = len(judge.calls) if judge else 0
-        self.run("2. judgekeeper fix --yes: the new rule tested on the hidden marks",
+        self.run("2. judgekeeper fix --yes: the new rule tested on the marks kept aside",
                  [*self.jk, "fix", "--yes"],
-                 expect=[r"Tested on your \d+ hidden marks", r"Result: "])
+                 expect=[r"Tested on the \d+ marks kept aside", r"Result: "])
         if judge:
             made = len(judge.calls) - before
             self.step("2. the judge was asked with the old and the new rule", made > 0,

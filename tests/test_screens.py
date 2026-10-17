@@ -256,7 +256,7 @@ def test_screen_8_help(capsys):
         "  1. Find      judgekeeper          finds your eval results and your judge",
         "  2. Mark      in your browser      you mark answers Pass or Fail",
         "  3. Measure   judgekeeper          how often your judge agrees with you",
-        "  4. Fix       judgekeeper fix      write a better rule, tested on hidden marks",
+        "  4. Fix       judgekeeper fix      a better rule, tested on marks kept aside",
         "  5. Re-check  judgekeeper check    after you change your judge or update",
         "                                    your eval tool",
         "",

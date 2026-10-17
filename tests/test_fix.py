@@ -145,27 +145,23 @@ def test_the_first_run(here, capsys):
     seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
     passed = sum(marks.judge[i] == "pass" for i in seen)
     lines = out.splitlines()
-    assert lines[:5] == ["judgekeeper 1.0.0b2", "", "Step 4 of 5: Fix", "",
-                         "Where your judge goes wrong:"]
+    assert lines[:5] == ["judgekeeper 1.0.0b2", "", "Step 4 of 5: Fix", "", "Clues:"]
     assert lines[5] == f"  {passed} of its {len(seen)} mistakes are answers it passed but you failed."
     assert lines[6] == "  Its rule may be too easy."
-    found = lines[5:lines.index("Each mistake, with your judge's own reason:") - 1]
+    saved = next(n for n, line in enumerate(lines) if line.startswith("The clues and all "))
+    found = lines[5:saved - 1]
     assert any(line.startswith("  Words found in many of its mistakes: ")
                and re.search(r"\brefund \(\d+\)", line) for line in found), found
-    tail = lines[lines.index("Each mistake, with your judge's own reason:"):]
-    assert tail == [
-        "Each mistake, with your judge's own reason:",
-        f"  .judgekeeper/fix/mistakes.md ({len(seen)} answers)",
-        "",
-        "Your judge's rule is in promptfooconfig.yaml, line 5:",
-        f'  "{RULE}"',
-        "",
-        f"{len(split['hidden'])} more of your marks are set aside and hidden. They test your",
-        "new rule fairly, on answers the new rule was not written from.",
-        "",
-        "Next: write your new rule in .judgekeeper/fix/rule.txt, then run",
-        "`judgekeeper fix` again to test it.",
-    ]
+    assert "Your judge's rule is in promptfooconfig.yaml, line 5:" in lines
+    assert " ".join(" ".join(lines[saved:]).split()) == (
+        f"The clues and all {len(seen)} mistakes are saved in .judgekeeper/fix/mistakes.md. "
+        "You can hand this file to a coding agent. "
+        f'Your judge\'s rule is in promptfooconfig.yaml, line 5: "{RULE}" '
+        f"{len(split['hidden'])} more of your marks are kept aside to test your new rule "
+        "fairly. Next: write your new rule in .judgekeeper/fix/rule.txt, then run "
+        "`judgekeeper fix` again to test it.")
+    for gone in ("hidden", "set aside", "Each mistake, with", "Where your judge goes wrong"):
+        assert gone not in out, gone
 
 
 def test_mistakes_md_holds_the_visible_mistakes_with_the_judges_reason(here, capsys):
@@ -194,7 +190,7 @@ def test_mistakes_md_is_agent_ready_a_task_line_the_clues_the_rule_then_the_mist
     assert lines[4:6] == ["## Clues", ""]
     clues = lines[6:lines.index("## Your judge's rule now")]
     printed = out.splitlines()
-    said = printed[printed.index("Where your judge goes wrong:") + 1:]
+    said = printed[printed.index("Clues:") + 1:]
     said = [x.strip() for x in said[:said.index("")]]
     assert [x for x in clues if x] == said  # the same sentences the terminal prints
     rule_at = lines.index("## Your judge's rule now")
@@ -318,8 +314,8 @@ def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys,
     run(capsys)
     _, out = run(capsys)  # the second run shows the saved test, not a new one
     flat = " ".join(out.split())
-    m = re.search(r"A better pass mark: (0\.\d+) instead of 0\.5 \(tested on your hidden "
-                  r"marks: fixed (\d+), broke (\d+), (better|safe to try)\)\.", flat)
+    m = re.search(r"A better pass mark: (0\.\d+) instead of 0\.5 \(tested on the marks kept "
+                  r"aside: fixed (\d+), broke (\d+), (better|safe to try)\)\.", flat)
     assert m, flat
     assert 0.6 < float(m[1]) <= 0.7
     assert 'Use `--pass-if "score>=0.7"`.' in flat
@@ -387,7 +383,8 @@ def test_without_a_terminal_or_yes_the_rule_is_not_tested(here, capsys, judge):
     n, _, _ = _hidden_counts(ws)
     flat = " ".join(out.split())
     assert out.splitlines()[2] == "Step 4 of 5: Fix (testing your new rule)"
-    assert (f"To test it, judgekeeper asks your judge about your {n} hidden answers, once with "
+    assert (f"To test it, judgekeeper asks your judge about the {n} answers kept aside, once "
+            "with "
             f"the old rule and once with the new one. That is {2 * n} AI calls, paid with your "
             "own key.") in flat
     assert flat.endswith("Next: run `judgekeeper fix` in your terminal to answer, or "
@@ -408,19 +405,19 @@ def test_with_yes_both_rules_are_asked_and_the_verdict_comes_from_the_math(here,
     assert judge["evals"] == 2  # the old and the new rule, in the same run
     n, right, fixed = _hidden_counts(ws)
     lines = out.splitlines()
-    at = lines.index(f"Tested on your {n} hidden marks:")
+    at = lines.index(f"Tested on the {n} marks kept aside:")
     assert lines[at + 1:at + 3] == [
         f"  Old rule agreed with you on {right}. New rule agreed with you on {n}.",
         f"  It fixed {fixed} and broke 0."]
     kind = targets.fix_verdict(fixed, 0, n).kind
-    words = {"better": "Result: better. A difference this large is very unlikely to be a "
-                       "coincidence.",
-             "safe": "Result: safe to try. We can't say it's better yet, but it's very "
-                     "unlikely to be more than 10 points worse."}
+    words = {"better": "Result: your new rule is better. A difference this large is very "
+                       "unlikely to be a coincidence.",
+             "safe": "Result: safe to try. Not clearly better yet, but very unlikely to be "
+                     "more than 10 points worse."}
     assert words[kind] in " ".join(out.split())
     assert " ".join(out.split()).endswith(
-        "Next: if you like it, put the new rule in promptfooconfig.yaml, line 5. Then run "
-        "your eval, and run `judgekeeper check`.")
+        "Next: if you like it, copy the new rule into promptfooconfig.yaml, line 5. Then "
+        "run your eval and `judgekeeper check`.")
     assert lines[4] == f'New rule:  "{NEW_RULE[:57].rstrip()}…"'
     assert lines[5] == "           (from .judgekeeper/fix/rule.txt)"
 
@@ -535,9 +532,9 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys, judge):
     code, out = run(capsys, "--yes")
     flat = " ".join(out.split())
     assert code == 3 and judge["evals"] == 6
-    assert "You have tested 3 rules on these hidden marks." in flat
+    assert "You have tested 3 rules on these marks kept aside." in flat
     assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
-                         "`judgekeeper fix` again: they become a new set of hidden marks.")
+                         "`judgekeeper fix` again: they become a new set of marks kept aside.")
     new = _mark_more(ws, 10, 40)
     code, out = run(capsys, "--yes")
     assert code == 0 and judge["evals"] == 8

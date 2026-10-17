@@ -57,7 +57,7 @@ def test_few_mistakes_hidden_are_said_before_the_question(here, capsys, judge, m
     safe = next(f for f in range(n + 1) if targets.fix_verdict(f, 0, n).kind in ("safe",
                                                                                   "better"))
     better = next(f for f in range(n + 1) if targets.fix_verdict(f, 0, n).kind == "better")
-    said = (f"Your hidden marks hold only {wrong} {'answer' if wrong == 1 else 'answers'} "
+    said = (f"The marks kept aside hold only {wrong} {'answer' if wrong == 1 else 'answers'} "
             f"your judge got wrong. A new rule needs at least {safe} of those fixed to be "
             f"called safe to try, and about {better} to be called better, so this test can "
             "only catch a worse rule.")
@@ -70,7 +70,7 @@ def test_enough_mistakes_hidden_say_nothing_more(here, capsys, judge):
     run(capsys)
     _write_rule(ws)
     _, out = run(capsys)
-    assert "Your hidden marks hold only" not in out
+    assert "The marks kept aside hold only" not in out
     assert json.dumps(NEW_RULE) not in out
 
 
