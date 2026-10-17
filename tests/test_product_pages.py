@@ -288,9 +288,10 @@ def test_the_marking_page_layout_is_a_list_column_and_a_card_that_fills_the_wind
     assert ".state .said { font-weight: 600; }" in style  # the mark word: semibold, coloured
     assert ".state .said.pass { color: var(--green); }" in style
     assert ".state .said.fail { color: var(--red); }" in style
-    assert ".item { width: 100%; display: grid; grid-template-columns: 36px 1fr 16px;" in style
+    assert ".item { width: 100%; display: grid; grid-template-columns: 36px minmax(0, 1fr) 16px;" \
+        in style
     assert "padding: 15px 22px 15px 20px; border-bottom: 1px solid var(--line);" in style
-    assert ".item .q { white-space: normal;" in style  # the question wraps, no "..."
+    assert ".item .q { white-space: nowrap;" in style  # one line, cut with "…"
     assert ".item[aria-current] { background: var(--current); color: var(--text); " \
         "border-left-color: var(--text); }" in style
     assert ".item:hover { background: var(--hover);" in style
@@ -301,7 +302,7 @@ def test_the_marking_page_layout_is_a_list_column_and_a_card_that_fills_the_wind
     assert ".foot { margin: 0; padding: 12px 40px; border-top: 1px solid var(--line); " \
         "font-size: 13px; color: var(--muted); text-align: center; }" in style
     assert ".foot code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }" in style
-    assert "ellipsis" not in style  # the question in the list wraps instead
+    assert style.count("ellipsis") == 1  # only the question in the list is cut
 
 
 def test_the_bar_is_segments_and_a_count_with_no_status_sentence():

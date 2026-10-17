@@ -6,12 +6,12 @@ no agreement, not even its rule. Text reaches it through textContent. The server
 __DATA__ (the answers and the person's marks, start_label.StartSession.state), __TOKEN__ and
 __NONCE__.
 
-The look: a 400px list of the answers on the left, the card with the question, the answer
-and the two buttons filling the rest of the window, hairlines only. On a phone (760px and
-narrower) the card comes first, then the list, and the page scrolls as one; a line that a
-mark was not saved is always brought into view. The top bar shows the progress as small
-segments by answers looked at, the count of marks, and, once a result is ready, the link to
-it.
+The look: a 400px list of the answers on the left (each one line, cut with "…"), the card
+with the question, the answer and the two buttons filling the rest of the window, hairlines
+only. On a phone (760px and narrower) the card comes first, then the list, and the page
+scrolls as one; a line that a mark was not saved is always brought into view. The top bar
+shows the progress as small segments by answers looked at, the count of marks, and, once a
+result is ready, the link to it.
 
 How it keeps marks honest: Fail and Pass look the same but for their colour; after each mark
 the page ignores input for about 400 ms, and it ignores a held key and any key with
@@ -71,11 +71,11 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .side { border-right: 1px solid var(--line); display: flex; flex-direction: column;
   min-height: 0; }
 .list { list-style: none; margin: 0; padding: 0; flex: 1; overflow: auto; min-height: 0; }
-.item { width: 100%; display: grid; grid-template-columns: 36px 1fr 16px; align-items: center;
-  gap: 12px; padding: 15px 22px 15px 20px; border-bottom: 1px solid var(--line);
+.item { width: 100%; display: grid; grid-template-columns: 36px minmax(0, 1fr) 16px;
+  align-items: center; gap: 12px; padding: 15px 22px 15px 20px; border-bottom: 1px solid var(--line);
   border-left: 2px solid transparent; text-align: left; color: var(--muted); font-size: 15px;
   line-height: 1.4; text-decoration: none; }
-.item .q { white-space: normal; overflow-wrap: anywhere; }
+.item .q { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item:hover { background: var(--hover); color: var(--text); }
 .item[aria-current] { background: var(--current); color: var(--text); border-left-color: var(--text); }
 .item .num { font-family: var(--mono); font-size: 12px; color: var(--faint); }
