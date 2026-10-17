@@ -137,7 +137,7 @@ def test_dark_first_and_light_by_the_switch():
     assert ":root { color-scheme: dark;" in look.TOKENS
 
 
-def test_the_colours_are_the_locked_looks():
+def test_the_colours_of_both_themes():
     dark, light = _tokens("dark"), _tokens("light")
     assert (dark["bg"], dark["text"], dark["muted"], dark["faint"], dark["line"]) == (
         "#0b0c0e", "#e6e8eb", "#8b919a", "#585e68", "#262a30")
@@ -181,7 +181,7 @@ def test_text_contrast_in_both_themes(theme):
     colours = {**_tokens("dark"), **_tokens(theme)}  # light overrides the dark defaults
     for text, ground, least in PAIRS:
         assert _contrast(colours[text], colours[ground]) >= least, (theme, text, ground)
-    for fill in ("green-fill", "red-fill"):  # white bold text on Fail and Pass: the locked
+    for fill in ("green-fill", "red-fill"):  # white bold text on Fail and Pass: the Pass
         assert _contrast("#FFFFFF", colours[fill]) >= 3, (theme, fill)  # green is 3.8:1
 
 
@@ -267,7 +267,7 @@ def test_the_marking_page_words():
             '<span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" '
             'id="undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>') in page
     assert '<p class="foot">Come back any time: <code>judgekeeper mark</code></p>' in page
-    # Skip and Undo side by side as in the reference: each has its own padding, no gap
+    # Skip and Undo side by side: each has its own padding, no gap between them
     assert (".sub { display: flex; align-items: center; justify-content: center; "
             "padding: 0 24px 6px; }") in mark_page.STYLE
 
@@ -461,7 +461,7 @@ def test_too_early_leads_to_the_marking_page_or_says_the_command(counts):
 
 
 def test_the_numbers_in_the_counts_and_the_lead_are_mono_at_500():
-    """As in the reference: JetBrains Mono at 500, so the numbers stand out from the 500
+    """JetBrains Mono at 500, so the numbers stand out from the 500
     Manrope around them; the 400 face alone reads as plain text."""
     assert ("jetbrains-mono-latin-500-normal.woff2", "JetBrains Mono", "500") in look.FONTS
     data = (PACKAGE_FONTS / "jetbrains-mono-latin-500-normal.woff2").read_bytes()
@@ -642,7 +642,7 @@ def test_what_is_gone_from_the_result_page(counts):
             assert "Mark more answers" not in text
 
 
-def test_the_result_page_style_follows_the_locked_poster():
+def test_the_result_page_style():
     style = report_page.STYLE
     for rule in (".band { padding-left: var(--gutter); padding-right: var(--gutter); }",
                  ":root { --gutter: 32px; }",
