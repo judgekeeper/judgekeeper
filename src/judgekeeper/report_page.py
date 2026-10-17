@@ -1,9 +1,9 @@
 """The result page: what the marking page shows at /result, and `.judgekeeper/report.html`.
 
 One self-contained page (look.py: nothing loaded from anywhere else); every string in it is
-escaped. Its two scripts (the theme, read first; the switch, "Show all" and Copy) are fixed
-text: the page's Content-Security-Policy lets exactly those run (by their hashes) and nothing
-else, both when it is served and in the saved copy, which opens with no server.
+escaped. Its one script ("Show all" and Copy) is fixed text: the page's
+Content-Security-Policy lets exactly that run (by its hash) and nothing else, both when it is
+served and in the saved copy, which opens with no server.
 
 One column, top to bottom: the verdict, the counts, the disagreements (the marks the person
 can see), how many more are kept aside (the hidden marks: fix.py keeps those to test a new
@@ -34,7 +34,7 @@ TICK = ('<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
         '<path d="M3 8.5l3.2 3.2L13 5"/></svg>')
 
 # The page's script: fixed text, so its hash can be in the Content-Security-Policy.
-SCRIPT = look.THEME_SWITCH + """
+SCRIPT = """
   (function () {
     Array.prototype.forEach.call(document.querySelectorAll(".more"), function (b) {
       b.addEventListener("click", function () {
@@ -63,9 +63,8 @@ SCRIPT = look.THEME_SWITCH + """
     });
   })();
 """.replace("__TICK__", TICK)
-CSP = ("default-src 'none'; script-src " + look.script_hash(look.THEME_FIRST) + " "
-       + look.script_hash(SCRIPT) + "; style-src 'unsafe-inline'; font-src data:; "
-       "img-src 'none'; base-uri 'none'; form-action 'none'")
+CSP = ("default-src 'none'; script-src " + look.script_hash(SCRIPT) + "; style-src "
+       "'unsafe-inline'; font-src data:; img-src 'none'; base-uri 'none'; form-action 'none'")
 
 STYLE = """
 :root { --gutter: 32px; }
@@ -394,6 +393,6 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None) -> str:
     if level == "not_gate":
         parts.append(_fix(r))
     meta = f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
-    return (look.head("judgekeeper: your result", STYLE, "<script>", meta)
+    return (look.head("judgekeeper: your result", STYLE, meta)
             + look.top(left, "") + '<main class="result">' + "".join(parts)
             + f"</main>\n<script>{SCRIPT}</script>\n</body>\n</html>\n")

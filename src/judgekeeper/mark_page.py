@@ -204,7 +204,6 @@ __TOP__
 <script type="application/json" id="data">__DATA__</script>
 <script nonce="__NONCE__">
 "use strict";
-__THEME_SWITCH__
 (function () {
   var TOKEN = "__TOKEN__", FIRST = __FIRST__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400;
   var data = JSON.parse(document.getElementById("data").textContent);
@@ -504,14 +503,13 @@ def label_page(description: str | None, command: str | None = None,
     body = (BODY.replace("__TOP__", look.top(left, _progress()))
             .replace("__COMMAND__", _text(command))
             .replace("__TITLE__", _text(TITLE))
-            .replace("__THEME_SWITCH__", look.THEME_SWITCH)
             .replace("__FIRST__", str(FIRST))
             .replace("__SEGMENTS__", str(SEGMENTS))
             .replace("__BRAND__", look.BRAND)
             .replace("__CROSS__", CROSS).replace("__TICK__", TICK)
             .replace("__DOT_NONE__", DOTS["none"]).replace("__DOT_PASS__", DOTS["pass"])
             .replace("__DOT_FAIL__", DOTS["fail"]))
-    return look.head("judgekeeper: mark answers", STYLE, '<script nonce="__NONCE__">') + body
+    return look.head("judgekeeper: mark answers", STYLE) + body
 
 
 OLD_LINK_STYLE = """
@@ -524,10 +522,8 @@ main.old code { color: var(--text); font-size: 14px; }
 """
 OLD_LINK = ("Each time judgekeeper opens its page, it makes a new private link, and older links "
             "stop working. Your marks are saved.")
-OLD_LINK_SCRIPT = look.THEME_SWITCH
-OLD_LINK_CSP = (f"default-src 'none'; script-src {look.script_hash(look.THEME_FIRST)} "
-                f"{look.script_hash(OLD_LINK_SCRIPT)}; style-src 'unsafe-inline'; font-src data:; "
-                "img-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+OLD_LINK_CSP = ("default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src 'none'; "
+                "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
 
 def old_link_page() -> str:
@@ -535,9 +531,9 @@ def old_link_page() -> str:
     open the page again."""
     from judgekeeper.textio import program
 
-    return (look.head("judgekeeper: this link no longer works", OLD_LINK_STYLE, "<script>")
+    return (look.head("judgekeeper: this link no longer works", OLD_LINK_STYLE)
             + look.top("", "")
             + '<main class="old"><div class="box"><h1>This link no longer works.</h1>'
             + f"<p>{escape(OLD_LINK)}</p>"
             + f"<p>To open the page again, run <code>{escape(program('mark'))}</code>.</p>"
-            + f"</div></main>\n<script>{OLD_LINK_SCRIPT}</script>\n</body>\n</html>\n")
+            + "</div></main>\n</body>\n</html>\n")

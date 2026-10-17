@@ -396,7 +396,7 @@ def test_every_page_is_dark_with_no_theme_switch():
 def test_look_has_no_theme_scripts():
     for gone in ("THEME_FIRST", "THEME_SWITCH", "SWITCH"):
         assert not hasattr(look, gone), gone
-    assert "switch" not in look.__doc__.lower()
+    assert "dark only" in look.__doc__ and "jk-theme" not in look.__doc__
 
 
 def test_the_result_page_runs_only_its_one_script():
