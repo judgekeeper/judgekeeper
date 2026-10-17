@@ -58,7 +58,7 @@ from judgekeeper.readers.promptfoo import (
 from judgekeeper.records import LLM, derive_record_id
 from judgekeeper.redact import scrub
 from judgekeeper.table import make_fingerprint
-from judgekeeper.textio import write_replacing
+from judgekeeper.textio import make_private, write_replacing
 
 CALLS = {"llm-rubric": 1, "factuality": 1, "model-graded-factuality": 1,
          "model-graded-closedqa": 1, "context-recall": 1, "context-relevance": 1,
@@ -88,7 +88,8 @@ RUN_ENV = {"PROMPTFOO_CACHE_ENABLED": "false", "PROMPTFOO_DISABLE_TELEMETRY": "1
 FLAGS = ("--no-cache", "--no-write", "--no-share", "--no-table", "--no-progress-bar")
 # Test options that change the saved answer or prompt, which already hold their effect.
 DROPPED_OPTIONS = ("transform", "postprocess", "prefix", "suffix", "provider", "storeOutputAs")
-SIDE_EFFECT = "Your app is not run. Nothing is written to promptfoo's database or shared."
+SIDE_EFFECT = ("Your app or agent is not run. Nothing is written to promptfoo's database or "
+               "shared.")
 EXACT_WHY = "promptfoo re-grades your saved answers with your own settings"
 NEW_WHY = "promptfoo grades your marked answers with your new judge's own settings"
 NO_TEST = ("no test in your newest results matches it",
@@ -385,8 +386,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         return not_marked("promptfoo", judge)
     types = {judge_type(c["assertion"].get("type")) for j in judged for c in j[2]}
     if TRAJECTORY in types:
-        return cant("promptfoo", judge, "your judge reads the trace of your app's run, which "
-                                        "your results don't keep", short="your judge reads a trace")
+        return cant("promptfoo", judge, "your judge reads the trace of your app or agent's run, "
+                                        "which your results don't keep",
+                    short="your judge reads a trace")
 
     config = _config(root)
     grader = next(iter(graders.values()))
@@ -547,7 +549,7 @@ def run(ws, plan: Plan, talk) -> Fresh:
     root, metric = ws.root, plan.job.get("metric") or ws.data()["metric"]
     config = _config(root)
     folder = plan.folder or new_folder(ws)
-    folder.mkdir(parents=True, exist_ok=True)
+    make_private(folder)
     out = folder / "promptfoo.json"
     rel_out = out.relative_to(root).as_posix()
     argv = [*plan.runner, "eval", "-c", CONFIG, "--repeat", str(plan.times), *FLAGS,

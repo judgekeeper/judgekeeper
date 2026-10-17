@@ -95,7 +95,7 @@ def test_the_first_check_writes_the_folders_gitignore(tmp_path):
     promptfoo_project(tmp_path, split(20, 16))
     ws = start_label.prepare(start.find_judge(tmp_path), say=_quiet)
     assert (ws.dir / ".gitignore").read_text(encoding="utf-8") == GITIGNORE
-    assert GITIGNORE.startswith("# judgekeeper's files hold your app's answers. Commit them "
+    assert GITIGNORE.startswith("# judgekeeper's files hold your answers. Commit them "
                                 "only if your data may live here.\n*\n!.gitignore\n"
                                 "!judge.json\n!history.jsonl\n")
 

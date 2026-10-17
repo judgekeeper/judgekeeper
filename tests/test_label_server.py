@@ -593,7 +593,7 @@ def test_a_result_before_the_end_keeps_serving(tmp_path):
     csp = resp.getheader("Content-Security-Policy")
     assert csp == f"{CSP}; frame-ancestors 'none'"
     scripts = csp.split("script-src ")[1].split(";")[0].split()
-    assert len(scripts) == 2 and all(x.startswith("'sha256-") for x in scripts)  # its own two
+    assert len(scripts) == 1 and scripts[0].startswith("'sha256-")  # its own one
     thread.join(timeout=0.5)
     assert thread.is_alive()
     server.stop()
@@ -657,3 +657,14 @@ def test_a_browser_with_an_old_link_gets_a_page_and_a_script_gets_json(tmp_path,
     resp, payload = client.request("GET", "/state?token=old", token=False,
                                    headers={"Accept": "text/html"})
     assert json.loads(payload) == {"error": "missing or wrong token"}  # only the page itself
+
+
+def test_the_favicon_is_no_content_and_needs_no_token(tmp_path, serve):
+    """A browser asks for /favicon.ico without the token: a 403 there is two console errors on
+    every page load."""
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    resp, body = client.request("GET", "/favicon.ico", token=False)
+    assert resp.status == 204 and body == b""
+    assert resp.getheader("Content-Length") is None
+    resp, _ = client.request("GET", "/favicon.ico", token=False, host="evil.example")
+    assert resp.status == 403  # the Host check still holds

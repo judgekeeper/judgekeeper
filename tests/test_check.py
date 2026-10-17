@@ -217,7 +217,7 @@ SCENE_6 = [
     "Step 5 of 5: Re-check",
     "",
     f"Your judge changed: model {MODEL} -> {HAIKU}.",
-    "Re-checked for free from your new results.",
+    "Re-checked with no AI call, from your new results.",
     "",
     "Re-checked on all 50 of your marks:",
     "",
@@ -310,7 +310,7 @@ def test_a_promptfoo_version_bump_only(here, capsys, no_calls):
     assert code == 0
     assert ("Your eval tool changed: promptfoo 0.124.1 -> 0.125.0. Your judge's rule and model "
             "are the same.") in _flat(out)
-    assert "Re-checked for free from your new results." in out
+    assert "Re-checked with no AI call, from your new results." in out
     assert "Re-checked on all 50 of your marks:" in out
 
 

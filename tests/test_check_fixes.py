@@ -180,7 +180,7 @@ def test_a_lockfile_update_is_rechecked_after_the_next_eval_run(here, capsys, no
     os.utime(here / "results.json", (stamp, stamp))
     code, out = run(capsys)
     assert code == 0
-    assert "Re-checked for free from your new results." in out
+    assert "Re-checked with no AI call, from your new results." in out
     assert "Re-checked on all 50 of your marks:" in out
     assert judge_setup.read(ws)["setup"]["tool_version"] == "0.130.0"
 

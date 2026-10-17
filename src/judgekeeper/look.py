@@ -1,11 +1,10 @@
 """The look every page judgekeeper serves shares: the logo, the fonts, the colours, the top
 bar and the focus ring.
 
-The pages open dark (page #0b0c0e, text #e6e8eb); a switch in the top bar turns them light
-(white page, #111317 text) and back. The choice is kept in the browser's storage under
-`jk-theme` and read before the page is drawn, so it never flashes; a browser that blocks the
-storage shows dark. Hairlines only: no boxes, no shadows, no rounded panels. Green and red
-colour only Pass and Fail (and the "See your result" link), amber a verdict that needs work.
+The pages are dark only (page #0b0c0e, text #e6e8eb): there is no light theme and no switch,
+and `color-scheme: dark` on :root keeps the browser's own parts (scroll bars, form controls)
+dark too. Hairlines only: no boxes, no shadows, no rounded panels. Green and red colour only
+Pass and Fail (and the "See your result" link), amber a verdict that needs work.
 
 The fonts (Manrope, and JetBrains Mono at 400 and 500, both under the SIL Open Font License;
 the mono files are Fontsource's) are embedded as base64 from this package's `fonts/` folder, so
@@ -49,7 +48,7 @@ def font_faces() -> str:
     return "\n".join(rules)
 
 
-# The colours: dark by default, light when the person picks it.
+# The colours: dark only.
 TOKENS = """
 :root { color-scheme: dark;
   --bg: #0b0c0e; --text: #e6e8eb; --muted: #8b919a; --faint: #585e68;
@@ -58,16 +57,11 @@ TOKENS = """
   --amber: #e0a43a; --scrim: rgba(0,0,0,.66);
   --sans: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
-:root[data-theme="light"] { color-scheme: light;
-  --bg: #ffffff; --text: #111317; --muted: #5f6672; --faint: #9aa0aa;
-  --line: #d9dde3; --hover: #f6f7f9; --current: #eef0f3;
-  --green: #059669; --green-fill: #059669; --red: #dc2626; --red-fill: #dc2626;
-  --amber: #b7791f; --scrim: rgba(17,19,23,.42); }
 """
 
 # What every page shares beyond the colours: the top bar (72px, a hairline under it: the judge
-# and the eval tool left, the logo and name centred, the page's own things and the theme
-# switch right) and the focus ring, inset in the text colour, so no ring ever shows a gap.
+# and the eval tool left, the logo and name centred, the page's own things right) and the
+# focus ring, inset in the text colour, so no ring ever shows a gap.
 BASE = """
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -97,14 +91,6 @@ code, kbd { font-family: var(--mono); }
 .logo-mark svg { width: 34px; height: 38px; }
 .top .right { min-width: 0; display: flex; align-items: center; justify-content: flex-end;
   gap: 16px; white-space: nowrap; }
-.theme { width: 34px; height: 34px; border: 1px solid var(--line); color: var(--muted);
-  display: inline-flex; align-items: center; justify-content: center; flex: none; }
-.theme:hover { color: var(--text); background: var(--hover); }
-.theme svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8;
-  stroke-linecap: round; }
-.theme .moon { display: none; }
-:root[data-theme="light"] .theme .moon { display: block; }
-:root[data-theme="light"] .theme .sun { display: none; }
 @media (max-width: 760px) {
   .top { height: auto; grid-template-columns: 1fr; padding: 12px 16px; gap: 10px; }
   .meta { grid-row: 1; }
@@ -114,37 +100,6 @@ code, kbd { font-family: var(--mono); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important;
   animation: none !important; scroll-behavior: auto !important; } }
 """
-
-# Read before the page is drawn: light when the person picked it, else dark.
-THEME_FIRST = ("try { if (window.localStorage.getItem(\"jk-theme\") === \"light\") { "
-               "document.documentElement.setAttribute(\"data-theme\", \"light\"); } } "
-               "catch (e) { /* storage blocked: dark */ }")
-
-# The switch: light or dark, remembered when the browser allows it.
-THEME_SWITCH = """
-  (function () {
-    var root = document.documentElement, b = document.getElementById("theme");
-    function sync() { b.setAttribute("aria-pressed", String(root.getAttribute("data-theme") !==
-      "light")); }
-    b.addEventListener("click", function () {
-      var light = root.getAttribute("data-theme") !== "light";
-      if (light) { root.setAttribute("data-theme", "light"); }
-      else { root.removeAttribute("data-theme"); }
-      try { window.localStorage.setItem("jk-theme", light ? "light" : "dark"); }
-      catch (e) { /* not remembered */ }
-      sync();
-    });
-    sync();
-  })();
-"""
-
-SWITCH = ('<button type="button" class="theme" id="theme" aria-label="Dark mode" '
-          'aria-pressed="true"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true" '
-          'focusable="false"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>'
-          '<svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-          '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 '
-          '12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>'
-          '</svg></button>')
 
 
 def script_hash(script: str) -> str:
@@ -166,17 +121,15 @@ def meta(judge: str | None, tool: str | None) -> str:
 
 
 def top(left: str, right: str) -> str:
-    """The top bar: the judge and tool left, the logo and name centred, the page's state and
-    the theme switch right."""
+    """The top bar: the judge and tool left, the logo and name centred, the page's state
+    right."""
     left = left or '<div class="meta"></div>'  # the grid's first column, even when empty
-    return (f'<header class="top">{left}{BRAND}<div class="right">{right}{SWITCH}</div>'
-            "</header>")
+    return f'<header class="top">{left}{BRAND}<div class="right">{right}</div></header>'
 
 
-def head(title: str, style: str, script: str, meta: str = "") -> str:
-    """The page up to <body>: `script` is the opening tag of the theme script (with its nonce,
-    or plain where a hash lets it run)."""
+def head(title: str, style: str, meta: str = "") -> str:
+    """The page up to <body>: `meta` is any more tags for its head."""
     return ("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
-            f"{meta}<title>{title}</title>\n{script}{THEME_FIRST}</script>\n"
+            f"{meta}<title>{title}</title>\n"
             f"<style>{font_faces()}\n{TOKENS}{BASE}{style}</style>\n</head>\n<body>\n")

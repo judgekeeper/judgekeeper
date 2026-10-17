@@ -3,6 +3,7 @@ itself. One the person wrote is never overwritten; the exact text 0.2 wrote is r
 
 from __future__ import annotations
 
+import hashlib
 import shutil
 import subprocess
 
@@ -30,7 +31,7 @@ def test_the_new_text(tmp_path):
 def test_the_exact_old_text_is_replaced(tmp_path):
     (tmp_path / ".judgekeeper").mkdir()
     (tmp_path / ".judgekeeper" / ".gitignore").write_text(OLD, encoding="utf-8")
-    assert start_label.OLD_GITIGNORE == OLD
+    assert hashlib.sha256(OLD.encode()).hexdigest() == start_label.OLD_GITIGNORE_SHA256
     ws = _prepare(tmp_path)
     assert (ws.dir / ".gitignore").read_text(encoding="utf-8") == start_label.GITIGNORE
 

@@ -904,7 +904,7 @@ def _export(talk: Talk, path: Path, tool: str | None, root: Path, config: str):
     if outcome == "done":
         return _locate(talk, path, tool)
     if outcome == "commands" and screens:
-        raise talk.stop(EXIT_OK, f"save your last run with `{EXPORT}` (free: it runs no test), "
+        raise talk.stop(EXIT_OK, f"save your last run with `{EXPORT}` (it runs no test), "
                                  f"then run `{talk.command()}` again.")
     if outcome == "commands":
         _promptfoo_export(talk)
@@ -1075,7 +1075,7 @@ def _unreadable(found: find.Search) -> Damaged:
     if "promptfoo" in found.signs and rel.endswith(".json"):
         return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
                        f"save your last promptfoo run to it with `promptfoo export eval latest "
-                       f"-o {rel}` (free: it runs no test), then run `{{command}}` again.")
+                       f"-o {rel}` (it runs no test), then run `{{command}}` again.")
     return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
                    f"save your results to {rel} again, then run `{{command}}` again.")
 
