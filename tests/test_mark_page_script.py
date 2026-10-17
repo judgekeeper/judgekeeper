@@ -252,16 +252,19 @@ def test_the_undo_button_undoes_like_the_key():
 def test_the_welcome_box_opens_once_and_keys_wait_until_it_is_closed():
     got = _run("""
       var open = !ids["intro"].hidden, focused = document.activeElement === ids["intro-box"];
+      inert = ids["app"].getAttribute("inert");
       key("ArrowRight"); await settle();
       var whileOpen = sent.length;
       ids["intro-box"].fire("keydown", {key: "Enter"});
       later(500); key("ArrowRight"); await settle();
       console.log(JSON.stringify({open: open, focused: focused, whileOpen: whileOpen,
         closed: ids["intro"].hidden, seen: stored["judgekeeper-intro-seen"],
-        after: sent.length, button: document.activeElement === ids["intro-ok"]}));""",
-               seen_intro=False)
+        after: sent.length, button: document.activeElement === ids["intro-ok"],
+        inert: [inert, ids["app"].getAttribute("inert")]}));""",
+               seen_intro=False, before="var inert = null;\n")
     assert got == {"open": True, "focused": True, "whileOpen": 0, "closed": True, "seen": "1",
-                   "after": 1, "button": False}  # the box, not its button: no ring on open
+                   "after": 1, "button": False,  # the box, not its button: no ring on open
+                   "inert": ["", None]}  # the page behind: inert while the box is open
 
 
 def test_the_welcome_box_keeps_tab_on_its_button_and_esc_starts_too():

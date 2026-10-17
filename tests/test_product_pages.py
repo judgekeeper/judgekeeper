@@ -329,6 +329,25 @@ def test_the_welcome_box_is_a_modal_over_the_whole_window():
         "judgekeeper", "Mark", "each", "answer", "Pass", "or", "Fail.", "Start", "marking"]
 
 
+def test_the_welcome_box_is_centred_green_and_plain():
+    style = mark_page.STYLE
+    assert (".intro { background: var(--bg); border: 1px solid var(--line); border-radius: 2px; "
+            "width: 100%;\n  max-width: 520px; padding: 40px; display: flex; "
+            "flex-direction: column; align-items: center;\n  gap: 24px; text-align: center; "
+            "animation: appear 120ms ease-out; }") in style
+    assert "@keyframes appear { from { opacity: 0; } to { opacity: 1; } }" in style
+    assert ".intro .brand { font-size: 21px;" in style  # the box keeps the smaller logo and name
+    assert ".intro .logo-mark svg { width: 30px; height: 33px; }" in style
+    assert ".intro h2 { margin: 0; font-size: 28px; font-weight: 700;" in style
+    assert ".intro .go { width: 100%; height: 56px; font-size: 17px; }" in style
+    assert ".go { font-weight: 700; border-radius: 4px; color: #fff; background: var(--green-fill);" \
+        in style  # white on the Pass green in both themes
+    assert "animation: none !important" in look.BASE  # no fade under reduced motion
+    page = _marking()
+    assert '$("app").setAttribute("inert", "")' in page  # the page behind the box is inert
+    assert '$("app").removeAttribute("inert")' in page
+
+
 def test_the_marking_page_has_one_h1_a_progressbar_and_hidden_words_for_each_row():
     page = _marking()
     assert page.count("<h1") == 1 and '<h1 class="question" id="q-text">' in page

@@ -136,7 +136,8 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   align-items: center; justify-content: center; padding: 20px; }
 .intro { background: var(--bg); border: 1px solid var(--line); border-radius: 2px; width: 100%;
   max-width: 520px; padding: 40px; display: flex; flex-direction: column; align-items: center;
-  gap: 24px; text-align: center; }
+  gap: 24px; text-align: center; animation: appear 120ms ease-out; }
+@keyframes appear { from { opacity: 0; } to { opacity: 1; } }
 .intro .brand { font-size: 21px; gap: 10px; }
 .intro .logo-mark svg { width: 30px; height: 33px; }
 .intro h2 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
@@ -421,14 +422,15 @@ __THEME_SWITCH__
     e.preventDefault();
   });
 
-  // The welcome box: once per browser (the browser's storage, when it allows it). Enter or
-  // Esc starts; focus stays in the box; the button is not focused, so no ring shows.
+  // The welcome box: once per browser (the browser's storage, when it allows it). The page
+  // behind it is inert. Enter or Esc starts; focus stays in the box; the button is not
+  // focused, so no ring shows.
   var INTRO_KEY = "judgekeeper-intro-seen", box = $("intro-box");
   function seenIntro() {
     try { return window.localStorage.getItem(INTRO_KEY) === "1"; } catch (e) { return false; }
   }
   function startMarking() {
-    $("intro").hidden = true;
+    $("intro").hidden = true; $("app").removeAttribute("inert");
     try { window.localStorage.setItem(INTRO_KEY, "1"); } catch (e) { /* shown again next time */ }
     focusCard();
   }
@@ -441,7 +443,7 @@ __THEME_SWITCH__
   var left = items.some(function (it) { return !it.label && !it.skipped; });
   if (left) { open(pos); } else { finish(); }
   if (!seenIntro()) {
-    $("intro").hidden = false;
+    $("intro").hidden = false; $("app").setAttribute("inert", "");
     box.focus();
   } else if (left) { focusCard(); }
 })();
