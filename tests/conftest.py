@@ -20,7 +20,7 @@ def no_browser(monkeypatch):
     return opened
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True)
 def repo_stays_clean():
     """No test leaves judgekeeper's own files in the repo it runs from."""
     root = Path(__file__).parent.parent
