@@ -220,8 +220,8 @@ def test_screen_7_promptfoo_with_no_results_file(here, capsys):
         "database.",
         "",
         "Next: save your last run with",
-        "`promptfoo export eval latest -o promptfoo-results.json` (free:",
-        "it runs no test), then run `judgekeeper` again.",
+        "`promptfoo export eval latest -o promptfoo-results.json` (it",
+        "runs no test), then run `judgekeeper` again.",
     ]
 
 
