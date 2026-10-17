@@ -548,25 +548,12 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys, judge):
 
 # The result points at fix ---------------------------------------------------------------------
 
-def test_the_result_shows_where_the_judge_goes_wrong_and_points_at_fix(here, capsys):
+def test_the_result_points_at_fix_and_leaves_the_clues_to_it(here, capsys):
     project(here)
     capsys.readouterr()
     assert main([]) == 0
     out = capsys.readouterr().out
-    lines = out.splitlines()
-    at = lines.index("Where it goes wrong:")
-    block = []
-    for line in lines[at + 1:]:
-        if not line.startswith("  "):
-            break
-        block.append(line)
-    assert 1 <= len(block) <= 3
-    seen = fix.read_split(Workspace(here)).seen  # hidden from the first result on
-    m = fix.Marks(Workspace(here))
-    wrong = [i for i in seen if m.judge[i] != m.person[i]]
-    passed = sum(m.judge[i] == "pass" for i in wrong)
-    assert block[0].startswith(f"  {passed} of its {len(wrong)} mistakes are answers it passed "
-                               "but you failed")
+    assert "Where it goes wrong" not in out and "of its" not in out  # fix prints the clues
     assert " ".join(out.split()).endswith("Next: to try a better rule, run `judgekeeper fix`.")
 
 
@@ -577,8 +564,7 @@ def test_the_result_uses_only_the_seen_marks_once_some_are_hidden(here, capsys):
     seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
     capsys.readouterr()
     main([])
-    out = capsys.readouterr().out
-    assert f"of its {len(seen)} mistakes" in out
+    assert fix.where_wrong(ws)[1] == len(seen)  # what decides whether fix is the next step
 
 
 # report.html ----------------------------------------------------------------------------------

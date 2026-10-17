@@ -666,9 +666,9 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             ok, detail = False, f"({type(e).__name__}: {e})"
         self.step("2. the stand-in person marks every answer on the page", ok, detail)
         self.mark_step("2. judgekeeper prints the result", self.front(),
-                       [r"Your judge vs your marks, on 50 answers:",
-                        r"You passed:  your judge also passed about \d+%",
-                        r"You failed:  (your judge also failed about \d+%|too early to tell)",
+                       [r"Result: ",
+                        r"You passed \d+ answers\. Of those, your judge passed",
+                        r"You failed \d+ answers\. Of those, your judge passed",
                         r"Step 3 of 5: Measure", *uvx])
         self.mark_step("2. judgekeeper --stop closes the page", [*self.jk, "--stop"],
                        [r"Closed the marking page"])

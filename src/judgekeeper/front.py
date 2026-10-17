@@ -120,10 +120,7 @@ NEXT_FIX = "to try a better rule, run `{command}`."
 FIX_FROM = 3  # mistakes on the seen marks that make `judgekeeper fix` the next step
 NEXT_CONTINUE = "run `{command}` when you want to continue."
 STILL_OPEN = "The marking page is still open if you want to mark more answers."
-VS_MARKS = "Your judge vs your marks, on {n}:"
-ESTIMATES = ("These are estimates from {n} marked answers.",
-             "Mark more answers to make them more precise.")
-TOO_EARLY = "too early to tell"
+AGREES = "How often your judge agrees with you (estimates):"
 NEXT_MARK_MORE = "run `{command}` to mark more answers."
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
@@ -912,25 +909,39 @@ def _pct(x: float) -> str:
     return f"{x:.0%}"
 
 
-def side_line(said: str, value, interval) -> str:
-    """One side of the result: "  You passed:  your judge also passed about 61% (could be 42%
-    to 78%)"; too early to tell when its range is wider than targets.TOO_WIDE."""
-    head = f"  You {said}:  "
-    known = value is not None and bool(interval) and interval[0] is not None
-    word = targets.width_word(interval) if known else None
-    if not known or word == "too_wide":
-        return head + TOO_EARLY
-    if word == "exact":
-        return f"{head}your judge also {said} {_pct(value)} (exactly)"
-    lo, hi = interval
-    return (f"{head}your judge also {said} about {_pct(value)} (could be {_pct(lo)} to "
-            f"{_pct(hi)})")
+def agreement_lines(r: dict) -> list[str]:
+    """Under the verdict, as on the result page: how many answers you and your judge
+    disagreed on, then the two counts, indented."""
+    from judgekeeper.report_page import counts
+
+    c = counts(r)
+    n, d = c["passed"] + c["failed"], c["strict"] + c["easy"]
+    first = (f"You and your judge disagreed on {d} of {_n(n, 'answer')}." if d else
+             f"You and your judge agreed on all {_n(n, 'answer')}.")
+    return [first, "",
+            (f"  You passed {_n(c['passed'], 'answer')}. Of those, your judge passed "
+             f"{c['passed'] - c['strict']} and failed {c['strict']}."),
+            (f"  You failed {_n(c['failed'], 'answer')}. Of those, your judge passed "
+             f"{c['easy']} and failed {c['failed'] - c['easy']}.")]
+
+
+def estimate_lines(r: dict) -> list[str]:
+    """How often the judge agrees with you, estimated, as the result page's More details
+    (report_page.estimate): "about 57% (between 37% and 74%)", or too early to tell."""
+    from judgekeeper.report_page import estimate
+
+    out = [AGREES]
+    for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
+        shown, between = estimate(r.get(key), r.get(f"{key}_interval"))
+        value = shown if between == "–" else f"{shown} (between {between})"
+        out.append(f"  When you say {said}, it also says {said}: {value}")
+    return out
 
 
 def verdict_line(r: dict) -> str | None:
-    """The one line on how good the judge is, "Result: ..."; None while a side is too early
-    to tell (no verdict then)."""
-    if r["verdict_level"] in (None, "too_early"):
+    """The one line on how good the judge is, "Result: ...", with the result page's
+    headlines; None before a first result."""
+    if r["verdict_level"] is None:
         return None
     return f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}"
 
@@ -977,27 +988,25 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     fix.prepare_split(ws)  # before any mistake is shown or written: some marks are hidden
     session = StartSession(ws)
     r = start_label.store_result(ws, session, _command_of(talk, saved))
-    n = r["labels"]["correct"] + r["labels"]["wrong"]
     made = r.get("made") or marks.made(marks.read(ws.marks), ids=set(session.by_id))
     for line in made_lines(made)[1:]:  # the notes on how they were made; the count is below
         talk.para(line)
         talk.say()
-    talk.say(VS_MARKS.format(n=_n(n, "answer")))
-    talk.say()
-    talk.say(side_line("passed", r["tpr"], r.get("tpr_interval")))
-    talk.say(side_line("failed", r["tnr"], r.get("tnr_interval")))
-    talk.say()
-    for line in ESTIMATES:
-        talk.say(line.format(n=n))
-    verdict = verdict_line(r)
-    if verdict:
+    talk.para(verdict_line(r))
+    for line in agreement_lines(r):
+        if line.startswith("  "):  # an indented count is said whole, never wrapped
+            talk.say(line)
+        else:
+            talk.para(line)
+    if r["verdict_level"] != "too_early":  # real numbers: the estimates
         talk.say()
-        talk.para(verdict)
+        for line in estimate_lines(r):
+            talk.say(line)
     which = _which_judge(ws, found)
     if which:
         talk.say()
         talk.para(which)
-    wrong = _where_wrong(talk, ws)
+    wrong = _mistakes_seen(ws)
     talk.say()
     talk.say(f"Full report: {shown_folder(ws)}/{ws.report_html.name} (open it in your browser)")
     talk.say()
@@ -1027,20 +1036,15 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     return EXIT_OK
 
 
-def _where_wrong(talk: FrontTalk, ws: Workspace) -> int:
-    """The result's "Where it goes wrong" lines (fix.where_wrong); how many mistakes."""
+def _mistakes_seen(ws: Workspace) -> int:
+    """How many mistakes the judge made on the marks the person can see (fix.where_wrong):
+    from FIX_FROM on, the next step is `judgekeeper fix`, which prints the clues."""
     from judgekeeper import fix
 
     try:
-        lines, wrong = fix.where_wrong(ws)
+        return fix.where_wrong(ws)[1]
     except (OSError, ValueError, KeyError):  # what the result is made from can't be read
         return 0
-    if lines:
-        talk.say()
-        talk.say("Where it goes wrong:")
-        for line in lines:
-            talk.para(line, indent="  ")
-    return wrong
 
 
 def _stop(talk: FrontTalk, path: Path) -> int:

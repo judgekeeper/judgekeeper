@@ -167,17 +167,15 @@ def test_the_result_has_each_side_on_one_line_with_its_range(project, capsys):
                                                                     else "pass"))
     lines = out.splitlines()
     assert "Step 3 of 5: Measure" in lines
-    assert "Your judge vs your marks, on 60 answers:" in lines
-    sides = [x for x in lines if x.startswith("  You ")]
-    assert len(sides) == 2
-    for line, word in zip(sides, ("passed", "failed"), strict=True):
-        assert line.startswith(f"  You {word}:  your judge also {word} about ")
-        assert " (could be " in line and line.endswith("%)")
-    assert "These are estimates from 60 marked answers." in lines
-    assert "Mark more answers to make them more precise." in lines
+    at = lines.index("How often your judge agrees with you (estimates):")
+    for line, word in zip(lines[at + 1:at + 3], ("Pass", "Fail"), strict=True):
+        assert line.startswith(f"  When you say {word}, it also says {word}: about ")
+        assert " (between " in line and line.endswith("%)")
+    counts = [x for x in lines if x.startswith("  You ")]
+    assert [x.split(" answers.")[0] for x in counts] == ["  You passed 30", "  You failed 30"]
     assert all(len(x) <= 80 for x in lines)
     for gone in ("Kappa", "kappa", "Your marks:", "sitting", "can see a drop", "likely",
-                 "Probably"):
+                 "Probably", "These are estimates", "could be"):
         assert gone not in out, gone
 
 
@@ -186,8 +184,8 @@ def test_a_side_too_wide_is_too_early_to_tell(project, capsys):
 
     promptfoo_project(project, split(180, 20))  # the judge passes 90%: few answers fail
     out = _measured(project, capsys, lambda g, n: g, limit=30)  # 15 + 15, all agreed
-    assert "  You failed:  too early to tell" in out.splitlines()
-    assert "Result:" not in out
+    assert "Result: too early to tell. Mark more answers to get a result." in out.splitlines()
+    assert "How often" not in out and "When you say" not in out  # no estimates block yet
     assert out.rstrip().endswith(
         "Next: run `judgekeeper mark --no-browser` to mark more answers.")
 

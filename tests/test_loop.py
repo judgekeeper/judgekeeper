@@ -15,7 +15,7 @@ import re
 
 import pytest
 
-from judgekeeper import __version__, background, label, marks, page, start_label
+from judgekeeper import __version__, background, label, marks, page, report_page, start_label
 from tests.page_http import retried
 from tests.start_projects import promptfoo_project, records_project, split
 from tests.test_front import assert_one_next_at_the_end, next_lines, run
@@ -196,14 +196,24 @@ def test_enough_marks_print_the_result(here, capsys, pages):
     assert code == 0, out
     assert _check(out, err) == NEXT_RESULT
     lines = out.splitlines()
-    assert lines[2:4] == ["Step 3 of 5: Measure", ""]
-    assert "Your judge vs your marks, on 36 answers:" in lines
-    assert "  You passed:  your judge also passed about 100% (could be " in out
-    assert "  You failed:  your judge also failed about 100% (could be " in out
-    assert "These are estimates from 36 marked answers." in lines
-    for gone in ("Your marks:", "Kappa", "can see a drop"):
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+
+    def said(key):
+        estimate, between = report_page.estimate(r[key], r[f"{key}_interval"])
+        return f"{estimate} (between {between})"
+    assert lines[2:16] == [
+        "Step 3 of 5: Measure", "",
+        f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}",
+        "You and your judge agreed on all 36 answers.", "",
+        "  You passed 20 answers. Of those, your judge passed 20 and failed 0.",
+        "  You failed 16 answers. Of those, your judge passed 0 and failed 16.", "",
+        "How often your judge agrees with you (estimates):",
+        f"  When you say Pass, it also says Pass: {said('tpr')}",
+        f"  When you say Fail, it also says Fail: {said('tnr')}", "",
+        "Full report: .judgekeeper/report.html (open it in your browser)", ""]
+    for gone in ("Your marks:", "Kappa", "can see a drop", "Your judge vs your marks",
+                 "These are estimates", "could be", "Where it goes wrong"):
         assert gone not in out, gone
-    assert ("Full report: .judgekeeper/report.html (open it in your browser)") in out
     assert "The marking page is still open if you want to mark more answers." in out
     assert len(pages[0]) == 1  # no page started for the result
     assert (ws.dir / "report.html").is_file()
@@ -236,8 +246,9 @@ def test_a_judge_that_fails_few_of_the_answers_you_failed_is_measured(here, caps
         session.update({"id": item["id"], "label": said, "seconds": 5})
     code, out, _ = run(capsys)
     assert code == 0
-    assert "Your judge vs your marks, on 36 answers:" in out
-    assert "  You failed:  your judge also failed about 76% (could be 62% to 89%)" in out
+    assert "You and your judge disagreed on 5 of 36 answers." in out
+    assert "  You failed 21 answers. Of those, your judge passed 5 and failed 16." in out
+    assert "  When you say Fail, it also says Fail: about 76% (between 62% and 89%)" in out
 
 
 def test_a_changed_rule_carries_on_and_says_which_judge(here, capsys, pages):
@@ -289,7 +300,7 @@ def test_from_a_promptfoo_project_the_person_runs_judgekeeper_once_then_clicks(h
     html = ws.report_html.read_text(encoding="utf-8")
     assert r["verdict"].split(".")[0] in html and 'class="counts"' in html
     code, out, err = run(capsys)
-    assert code == 0 and "  You passed:  your judge also passed about " in out
+    assert code == 0 and "  When you say Pass, it also says Pass: " in out
 
 
 # Marks for another judge, or from 0.2 -----------------------------------------------------
@@ -365,7 +376,7 @@ def test_after_a_new_eval_run_the_result_goes_on(here, capsys, pages):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert _flat(out).count(RAN_AGAIN) == 1
-    assert "Your judge vs your marks, on 36 answers:" in out
+    assert "How often your judge agrees with you (estimates):" in out
     assert _check(out) == NEXT_RESULT
 
 

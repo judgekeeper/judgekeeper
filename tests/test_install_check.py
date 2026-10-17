@@ -272,8 +272,8 @@ def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
     first = " ".join(ran[0][1])
     assert "Open this link" in first and "Your judge's grades: 28 Pass, 22 Fail" in first
     result = " ".join(ran[1][1])
-    assert "You passed:  your judge also passed about" in result
-    assert "Your judge vs your marks, on 50 answers:" in result
+    assert "You passed \\d+ answers\\. Of those, your judge passed" in result
+    assert "Result: " in result
     assert "automatic" not in result.lower()
     assert not [path for _, _, path, _ in posted if path in ("/turn-on", "/no-thanks")]
     assert not [name for name, *_ in steps if "Turn on" in name]
