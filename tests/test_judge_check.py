@@ -414,7 +414,8 @@ def test_nothing_is_written_outside_the_judgekeeper_folder(tmp_path, capsys):
     assert after == before
 
 
-def test_the_result_carries_the_counts_and_the_page_shows_the_card(tmp_path, capsys):
+def test_the_result_carries_the_counts_and_the_page_says_how_many_are_left_out(tmp_path,
+                                                                              capsys):
     data = promptfoo_with_problems(split(20, 13), errors=[32])
     _write_json(tmp_path / "results.json", data)
     run(capsys, tmp_path)
@@ -423,25 +424,22 @@ def test_the_result_carries_the_counts_and_the_page_shows_the_card(tmp_path, cap
     r = save_result(ws, session, say=lambda line: None)
     assert r["judge_check"]["error"] == 1
     html = ws.report_html.read_text(encoding="utf-8")
-    assert "Did your judge actually judge?" in html
-    assert ("Your judge made no real decision on 1 of 33 answers: 1 call failed. promptfoo counted "
-            "it as a fail. It is left out here.") in html
-    assert ".judgekeeper/judge-check.csv" in html
+    assert ('<p class="left-out band">Your judge gave no Pass or Fail on 1 answer. It is left '
+            "out.</p>") in html
+    assert judge_check.TITLE not in html  # the full findings: the terminal and the CSV file
 
 
-def test_a_clean_result_page_has_one_quiet_line(tmp_path, capsys):
+def test_a_clean_result_page_has_no_left_out_line(tmp_path, capsys):
     promptfoo_project(tmp_path, split(20, 12))
     run(capsys, tmp_path)
     ws = start_label.Workspace(tmp_path)
     save_result(ws, start_label.StartSession(ws), say=lambda line: None)
     html = ws.report_html.read_text(encoding="utf-8")
-    assert "<details" in html and judge_check.EVERY_ANSWER in html
-    assert "Did your judge actually judge?" in html.split("<details")[1]
+    assert 'class="left-out' not in html and judge_check.EVERY_ANSWER not in html
 
 
 def test_an_old_result_without_the_block_shows_nothing_new():
-    content = start_label.page_content(_old_result())
-    assert content["judge_check"] is None and content["judge_check_quiet"] is None
+    assert 'class="left-out' not in start_label.result_html(_old_result())
 
 
 def _old_result():

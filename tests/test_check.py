@@ -221,13 +221,16 @@ SCENE_6 = [
     "",
     "Re-checked on all 50 of your marks:",
     "",
-    "  You passed:  old judge right on 25 of 25, new judge on 25 of 25",
-    "    No drop bigger than 20 points: none turned wrong, none turned right.",
+    "  You passed 25 answers. Your old judge agreed with you on 25,",
+    "  your new judge on 25.",
+    "    No drop bigger than 20 points: none went from right to",
+    "    wrong, none from wrong to right.",
     "    These marks can't rule out a drop of up to 10 points.",
     "",
-    "  You failed:  old judge right on 25 of 25, new judge on 16 of 25",
-    "    Worse: 9 turned wrong and none turned right.",
-    "    That is down 36 points, and it could be as much as 52.",
+    "  You failed 25 answers. Your old judge agreed with you on 25,",
+    "  your new judge on 16.",
+    "    Worse: 9 answers went from right to wrong, and none from wrong to right.",
+    "    That is about 36 points lower, and could be as much as 52.",
     "",
 ]
 
@@ -253,8 +256,11 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_c
     _results(here, MARKED, model=HAIKU)
     code, out = run(capsys)
     assert code == 0
-    assert "  You failed:  old judge right on 25 of 25, new judge on 25 of 25" in out
-    assert "    No drop bigger than 20 points: none turned wrong, none turned right." in out
+    assert ("You failed 25 answers. Your old judge agreed with you on 25, your new judge on "
+            "25.") in _flat(out)
+    assert ("No drop bigger than 20 points: none went from right to wrong, none from wrong to "
+            "right.") in _flat(out)
+    assert "turned" not in out
     assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
                           "change your judge.")
     code, out = run(capsys)
@@ -371,7 +377,7 @@ def test_with_yes_the_rest_is_asked_again(here, capsys, judge):
     assert code == 1
     assert "Re-checked on all 50 of your marks:" in out
     assert "Re-checked for free" not in out
-    assert "Worse: 9 turned wrong and none turned right." in _flat(out)
+    assert "Worse: 9 answers went from right to wrong, and none from wrong to right." in _flat(out)
     assert _evals(judge) == 1
     tests = judge["fake"].files_seen["tests"]
     assert len(tests) == 50
@@ -470,7 +476,7 @@ def test_the_next_check_compares_with_the_last_checks_verdicts(here, capsys, no_
     _results(here, LENIENT, model="anthropic:claude-sonnet-5")
     code, out = run(capsys)
     assert code == 1  # against the last check's verdicts (all agreed): 9 new mistakes
-    assert "old judge right on 25 of 25, new judge on 16 of 25" in _flat(out)
+    assert "Your old judge agreed with you on 25, your new judge on 16." in _flat(out)
     assert f"Your judge changed: model {HAIKU} -> anthropic:claude-sonnet-5." in _flat(out)
 
 
@@ -529,57 +535,21 @@ def test_history_and_verdicts_stay_on_new(here, capsys, no_calls):
     assert not (moved / "history.jsonl").exists()
 
 
-# The report's History -------------------------------------------------------------------------
+# The report after a check ----------------------------------------------------------------------
 
-def test_the_report_has_a_history_row_per_check(here, capsys, no_calls):
+def test_a_check_writes_the_report_again_with_no_history_on_it(here, capsys, no_calls):
     from judgekeeper.cli import main as cli
 
     ws = _marked(here)
     assert cli([]) == 0  # the result: report.html
+    ws.report_html.unlink()
     _results(here, LENIENT, model=HAIKU)
     assert run(capsys)[0] == 1
-    html = ws.report_html.read_text(encoding="utf-8")
-    assert "<h3>History</h3>" in html
-    row = html.split("<h3>History</h3>")[1]
-    assert f"model {MODEL} -&gt; {HAIKU}" in row
-    assert "50 marks (50 free)" in row
-    assert "Answers you failed: 100% → 64%" in row
-    assert "Worse" in row and "exact" in row
-    assert "<script" not in html
-
-
-def test_the_report_has_no_history_before_a_check(here, capsys):
-    from judgekeeper.cli import main as cli
-
-    ws = _marked(here)
-    cli([])
-    capsys.readouterr()
-    assert "<h3>History</h3>" not in ws.report_html.read_text(encoding="utf-8")
-
-
-def test_history_rows():
-    rows = check.history_rows([
-        {"time": "2026-10-19T10:00:00Z", "kind": "check", "trigger": "by hand",
-         "changed": ["model a -> b"], "marks": 50, "free": 12, "asked": 38, "exact": "close",
-         "groups": {"passed": {"n": 25, "old": 0.96, "new": 0.92, "verdict": "no drop seen"},
-                    "failed": {"n": 25, "old": 0.9, "new": 0.6, "verdict": "worse"}}},
-        {"time": "2026-10-12T10:00:00Z", "kind": "check", "trigger": "baseline", "changed": [],
-         "marks": 50, "free": 0, "asked": 50, "exact": "exact", "groups": None,
-         "flipped": ["a"]},
-        {"time": "2026-10-12T09:00:00Z", "kind": "result"},
-    ])
-    assert [r["changed"] for r in rows] == ["model a -> b"]  # a beta's baseline is not a check
-    assert rows[0]["tested"] == "50 marks (12 free, 38 asked again)"
-    assert rows[0]["groups"] == ["Answers you passed: 96% → 92%",
-                                 "Answers you failed: 90% → 60%"]
-    assert rows[0]["verdict"] == "Worse" and rows[0]["exact"] == "close copy"
-
-
-def test_one_mark_is_said_as_one():
-    (row,) = check.history_rows([{"time": "2026-10-19T10:00:00Z", "kind": "check",
-                                  "trigger": "by hand", "changed": [], "free": 0, "asked": 1,
-                                  "exact": "exact", "groups": {}}])
-    assert row["tested"] == "1 mark (1 asked again)"
+    html = ws.report_html.read_text(encoding="utf-8")  # written again by the check
+    assert 'id="verdict-h"' in html
+    assert "History" not in html and HAIKU not in html.split("<body>")[1].split("</header>")[1]
+    assert any(json.loads(x).get("kind") == "check"  # history.jsonl is still written
+               for x in ws.history_jsonl.read_text(encoding="utf-8").splitlines())
 
 
 def test_no_internal_words_in_the_code():

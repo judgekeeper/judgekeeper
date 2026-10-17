@@ -2,12 +2,12 @@
 
 Every command, flag, exit code, file and format. The README has the short version.
 
-Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. `judgekeeper` does Find, Mark and Measure; `judgekeeper mark` marks more; `judgekeeper fix` shows where your judge goes wrong and tests a better rule; `judgekeeper check` re-checks your judge after a change. Run them in your own terminal: each run ends with one `Next:` line that says what you do. `judgekeeper --help` lists the commands, and `judgekeeper <command> --help` each command's flags.
+Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. `judgekeeper` does Find, Mark and Measure; `judgekeeper mark` marks more; `judgekeeper fix` shows where your judge goes wrong and tests a better rule; `judgekeeper check` re-checks your LLM-as-a-judge after a change. Run them in your own terminal: each run ends with one `Next:` line that says what you do. `judgekeeper --help` lists the commands, and `judgekeeper <command> --help` each command's flags.
 
 - [judgekeeper: find, mark, measure](#judgekeeper-find-mark-measure)
 - [mark: mark more answers](#mark-mark-more-answers)
 - [fix: see where your judge goes wrong and test a better rule](#fix-see-where-your-judge-goes-wrong-and-test-a-better-rule)
-- [check: re-check your judge after a change](#check-re-check-your-judge-after-a-change)
+- [check: re-check your LLM-as-a-judge after a change](#check-re-check-your-llm-as-a-judge-after-a-change)
 - [How the numbers are worked out](#how-the-numbers-are-worked-out)
 - [What it reads](#what-it-reads)
 - [How grades are read](#how-grades-are-read)
@@ -31,9 +31,9 @@ Each run does the next step:
 
 | What is there | What `judgekeeper` does |
 |---|---|
-| Nothing marked yet | Step 1, Find: names your eval tool, the answers, your judge and its rule, and checks its grades for free (no AI call). Step 2, Mark: opens the marking page in your browser |
+| Nothing marked yet | Step 1, Find: names your eval tool, the answers, your judge and its rule, and checks its grades with no AI call. Step 2, Mark: opens the marking page in your browser; mark until "See your result" appears, then click it |
 | Some marks, not enough yet | Says how many you marked; the marking page stays open, or opens again when it was closed |
-| Enough marks of each kind | Step 3, Measure: how often your judge agrees with you, and where it goes wrong. The full report is saved in `.judgekeeper/report.html` |
+| Enough marks of each kind | Step 3, Measure: how often your judge agrees with you, and where it goes wrong. The report is saved in `.judgekeeper/report.html`: the result, your counts, the answers where you and your judge disagree, and the estimates |
 | Marks for another judge or eval tool | Says why, and asks before it starts over (your old marks move to `.judgekeeper/previous-<date>/`; nothing is deleted) |
 | Something to choose (several eval tools, judges or MLflow stores, a pass mark) | Asks at a terminal. Without one, it prints the flag that answers the question and exits 3 |
 | No results found | Names the eval tool it found with no saved results yet, or says what it can read |
@@ -62,7 +62,7 @@ judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a 
 | `--version` | Show the version and exit |
 | `--debug` | On an unexpected error, also print the traceback (credentials are still scrubbed) |
 
-**The marking page** shows one answer at a time, with your judge's grade hidden; you mark it Pass or Fail, the way you want your judge to decide (keys `←` Fail and `→` Pass). "See your result" appears once there are enough marks of each kind. The page runs on 127.0.0.1 with a random token in its link, and saves a mark only from the page itself (its own origin), so the marks are yours. Every click is saved at once.
+**The marking page** shows one answer at a time, with your judge's grade hidden; you mark it Pass or Fail, the way you want your judge to decide (keys `←` Fail and `→` Pass, `S` to skip, `Z` to undo). Your judge's rule is not shown. "See your result" appears once there are enough marks of each kind. The page runs on 127.0.0.1 with a random token in its link, and saves a mark only from the page itself (its own origin), so the marks are yours. Every click is saved at once.
 
 **Exit codes:** 0 the next step is done, 3 you are needed (the `Next:` line says what to do), 2 a usage error, 130 Ctrl-C.
 
@@ -86,20 +86,20 @@ It needs a result (enough marks of each kind). Each run does the next step:
 
 | What is there | What `judgekeeper fix` does |
 |---|---|
-| No new rule in `.judgekeeper/fix/rule.txt` | Sets some of your marks aside, hidden (about 30% of each group: your judge's passes and fails, where you agree with it and where not; at least 5 marked Pass and 5 marked Fail). On the other marks: where your judge goes wrong (too easy or too strict, mistakes near the pass mark, long answers, words found in many of its mistakes) and `.judgekeeper/fix/mistakes.md`, each mistake with your mark, its grade, the question, the answer, your note and its own reason, fenced as data. Where your judge's rule is written (file and line) |
-| A judge with a score and a pass mark | Also tests the pass mark that fits the other marks best on the hidden marks, with the saved scores: free, no AI call. Shown when it is better or safe to try |
-| A new rule in `rule.txt` | Checks it (empty, a template part dropped or added: refused; a big change or text copied from an answer: said), says how many AI calls the test makes, and asks `Go ahead? [y/N]` (without a terminal, `--yes`). Then it asks your judge about the hidden answers, once with the old rule and once with the new one, in the same run, and gives the result |
+| No new rule in `.judgekeeper/fix/rule.txt` | Keeps some of your marks aside (about 30% of each group: your judge's passes and fails, where you agree with it and where not; at least 5 marked Pass and 5 marked Fail). On the other marks: the clues, under "Clues:" (too easy or too strict, mistakes near the pass mark, long answers, words found in many of its mistakes), and `.judgekeeper/fix/mistakes.md`: what to do in one line, the same clues, your judge's rule, then each mistake with your mark, its grade, the question, the answer, your note and its own reason, fenced as data. You can hand the file to a coding agent. Where your judge's rule is written (file and line) |
+| A judge with a score and a pass mark | Also tests the pass mark that fits the other marks best on the marks kept aside, with the saved scores: free, no AI call. Shown when it is better or safe to try |
+| A new rule in `rule.txt` | Checks it (empty, a template part dropped or added: refused; a big change or text copied from an answer: said), says how many AI calls the test makes, and asks `Go ahead? [y/N]` (without a terminal, `--yes`). Then it asks your judge about the answers kept aside, once with the old rule and once with the new one, in the same run, and gives the result |
 | A judge whose rule judgekeeper can't swap in | Says so: change the rule yourself, run your eval and `judgekeeper check` |
 
 | Flag | What it does |
 |---|---|
 | `PATH` | Your project folder (default: this folder) |
 | `--yes` | Without a terminal: go ahead and test the new rule (it makes AI calls, paid with your own key) |
-| `--new` | Hide a new set of your marks to test rules on |
+| `--new` | Keep a new set of your marks aside to test rules on |
 
-The hidden marks stay hidden: nothing prints them or writes them anywhere but `.judgekeeper/fix/split.json`, so a new rule is never written from them. They stay the same until `--new`.
+The marks kept aside are never shown: nothing prints them or writes them anywhere but `.judgekeeper/fix/split.json`, so a new rule is never written from them. They stay the same until `--new`.
 
-**The result**, from the hidden marks: fixed (the old rule was wrong, the new one right) and broke (the other way round).
+**The result**, from the marks kept aside: fixed (the old rule was wrong, the new one right) and broke (the other way round).
 
 | Result | When |
 |---|---|
@@ -107,13 +107,13 @@ The hidden marks stay hidden: nothing prints them or writes them anywhere but `.
 | Safe to try | Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 points worse |
 | Can't tell yet | Else; it says whether it leans toward better, looks the same, or looks worse |
 
-Each extra test on the same hidden marks is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". Over all tries on one set, a wrong "safe to try" stays under about 1 in 20. After a "can't tell yet" that leans toward better, it asks once for a few more marks (7 when about 10 are hidden, 9 when about 15): they join the hidden marks and the same rule is tested again. After 3 rules, 10 new marks become a new set of hidden marks.
+Each extra test on the same marks kept aside is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". Over all tries on one set, a wrong "safe to try" stays under about 1 in 20. After a "can't tell yet" that leans toward better, it asks once for a few more marks (7 when about 10 are kept aside, 9 when about 15): they join the marks kept aside and the same rule is tested again. After 3 rules, 10 new marks become a new set of marks kept aside.
 
-Your judge's rule is swapped in by judgekeeper when it asks: promptfoo's assertion value, a DeepEval GEval's evaluation steps (or criteria), an Inspect scorer's instructions, an MLflow `make_judge`'s instructions or a `Guidelines` text. A judge whose rule can't be swapped (a table, your own code, a registered or built-in MLflow judge) is told to change the rule itself, run its eval and `judgekeeper check`. judgekeeper never changes your files. Each test is saved: the rule in `.judgekeeper/rules/<hash>.txt`, and a line in `history.jsonl` (the rule's hash, the counts and the result; no answer text). `report.html` has a Fix section and a History row for each test.
+Your judge's rule is swapped in by judgekeeper when it asks: promptfoo's assertion value, a DeepEval GEval's evaluation steps (or criteria), an Inspect scorer's instructions, an MLflow `make_judge`'s instructions or a `Guidelines` text. A judge whose rule can't be swapped (a table, your own code, a registered or built-in MLflow judge) is told to change the rule itself, run its eval and `judgekeeper check`. judgekeeper never changes your files. Each test is saved: the rule in `.judgekeeper/rules/<hash>.txt`, and a line in `history.jsonl` (the rule's hash, the counts and the result; no answer text).
 
 **Exit codes:** 0 the step is done, 3 you are needed (more marks, a rule to change, or the question needs your answer), 2 a usage error.
 
-## check: re-check your judge after a change
+## check: re-check your LLM-as-a-judge after a change
 
 ```
 judgekeeper check [PATH] [--yes]
@@ -133,20 +133,20 @@ Run it after you change your judge or update your eval tool, and run your eval. 
 | An agent judge's settings | Yes |
 | The eval tool's version | Yes |
 | A switch to another eval tool | No: it says your results now come from another eval tool and that it can't compare judges across two eval tools, and gives no result. Run `judgekeeper` to start fresh |
-| Your app's answers | No, on purpose: marks are tests for the judge, so a re-check grades the answers you marked |
+| The answers themselves | No, on purpose: marks are tests for the judge, so a re-check grades the answers you marked |
 
 | Flag | What it does |
 |---|---|
 | `PATH` | Your project folder (default: this folder) |
 | `--yes` | Without a terminal: go ahead and ask your judge (it makes AI calls, paid with your own key) |
 
-When something changed, it re-checks the new judge on your marks. Free first: answers you marked whose exact text is in your newest results already have the new judge's grade. For the rest it asks your own judge, through your own eval tool and with your own key: it says how many answers and AI calls that is, and asks `Go ahead? [y/N]` (Enter is No). Without a terminal it needs `--yes`, else it stops before any call (exit 3). It asks about each answer twice and compares the first grade; the second shows how often your judge changes its own grade, so a small difference can be told from that. Then, for the answers you passed and those you failed, how many of your marks the old and the new judge got right, how many turned wrong and how many turned right, and a result from a range on that change: "Worse" (the whole range is a drop), "No drop bigger than 20 points" (its low end is above that), or "Not sure". It always says the worst drop the marks could hide. Each group is checked on its own. In about 1 check in 10 at most, coincidence alone flags a drop in one of the two groups; mark more answers before acting on a small one. The rates `history.jsonl` and the report keep are corrected for how the marks were picked, the same as the result's. Each check is a line in `.judgekeeper/history.jsonl` (no answer text) and a row in the report's History. After a "Worse", your marks keep testing the new judge against the old one: every `check` says it is worse until you go back to the old judge or change it again.
+When something changed, it re-checks the new judge on your marks. Free first: answers you marked whose exact text is in your newest results already have the new judge's grade. For the rest it asks your own judge, through your own eval tool and with your own key: it says how many answers and AI calls that is, and asks `Go ahead? [y/N]` (Enter is No). Without a terminal it needs `--yes`, else it stops before any call (exit 3). It asks about each answer twice and compares the first grade; the second shows how often your judge changes its own grade, so a small difference can be told from that. Then, for the answers you passed and those you failed, how many of your marks the old and the new judge agreed with, how many went from right to wrong and how many from wrong to right, and a result from a range on that change: "Worse" (the whole range is a drop), "No drop bigger than 20 points" (its low end is above that), or "Not sure". It always says the worst drop the marks could hide. Each group is checked on its own. In about 1 check in 10 at most, coincidence alone flags a drop in one of the two groups; mark more answers before acting on a small one. The rates `history.jsonl` keeps are corrected for how the marks were picked, the same as the result's. Each check is a line in `.judgekeeper/history.jsonl` (no answer text). After a "Worse", your marks keep testing the new judge against the old one: every `check` says it is worse until you go back to the old judge or change it again.
 
 **Exit codes:** 0 no drop bigger than 20 points, not sure with a smaller drop, or nothing changed; 1 worse, or not sure with a drop bigger than 20 points; 3 you are needed (not enough marks, nothing could be re-checked, or the question needs your answer), 2 a usage error.
 
 ## How the numbers are worked out
 
-**What it checks first, for free.** Before you mark anything, `judgekeeper` looks at the judge's own grades: no marks, no AI call, no key. It says what it found, one line each:
+**What it checks first, with no AI call.** Before you mark anything, `judgekeeper` looks at the judge's own grades: no marks, no AI call, no key. It says what it found, one line each, each starting with "Checked:":
 
 - **No real decision.** The judge's call failed (DeepEval's `error`, or no score with `success` false; promptfoo's `graderError`, or in older files its grader-failure reasons such as "API error:"; Inspect AI's `grader_failed`, or a sample that errored before it was scored; MLflow's `feedback.error`), its reply could not be read (promptfoo's "Could not extract JSON" or "Error parsing output"; Inspect AI's "Grade not found in model output"), or there is no decision at all (a blank cell). These answers are left out, and it says what your eval tool counted them as: promptfoo and DeepEval count them as fails.
 - **Checked nothing.** A DeepEval metric whose judge returned nothing to check scores a full 1.0 and passes (its logs show an empty `Verdicts:` list). Left out too.
@@ -154,13 +154,13 @@ When something changed, it re-checks the new judge on your marks. Free first: an
 - **The same grade for every answer.** The judge passed (or failed) all of them.
 - **The reason says the opposite.** The judge's reason starts with PASS, PASSED, FAIL or FAILED, or its last `verdict:`, `grade:`, `result:`, `decision:`, `final verdict:` or `final answer:` says pass, fail, correct or incorrect (or Inspect AI's `GRADE: C` or `GRADE: I`), and either of them is the other grade. No other words count, so "does not fail" or "partially correct" are never flagged. Skipped for a judge that grades with a score and a pass mark.
 
-None of these stops it. When nothing is found it says every answer got a clear Pass or Fail. The answers found are listed in `.judgekeeper/judge-check.csv` and `judge-check.json`.
+None of these stops it. When nothing is found it says "Checked: your judge gave every answer a clear Pass or Fail." The answers found are listed in `.judgekeeper/judge-check.csv` and `judge-check.json`.
 
 **Which answers you mark.** From the newest results it takes every answer with a clear Pass or Fail, counted once (the same input and output; the newest file wins). With too few answers for a first result, it says so and says how to make more with your own eval tool. The page shows the answers in blocks of 10 in a seeded order, 5 from the judge's passes and 5 from its fails, so you see both kinds early. Your marks decide Pass and Fail; the judge's grades only decide how answers are picked.
 
-**The result.** TPR (of the answers you passed, how many your judge passed), TNR (of the answers you failed, how many it failed) and the real pass rate are corrected for showing far more of the judge's fails than the pool holds: worked out per group and weighted by the group's size. Their ranges come from Jeffreys draws: each group's share of answers you marked Pass gets the distribution Beta(passes + 0.5, marked − passes + 0.5); 20,000 pairs of draws, with a fixed seed so the same marks always give the same ranges, go through the same formulas, and a range is the middle 96% of what comes out (widened, if needed, to hold the number itself). The 96% was chosen by a coverage check, not assumed: [`docs/examples/coverage/coverage.md`](examples/coverage/coverage.md) simulates thousands of checks for judges that pass 50%, 70% and 90% of answers, agree weakly to strongly, and 10 to 40 labels per group. At 96% the ranges held the true value at least 93.6 times in 100 in every case and 96.2 on average; 95% fell to 91.6 in one case. The ranges before (Wilson at 97.5% per group, joined at the corners) held it 99.1 times in 100 on average: too cautious, so they were wider than needed; the ranges now are 27.1% narrower on average. On real data too: on 5 real judges from 3 public datasets, with 25 + 25 labels, the TPR and TNR ranges held the value worked out from all of the dataset's human labels in 96.0 checks in 100 on average (lowest 94.6, highest 98.4), over 1,000 checks per judge: [`docs/examples/real-data-check/report.md`](examples/real-data-check/report.md). Kappa is Cohen's kappa on the weighted table (your real mix of answers), with its range from the same draws. Kappa moves with how many answers pass, so it is in the report's details only and never decides the result.
+**The result.** TPR (of the answers you passed, how many your judge passed), TNR (of the answers you failed, how many it failed) and the real pass rate are corrected for showing far more of the judge's fails than the pool holds: worked out per group and weighted by the group's size. Their ranges come from Jeffreys draws: each group's share of answers you marked Pass gets the distribution Beta(passes + 0.5, marked − passes + 0.5); 20,000 pairs of draws, with a fixed seed so the same marks always give the same ranges, go through the same formulas, and a range is the middle 96% of what comes out (widened, if needed, to hold the number itself). The 96% was chosen by a coverage check, not assumed: [`docs/examples/coverage/coverage.md`](examples/coverage/coverage.md) simulates thousands of checks for judges that pass 50%, 70% and 90% of answers, agree weakly to strongly, and 10 to 40 labels per group. At 96% the ranges held the true value at least 93.6 times in 100 in every case and 96.2 on average; 95% fell to 91.6 in one case. The ranges before (Wilson at 97.5% per group, joined at the corners) held it 99.1 times in 100 on average: too cautious, so they were wider than needed; the ranges now are 27.1% narrower on average. On real data too: on 5 real judges from 3 public datasets, with 25 + 25 labels, the TPR and TNR ranges held the value worked out from all of the dataset's human labels in 96.0 checks in 100 on average (lowest 94.6, highest 98.4), over 1,000 checks per judge: [`docs/examples/real-data-check/report.md`](examples/real-data-check/report.md). Kappa is Cohen's kappa on the weighted table (your real mix of answers), with its range from the same draws. Kappa moves with how many answers pass, so it is in the report's More details only and never decides the result.
 
-**What it says.** The terminal and the report show "You passed: your judge also passed about N% (could be A% to B%)" and the same for Fail, then "These are estimates from N marked answers." A side whose range is more than 40 points wide says "too early to tell". One result line follows the ranges, never a number alone: "Your judge agrees with you often enough to use." when the low end of both ranges is at least 80%; "Your judge passes too many answers you would fail." (or "fails too many answers you would pass.") when a range stays below 80%; "Too early to tell: mark more answers." while a side is too early; else "Can't tell yet if your judge is good enough. Marking more answers will tell." Under the result, where it goes wrong: which side most of its mistakes are on, and words found in many of them.
+**What it says.** The terminal and the report say the same, in the same order. First one result line, from the ranges, never a number alone: "Your judge is good enough to use." when the low end of both ranges is at least 80%; "Your judge needs work." when a range stays below 80%; else "Too early to tell. Mark more answers to get a result." Then how many answers you and your judge disagreed on (or "agreed on all N answers"), and plain counts: of the answers you passed, how many your judge passed and failed, and the same for those you failed. Then "How often your judge agrees with you (estimates)": "When you say Pass, it also says Pass: about N% (between A% and B%)" and the same for Fail. A side whose range is more than 40 points wide says "too early to tell"; while it is too early to tell overall, the estimates are left out. The report also lists the answers where you and your judge disagree, in two groups, with your judge's own reason; marks kept aside for `judgekeeper fix` are counted, not shown. Kappa is under its More details. `judgekeeper fix` prints where your judge goes wrong: which side most of its mistakes are on, and words found in many of them.
 
 ## What it reads
 
@@ -328,7 +328,7 @@ Then run your eval once and `judgekeeper`: it finds the records. Install judgeke
 | `score`, `pass_mark` | Instead of `verdict`: a number, and the mark it must reach to pass (pass when `score >= pass_mark`). The pass mark is kept in `metadata`. A score with no pass mark is kept without a grade (then `--pass-if` reads it) |
 | `reason` | The judge's reason |
 | `judge` | The judge's model, e.g. `claude-opus-5` |
-| `rule` | The judge's rule or criteria, shown as "Your judge's rule" |
+| `rule` | The judge's rule or criteria. `judgekeeper fix` shows where it is and tests a new one; the marking page does not show it |
 | `name` | Which judge or criterion (default `judge`); with several names, `judgekeeper` asks which to check |
 | `temperature`, `id`, `metadata` | The judge's temperature, the answer's id (else one is made from the input and output), and a dict of anything else |
 
@@ -432,14 +432,14 @@ judgekeeper writes only inside `.judgekeeper/` in your project. Every string fro
 | `pool-judge.jsonl` | Your judge's grade on every answer, each line with the full fingerprint | When marking starts |
 | `marks.jsonl` | Your marks: a line about the judge first, then one line per click (the answer's id, your mark, the time; no answer text) | On every click |
 | `server.json`, `page.json` | The open marking page: its port, its process and a secret that only closes it (never the page's token) | While the page is open |
-| `result.json`, `report.html` | The result: every number, the counts of your marks, the fingerprint and the date. The report opens in your browser without a server, with a Fix section and a History | With each result |
+| `result.json`, `report.html` | The result: every number, the counts of your marks, the fingerprint and the date. The report opens in your browser without a server. When your judge needs work, it ends with Fix it: the command to run | With each result |
 | `history/` | Earlier results | When a new result replaces one |
 | `history.jsonl` | One line per result, fix test and check: the judge, the counts and the numbers, no answer text | With each result, fix test and check |
 | `anchors.jsonl`, `anchors.manifest.json` | The answers you marked, as a frozen set: the manifest holds the counts and a sha256 of the set | With each result |
-| `fix/split.json` | Which marks are hidden, the seed, and every test done on them | On the first `judgekeeper fix` |
-| `fix/mistakes.md` | Each mistake on the marks you can see, fenced as data | With `judgekeeper fix` |
+| `fix/split.json` | Which marks are kept aside, the seed, and every test done on them | On the first `judgekeeper fix` |
+| `fix/mistakes.md` | The task, the clues and your judge's rule, then each mistake on the marks you can see, fenced as data | With `judgekeeper fix` |
 | `fix/rule.txt` | Your new rule, written by you | By you |
-| `fix/runs/` | The grades your judge gave when it was asked about the hidden answers, each line with the full fingerprint | When you say yes to a test |
+| `fix/runs/` | The grades your judge gave when it was asked about the answers kept aside, each line with the full fingerprint | When you say yes to a test |
 | `rules/` | Each rule tested, as `<hash>.txt` | With each fix test |
 | `results-seen.json` | The judge's setup in the results read last, so a check with nothing new reads nothing again | With `judgekeeper check` |
 | `checks/` | The grades your judge gave when `check` asked it, each line with the full fingerprint | When you say yes to a check |

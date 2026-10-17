@@ -186,7 +186,7 @@ def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys, no_calls):
     assert judge_setup.read(ws)["setup_hash"] == before  # the old judge stays the reference
     code, out = run(capsys)
     assert code == 1
-    assert "Worse: 9 turned wrong and none turned right." in _flat(out)
+    assert "Worse: 9 answers went from right to wrong, and none from wrong to right." in _flat(out)
     assert "has not changed" not in out
     assert len(_history(ws)) == 1  # the same check is in the History once
     _results(here, MARKED)  # back to the old judge

@@ -214,7 +214,7 @@ def test_with_uvx_the_project_has_no_virtual_environment(ic, tmp_path):
 def test_the_marking_page_link_is_read_from_the_output(ic):
     out = ("Open this link in your browser to mark answers:\n"
            "http://127.0.0.1:54321/?token=Ab-c_9\n"
-           "It shows the same answers one at a time.")
+           "It shows the answers one at a time.")
     assert ic.page_link(out) == ("http://127.0.0.1:54321", "Ab-c_9")
 
 
@@ -272,8 +272,8 @@ def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
     first = " ".join(ran[0][1])
     assert "Open this link" in first and "Your judge's grades: 28 Pass, 22 Fail" in first
     result = " ".join(ran[1][1])
-    assert "You passed:  your judge also passed about" in result
-    assert "Your judge vs your marks, on 50 answers:" in result
+    assert "You passed \\d+ answers\\. Of those, your judge passed" in result
+    assert "Result: " in result
     assert "automatic" not in result.lower()
     assert not [path for _, _, path, _ in posted if path in ("/turn-on", "/no-thanks")]
     assert not [name for name, *_ in steps if "Turn on" in name]
@@ -317,7 +317,9 @@ def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_p
     assert fronts[0] == ["--no-browser", "--port", "5"] and len(fronts) == 2
     assert after[0][:1] == ["fix"]
     first, result = " ".join(ran[0][1]), " ".join(ran[1][1])
-    assert "Next: [^`]*`uvx judgekeeper@" in first and "Next: [^`]*`uvx judgekeeper@" in result
+    # The first look's Next: line names no command (mark, then click "See your result");
+    # the result's does, through uvx.
+    assert "uvx" not in first and "Next: [^`]*`uvx judgekeeper@" in result
 
 
 def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch, tmp_path):
@@ -334,7 +336,7 @@ def test_the_walk_runs_fix_after_the_result(ic, monkeypatch, tmp_path):
     end = commands.index(["--stop"])
     assert commands[end + 1:end + 3] == [["fix"], ["fix", "--yes"]]
     assert any("Step 4 of 5: Fix" in e for e in ran[end + 1][1])
-    assert any("Tested on your" in e for e in ran[end + 2][1])
+    assert any("Tested on the" in e and "kept aside" in e for e in ran[end + 2][1])
     rule = tmp_path / ".judgekeeper" / "fix" / "rule.txt"
     assert rule.read_text(encoding="utf-8").strip() == ic.rule_for("promptfoo", ic.RULE_NEW)
     ran, _, _ = _walk(ic, monkeypatch, "table", tmp_path / "t")

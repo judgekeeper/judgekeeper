@@ -42,10 +42,7 @@ TPR: of the answers you passed, how many your judge passed. TNR: of the answers 
 
 ## Numbers
 
-- **A real judge, checked.** Claude Haiku 4.5 as the judge on the LLMBar benchmark, against 419 answers labelled by people (206 Pass, 213 Fail), run 3 times. [Report](https://github.com/judgekeeper/judgekeeper/tree/main/docs/examples/llmbar-haiku)
-- When people said Pass, the judge also said Pass about 95% (could be 92% to 98%). TPR.
-- When people said Fail, the judge also said Fail about 88% (could be 83% to 91%). TNR.
-- Agreement beyond coincidence: kappa 0.83 (0.82 to 0.85 across the 3 runs).
+- **A real judge, checked.** Claude Haiku 4.5 on the LLMBar benchmark: 419 pairs of answers where the benchmark's authors marked the better one. It picked the same one 91% of the time (kappa 0.83), over 3 runs. [Report](https://github.com/judgekeeper/judgekeeper/tree/main/docs/examples/llmbar-haiku)
 - **Its ranges hold on real data.** We tested the ranges for how often the judge passed answers people passed (TPR) and how often it failed answers people failed (TNR). We used 5 real judges from 3 public datasets (LLMBar, MT-Bench, LLMJudge), with 50 human labels per check, over 1,000 checks per judge. On average the value from all the human labels fell inside the range in 96.0 checks in 100 (lowest 94.6, highest 98.4). [Real-data check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/real-data-check/report.md)
 - **One of those checks:** GPT-4 as the judge on MT-Bench, 50 labels: TPR 0.82 (range 0.71 to 0.91), and the value from all 1,814 human labels is 0.85; TNR 0.49 (range 0.36 to 0.65), and from all labels 0.56.
 - **In simulation too:** the ranges held the true value at least 93.6 times in 100 in every tested case, and 96.2 on average. [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)

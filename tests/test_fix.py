@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import fix
+from judgekeeper import fix, start_fix_rule
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer, promptfoo_data, question
@@ -145,27 +145,23 @@ def test_the_first_run(here, capsys):
     seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
     passed = sum(marks.judge[i] == "pass" for i in seen)
     lines = out.splitlines()
-    assert lines[:5] == ["judgekeeper 1.0.0b2", "", "Step 4 of 5: Fix", "",
-                         "Where your judge goes wrong:"]
+    assert lines[:5] == ["judgekeeper 1.0.0b2", "", "Step 4 of 5: Fix", "", "Clues:"]
     assert lines[5] == f"  {passed} of its {len(seen)} mistakes are answers it passed but you failed."
     assert lines[6] == "  Its rule may be too easy."
-    found = lines[5:lines.index("Each mistake, with your judge's own reason:") - 1]
+    saved = next(n for n, line in enumerate(lines) if line.startswith("The clues and all "))
+    found = lines[5:saved - 1]
     assert any(line.startswith("  Words found in many of its mistakes: ")
                and re.search(r"\brefund \(\d+\)", line) for line in found), found
-    tail = lines[lines.index("Each mistake, with your judge's own reason:"):]
-    assert tail == [
-        "Each mistake, with your judge's own reason:",
-        f"  .judgekeeper/fix/mistakes.md ({len(seen)} answers)",
-        "",
-        "Your judge's rule is in promptfooconfig.yaml, line 5:",
-        f'  "{RULE}"',
-        "",
-        f"{len(split['hidden'])} more of your marks are set aside and hidden. They test your",
-        "new rule fairly, on answers the new rule was not written from.",
-        "",
-        "Next: write your new rule in .judgekeeper/fix/rule.txt, then run",
-        "`judgekeeper fix` again to test it.",
-    ]
+    assert "Your judge's rule is in promptfooconfig.yaml, line 5:" in lines
+    assert " ".join(" ".join(lines[saved:]).split()) == (
+        f"The clues and all {len(seen)} mistakes are saved in .judgekeeper/fix/mistakes.md. "
+        "You can hand this file to a coding agent. "
+        f'Your judge\'s rule is in promptfooconfig.yaml, line 5: "{RULE}" '
+        f"{len(split['hidden'])} more of your marks are kept aside to test your new rule "
+        "fairly. Next: write your new rule in .judgekeeper/fix/rule.txt, then run "
+        "`judgekeeper fix` again to test it.")
+    for gone in ("hidden", "set aside", "Each mistake, with", "Where your judge goes wrong"):
+        assert gone not in out, gone
 
 
 def test_mistakes_md_holds_the_visible_mistakes_with_the_judges_reason(here, capsys):
@@ -183,6 +179,34 @@ def test_mistakes_md_holds_the_visible_mistakes_with_the_judges_reason(here, cap
     for i in split["hidden"]:
         assert i not in text
         assert rows[i]["output"] not in text
+
+
+def test_mistakes_md_is_agent_ready_a_task_line_the_clues_the_rule_then_the_mistakes(here, capsys):
+    ws = project(here)
+    _, out = run(capsys)
+    text = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    lines = text.splitlines()
+    assert lines[:4] == ["# Your judge's mistakes", "", fix.TASK, ""]
+    assert lines[4:6] == ["## Clues", ""]
+    clues = lines[6:lines.index("## Your judge's rule now")]
+    printed = out.splitlines()
+    said = printed[printed.index("Clues:") + 1:]
+    said = [x.strip() for x in said[:said.index("")]]
+    assert [x for x in clues if x] == said  # the same sentences the terminal prints
+    rule_at = lines.index("## Your judge's rule now")
+    assert lines[rule_at + 2] == "<<<RULE" and RULE in lines[rule_at + 3]
+    warn_at = next(n for n, x in enumerate(lines) if x.startswith(start_fix_rule.DATA_WARNING))
+    first = next(n for n, x in enumerate(lines) if x.startswith("## [M1] Your judge said "))
+    assert rule_at < warn_at < first
+    assert lines[warn_at].endswith(start_fix_rule.MARKS)
+    assert lines.index("## Mistakes") < warn_at
+
+
+def test_mistakes_md_with_no_clear_pattern_says_so():
+    rows = [{"judge": "pass", "final": "fail", "input": "q", "output": "a", "reason": "r"}]
+    text = fix.mistakes_md("Be kind.", rows)
+    assert "## Clues\n\nNo pattern stands out yet.\n" in text
+    assert fix.TASK in text and "<<<RULE\nBe kind.\nRULE>>>" in text
 
 
 def test_nothing_hidden_is_printed_or_written(here, capsys):
@@ -290,8 +314,8 @@ def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys,
     run(capsys)
     _, out = run(capsys)  # the second run shows the saved test, not a new one
     flat = " ".join(out.split())
-    m = re.search(r"A better pass mark: (0\.\d+) instead of 0\.5 \(tested on your hidden "
-                  r"marks: fixed (\d+), broke (\d+), (better|safe to try)\)\.", flat)
+    m = re.search(r"A better pass mark: (0\.\d+) instead of 0\.5 \(tested on the marks kept "
+                  r"aside: fixed (\d+), broke (\d+), (better|safe to try)\)\.", flat)
     assert m, flat
     assert 0.6 < float(m[1]) <= 0.7
     assert 'Use `--pass-if "score>=0.7"`.' in flat
@@ -359,7 +383,8 @@ def test_without_a_terminal_or_yes_the_rule_is_not_tested(here, capsys, judge):
     n, _, _ = _hidden_counts(ws)
     flat = " ".join(out.split())
     assert out.splitlines()[2] == "Step 4 of 5: Fix (testing your new rule)"
-    assert (f"To test it, judgekeeper asks your judge about your {n} hidden answers, once with "
+    assert (f"To test it, judgekeeper asks your judge about the {n} answers kept aside, once "
+            "with "
             f"the old rule and once with the new one. That is {2 * n} AI calls, paid with your "
             "own key.") in flat
     assert flat.endswith("Next: run `judgekeeper fix` in your terminal to answer, or "
@@ -380,19 +405,19 @@ def test_with_yes_both_rules_are_asked_and_the_verdict_comes_from_the_math(here,
     assert judge["evals"] == 2  # the old and the new rule, in the same run
     n, right, fixed = _hidden_counts(ws)
     lines = out.splitlines()
-    at = lines.index(f"Tested on your {n} hidden marks:")
+    at = lines.index(f"Tested on the {n} marks kept aside:")
     assert lines[at + 1:at + 3] == [
         f"  Old rule agreed with you on {right}. New rule agreed with you on {n}.",
         f"  It fixed {fixed} and broke 0."]
     kind = targets.fix_verdict(fixed, 0, n).kind
-    words = {"better": "Result: better. A difference this large is very unlikely to be a "
-                       "coincidence.",
-             "safe": "Result: safe to try. We can't say it's better yet, but it's very "
-                     "unlikely to be more than 10 points worse."}
+    words = {"better": "Result: your new rule is better. A difference this large is very "
+                       "unlikely to be a coincidence.",
+             "safe": "Result: safe to try. Not clearly better yet, but very unlikely to be "
+                     "more than 10 points worse."}
     assert words[kind] in " ".join(out.split())
     assert " ".join(out.split()).endswith(
-        "Next: if you like it, put the new rule in promptfooconfig.yaml, line 5. Then run "
-        "your eval, and run `judgekeeper check`.")
+        "Next: if you like it, copy the new rule into promptfooconfig.yaml, line 5. Then "
+        "run your eval and `judgekeeper check`.")
     assert lines[4] == f'New rule:  "{NEW_RULE[:57].rstrip()}…"'
     assert lines[5] == "           (from .judgekeeper/fix/rule.txt)"
 
@@ -507,9 +532,9 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys, judge):
     code, out = run(capsys, "--yes")
     flat = " ".join(out.split())
     assert code == 3 and judge["evals"] == 6
-    assert "You have tested 3 rules on these hidden marks." in flat
+    assert "You have tested 3 rules on these marks kept aside." in flat
     assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
-                         "`judgekeeper fix` again: they become a new set of hidden marks.")
+                         "`judgekeeper fix` again: they become a new set of marks kept aside.")
     new = _mark_more(ws, 10, 40)
     code, out = run(capsys, "--yes")
     assert code == 0 and judge["evals"] == 8
@@ -520,25 +545,12 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys, judge):
 
 # The result points at fix ---------------------------------------------------------------------
 
-def test_the_result_shows_where_the_judge_goes_wrong_and_points_at_fix(here, capsys):
+def test_the_result_points_at_fix_and_leaves_the_clues_to_it(here, capsys):
     project(here)
     capsys.readouterr()
     assert main([]) == 0
     out = capsys.readouterr().out
-    lines = out.splitlines()
-    at = lines.index("Where it goes wrong:")
-    block = []
-    for line in lines[at + 1:]:
-        if not line.startswith("  "):
-            break
-        block.append(line)
-    assert 1 <= len(block) <= 3
-    seen = fix.read_split(Workspace(here)).seen  # hidden from the first result on
-    m = fix.Marks(Workspace(here))
-    wrong = [i for i in seen if m.judge[i] != m.person[i]]
-    passed = sum(m.judge[i] == "pass" for i in wrong)
-    assert block[0].startswith(f"  {passed} of its {len(wrong)} mistakes are answers it passed "
-                               "but you failed")
+    assert "Where it goes wrong" not in out and "of its" not in out  # fix prints the clues
     assert " ".join(out.split()).endswith("Next: to try a better rule, run `judgekeeper fix`.")
 
 
@@ -549,13 +561,12 @@ def test_the_result_uses_only_the_seen_marks_once_some_are_hidden(here, capsys):
     seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
     capsys.readouterr()
     main([])
-    out = capsys.readouterr().out
-    assert f"of its {len(seen)} mistakes" in out
+    assert fix.where_wrong(ws)[1] == len(seen)  # what decides whether fix is the next step
 
 
 # report.html ----------------------------------------------------------------------------------
 
-def test_the_report_has_a_fix_section_and_history_rows(here, capsys, judge):
+def test_the_report_shows_the_seen_mistakes_and_never_a_hidden_one(here, capsys, judge):
     import html as html_lib
 
     ws = project(here)
@@ -564,21 +575,15 @@ def test_the_report_has_a_fix_section_and_history_rows(here, capsys, judge):
     _write_rule(ws)
     run(capsys, "--yes")
     page = ws.report_html.read_text(encoding="utf-8")
-    assert "<h3>Fix</h3>" in page
-    fix_part = page.split("<h3>Fix</h3>")[1].split('<div class="card">')[0]
-    text = html_lib.unescape(fix_part)
-    assert "Where your judge goes wrong" in text and "Its rule may be too easy." in text
     split, marks = _split(ws), fix.Marks(ws)
     seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
-    assert text.count("Your judge said") == len(seen)
-    assert "reason " in text  # the judge's own reason
+    assert page.count('<td data-label="Question">') == len(seen)
+    assert "reason " in html_lib.unescape(page)  # the judge's own reason
     rows = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
     for i in split["hidden"]:
         assert i not in page and rows[i]["output"] not in page
-    assert "Rules tested" in text and "Fixed" in text and "Safe to try" in text
-    history = html_lib.unescape(page.split("<h3>History</h3>")[1])
-    assert "New rule tested on" in history
-    assert "<script" not in page
+    for gone in ("History", "Use your tested rule", NEW_RULE):  # 1.0: the page shows neither
+        assert gone not in page, gone
 
 
 def test_check_names_a_rule_tested_with_fix(here, capsys, judge):

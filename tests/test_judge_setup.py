@@ -339,7 +339,7 @@ def test_promptfoo_with_no_grader_written_down_is_said(tmp_path, monkeypatch, ca
     _promptfoo(tmp_path, model=None)
     front.run()
     out = capsys.readouterr().out
-    block = " ".join(out[out.index("Free check (no AI call):"):].split())
+    block = " ".join(out[out.index("Checked:"):].split())
     assert ("Your judge's model isn't written in your config. promptfoo picks it from whichever "
             "API key is set, so it can change without any file changing. Write it in your "
             "config (`defaultTest.options.provider`).") in block

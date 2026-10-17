@@ -11,10 +11,11 @@ its fail group, and how many of each the person marked Pass.
 from __future__ import annotations
 
 import random
+import re
 
 import pytest
 
-from judgekeeper import start_label, targets, weighted
+from judgekeeper import report_page, start_label, targets, weighted
 
 
 def result(judge_passes: float, pass_group: tuple[int, int], fail_group: tuple[int, int],
@@ -75,7 +76,7 @@ def test_green_is_reachable():
 def test_red_when_a_side_is_clearly_below_the_bar():
     r = result(0.5, (40, 38), (40, 24))  # many answers it failed should pass
     assert r["tpr_interval"][1] < targets.RATE_GATE
-    assert r["verdict"] == "Your judge fails too many answers you would pass."
+    assert r["verdict"] == "Your judge needs work."
     assert r["verdict_level"] == "not_gate"
 
 
@@ -166,17 +167,15 @@ def test_the_result_has_each_side_on_one_line_with_its_range(project, capsys):
                                                                     else "pass"))
     lines = out.splitlines()
     assert "Step 3 of 5: Measure" in lines
-    assert "Your judge vs your marks, on 60 answers:" in lines
-    sides = [x for x in lines if x.startswith("  You ")]
-    assert len(sides) == 2
-    for line, word in zip(sides, ("passed", "failed"), strict=True):
-        assert line.startswith(f"  You {word}:  your judge also {word} about ")
-        assert " (could be " in line and line.endswith("%)")
-    assert "These are estimates from 60 marked answers." in lines
-    assert "Mark more answers to make them more precise." in lines
+    at = lines.index("How often your judge agrees with you (estimates):")
+    for line, word in zip(lines[at + 1:at + 3], ("Pass", "Fail"), strict=True):
+        assert line.startswith(f"  When you say {word}, it also says {word}: about ")
+        assert " (between " in line and line.endswith("%)")
+    counts = [x for x in lines if x.startswith("  You ")]
+    assert [x.split(" answers.")[0] for x in counts] == ["  You passed 30", "  You failed 30"]
     assert all(len(x) <= 80 for x in lines)
     for gone in ("Kappa", "kappa", "Your marks:", "sitting", "can see a drop", "likely",
-                 "Probably"):
+                 "Probably", "These are estimates", "could be"):
         assert gone not in out, gone
 
 
@@ -185,8 +184,8 @@ def test_a_side_too_wide_is_too_early_to_tell(project, capsys):
 
     promptfoo_project(project, split(180, 20))  # the judge passes 90%: few answers fail
     out = _measured(project, capsys, lambda g, n: g, limit=30)  # 15 + 15, all agreed
-    assert "  You failed:  too early to tell" in out.splitlines()
-    assert "Result:" not in out
+    assert "Result: too early to tell. Mark more answers to get a result." in out.splitlines()
+    assert "How often" not in out and "When you say" not in out  # no estimates block yet
     assert out.rstrip().endswith(
         "Next: run `judgekeeper mark --no-browser` to mark more answers.")
 
@@ -238,14 +237,14 @@ def test_kappa_after_asking_again_has_a_range():
     assert lo < out["kappa"] < hi
 
 
-def test_kappa_is_in_the_details_with_its_range_and_no_bar():
+def test_kappa_is_in_more_details_with_its_range_and_no_bar():
     from html import unescape
 
     r = result(0.5, (15, 13), (15, 2))
-    html = " ".join(unescape(start_label.result_html(r)).split())
+    html = " ".join(unescape(re.sub(r"<[^>]+>", " ", start_label.result_html(r))).split())
     lo, hi = r["kappa_interval"]
-    assert "Kappa on your real mix (agreement beyond coincidence)" in html
-    assert f"could be {lo:.2f} to {hi:.2f}" in html
+    kappa = f"{r['kappa']:.2f} {lo:.2f} and {hi:.2f}".replace("-", "\u2212")
+    assert f"Kappa ⓘ {report_page.KAPPA_MEANS} {kappa}" in html
     assert "or more is good" not in html and "beyond luck" not in html
 
 
@@ -332,19 +331,29 @@ def test_which_paired_verdicts_exit_1(right, wrong, n, worse):
 
 
 @pytest.mark.parametrize("right,wrong,n,words", [
-    (11, 19, 30, [("Not sure: 19 turned wrong and 11 turned right. It could be up to 52 "
-                  "points worse.")]),
-    (0, 12, 30, ["Worse: 12 turned wrong and none turned right.",
-                 "That is down 40 points, and it could be as much as 55."]),
-    (0, 2, 30, ["No drop bigger than 20 points: 2 turned wrong, none turned right.",
+    (11, 19, 30, [("Not sure: 19 went from right to wrong, and 11 from wrong to right. It "
+                  "could be up to 52 points worse.")]),
+    (0, 12, 30, ["Worse: 12 answers went from right to wrong, and none from wrong to right.",
+                 "That is about 40 points lower, and could be as much as 55."]),
+    (0, 2, 30, [("No drop bigger than 20 points: 2 went from right to wrong, none from wrong "
+                 "to right."),
                 "These marks can't rule out a drop of up to 18 points."]),
-    (1, 1, 30, ["No drop bigger than 20 points: 1 turned wrong, 1 turned right.",
+    (1, 1, 30, [("No drop bigger than 20 points: 1 went from right to wrong, 1 from wrong "
+                 "to right."),
                 "These marks can't rule out a drop of up to 11 points."]),
 ])
 def test_the_paired_words(right, wrong, n, words):
     from judgekeeper import check
 
     assert check.paired_lines(targets.paired_verdict(right, wrong, n)) == words
+
+
+def test_one_answer_worse_is_said_in_the_singular():
+    from judgekeeper import check
+
+    g = {"verdict": "worse", "now_wrong": 1, "now_right": 2, "change": -0.1, "low": -0.25}
+    assert check.paired_lines(g)[0] == ("Worse: 1 answer went from right to wrong, and 2 from "
+                                        "wrong to right.")
 
 
 def test_check_rates_are_the_reports():
@@ -400,18 +409,6 @@ def test_tied_answers_are_counted_in_the_free_check(tmp_path):
             "the two, the same each time.") in said
 
 
-def test_the_details_say_what_a_range_means_and_what_it_does_not_cover():
-    from html import unescape
-
-    r = result(0.5, (30, 26), (30, 3))
-    html = " ".join(unescape(start_label.result_html(r)).split())
-    assert ("'Could be' means: in judgekeeper's tests, ranges made this way held the true "
-            "number about 95 times in 100.") in html
-    assert ("Ranges cover the coincidence of which answers you marked. They don't cover your "
-            "own slips or answers unlike these.") in html
-    assert "of the answers in your results" in html and "app's answers" not in html
-
-
 WORDS_NEVER_SHOWN = ("Probably", "probably", "No drop seen", "trusted", "proven", "guaranteed",
                      "significant", "p-value", "confidence", "likely")
 
@@ -422,7 +419,8 @@ def test_no_shown_string_overclaims():
     from pathlib import Path
 
     src = Path(start_label.__file__).parent
-    shown = ("start_label.py", "front.py", "check.py", "targets.py", "start_page.py")
+    shown = ("start_label.py", "front.py", "check.py", "targets.py", "mark_page.py",
+             "report_page.py")
     for name in shown:
         text = (src / name).read_text(encoding="utf-8")
         strings = re.findall(r'"(?:[^"\\\n]|\\.)*"', text)
@@ -440,7 +438,7 @@ def test_the_readme_names_kappas_range():
 
 
 def test_check_shows_counts_only(tmp_path, monkeypatch, capsys):
-    """No line of check's output or the report's History names a flipped answer's id."""
+    """No line of check's output or the report names a flipped answer's id."""
     import json
 
     from judgekeeper.cli import main
@@ -448,7 +446,7 @@ def test_check_shows_counts_only(tmp_path, monkeypatch, capsys):
 
     monkeypatch.chdir(tmp_path)
     ws = _marked(tmp_path)
-    start_label.store_result(ws, start_label.StartSession(ws))  # the report the History is in
+    start_label.store_result(ws, start_label.StartSession(ws))  # report.html
     _results(tmp_path, LENIENT, model=HAIKU)
     assert main(["check"]) == 1
     out = capsys.readouterr().out
@@ -458,4 +456,3 @@ def test_check_shows_counts_only(tmp_path, monkeypatch, capsys):
     assert len(line["flipped"]) == 9  # kept in history.jsonl only
     for answer_id in line["flipped"]:
         assert answer_id not in out and answer_id not in report
-    assert "Worse" in report

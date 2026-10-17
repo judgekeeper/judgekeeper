@@ -181,7 +181,7 @@ def test_a_sure_reading_is_still_saved_by_yes(here, capsys):
     _, out = _front(capsys, "--no-browser", "--yes")
     saved = tomllib.loads((here / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
     assert saved["map"]["each"] == "cases[]"
-    assert "60 answers from your app" in out
+    assert "60 answers, each graded by your judge" in out
 
 
 def test_only_judge_columns_are_judges_in_a_wide_csv(tmp_path):

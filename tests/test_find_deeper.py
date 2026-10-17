@@ -70,7 +70,7 @@ def test_results_in_the_project_folder_above_are_read(here, capsys, monkeypatch)
     code, out, _ = run(capsys, "--no-browser")
     assert ("No eval results in src. Reading the project folder above it (support-bot)."
             in _flat(out))
-    assert "32 answers from your app" in out
+    assert "32 answers, each graded by your judge" in out
     assert (here / ".judgekeeper").is_dir() and not (here / "src" / ".judgekeeper").exists()
     assert code == 0, out
 

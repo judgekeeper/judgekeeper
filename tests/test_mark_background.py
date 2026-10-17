@@ -121,7 +121,7 @@ def test_mark_runs_the_page_in_the_background(project):
     second = jk(project, "mark", "--port", "0", "--no-browser")
     assert second.returncode == 0, second.stdout + second.stderr + page_log(project)
     assert LINK.search(second.stdout)[1] != url  # the open page was replaced
-    assert "You have marked 1 answer so far (1 Pass, 0 Fail)." in second.stdout
+    assert "You marked 1 answer so far: 1 Pass, 0 Fail." in second.stdout
     new_pid = json.loads((folder / label.LOCK).read_text(encoding="utf-8"))["pid"]
     assert new_pid != pid
     deadline = time.monotonic() + 10

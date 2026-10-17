@@ -130,11 +130,10 @@ def test_the_page_shows_the_question_and_the_answer_as_written(workspace):
     server, thread, _ = _server(ws)
     try:
         page = " ".join(server.page()[0].split())
-        for needed in ("The question", "Your app's answer", "white-space: pre-wrap", "17px",
-                       "Fail <kbd>←</kbd>", "Pass <kbd>→</kbd>", "Skip <kbd>S</kbd>",
-                       "Undo <kbd>U</kbd>", "See your result", "#0E1525", "#10B981",
-                       "Bricolage Grotesque",
-                       "Mark a few more answers to see your result."):
+        for needed in (">Question</div>", ">Answer</div>", "white-space: pre-wrap",
+                       "<span>Fail</span><kbd>←</kbd>", "<span>Pass</span><kbd>→</kbd>",
+                       "<span>Skip this one</span><kbd>S</kbd>", "<span>Undo</span><kbd>Z</kbd>",
+                       "See your result", "#1E293B", "#10B981", '"Manrope"'):
             assert needed in page, needed
         data = _page_data(server)
         assert re.fullmatch(r"Question \d+\?", data["items"][0]["input"])
@@ -222,12 +221,13 @@ def test_see_my_result_works_before_everything_is_labeled(workspace):
         resp, payload = client.request("GET", "/result")
         assert resp.status == 200
         assert resp.getheader("Content-Type").startswith("text/html")
-        assert "script-src" not in resp.getheader("Content-Security-Policy")
+        from judgekeeper.report_page import CSP
+
+        assert resp.getheader("Content-Security-Policy") == f"{CSP}; frame-ancestors 'none'"
         assert "font-src data:" in resp.getheader("Content-Security-Policy")
         html = payload.decode()
-        assert "Mark a few more answers to see your result." in html
-        assert "<script" not in html
-        assert "Mark more answers</a>" in html
+        assert '<h1 id="verdict-h" class="plain">Too early to tell.</h1>' in html
+        assert f'<a href="/?token={server.token}">Mark more answers to get a result.</a>' in html
         assert thread.is_alive()  # answers are left: the person may go on
     finally:
         server.stop()
@@ -242,7 +242,7 @@ def test_after_the_last_answer_the_result_is_served_and_the_server_stops(tmp_pat
         assert client.label(id=item_id, label=group)[0] == 200
     resp, payload = client.request("GET", "/result")
     assert resp.status == 200
-    assert "Your judge agrees with you often enough to use." in payload.decode()
+    assert "Your judge is good enough to use." in payload.decode()
     thread.join(timeout=5)
     assert not thread.is_alive()
 
@@ -259,11 +259,11 @@ def test_the_verdict_levels_follow_the_ranges():
     red = _result(500, 500, 40, 38, 40, 24)        # many answers it failed should pass
     early = _result(900, 100, 15, 15, 15, 0)       # the Fail side's range is too wide
     too_few = _result(100, 100, 10, 9, 10, 1)      # 10 Pass, 10 Fail
-    assert green["verdict"] == "Your judge agrees with you often enough to use."
-    assert amber["verdict"] == ("Can't tell yet if your judge is good enough. Marking more "
-                                "answers will tell.")
-    assert red["verdict"] == "Your judge fails too many answers you would pass."
+    assert green["verdict"] == "Your judge is good enough to use."
+    assert amber["verdict"] == "Too early to tell. Mark more answers to get a result."
+    assert red["verdict"] == "Your judge needs work."
     assert early["verdict_level"] == "too_early"
+    assert early["verdict"] == "Too early to tell. Mark more answers to get a result."
     assert too_few["verdict"] == "Mark a few more answers to see your result."
     assert start_label.sentences(too_few) == [
         "Mark a few more answers to see your result. So far: 10 Pass, 10 Fail."]
@@ -289,10 +289,10 @@ def test_the_word_trust_is_nowhere():
 
 def test_the_result_page_stands_alone():
     html = start_label.result_html(_result(900, 100, 25, 20, 25, 10))
-    for needed in ("Your result", "When you said Pass", "TPR", "TNR", "kappa",
-                   "What next", "<code>judgekeeper", "Bricolage Grotesque"):
+    for needed in ("Your judge needs work.", "You passed", "Kappa", "More details", "Fix it",
+                   "judgekeeper fix", '"Manrope"'):
         assert needed in html, needed
-    assert "<script" not in html and 'class="btn"' not in html
+    assert "<a " not in html.split("<body>")[1]  # no link back: commands only
     assert not re.search(r"https?://(?!www\.w3\.org/2000/svg)", html)
     assert "<link" not in html and "@import" not in html
 
@@ -351,10 +351,8 @@ def test_a_result_writes_anchors_and_the_result_files(workspace):
     assert result["tpr"] == 1 and result["tnr"] == 1
     html = ws.report_html.read_text(encoding="utf-8")
     assert html.startswith("<!doctype html>")
-    date = json.loads(ws.start.read_text(encoding="utf-8"))["results_date"]
-    assert "<b>llm-rubric</b> · openai:gpt-4.1-mini" in html
-    when = f"{start_label.in_words(date[:10])}, {date[11:]}"
-    assert f"From results.json (promptfoo), saved {when}" in html
+    assert 'Judge:</span><span class="v" title="openai:gpt-4.1-mini">openai:gpt-4.1-mini' in html
+    assert "results.json" not in html.split("<body>")[1]  # no file names or dates on the page
 
 
 def test_a_second_result_moves_the_first_to_history(workspace):
@@ -455,7 +453,6 @@ def test_every_answer_marked_but_a_kind_short_says_why_there_is_no_result(correc
     line = (f"You've marked every answer. A result needs at least 15 you mark Pass and 15 you "
             f"mark Fail; you have {have}. Run your eval on more questions, then judgekeeper.")
     assert start_label.sentences(r) == [line]
-    assert start_label.statements(r)[0]["text"] == line  # the page
     r["left"] = 3  # answers still to mark: mark more, as before
     assert start_label.sentences(r)[0].startswith("Mark a few more answers")
 

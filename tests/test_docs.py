@@ -55,22 +55,19 @@ def _pct(x: float) -> str:
 
 
 def test_the_readme_numbers_are_the_llmbar_reports():
+    """LLMBar is pairwise (which of two answers is better), so no Pass, Fail, TPR or TNR."""
     report = json.loads((ROOT / "docs/examples/llmbar-haiku/report.json").read_text(
         encoding="utf-8"))
-    h, labels = report["headline"], report["anchors"]["label_distribution"]
+    h = report["headline"]
     numbers = _flat(_sections(_readme())["Numbers"])
-    runs = report["n_runs"]
-    for needed in (
-            (f"Claude Haiku 4.5 as the judge on the LLMBar benchmark, against "
-             f"{report['anchors']['n_items']} answers labelled by people ({labels['A']} Pass, "
-             f"{labels['B']} Fail), run {runs} times."),
-            (f"When people said Pass, the judge also said Pass about {_pct(h['tpr_mean'])} "
-             f"(could be {_pct(h['tpr_ci']['lo'])} to {_pct(h['tpr_ci']['hi'])}). TPR."),
-            (f"When people said Fail, the judge also said Fail about {_pct(h['tnr_mean'])} "
-             f"(could be {_pct(h['tnr_ci']['lo'])} to {_pct(h['tnr_ci']['hi'])}). TNR."),
-            (f"Agreement beyond coincidence: kappa {h['kappa_mean']:.2f} "
-             f"({h['kappa_min']:.2f} to {h['kappa_max']:.2f} across the {runs} runs).")):
-        assert needed in numbers, needed
+    needed = (f"**A real judge, checked.** Claude Haiku 4.5 on the LLMBar benchmark: "
+              f"{report['anchors']['n_items']} pairs of answers where the benchmark's authors "
+              f"marked the better one. It picked the same one {_pct(h['accuracy_mean'])} of the "
+              f"time (kappa {h['kappa_mean']:.2f}), over {report['n_runs']} runs. [Report](")
+    assert needed in numbers
+    llmbar = numbers[numbers.index(needed):numbers.index("**Its ranges hold")]
+    for word in ("Pass", "Fail", "TPR", "TNR"):
+        assert word not in llmbar, word
 
 
 def test_the_readme_keeps_to_the_agreed_words():
@@ -92,3 +89,12 @@ def test_the_guide_and_the_tool_pages_are_gone_and_nothing_links_them():
         text = path.read_text(encoding="utf-8")
         for gone in ("guide.md", "docs/integrations"):
             assert gone not in text, (path.relative_to(ROOT).as_posix(), gone)
+
+
+def test_checking_names_the_llm_as_a_judge_in_full():
+    """"Judge" alone can read like a court judge, so checking it names the LLM-as-a-judge."""
+    sources = [README, *(ROOT / "docs").glob("*.md"), *(ROOT / "src").rglob("*.py")]
+    for path in sources:
+        text = _flat(path.read_text(encoding="utf-8")).lower()
+        for words in ("check your judge", "checks your judge", "check a judge"):
+            assert words not in text, (path.relative_to(ROOT).as_posix(), words)

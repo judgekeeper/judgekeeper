@@ -675,8 +675,8 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     if left_out:
         what = "assessment" if left_out == 1 else "assessments"
         humans.notes.append(f"{left_out} span-level {what} (on one step inside a trace, not "
-                            "on the answer) left out. To check a judge that is only on spans, "
-                            "name it with --metric.")
+                            "on the answer) left out. To check an LLM-as-a-judge that is only on "
+                            "spans, name it with --metric.")
     if missing:
         humans.notes.append(missing_line(len(missing), folder.name if folder else "the store"))
     if capped:

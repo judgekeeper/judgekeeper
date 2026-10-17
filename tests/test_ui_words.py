@@ -10,7 +10,7 @@ from html import unescape
 
 import pytest
 
-from judgekeeper import judge_check, start_label, start_page
+from judgekeeper import judge_check, mark_page, start_label
 
 BANNED = ("Correct", "Wrong")  # as words a person reads; "correct" in a rule is their text
 BANNED_ANY_CASE = ("label", "verdict")
@@ -19,9 +19,9 @@ BANNED_ANY_CASE = ("label", "verdict")
 # The keys ---------------------------------------------------------------------------------
 
 def test_the_labeling_page_keys_are_the_arrows_and_the_old_digits():
-    page = start_page.label_page(None, None)
+    page = mark_page.label_page(None, None)
     assert '{arrowright: "pass", arrowleft: "fail", "1": "pass", "2": "fail"}' in page
-    assert "Fail <kbd>←</kbd>" in page and "Pass <kbd>→</kbd>" in page
+    assert "<span>Fail</span><kbd>←</kbd>" in page and "<span>Pass</span><kbd>→</kbd>" in page
     assert "<kbd>1</kbd>" not in page and "<kbd>2</kbd>" not in page  # shown: the arrows only
     assert page.index('id="fail"') < page.index('id="pass"')  # Fail on the left
 
@@ -53,7 +53,9 @@ def _result(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f, **extra):
 
 
 def test_the_templates_hold_no_banned_word():
-    _scan(visible_text(start_page.label_page("support bot", "Be kind.")), "label")
+    for name, page in (("label", mark_page.label_page("support bot", "Be kind.")),
+                       ("old link", mark_page.old_link_page())):
+        _scan(visible_text(page), name)
 
 
 @pytest.mark.parametrize("counts", [(100, 100, 20, 19, 20, 1), (100, 100, 20, 17, 20, 2),

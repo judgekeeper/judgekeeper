@@ -24,7 +24,7 @@ every later mark is stamped so. Every POST also needs the page's own Origin
 same-origin`: only the page's own script marks, never another site or a program that has the
 link (judgekeeper's own requests, `ask`, send the Origin).
 
-The caller passes the page (start_page.py) and a `result` function: GET /result answers with
+The caller passes the page (mark_page.py) and a `result` function: GET /result answers with
 the result page, a static HTML page that runs no script. Once every item is labeled, none
 deferred (finished), the server stops right after serving that page, or RESULT_WAIT seconds
 after the last item if nobody fetches it. While an item is deferred, the page
@@ -435,6 +435,13 @@ def _handler(server: LabelServer):
             if url.path in ("/alive", "/stop") and hmac.compare_digest(
                     stop.encode(), server.stop_secret.encode()):
                 return True
+            if self.command in ("GET", "HEAD") and url.path == "/" and \
+                    "text/html" in (self.headers.get("Accept") or ""):  # a browser: a page
+                from judgekeeper.mark_page import OLD_LINK_CSP, old_link_page
+
+                self._send(403, old_link_page().encode("utf-8"), "text/html; charset=utf-8",
+                           {"Content-Security-Policy": OLD_LINK_CSP})
+                return False
             self._json(403, {"error": "missing or wrong token"})
             return False
 
@@ -506,9 +513,9 @@ def _handler(server: LabelServer):
                                      "saved; try again once the folder can be written."
                                      ).encode(), "text/plain; charset=utf-8")
                     return
-                csp = ("default-src 'none'; style-src 'unsafe-inline'; font-src data:; "
-                       "img-src 'none'; base-uri 'none'; form-action 'none'; "
-                       "frame-ancestors 'none'")
+                from judgekeeper.report_page import CSP
+
+                csp = f"{CSP}; frame-ancestors 'none'"
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
                            {"Content-Security-Policy": csp})
                 if server.finished() and not server.stays:

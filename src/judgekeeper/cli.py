@@ -69,12 +69,15 @@ NEXT_STOPPED = "run `{command}` to carry on."
 
 MESSAGE = "Check your LLM-as-a-judge in 5 steps."
 STEPS = """\
-  1. Find      judgekeeper          finds your eval results and your judge
+  1. Find      judgekeeper          finds your eval results and the judge
+                                    that graded them
   2. Mark      in your browser      you mark answers Pass or Fail
-  3. Measure   judgekeeper          how often your judge agrees with you
-  4. Fix       judgekeeper fix      write a better rule, tested on hidden marks
-  5. Re-check  judgekeeper check    after you change your judge or update
-                                    your eval tool"""
+  3. Measure   judgekeeper          shows how often your judge agrees with
+                                    you, and where it goes wrong
+  4. Fix       judgekeeper fix      if your judge needs work, write a better
+                                    rule and test it on marks kept aside
+  5. Re-check  judgekeeper check    after you change your judge, see if it
+                                    still agrees with you"""
 READS = """\
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
 MLflow, or a CSV or JSONL file with these columns:
@@ -82,7 +85,7 @@ MLflow, or a CSV or JSONL file with these columns:
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
     ("fix", "see where your judge goes wrong and test a better rule"),
-    ("check", "re-check your judge on your marks after a change"),
+    ("check", "re-check your LLM-as-a-judge on your marks after a change"),
 )
 HELP_WIDTH = 80
 # Removed commands: the 0.1 CI gate, setup (part of judgekeeper now) and start (its steps are
@@ -275,7 +278,7 @@ def _parser() -> argparse.ArgumentParser:
                     help="without a terminal: go ahead and test the new rule (it makes AI "
                          "calls, paid with your own key)")
     fx.add_argument("--new", action="store_true",
-                    help="hide a new set of your marks to test rules on")
+                    help="keep a new set of your marks aside to test rules on")
 
     return p
 

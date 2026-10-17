@@ -21,9 +21,9 @@ What a stranger does, with nobody at the keyboard and no API key:
    `judgekeeper` again for the result, `judgekeeper --stop`, `judgekeeper fix` (and for a
    judge whose rule it can swap, a new rule tested with `fix --yes`); then the new rule put in
    the tool's own file and the tool run again, and `check --yes` (the re-check on the marks;
-   --yes answers its question about judge calls, as there is no terminal) and the report's
-   History. judgekeeper's input is a closed pipe; the page is used through its own HTTP calls,
-   with a stand-in person whose marks are fixed.
+   --yes answers its question about judge calls, as there is no terminal) and that the report
+   is still there. judgekeeper's input is a closed pipe; the page is used through its own HTTP
+   calls, with a stand-in person whose marks are fixed.
 5. Every command's output, then "N of N steps OK". Exit 1 on any failed step or "Traceback".
 
 Tools: table, promptfoo, deepeval, inspect, mlflow, record (your own judge code with
@@ -643,12 +643,12 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         first run maps it (answers given by --yes) and goes on: it is the first look."""
         decisions = (rf"Your judge's grades: {len(JUDGE_PASSES)} Pass, "
                      rf"{N - len(JUDGE_PASSES)} Fail\.")
-        # Started by uvx, every Next: line names `uvx judgekeeper@<version>` (it may wrap).
+        # Started by uvx, a Next: line that names a command names `uvx judgekeeper@<version>`
+        # (it may wrap). The first look's names none: mark, then click "See your result".
         uvx = [r"Next: [^`]*`uvx judgekeeper@"] if self.via == "uvx" else []
         expect = [r"Step 1 of 5: Find", rf"Judge: .*{re.escape(JUDGE_NAME[self.tool])}",
                   decisions, r"Step 2 of 5: Mark",
-                  r"Open this link in your browser to mark answers:\s+http://127\.0\.0\.1:",
-                  *uvx]
+                  r"Open this link in your browser to mark answers:\s+http://127\.0\.0\.1:"]
         if self.tool == "own-format":
             p = self.mark_step("1. judgekeeper maps the file (answers given by --yes, no "
                                "terminal): the first look, and the page in the background",
@@ -666,9 +666,9 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             ok, detail = False, f"({type(e).__name__}: {e})"
         self.step("2. the stand-in person marks every answer on the page", ok, detail)
         self.mark_step("2. judgekeeper prints the result", self.front(),
-                       [r"Your judge vs your marks, on 50 answers:",
-                        r"You passed:  your judge also passed about \d+%",
-                        r"You failed:  (your judge also failed about \d+%|too early to tell)",
+                       [r"Result: ",
+                        r"You passed \d+ answers\. Of those, your judge passed",
+                        r"You failed \d+ answers\. Of those, your judge passed",
                         r"Step 3 of 5: Measure", *uvx])
         self.mark_step("2. judgekeeper --stop closes the page", [*self.jk, "--stop"],
                        [r"Closed the marking page"])
@@ -678,13 +678,14 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         report holds the check."""
         self.run("3. check re-tests the new judge on the marks", [*self.jk, "check", "--yes"],
                  expect=[r"Re-checked on (all 50 of your marks|\d+ of your 50 marks):",
-                         r"You passed:  old judge right on", r"You failed:  old judge right on"])
+                         r"You passed \d+ answers\. Your old judge agreed with you on",
+                         r"You failed \d+ answers\. Your old judge agreed with you on"])
         report = self.project / ".judgekeeper" / "report.html"
         try:
             html = report.read_text(encoding="utf-8")
         except OSError:
             html = ""
-        self.step("3. report.html has the check in its History", "<h3>History</h3>" in html)
+        self.step("3. report.html is there after the check", 'id="verdict-h"' in html)
 
     def mark_step(self, name: str, args, expect, env=None):
         """A step that opens or closes the page; when it fails, what the page's own process
@@ -725,9 +726,9 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         rule.write_text(rule_for(self.tool, RULE_NEW) + "\n", encoding="utf-8")
         judge = getattr(self, "judge", None)
         before = len(judge.calls) if judge else 0
-        self.run("2. judgekeeper fix --yes: the new rule tested on the hidden marks",
+        self.run("2. judgekeeper fix --yes: the new rule tested on the marks kept aside",
                  [*self.jk, "fix", "--yes"],
-                 expect=[r"Tested on your \d+ hidden marks", r"Result: "])
+                 expect=[r"Tested on the \d+ marks kept aside", r"Result: "])
         if judge:
             made = len(judge.calls) - before
             self.step("2. the judge was asked with the old and the new rule", made > 0,

@@ -1,14 +1,16 @@
 """Every command judgekeeper prints for the person to run next works when copied: it keeps the
 results path and the person's own flags (start.Talk.command), in the terminal and on the result
-page. No page names `judgekeeper start` or one of its flags: that command is gone."""
+page (`mark` with every flag, `check` and `fix` with the path). No page names `judgekeeper
+start` or one of its flags: that command is gone."""
 
 from __future__ import annotations
 
+import json
 import re
 
 import pytest
 
-from judgekeeper import start_label
+from judgekeeper import report_page, start_label
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import split, table_project
@@ -45,8 +47,14 @@ def test_the_result_names_only_the_command_that_was_run(project, capsys):
     assert code == 0, out
     assert ws.report_html.is_file(), (out, sorted(p.name for p in ws.dir.iterdir()))
     page = ws.report_html.read_text(encoding="utf-8")
-    commands = re.findall(r"<code>(judgekeeper[^<]*)</code>", page)
-    assert commands and all(c.startswith(BASE) for c in commands), commands
+    on_page = set(re.findall(r"<code[^>]*>(judgekeeper[^<]*)</code>", page))
+    # as the terminal prints them: mark keeps every flag, check and fix the path
+    named = report_page.commands(json.loads(ws.result_json.read_text(encoding="utf-8")))
+    assert {k: named[k] for k in ("mark", "check", "fix")} == {
+        "mark": BASE.replace("judgekeeper", "judgekeeper mark", 1),
+        "check": "judgekeeper check evals/results.csv",
+        "fix": "judgekeeper fix evals/results.csv"}
+    assert on_page <= {named["mark"], named["fix"]}, on_page
     for gone in GONE:
         assert gone not in page and gone not in out, gone
 

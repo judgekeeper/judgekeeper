@@ -58,22 +58,21 @@ FIRST = [
     "Step 1 of 5: Find",
     "",
     "Eval tool:   promptfoo",
-    "Answers:     40 answers from your app, each graded by your judge",
+    "Answers:     40 answers, each graded by your judge",
     "             (read from results.json)",
     "Judge:       openai:gpt-4.1-mini",
     f'Judge rule:  "{RULE}"',
     "",
     "Your judge's grades: 23 Pass, 17 Fail.",
-    "Free check (no AI call): every answer got a clear Pass or Fail.",
+    "Checked: your judge gave every answer a clear Pass or Fail.",
     "",
     "Step 2 of 5: Mark",
     "",
 ]
 MARK_TEXT = [
-    "It shows the same",
-    "answers one at a time. Mark each one Pass or Fail, the way you",
-    "want your judge to decide. Your judge's grade stays hidden, so",
-    "you decide on your own.",
+    "It shows the answers",
+    "one at a time. Mark each one Pass or Fail, the way you want your",
+    "judge to decide. Your judge's grade stays hidden.",
 ]
 
 
@@ -86,8 +85,7 @@ def test_screen_1_the_first_run(here, capsys):
         "The marking page is open in your browser. " + MARK_TEXT[0],
         *MARK_TEXT[1:],
         "",
-        "Next: mark until the page says you have enough, then run",
-        "`judgekeeper` again.",
+        'Next: mark until "See your result" appears, then click it.',
     ]
 
 
@@ -99,11 +97,11 @@ def test_screen_1_without_a_browser_prints_the_link(here, capsys, no_browser):
     assert lines[at + 2] == "Open this link in your browser to mark answers:"
     assert lines[at + 3].startswith("http://127.0.0.1:") and "?token=" in lines[at + 3]
     assert lines[at + 4:at + 7] == [
-        "It shows the same answers one at a time. Mark each one Pass or",
-        "Fail, the way you want your judge to decide. Your judge's grade",
-        "stays hidden, so you decide on your own."]
-    assert lines[-2:] == ["Next: mark until the page says you have enough, then run",
-                          "`judgekeeper --no-browser` again."]
+        "It shows the answers one at a time. Mark each one Pass or Fail,",
+        "the way you want your judge to decide. Your judge's grade stays",
+        "hidden."]
+    assert lines[-1] == 'Next: mark until "See your result" appears, then click it.'
+
 
 
 def test_screen_1_a_long_rule_is_one_line_cut_short(here, capsys):
@@ -117,8 +115,8 @@ def test_screen_1_a_long_rule_is_one_line_cut_short(here, capsys):
 def test_screen_1_a_free_check_that_finds_a_problem(here, capsys):
     promptfoo_project(here, split(40, 0), rubric=RULE)
     _, lines = screen(capsys)
-    at = next(i for i, line in enumerate(lines) if line.startswith("Free check"))
-    assert lines[at].startswith("Free check (no AI call): your judge passed every answer.")
+    at = next(i for i, line in enumerate(lines) if line.startswith("Checked:"))
+    assert lines[at].startswith("Checked: your judge passed every answer.")
 
 
 def test_screen_2_again_before_a_first_result(here, capsys):
@@ -131,14 +129,14 @@ def test_screen_2_again_before_a_first_result(here, capsys):
         *HEAD,
         "Step 2 of 5: Mark",
         "",
-        "You have marked 12 answers so far (8 Pass, 4 Fail).",
-        "That is not enough for a first result yet.",
+        "You marked 12 answers so far: 8 Pass, 4 Fail.",
+        "That's not enough for a result yet.",
         "",
         "The marking page is still open in your browser. The bar at the",
-        "top shows how close you are.",
+        "top fills as you mark.",
         "",
-        "Next: keep marking until the page says you have enough, then run",
-        "`judgekeeper` again.",
+        'Next: keep marking until "See your result" appears, then click',
+        "it.",
     ]
 
 
@@ -150,7 +148,8 @@ def test_screen_2_reopens_a_closed_page(here, capsys, pages):
     started = len(pages[0])
     code, lines = screen(capsys)
     assert code == 0 and len(pages[0]) == started + 1
-    assert "The marking page is open in your browser again. The bar at the" in lines
+    at = lines.index("The marking page is open in your browser again. The bar at the")
+    assert lines[at + 1] == "top fills as you mark."
 
 
 def test_screen_4_mark_more(here, capsys):
@@ -163,7 +162,7 @@ def test_screen_4_mark_more(here, capsys):
         *HEAD,
         "Step 2 of 5: Mark (more answers)",
         "",
-        "You have marked 30 answers so far (15 Pass, 15 Fail).",
+        "You marked 30 answers so far: 15 Pass, 15 Fail.",
         "",
         "The marking page is open in your browser. Each new mark makes",
         "your numbers more precise.",
@@ -251,15 +250,18 @@ def test_screen_8_help(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[:17] == [
+    assert lines[:20] == [
         "Check your LLM-as-a-judge in 5 steps.",
         "",
-        "  1. Find      judgekeeper          finds your eval results and your judge",
+        "  1. Find      judgekeeper          finds your eval results and the judge",
+        "                                    that graded them",
         "  2. Mark      in your browser      you mark answers Pass or Fail",
-        "  3. Measure   judgekeeper          how often your judge agrees with you",
-        "  4. Fix       judgekeeper fix      write a better rule, tested on hidden marks",
-        "  5. Re-check  judgekeeper check    after you change your judge or update",
-        "                                    your eval tool",
+        "  3. Measure   judgekeeper          shows how often your judge agrees with",
+        "                                    you, and where it goes wrong",
+        "  4. Fix       judgekeeper fix      if your judge needs work, write a better",
+        "                                    rule and test it on marks kept aside",
+        "  5. Re-check  judgekeeper check    after you change your judge, see if it",
+        "                                    still agrees with you",
         "",
         "judgekeeper can read results from promptfoo, DeepEval, Inspect AI,",
         "MLflow, or a CSV or JSONL file with these columns:",
@@ -270,9 +272,9 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[17:20] == [
+    assert lines[20:23] == [
         "  fix     see where your judge goes wrong and test a better rule",
-        "  check   re-check your judge on your marks after a change", ""]
+        "  check   re-check your LLM-as-a-judge on your marks after a change", ""]
     assert "Options:" in lines
     for gone in ("--fast", "--hook", "--on", "--off", "Turn on", "coding agent"):
         assert gone not in out, gone

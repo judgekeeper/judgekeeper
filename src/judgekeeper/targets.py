@@ -78,9 +78,6 @@ RIGHT_NOW = 0.90  # how often the judge is right, when its rate is not known
 TURNS_RIGHT = 0.03
 POWER = 0.80
 DROP_STEP = 5  # points
-DROP_MODEL = ("The smallest drop uses how often your judge is right now on the answers you "
-              "passed and on those you failed, and is the smallest fall a re-check of these "
-              "marks calls worse 80 times in 100.")
 
 
 def _width(interval) -> float | None:
@@ -318,12 +315,6 @@ def smallest_drop(n_pass: int, n_fail: int, tpr: float | None = None,
     drops = [_smallest(n, RIGHT_NOW if rate is None else max(rate, 0.01))
              for n, rate in ((n_pass, tpr), (n_fail, tnr))]
     return None if None in drops else max(drops)
-
-
-def drop_line(drop: int | None) -> str | None:
-    if drop is None:
-        return None
-    return f"This set can see a drop of {drop} points or more. Smaller changes need more marks."
 
 
 # The verdict on a new rule ---------------------------------------------------------------------

@@ -57,7 +57,7 @@ def test_few_mistakes_hidden_are_said_before_the_question(here, capsys, judge, m
     safe = next(f for f in range(n + 1) if targets.fix_verdict(f, 0, n).kind in ("safe",
                                                                                   "better"))
     better = next(f for f in range(n + 1) if targets.fix_verdict(f, 0, n).kind == "better")
-    said = (f"Your hidden marks hold only {wrong} {'answer' if wrong == 1 else 'answers'} "
+    said = (f"The marks kept aside hold only {wrong} {'answer' if wrong == 1 else 'answers'} "
             f"your judge got wrong. A new rule needs at least {safe} of those fixed to be "
             f"called safe to try, and about {better} to be called better, so this test can "
             "only catch a worse rule.")
@@ -70,7 +70,7 @@ def test_enough_mistakes_hidden_say_nothing_more(here, capsys, judge):
     run(capsys)
     _write_rule(ws)
     _, out = run(capsys)
-    assert "Your hidden marks hold only" not in out
+    assert "The marks kept aside hold only" not in out
     assert json.dumps(NEW_RULE) not in out
 
 
@@ -139,7 +139,8 @@ def test_a_retired_set_may_show_its_answers(here, capsys, judge):
     assert split.fresh == {"want": fix.FRESH}
     wrong = [i for i in hidden if fix.Marks(ws).judge[i] != fix.Marks(ws).person[i]]
     shown = json.dumps(fix.report_section(ws))
-    assert wrong and all(fix.Marks(ws).row(i)["input"][:40] in shown for i in wrong)
+    m = fix.Marks(ws)
+    assert wrong and all(fix._question(m, m.row(i))[:40] in shown for i in wrong)
 
 
 def test_three_rules_retire_the_set(here, capsys, judge):
@@ -238,7 +239,7 @@ def test_check_asks_for_new_marks_after_three_picks(here, capsys):
     assert code == 0
 
 
-def test_the_report_says_how_many_changes_the_marks_helped_pick(tmp_path, monkeypatch):
+def test_the_result_keeps_how_many_changes_the_marks_helped_pick(tmp_path, monkeypatch):
     from judgekeeper import start_label
 
     monkeypatch.chdir(tmp_path)
@@ -246,7 +247,8 @@ def test_the_report_says_how_many_changes_the_marks_helped_pick(tmp_path, monkey
     _pick(ws)
     _pick(ws, "check")
     start_label.store_result(ws, session)
-    assert "These marks have helped pick 2 changes." in ws.report_html.read_text(encoding="utf-8")
+    saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert "These marks have helped pick 2 changes." in saved["picks"]
 
 
 def test_fix_new_counts_the_picks_again(tmp_path, monkeypatch):
@@ -375,40 +377,6 @@ def test_the_slip_rate_from_repeats():
     assert 2 * e * (1 - e) == pytest.approx(0.1)
 
 
-def _result(p_pass=0.9):
-    from judgekeeper import start_label, weighted
-
-    n_pass = round(1000 * p_pass)
-    return start_label.describe(weighted.corrected(n_pass, 1000 - n_pass, 40, 39, 40, 10))
-
-
-def test_the_details_always_say_slips_lower_the_fail_side():
-    from html import unescape
-
-    from judgekeeper import start_label
-
-    html = _flat(unescape(start_label.result_html(_result())))
-    assert ("If you sometimes slip when marking, the number for answers you failed looks lower "
-            "than it is, most when few answers fail.") in html
-    assert "even a perfect judge" not in html  # no repeats
-
-
-def test_repeats_give_the_best_possible_line_and_change_no_number():
-    from html import unescape
-
-    from judgekeeper import start_label
-
-    r = _result()
-    plain = {k: r[k] for k in ("tpr", "tnr", "kappa")}
-    with_repeats = {**r, "repeats": {"same": 9, "of": 10}}
-    html = _flat(unescape(start_label.result_html(with_repeats)))
-    e = targets.slip_rate(0.1)
-    best = targets.best_possible(r["real_pass_rate"], e)
-    assert (f"You gave the same mark on 9 of 10 repeats. With slips like that, even a perfect "
-            f"judge would show about {best['tnr']:.0%} here.") in html
-    assert {k: with_repeats[k] for k in ("tpr", "tnr", "kappa")} == plain
-
-
 # A range that stays honest while the person is still marking ---------------------------------------
 
 def _misses_at_some_look(rng, p: float, first: int = 15, last: int = 200) -> bool:
@@ -505,7 +473,7 @@ def test_asked_twice_the_wobble_is_said_and_the_first_grades_decide(here, capsys
     assert len(evals) == 1 and evals[0][evals[0].index("--repeat") + 1] == "2"
     assert ("Asked twice, your new judge changed its own grade on 3 of your 50 answers. "
             "Differences that small can come from that alone.") in out
-    assert "Worse: 9 turned wrong and none turned right." in out  # the first grades
+    assert "Worse: 9 answers went from right to wrong, and none from wrong to right." in out
 
 
 def test_a_free_recheck_asks_nothing_extra(here, capsys):
