@@ -99,7 +99,8 @@ def _norm(name: str) -> str:
 
 def locked(root: Path, tool: str) -> str | None:
     """The exact version of the eval tool the project pins: package-lock.json for promptfoo;
-    uv.lock, poetry.lock, then requirements*.txt (`==`) for the Python tools."""
+    uv.lock, poetry.lock, then pyproject.toml and requirements*.txt (`==`) for the Python
+    tools."""
     package = PACKAGES[tool]
     if tool == "promptfoo":
         try:
@@ -122,6 +123,10 @@ def locked(root: Path, tool: str) -> str | None:
                 version = p.get("version")
                 if isinstance(version, str):
                     return version
+    for line in _pyproject_requirements(root):
+        m = _PIN.match(line)
+        if m and _norm(m[1]) == package:
+            return m[2]
     for path in sorted(root.glob("requirements*.txt")):
         try:
             text = path.read_text(encoding="utf-8")
@@ -132,6 +137,20 @@ def locked(root: Path, tool: str) -> str | None:
             if m and _norm(m[1]) == package:
                 return m[2]
     return None
+
+
+def _pyproject_requirements(root: Path) -> list[str]:
+    """The requirement lines of the project's pyproject.toml: [project] dependencies and
+    optional-dependencies, and [dependency-groups]."""
+    try:
+        data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    project = data.get("project") if isinstance(data.get("project"), dict) else {}
+    lists = [project.get("dependencies"), *(project.get("optional-dependencies") or {}).values()]
+    groups = data.get("dependency-groups")
+    lists += list(groups.values()) if isinstance(groups, dict) else []
+    return [x for xs in lists if isinstance(xs, list) for x in xs if isinstance(x, str)]
 
 
 def _shape(found) -> tuple[str, list[str], str | None, dict | None]:

@@ -39,7 +39,7 @@ def test_the_version_is_1_0_0b1_everywhere():
 
 def test_the_reference_explains_the_own_format():
     reference = " ".join(REFERENCE.read_text(encoding="utf-8").split())
-    for needed in ("judge_model", "first 3 rows", "judgekeeper.toml"):
+    for needed in ("judge_model", "the columns it read", "judgekeeper.toml"):
         assert needed in reference, needed
     assert "calling a metric's `measure()` directly saves nothing" in reference
 

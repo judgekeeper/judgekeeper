@@ -7,6 +7,7 @@ start` read it first. Nothing secret.
     file = "history/evals.jsonl"   # deepeval, inspect, mlflow, table (mlflow: the store)
     judge = "Safe wording"         # the judge to check; "*": every judge, one at a time
     pass_mark = 0.5
+    pass_op = "<"                  # only when a lower score passes (--pass-if "score<0.5")
     model = "claude-opus-5"        # only when the results do not say which model judged
     experiment = "qa"              # mlflow: the experiment to read
 
@@ -32,6 +33,7 @@ from pathlib import Path
 from judgekeeper.textio import line_ending, read_utf8, write_keeping
 
 FILE = "judgekeeper.toml"
+PASS_OPS = (">=", ">", "<=", "<", "==")
 TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
 MAP_KEYS = {"each": str, "id": str, "input": str, "output": str, "sides": list, "score": str,
             "reason": str, "kind": str, "judges": list, "model_key": str, "leave_out": bool,
@@ -51,6 +53,7 @@ class StartSettings:
     file: str | None = None
     judge: str | None = None
     pass_mark: float | None = None
+    pass_op: str | None = None  # >, <=, < or ==; None is >=
     model: str | None = None
     map: dict = field(default_factory=dict)
     experiment: str | None = None
@@ -78,7 +81,7 @@ def load(root: str | Path) -> StartSettings | None:
         return None
     if not isinstance(table, dict):
         raise SettingsError(f"{FILE}: start must be a table")
-    known = {"source", "file", "judge", "pass_mark", "model", "map", "experiment"}
+    known = {"source", "file", "judge", "pass_mark", "pass_op", "model", "map", "experiment"}
     unknown = sorted(set(table) - known)
     if unknown:
         raise SettingsError(f"{FILE}: unknown key {unknown[0]!r} in [start]; allowed: "
@@ -92,6 +95,9 @@ def load(root: str | Path) -> StartSettings | None:
     mark = table.get("pass_mark")
     if mark is not None and (isinstance(mark, bool) or not isinstance(mark, int | float)):
         raise SettingsError(f"{FILE}: [start] pass_mark must be a number")
+    op = table.get("pass_op")
+    if op is not None and op not in PASS_OPS:
+        raise SettingsError(f"{FILE}: [start] pass_op must be one of {', '.join(PASS_OPS)}")
     m = table.get("map", {})
     if source == "map":
         if not table.get("file"):
@@ -105,7 +111,7 @@ def load(root: str | Path) -> StartSettings | None:
         if not isinstance(value, MAP_KEYS[key]):
             raise SettingsError(f"{FILE}: [start.map] {key} has the wrong type")
     return StartSettings(source=source, file=table.get("file"), judge=table.get("judge"),
-                         pass_mark=mark, model=table.get("model"), map=dict(m),
+                         pass_mark=mark, pass_op=op, model=table.get("model"), map=dict(m),
                          experiment=table.get("experiment"))
 
 
@@ -122,7 +128,7 @@ def _value(v) -> str:
 def render(s: StartSettings) -> str:
     """The [start] (and [start.map]) tables as TOML text."""
     lines = ["[start]"]
-    for key in ("source", "file", "judge", "pass_mark", "model", "experiment"):
+    for key in ("source", "file", "judge", "pass_mark", "pass_op", "model", "experiment"):
         value = getattr(s, key)
         if value is not None:
             lines.append(f"{key} = {_value(value)}")

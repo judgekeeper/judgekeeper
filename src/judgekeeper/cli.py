@@ -302,7 +302,7 @@ def _normaliser_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--label-map", metavar="MAP",
                    help="more spellings of your judge's grades, e.g. 'good=pass,bad=fail' "
                         "(added to pass/fail, true/false, yes/no, correct/incorrect, "
-                        "right/wrong, 1/0)")
+                        "right/wrong, 1/0); =error for a value that is no decision")
 
 
 def cmd_mark(args) -> int:

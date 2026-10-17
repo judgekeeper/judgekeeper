@@ -74,13 +74,15 @@ MODEL_GRADED = frozenset({
     "answer-relevance", "context-faithfulness", "context-recall", "context-relevance",
     "conversation-relevance", "search-rubric",
 })
+# Judges whose value is each test's reference answer, not a rule
+REFERENCE_TYPES = frozenset({"factuality", "model-graded-factuality"})
 # Judges that are not one model call: a grader with tools, a grader of the app's trace
 AGENT_GRADED = frozenset({"agent-rubric", "trajectory:goal-success"})
-DEFAULT_GRADER = ("default grader model not recorded by promptfoo: {n} judgments had no grader "
-                  "provider on the assertion, the test or defaultTest, so promptfoo used its "
-                  "built-in default grader; its model is recorded as unknown.")
-SET_GRADER = ("{n} judgments were graded by a grader set with --grader (provider unknown): "
-              "promptfoo saves only its model name.")
+DEFAULT_GRADER = ("{n} of your judge's grades came from promptfoo's default grader: no grader is "
+                  "set on those tests or in defaultTest, so promptfoo picked one, and its "
+                  "results don't say which model.")
+SET_GRADER = ("{n} of your judge's grades came from a grader set with promptfoo's --grader: its "
+              "results keep only the model's name.")
 CACHED = ("{n} judgments in {file} came from promptfoo's cache: they may be old replies, not "
           "fresh decisions.")
 
@@ -400,7 +402,7 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                 target_id=item_id, name=name, annotator_kind=LLM, label=label,
                 score=c.get("score"), explanation=c.get("reason") or None, run=run, **content,
                 evaluator=evaluator, created_at=created_at,
-                mark=mark)
+                mark=mark, metadata={"reference": True} if kind in REFERENCE_TYPES else {})
             records.append(record)
             rendered = metadata.get("renderedGradingPrompt")
             templates[name].append((record, grading_template(

@@ -19,6 +19,7 @@ with one plain message: CHANGED_SHAPE.
 
 from __future__ import annotations
 
+import operator
 from pathlib import Path
 
 from judgekeeper import mapper
@@ -31,6 +32,9 @@ from judgekeeper.records import (
     read_rows,
 )
 
+PASSES = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt,
+          "==": operator.eq}
+MADE_IDS = "The id column has blank or repeated ids, so judgekeeper made its own."
 CHANGED_SHAPE = ("Your results file changed shape. Remove the [start] table from "
                  "judgekeeper.toml, then run {program} again to read it anew.")
 
@@ -41,8 +45,9 @@ def read_mapped(path: str | Path, m: dict, label: str | None = None
 
     `m` is the map (each, id, input, output, sides, score, reason, kind, judges, model_key)
     plus the settings: `judge` (a name, "*" for every judge, or None when the file has one),
-    `pass_mark`, `model` (the judge's model when the file does not say it), and `leave_out`
-    (leave out answers with an error or a score made by a rule)."""
+    `pass_mark` and `pass_op` (how a score is held against it, >= by default), `model` (the
+    judge's model when the file does not say it), and `leave_out` (leave out scores made by
+    a rule; an error stays, as no decision)."""
     path = Path(path)
     label = label or path.name
     skipped: list[int] = []  # lines that are not JSON
@@ -90,9 +95,30 @@ def read_mapped(path: str | Path, m: dict, label: str | None = None
         records.left_out = sorted(skipped + [x for _, recs in out for x in recs.left_out])
         if records.left_out and not records:
             raise _changed_shape()
+        _own_ids(records, m)
         return [(label, records)]
+    for _, records in out:  # several runs of the same cases: an id names a case, not an answer
+        records.ids_derived = True
     out.reverse()
     return out
+
+
+def _own_ids(records: RecordList, m: dict) -> None:
+    """In a file of one answer per line or row, the file's own ids are the answers' only
+    when every answer has one and none repeats for one judge; else judgekeeper makes its own,
+    and says so once."""
+    if not m.get("id"):
+        return
+    seen: dict[str, set] = {}
+    for r in records:
+        if r.annotator_kind != LLM:
+            continue
+        ids = seen.setdefault(r.name, set())
+        if (r.metadata or {}).get("no_id") or r.target_id in ids:
+            records.ids_derived = True
+            records.per_metric = {name: {"warnings": [MADE_IDS]} for name in seen}
+            return
+        ids.add(r.target_id)
 
 
 def _changed_shape() -> RecordsError:
@@ -112,31 +138,38 @@ def _records(item, side, judge, question, answer, model, m, unnamed) -> list[Sco
             reason = mapper.get(item, m["reason"], side, judge)
         except mapper.Missing:
             reason = None
-    if m.get("leave_out") and mapper.made_by_a_rule(value, reason):
-        return []
+    if m.get("leave_out") and mapper.by_a_rule(reason):
+        return []  # an error stays: counted as no decision
     score, verdict = None, None
-    if m.get("kind", "score") == "score":
+    op = m.get("pass_op") or ">="
+    if mapper.blank(value):
+        pass  # no decision
+    elif m.get("kind", "score") == "score":
         score = mapper.number(value)
         if score is not None and m.get("pass_mark") is not None:
-            verdict = "pass" if score >= m["pass_mark"] else "fail"
+            verdict = "pass" if PASSES[op](score, m["pass_mark"]) else "fail"
     else:
         verdict = value
     item_id = None
     if m.get("id"):
         try:
-            item_id = str(mapper.get(item, m["id"]))
+            value = mapper.get(item, m["id"])
+            item_id = None if mapper.blank(value) else str(value).strip()
         except mapper.Missing:
             item_id = None
     if item_id is not None and side is not None:
         item_id = f"{item_id}:{side}"
+    metadata = ({"pass_mark": m["pass_mark"], "pass_op": op}
+                if verdict is not None and score is not None else {})
+    if m.get("id") and item_id is None:
+        metadata["no_id"] = True  # its id is blank: _own_ids
     return [ScoreRecord(
         target_id=item_id or derive_record_id(question, answer),
         name=judge if judge is not None else unnamed, annotator_kind=LLM, label=verdict,
         score=float(score) if score is not None else None,
         explanation=None if reason is None else str(reason), input=question, output=answer,
         evaluator={"model": model} if model else {},
-        metadata={"pass_mark": m["pass_mark"]} if verdict is not None and score is not None
-        else {})]
+        metadata=metadata)]
 
 
 def _model(item: dict, up: list, m: dict) -> str | None:

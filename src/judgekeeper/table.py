@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import math
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -81,6 +82,31 @@ def _delimiter(text: str, suffix: str) -> str:
     return ","
 
 
+_DECIMAL_COMMA = re.compile(r"\s*-?\d+,\d+\s*")
+
+
+def csv_rows(text: str, suffix: str) -> list[dict]:
+    return [row for _, row in csv_numbered(text, suffix)]
+
+
+def csv_numbered(text: str, suffix: str) -> list[tuple[int, dict]]:
+    """[(line number, row)] of a CSV or TSV text, each row a dict, without the rows where
+    every cell is empty (a spreadsheet's trailing rows). In a `;` file (Excel where the comma
+    is the decimal mark) a cell like 0,42 is the number 0.42, written 0.42."""
+    delimiter = _delimiter(text, suffix)
+    out = []
+    reader = csv.DictReader(io.StringIO(text, newline=""), delimiter=delimiter)
+    for row in reader:
+        cells = [v for k, v in row.items() if k is not None and isinstance(v, str)]
+        if not any(v.strip() for v in cells):
+            continue
+        if delimiter == ";":
+            row = {k: v.replace(",", ".") if isinstance(v, str) and _DECIMAL_COMMA.fullmatch(v)
+                   else v for k, v in row.items()}
+        out.append((reader.line_num, row))
+    return out
+
+
 def read_table(path: str | Path) -> list[dict]:
     """Rows of a CSV, TSV or JSONL file as dicts. CSV values stay strings.
 
@@ -93,8 +119,7 @@ def read_table(path: str | Path) -> list[dict]:
     suffix = path.suffix.lower()
     if suffix in (".csv", ".tsv"):
         text = read_utf8(path, TableError)
-        return [_known_names(r) for r in csv.DictReader(io.StringIO(text, newline=""),
-                                                         delimiter=_delimiter(text, suffix))]
+        return [_known_names(r) for r in csv_rows(text, suffix)]
     if suffix in (".jsonl", ".ndjson", ".json"):
         rows = []
         for n, line in enumerate(jsonl_lines(read_utf8(path, TableError)), 1):
@@ -114,8 +139,11 @@ def read_table(path: str | Path) -> list[dict]:
 def open_quote(path: str | Path, loose: bool = False) -> int | None:
     """The line where a quoted cell of a CSV or TSV file starts that swallows the rows after
     it (its quote never closes, or closes only rows later), or None. A cell swallowed rows
-    when two lines or more inside it read as whole rows (one value per column); with
-    `loose`, when it holds a line break at all (a hint, not a finding)."""
+    when two lines or more inside it read as whole rows: one value per column, and a grade
+    in the verdict column when the table has one (an answer over several lines, with commas,
+    is not a row); with `loose`, when it holds a line break at all (a hint, not a finding)."""
+    from judgekeeper.find import VERDICT_COLUMNS
+
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix not in (".csv", ".tsv"):
@@ -123,13 +151,15 @@ def open_quote(path: str | Path, loose: bool = False) -> int | None:
     text = read_utf8(path, TableError)
     delimiter = _delimiter(text, suffix)
     reader = csv.reader(io.StringIO(text, newline=""), delimiter=delimiter, strict=True)
-    header, start = None, 1
+    header, start, verdict = None, 1, None
     try:
         for row in reader:
             if header is None:
                 header = row
+                verdict = next((i for i, c in enumerate(header)
+                                if column_name(c) in VERDICT_COLUMNS), None)
             elif any(loose or (len(header) >= 3 and _rows_inside(cell, delimiter,
-                                                                 len(header)) >= 2)
+                                                                 len(header), verdict) >= 2)
                      for cell in row if "\n" in cell):
                 return start
             start = reader.line_num + 1
@@ -139,10 +169,14 @@ def open_quote(path: str | Path, loose: bool = False) -> int | None:
     return None
 
 
-def _rows_inside(cell: str, delimiter: str, columns: int) -> int:
-    """How many lines of a cell read as a whole row of `columns` values."""
-    return sum(len(next(csv.reader([line], delimiter=delimiter), [])) == columns
-               for line in cell.split("\n"))
+def _rows_inside(cell: str, delimiter: str, columns: int, verdict: int | None) -> int:
+    """How many lines of a cell read as a whole row of `columns` values, with a grade at
+    `verdict` (when the table has a verdict column)."""
+    from judgekeeper.mapper import _verdict_value
+
+    rows = (next(csv.reader([line], delimiter=delimiter), []) for line in cell.split("\n"))
+    return sum(len(r) == columns and (verdict is None or _verdict_value(r[verdict]))
+               for r in rows)
 
 
 def kind_of(columns) -> str:

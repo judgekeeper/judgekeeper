@@ -173,7 +173,7 @@ def table_columns(path: Path) -> list[str]:
     from judgekeeper.table import _delimiter, column_name
 
     text = _head(path).decode("utf-8", errors="replace").removeprefix("﻿")
-    first = text.split("\n", 1)[0].rstrip("\r")
+    first = re.split(r"\r\n|\r|\n", text, maxsplit=1)[0]  # a CR-only file too
     if path.suffix.lower() == ".jsonl" and "\n" not in text:  # a first line over HEAD_BYTES
         with path.open("rb") as f:
             first = f.readline(MAX_BYTES).decode("utf-8", errors="replace")
@@ -195,6 +195,25 @@ def is_table(columns) -> bool:
     columns = set(columns)
     outputs = "output" in columns or {"output_a", "output_b"} <= columns
     return "input" in columns and outputs and any(c in columns for c in VERDICT_COLUMNS)
+
+
+def title_row(path: Path) -> bool:
+    """A CSV or TSV whose first row is a title, not the header: its second row reads as the
+    header of a table."""
+    from judgekeeper.table import _delimiter, column_name
+
+    if path.suffix.lower() not in (".csv", ".tsv"):
+        return False
+    text = _head(path).decode("utf-8", errors="replace").removeprefix("﻿")
+    lines = re.split(r"\r\n|\r|\n", text, maxsplit=2)
+    if len(lines) < 3:
+        return False
+    try:
+        second = next(csv.reader(io.StringIO(lines[1]),
+                                 delimiter=_delimiter(lines[1], path.suffix.lower())), [])
+    except csv.Error:
+        return False
+    return not is_table(table_columns(path)) and is_table([column_name(c) for c in second])
 
 
 def is_records(columns) -> bool:
@@ -369,15 +388,15 @@ class _Walk:
                     self.add(tool, path, size)
         elif suffix in TABLE_SUFFIXES and depth <= TABLE_DEPTH:
             if _head(path)[:2] in (b"\xff\xfe", b"\xfe\xff"):  # UTF-16: not read, but said
-                from judgekeeper.textio import not_utf8_message
-
-                self.search.notes.append(not_utf8_message(self.rel(path)))
+                self.skip(path, NOT_UTF8)
                 return
             columns = table_columns(path)
             if suffix == ".jsonl" and is_records(columns):  # record()'s format, moved
                 self.add("records", path, size)
             elif is_table(columns):
                 self.add("table", path, size)
+            elif title_row(path):
+                self.search.unreadable.append((self.rel(path), TITLE_ROW))
         elif suffix in TABLE_SUFFIXES and _results_like(path):  # deeper than tables are read
             columns = table_columns(path)
             if is_table(columns) or (suffix == ".jsonl" and is_records(columns)):
@@ -516,6 +535,9 @@ def search(root: str | Path) -> Search:
 
 LINK = "a link: judgekeeper doesn't follow links"
 ABOVE = "in the folder above"
+NOT_UTF8 = "not saved as UTF-8: save it as UTF-8"
+TITLE_ROW = "has a title row above its header"
+EXCEL = (".xlsx", ".xlsm", ".xls")
 PROJECT_MARKERS = ("pyproject.toml", "package.json", ".git", "judgekeeper.toml", "setup.py")
 
 
@@ -613,11 +635,24 @@ def _run_of(path: Path):
     return data.get("testCases"), data.get("conversationalTestCases")
 
 
+NEWEST_RUN = ("Read DeepEval's newest run, {read} ({read_day}). {other} holds an older run "
+              "({other_day}); to check it, run `{command}`.")
+
+
+def _day(result: Result) -> str:
+    """"1 Oct", in local time."""
+    day = result.date().astimezone()
+    return f"{day.day} {MONTHS[day.month - 1]}"
+
+
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
 def _prefer_saved_runs(found: Search) -> None:
     """DeepEval's hidden copies (DEEPEVAL_COPIES) count once per folder: the full run when it
     is there (the other may hold only a link to the run on Confident AI), else the other. When
-    a results folder holds `test_run_*.json` files, those are read and the copies left out;
-    a copy that holds a different run than the newest of them is named in a note."""
+    a results folder holds `test_run_*.json` files too, the newest run by time is read, the
+    copy or the results folder's, and a note names the other with both dates."""
     runs = found.results.get("deepeval", [])
     copies: dict[Path, Result] = {}
     for r in runs:
@@ -628,14 +663,19 @@ def _prefer_saved_runs(found: Search) -> None:
     saved = [r for r in runs if DEEPEVAL_RUN.fullmatch(r.path.name)]
     if saved:
         newest = max(saved, key=lambda r: r.date())
-        for copy in copies.values():
+        for copy in list(copies.values()):
             theirs, ours = _run_of(copy.path), _run_of(newest.path)
-            if theirs is not None and ours is not None and theirs != ours:
-                found.notes.append(
-                    f"DeepEval's hidden copy {copy.rel} holds a different run. Using the newest "
-                    f"file in your results folder, {newest.rel}; to use the other: "
-                    f"{textio.program()} {textio.quote_arg(copy.rel)}")
-        copies = {}
+            if theirs is None or ours is None or theirs == ours:
+                continue
+            read, other = (copy, newest) if copy.date() > newest.date() else (newest, copy)
+            found.notes.append(NEWEST_RUN.format(
+                read=read.rel, read_day=_day(read), other=other.rel, other_day=_day(other),
+                command=f"{textio.program()} {textio.quote_arg(other.rel)}"))
+            if read is copy:  # the results folder's runs are older: the copy is read alone
+                runs = [r for r in runs if r not in saved]
+                break
+        else:
+            copies = {}
     if "deepeval" in found.results:
         found.results["deepeval"] = [r for r in runs if r.path.name not in DEEPEVAL_COPIES
                                      or r in copies.values()]

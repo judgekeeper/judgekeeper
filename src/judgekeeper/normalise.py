@@ -8,9 +8,11 @@ below, plus a leading PASS/FAIL token, plus anything from --label-map); a number
 
 Two failure modes, kept apart on purpose:
 
-- nothing usable (None, an empty string, NaN, a dict with no verdict, a wrong type) is a judge
-  error: verdict "error", excluded from agreement metrics and counted in the report. It is
-  never turned into a fail.
+- nothing usable (None, an empty string, NaN, a dict with no verdict, a wrong type, or one
+  of the words NO_DECISION: error, N/A, null, none, nan) is a judge error: verdict "error",
+  excluded from agreement metrics and counted in the report. It is never turned into a fail.
+  --label-map can map a value to "error" too (`maybe=error`), and can give one of those
+  words a label of its own.
 - a value that looks like a verdict but is not in the map (e.g. "good"), or a number with no
   --pass-if rule, is UnmappedValue: the caller collects them and stops with a usage error that
   lists them. judgekeeper never guesses what "good" means.
@@ -36,6 +38,7 @@ DEFAULT_LABEL_MAP = {
     "1": "pass", "0": "fail",
 }
 DEFAULT_PAIRWISE_MAP = {"a": "A", "b": "B"}
+NO_DECISION = frozenset({"error", "n/a", "null", "none", "nan"})  # a failed call, not a grade
 
 VERDICT_KEYS = ("verdict", "pass", "passed", "label", "score")
 REASON_KEYS = ("reason", "rationale", "explanation", "comment")
@@ -92,7 +95,7 @@ def parse_label_map(text: str | dict | None, kind: str = SINGLE) -> dict[str, st
     """`"good=pass,bad=fail"` (or a dict) to {lowercased value: label}."""
     if not text:
         return {}
-    labels = {lab.lower(): lab for lab in LABELS[kind]}
+    labels = {**{lab.lower(): lab for lab in LABELS[kind]}, ERROR: ERROR}
     pairs = text.items() if isinstance(text, dict) else (
         part.split("=", 1) if "=" in part else (part, None)
         for part in (p.strip() for p in text.split(",")) if part
@@ -105,7 +108,8 @@ def parse_label_map(text: str | dict | None, kind: str = SINGLE) -> dict[str, st
         label = labels.get(str(value).strip().lower())
         if label is None:
             raise NormaliseError(f"--label-map maps {key!r} to {value!r}; labels for "
-                                 f"{kind} items are {', '.join(LABELS[kind])}")
+                                 f"{kind} items are {', '.join(LABELS[kind])} (or error, "
+                                 "for no decision)")
         out[key] = label
     return out
 
@@ -132,7 +136,8 @@ class Normaliser:
         self.pass_if = pass_if
         extra = parse_label_map(label_map, kind)
         base = DEFAULT_PAIRWISE_MAP if kind == PAIRWISE else DEFAULT_LABEL_MAP
-        self.label_map = {**base, **{k.lower(): v for k, v in extra.items()}}
+        words = {} if kind == PAIRWISE else dict.fromkeys(NO_DECISION, ERROR)
+        self.label_map = {**base, **words, **{k.lower(): v for k, v in extra.items()}}
 
     def describe(self) -> dict:
         """What goes into the run header, so the report is reproducible."""
@@ -182,6 +187,8 @@ class Normaliser:
             except ValueError:
                 pass
         label = self.label_map.get(text.lower())
+        if label == ERROR:
+            return _error(f"judge returned {text!r}, no decision")
         if label is not None:
             return Normalised(label)
         if self.kind == SINGLE:

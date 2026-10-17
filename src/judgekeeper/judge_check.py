@@ -5,8 +5,9 @@ and the marks the readers set (records.Mark). Four checks:
 
 1. No real decision: the judge's call failed ("error"), its reply could not be read
    ("unreadable"), the tool would not judge an empty answer ("empty_answer_refused": DeepEval
-   refuses one), or there is no decision at all ("empty"); and, for DeepEval, a check of
-   nothing that still got full marks ("nothing_checked"). These are left out of the pool.
+   refuses one), or there is no decision at all ("empty"); for DeepEval, a check of
+   nothing that still got full marks ("nothing_checked"); for Inspect AI, a sample whose run
+   failed before scoring ("not_scored"). These are left out of the pool.
 2. Passed an empty answer: the app's answer is empty after trimming spaces and the judge
    passed it. These stay in the pool: a real, bad decision, worth a person's mark.
 3. The same decision for everything: the judge passed (or failed) every answer.
@@ -35,8 +36,9 @@ from judgekeeper.textio import plural
 
 ERROR, UNREADABLE, EMPTY, NOTHING_CHECKED = "error", "unreadable", "empty", "nothing_checked"
 EMPTY_ANSWER_REFUSED = "empty_answer_refused"
+NOT_SCORED = "not_scored"  # the run failed before scoring: the judge was never called
 NO_DECISION = (ERROR, UNREADABLE, EMPTY_ANSWER_REFUSED, EMPTY)
-LEFT_OUT = (*NO_DECISION, NOTHING_CHECKED)  # left out of the pool
+LEFT_OUT = (*NO_DECISION, NOTHING_CHECKED, NOT_SCORED)  # left out of the pool
 PASSED_EMPTY = "empty_answer_passed"  # kept in the pool: a real decision
 OPPOSITE = "reason_says_opposite"
 KINDS = (*LEFT_OUT, PASSED_EMPTY, OPPOSITE)
@@ -176,7 +178,8 @@ def check(pool, tool: str, score_judge: bool = False) -> Result:
     same = None
     if len(pool.answers) >= 2 and not (pool.n_pass and pool.n_fail):
         same = "pass" if pool.n_pass else "fail"
-    return Result(answers=len(pool.answers) + len(pool.left), tool=tool, findings=findings,
+    seen = {a.id for a in pool.answers} | set(pool.left) | set(getattr(pool, "unread", ()))
+    return Result(answers=len(seen), tool=tool, findings=findings,
                   same_decision=same, tied=getattr(pool, "n_tied", 0))
 
 
@@ -217,6 +220,10 @@ def lines(block: dict | None) -> list[list[str]]:
         first = (f"Your judge made no real decision on {no_decision} of {block['answers']} "
                  f"answers: {', '.join(parts)}.")
         out.append([first, f"{said}{'It is' if one else 'They are'} left out here."])
+    if block.get(NOT_SCORED):
+        n = block[NOT_SCORED]
+        line = f"{_n(n, 'answer has', 'answers have')} no score: the run failed before scoring."
+        out.append([line, f"{'It is' if n == 1 else 'They are'} left out here."])
     nothing = block.get(NOTHING_CHECKED, 0)
     if nothing:
         one = nothing == 1
@@ -248,8 +255,18 @@ MODEL_NOT_WRITTEN = ("Your judge's model isn't written in your config. promptfoo
                      "from whichever API key is set, so it can change without any file "
                      "changing. Write it in your config (`defaultTest.options.provider`).")
 VERSION_NOT_SEEN = ("judgekeeper can't see your eval tool's version, so an update to it won't "
-                    "be noticed. Pin it in your project (e.g. `{pin}`).")
-PINS = {"deepeval": "deepeval==4.2.8", "mlflow": "mlflow==3.17.0"}  # results hold no version
+                    "be noticed. Pin it in your project{example}.")
+PINS = {"deepeval": "deepeval", "mlflow": "mlflow"}  # results hold no version: their packages
+
+
+def installed(package: str) -> str | None:
+    """The version of `package` installed where judgekeeper runs, or None."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version(package)
+    except (PackageNotFoundError, ValueError):
+        return None
 
 
 def setup_lines(found, setup: dict) -> list[str]:
@@ -258,8 +275,10 @@ def setup_lines(found, setup: dict) -> list[str]:
     out = []
     if found.tool == "promptfoo" and (not found.models or found.model_source):
         out.append(MODEL_NOT_WRITTEN)
-    if found.tool in PINS and setup.get("tool_version") is None:
-        out.append(VERSION_NOT_SEEN.format(pin=PINS[found.tool]))
+    if found.tool in PINS and setup.get("tool_version") is None:  # the project pins none
+        have = installed(PINS[found.tool])  # never older than the version installed
+        out.append(VERSION_NOT_SEEN.format(
+            example=f" (e.g. `{PINS[found.tool]}=={have}`)" if have else ""))
     return out
 
 

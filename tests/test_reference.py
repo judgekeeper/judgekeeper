@@ -193,7 +193,7 @@ def test_the_table_format_and_record_are_described():
     tools = _tools()
     table = _flat(tools["A CSV or JSONL file"])
     for needed in ("`input`, `output` and `verdict`", "`judge_verdict`", "`judge`",
-                   "`judge_model`", "first 3 rows"):
+                   "`judge_model`", "the columns it read"):
         assert needed in table, needed
     assert "judgekeeper.record()" in tools
     sections = _sections()

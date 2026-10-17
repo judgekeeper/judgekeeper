@@ -229,8 +229,9 @@ def test_without_a_terminal_the_pass_mark_is_a_flag(tmp_path, capsys):
     code, out = check(capsys, path, "--yes", "--pass-if", "score>=4")
     assert code == 0, out
     assert saved(tmp_path)["pass_mark"] == 4
-    code, _ = check(capsys, path, "--yes", "--pass-if", "score<4")
-    assert code == 2
+    code, out = check(capsys, path, "--yes", "--pass-if", "score<4")  # a lower score passes
+    assert code == 0, out
+    assert saved(tmp_path)["pass_mark"] == 4 and saved(tmp_path)["pass_op"] == "<"
 
 
 # Without a terminal ----------------------------------------------------------------------
