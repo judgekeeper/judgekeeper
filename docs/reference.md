@@ -79,7 +79,7 @@ judgekeeper mark [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
                  [--fields LIST] [--yes] [--port PORT] [--no-browser] [--new | --wait | --stop]
 ```
 
-Opens the marking page again, to mark more answers; more marks make your numbers more precise. Run `judgekeeper` afterwards to see your updated result. When every answer is marked, it says so and opens no page; with too few of one kind for a result it says it as `judgekeeper` does, and the marking page's last card says the same. When two runs open the page of one project at the same time, the second says "judgekeeper is already opening the marking page for this folder", waits, then opens it and prints its link. It takes the same flags as `judgekeeper`, without `--version` and `--debug`.
+Opens the marking page again, to mark more answers; more marks make your numbers more precise. Run `judgekeeper` afterwards to see your updated result. When every answer is marked, it says so and opens no page. New answers do not join your marks, so it says to run your eval on more questions, then `judgekeeper --new` to mark the new results; with too few of one kind for a result it says it as `judgekeeper` does, and the marking page's last card says the same. When two runs open the page of one project at the same time, the second says "judgekeeper is already opening the marking page for this folder", waits, then opens it and prints its link. It takes the same flags as `judgekeeper`, without `--version` and `--debug`.
 
 ## fix: see where your judge goes wrong and test a better rule
 

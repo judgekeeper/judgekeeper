@@ -119,7 +119,6 @@ NOT_ENOUGH = "That's not enough for a result yet."
 NEXT_MARK = 'mark until "See your result" appears, then click it.'
 NEXT_KEEP_MARKING = 'keep marking until "See your result" appears, then click it.'
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
-NEXT_ALL_MARKED = "run your eval again to get new answers, then run `{command}`."
 NEXT_CHECK = "run `{command}` to re-check your changed judge on your marks."
 NEXT_RESULT = ("nothing to do. When you change your judge or update your eval tool, run "
                "`{command}`.")
@@ -981,7 +980,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if marking and n and n == len(items):
         talk.say(f"You have marked all {_n(n, 'answer')}. There are no more to mark.")
         talk.say()
-        talk.para("Next: " + NEXT_ALL_MARKED.format(command=_command_of(talk, saved, "mark")))
+        talk.para(_all_marked_lines(talk, ws, counts, saved)[1])  # new answers never join
         return EXIT_OK
     talk.say(STEP.format(n=2, name="Mark (more answers)" if marking and enough else "Mark"))
     talk.say()
