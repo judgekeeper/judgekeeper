@@ -7,8 +7,8 @@
 - A long answer cut in the report ends with "…", at a word.
 - Every file judgekeeper writes in `.judgekeeper/` is its owner's only (0600, folders 0700).
 - The pages are dark only: no theme switch, no light colours.
-- With every answer marked, the result page and report.html name `judgekeeper --new`, never
-  the flags the page was opened with, as the terminal does.
+- With every answer marked, the result page and report.html name `judgekeeper --new` with the
+  flags that change how the results are read, never the page's, as the terminal does.
 No test calls an AI API.
 """
 
@@ -419,9 +419,16 @@ def test_the_old_link_page_runs_no_script():
 
 # 46. The Next step on the page, every answer marked -----------------------------------------
 
+READING = ("judgekeeper --tool mlflow --experiment 7 --tracking-uri sqlite:///m.db --metric tone "
+           "--fields question,answer --judge-model gpt-4.1")  # every flag that reads results
+
+
 @pytest.mark.parametrize(("run", "new"), [
     ("judgekeeper --port 8801 --no-browser", "judgekeeper --new"),
     ("judgekeeper results.csv --port 8801 --no-browser", "judgekeeper results.csv --new"),
+    ("judgekeeper r.csv --label-map ok=pass,no=fail --pass-if 'score>=0.5' --port 8801",
+     "judgekeeper r.csv --label-map ok=pass,no=fail --pass-if 'score>=0.5' --new"),
+    (f"{READING} --no-browser", f"{READING} --new"),
 ])
 def test_every_answer_marked_names_judgekeeper_new_without_the_page_flags(run, new):
     r = _result(*TOO_FEW, command=run, left=0)

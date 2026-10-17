@@ -45,6 +45,7 @@ import io
 import json
 import os
 import random
+import re
 import secrets
 from pathlib import Path
 
@@ -381,16 +382,17 @@ def progress_status(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f:
     return {"text": status_line(r), "ready": r["check"] != "too_few"}
 
 
-def start_status(session: StartSession) -> dict:
+def start_status(session: StartSession, run: str | None = None) -> dict:
     """The line under the meters for `start`'s labeling: from the session's labels. With
     every answer marked and no result yet, `done` holds what the end card says
-    (all_marked_lines)."""
+    (all_marked_lines, with new_command of `run`, the command that opened the page)."""
     counted = session.group_counts()
     status = progress_status(session.pool["pass"], session.pool["fail"], *counted["pass"],
                              *counted["fail"])
     if not status["ready"] and session.items and all(i["label"] for i in session.items):
         counts = session.counts()  # nothing left to mark: the end card says what comes next
-        done = all_marked_lines({"correct": counts["correct"], "wrong": counts["wrong"]})
+        done = all_marked_lines({"correct": counts["correct"], "wrong": counts["wrong"]},
+                                new_command(run))
         status.update(text=done[0], done=done)
     return status
 
@@ -552,9 +554,7 @@ def sentences(r: dict) -> list[str]:
     place a count is said: it explains a stop, it is not a target)."""
     if r["check"] == "too_few":
         if all_labeled(r):
-            from judgekeeper.report_page import commands
-
-            return all_marked_lines(r["labels"], commands(r)["new"])  # never the page's flags
+            return all_marked_lines(r["labels"], new_command(r.get("command")))
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     return [side_sentence(key, r[key], r[f"{key}_interval"]) for key in SAID]
 
@@ -582,13 +582,25 @@ def all_labeled(r: dict) -> bool:
     return r.get("left") == 0
 
 
+# The page's own flags: how it opens, never how the results are read
+_PAGE_FLAGS = re.compile(r" --(?:port \d+|no-browser|wait|yes)(?= |$)")
+
+
+def new_command(run: str | None = None) -> str:
+    """`judgekeeper --new` for the run that made the marks (`run`, start.Talk.command): its
+    path and the flags that change how the results are read (start.REPEATED), never the
+    page's own (--port, --no-browser, --wait, --yes). The same in the terminal, on the
+    marking page's end card, the result page and report.html."""
+    return f"{_PAGE_FLAGS.sub('', run or program())} --new"
+
+
 def all_marked_lines(labels: dict, command: str | None = None,
                      folder: str = FOLDER) -> list[str]:
     """Every answer is marked, so there is none left to mark: the line that says so (what a
     result needs while a kind is under ROUGH, else that it is still too early to tell), and the
-    Next: line. New answers do not join the marks: `command` (`judgekeeper --new`) marks the
-    new results from the start."""
-    command = command or program("--new")
+    Next: line. New answers do not join the marks: `command` (new_command) marks the new
+    results from the start."""
+    command = command or new_command()
     short = min(labels["correct"], labels["wrong"]) < ROUGH
     first = ALL_MARKED.format(marks=marks_words(labels)) + (NEEDS_EACH.format(n=ROUGH)
                                                              if short else TOO_FEW_TO_TELL)

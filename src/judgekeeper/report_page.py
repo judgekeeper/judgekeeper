@@ -192,8 +192,9 @@ def counts(r: dict) -> dict:
 
 def commands(r: dict) -> dict[str, str]:
     """The commands the page names, from the one that made the result (r["command"]: the path
-    and the person's flags), as the terminal prints them: `mark` keeps every flag, `check`,
-    `fix` and `new` (`judgekeeper --new`) the path only."""
+    and the person's flags), as the terminal prints them: `mark` keeps every flag, `check`
+    and `fix` the path only, `new` (start_label.new_command) the flags that read results."""
+    from judgekeeper.start_label import new_command
     from judgekeeper.textio import program
 
     run = r.get("command") or program()
@@ -205,7 +206,7 @@ def commands(r: dict) -> dict[str, str]:
     return {"run": run, "mark": " ".join(x for x in (program("mark"), flags) if x),
             "check": " ".join(x for x in (program("check"), path) if x),
             "fix": " ".join(x for x in (program("fix"), path) if x),
-            "new": " ".join(x for x in (program(), path, "--new") if x)}
+            "new": new_command(run)}
 
 
 def next_step(r: dict) -> str | None:

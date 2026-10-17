@@ -1,22 +1,25 @@
 """Every command judgekeeper prints for the person to run next works when copied: it keeps the
 results path and the person's own flags (start.Talk.command), in the terminal and on the result
-page (`mark` with every flag, `check`, `fix` and `--new` with the path). No page names `judgekeeper
+page (`mark` with every flag, `check` and `fix` with the path, `--new` with the path and the
+flags that change how the results are read). No page names `judgekeeper
 start` or one of its flags: that command is gone."""
 
 from __future__ import annotations
 
 import json
 import re
+import shlex
 
 import pytest
 
-from judgekeeper import report_page, start_label
+from judgekeeper import page, report_page, start_label
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import split, table_project
 
 FLAGS = ["--label-map", "good=pass,bad=fail", "--port", "0", "--no-browser"]
 BASE = "judgekeeper evals/results.csv --label-map good=pass,bad=fail --port 0 --no-browser"
+NEW = "judgekeeper evals/results.csv --label-map good=pass,bad=fail --new"  # no page flags
 GONE = ("judgekeeper start", "--review", "--ask-again", "--try-new-judge", "--label-more",
         "--fix", "--rule-file", "--test-pass-mark")
 
@@ -61,5 +64,45 @@ def test_the_result_names_only_the_command_that_was_run(project, capsys):
 
 def test_every_marked_line_names_the_runs_command():
     r = {"check": "too_few", "left": 0, "labels": {"correct": 20, "wrong": 4}, "command": BASE}
-    # as the terminal says it: the path only, never the run's flags
-    assert "`judgekeeper evals/results.csv --new`" in start_label.sentences(r)[1]
+    assert f"`{NEW}`" in start_label.sentences(r)[1]  # the reading flags, not the page's
+
+
+# How the results were read, as start.json keeps it: the same reading gives the same pool
+READ = ("given", "label_map", "metric", "pool", "pool_sha256", "left_out")
+
+
+def test_every_marked_line_is_the_same_everywhere_and_reads_the_file_the_same_way(
+        tmp_path, monkeypatch, capsys):
+    """Every answer marked, Fail still short: the terminal, the marking page's end card, the
+    result page and report.html name the same `--new` command, and that command, run as
+    printed, reads the results as the first run did."""
+    verdicts = ["good"] * 50 + ["bad"] * 10
+    table_project(tmp_path, verdicts, name="evals/results.csv")
+    monkeypatch.chdir(tmp_path)
+    assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
+    ws = Workspace(tmp_path)
+    first = {k: ws.data()[k] for k in READ}
+    assert first["pool"] == {"answers": 60, "pass": 50, "fail": 10}
+    _mark_all(ws)
+    assert main(["evals/results.csv", *FLAGS, "--yes"]) == 3
+    terminal = " ".join(capsys.readouterr().out.split())
+    assert f"then run `{NEW}` to mark the new results." in terminal
+    assert main(["--stop"]) == 0  # the page that run opened: this test opens its own
+    capsys.readouterr()
+    server = page.page_server(ws, 0, BASE.replace("judgekeeper", "judgekeeper mark", 1), BASE)
+    try:
+        card = server.session.state()["status"]["done"][1]
+        html = server.result(server.session, "/?token=t")
+    finally:  # never served: its socket and the project's lock, closed here
+        server.httpd.server_close()
+        server.release()
+    assert f"then run `{NEW}` to mark the new results." in card
+    for name, text in (("result page", html),
+                       ("report.html", ws.report_html.read_text(encoding="utf-8"))):
+        assert f"then run <code>{NEW}</code> to mark the new results." in text, name
+    capsys.readouterr()
+    assert main([*shlex.split(NEW)[1:], "--yes"]) == 0  # --yes: no terminal to answer in
+    out = capsys.readouterr().out
+    assert "Moved your last check to .judgekeeper/previous-" in out, out
+    assert {k: ws.data()[k] for k in READ} == first
+    assert not ws.marks.is_file() or not StartSession(ws).counts()["correct"]  # a fresh start
