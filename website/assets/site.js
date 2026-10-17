@@ -1,420 +1,310 @@
-/*
-  judgekeeper website behaviour. Plain JavaScript, no libraries, no network requests.
+/* judgekeeper.com: the copy buttons; on the home page the demo marking card and the terminal
+   for each step; on How it works the range example and the marks kept aside.
 
-  Every page works without this file: all text is in the HTML. This file adds the theme
-  switch and the phone menu, copy buttons, the install tabs, the home page's demo, the
-  Guide's rail and done ticks, the interactive numbers, the small toggles in "It keeps
-  checking", the bar widths in the real result, and the screenshots open large over the page
-  (without it, the link opens the image file). What it keeps (the theme and
-  the ticked steps) stays in this browser, and every read or write is wrapped in try/catch.
-*/
+   The only motion: the green underline passes once over the five words, and each terminal
+   screen is typed the first time it shows (Replay types it again). Under reduced motion both
+   are instant. Nothing is stored and nothing is sent. */
 (function () {
   "use strict";
 
-  document.documentElement.classList.add("js");
+  var reduce = !!(window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
-  function $(sel, root) { return (root || document).querySelector(sel); }
-  function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
-  function num(el) { return el ? parseFloat(el.textContent) : NaN; }
-  function fmt(x) { return x === null ? "n/a" : x.toFixed(2); }
+  function $(id) { return document.getElementById(id); }
 
-  // The theme switch: dark or light, kept in this browser (assets/theme.js reads it back).
-  function setUpTheme() {
-    var root = document.documentElement, button = $(".theme-btn");
-    if (!button) return;
-    function current() {
-      if (root.dataset.theme) return root.dataset.theme;
-      return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-    }
-    function label() {
-      button.setAttribute("aria-label", current() === "dark" ? "Switch to the light theme" : "Switch to the dark theme");
-    }
-    button.addEventListener("click", function () {
-      var next = current() === "dark" ? "light" : "dark";
-      root.dataset.theme = next;
-      try { window.localStorage.setItem("jk-theme", next); } catch (e) { /* kept for this page only */ }
-      label();
-    });
-    label();
+  function $all(selector, root) {
+    return Array.prototype.slice.call((root || document).querySelectorAll(selector));
   }
 
-  // On a phone the navigation folds behind a Menu button. The menu comes before the button in
-  // the page, so Tab on the open button goes to the menu's first link; Escape closes the menu
-  // and puts the focus back on the button.
-  function setUpMenu() {
-    var button = $(".menu-btn"), nav = $("#site-nav");
-    if (!button || !nav) return;
-    function isOpen() { return nav.classList.contains("open"); }
-    button.addEventListener("click", function () {
-      var open = nav.classList.toggle("open");
-      button.setAttribute("aria-expanded", String(open));
-    });
-    button.addEventListener("keydown", function (e) {
-      var first = nav.querySelector("a");
-      if (e.key === "Tab" && !e.shiftKey && isOpen() && first) {
-        e.preventDefault();
-        first.focus();
+  function make(tag, cls, text) {
+    var el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  /* A copy button copies the command next to it and shows a tick for a moment. */
+  function setUpCopy() {
+    $all("[data-copy]").forEach(function (button) {
+      var code = button.parentNode.querySelector("code");
+      var said = button.querySelector(".copied");
+      function done() {
+        button.classList.add("done");
+        said.textContent = "Copied";
+        clearTimeout(button.jkTimer);
+        button.jkTimer = setTimeout(function () {
+          button.classList.remove("done");
+          said.textContent = "";
+        }, 1500);
       }
-    });
-    document.addEventListener("keydown", function (e) {
-      if (e.key !== "Escape" || !isOpen()) return;
-      nav.classList.remove("open");
-      button.setAttribute("aria-expanded", "false");
-      button.focus();
-    });
-  }
-
-  // Copy buttons on every command block.
-  function addCopyButtons() {
-    $all(".code pre").forEach(function (block) {
-      var holder = block.parentNode;
-      var button = document.createElement("button");
-      button.type = "button";
-      button.className = "copy";
-      button.textContent = "Copy";
-      button.setAttribute("aria-label", "Copy this command");
+      function select() {
+        var range = document.createRange();
+        range.selectNodeContents(code);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        try { document.execCommand("copy"); } catch (e) { /* the text stays selected */ }
+        done();
+      }
       button.addEventListener("click", function () {
-        var text = $("code", block).textContent;
-        var done = function () {
-          button.textContent = "Copied";
-          setTimeout(function () { button.textContent = "Copy"; }, 1500);
-        };
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text).then(done, function () { button.textContent = "Select and copy"; });
+          navigator.clipboard.writeText(code.textContent).then(done, select);
         } else {
-          button.textContent = "Select and copy";
+          select();
         }
       });
-      holder.appendChild(button);
     });
   }
 
-  // What the numbers mean: the interactive confusion matrix.
-  function setUpMatrix() {
-    var root = $("#matrix");
-    if (!root || !window.JKMetrics) return;
-    var pos = $("#m-pos"), neg = $("#m-neg"), tpIn = $("#m-tp"), tnIn = $("#m-tn");
-    // The verdict thresholds are read from the page, where a test checks them against
-    // judgekeeper's code (judgekeeper.targets: RATE_GATE, RATE_CARE, KAPPA_GATE).
-    var rateGate = num($("#th-rate-gate")), rateCare = num($("#th-rate-care")), kappaGate = num($("#th-kappa-gate"));
-
-    function set(id, text) { $(id).firstChild.nodeValue = text; }
-
-    function update() {
-      var p = +pos.value, n = +neg.value;
-      tpIn.max = p; tnIn.max = n;
-      var tp = Math.min(+tpIn.value, p), tn = Math.min(+tnIn.value, n);
-      tpIn.value = tp; tnIn.value = tn;
-      var fn = p - tp, fp = n - tn;
-      $("#m-pos-out").textContent = p; $("#m-neg-out").textContent = n;
-      $("#m-tp-out").textContent = tp; $("#m-tn-out").textContent = tn;
-      set("#cm-tp", String(tp)); set("#cm-fn", String(fn)); set("#cm-fp", String(fp)); set("#cm-tn", String(tn));
-
-      var a = window.JKMetrics.agreement(tp, fn, fp, tn);
-      $("#s-tpr").textContent = fmt(a.tpr);
-      $("#s-tnr").textContent = fmt(a.tnr);
-      $("#s-kappa").textContent = fmt(a.kappa);
-      $("#s-acc").textContent = a.accuracy === null ? "n/a" : Math.round(a.accuracy * 100) + "%";
-      $("#s-tpr-why").textContent = p ? "Of the answers people passed, the judge passed " + tp + " of " + p + "." : "No answers were passed by people, so TPR cannot be measured.";
-      $("#s-tnr-why").textContent = n ? "Of the answers people failed, the judge failed " + tn + " of " + n + "." : "No answers were failed by people, so TNR cannot be measured.";
-      $("#s-kappa-why").textContent = a.kappa === null
-        ? "Kappa cannot be computed: luck alone would give perfect agreement here."
-        : "Agreement after taking away what lucky guessing would give. 0 is no better than chance, 1 is perfect.";
-
-      var line = $("#s-verdict"), level, text;
-      var low = a.tpr === null || a.tnr === null ? null : Math.min(a.tpr, a.tnr);
-      if (a.kappa === null || a.kappa < kappaGate || low === null || low < rateGate) {
-        level = "bad"; text = "Not trustworthy as a gate.";
-        if (a.tnr !== null && a.tnr < rateGate) text += " The judge lets too many bad answers through.";
-        else if (a.tpr !== null && a.tpr < rateGate) text += " The judge fails too many good answers.";
-        if (a.accuracy !== null && a.accuracy >= 0.85) text += " Raw agreement still looks high: that is why judgekeeper never reports it alone.";
-      } else if (low < rateCare) {
-        level = "care"; text = "Usable with care: TPR or TNR is between " + fmt(rateGate) + " and " + fmt(rateCare) + ".";
-      } else {
-        level = "good"; text = "Usable as a gate.";
-      }
-      line.className = "verdict-line " + level;
-      line.textContent = text;
-
-      var ci = function (c) { return c.lo === null ? "n/a" : fmt(c.lo) + " to " + fmt(c.hi); };
-      $("#s-ci").textContent = "Likely ranges with this few answers (95 percent Wilson intervals): TPR " + ci(a.tprCi) + ", TNR " + ci(a.tnrCi) + ". More labels make them narrower.";
-    }
-
-    [pos, neg, tpIn, tnIn].forEach(function (input) {
-      input.addEventListener("input", function () {
-        $all("[data-preset]", root).forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
-        update();
-      });
-    });
-    $all("[data-preset]", root).forEach(function (button) {
-      button.setAttribute("aria-pressed", "false");
-      button.addEventListener("click", function () {
-        var v = button.getAttribute("data-preset").split(",").map(Number);
-        pos.value = v[0]; neg.value = v[1];
-        tpIn.max = v[0]; tnIn.max = v[1];
-        tpIn.value = v[2]; tnIn.value = v[3];
-        $all("[data-preset]", root).forEach(function (b) { b.setAttribute("aria-pressed", String(b === button)); });
-        update();
-      });
-    });
-    update();
-  }
-
-  // Get started: accessible tabs. Without this script every panel is shown.
-  function setUpTabs() {
-    $all(".tabs").forEach(function (box) {
-      var tabs = $all('[role="tab"]', box);
-      function select(tab, focus) {
-        tabs.forEach(function (t) {
-          var on = t === tab;
-          t.setAttribute("aria-selected", String(on));
-          t.tabIndex = on ? 0 : -1;
-          $("#" + t.getAttribute("aria-controls")).hidden = !on;
-        });
-        if (focus) tab.focus();
-      }
-      tabs.forEach(function (tab, i) {
-        tab.addEventListener("click", function () { select(tab); });
-        tab.addEventListener("keydown", function (e) {
-          var next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
-          if (next === undefined) return;
-          e.preventDefault();
-          select(tabs[(next + tabs.length) % tabs.length], true);
-        });
-      });
-      var windows = tabs.filter(function (t) {
-        return t.getAttribute("aria-controls") === "panel-win";
-      });
-      var asked = tabs.filter(function (t) {
-        return t.getAttribute("aria-controls") === linkedPanel();
-      });
-      select(asked.length ? asked[0] : onWindows() && windows.length ? windows[0] : tabs[0]);
-    });
-    if (linkedPanel() && $("#install")) $("#install").scrollIntoView();
-  }
-
-  // A link to #install-mac or #install-win opens the install steps on that tab.
-  function linkedPanel() {
-    return { "#install-mac": "panel-mac", "#install-win": "panel-win" }[location.hash] || null;
-  }
-
-  // The Windows tab comes first when the browser says it runs on Windows.
-  function onWindows() {
-    var data = navigator.userAgentData;
-    var platform = (data && data.platform) || navigator.platform || navigator.userAgent || "";
-    return /Win/.test(platform);
-  }
-
-  // The real result: each bar's width is the number printed next to it.
-  function setUpBars() {
-    $all(".bar-row").forEach(function (row) {
-      var value = num($(".num", row));
-      var fill = $(".bar-fill", row);
-      if (isNaN(value)) return;
-      void fill.offsetWidth; // lay out the empty bar first, so the width change animates
-      fill.style.width = (value * 100) + "%";
-    });
-  }
-
-  // Home: the demo, the labeling card in small. A demo with sample answers: it never runs
-  // judgekeeper. The order is the product's: you mark first, and only then the card shows
-  // what the judge said. The answers are the JSON in #demo-examples; the first one is
-  // already in the HTML. Keys: ← Fail and → Pass while the card is on screen.
+  /* The demo works like the marking page: the judge's grade stays hidden while you mark, and
+     the end card says how often you and the judge disagreed. */
   function setUpDemo() {
-    var demo = $("#demo");
-    if (!demo) return;
-    var examples = JSON.parse($("#demo-examples").textContent);
-    var card = $("#demo-card"), marks = $("#demo-marks"), said = $("#demo-said");
-    var next = $("#dnext"), tally = $("#dtally"), live = $("#dlive");
-    var i = 0, agreed = 0, marked = 0, last = null;
-    var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var card = $("demo");
+    if (!card) return;
+    var items = JSON.parse($("demo-items").textContent);
+    var state, history, cur;
 
-    function show() {
-      var e = examples[i];
-      $("#dq").textContent = e.q;
-      $("#da").textContent = e.a;
-      $("#demo-count").textContent = (i + 1) + " of " + examples.length;
-      marks.hidden = false;
-      said.hidden = true;
+    function reset() {
+      state = items.map(function () { return "none"; });
+      history = [];
+      cur = 0;
+      card.classList.remove("is-end");
+      render();
     }
-
-    function mark(yours, button) {
-      if (marks.hidden) return;
-      var judge = examples[i].j, agree = yours === judge;
-      last = yours;
-      marked++;
-      if (agree) agreed++;
-      if (button) { button.classList.add("hit"); setTimeout(function () { button.classList.remove("hit"); }, 140); }
-      var b = $("#dj"), badge = $("#db");
-      b.textContent = judge;
-      b.className = judge === "Pass" ? "pass" : "fail";
-      badge.className = "badge " + (agree ? "agree" : "disagree");
-      badge.textContent = agree ? "You agree" : "You disagree";
-      var end = i === examples.length - 1;
-      next.textContent = end ? "Start again" : "Next answer";
-      tally.innerHTML = "";
-      if (end) {
-        tally.appendChild(document.createTextNode("Your judge agreed with you on " + agreed + " of " + marked + ". On your own answers, judgekeeper does this count for you. "));
-        var link = document.createElement("a");
-        link.href = "start.html";
-        link.textContent = "Start with the Guide";
-        tally.appendChild(link);
+    function allMarked() {
+      return state.every(function (s) { return s === "pass" || s === "fail"; });
+    }
+    function next() {
+      var k, i;
+      for (k = 1; k <= items.length; k++) {
+        i = (cur + k) % items.length;
+        if (state[i] === "none") return i;
+      }
+      for (k = 1; k <= items.length; k++) {
+        i = (cur + k) % items.length;
+        if (state[i] === "skip") return i;
+      }
+      return cur;
+    }
+    function render() {
+      $("d-q").textContent = items[cur][0];
+      $("d-a").textContent = items[cur][1];
+      var line = $("d-state"), s = state[cur];
+      line.textContent = "";
+      if (s === "pass" || s === "fail") {
+        line.appendChild(document.createTextNode("Marked "));
+        line.appendChild(make("b", s === "pass" ? "p" : "f", s === "pass" ? "Pass" : "Fail"));
       } else {
-        tally.appendChild(document.createTextNode("So far: your judge agrees with you on "));
-        var count = document.createElement("b");
-        count.textContent = agreed + " of " + marked;
-        tally.appendChild(count);
-        tally.appendChild(document.createTextNode("."));
+        line.textContent = s === "skip" ? "Skipped" : "Not marked yet";
       }
-      live.textContent = "Your judge said " + judge + ". " + badge.textContent + ". " + tally.textContent;
-      marks.hidden = true;
-      said.hidden = false;
-      if (!still) {
-        said.classList.add("enter");
-        void said.offsetWidth; // lay out the start, so the change animates
-        said.classList.remove("enter");
-      }
-      next.focus();
+    }
+    function finish() {
+      var n = 0;
+      items.forEach(function (item, i) { if (state[i] !== item[2]) n += 1; });
+      var sum = $("d-sum");
+      sum.textContent = "";
+      var parts = n ? ["You and your judge disagreed on ", [n], " of ", [items.length], "."]
+        : ["You and your judge agreed on all ", [items.length], "."];
+      parts.forEach(function (part) {
+        sum.appendChild(typeof part === "string" ? document.createTextNode(part)
+          : make("span", "mono", String(part[0])));
+      });
+      card.classList.add("is-end");
+    }
+    function mark(kind) {
+      if (card.classList.contains("is-end")) return;
+      history.push({ i: cur, before: state[cur] });
+      state[cur] = kind;
+      if (allMarked()) { finish(); return; }
+      cur = next();
+      render();
+    }
+    function undo() {
+      var last = history.pop();
+      if (!last) return;
+      state[last.i] = last.before;
+      cur = last.i;
+      card.classList.remove("is-end");
+      render();
     }
 
-    function advance() {
-      if (said.hidden) return;
-      var restart = i === examples.length - 1;
-      function swap() {
-        if (restart) { i = 0; agreed = 0; marked = 0; tally.textContent = "Mark it first. Then you see what your judge said."; }
-        else i++;
-        show();
-        live.textContent = "";
-        $("#dq").focus();
-      }
-      if (still) { swap(); return; }
-      card.className = "demo-card out-" + (last === "Pass" ? "pass" : "fail");
-      marks.hidden = true;
-      said.hidden = true;
-      setTimeout(function () {
-        swap();
-        card.className = "demo-card enter";
-        void card.offsetWidth;
-        card.className = "demo-card";
-      }, 160);
-    }
-
-    $all("[data-mark]", demo).forEach(function (button) {
-      button.addEventListener("click", function () { mark(button.getAttribute("data-mark"), button); });
+    $("d-fail").addEventListener("click", function () { mark("fail"); });
+    $("d-pass").addEventListener("click", function () { mark("pass"); });
+    $("d-skip").addEventListener("click", function () { mark("skip"); });
+    $("d-undo").addEventListener("click", undo);
+    $("d-again").addEventListener("click", function () {
+      reset();
+      card.focus({ preventScroll: true });
     });
-    next.addEventListener("click", advance);
+    card.addEventListener("pointerdown", function () {
+      if (!card.contains(document.activeElement)) card.focus({ preventScroll: true });
+    });
     document.addEventListener("keydown", function (e) {
-      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || marks.hidden) return;
-      var active = document.activeElement;
-      var free = !active || active === document.body || demo.contains(active);
-      var box = demo.getBoundingClientRect();
-      if (!free || box.bottom < 0 || box.top > window.innerHeight) return;
-      e.preventDefault();
-      var yours = e.key === "ArrowLeft" ? "Fail" : "Pass";
-      mark(yours, $('[data-mark="' + yours + '"]', demo));
+      if (!card.contains(document.activeElement) || e.metaKey || e.ctrlKey || e.altKey) return;
+      var act = { ArrowLeft: "fail", ArrowRight: "pass", s: "skip", S: "skip" }[e.key];
+      if (act) { e.preventDefault(); mark(act); }
+      else if (e.key === "z" || e.key === "Z") { e.preventDefault(); undo(); }
     });
+    reset();
   }
 
-  // The screenshots: a click opens the picture large in a <dialog> over the page. The ×, a click
-  // outside the picture and Escape close it, and the keyboard goes back to the picture. Cmd,
-  // Ctrl, Shift and middle clicks still open the file, and so does a browser without <dialog>.
-  function setUpZoom() {
-    var links = $all(".shot > a, .shot-wide > a");
-    if (!links.length || !window.HTMLDialogElement) return;
-    var box = document.createElement("dialog"), close = document.createElement("button");
-    var big = document.createElement("img"), opener = null;
-    box.className = "zoom";
-    close.type = "button";
-    close.className = "zoom-close";
-    close.setAttribute("aria-label", "Close the picture");
-    close.textContent = "×";
-    box.appendChild(close);
-    box.appendChild(big);
-    document.body.appendChild(box);
-    close.addEventListener("click", function () { box.close(); });
-    box.addEventListener("click", function (e) { if (e.target === box) box.close(); });
-    box.addEventListener("close", function () {
-      document.documentElement.classList.remove("zoomed");
-      if (opener) opener.focus({ preventScroll: true });
+  /* The steps and their terminal. Each screen is typed the first time it shows; after that
+     it shows at once, and Replay types it again. */
+  function setUpTour() {
+    var out = $("t-out");
+    if (!out) return;
+    var screens = {};
+    $all("template[data-screen]").forEach(function (t) {
+      screens[t.getAttribute("data-screen")] = t.content.textContent;
     });
-    links.forEach(function (link) {
-      link.addEventListener("click", function (e) {
-        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-        e.preventDefault();
-        opener = link;
-        big.src = link.getAttribute("href");
-        big.alt = $("img", link).alt;
-        document.documentElement.classList.add("zoomed");
-        box.showModal();
-        close.focus();
+    var tabs = $("t-tabs"), replay = $("t-replay"), term = $("term");
+    var steps = $all(".steplist [data-step]"), words = $all(".five [data-step]");
+    var current = "find", fixTab = "fix", frame = null, seen = {};
+
+    function screenKey() { return current === "fix" ? fixTab : current; }
+    function underline(step) {
+      words.forEach(function (w) { w.classList.toggle("is-on", w.getAttribute("data-step") === step); });
+    }
+    function paint() {
+      steps.forEach(function (b) {
+        b.setAttribute("aria-selected", String(b.getAttribute("data-step") === current));
       });
-    });
-  }
+      underline(current);
+      $all("[data-screen]", tabs).forEach(function (b) {
+        b.setAttribute("aria-selected", String(b.getAttribute("data-screen") === fixTab));
+      });
+      tabs.hidden = current !== "fix";
+    }
+    function type(key, animate) {
+      var text = screens[key];
+      seen[key] = true;
+      if (frame) { cancelAnimationFrame(frame); frame = null; }
+      if (reduce || !animate) { out.textContent = text; return; }
+      var cursor = make("span", "cursor", "▋");
+      var perSecond = Math.max(420, text.length / 2.2), start = null, shown = 0;
+      out.textContent = "";
+      out.appendChild(cursor);
+      function step(now) {
+        if (start === null) start = now;
+        var want = Math.min(text.length, Math.floor((now - start) / 1000 * perSecond));
+        if (want > shown) {
+          shown = want;
+          out.textContent = text.slice(0, shown);
+          out.appendChild(cursor);
+        }
+        if (shown < text.length) frame = requestAnimationFrame(step);
+        else { cursor.remove(); frame = null; }
+      }
+      frame = requestAnimationFrame(step);
+    }
+    function show() {
+      var key = screenKey();
+      type(key, !seen[key]);
+    }
+    function pick(step) {
+      current = step;
+      paint();
+      show();
+    }
 
-  // The Guide: done ticks kept in this browser, and the rail marks the step in view.
-  function loadDone() {
-    try { return JSON.parse(window.localStorage.getItem("jk-done") || "{}") || {}; } catch (e) { return {}; }
-  }
-  function setUpGuide() {
-    var rail = $(".rail");
-    if (!rail) return;
-    var links = $all(".rail ol > li > a"), done = loadDone();
-    function paint() { links.forEach(function (a, n) { a.classList.toggle("done", !!done[n + 1]); }); }
-    $all("input[data-step]").forEach(function (box) {
-      box.checked = !!done[box.getAttribute("data-step")];
-      box.addEventListener("change", function () {
-        done[box.getAttribute("data-step")] = box.checked;
-        try { window.localStorage.setItem("jk-done", JSON.stringify(done)); } catch (e) { /* this visit only */ }
+    steps.forEach(function (b) {
+      b.addEventListener("click", function () { pick(b.getAttribute("data-step")); });
+    });
+    words.forEach(function (w) {
+      w.addEventListener("click", function () { pick(w.getAttribute("data-step")); });
+    });
+    $all("[data-screen]", tabs).forEach(function (b) {
+      b.addEventListener("click", function () {
+        fixTab = b.getAttribute("data-screen");
         paint();
+        show();
       });
     });
+    replay.addEventListener("click", function () { type(screenKey(), true); });
     paint();
-    var stops = links.map(function (a) { return $(a.getAttribute("href")); });
-    var ticking = false;
-    function update() {
-      ticking = false;
-      var cur = 0;
-      stops.forEach(function (el, n) { if (el && el.getBoundingClientRect().top < 220) cur = n; });
-      links.forEach(function (a, n) {
-        a.classList.toggle("on", n === cur);
-        if (n === cur) a.setAttribute("aria-current", "step"); else a.removeAttribute("aria-current");
+
+    // The first screen is typed when the terminal comes into view.
+    if ("IntersectionObserver" in window) {
+      var watch = new IntersectionObserver(function (entries) {
+        if (!entries[0].isIntersecting) return;
+        watch.disconnect();
+        if (!seen[screenKey()]) show();
+      }, { threshold: 0.25 });
+      watch.observe(term);
+    } else {
+      show();
+    }
+
+    // The hero's one moment: the green underline passes once over the five words, then rests
+    // on the chosen step.
+    function sweep() {
+      var order = words.map(function (w) { return w.getAttribute("data-step"); });
+      order.forEach(function (step, i) {
+        setTimeout(function () { if (current === "find") underline(step); }, 700 + 260 * i);
+      });
+      setTimeout(paint, 700 + 260 * order.length);
+    }
+    if (!reduce && words.length && !location.hash) sweep();
+  }
+
+  /* How it works: more marks, a smaller range. An example with a judge right 61% of the time. */
+  function setUpRange() {
+    var input = $("n");
+    if (!input) return;
+    var count = $("n-out"), range = $("sim-range"), lo = $("sim-lo"), hi = $("sim-hi");
+    var rate = 0.61, z = 2.054;
+    function draw() {
+      var k = Number(input.value), mid = (rate * k + 0.5) / (k + 1);
+      var sd = Math.sqrt(mid * (1 - mid) / (k + 2));
+      var a = Math.max(0, mid - z * sd), b = Math.min(1, mid + z * sd);
+      count.value = String(k);
+      count.textContent = String(k);
+      range.style.left = (a * 100) + "%";
+      range.style.width = ((b - a) * 100) + "%";
+      lo.textContent = Math.round(a * 100) + "%";
+      hi.textContent = Math.round(b * 100) + "%";
+      $("sim-dot").style.left = (rate * 100) + "%";
+    }
+    input.addEventListener("input", draw);
+    draw();
+  }
+
+  /* How it works: the 10 marks kept aside, and what judgekeeper says for each example. */
+  var KEPT = {
+    "6,0": "Result: your new rule is better. A difference this large is very unlikely to be a coincidence.",
+    "4,0": "Result: safe to try. Not clearly better yet, but very unlikely to be more than 10 points worse.",
+    "4,2": "Result: can't tell yet. It leans toward better, but a split this small could easily be a coincidence.",
+    "1,3": "Result: it looks worse. Keep the old rule."
+  };
+
+  function setUpKept() {
+    var row = $("kept-row");
+    if (!row) return;
+    var said = $("kept-out"), buttons = $all(".kept-btns button");
+    function show(fixed, broke) {
+      row.textContent = "";
+      for (var i = 0; i < 10; i++) {
+        row.appendChild(i < fixed ? make("span", "fx", "✓")
+          : i < fixed + broke ? make("span", "br", "✕") : make("span"));
+      }
+      said.textContent = KEPT[fixed + "," + broke];
+      buttons.forEach(function (b) {
+        var on = b.getAttribute("data-fixed") === String(fixed) &&
+          b.getAttribute("data-broke") === String(broke);
+        b.setAttribute("aria-pressed", String(on));
       });
     }
-    window.addEventListener("scroll", function () {
-      if (!ticking) { ticking = true; window.requestAnimationFrame(update); }
-    }, { passive: true });
-    update();
+    buttons.forEach(function (b) {
+      b.addEventListener("click", function () {
+        show(Number(b.getAttribute("data-fixed")), Number(b.getAttribute("data-broke")));
+      });
+    });
+    show(6, 0);
   }
 
-  // A link to a part inside a closed fold-out opens the fold-out first.
-  function openLinkedDetails() {
-    if (!location.hash || location.hash.length < 2) return;
-    var target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
-    if (!target) return;
-    for (var el = target; el; el = el.parentElement) {
-      if (el.tagName === "DETAILS") el.open = true;
-    }
-    // A section that is one fold-out (the Guide's Details) opens it too. Only that fold: a
-    // link to a step leaves the step's "Didn't work?" closed.
-    var fold = target.querySelector(":scope > details");
-    if (fold) fold.open = true;
-    target.scrollIntoView();
-  }
-
-  function start() {
-    setUpTheme();
-    setUpMenu();
-    addCopyButtons();
-    setUpMatrix();
-    setUpTabs();
-    setUpBars();
-    setUpDemo();
-    setUpGuide();
-    setUpZoom();
-    openLinkedDetails();
-    window.addEventListener("hashchange", openLinkedDetails);
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
-  else start();
+  setUpCopy();
+  setUpDemo();
+  setUpTour();
+  setUpRange();
+  setUpKept();
 })();

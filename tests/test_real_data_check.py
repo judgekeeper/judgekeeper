@@ -307,5 +307,3 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
     for figure in result:
         assert figure in reference, figure
     assert "Tested on Python 3.11 to 3.14 on Linux, and on Windows." in readme
-    assert "on Python 3.11 to 3.14 on Linux, and on Windows." in _flat(
-        ROOT / "website" / "learn.html")

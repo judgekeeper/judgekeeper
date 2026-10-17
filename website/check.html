@@ -4,93 +4,56 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
-<title>Free check in your browser | judgekeeper</title>
-<meta name="description" content="Drop a results file from promptfoo or DeepEval, or your own CSV or JSONL file, and run judgekeeper's free check on it in this page. Your file never leaves your computer.">
+<title>Check your LLM-as-a-judge in your browser | judgekeeper</title>
+<meta name="description" content="Drop the results file your eval tool saved: promptfoo, DeepEval, or your own CSV or JSONL file. judgekeeper's first check runs in this page, and your file stays on your computer.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
-<meta property="og:title" content="Free check in your browser | judgekeeper">
-<meta property="og:description" content="Drop a results file from promptfoo or DeepEval, or your own CSV or JSONL file, and run judgekeeper's free check on it in this page. Your file never leaves your computer.">
+<meta property="og:title" content="Check your LLM-as-a-judge in your browser | judgekeeper">
+<meta property="og:description" content="Drop the results file your eval tool saved: promptfoo, DeepEval, or your own CSV or JSONL file. judgekeeper's first check runs in this page, and your file stays on your computer.">
 <meta property="og:url" content="https://www.judgekeeper.com/check.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
 <meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Free check in your browser | judgekeeper">
-<meta name="twitter:description" content="Drop a results file from promptfoo or DeepEval, or your own CSV or JSONL file, and run judgekeeper's free check on it in this page. Your file never leaves your computer.">
+<meta name="twitter:title" content="Check your LLM-as-a-judge in your browser | judgekeeper">
+<meta name="twitter:description" content="Drop the results file your eval tool saved: promptfoo, DeepEval, or your own CSV or JSONL file. judgekeeper's first check runs in this page, and your file stays on your computer.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-<link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
-<script src="assets/theme.js"></script>
-<link rel="stylesheet" href="assets/freecheck.css">
 <script src="assets/site.js" defer></script>
 <script src="assets/freecheck.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
-<header class="site-header">
-<div class="wrap">
-<a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<nav class="site-nav" id="site-nav" aria-label="Site">
-<ul><li><a href="index.html">Home</a></li><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul>
-</nav>
-<button class="theme-btn" type="button" aria-label="Switch to the light theme"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
-<button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
-</div>
+<header class="menu"><div class="wrap">
+<nav class="menu-l" aria-label="Pages"><a href="index.html">Home</a><a href="start.html">Guide</a><a href="learn.html">How it works</a><a href="reference.html">Reference</a></nav>
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></a>
+<div class="menu-r"><a class="gh" href="https://github.com/judgekeeper/judgekeeper">GitHub</a></div>
+</div></header>
+<main id="main" class="g g-check"><div class="wrap"><div class="g-main">
+<header class="g-head">
+  <h1>Check your LLM-as-a-judge</h1>
+  <p class="g-lede">Drop the results file your eval tool saved. It stays on your computer.</p>
 </header>
-
-<main id="main" class="wrap">
-  <h1>Is your judge really judging?</h1>
-  <p class="lead">Drop your results file: promptfoo, DeepEval, or your own CSV or JSONL file. This page runs judgekeeper's free check on it: did your judge give a real Pass or Fail to every answer?</p>
-
-  <div class="fc">
-    <div class="fc-left">
-      <button type="button" class="fc-drop" id="fc-drop" aria-describedby="fc-how fc-private">
-        <svg class="fc-icon" width="44" height="50" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span class="fc-drop-h">Drop your results file here</span>
-        <span class="fc-drop-s">or press to pick the file</span>
-      </button>
-      <input type="file" id="fc-file" class="fc-file" tabindex="-1" aria-hidden="true">
-
-      <ul class="small fc-how" id="fc-how">
-        <li><b>promptfoo:</b> the file from <code>promptfoo eval -o results.json</code></li>
-        <li><b>DeepEval:</b> one run at a time: <code>.deepeval/.latest_run_full.json</code>, or one <code>test_run_….json</code> from your results folder. Older runs are not read here. The <code>.deepeval</code> folder is hidden: on a Mac, press <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>.</kbd> in the file picker to see it.</li>
-        <li><b>Your own file:</b> a CSV, TSV or JSONL file with the columns <code>input</code>, <code>output</code> and <code>verdict</code> (or <code>judge_verdict</code>, <code>judge</code>)</li>
-      </ul>
-      <p class="fc-private" id="fc-private"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="10.5" width="14" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Your file never leaves this page: it is read on your computer. Turn off Wi-Fi and it still works.</span></p>
-    </div>
-
-    <div class="fc-right">
-      <div id="fc-result" class="fc-result" aria-live="polite">
-        <div class="card fc-empty">
-          <p class="fc-empty-h">What you will see</p>
-          <ul>
-            <li>Which judge graded your answers, and its rule</li>
-            <li>How many answers it passed and failed</li>
-            <li>Answers where it made no real decision: a failed call, a reply it could not read</li>
-            <li>Whether it passed (or failed) every single answer</li>
-          </ul>
-          <p class="small">No AI call, no key, no account.</p>
-        </div>
-      </div>
-      <div class="card fc-next" id="fc-next" hidden>
-        <p class="fc-limit">This shows whether your judge is really judging, not whether it agrees with you. To see that, run uvx judgekeeper in your project and mark some answers.</p>
-        <div class="code"><pre><code>uvx judgekeeper</code></pre></div>
-      </div>
-    </div>
+<section class="fc">
+  <button type="button" class="fc-drop" id="fc-drop">
+    <span class="fc-main"><b>Drop your results file here,</b> or click to choose one.</span>
+    <span class="fc-kinds">promptfoo · DeepEval · CSV · JSONL</span>
+  </button>
+  <input type="file" id="fc-file" class="sr" tabindex="-1" aria-hidden="true">
+  <p class="fc-alt">Using Inspect AI or MLflow? <a href="start.html#install">The full tool reads those too.</a></p>
+  <div class="fc-result" id="fc-result" aria-live="polite"></div>
+  <div class="fc-next" id="fc-next" hidden>
+    <p class="fc-note">This shows whether your judge gives real Pass or Fail grades, not whether it agrees with you. To see that, run uvx judgekeeper in your project and mark some answers.</p>
+    <div class="cmd"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
   </div>
-</main>
-
-<footer class="site-footer">
-<div class="wrap cols">
-<div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with you; it never decides for you.</p>
-<p class="fine">Not affiliated with the tools it can read results from, or their models. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
-<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
-<div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
-<div><h2>More</h2><ul><li><a href="check.html">Free check in your browser</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
-</div>
-</footer>
+</section>
+</div></div></main>
+<footer class="foot"><div class="wrap">
+<div class="brand"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></div>
+<div class="foot-r" role="navigation" aria-label="Legal"><a href="privacy.html">Privacy</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">Trademarks</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md">Security</a><span class="copy">© 2026 Sathvik Thota · <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE">MIT license</a></span></div>
+</div></footer>
 </body>
 </html>

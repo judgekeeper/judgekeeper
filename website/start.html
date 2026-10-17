@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guide | judgekeeper</title>
-<meta name="description" content="Check your LLM-as-a-judge step by step: install judgekeeper in your project, run judgekeeper start, mark answers Pass or Fail in your browser, and see how often your judge agrees with you.">
+<meta name="description" content="Check your LLM-as-a-judge in 5 steps. Each step shows the command, what you see, and how you know it worked.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="Guide | judgekeeper">
-<meta property="og:description" content="Check your LLM-as-a-judge step by step: install judgekeeper in your project, run judgekeeper start, mark answers Pass or Fail in your browser, and see how often your judge agrees with you.">
+<meta property="og:description" content="Check your LLM-as-a-judge in 5 steps. Each step shows the command, what you see, and how you know it worked.">
 <meta property="og:url" content="https://www.judgekeeper.com/start.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
@@ -16,351 +16,219 @@
 <meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Guide | judgekeeper">
-<meta name="twitter:description" content="Check your LLM-as-a-judge step by step: install judgekeeper in your project, run judgekeeper start, mark answers Pass or Fail in your browser, and see how often your judge agrees with you.">
+<meta name="twitter:description" content="Check your LLM-as-a-judge in 5 steps. Each step shows the command, what you see, and how you know it worked.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-<link rel="preload" href="assets/fonts/bricolage-grotesque-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
-<script src="assets/theme.js"></script>
 <script src="assets/site.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
-<header class="site-header">
-<div class="wrap">
-<a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<nav class="site-nav" id="site-nav" aria-label="Site">
-<ul><li><a href="index.html">Home</a></li><li><a href="start.html" aria-current="page">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul>
-</nav>
-<button class="theme-btn" type="button" aria-label="Switch to the light theme"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
-<button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
-</div>
+<header class="menu"><div class="wrap">
+<nav class="menu-l" aria-label="Pages"><a href="index.html">Home</a><a href="start.html" aria-current="page">Guide</a><a href="learn.html">How it works</a><a href="reference.html">Reference</a></nav>
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></a>
+<div class="menu-r"><a class="gh" href="https://github.com/judgekeeper/judgekeeper">GitHub</a></div>
+</div></header>
+<main id="main" class="g"><div class="wrap"><nav class="g-nav" aria-label="On this page">
+  <a href="#install">Install</a>
+  <a href="#find">Step 1 · Find</a>
+  <a href="#mark">Step 2 · Mark</a>
+  <a href="#measure">Step 3 · Measure</a>
+  <a href="#fix">Step 4 · Fix</a>
+  <a href="#recheck">Step 5 · Re-check</a>
+  <a href="#keys">Keys and costs</a>
+  <a href="#own-format">Your own format</a>
+  <a href="#misc">Start over, stop, remote</a>
+</nav><div class="g-main">
+<header class="g-head">
+  <h1>Guide</h1>
+  <p class="g-lede">Check your LLM-as-a-judge in 5 steps. Each step shows the command, what you see, and how you know it worked.</p>
 </header>
-
-<div class="guide">
-<aside class="rail" aria-label="Steps">
-  <p>Your route</p>
-  <ol>
-    <li><a href="#install"><span class="n">1</span><span class="label">Install</span></a></li>
-    <li><a href="#connect"><span class="n">2</span><span class="label">Connect your results</span></a></li>
-    <li><a href="#start"><span class="n">3</span><span class="label">Start</span></a></li>
-    <li><a href="#label"><span class="n">4</span><span class="label">Mark</span></a></li>
-    <li><a href="#result"><span class="n">5</span><span class="label">Your result</span></a></li>
-    <li><a href="#improve"><span class="n">6</span><span class="label">Improve your judge</span></a>
-      <div class="sub"><a href="#review">See where you disagree</a><a href="#fix">Fix your judge</a><a href="#new-judge">Try your new judge</a></div></li>
-  </ol>
-  <p class="railnote">Ticked steps are remembered in this browser, so you can come back later.</p>
-</aside>
-
-<main id="main">
-<h1>Check your judge, step by step</h1>
-<p class="lede">Six steps. Each one says what to do, what you will see, and how you know it worked. Your judge is the AI that grades the answers your app writes, in your evals.</p>
-
-<div class="ready">
-  <div><h2>You need</h2><ul>
-    <li>Python 3.11 or newer</li>
-    <li>A project whose judge has graded some answers, with promptfoo, DeepEval, Inspect AI, MLflow, a table or your own code</li></ul></div>
-  <div><h2>You will end with</h2><ul>
-    <li>How often your judge agrees with you, in two plain sentences</li>
-    <li>The answers where it disagrees with you</li>
-    <li>Everything saved in your project, on your computer</li></ul></div>
-</div>
-
-<section class="stop" id="install" aria-labelledby="install-title">
-  <div class="head"><span class="n" aria-hidden="true">1</span><h2 id="install-title">Install</h2></div>
-  <p class="why">judgekeeper is a tool for developers, like pytest. Install it inside your project, in the project&#39;s own Python environment, not on your computer as a whole. You need Python 3.11 or newer.</p>
-  <div class="trio">
-    <p class="first">First check <code>python3 --version</code> (Windows: <code>py --version</code>): it should say Python 3.11 or newer. No <code>.venv</code> yet? First run <code>python3 -m venv .venv</code> (Windows: <code>py -m venv .venv</code>).</p>
-    <div class="tabs" id="install-tabs">
-      <div role="tablist" aria-label="Your computer">
-        <button role="tab" type="button" id="tab-mac" aria-controls="panel-mac" aria-selected="true">Mac and Linux</button>
-        <button role="tab" type="button" id="tab-win" aria-controls="panel-win" aria-selected="false" tabindex="-1">Windows</button>
-      </div>
-      <div role="tabpanel" id="panel-mac" aria-labelledby="tab-mac">
-        <p class="boxlabel">Terminal, in your project folder</p>
-        <div class="code"><pre><code>source .venv/bin/activate
-pip install judgekeeper
-judgekeeper --version</code></pre></div>
-      </div>
-      <div role="tabpanel" id="panel-win" aria-labelledby="tab-win">
-        <p class="boxlabel">PowerShell, in your project folder</p>
-        <div class="code"><pre><code>.venv\Scripts\activate
-pip install judgekeeper
-judgekeeper --version</code></pre></div>
-      </div>
-    </div>
-    <div class="screen"><p class="bar"><i></i><i></i><i></i><span>What you will see</span></p><pre class="output" data-output="version"><code><span class="ok">&#x2713;</span> judgekeeper 1.0.0b2 is ready
-<span class="dim">Next: run judgekeeper</span></code></pre></div>
-    <p class="note">The package is <a href="https://pypi.org/project/judgekeeper/">judgekeeper on PyPI</a>. Add it to your project&#39;s dev requirements, so everyone who works on the project gets it.</p>
-    <div class="donewhen"><p>You&#39;re done when the first line ends in <b>is ready</b>.</p><label class="tick"><input type="checkbox" data-step="1"> Mark step 1 done</label></div>
-    <details class="help"><summary>Didn&#39;t work?</summary><dl>
-      <dt>Not sure which Python you have</dt>
-      <dd>Run <code>python3 --version</code> (on Windows <code>py --version</code>, or <code>python --version</code> when Python is on the PATH). You need <code>Python 3.11</code> or a higher number, such as <code>Python 3.13.2</code>. Command not found, or a lower number? On a Mac or Windows, install Python from <a href="https://www.python.org/downloads/">python.org/downloads</a> and open a new terminal. On Linux, get Python 3.11 or newer from your package manager (Ubuntu 22.04 comes with Python 3.10, which is too old). A <code>.venv</code> you made before keeps its old Python: delete it and make it again.</dd>
-      <dt><code>Could not find a version that satisfies the requirement judgekeeper (from versions: none)</code></dt>
-      <dd>Your Python is too old: judgekeeper needs Python 3.11 or newer. Install a newer Python, delete <code>.venv</code>, and make it again (<code>python3.12 -m venv .venv</code>, on Windows <code>py -3.12 -m venv .venv</code>).</dd>
-      <dt>No <code>.venv</code> folder in your project (on a Mac or Linux: <code>no such file or directory</code>)</dt>
-      <dd>An <strong>environment</strong> (a virtual environment) is a folder in your project that holds its own Python and what the project needs. Make one with <code>python3 -m venv .venv</code> (on Windows <code>py -m venv .venv</code>), then run the activate line again. The start of the line then reads <code>(.venv)</code>. If your project keeps its environment in another folder, such as <code>venv</code>, use that name.</dd>
-      <dt><code>ensurepip is not available</code> when you make <code>.venv</code> on Linux</dt>
-      <dd>On Debian and Ubuntu, the part of Python that makes environments is a package of its own. Install the one for your Python, such as <code>python3.12-venv</code> (<code>sudo apt install python3.12-venv</code>), delete the half-made <code>.venv</code>, and make it again.</dd>
-      <dt>Your project uses uv or Poetry</dt>
-      <dd>Add judgekeeper as a dev tool instead: <code>uv add --dev judgekeeper</code> or <code>poetry add --group dev judgekeeper</code>. Then put <code>uv run</code> or <code>poetry run</code> in front of each command: <code>uv run judgekeeper start</code>. uv or Poetry refuses because your project also allows an older Python than judgekeeper needs? Use <code>uv add --dev "judgekeeper; python_version &gt;= '3.11'"</code> or <code>poetry add --group dev judgekeeper --python "&gt;=3.11"</code>.</dd>
-      <dt><code>error: externally-managed-environment</code></dt>
-      <dd>Your project&#39;s environment is not switched on, so pip tried to install into the Python of your whole computer, which Homebrew, another program or the system protects. It is not about judgekeeper. Run the activate line, check that the line starts with <code>(.venv)</code>, then install again.</dd>
-      <dt><code>pip: command not found</code> (a Mac may say <code>zsh: command not found: pip</code>)</dt>
-      <dd>Outside an environment, a Mac names the command <code>pip3</code>. Switch on your project&#39;s environment: inside it, <code>pip</code> works.</dd>
-      <dt><code>'pip' is not recognized as an internal or external command</code> (PowerShell: <code>The term 'pip' is not recognized</code>)</dt>
-      <dd>Inside your project&#39;s environment <code>pip</code> is always found, so the environment is not switched on: run the activate line again. Or use the environment&#39;s own Python, which always installs into your project: <code>.venv\Scripts\python -m pip install judgekeeper</code></dd>
-      <dt>PowerShell refuses to run the activate line</dt>
-      <dd>Run <code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code> once and try again. In Command Prompt the line is <code>.venv\Scripts\activate.bat</code>.</dd>
-      <dt>The judgekeeper command is not found</dt>
-      <dd>With your project&#39;s environment switched on, run <code>python -m judgekeeper --version</code>. It does the same thing. Put <code>python -m</code> in front of every <code>judgekeeper</code> command, or with uv or Poetry put <code>uv run</code> or <code>poetry run</code> in front.</dd>
-    </dl></details>
-  </div>
+<section id="install">
+  <h2>Install</h2>
+  <p>You need eval results already graded by an LLM-as-a-judge: from promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV or JSONL file. In your project folder, run:</p>
+  <div class="cmd"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+  <p>No <a href="https://docs.astral.sh/uv/">uv</a>? Run <code>pip install judgekeeper</code>, then <code>judgekeeper</code>. Needs Python 3.11 or newer, on macOS, Linux or Windows.</p>
+  <p>Open source under the <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE">MIT license</a>. On <a href="https://pypi.org/project/judgekeeper/">PyPI</a>. <a href="https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md">What changed</a>.</p>
 </section>
+<section id="find">
+  <p class="eyebrow">Step 1 · Find</p>
+  <h2>Run judgekeeper in your project</h2>
+  <p>It finds your eval results and the judge that graded them. It checks, with no AI call, that your judge gave every answer a clear Pass or Fail, then opens the marking page.</p>
+  <div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+  <div class="term term-static"><div class="term-bar"><span class="term-title">example project</span></div><pre class="term-out">$ judgekeeper
+judgekeeper 1.0.0
 
-<section class="stop" id="connect" aria-labelledby="connect-title">
-  <div class="head"><span class="n" aria-hidden="true">2</span><h2 id="connect-title">Connect your results</h2></div>
-  <p class="why">judgekeeper reads what your judge already saved. Pick the line that fits you.</p>
-  <p class="note">Have results from promptfoo or DeepEval, or your own CSV or JSONL file? <a href="check.html">Run the free check in your browser</a>.</p>
-  <div class="doors">
-    <details open><summary>I use promptfoo, DeepEval, Inspect AI or MLflow</summary>
-      <div class="in"><p>Nothing to do. <code>judgekeeper start</code> finds your results by itself. Go to step 3. (<a href="#reads">What it reads</a>.)</p></div></details>
-    <details><summary>My judge saves results in a file of its own</summary>
-      <div class="in"><p>Run this once in your project folder. It looks inside the file, asks only what it can&#39;t tell, shows 3 answers as it will read them, then asks once before it changes any file. It never edits your code. (<a href="#door-setup">More on setup</a>.)</p>
-        <div class="code"><pre><code>judgekeeper setup</code></pre></div></div></details>
-    <details><summary>My judge is code I wrote, and it saves nothing</summary>
-      <div class="in"><p>Add one line where your judge decides on each answer, in your eval code, then run your eval once. (<a href="#door-record">More on record()</a>.)</p>
-        <div class="code"><pre><code>judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
-                   judge="claude-opus-5", rule=criteria)</code></pre></div></div></details>
-  </div>
-  <div class="trio" style="margin-top:12px"><div class="donewhen"><p>You&#39;re done when your results fit one of the three lines above.</p><label class="tick"><input type="checkbox" data-step="2"> Mark step 2 done</label></div></div>
+Step 1 of 5: Find
+
+Eval tool:   promptfoo
+Answers:     40 answers, each graded by your judge
+             (read from results.json)
+Judge:       openai:gpt-4.1-mini
+Judge rule:  "The answer solves the customer's problem and is polite."
+
+Your judge's grades: 23 Pass, 17 Fail.
+Checked: your judge gave every answer a clear Pass or Fail.
+
+Step 2 of 5: Mark
+
+The marking page is open in your browser. It shows the answers
+one at a time. Mark each one Pass or Fail, the way you want your
+judge to decide. Your judge's grade stays hidden.
+
+Next: mark until "See your result" appears, then click it.</pre></div>
+  <p class="done"><b>Done when</b> the marking page is open in your browser.</p>
+  <details>
+    <summary>Didn't work?</summary>
+    <p>No saved results yet? Run your eval once, then <code>judgekeeper</code> again.</p>
+    <p>Nothing found? Check you are in your project folder, or point it at the file: <code class="long">judgekeeper path/to/results.json</code>.</p>
+  </details>
 </section>
-
-<section class="stop" id="start" aria-labelledby="start-title">
-  <div class="head"><span class="n" aria-hidden="true">3</span><h2 id="start-title">Start</h2></div>
-  <p class="why">One command. It finds your judge and its saved answers, and says what it found.</p>
-  <div class="trio">
-    <p class="boxlabel">Terminal, in your project folder</p>
-    <div class="code"><pre><code>judgekeeper start</code></pre></div>
-    <div class="screen"><p class="bar"><i></i><i></i><i></i><span>What you will see, for a project with promptfoo results</span></p><pre class="output" data-output="start"><code>Looking in /Users/me/support-bot ...
-
-judgekeeper found your LLM-as-a-judge:
-
-  Eval tool       promptfoo
-  Results file    results.json (saved 3 Oct 2026, 14:12)
-  What it checks  "is polite and correct"
-  Judge model     openai:gpt-4.1-mini
-  Its decisions   212 answers: 171 passed, 41 failed
-  <span class="ok">&#x2713;</span> Your judge gave a Pass or Fail on every answer (no errors or empty replies).
-
-Next: in your browser, mark each answer Pass or Fail.
-This shows how often your judge agrees with you.
-<span class="em">Open it now? [Y/n]</span></code></pre></div>
-    <div class="donewhen"><p>You&#39;re done when it names <b>your judge</b> and asks <b>Open it now?</b> Press Enter.</p><label class="tick"><input type="checkbox" data-step="3"> Mark step 3 done</label></div>
-    <details class="help"><summary>Didn&#39;t work?</summary><dl>
-      <dt><code data-said-by="start">No saved eval results found in</code> your folder</dt>
-      <dd>Your eval tool has saved no results in this folder yet: run your eval once, then <code>judgekeeper start</code> again. If your judge saves its results its own way, go back to step 2.</dd>
-      <dt><code>judgekeeper setup</code> says <code data-said-by="setup_project">Three ways on:</code></dt>
-      <dd>It found no file it can read as your judge&#39;s results. Pick one of the three ways it lists: give it your file&#39;s path, add the <code>record()</code> line, or write a table (<a href="#own-format">all three</a>).</dd>
-      <dt><code data-said-by="start">No promptfoo results file in this folder.</code></dt>
-      <dd>promptfoo kept your results in its own database. judgekeeper offers to run <code>promptfoo export</code> for you, which writes them to a file. It asks first.</dd>
-      <dt>It says judgekeeper <code data-said-by="start_label">needs at least</code> 15 answers you mark Pass and 15 you mark Fail to show a result</dt>
-      <dd>Your judge graded fewer than 30 answers. It prints the command that makes more with your own eval, naming your config, test file or task: run it (it calls your models, so it costs money), then <code>judgekeeper start</code> again. Or mark these now: your marks are kept and count when you add more. A judge that failed only a few answers is not a reason to stop: your marks decide what should fail.</dd>
-      <dt><code data-said-by="start">Saved results from more than one eval tool:</code> or <code data-said-by="start">These results hold more than one judge:</code></dt>
-      <dd>It lists them and asks which one. Pick the judge you want to check.</dd>
-    </dl></details>
-  </div>
+<section id="mark">
+  <p class="eyebrow">Step 2 · Mark</p>
+  <h2>Mark answers Pass or Fail</h2>
+  <p>Mark each answer the way you want your judge to decide. Your judge's grade stays hidden. Use the buttons or the arrow keys. Every mark is saved, so you can close the page and come back.</p>
+  <figure class="shot"><a href="assets/shots/label.webp"><img src="assets/shots/label.webp" width="1440" height="900" loading="lazy" alt="The marking page: the question and the answer in the middle, Fail and Pass buttons under them, and a row of dots at the top for the answers marked so far."></a></figure>
+  <p class="done"><b>Done when</b> <b>See your result</b> appears at the top. Click it.</p>
 </section>
-
-<section class="stop" id="label" aria-labelledby="label-title">
-  <div class="head"><span class="n" aria-hidden="true">4</span><h2 id="label-title">Mark</h2></div>
-  <p class="why">A page opens in your browser. It runs on your own computer and shows one answer at a time: does it pass your judge&#39;s rule?</p>
-  <div class="trio">
-    <figure class="shot-wide"><a href="assets/shots/label.webp"><img src="assets/shots/label.webp" width="1440" height="900" loading="lazy" alt="The marking page: your judge's rule on the left, the question and your app's answer in the middle, equal Fail and Pass buttons under them, and a row of dots at the top for the answers marked so far."></a>
-      <figcaption>The marking page, part way through. <span class="sample">Sample data</span></figcaption></figure>
-    <p>Press <kbd>←</kbd> for Fail (this answer breaks your judge&#39;s rule) and <kbd>→</kbd> for Pass (it follows the rule), or drag the card. <kbd>S</kbd> skips an answer you can&#39;t tell from the text, and <kbd>U</kbd> undoes the last one. Every click is saved at once, so you can stop at any time and run <code>judgekeeper start</code> later to carry on.</p>
-    <p>What your judge decided stays hidden, so it can&#39;t sway you. The dots at the top are your marks so far: click one to go back to that answer. Half the answers are ones the judge passed and half it failed, so you see enough of both.</p>
-    <div class="donewhen"><p>You&#39;re done when the page shows <b>See your result</b>. Marking more answers narrows the result&#39;s ranges.</p><label class="tick"><input type="checkbox" data-step="4"> Mark step 4 done</label></div>
-  </div>
+<section id="measure">
+  <p class="eyebrow">Step 3 · Measure</p>
+  <h2>Read your result</h2>
+  <p>The result page tells you if your judge is good enough to use, needs work, or if it is too early to tell. It shows where you and your judge disagreed. It is also saved as <code>.judgekeeper/report.html</code>.</p>
+  <figure class="shot"><a href="assets/shots/result.webp"><img src="assets/shots/result.webp" width="1440" height="900" loading="lazy" alt="The result page: how often your judge agreed with you when you said Pass and when you said Fail, each with its range, and what to do next."></a></figure>
+  <p class="done"><b>Done when</b> you see your result. Too early to tell? Mark more answers with <code>judgekeeper mark</code>.</p>
 </section>
+<section id="fix">
+  <p class="eyebrow">Step 4 · Fix</p>
+  <h2>Write a better rule and test it</h2>
+  <p>Judge needs work? Run <code>judgekeeper fix</code>. It saves the clues and every mistake in one file you can hand to a coding agent.</p>
+  <div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+  <div class="term term-static"><div class="term-bar"><span class="term-title">example project</span></div><pre class="term-out">$ judgekeeper fix
+judgekeeper 1.0.0
 
-<section class="stop" id="result" aria-labelledby="result-title">
-  <div class="head"><span class="n" aria-hidden="true">5</span><h2 id="result-title">Your result</h2></div>
-  <p class="why"><strong>See your result</strong> appears once you have marked enough answers of each kind. Press it: it shows in the page and in the terminal, and it is saved as <code>.judgekeeper/result.html</code>, which opens without judgekeeper running.</p>
-  <div class="trio">
-    <figure class="shot-wide"><a href="assets/shots/result.webp"><img src="assets/shots/result.webp" width="1440" height="900" loading="lazy" alt="The result page: You passed: your judge also passed about 86% (could be 72% to 96%). You failed: your judge also failed about 83% (could be 66% to 95%). Under them, one amber line and what to do next; on the right, the details with their ranges."></a>
-      <figcaption>The result page, after 40 answers. <span class="sample">Sample data</span></figcaption></figure>
-    <p>The two sentences are the answer. Then one line says whether your judge agrees with you often enough to use as a gate: an automatic check that can stop a release. Green: often enough. Amber: look at where it disagrees first. Red: not often enough yet.</p>
-    <ul>
-      <li><strong>TPR</strong>: of the answers you marked Pass, the share the judge passed.</li>
-      <li><strong>TNR</strong>: of the answers you marked Fail, the share the judge failed.</li>
-      <li><strong>Kappa</strong>: how much the judge agrees with you beyond lucky guessing. 0 is no better than chance and 1 is perfect.</li>
-    </ul>
-    <p>The bar under each number is the range it is probably in: narrower means more answers back it. The numbers are estimates from the answers you marked, not a promise about the next ones. The page showed you far more of the judge&#39;s fails than your results hold, so the numbers are corrected for that, and describe all of your app&#39;s answers.</p>
-    <div class="donewhen"><p>You&#39;re done when you have read the two sentences. That is your answer.</p><label class="tick"><input type="checkbox" data-step="5"> Mark step 5 done</label></div>
-  </div>
+Step 4 of 5: Fix
+
+Clues:
+  7 of its 10 mistakes are answers it passed but you failed.
+  Its rule may be too easy.
+
+The clues and all 10 mistakes are saved in
+.judgekeeper/fix/mistakes.md. You can hand this file to a coding agent.
+
+Your judge's rule is in promptfooconfig.yaml, line 14:
+  "The answer solves the customer's problem and is polite."
+
+10 more of your marks are kept aside to test your new rule fairly.
+
+Next: write your new rule in .judgekeeper/fix/rule.txt, then run
+`judgekeeper fix` again to test it.</pre></div>
+  <p>Write your new rule in <code>.judgekeeper/fix/rule.txt</code> and run <code>judgekeeper fix</code> again. It tests the rule on marks kept aside, and asks before it calls your judge.</p>
+  <div class="term term-static"><div class="term-bar"><span class="term-title">example project</span></div><pre class="term-out">$ judgekeeper fix
+judgekeeper 1.0.0
+
+Step 4 of 5: Fix (testing your new rule)
+
+New rule:  "The answer fully solves the customer's problem, gives a…"
+           (from .judgekeeper/fix/rule.txt)
+
+To test it, judgekeeper asks your judge about the 10 answers kept
+aside, once with the old rule and once with the new one.
+That is 20 AI calls, paid with your own key.
+Go ahead? [y/N] y
+
+Tested on the 10 marks kept aside:
+  Old rule agreed with you on 3. New rule agreed with you on 9.
+  It fixed 6 and broke 0.
+
+Result: your new rule is better. A difference this large is
+very unlikely to be a coincidence.
+
+Next: if you like it, copy the new rule into promptfooconfig.yaml,
+line 14. Then run your eval and `judgekeeper check`.</pre></div>
+  <h3>What the result means</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Result</th><th>What to do</th></tr></thead>
+    <tbody>
+      <tr><td>Better</td><td>Use the new rule.</td></tr>
+      <tr><td>Safe to try</td><td>Not clearly better yet, and very unlikely to be more than 10 points worse. You can try it.</td></tr>
+      <tr><td>Can't tell yet</td><td>Mark a few more answers and test again.</td></tr>
+      <tr><td>Looks worse, or Worse</td><td>Keep the old rule.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="done"><b>Done when</b> you have a result. To use the new rule, copy it into your eval config, run your eval, then <code>judgekeeper check</code>.</p>
 </section>
+<section id="recheck">
+  <p class="eyebrow">Step 5 · Re-check</p>
+  <h2>Re-check after you change your judge</h2>
+  <p>Changed the model, the rule or your eval tool's version? Run your eval, then:</p>
+  <div class="cmd"><code>judgekeeper check</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+  <p>It tells you if your judge still agrees with you, on the same marks. It asks before any AI call.</p>
+  <div class="term term-static"><div class="term-bar"><span class="term-title">example project</span></div><pre class="term-out">$ judgekeeper check
+judgekeeper 1.0.0
 
-<section class="stop" id="improve" aria-labelledby="improve-title">
-  <div class="head"><span class="n" aria-hidden="true">6</span><h2 id="improve-title">Improve your judge</h2></div>
-  <p class="why">Run <code>judgekeeper start</code> again any time: it offers what fits next. Or go straight to one with its flag. In this order:</p>
-  <div class="fork">
-    <div><span class="cost free">Free</span><h3>See where you disagree</h3><p>Look again at each answer where you and your judge disagree, with its decision hidden. Then see what it said, and why. (<a href="#review">Details</a>.)</p><code class="flag">--review</code></div>
-    <div><span class="cost free">Free</span><h3>Fix your judge</h3><p>See what your judge gets wrong, then let your coding agent change its rule. Or copy a prompt into an AI assistant, or write it yourself. (<a href="#fix">Details</a>.)</p><code class="flag">--fix</code></div>
-    <div><span class="cost paid">Costs a little, asks first</span><h3>Try your new judge</h3><p>Test the new judge on the answers you already marked, side by side with the old one. (<a href="#new-judge">Details</a>.)</p><code class="flag">--try-new-judge</code></div>
-  </div>
-  <div class="trio">
-    <figure class="shot-wide"><a href="assets/shots/fix.webp"><img src="assets/shots/fix.webp" width="1440" height="900" loading="lazy" alt="The Fix your judge page: what your judge gets wrong, in two lists (passed but you said Fail, failed but you said Pass) with your reasons, and on the right the Change the rule panel with three choices: Let your coding agent do it, Copy a prompt for your AI assistant, and I'll write it myself."></a>
-      <figcaption>Fix your judge. The Change the rule panel starts with your coding agent. <span class="sample">Sample data</span></figcaption></figure>
-    <p class="note">A small local model can grade answers, but it usually can&#39;t rewrite a rule well. Use a capable assistant for this step.</p>
-    <div class="donewhen"><p>You&#39;re done when you know what to fix next, or you decide your judge agrees with you often enough for now. After your next eval run, <a href="#again">check again</a>.</p><label class="tick"><input type="checkbox" data-step="6"> Mark step 6 done</label></div></div>
+Step 5 of 5: Re-check
+
+Your judge changed: model gpt-4.1-mini -&gt; gpt-4.1-nano.
+
+To re-check, judgekeeper asks your new judge about your 30
+marked answers, twice each. That is 60 AI calls, paid with your
+own key. Asking twice shows how much the judge varies by itself.
+Go ahead? [y/N] y
+
+Re-checked on all 30 of your marks:
+
+  You passed 15 answers. Your old judge agreed with you on 14,
+  your new judge on 8.
+    Worse: 6 answers went from right to wrong, and none from wrong to right.
+    That is about 40 points lower, and could be as much as 55.
+
+  You failed 15 answers. Your old judge agreed with you on 11,
+  your new judge on 11.
+    No drop bigger than 20 points: 1 went from right to wrong, 1 from wrong to right.
+    These marks can't rule out a drop of up to 15 points.
+
+Asked twice, your new judge changed its own grade on 3 of your
+30 answers. Differences that small can come from that alone.
+
+Next: keep your old model, or run `judgekeeper fix` to adjust
+the rule for the new model.</pre></div>
+  <p>Moved to a different eval tool? Start fresh with <code>judgekeeper --new</code>: judgekeeper 1.0 can't compare judges across two tools.</p>
 </section>
-
-<section id="details" aria-labelledby="details-title">
-  <h2 id="details-title">Details</h2>
-  <p>Everything else, folded away. Open what you need.</p>
-
-  <section id="reads"><details class="detail"><summary><h3>What it reads</h3></summary><div class="in">
-    <p>The results your eval tool already saved in your project folder. It looks for:</p>
-    <ul>
-      <li><strong>promptfoo</strong>: the results file that <code>promptfoo eval -o</code> or <code>promptfoo export eval</code> writes.</li>
-      <li><strong>DeepEval</strong>: the test runs DeepEval saves, in <code>.deepeval/</code> or the folder <code>DEEPEVAL_RESULTS_FOLDER</code> names.</li>
-      <li><strong>Inspect AI</strong>: the logs in <code>logs/</code>.</li>
-      <li><strong>MLflow</strong>: the assessments in a local <code>mlruns/</code> folder or <code>mlflow.db</code>.</li>
-      <li><strong>A table you made</strong>: a CSV or JSONL file with an <code>input</code>, an <code>output</code> and a <code>verdict</code> column.</li>
-      <li><strong>Your judge&#39;s own results file</strong>, after <code>judgekeeper setup</code>: it reads <code>judgekeeper.toml</code> first (<a href="#own-format">below</a>).</li>
-      <li><strong><code>judgekeeper.record()</code></strong>: the decisions it saved in <code>.judgekeeper/records/</code> (<a href="#door-record">below</a>).</li>
-    </ul>
-    <p>It names your judge from the results: its name, the first line of its rubric and its model. Several tools or several judges? It asks which one. Too few answers? It says how many there are and prints the command that makes more with your own tool. You run that command, not judgekeeper. Your judge saves its results in a format of its own? See <a href="#own-format">below</a>.</p>
-  </div></details></section>
-
-  <section id="never"><details class="detail"><summary><h3>What it never does</h3></summary><div class="in">
-    <ul>
-      <li>No AI calls unless you say yes. Then your own judge runs through your own tool; judgekeeper never sees your key, it only checks its name.</li>
-      <li>It never runs your app. Only when you ask your judge again, and say yes, does it run your eval tool, to grade answers it already saved.</li>
-      <li>It never reads your keys. To tell you which key your judge will use, it looks at the names of the variables in <code>.env</code> files, never their values. It never looks outside your project folder.</li>
-      <li>It never reads promptfoo&#39;s own database. If promptfoo kept the results there, judgekeeper offers to run <code>promptfoo export</code> for you, which writes them to a file. It asks first.</li>
-      <li>It never changes your <code>.gitignore</code> unless you say yes to <code>judgekeeper setup</code>.</li>
-    </ul>
-  </div></details></section>
-
-  <section id="review"><details class="detail"><summary><h3>See where you disagree</h3></summary><div class="in">
-    <p>Free, with no AI call. A <strong>disagreement</strong> is an answer where your mark and what your judge decided differ.</p>
-    <ol>
-      <li><strong>Look again.</strong> You see each disagreement again, mixed with as many answers you and the judge agreed on, and what the judge decided is still hidden. Mark each one Fail, Not sure or Pass.</li>
-      <li><strong>See what your judge said.</strong> For each disagreement you see what your judge decided and its reason, and choose: <em>Your judge was wrong</em>, <em>I was wrong</em> or <em>The rule is unclear</em>, with an optional line of why.</li>
-    </ol>
-    <p>The judge&#39;s mistakes go to <code>.judgekeeper/judge-mistakes.csv</code>: the answers to improve your judge&#39;s rule with. Unclear cases go to <code>rule-unclear.csv</code>. Your first marks stay the main result.</p>
-    <div class="code"><pre><code>judgekeeper start --review</code></pre></div>
-  </div></details></section>
-
-  <section id="fix"><details class="detail"><summary><h3>Fix your judge</h3></summary><div class="in">
-    <p>Free, with no AI call, once you have looked at where you disagree. First judgekeeper keeps about a third of your marked answers aside: they test a change fairly later, so they are not shown. From the rest it shows what your judge gets wrong: the answers it passed but you failed, the answers it failed but you passed, your why for each, and words that show up in many of its mistakes.</p>
-    <p>Then change the rule, one of three ways:</p>
-    <ol>
-      <li><strong>Let your coding agent do it.</strong> Paste one prompt into Claude Code, Cursor or Codex. It writes the new rule, checks it with judgekeeper&#39;s <code>--rule-file</code> flag, puts it where your eval keeps it, runs your eval, and tests the new judge. It asks you before anything that costs money.</li>
-      <li><strong>Copy a prompt for your AI assistant.</strong> Paste its reply back into the page.</li>
-      <li><strong>I&#39;ll write it myself.</strong> Type or paste the new rule into the page.</li>
-    </ol>
-    <p>The prompt holds no answer text, and it tells your agent to treat your app&#39;s answers as data, never as instructions. judgekeeper never edits your files: your agent does, with your yes, or judgekeeper says where the new rule goes. For a judge that gives a score, it also finds the pass mark that fits your marks best, and tests it on the answers kept aside in one click.</p>
-    <p>Without the agent, run your eval once with the new rule, then <a href="#new-judge">try your new judge</a>: it tests the change on the answers kept aside.</p>
-    <p>A small local model can grade answers, but it usually can&#39;t rewrite a rule well. Use a capable assistant for this step.</p>
-    <div class="code"><pre><code>judgekeeper start --fix</code></pre></div>
-  </div></details></section>
-
-  <section id="ask-again"><details class="detail"><summary><h3>Ask your judge again</h3></summary><div class="in">
-    <p>judgekeeper has your own eval tool grade the answers you marked again, with your own judge. Your app is not run. It can do this for promptfoo, DeepEval, Inspect AI and MLflow, or with your own judge as a command (<code>--judge-command</code>).</p>
-    <p>Before any call it shows a plan: your judge, and whether this is exactly your judge, a close copy (and what differs), or a judge it can&#39;t ask again (and why); which key your judge will use, by name only; how many judge calls, and a cost range at prices dated in judgekeeper; and what the run touches. Then it asks <code>Go ahead? [y/N]</code>. The answer is No unless you type y.</p>
-    <p>Then it shows how often your judge changed its decision on the same answer, how well it agrees with you today next to your last result, and how often its new decision matches the one it saved.</p>
-    <div class="code"><pre><code>judgekeeper start --ask-again</code></pre></div>
-  </div></details></section>
-
-  <section id="new-judge"><details class="detail"><summary><h3>Try your new judge</h3></summary><div class="in">
-    <p>You fixed your judge&#39;s rule or changed its model, and ran your eval once. <code>judgekeeper start</code> notices the new judge and offers to try it on the answers you already marked. You mark nothing new for this.</p>
-    <p>It rebuilds the new judge from your newest results and has it grade your marked answers, never your new outputs. It shows the same plan and asks the same question as asking again. Then it shows your old judge and your new judge side by side, against the same marks.</p>
-    <p>A judge changed after you saw its mistakes on these answers will look better on them. So judgekeeper then offers a quick check: you mark 10 Pass and 10 Fail answers from your newest results that you never marked. Its result shows the wide ranges that come with so few answers.</p>
-    <p>Your main result stays your old judge&#39;s. To check the new judge from now on, run <code>judgekeeper start --new</code>: everything moves to <code>.judgekeeper/previous-&lt;date&gt;/</code>, and nothing is deleted.</p>
-    <div class="code"><pre><code>judgekeeper start --try-new-judge</code></pre></div>
-  </div></details></section>
-
-  <section id="again"><details class="detail"><summary><h3>Running it again</h3></summary><div class="in">
-    <p>Your marks and results are saved in <code>.judgekeeper/</code> in your project folder. It holds your answers&#39; text, so commit it only if your data may live in your repository. Run <code>judgekeeper start</code> again and it carries on:</p>
-    <ul>
-      <li><strong>You stopped before the end</strong>: it asks <em>Continue?</em> and opens the page at the next answer.</li>
-      <li><strong>You have a result</strong>: it asks what next: review the answers where you and your judge disagree (free), fix your judge, ask your judge again, <em>Mark more answers</em>, or nothing for now.</li>
-      <li><strong>Your judge changed</strong>: when your newest results come from a new version of your judge, it also offers to try the new judge on the answers you already marked.</li>
-      <li><strong>You ran your eval again</strong>: it does a re-check. It finds the answers you marked in the new results, says whether your judge changed, and shows the result next to the last one. If your app now writes different answers, your old marks no longer fit, and it offers to mark the new results.</li>
-      <li><strong>You want to start over</strong>: <code>judgekeeper start --new</code> moves everything to <code>.judgekeeper/previous-&lt;date&gt;/</code>. Nothing is deleted.</li>
-    </ul>
-    <p>In a script, CI or a coding assistant, it never asks: it prints the flag that answers the question. Marking needs a person. Every flag is in the <a href="reference.html#judgekeeper-find-mark-measure">reference</a>.</p>
-  </div></details></section>
-
-  <section id="commands"><details class="detail"><summary><h3>Every start command, in plain words</h3></summary><div class="in">
-    <table class="plain cmds">
-      <thead><tr><th scope="col">Command</th><th scope="col">What it does</th><th scope="col">Costs money?</th></tr></thead>
-      <tbody>
-        <tr><td><code>judgekeeper start</code></td><td>Finds your judge, then opens what fits next: the marking page, your result, or what you can do now.</td><td>No</td></tr>
-        <tr><td><code>judgekeeper start --review</code></td><td>Look again at the answers where you and your judge disagree, then see its reasons.</td><td>No</td></tr>
-        <tr><td><code>judgekeeper start --fix</code></td><td>See what your judge gets wrong, and get a prompt to change its rule.</td><td>No</td></tr>
-        <tr><td><code>judgekeeper start --try-new-judge</code></td><td>After you change your judge&#39;s rule or model and run your eval again: the new judge grades the answers you already marked, next to the old one.</td><td>A little. It shows the cost and asks first</td></tr>
-        <tr><td><code>judgekeeper start --ask-again</code></td><td>Your judge grades the answers you marked again. Does it decide the same way twice?</td><td>A little. It shows the cost and asks first</td></tr>
-        <tr><td><code>judgekeeper start --label-more</code></td><td>Mark more answers. More marks narrow the ranges.</td><td>No</td></tr>
-        <tr><td><code>judgekeeper start --new</code></td><td>Start a fresh check. The old one moves to <code>.judgekeeper/previous-&lt;date&gt;/</code>; nothing is deleted.</td><td>No</td></tr>
-      </tbody>
-    </table>
-  </div></details></section>
-
-  <section id="own-format"><details class="detail"><summary><h3>Your judge saves results its own way</h3></summary><div class="in">
-    <p>Many judges are code you wrote, and they save their results in a format of their own. Then <code>judgekeeper start</code> finds nothing it can read. There are three ways in. Pick one.</p>
-
-    <h4 id="door-setup">1. <code>judgekeeper setup</code>: no change to your code</h4>
-    <p>In your project folder, run:</p>
-    <div class="code"><pre><code>judgekeeper setup</code></pre></div>
-    <p>It finds a recent JSON, JSONL or CSV file that seems to hold your judge&#39;s results, nested or flat, lists what one line holds, and says how it will read it: what one answer is, the input, the answer, the score or verdict and the reason. It asks only what it cannot tell, for example whether two answers per case (A and B) each count as an answer, and which judge to check. It shows 3 answers as it reads them. Then it asks once before it changes any file: it saves where your results are and how to read them in <code>judgekeeper.toml</code>, adds <code>.judgekeeper/</code> to <code>.gitignore</code> and judgekeeper to your dev requirements. It never edits your code. Then run <code>judgekeeper start</code>. Your results are somewhere else? <code>judgekeeper setup path/to/results.jsonl</code>.</p>
-
-    <h4 id="door-record">2. One <code>judgekeeper.record()</code> line</h4>
-    <p>Your judge runs in your own code? Add one line right after it decides on each answer, in your eval code. Then run your eval once, and <code>judgekeeper start</code> finds what it decided.</p>
-    <div class="code"><pre><code>import judgekeeper
-judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
-                   reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")</code></pre></div>
-    <p>It never stops your program, uses only Python&#39;s standard library, and <code>JUDGEKEEPER_RECORD=0</code> turns it off. Without the import, or in TypeScript: the <a href="reference.html#record-save-your-own-judges-verdicts-with-one-line">reference</a> has a few lines that do the same. judgekeeper never edits your code.</p>
-
-    <h4 id="door-agent">3. Write a table</h4>
-    <p>Turn your results into a table: a CSV with the columns <code>id</code>, <code>input</code>, <code>output</code>, <code>verdict</code> (pass or fail) and <code>reason</code>, plus <code>judge_model</code> when you know which model judged. Make one CSV per judge or criterion. Then run:</p>
-    <div class="code"><pre><code>judgekeeper start your-table.csv</code></pre></div>
-    <p>When it reads a table, it prints how many answers it found, how many the judge passed and failed, and the first 3 rows, so a wrong table shows at once.</p>
-    <p>An AI assistant that edits files can write that table for you. Paste this prompt:</p>
-    <div class="code"><pre><code id="agent-prompt">In this project, my LLM judge saves its results in its own format. Please:
-
-1. Install judgekeeper into this project's own Python environment, as a dev tool: for
-   example `uv add --dev judgekeeper`, `poetry add --group dev judgekeeper`, or
-   `pip install judgekeeper` with the project's virtual environment active.
-2. Find where the judge's results are saved, and write a small script that turns them into
-   judgekeeper's table: a CSV with the columns id, input, output, verdict and reason, plus
-   judge_model when you can tell which model judged. The verdict is pass or fail.
-3. Write one CSV per judge or criterion. Leave out rows where the judge gave an error, and
-   scores made by a rule instead of an LLM.
-4. Keep everything on this computer: never send the data anywhere.
-5. Run `judgekeeper &lt;the CSV file&gt;` and show me what it prints, so I can check the
-   counts and the example rows.</code></pre></div>
-    <p class="note"><code>judgekeeper start --agent-prompt</code> prints the same prompt in your terminal.</p>
-
-    <h4 id="records-format">The records format</h4>
-    <p><code>judgekeeper.record()</code> and the snippets write judgekeeper&#39;s own format: one JSON line per decision. It has a version and keeps fields it does not know, so files you write today still read later. If a line cannot be read, <code>judgekeeper start</code> names the file and the line. The fields are in the <a href="reference.html#records-format">reference</a>, and the rules as a <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/records.schema.json">JSON Schema</a>.</p>
-  </div></details></section>
+<section id="keys">
+  <h2>Keys and costs</h2>
+  <p>Steps 1 to 3 make no AI calls and need no key. Testing a new rule, and some re-checks, call your judge through your own eval tool and its key. judgekeeper says how many calls first and waits for your yes. It never prints or saves a key.</p>
 </section>
-</main>
-</div>
-
-<footer class="site-footer">
-<div class="wrap cols">
-<div><a class="brand" href="index.html"><svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>judgekeeper</a>
-<p class="fine">Free and open source, MIT license. It shows how often your judge agrees with you; it never decides for you.</p>
-<p class="fine">Not affiliated with the tools it can read results from, or their models. Names belong to their owners: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">the name and logo note</a>.</p>
-<p class="fine">This site sets no cookies and uses no analytics. The tool runs on your computer and sends nothing to us.</p></div>
-<div><h2>Start here</h2><ul><li><a href="start.html">Guide</a></li><li><a href="docs.html">Docs</a></li><li><a href="reference.html">Reference</a></li><li><a href="https://github.com/judgekeeper/judgekeeper">GitHub</a></li></ul></div>
-<div><h2>More</h2><ul><li><a href="check.html">Free check in your browser</a></li><li><a href="setup.html">Setup and API keys</a></li><li><a href="learn.html">How it works, in depth</a></li></ul></div>
-</div>
-</footer>
+<section id="own-format">
+  <h2>Your own format</h2>
+  <p>No eval tool? Save one row per answer in a CSV or JSONL file:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Column</th><th>What goes in it</th></tr></thead>
+    <tbody>
+      <tr><td><code>input</code></td><td>The question or prompt.</td></tr>
+      <tr><td><code>output</code></td><td>The answer that was graded.</td></tr>
+      <tr><td><code>verdict</code></td><td>Your judge's grade: pass or fail (true/false, yes/no and 1/0 work too).</td></tr>
+    </tbody>
+  </table></div>
+  <p>Judge gives a score? Say where Pass starts: <code class="long">judgekeeper --pass-if 'score&gt;=0.5'</code>.</p>
+</section>
+<section id="misc">
+  <h2>Start over, stop, remote</h2>
+  <div class="tw"><table>
+    <thead><tr><th>To</th><th>Run</th></tr></thead>
+    <tbody>
+      <tr><td>Close the marking page</td><td><code>judgekeeper --stop</code></td></tr>
+      <tr><td>Start over (your old marks are kept)</td><td><code>judgekeeper --new</code></td></tr>
+      <tr><td>Get the link instead of opening a browser</td><td><code>judgekeeper --no-browser</code></td></tr>
+      <tr><td>See every option</td><td><code>judgekeeper --help</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+<p class="g-next"><a class="next" href="learn.html">Next · How it works</a></p>
+</div></div></main>
+<footer class="foot"><div class="wrap">
+<div class="brand"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></div>
+<div class="foot-r" role="navigation" aria-label="Legal"><a href="privacy.html">Privacy</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">Trademarks</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md">Security</a><span class="copy">© 2026 Sathvik Thota · <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE">MIT license</a></span></div>
+</div></footer>
 </body>
 </html>

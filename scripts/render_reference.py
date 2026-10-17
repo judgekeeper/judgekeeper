@@ -1,8 +1,9 @@
 """Render a docs/*.md page to website/*.html (every page in PAGES, or one: give the source
 and the target). Standard library only. It handles only the Markdown these pages use:
-headings, paragraphs, fenced code (a ```text fence is printed output, shown without a copy
-button), tables, lists, `code`, **bold**, *italics* and links. A test renders each page again
-and compares, so the committed pages cannot fall behind."""
+headings, paragraphs, fenced code (a ```text fence is printed output), tables, lists, `code`,
+**bold**, *italics* and links. The page's title and first paragraph head the page, its list of
+sections becomes the side list, and each section and table gets its box. A test renders each
+page again and compares, so the committed pages cannot fall behind."""
 
 from __future__ import annotations
 
@@ -17,12 +18,10 @@ from site_frame import footer, head_links, header  # the frame every page shares
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS_URL = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/"
-PAGES = {  # source stem: (target page, title, description, who the page is for)
+PAGES = {  # source stem: (target page, title, description)
     "reference": ("reference.html", "Reference: every command and flag",
-                  "Every judgekeeper command, flag, exit code, file and format.", ""),
+                  "Every judgekeeper command, flag, exit code, file and format."),
 }
-NEW_HERE = ('<p class="newhere">New here? Start with the <a href="start.html">Guide</a>. '
-            "This page is for {who}.</p>\n")
 
 PAGE = """<!doctype html>
 <html lang="en">
@@ -35,10 +34,11 @@ PAGE = """<!doctype html>
 </head>
 <body>
 {header}
-<main id="main" class="wrap narrow doc">
-{new_here}{body}
-<p class="note">This page is generated from <a href="{source_url}">docs/{source}</a> by <code>scripts/{script}</code>.</p>
-</main>
+<main id="main" class="g g-ref"><div class="wrap">
+<nav class="g-nav" aria-label="On this page">{nav}</nav><div class="g-main">
+<header class="g-head"><h1>{h1}</h1><p class="g-lede">{lede}</p></header>
+{body}
+</div></div></main>
 {footer}
 </body>
 </html>
@@ -102,7 +102,8 @@ def render(markdown: str) -> str:
             th = "".join(f"<th>{inline(c)}</th>" for c in head)
             trs = "".join("<tr>" + "".join(f"<td>{inline(c)}</td>" for c in r) + "</tr>\n"
                           for r in body)
-            out.append(f"<table>\n<thead><tr>{th}</tr></thead>\n<tbody>\n{trs}</tbody>\n</table>")
+            out.append(f'<div class="tw"><table>\n<thead><tr>{th}</tr></thead>\n<tbody>\n{trs}'
+                       "</tbody>\n</table></div>")
         elif re.match(r"(- |\d+\. )", line):
             tag = "ul" if line.startswith("- ") else "ol"
             items = []
@@ -124,12 +125,18 @@ def render(markdown: str) -> str:
 
 
 def build(source: Path, out: Path) -> None:
-    target, title, description, who = PAGES[source.stem]
-    body = render(source.read_text(encoding="utf-8"))
+    target, title, description = PAGES[source.stem]
+    h1, lede, body = re.fullmatch(r'<h1 id="[^"]*">(.*?)</h1>\n<p>(.*?)</p>\n(.*)',
+                                  render(source.read_text(encoding="utf-8")), re.DOTALL).groups()
+    body = re.sub(r'<ul>\n(<li><a href="#[^"]*">[^<]*</a></li>\n)*<li><a href="#[^"]*">[^<]*'
+                  r"</a></li>\n</ul>\n", "", body, count=1)  # the list of sections: the side list
+    first, *sections = re.split(r"(?=<h2 )", body)
+    body = first + "".join(f"<section>{s.rstrip()}</section>\n" for s in sections)
+    nav = "".join(f'<a href="#{i}">{re.sub(r"<[^>]+>", "", label)}</a>'
+                  for i, label in re.findall(r'<h2 id="([^"]+)">(.*?)</h2>', body))
     out.write_text(PAGE.format(
         head=head(target, title, description), links=head_links(), header=header(target),
-        footer=footer(), new_here=NEW_HERE.format(who=who) if who else "", body=body,
-        source=source.name, source_url=DOCS_URL + source.name, script="render_reference.py"),
+        footer=footer(), nav=nav, h1=h1, lede=lede, body=body.rstrip()),
         encoding="utf-8", newline="\n")
 
 
