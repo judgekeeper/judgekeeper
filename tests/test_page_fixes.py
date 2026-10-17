@@ -106,7 +106,7 @@ def test_a_not_saved_line_is_brought_into_view():
 
     got = _run("""
       fetch = function () { return Promise.reject(new Error("gone")); };
-      ids["status"].scrollIntoView = function (o) { shown.push(o); };
+      document.getElementById("status").scrollIntoView = function (o) { shown.push(o); };
       key("ArrowRight"); await settle(); await settle();
       console.log(JSON.stringify({status: ids["status"].textContent, shown: shown}));""",
                before="var shown = [];\n")

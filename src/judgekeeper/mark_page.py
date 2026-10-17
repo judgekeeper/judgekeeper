@@ -7,9 +7,11 @@ __DATA__ (the answers and the person's marks, start_label.StartSession.state), _
 __NONCE__.
 
 The look: a 400px list of the answers on the left, the card with the question, the answer
-and the two buttons filling the rest of the window, hairlines only. The top bar shows the
-progress as small segments by answers looked at, the count of marks, and, once a result is
-ready, the link to it.
+and the two buttons filling the rest of the window, hairlines only. On a phone (760px and
+narrower) the card comes first, then the list, and the page scrolls as one; a line that a
+mark was not saved is always brought into view. The top bar shows the progress as small
+segments by answers looked at, the count of marks, and, once a result is ready, the link to
+it.
 
 How it keeps marks honest: Fail and Pass look the same but for their colour; after each mark
 the page ignores input for about 400 ms, and it ignores a held key and any key with
@@ -147,7 +149,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .intro .go { width: 100%; height: 56px; font-size: 17px; }
 #answer-card:focus-visible, #end:focus-visible, .intro:focus-visible { outline: none; }
 @media (max-width: 760px) {
+  html, body { height: auto; }
+  #app, .wrap { flex: none; min-height: 0; }
   .wrap { grid-template-columns: 1fr; height: auto; }
+  .main, .list { overflow: visible; }
   .side { border-right: 0; border-top: 1px solid var(--line); order: 2; }
   .main { order: 1; }
   .row { padding: 18px 16px; }
@@ -220,6 +225,11 @@ __THEME_SWITCH__
     return e;
   }
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
+  // A line that a mark was not saved is brought into view, also on a phone.
+  function say(text) {
+    setText("status", text);
+    if (text && $("status").scrollIntoView) { $("status").scrollIntoView({block: "nearest"}); }
+  }
   function focusCard() { (ended ? $("end") : card).focus({preventScroll: true}); }
   $("see").setAttribute("href", url("/result"));
 
@@ -371,13 +381,13 @@ __THEME_SWITCH__
     }).then(function (r) {
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
-      if (!res.ok) { render(); setText("status", "Not saved: " + res.body.error); return; }
+      if (!res.ok) { render(); say("Not saved: " + res.body.error); return; }
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
       then();
     }).catch(function () {
       render();
-      setText("status", "Not saved: this page lost its link to judgekeeper. Is it still " +
+      say("Not saved: this page lost its link to judgekeeper. Is it still " +
         "running in your terminal? Your earlier marks are saved.");
     });
     return true;
@@ -407,7 +417,7 @@ __THEME_SWITCH__
   }
 
   function undo() {
-    if (!history.length) { setText("status", "Nothing to undo."); return; }
+    if (!history.length) { say("Nothing to undo."); return; }
     if (locked()) { return; }
     var back = history.pop();
     walkingSkipped = false; open(back);
