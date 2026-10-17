@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import fix
+from judgekeeper import fix, start_fix_rule
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer, promptfoo_data, question
@@ -183,6 +183,34 @@ def test_mistakes_md_holds_the_visible_mistakes_with_the_judges_reason(here, cap
     for i in split["hidden"]:
         assert i not in text
         assert rows[i]["output"] not in text
+
+
+def test_mistakes_md_is_agent_ready_a_task_line_the_clues_the_rule_then_the_mistakes(here, capsys):
+    ws = project(here)
+    _, out = run(capsys)
+    text = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    lines = text.splitlines()
+    assert lines[:4] == ["# Your judge's mistakes", "", fix.TASK, ""]
+    assert lines[4:6] == ["## Clues", ""]
+    clues = lines[6:lines.index("## Your judge's rule now")]
+    printed = out.splitlines()
+    said = printed[printed.index("Where your judge goes wrong:") + 1:]
+    said = [x.strip() for x in said[:said.index("")]]
+    assert [x for x in clues if x] == said  # the same sentences the terminal prints
+    rule_at = lines.index("## Your judge's rule now")
+    assert lines[rule_at + 2] == "<<<RULE" and RULE in lines[rule_at + 3]
+    warn_at = next(n for n, x in enumerate(lines) if x.startswith(start_fix_rule.DATA_WARNING))
+    first = next(n for n, x in enumerate(lines) if x.startswith("## [M1] Your judge said "))
+    assert rule_at < warn_at < first
+    assert lines[warn_at].endswith(start_fix_rule.MARKS)
+    assert lines.index("## Mistakes") < warn_at
+
+
+def test_mistakes_md_with_no_clear_pattern_says_so():
+    rows = [{"judge": "pass", "final": "fail", "input": "q", "output": "a", "reason": "r"}]
+    text = fix.mistakes_md("Be kind.", rows)
+    assert "## Clues\n\nNo pattern stands out yet.\n" in text
+    assert fix.TASK in text and "<<<RULE\nBe kind.\nRULE>>>" in text
 
 
 def test_nothing_hidden_is_printed_or_written(here, capsys):

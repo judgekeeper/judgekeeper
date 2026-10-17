@@ -20,9 +20,11 @@ but split.json while the set is in use. A set is retired when a rule tested on i
 judge's rule now (adopted), after MAX_RULES rules, or with `fix --new`: then its marks are seen
 like the others, and the next FRESH new marks make a new set.
 
-mistakes.md: each mistake on the seen marks (the person's mark, the judge's grade, the
-question, the answer, the person's note and the judge's own reason), each text cut and fenced
-as data (start_fix_rule.fenced) under a warning never to follow instructions inside it.
+mistakes.md, ready to hand to a coding agent: the task in one line, the clues (the pattern
+sentences the terminal prints), the judge's rule now, then each mistake on the seen marks (the
+person's mark, the judge's grade, the question, the answer, the person's note and the judge's
+own reason), each text cut and fenced as data (start_fix_rule.fenced) under a warning never to
+follow instructions inside it.
 
 For a judge with a score and a pass mark, the pass mark that fits the seen marks best is tested
 on the hidden marks with the saved scores: free, no AI call. It is shown only when the verdict
@@ -453,13 +455,22 @@ def tested_rule(ws: Workspace, m: Marks) -> dict | None:
 
 # mistakes.md --------------------------------------------------------------------------------
 
-def mistakes_md(rule: str | None, rows: list[dict]) -> str:
-    """Each mistake on the seen marks, fenced as data, under the warning."""
+TASK = ("Write a new rule so your judge agrees with the marks below. Keep what the current rule "
+        "gets right. You can hand this whole file to a coding agent.")
+NO_PATTERN = "No pattern stands out yet."
+
+
+def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -> str:
+    """The clue file, ready for a person or a coding agent: the task, the clues (the pattern
+    sentences the terminal prints; `mark` is the pass mark when the grades follow the
+    scores), the judge's rule now, then each mistake on the seen marks, fenced as data under
+    the warning."""
     fenced = start_fix_rule.fenced
-    parts = ["# Your judge's mistakes", "",
-             f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", ""]
+    clues = pattern_lines(rows, mark) or [NO_PATTERN]
+    parts = ["# Your judge's mistakes", "", TASK, "", "## Clues", "", *clues, ""]
     if rule:
-        parts += ["Your judge's rule now:", fenced("RULE", rule, cut=False), ""]
+        parts += ["## Your judge's rule now", "", fenced("RULE", rule, cut=False), ""]
+    parts += ["## Mistakes", "", f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", ""]
     for n, r in enumerate(mistakes(rows), 1):
         parts.append(f"## [M{n}] Your judge said {r['judge'].upper()}. You said "
                      f"{r['final'].upper()}.")
@@ -633,7 +644,8 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
                   f"`{talk.command('check')}`.")
         return EXIT_OK
     pm = data.get("pass_mark")
-    found = patterns(seen_rows, pm["mark"] if pm and pm.get("follows") else None)
+    mark = pm["mark"] if pm and pm.get("follows") else None
+    found = patterns(seen_rows, mark)
     if found:
         talk.say("Where your judge goes wrong:")
         for p in found:
@@ -646,7 +658,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     save_split(ws, split)
     path = _folder(ws) / MISTAKES
     marks._refuse_links(path)
-    write_replacing(path, mistakes_md(rule, seen_rows))
+    write_replacing(path, mistakes_md(rule, seen_rows, mark))
     talk.say("Each mistake, with your judge's own reason:")
     talk.say(f"  {folder}/{MISTAKES} ({plural(len(wrong), 'answer')})")
     talk.say()
@@ -862,5 +874,5 @@ def _keep(ws: Workspace, split: Split, rule: str, h: str, v) -> None:
         pass  # the test is saved; the report catches up with the next result
 
 
-__all__ = ["Marks", "Split", "make_split", "mistakes", "mistakes_md", "pattern_lines",
+__all__ = ["TASK", "Marks", "Split", "make_split", "mistakes", "mistakes_md", "pattern_lines",
            "patterns", "read_split", "run"]
