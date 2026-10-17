@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 
 from judgekeeper.label import answers, ask, is_open, link, read_lock
+from judgekeeper.textio import open_private
 
 WAIT = 10  # seconds
 LOG = "page.log"
@@ -42,7 +43,7 @@ def start(folder: Path, settings: dict, token: str, timeout: float = WAIT) -> st
     else:
         flags["start_new_session"] = True
     try:
-        with (folder / LOG).open("ab") as log:
+        with open_private(folder / LOG, "ab") as log:
             proc = subprocess.Popen([sys.executable, "-m", "judgekeeper.page"], stderr=log,
                                     **flags)
     except OSError:

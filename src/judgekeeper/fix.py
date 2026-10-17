@@ -50,7 +50,15 @@ from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.redact import one_line, scrub
 from judgekeeper.start_label import Workspace, shown_folder
-from judgekeeper.textio import jsonl_lines, plural, program, quote_arg, wrap, write_replacing
+from judgekeeper.textio import (
+    jsonl_lines,
+    make_private,
+    plural,
+    program,
+    quote_arg,
+    wrap,
+    write_replacing,
+)
 
 EXIT_OK, EXIT_WORSE, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 1, 2, 3
 FOLDER = "fix"
@@ -214,7 +222,7 @@ def read_split(ws: Workspace) -> Split | None:
 def save_split(ws: Workspace, split: Split) -> None:
     path = _folder(ws) / SPLIT
     marks._refuse_links(path)
-    path.parent.mkdir(exist_ok=True)
+    make_private(path.parent)
     write_replacing(path, json.dumps(split.to_json(), indent=2) + "\n")
 
 
@@ -824,7 +832,7 @@ def _keep(ws: Workspace, split: Split, rule: str, h: str, v) -> None:
     rule's hash, the counts and the verdict, never answer text or ids."""
     path = ws.dir / "rules" / f"{h.removeprefix('sha256:')}.txt"
     marks._refuse_links(path)
-    path.parent.mkdir(exist_ok=True)
+    make_private(path.parent)
     write_replacing(path, rule)
     test = {"kind": "rule", "time": utc_now(), "rule_hash": h, "n": v.n, "fixed": v.fixed,
             "broke": v.broke, "verdict": v.kind, "test": len(split.tests) + 1}

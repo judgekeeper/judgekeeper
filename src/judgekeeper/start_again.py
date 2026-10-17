@@ -13,6 +13,7 @@ from judgekeeper.start_label import (
     FOLDER,
     Workspace,
 )
+from judgekeeper.textio import PRIVATE_FOLDER
 
 # Not part of a check: .gitignore, baseline.json (set by `baseline set`), records/
 # (judgekeeper.record()); and what `judgekeeper check` keeps across marks: history.jsonl and
@@ -39,7 +40,7 @@ def move_to_previous(ws: Workspace, say) -> Path | None:
     while target.exists():
         target = ws.dir / f"{PREVIOUS}{_stamp()}-{n}"
         n += 1
-    target.mkdir()
+    target.mkdir(mode=PRIVATE_FOLDER)
     for p in entries:
         p.replace(target / p.name)
     say(f"Moved your last check to {FOLDER}/{target.name}/. Nothing was deleted.")

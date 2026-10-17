@@ -27,7 +27,7 @@ from pathlib import Path
 
 from judgekeeper import __version__
 from judgekeeper.fingerprint import utc_now
-from judgekeeper.textio import jsonl_lines, link_in, write_replacing
+from judgekeeper.textio import jsonl_lines, link_in, open_private, write_replacing
 
 FILE = "marks.jsonl"
 VERSION = 1
@@ -100,7 +100,7 @@ def append(path: str | Path, data: dict) -> None:
     """Add one line to a JSONL file in .judgekeeper/ (marks.jsonl, history.jsonl)."""
     path = Path(path)
     _refuse_links(path)
-    with path.open("a", encoding="utf-8", newline="\n") as f:
+    with open_private(path, "a", encoding="utf-8", newline="\n") as f:
         f.write(_line(data))
 
 

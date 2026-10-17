@@ -23,7 +23,7 @@ import json
 from judgekeeper import again
 from judgekeeper.again.fresh import AgainError, Fresh, new_folder
 from judgekeeper.redact import scrub
-from judgekeeper.textio import jsonl_lines, write_replacing
+from judgekeeper.textio import jsonl_lines, make_private, write_replacing
 
 
 def ask(ws, plan, talk, name: str, env: dict | None = None,
@@ -31,7 +31,7 @@ def ask(ws, plan, talk, name: str, env: dict | None = None,
     """Run the plan's worker in "run" mode. Returns the Fresh to fill, the worker's lines by
     answer id and time, and its last line."""
     folder = plan.folder or new_folder(ws)
-    folder.mkdir(parents=True, exist_ok=True)
+    make_private(folder)
     out = folder / f"{plan.tool}.jsonl"
     job = {**plan.job, "mode": "run", "times": plan.times,
            "answers": [entry[1] for entry in plan.payload]}

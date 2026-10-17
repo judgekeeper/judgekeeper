@@ -67,7 +67,7 @@ from judgekeeper.table import (
     sheet_id,
     unguard_cell,
 )
-from judgekeeper.textio import describe_os_error, unwritable_file, write_replacing
+from judgekeeper.textio import describe_os_error, make_private, unwritable_file, write_replacing
 
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -195,7 +195,7 @@ class LabelSession:
         for i in self.items:
             w.writerow([guard_cell(i["id"]), *(guard_cell(i[c]) for c in self.columns[1:-2]),
                         i["label"] or "", guard_cell(i["note"])])
-        self.out.parent.mkdir(parents=True, exist_ok=True)
+        make_private(self.out.parent)
         write_replacing(self.out, buf.getvalue(), newline="")
 
 def shown(data) -> str:

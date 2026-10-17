@@ -58,7 +58,7 @@ from judgekeeper.readers.promptfoo import (
 from judgekeeper.records import LLM, derive_record_id
 from judgekeeper.redact import scrub
 from judgekeeper.table import make_fingerprint
-from judgekeeper.textio import write_replacing
+from judgekeeper.textio import make_private, write_replacing
 
 CALLS = {"llm-rubric": 1, "factuality": 1, "model-graded-factuality": 1,
          "model-graded-closedqa": 1, "context-recall": 1, "context-relevance": 1,
@@ -549,7 +549,7 @@ def run(ws, plan: Plan, talk) -> Fresh:
     root, metric = ws.root, plan.job.get("metric") or ws.data()["metric"]
     config = _config(root)
     folder = plan.folder or new_folder(ws)
-    folder.mkdir(parents=True, exist_ok=True)
+    make_private(folder)
     out = folder / "promptfoo.json"
     rel_out = out.relative_to(root).as_posix()
     argv = [*plan.runner, "eval", "-c", CONFIG, "--repeat", str(plan.times), *FLAGS,

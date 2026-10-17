@@ -57,7 +57,7 @@ from judgekeeper.records import AGENT_FIELDS
 from judgekeeper.redact import scrub, scrub_fingerprint, scrub_value, visible
 from judgekeeper.runners.base import Judgment
 from judgekeeper.table import guard_cell, write_anchor_file
-from judgekeeper.textio import jsonl_lines, link_in, plural, program, write_replacing
+from judgekeeper.textio import jsonl_lines, link_in, make_private, plural, program, write_replacing
 
 FOLDER = ".judgekeeper"
 BLOCK = 10
@@ -158,7 +158,7 @@ def make_folder(ws: Workspace) -> None:
     the project's own folder and it has none. One holding exactly the text 0.2 wrote is
     replaced; any other is left alone."""
     refuse_links(ws)
-    ws.dir.mkdir(parents=True, exist_ok=True)
+    make_private(ws.dir)
     gitignore = ws.dir / ".gitignore"
     if ws.dir != ws.root / FOLDER:
         return
@@ -785,7 +785,7 @@ def store_result(ws: Workspace, session: StartSession,
     if anchors:
         write_anchor_file(ws.anchors, _scrubbed(anchors))
     if ws.result_json.is_file():
-        ws.history.mkdir(exist_ok=True)
+        make_private(ws.history)
         try:
             made = json.loads(ws.result_json.read_text(encoding="utf-8")).get("made_at")
         except ValueError:
