@@ -60,7 +60,10 @@ _AWS_SECRET = re.compile(r"(\baws_secret_access_key[\"']?\s*[:=]\s*[\"']?)[A-Za-
 # holding them could pass for another name.
 _HIDDEN = "\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff"
 _CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
-_UNSEEN = re.compile(f"[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f{_HIDDEN}]")
+# A page keeps the two joiners (U+200C, U+200D): joined emoji and scripts such as Persian
+# and Hindi need them to read right.
+_UNSEEN = re.compile("[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f\\u200b\\u200e\\u200f"
+                     "\\u202a-\\u202e\\u2066-\\u2069\\ufeff]")
 
 
 def printable(text) -> str:
@@ -70,7 +73,7 @@ def printable(text) -> str:
 
 def visible(text: str) -> str:
     """`text` for a page: control characters (ESC among them), zero-width and bidirectional
-    controls dropped; tabs and line breaks stay."""
+    controls dropped; tabs, line breaks and the zero-width joiners stay."""
     return _UNSEEN.sub("", text)
 
 

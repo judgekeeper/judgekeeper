@@ -797,7 +797,8 @@ def test_names_lose_bidi_and_zero_width_characters():
 
 def test_report_and_page_show_no_hidden_characters(project, capsys):
     """A results file whose judge name, answers and reasons hold bidi controls, zero-width
-    characters and ESC: none reach report.html or what the marking page is sent."""
+    characters and ESC: none reach report.html or what the marking page is sent, but the two
+    joiners (joined emoji and some scripts need them)."""
 
     from judgekeeper import label, start, start_label
     from tests.start_projects import promptfoo_data, save_result, split
@@ -813,9 +814,10 @@ def test_report_and_page_show_no_hidden_characters(project, capsys):
     save_result(ws, _label_everything(ws), say=lambda line: None)
     report = ws.report_html.read_text(encoding="utf-8")
     state = label.shown(start_label.StartSession(ws).state())
-    for c in HIDDEN:
+    for c in HIDDEN.replace("\u200c", "").replace("\u200d", ""):
         assert c not in report, hex(ord(c))
         assert c not in state, hex(ord(c))
+    assert "\u200c\u200d" in report and "\u200c\u200d" in state
     assert "\\u001b" not in state and "[31m" in state
     assert "openai:gpt-polite" in report  # the judge's model, in the top bar
 
