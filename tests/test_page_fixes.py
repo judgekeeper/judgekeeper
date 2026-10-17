@@ -190,22 +190,22 @@ def test_at_390px_the_pass_button_and_the_status_line_can_be_reached(tmp_path):
 
 # 38. More key shapes hidden -----------------------------------------------------------------
 
+# Not real keys: each is in two parts, so no secret scanner takes it for one
 KEYS = {
-    "AWS access key": "AKIAIOSFODNN7EXAMPLE",
-    "AWS session key": "ASIAJEXAMPLEXEG2JICE",
-    "GitHub ghp_": "ghp_abcdefghijklmnopqrstuvwxyz0123456789",
-    "GitHub gho_": "gho_bcdefghijklmnopqrstuvwxyz01234567890",
-    "GitHub ghs_": "ghs_cdefghijklmnopqrstuvwxyz012345678901",
-    "GitHub ghu_": "ghu_defghijklmnopqrstuvwxyz0123456789012",
-    "GitHub github_pat_": ("github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz0123456789"
-                           "ABCDEFGHIJKLMNOPQRSTU"),
-    "Google API key": "AIzaSyA1EXAMPLEexampleEXAMPLEexample12",
-    # Not real keys: the Slack ones are in two parts, so no secret scanner takes them for one
+    "AWS access key": "AKIA" + "IOSFODNN7EXAMPLE",
+    "AWS session key": "ASIA" + "JEXAMPLEXEG2JICE",
+    "GitHub ghp_": "ghp_" + "abcdefghijklmnopqrstuvwxyz0123456789",
+    "GitHub gho_": "gho_" + "bcdefghijklmnopqrstuvwxyz01234567890",
+    "GitHub ghs_": "ghs_" + "cdefghijklmnopqrstuvwxyz012345678901",
+    "GitHub ghu_": "ghu_" + "defghijklmnopqrstuvwxyz0123456789012",
+    "GitHub github_pat_": "github_pat_" + ("11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz"
+                                           "0123456789ABCDEFGHIJKLMNOPQRSTU"),
+    "Google API key": "AIza" + "SyA1EXAMPLEexampleEXAMPLEexample12",
     "Slack xoxb-": "xoxb-" + "123456789012-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx",
     "Slack xoxp-": "xoxp-" + ("123456789012-1234567890123-1234567890123-"
                               "0123456789abcdef0123456789abcdef"),
 }
-AWS_SECRET = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+AWS_SECRET = "wJalrXUtnFEMI" + "/K7MDENG/bPxRfiCYEXAMPLEKEY"
 
 
 @pytest.mark.parametrize("name", sorted(KEYS))
@@ -221,7 +221,8 @@ def test_an_aws_secret_after_its_name_is_hidden():
 
 
 def test_a_bearer_token_is_hidden():
-    assert redact.scrub("Authorization: Bearer abcdefghijklmnopqrstuvwxyzABCDEF0123456789") == \
+    token = "abcdefghijklmnopqrstuvwxyz" + "ABCDEF0123456789"
+    assert redact.scrub(f"Authorization: Bearer {token}") == \
         "Authorization: Bearer [REDACTED]"
 
 
