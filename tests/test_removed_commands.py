@@ -38,8 +38,9 @@ def test_debug_before_the_name_still_finds_it(capsys):
 def test_the_help_names_no_removed_command(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
+    listed = out[out.index("usage:"):]  # the commands and options (the steps are prose)
     for name in NAMES:
-        assert not re.search(rf"^  {name} ", out, re.MULTILINE) and f"{name}," not in out
+        assert not re.search(rf"^  {name} ", out, re.MULTILINE) and f"{name}," not in listed
     assert "CI" not in out
 
 
