@@ -76,6 +76,14 @@ CSP = ("default-src 'none'; script-src " + look.script_hash(look.THEME_FIRST) + 
        "img-src 'none'; base-uri 'none'; form-action 'none'")
 
 STYLE = """
+:root { --paper: var(--bg); --sheet: var(--bg); --tint: var(--hover); --tint-2: var(--hover);
+  --chip: var(--current); --ink: var(--text); --ink-2: var(--text); --ink-3: var(--muted);
+  --rule: var(--line); --rule-2: var(--line); --rule-3: var(--line); --track: var(--line);
+  --dash: var(--faint); --accent: var(--text); --accent-2: var(--text); --accent-bg: var(--current);
+  --accent-line: var(--line); --mark-line: var(--text); --btn: var(--text); --btn-hover: var(--muted);
+  --on-btn: var(--bg); --amber-solid: var(--amber); --amber-bg: var(--hover);
+  --amber-line: var(--line); --amber-band: var(--line); --good-band: var(--line);
+  --blue: var(--muted); --blue-solid: var(--muted); --blue-bg: var(--hover); --blue-line: var(--line); }
 html { scroll-behavior: smooth; }
 main.result { max-width: 1180px; margin: 0 auto; padding: 24px 24px 32px; display: flex;
   flex-direction: column; gap: 20px; }
@@ -599,7 +607,7 @@ def page(r: dict, content: dict, back: str | None = None, history: list[dict] | 
     judge = r.get("judge") or {}
     tool = tool_name(judge.get("tool"), judge.get("results_files"))
     model = (r.get("fingerprint") or {}).get("model")
-    left = look.chips(_e(model) if model else None, _e(tool) if tool else None)
+    left = look.meta(_e(model) if model else None, _e(tool) if tool else None)
     marks = (f'<span class="marks">Your marks: {c["passed"]} Pass · {c["failed"]} Fail</span>')
     step = next_step(r, fixing)
     more = (_history(history or []) + _details(r, c, content, back)

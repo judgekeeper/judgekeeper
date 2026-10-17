@@ -111,17 +111,16 @@ function fetch(url, opts) {
 function settle() { return new Promise(function (r) { setImmediate(r); }); }
 function later(ms) { NOW += ms; }
 // The page's elements, placed as the page has them.
-var card = document.getElementById("answer-card"), rail = document.getElementById("rail");
-main.appendChild(section); section.appendChild(card); main.appendChild(rail);
+var card = document.getElementById("answer-card");
+main.appendChild(section); section.appendChild(card);
 card.appendChild(document.getElementById("decide"));
 document.getElementById("intro").hidden = true;
-document.getElementById("rule").scrollHeight = 10;
 document.getElementById("data")._text = JSON.stringify(DATA);
 """
 
 
 def _script() -> str:
-    page = mark_page.label_page("support bot", "Be kind.", "judgekeeper mark",
+    page = mark_page.label_page("support bot", "judgekeeper mark",
                                 model="gpt-4.1-mini", tool="promptfoo")
     return re.search(r'<script nonce="__NONCE__">\n(.*?)</script>', page, re.DOTALL)[1] \
         .replace("__TOKEN__", "t0k")
@@ -219,25 +218,35 @@ def test_going_back_to_a_marked_answer_says_its_mark():
     assert got == {"status": "Marked Fail", "pressed": "true"}
 
 
-def test_the_bar_follows_answers_looked_at_and_no_number_is_a_target():
+def test_the_bar_follows_answers_looked_at_and_the_count_the_marks():
     got = _run("""
       var start = [ids["progress"].getAttribute("aria-valuenow"),
-                   ids["progress"].getAttribute("aria-valuetext")];
+                   ids["progress"].getAttribute("aria-valuetext"), ids["count"].textContent];
       key("ArrowRight"); await settle(); later(500);
       key("s"); await settle(); later(500);
       var two = [ids["progress"].getAttribute("aria-valuenow"),
                  ids["progress"].getAttribute("aria-valuetext"), ids["see"].hidden,
-                 ids["progress-label"].textContent];
+                 ids["count"].textContent];
       status.ready = true;
       key("ArrowLeft"); await settle();
       console.log(JSON.stringify({start: start, two: two,
-        ready: [ids["bar"].style.width, ids["see"].hidden, ids["progress-label"].textContent],
+        ready: [ids["progress"].getAttribute("aria-valuenow"), ids["see"].hidden,
+                ids["count"].textContent],
         texts: [ids["q-text"].textContent, ids["ans-status"].textContent]}));""")
-    assert got["start"] == ["0", "0 answers looked at"]
+    assert got["start"] == ["0", "0 answers looked at", "0 marked"]
     share = round(2 / mark_page.FIRST * 100)
-    assert got["two"] == [str(share), "2 answers looked at", True, "Toward your first result"]
-    assert got["ready"] == ["100%", False, "Ready for your first result"]
+    assert got["two"] == [str(share), "2 answers looked at", True, "1 marked"]  # a skip: no mark
+    assert got["ready"] == ["100", False, "2 marked"]
     assert got["texts"] == ["Question 3?", "Not marked yet"]  # the state: no position, no total
+
+
+def test_the_undo_button_undoes_like_the_key():
+    got = _run("""
+      key("ArrowRight"); await settle(); later(500);
+      ids["undo"].fire("click"); await settle();
+      console.log(JSON.stringify({sent: sent.map(function (s) { return s.body.label; }),
+        at: ids["q-text"].textContent}));""")
+    assert got == {"sent": ["pass", None], "at": "Question 0?"}
 
 
 def test_the_welcome_box_opens_once_and_keys_wait_until_it_is_closed():

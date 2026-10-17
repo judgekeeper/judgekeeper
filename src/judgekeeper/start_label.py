@@ -860,15 +860,16 @@ def write_report(ws: Workspace) -> None:
 
 
 def page_template(about: dict | None = None, command: str | None = None) -> str:
-    """The marking page for a check whose start.json is `about`: its judge's rule, model and
-    tool are shown; nothing else from it is. `command`: what the person runs to continue."""
+    """The marking page for a check whose start.json is `about`: its judge's model and tool
+    are shown in the top bar; nothing else from it is (not its rule). `command`: what the
+    person runs to continue."""
     from judgekeeper.front import tool_name
     from judgekeeper.mark_page import label_page
 
     command = command or program("mark")
     about = about or {}
-    return label_page(about.get("description") or about.get("app_version"), about.get("rule"),
-                      command, model=(about.get("fingerprint") or {}).get("model"),
+    return label_page(about.get("description") or about.get("app_version"), command,
+                      model=(about.get("fingerprint") or {}).get("model"),
                       tool=tool_name(about.get("tool"), about.get("results_files")))
 
 

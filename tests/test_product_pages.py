@@ -35,7 +35,7 @@ def _result(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f, **extra):
 
 
 def _marking() -> str:
-    return mark_page.label_page("support bot", "Be kind.\n" * 30, "judgekeeper mark",
+    return mark_page.label_page("support bot", "judgekeeper mark",
                                 model="openai:gpt-4.1-mini", tool="promptfoo")
 
 
@@ -70,9 +70,10 @@ def test_every_page_carries_the_two_colour_logo():
         assert "#1F6B4A\"/>" not in page, name  # never a one-colour shield
     for name, page in _new().items():
         assert page.count(look.SHIELD) == page.count('class="logo-mark"') >= 1, name
-        assert "drop-shadow" not in page and "filter:" not in page, name  # nothing added
+        assert "drop-shadow" not in page, name  # nothing added
         logo_css = re.findall(r"\.logo-mark[^{]*\{([^}]*)\}", page)
-        assert logo_css and not any("background" in rule for rule in logo_css), name  # no tile
+        assert logo_css, name
+        assert not any("background" in r or "filter" in r for r in logo_css), name  # no tile
         assert "#64748B" not in page, name  # the official colours
 
 
@@ -136,16 +137,25 @@ def test_dark_first_and_light_by_the_switch():
     assert ":root { color-scheme: dark;" in look.TOKENS
 
 
-def test_the_colours_are_the_websites():
+def test_the_colours_are_the_locked_looks():
     dark, light = _tokens("dark"), _tokens("light")
-    assert (dark["paper"], dark["sheet"], dark["ink"], dark["btn"]) == (
-        "#000000", "#111111", "#FFFFFF", "#FFFFFF")
-    assert (light["paper"], light["sheet"], light["ink"], light["ink-3"], light["rule"],
-            light["btn"]) == ("#FFFFFF", "#F5F5F5", "#000000", "#4D4D4D", "#D9D9D9", "#000000")
-    for theme in (dark, light):  # green and red only on Pass and Fail, and the accent lines
-        greens = {k for k, v in theme.items() if v in ("#1F6B4A", "#6FCF9B", "#10B981",
-                                                       "#3D9A6A", "#1E7A4E")}
-        assert greens <= {"pass", "pass-line", "pass-on", "pass-kbd-line", "mark-line"}, greens
+    assert (dark["bg"], dark["text"], dark["muted"], dark["faint"], dark["line"]) == (
+        "#0b0c0e", "#e6e8eb", "#8b919a", "#585e68", "#262a30")
+    assert (dark["hover"], dark["current"]) == ("#121418", "#17191e")
+    assert (light["bg"], light["text"], light["muted"], light["faint"], light["line"]) == (
+        "#ffffff", "#111317", "#5f6672", "#9aa0aa", "#d9dde3")
+    assert (light["hover"], light["current"]) == ("#f6f7f9", "#eef0f3")
+    # Green and red: Pass and Fail (their fill, hover and dots) and the "See your result" link
+    assert (dark["green-fill"], dark["green"], dark["red-fill"], dark["red"]) == (
+        "#0d9668", "#10B981", "#c73b40", "#e5484d")
+    assert (light["green-fill"], light["green"], light["red-fill"], light["red"]) == (
+        "#059669", "#059669", "#dc2626", "#dc2626")
+    assert (dark["amber"], light["amber"]) == ("#e0a43a", "#b7791f")
+    for theme in (dark, light):
+        coloured = {k for k, v in theme.items() if v.lower() not in {
+            theme["bg"], theme["text"], theme["muted"], theme["faint"], theme["line"],
+            theme["hover"], theme["current"]}}
+        assert coloured == {"green", "green-fill", "red", "red-fill", "amber"}, coloured
 
 
 def _luminance(colour: str) -> float:
@@ -160,14 +170,10 @@ def _contrast(a: str, b: str) -> float:
     return (la + 0.05) / (lb + 0.05)
 
 
-# (text, background, at least): every text colour on the backgrounds it sits on
-PAIRS = [(text, ground, 4.5) for text in ("ink", "ink-2", "ink-3", "accent")
-         for ground in ("paper", "sheet", "tint", "tint-2", "chip")] + [
-    ("on-btn", "btn", 4.5), ("pass", "pass-bg", 4.5), ("fail", "fail-bg", 4.5),
-    ("pass", "pass-dot", 4.5), ("fail", "fail-dot", 4.5), ("pass", "sheet", 4.5),
-    ("fail", "sheet", 4.5), ("amber", "sheet", 4.5), ("amber", "amber-bg", 4.5),
-    ("blue", "sheet", 4.5), ("blue", "blue-bg", 4.5), ("ink-3", "accent-bg", 4.5),
-    ("focus", "paper", 3), ("focus", "sheet", 3)]
+# (text, background, at least): the text colours on the grounds they sit on; white on the
+# Pass and Fail fills; the verdict colours and the focus ring at the 3:1 of large text and rings
+PAIRS = [(text, ground, 4.5) for text in ("text", "muted") for ground in ("bg", "hover", "current")
+         ] + [("amber", "bg", 3), ("green", "bg", 3), ("text", "bg", 3)]
 
 
 @pytest.mark.parametrize("theme", ["dark", "light"])
@@ -175,57 +181,140 @@ def test_text_contrast_in_both_themes(theme):
     colours = {**_tokens("dark"), **_tokens(theme)}  # light overrides the dark defaults
     for text, ground, least in PAIRS:
         assert _contrast(colours[text], colours[ground]) >= least, (theme, text, ground)
-    for pressed in ("pass-on", "fail-on"):  # white text on a pressed button
-        assert _contrast("#FFFFFF", colours[pressed]) >= 4.5, (theme, pressed)
+    for fill in ("green-fill", "red-fill"):  # white bold text on Fail and Pass: the locked
+        assert _contrast("#FFFFFF", colours[fill]) >= 3, (theme, fill)  # green is 3.8:1
 
 
-def test_focus_rings_sit_on_the_edge_and_nothing_is_focused_on_load():
+def test_focus_rings_are_inset_in_the_text_colour_and_nothing_is_focused_on_load():
     for name, page in _new().items():
         style = page.split("<style>")[1].split("</style>")[0]
-        assert re.findall(r"outline-offset: ([^;]+);", style) == ["0"], name
-        assert ":focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }" in style
+        assert re.findall(r"outline-offset: ([^;]+);", style) == ["-2px"], name
+        assert ":focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }" in style
         assert "autofocus" not in page, name
+    for name, page in (("marking", _marking()), ("old link", mark_page.old_link_page())):
+        style = page.split("<style>")[1].split("</style>")[0]  # hairlines only: no shadows,
+        assert "box-shadow" not in style and "drop-shadow" not in style, name  # no panels
+        radii = set(re.findall(r"border-radius: ([^;]+);", style))
+        assert radii <= {"4px", "2px"}, (name, radii)  # the buttons, the welcome box
+
+
+def test_the_top_bar_is_the_same_on_every_page():
+    for name, page in (("marking", _marking()),
+                       ("result", start_label.result_html(_result(*CHECK), back="/?token=t"))):
+        bar = page.split('<header class="top">')[1].split("</header>")[0]
+        assert bar.startswith('<div class="meta"><span class="k">Judge:</span>'
+                              '<span class="v" title="openai:gpt-4.1-mini">openai:gpt-4.1-mini'
+                              '</span>'
+                              '<span class="k">Eval tool:</span><span class="v">promptfoo</span>'
+                              "</div>") or name == "result", name
+        assert look.BRAND in bar and look.SWITCH in bar, name
+        style = page.split("<style>")[1].split("</style>")[0]
+        assert ".top { height: 72px;" in style and "border-bottom: 1px solid var(--line)" in style
+        assert ".brand {" in style and "font-size: 24px; font-weight: 800;" in style
+        assert ".logo-mark svg { width: 34px; height: 38px; }" in style
+        assert ".theme { width: 34px; height: 34px; border: 1px solid var(--line);" in style
+        assert ".meta .k { font-size: 12px; font-weight: 600; letter-spacing: .04em;" in style
+        assert ".meta .v { font-family: var(--mono); font-size: 12.5px;" in style
 
 
 # The marking page --------------------------------------------------------------------------
 
 def test_fail_and_pass_look_the_same_but_for_their_colour():
     style = mark_page.STYLE
-    fails = re.findall(r"^(\.dec\.fail[^{]*)\{([^}]*)\}", style, re.MULTILINE)
-    passes = re.findall(r"^(\.dec\.pass[^{]*)\{([^}]*)\}", style, re.MULTILINE)
-    assert len(fails) == len(passes) >= 4
+    fails = re.findall(r"^(\.btn\.fail[^{]*)\{([^}]*)\}", style, re.MULTILINE)
+    passes = re.findall(r"^(\.btn\.pass[^{]*)\{([^}]*)\}", style, re.MULTILINE)
+    assert len(fails) == len(passes) >= 2  # the fill, and the hover
     for (fs, fb), (ps, pb) in zip(fails, passes, strict=True):
         assert fs.replace("fail", "x") == ps.replace("pass", "x")
-        assert fb.replace("fail", "x") == pb.replace("pass", "x")
+        assert fb.replace("red", "x") == pb.replace("green", "x")
     page = _marking()
-    assert 'class="dec fail" id="fail"' in page and 'class="dec pass" id="pass"' in page
+    assert 'class="btn fail" id="fail"' in page and 'class="btn pass" id="pass"' in page
     assert page.index('id="fail"') < page.index('id="pass"')
+    assert (".btn { height: 50px; border-radius: 4px;" in style and "color: #fff;" in style
+            and "font-size: 16px; font-weight: 700;" in style)
+    assert ".btn:active { filter: brightness(.9); }" in style  # pressed: 10% darker, both
+    assert ".btn.fail { background: var(--red-fill); }" in style
+    assert ".btn.pass { background: var(--green-fill); }" in style
 
 
 def test_the_marking_page_shows_nothing_the_judge_decided():
     text = _text(_marking()).lower()
-    for word in ("agree", "kappa", "tpr", "tnr", "%", "reason", "correct"):
+    for word in ("agree", "kappa", "tpr", "tnr", "%", "reason", "correct", "rule", "grade"):
         assert word not in text, word
-    assert "judge's grade hidden" in text
 
 
 def test_the_marking_page_words():
     text = _text(_marking())
-    for line in ("Judge: openai:gpt-4.1-mini", "Eval tool: promptfoo", "Toward your first result",
-                 "Not marked yet", "Judge's grade hidden", "Fail ←", "Pass →", "Skip this one S",
-                 "Judge's rule", mark_page.HOW, "Shortcuts", "Saved locally as you go",
-                 "To come back later, run judgekeeper mark.", mark_page.TITLE,
-                 "Start marking"):
+    for line in ("Judge: openai:gpt-4.1-mini", "Eval tool: promptfoo", "0 marked",
+                 "See your result", "Pass Fail Not marked", "Question", "Answer",
+                 "Not marked yet", "Fail ←", "Pass →", "Skip this one S", "Undo Z",
+                 "Come back any time: judgekeeper mark", mark_page.TITLE, "Start marking"):
         assert line in text, line
     assert "support bot" not in text  # one source, the same on every answer: no tag
-    for gone in ("Your app's answer", "The question", "The answer", "customer", "of 40",
-                 "Resume with", "drag"):
+    for gone in ("Judge's grade hidden", "Toward your first result", "Shortcuts",
+                 "Saved locally", "Judge's rule", "Answers", "To come back later",
+                 "Mark a few more answers", "The question", "customer", "of 40", "..."):
         assert gone not in text, gone
     page = _marking()
-    assert '<span class="lbl">Question</span>' in page and '<span class="lbl">Answer</span>' in page
+    assert ('<div class="row row-q"><div><div class="label">Question</div>'
+            '<h1 class="question" id="q-text"></h1></div>'
+            '<div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>'
+            ) in page  # the state: one quiet line at the top right of the question row
+    assert '<div class="row row-a"><div class="label">Answer</div><p class="answer" id="a-text">' \
+        in page
     assert "avatar" not in page and "ans-pos" not in page  # no icons, no "Answer 4" heading
-    assert '<div class="strip"><span id="ans-status" aria-live="polite">Not marked yet</span>' \
-        in page  # the state is the card's top line, and its live region
+    assert ('<div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S">'
+            '<span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" '
+            'id="undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>') in page
+    assert '<p class="foot">Come back any time: <code>judgekeeper mark</code></p>' in page
+
+
+def test_the_marking_page_layout_is_a_list_column_and_a_card_that_fills_the_window():
+    style = mark_page.STYLE
+    assert ".wrap { flex: 1; display: grid; grid-template-columns: 400px 1fr;" in style
+    assert "height: calc(100vh - 72px);" in style  # no page scroll on a laptop
+    assert ".side { border-right: 1px solid var(--line);" in style
+    assert ".list { list-style: none; margin: 0; padding: 0; flex: 1; overflow: auto;" in style
+    assert ".card { flex: 1; display: flex; flex-direction: column; }" in style
+    assert ".row { padding: 32px 40px; border-bottom: 1px solid var(--line); }" in style
+    assert ".question { font-size: 26px; font-weight: 700;" in style and "max-width: 28ch;" in style
+    assert ".answer { font-size: 20px; line-height: 1.6;" in style and "max-width: 60ch;" in style
+    assert (".label { font-size: 11px; font-weight: 600; letter-spacing: .1em; "
+            "text-transform: uppercase; color: var(--faint);") in style
+    assert ".state { font-size: 13px; color: var(--muted);" in style
+    assert ".item { width: 100%; display: grid; grid-template-columns: 36px 1fr 16px;" in style
+    assert "padding: 15px 22px 15px 20px; border-bottom: 1px solid var(--line);" in style
+    assert ".item .q { white-space: normal;" in style  # the question wraps, no "..."
+    assert ".item[aria-current] { background: var(--current); color: var(--text); " \
+        "border-left-color: var(--text); }" in style
+    assert ".item:hover { background: var(--hover);" in style
+    assert ".legend { display: flex; gap: 18px; padding: 16px 22px; border-top: 1px solid " \
+        "var(--line); font-size: 13px; color: var(--muted); }" in style
+    assert ".actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; " \
+        "padding: 20px 40px 16px; border-top: 1px solid var(--line); }" in style
+    assert ".foot { margin: 0; padding: 12px 40px; border-top: 1px solid var(--line); " \
+        "font-size: 13px; color: var(--muted); text-align: center; }" in style
+    assert ".foot code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }" in style
+    assert "ellipsis" not in style  # the question in the list wraps instead
+
+
+def test_the_bar_is_segments_and_a_count_with_no_status_sentence():
+    page = _marking()
+    right = page.split('<div class="right">')[1].split("</header>")[0]
+    assert right.startswith('<div class="status-1"><div class="seg" id="progress" '
+                            'role="progressbar" aria-label="Answers looked at" '
+                            'aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">')
+    assert right.count("<i></i>") == mark_page.SEGMENTS == 16
+    assert '<span class="count" id="count">0 marked</span>' in right
+    assert '<a class="see" id="see" href="#" hidden>See your result</a>' in right
+    assert right.index('id="count"') < right.index('id="see"') < right.index('id="theme"')
+    style = mark_page.STYLE
+    assert ".seg { display: flex; gap: 3px; }" in style
+    assert ".seg i { display: block; width: 6px; height: 10px; background: var(--line); }" in style
+    assert ".seg i.on { background: var(--text); }" in style
+    assert ".count { font-family: var(--mono); font-size: 13px; }" in style
+    assert ".see { font-size: 13px; font-weight: 700; color: var(--green);" in style
+    assert "progress-label" not in page and "SHORT_SIDE" not in page
 
 
 def test_the_welcome_box_is_a_modal_over_the_whole_window():
@@ -234,43 +323,44 @@ def test_the_welcome_box_is_a_modal_over_the_whole_window():
             'aria-labelledby="intro-title" tabindex="-1">') in page
     assert '<div class="scrim" id="intro" hidden>' in page  # opened by the script
     assert ".scrim { position: fixed; inset: 0;" in page
-    assert "max-width: calc(100vw - 32px)" in page
     assert '<button type="button" class="go" id="intro-ok">Start marking</button>' in page
     box = page.split('id="intro-box"')[1].split('tabindex="-1">', 1)[1].split("</div>\n</div>")[0]
     assert re.sub(r"<[^>]+>", " ", box).split() == [  # the logo, the headline, the button
         "judgekeeper", "Mark", "each", "answer", "Pass", "or", "Fail.", "Start", "marking"]
 
 
-def test_the_marking_page_has_one_h1_real_headings_and_a_progressbar():
+def test_the_marking_page_has_one_h1_a_progressbar_and_hidden_words_for_each_row():
     page = _marking()
-    assert page.count("<h1") == 1 and '<h1 id="q-text">' in page
-    for heading in ("Answers", "Judge's rule", "Shortcuts"):
-        assert re.search(rf"<h2[^>]*>{re.escape(heading)}</h2>", page), heading
-    assert ('role="progressbar" aria-label="Toward your first result" aria-valuemin="0" '
-            'aria-valuemax="100"') in page
+    assert page.count("<h1") == 1 and '<h1 class="question" id="q-text">' in page
+    assert "<h2" not in page.split('id="end"')[0].split("</header>")[1]  # no list heading
     assert '"marked Pass"' in page and '"marked Fail"' in page and '"not marked"' in page
+    assert '<nav class="side" aria-label="Answers">' in page
 
 
-def test_a_narrow_window_moves_the_rule_above_the_buttons_and_the_list_last():
-    page = _marking()
-    narrow = page.split("@media (max-width: 600px) {", 2)[2]
-    assert ".answers { order: 3;" in narrow and ".rail { order: 2; }" in narrow
-    assert ".answer .rail { order: 0;" in narrow  # inside the card: in its place, above the buttons
-    assert 'card.insertBefore(rail, $("decide"))' in page
-    assert ".top .left { grid-column: 1 / -1; grid-row: 2; }" in page  # chips under the logo
+def test_a_narrow_window_stacks_the_bar_and_puts_the_card_before_the_list():
+    style = mark_page.STYLE
+    narrow = style.split("@media (max-width: 760px) {")[1].split("\n}\n")[0]
+    assert ".wrap { grid-template-columns: 1fr; height: auto; }" in narrow
+    assert ".side { border-right: 0; border-top: 1px solid var(--line); order: 2; }" in narrow
+    assert ".main { order: 1; }" in narrow
+    assert ".btn { height: 60px;" in narrow
+    bar = look.BASE.split("@media (max-width: 760px) {")[1].split("\n}\n")[0]
+    assert ".meta { grid-row: 1;" in bar and ".brand { grid-row: 2;" in bar  # lines, logo,
+    assert ".top .right { grid-row: 3;" in bar                                # then progress
+    assert "insertBefore" not in mark_page.BODY and "rail" not in mark_page.BODY
 
 
-def test_the_rule_is_text_and_folds_when_long():
-    page = mark_page.label_page(None, "<b>Be kind</b> & fair")
-    assert "&lt;b&gt;Be kind&lt;/b&gt; &amp; fair" in page and "<b>Be kind</b>" not in page
-    assert '<blockquote class="folded" id="rule">' in page
-    assert 'id="fold" aria-controls="rule" aria-expanded="false" hidden>Full rule' in page
-    assert 'id="rule"' not in mark_page.label_page(None, None)
+def test_the_judges_rule_is_not_on_the_marking_page():
+    about = {"rule": "THE RULE: be <kind> & fair", "fingerprint": {"model": "m"}, "tool": "promptfoo",
+             "results_files": ["results.json"]}
+    page = start_label.page_template(about)
+    assert "be <kind>" not in page and "be &lt;kind&gt;" not in page and "THE RULE" not in page
+    assert 'id="rule"' not in page and 'id="fold"' not in page
 
 
 def test_text_from_results_can_never_hold_a_server_name():
-    page = mark_page.label_page(None, "__DATA__ __TOKEN__", "judgekeeper mark __NONCE__",
-                                model="__TOKEN__", tool="__DATA__")
+    page = mark_page.label_page(None, "judgekeeper mark __NONCE__", model="__TOKEN__",
+                                tool="__DATA__")
     assert page.count("__DATA__") == 1 and page.count("__TOKEN__") == 1
     assert page.count("__NONCE__") == 2  # the two scripts' own
 

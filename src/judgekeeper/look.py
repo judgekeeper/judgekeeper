@@ -1,10 +1,11 @@
 """The look every page judgekeeper serves shares: the logo, the fonts, the colours, the top
 bar and the focus ring.
 
-The pages open dark (black page, #111 cards, white text, as the website); a switch in the top
-bar turns them light (white page, black text) and back. The choice is kept in the browser's
-storage under `jk-theme` and read before the page is drawn, so it never flashes; a browser
-that blocks the storage shows dark.
+The pages open dark (page #0b0c0e, text #e6e8eb); a switch in the top bar turns them light
+(white page, #111317 text) and back. The choice is kept in the browser's storage under
+`jk-theme` and read before the page is drawn, so it never flashes; a browser that blocks the
+storage shows dark. Hairlines only: no boxes, no shadows, no rounded panels. Green and red
+colour only Pass and Fail (and the "See your result" link), amber a verdict that needs work.
 
 The fonts (Manrope and JetBrains Mono, both under the SIL Open Font License) are embedded as
 base64 from this package's `fonts/` folder, so a page loads nothing from anywhere else.
@@ -46,108 +47,67 @@ def font_faces() -> str:
     return "\n".join(rules)
 
 
-# The colours: dark by default, light when the person picks it. Red and green colour only Fail
-# and Pass (and the logo, and in light the thin accent lines); amber marks a weak number.
+# The colours: dark by default, light when the person picks it.
 TOKENS = """
 :root { color-scheme: dark;
-  --paper: #000000; --sheet: #111111; --tint: #1A1A1A; --tint-2: #161616; --chip: #0A0A0A;
-  --ink: #FFFFFF; --ink-2: #E6E6E6; --ink-3: #B3B3B3;
-  --rule: #2A2A2A; --rule-2: #222222; --rule-3: #3A3A3A; --track: #2A2A2A; --dash: #555555;
-  --accent: #FFFFFF; --accent-2: #E6E6E6; --accent-bg: #1F1F1F; --accent-line: #4A4A4A;
-  --mark-line: #FFFFFF;
-  --btn: #FFFFFF; --btn-hover: #E6E6E6; --btn-active: #CCCCCC; --on-btn: #000000;
-  --pass: #6FCF9B; --pass-bg: #0E1C14; --pass-line: #3D9A6A; --pass-dot: #12291C;
-  --pass-on: #1E7A4E; --pass-kbd: #12291C; --pass-kbd-line: #3D9A6A;
-  --fail: #FF8A7A; --fail-bg: #1C0F0D; --fail-line: #A8483B; --fail-dot: #2A1412;
-  --fail-on: #B4473A; --fail-kbd: #2A1412; --fail-kbd-line: #A8483B;
-  --amber: #F0B45A; --amber-solid: #E09A45; --amber-bg: #2A2010; --amber-line: #6E5020;
-  --amber-band: #5C4219; --good-band: #3A3A3A;
-  --blue: #B3B3B3; --blue-solid: #B3B3B3; --blue-bg: #1A1A1A; --blue-line: #3A3A3A;
-  --focus: #FFFFFF; --scrim: rgba(0,0,0,.7);
-  --shadow: 0 1px 2px rgba(0,0,0,.6);
-  --shadow-lg: 0 24px 56px rgba(0,0,0,.7), 0 2px 6px rgba(0,0,0,.5);
+  --bg: #0b0c0e; --text: #e6e8eb; --muted: #8b919a; --faint: #585e68;
+  --line: #262a30; --hover: #121418; --current: #17191e;
+  --green: #10B981; --green-fill: #0d9668; --red: #e5484d; --red-fill: #c73b40;
+  --amber: #e0a43a; --scrim: rgba(0,0,0,.66);
   --sans: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
 :root[data-theme="light"] { color-scheme: light;
-  --paper: #FFFFFF; --sheet: #F5F5F5; --tint: #EDEDED; --tint-2: #F0F0F0; --chip: #FAFAFA;
-  --ink: #000000; --ink-2: #1F1F1F; --ink-3: #4D4D4D;
-  --rule: #D9D9D9; --rule-2: #E6E6E6; --rule-3: #C7C7C7; --track: #DDDDDD; --dash: #A6A6A6;
-  --accent: #000000; --accent-2: #1F1F1F; --accent-bg: #EBEBEB; --accent-line: #BDBDBD;
-  --mark-line: #10B981;
-  --btn: #000000; --btn-hover: #1F1F1F; --btn-active: #333333; --on-btn: #FFFFFF;
-  --pass: #1F6B4A; --pass-bg: #EEF6F1; --pass-line: #3D9A6A; --pass-dot: #E3EFE8;
-  --pass-on: #1F6B4A; --pass-kbd: #EAF3EE; --pass-kbd-line: #A9D2BC;
-  --fail: #9E3A2E; --fail-bg: #FDF1EF; --fail-line: #D27A6E; --fail-dot: #FBE9E6;
-  --fail-on: #9E3A2E; --fail-kbd: #FFF6F5; --fail-kbd-line: #D9A9A2;
-  --amber: #8A5213; --amber-solid: #D98B3A; --amber-bg: #FBF1E6; --amber-line: #EACDAB;
-  --amber-band: #F3DFC4; --good-band: #C7C7C7;
-  --blue: #4D4D4D; --blue-solid: #4D4D4D; --blue-bg: #F0F0F0; --blue-line: #D0D0D0;
-  --focus: #000000; --scrim: rgba(0,0,0,.45);
-  --shadow: 0 1px 2px rgba(0,0,0,.06);
-  --shadow-lg: 0 24px 56px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.06); }
+  --bg: #ffffff; --text: #111317; --muted: #5f6672; --faint: #9aa0aa;
+  --line: #d9dde3; --hover: #f6f7f9; --current: #eef0f3;
+  --green: #059669; --green-fill: #059669; --red: #dc2626; --red-fill: #dc2626;
+  --amber: #b7791f; --scrim: rgba(17,19,23,.42); }
 """
 
-# What every page shares beyond the colours. Focus rings are solid and sit on the edge
-# (no offset), so no ring ever shows a white gap.
+# What every page shares beyond the colours: the top bar (72px, a hairline under it: the judge
+# and the eval tool left, the logo and name centred, the page's own things and the theme
+# switch right) and the focus ring, inset in the text colour, so no ring ever shows a gap.
 BASE = """
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; }
-body { background: var(--paper); color: var(--ink); font: 500 15px/1.5 var(--sans);
+body { background: var(--bg); color: var(--text); font: 500 16px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased; }
-a { color: var(--accent); }
-a:hover { color: var(--accent-2); }
-button { font: inherit; color: inherit; cursor: pointer; }
+a { color: inherit; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
+  cursor: pointer; }
 code, kbd { font-family: var(--mono); }
-code { font-size: 12.5px; padding: 1px 5px; border-radius: 4px; background: var(--chip);
-  color: var(--ink); overflow-wrap: anywhere; }
 :focus { outline: none; }
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
+:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
   white-space: nowrap; }
-.top { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center; gap: 16px; padding: 10px 24px; background: var(--sheet);
-  border-bottom: 1px solid var(--rule); }
-.top .left { min-width: 0; display: flex; justify-content: flex-start; }
-.top .right { min-width: 0; display: flex; align-items: center; justify-content: flex-end;
-  flex-wrap: wrap; gap: 14px; }
-.chips { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 14px;
-  padding: 6px 12px; border: 1px solid var(--rule); border-radius: 9px; background: var(--tint);
-  min-width: 0; max-width: 100%; }
-.chips > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-.chips .k { font-size: 11px; font-weight: 700; color: var(--ink-3); text-transform: uppercase;
-  letter-spacing: .6px; flex: none; }
-.chips .v { font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
-.chips .sep { width: 1px; height: 16px; background: var(--rule); }
-.brand { display: flex; align-items: center; gap: 10px; color: var(--ink); justify-self: center;
-  font-size: 21px; font-weight: 800; letter-spacing: -.4px; }
+.top { height: 72px; flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto
+  minmax(0, 1fr); align-items: center; gap: 16px; padding: 0 28px;
+  border-bottom: 1px solid var(--line); }
+.meta { justify-self: start; display: grid; grid-template-columns: auto auto; gap: 2px 12px;
+  align-items: baseline; min-width: 0; line-height: 1.4; }
+.meta .k { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--faint); }
+.meta .v { font-family: var(--mono); font-size: 12.5px; color: var(--text); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 11px; color: var(--text); justify-self: center;
+  font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
 .logo-mark { display: inline-flex; flex: none; }
-.logo-mark svg { width: 30px; height: 33px; }
-.theme { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--rule);
-  background: var(--sheet); color: var(--ink-3); display: inline-flex; align-items: center;
-  justify-content: center; padding: 0; flex: none; }
-.theme svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;
+.logo-mark svg { width: 34px; height: 38px; }
+.top .right { min-width: 0; display: flex; align-items: center; justify-content: flex-end;
+  gap: 16px; white-space: nowrap; }
+.theme { width: 34px; height: 34px; border: 1px solid var(--line); color: var(--muted);
+  display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.theme:hover { color: var(--text); background: var(--hover); }
+.theme svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8;
   stroke-linecap: round; }
 .theme .moon { display: none; }
 :root[data-theme="light"] .theme .moon { display: block; }
 :root[data-theme="light"] .theme .sun { display: none; }
-.card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px;
-  box-shadow: var(--shadow); }
-.head { display: flex; align-items: center; gap: 10px; padding: 12px 16px;
-  border-bottom: 1px solid var(--rule-2); }
-.head h2, .head .title { margin: 0; font-size: 13px; font-weight: 800; flex: 1 1 auto; }
-.ic { width: 26px; height: 26px; border-radius: 7px; background: var(--chip); color: var(--ink-3);
-  display: inline-flex; align-items: center; justify-content: center; flex: none; }
-.ic.green { background: var(--accent-bg); color: var(--accent); }
-.ic.amber { background: var(--amber-bg); color: var(--amber); }
-.ic svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2;
-  stroke-linecap: round; stroke-linejoin: round; }
-@media (max-width: 600px) {
-  .top { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 16px; }
-  .top .left { grid-column: 1 / -1; grid-row: 2; }
-  .brand { justify-self: start; grid-column: 1; grid-row: 1; font-size: 18px; }
-  .top .right { grid-column: 2; grid-row: 1; }
+@media (max-width: 760px) {
+  .top { height: auto; grid-template-columns: 1fr; padding: 12px 16px; gap: 10px; }
+  .meta { grid-row: 1; }
+  .brand { grid-row: 2; justify-self: start; }
+  .top .right { grid-row: 3; justify-content: space-between; white-space: normal; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important;
   animation: none !important; scroll-behavior: auto !important; } }
@@ -191,26 +151,24 @@ def script_hash(script: str) -> str:
     return f"'sha256-{digest}'"
 
 
-def chips(judge: str | None, tool: str | None) -> str:
-    """The top bar's left: the judge's model and the eval tool (escaped text)."""
+def meta(judge: str | None, tool: str | None) -> str:
+    """The top bar's left: two plain lines, the judge's model and the eval tool (escaped
+    text); nothing when neither is known."""
     parts = []
     if judge:
-        parts.append(f'<span><span class="k">Judge:</span><span class="v" title="{judge}">'
-                     f'{judge}</span></span>')
+        parts.append(f'<span class="k">Judge:</span><span class="v" title="{judge}">{judge}'
+                     "</span>")
     if tool:
-        parts.append(f'<span><span class="k">Eval tool:</span><span class="v">{tool}</span>'
-                     '</span>')
-    if not parts:
-        return ""
-    return '<div class="chips">' + '<span class="sep" aria-hidden="true"></span>'.join(parts) + \
-        "</div>"
+        parts.append(f'<span class="k">Eval tool:</span><span class="v">{tool}</span>')
+    return f'<div class="meta">{"".join(parts)}</div>' if parts else ""
 
 
 def top(left: str, right: str) -> str:
     """The top bar: the judge and tool left, the logo and name centred, the page's state and
     the theme switch right."""
-    return (f'<header class="top"><div class="left">{left}</div>{BRAND}'
-            f'<div class="right">{right}{SWITCH}</div></header>')
+    left = left or '<div class="meta"></div>'  # the grid's first column, even when empty
+    return (f'<header class="top">{left}{BRAND}<div class="right">{right}{SWITCH}</div>'
+            "</header>")
 
 
 def head(title: str, style: str, script: str, meta: str = "") -> str:
