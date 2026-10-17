@@ -183,6 +183,7 @@ def test_wheel_ships_the_package_and_no_demo(tmp_path):
                    "judgekeeper/fonts/manrope-latin-wght-normal.woff2",
                    "judgekeeper/fonts/OFL-Manrope.txt",
                    "judgekeeper/fonts/jetbrains-mono-latin-400-normal.woff2",
+                   "judgekeeper/fonts/jetbrains-mono-latin-500-normal.woff2",
                    "judgekeeper/fonts/OFL-JetBrainsMono.txt"):  # the pages' fonts, OFL
         assert needed in names, needed
     for gone in ("judgekeeper/demo_data/", "judgekeeper/demo.py", "judgekeeper/templates/",

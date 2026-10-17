@@ -7,8 +7,9 @@ The pages open dark (page #0b0c0e, text #e6e8eb); a switch in the top bar turns 
 storage shows dark. Hairlines only: no boxes, no shadows, no rounded panels. Green and red
 colour only Pass and Fail (and the "See your result" link), amber a verdict that needs work.
 
-The fonts (Manrope and JetBrains Mono, both under the SIL Open Font License) are embedded as
-base64 from this package's `fonts/` folder, so a page loads nothing from anywhere else.
+The fonts (Manrope, and JetBrains Mono at 400 and 500, both under the SIL Open Font License;
+the mono files are Fontsource's) are embedded as base64 from this package's `fonts/` folder, so
+a page loads nothing from anywhere else.
 """
 
 from __future__ import annotations
@@ -20,7 +21,8 @@ from importlib import resources
 
 SANS, MONO = "Manrope", "JetBrains Mono"
 FONTS = (("manrope-latin-wght-normal.woff2", SANS, "200 800"),
-         ("jetbrains-mono-latin-400-normal.woff2", MONO, "400"))
+         ("jetbrains-mono-latin-400-normal.woff2", MONO, "400"),
+         ("jetbrains-mono-latin-500-normal.woff2", MONO, "500"))  # numbers on the result
 FONT_LICENCES = ("OFL-Manrope.txt", "OFL-JetBrainsMono.txt")
 NAVY, GREEN = "#1E293B", "#10B981"  # the logo's two halves: the judge and the person
 

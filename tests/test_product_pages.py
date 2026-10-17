@@ -460,6 +460,16 @@ def test_too_early_leads_to_the_marking_page_or_says_the_command(counts):
     assert "<a " not in saved.split("<body>")[1]  # the saved copy has no server to go back to
 
 
+def test_the_numbers_in_the_counts_and_the_lead_are_mono_at_500():
+    """As in the reference: JetBrains Mono at 500, so the numbers stand out from the 500
+    Manrope around them; the 400 face alone reads as plain text."""
+    assert ("jetbrains-mono-latin-500-normal.woff2", "JetBrains Mono", "500") in look.FONTS
+    data = (PACKAGE_FONTS / "jetbrains-mono-latin-500-normal.woff2").read_bytes()
+    assert data[:4] == b"wOF2"
+    html = start_label.result_html(_result(*NOT_GATE_TNR))
+    assert html.count('<span class="mono">') == 6  # three numbers in each count sentence
+
+
 def test_the_counts_row_in_every_state():
     for counts in (GATE, CHECK, NOT_GATE_TNR, TOO_EARLY, TOO_FEW):
         r = _result(*counts)
@@ -642,8 +652,9 @@ def test_the_result_page_style_follows_the_locked_poster():
                  ".verdict h1.needs { color: var(--amber); }",
                  ".verdict h1.good { color: var(--green); }",
                  ".verdict h1.plain { color: var(--text); }",
-                 (".lead b { font-family: var(--mono); font-weight: 400; font-size: 18px; "
+                 (".lead b { font-family: var(--mono); font-weight: 500; font-size: 18px; "
                   "color: var(--text); }"),
+                 ".mono { font-family: var(--mono); font-weight: 500; white-space: nowrap; }",
                  (".counts { border-top: 1px solid var(--line); border-bottom: 1px solid "
                   "var(--line); display: grid; grid-template-columns: 1fr 1fr; }"),
                  (".counts p { margin: 0; padding: 32px var(--gutter); font-size: 19px; "

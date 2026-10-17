@@ -70,7 +70,7 @@ CSP = ("default-src 'none'; script-src " + look.script_hash(look.THEME_FIRST) + 
 STYLE = """
 :root { --gutter: 32px; }
 table { border-collapse: collapse; width: 100%; }
-.mono { font-family: var(--mono); white-space: nowrap; }
+.mono { font-family: var(--mono); font-weight: 500; white-space: nowrap; }
 .band { padding-left: var(--gutter); padding-right: var(--gutter); }
 .verdict { padding-top: 88px; padding-bottom: 72px; text-align: center; }
 .verdict h1 { margin: 0 auto; font-size: clamp(34px, 4vw, 56px); line-height: 1.1;
@@ -79,7 +79,7 @@ table { border-collapse: collapse; width: 100%; }
 .verdict h1.good { color: var(--green); }
 .verdict h1.plain { color: var(--text); }
 .lead { margin: 20px auto 0; font-size: 20px; line-height: 1.4; color: var(--muted); }
-.lead b { font-family: var(--mono); font-weight: 400; font-size: 18px; color: var(--text); }
+.lead b { font-family: var(--mono); font-weight: 500; font-size: 18px; color: var(--text); }
 .lead a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 .lead code { font-size: 18px; color: var(--text); }
 .counts { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; }
