@@ -331,19 +331,29 @@ def test_which_paired_verdicts_exit_1(right, wrong, n, worse):
 
 
 @pytest.mark.parametrize("right,wrong,n,words", [
-    (11, 19, 30, [("Not sure: 19 turned wrong and 11 turned right. It could be up to 52 "
-                  "points worse.")]),
-    (0, 12, 30, ["Worse: 12 turned wrong and none turned right.",
-                 "That is down 40 points, and it could be as much as 55."]),
-    (0, 2, 30, ["No drop bigger than 20 points: 2 turned wrong, none turned right.",
+    (11, 19, 30, [("Not sure: 19 went from right to wrong, and 11 from wrong to right. It "
+                  "could be up to 52 points worse.")]),
+    (0, 12, 30, ["Worse: 12 answers went from right to wrong, and none from wrong to right.",
+                 "That is about 40 points lower, and could be as much as 55."]),
+    (0, 2, 30, [("No drop bigger than 20 points: 2 went from right to wrong, none from wrong "
+                 "to right."),
                 "These marks can't rule out a drop of up to 18 points."]),
-    (1, 1, 30, ["No drop bigger than 20 points: 1 turned wrong, 1 turned right.",
+    (1, 1, 30, [("No drop bigger than 20 points: 1 went from right to wrong, 1 from wrong "
+                 "to right."),
                 "These marks can't rule out a drop of up to 11 points."]),
 ])
 def test_the_paired_words(right, wrong, n, words):
     from judgekeeper import check
 
     assert check.paired_lines(targets.paired_verdict(right, wrong, n)) == words
+
+
+def test_one_answer_worse_is_said_in_the_singular():
+    from judgekeeper import check
+
+    g = {"verdict": "worse", "now_wrong": 1, "now_right": 2, "change": -0.1, "low": -0.25}
+    assert check.paired_lines(g)[0] == ("Worse: 1 answer went from right to wrong, and 2 from "
+                                        "wrong to right.")
 
 
 def test_check_rates_are_the_reports():

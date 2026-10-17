@@ -678,7 +678,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         report holds the check."""
         self.run("3. check re-tests the new judge on the marks", [*self.jk, "check", "--yes"],
                  expect=[r"Re-checked on (all 50 of your marks|\d+ of your 50 marks):",
-                         r"You passed:  old judge right on", r"You failed:  old judge right on"])
+                         r"You passed \d+ answers\. Your old judge agreed with you on",
+                         r"You failed \d+ answers\. Your old judge agreed with you on"])
         report = self.project / ".judgekeeper" / "report.html"
         try:
             html = report.read_text(encoding="utf-8")

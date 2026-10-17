@@ -473,7 +473,7 @@ def test_asked_twice_the_wobble_is_said_and_the_first_grades_decide(here, capsys
     assert len(evals) == 1 and evals[0][evals[0].index("--repeat") + 1] == "2"
     assert ("Asked twice, your new judge changed its own grade on 3 of your 50 answers. "
             "Differences that small can come from that alone.") in out
-    assert "Worse: 9 turned wrong and none turned right." in out  # the first grades
+    assert "Worse: 9 answers went from right to wrong, and none from wrong to right." in out
 
 
 def test_a_free_recheck_asks_nothing_extra(here, capsys):

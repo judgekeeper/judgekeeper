@@ -221,13 +221,16 @@ SCENE_6 = [
     "",
     "Re-checked on all 50 of your marks:",
     "",
-    "  You passed:  old judge right on 25 of 25, new judge on 25 of 25",
-    "    No drop bigger than 20 points: none turned wrong, none turned right.",
+    "  You passed 25 answers. Your old judge agreed with you on 25,",
+    "  your new judge on 25.",
+    "    No drop bigger than 20 points: none went from right to",
+    "    wrong, none from wrong to right.",
     "    These marks can't rule out a drop of up to 10 points.",
     "",
-    "  You failed:  old judge right on 25 of 25, new judge on 16 of 25",
-    "    Worse: 9 turned wrong and none turned right.",
-    "    That is down 36 points, and it could be as much as 52.",
+    "  You failed 25 answers. Your old judge agreed with you on 25,",
+    "  your new judge on 16.",
+    "    Worse: 9 answers went from right to wrong, and none from wrong to right.",
+    "    That is about 36 points lower, and could be as much as 52.",
     "",
 ]
 
@@ -253,8 +256,11 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_c
     _results(here, MARKED, model=HAIKU)
     code, out = run(capsys)
     assert code == 0
-    assert "  You failed:  old judge right on 25 of 25, new judge on 25 of 25" in out
-    assert "    No drop bigger than 20 points: none turned wrong, none turned right." in out
+    assert ("You failed 25 answers. Your old judge agreed with you on 25, your new judge on "
+            "25.") in _flat(out)
+    assert ("No drop bigger than 20 points: none went from right to wrong, none from wrong to "
+            "right.") in _flat(out)
+    assert "turned" not in out
     assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
                           "change your judge.")
     code, out = run(capsys)
@@ -371,7 +377,7 @@ def test_with_yes_the_rest_is_asked_again(here, capsys, judge):
     assert code == 1
     assert "Re-checked on all 50 of your marks:" in out
     assert "Re-checked for free" not in out
-    assert "Worse: 9 turned wrong and none turned right." in _flat(out)
+    assert "Worse: 9 answers went from right to wrong, and none from wrong to right." in _flat(out)
     assert _evals(judge) == 1
     tests = judge["fake"].files_seen["tests"]
     assert len(tests) == 50
@@ -470,7 +476,7 @@ def test_the_next_check_compares_with_the_last_checks_verdicts(here, capsys, no_
     _results(here, LENIENT, model="anthropic:claude-sonnet-5")
     code, out = run(capsys)
     assert code == 1  # against the last check's verdicts (all agreed): 9 new mistakes
-    assert "old judge right on 25 of 25, new judge on 16 of 25" in _flat(out)
+    assert "Your old judge agreed with you on 25, your new judge on 16." in _flat(out)
     assert f"Your judge changed: model {HAIKU} -> anthropic:claude-sonnet-5." in _flat(out)
 
 

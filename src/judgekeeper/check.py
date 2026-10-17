@@ -16,12 +16,12 @@ For a changed setup:
    `--yes` says yes, else it stops (exit 3) before anything is asked or saved. The person's
    own judge is then asked once about each, through `again/` (no menu);
 3. per group (the answers the person passed, and failed), every mark with an old and a new
-   verdict: how many turned wrong and turned right, and a range on the paired change
-   (targets.paired_verdict): "Worse", "No drop bigger than 20 points" or "Not sure", always
-   with the worst drop the marks could hide. The old verdicts are the last check's for the
-   previous setup (`verdicts/<hash>.jsonl`), else the results the marks were made on. The
-   screen shows counts; the rates the report and history.jsonl keep are re-weighted by the
-   groups the marks were picked from, so the old one is the report's;
+   verdict: how many went from right to wrong and from wrong to right, and a range on the
+   paired change (targets.paired_verdict): "Worse", "No drop bigger than 20 points" or
+   "Not sure", always with the worst drop the marks could hide. The old verdicts are the
+   last check's for the previous setup (`verdicts/<hash>.jsonl`), else the results the
+   marks were made on. The screen shows counts; the rates the report and history.jsonl keep
+   are re-weighted by the groups the marks were picked from, so the old one is the report's;
 4. the lines below, a `history.jsonl` line (no answer text), the new verdicts in
    `verdicts/<hash>.jsonl` (ids and verdicts only, under a header with the setup and the
    judge's fingerprint), and judge.json moves to the new setup. When no answer could be
@@ -538,9 +538,10 @@ def _rates(marked: dict[str, str], verdicts: dict[str, str], picked: dict[str, s
 def groups(marked: dict[str, str], old: dict[str, str], new: dict[str, str],
            picked: dict[str, str] | None = None, pool: dict[str, int] | None = None) -> dict:
     """Per group of marks (passed, failed): of the marks with an old and a new verdict, how
-    many each judge got right, how many turned wrong and right, the range on the paired change
-    and its verdict (targets.paired_verdict); and each judge's re-weighted rate (`old_rate`,
-    `new_rate`) when the pick groups and pool sizes are given."""
+    many each judge got right, how many went from right to wrong and from wrong to right,
+    the range on the paired change and its verdict (targets.paired_verdict); and each
+    judge's re-weighted rate (`old_rate`, `new_rate`) when the pick groups and pool sizes are
+    given."""
     both = [i for i in new if i in old and i in marked]
     rates = None
     if picked is not None and pool is not None:
@@ -631,27 +632,33 @@ def _count(k: int) -> str:
 
 
 def paired_lines(g: dict) -> list[str]:
-    """The verdict on one group, in counts only (never which answers changed)."""
+    """The verdict on one group, in counts only (never which answers changed): how many went
+    from right to wrong, and from wrong to right."""
     wrong, right = g["now_wrong"], g["now_right"]
     if g["verdict"] == "worse":
-        return [f"Worse: {_count(wrong)} turned wrong and {_count(right)} turned right.",
-                (f"That is down {_points(g['change'])} points, and it could be as much as "
-                f"{_points(g['low'])}.")]
+        went = f"{wrong} {'answer' if wrong == 1 else 'answers'} went"
+        return [f"Worse: {went} from right to wrong, and {_count(right)} from wrong to right.",
+                (f"That is about {_points(g['change'])} points lower, and could be as much as "
+                 f"{_points(g['low'])}.")]
     if g["verdict"] == "not_sure":
-        return [(f"Not sure: {_count(wrong)} turned wrong and {_count(right)} turned right. It "
-                f"could be up to {_points(g['low'])} points worse.")]
-    first = f"{VERDICT_WORDS['no_drop']}: {_count(wrong)} turned wrong, {_count(right)} turned right."
+        return [(f"Not sure: {_count(wrong)} went from right to wrong, and {_count(right)} from "
+                 f"wrong to right. It could be up to {_points(g['low'])} points worse.")]
+    first = (f"{VERDICT_WORDS['no_drop']}: {_count(wrong)} went from right to wrong, "
+             f"{_count(right)} from wrong to right.")
     if g["low"] >= 0:
         return [first, "None of its range is a drop."]
     return [first, f"These marks can't rule out a drop of up to {_points(g['low'])} points."]
 
 
 def _group_lines(key: str, g: dict) -> list[str]:
-    head = f"  {SAID[key]}:  "
+    """One group: how often the old and the new judge agreed with the person's marks, then
+    the verdict on the change."""
     if not g["n"]:
-        return [head + "none could be re-checked."]
-    return [(f"{head}old judge right on {g['old_right']} of {g['n']}, new judge on "
-            f"{g['new_right']} of {g['n']}"), *(f"    {line}" for line in paired_lines(g))]
+        return [f"  {SAID[key]}:  none could be re-checked."]
+    said = SAID[key].split()[1]  # "passed" or "failed"
+    return [(f"  You {said} {g['n']} {'answer' if g['n'] == 1 else 'answers'}. Your old judge "
+             f"agreed with you on {g['old_right']}, your new judge on {g['new_right']}."),
+            *(f"    {line}" for line in paired_lines(g))]
 
 
 # Saving -----------------------------------------------------------------------------------------
