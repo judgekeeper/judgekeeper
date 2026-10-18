@@ -209,6 +209,9 @@ STUB_INSPECT = {
                 value=value, explanation=f"again {time}{plan.get('extra', '')}",
                 metadata={"grading": [Message("user", prompt),
                                       Message("assistant", f"GRADE: {value}")]})
+            if os.environ.get("STUB_ANSWER_MODEL"):  # the model Inspect counts for the grading
+                s.model_usage = {**(getattr(s, "model_usage", None) or {}),
+                                 os.environ["STUB_ANSWER_MODEL"]: {"calls": time + 1}}
         return new
 
     class Score:
@@ -372,6 +375,8 @@ STUB_MLFLOW = {
     class Feedback:
         def __init__(self, value, rationale, error=None):
             self.value, self.rationale, self.error = value, rationale, error
+            answer = os.environ.get("STUB_ANSWER_MODEL")  # the model MLflow names as source
+            self.source = type("Source", (), {"source_id": answer})() if answer else None
 
     class _Error:
         def __init__(self, message):

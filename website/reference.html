@@ -393,7 +393,7 @@ export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): voi
 <tr><td><code>fix/runs/</code></td><td>The grades your judge gave when it was asked about the answers kept aside, each line with the full fingerprint: one folder per rule asked (its time and the rule's hash)</td><td>When you say yes to a test</td></tr>
 <tr><td><code>rules/</code></td><td>Each rule tested, as <code>&lt;hash&gt;.txt</code></td><td>With each fix test</td></tr>
 <tr><td><code>results-seen.json</code></td><td>The judge's setup in the results read last, so a check with nothing new reads nothing again</td><td>With <code>judgekeeper check</code></td></tr>
-<tr><td><code>checks/</code></td><td>The grades your judge gave when <code>check</code> asked it, each line with the full fingerprint</td><td>When you say yes to a check</td></tr>
+<tr><td><code>checks/</code></td><td>The grades your judge gave when <code>check</code> asked it, each line with the full fingerprint, and the eval tool's own output (for Inspect AI and MLflow, the model that answered each grade, as the tool reports it). When a call was answered by another model than your new judge's, nothing is kept and <code>check</code> exits 2</td><td>When you say yes to a check</td></tr>
 <tr><td><code>verdicts/</code></td><td>Each judge setup's grades on your marked answers (ids and grades only)</td><td>With each check</td></tr>
 <tr><td><code>records/</code></td><td>Your judge's grades, saved by <code>judgekeeper.record()</code> in your eval; <code>--new</code> leaves them in place</td><td>By your eval</td></tr>
 <tr><td><code>previous-&lt;date&gt;/</code></td><td>Everything that was here before you started over</td><td>On <code>--new</code>, or a yes to start over</td></tr>

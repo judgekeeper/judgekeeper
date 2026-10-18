@@ -452,7 +452,7 @@ judgekeeper writes only inside `.judgekeeper/` in your project. On macOS and Lin
 | `fix/runs/` | The grades your judge gave when it was asked about the answers kept aside, each line with the full fingerprint: one folder per rule asked (its time and the rule's hash) | When you say yes to a test |
 | `rules/` | Each rule tested, as `<hash>.txt` | With each fix test |
 | `results-seen.json` | The judge's setup in the results read last, so a check with nothing new reads nothing again | With `judgekeeper check` |
-| `checks/` | The grades your judge gave when `check` asked it, each line with the full fingerprint | When you say yes to a check |
+| `checks/` | The grades your judge gave when `check` asked it, each line with the full fingerprint, and the eval tool's own output (for Inspect AI and MLflow, the model that answered each grade, as the tool reports it). When a call was answered by another model than your new judge's, nothing is kept and `check` exits 2 | When you say yes to a check |
 | `verdicts/` | Each judge setup's grades on your marked answers (ids and grades only) | With each check |
 | `records/` | Your judge's grades, saved by `judgekeeper.record()` in your eval; `--new` leaves them in place | By your eval |
 | `previous-<date>/` | Everything that was here before you started over | On `--new`, or a yes to start over |

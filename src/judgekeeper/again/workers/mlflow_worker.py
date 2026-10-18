@@ -107,6 +107,14 @@ def feedback(result):
     return result, None, None
 
 
+def answered_by(result):
+    """The model that answered, as MLflow's feedback names its source, or None."""
+    if isinstance(result, list) and len(result) == 1:
+        result = result[0]
+    source = getattr(getattr(result, "source", None), "source_id", None)
+    return source if isinstance(source, str) and source else None
+
+
 def get_trace(client, uri, trace_id, infos):
     """A trace with its spans. MLflow looks for a folder store's trace files at the full path
     saved when the trace was made; when the store was copied or cloned from another computer,
@@ -160,12 +168,15 @@ def run(job, out_path, version):
                     result = call(judge, inputs=answer["inputs"], outputs=answer["outputs"],
                                   expectations=expectations(trace) if trace else None)
                 value, reason, error = feedback(result)
+                model = answered_by(result)
             except Exception as e:  # noqa: BLE001 - one failed call: say why, go on
-                value, reason, error = None, None, f"{type(e).__name__}: {e}"
+                value, reason, error, model = None, None, f"{type(e).__name__}: {e}", None
             if error:
                 line.update(ok=False, error=error)
             else:
                 line.update(ok=True, value=plain(value), reason=reason)
+                if model:
+                    line["model"] = model
             emit(out_path, line)
     emit(out_path, {"ok": True, "done": True, "version": version})
 

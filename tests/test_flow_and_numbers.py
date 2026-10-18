@@ -917,3 +917,43 @@ def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys, no_calls)
     code, out = _check(capsys)  # the check that sees it says it too, and keeps it in history
     assert code == 0 and "back to the one you marked with" in flat(out), out
     assert "has not changed since your last check" in _check(capsys)[1]
+
+
+def _reask(ws):
+    import sys
+
+    from judgekeeper.again import AgainOptions, make_plan
+    from tests.test_fix_swap import _Quiet
+
+    plan = make_plan(ws, AgainOptions(times=1, python=sys.executable,
+                                      fields="input,actual_output"), dry=True)
+    assert plan.status != again.CANT, plan.why
+    return again.run_tool(ws, plan, _Quiet())
+
+
+def test_an_inspect_reask_records_the_model_that_answered(tmp_path, stubs, monkeypatch):
+    """LE4: Inspect's model usage names the model that graded; it feeds the guard."""
+    from judgekeeper import check
+    from tests.test_again_python_run import _checked, _inspect, _saved
+
+    monkeypatch.setenv("STUB_ANSWER_MODEL", "anthropic/claude-haiku-5-5")
+    ws = _checked(tmp_path, _inspect())
+    stubs.plan(verdicts=_saved(ws))
+    fresh = _reask(ws)
+    assert fresh.models_used() == {"anthropic/claude-haiku-5-5"}
+    found = SimpleNamespace(models=["anthropic/claude-sonnet-5-5"], fingerprint={})
+    assert check.wrong_model(fresh.models_used(), found) == (
+        "anthropic/claude-haiku-5-5", "anthropic/claude-sonnet-5-5")
+
+
+def test_an_mlflow_reask_records_the_model_that_answered(tmp_path, stubs, monkeypatch):
+    """LE4: MLflow's feedback names its source, the model that answered."""
+    from tests.test_again_python_run import _mlflow_ws
+
+    monkeypatch.setenv("STUB_ANSWER_MODEL", "openai:/gpt-4.1-nano")
+    ws, _, by_input, verdicts = _mlflow_ws(tmp_path, monkeypatch)
+    stubs.plan(verdicts=verdicts, by_input=by_input)
+    fresh = _reask(ws)
+    assert fresh.models_used() == {"openai:/gpt-4.1-nano"}
+    out = next((ws.dir / "again").glob("*/mlflow.jsonl")).read_text(encoding="utf-8")
+    assert '"model": "openai:/gpt-4.1-nano"' in out
