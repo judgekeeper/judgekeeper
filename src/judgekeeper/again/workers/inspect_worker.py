@@ -111,6 +111,12 @@ def new_samples(log, answers):
     return samples, wanted
 
 
+def usage_of(sample):
+    """{model: its usage as text}: what Inspect counted for a sample, by model."""
+    usage = getattr(sample, "model_usage", None) or {}
+    return {str(m): repr(u) for m, u in usage.items()} if isinstance(usage, dict) else {}
+
+
 def run(job, out_path, version):
     try:
         from inspect_ai._util.dotenv import init_dotenv
@@ -130,6 +136,7 @@ def run(job, out_path, version):
         wanted = {(str(a["sample"]), a["epoch"]): a["id"] for a in job["answers"]}
         log.samples = [s for s in log.samples or [] if (str(s.id), s.epoch) in wanted]
     before = {(str(s.id), s.epoch): set(s.scores or {}) for s in log.samples}
+    usage = {(str(s.id), s.epoch): usage_of(s) for s in log.samples}
     spec = next(s for s in log.eval.scorers if s.name == job["scorer"])
     options = dict(spec.options or {})
     if job.get("rule") is not None:  # judgekeeper fix: a new rule in place of the saved one
@@ -164,9 +171,13 @@ def run(job, out_path, version):
                 continue
             score = sample.scores[added[-1]]
             grading = (score.metadata or {}).get("grading") or []
-            emit(out_path, {"id": wanted[key], "time": time, "ok": True,
-                            "value": plain(score.value), "reason": score.explanation,
-                            "prompt": text(grading[0]) if grading else None})
+            line = {"id": wanted[key], "time": time, "ok": True, "value": plain(score.value),
+                    "reason": score.explanation,
+                    "prompt": text(grading[0]) if grading else None}
+            models = [m for m, u in usage_of(sample).items() if usage[key].get(m) != u]
+            if models:  # the models Inspect counted for this scoring: the ones that answered
+                line["models"] = models
+            emit(out_path, line)
     emit(out_path, {"ok": True, "done": True, "version": version})
 
 

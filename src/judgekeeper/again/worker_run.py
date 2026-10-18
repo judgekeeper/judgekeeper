@@ -88,6 +88,8 @@ def count(fresh: Fresh, plan, got: dict, name: str, verdict_of, differs=None) ->
                 fresh.not_counted[answer["id"]] = "no clear verdict"
                 continue
             fresh.verdicts[answer["id"]] = verdicts
+            fresh.models += [m for x in lines for m in (x.get("models") or [x.get("model")])
+                             if isinstance(m, str) and m]  # the model each time, if said
             fresh.scores[answer["id"]] = [x.get("score") for x in lines]
             fresh.reasons[answer["id"]] = [str(x.get("reason") or "") for x in lines]
             firsts.append(lines[0])

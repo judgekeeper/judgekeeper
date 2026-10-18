@@ -48,6 +48,12 @@ class Fresh:
     fingerprint: dict = field(default_factory=dict)
     source: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+    models: list = field(default_factory=list)  # the model of each call, where the tool says
+
+    def models_used(self) -> set[str]:
+        """The models the counted calls used: each call's, else the fingerprint's."""
+        used = self.models or [self.fingerprint.get("model")]
+        return {m for m in used if isinstance(m, str) and m}
 
 
 class AgainError(Exception):

@@ -442,7 +442,7 @@ def test_a_test_is_kept_without_answer_text(here, capsys, judge):
         assert i not in text
 
 
-def test_a_tested_rule_shows_the_first_screen_again(here, capsys, judge):
+def test_a_tested_rule_is_not_tested_again(here, capsys, judge):
     ws = project(here)
     run(capsys)
     _write_rule(ws)
@@ -450,6 +450,7 @@ def test_a_tested_rule_shows_the_first_screen_again(here, capsys, judge):
     code, out = run(capsys)
     assert code == 0 and judge["evals"] == 2
     assert out.splitlines()[2] == "Step 4 of 5: Fix"
+    assert "You tested this rule before" in out
 
 
 @pytest.mark.parametrize("text, said", [

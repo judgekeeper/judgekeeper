@@ -85,6 +85,8 @@ class Plan:
     key_ok: bool = True  # the key the judge needs was found (by name)
     runner: list[str] = field(default_factory=list)  # the command that runs the tool
     download: bool = False  # the runner downloads the tool first (npx)
+    install: str | None = None  # a command to run in the project first: it installs the tool
+    # (npm install promptfoo@<version>), or sets up its model (DeepEval's own `deepeval set-...`)
     payload: list = field(default_factory=list)  # per asked answer, for the tool's run
     job: dict = field(default_factory=dict)  # the rest of a worker's job for the run
     folder: Path | None = None  # where the run's files go (default: again/<date>/)
@@ -111,14 +113,15 @@ def cant(tool: str, judge: str, why: str, short: str = "") -> Plan:
 
 
 NOT_MARKED = "your newest results don't contain the answers you marked"
+NOT_MARKED_PLAIN = ("Your newest results don't contain the answers you marked, so your judge "
+                    "can't grade them again.")
 NO_SWAP = "judgekeeper can't put a new rule into {what}, so it can't take a new rule"
 
 
 def not_marked(tool: str, judge: str) -> Plan:
     """None of the marked answers is in the newest results: nothing to grade again."""
     plan = cant(tool, judge, NOT_MARKED)
-    plan.plain = ("Your newest results don't contain the answers you marked, so your judge "
-                  "can't grade them again.")
+    plan.plain = NOT_MARKED_PLAIN
     return plan
 
 

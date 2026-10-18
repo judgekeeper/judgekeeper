@@ -14,7 +14,9 @@ For a changed setup:
 2. the rest only after the person's yes: `check` says how many answers and calls it would
    ask about and asks `Go ahead? [y/N]` at a terminal (Enter is no); without a terminal only
    `--yes` says yes, else it stops (exit 3) before anything is asked or saved. The person's
-   own judge is then asked once about each, through `again/` (no menu);
+   own judge is then asked once about each, through `again/` (no menu). When the model
+   judgekeeper would hand the eval tool is not the new judge's, nothing is asked; when the
+   tool says a call was answered by another model (wrong_model), nothing is saved (exit 2);
 3. per group (the answers the person passed, and failed), every mark with an old and a new
    verdict: how many went from right to wrong and from wrong to right, and a range on the
    paired change (targets.paired_verdict): "Worse", "No drop bigger than 20 points" or
@@ -34,8 +36,9 @@ on marked answers differ in the newest results (grades_changed), and the last ch
 is checked again when marks were made after it (_added_since_check).
 
 Exit 0 (no drop bigger than 20 points, not sure with a smaller drop, or nothing changed), 1
-(worse, or not sure with a drop bigger than 20 points, in either group), 3 (the person is
-needed: not enough marks, nothing could be tested, or the question needs an answer).
+(worse, or not sure with a drop bigger than 20 points, in either group), 2 (a call asked
+another model than the new judge), 3 (the person is needed: not enough marks, nothing could be
+tested, or the question needs an answer).
 """
 
 from __future__ import annotations
@@ -43,17 +46,19 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import shutil
 import stat
 import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from judgekeeper import __version__, find, judge_setup, marks, start, targets, weighted
+from judgekeeper import __version__, again, find, judge_setup, marks, start, targets, weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_value
-from judgekeeper.start_label import Workspace
+from judgekeeper.start_label import Workspace, every_marked, next_marks
 from judgekeeper.textio import make_private, plural, program, quote_arg, wrap, write_replacing
 
 EXIT_OK, EXIT_WORSE, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 1, 2, 3
@@ -66,7 +71,7 @@ MAX_ENTRIES = 20_000  # files in a results folder (an MLflow store) looked at, a
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers you failed"))
 SAID = {"passed": "You passed", "failed": "You failed"}
-NEXT_NOT_SURE = ("Next: mark more answers with `{mark}`, then run `{command}` again.")
+NEXT_NOT_SURE = "mark more answers with `{mark}`, then run `{command}` again."
 VERDICT_WORDS = {"worse": "Worse", "not_sure": "Not sure",
                  "no_drop": f"No drop bigger than {round(targets.NO_DROP_MARGIN * 100)} points"}
 
@@ -75,8 +80,9 @@ CONFIG_NEWER = ("Your judge's settings changed after your last eval run, so the 
 SAME = "Same model, same rule, same eval tool."
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
 ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}, twice each. That "
-             "is {calls}, paid with your own key. Asking twice shows how much the judge varies "
-             "by itself.")
+             "is {calls}, paid with your own key.{download} Asking twice shows how much the "
+             "judge varies by itself.")
+DOWNLOADS = " It also downloads promptfoo {version} with npx."  # in the same question
 ASK_TIMES = 2  # a paid re-check asks each answer twice: its own wobble is seen
 WOBBLE = ("Asked twice, your new judge changed its own grade on {k} of your {n}. Differences "
           "that small can come from that alone.")
@@ -91,15 +97,20 @@ NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
-NEXT_WORSE = "Next: go back to {back}, or change your judge and run `{command}` again."
+NEXT_WORSE = "go back to {back}, or change your judge and run `{command}` again."
+# A judge whose results hold no rule (a table): it changes only where the eval keeps it
+NEXT_WORSE_TABLE = ("go back to your old judge, or change its rule; then run your eval and "
+                    "`{command}`.")
 SWITCHED = ("Your results now come from {new}, not {old}.",
             "judgekeeper can't compare judges across two eval tools.")
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
 STEP = "Step 5 of 5: Re-check"
-DOWNLOAD = ("Asking your judge would mean downloading promptfoo {version}; judgekeeper "
-            "doesn't download anything by itself.")
+NEXT_INSTALL = "Next: run `{install}` in your project, then run `{command}` again."
 NO_KEY = "The key your judge needs isn't set where judgekeeper runs, so your judge wasn't asked."
 CLOSE = "This was a close copy of your judge, not an exact one: {why}."
+WRONG_MODEL = "judgekeeper asked the wrong model ({used}, not {new}), so this check is not saved."
+NEXT_WRONG_MODEL = ("Next: check which model your eval's config names for your judge, run your "
+                    "eval, then run `{command}` again.")
 TRACE_WHY = "your judge reads traces, which may have changed since your eval ran"
 
 
@@ -406,7 +417,9 @@ class Asked:
     reasons: list[str] = field(default_factory=list)
     close: str | None = None  # why it was a close copy
     not_marked: bool = False  # the newest results hold none of the marked answers
+    install: str | None = None  # the command that installs the judge's tool (Plan.install)
     wobble: tuple[int, int] | None = None  # asked twice: (answers whose grades differ, of)
+    wrong_model: tuple[str, str] | None = None  # (a model a call used, the new judge's)
 
 
 def _can_write(setup: dict) -> bool:
@@ -458,7 +471,6 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     """Ask the judge in the newest results about the marked answers `ids` (`rest`: the ones
     not found free), once the person said yes to the calls it makes. None without a terminal
     and without --yes: the question is said, nothing is asked."""
-    from judgekeeper import again
     from judgekeeper.again.fresh import NOT_COUNTED, AgainError, write_files
 
     out = Asked()
@@ -469,16 +481,19 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     if plan.status == again.CANT:
         out.reasons.append(plan.plain or f"Your judge can't be asked again: {plan.why}.")
         out.not_marked = plan.why == again.NOT_MARKED
+        out.install = plan.install
         return out
     if not plan.key_ok:
         out.reasons.append(NO_KEY)
         return out
-    if plan.download:
-        out.reasons.append(DOWNLOAD.format(version=plan.tool_version))
+    wrong = wrong_model(_handed(plan), found)
+    if wrong:  # (a): what judgekeeper would hand the eval tool is not the new judge
+        out.wrong_model = wrong
         return out
     said.say()
     _wrap(said, ASK_FIRST.format(which="the other " if rest else "your ",
-                                 n=_n(len(ids), "marked answer"), calls=_n(plan.calls, "AI call")))
+                                 n=_n(len(ids), "marked answer"), calls=_n(plan.calls, "AI call"),
+                                 download=downloads(plan)))
     if _can_write(setup):
         said.say(CAN_WRITE)
     answer = _go_ahead(yes)
@@ -493,6 +508,11 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     except AgainError as e:
         out.reasons.append(f"Asking your judge again did not finish: {scrub(str(e))}")
         out.calls = plan.calls
+        return out
+    wrong = wrong_model(fresh.models_used(), found)
+    if wrong:  # (b): the calls say another model answered: nothing is kept
+        shutil.rmtree(plan.folder, ignore_errors=True)
+        out.wrong_model, out.calls = wrong, plan.calls
         return out
     write_files(ws, plan, fresh, prefix="check", metric=found.metric)
     out.verdicts = {i: v[0] for i, v in fresh.verdicts.items()}  # the first, like one run
@@ -511,6 +531,46 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
         whys.append(TRACE_WHY)
     out.close = "; ".join(whys) or None
     return out
+
+
+def downloads(plan) -> str:
+    """The sentence the question about the calls adds when running the judge downloads its
+    tool first (npx), else ""."""
+    return DOWNLOADS.format(version=plan.tool_version) if plan.download else ""
+
+
+def _handed(plan) -> set[str]:
+    """The models judgekeeper hands the eval tool for a re-ask: promptfoo's grader on each
+    test, else the plan's model."""
+    from judgekeeper.again.promptfoo import graders_handed
+
+    if plan.tool == "promptfoo":
+        return graders_handed(plan)
+    return {plan.model} if isinstance(plan.model, str) and plan.model else set()
+
+
+# Provider and API words a tool writes before a model's own name ("openai:chat:", "openai:/",
+# "anthropic/", "anthropic:messages:")
+_PREFIX = re.compile(r"^(?:openai|anthropic|azure|azureopenai|google|vertex|gemini|bedrock|"
+                     r"ollama|mistral|groq|deepseek|xai|openrouter|together|litellm|"
+                     r"huggingface|hf)(?::/|:|/)")
+_API = re.compile(r"^(?:chat|messages|completion|responses):")
+
+
+def _model_name(model: str) -> str:
+    """A model's name without the provider and API words before it: "openai:chat:gpt-4.1",
+    "openai/gpt-4.1" and "gpt-4.1" are one; the rest of the name is kept whole."""
+    return _API.sub("", _PREFIX.sub("", model.strip().lower(), count=1), count=1)
+
+
+def wrong_model(used: set[str], found) -> tuple[str, str] | None:
+    """(a model the calls used, the new judge's model) when a call used another model than
+    the one judgekeeper names as the new judge (found.models), else None."""
+    named = [m for m in (found.models or [found.fingerprint.get("model")])
+             if isinstance(m, str) and m]
+    names = {_model_name(m) for m in named}
+    other = sorted(m for m in used if _model_name(m) not in names)
+    return (other[0], named[0]) if named and other else None
 
 
 # The paired test --------------------------------------------------------------------------------
@@ -587,8 +647,8 @@ def groups(marked: dict[str, str], old: dict[str, str], new: dict[str, str],
 
 WRITTEN_FROM = ("This includes marks you looked at to write this rule, so it may read a few "
                 "points high.")
-AFTER_NONE = ("On marks made after this change: {said}. Mark more answers to see it on answers "
-              "it was not written for.")
+AFTER_NONE = "On marks made after this change: {said}."
+AFTER_MORE = " Mark more answers to see it on answers it was not written for."
 AFTER_NUMBERS = 10  # of each kind: their numbers are shown
 AFTER_HEADLINE = 15  # of each kind: they decide the verdict
 
@@ -614,16 +674,19 @@ def _made_after(state: State, since: str, tested: dict[str, str]) -> dict[str, s
 
 
 def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str, str],
-                 pool: dict[str, int], wobble: float | None = None) -> list[str]:
+                 pool: dict[str, int], wobble: float | None = None,
+                 every: bool = False) -> list[str]:
     """The new judge on the marks made after the change: none yet, how many so far, or (with
     AFTER_NUMBERS of each) its numbers with their ranges, widened for its `wobble` (the share
-    of answers it graded differently when asked twice)."""
+    of answers it graded differently when asked twice). `every`: every answer is marked, so
+    none is left to mark."""
     from judgekeeper.start_label import side_sentence
 
     kinds = list(fresh.values())
     n_pass, n_fail = kinds.count("pass"), kinds.count("fail")
     if min(n_pass, n_fail) < AFTER_NUMBERS:
-        return [AFTER_NONE.format(said=f"{len(fresh)} so far" if fresh else "none yet")]
+        said = f"{len(fresh)} so far" if fresh else "none" if every else "none yet"
+        return [AFTER_NONE.format(said=said) + ("" if every else AFTER_MORE)]
     items = [(picked.get(i, tested[i]), fresh[i], tested[i]) for i in fresh]
     out = weighted.general(items, pool["pass"], pool["fail"], wobble=wobble)
     return [f"On marks made after this change ({n_pass} Pass, {n_fail} Fail):",
@@ -747,7 +810,7 @@ def _not_set_up(path: str, state: State | None, said) -> int:
     if state is not None:
         said.say(NOT_SET_UP)
         said.say()
-        said.say(f"Next: run `{program('mark')}` to mark more answers.")
+        said.say("Next: " + next_marks(state.ws, f"run `{program('mark')}` to mark more answers."))
         return EXIT_NEEDS_YOU
     folder = _project(given)
     above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)
@@ -833,7 +896,7 @@ def _no_change(state: State) -> str:
 
 PICKS_ASK = 3
 PICK_MARKS = 10
-NEXT_NEW_MARKS = ("Next: run `{mark}` to mark {n} new answers, then run `{command}` again.")
+NEXT_NEW_MARKS = "run `{mark}` to mark {n} new answers, then run `{command}` again."
 
 
 def is_pick(line: dict) -> bool:
@@ -868,15 +931,16 @@ def picks(ws: Workspace, now: bool = False) -> dict:
             "ask": len(times) >= PICKS_ASK and made < PICK_MARKS}
 
 
-def picks_lines(p: dict) -> list[str]:
+def picks_lines(p: dict, every: bool = False) -> list[str]:
+    """How many changes the marks helped pick, said once; with PICKS_ASK picks, that they may
+    flatter the judge, and (unless `every` answer is marked: none is left) to mark new ones."""
     if not p["n"]:
         return []
-    out = [f"These marks have helped pick {plural(p['n'], 'change')}."]
-    if p["ask"]:
-        out.append(f"Your marks have been used to pick {plural(p['n'], 'change')}, so they may "
-                   f"now flatter your judge. Mark {PICK_MARKS} new answers to keep the check "
-                   "honest.")
-    return out
+    picked = f"These marks have helped pick {plural(p['n'], 'change')}"
+    if not p["ask"]:
+        return [picked + "."]
+    return [f"{picked}, so they may now flatter your judge."
+            + ("" if every else f" Mark {PICK_MARKS} new answers for a fair check.")]
 
 
 def _history(ws: Workspace) -> list[dict]:
@@ -904,6 +968,8 @@ def _free(found, marked: dict[str, str]) -> dict[str, str]:
 
 
 GRADES = "Your judge's grades changed on {k} of your marked answers."
+BACK = "Your judge is back to the one you marked with ({model}). Your marks' result still holds."
+HOLD = "Your newest results hold {k} of your {n}."  # some marked answers, not all
 ADDED = "You added {n} since your last check."
 
 
@@ -925,8 +991,8 @@ def grades_changed(ws: Workspace, found) -> int:
 
 
 def _added_since_check(state: State, new: dict | None) -> tuple[dict | None, list[str]]:
-    """(the judge before the last check, the marks made since it) when that check moved
-    judge.json to `new` and marks were made after it: they were not re-checked."""
+    """(the judge before the last check, the marks it did not re-check) when that check moved
+    judge.json to `new`: marks made after it, or that its results did not hold."""
     if new is None or judge_setup.hash_of(new) != state.saved["setup_hash"]:
         return None, []
     last = next((x for x in reversed(_history(state.ws))
@@ -939,6 +1005,16 @@ def _added_since_check(state: State, new: dict | None) -> tuple[dict | None, lis
         return None, []
     tested = _read_verdicts(state.ws, state.saved["setup_hash"])
     return before, [i for i in state.marks if i not in tested]
+
+
+def _made_since_last_check(state: State, ids: list[str]) -> int:
+    """How many of the marks `ids` (not re-checked yet) were added since the last check: the
+    marks there are now, less the ones it counted."""
+    checks = _history(state.ws)
+    if not ids or not checks:
+        return 0
+    before = checks[-1].get("marks")
+    return min(len(ids), max(0, len(state.marks) - before)) if isinstance(before, int) else 0
 
 
 def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
@@ -1000,8 +1076,11 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     found, new = (now.found, now.setup) if now is not None else (None, None)
     before, added = _added_since_check(state, new) if now is not None else (None, [])
     no_rule = new is not None and new.get("rule_hash") is None  # its grades tell a change
+    checks = _history(state.ws)
+    moved = bool(checks) and new is not None and judge_setup.hash_of(
+        checks[-1].get("after") or {}) != judge_setup.hash_of(new)  # back from the last check
     if now is not None and found is None and (judge_setup.changes(old, new) or added or
-                                               no_rule):
+                                               no_rule or moved):
         found, problem = _newest(state)  # remembered, but a re-check needs the answers
         new = judge_setup.of(found) if found is not None else new
     switched = _switched(state) if problem else None
@@ -1019,6 +1098,17 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say()
         said.say(NEXT_RUN_EVAL.format(command=_command(state)))
         return EXIT_NEEDS_YOU
+    back = back_to_marked(state.ws, found) if found is not None else None
+    if back:
+        said.say(back)
+        marks.append(state.ws.history_jsonl, scrub_value({
+            "time": utc_now(), "kind": "check", "trigger": "back", "before": old, "after": new,
+            "changed": ["back to the judge the marks were made on"], "marks": len(state.marks),
+            "free": 0, "asked": 0, "calls": 0, "groups": {}}))
+        _report(state.ws)  # no "Worse" from the other judge on it
+        said.say()
+        said.say(NEXT_SAME.format(command=_command(state)))
+        return EXIT_OK
     changed = judge_setup.changes(old, new)
     if not changed and added:  # marks made since the last check: that change again
         old, changed = before, judge_setup.changes(before, new)
@@ -1037,8 +1127,9 @@ def full(path: str, said: Said, yes: bool = False) -> int:
 
     said.say(_change_line(old, new, changed, full=True) if changed
              else GRADES.format(k=grades))
-    if added:
-        said.say(ADDED.format(n=_n(len(added), "mark")))
+    new_marks = _made_since_last_check(state, added)
+    if new_marks:  # only marks really made since; the others the last check could not test
+        said.say(ADDED.format(n=_n(new_marks, "mark")))
     tested = _tested_rule(state, found) if found is not None and old.get("rule_hash") != \
         new.get("rule_hash") else None
     if tested:
@@ -1059,19 +1150,29 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say()
         said.say(NEXT_YES.format(command=_command(state)))
         return EXIT_NEEDS_YOU
+    if asked.wrong_model:
+        said.say()
+        said.say(WRONG_MODEL.format(used=asked.wrong_model[0], new=asked.wrong_model[1]))
+        said.say()
+        said.say(NEXT_WRONG_MODEL.format(command=_command(state)))
+        return EXIT_USAGE
     tested = {**free, **cached, **asked.verdicts}
     if not tested:
         for line in asked.reasons:
             said.say(line)
         said.say()
-        later = NEXT_NOT_MARKED if asked.not_marked else NEXT_LATER
-        said.say(later.format(command=_command(state), new=program("--new")))
+        later = (NEXT_INSTALL if asked.install else NEXT_NOT_MARKED if asked.not_marked
+                 else NEXT_LATER)
+        said.say(later.format(command=_command(state), new=program("--new"),
+                              install=asked.install))
         return EXIT_NEEDS_YOU
 
     n, total = len(tested), len(state.marks)
     if free and not asked.verdicts and not cached:
         said.say("Re-checked with no AI call, from your new results.")
     for line in asked.reasons:
+        if free and asked.not_marked and line == again.NOT_MARKED_PLAIN:
+            line = HOLD.format(k=len(free), n=_n(total, "marked answer"))
         said.say(line)
     said.say()
     on = f"all {total} of your marks" if n == total else f"{n} of your {_n(total, 'mark')}"
@@ -1099,7 +1200,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
             said.say(WRITTEN_FROM)
             wobble = asked.wobble[0] / asked.wobble[1] if asked.wobble and asked.wobble[1] \
                 else None
-            for line in _after_lines(fresh, tested, picked, pool, wobble):
+            for line in _after_lines(fresh, tested, picked, pool, wobble,
+                                     every=every_marked(state.ws)):
                 said.say(line)
             said.say()
     if asked.close:
@@ -1116,20 +1218,19 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     unsure = [k for k in ("failed", "passed") if g[k]["verdict"] == "not_sure"]
     picked = picks(state.ws, now=rule_changed(changed)  # a pick, unless checked before
                    and not _checked_before(state, old, new))
-    for line in picks_lines(picked):
+    every = every_marked(state.ws)
+    for line in picks_lines(picked, every):
         said.say(line)
     if picks_lines(picked):
         said.say()
     if worse:
-        tool = find.NAMES.get(new.get("tool"), new.get("tool"))
-        back = (f"the old version of {tool} ({old.get('tool_version')})"
-                if judge_setup.tool_only(old, new) else "the old judge")
-        said.say(NEXT_WORSE.format(back=back, command=_command(state)))
+        said.say("Next: " + worse_step(old, new, _command(state)))
     elif picked["ask"]:
-        said.say(NEXT_NEW_MARKS.format(mark=program("mark"), n=PICK_MARKS - picked["new_marks"],
-                                       command=_command(state)))
+        said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
+            mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))
     elif unsure:
-        said.say(NEXT_NOT_SURE.format(mark=program("mark"), command=_command(state)))
+        said.say("Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
+            mark=program("mark"), command=_command(state))))
     else:
         said.say(NEXT_SAME.format(command=_command(state)))
     exit_worse = any(g[k].get("exit_worse") for k in g)
@@ -1150,8 +1251,101 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     if not worse:  # after "Worse" the old judge stays the reference until it comes back
         judge_setup.save(state.ws, new, found.metric)
         _adopt(state.ws, found, tested)
-    _report(state.ws)
+        _refresh_mistakes(state.ws)
+    _report(state.ws, adopted=not worse,
+            worse=worse_step(old, new, _command(state)) if worse else None)
     return EXIT_WORSE if exit_worse else EXIT_OK
+
+
+def worse_step(old: dict, new: dict, command: str) -> str:
+    """The next step after "Worse" (without "Next: "), the same in `check`, `judgekeeper` and
+    report.html: go back to the old judge (or tool version), or change the judge."""
+    if judge_setup.tool_only(old, new):
+        tool = find.NAMES.get(new.get("tool"), new.get("tool"))
+        return NEXT_WORSE.format(back=f"the old version of {tool} ({old.get('tool_version')})",
+                                 command=command)
+    if new.get("rule_hash") is None:
+        return NEXT_WORSE_TABLE.format(command=command)
+    return NEXT_WORSE.format(back="the old judge", command=command)
+
+
+def open_worse(ws: Workspace, found) -> dict | None:
+    """The last check, when it found the judge in the newest results (`found`) worse than the
+    one the marks test, and no mark was made since: checking again says the same, so the next
+    step is worse_step. For a judge whose results hold no rule (a table), only while its grades
+    are the ones that check saw. None otherwise."""
+    saved = judge_setup.read(ws)
+    checks = _history(ws)
+    if saved is None or not checks:
+        return None
+    last, now = checks[-1], judge_setup.of(found)
+    if (judge_setup.hash_of(last.get("before") or {}) != saved["setup_hash"]
+            or judge_setup.hash_of(last.get("after") or {}) != judge_setup.hash_of(now)):
+        return None
+    if not any(isinstance(g, dict) and g.get("verdict") == "worse"
+               for g in (last.get("groups") or {}).values()):
+        return None
+    read = marks.read(ws.marks)
+    counted = read.counted()
+    time = str(last.get("time") or "")
+    if any(str((read.last.get(i) or {}).get("at") or "") > time for i in counted):
+        return None
+    if now.get("rule_hash") is None:  # a table: the same grades as that check saw
+        data = ws.data()
+        old = {**{q["id"]: q["group"] for q in data.get("queue") or []},
+               **_read_verdicts(ws, saved["setup_hash"])}
+        flips = sorted(i for i, v in _free(found, counted).items() if i in old and old[i] != v)
+        if flips != sorted(last.get("flipped") or []):
+            return None
+    return {"before": last["before"], "after": now}
+
+
+def _marked_setup(ws: Workspace) -> dict | None:
+    """The judge the marks were made on: the one the first check since they began started
+    from. None before any check."""
+    since = str((marks.read(ws.marks).header or {}).get("created_at") or "")
+    return next((x["before"] for x in _history(ws)
+                 if str(x.get("time") or "") >= since and isinstance(x.get("before"), dict)),
+                None)
+
+
+def back_to_marked(ws: Workspace, found) -> str | None:
+    """The judge in the newest results (`found`) is the one the marks were made on, and the
+    last check was of another judge: the line that says so, else None. When that check moved
+    the marks to the other judge, they test the judge they were made on again, with the grades
+    they were made on (no AI call, _restore); after a "Worse", nothing was moved, and that
+    "Worse" no longer applies (open_worse)."""
+    marked, saved, checks = _marked_setup(ws), judge_setup.read(ws), _history(ws)
+    if marked is None or saved is None or not checks:
+        return None
+    now = judge_setup.of(found)
+    if (judge_setup.hash_of(now) != judge_setup.hash_of(marked)
+            or judge_setup.hash_of(checks[-1].get("after") or {}) == judge_setup.hash_of(now)):
+        return None
+    if saved["setup_hash"] != judge_setup.hash_of(now):
+        _restore(ws, found, now)
+    names = [re.split(r"[:/]", str(m))[-1] for m in now.get("models") or []]
+    return BACK.format(model=", ".join(names) or "model not named")
+
+
+def _restore(ws: Workspace, found, setup: dict) -> None:
+    """The marks test the judge they were made on again (`found`, its `setup`): start.json
+    takes back the grades the marks were picked by, judge.json that judge, and the result is
+    made again from them."""
+    from judgekeeper.start_label import _write_json
+
+    data = ws.data()
+    picked = data.get("picked") or {}
+    groups = picked.get("groups") or {q["id"]: q["group"] for q in data.get("queue") or []}
+    _adopt(ws, found, {i: groups[i] for i in marks.read(ws.marks).counted() if i in groups})
+    data = ws.data()
+    data["queue"] = [{**q, "group": groups.get(q["id"], q["group"])} for q in data["queue"]]
+    data["pool"] = picked.get("pool") or data.get("pool")
+    for key in ("picked", "checked_at"):
+        data.pop(key, None)
+    _write_json(ws.start, data)
+    judge_setup.save(ws, setup, found.metric)
+    _report(ws, adopted=True)
 
 
 def _same_as_last(state: State, line: dict) -> bool:
@@ -1166,12 +1360,32 @@ def _same_as_last(state: State, line: dict) -> bool:
     return same and last.get("groups") == line["groups"]
 
 
-def _report(ws: Workspace) -> None:
-    """report.html again (when there is a result)."""
-    from judgekeeper.start_label import write_report
+def _refresh_mistakes(ws: Workspace) -> None:
+    """fix/mistakes.md describes the judge the marks test now (fix.refresh_mistakes)."""
+    from judgekeeper import fix
 
     try:
-        write_report(ws)
+        fix.refresh_mistakes(ws)
+    except (OSError, ValueError, KeyError):
+        pass  # the next `fix` writes it
+
+
+def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> None:
+    """report.html again (when there is a result). `adopted`: the marks test the new judge
+    now, so the result is made again from its grades (start_label.store_result): the report's
+    counts, lists and kept-aside count all describe that one judge. `worse`: the next step
+    after a "Worse" (worse_step)."""
+    from judgekeeper.start_label import StartSession, store_result, write_report
+
+    try:
+        saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    try:
+        if adopted and isinstance(saved, dict):
+            store_result(ws, StartSession(ws), saved.get("command"), redraw=True)
+        else:
+            write_report(ws, worse=worse)
     except OSError:
         pass  # the check is saved; the report catches up with the next result
 

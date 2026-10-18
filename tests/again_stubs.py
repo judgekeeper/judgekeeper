@@ -72,6 +72,9 @@ STUB_DEEPEVAL = {
             _log("construct", cls=type(self).__name__, kwargs=kwargs)
             self.kwargs = kwargs
             model = kwargs.get("model")
+            if model is None and os.environ.get("STUB_DEFAULT_NEEDS_KEY") and \
+                    not os.environ.get("OPENAI_API_KEY"):  # DeepEval's default OpenAI model
+                raise ValueError("OpenAI API key is not configured")
             if model is None:  # DeepEval's own settings pick the model: STUB_MODEL
                 self.evaluation_model = os.environ.get("STUB_MODEL", "gpt-4.1")
             elif isinstance(model, str):  # a name: OpenAI, unless a USE_* setting says other
@@ -116,7 +119,10 @@ STUB_DEEPEVAL = {
     class _Model:
         LABEL = ""
         def __init__(self, model=None, **kwargs):
+            import os
             _log("model", cls=type(self).__name__, model=model, kwargs=kwargs)
+            if os.environ.get("STUB_MODEL_ERROR"):  # the provider needs a setup step first
+                raise ValueError(os.environ["STUB_MODEL_ERROR"])
             self.name = model
         def get_model_name(self):
             return f"{self.name} ({self.LABEL})"
@@ -203,6 +209,9 @@ STUB_INSPECT = {
                 value=value, explanation=f"again {time}{plan.get('extra', '')}",
                 metadata={"grading": [Message("user", prompt),
                                       Message("assistant", f"GRADE: {value}")]})
+            if os.environ.get("STUB_ANSWER_MODEL"):  # the model Inspect counts for the grading
+                s.model_usage = {**(getattr(s, "model_usage", None) or {}),
+                                 os.environ["STUB_ANSWER_MODEL"]: {"calls": time + 1}}
         return new
 
     class Score:
@@ -366,6 +375,8 @@ STUB_MLFLOW = {
     class Feedback:
         def __init__(self, value, rationale, error=None):
             self.value, self.rationale, self.error = value, rationale, error
+            answer = os.environ.get("STUB_ANSWER_MODEL")  # the model MLflow names as source
+            self.source = type("Source", (), {"source_id": answer})() if answer else None
 
     class _Error:
         def __init__(self, message):

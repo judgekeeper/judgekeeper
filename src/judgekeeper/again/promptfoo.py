@@ -5,7 +5,8 @@ again to rebuild the judge, and says:
 
 - exactly your judge: the grader is named in the file and the same promptfoo version will run
   (the installed one when its version matches the file's `metadata.promptfooVersion`, else
-  `npx promptfoo@<that version>`, which downloads it and is asked about first);
+  `npx promptfoo@<that version>`, which downloads it: the download is in the same yes/no
+  question as the calls; with neither, the plan names `npm install promptfoo@<that version>`);
 - a close copy: the file records no promptfoo version, or the grader is promptfoo's default,
   which the file never records (named "probably", from the key names present);
 - can't: the grader was set with `--grader` (saved without its name), its settings hold a
@@ -28,7 +29,8 @@ and whose provider is promptfoo's echo, and a tests file (kept separate, so prom
 fill `{{ env.X }}` into saved answers) with each labeled answer as a fixed answer
 (`providerOutput`), its saved vars and only its model-graded assertions and grader, copied
 unchanged. promptfoo then runs with `--no-cache --no-write --no-share` and its telemetry,
-update check, sharing and logs off; `--grader` is never passed. Both files are removed
+update check, sharing and logs off; `--grader` is never passed. The `env:` block of the user's
+config (where a key may be set) goes into promptfoo's environment, never into a file. Both files are removed
 afterwards, also after an error or Ctrl-C. Exit codes 0 and 100 (some test failed) both mean
 finished. An llm-rubric answer whose new grading prompt is not byte for byte the saved one is
 not counted.
@@ -56,7 +58,7 @@ from judgekeeper.readers.promptfoo import (
     read_promptfoo,
 )
 from judgekeeper.records import LLM, derive_record_id
-from judgekeeper.redact import scrub
+from judgekeeper.redact import register_secret, scrub
 from judgekeeper.table import make_fingerprint
 from judgekeeper.textio import make_private, write_replacing
 
@@ -276,8 +278,9 @@ def _new_rows(ws, answers: list[dict], metric: str) -> tuple[dict, int]:
     """For a new judge: {answer id: (row, defaultTest, components)}, each marked answer's own
     saved answer put into its test in the newest results, found by the test's vars, with the
     new judge's assertions and grader. When the assertion is the same on every test, an
-    answer whose test is not in the newest results keeps its old test (if its old results
-    file is still there). The new judge never graded these answers, so there is no saved
+    answer whose test is not in the newest results keeps its old test's vars and prompt (if
+    its old results file is still there), graded as the newest results grade (_with_grader).
+    The new judge never graded these answers, so there is no saved
     grading prompt to compare. Returns those and how many answers have no test."""
     data = ws.data()
     newest = _rows(ws.root, data["results_files"])
@@ -288,15 +291,15 @@ def _new_rows(ws, answers: list[dict], metric: str) -> tuple[dict, int]:
         if comps:
             by_vars.setdefault(canonical_json(row.get("vars") or {}), (row, default_test, comps))
             shapes.add(canonical_json([c["assertion"] for c in comps]))
-    common = next(iter(by_vars.values()))[2] if len(shapes) == 1 and by_vars else None
+    template = next(iter(by_vars.values())) if len(shapes) == 1 and by_vars else None
     old = _rows(ws.root, (data.get("saved") or {}).get("results_files") or [])
     out, missing = {}, 0
     for a in answers:
         match = by_vars.get(canonical_json(a["input"] if isinstance(a["input"], dict) else {}))
         if match is not None:
             row, default_test, comps = match
-        elif common is not None and a["id"] in old:
-            (row, default_test), comps = old[a["id"]], common
+        elif template is not None and a["id"] in old:
+            row, default_test, comps = _with_grader(old[a["id"]][0], template)
         else:
             missing += 1
             continue
@@ -306,6 +309,21 @@ def _new_rows(ws, answers: list[dict], metric: str) -> tuple[dict, int]:
                  for c in comps]
         out[a["id"]] = (row, default_test, comps)
     return out, missing
+
+
+GRADER_OPTIONS = ("provider", "rubricPrompt")  # a test's options that set how it is graded
+
+
+def _with_grader(row: dict, template: tuple[dict, dict, list]) -> tuple[dict, dict, list]:
+    """An old row whose test is not in the newest results, graded as the newest results grade:
+    the grader and rubric prompt from a newest row's options, its defaultTest and its
+    assertions. Nothing about grading comes from the old file."""
+    new_row, default_test, comps = template
+    old_opts = {k: v for k, v in _options(row.get("testCase")).items() if k not in GRADER_OPTIONS}
+    new_opts = {k: v for k, v in _options(new_row.get("testCase")).items()
+                if k in GRADER_OPTIONS}
+    test_case = {**(row.get("testCase") or {}), "options": {**old_opts, **new_opts}}
+    return {**row, "testCase": test_case}, default_test, comps
 
 
 def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> Plan:
@@ -429,9 +447,11 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 reasons.append(f"your promptfoo is {installed[1]} and your results were made "
                                f"with {version}")
             else:
-                return cant("promptfoo", judge,
+                plan = cant("promptfoo", judge,
                             "promptfoo is not installed here, and npx (Node.js) was not found "
                             f"to fetch promptfoo {version}", short="promptfoo is not installed")
+                plan.install = f"npm install promptfoo@{version}"
+                return plan
         elif not version and installed is None:
             return cant("promptfoo", judge, "promptfoo is not installed here",
                         short="promptfoo is not installed")
@@ -534,10 +554,28 @@ def test_entry(answer: dict, row: dict, comps: list, test_opts: dict, default_te
             "assert": [dict(c["assertion"]) for c in comps]}
 
 
+def graders_handed(plan: Plan) -> set[str]:
+    """The grader of each test judgekeeper hands to promptfoo (test_entry), by its id; the
+    default grader, which the file never names, is left out."""
+    ids = {_grader_id(test_entry(*p)["options"].get("provider")) for p in plan.payload}
+    return {i for i in ids if i}
+
+
 def regrade_config() -> dict:
     return {"description": "judgekeeper re-check (temporary file)",
             "prompts": ["{{judgekeeper_prompt}}"], "providers": ["echo"],
             "evaluateOptions": {"cache": False}, "tests": f"file://{TESTS}"}
+
+
+def _config_env(config: Path | None) -> dict[str, str]:
+    """The person's config's `env:` block (the values it can read), which promptfoo uses
+    over the shell in their own runs: a key set there is the one their judge uses. Passed in
+    promptfoo's environment, never written; each credential among them is scrubbed from
+    everything judgekeeper writes or prints."""
+    env = {k: v for k, v in keys.config_env(config).items() if isinstance(v, str)}
+    for name, value in env.items():
+        register_secret(name, value)
+    return env
 
 
 def _rendered(comps) -> list:
@@ -566,7 +604,8 @@ def run(ws, plan: Plan, talk) -> Fresh:
             talk.say(again.LOCAL_MODEL)
         progress = again.Progress(talk, None)  # promptfoo writes its results at the end
         with again.watching(progress.tick):
-            proc = again.run_process(argv, cwd=root, env={**os.environ, **RUN_ENV})
+            proc = again.run_process(argv, cwd=root,
+                                     env={**os.environ, **_config_env(config), **RUN_ENV})
     finally:
         for path in files:
             path.unlink(missing_ok=True)
@@ -612,6 +651,7 @@ def run(ws, plan: Plan, talk) -> Fresh:
         fresh.verdicts[item_id] = [r.label for r in records]
         fresh.scores[item_id] = [r.score for r in records]
         fresh.reasons[item_id] = [r.explanation or "" for r in records]
+        fresh.models += [r.evaluator.get("model") for r in records]
         if not fresh.fingerprint:
             fresh.fingerprint = make_fingerprint(dict(records[0].evaluator)).to_dict()
     return fresh

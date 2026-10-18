@@ -108,6 +108,8 @@ OLD_MARKS = (f"{FOLDER}/labels.csv holds marks from an older judgekeeper. They h
              "stamps, so this version does not use them.")
 SCORE_READ = "Read the score column with your pass mark; the verdict column is not used."
 RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
+RAN_AGAIN_CHECKED = ("Your eval ran again. Your judge is the one your last check re-tested, so "
+                     "your marks still test it.")
 JUDGE_CHANGED = "Your judge changed since your marks: {what}."
 STEP = "Step {n} of 5: {name}"
 INDENT = " " * 13  # under the value of "Eval tool:   "
@@ -347,7 +349,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         return path, None  # find_judge reads them, or says how
     own = own_format.search(root)
     if own is None:
-        raise _nothing_found(talk, root, search.signs)
+        raise _nothing_found(talk, root, search.signs, find.nested_results(search))
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
 
@@ -487,10 +489,30 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
     return talk.stop(EXIT_QUESTION, f"{fix}, then run `{talk.command()}`.")
 
 
-def _nothing_found(talk: FrontTalk, root: Path, signs: dict) -> Stop:
+def _nested_line(nested: list[str]) -> str:
+    """Results in projects of their own below this one (find.nested_results): whose they
+    are, and where to check them."""
+    named = start._and([f"{p}/" for p in nested])
+    where = start._or([f"{p}/" for p in nested])
+    return (f"These results belong to the {'project' if len(nested) == 1 else 'projects'} in "
+            f"{named}. To check them, run `{program()}` in {where}.")
+
+
+def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
+                   nested: list[str] | None = None) -> Stop:
     """No results: the tools found here (with what saves their results), else what
-    judgekeeper can read. The folder by its name only."""
-    if signs:
+    judgekeeper can read. The folder by its name only. Results in a project of its own below
+    (`nested`) are named, never read."""
+    if nested:
+        talk.para(_nested_line(nested))
+        where = start._or([f"{p}/" for p in nested])
+        return talk.stop(EXIT_QUESTION, f"run `{program()}` in {where}.")
+    saved = _saved_marks(root)
+    if saved:  # the results file is gone, the marks are not
+        talk.para(f"No eval results found in this folder. Your {_n(saved, 'mark')} "
+                  f"{'is' if saved == 1 else 'are'} saved in {FOLDER}/; they come back when "
+                  "your results file is back.")
+    elif signs:
         for tool, where in signs.items():
             name = find.NAMES[tool]
             talk.para(f"Found {name} in this folder ({where[0]}), but no saved results yet. "
@@ -505,6 +527,15 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict) -> Stop:
                               f"`{talk.command_at('PATH')}` with their file or folder.")
     return talk.stop(EXIT_QUESTION, f"run your eval once from this folder, then run {again} "
                                     f"again.{other}")
+
+
+def _saved_marks(root: Path) -> int:
+    """How many marks the project's .judgekeeper/ holds."""
+    ws = Workspace(start_again._project(root))
+    try:
+        return len(marks.read(ws.marks).counted()) if ws.marks.is_file() else 0
+    except (OSError, ValueError):
+        return 0
 
 
 def _tracking_server(talk: FrontTalk, path: Path, uri: str) -> Stop:
@@ -606,6 +637,43 @@ def _other_projects(found: start.Found) -> str | None:
     return (f"These results are from the project in {read}/. The "
             f"{'project' if one else 'projects'} in {named} {'has' if one else 'have'} "
             f"results too: to check them, run {commands}.")
+
+
+def _nested_here(found: start.Found) -> str | None:
+    """Results in a project of its own below this one, never read with these: named."""
+    if found.given:
+        return None
+    nested = find.nested_results(find.search(found.root))
+    return _nested_line(nested) if nested else None
+
+
+def _outer_marks(found: start.Found) -> str | None:
+    """A project above this one whose .judgekeeper/ holds marks for these results (made from
+    there before a project kept its own): said once, when marking starts here."""
+    root = Path(found.root).resolve()
+    try:
+        home = Path.home().resolve()
+    except (RuntimeError, OSError):
+        home = None
+    for folder in root.parents:
+        if folder == home:
+            return None
+        ws = Workspace(folder)
+        if not ws.start.is_file():
+            continue
+        try:
+            data = ws.data()
+            given = data.get("given")  # a file given by path: read from where it is
+            files = [(folder / f).resolve() for f in ([given] if isinstance(given, str) and given
+                                                      else data.get("results_files") or [])]
+            n = len(marks.read(ws.marks).counted())
+        except (OSError, ValueError, AttributeError, TypeError):
+            return None
+        if n and any(f.is_relative_to(root) for f in files):
+            return (f"The project above ({folder.name}) holds {_n(n, 'mark')} for these results "
+                    f"in its {FOLDER}/. They stay there: this project keeps its own marks.")
+        return None
+    return None
 
 
 def tool_version(found: start.Found) -> str | None:
@@ -711,8 +779,13 @@ def found_block(found: start.Found) -> list[str]:
     tool = tool_name(found.tool, [str(found.results[0].rel)])
     graded = ("each graded by your judge" if found.pool.answers or found.pool.unread
               else "none with a clear grade from your judge")
+    unscored = found.check.counts().get(judge_check.NOT_SCORED, 0) if found.check else 0
+    counted = f"{_n(answers, 'answer')}, {graded}"
+    if unscored and found.pool.answers:  # only answers with a grade are said to have one
+        counted = (f"{_n(answers - unscored, 'answer')} with a grade ({unscored} failed before "
+                   "scoring)")
     lines = [f"Eval tool:   {tool}",
-             f"Answers:     {_n(answers, 'answer')}, {graded}",
+             f"Answers:     {counted}",
              f"{INDENT}(read from {_read_from(found)})",
              f"Judge:       {_judge_value(found)}", *_rule_lines(found)]
     if found.pass_mark:
@@ -754,7 +827,8 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         talk.say(f"Your judge's grades: {pool.n_pass} Pass, {pool.n_fail} Fail.")
     for note in _notes(found):
         talk.para(note)
-    for others in (_other_files(found), _other_projects(found)):
+    for others in (_other_files(found), _other_projects(found), _nested_here(found),
+                   _outer_marks(found)):
         if others:
             talk.para(others)
     _free_check(talk, found, listed)
@@ -935,19 +1009,23 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
 
     if not ws.start.is_file():
         start_label.prepare(found, say=lambda line: None)
+    start_label.repair(ws)  # a result whose saving was stopped half way
     session = StartSession(ws)
     counts = session.counts()
     enough = min(counts["correct"], counts["wrong"]) >= targets.ROUGH
     every = bool(session.items) and all(i["label"] for i in session.items)
     head = []
-    changed = [] if first else _changed(ws, found)
-    grades = 0 if first or changed else check.grades_changed(ws, found)  # a table judge
-    if changed:
+    back = None if first else check.back_to_marked(ws, found)  # the judge the marks were made on
+    changed = [] if first or back else _changed(ws, found)
+    grades = 0 if first or changed or back else check.grades_changed(ws, found)  # a table judge
+    if back:
+        head.append(back)
+    elif changed:
         head.append(JUDGE_CHANGED.format(what=", ".join(changed)))
     elif grades:
         head.append(check.GRADES.format(k=grades))
     elif not first and _ran_again(ws, found):
-        head.append(RAN_AGAIN)
+        head.append(RAN_AGAIN_CHECKED if ws.data().get("checked_at") else RAN_AGAIN)
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))
     if every and not enough:  # nothing left to mark, and no result yet
@@ -1080,7 +1158,10 @@ def verdict_line(r: dict) -> str | None:
     headlines; None before a first result."""
     if r["verdict_level"] is None:
         return None
-    return f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}"
+    verdict = r["verdict"]
+    if start_label.all_labeled(r):  # nothing left to mark
+        verdict = verdict.replace(f" {start_label.MARK_MORE}", "")
+    return f"Result: {verdict[:1].lower()}{verdict[1:]}"
 
 
 def _which_judge(ws: Workspace, found: start.Found) -> str | None:
@@ -1122,11 +1203,15 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.para(line)
     if head:
         talk.say()
+    from judgekeeper import check as checking
     from judgekeeper import fix
 
     fix.prepare_split(ws)  # before any mistake is shown or written: some marks are hidden
     session = StartSession(ws)
-    r = start_label.store_result(ws, session, _command_of(talk, saved))
+    was = checking.open_worse(ws, found) if check else None  # checking again says the same
+    worse = was and checking.worse_step(was["before"], was["after"], _check_command(talk))
+    r = start_label.store_result(ws, session, _command_of(talk, saved), worse=worse or None,
+                                 redraw=True)
     made = r.get("made") or marks.made(marks.read(ws.marks), ids=set(session.by_id))
     for line in made_lines(made)[1:]:  # the notes on how they were made; the count is below
         talk.para(line)
@@ -1167,7 +1252,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     else:
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
     talk.say()
-    if check:
+    if worse:
+        next_step = worse
+    elif check:
         next_step = NEXT_CHECK.format(command=_check_command(talk))
     elif step == "mark":  # too early to tell
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))

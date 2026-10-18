@@ -33,6 +33,9 @@ MIN_SECRET_LENGTH = 8
 
 # Variables registered during this process (the key names keys.py found).
 _named_vars: set[str] = set()
+# Credentials registered during this process that are not in the environment (a key in
+# promptfoo's config `env:` block, passed on to promptfoo)
+_named_values: set[str] = set()
 
 _TOKEN_CHARS = r"[A-Za-z0-9._~+/=-]"
 _BEARER = re.compile(rf"(\bBearer\s+)(?={_TOKEN_CHARS}*\d){_TOKEN_CHARS}{{16,}}", re.IGNORECASE)
@@ -102,6 +105,12 @@ def register_key_env(name: str) -> None:
     _named_vars.add(name)
 
 
+def register_secret(name: str, value: str) -> None:
+    """Treat `value` as a credential from now on when `name` is a credential's name."""
+    if _is_credential_var(name) and len(value) >= MIN_SECRET_LENGTH:
+        _named_values.add(value)
+
+
 def _is_credential_var(name: str) -> bool:
     return (name in CREDENTIAL_VARS or name in _named_vars
             or name.upper().endswith(CREDENTIAL_SUFFIXES))
@@ -115,13 +124,14 @@ def _secret_values() -> list[str]:
     environment changed: a big results file has hundreds of thousands of strings to scrub."""
     global _cached
     data = getattr(os.environ, "_data", None)  # the raw environment: compared, not decoded
-    key = None if data is None else (tuple(data.items()), frozenset(_named_vars))
+    key = None if data is None else (tuple(data.items()), frozenset(_named_vars),
+                                     frozenset(_named_values))
     if key is not None and _cached[0] == key:
         return _cached[1]
     values = {
         value for name, value in os.environ.items()
         if _is_credential_var(name) and len(value) >= MIN_SECRET_LENGTH
-    }
+    } | _named_values
     # Longest first, so a value that contains another is replaced whole.
     found = sorted(values, key=len, reverse=True)
     _cached = (key, found)

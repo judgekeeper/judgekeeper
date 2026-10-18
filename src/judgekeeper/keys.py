@@ -159,19 +159,47 @@ def names_in(path: Path) -> set[str]:
 
 
 def config_env_names(config: Path | None) -> set[str]:
-    """The names in a promptfoo config's top-level `env:` block: a line scan for YAML, the
-    block's keys for JSON."""
+    """The names in a promptfoo config's top-level `env:` block (config_env)."""
+    return set(config_env(config))
+
+
+def _scalar(text: str) -> str | None:
+    """A YAML value written on its key's line, as text: quotes taken off, a comment cut;
+    None when there is none (a nested block)."""
+    text = text.strip()
+    quoted = re.match(r"([\"'])(.*)\1\s*(#.*)?$", text)
+    if quoted:
+        return quoted[2]
+    text = re.split(r"\s+#", text, maxsplit=1)[0].strip()
+    return text or None
+
+
+def config_env(config: Path | None) -> dict[str, str | None]:
+    """A promptfoo config's top-level `env:` block, {name: value}: from JSON (a `.json`
+    file, or JSON in a `.yaml` one, which YAML reads the same), else a line scan for YAML, in
+    block or one-line (`env: {A: x, B: y}`) form. A value it can't read as one line is None.
+    Values are passed on to promptfoo, never shown."""
     if config is None or not Path(config).is_file():
-        return set()
+        return {}
     text = Path(config).read_text(encoding="utf-8", errors="replace")
-    if str(config).endswith(".json"):
+    if str(config).endswith(".json") or text.lstrip().startswith("{"):
         try:
             env = json.loads(text).get("env")
         except (ValueError, AttributeError, RecursionError):
-            return set()
-        return {k for k in env if NAME.match(str(k))} if isinstance(env, dict) else set()
-    names, inside, indent = set(), False, None
+            env = None
+        if isinstance(env, dict) or str(config).endswith(".json"):
+            return ({str(k): (v if isinstance(v, str) else None) for k, v in env.items()
+                     if NAME.match(str(k))} if isinstance(env, dict) else {})
+    found, inside, indent = {}, False, None
     for line in text.splitlines():
+        flow = re.match(r"env:\s*\{(.*)\}\s*(#.*)?$", line)
+        if flow:  # the values may hold ":" (an address), so each entry is cut at its first one
+            for entry in flow[1].split(","):
+                name, _, value = entry.partition(":")
+                name = name.strip().strip("'\"")
+                if NAME.match(name):
+                    found[name] = _scalar(value)
+            return found
         if re.match(r"env:\s*(#.*)?$", line):
             inside = True
             continue
@@ -181,10 +209,10 @@ def config_env_names(config: Path | None) -> set[str]:
             break  # the next top-level key
         width = len(line) - len(line.lstrip())
         indent = width if indent is None else indent
-        m = re.match(r"\s+([A-Za-z_][A-Za-z0-9_]*)\s*:", line)
+        m = re.match(r"\s+[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?\s*:(.*)$", line)
         if m and width == indent:
-            names.add(m[1])
-    return names
+            found[m[1]] = _scalar(m[2])
+    return found
 
 
 def _nearest_env(folder: Path) -> Path:

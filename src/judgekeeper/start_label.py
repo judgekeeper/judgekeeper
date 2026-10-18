@@ -21,9 +21,11 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
 - judge-check.json and judge-check.csv: did the judge actually judge? (judge_check.py): the
   counts and each answer found, written when labeling starts (and when judgekeeper names the
   CSV). A re-check copies the old ones to history/ with the other files it started from.
-- result.json and report.html (the result page), with the earlier result moved to history/;
+- result.json and report.html (the result page), with the earlier result copied to history/;
   and one line in history.jsonl for each result made from marks that changed: the judge, the
-  counts and the numbers, no answer text and no ids.
+  counts and the numbers, no answer text and no ids. report.html is written first, then the
+  history line, then result.json, each renamed into place; a run stopped half way is repaired
+  by the next one (repair).
 - fix/: fixing the judge with `judgekeeper fix` (fix.py).
 - .gitignore: written when a first check starts in the folder, if there is none, so the
   answers stay off Git (all but judge.json and history.jsonl). Never overwritten, except the
@@ -108,6 +110,7 @@ ALL_LABELED = "Every saved answer is marked. Run your eval again for more answer
 ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
 TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges still too wide
+EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}` to mark the new "
                    "results. Your marks so far are kept in {folder}/previous-<date>/.")
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
@@ -389,11 +392,14 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     counted = session.group_counts()
     status = progress_status(session.pool["pass"], session.pool["fail"], *counted["pass"],
                              *counted["fail"])
-    if not status["ready"] and session.items and all(i["label"] for i in session.items):
+    every = bool(session.items) and all(i["label"] for i in session.items)
+    if not status["ready"] and every:
         counts = session.counts()  # nothing left to mark: the end card says what comes next
         done = all_marked_lines({"correct": counts["correct"], "wrong": counts["wrong"]},
                                 new_command(run))
         status.update(text=done[0], done=done)
+    elif every:  # never "marking more answers narrows...": there is none left to mark
+        status.update(text=EVERY_MARKED)
     return status
 
 
@@ -607,6 +613,30 @@ def all_marked_lines(labels: dict, command: str | None = None,
     return [first, "Next: " + NEXT_ALL_MARKED.format(command=command, folder=folder)]
 
 
+def every_marked(ws: Workspace) -> bool:
+    """Whether every answer in the pool has a Pass or Fail mark: none is left to mark."""
+    try:
+        queue = ws.data().get("queue") or []
+        counted = marks.read(ws.marks).counted()
+    except (OSError, ValueError, AttributeError):
+        return False
+    return bool(queue) and all(q["id"] in counted for q in queue)
+
+
+def next_marks(ws: Workspace, step: str) -> str:
+    """The next step after Measure, Fix or Check that asks for more marks (`step`, without
+    "Next: "), unless every answer in the pool is marked: then all_marked_lines' next step, as
+    there is nothing left to mark and new answers never join. The one place this is decided."""
+    if not every_marked(ws):
+        return step
+    try:
+        command = json.loads(ws.result_json.read_text(encoding="utf-8")).get("command")
+    except (OSError, ValueError, AttributeError):
+        command = None
+    return NEXT_ALL_MARKED.format(command=new_command(command if isinstance(command, str)
+                                                      else None), folder=shown_folder(ws))
+
+
 _plural = plural  # textio.plural
 
 
@@ -635,13 +665,15 @@ def made_lines(made: dict | None) -> list[str]:
         if printed else [])
 
 
-def result_html(r: dict, back: str | None = None, fixing: dict | None = None) -> str:
+def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
+                worse: str | None = None) -> str:
     """The result page; `back`: the link to the marking page while it runs; `fixing`: the
-    mistakes the person can see (fix.report_section). No value on it holds a hidden character
+    mistakes the person can see (fix.report_section); `worse`: the next step after a check
+    found the new judge worse (check.worse_step). No value on it holds a hidden character
     (redact.visible)."""
     from judgekeeper.report_page import page
 
-    return visible(page(r, back, fixing))
+    return visible(page(r, back, fixing, worse))
 
 
 def _fixing(ws: Workspace) -> dict | None:
@@ -654,14 +686,15 @@ def _fixing(ws: Workspace) -> dict | None:
     return _scrubbed(section) if section else None
 
 
-def write_report(ws: Workspace) -> None:
+def write_report(ws: Workspace, worse: str | None = None) -> None:
     """report.html again from the saved result; nothing when there is no result yet."""
     try:
         r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
     if isinstance(r, dict):
-        write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws)))
+        write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws),
+                                                    worse=worse))
 
 
 def page_template(about: dict | None = None, command: str | None = None) -> str:
@@ -732,7 +765,7 @@ def compute(ws: Workspace, session: StartSession) -> dict:
                                                r["tpr"], r["tnr"])
     from judgekeeper import check
 
-    r["picks"] = check.picks_lines(check.picks(ws))  # how many changes the marks helped pick
+    r["picks"] = check.picks_lines(check.picks(ws), r["left"] == 0)  # changes the marks picked
     return r
 
 
@@ -772,16 +805,20 @@ def history_line(ws: Workspace, r: dict) -> dict:
 
 
 def store_result(ws: Workspace, session: StartSession,
-                 command: str | None = None) -> dict:
+                 command: str | None = None, worse: str | None = None,
+                 redraw: bool = False) -> dict:
     """Make a result from the marks so far: anchors, result.json and report.html (the last
     result moves to history/; a result.html from before goes), and a line in history.jsonl.
     `command` (start.Talk.command) is kept in it: every next command it shows starts with it.
     With no new marks since the saved result, that result stays as it is, and history.jsonl
-    gets no line."""
+    gets no line; `redraw` draws its report.html again. `worse`: the next step after a check
+    found the new judge worse (check.worse_step), on report.html."""
     command = command or program()
     digest = marks_digest(ws, session)
     same = _same_result(ws, digest)
     if same is not None:
+        if redraw:
+            write_report(ws, worse=worse)
         return same
     r = compute(ws, session)
     r["command"] = command
@@ -792,10 +829,17 @@ def store_result(ws: Workspace, session: StartSession,
                for i in session.items if i["label"]]
     if anchors:
         write_anchor_file(ws.anchors, _scrubbed(anchors))
+    # report.html, the history line, then result.json: stopped half way (Ctrl-C), the saved
+    # result is the old one, which the next run sees as not made from these marks (repair)
+    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws), worse=worse))
+    if ws.result_html.is_file() and not ws.result_html.is_symlink():
+        ws.result_html.unlink()
+    _add_history_line(ws, r)
     if ws.result_json.is_file():
         make_private(ws.history)
         try:
-            made = json.loads(ws.result_json.read_text(encoding="utf-8")).get("made_at")
+            text = ws.result_json.read_text(encoding="utf-8")
+            made = json.loads(text).get("made_at")
         except ValueError:
             made = None
         stamp = (made or utc_now()).replace(":", "-")
@@ -804,12 +848,73 @@ def store_result(ws: Workspace, session: StartSession,
         while target.exists():
             target = ws.history / f"result-{stamp}-{n}.json"
             n += 1
-        ws.result_json.replace(target)
+        write_replacing(target, text)  # a copy: result.json is replaced below in one rename
     _write_json(ws.result_json, r)
-    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws)))
-    if ws.result_html.is_file() and not ws.result_html.is_symlink():
-        ws.result_html.unlink()
-    marks.append(ws.history_jsonl, _scrubbed(history_line(ws, r)))
+    _same_time(ws.report_html, ws.result_json)
     return r
+
+
+def _same_time(path: Path, as_file: Path) -> None:
+    """`path` gets `as_file`'s modified time: a report written with its result is not older."""
+    try:
+        st = as_file.stat()
+        os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns))
+    except OSError:
+        pass
+
+
+def _has_line(ws: Workspace, digest: str | None) -> bool:
+    """Whether history.jsonl holds the line of the result made from marks `digest`."""
+    try:
+        text = ws.history_jsonl.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    for raw in jsonl_lines(text):
+        try:
+            line = json.loads(raw)
+        except ValueError:
+            continue
+        if isinstance(line, dict) and line.get("kind") == "result" and \
+                line.get("marks_hash") == digest:
+            return True
+    return False
+
+
+def _add_history_line(ws: Workspace, r: dict) -> None:
+    """The result's line in history.jsonl, once: the whole file written again and renamed over
+    it, so it is never half written."""
+    if _has_line(ws, r.get("marks_sha256")):
+        return
+    marks._refuse_links(ws.history_jsonl)
+    try:
+        text = ws.history_jsonl.read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+    if text and not text.endswith("\n"):
+        text += "\n"
+    write_replacing(ws.history_jsonl, text + marks._line(_scrubbed(history_line(ws, r))),
+                    newline="")
+
+
+def repair(ws: Workspace) -> None:
+    """After a run stopped half way through saving a result (judgekeeper before 1.0 wrote
+    result.json first): when result.json is newer than report.html, report.html is drawn again,
+    and when history.jsonl has no line for it, the line is added."""
+    try:
+        r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(r, dict) or "labels" not in r:
+        return
+    try:
+        stale = (not ws.report_html.is_file()
+                 or ws.result_json.stat().st_mtime_ns > ws.report_html.stat().st_mtime_ns)
+        if stale:
+            write_report(ws)
+            _same_time(ws.report_html, ws.result_json)
+        if r.get("marks_sha256") and ws.marks.is_file():
+            _add_history_line(ws, r)
+    except (OSError, marks.MarksError):
+        pass  # the next result writes them
 
 

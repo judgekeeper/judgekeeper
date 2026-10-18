@@ -221,29 +221,46 @@ def _all_marked(r: dict) -> str:
     from judgekeeper.start_label import all_marked_lines
 
     first, then = all_marked_lines(r["labels"], commands(r)["new"])
-    then = then.removeprefix("Next: ")
-    parts = then.split("`")
-    then = "".join(f"<code>{_e(x)}</code>" if i % 2 else _e(x) for i, x in enumerate(parts))
-    return f"{_e(first)} {then[:1].upper()}{then[1:]}"
+    return f"{_e(first)} {_code_line(then.removeprefix('Next: '))}"
 
 
-def _verdict(r: dict, c: dict, back: str | None) -> str:
-    """The headline, and under it the disagreements, or (too early) how to mark more: a link
-    to the marking page while it runs, the command in the saved copy; with every answer
-    marked, what comes next (start_label.all_marked_lines)."""
+def _code_line(text: str) -> str:
+    """A next step as a sentence: its first letter in capitals, each `command` as code."""
+    parts = text.split("`")
+    out = "".join(f"<code>{_e(x)}</code>" if i % 2 else _e(x) for i, x in enumerate(parts))
+    return out[:1].upper() + out[1:]
+
+
+def disagreed(c: dict) -> str:
+    """How many answers the person and the judge disagreed on, as the terminal says it
+    (front.agreement_lines), the numbers in bold."""
+    d, n = c["strict"] + c["easy"], c["passed"] + c["failed"]
+    if not d:
+        return f"You and your judge agreed on all <b>{n}</b> {'answer' if n == 1 else 'answers'}."
+    return f"You and your judge disagreed on <b>{d}</b> of <b>{n}</b> answers."
+
+
+def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None) -> str:
+    """The headline, and under it the disagreements, for every result, as in the terminal;
+    then, too early to tell, how to mark more: a link to the marking page while it runs, the
+    command in the saved copy; with every answer marked, what comes next
+    (start_label.all_marked_lines). After a check found the new judge worse, the next step
+    that check gave (`worse`)."""
     from judgekeeper.start_label import all_labeled
 
     level = r.get("verdict_level") if r["check"] != "too_few" else None
     cls, headline = STATES.get(level, STATES[None])
-    if cls != "plain":
-        lead = (f"You and your judge disagreed on <b>{c['strict'] + c['easy']}</b> of "
-                f"<b>{c['passed'] + c['failed']}</b> answers.")
+    if worse:
+        then = _code_line(worse)
+    elif cls != "plain":
+        then = ""
     elif all_labeled(r):
-        lead = _all_marked(r)
+        then = _all_marked(r)
     elif back:
-        lead = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
+        then = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
     else:
-        lead = f"Run <code>{_e(commands(r)['mark'])}</code> to mark more answers."
+        then = f"Run <code>{_e(commands(r)['mark'])}</code> to mark more answers."
+    lead = " ".join(x for x in (disagreed(c) if level is not None else "", then) if x)
     return (f'<section class="verdict band" aria-labelledby="verdict-h"><h1 id="verdict-h" '
             f'class="{cls}">{_e(headline)}</h1><p class="lead">{lead}</p></section>')
 
@@ -376,11 +393,13 @@ def _fix(r: dict) -> str:
             'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div></div></section>')
 
 
-def page(r: dict, back: str | None = None, fixing: dict | None = None) -> str:
+def page(r: dict, back: str | None = None, fixing: dict | None = None,
+         worse: str | None = None) -> str:
     """The result page. `r`: the result; `back`: the link to the marking page while it runs
-    (None in report.html); `fixing`: fix.report_section (the mistakes the person can see).
-    The page carries its Content-Security-Policy in a meta tag, so the saved copy keeps it
-    too."""
+    (None in report.html); `fixing`: fix.report_section (the mistakes the person can see);
+    `worse`: the next step after a check found the new judge worse, in place of the lead's
+    and of Fix it. The page carries its Content-Security-Policy in a meta tag, so the saved
+    copy keeps it too."""
     from judgekeeper.front import tool_name
 
     c = counts(r)
@@ -389,10 +408,10 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None) -> str:
     model = (r.get("fingerprint") or {}).get("model")
     left = look.meta(_e(model) if model else None, _e(tool) if tool else None)
     level = r.get("verdict_level") if r["check"] != "too_few" else None
-    parts = [_verdict(r, c, back), _counts(r, c)]
+    parts = [_verdict(r, c, back, worse), _counts(r, c)]
     if level not in ("too_early", None):  # real numbers: the disagreements and the estimates
         parts += [_groups(c, fixing), _details(r)]
-    if level == "not_gate":
+    if level == "not_gate" and not worse:
         parts.append(_fix(r))
     meta = f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
     return (look.head("judgekeeper: your result", STYLE, meta)

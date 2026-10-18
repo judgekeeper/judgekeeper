@@ -199,9 +199,8 @@ def test_three_picks_ask_for_new_marks_and_ten_new_marks_end_it(tmp_path, monkey
     p = check.picks(ws)
     assert p["n"] == 3 and p["ask"]
     assert check.picks_lines(p) == [
-        "These marks have helped pick 3 changes.",
-        ("Your marks have been used to pick 3 changes, so they may now flatter your judge. "
-        "Mark 10 new answers to keep the check honest.")]
+        ("These marks have helped pick 3 changes, so they may now flatter your judge. Mark 10 "
+         "new answers for a fair check.")]
     time.sleep(1.1)  # marks are stamped to the second
     for q in queue[40:50]:
         session.update({"id": q["id"], "label": q["group"], "seconds": 5})
@@ -222,7 +221,8 @@ def test_a_model_update_is_not_a_pick(tmp_path, monkeypatch):
     assert check.picks_lines(check.picks(ws)) == []
 
 
-def test_check_asks_for_new_marks_after_three_picks(here, capsys):
+def test_check_after_three_picks_with_every_answer_marked(here, capsys):
+    """Every answer is marked, so there are none to mark: never "mark 10 new answers"."""
     from judgekeeper.cli import main
     from tests.test_check import MARKED, _marked, _results
 
@@ -232,10 +232,11 @@ def test_check_asks_for_new_marks_after_three_picks(here, capsys):
     _results(here, MARKED, rubric="Is polite, correct and short.")  # a rule change: a pick
     code = main(["check"])
     out = _flat(capsys.readouterr().out)
-    assert "These marks have helped pick 4 changes." in out
-    assert "Mark 10 new answers to keep the check honest." in out
-    assert out.endswith("Next: run `judgekeeper mark` to mark 10 new answers, then run "
-                        "`judgekeeper check` again.")
+    assert "These marks have helped pick 4 changes, so they may now flatter your judge." in out
+    assert "Mark 10 new answers" not in out and "honest" not in out
+    assert out.endswith("Next: run your eval on more questions, then run `judgekeeper --new` to "
+                        "mark the new results. Your marks so far are kept in "
+                        ".judgekeeper/previous-<date>/.")
     assert code == 0
 
 
@@ -270,8 +271,7 @@ def test_fix_new_counts_the_picks_again(tmp_path, monkeypatch):
 
 WARN = ("This includes marks you looked at to write this rule, so it may read a few points "
         "high.")
-NONE_YET = ("On marks made after this change: none yet. Mark more answers to see it on answers "
-            "it was not written for.")
+NONE_YET = "On marks made after this change: none."  # every answer is marked: none is left
 
 
 def _rule_change(here, lenient: bool = True):
@@ -305,7 +305,7 @@ def test_a_rule_change_says_its_marks_helped_write_it(here, capsys):
     _rule_change(here)
     main(["check"])
     out = _flat(capsys.readouterr().out)
-    assert WARN in out and NONE_YET in out
+    assert WARN in out and NONE_YET in out and "Mark more" not in out
 
 
 def test_a_model_change_says_none_of_it(here, capsys):
