@@ -6,8 +6,8 @@
 - Dark only: the product's dark colours, no switch, no light rules, nothing kept in the browser.
 - Fonts from the site only: Manrope and JetBrains Mono with their licences; no ligatures in
   monospace, so "->" shows as typed.
-- Motion: only the green underline over the five words and the terminal typing, and neither
-  under reduced motion.
+- Motion: only the green line under the five words, the terminal typing and the scroll to the
+  steps, and none of them under reduced motion.
 - Phone: tables and code scroll inside their box.
 - Home: the hero, the demo card that works like the marking page, the steps with their
   terminal, the closing box. The Guide, How it works, Privacy, the browser check and the
@@ -96,7 +96,7 @@ def test_every_page_carries_the_frame_site_frame_writes():
     assert frame.NAV == NAV and frame.LEGAL == LEGAL and frame.GITHUB == GITHUB
     for page in pages():
         text = page.read_text(encoding="utf-8")
-        for block in (frame.head_links(), frame.header(page.name), frame.footer()):
+        for block in (frame.head_links(), frame.script(), frame.header(page.name), frame.footer()):
             assert block in text, f"{page.name}: run python scripts/site_frame.py"
 
 
@@ -202,6 +202,7 @@ def test_monospace_text_shows_what_you_type():
 
 DARK = {"bg": "#0b0c0e", "fg": "#e6e8eb", "muted": "#8b919a", "faint": "#585e68",
         "line": "#262a30", "hover": "#121418", "current": "#17191e", "panel": "#0b0c0e",
+        "rule": "#343941", "term-bg": "#07080a", "term-bar": "#101215", "term-dot": "#33373e",
         "green": "#10B981", "green-fill": "#0d9668", "red": "#e5484d", "red-fill": "#c73b40"}
 
 
@@ -243,8 +244,16 @@ def test_text_colours_meet_wcag_aa():
         assert _contrast("#FFFFFF", t[fill]) >= 3, fill
 
 
-def test_keyboard_focus_shows():
-    assert "outline: 2px solid var(--fg)" in _rule(":focus-visible")
+def test_keyboard_focus_shows_a_soft_ring_and_a_click_leaves_none():
+    assert "outline: none" in _rule(":focus")
+    ring = _rule(":focus-visible")
+    assert "outline: 2px solid var(--green)" in ring and "border-radius: 4px" in ring
+    assert "border-radius: 12px" in _rule(".jk-card:focus-visible")
+    # the five words show focus with their own green line, so no ring around them
+    assert "outline: none" in _rule(".five a:focus-visible")
+    assert ".five a:focus-visible::after" in CSS
+    # no rule brings back the white box
+    assert not [s for s, d in _rules() if "focus" in s and "var(--fg)" in d]
     assert ".skip:focus" in CSS
 
 
@@ -255,20 +264,25 @@ COLOUR_ONLY = {"color", "background", "background-color", "border-color", "filte
 
 
 def test_the_only_motion_is_the_underline_and_the_terminal_typing():
-    """Hover colours may fade; nothing moves, slides, turns or appears by itself."""
+    """Hover colours may fade; nothing else moves, slides, turns or appears by itself. The green
+    line under the five words grows, and a click on a word scrolls to the steps."""
     assert "@keyframes" not in CSS and "animation:" not in CSS.replace("animation: none", "")
     for selector, declarations in _rules():
         for value in re.findall(r"transition:\s*([^;]+)", declarations):
             if value.startswith("none"):
                 continue
             props = {part.split()[0] for part in value.split(",")}
+            if selector.endswith(".five a::after"):  # the selector may follow a comment
+                assert value == "transform 240ms ease"
+                continue
             assert props <= COLOUR_ONLY, (selector, value)
     reduce = CSS[CSS.index("@media (prefers-reduced-motion: reduce)"):]
-    assert "transition: none !important" in reduce[:200]
+    assert "*, *::before, *::after { transition: none !important" in reduce[:200]
     # the two moving parts, and both stop under reduced motion
     assert JS.count("prefers-reduced-motion: reduce") == 1
     assert "function type(" in JS and "function sweep(" in JS
-    for gone in ("smooth", "IntersectionObserver(function (e) { reveal", "animate(", "count-up",
+    assert JS.count("smooth") == 1 and 'behavior: reduce ? "auto" : "smooth"' in JS
+    for gone in ("IntersectionObserver(function (e) { reveal", "animate(", "count-up",
                  "parallax", "pointermove"):
         assert gone not in JS, gone
 
@@ -336,7 +350,9 @@ def test_the_hero_is_the_headline_the_five_words_two_buttons_and_the_demo():
                        ("check.html", {"b-side"}, "Check in your browser")]
     assert not _all(hero, "p", None) or all(
         any("jk-card" in a.classes() for a in p.ancestors()) for p in _all(hero, "p"))
-    assert ".five a.is-on" in CSS and "var(--green)" in _rule(".five a.is-on")
+    # the chosen step's green line, which gives way while another word is hovered or focused
+    assert "var(--green)" in _rule(".five a::after")
+    assert ".five a.is-on::after" in CSS and ".five:hover a.is-on:not(:hover)::after" in CSS
 
 
 def test_the_demo_card_is_drawn_like_the_marking_page():
@@ -545,8 +561,12 @@ def test_the_browser_check_is_one_column_with_the_drop_area_and_its_result():
     assert result.attrs.get("aria-live") == "polite" and not result.children
     after = _by_id(CHECK, "fc-next")
     assert "hidden" in after.attrs and _all(after, "div", "cmd")
-    (alt,) = _all(main, "p", "fc-alt")
-    assert [a.attrs["href"] for a in _all(alt, "a")] == ["start.html#install"]
+    # no line about Inspect AI and MLflow: the error for a file the page can't read says it
+    assert not _all(main, "p", "fc-alt") and ".fc-alt" not in CSS
+    script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
+    assert ('NOT_RECOGNISED = "This doesn\'t look like results judgekeeper can read in the '
+            'browser. The tool also reads Inspect AI and MLflow: run uvx judgekeeper in your '
+            'project.";') in script
     # what freecheck.js writes into the result has its look
     for selector in (".fc-result .fc-term", ".fc-problem", ".fc-pick-list .btn"):
         assert selector + " {" in CSS, selector

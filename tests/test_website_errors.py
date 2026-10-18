@@ -30,7 +30,7 @@ def test_every_link_starts_at_the_root_and_reaches_a_file_of_the_site():
         if link.startswith(("https://", "#")):
             continue
         assert link.startswith("/") and not link.startswith("//"), link
-        assert (WEBSITE / link.lstrip("/").split("#")[0]).is_file(), link
+        assert (WEBSITE / re.split(r"[#?]", link.lstrip("/"))[0]).is_file(), link
 
 
 def test_it_loads_only_the_sites_own_files():

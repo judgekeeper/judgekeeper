@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from share_preview import head  # the title, the description and the share-preview tags
-from site_frame import footer, head_links, header  # the frame every page shares
+from site_frame import footer, head_links, header, script  # the frame every page shares
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS_URL = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/"
@@ -30,7 +30,7 @@ PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {head}
 {links}
-<script src="assets/site.js" defer></script>
+{script}
 </head>
 <body>
 {header}
@@ -135,8 +135,8 @@ def build(source: Path, out: Path) -> None:
     nav = "".join(f'<a href="#{i}">{re.sub(r"<[^>]+>", "", label)}</a>'
                   for i, label in re.findall(r'<h2 id="([^"]+)">(.*?)</h2>', body))
     out.write_text(PAGE.format(
-        head=head(target, title, description), links=head_links(), header=header(target),
-        footer=footer(), nav=nav, h1=h1, lede=lede, body=body.rstrip()),
+        head=head(target, title, description), links=head_links(), script=script(),
+        header=header(target), footer=footer(), nav=nav, h1=h1, lede=lede, body=body.rstrip()),
         encoding="utf-8", newline="\n")
 
 

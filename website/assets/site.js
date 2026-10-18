@@ -148,6 +148,25 @@
     reset();
   }
 
+  /* Colours for terminal text: the prompt and command, step headings, field labels, the result
+     and the Next line. */
+  function shade(text) {
+    var esc = function (t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+    return text.split("\n").map(function (line) {
+      var m;
+      if ((m = /^(\$ )(.*)$/.exec(line))) return '<span class="t-prompt">' + esc(m[1]) + '</span><span class="t-cmd">' + esc(m[2]) + '</span>';
+      if (/^Step \d of 5: /.test(line)) return '<span class="t-step">' + esc(line) + '</span>';
+      if (/^judgekeeper \d/.test(line)) return '<span class="t-dim">' + esc(line) + '</span>';
+      if ((m = /^(Result: )(.*)$/.exec(line))) {
+        var tone = /needs work|worse/i.test(m[2]) ? "t-warn" : /good enough|better/i.test(m[2]) ? "t-good" : "t-step";
+        return '<span class="t-label">' + esc(m[1]) + '</span><span class="' + tone + '">' + esc(m[2]) + '</span>';
+      }
+      if ((m = /^(Next:)(.*)$/.exec(line))) return '<span class="t-next">' + esc(m[1]) + '</span>' + esc(m[2]);
+      if ((m = /^([A-Z][A-Za-z ]{1,14}:)( {2,}.*)$/.exec(line))) return '<span class="t-label">' + esc(m[1]) + '</span>' + esc(m[2]);
+      return esc(line);
+    }).join("\n");
+  }
+
   /* The steps and their terminal. Each screen is typed the first time it shows; after that
      it shows at once, and Replay types it again. */
   function setUpTour() {
@@ -179,7 +198,7 @@
       var text = screens[key];
       seen[key] = true;
       if (frame) { cancelAnimationFrame(frame); frame = null; }
-      if (reduce || !animate) { out.textContent = text; return; }
+      if (reduce || !animate) { out.innerHTML = shade(text); return; }
       var cursor = make("span", "cursor", "▋");
       var perSecond = Math.max(420, text.length / 2.2), start = null, shown = 0;
       out.textContent = "";
@@ -189,11 +208,11 @@
         var want = Math.min(text.length, Math.floor((now - start) / 1000 * perSecond));
         if (want > shown) {
           shown = want;
-          out.textContent = text.slice(0, shown);
+          out.innerHTML = shade(text.slice(0, shown));
           out.appendChild(cursor);
         }
         if (shown < text.length) frame = requestAnimationFrame(step);
-        else { cursor.remove(); frame = null; }
+        else { cursor.remove(); out.innerHTML = shade(text); frame = null; }
       }
       frame = requestAnimationFrame(step);
     }
@@ -210,8 +229,26 @@
     steps.forEach(function (b) {
       b.addEventListener("click", function () { pick(b.getAttribute("data-step")); });
     });
+    /* A click on one of the five words brings the whole section into view, with the same space
+       above the heading as below the box (or the heading near the top when the section is taller
+       than the window). The address still gets #steps, as the link does without JavaScript. */
+    function showSection() {
+      var section = $("steps");
+      if (!section) return;
+      var first = section.querySelector("h2") || section, last = section.querySelector(".steps-grid") || section;
+      var top = first.getBoundingClientRect().top + window.scrollY;
+      var bottom = last.getBoundingClientRect().bottom + window.scrollY;
+      var room = window.innerHeight, height = bottom - top;
+      var y = height + 48 <= room ? top - (room - height) / 2 : top - 24;
+      window.scrollTo({ top: Math.max(0, y), behavior: reduce ? "auto" : "smooth" });
+    }
     words.forEach(function (w) {
-      w.addEventListener("click", function () { pick(w.getAttribute("data-step")); });
+      w.addEventListener("click", function (e) {
+        e.preventDefault();
+        pick(w.getAttribute("data-step"));
+        showSection();
+        if (history.replaceState) history.replaceState(null, "", "#steps");
+      });
     });
     $all("[data-screen]", tabs).forEach(function (b) {
       b.addEventListener("click", function () {
@@ -305,6 +342,7 @@
   setUpCopy();
   setUpDemo();
   setUpTour();
+  $all(".term-static .term-out").forEach(function (el) { el.innerHTML = shade(el.textContent); });
   setUpRange();
   setUpKept();
 })();

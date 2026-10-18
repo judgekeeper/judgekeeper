@@ -505,7 +505,8 @@ SITE_POLICY = re.search(r'Content-Security-Policy "([^"]+)"', CADDYFILE)[1]
 def test_the_check_page_loads_its_script_and_has_no_inline_script():
     els = list(parse(CHECK).iter())
     scripts = [el.attrs.get("src") for el in els if el.tag == "script"]
-    assert scripts == ["assets/site.js", "assets/freecheck.js"]
+    assert re.fullmatch(r"assets/site\.js\?v=\d+", scripts[0])  # the version: site_frame.py
+    assert scripts[1:] == ["assets/freecheck.js"]
     assert all(not el.text().strip() for el in els if el.tag == "script")
     ids = {el.attrs.get("id") for el in els}
     assert {"fc-drop", "fc-file", "fc-result", "fc-next"} <= ids  # what freecheck.js uses
@@ -547,7 +548,6 @@ def test_the_check_page_says_what_it_reads_and_that_the_file_stays():
                   "Drop the results file your eval tool saved. It stays on your computer.",
                   "Drop your results file here, or click to choose one.",
                   "promptfoo · DeepEval · CSV · JSONL",
-                  "Using Inspect AI or MLflow? The full tool reads those too.",
                   ("This shows whether your judge gives real Pass or Fail grades, not whether it "
                   "agrees with you. To see that, run uvx judgekeeper in your project and mark "
                   "some answers.")):

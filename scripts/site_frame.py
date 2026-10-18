@@ -19,6 +19,7 @@ NAV = [("index.html", "Home"), ("start.html", "Guide"), ("learn.html", "How it w
 LEGAL = [("privacy.html", "Privacy"), (f"{GITHUB}/blob/main/TRADEMARKS.md", "Trademarks"),
          (f"{GITHUB}/blob/main/SECURITY.md", "Security")]
 FONTS = ("manrope-latin-wght-normal.woff2",)  # the text font, so the first screen never jumps
+ASSETS = 2  # ?v= on style.css and site.js: add one when either changes, so visitors load them again
 LOGO = ('<svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
         '<path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>'
         '<path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>'
@@ -31,7 +32,12 @@ def head_links() -> str:
     preload = "".join(f'<link rel="preload" href="assets/fonts/{f}" as="font" type="font/woff2" '
                       "crossorigin>\n" for f in FONTS)
     return ('<link rel="icon" href="assets/logo.svg" type="image/svg+xml">\n' + preload
-            + '<link rel="stylesheet" href="assets/style.css">')
+            + f'<link rel="stylesheet" href="assets/style.css?v={ASSETS}">')
+
+
+def script() -> str:
+    """The site's script, after the styles (the page for a wrong address has none)."""
+    return f'<script src="assets/site.js?v={ASSETS}" defer></script>'
 
 
 def _links(items, target: str = "") -> str:
@@ -64,8 +70,9 @@ def footer() -> str:
 
 
 BLOCKS = [  # (pattern of the block in a page, what it becomes)
-    (r'<link rel="icon".*?<link rel="stylesheet" href="assets/style.css">',
+    (r'<link rel="icon".*?<link rel="stylesheet" href="assets/style\.css[^"]*">',
      lambda name: head_links()),
+    (r'<script src="assets/site\.js[^"]*" defer></script>', lambda name: script()),
     (r'<a class="skip".*?</header>', header),
     (r'<footer class="foot">.*?</footer>', lambda name: footer()),
 ]
