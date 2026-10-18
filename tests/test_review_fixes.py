@@ -709,3 +709,37 @@ def test_a_browser_that_hangs_still_gets_the_link_printed(here, capsys, monkeypa
     assert code == 0, out
     assert LINK in out and "http://127.0.0.1:" in out
     assert OPEN not in out
+
+
+# 12. A port held by judgekeeper's page for another folder ------------------------------------
+
+def test_a_port_held_by_another_projects_page_names_it(tmp_path, monkeypatch, capsys, pages):
+    from judgekeeper import label
+    from tests.test_front import assert_one_next_at_the_end
+
+    quiz, support = tmp_path / "quiz-bot", tmp_path / "support-bot"
+    for root in (quiz, support):
+        root.mkdir()
+        promptfoo_project(root, split(20, 16))
+    monkeypatch.chdir(quiz)
+    run(capsys)
+    port = label.read_lock(quiz / ".judgekeeper")["port"]
+    monkeypatch.chdir(support)
+    pages[1]["fail"] = True  # the page can't start: its port is held
+    code, out, _ = run(capsys, "--port", str(port))
+    assert code == 3, out
+    flat = " ".join(out.split())
+    assert f"Port {port} is in use by judgekeeper's marking page for quiz-bot." in flat
+    assert assert_one_next_at_the_end(out) == (
+        "Next: run `judgekeeper --stop` there, or `judgekeeper --port 0`.")
+
+
+def test_without_the_token_only_the_folder_name_is_told(here, capsys):
+    from judgekeeper import label
+
+    promptfoo_project(here, split(20, 16))
+    run(capsys)
+    port = label.read_lock(here / ".judgekeeper")["port"]
+    assert label.page_folder(port) == here.name
+    status, body = label._answer(port, "GET", "/state", {})
+    assert status == 403 and b"Question" not in body

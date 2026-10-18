@@ -22,7 +22,9 @@ is owner-only (0600) in the owner-only, git-ignored .judgekeeper/, and removed w
 stops; a program that can read it could write marks.jsonl as well. A copy of the lock
 (page.json) lets --stop find the page when server.json is gone.
 GET /favicon.ico needs no token and gets 204 No Content: the page has no icon, and a 403
-there would be two errors in the browser's console on every load. POST /printed (with the
+there would be two errors in the browser's console on every load. GET /project needs no token
+either: it answers with the name of the project folder the page is for (its last part only),
+so a run for another project can say which page holds the port it asked for. POST /printed (with the
 token) says the link was printed where a coding agent could read it, or (with {"link":
 "browser-env"}) that the program named in BROWSER opened the page: every later mark is
 stamped so. Every POST also needs the page's own Origin
@@ -309,6 +311,16 @@ def is_open(folder: Path) -> bool:
     return lock is not None and ask(lock["port"], "GET", "/alive", {"stop": lock["stop"]}) == 200
 
 
+def page_folder(port: int) -> str | None:
+    """The name of the project folder whose judgekeeper page listens on `port`, or None."""
+    answer = _answer(port, "GET", "/project", {})
+    try:
+        folder = json.loads(answer[1]).get("folder") if answer and answer[0] == 200 else None
+    except (ValueError, AttributeError):
+        return None
+    return folder if isinstance(folder, str) and folder else None
+
+
 def answers(port: int, token: str) -> bool:
     """Whether a page on `port` answers to `token`."""
     return ask(port, "GET", "/state", {"token": token}) == 200
@@ -466,8 +478,8 @@ def _handler(server: LabelServer):
             if self.headers.get("Host") != f"{HOST}:{server.port}":
                 self._json(403, {"error": "wrong Host header"})
                 return False
-            if url.path == "/favicon.ico" and self.command == "GET":
-                return True  # a browser asks for it without the token
+            if url.path in ("/favicon.ico", "/project") and self.command == "GET":
+                return True  # a browser asks for the icon without the token
             query = parse_qs(url.query)
             token = query.get("token", [""])[0]
             if hmac.compare_digest(token.encode(), server.token.encode()):
@@ -536,6 +548,9 @@ def _handler(server: LabelServer):
                 server.done_at = None  # the page is open and asking: keep serving it
             if url.path == "/favicon.ico":
                 self._send(204, b"", None)  # no icon
+            elif url.path == "/project":
+                folder = server.lock.parent.parent.name if server.lock is not None else None
+                self._json(200, {"folder": folder})
             elif url.path == "/alive":
                 self._json(200, {"open": True})
             elif url.path == "/":

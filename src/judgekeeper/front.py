@@ -80,7 +80,7 @@ from judgekeeper import (
     targets,
 )
 from judgekeeper.fingerprint import rule_hash
-from judgekeeper.label import DEFAULT_PORT, is_open
+from judgekeeper.label import DEFAULT_PORT, is_open, page_folder
 from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
@@ -139,6 +139,8 @@ SAY_WHY = "Say why on the answers you and your judge disagree on; `fix` uses you
 RESULT_OPEN = "Your result page is open in your browser."
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
+PORT_PAGE = "Port {port} is in use by judgekeeper's marking page for {folder}."
+NEXT_STOP_THERE = "run `{stop}` there, or `{command}`."
 NEXT_ANY_PORT = "run `{command}` (it opens the page on any free port)."
 # A tool found here with no saved results: what saves them
 SAVES = {"deepeval": "DeepEval saves results only when you run deepeval test run or evaluate().",
@@ -1100,10 +1102,15 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
             background.stop(ws.dir)
         tried = page.choose_port(talk.options["port"], lambda line: None)
         if opened is None and not page.port_free(tried):  # --wait would need the same port
-            talk.say(PORT_TAKEN.format(port=tried))
             path, options = answered(talk, saved)
             command = " ".join((program(), *start.repeated_flags(path, **{**options,
                                                                           "port": 0})))
+            folder = page_folder(tried)
+            if folder is not None:  # another project's page: it can be closed there
+                talk.para(PORT_PAGE.format(port=tried, folder=folder))
+                raise talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(
+                    stop=program("--stop"), command=command))
+            talk.say(PORT_TAKEN.format(port=tried))
             raise talk.stop(EXIT_QUESTION, NEXT_ANY_PORT.format(command=command))
         talk.say(f"The marking page could not start in the background (what went wrong is in "
                  f"{shown_folder(ws)}/{background.LOG}).")

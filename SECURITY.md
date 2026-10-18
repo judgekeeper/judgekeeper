@@ -17,7 +17,10 @@ back within a week.
   While the page is open, the token is also kept in `.judgekeeper/server.json`, so a second
   run prints the same link: the file is readable by your user only (0600, in a 0700 folder),
   is removed when the page stops, and sits in the folder judgekeeper keeps out of git. A
-  program that can read it could already write `.judgekeeper/marks.jsonl` directly.
+  program that can read it could already write `.judgekeeper/marks.jsonl` directly. Without
+  the token, a request gets only the page's empty icon and the name of its project folder
+  (`GET /project`), so a run for another project can say which page holds the port it asked
+  for.
 - The pages judgekeeper writes escape the values they show, so a hostile model response,
   item text or model id cannot inject markup. Spreadsheets that judgekeeper writes
   neutralize cells that would run as formulas, the id column included.

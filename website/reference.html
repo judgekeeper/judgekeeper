@@ -69,7 +69,7 @@
 <tr><td><code>--judge-model NAME</code></td><td>The judge's model, when the results do not record it. It is kept with your marks: later runs use it while the results still don't name one</td></tr>
 <tr><td><code>--fields LIST</code></td><td>A DeepEval GEval judge: the parts it reads, e.g. <code>input,actual_output</code></td></tr>
 <tr><td><code>--yes</code></td><td>Without a terminal: yes to the questions judgekeeper printed. It never picks a tool, a judge or a pass mark for you</td></tr>
-<tr><td><code>--port PORT</code></td><td>Port on 127.0.0.1 for the page (default 8765). When it is taken, the next free one; <code>0</code> for any free port. A page already open for the project keeps its own port</td></tr>
+<tr><td><code>--port PORT</code></td><td>Port on 127.0.0.1 for the page (default 8765). When it is taken, the next free one; <code>0</code> for any free port. A page already open for the project keeps its own port. When a port you name is held by judgekeeper's page for another project, it names that project's folder</td></tr>
 <tr><td><code>--no-browser</code></td><td>Print the page's link without opening a browser. It is printed anyway when no browser opens, or one takes more than 10 seconds. For a remote machine. Run again while the page is open, it prints the same link, so the open tab keeps working; two runs at once print the same link too</td></tr>
 <tr><td><code>--new</code></td><td>Start over: your marks move to <code>.judgekeeper/previous-&lt;date&gt;/</code> (asked first; nothing is deleted)</td></tr>
 <tr><td><code>--wait</code></td><td>Serve the page in this terminal until Ctrl-C, instead of in the background</td></tr>
