@@ -96,3 +96,38 @@ def test_a_kept_page_is_stamped_too(here, capsys, no_browser, monkeypatch):
     _post_marks(no_browser[-1], ws, 4)
     assert [x.get("link") for x in _lines(ws)][-2:] == ["browser-env", "browser-env"]
     assert marks.made(marks.read(ws.marks))["browser_env"] >= 2
+
+
+# 2. --debug prints where it went wrong, never the error's text -------------------------------
+
+CANARY = "ZQOUT23 In Pebblequest"
+REPORT = "report it at github.com/judgekeeper/judgekeeper/issues with the lines above."
+
+
+def _store_fails(args):
+    """An MLflow store with a bad byte in a stored answer (the P03b repro): the error quotes
+    the answer, chained from the database's own error."""
+    import sqlite3
+
+    try:
+        raise sqlite3.OperationalError(f"Could not decode to UTF-8 column 'preview' with text "
+                                       f"'\"{CANARY}\xff, who goes first'")
+    except sqlite3.OperationalError as e:
+        raise RuntimeError(f"(sqlite3.OperationalError) {e}") from e
+
+
+def test_debug_prints_where_never_the_answer(here, capsys, monkeypatch):
+    from judgekeeper import cli
+
+    monkeypatch.setitem(cli.COMMANDS, None, _store_fails)
+    assert cli.main(["--no-browser"]) == 2
+    out, err = capsys.readouterr()
+    assert CANARY not in out + err
+    assert err.splitlines()[-1] == (f"Next: {REPORT} `--debug` shows where it went wrong, "
+                                    "without your answers.")
+    assert cli.main(["--no-browser", "--debug"]) == 2
+    out, err = capsys.readouterr()
+    assert CANARY not in out + err
+    assert "Traceback" in err and "_store_fails" in err and "line " in err
+    assert "sqlite3.OperationalError" in err and "RuntimeError" in err
+    assert err.splitlines()[-1] == f"Next: {REPORT}"
