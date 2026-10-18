@@ -230,11 +230,16 @@ class FrontTalk(start.Talk):
                                        f"yes{'' if one else ' to all'}.")
 
     def say(self, text: str = "") -> None:
-        if text and self.step is not None:  # Find says something: under its step label
+        if text:  # Find says something: under its step label
+            self.say_step()
+        super().say(text)
+
+    def say_step(self) -> None:
+        """The step label waiting to be said (`step`), once, before Find's first line."""
+        if self.step is not None:
             step, self.step = self.step, None
             super().say(step)
             super().say()
-        super().say(text)
 
     def para(self, text: str = "", indent: str = "") -> None:
         """Say `text` wrapped (textio.wrap)."""
@@ -281,7 +286,11 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
             talk.say()
         else:  # said only when Find has something to say (a file left out, an error)
             talk.step = STEP.format(n=1, name="Find")
-        return _run(talk, path, wait, marking)
+        try:
+            return _run(talk, path, wait, marking)
+        except Exception:
+            talk.say_step()  # the error cli.py prints comes under Step 1 too
+            raise
     except Stop as e:
         return EXIT_NEEDS_YOU if e.code == EXIT_QUESTION else e.code
 

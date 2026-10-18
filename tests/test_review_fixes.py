@@ -1009,3 +1009,21 @@ def test_a_big_one_line_file_named_otherwise_is_named_by_its_keys(here, capsys):
     (here / "cases.json").write_text(json.dumps({"cases": rows}), encoding="utf-8")
     _, out, _ = run(capsys)
     assert "cases.json" in out and "too big to look into" in " ".join(out.split())
+
+
+# 22. A damaged file after marking is said under Step 1, like every other line ------------------
+
+def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_browser):
+    from tests.start_projects import deepeval_data, deepeval_project
+
+    path = deepeval_project(here, split(20, 16))
+    run(capsys)
+    data = deepeval_data([True])
+    del data["testCases"][0]["metricsData"][0]["name"]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    for command in ((), ("mark",)):
+        code, out, err = run(capsys, *command)
+        assert code == 2, out + err
+        assert ".latest_run_full.json is damaged: its only row has a damaged field." in err
+        assert out.splitlines()[2:4] == ["Step 1 of 5: Find", ""], out
+
