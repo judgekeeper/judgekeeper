@@ -645,7 +645,11 @@ def run(ws, plan: Plan, talk) -> Fresh:
         if any(r is None for r in records):
             fresh.not_counted[item_id] = "missing"
             continue
-        if any(r.label not in ("pass", "fail") for r in records):
+        problems = [r.mark.problem for r in records]  # a grader error promptfoo saved as a fail
+        if "error" in problems:
+            fresh.not_counted[item_id] = "error"
+            continue
+        if any(problems) or any(r.label not in ("pass", "fail") for r in records):
             fresh.not_counted[item_id] = "no clear verdict"
             continue
         fresh.verdicts[item_id] = [r.label for r in records]

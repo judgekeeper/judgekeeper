@@ -288,6 +288,53 @@ def test_answers_not_counted_in_both_runs_are_counted_once(fixing, capsys):
     assert flat.count("were not counted") == 1
 
 
+# 21. promptfoo grader errors are not grades ----------------------------------------------------
+
+GRADER_ERRORS = "{n} answers were not counted: the judge's tool gave an error for them."
+
+
+def test_fix_does_not_count_promptfoo_grader_errors_as_grades(fixing, capsys):
+    from tests.test_again_run import FakePromptfoo
+    from tests.test_fix import NEW_RULE, _split, _write_rule, project
+
+    root, holder = fixing
+    ws = project(root)
+    _fix(capsys)
+    hidden = _split(ws)["hidden"]
+    holder["fake"] = FakePromptfoo(Workspace(root), version="0.124.1")
+    holder["fake"].grader_errors = set(hidden[:6])  # promptfoo saved them as pass: false
+    _write_rule(ws, NEW_RULE)
+    code, flat = _fix(capsys, "--yes")
+    assert code == 0, flat
+    assert f"Tested on the {len(hidden) - 6} marks kept aside:" in flat
+    assert GRADER_ERRORS.format(n=6) in flat
+    assert "New rule agreed with you on 10." in flat and "broke 0." in flat  # errors are no fails
+
+
+@pytest.mark.usefixtures("no_calls")
+def test_check_does_not_count_promptfoo_grader_errors_as_grades(here, capsys, monkeypatch):
+    from tests.test_again_run import FakePromptfoo
+    from tests.test_check import LENIENT, _marked, _new_outputs, _results
+    from tests.test_check import judge as fake_judge
+    from tests.test_check import run as check
+
+    holder = fake_judge.__wrapped__(monkeypatch, here)
+    ws = _marked(here)
+    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
+    holder["fake"] = FakePromptfoo(ws, version="0.124.1")
+    last = marks.read(ws.marks).last
+    marked = {k: sorted(i for i, x in last.items() if x["mark"] == k) for k in ("pass", "fail")}
+    holder["fake"].grader_errors = set(marked["pass"][:3] + marked["fail"][:3])
+    code, out = check(capsys, "--yes")
+    flat = _flat(out)
+    assert code == 1, out
+    assert GRADER_ERRORS.format(n=6) in flat
+    assert "Re-checked on 44 of your 50 marks:" in flat, flat
+    assert ("You passed 22 answers. Your old judge agreed with you on 22, your new judge on "
+            "22.") in flat, flat  # the 3 errors among them are no fails
+    assert "You failed 22 answers." in flat
+
+
 # 6. No key: which key, and where to set it ----------------------------------------------------
 
 NEEDS = "Your judge needs ANTHROPIC_API_KEY. It is not set in your shell or in .env."
