@@ -425,7 +425,8 @@ def test_a_file_left_out_is_followed_by_a_blank_line(here, capsys):
                                        encoding="utf-8")
     old = json.dumps(promptfoo_data(split(20, 16)))
     (here / "results-old.json").write_text(old[:len(old) // 2], encoding="utf-8")
-    os.utime(here / "results-old.json", (1, 1))
+    older = (here / "results.json").stat().st_mtime - 3600
+    os.utime(here / "results-old.json", (older, older))
     _, out, _ = run(capsys, "--no-browser")
     lines = out.splitlines()
     at = next(i for i, x in enumerate(lines) if x.startswith("Eval tool:"))
@@ -567,13 +568,14 @@ def test_a_split_the_sign_test_does_not_pass_is_cant_tell_yet():
 
 
 def test_a_bad_pass_if_is_not_repeated_in_the_next_line(here, capsys):
+    from judgekeeper.textio import quote_arg
     from tests.start_projects import table_project
 
     table_project(here, split(20, 16))
     code, _, err = run(capsys, "--pass-if", "0.5", "--no-browser")
     assert code == 2
     assert err.splitlines()[-1] == ("Next: run `judgekeeper --no-browser --pass-if "
-                                    "'score>=0.5'`."), err
+                                    f"{quote_arg('score>=0.5')}`."), err  # as the shell writes it
     code, _, err = run(capsys, "--label-map", "good", "--no-browser")
     assert code == 2
     assert "--label-map good" not in err.splitlines()[-1], err
