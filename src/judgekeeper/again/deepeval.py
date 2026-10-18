@@ -484,7 +484,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 status=status, why=why, model=model, provider=check.provider,
                 key_lines=check.lines, notes=notes, calls_each=calls_each,
                 calls_note="at least" if at_least else "", tokens=tokens, left_out=left,
-                settings=check.settings, key_ok=check.ok, tool_version=version,
+                settings=check.settings, key_ok=check.ok, key_step=check.step, tool_version=version,
                 runner=[python], payload=payload,
                 side_effects=[(f"Your app or agent is not run. DeepEval measures your metric "
                                f"directly in your Python ({python}); never deepeval.evaluate(), so "

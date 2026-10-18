@@ -510,7 +510,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 calls_each=calls_each, calls_note="at least" if at_least else "",
                 extra_calls="plus 4 embedding calls per answer" if embeddings else "",
                 tokens=tokens, left_out=left, settings=check.settings, key_ok=check.ok,
-                tool_version=version, runner=runner, download=download, payload=judged,
+                key_step=check.step, tool_version=version, runner=runner, download=download, payload=judged,
                 job={"metric": metric},
                 side_effects=[SIDE_EFFECT, (f"Two temporary files are written next to {where} "
                                             "and removed afterwards.")])

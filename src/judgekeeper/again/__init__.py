@@ -83,6 +83,7 @@ class Plan:
     settings: list[str] = field(default_factory=list)  # setting variable names that are set
     tool_version: str | None = None
     key_ok: bool = True  # the key the judge needs was found (by name)
+    key_step: str | None = None  # when not: where to set it (keys.KeyCheck.step)
     runner: list[str] = field(default_factory=list)  # the command that runs the tool
     download: bool = False  # the runner downloads the tool first (npx)
     install: str | None = None  # a command to run in the project first: it installs the tool

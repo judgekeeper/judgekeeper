@@ -279,3 +279,49 @@ def test_answers_not_counted_in_both_runs_are_counted_once(fixing, capsys):
     assert f"Tested on the {len(hidden) - k} marks kept aside:" in flat
     assert f"{k} answers were not counted: the judge gave no clear decision." in flat
     assert flat.count("were not counted") == 1
+
+
+# 6. No key: which key, and where to set it ----------------------------------------------------
+
+NEEDS = "Your judge needs ANTHROPIC_API_KEY. It is not set in your shell or in .env."
+
+
+def _no_keys(monkeypatch):
+    from judgekeeper import keys
+
+    for name in keys.all_names():
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_fix_names_the_key_a_claude_geval_needs(tmp_path, stubs, monkeypatch, capsys):
+    from tests.test_again_tools import _deepeval_model
+
+    monkeypatch.chdir(tmp_path)
+    ws = _deepeval_model(tmp_path, "claude-haiku-5-5 (Anthropic)", monkeypatch)
+    _no_keys(monkeypatch)
+    _fix(capsys)
+    (ws.dir / "fix" / "rule.txt").write_text("1. Is it kind?\n2. Is it short?\n",
+                                              encoding="utf-8")
+    code, flat = _fix(capsys, "--yes")
+    assert code == 3, flat
+    assert NEEDS in flat
+    assert "isn't set where judgekeeper runs" not in flat
+    assert flat.endswith("Next: set ANTHROPIC_API_KEY in your shell or in .env, then run "
+                         "`judgekeeper fix` again.")
+
+
+def test_check_names_the_key_its_new_judge_needs(here, capsys, monkeypatch):
+    from tests.test_check import _marked
+    from tests.test_check import run as check
+    from tests.test_flow_and_numbers import _new_judge_on_a_few, grader
+
+    grader.__wrapped__(monkeypatch, here)
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    _marked(here)
+    _new_judge_on_a_few(here)
+    code, out = check(capsys, "--yes")
+    flat = " ".join(out.split())
+    assert code == 1, out  # 5 answers re-checked with no AI call: "Not sure", a big drop
+    assert NEEDS in flat
+    assert flat.endswith("Next: set ANTHROPIC_API_KEY in your shell or in .env, then run "
+                         "`judgekeeper check` again.")

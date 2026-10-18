@@ -884,14 +884,21 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
     code when nothing was asked."""
     from judgekeeper import again
     from judgekeeper.again.fresh import NOT_COUNTED, AgainError
-    from judgekeeper.check import CAN_WRITE, NO_KEY, _can_write, _go_ahead, _Quiet, downloads
+    from judgekeeper.check import CAN_WRITE, NOT_ASKED, _can_write, _go_ahead, _Quiet, downloads
 
     ids = set(split.hidden)
     plans = [again.make_plan(ws, again.AgainOptions(times=1, rule=r), dry=True, only=ids)
              for r in (None, rule)]
     cant = next((p for p in plans if p.status == again.CANT), None)
+    no_key = next((p for p in plans if not p.key_ok), None) if cant is None else None
+    if no_key is not None:  # which key, and where to set it: never its value
+        for line in no_key.key_lines:
+            talk.para(line)
+        talk.para(NOT_ASKED)
+        step = no_key.key_step or "set the key your judge needs"
+        talk.next(f"{step}, then run `{talk.command()}` again.")
+        return EXIT_NEEDS_YOU
     why = cant and (cant.plain or f"Your judge can't be asked again: {cant.why}.")
-    why = why or (NO_KEY if not all(p.key_ok for p in plans) else None)
     if why:
         talk.para(why)
         if cant is not None and cant.install:

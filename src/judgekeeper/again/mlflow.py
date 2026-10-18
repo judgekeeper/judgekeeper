@@ -303,8 +303,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 status=status, why=why, model=model, provider=check.provider,
                 key_lines=check.lines, calls_each=[calls] * len(found),
                 calls_note="up to" if info.get("trace") else "", tokens=tokens,
-                settings=check.settings, key_ok=check.ok, tool_version=version, left_out=left,
-                runner=[python], payload=payload,
+                settings=check.settings, key_ok=check.ok, key_step=check.step,
+                tool_version=version, left_out=left, runner=[python], payload=payload,
                 job={"uri": info.get("uri"), "judge": job},
                 side_effects=[(f"Your app or agent is not run. MLflow calls your judge directly "
                                f"in your Python ({python}); never mlflow.genai.evaluate(), so "

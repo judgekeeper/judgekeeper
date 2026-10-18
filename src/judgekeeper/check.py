@@ -117,7 +117,7 @@ SWITCHED = ("Your results now come from {new}, not {old}.",
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
 STEP = "Step 5 of 5: Re-check"
 NEXT_INSTALL = "Next: run `{install}` in your project, then run `{command}` again."
-NO_KEY = "The key your judge needs isn't set where judgekeeper runs, so your judge wasn't asked."
+NEXT_KEY = "{step}, then run `{command}` again."  # the key the judge needs is not set
 CLOSE = "This was a close copy of your judge, not an exact one: {why}."
 WRONG_MODEL = "judgekeeper asked the wrong model ({used}, not {new}), so this check is not saved."
 NEXT_WRONG_MODEL = ("Next: check which model your eval's config names for your judge, run your "
@@ -432,6 +432,7 @@ class Asked:
     install: str | None = None  # the command that installs the judge's tool (Plan.install)
     wobble: tuple[int, int] | None = None  # asked twice: (answers whose grades differ, of)
     wrong_model: tuple[str, str] | None = None  # (a model a call used, the new judge's)
+    key_step: str | None = None  # the key the judge needs is not set: where to set it
 
 
 def _can_write(setup: dict) -> bool:
@@ -495,8 +496,9 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
         out.not_marked = plan.why == again.NOT_MARKED
         out.install = plan.install
         return out
-    if not plan.key_ok:
-        out.reasons.append(NO_KEY)
+    if not plan.key_ok:  # which key, and where to set it: never its value
+        out.reasons += [*plan.key_lines, NOT_ASKED]
+        out.key_step = plan.key_step or "set the key your judge needs"
         return out
     wrong = wrong_model(_handed(plan), found)
     if wrong:  # (a): what judgekeeper would hand the eval tool is not the new judge
@@ -1172,8 +1174,10 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say()
         later = (NEXT_INSTALL if asked.install else NEXT_NOT_MARKED if asked.not_marked
                  else NEXT_LATER)
+        if asked.key_step:
+            later = "Next: " + NEXT_KEY
         said.say(later.format(command=_command(state), new=program("--new"),
-                              install=asked.install))
+                              install=asked.install, step=asked.key_step))
         return EXIT_NEEDS_YOU
 
     n, total = len(tested), len(state.marks)
@@ -1234,6 +1238,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say()
     if worse:
         said.say("Next: " + worse_step(old, new, _command(state)))
+    elif asked.key_step:  # the rest can be re-checked once the key is set
+        said.say("Next: " + NEXT_KEY.format(step=asked.key_step, command=_command(state)))
     elif picked["ask"]:
         said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
             mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))

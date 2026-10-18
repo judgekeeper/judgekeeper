@@ -303,6 +303,7 @@ class KeyCheck:
     ok: bool
     lines: list[str]
     settings: list[str] = field(default_factory=list)  # setting names that are set
+    step: str | None = None  # when not ok: "set NAME in your shell or in .env", a Next: step
 
 
 def check(model: str | None, tool: str, folder: Path, provider: str | None = None,
@@ -353,7 +354,8 @@ def check(model: str | None, tool: str, folder: Path, provider: str | None = Non
                     f"Your judge needs {name}. It is in {file} {here}, but {loader} does not "
                     "load .env files"
                     + (" when judgekeeper runs it" if tool == "inspect" else "")
-                    + f": set it in your shell ({how}).", *setting_lines], settings)
+                    + f": set it in your shell ({how}).", *setting_lines], settings,
+                    step=f"set {name} in your shell")
             where = f"in {file} {here}; {loader} loads it"
         if where:
             return KeyCheck(family, name, True, [
@@ -366,7 +368,7 @@ def check(model: str | None, tool: str, folder: Path, provider: str | None = Non
     needed = names[0] + (f" (or {' or '.join(names[1:])})" if len(names) > 1 else "")
     return KeyCheck(family, names[0], False, [
         f"Your judge needs {needed}. It is not set in your shell or in .env.", *setting_lines],
-        settings)
+        settings, step=f"set {names[0]} in your shell" + (" or in .env" if loads_env else ""))
 
 
 # promptfoo's default grader ------------------------------------------------------------------
