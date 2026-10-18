@@ -507,7 +507,12 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         talk.para(_nested_line(nested))
         where = start._or([f"{p}/" for p in nested])
         return talk.stop(EXIT_QUESTION, f"run `{program()}` in {where}.")
-    if signs:
+    saved = _saved_marks(root)
+    if saved:  # the results file is gone, the marks are not
+        talk.para(f"No eval results found in this folder. Your {_n(saved, 'mark')} "
+                  f"{'is' if saved == 1 else 'are'} saved in {FOLDER}/; they come back when "
+                  "your results file is back.")
+    elif signs:
         for tool, where in signs.items():
             name = find.NAMES[tool]
             talk.para(f"Found {name} in this folder ({where[0]}), but no saved results yet. "
@@ -522,6 +527,15 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
                               f"`{talk.command_at('PATH')}` with their file or folder.")
     return talk.stop(EXIT_QUESTION, f"run your eval once from this folder, then run {again} "
                                     f"again.{other}")
+
+
+def _saved_marks(root: Path) -> int:
+    """How many marks the project's .judgekeeper/ holds."""
+    ws = Workspace(start_again._project(root))
+    try:
+        return len(marks.read(ws.marks).counted()) if ws.marks.is_file() else 0
+    except (OSError, ValueError):
+        return 0
 
 
 def _tracking_server(talk: FrontTalk, path: Path, uri: str) -> Stop:

@@ -755,3 +755,21 @@ def test_the_inner_project_says_once_that_the_outer_one_holds_its_marks(tmp_path
     _, again_out = _jk(capsys, "--no-browser", "--port", "0")
     assert "holds 3 marks" not in again_out
     _jk(capsys, "--stop")
+
+
+# 11. Saved marks while the results file is missing ----------------------------------------------
+
+def test_marks_saved_while_the_results_file_is_gone_are_said(here, capsys):
+    from tests.start_projects import table_project
+
+    table_project(here, split(50, 50))
+    assert _jk(capsys, "--no-browser", "--port", "0")[0] == 0
+    _jk(capsys, "--stop")
+    session = StartSession(Workspace(here))
+    for item in session.items[:50]:
+        session.update({"id": item["id"], "label": "pass", "seconds": 6})
+    (here / "results.csv").unlink()
+    code, out = _jk(capsys, "--no-browser", "--port", "0")
+    assert code == 3, out
+    assert ("No eval results found in this folder. Your 50 marks are saved in .judgekeeper/; "
+            "they come back when your results file is back.") in flat(out)
