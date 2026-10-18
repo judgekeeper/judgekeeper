@@ -812,9 +812,12 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
         talk.para("Your judge was not asked.")
         talk.next(f"run `{talk.command()}` again when you are ready to test your rule.")
         return EXIT_NEEDS_YOU
+    from judgekeeper.again.fresh import write_files
+    from judgekeeper.fingerprint import rule_hash
+
     grades, left = [], Counter()
-    for plan in plans:
-        plan.folder = ws.dir / "fix" / "runs" / utc_now().replace(":", "-")
+    for plan, text in zip(plans, (m.data.get("rule") or "", rule), strict=True):
+        plan.folder = _run_folder(ws, rule_hash(text))
         try:
             fresh = again.run_tool(ws, plan, _Quiet())
         except AgainError as e:
@@ -822,6 +825,7 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
             talk.para(f"Asking your judge did not finish: {scrub(str(e))}")
             talk.next(f"run `{talk.command()}` again to test your rule.")
             return EXIT_NEEDS_YOU
+        write_files(ws, plan, fresh, prefix="fix")  # its grades, each with the fingerprint
         grades.append({i: v[0] for i, v in fresh.verdicts.items()})
         left.update(fresh.not_counted.values())
     reasons = []
@@ -830,6 +834,18 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
         reasons.append(f"1 answer was not counted: {one}." if k == 1 else
                        f"{k} answers were not counted: {many}.")
     return grades[0], grades[1], reasons
+
+
+def _run_folder(ws: Workspace, h: str) -> Path:
+    """fix/runs/<time>-<the rule's hash>/ for one rule's run, new: the old and the new rule's
+    runs, made in the same second, never share one."""
+    base = ws.dir / FOLDER / "runs"
+    name = f"{utc_now().replace(':', '-')}-{h.removeprefix('sha256:')[:12]}"
+    folder, n = base / name, 2
+    while folder.exists():
+        folder, n = base / f"{name}-{n}", n + 1
+    make_private(folder)
+    return folder
 
 
 def next_test(split: Split) -> int:

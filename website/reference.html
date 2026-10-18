@@ -390,7 +390,7 @@ export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): voi
 <tr><td><code>fix/split.json</code></td><td>Which marks are kept aside, the seed, and every test done on them</td><td>On the first <code>judgekeeper fix</code></td></tr>
 <tr><td><code>fix/mistakes.md</code></td><td>The task, the clues and your judge's rule, then each mistake on the marks you can see, fenced as data</td><td>With <code>judgekeeper fix</code></td></tr>
 <tr><td><code>fix/rule.txt</code></td><td>Your new rule, written by you</td><td>By you</td></tr>
-<tr><td><code>fix/runs/</code></td><td>The grades your judge gave when it was asked about the answers kept aside, each line with the full fingerprint</td><td>When you say yes to a test</td></tr>
+<tr><td><code>fix/runs/</code></td><td>The grades your judge gave when it was asked about the answers kept aside, each line with the full fingerprint: one folder per rule asked (its time and the rule's hash)</td><td>When you say yes to a test</td></tr>
 <tr><td><code>rules/</code></td><td>Each rule tested, as <code>&lt;hash&gt;.txt</code></td><td>With each fix test</td></tr>
 <tr><td><code>results-seen.json</code></td><td>The judge's setup in the results read last, so a check with nothing new reads nothing again</td><td>With <code>judgekeeper check</code></td></tr>
 <tr><td><code>checks/</code></td><td>The grades your judge gave when <code>check</code> asked it, each line with the full fingerprint</td><td>When you say yes to a check</td></tr>

@@ -807,3 +807,25 @@ def test_the_guard_stops_before_any_call_when_the_old_grader_would_be_handed(her
             "saved.") in flat(out)
     assert "fake" not in grader or not grader["fake"].graders  # no call was made
     assert _history(ws) == [] and not (ws.dir / "verdicts").exists()
+
+
+# 11a. Found by the live check's rehearsal ---------------------------------------------------
+
+def test_fix_runs_in_the_same_second_keep_their_own_folders(tmp_path, capsys, monkeypatch):
+    """LE1: the old and the new rule's runs each get a folder, with fingerprinted grades."""
+    from judgekeeper import fix
+
+    monkeypatch.chdir(tmp_path)
+    holder = _fake_fix_judge(tmp_path, monkeypatch)
+    ws = _fix_ready(tmp_path, capsys)
+    monkeypatch.setattr(fix, "utc_now", lambda: "2026-10-18T00:41:06Z")
+    code, out = _jk(capsys, "fix", "--yes")
+    assert code == 0 and holder["evals"] == 2, out
+    folders = sorted((ws.dir / "fix" / "runs").iterdir())
+    assert len(folders) == 2, folders
+    for folder in folders:
+        assert folder.name.startswith("2026-10-18T00-41-06Z-")
+        assert (folder / "promptfoo.json").is_file()
+        lines = (folder / "fix-1.jsonl").read_text(encoding="utf-8").splitlines()
+        graded = [json.loads(x) for x in lines[1:]]
+        assert graded and all(g["fingerprint"]["model"] == "openai:gpt-4.1-mini" for g in graded)

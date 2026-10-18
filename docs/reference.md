@@ -449,7 +449,7 @@ judgekeeper writes only inside `.judgekeeper/` in your project. On macOS and Lin
 | `fix/split.json` | Which marks are kept aside, the seed, and every test done on them | On the first `judgekeeper fix` |
 | `fix/mistakes.md` | The task, the clues and your judge's rule, then each mistake on the marks you can see, fenced as data | With `judgekeeper fix` |
 | `fix/rule.txt` | Your new rule, written by you | By you |
-| `fix/runs/` | The grades your judge gave when it was asked about the answers kept aside, each line with the full fingerprint | When you say yes to a test |
+| `fix/runs/` | The grades your judge gave when it was asked about the answers kept aside, each line with the full fingerprint: one folder per rule asked (its time and the rule's hash) | When you say yes to a test |
 | `rules/` | Each rule tested, as `<hash>.txt` | With each fix test |
 | `results-seen.json` | The judge's setup in the results read last, so a check with nothing new reads nothing again | With `judgekeeper check` |
 | `checks/` | The grades your judge gave when `check` asked it, each line with the full fingerprint | When you say yes to a check |
