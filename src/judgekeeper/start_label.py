@@ -21,9 +21,11 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
 - judge-check.json and judge-check.csv: did the judge actually judge? (judge_check.py): the
   counts and each answer found, written when labeling starts (and when judgekeeper names the
   CSV). A re-check copies the old ones to history/ with the other files it started from.
-- result.json and report.html (the result page), with the earlier result moved to history/;
+- result.json and report.html (the result page), with the earlier result copied to history/;
   and one line in history.jsonl for each result made from marks that changed: the judge, the
-  counts and the numbers, no answer text and no ids.
+  counts and the numbers, no answer text and no ids. report.html is written first, then the
+  history line, then result.json, each renamed into place; a run stopped half way is repaired
+  by the next one (repair).
 - fix/: fixing the judge with `judgekeeper fix` (fix.py).
 - .gitignore: written when a first check starts in the folder, if there is none, so the
   answers stay off Git (all but judge.json and history.jsonl). Never overwritten, except the
@@ -827,10 +829,17 @@ def store_result(ws: Workspace, session: StartSession,
                for i in session.items if i["label"]]
     if anchors:
         write_anchor_file(ws.anchors, _scrubbed(anchors))
+    # report.html, the history line, then result.json: stopped half way (Ctrl-C), the saved
+    # result is the old one, which the next run sees as not made from these marks (repair)
+    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws), worse=worse))
+    if ws.result_html.is_file() and not ws.result_html.is_symlink():
+        ws.result_html.unlink()
+    _add_history_line(ws, r)
     if ws.result_json.is_file():
         make_private(ws.history)
         try:
-            made = json.loads(ws.result_json.read_text(encoding="utf-8")).get("made_at")
+            text = ws.result_json.read_text(encoding="utf-8")
+            made = json.loads(text).get("made_at")
         except ValueError:
             made = None
         stamp = (made or utc_now()).replace(":", "-")
@@ -839,12 +848,73 @@ def store_result(ws: Workspace, session: StartSession,
         while target.exists():
             target = ws.history / f"result-{stamp}-{n}.json"
             n += 1
-        ws.result_json.replace(target)
+        write_replacing(target, text)  # a copy: result.json is replaced below in one rename
     _write_json(ws.result_json, r)
-    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws), worse=worse))
-    if ws.result_html.is_file() and not ws.result_html.is_symlink():
-        ws.result_html.unlink()
-    marks.append(ws.history_jsonl, _scrubbed(history_line(ws, r)))
+    _same_time(ws.report_html, ws.result_json)
     return r
+
+
+def _same_time(path: Path, as_file: Path) -> None:
+    """`path` gets `as_file`'s modified time: a report written with its result is not older."""
+    try:
+        st = as_file.stat()
+        os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns))
+    except OSError:
+        pass
+
+
+def _has_line(ws: Workspace, digest: str | None) -> bool:
+    """Whether history.jsonl holds the line of the result made from marks `digest`."""
+    try:
+        text = ws.history_jsonl.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    for raw in jsonl_lines(text):
+        try:
+            line = json.loads(raw)
+        except ValueError:
+            continue
+        if isinstance(line, dict) and line.get("kind") == "result" and \
+                line.get("marks_hash") == digest:
+            return True
+    return False
+
+
+def _add_history_line(ws: Workspace, r: dict) -> None:
+    """The result's line in history.jsonl, once: the whole file written again and renamed over
+    it, so it is never half written."""
+    if _has_line(ws, r.get("marks_sha256")):
+        return
+    marks._refuse_links(ws.history_jsonl)
+    try:
+        text = ws.history_jsonl.read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+    if text and not text.endswith("\n"):
+        text += "\n"
+    write_replacing(ws.history_jsonl, text + marks._line(_scrubbed(history_line(ws, r))),
+                    newline="")
+
+
+def repair(ws: Workspace) -> None:
+    """After a run stopped half way through saving a result (judgekeeper before 1.0 wrote
+    result.json first): when result.json is newer than report.html, report.html is drawn again,
+    and when history.jsonl has no line for it, the line is added."""
+    try:
+        r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(r, dict) or "labels" not in r:
+        return
+    try:
+        stale = (not ws.report_html.is_file()
+                 or ws.result_json.stat().st_mtime_ns > ws.report_html.stat().st_mtime_ns)
+        if stale:
+            write_report(ws)
+            _same_time(ws.report_html, ws.result_json)
+        if r.get("marks_sha256") and ws.marks.is_file():
+            _add_history_line(ws, r)
+    except (OSError, marks.MarksError):
+        pass  # the next result writes them
 
 

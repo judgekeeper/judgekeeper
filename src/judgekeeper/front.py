@@ -935,6 +935,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
 
     if not ws.start.is_file():
         start_label.prepare(found, say=lambda line: None)
+    start_label.repair(ws)  # a result whose saving was stopped half way
     session = StartSession(ws)
     counts = session.counts()
     enough = min(counts["correct"], counts["wrong"]) >= targets.ROUGH

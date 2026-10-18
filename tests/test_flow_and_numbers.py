@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -423,3 +424,95 @@ def test_fix_for_a_table_judge_keeps_nothing_aside(here, capsys):
     wrong = sum(old[i] != _truth(i) for i in range(60))
     assert f"all {wrong} mistakes are saved" in flat(out)
     assert "kept aside" not in _report(here)
+
+
+# 6. Ctrl-C during Measure ------------------------------------------------------------------------
+
+def _measured(root, capsys, only=None):
+    """A table project with a result made from the first marks (`only`: those answers)."""
+    from tests.start_projects import table_project
+
+    table_project(root, split(30, 30))
+    assert _jk(capsys)[0] == 0
+    ws = Workspace(root)
+    session = StartSession(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    for item in session.items[:only]:
+        session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 6})
+    assert "Step 3 of 5: Measure" in _jk(capsys)[1]
+    return ws
+
+
+def _counts_in_report(root) -> tuple[int, int]:
+    """(marked Pass, marked Fail) as report.html counts them."""
+    text = re.sub(r"<[^>]+>", "", _report(root))
+    return tuple(int(re.search(rf"You {did} (\d+) answers", text)[1])
+                 for did in ("passed", "failed"))
+
+
+def _result_lines(ws) -> list[dict]:
+    lines = [json.loads(x) for x in ws.history_jsonl.read_text(encoding="utf-8").splitlines()]
+    return [x for x in lines if x.get("kind") == "result"]
+
+
+def test_measure_writes_the_report_then_the_history_then_the_result(here, capsys,
+                                                                     monkeypatch):
+    from judgekeeper import start_label
+
+    ws = _measured(here, capsys, only=40)
+    _mark(ws)
+    order = []
+    real = start_label.write_replacing
+
+    def record(path, *a, **k):
+        order.append(Path(path).name)
+        return real(path, *a, **k)
+
+    monkeypatch.setattr(start_label, "write_replacing", record)
+    _jk(capsys)
+    names = [n for n in order if n in ("report.html", "history.jsonl", "result.json")]
+    assert names == ["report.html", "history.jsonl", "result.json"], order
+
+
+def test_a_measure_stopped_before_its_result_is_made_again_once(here, capsys, monkeypatch):
+    from judgekeeper import start_label
+
+    ws = _measured(here, capsys, only=40)
+    _mark(ws)
+    real = start_label._write_json
+
+    def stop(path, data):
+        if Path(path).name == "result.json":
+            raise KeyboardInterrupt
+        return real(path, data)
+
+    monkeypatch.setattr(start_label, "_write_json", stop)
+    assert _jk(capsys)[0] == 130
+    monkeypatch.setattr(start_label, "_write_json", real)
+    code, out = _jk(capsys)
+    assert code == 0, out
+    saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert saved["labels"]["correct"] + saved["labels"]["wrong"] == 60
+    assert [x["marks"] for x in _result_lines(ws)] == [40, 60]
+    assert _counts_in_report(here) == (30, 30)
+
+
+def test_a_result_saved_before_its_report_and_history_is_repaired(here, capsys):
+    """judgekeeper before 1.0 wrote result.json first: a Ctrl-C left the report and the
+    history on the old result."""
+    import os
+
+    ws = _measured(here, capsys, only=40)
+    old_report = ws.report_html.read_text(encoding="utf-8")
+    _mark(ws)
+    _jk(capsys)
+    lines = ws.history_jsonl.read_text(encoding="utf-8").splitlines()
+    ws.history_jsonl.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
+    ws.report_html.write_text(old_report, encoding="utf-8")
+    t = ws.result_json.stat().st_mtime - 60
+    os.utime(ws.report_html, (t, t))
+    code, out = _jk(capsys)
+    assert code == 0, out
+    assert [x["marks"] for x in _result_lines(ws)] == [40, 60]
+    assert ws.report_html.read_text(encoding="utf-8") != old_report
+    assert _counts_in_report(here) == (30, 30)
