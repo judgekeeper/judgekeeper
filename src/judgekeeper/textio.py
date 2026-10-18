@@ -29,6 +29,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 BOM = "\ufeff"
@@ -272,21 +273,48 @@ def write_keeping(path: str | Path, text: str) -> None:
         f.write(text)
 
 
+# Windows refuses to replace a file another process has open (a second judgekeeper run
+# reading it): tried again for a moment, REPLACE_TRIES times REPLACE_PAUSE seconds at most.
+REPLACE_TRIES, REPLACE_PAUSE = 40, 0.05
+
+
+class FileBusyError(OSError):
+    """A file another program kept open, so it was not replaced: not a permission problem."""
+
+
 def write_replacing(path: str | Path, text: str, newline: str | None = None) -> None:
     """Write `text` (UTF-8) to a temporary file next to `path`, then rename it over `path`.
 
     A link at `path` is replaced by the new file, never written through, and a reader never
     sees half a file. `newline` is `open()`'s: None writes "\n" as the system's line ending.
+    The temporary file's name holds this process's id, so two processes never share one.
     """
     path = Path(path)
-    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.{os.getpid()}.", suffix=".tmp",
+                               dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline=newline) as f:
             f.write(text)
-        os.replace(tmp, path)
+        _replace(tmp, path)
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
+
+
+def _replace(tmp: str, path: Path) -> None:
+    """os.replace. On Windows a refusal while `path` is open in another process is tried
+    again for a moment, then said as FileBusyError: the folder took the temporary file, so
+    writing there is allowed. A read-only file is a real permission problem, said at once."""
+    for tries in range(REPLACE_TRIES, 0, -1):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError as e:
+            if not is_windows() or (path.exists() and not os.access(path, os.W_OK)):
+                raise
+            if tries == 1:
+                raise FileBusyError(e.errno, "in use by another program", str(path)) from e
+            time.sleep(REPLACE_PAUSE)
 
 
 PRIVATE_FILE, PRIVATE_FOLDER = 0o600, 0o700
@@ -359,6 +387,10 @@ WORKSPACE_DENIED = ("judgekeeper can't write in .judgekeeper/ (permission denied
                     "its files there.")
 WORKSPACE_DENIED_NEXT = ("give your user permission to write in .judgekeeper/, then run "
                          "`{command}`.")  # never "remove it": it holds the marks
+WORKSPACE_BUSY = ("Another program had a file in .judgekeeper/ open, so judgekeeper could not "
+                  "save it.")
+WORKSPACE_BUSY_NEXT = ("wait for the other program (often another judgekeeper run) to finish, "
+                       "then run `{command}`.")
 
 
 def workspace_problem(e: OSError) -> tuple[str, str] | None:
@@ -372,6 +404,8 @@ def workspace_problem(e: OSError) -> tuple[str, str] | None:
     folder = Path(*parts[:parts.index(WORKSPACE) + 1])
     if folder.is_file():
         return WORKSPACE_FILE, WORKSPACE_FILE_NEXT
+    if isinstance(e, FileBusyError):
+        return WORKSPACE_BUSY, WORKSPACE_BUSY_NEXT
     if isinstance(e, PermissionError) and folder.is_dir():  # else the project folder's
         return WORKSPACE_DENIED, WORKSPACE_DENIED_NEXT
     return None
@@ -385,6 +419,8 @@ def describe_os_error(e: OSError) -> str | None:
     if not isinstance(e.filename, str | bytes | os.PathLike):
         return None  # no path, or a file descriptor
     path = os.fsdecode(e.filename)
+    if isinstance(e, FileBusyError):
+        return f"cannot save {path}: another program has it open. Close it, then try again."
     if isinstance(e, FileExistsError):
         return _folder_needed(path)
     if isinstance(e, NotADirectoryError):
