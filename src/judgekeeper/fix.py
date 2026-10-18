@@ -750,7 +750,7 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
         return test_rule(talk, ws, m, split, rule, yes)
     tested = _tested_rule(ws, split) if testable and not new else None
     if tested is not None:
-        return tested_before(talk, ws, m, *tested)
+        return tested_before(talk, ws, m, split, *tested)
     return first_run(talk, ws, m, split)
 
 
@@ -990,15 +990,26 @@ def _copy_step(ws: Workspace, m: Marks, talk: Talk) -> str:
             f"`{talk.command('check')}`.")
 
 
-def tested_before(talk: Talk, ws: Workspace, m: Marks, rule: str, test: dict) -> int:
+def _say_rule(talk: Talk, ws: Workspace, rule: str, problems: list[dict]) -> None:
+    """The new rule's first words and where it is; only where it is when it copies text from
+    the answers (it would print them)."""
+    folder = f"{shown_folder(ws)}/{FOLDER}"
+    if any(c["text"] == start_fix_rule.COPIES for c in problems):
+        talk.say(f"New rule:  from {folder}/{RULE}")
+    else:
+        talk.say(f"New rule:  {_rule_quote(rule)}")
+        talk.say(f"           (from {folder}/{RULE})")
+    talk.say()
+
+
+def tested_before(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str,
+                  test: dict) -> int:
     """The rule in rule.txt was tested on these marks kept aside: its saved result, never a
     new test, and the next step that result gave."""
     from judgekeeper.check import _day
 
     folder = f"{shown_folder(ws)}/{FOLDER}"
-    talk.say(f"New rule:  {_rule_quote(rule)}")
-    talk.say(f"           (from {folder}/{RULE})")
-    talk.say()
+    _say_rule(talk, ws, rule, _problems(m, split, rule))
     day = _day(test.get("time"))
     talk.para(f"You tested this rule before{f' ({day})' if day else ''}. On the "
               f"{test.get('n')} marks kept aside it fixed {test.get('fixed')} and broke "
@@ -1038,10 +1049,8 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     from judgekeeper.fingerprint import rule_hash
 
     folder = f"{shown_folder(ws)}/{FOLDER}"
-    talk.say(f"New rule:  {_rule_quote(rule)}")
-    talk.say(f"           (from {folder}/{RULE})")
-    talk.say()
     problems = _problems(m, split, rule)
+    _say_rule(talk, ws, rule, problems)
     for c in problems:
         talk.para(c["text"])
     if any(c["blocking"] for c in problems):

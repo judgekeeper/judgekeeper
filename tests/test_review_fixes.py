@@ -768,3 +768,22 @@ def test_the_page_stops_once_every_answer_is_marked_and_the_result_is_opened(her
     assert not label.is_open(ws.dir)
     _, out, _ = run(capsys, "--stop")
     assert "No marking page is open." in out
+
+
+# 14. A rule that copies answer text is never printed ------------------------------------------
+
+def test_a_rule_copied_from_answers_is_not_printed(fixing, capsys):
+    from judgekeeper import fix
+    from tests.test_fix import _split, _write_rule, project
+
+    root, _ = fixing
+    ws = project(root)
+    _fix(capsys)
+    m = fix.Marks(ws)
+    copied = next(m.row(i)["output"] for i in _split(ws)["visible"]
+                  if "refund" in m.row(i)["output"])
+    _write_rule(ws, f"{copied} Grade it as the person would.")
+    _, flat = _fix(capsys)
+    assert "New rule: from .judgekeeper/fix/rule.txt" in flat, flat
+    assert "It copies text from your answers" in flat
+    assert copied[:20] not in flat
