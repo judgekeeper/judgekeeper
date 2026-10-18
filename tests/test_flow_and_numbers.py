@@ -17,7 +17,9 @@ No test calls an AI API.
 from __future__ import annotations
 
 import json
+import os
 import re
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -543,8 +545,6 @@ def test_a_partial_eval_says_how_many_marked_answers_it_holds(here, capsys, no_c
 
 
 def test_marks_really_added_since_a_check_are_counted(here, capsys, no_calls):
-    import time
-
     from judgekeeper.start_label import StartSession as Session
 
     (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
@@ -627,9 +627,9 @@ def _fake_fix_judge(root, monkeypatch):
         fake = holder["fake"]
         if "eval" in argv:
             holder["evals"] += 1
-            config = json.loads((Path(cwd) / argv[argv.index("-c") + 1]).read_text("utf-8"))
+            config = json.loads((Path(cwd) / argv[argv.index("-c") + 1]).read_text(encoding="utf-8"))
             tests = json.loads((Path(cwd) / config["tests"].removeprefix("file://"))
-                               .read_text("utf-8"))
+                               .read_text(encoding="utf-8"))
             fake.flips = {(t["description"], 0) for t in tests
                           if t["assert"][0]["value"] == NEW_RULE
                           and fake.saved[t["vars"]["question"]][0] != _person(
@@ -689,3 +689,69 @@ def test_fix_says_when_it_cant_tell_where_the_rule_is(tmp_path, capsys, monkeypa
     assert ("judgekeeper can't tell which file holds your judge's rule. Your eval keeps it in "
             "the `value:` of the llm-rubric assert in promptfooconfig.yaml:") in flat(out), out
     assert "notes.txt" not in out
+
+
+# 10. Nested projects -------------------------------------------------------------------------
+
+def test_an_outer_project_never_reads_a_nested_projects_results(tmp_path, capsys, monkeypatch):
+    from tests.start_projects import table_project
+
+    outer = tmp_path / "nest3"
+    (outer / "inner").mkdir(parents=True)
+    (outer / "pyproject.toml").write_text("[project]\nname = 'outer'\n", encoding="utf-8")
+    (outer / "inner" / "pyproject.toml").write_text("[project]\nname = 'inner'\n",
+                                                    encoding="utf-8")
+    table_project(outer / "inner", split(30, 30), name="inner_results.csv")
+    monkeypatch.chdir(outer)
+    code, out = _jk(capsys, "--no-browser")
+    assert code == 3, out
+    assert ("These results belong to the project in inner/. To check them, run `judgekeeper` "
+            "in inner/.") in flat(out)
+    assert _next(out) == "Next: run `judgekeeper` in inner/."
+    assert "(read from inner/" not in out
+    assert not (outer / ".judgekeeper" / "start.json").exists()
+
+
+def test_outer_results_are_read_and_the_nested_ones_named(tmp_path, capsys, monkeypatch):
+    from tests.start_projects import table_project
+
+    outer = tmp_path / "nest3"
+    (outer / "inner").mkdir(parents=True)
+    (outer / "pyproject.toml").write_text("[project]\nname = 'outer'\n", encoding="utf-8")
+    (outer / "inner" / ".judgekeeper").mkdir()
+    table_project(outer / "inner", split(30, 30), name="inner_results.csv")
+    table_project(outer, split(20, 20), name="outer_results.csv")
+    later = time.time() + 60
+    os.utime(outer / "inner" / "inner_results.csv", (later, later))
+    monkeypatch.chdir(outer)
+    code, out = _jk(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out
+    assert "(read from outer_results.csv)" in out
+    assert "These results belong to the project in inner/." in flat(out)
+    _jk(capsys, "--stop")
+
+
+def test_the_inner_project_says_once_that_the_outer_one_holds_its_marks(tmp_path, capsys,
+                                                                         monkeypatch):
+    from tests.start_projects import table_project
+
+    outer = tmp_path / "nest3"
+    (outer / "inner").mkdir(parents=True)
+    table_project(outer / "inner", split(30, 30), name="inner_results.csv")
+    monkeypatch.chdir(outer)  # no project file yet: the outer folder read them and kept marks
+    assert _jk(capsys, "--no-browser", "--port", "0")[0] == 0
+    _jk(capsys, "--stop")
+    session = StartSession(Workspace(outer))
+    for item in session.items[:3]:
+        session.update({"id": item["id"], "label": "pass", "seconds": 6})
+    (outer / "inner" / "pyproject.toml").write_text("[project]\nname = 'inner'\n",
+                                                    encoding="utf-8")
+    monkeypatch.chdir(outer / "inner")
+    code, out = _jk(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out
+    assert ("The project above (nest3) holds 3 marks for these results in its .judgekeeper/."
+            in flat(out)), out
+    _jk(capsys, "--stop")
+    _, again_out = _jk(capsys, "--no-browser", "--port", "0")
+    assert "holds 3 marks" not in again_out
+    _jk(capsys, "--stop")

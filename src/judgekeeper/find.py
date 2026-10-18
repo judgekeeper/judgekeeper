@@ -18,6 +18,9 @@ The rules:
   MAX_JSON files. A table (CSV, TSV or JSONL with input, output and verdict columns) is read
   up to its header, and only TABLE_DEPTH folders deep.
 - Results over MAX_BYTES are listed, not read.
+- In a project's folder (is_project), a folder below that is a project of its own (its own
+  project file or `.judgekeeper/`) is not walked: its results are its own. It is kept in
+  `nested`, and nested_results names the ones that hold results.
 - DeepEval's hidden copies of its newest run count once; when a results folder holds its
   `test_run_*.json` files, those are read instead (_prefer_saved_runs).
 - Nothing is written, and SQLite stores are opened read-only (by the reader, later).
@@ -118,6 +121,7 @@ class Search:
     notes: list[str] = field(default_factory=list)
     unreadable: list[tuple[str, str]] = field(default_factory=list)  # results-like: (rel, how)
     skipped: list[tuple[str, str]] = field(default_factory=list)  # results-like, not looked in
+    nested: list[Path] = field(default_factory=list)  # projects of their own, not walked
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -299,6 +303,7 @@ class _Walk:
     def __init__(self, root: Path):
         self.root = root
         self.search = Search(root=root)
+        self.project = is_project(root)  # a folder below that is a project is not walked
         self.files = 0
         self.json_sniffed = 0
         self.seen_dirs: set[Path] = set()
@@ -427,6 +432,9 @@ class _Walk:
                         if is_mlflow_folder(sub):  # else only mlflow.db's artifacts
                             self.add("mlflow", sub)
                             self.sign("mlflow", self.rel(sub) + "/")
+                    elif _walked(entry.name) and self.project and is_project(sub):
+                        if sub not in self.search.nested:
+                            self.search.nested.append(sub)
                     elif _walked(entry.name) and self.depth(sub) <= MAX_DEPTH:
                         queue.append(sub)
                     elif _walked(entry.name):
@@ -539,6 +547,26 @@ NOT_UTF8 = "not saved as UTF-8: save it as UTF-8"
 TITLE_ROW = "has a title row above its header"
 EXCEL = (".xlsx", ".xlsm", ".xls")
 PROJECT_MARKERS = ("pyproject.toml", "package.json", ".git", "judgekeeper.toml", "setup.py")
+
+
+def is_project(folder: Path) -> bool:
+    """Whether `folder` is a project's own: a project file (PROJECT_MARKERS) or its own
+    `.judgekeeper/`."""
+    try:
+        return any((folder / m).exists() for m in (*PROJECT_MARKERS, ".judgekeeper"))
+    except OSError:
+        return False
+
+
+def nested_results(found: Search) -> list[str]:
+    """The projects below the folder searched (`found.nested`) that hold results judgekeeper
+    reads, by their path from it."""
+    out = []
+    for folder in found.nested:
+        inner = search(folder)
+        if any(inner.readable(t) for t in TOOLS) or inner.too_big():
+            out.append(folder.relative_to(found.root).as_posix())
+    return out
 
 
 def _down(n: int) -> str:

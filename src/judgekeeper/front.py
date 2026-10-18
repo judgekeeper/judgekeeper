@@ -349,7 +349,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         return path, None  # find_judge reads them, or says how
     own = own_format.search(root)
     if own is None:
-        raise _nothing_found(talk, root, search.signs)
+        raise _nothing_found(talk, root, search.signs, find.nested_results(search))
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
 
@@ -489,9 +489,24 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
     return talk.stop(EXIT_QUESTION, f"{fix}, then run `{talk.command()}`.")
 
 
-def _nothing_found(talk: FrontTalk, root: Path, signs: dict) -> Stop:
+def _nested_line(nested: list[str]) -> str:
+    """Results in projects of their own below this one (find.nested_results): whose they
+    are, and where to check them."""
+    named = start._and([f"{p}/" for p in nested])
+    where = start._or([f"{p}/" for p in nested])
+    return (f"These results belong to the {'project' if len(nested) == 1 else 'projects'} in "
+            f"{named}. To check them, run `{program()}` in {where}.")
+
+
+def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
+                   nested: list[str] | None = None) -> Stop:
     """No results: the tools found here (with what saves their results), else what
-    judgekeeper can read. The folder by its name only."""
+    judgekeeper can read. The folder by its name only. Results in a project of its own below
+    (`nested`) are named, never read."""
+    if nested:
+        talk.para(_nested_line(nested))
+        where = start._or([f"{p}/" for p in nested])
+        return talk.stop(EXIT_QUESTION, f"run `{program()}` in {where}.")
     if signs:
         for tool, where in signs.items():
             name = find.NAMES[tool]
@@ -608,6 +623,40 @@ def _other_projects(found: start.Found) -> str | None:
     return (f"These results are from the project in {read}/. The "
             f"{'project' if one else 'projects'} in {named} {'has' if one else 'have'} "
             f"results too: to check them, run {commands}.")
+
+
+def _nested_here(found: start.Found) -> str | None:
+    """Results in a project of its own below this one, never read with these: named."""
+    if found.given:
+        return None
+    nested = find.nested_results(find.search(found.root))
+    return _nested_line(nested) if nested else None
+
+
+def _outer_marks(found: start.Found) -> str | None:
+    """A project above this one whose .judgekeeper/ holds marks for these results (made from
+    there before a project kept its own): said once, when marking starts here."""
+    root = Path(found.root).resolve()
+    try:
+        home = Path.home().resolve()
+    except (RuntimeError, OSError):
+        home = None
+    for folder in root.parents:
+        if folder == home:
+            return None
+        ws = Workspace(folder)
+        if not ws.start.is_file():
+            continue
+        try:
+            files = [(folder / f).resolve() for f in ws.data().get("results_files") or []]
+            n = len(marks.read(ws.marks).counted())
+        except (OSError, ValueError, AttributeError, TypeError):
+            return None
+        if n and any(f.is_relative_to(root) for f in files):
+            return (f"The project above ({folder.name}) holds {_n(n, 'mark')} for these results "
+                    f"in its {FOLDER}/. They stay there: this project keeps its own marks.")
+        return None
+    return None
 
 
 def tool_version(found: start.Found) -> str | None:
@@ -761,7 +810,8 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         talk.say(f"Your judge's grades: {pool.n_pass} Pass, {pool.n_fail} Fail.")
     for note in _notes(found):
         talk.para(note)
-    for others in (_other_files(found), _other_projects(found)):
+    for others in (_other_files(found), _other_projects(found), _nested_here(found),
+                   _outer_marks(found)):
         if others:
             talk.para(others)
     _free_check(talk, found, listed)
