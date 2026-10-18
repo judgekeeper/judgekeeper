@@ -662,7 +662,10 @@ def _outer_marks(found: start.Found) -> str | None:
         if not ws.start.is_file():
             continue
         try:
-            files = [(folder / f).resolve() for f in ws.data().get("results_files") or []]
+            data = ws.data()
+            given = data.get("given")  # a file given by path: read from where it is
+            files = [(folder / f).resolve() for f in ([given] if isinstance(given, str) and given
+                                                      else data.get("results_files") or [])]
             n = len(marks.read(ws.marks).counted())
         except (OSError, ValueError, AttributeError, TypeError):
             return None

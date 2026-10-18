@@ -481,20 +481,29 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -
     return scrub("\n".join(parts).rstrip("\n") + "\n")
 
 
-def refresh_mistakes(ws: Workspace) -> None:
-    """mistakes.md again, when there is one: after a check moved the marks to a new judge, its
-    rule and its mistakes are that judge's."""
+def refresh_mistakes(ws: Workspace, always: bool = False) -> int:
+    """mistakes.md again from the marks the person can see, when there is one (`always`:
+    also when there is none): after a check moved the marks to a new judge, its rule and its
+    mistakes are that judge's. Returns how many mistakes it holds."""
     path = _folder(ws) / MISTAKES
-    if not path.is_file():
-        return
+    if not always and not path.is_file():
+        return 0
     m = Marks(ws)
     split = read_split(ws)
     rows = [m.row(i) for i in (split.seen if split else m.person) if i in m.person]
     pm = m.data.get("pass_mark")
     rule = m.data.get("rule") if m.data.get("one_rule", True) else None
     marks._refuse_links(path)
+    make_private(path.parent)
     write_replacing(path, mistakes_md(rule, rows, pm["mark"] if pm and pm.get("follows")
                                       else None))
+    return len(mistakes(rows))
+
+
+def _saved_line(ws: Workspace, n: int) -> str:
+    every = f"all {n} mistakes" if n > 1 else "the 1 mistake"
+    return (f"The clues and {every} are saved in {shown_folder(ws)}/{FOLDER}/{MISTAKES}. You "
+            "can hand this file to a coding agent.")
 
 
 # The pass mark (free) ----------------------------------------------------------------------
@@ -671,6 +680,10 @@ def _waiting(talk: Talk, ws: Workspace, split: Split) -> int:
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
                   "aside. More tests on the same marks would make a coincidence look like a "
                   "better rule.")
+        n = refresh_mistakes(ws, always=True)  # none is kept aside now: every mark is seen
+        if n:
+            talk.say()
+            talk.para(_saved_line(ws, n))
     else:
         want, then = split.topup["want"], ""
     if split.pending:
@@ -707,9 +720,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     path = _folder(ws) / MISTAKES
     marks._refuse_links(path)
     write_replacing(path, mistakes_md(rule, seen_rows, mark))
-    every = f"all {len(wrong)} mistakes" if len(wrong) > 1 else "the 1 mistake"
-    talk.para(f"The clues and {every} are saved in {folder}/{MISTAKES}. You can hand this "
-              "file to a coding agent.")
+    talk.para(_saved_line(ws, len(wrong)))
     talk.say()
     line = tested and pass_mark_line(ws, pm, tested)
     if line:

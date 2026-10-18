@@ -210,6 +210,9 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys, grad
         assert "Step" in out
         assert not says_mark(_next(out)), out
     assert "judgekeeper --new" in _next(said[4])  # fix after the rule was adopted
+    assert "You have tested 1 rule on these marks kept aside." in flat(said[4])
+    mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    assert RULE_B in mistakes and RULE_A not in mistakes  # the judge the marks test now
 
 
 def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
@@ -582,17 +585,6 @@ def test_after_an_adopted_rule_the_judge_is_not_called_the_same(here, capsys, no
     assert "Your judge is the same" not in out, out
     assert ("Your eval ran again. Your judge is the one your last check re-tested, so your marks "
             "still test it.") in flat(out)
-
-
-def test_one_rule_is_one_rule():
-    from judgekeeper import fix
-
-    split_ = fix.Split(seed=1, seen=[], hidden=[], tests=[
-        {"kind": "rule", "rule_hash": "sha256:a"}], fresh={"want": 10})
-    said = []
-    talk = SimpleNamespace(para=said.append, next=said.append, command=lambda: "judgekeeper fix")
-    fix._waiting(talk, SimpleNamespace(data=dict), split_)
-    assert said[0].startswith("You have tested 1 rule on these marks kept aside.")
 
 
 def test_fix_with_a_rule_it_tested_shows_that_result(tmp_path, capsys, monkeypatch):
