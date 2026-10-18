@@ -183,7 +183,7 @@ def test_every_answer_marked_after_a_result_points_to_new(here, capsys, pages):
     assert "You have marked all 36 answers. There are no more to mark." in out
     assert _check(out, err) == (
         "Next: run your eval on more questions, then run `judgekeeper --new` to mark the new "
-        "results. Your marks so far are kept in .judgekeeper/previous-<date>/.")
+        "results. `--new` moves your marks to .judgekeeper/previous-<date>/.")
     assert "again to get new answers" not in out
     assert len(pages[0]) == 1  # no page opened for it
 
@@ -197,7 +197,7 @@ def test_every_answer_marked_opens_no_page(here, capsys, pages):
     assert "You have marked all 36 answers. There are no more to mark." in out
     assert _check(out, err) == (  # new answers never join the marks: item 2's Next line
         "Next: run your eval on more questions, then run `judgekeeper --new` to mark the new "
-        "results. Your marks so far are kept in .judgekeeper/previous-<date>/.")
+        "results. `--new` moves your marks to .judgekeeper/previous-<date>/.")
     assert "run your eval again to get new answers" not in out
     assert len(pages[0]) == 1
 

@@ -222,11 +222,20 @@ def show(say, page: Page, no_browser: bool, wait: bool) -> str | None:
 
 
 def serve(server: LabelServer) -> None:
+    """Serve the page until it closes. Ctrl-C closes it and goes on up: with --wait the
+    command says "Stopped." and exits 130."""
     faulthandler.cancel_dump_traceback_later()  # the page started
-    try:
-        server.serve()
-    except KeyboardInterrupt:
-        pass
+    server.serve()
+
+
+def close(ws: Workspace, opened: Page | None) -> None:
+    """Close the page this run started (Ctrl-C before its link was printed): in the
+    background, or served by this process."""
+    if opened is not None and opened.server is not None:
+        opened.server.stop()
+        opened.server.serve()  # stopped: it only closes its socket and releases the lock
+    else:
+        background.stop(ws.dir)
 
 
 # The page's own process ------------------------------------------------------------------
@@ -266,7 +275,10 @@ def main() -> int:
         faulthandler.cancel_dump_traceback_later()
         print(f"judgekeeper: {e}", file=sys.stderr)
         return 2
-    serve(server)
+    try:
+        serve(server)
+    except KeyboardInterrupt:
+        pass
     return 0
 
 

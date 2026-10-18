@@ -163,3 +163,26 @@ def test_a_changed_environment_is_read_again(monkeypatch):
     monkeypatch.setenv("MY_SERVICE_API_KEY", "second-secret-" + "z" * 20)
     assert redact.scrub("second-secret-" + "z" * 20) == "[REDACTED]"
     assert redact.scrub("first-secret-" + "y" * 20) == "first-secret-" + "y" * 20
+
+
+AWS_SECRET = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"  # AWS's own example, 40 characters
+
+
+@pytest.mark.parametrize("text,expected", [
+    (f"aws_secret_access_key={AWS_SECRET}", f"aws_secret_access_key={REDACTED}"),
+    (f'AWS_SECRET_ACCESS_KEY: "{AWS_SECRET}"', f'AWS_SECRET_ACCESS_KEY: "{REDACTED}"'),
+    (f"aws_secret_access_key '{AWS_SECRET}'", f"aws_secret_access_key '{REDACTED}'"),
+    (f"export AWS_SECRET_ACCESS_KEY {AWS_SECRET}", f"export AWS_SECRET_ACCESS_KEY {REDACTED}"),
+    (f"My keys: AKIAIOSFODNN7EXAMPLE and {AWS_SECRET}.", f"My keys: {REDACTED} and {REDACTED}."),
+    (f"{AWS_SECRET} goes with ASIAIOSFODNN7EXAMPLE", f"{REDACTED} goes with {REDACTED}"),
+])
+def test_an_aws_secret_is_redacted_after_its_name_or_next_to_its_key(text, expected):
+    assert scrub(text) == expected
+
+
+@pytest.mark.parametrize("text", [
+    f"The string {AWS_SECRET} has no clue that it is a key.",
+    f"Key: AKIAIOSFODNN7EXAMPLE\nAnd on another line: {AWS_SECRET}",
+])
+def test_a_bare_40_character_string_stays(text):
+    assert AWS_SECRET in scrub(text)

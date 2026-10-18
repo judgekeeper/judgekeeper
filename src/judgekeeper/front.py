@@ -1055,9 +1055,14 @@ def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool)
 
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown)."""
-    opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved, "mark"),
-                           _command_of(talk, saved), here=wait, say=talk.say)
-    shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait)
+    opened = None
+    try:
+        opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved, "mark"),
+                               _command_of(talk, saved), here=wait, say=talk.say)
+        shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait)
+    except KeyboardInterrupt:  # before its link was printed: no page is left running
+        page.close(ws, opened)
+        raise
     if not shown:
         if opened is not None and opened.server is None:
             background.stop(ws.dir)

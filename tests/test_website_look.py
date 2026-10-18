@@ -552,6 +552,17 @@ def test_the_browser_check_is_one_column_with_the_drop_area_and_its_result():
         assert selector + " {" in CSS, selector
 
 
+def test_on_a_phone_the_check_result_puts_each_value_under_its_label():
+    """At 390px a label and its value don't fit side by side: the value goes under its label,
+    and a line that only goes on from the one above has no indent."""
+    phone = CSS[CSS.index("@media (max-width: 760px) {\n  .fc-drop"):]
+    phone = phone[:phone.index("\n}\n")]
+    assert "flex-direction: column" in _rule(".fc-term .ln", phone)
+    assert "display: none" in _rule(".fc-term .ln > .pad", phone)
+    script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
+    assert "line.k.trim() ? 'dim' : 'dim pad'" in script
+
+
 # The reference: rendered from docs/reference.md -----------------------------------------------
 
 def test_the_reference_has_a_side_list_of_its_sections_and_keeps_the_usage_lines():

@@ -77,6 +77,7 @@ var document = {
   getElementById: function (id) { if (!ids[id]) { ids[id] = new El(); ids[id].id = id; }
     return ids[id]; },
   createElement: function (t) { return new El(t); },
+  createTextNode: function (t) { var e = new El("#text"); e._text = String(t); return e; },
   querySelectorAll: function () { return []; },
   addEventListener: function (t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); }
 };
@@ -245,8 +246,26 @@ def test_with_every_answer_marked_and_no_result_the_end_card_says_what_comes_nex
         note: ids["end-note"].textContent, shown: !ids["end-note"].hidden,
         again: ids["again"].hidden, href: window.location.href}));""",
         data=_data(3), before=f"var DONE = {json.dumps(lines)};\n")
-    assert got == {"end": False, "title": lines[0], "note": lines[1], "shown": True,
+    assert got == {"end": False, "title": lines[0], "note": lines[1].replace("`", ""),
+                   "shown": True,
                    "again": True, "href": ""}
+
+
+def test_the_end_cards_command_shows_as_code_without_its_backticks():
+    lines = ["You've marked every answer: 3 Pass, 0 Fail. A result needs at least 15 of each.",
+             "Next: run your eval on more questions, then run `judgekeeper --new` to mark the "
+             "new results. `--new` moves your marks to .judgekeeper/previous-<date>/."]
+    got = _run("""
+      status = {text: "x", ready: false, done: DONE};
+      for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      console.log(JSON.stringify(ids["end-note"].children.map(function (c) {
+        return [c.tagName, c.textContent]; })));""",
+        data=_data(3), before=f"var DONE = {json.dumps(lines)};\n")
+    assert got == [["#TEXT", "Next: run your eval on more questions, then run "],
+                   ["CODE", "judgekeeper --new"],
+                   ["#TEXT", " to mark the new results. "],
+                   ["CODE", "--new"],
+                   ["#TEXT", " moves your marks to .judgekeeper/previous-<date>/."]]
 
 
 def test_going_back_to_a_marked_answer_says_its_mark():
@@ -359,3 +378,43 @@ def test_a_failed_save_says_so_and_keeps_the_answer():
       console.log(JSON.stringify({status: ids["status"].textContent,
         at: ids["q-text"].textContent}));""")
     assert got == {"status": "Not saved: no space left", "at": "Question 0?"}
+
+
+def _phone(width: int, still: bool = False) -> str:
+    """A window `width` px wide (reduced motion when `still`); the card's scrolls are kept."""
+    return f"""
+      window.innerWidth = {width};
+      window.matchMedia = function (q) {{
+        var m = /max-width: (\\d+)px/.exec(q);
+        return {{matches: m ? window.innerWidth <= +m[1]
+                         : q.indexOf("reduce") > -1 && {json.dumps(still)},
+                addEventListener: function () {{}}}};
+      }};
+      var scrolled = [];
+      El.prototype.scrollIntoView = function (o) {{
+        if (this === ids["answer-card"]) {{ scrolled.push(o); }} }};
+    """
+
+
+_PICK = """
+      scrolled.length = 0;
+      var link = new El("a"); link.setAttribute("data-k", "4");
+      ids["queue"].fire("click", {target: link}); await settle();
+      console.log(JSON.stringify({at: ids["q-text"].textContent, scrolled: scrolled}));"""
+
+
+def test_on_a_phone_an_answer_picked_from_the_list_scrolls_into_view():
+    """At 390px the list sits below the card: the card picked comes into view, smoothly."""
+    got = _run(_PICK, before=_phone(390))
+    assert got == {"at": "Question 4?", "scrolled": [{"behavior": "smooth", "block": "start"}]}
+
+
+def test_on_a_phone_with_reduced_motion_the_card_comes_at_once():
+    got = _run(_PICK, before=_phone(390, still=True))
+    assert got["scrolled"] == [{"behavior": "auto", "block": "start"}]
+
+
+def test_on_a_wide_screen_the_card_does_not_scroll():
+    """Next to the list, the card is already in view: focus moves without a scroll."""
+    got = _run(_PICK, before=_phone(1400))
+    assert got == {"at": "Question 4?", "scrolled": []}

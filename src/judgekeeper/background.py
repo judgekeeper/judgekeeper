@@ -7,7 +7,8 @@ DETACHED_PROCESS, CREATE_NEW_PROCESS_GROUP and CREATE_NO_WINDOW on Windows. The 
 right after: never in its arguments, its environment or a file. Its output is not the
 caller's: errors go to .judgekeeper/page.log (never answer text or the token), the rest
 nowhere. It returns the page's link once the page answers to that token (the port is in the
-lock in .judgekeeper/), at most WAIT seconds; else None, and the process is ended.
+lock in .judgekeeper/), at most WAIT seconds; else None, and the process is ended. Ctrl-C
+while it waits ends the process too.
 
 `stop` closes the open page with a POST to /stop with the lock's stop secret, which works the
 same on every system, and waits until it is gone: it no longer answers, and its lock is
@@ -56,13 +57,18 @@ def start(folder: Path, settings: dict, token: str, timeout: float = WAIT) -> st
         proc.kill()
         return None
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        lock = read_lock(folder)
-        if lock is not None and answers(lock["port"], token):
-            return link(lock["port"], token)
-        if proc.poll() is not None:
-            return None
-        time.sleep(0.1)
+    try:
+        while time.monotonic() < deadline:
+            lock = read_lock(folder)
+            if lock is not None and answers(lock["port"], token):
+                return link(lock["port"], token)
+            if proc.poll() is not None:
+                return None
+            time.sleep(0.1)
+    except KeyboardInterrupt:  # Ctrl-C before the link was printed: the page stops too
+        if not stop(folder, timeout=2):
+            proc.kill()
+        raise
     proc.kill()
     return None
 

@@ -29,8 +29,9 @@ NEXT_RESULT = ("Next: nothing to do. When you change your judge or update your e
                "`judgekeeper check`.")
 RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
 LINK = "Open this link in your browser to mark answers:"
-PRINTED_LINE = ("{n} of your marks were made through a link printed where another program "
-                "could read it.")
+PRINTED_LINE = ("{n} of your marks came through a link printed in a terminal, so another "
+                "program on this computer could have made them. If you marked them yourself, "
+                "nothing to do.")
 START_OVER = ("Start over with these results? Your old marks move to "
               ".judgekeeper/previous-<date>/.")
 
@@ -461,7 +462,7 @@ def test_the_result_counts_marks_made_through_a_printed_link(here, capsys, pages
     _click(ws, first=2)
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert PRINTED_LINE.format(n=2) in _flat(out)
+    assert _flat(out).count(PRINTED_LINE.format(n=2)) == 1  # once per Measure
 
 
 def test_at_a_terminal_a_printed_link_is_not_stamped(here, capsys, pages, monkeypatch):

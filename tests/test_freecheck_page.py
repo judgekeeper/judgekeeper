@@ -11,7 +11,10 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import sqlite3
 import subprocess
+import zipfile
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -99,6 +102,37 @@ NOT_CHECKED = {
 def test_a_file_the_page_does_not_check_says_what_to_do(name, said):
     result = browser(FREECHECK / name)
     assert not result["ok"] and result["message"] == said
+
+
+FULL_TOOL = ("Inspect AI and MLflow results are read by the full tool: run uvx judgekeeper in "
+             "your project.")
+
+
+@needs_node
+def test_an_inspect_eval_file_says_the_full_tool_reads_it(tmp_path):
+    """Inspect's .eval log is a zip: the page names the tool, not a broken file."""
+    path = tmp_path / "2026-10-01_task.eval"
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("header.json", '{"eval": {"task": "task"}}')
+    result = browser(path)
+    assert not result["ok"] and result["message"] == FULL_TOOL
+
+
+@needs_node
+def test_an_mlflow_store_says_the_full_tool_reads_it(tmp_path):
+    path = tmp_path / "mlflow.db"
+    with closing(sqlite3.connect(path)) as db:
+        db.execute("CREATE TABLE experiments (experiment_id INTEGER)")
+        db.execute("CREATE TABLE assessments (assessment_id TEXT)")
+        db.commit()
+    result = browser(path)
+    assert not result["ok"] and result["message"] == FULL_TOOL
+
+
+@needs_node
+def test_an_empty_file_says_it_is_empty():
+    result = browser(FREECHECK / "empty.jsonl")
+    assert not result["ok"] and result["message"] == "This file is empty."
 
 
 @needs_node

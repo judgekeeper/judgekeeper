@@ -47,6 +47,10 @@
   var RULES_IN_CODE = ' are rules in code, not an LLM judge. judgekeeper checks LLM judges.';
   var TOO_BIG = 'This file is bigger than 50 MB, so this page does not read it. Run uvx judgekeeper in your project instead: it reads big files too.';
   var NOT_UTF8 = 'This file is not saved as UTF-8 text, so it cannot be read.';
+  var EMPTY = 'This file is empty.';
+  var FULL_TOOL = 'Inspect AI and MLflow results are read by the full tool: run uvx judgekeeper in your project.';
+  // first bytes: a zip (Inspect's .eval log) and an SQLite file (an MLflow store)
+  var BINARY_STARTS = [[0x50, 0x4B, 0x03, 0x04], Array.from('SQLite format 3\0', function (c) { return c.charCodeAt(0); })];
   var NOT_JSON = "This file isn't valid JSON that judgekeeper can read.";
   var EVERY_ANSWER = 'your judge gave every answer a clear Pass or Fail.';
   var FREE_CHECK = 'Checked: ';
@@ -762,9 +766,21 @@
 
   /* ---------- the check: text in, report data out ---------- */
 
+  // the file's bytes, as the page reads them: the kinds told by their first bytes, then UTF-8
+  function checkBytes(bytes, fileName) {
+    bytes = new Uint8Array(bytes);
+    if (BINARY_STARTS.some(function (start) { return start.every(function (b, i) { return bytes[i] === b; }); })) {
+      return fail('full-tool', FULL_TOOL);
+    }
+    var fileText;
+    try { fileText = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (e) { return fail('not-utf8', NOT_UTF8); }
+    return check(fileText, fileName);
+  }
+
   function check(fileText, fileName) {
     if (!isStr(fileText)) fileText = '';
     if (fileText.charCodeAt(0) === 0xFEFF) fileText = fileText.slice(1);
+    if (!fileText) return fail('empty', EMPTY);
     var r = read(fileText, fileName);
     if (r.ok === false) return r;
     if (r.error) return fail(r.error, r.message);
@@ -867,7 +883,7 @@
     return L;
   }
 
-  var api = { check: check, reportLines: reportLines, MAX_BYTES: MAX_BYTES, LIMIT: LIMIT, PRIVACY: PRIVACY,
+  var api = { check: check, checkBytes: checkBytes, reportLines: reportLines, MAX_BYTES: MAX_BYTES, LIMIT: LIMIT, PRIVACY: PRIVACY,
     TOO_BIG: TOO_BIG, NOT_UTF8: NOT_UTF8, NOT_RECOGNISED: NOT_RECOGNISED, clean: clean,
     _internal: { statedDecisions: statedDecisions, graderProblem: graderProblem, ruleText: ruleText, passMarkWords: passMarkWords } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -911,9 +927,7 @@
       reader.onerror = function () { done(); showError('This file could not be read. Try picking it again.'); };
       reader.onload = function () {
         done();
-        var textOut;
-        try { textOut = new TextDecoder('utf-8', { fatal: true }).decode(reader.result); } catch (e) { return showError(NOT_UTF8); }
-        show(check(textOut, file.name), count);
+        show(checkBytes(reader.result, file.name), count);
       };
       reader.readAsArrayBuffer(file);
     }
@@ -979,7 +993,7 @@
         pre.replaceChildren();
         reportLines(result, result.judges[current]).forEach(function (line) {
           var row = el('span', 'ln');
-          if (line.k) row.appendChild(el('span', 'dim', line.k));
+          if (line.k) row.appendChild(el('span', line.k.trim() ? 'dim' : 'dim pad', line.k));
           row.appendChild(el('span', { g: 'ok', y: 'care', dim: 'dim' }[line.tone] || null, line.text));
           pre.appendChild(row);
         });

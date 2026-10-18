@@ -184,8 +184,8 @@ def test_screen_4_every_answer_marked(here, capsys, pages):
         "You have marked all 40 answers. There are no more to mark.",
         "",
         "Next: run your eval on more questions, then run",
-        "`judgekeeper --new` to mark the new results. Your marks so far",
-        "are kept in .judgekeeper/previous-<date>/.",
+        "`judgekeeper --new` to mark the new results. `--new` moves your",
+        "marks to .judgekeeper/previous-<date>/.",
     ]
     assert len(pages[0]) == started  # no page to open
 

@@ -137,6 +137,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .go:hover, .go:active { filter: brightness(.92); }
 .foot { margin: 0; padding: 12px 40px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); text-align: center; }
 .foot code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+#end-note code { font-family: var(--mono); font-size: .9em; color: var(--text); }
 .scrim { position: fixed; inset: 0; z-index: 10; background: var(--scrim); display: flex;
   align-items: center; justify-content: center; padding: 20px; }
 .intro { background: var(--bg); border: 1px solid var(--line); border-radius: 2px; width: 100%;
@@ -217,6 +218,14 @@ __TOP__
   var $ = function (id) { return document.getElementById(id); };
   var card = $("answer-card");
   function setText(id, text) { $(id).textContent = text == null ? "" : String(text); }
+  // A line from the terminal: each `command` in it shows as code, without its backticks.
+  function setLine(id, text) {
+    var into = $(id);
+    into.textContent = "";
+    String(text).split("`").forEach(function (part, k) {
+      if (part) { into.appendChild(k % 2 ? el("code", null, part) : document.createTextNode(part)); }
+    });
+  }
   function el(tag, cls, text) {
     var e = document.createElement(tag);
     if (cls) { e.className = cls; }
@@ -229,7 +238,17 @@ __TOP__
     setText("status", text);
     if (text && $("status").scrollIntoView) { $("status").scrollIntoView({block: "nearest"}); }
   }
-  function focusCard() { (ended ? $("end") : card).focus({preventScroll: true}); }
+  // On a phone the list sits below the card: the card is scrolled into view (at once under
+  // reduced motion). Wider, the card is next to the list and stays where it is.
+  function media(query) { return !!(window.matchMedia && window.matchMedia(query).matches); }
+  function focusCard() {
+    var to = ended ? $("end") : card;
+    to.focus({preventScroll: true});
+    if (media("(max-width: 760px)") && to.scrollIntoView) {
+      to.scrollIntoView({behavior: media("(prefers-reduced-motion: reduce)") ? "auto" : "smooth",
+                         block: "start"});
+    }
+  }
   $("see").setAttribute("href", url("/result"));
 
   // A question is text, or [[name, value], ...]: each name a small label above its value.
@@ -349,7 +368,7 @@ __TOP__
       setText("end-title", "You marked every answer.");
       $("again").hidden = true; $("end-note").hidden = false;
       if (status.done) {
-        setText("end-title", status.done[0]); setText("end-note", status.done[1]);
+        setText("end-title", status.done[0]); setLine("end-note", status.done[1]);
         focusCard(); return;
       }
       window.location.href = url("/result");

@@ -317,7 +317,8 @@ td:first-child { min-width: 14ch; }
 @media (max-width: 760px) {
   .fc-drop { min-height: 160px; font-size: 16px; padding: 24px 16px; }
   .fc-result .fc-term { padding: 16px 14px; font-size: 12px; }
-  .fc-term .ln { flex-wrap: wrap; }
+  .fc-term .ln { flex-direction: column; }
+  .fc-term .ln > .pad { display: none; }
 }
 
 /* ---- the reference, rendered from docs/reference.md ---- */

@@ -155,3 +155,27 @@ def test_mark_stop_closes_a_page_whose_server_json_is_gone(project):
     while alive(pid) and time.monotonic() < deadline:
         time.sleep(0.1)
     assert not alive(pid)
+
+
+@pytest.mark.real_page
+def test_ctrl_c_while_the_page_starts_ends_its_process(project, monkeypatch):
+    """Ctrl-C while the command waits for the page to answer: the page's process ends too,
+    and no lock is left that names a running page."""
+    first = jk(project, "mark", "--port", "0", "--no-browser")  # the project's .judgekeeper/
+    assert first.returncode == 0, first.stdout + first.stderr + page_log(project)
+    assert jk(project, "mark", "--stop").returncode == 0
+
+    def interrupted(port, token):
+        time.sleep(1)  # the page has started meanwhile
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(background, "answers", interrupted)
+    folder = project / ".judgekeeper"
+    settings = {"root": str(project), "port": 0, "command": "judgekeeper mark",
+                "start_command": "judgekeeper"}
+    with pytest.raises(KeyboardInterrupt):
+        background.start(folder, settings, "t" * 43)
+    proc = background._started[-1]
+    proc.wait(timeout=15)
+    assert not alive(proc.pid)
+    assert not label.is_open(folder)
