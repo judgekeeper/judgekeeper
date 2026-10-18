@@ -14978,5 +14978,3645 @@
     }
    }
   }
- ]
+ ],
+ "batches": {
+  "checks_per_cell": 1500,
+  "level": 0.96,
+  "draws": 20000,
+  "general_draws": 4000,
+  "grid_seed": 20261008,
+  "start": {
+   "min_cell": 0.932,
+   "mean": 0.9581333333333333,
+   "per_metric": {
+    "tpr": 0.9393333333333334,
+    "tnr": 0.932,
+    "real_pass_rate": 0.9453333333333334
+   },
+   "passes": true
+  },
+  "general": {
+   "min_cell": 0.9313333333333333,
+   "mean": 0.9562,
+   "per_metric": {
+    "tpr": 0.934,
+    "tnr": 0.9313333333333333
+   },
+   "passes": true
+  },
+  "rows": [
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.8341968911917098,
+     "tnr": 0.7289719626168224,
+     "real_pass_rate": 0.6433333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9626666666666667,
+      "width": 0.36381661128905457,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9473333333333334,
+      "width": 0.18518599749890416,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9606666666666667,
+      "width": 0.24335542076455108,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9633333333333334,
+      "width": 0.36393817112346566,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9513333333333334,
+      "width": 0.18436080332214463,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.8341968911917098,
+     "tnr": 0.7289719626168224,
+     "real_pass_rate": 0.6433333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.956,
+      "width": 0.3095733885912752,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9606666666666667,
+      "width": 0.1532272803416969,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.962,
+      "width": 0.2004303844771888,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9573333333333334,
+      "width": 0.3103773013320127,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9593333333333334,
+      "width": 0.15323629482922194,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.8341968911917098,
+     "tnr": 0.7289719626168224,
+     "real_pass_rate": 0.6433333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9613333333333334,
+      "width": 0.25014909212556985,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9586666666666667,
+      "width": 0.12170479533242862,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9553333333333334,
+      "width": 0.157836444243908,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9626666666666667,
+      "width": 0.2519266501732751,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9593333333333334,
+      "width": 0.12139533865801476,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.8341968911917098,
+     "tnr": 0.7289719626168224,
+     "real_pass_rate": 0.6433333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9513333333333334,
+      "width": 0.20360406019617538,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9593333333333334,
+      "width": 0.0968511503168556,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9593333333333334,
+      "width": 0.1259513388623924,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9513333333333334,
+      "width": 0.20563202337178227,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.964,
+      "width": 0.09720311838601398,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.8341968911917098,
+     "tnr": 0.7289719626168224,
+     "real_pass_rate": 0.6433333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.968,
+      "width": 0.2600025351605619,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9453333333333334,
+      "width": 0.13961257197978505,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.962,
+      "width": 0.16482960891312523,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9713333333333334,
+      "width": 0.26053922891589376,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.944,
+      "width": 0.13923123777600882,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.9484240687679083,
+     "tnr": 0.8047808764940239,
+     "real_pass_rate": 0.5816666666666667
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.96,
+      "width": 0.31737606652467315,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9646666666666667,
+      "width": 0.1613306414192556,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9793333333333333,
+      "width": 0.22048676652426658,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.962,
+      "width": 0.3182727339534226,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9633333333333334,
+      "width": 0.1605369463330522,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.9484240687679083,
+     "tnr": 0.8047808764940239,
+     "real_pass_rate": 0.5816666666666667
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9453333333333334,
+      "width": 0.2706043277243084,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.966,
+      "width": 0.1299623273323367,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9706666666666667,
+      "width": 0.17907754078086877,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.948,
+      "width": 0.2705384624789136,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.964,
+      "width": 0.12909766304172177,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.9484240687679083,
+     "tnr": 0.8047808764940239,
+     "real_pass_rate": 0.5816666666666667
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9613333333333334,
+      "width": 0.21921290684640038,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9713333333333334,
+      "width": 0.09925235879275886,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.974,
+      "width": 0.13848973985599022,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9573333333333334,
+      "width": 0.2189879316738871,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9706666666666667,
+      "width": 0.09896687609661738,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.9484240687679083,
+     "tnr": 0.8047808764940239,
+     "real_pass_rate": 0.5816666666666667
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.952,
+      "width": 0.17729608229711244,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.972,
+      "width": 0.07969927175094248,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.966,
+      "width": 0.10931527238021971,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.952,
+      "width": 0.17777772662026733,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.968,
+      "width": 0.07943461410056402,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.9484240687679083,
+     "tnr": 0.8047808764940239,
+     "real_pass_rate": 0.5816666666666667
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9706666666666667,
+      "width": 0.22370783080735843,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9706666666666667,
+      "width": 0.08460975816724355,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9726666666666667,
+      "width": 0.14106354845188987,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.97,
+      "width": 0.22445062536985852,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.968,
+      "width": 0.08437932792033609,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.9424778761061947,
+     "tnr": 0.5,
+     "real_pass_rate": 0.7533333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9546666666666667,
+      "width": 0.406685438993052,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9533333333333334,
+      "width": 0.0801729186810268,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.966,
+      "width": 0.2441635681011578,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9513333333333334,
+      "width": 0.4068407457324537,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9513333333333334,
+      "width": 0.07995615263872106,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.9424778761061947,
+     "tnr": 0.5,
+     "real_pass_rate": 0.7533333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.962,
+      "width": 0.3497843695041159,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.952,
+      "width": 0.06551531440271187,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9786666666666667,
+      "width": 0.19543162086664218,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.964,
+      "width": 0.34802611877113826,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9553333333333334,
+      "width": 0.06566807880643705,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.9424778761061947,
+     "tnr": 0.5,
+     "real_pass_rate": 0.7533333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.964,
+      "width": 0.277865279240167,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.96,
+      "width": 0.052240197933677554,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9593333333333334,
+      "width": 0.15116477333376357,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9613333333333334,
+      "width": 0.2790878533490359,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.96,
+      "width": 0.052018631817518146,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.9424778761061947,
+     "tnr": 0.5,
+     "real_pass_rate": 0.7533333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9553333333333334,
+      "width": 0.22376134912612292,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9586666666666667,
+      "width": 0.04119263555450515,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9586666666666667,
+      "width": 0.11967003403926876,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.956,
+      "width": 0.22534169612973,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.958,
+      "width": 0.04160887236964916,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.9424778761061947,
+     "tnr": 0.5,
+     "real_pass_rate": 0.7533333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.954,
+      "width": 0.33905775305199654,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9586666666666667,
+      "width": 0.07049813332272525,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.952,
+      "width": 0.1659074969278222,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.956,
+      "width": 0.3381334642158632,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9566666666666667,
+      "width": 0.07011226407546058,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.9194029850746268,
+     "tnr": 0.5773584905660377,
+     "real_pass_rate": 0.5583333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9626666666666667,
+      "width": 0.33641919308646645,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9733333333333334,
+      "width": 0.1673746833940114,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9546666666666667,
+      "width": 0.2745487456373101,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9566666666666667,
+      "width": 0.3355237474071857,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9726666666666667,
+      "width": 0.16548352667106364,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.9194029850746268,
+     "tnr": 0.5773584905660377,
+     "real_pass_rate": 0.5583333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9606666666666667,
+      "width": 0.28420386211983867,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9553333333333334,
+      "width": 0.13841006919401352,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9633333333333334,
+      "width": 0.23131535549654392,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9606666666666667,
+      "width": 0.2842959021843592,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.948,
+      "width": 0.13815572081295163,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.9194029850746268,
+     "tnr": 0.5773584905660377,
+     "real_pass_rate": 0.5583333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9573333333333334,
+      "width": 0.22939004575471036,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.954,
+      "width": 0.11042377538791935,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9586666666666667,
+      "width": 0.18418448177533278,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9546666666666667,
+      "width": 0.22964317870922624,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.952,
+      "width": 0.10996547502717637,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.9194029850746268,
+     "tnr": 0.5773584905660377,
+     "real_pass_rate": 0.5583333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9573333333333334,
+      "width": 0.18444797267448726,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9666666666666667,
+      "width": 0.08839882131295779,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9606666666666667,
+      "width": 0.1476290992415556,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.96,
+      "width": 0.1854182737642395,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9653333333333334,
+      "width": 0.08754704496584095,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     400,
+     200
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.9194029850746268,
+     "tnr": 0.5773584905660377,
+     "real_pass_rate": 0.5583333333333333
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.96,
+      "width": 0.238074403835503,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9613333333333334,
+      "width": 0.10202792618966701,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9693333333333334,
+      "width": 0.18498827577179008,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.96,
+      "width": 0.23831424441476354,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9593333333333334,
+      "width": 0.10141401320805216,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.8725663716814159,
+     "tnr": 0.7148936170212766,
+     "real_pass_rate": 0.70625
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9393333333333334,
+      "width": 0.35218262463702293,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.94,
+      "width": 0.13014048983081114,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9606666666666667,
+      "width": 0.19734977047273203,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9393333333333334,
+      "width": 0.35338695878569154,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9393333333333334,
+      "width": 0.12977122535350413,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.8725663716814159,
+     "tnr": 0.7148936170212766,
+     "real_pass_rate": 0.70625
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.96,
+      "width": 0.299765360266407,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9593333333333334,
+      "width": 0.10832713214408496,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.964,
+      "width": 0.1616726205617217,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9613333333333334,
+      "width": 0.30113849306001056,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.956,
+      "width": 0.10835202454668862,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.8725663716814159,
+     "tnr": 0.7148936170212766,
+     "real_pass_rate": 0.70625
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.958,
+      "width": 0.24297581781529315,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9533333333333334,
+      "width": 0.08656637936649525,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9546666666666667,
+      "width": 0.12704359583659208,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9566666666666667,
+      "width": 0.24476376773647454,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9546666666666667,
+      "width": 0.0863534471083893,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.8725663716814159,
+     "tnr": 0.7148936170212766,
+     "real_pass_rate": 0.70625
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9486666666666667,
+      "width": 0.19834955312424873,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9446666666666667,
+      "width": 0.06917090286174708,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9573333333333334,
+      "width": 0.10093939262987334,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.95,
+      "width": 0.20007601983240697,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.946,
+      "width": 0.0693815843499515,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.8725663716814159,
+     "tnr": 0.7148936170212766,
+     "real_pass_rate": 0.70625
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9473333333333334,
+      "width": 0.2718703748643257,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9566666666666667,
+      "width": 0.10215711891188305,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9493333333333334,
+      "width": 0.14558426557224058,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.95,
+      "width": 0.27466614319993565,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9586666666666667,
+      "width": 0.10195289606589927,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ],
+     [
+      0.7,
+      0.6,
+      0.8
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.9325842696629213,
+     "tnr": 0.704225352112676,
+     "real_pass_rate": 0.55625
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9313333333333333,
+      "width": 0.2624577694430283,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9433333333333334,
+      "width": 0.14362862010839583,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9746666666666667,
+      "width": 0.1953425348475873,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.932,
+      "width": 0.2630443013217225,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9413333333333334,
+      "width": 0.1433741195123913,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ],
+     [
+      0.7,
+      0.6,
+      0.8
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.9325842696629213,
+     "tnr": 0.704225352112676,
+     "real_pass_rate": 0.55625
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9446666666666667,
+      "width": 0.22244403856308434,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9506666666666667,
+      "width": 0.11489036509373718,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9666666666666667,
+      "width": 0.1600007182255712,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9426666666666667,
+      "width": 0.22190117400860784,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9506666666666667,
+      "width": 0.11443175358166653,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ],
+     [
+      0.7,
+      0.6,
+      0.8
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.9325842696629213,
+     "tnr": 0.704225352112676,
+     "real_pass_rate": 0.55625
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.952,
+      "width": 0.1770909412213515,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9633333333333334,
+      "width": 0.0892835330102169,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9673333333333334,
+      "width": 0.125745534664365,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9513333333333334,
+      "width": 0.17716550964495653,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9626666666666667,
+      "width": 0.08909050379197574,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ],
+     [
+      0.7,
+      0.6,
+      0.8
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.9325842696629213,
+     "tnr": 0.704225352112676,
+     "real_pass_rate": 0.55625
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9613333333333334,
+      "width": 0.14220047229130642,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9506666666666667,
+      "width": 0.0708332622373659,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9666666666666667,
+      "width": 0.09985388763682594,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.962,
+      "width": 0.1430785463940264,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9506666666666667,
+      "width": 0.07065406007496565,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ],
+     [
+      0.7,
+      0.6,
+      0.8
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.9325842696629213,
+     "tnr": 0.704225352112676,
+     "real_pass_rate": 0.55625
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9506666666666667,
+      "width": 0.2096144017178856,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.946,
+      "width": 0.0900451996515597,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.962,
+      "width": 0.1482832221277219,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9513333333333334,
+      "width": 0.2105751846586124,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9433333333333334,
+      "width": 0.08993574210880814,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ],
+     [
+      0.5,
+      0.8,
+      0.8
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.9166666666666666,
+     "tnr": 0.6209677419354839,
+     "real_pass_rate": 0.69
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9493333333333334,
+      "width": 0.3287294557914599,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9533333333333334,
+      "width": 0.10235172623338668,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9666666666666667,
+      "width": 0.2008928884105442,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9426666666666667,
+      "width": 0.3299808441863913,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9526666666666667,
+      "width": 0.10240374376563606,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ],
+     [
+      0.5,
+      0.8,
+      0.8
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.9166666666666666,
+     "tnr": 0.6209677419354839,
+     "real_pass_rate": 0.69
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9566666666666667,
+      "width": 0.28131163928486835,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.934,
+      "width": 0.08536715818216484,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9653333333333334,
+      "width": 0.16429622379930342,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.956,
+      "width": 0.2807166420084338,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.94,
+      "width": 0.08501533984242596,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ],
+     [
+      0.5,
+      0.8,
+      0.8
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.9166666666666666,
+     "tnr": 0.6209677419354839,
+     "real_pass_rate": 0.69
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9506666666666667,
+      "width": 0.2224319792279653,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9473333333333334,
+      "width": 0.06796531865135445,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9573333333333334,
+      "width": 0.12702908923288572,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9486666666666667,
+      "width": 0.2237621015534927,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.946,
+      "width": 0.06766347987687277,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ],
+     [
+      0.5,
+      0.8,
+      0.8
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.9166666666666666,
+     "tnr": 0.6209677419354839,
+     "real_pass_rate": 0.69
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9613333333333334,
+      "width": 0.1798050155860404,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.958,
+      "width": 0.05372210229581391,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9633333333333334,
+      "width": 0.09987924912459602,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9606666666666667,
+      "width": 0.18130320758607518,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9586666666666667,
+      "width": 0.053883687696943884,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ],
+     [
+      0.5,
+      0.8,
+      0.8
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.9166666666666666,
+     "tnr": 0.6209677419354839,
+     "real_pass_rate": 0.69
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9573333333333334,
+      "width": 0.2725642127814317,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9573333333333334,
+      "width": 0.09614263933415353,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9653333333333334,
+      "width": 0.15099333304985343,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.952,
+      "width": 0.2729676037622382,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9526666666666667,
+      "width": 0.09585083425462355,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ],
+     [
+      0.7,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.8963414634146342,
+     "tnr": 0.6136363636363636,
+     "real_pass_rate": 0.615
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.936,
+      "width": 0.3071894084299972,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9366666666666666,
+      "width": 0.13225747188683923,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9526666666666667,
+      "width": 0.21835206271688828,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9373333333333334,
+      "width": 0.3072615166655926,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9406666666666667,
+      "width": 0.13146703922956335,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ],
+     [
+      0.7,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.8963414634146342,
+     "tnr": 0.6136363636363636,
+     "real_pass_rate": 0.615
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9493333333333334,
+      "width": 0.2635732439406733,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9493333333333334,
+      "width": 0.10945455634800703,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9633333333333334,
+      "width": 0.18314956445227168,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.948,
+      "width": 0.2639915657976329,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9453333333333334,
+      "width": 0.10925004117405009,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ],
+     [
+      0.7,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.8963414634146342,
+     "tnr": 0.6136363636363636,
+     "real_pass_rate": 0.615
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9546666666666667,
+      "width": 0.2122088172470183,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9566666666666667,
+      "width": 0.08617049318219408,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.958,
+      "width": 0.14476281209211792,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9566666666666667,
+      "width": 0.21273027249079637,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9553333333333334,
+      "width": 0.08590379936299394,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ],
+     [
+      0.7,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.8963414634146342,
+     "tnr": 0.6136363636363636,
+     "real_pass_rate": 0.615
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9566666666666667,
+      "width": 0.1712100894343149,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9573333333333334,
+      "width": 0.06925774862674353,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.956,
+      "width": 0.11684984565672794,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.958,
+      "width": 0.17234562560514252,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9573333333333334,
+      "width": 0.06893525911736621,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     600,
+     300,
+     300
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ],
+     [
+      0.7,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.8963414634146342,
+     "tnr": 0.6136363636363636,
+     "real_pass_rate": 0.615
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9493333333333334,
+      "width": 0.22829392389264513,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.95,
+      "width": 0.09424286623280839,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.958,
+      "width": 0.15702129859601618,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9486666666666667,
+      "width": 0.22867054615952487,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9486666666666667,
+      "width": 0.09401940004621558,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.8714859437751005,
+     "tnr": 0.738095238095238,
+     "real_pass_rate": 0.664
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.968,
+      "width": 0.40433599709405865,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9473333333333334,
+      "width": 0.17578367233200604,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9653333333333334,
+      "width": 0.2615587873613929,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.968,
+      "width": 0.40493736500184174,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9486666666666667,
+      "width": 0.17487716291609673,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.8714859437751005,
+     "tnr": 0.738095238095238,
+     "real_pass_rate": 0.664
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9673333333333334,
+      "width": 0.3578432943534824,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.958,
+      "width": 0.1527646689867319,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.974,
+      "width": 0.21991036524191468,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.964,
+      "width": 0.35916389577419566,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9553333333333334,
+      "width": 0.1525546093859293,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.8714859437751005,
+     "tnr": 0.738095238095238,
+     "real_pass_rate": 0.664
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9653333333333334,
+      "width": 0.3083309714165226,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9533333333333334,
+      "width": 0.14038171081279388,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.952,
+      "width": 0.18485374383247338,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9646666666666667,
+      "width": 0.3102839904454285,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.952,
+      "width": 0.14009090870775126,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.8714859437751005,
+     "tnr": 0.738095238095238,
+     "real_pass_rate": 0.664
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9473333333333334,
+      "width": 0.27127608252879754,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9466666666666667,
+      "width": 0.13780024600520693,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9506666666666667,
+      "width": 0.1643240856470891,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9486666666666667,
+      "width": 0.27319889870939845,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.944,
+      "width": 0.13779280716696238,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.7,
+      0.9,
+      0.8
+     ],
+     [
+      0.5,
+      0.7,
+      0.6
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.8714859437751005,
+     "tnr": 0.738095238095238,
+     "real_pass_rate": 0.664
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9466666666666667,
+      "width": 0.2715009810498345,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9533333333333334,
+      "width": 0.13846953902763945,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9593333333333334,
+      "width": 0.1654838834903408,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9486666666666667,
+      "width": 0.2733295844545475,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9486666666666667,
+      "width": 0.1383794789732443,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.951530612244898,
+     "tnr": 0.8128491620111733,
+     "real_pass_rate": 0.5226666666666666
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.964,
+      "width": 0.3065825457915681,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9646666666666667,
+      "width": 0.20616583922448387,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.974,
+      "width": 0.245478252764426,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9613333333333334,
+      "width": 0.30769709232301434,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9646666666666667,
+      "width": 0.20507547627663722,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.951530612244898,
+     "tnr": 0.8128491620111733,
+     "real_pass_rate": 0.5226666666666666
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.946,
+      "width": 0.26366061767043847,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9733333333333334,
+      "width": 0.16776741051690328,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.968,
+      "width": 0.2012445987793885,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9526666666666667,
+      "width": 0.2638197699479995,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.97,
+      "width": 0.1667958343280191,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.951530612244898,
+     "tnr": 0.8128491620111733,
+     "real_pass_rate": 0.5226666666666666
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9493333333333334,
+      "width": 0.2188205088975923,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9813333333333333,
+      "width": 0.1294893031210431,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9586666666666667,
+      "width": 0.15841752556312869,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.948,
+      "width": 0.21869977461159695,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9786666666666667,
+      "width": 0.1291730782361361,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.951530612244898,
+     "tnr": 0.8128491620111733,
+     "real_pass_rate": 0.5226666666666666
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.962,
+      "width": 0.20459622296166946,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9673333333333334,
+      "width": 0.11906003804149683,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9666666666666667,
+      "width": 0.14665954208918633,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.962,
+      "width": 0.20473478676915105,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9633333333333334,
+      "width": 0.11875889190378307,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.5,
+      0.8,
+      0.95
+     ],
+     [
+      0.9,
+      0.95,
+      0.6
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.951530612244898,
+     "tnr": 0.8128491620111733,
+     "real_pass_rate": 0.5226666666666666
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.962,
+      "width": 0.2095089649556733,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.97,
+      "width": 0.11774064879903633,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9693333333333334,
+      "width": 0.15024409114863274,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9606666666666667,
+      "width": 0.2100414141130996,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.964,
+      "width": 0.11766250932508825,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.9614093959731544,
+     "tnr": 0.5649350649350648,
+     "real_pass_rate": 0.7946666666666666
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9593333333333334,
+      "width": 0.4683646888397941,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9486666666666667,
+      "width": 0.07466657170485747,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9726666666666667,
+      "width": 0.25180101441845615,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9553333333333334,
+      "width": 0.4725767437018257,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9453333333333334,
+      "width": 0.07455966617149495,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.9614093959731544,
+     "tnr": 0.5649350649350648,
+     "real_pass_rate": 0.7946666666666666
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9593333333333334,
+      "width": 0.43175634873955376,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.962,
+      "width": 0.07155250737820179,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9753333333333334,
+      "width": 0.2082376687135098,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9546666666666667,
+      "width": 0.4325310150725304,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9626666666666667,
+      "width": 0.07161223457768676,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.9614093959731544,
+     "tnr": 0.5649350649350648,
+     "real_pass_rate": 0.7946666666666666
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.95,
+      "width": 0.38585182324369655,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9593333333333334,
+      "width": 0.07026306400257218,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.974,
+      "width": 0.16903920729584576,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.95,
+      "width": 0.388025690651684,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9593333333333334,
+      "width": 0.07039471922496537,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.9614093959731544,
+     "tnr": 0.5649350649350648,
+     "real_pass_rate": 0.7946666666666666
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.942,
+      "width": 0.35498548351488085,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9726666666666667,
+      "width": 0.06936951613526475,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.962,
+      "width": 0.1432715226549998,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.938,
+      "width": 0.3567022413164468,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.974,
+      "width": 0.06946813755565633,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.9,
+      0.95,
+      0.95
+     ],
+     [
+      0.7,
+      0.6,
+      0.6
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.9614093959731544,
+     "tnr": 0.5649350649350648,
+     "real_pass_rate": 0.7946666666666666
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9506666666666667,
+      "width": 0.35432708946176594,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9606666666666667,
+      "width": 0.0690542560500257,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9666666666666667,
+      "width": 0.14391875696314058,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9473333333333334,
+      "width": 0.3560174693925343,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9593333333333334,
+      "width": 0.06908936790281335,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ]
+    ],
+    "marks": [
+     10
+    ],
+    "truth": {
+     "tpr": 0.9113924050632911,
+     "tnr": 0.606973058637084,
+     "real_pass_rate": 0.5793333333333334
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9586666666666667,
+      "width": 0.37757908441562743,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9553333333333334,
+      "width": 0.18768563145610276,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9646666666666667,
+      "width": 0.29953934197845233,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9566666666666667,
+      "width": 0.37711750636826985,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9606666666666667,
+      "width": 0.18548459413445298,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ]
+    ],
+    "marks": [
+     15
+    ],
+    "truth": {
+     "tpr": 0.9113924050632911,
+     "tnr": 0.606973058637084,
+     "real_pass_rate": 0.5793333333333334
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9473333333333334,
+      "width": 0.33063177586350695,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9626666666666667,
+      "width": 0.16038237312267684,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.962,
+      "width": 0.25548243401756643,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.952,
+      "width": 0.3317718044832364,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9566666666666667,
+      "width": 0.15991174904303973,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ]
+    ],
+    "marks": [
+     25
+    ],
+    "truth": {
+     "tpr": 0.9113924050632911,
+     "tnr": 0.606973058637084,
+     "real_pass_rate": 0.5793333333333334
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9586666666666667,
+      "width": 0.28310664756311105,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.956,
+      "width": 0.14505972880490597,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9453333333333334,
+      "width": 0.2139874533105809,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.9566666666666667,
+      "width": 0.28389345805040983,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9573333333333334,
+      "width": 0.1448224615244284,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ]
+    ],
+    "marks": [
+     40
+    ],
+    "truth": {
+     "tpr": 0.9113924050632911,
+     "tnr": 0.606973058637084,
+     "real_pass_rate": 0.5793333333333334
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.956,
+      "width": 0.24697432536857006,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9646666666666667,
+      "width": 0.142279881023927,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.962,
+      "width": 0.18615769095049398,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.956,
+      "width": 0.24836704037387222,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.9653333333333334,
+      "width": 0.14169253552888844,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "shape": [
+     60,
+     15
+    ],
+    "judge": [
+     [
+      0.7,
+      0.8,
+      0.8
+     ],
+     [
+      0.7,
+      0.6,
+      0.95
+     ]
+    ],
+    "marks": [
+     40,
+     10
+    ],
+    "truth": {
+     "tpr": 0.9113924050632911,
+     "tnr": 0.606973058637084,
+     "real_pass_rate": 0.5793333333333334
+    },
+    "ranges": {
+     "general/tnr": {
+      "coverage": 0.9633333333333334,
+      "width": 0.24652615972345238,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "general/tpr": {
+      "coverage": 0.9546666666666667,
+      "width": 0.14210934707310036,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/real_pass_rate": {
+      "coverage": 0.9626666666666667,
+      "width": 0.18646681841116367,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 0.962,
+      "width": 0.24781071796049953,
+      "checked": 1500,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 0.956,
+      "width": 0.14163471433396724,
+      "checked": 1500,
+      "unknown": 0
+     }
+    }
+   }
+  ]
+ }
 }
