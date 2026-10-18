@@ -94,7 +94,7 @@ RESULT = {
     "worse": "Result: worse. Keep the old rule.",
 }
 # A judge judgekeeper can't ask (can_test): the same words on every run and in report.html
-CANT_ASK = "judgekeeper can't ask this judge itself."
+CANT_ASK = "judgekeeper can't re-run this kind of judge itself."
 NEXT_CANT_ASK = ("change its rule where your eval keeps it, run your eval, then run "
                  "`{command}`.")
 

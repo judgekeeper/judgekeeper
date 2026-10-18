@@ -612,9 +612,9 @@ def test_fix_it_is_only_for_a_judge_that_needs_work():
     part = _part(html, '<section class="fix band" aria-labelledby="fix-h">')
     fix = program("fix")
     assert '<h2 id="fix-h">Fix it</h2>' in part
-    assert (f"<p>In your project folder, open a terminal and run <code>{fix}</code>. It saves "
-            "the clues and tells you where to write a better rule. Then run "
-            f"<code>{fix}</code> again to test it.</p>") in part
+    assert (f"<p>In your project folder, run <code>{fix}</code>. It lists the answers your "
+            "judge got wrong, saves them in .judgekeeper/fix/ and tells you where to write a "
+            f"better rule. Then run <code>{fix}</code> again to test it.</p>") in part
     assert (f'<div class="cmd"><code id="fix-cmd">{fix}</code><button type="button" '
             'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div>') in part
     for counts in (GATE, CHECK, TOO_EARLY, TOO_FEW):

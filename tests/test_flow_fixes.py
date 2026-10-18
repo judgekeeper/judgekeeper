@@ -295,7 +295,7 @@ def test_after_a_check_the_result_and_fix_are_about_the_new_judge(here, capsys, 
 
 # 6. fix for a judge it can't ask -------------------------------------------------------------
 
-CANT_ASK = "judgekeeper can't ask this judge itself."
+CANT_ASK = "judgekeeper can't re-run this kind of judge itself."
 NEXT_CANT_ASK = ("Next: change its rule where your eval keeps it, run your eval, then run "
                  "`judgekeeper check`.")
 
@@ -325,8 +325,10 @@ def test_the_report_says_the_same_for_a_judge_it_cant_ask(here, capsys):
     _table_needs_work(here, capsys)
     report = flat((here / ".judgekeeper" / "report.html").read_text(encoding="utf-8"))
     assert "again to test it" not in report
-    assert ("judgekeeper can&#x27;t ask this judge itself. Change its rule where your eval "
-            "keeps it, run your eval, then run <code>judgekeeper check</code>.") in report
+    assert ("In your project folder, run <code>judgekeeper fix</code>. It lists the answers your "
+            "judge got wrong and saves them in .judgekeeper/fix/. judgekeeper can&#x27;t re-run "
+            "this kind of judge itself, so change its rule where your eval keeps it, run your "
+            "eval, then run <code>judgekeeper check</code>.") in report
 
 
 # 7 to 9. The folder and the page -------------------------------------------------------------

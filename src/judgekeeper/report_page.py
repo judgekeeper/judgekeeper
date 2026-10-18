@@ -30,7 +30,7 @@ import json
 from html import escape
 
 from judgekeeper import batches, look, reasons, targets
-from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS
+from judgekeeper.start_label import EARLY, FOLDER, GOOD, MARK_MORE, NEEDS
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
 KAPPA_MEANS = ("Kappa is agreement beyond coincidence. 0 means no better than coincidence, 1 "
@@ -627,17 +627,18 @@ def _fix(r: dict) -> str:
     fix = _e(commands(r)["fix"])
     judge = r.get("judge") or {}
     rule = judge.get("rule") if judge.get("one_rule", True) else None
+    saved = f"{FOLDER}/fix/"
     if judge.get("tool") is None or can_test(judge.get("tool"), rule):
-        then = ("the clues and tells you where to write a better rule. Then run "
-                f"<code>{fix}</code> again to test it.")
+        then = (f"It lists the answers your judge got wrong, saves them in {saved} and tells you "
+                f"where to write a better rule. Then run <code>{fix}</code> again to test it.")
     else:
         check = NEXT_CANT_ASK.format(command=commands(r)["check"]).split("`")
-        then = (f"the clues. {_e(CANT_ASK)} {_e(check[0][:1].upper() + check[0][1:])}"
+        then = (f"It lists the answers your judge got wrong and saves them in {saved}. "
+                f"{_e(CANT_ASK.removesuffix('.'))}, so {_e(check[0])}"
                 f"<code>{_e(check[1])}</code>{_e(check[2])}")
     return ('<section class="fix band" aria-labelledby="fix-h"><div class="fix-in">'
             '<h2 id="fix-h">Fix it</h2>'
-            f"<p>In your project folder, open a terminal and run <code>{fix}</code>. It saves "
-            f"{then}</p>"
+            f"<p>In your project folder, run <code>{fix}</code>. {then}</p>"
             f'<div class="cmd"><code id="fix-cmd">{fix}</code><button type="button" '
             'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div></div></section>')
 
