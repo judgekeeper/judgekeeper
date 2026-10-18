@@ -899,9 +899,10 @@ def _no_change(state: State) -> str:
 
 
 # How many changes the marks have helped pick -------------------------------------------------
-# A pick: a `fix` test on these marks, or a check of a rule or pass-mark change (a change made
-# by looking at the marks). A model change or a tool update is not one. After PICKS_ASK picks,
-# until PICK_MARKS marks are made after the last one, the marks may flatter the judge.
+# A pick: a `fix` test on these marks, or a check of a rule or pass-mark change `fix` tested
+# (a change made by looking at the marks). A model change, a tool update, or a rule or pass mark
+# changed without `fix` is not one. After PICKS_ASK picks, until PICK_MARKS marks are made after
+# the last one, the marks may flatter the judge.
 
 PICKS_ASK = 3
 PICK_MARKS = 10
@@ -909,16 +910,33 @@ NEXT_NEW_MARKS = "run `{mark}` to mark {n} new answers, then run `{command}` aga
 
 
 def is_pick(line: dict) -> bool:
-    """Whether a history.jsonl line is a pick (above)."""
+    """Whether a history.jsonl line is a pick (above). A check line from before `from_fix` was
+    kept counts its rule or pass-mark change."""
     if line.get("kind") == "fix":
         return True
     changed = line.get("changed") or []
-    return line.get("kind") == "check" and any(
+    return line.get("kind") == "check" and line.get("from_fix", True) is not False and any(
         c == "rule changed" or str(c).startswith("pass mark") for c in changed)
 
 
 def rule_changed(changed: list[str]) -> bool:
     return is_pick({"kind": "check", "changed": changed})
+
+
+def from_fix(ws: Workspace, old: dict, new: dict) -> bool:
+    """Whether the change from `old` to `new` brings in a rule or a pass mark `fix` tested on
+    these marks: one written by looking at them."""
+    from judgekeeper import fix
+
+    rule = new.get("rule_hash")
+    if rule != old.get("rule_hash") and rule in {
+            x.get("rule_hash") for x in _history_all(ws) if x.get("kind") == "fix"}:
+        return True
+    split = fix.read_split(ws)
+    mark = (new.get("pass_mark") or {}).get("mark")
+    return (mark != (old.get("pass_mark") or {}).get("mark") and split is not None
+            and any(t.get("kind") == "pass mark" and t.get("new") == mark
+                    for t in split.tests))
 
 
 def picks(ws: Workspace, now: bool = False) -> dict:
@@ -1192,8 +1210,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     old_verdicts = _old_verdicts(state, old)
     picked, pool = _picks(state)
     g = groups(state.marks, old_verdicts, tested, picked, pool)
-    fresh = (_made_after(state, _first_seen(state, old, new), tested)
-             if rule_changed(changed) else None)
+    pick = rule_changed(changed) and from_fix(state.ws, old, new)
+    fresh = _made_after(state, _first_seen(state, old, new), tested) if pick else None
     kinds = list(fresh.values()) if fresh is not None else []
     if min(kinds.count("pass"), kinds.count("fail")) >= AFTER_HEADLINE:
         g = groups(fresh, old_verdicts, tested, picked, pool)  # the headline now
@@ -1229,7 +1247,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
                                  g["failed"]["old"])
     worse = [k for k in ("failed", "passed") if g[k]["verdict"] == "worse"]
     unsure = [k for k in ("failed", "passed") if g[k]["verdict"] == "not_sure"]
-    picked = picks(state.ws, now=rule_changed(changed)  # a pick, unless checked before
+    picked = picks(state.ws, now=pick  # a pick, unless checked before
                    and not _checked_before(state, old, new))
     every = every_marked(state.ws)
     for line in picks_lines(picked, every):
@@ -1256,7 +1274,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         "changed": changed or [f"grades changed on {_n(grades, 'marked answer')}"],
         "marks": total, "free": len(free), "asked": len(asked.verdicts),
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": g,
-        "smallest_drop": drop, "flipped": flipped,
+        "smallest_drop": drop, "flipped": flipped, "from_fix": pick,
         "made_after_change": None if fresh is None else len(fresh)})
     if not _same_as_last(state, line):
         marks.append(state.ws.history_jsonl, line)

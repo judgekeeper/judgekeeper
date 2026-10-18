@@ -227,9 +227,10 @@ def test_check_after_three_picks_with_every_answer_marked(here, capsys):
     from tests.test_check import MARKED, _marked, _results
 
     ws = _marked(here)
-    for kind in ("fix", "fix", "check"):
+    for kind in ("fix", "check"):
         _pick(ws, kind)
-    _results(here, MARKED, rubric="Is polite, correct and short.")  # a rule change: a pick
+    _results(here, MARKED, rubric="Is polite, correct and short.")
+    _tested_by_fix(here, ws)  # a rule fix tested (a pick), and its check (another)
     code = main(["check"])
     out = _flat(capsys.readouterr().out)
     assert "These marks have helped pick 4 changes, so they may now flatter your judge." in out
@@ -274,11 +275,22 @@ NONE_YET = "On marks made after this change: none."  # every answer is marked: n
 
 
 def _rule_change(here, lenient: bool = True):
+    """A rule change `fix` tested (written by looking at the marks)."""
     from tests.test_check import LENIENT, MARKED, _marked, _results
 
     ws = _marked(here)
     _results(here, LENIENT if lenient else MARKED, rubric="Is polite, correct and short.")
+    _tested_by_fix(here, ws)
     return ws
+
+
+def _tested_by_fix(root, ws) -> None:
+    """`fix` tested the rule in the newest results: a history line, as fix writes it."""
+    from judgekeeper import judge_setup, marks, start
+    from judgekeeper.fingerprint import utc_now
+
+    rule = judge_setup.of(start.find_judge(root))["rule_hash"]
+    marks.append(ws.history_jsonl, {"time": utc_now(), "kind": "fix", "rule_hash": rule})
 
 
 def _backdate(ws, before: int) -> None:
@@ -359,7 +371,7 @@ def test_checking_the_same_change_again_is_not_another_pick(here, capsys):
     main(["check"])  # worse: the change stays open
     main(["check"])
     capsys.readouterr()
-    assert check.picks(Workspace(here))["n"] == 1
+    assert check.picks(Workspace(here))["n"] == 2  # the fix test, and one check of it
 
 
 # The person's own slips ----------------------------------------------------------------------

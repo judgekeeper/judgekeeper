@@ -655,3 +655,44 @@ def test_fix_with_no_results_says_so_first(here, capsys):
     assert f"No eval results found in this folder ({here.name})." in flat, flat
     assert "marked enough" not in flat and "`judgekeeper mark`" not in flat
     assert flat.endswith("Next: run your eval once from this folder, then run `judgekeeper`.")
+
+
+@pytest.mark.usefixtures("no_calls")
+def test_a_pass_mark_change_made_without_fix_is_no_pick(here, capsys):
+    from judgekeeper import judge_setup, start
+    from judgekeeper.start_label import StartSession
+    from tests.start_projects import deepeval_data, deepeval_project
+    from tests.test_check import TAG, _write
+    from tests.test_check import run as check
+
+    deepeval_project(here, split(25, 25), tag=TAG)
+    (here / "requirements.txt").write_text("deepeval==4.2.8\n", encoding="utf-8")
+    found = start.find_judge(here)
+    judge_setup.save(Workspace(here), judge_setup.of(found))
+    ws = start_label.prepare(found, say=lambda line="": None)
+    session = StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"]})
+    data = deepeval_data(split(25, 25), tag=TAG)
+    for case in data["testCases"]:
+        case["metricsData"][0]["threshold"] = 0.7
+    _write(here / ".deepeval" / ".latest_run_full.json", data)
+    _, out = check(capsys)
+    flat = " ".join(out.split())
+    assert "Your judge changed: pass mark 0.5 -> 0.7." in flat, out
+    assert "helped pick" not in flat
+    assert "you looked at to write this rule" not in flat
+
+
+@pytest.mark.usefixtures("no_calls")
+def test_a_rule_change_made_without_fix_is_no_pick(here, capsys):
+    from tests.test_check import MARKED, _marked, _results
+    from tests.test_check import run as check
+
+    _marked(here)
+    _results(here, MARKED, rubric="Is polite, correct and short.")
+    _, out = check(capsys)
+    flat = " ".join(out.split())
+    assert "Your judge changed: rule changed." in flat, out
+    assert "helped pick" not in flat
+    assert "you looked at to write this rule" not in flat
