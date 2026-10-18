@@ -58,7 +58,7 @@ PICKS = 10  # ports tried when one judgekeeper picked is taken before the page b
 SLOW_BROWSER = 10  # seconds: a browser that took longer to open may not have shown the page
 _clock = time.monotonic
 ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
-OPENING = "opening"  # in .judgekeeper/ while a run opens the page
+OPENING = "opening"  # in .judgekeeper/ while a run prepares the pool or opens the page
 OPENING_NOW = "judgekeeper is already opening the marking page for this folder."
 _PORT_FLAG = re.compile(r" --port \d+")
 
@@ -167,7 +167,7 @@ def open_new(ws: Workspace, port: int, command: str, start_command: str,
     is taken, choose_port; `say` says why): in the background, or served by this process
     (`here`, for --wait). When a port judgekeeper picked is taken before the page binds it
     (another run), the next free one, up to PICKS tries. None when it could not start."""
-    with _opening(ws.dir, say):
+    with one_at_a_time(ws.dir, say):
         old = live_lock(ws.dir)
         token = old["token"] if old else secrets.token_urlsafe(32)
         if (old is not None and not here
@@ -205,9 +205,11 @@ def open_new(ws: Workspace, port: int, command: str, start_command: str,
 
 
 @contextmanager
-def _opening(folder: Path, say):
-    """While this run opens the project's page: .judgekeeper/opening. Another run that is
-    opening it is said and waited for (an older mark, left by a run that stopped, is not)."""
+def one_at_a_time(folder: Path, say):
+    """While this run prepares the project's pool or opens its page: .judgekeeper/opening.
+    Another run that is doing so is said and waited for (an older mark, left by a run that
+    stopped, is not). Two runs at once never write the pool twice, and neither reads a file
+    the other is replacing (Windows refuses that)."""
     path = Path(folder) / OPENING
     wait = 2 * background.WAIT
     said, made = False, False

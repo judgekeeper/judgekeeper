@@ -1054,7 +1054,9 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     from judgekeeper import check
 
     if not ws.start.is_file():
-        start_label.prepare(found, say=lambda line: None)
+        with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the pool
+            if not ws.start.is_file():
+                start_label.prepare(found, say=lambda line: None)
     start_label.repair(ws)  # a result whose saving was stopped half way
     head = []
     back = None if first else check.back_to_marked(ws, found)  # the judge the marks were made on

@@ -1027,3 +1027,22 @@ def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_brow
         assert ".latest_run_full.json is damaged: its only row has a damaged field." in err
         assert out.splitlines()[2:4] == ["Step 1 of 5: Find", ""], out
 
+# Two runs at once: one prepares the pool at a time, as one opens the page ----------------------
+
+def test_the_pool_is_prepared_while_the_opening_mark_is_held(here, capsys, no_browser,
+                                                             monkeypatch):
+    """A second run waits on .judgekeeper/opening while the first writes the pool, so neither
+    reads a file the other is replacing (Windows refuses that) and both get one pool."""
+    from judgekeeper import page
+
+    real, held = start_label.prepare, []
+
+    def prepare(found, say, ws=None):
+        held.append((Workspace(found.root).dir / page.OPENING).is_file())
+        return real(found, say, ws)
+
+    monkeypatch.setattr(start_label, "prepare", prepare)
+    promptfoo_project(here, split(20, 16))
+    code, out, _ = run(capsys, "mark")
+    assert code == 0, out
+    assert held == [True]
