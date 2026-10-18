@@ -13,7 +13,9 @@ from pathlib import Path
 import pytest
 
 from judgekeeper import marks, start_label
+from judgekeeper.start_label import Workspace
 from tests.start_projects import promptfoo_project, split
+from tests.test_check import HAIKU, no_calls  # noqa: F401
 from tests.test_front import run
 from tests.test_loop import _click, _flat, _post_marks
 
@@ -131,3 +133,54 @@ def test_debug_prints_where_never_the_answer(here, capsys, monkeypatch):
     assert "Traceback" in err and "_store_fails" in err and "line " in err
     assert "sqlite3.OperationalError" in err and "RuntimeError" in err
     assert err.splitlines()[-1] == f"Next: {REPORT}"
+
+
+# 3. A "Not sure" stays open, as a "Worse" does ------------------------------------------------
+
+OLD = [i % 30 < 19 if i < 30 else i % 30 >= 19 for i in range(60)]  # the old judge's Pass
+
+
+def _n03(root) -> Workspace:
+    """N03: the person passes 30 answers and fails 30; the old judge agreed on 19 of each. The
+    new judge (another model) flips every grade."""
+    from judgekeeper import judge_setup, start
+    from tests.test_check import _results
+    from tests.test_flow_fixes import _mark
+
+    old = OLD
+    person = [i < 30 for i in range(60)]
+    (root / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    _results(root, old)
+    found = start.find_judge(root)
+    ws = Workspace(root)
+    judge_setup.save(ws, judge_setup.of(found), found.metric)
+    ws = start_label.prepare(found, say=lambda line="": None)
+    _mark(ws, {i: "pass" if person[i] else "fail" for i in range(60)})
+    _results(root, [not v for v in old], model=HAIKU)
+    return ws
+
+
+NOT_SURE = ("Not sure: 19 went from right to wrong, and 11 from wrong to right. It could be up "
+            "to 52 points worse.")
+
+
+@pytest.mark.usefixtures("no_calls")
+def test_a_not_sure_check_says_it_again(here, capsys):
+    from judgekeeper import judge_setup
+    from tests.test_check import _flat, _history, _next, _results
+    from tests.test_check import run as check
+
+    ws = _n03(here)
+    before = judge_setup.read(ws)["setup_hash"]
+    code, out = check(capsys)
+    assert code == 1 and NOT_SURE in _flat(out), out
+    assert judge_setup.read(ws)["setup_hash"] == before  # the old judge stays the reference
+    code, out = check(capsys)
+    assert code == 1, out
+    assert NOT_SURE in _flat(out)
+    assert "has not changed" not in out
+    assert "mark" not in _next(out).split("--new")[0].replace("marked", "")  # every one marked
+    assert len(_history(ws)) == 1
+    _results(here, OLD)  # back to the judge the marks were made on
+    code, out = check(capsys)
+    assert code == 0 and "Your judge is back to the one you marked with" in _flat(out)

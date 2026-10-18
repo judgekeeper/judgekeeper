@@ -26,10 +26,11 @@ For a changed setup:
    are re-weighted by the groups the marks were picked from, so the old one is the report's;
 4. the lines below, a `history.jsonl` line (no answer text), the new verdicts in
    `verdicts/<hash>.jsonl` (ids and verdicts only, under a header with the setup and the
-   judge's fingerprint), and judge.json moves to the new setup. Unless it is "Worse", the
-   marks then test the new judge: start.json and pool-judge.jsonl take its grades (_adopt),
-   so the result and `fix` are about it. When no answer could be tested, nothing is saved:
-   the check stays pending.
+   judge's fingerprint), and judge.json moves to the new setup. Unless it is "Worse" or "Not
+   sure", the marks then test the new judge: start.json and pool-judge.jsonl take its grades
+   (_adopt), so the result and `fix` are about it. A "Worse" or "Not sure" stays open: the
+   next check of the same judge says it again, until the judge changes or more marks are
+   re-checked. When no answer could be tested, nothing is saved: the check stays pending.
 
 A setup counts as changed too when its judge's results hold no rule (a table) and its grades
 on marked answers differ in the newest results (grades_changed), and the last check's change
@@ -1253,14 +1254,15 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         "made_after_change": None if fresh is None else len(fresh)})
     if not _same_as_last(state, line):
         marks.append(state.ws.history_jsonl, line)
-    if not worse or judge_setup.hash_of(old) != judge_setup.hash_of(new):
+    held = bool(worse or unsure)  # open: the next check says it again
+    if not held or judge_setup.hash_of(old) != judge_setup.hash_of(new):
         _save_verdicts(state.ws, new, found, tested)  # a "Worse" of the same setup (a table's
         # new grades) keeps the old grades: the next check says worse again
-    if not worse:  # after "Worse" the old judge stays the reference until it comes back
+    if not held:  # after "Worse" the old judge stays the reference until it comes back
         judge_setup.save(state.ws, new, found.metric)
         _adopt(state.ws, found, tested)
         _refresh_mistakes(state.ws)
-    _report(state.ws, adopted=not worse,
+    _report(state.ws, adopted=not held,
             worse=worse_step(old, new, _command(state)) if worse else None)
     return EXIT_WORSE if exit_worse else EXIT_OK
 
