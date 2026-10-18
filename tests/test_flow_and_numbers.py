@@ -516,3 +516,146 @@ def test_a_result_saved_before_its_report_and_history_is_repaired(here, capsys):
     assert [x["marks"] for x in _result_lines(ws)] == [40, 60]
     assert ws.report_html.read_text(encoding="utf-8") != old_report
     assert _counts_in_report(here) == (30, 30)
+
+
+# 7. Counts and words that agree --------------------------------------------------------------
+
+def _all_marked_promptfoo(root, capsys, rule=RULE_A, n=40):
+    (root / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    _rubric(root, split(n // 2, n // 2), rule)
+    assert _jk(capsys)[0] == 0
+    _mark(Workspace(root), {i: "fail" for i in range(8)} | {i: "pass" for i in range(20, 24)})
+    _jk(capsys)
+    return Workspace(root)
+
+
+def test_a_partial_eval_says_how_many_marked_answers_it_holds(here, capsys, no_calls):
+    _all_marked_promptfoo(here, capsys)
+    _rubric(here, split(20, 20), RULE_B, only=range(10))  # the eval on 10 questions only
+    _, out = _check(capsys)
+    assert "Your newest results hold 10 of your 40 marked answers." in flat(out), out
+    assert "don't contain the answers you marked" not in out
+    assert "Re-checked on 10 of your 40 marks:" in out
+    _rubric(here, split(20, 20), RULE_B)  # then the whole eval
+    _, out = _check(capsys)
+    assert "You added" not in out, out  # no mark was made since
+    assert "Re-checked on all 40 of your marks:" in out
+
+
+def test_marks_really_added_since_a_check_are_counted(here, capsys, no_calls):
+    import time
+
+    from judgekeeper.start_label import StartSession as Session
+
+    (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    _rubric(here, split(25, 25), RULE_A)
+    assert _jk(capsys)[0] == 0
+    ws = Workspace(here)
+    session = Session(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    for item in session.items[:40]:
+        session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 6})
+    _rubric(here, split(25, 25), RULE_B)
+    assert "Re-checked on all 40 of your marks:" in _check(capsys)[1]
+    time.sleep(1.1)  # marks are stamped to the second
+    session = Session(ws)
+    for item in session.items[40:]:
+        session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 6})
+    out = _check(capsys)[1]
+    assert "You added 10 marks since your last check." in out, out
+
+
+@pytest.fixture
+def no_calls(monkeypatch):
+    monkeypatch.setattr(again, "run_process", lambda *a, **k: pytest.fail("the judge was asked"))
+
+
+def test_after_an_adopted_rule_the_judge_is_not_called_the_same(here, capsys, no_calls):
+    ws = _all_marked_promptfoo(here, capsys)
+    _jk(capsys, "fix")
+    _rubric(here, split(20, 20), RULE_B)
+    assert _check(capsys)[0] == 0
+    mistakes = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    assert RULE_B in mistakes and RULE_A not in mistakes
+    _rubric(here, split(20, 20), RULE_B, name="results-2.json")  # the eval ran again
+    out = _jk(capsys)[1]
+    assert "Your judge is the same" not in out, out
+    assert ("Your eval ran again. Your judge is the one your last check re-tested, so your marks "
+            "still test it.") in flat(out)
+
+
+def test_one_rule_is_one_rule():
+    from judgekeeper import fix
+
+    split_ = fix.Split(seed=1, seen=[], hidden=[], tests=[
+        {"kind": "rule", "rule_hash": "sha256:a"}], fresh={"want": 10})
+    said = []
+    talk = SimpleNamespace(para=said.append, next=said.append, command=lambda: "judgekeeper fix")
+    fix._waiting(talk, SimpleNamespace(data=dict), split_)
+    assert said[0].startswith("You have tested 1 rule on these marks kept aside.")
+
+
+def test_fix_with_a_rule_it_tested_shows_that_result(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    holder = _fake_fix_judge(tmp_path, monkeypatch)
+    _fix_ready(tmp_path, capsys)
+    code, first = _jk(capsys, "fix", "--yes")
+    assert code == 0 and holder["evals"] == 2, first
+    result = next(line for line in first.splitlines() if line.startswith("Result:"))
+    code, out = _jk(capsys, "fix")
+    assert code == 0, out
+    assert holder["evals"] == 2  # never tested again
+    assert "You tested this rule before" in out and "write your new rule" not in out
+    assert result in out
+    assert _next(first) == _next(out)
+
+
+def _fake_fix_judge(root, monkeypatch):
+    """The fake promptfoo of test_fix, counting its evals."""
+    from tests.test_fix import NEW_RULE, N, _person
+
+    project_promptfoo(root)
+    for name in keys.all_names():
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
+    monkeypatch.setattr(again, "which", lambda name: None)
+    holder = {"evals": 0}
+
+    def runner(argv, cwd, env=None, timeout=None):
+        if "fake" not in holder:
+            holder["fake"] = FakePromptfoo(Workspace(root), version="0.124.1")
+        fake = holder["fake"]
+        if "eval" in argv:
+            holder["evals"] += 1
+            config = json.loads((Path(cwd) / argv[argv.index("-c") + 1]).read_text("utf-8"))
+            tests = json.loads((Path(cwd) / config["tests"].removeprefix("file://"))
+                               .read_text("utf-8"))
+            fake.flips = {(t["description"], 0) for t in tests
+                          if t["assert"][0]["value"] == NEW_RULE
+                          and fake.saved[t["vars"]["question"]][0] != _person(
+                              t["vars"]["question"], N // 2)}
+        return fake(argv, cwd, env, timeout)
+
+    monkeypatch.setattr(again, "run_process", runner)
+    return holder
+
+
+def test_new_without_a_result_moves_the_marks_not_a_check(here, capsys):
+    from tests.start_projects import promptfoo_project
+
+    promptfoo_project(here, split(28, 12))
+    assert _jk(capsys)[0] == 0
+    _mark(Workspace(here))
+    assert _jk(capsys)[0] == 3  # every answer marked, too few fails: no result
+    _, out = _jk(capsys, "--new", "--yes")
+    assert "Moved your marks to .judgekeeper/previous-" in out, out
+    assert "last check" not in out
+
+
+def test_the_answers_line_counts_only_answers_with_a_grade(here, capsys):
+    from tests.test_reading_fixes import _errored_inspect, _inspect_log
+
+    _inspect_log(here, "2026-10-17_qa.json", _errored_inspect(split(10, 10)))
+    _, out = _jk(capsys, "--metric", "model_graded_qa")
+    assert "Answers:     18 answers with a grade (2 failed before scoring)" in out, out
+    assert "each graded by your judge" not in out

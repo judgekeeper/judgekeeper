@@ -53,7 +53,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from judgekeeper import __version__, find, judge_setup, marks, start, targets, weighted
+from judgekeeper import __version__, again, find, judge_setup, marks, start, targets, weighted
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_value
@@ -470,7 +470,6 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     """Ask the judge in the newest results about the marked answers `ids` (`rest`: the ones
     not found free), once the person said yes to the calls it makes. None without a terminal
     and without --yes: the question is said, nothing is asked."""
-    from judgekeeper import again
     from judgekeeper.again.fresh import NOT_COUNTED, AgainError, write_files
 
     out = Asked()
@@ -945,6 +944,7 @@ def _free(found, marked: dict[str, str]) -> dict[str, str]:
 
 
 GRADES = "Your judge's grades changed on {k} of your marked answers."
+HOLD = "Your newest results hold {k} of your {n}."  # some marked answers, not all
 ADDED = "You added {n} since your last check."
 
 
@@ -966,8 +966,8 @@ def grades_changed(ws: Workspace, found) -> int:
 
 
 def _added_since_check(state: State, new: dict | None) -> tuple[dict | None, list[str]]:
-    """(the judge before the last check, the marks made since it) when that check moved
-    judge.json to `new` and marks were made after it: they were not re-checked."""
+    """(the judge before the last check, the marks it did not re-check) when that check moved
+    judge.json to `new`: marks made after it, or that its results did not hold."""
     if new is None or judge_setup.hash_of(new) != state.saved["setup_hash"]:
         return None, []
     last = next((x for x in reversed(_history(state.ws))
@@ -980,6 +980,16 @@ def _added_since_check(state: State, new: dict | None) -> tuple[dict | None, lis
         return None, []
     tested = _read_verdicts(state.ws, state.saved["setup_hash"])
     return before, [i for i in state.marks if i not in tested]
+
+
+def _made_since_last_check(state: State, ids: list[str]) -> int:
+    """How many of the marks `ids` (not re-checked yet) were added since the last check: the
+    marks there are now, less the ones it counted."""
+    checks = _history(state.ws)
+    if not ids or not checks:
+        return 0
+    before = checks[-1].get("marks")
+    return min(len(ids), max(0, len(state.marks) - before)) if isinstance(before, int) else 0
 
 
 def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
@@ -1078,8 +1088,9 @@ def full(path: str, said: Said, yes: bool = False) -> int:
 
     said.say(_change_line(old, new, changed, full=True) if changed
              else GRADES.format(k=grades))
-    if added:
-        said.say(ADDED.format(n=_n(len(added), "mark")))
+    new_marks = _made_since_last_check(state, added)
+    if new_marks:  # only marks really made since; the others the last check could not test
+        said.say(ADDED.format(n=_n(new_marks, "mark")))
     tested = _tested_rule(state, found) if found is not None and old.get("rule_hash") != \
         new.get("rule_hash") else None
     if tested:
@@ -1121,6 +1132,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     if free and not asked.verdicts and not cached:
         said.say("Re-checked with no AI call, from your new results.")
     for line in asked.reasons:
+        if free and asked.not_marked and line == again.NOT_MARKED_PLAIN:
+            line = HOLD.format(k=len(free), n=_n(total, "marked answer"))
         said.say(line)
     said.say()
     on = f"all {total} of your marks" if n == total else f"{n} of your {_n(total, 'mark')}"
@@ -1199,6 +1212,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     if not worse:  # after "Worse" the old judge stays the reference until it comes back
         judge_setup.save(state.ws, new, found.metric)
         _adopt(state.ws, found, tested)
+        _refresh_mistakes(state.ws)
     _report(state.ws, adopted=not worse,
             worse=worse_step(old, new, _command(state)) if worse else None)
     return EXIT_WORSE if exit_worse else EXIT_OK
@@ -1257,6 +1271,16 @@ def _same_as_last(state: State, line: dict) -> bool:
     same = (judge_setup.hash_of(last.get("before") or {}) == judge_setup.hash_of(line["before"])
             and judge_setup.hash_of(last.get("after") or {}) == judge_setup.hash_of(line["after"]))
     return same and last.get("groups") == line["groups"]
+
+
+def _refresh_mistakes(ws: Workspace) -> None:
+    """fix/mistakes.md describes the judge the marks test now (fix.refresh_mistakes)."""
+    from judgekeeper import fix
+
+    try:
+        fix.refresh_mistakes(ws)
+    except (OSError, ValueError, KeyError):
+        pass  # the next `fix` writes it
 
 
 def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> None:

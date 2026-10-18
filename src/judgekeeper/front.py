@@ -108,6 +108,8 @@ OLD_MARKS = (f"{FOLDER}/labels.csv holds marks from an older judgekeeper. They h
              "stamps, so this version does not use them.")
 SCORE_READ = "Read the score column with your pass mark; the verdict column is not used."
 RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
+RAN_AGAIN_CHECKED = ("Your eval ran again. Your judge is the one your last check re-tested, so "
+                     "your marks still test it.")
 JUDGE_CHANGED = "Your judge changed since your marks: {what}."
 STEP = "Step {n} of 5: {name}"
 INDENT = " " * 13  # under the value of "Eval tool:   "
@@ -711,8 +713,13 @@ def found_block(found: start.Found) -> list[str]:
     tool = tool_name(found.tool, [str(found.results[0].rel)])
     graded = ("each graded by your judge" if found.pool.answers or found.pool.unread
               else "none with a clear grade from your judge")
+    unscored = found.check.counts().get(judge_check.NOT_SCORED, 0) if found.check else 0
+    counted = f"{_n(answers, 'answer')}, {graded}"
+    if unscored and found.pool.answers:  # only answers with a grade are said to have one
+        counted = (f"{_n(answers - unscored, 'answer')} with a grade ({unscored} failed before "
+                   "scoring)")
     lines = [f"Eval tool:   {tool}",
-             f"Answers:     {_n(answers, 'answer')}, {graded}",
+             f"Answers:     {counted}",
              f"{INDENT}(read from {_read_from(found)})",
              f"Judge:       {_judge_value(found)}", *_rule_lines(found)]
     if found.pass_mark:
@@ -948,7 +955,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     elif grades:
         head.append(check.GRADES.format(k=grades))
     elif not first and _ran_again(ws, found):
-        head.append(RAN_AGAIN)
+        head.append(RAN_AGAIN_CHECKED if ws.data().get("checked_at") else RAN_AGAIN)
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))
     if every and not enough:  # nothing left to mark, and no result yet

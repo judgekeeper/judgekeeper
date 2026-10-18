@@ -481,6 +481,22 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -
     return scrub("\n".join(parts).rstrip("\n") + "\n")
 
 
+def refresh_mistakes(ws: Workspace) -> None:
+    """mistakes.md again, when there is one: after a check moved the marks to a new judge, its
+    rule and its mistakes are that judge's."""
+    path = _folder(ws) / MISTAKES
+    if not path.is_file():
+        return
+    m = Marks(ws)
+    split = read_split(ws)
+    rows = [m.row(i) for i in (split.seen if split else m.person) if i in m.person]
+    pm = m.data.get("pass_mark")
+    rule = m.data.get("rule") if m.data.get("one_rule", True) else None
+    marks._refuse_links(path)
+    write_replacing(path, mistakes_md(rule, rows, pm["mark"] if pm and pm.get("follows")
+                                      else None))
+
+
 # The pass mark (free) ----------------------------------------------------------------------
 
 VERDICT_WORDS = {"better": "better", "safe": "safe to try"}
@@ -574,6 +590,20 @@ def _rule_quote(rule: str) -> str:
 
 # The run ------------------------------------------------------------------------------------
 
+def _tested_rule(ws: Workspace, split: Split) -> tuple[str, dict] | None:
+    """(the rule in fix/rule.txt, its last test) when it was tested on this set of marks
+    kept aside."""
+    from judgekeeper.fingerprint import rule_hash
+
+    try:
+        text = (_folder(ws) / RULE).read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    tests = [t for t in split.tests if t.get("kind") == "rule"
+             and t.get("rule_hash") == rule_hash(text)] if text else []
+    return (text, tests[-1]) if tests else None
+
+
 def _new_rule(ws: Workspace, split: Split) -> str | None:
     """The rule in fix/rule.txt when it was not tested on this set of hidden marks yet."""
     from judgekeeper.fingerprint import rule_hash
@@ -616,6 +646,9 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
         return _waiting(talk, ws, split)
     if rule is not None:
         return test_rule(talk, ws, m, split, rule, yes)
+    tested = _tested_rule(ws, split) if testable and not new else None
+    if tested is not None:
+        return tested_before(talk, ws, m, *tested)
     return first_run(talk, ws, m, split)
 
 
@@ -635,8 +668,9 @@ def _waiting(talk: Talk, ws: Workspace, split: Split) -> int:
     """New marks are needed first: for the top-up, or for a new set of hidden marks."""
     if split.fresh:
         want, then = split.fresh["want"], ": they become a new set of marks kept aside"
-        talk.para(f"You have tested {len(split.rules())} rules on these marks kept aside. More "
-                  "tests on the same marks would make a coincidence look like a better rule.")
+        talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
+                  "aside. More tests on the same marks would make a coincidence look like a "
+                  "better rule.")
     else:
         want, then = split.topup["want"], ""
     if split.pending:
@@ -790,6 +824,39 @@ def next_test(split: Split) -> int:
     return len(split.tests) + 1
 
 
+def _copy_step(ws: Workspace, m: Marks, talk: Talk) -> str:
+    """The next step after "better" or "safe to try": copy the new rule where the old one is."""
+    old_rule = m.data.get("rule") or ""
+    where = start_fix_rule.found_rule(ws.root, old_rule, m.data.get("tool") or "")
+    place = (f"into {where[0]}, line {where[1]}" if where else
+             f"to where your eval keeps it ({start_fix_rule.field(m.data.get('tool') or '')})")
+    return (f"if you like it, copy the new rule {place}. Then run your eval and "
+            f"`{talk.command('check')}`.")
+
+
+def tested_before(talk: Talk, ws: Workspace, m: Marks, rule: str, test: dict) -> int:
+    """The rule in rule.txt was tested on these marks kept aside: its saved result, never a
+    new test, and the next step that result gave."""
+    from judgekeeper.check import _day
+
+    folder = f"{shown_folder(ws)}/{FOLDER}"
+    talk.say(f"New rule:  {_rule_quote(rule)}")
+    talk.say(f"           (from {folder}/{RULE})")
+    talk.say()
+    day = _day(test.get("time"))
+    talk.para(f"You tested this rule before{f' ({day})' if day else ''}. On the "
+              f"{test.get('n')} marks kept aside it fixed {test.get('fixed')} and broke "
+              f"{test.get('broke')}.")
+    talk.say()
+    talk.para(RESULT.get(test.get("verdict"), ""))
+    if test.get("verdict") in ("better", "safe"):
+        talk.next(_copy_step(ws, m, talk))
+    else:
+        talk.next(f"keep the old rule, or write another rule in {folder}/{RULE} and run "
+                  f"`{talk.command()}` again.")
+    return EXIT_OK
+
+
 def few_mistakes(m: Marks, split: Split) -> str | None:
     """Said before the question when the hidden marks hold fewer than targets.FIX_FEW of the
     judge's mistakes: a test that can then only catch a worse rule. The counts it needs come
@@ -850,12 +917,7 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     h = rule_hash(rule)
     _keep(ws, split, rule, h, v)
     if v.kind in ("better", "safe"):
-        old_rule = m.data.get("rule") or ""
-        where = start_fix_rule.found_rule(ws.root, old_rule, m.data.get("tool") or "")
-        place = (f"into {where[0]}, line {where[1]}" if where else
-                 f"to where your eval keeps it ({start_fix_rule.field(m.data.get('tool') or '')})")
-        talk.next(f"if you like it, copy the new rule {place}. Then run your eval and "
-                  f"`{talk.command('check')}`.")
+        talk.next(_copy_step(ws, m, talk))
         return EXIT_OK
     if v.kind == "leans better" and split.topup is None:
         split.topup = {"want": targets.top_up(v.n), "rule_hash": h, "done": False}
