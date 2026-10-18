@@ -624,6 +624,18 @@ def test_fix_it_is_only_for_a_judge_that_needs_work():
             f"better rule. Then run <code>{fix}</code> again to test it.</p>") in part
     assert (f'<div class="cmd"><code id="fix-cmd">{fix}</code><button type="button" '
             'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div>') in part
+
+
+def test_fix_it_says_what_fix_does_for_a_judge_judgekeeper_cant_ask():
+    """A table of grades: fix can't swap a rule in, so Fix it says what fix does and what to do
+    instead, in the words of the spec (S11)."""
+    html = start_label.result_html(_result(*NOT_GATE_TNR, judge={"tool": "table", "rule": None}))
+    part = _part(html, '<section class="fix band" aria-labelledby="fix-h">')
+    fix, check = program("fix"), program("check")
+    assert (f"<p>In your project folder, run <code>{fix}</code>. It lists the answers your "
+            "judge got wrong and saves them in .judgekeeper/fix/. judgekeeper can't re-run this "
+            "kind of judge itself, so change its rule where your eval keeps it, run your eval, "
+            f"then run <code>{check}</code>.</p>") in unescape(part), part
     for counts in (GATE, CHECK, TOO_EARLY, TOO_FEW):
         assert 'class="fix' not in start_label.result_html(_result(*counts)), counts
 
