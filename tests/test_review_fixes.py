@@ -5,8 +5,8 @@
 - --debug shows where it went wrong, never the error's text; a "Not sure" check stays open;
   fix's top-up after a 3rd rule, its not-counted answers and the missing key; Inspect logs in
   several folders are asked about.
-- The order and the words of what is said, the ports, the page that stops once every answer
-  is marked, Ctrl-C from the first line, damaged files named, an old pre-commit line.
+- The order and the words of what is said, the ports, the page that stays open after the result
+  until it is idle, Ctrl-C from the first line, damaged files named, an old pre-commit line.
 No test calls an AI API.
 """
 
@@ -752,11 +752,12 @@ def test_without_the_token_only_the_folder_name_is_told(here, capsys):
     assert status == 403 and b"Question" not in body
 
 
-# 13. Every answer marked and the result opened: the page stops ---------------------------------
+# 13. Every answer marked and the result opened: the page stays until it is idle ----------------
 
-def test_the_page_stops_once_every_answer_is_marked_and_the_result_is_opened(here, capsys,
-                                                                             no_browser):
-    import time
+def test_the_page_stays_open_after_the_result_with_every_answer_marked(here, capsys,
+                                                                       no_browser):
+    """The result page may still ask the page (reasons), so it stays; 30 minutes without a
+    request close it (label.IDLE_TIMEOUT), and the next run says nothing about it."""
     import urllib.request
 
     from judgekeeper import label
@@ -768,11 +769,13 @@ def test_the_page_stops_once_every_answer_is_marked_and_the_result_is_opened(her
     base, token = no_browser[-1].split("/?token=")
     with urllib.request.urlopen(f"{base}/result?token={token}", timeout=10) as r:
         assert r.status == 200
-    for _ in range(50):
-        if not label.is_open(ws.dir):
-            break
-        time.sleep(0.1)
-    assert not label.is_open(ws.dir)
+    assert label.is_open(ws.dir)
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert "marking page" not in out, out  # nothing left to mark: not a word about the page
+    assert label.is_open(ws.dir)
+    _, out, _ = run(capsys, "--stop")
+    assert "Closed the marking page." in out
     _, out, _ = run(capsys, "--stop")
     assert "No marking page is open." in out
 

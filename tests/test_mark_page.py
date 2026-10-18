@@ -88,7 +88,8 @@ def test_the_page_is_marking_and_result_only(served):
     assert "/review" not in server.page()[0] and "/fix" not in server.page()[0]
 
 
-def test_it_stays_open_after_the_result_until_every_answer_is_marked(ws, served, monkeypatch):
+def test_it_stays_open_after_the_result_also_once_every_answer_is_marked(ws, served,
+                                                                        monkeypatch):
     monkeypatch.setattr(label_mod, "RESULT_WAIT", 0)
     _, thread, client = served
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
@@ -106,8 +107,8 @@ def test_it_stays_open_after_the_result_until_every_answer_is_marked(ws, served,
     assert marks.read(ws.marks).header is not None
     client.label(id=items[-1]["id"], label=groups[items[-1]["id"]], seconds=5)
     assert client.request("GET", "/result")[0].status == 200
-    thread.join(timeout=5)
-    assert not thread.is_alive()  # every answer marked: nothing left for the page
+    thread.join(timeout=0.5)
+    assert thread.is_alive() and client.state()  # the result page may still ask it
 
 
 def test_the_stop_secret_closes_the_page_and_does_nothing_else(ws, served):
