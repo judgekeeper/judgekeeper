@@ -85,6 +85,7 @@ class Plan:
     key_ok: bool = True  # the key the judge needs was found (by name)
     runner: list[str] = field(default_factory=list)  # the command that runs the tool
     download: bool = False  # the runner downloads the tool first (npx)
+    install: str | None = None  # the command that installs the tool, when nothing can run it
     payload: list = field(default_factory=list)  # per asked answer, for the tool's run
     job: dict = field(default_factory=dict)  # the rest of a worker's job for the run
     folder: Path | None = None  # where the run's files go (default: again/<date>/)

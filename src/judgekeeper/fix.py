@@ -688,22 +688,24 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
     code when nothing was asked."""
     from judgekeeper import again
     from judgekeeper.again.fresh import NOT_COUNTED, AgainError
-    from judgekeeper.check import CAN_WRITE, DOWNLOAD, NO_KEY, _can_write, _go_ahead, _Quiet
+    from judgekeeper.check import CAN_WRITE, NO_KEY, _can_write, _go_ahead, _Quiet, downloads
 
     ids = set(split.hidden)
     plans = [again.make_plan(ws, again.AgainOptions(times=1, rule=r), dry=True, only=ids)
              for r in (None, rule)]
-    why = next((p.plain or f"Your judge can't be asked again: {p.why}." for p in plans
-                if p.status == again.CANT), None)
+    cant = next((p for p in plans if p.status == again.CANT), None)
+    why = cant and (cant.plain or f"Your judge can't be asked again: {cant.why}.")
     why = why or (NO_KEY if not all(p.key_ok for p in plans) else None)
-    why = why or next((DOWNLOAD.format(version=p.tool_version) for p in plans if p.download),
-                      None)
     if why:
         talk.para(why)
-        talk.next(f"run `{talk.command()}` again once your judge can be asked here.")
+        if cant is not None and cant.install:
+            talk.next(f"run `{cant.install}` in your project, then run `{talk.command()}` again.")
+        else:
+            talk.next(f"run `{talk.command()}` again once your judge can be asked here.")
         return EXIT_NEEDS_YOU
     calls = sum(p.calls for p in plans)
-    talk.para(ASK.format(n=len(split.hidden), calls=plural(calls, "AI call")))
+    talk.para(ASK.format(n=len(split.hidden), calls=plural(calls, "AI call"))
+              + downloads(plans[0]))
     from judgekeeper import judge_setup
 
     if _can_write((judge_setup.read(ws) or {}).get("setup") or {}):

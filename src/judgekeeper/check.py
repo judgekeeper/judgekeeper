@@ -79,8 +79,9 @@ CONFIG_NEWER = ("Your judge's settings changed after your last eval run, so the 
 SAME = "Same model, same rule, same eval tool."
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
 ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}, twice each. That "
-             "is {calls}, paid with your own key. Asking twice shows how much the judge varies "
-             "by itself.")
+             "is {calls}, paid with your own key.{download} Asking twice shows how much the "
+             "judge varies by itself.")
+DOWNLOADS = " It also downloads promptfoo {version} with npx."  # in the same question
 ASK_TIMES = 2  # a paid re-check asks each answer twice: its own wobble is seen
 WOBBLE = ("Asked twice, your new judge changed its own grade on {k} of your {n}. Differences "
           "that small can come from that alone.")
@@ -100,8 +101,7 @@ SWITCHED = ("Your results now come from {new}, not {old}.",
             "judgekeeper can't compare judges across two eval tools.")
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
 STEP = "Step 5 of 5: Re-check"
-DOWNLOAD = ("Asking your judge would mean downloading promptfoo {version}; judgekeeper "
-            "doesn't download anything by itself.")
+NEXT_INSTALL = "Next: run `{install}` in your project, then run `{command}` again."
 NO_KEY = "The key your judge needs isn't set where judgekeeper runs, so your judge wasn't asked."
 CLOSE = "This was a close copy of your judge, not an exact one: {why}."
 WRONG_MODEL = "judgekeeper asked the wrong model ({used}, not {new}), so this check is not saved."
@@ -413,6 +413,7 @@ class Asked:
     reasons: list[str] = field(default_factory=list)
     close: str | None = None  # why it was a close copy
     not_marked: bool = False  # the newest results hold none of the marked answers
+    install: str | None = None  # the command that installs the judge's tool (Plan.install)
     wobble: tuple[int, int] | None = None  # asked twice: (answers whose grades differ, of)
     wrong_model: tuple[str, str] | None = None  # (a model a call used, the new judge's)
 
@@ -477,16 +478,15 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     if plan.status == again.CANT:
         out.reasons.append(plan.plain or f"Your judge can't be asked again: {plan.why}.")
         out.not_marked = plan.why == again.NOT_MARKED
+        out.install = plan.install
         return out
     if not plan.key_ok:
         out.reasons.append(NO_KEY)
         return out
-    if plan.download:
-        out.reasons.append(DOWNLOAD.format(version=plan.tool_version))
-        return out
     said.say()
     _wrap(said, ASK_FIRST.format(which="the other " if rest else "your ",
-                                 n=_n(len(ids), "marked answer"), calls=_n(plan.calls, "AI call")))
+                                 n=_n(len(ids), "marked answer"), calls=_n(plan.calls, "AI call"),
+                                 download=downloads(plan)))
     if _can_write(setup):
         said.say(CAN_WRITE)
     answer = _go_ahead(yes)
@@ -524,6 +524,12 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
         whys.append(TRACE_WHY)
     out.close = "; ".join(whys) or None
     return out
+
+
+def downloads(plan) -> str:
+    """The sentence the question about the calls adds when running the judge downloads its
+    tool first (npx), else ""."""
+    return DOWNLOADS.format(version=plan.tool_version) if plan.download else ""
 
 
 def _model_name(model: str) -> str:
@@ -1102,8 +1108,10 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         for line in asked.reasons:
             said.say(line)
         said.say()
-        later = NEXT_NOT_MARKED if asked.not_marked else NEXT_LATER
-        said.say(later.format(command=_command(state), new=program("--new")))
+        later = (NEXT_INSTALL if asked.install else NEXT_NOT_MARKED if asked.not_marked
+                 else NEXT_LATER)
+        said.say(later.format(command=_command(state), new=program("--new"),
+                              install=asked.install))
         return EXIT_NEEDS_YOU
 
     n, total = len(tested), len(state.marks)

@@ -244,3 +244,91 @@ def test_the_picks_line_says_it_once_and_never_asks_with_nothing_left():
     assert check.picks_lines(p) == [
         ("These marks have helped pick 3 changes, so they may now flatter your judge. Mark 10 "
          "new answers for a fair check.")]
+
+
+# 3. promptfoo through npx -------------------------------------------------------------------
+
+NPX = "/opt/node/bin/npx"
+
+
+@pytest.fixture
+def npx(monkeypatch, here):
+    """No promptfoo installed; npx is there (`holder["npx"]` False: not there either)."""
+    for name in keys.all_names():
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "y" * 30)
+    holder = {"npx": True, "argv": []}
+    monkeypatch.setattr(again, "which",
+                        lambda name: NPX if name == "npx" and holder["npx"] else None)
+
+    def runner(argv, cwd, env=None, timeout=None):
+        holder["argv"].append(list(argv))
+        if "fake" not in holder:
+            holder["fake"] = FakePromptfoo(Workspace(here), version="0.124.1")
+        return holder["fake"](argv, cwd, env, timeout)
+
+    monkeypatch.setattr(again, "run_process", runner)
+    return holder
+
+
+def _changed_model(root) -> None:
+    from tests.test_check import LENIENT, _new_outputs, _results
+
+    _results(root, LENIENT, model=NEW, outputs=_new_outputs())
+
+
+def test_check_asks_about_the_npx_download_with_the_calls(here, capsys, npx):
+    _marked(here)
+    _changed_model(here)
+    code, out = _check(capsys)
+    assert code == 3, out
+    assert ("That is 100 AI calls, paid with your own key. It also downloads promptfoo 0.124.1 "
+            "with npx.") in flat(out)
+    assert "doesn't download anything" not in out
+    assert npx["argv"] == []
+    code, out = _check(capsys, "--yes")
+    assert code == 1, out
+    evals = [a for a in npx["argv"] if "eval" in a]
+    assert evals and evals[0][:3] == [NPX, "--yes", "promptfoo@0.124.1"]
+
+
+def test_check_without_npx_names_the_install_command(here, capsys, npx):
+    npx["npx"] = False
+    _marked(here)
+    _changed_model(here)
+    code, out = _check(capsys, "--yes")
+    assert code == 3, out
+    assert _next(out) == ("Next: run `npm install promptfoo@0.124.1` in your project, then run "
+                          "`judgekeeper check` again.")
+    assert npx["argv"] == []
+
+
+def _fix_ready(root, capsys):
+    from tests.test_fix import NEW_RULE, project
+
+    ws = project(root)
+    _jk(capsys, "fix")
+    (ws.dir / "fix" / "rule.txt").write_text(NEW_RULE, encoding="utf-8")
+    return ws
+
+
+def test_fix_asks_about_the_npx_download_with_the_calls(tmp_path, monkeypatch, capsys, npx):
+    _fix_ready(tmp_path, capsys)
+    code, out = _jk(capsys, "fix")
+    assert code == 3, out
+    assert "paid with your own key. It also downloads promptfoo 0.124.1 with npx." in flat(out)
+    assert _next(out) == ("Next: run `judgekeeper fix` in your terminal to answer, or "
+                          "`judgekeeper fix --yes` to go ahead.")
+    code, out = _jk(capsys, "fix", "--yes")
+    assert code == 0, out
+    assert all(a[:3] == [NPX, "--yes", "promptfoo@0.124.1"] for a in npx["argv"] if "eval" in a)
+
+
+def test_fix_without_npx_names_the_install_command(tmp_path, capsys, npx):
+    npx["npx"] = False
+    _fix_ready(tmp_path, capsys)
+    code, out = _jk(capsys, "fix", "--yes")
+    assert code == 3, out
+    assert _next(out) == ("Next: run `npm install promptfoo@0.124.1` in your project, then run "
+                          "`judgekeeper fix` again.")

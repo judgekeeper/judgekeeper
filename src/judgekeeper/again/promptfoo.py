@@ -5,7 +5,8 @@ again to rebuild the judge, and says:
 
 - exactly your judge: the grader is named in the file and the same promptfoo version will run
   (the installed one when its version matches the file's `metadata.promptfooVersion`, else
-  `npx promptfoo@<that version>`, which downloads it and is asked about first);
+  `npx promptfoo@<that version>`, which downloads it: the download is in the same yes/no
+  question as the calls; with neither, the plan names `npm install promptfoo@<that version>`);
 - a close copy: the file records no promptfoo version, or the grader is promptfoo's default,
   which the file never records (named "probably", from the key names present);
 - can't: the grader was set with `--grader` (saved without its name), its settings hold a
@@ -445,9 +446,11 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 reasons.append(f"your promptfoo is {installed[1]} and your results were made "
                                f"with {version}")
             else:
-                return cant("promptfoo", judge,
+                plan = cant("promptfoo", judge,
                             "promptfoo is not installed here, and npx (Node.js) was not found "
                             f"to fetch promptfoo {version}", short="promptfoo is not installed")
+                plan.install = f"npm install promptfoo@{version}"
+                return plan
         elif not version and installed is None:
             return cant("promptfoo", judge, "promptfoo is not installed here",
                         short="promptfoo is not installed")
