@@ -399,6 +399,33 @@ def test_report_after_a_check_is_the_new_judges(here, capsys):
     assert _said_in_report(_report(here)) == _said_in_report(after_check)
 
 
+
+def _own_jsonl(path, rule: str) -> None:
+    """60 answers graded by a JSONL judge: answer k is right when k % 3 != 0; the judge is
+    wrong on (k * 7) % 10 < 3 (rule v1) or on (k * 7) % 10 == 0 (v2)."""
+    rows = []
+    for k in range(60):
+        wrong = (k * 7) % 10 == 0 if rule == "v2" else (k * 7) % 10 < 3
+        verdict = (k % 3 != 0) != wrong
+        rows.append({"input": f"Question {k}?", "output": f"Answer {k}.",
+                     "verdict": "pass" if verdict else "fail", "model": "gpt-4.1-mini"})
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+
+
+def test_report_after_a_too_early_check_says_how_many_you_disagreed_on(here, capsys):
+    _own_jsonl(here / "judge.jsonl", "v1")
+    assert _jk(capsys)[0] == 0
+    _mark(Workspace(here), {k: "pass" if k % 3 else "fail" for k in range(60)})  # 40 and 20
+    assert "disagreed on 18 of 60" in flat(_jk(capsys)[1])
+    _own_jsonl(here / "judge.jsonl", "v2")  # the same model, 12 grades changed
+    code, out = _check(capsys)
+    assert code == 0 and "grades changed on 12" in flat(out), out
+    report = re.sub(r"<[^>]+>", "", _report(here))
+    assert "Too early to tell." in report
+    assert "You and your judge disagreed on 6 of 60 answers." in report
+    terminal = flat(_jk(capsys)[1])
+    assert "You and your judge disagreed on 6 of 60 answers." in terminal
+
 # 5. After "Worse" for a table judge, no loop ---------------------------------------------------
 
 NEXT_WORSE_TABLE = ("Next: go back to your old judge, or change its rule; then run your eval "

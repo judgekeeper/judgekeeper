@@ -231,26 +231,36 @@ def _code_line(text: str) -> str:
     return out[:1].upper() + out[1:]
 
 
+def disagreed(c: dict) -> str:
+    """How many answers the person and the judge disagreed on, as the terminal says it
+    (front.agreement_lines), the numbers in bold."""
+    d, n = c["strict"] + c["easy"], c["passed"] + c["failed"]
+    if not d:
+        return f"You and your judge agreed on all <b>{n}</b> {'answer' if n == 1 else 'answers'}."
+    return f"You and your judge disagreed on <b>{d}</b> of <b>{n}</b> answers."
+
+
 def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None) -> str:
-    """The headline, and under it the disagreements, or (too early) how to mark more: a link
-    to the marking page while it runs, the command in the saved copy; with every answer
-    marked, what comes next (start_label.all_marked_lines). After a check found the new judge
-    worse, the next step that check gave (`worse`)."""
+    """The headline, and under it the disagreements, for every result, as in the terminal;
+    then, too early to tell, how to mark more: a link to the marking page while it runs, the
+    command in the saved copy; with every answer marked, what comes next
+    (start_label.all_marked_lines). After a check found the new judge worse, the next step
+    that check gave (`worse`)."""
     from judgekeeper.start_label import all_labeled
 
     level = r.get("verdict_level") if r["check"] != "too_few" else None
     cls, headline = STATES.get(level, STATES[None])
     if worse:
-        lead = _code_line(worse)
+        then = _code_line(worse)
     elif cls != "plain":
-        lead = (f"You and your judge disagreed on <b>{c['strict'] + c['easy']}</b> of "
-                f"<b>{c['passed'] + c['failed']}</b> answers.")
+        then = ""
     elif all_labeled(r):
-        lead = _all_marked(r)
+        then = _all_marked(r)
     elif back:
-        lead = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
+        then = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
     else:
-        lead = f"Run <code>{_e(commands(r)['mark'])}</code> to mark more answers."
+        then = f"Run <code>{_e(commands(r)['mark'])}</code> to mark more answers."
+    lead = " ".join(x for x in (disagreed(c) if level is not None else "", then) if x)
     return (f'<section class="verdict band" aria-labelledby="verdict-h"><h1 id="verdict-h" '
             f'class="{cls}">{_e(headline)}</h1><p class="lead">{lead}</p></section>')
 

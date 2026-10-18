@@ -443,15 +443,31 @@ def test_good_and_needs_work_lead_with_the_disagreements():
                 "answers.</p>") in html
 
 
-@pytest.mark.parametrize("counts", [CHECK, TOO_EARLY, TOO_FEW])
-def test_too_early_leads_to_the_marking_page_or_says_the_command(counts):
+@pytest.mark.parametrize("counts, said", [
+    (CHECK, "You and your judge disagreed on <b>6</b> of <b>30</b> answers. "),
+    (TOO_EARLY, "You and your judge disagreed on <b>2</b> of <b>50</b> answers. "),
+    (TOO_FEW, "")])  # no result yet: no count
+def test_too_early_leads_to_the_marking_page_or_says_the_command(counts, said):
     served = start_label.result_html(_result(*counts), back="/?token=t")
-    assert ('<p class="lead"><a href="/?token=t">Mark more answers to get a result.</a></p>'
-            in served)
+    assert (f'<p class="lead">{said}<a href="/?token=t">Mark more answers to get a result.</a>'
+            "</p>") in served
     saved = start_label.result_html(_result(*counts))
-    assert (f'<p class="lead">Run <code>{program("mark")}</code> to mark more answers.</p>'
+    assert (f'<p class="lead">{said}Run <code>{program("mark")}</code> to mark more answers.</p>'
             in saved)
     assert "<a " not in saved.split("<body>")[1]  # the saved copy has no server to go back to
+
+
+@pytest.mark.parametrize("counts, level", [(GATE, "gate"), (NOT_GATE_TNR, "not_gate"),
+                                           (CHECK, "check"), (TOO_EARLY, "too_early")])
+def test_every_result_level_says_how_many_answers_you_disagreed_on(counts, level):
+    """The terminal's line ("You and your judge disagreed on 6 of 60 answers."), on the
+    report for every level of result."""
+    r = _result(*counts)
+    assert r["verdict_level"] == level
+    c = report_page.counts(r)
+    html = start_label.result_html(r)
+    assert (f"You and your judge disagreed on <b>{c['strict'] + c['easy']}</b> of "
+            f"<b>{c['passed'] + c['failed']}</b> answers.") in html
 
 
 def test_the_numbers_in_the_counts_and_the_lead_are_mono_at_500():
