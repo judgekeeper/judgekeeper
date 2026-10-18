@@ -23,12 +23,13 @@ BIG_EXTRA = 400
 COPIED = 8  # words in a row copied from an answer
 SEARCH_CHARS = 60  # of the rule, searched for in the project's files
 SOURCE = frozenset({".yaml", ".yml", ".py", ".js", ".ts", ".mjs", ".cjs", ".json", ".toml",
-                    ".txt", ".md"})  # searched first, with files named like a config
-# Never searched: program output (a saved terminal, a log), not where a rule is set
-OUTPUT = frozenset({".log", ".out", ".err", ".stdout", ".stderr"})
+                    ".md"})  # searched first, with files named like a config
+# Never searched: program output (a saved terminal, a log) and plain text files, not where a
+# rule is set
+OUTPUT = frozenset({".log", ".out", ".err", ".stdout", ".stderr", ".txt"})
 # A file holding these is judgekeeper's own output saved by the person: it prints the rule
 OWN_OUTPUT = ("judgekeeper found your LLM-as-a-judge", "Your result, from the",
-              "What it checks  ")
+              "What it checks  ", "Step 1 of 5: Find", "Judge rule:  ")
 LINE_SHOWN = 120  # characters of the matched line shown
 GRADE = "GRADE: $LETTER"  # the line Inspect's model_graded_qa reads its grade from
 
@@ -216,6 +217,17 @@ def field(tool: str, rule_field: str | None = None) -> str:
     return FIELDS.get(tool, OWN_CODE)
 
 
+def rule_home(root: Path, tool: str, data: dict) -> str:
+    """Where the eval tool keeps the rule, in words: the field, and the config file when
+    judgekeeper knows it (promptfoo's config, Inspect's task file)."""
+    from judgekeeper.find import PROMPTFOO_CONFIGS
+
+    where = field(tool, data.get("rule_field"))
+    config = (next((n for n in PROMPTFOO_CONFIGS if (Path(root) / n).is_file()), None)
+              if tool == "promptfoo" else data.get("task_file") if tool == "inspect" else None)
+    return f"{where} in {config}" if config else where
+
+
 def _needles(rule: str, tool: str) -> list[str]:
     """What to look for: the start of the rule's first line (for DeepEval, of its first step,
     then of its criteria)."""
@@ -299,4 +311,4 @@ def found_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None:
 
 
 __all__ = ["added_template", "agent_checks", "checks", "echoes_prompt", "fenced", "field",
-           "found_rule", "locate_rule", "placeholders", "rule_text", "safe_path"]
+           "found_rule", "locate_rule", "placeholders", "rule_home", "rule_text", "safe_path"]

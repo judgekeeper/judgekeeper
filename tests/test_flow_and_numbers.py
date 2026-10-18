@@ -659,3 +659,33 @@ def test_the_answers_line_counts_only_answers_with_a_grade(here, capsys):
     _, out = _jk(capsys, "--metric", "model_graded_qa")
     assert "Answers:     18 answers with a grade (2 failed before scoring)" in out, out
     assert "each graded by your judge" not in out
+
+
+# 8. fix reads the rule only from a real config ---------------------------------------------
+
+def test_fix_never_says_the_rule_is_in_a_saved_screen(tmp_path, capsys, monkeypatch):
+    from tests.test_fix import RULE, project
+
+    monkeypatch.chdir(tmp_path)
+    project(tmp_path)
+    screen = f'Eval tool:   promptfoo\nJudge rule:  "{RULE}"\n'
+    (tmp_path / "find.txt").write_text(screen, encoding="utf-8")
+    (tmp_path / "run.log").write_text(f"{RULE}\n", encoding="utf-8")
+    (tmp_path / "copy.md").write_text(f"Step 1 of 5: Find\n\n{screen}", encoding="utf-8")
+    _, out = _jk(capsys, "fix")
+    assert "Your judge's rule is in promptfooconfig.yaml, line" in out, out
+    assert "find.txt" not in out and "run.log" not in out and "copy.md" not in out
+
+
+def test_fix_says_when_it_cant_tell_where_the_rule_is(tmp_path, capsys, monkeypatch):
+    from tests.test_fix import RULE, project
+
+    monkeypatch.chdir(tmp_path)
+    project(tmp_path)
+    (tmp_path / "promptfooconfig.yaml").write_text("description: support bot\n",
+                                                   encoding="utf-8")
+    (tmp_path / "notes.txt").write_text(f"{RULE}\n", encoding="utf-8")
+    _, out = _jk(capsys, "fix")
+    assert ("judgekeeper can't tell which file holds your judge's rule. Your eval keeps it in "
+            "the `value:` of the llm-rubric assert in promptfooconfig.yaml:") in flat(out), out
+    assert "notes.txt" not in out

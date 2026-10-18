@@ -718,8 +718,11 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     tool = data.get("tool")
     if can_test(tool, rule):
         where = start_fix_rule.found_rule(ws.root, rule, tool)
-        talk.say(f"Your judge's rule is in {where[0]}, line {where[1]}:" if where
-                 else "Your judge's rule:")
+        if where:
+            talk.say(f"Your judge's rule is in {where[0]}, line {where[1]}:")
+        else:
+            talk.para("judgekeeper can't tell which file holds your judge's rule. Your eval "
+                      f"keeps it in {start_fix_rule.rule_home(ws.root, tool, data)}:")
         talk.say(f"  {_rule_quote(rule)}")
         talk.say()
     if split.hidden:
