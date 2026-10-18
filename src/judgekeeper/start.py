@@ -157,11 +157,12 @@ class Talk:
         return " ".join((self.program, *self.flags, *extra))
 
     def command_at(self, where: str | Path, *extra: str) -> str:
-        """`command`, with `where` (a path inside the folder the person gave) as the path."""
+        """`command`, with `where` (a path inside the folder the person gave) as the path,
+        written with forward slashes on every system, as the lines that name it write it."""
         given = self.flags[:1] == (quote_arg(self.path),) and self.path != "."
         flags = self.flags[1:] if given else self.flags
         path = Path(where) if self.path == "." else Path(self.path) / where
-        return " ".join((self.program, quote_arg(path), *flags, *extra))
+        return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
 
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):

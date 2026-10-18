@@ -279,7 +279,7 @@ def test_judgekeeper_asks_which_store_without_a_terminal(two, capsys, monkeypatc
     out = capsys.readouterr().out
     assert code == 3
     assert "Two MLflow stores found" in out
-    db, folder = quote_arg(two / "mlflow.db"), quote_arg(two / "mlruns")
+    db, folder = (quote_arg((two / n).as_posix()) for n in ("mlflow.db", "mlruns"))  # as listed
     assert assert_one_next_at_the_end(out) == (
         f"Next: choose which MLflow store to read (mlflow.db, mlruns), then run "
         f"`judgekeeper {db}` or `judgekeeper {folder}`.")
