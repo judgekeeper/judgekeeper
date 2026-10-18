@@ -1,8 +1,8 @@
 """`judgekeeper mark` starts the page as its own process and returns, so the shell
 does not wait on it. Run for real here (CI runs it on Linux, macOS and Windows): the command
 returns, the page answers with its token, a mark posted lands in marks.jsonl (stamped: the
-link was printed with no terminal), a second `mark` replaces the page, and `mark --stop`
-closes it with no process left behind."""
+link was printed with no terminal), a second `mark` prints the same link (two at once too),
+and `mark --stop` closes it with no process left behind."""
 
 from __future__ import annotations
 
@@ -120,15 +120,10 @@ def test_mark_runs_the_page_in_the_background(project):
 
     second = jk(project, "mark", "--port", "0", "--no-browser")
     assert second.returncode == 0, second.stdout + second.stderr + page_log(project)
-    assert LINK.search(second.stdout)[1] != url  # the open page was replaced
+    assert LINK.search(second.stdout)[1] == url  # the same page: the open tab keeps working
     assert "You marked 1 answer so far: 1 Pass, 0 Fail." in second.stdout
-    new_pid = json.loads((folder / label.LOCK).read_text(encoding="utf-8"))["pid"]
-    assert new_pid != pid
-    deadline = time.monotonic() + 10
-    while alive(pid) and time.monotonic() < deadline:
-        time.sleep(0.1)
-    assert not alive(pid)
-    pid = new_pid
+    assert json.loads((folder / label.LOCK).read_text(encoding="utf-8"))["pid"] == pid
+    assert call(base, token, "/state")[0] == 200
 
     stopped = jk(project, "mark", "--stop")
     assert stopped.returncode == 0, stopped.stdout + stopped.stderr + page_log(project)
@@ -155,6 +150,21 @@ def test_mark_stop_closes_a_page_whose_server_json_is_gone(project):
     while alive(pid) and time.monotonic() < deadline:
         time.sleep(0.1)
     assert not alive(pid)
+
+
+def test_two_runs_at_once_print_the_same_working_link(project):
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    runs = [subprocess.Popen([sys.executable, "-m", "judgekeeper", "mark", "--port", "0",
+                              "--no-browser"], cwd=project, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                             encoding="utf-8", env=env) for _ in range(2)]
+    outs = [r.communicate(timeout=60) for r in runs]
+    assert [r.returncode for r in runs] == [0, 0], outs
+    links = [LINK.search(out) for out, _ in outs]
+    assert all(links), outs
+    assert links[0][1] == links[1][1]
+    status, state = call(f"http://127.0.0.1:{links[0][2]}", links[0][3], "/state")
+    assert status == 200 and state["items"]
 
 
 @pytest.mark.real_page

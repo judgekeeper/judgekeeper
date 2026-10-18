@@ -289,8 +289,8 @@ def test_a_utf16_file_is_named_as_left_out(here, capsys):
     _, out = find(capsys)
     text = flat(out)
     assert "left out" in text and "results.tsv" in text and "UTF-8" in text, out
-    assert next_lines(out) == ["Next: if that is your results, save it as UTF-8, then run "
-                               "`judgekeeper results.tsv --port 0 --no-browser` again."]
+    assert next_lines(out) == [("Next: if that is your results, save it as UTF-8, then run "
+                               "`judgekeeper results.tsv --port 0 --no-browser` again.")]
 
 
 def test_a_cr_only_file_is_read_in_the_search(here, capsys):

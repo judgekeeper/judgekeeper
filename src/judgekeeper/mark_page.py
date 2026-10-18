@@ -238,7 +238,7 @@ __TOP__
     setText("status", text);
     if (text && $("status").scrollIntoView) { $("status").scrollIntoView({block: "nearest"}); }
   }
-  // On a phone the list sits below the card: the card is scrolled into view (at once under
+  // On a phone the card comes first, then the list: the card is scrolled into view (at once under
   // reduced motion). Wider, the card is next to the list and stays where it is.
   function media(query) { return !!(window.matchMedia && window.matchMedia(query).matches); }
   function focusCard() {

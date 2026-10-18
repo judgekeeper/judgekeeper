@@ -1,8 +1,10 @@
-"""The page's token never passes through the coding agent. `judgekeeper` makes the token,
-hands it to the page's own process on its stdin, and opens the page in the browser itself: the
-token is not in the output, not in any file under .judgekeeper/, not in the page process's
-argv or environment. server.json keeps a stop secret, which can close the page and nothing
-else. Opening an open page replaces it: the old token stops working, the marks stay.
+"""The page's token never passes through the coding agent's output. `judgekeeper` makes the
+token, hands it to the page's own process on its stdin, and opens the page in the browser
+itself: the token is not in the output, not in the page process's argv or environment. Under
+.judgekeeper/ it is only in the page's lock (server.json and its copy), owner-only, and gone
+once the page stops; a lock whose page is gone is not used and is removed. The lock's stop
+secret can close the page and nothing else. Opening the open page again keeps its link: the
+open tab keeps working, the marks stay; when the page must start again, it keeps the token.
 
 Run for real (CI runs it on Linux, macOS and Windows): the page is its own process.
 """
@@ -12,6 +14,7 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import stat
 import subprocess
 import sys
 import urllib.error
@@ -102,7 +105,7 @@ def _process_text(pid: int) -> str:
     return ""
 
 
-def test_the_token_never_reaches_the_agent(here, capsys, no_browser, spawned):
+def test_the_token_never_reaches_the_agents_output(here, capsys, no_browser, spawned):
     code, out, err = _run(capsys, "--port", "0")
     assert code == 0, out + err
     assert "The marking page is open in your browser." in out
@@ -114,16 +117,21 @@ def test_the_token_never_reaches_the_agent(here, capsys, no_browser, spawned):
     assert token not in out + err
     assert "token=" not in out + err and "http://" not in out
     folder = here / ".judgekeeper"
-    for path in folder.rglob("*"):
-        if path.is_file():
-            assert token.encode() not in path.read_bytes(), path.name
+    holding = {path.name for path in folder.rglob("*")
+               if path.is_file() and token.encode() in path.read_bytes()}
+    assert holding == {label.LOCK, label.LOCK_COPY}  # the page's lock only
+    if os.name != "nt":  # owner-only, in an owner-only folder
+        assert stat.S_IMODE(folder.stat().st_mode) == 0o700
+        for name in holding:
+            assert stat.S_IMODE((folder / name).stat().st_mode) == 0o600, name
     assert len(spawned) == 1
     assert all(token not in arg for arg in spawned[0]["args"])
     assert spawned[0]["env"] is None or token not in json.dumps(spawned[0]["env"])
     assert token not in json.dumps(dict(os.environ))
     lock = label.read_lock(folder)
     assert set(json.loads((folder / label.LOCK).read_text(encoding="utf-8"))) == \
-        {"pid", "port", "stop"}
+        {"pid", "port", "stop", "token", "settings", "printed"}
+    assert lock["token"] == token
     assert lock["pid"] != os.getpid() and alive(lock["pid"])
     assert token not in _process_text(lock["pid"])
 
@@ -143,14 +151,12 @@ def test_the_token_never_reaches_the_agent(here, capsys, no_browser, spawned):
     assert code == 0 and "Closed the marking page." in out
     assert not label.is_open(folder)
     assert _status(base, f"/state?token={token}") != 200
+    for path in folder.rglob("*"):  # the token is gone with the page
+        if path.is_file():
+            assert token.encode() not in path.read_bytes(), path.name
 
 
-def test_opening_an_open_page_replaces_it(here, capsys, no_browser):
-    assert _run(capsys, "--port", "0")[0] == 0
-    first = no_browser[-1]
-    base, token = _split(first)
-    ws = start_label.Workspace(here)
-    item = start_label.StartSession(ws).items[0]["id"]
+def _mark(base: str, token: str, item: str) -> int:
     req = urllib.request.Request(f"{base}/label?token={token}",
                                  data=json.dumps({"id": item, "label": "pass"}).encode(),
                                  headers={"Content-Type": "application/json", "Origin": base})
@@ -159,19 +165,76 @@ def test_opening_an_open_page_replaces_it(here, capsys, no_browser):
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status
 
-    assert retried(send) == 200
+    return retried(send)
+
+
+def test_opening_the_open_page_again_keeps_its_link(here, capsys, no_browser):
+    assert _run(capsys, "--port", "0")[0] == 0
+    base, token = _split(no_browser[-1])
+    ws = start_label.Workspace(here)
+    assert _mark(base, token, start_label.StartSession(ws).items[0]["id"]) == 200
     old_pid = label.read_lock(ws.dir)["pid"]
 
-    code, out, _ = _run(capsys, "mark", "--port", "0")  # `mark` opens a new page
+    code, out, _ = _run(capsys, "mark", "--port", "0")
     assert code == 0, out
     assert "You marked 1 answer so far: 1 Pass, 0 Fail." in out  # the mark stays
-    second = no_browser[-1]
-    new_base, new_token = _split(second)
-    assert new_token != token
-    assert _status(new_base, f"/state?token={new_token}") == 200
-    assert _status(base, f"/state?token={token}") != 200  # the old token stops working
-    assert _status(new_base, f"/state?token={token}") == 403
-    assert label.read_lock(ws.dir)["pid"] != old_pid
+    assert no_browser[-1] == f"{base}/?token={token}"  # the same link: the open tab works
+    assert _status(base, f"/state?token={token}") == 200
+    assert label.read_lock(ws.dir)["pid"] == old_pid  # the same page
+
+
+def test_a_page_started_again_keeps_the_token_and_the_printed_stamp(here, capsys, monkeypatch):
+    """The page must start again (it would show another command): it keeps the token and the
+    port, so the open tab still works. Its link was printed for another program before, so
+    its marks are still stamped "printed"."""
+    from judgekeeper import page
+
+    code, out, _ = _run(capsys, "--no-browser", "--port", "0")  # no terminal: printed
+    assert code == 0, out
+    first = out.splitlines()[out.splitlines().index(page.LINK) + 1]
+    base, token = _split(first)
+    ws = start_label.Workspace(here)
+    old_pid = label.read_lock(ws.dir)["pid"]
+
+    monkeypatch.setattr(page, "terminal", lambda: True)  # now at a terminal: not stamped
+    opened = []
+    monkeypatch.setattr("webbrowser.open", lambda url, *a, **k: opened.append(url) or True)
+    code, out, _ = _run(capsys, "--port", "0")  # without --no-browser: another command
+    assert code == 0, out
+    assert opened == [first]  # the same link
+    assert label.read_lock(ws.dir)["pid"] != old_pid  # a new page
+    assert _mark(base, token, start_label.StartSession(ws).items[0]["id"]) == 200
+    last = json.loads(ws.marks.read_text(encoding="utf-8").splitlines()[-1])
+    assert last["link"] == "printed"
+
+
+def test_two_ports_asked_for_give_the_open_pages_link(here, capsys, no_browser):
+    assert _run(capsys, "--port", "0")[0] == 0
+    first = no_browser[-1]
+    assert _run(capsys, "--port", "0")[0] == 0 and no_browser[-1] == first
+    from judgekeeper import page
+
+    assert _run(capsys, "--port", page.OTHER_PORTS[-1])[0] == 0
+    assert no_browser[-1] == first  # the open page keeps its port
+
+
+def test_a_lock_whose_page_is_gone_is_not_used_and_is_removed(here, capsys, no_browser):
+    folder = here / ".judgekeeper"
+    assert _run(capsys, "--port", "0")[0] == 0
+    assert _run(capsys, "--stop")[0] == 0
+    stale = json.dumps({"pid": 999999, "port": 9, "stop": "s" * 43, "token": "t" * 43,
+                        "settings": None, "printed": False})
+    for name in (label.LOCK, label.LOCK_COPY):
+        (folder / name).write_text(stale, encoding="utf-8")
+    assert label.live_lock(folder) is None
+    assert not (folder / label.LOCK).exists() and not (folder / label.LOCK_COPY).exists()
+
+    for name in (label.LOCK, label.LOCK_COPY):
+        (folder / name).write_text(stale, encoding="utf-8")
+    code, out, _ = _run(capsys, "--port", "0")
+    assert code == 0, out
+    base, token = _split(no_browser[-1])
+    assert token != "t" * 43 and _status(base, f"/state?token={token}") == 200
 
 
 def test_a_page_started_by_hand_gets_no_token_from_the_command_line(here):

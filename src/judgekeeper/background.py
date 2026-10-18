@@ -4,9 +4,10 @@ agent's shell would wait forever on a command that serves a page.
 `start` runs `python -m judgekeeper.page` detached from the caller: a new session on POSIX;
 DETACHED_PROCESS, CREATE_NEW_PROCESS_GROUP and CREATE_NO_WINDOW on Windows. The page's token
 (made by the caller) and its settings go to it as one JSON line on its stdin, a pipe closed
-right after: never in its arguments, its environment or a file. Its output is not the
-caller's: errors go to .judgekeeper/page.log (never answer text or the token), the rest
-nowhere. It returns the page's link once the page answers to that token (the port is in the
+right after: never in its arguments or its environment. The page keeps it in its lock
+(server.json, owner-only, removed when it stops), so a later run can print the same link.
+Its output is not the caller's: errors go to .judgekeeper/page.log (never answer text or the
+token), the rest nowhere. It returns the page's link once the page answers to that token (the port is in the
 lock in .judgekeeper/), at most WAIT seconds; else None, and the process is ended. Ctrl-C
 while it waits ends the process too.
 

@@ -253,8 +253,8 @@ def test_with_every_answer_marked_and_no_result_the_end_card_says_what_comes_nex
 
 def test_the_end_cards_command_shows_as_code_without_its_backticks():
     lines = ["You've marked every answer: 3 Pass, 0 Fail. A result needs at least 15 of each.",
-             "Next: run your eval on more questions, then run `judgekeeper --new` to mark the "
-             "new results. `--new` moves your marks to .judgekeeper/previous-<date>/."]
+             ("Next: run your eval on more questions, then run `judgekeeper --new` to mark "
+              "the new results. `--new` moves your marks to .judgekeeper/previous-<date>/.")]
     got = _run("""
       status = {text: "x", ready: false, done: DONE};
       for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }

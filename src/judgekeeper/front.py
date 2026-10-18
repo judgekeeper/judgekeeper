@@ -1083,8 +1083,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
           enough: bool, head: list[str], marking: bool, first: bool) -> int:
     """Step 2: the count so far and the page, opened in the browser (its link printed with
     --no-browser). `judgekeeper` again before a first result keeps a page that is still open
-    (its tab still works); `mark`, and --no-browser (its link can't be shown again), open a
-    new one."""
+    (its tab still works); `mark`, and --no-browser, show it again with the same link
+    (page.open_new)."""
     n_pass, n_fail = counts["correct"], counts["wrong"]
     n = n_pass + n_fail
     items = StartSession(ws).items

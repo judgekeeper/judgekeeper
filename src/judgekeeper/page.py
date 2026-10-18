@@ -8,17 +8,22 @@ remote machine) is the link printed. Without a terminal (another program reads t
 every mark made on that page is stamped "link": "printed", so the result can count them. At a
 terminal (the person's own) a printed link is not stamped.
 
-An open page can't be shown again without its token, so opening a page closes the open one
-first (with the stop secret in server.json) and starts a new one, with a new token. The marks
-are on disk: nothing is lost. One run at a time opens a project's page: while one does,
-.judgekeeper/opening is there, and a second run says so and waits for it (`_opening`).
+The page keeps its token in server.json (owner-only, removed when it stops), so a second
+run prints the same link and the open tab keeps working: when the page open for this project
+shows the same thing (`page_key`), it is kept as it is, on its own port (two runs at once
+print the same link, whatever port each asked for); else it is closed (with the stop secret)
+and started again with the same token, on the same port when it is free. The marks are on disk: nothing is lost. One run at a time opens a project's page:
+while one does, .judgekeeper/opening is there, and a second run says so and waits for it
+(`_opening`), then finds the page the first one opened.
 """
 
 from __future__ import annotations
 
 import faulthandler
+import hashlib
 import json
 import os
+import re
 import secrets
 import sys
 import time
@@ -36,6 +41,8 @@ from judgekeeper.label import (
     ask,
     is_open,
     is_page,
+    link,
+    live_lock,
     make_server,
 )
 from judgekeeper.start_label import StartSession, Workspace
@@ -47,14 +54,18 @@ OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
 ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
 OPENING = "opening"  # in .judgekeeper/ while a run opens the page
 OPENING_NOW = "judgekeeper is already opening the marking page for this folder."
+_PORT_FLAG = re.compile(r" --port \d+")
 
 
 def port_free(port: int) -> bool:
-    """Whether nothing listens on `port`."""
+    """Whether nothing listens on `port`. As the page binds it (http.server reuses an address
+    a closed page left in TIME_WAIT, on macOS and Linux)."""
     import socket
 
     with socket.socket() as s:
         try:
+            if os.name != "nt":
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((HOST, port))
         except OSError:
             return False
@@ -87,14 +98,29 @@ def marking_session(ws: Workspace, run: str | None = None) -> StartSession:
     return StartSession(ws, status=lambda session: marking_status(session, run))
 
 
+def page_key(ws: Workspace, command: str, start_command: str) -> dict:
+    """What a page shows besides the marks: the two commands (but the port they ask for: the
+    open page keeps its own), and the check it is for."""
+    try:
+        about = hashlib.sha256(ws.start.read_bytes()).hexdigest()
+    except OSError:
+        about = None
+    return {"command": _PORT_FLAG.sub("", command),
+            "start_command": _PORT_FLAG.sub("", start_command), "start": about}
+
+
 def page_server(ws: Workspace, port: int, command: str,
-                start_command: str | None = None, token: str | None = None):
+                start_command: str | None = None, token: str | None = None,
+                printed: bool = False):
     """The marking page: marking, and the result. Every click is a stamped
     line in marks.jsonl. It holds the project's lock and stays open after the result, until
     /stop, Ctrl-C or 30 minutes idle. `command` is how to come back to it; the result keeps
-    `start_command`. `token`: the one the command made (default: a new one)."""
+    `start_command`. `token`: the one the command made (default: a new one). `printed`: its
+    link was printed for another program before (the same token), so its marks are stamped."""
     start_command = start_command or textio.program()
     session = marking_session(ws, start_command)
+    if printed:
+        session.link = PRINTED
 
     def result(session: StartSession, back: str) -> str:
         r = start_label.store_result(ws, session, start_command)
@@ -103,13 +129,15 @@ def page_server(ws: Workspace, port: int, command: str,
 
     return make_server(session, port, result=result,
                        page=start_label.page_template(ws.data(), command), lock=ws.dir,
-                       stays=True, token=token)
+                       stays=True, token=token,
+                       settings=page_key(ws, command, start_command))
 
 
 def server_for(ws: Workspace, settings: dict, token: str):
     """The marking page `settings` ask for."""
     return page_server(ws, int(settings["port"]), str(settings["command"]),
-                       str(settings["start_command"]), token=token)
+                       str(settings["start_command"]), token=token,
+                       printed=settings.get("printed") is True)
 
 
 @dataclass
@@ -118,23 +146,34 @@ class Page:
     port: int
     token: str
     server: LabelServer | None = None  # served by this process (--wait)
+    kept: bool = False  # the page that was open already: this run did not start it
 
 
 def open_new(ws: Workspace, port: int, command: str, start_command: str,
              here: bool = False, say=lambda line: None) -> Page | None:
-    """Close the page open for this project, then start a new one (on a free port when the
-    default is taken, choose_port; `say` says why): in the background, or served by this
-    process (`here`, for --wait). None when it could not start."""
+    """The page for this project, with the token of the one open (a new token when none is):
+    the open page itself, on its port, when it shows the same (page_key); else it is
+    closed and a page started (on its port when free, else on a free port when the default
+    is taken, choose_port; `say` says why): in the background, or served by this process
+    (`here`, for --wait). None when it could not start."""
     with _opening(ws.dir, say):
+        old = live_lock(ws.dir)
+        token = old["token"] if old else secrets.token_urlsafe(32)
+        if (old is not None and not here
+                and old["settings"] == page_key(ws, command, start_command)):
+            return Page(link(old["port"], token), old["port"], token, kept=True)
         if is_open(ws.dir):
             background.stop(ws.dir)
-        port = choose_port(port, say)
+        printed = old is not None and old["printed"]
+        if old is not None and port in (0, DEFAULT_PORT) and port_free(old["port"]):
+            port = old["port"]  # the open tab's link still works
+        else:
+            port = choose_port(port, say)
         if here:
-            server = page_server(ws, port, command, start_command)
+            server = page_server(ws, port, command, start_command, token=token, printed=printed)
             return Page(server.url, server.port, server.token, server)
-        token = secrets.token_urlsafe(32)
         settings = {"root": str(ws.root.resolve()), "port": port, "command": command,
-                    "start_command": start_command}
+                    "start_command": start_command, "printed": printed}
         url = background.start(ws.dir, settings, token)
     if url is None:
         return None
@@ -230,7 +269,9 @@ def serve(server: LabelServer) -> None:
 
 def close(ws: Workspace, opened: Page | None) -> None:
     """Close the page this run started (Ctrl-C before its link was printed): in the
-    background, or served by this process."""
+    background, or served by this process. A page that was open already stays."""
+    if opened is not None and opened.kept:
+        return
     if opened is not None and opened.server is not None:
         opened.server.stop()
         opened.server.serve()  # stopped: it only closes its socket and releases the lock
@@ -258,7 +299,8 @@ def main() -> int:
         given = json.loads(sys.stdin.readline())
         token, root = str(given["token"]), Path(given["root"])
         settings = {"port": int(given["port"]), "command": str(given["command"]),
-                    "start_command": str(given["start_command"])}
+                    "start_command": str(given["start_command"]),
+                    "printed": given.get("printed") is True}
     except (ValueError, KeyError, TypeError):
         faulthandler.cancel_dump_traceback_later()
         print("judgekeeper: the page got no token on its input, so it did not start.",

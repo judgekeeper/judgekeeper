@@ -37,13 +37,14 @@ def test_stop_closes_the_page_when_server_json_is_gone(here, capsys, pages):
     assert not (folder / label.LOCK_COPY).exists()
 
 
-def test_both_records_hold_the_stop_secret_never_the_token(here, capsys, pages):
+def test_both_records_are_the_same_and_gone_once_the_page_stops(here, capsys, pages):
     code, out = _run(capsys, "--no-browser")
     assert code == 0, out
     folder = here / ".judgekeeper"
     copy = (folder / label.LOCK_COPY).read_text(encoding="utf-8")
     assert copy == (folder / label.LOCK).read_text(encoding="utf-8")
-    assert "token" not in copy
+    assert _run(capsys, "--stop")[0] == 0
+    assert not (folder / label.LOCK).exists() and not (folder / label.LOCK_COPY).exists()
 
 
 def test_an_idle_page_closes_after_30_minutes():
@@ -77,6 +78,6 @@ def test_ctrl_c_on_wait_says_stopped_and_exits_130(here, capsys, monkeypatch):
     monkeypatch.setattr("webbrowser.open", lambda *a, **k: True)
     code, out = _run(capsys, "--wait")
     assert code == 130, out
-    assert out.rstrip().splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper --wait` to "
-                                              "carry on."]
+    assert out.rstrip().splitlines()[-2:] == [
+        "Stopped.", "Next: run `judgekeeper --wait` to carry on."]
     assert not label.is_open(here / ".judgekeeper")
