@@ -276,8 +276,9 @@ def _new_rows(ws, answers: list[dict], metric: str) -> tuple[dict, int]:
     """For a new judge: {answer id: (row, defaultTest, components)}, each marked answer's own
     saved answer put into its test in the newest results, found by the test's vars, with the
     new judge's assertions and grader. When the assertion is the same on every test, an
-    answer whose test is not in the newest results keeps its old test (if its old results
-    file is still there). The new judge never graded these answers, so there is no saved
+    answer whose test is not in the newest results keeps its old test's vars and prompt (if
+    its old results file is still there), graded as the newest results grade (_with_grader).
+    The new judge never graded these answers, so there is no saved
     grading prompt to compare. Returns those and how many answers have no test."""
     data = ws.data()
     newest = _rows(ws.root, data["results_files"])
@@ -288,15 +289,15 @@ def _new_rows(ws, answers: list[dict], metric: str) -> tuple[dict, int]:
         if comps:
             by_vars.setdefault(canonical_json(row.get("vars") or {}), (row, default_test, comps))
             shapes.add(canonical_json([c["assertion"] for c in comps]))
-    common = next(iter(by_vars.values()))[2] if len(shapes) == 1 and by_vars else None
+    template = next(iter(by_vars.values())) if len(shapes) == 1 and by_vars else None
     old = _rows(ws.root, (data.get("saved") or {}).get("results_files") or [])
     out, missing = {}, 0
     for a in answers:
         match = by_vars.get(canonical_json(a["input"] if isinstance(a["input"], dict) else {}))
         if match is not None:
             row, default_test, comps = match
-        elif common is not None and a["id"] in old:
-            (row, default_test), comps = old[a["id"]], common
+        elif template is not None and a["id"] in old:
+            row, default_test, comps = _with_grader(old[a["id"]][0], template)
         else:
             missing += 1
             continue
@@ -306,6 +307,21 @@ def _new_rows(ws, answers: list[dict], metric: str) -> tuple[dict, int]:
                  for c in comps]
         out[a["id"]] = (row, default_test, comps)
     return out, missing
+
+
+GRADER_OPTIONS = ("provider", "rubricPrompt")  # a test's options that set how it is graded
+
+
+def _with_grader(row: dict, template: tuple[dict, dict, list]) -> tuple[dict, dict, list]:
+    """An old row whose test is not in the newest results, graded as the newest results grade:
+    the grader and rubric prompt from a newest row's options, its defaultTest and its
+    assertions. Nothing about grading comes from the old file."""
+    new_row, default_test, comps = template
+    old_opts = {k: v for k, v in _options(row.get("testCase")).items() if k not in GRADER_OPTIONS}
+    new_opts = {k: v for k, v in _options(new_row.get("testCase")).items()
+                if k in GRADER_OPTIONS}
+    test_case = {**(row.get("testCase") or {}), "options": {**old_opts, **new_opts}}
+    return {**row, "testCase": test_case}, default_test, comps
 
 
 def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> Plan:
@@ -612,6 +628,7 @@ def run(ws, plan: Plan, talk) -> Fresh:
         fresh.verdicts[item_id] = [r.label for r in records]
         fresh.scores[item_id] = [r.score for r in records]
         fresh.reasons[item_id] = [r.explanation or "" for r in records]
+        fresh.models += [r.evaluator.get("model") for r in records]
         if not fresh.fingerprint:
             fresh.fingerprint = make_fingerprint(dict(records[0].evaluator)).to_dict()
     return fresh

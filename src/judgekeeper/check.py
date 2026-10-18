@@ -14,7 +14,8 @@ For a changed setup:
 2. the rest only after the person's yes: `check` says how many answers and calls it would
    ask about and asks `Go ahead? [y/N]` at a terminal (Enter is no); without a terminal only
    `--yes` says yes, else it stops (exit 3) before anything is asked or saved. The person's
-   own judge is then asked once about each, through `again/` (no menu);
+   own judge is then asked once about each, through `again/` (no menu). When a call used
+   another model than the new judge's (wrong_model), nothing is saved (exit 2);
 3. per group (the answers the person passed, and failed), every mark with an old and a new
    verdict: how many went from right to wrong and from wrong to right, and a range on the
    paired change (targets.paired_verdict): "Worse", "No drop bigger than 20 points" or
@@ -34,8 +35,9 @@ on marked answers differ in the newest results (grades_changed), and the last ch
 is checked again when marks were made after it (_added_since_check).
 
 Exit 0 (no drop bigger than 20 points, not sure with a smaller drop, or nothing changed), 1
-(worse, or not sure with a drop bigger than 20 points, in either group), 3 (the person is
-needed: not enough marks, nothing could be tested, or the question needs an answer).
+(worse, or not sure with a drop bigger than 20 points, in either group), 2 (a call asked
+another model than the new judge), 3 (the person is needed: not enough marks, nothing could be
+tested, or the question needs an answer).
 """
 
 from __future__ import annotations
@@ -43,6 +45,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import shutil
 import stat
 import sys
 from dataclasses import dataclass, field
@@ -100,6 +104,9 @@ DOWNLOAD = ("Asking your judge would mean downloading promptfoo {version}; judge
             "doesn't download anything by itself.")
 NO_KEY = "The key your judge needs isn't set where judgekeeper runs, so your judge wasn't asked."
 CLOSE = "This was a close copy of your judge, not an exact one: {why}."
+WRONG_MODEL = "judgekeeper asked the wrong model ({used}, not {new}), so this check is not saved."
+NEXT_WRONG_MODEL = ("Next: check which model your eval's config names for your judge, run your "
+                    "eval, then run `{command}` again.")
 TRACE_WHY = "your judge reads traces, which may have changed since your eval ran"
 
 
@@ -407,6 +414,7 @@ class Asked:
     close: str | None = None  # why it was a close copy
     not_marked: bool = False  # the newest results hold none of the marked answers
     wobble: tuple[int, int] | None = None  # asked twice: (answers whose grades differ, of)
+    wrong_model: tuple[str, str] | None = None  # (a model a call used, the new judge's)
 
 
 def _can_write(setup: dict) -> bool:
@@ -494,6 +502,11 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
         out.reasons.append(f"Asking your judge again did not finish: {scrub(str(e))}")
         out.calls = plan.calls
         return out
+    wrong = wrong_model(fresh.models_used(), found)
+    if wrong:  # not the new judge's answers: nothing is kept
+        shutil.rmtree(plan.folder, ignore_errors=True)
+        out.wrong_model, out.calls = wrong, plan.calls
+        return out
     write_files(ws, plan, fresh, prefix="check", metric=found.metric)
     out.verdicts = {i: v[0] for i, v in fresh.verdicts.items()}  # the first, like one run
     out.wobble = (sum(len(set(v)) > 1 for v in fresh.verdicts.values()), len(fresh.verdicts))
@@ -511,6 +524,21 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
         whys.append(TRACE_WHY)
     out.close = "; ".join(whys) or None
     return out
+
+
+def _model_name(model: str) -> str:
+    """A model's name without its provider: "openai:chat:gpt-4.1" and "gpt-4.1" are one."""
+    return re.split(r"[:/]", model.strip().lower())[-1]
+
+
+def wrong_model(used: set[str], found) -> tuple[str, str] | None:
+    """(a model the calls used, the new judge's model) when a call used another model than
+    the one judgekeeper names as the new judge (found.models), else None."""
+    named = [m for m in (found.models or [found.fingerprint.get("model")])
+             if isinstance(m, str) and m]
+    names = {_model_name(m) for m in named}
+    other = sorted(m for m in used if _model_name(m) not in names)
+    return (other[0], named[0]) if named and other else None
 
 
 # The paired test --------------------------------------------------------------------------------
@@ -1059,6 +1087,12 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say()
         said.say(NEXT_YES.format(command=_command(state)))
         return EXIT_NEEDS_YOU
+    if asked.wrong_model:
+        said.say()
+        said.say(WRONG_MODEL.format(used=asked.wrong_model[0], new=asked.wrong_model[1]))
+        said.say()
+        said.say(NEXT_WRONG_MODEL.format(command=_command(state)))
+        return EXIT_USAGE
     tested = {**free, **cached, **asked.verdicts}
     if not tested:
         for line in asked.reasons:
