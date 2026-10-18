@@ -732,15 +732,16 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     if split is not None and split.retest:  # a top-up was just marked: the same rule again
         rule = (ws.dir / "rules" / f"{split.topup['rule_hash'].removeprefix('sha256:')}.txt"
                 ).read_text(encoding="utf-8")
-    talk.say(STEP if rule is None else STEP_TEST)
+    waiting = split is not None and (split.fresh or (split.topup and not split.topup.get("done")))
+    talk.say(STEP if rule is None or waiting else STEP_TEST)
     talk.say()
     if split is None:
         talk.para("You have not marked enough answers yet to fix your judge.")
         step = f"run `{program('mark')}` to mark more answers."
         talk.next(next_marks(ws, step) if ws is not None else step)
         return EXIT_NEEDS_YOU
-    if split.fresh or (split.topup and not split.topup.get("done")):
-        return _waiting(talk, ws, split)
+    if waiting:
+        return _waiting(talk, ws, split, rule)
     if rule is not None:
         return test_rule(talk, ws, m, split, rule, yes)
     tested = _tested_rule(ws, split) if testable and not new else None
@@ -761,8 +762,9 @@ def _after_worse(state, m: Marks) -> None:
         m.judge_now(found)
 
 
-def _waiting(talk: Talk, ws: Workspace, split: Split) -> int:
-    """New marks are needed first: for the top-up, or for a new set of hidden marks."""
+def _waiting(talk: Talk, ws: Workspace, split: Split, rule: str | None = None) -> int:
+    """New marks are needed first: for the top-up, or for a new set of hidden marks. A new
+    rule in rule.txt (`rule`) waits for them, and that is said."""
     if split.fresh:
         want, then = split.fresh["want"], ": they become a new set of marks kept aside"
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
@@ -776,8 +778,14 @@ def _waiting(talk: Talk, ws: Workspace, split: Split) -> int:
         want, then = split.topup["want"], ""
     if split.pending:
         talk.para(f"You have marked {len(split.pending)} of the {want} more answers.")
-    talk.next(next_marks(ws, f"mark {want - len(split.pending)} more answers with "
-                             f"`{program('mark')}`, then run `{talk.command()}` again{then}."))
+    left = want - len(split.pending)
+    if rule is not None:
+        after = ("the rule before it is tested again; then it is tested" if not split.fresh
+                 else "it is tested on them")
+        talk.para(f"Your new rule is waiting: first mark {plural(left, 'more answer')}, then "
+                  f"{after}.")
+    talk.next(next_marks(ws, f"mark {plural(left, 'more answer')} with `{program('mark')}`, "
+                             f"then run `{talk.command()}` again{then}."))
     return EXIT_NEEDS_YOU
 
 
@@ -1043,6 +1051,15 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     _keep(ws, split, rule, h, v)
     if v.kind in ("better", "safe"):
         talk.next(_copy_step(ws, m, talk))
+        return EXIT_OK
+    if v.kind == "leans better" and len(split.rules()) >= MAX_RULES:  # no top-up: a new set
+        retire(split)
+        save_split(ws, split)
+        talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
+                  f"aside. Mark {FRESH} more answers with `{program('mark')}`: they become a new "
+                  f"set kept aside, and `{talk.command()}` tests this rule again on them.")
+        talk.next(next_marks(ws, f"mark {FRESH} more answers with `{program('mark')}`, then "
+                                 f"run `{talk.command()}` again."))
         return EXIT_OK
     if v.kind == "leans better" and split.topup is None:
         split.topup = {"want": targets.top_up(v.n), "rule_hash": h, "done": False}

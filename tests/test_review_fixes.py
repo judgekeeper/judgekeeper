@@ -184,3 +184,77 @@ def test_a_not_sure_check_says_it_again(here, capsys):
     _results(here, OLD)  # back to the judge the marks were made on
     code, out = check(capsys)
     assert code == 0 and "Your judge is back to the one you marked with" in _flat(out)
+
+
+# 4. No top-up on the 3rd rule: a new set at once -------------------------------------------------
+
+@pytest.fixture
+def fixing(tmp_path, monkeypatch):
+    from tests.test_fix import judge as fake_judge
+
+    project = tmp_path / "support-bot"
+    project.mkdir()
+    monkeypatch.chdir(project)
+    return project, fake_judge.__wrapped__(project, monkeypatch)
+
+
+def _fix(capsys, *argv):
+    from tests.test_fix import run as fix_run
+
+    code, out = fix_run(capsys, *argv)
+    return code, " ".join(out.split())
+
+
+def _leans_better(ws, holder) -> str:
+    """A rule that fixes one hidden mark and breaks none: "can't tell yet, leans better"."""
+    from judgekeeper import fix
+    from tests.test_fix import _question, _split
+
+    split, m = _split(ws), fix.Marks(ws)
+    one = next(i for i in split["hidden"] if m.person[i] != m.judge[i])
+    holder["fixes"] = {"Fix just one.": {_question(ws, one)}}
+    return "Fix just one."
+
+
+def test_a_third_rule_that_leans_better_gets_a_new_set_at_once(fixing, capsys):
+    from tests.test_fix import _mark_more, _split, _write_rule, project
+
+    root, holder = fixing
+    holder["half"] = 40
+    ws = project(root, n=80, marked=60)
+    _fix(capsys)
+    for k in range(2):
+        _write_rule(ws, f"Rule number {k}.")
+        assert _fix(capsys, "--yes")[0] == 0
+    _write_rule(ws, _leans_better(ws, holder))
+    code, flat = _fix(capsys, "--yes")
+    assert code == 0 and "That leans toward better" in flat, flat
+    assert ("You have tested 3 rules on these marks kept aside. Mark 10 more answers with "
+            "`judgekeeper mark`: they become a new set kept aside, and `judgekeeper fix` tests "
+            "this rule again on them.") in flat
+    assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
+                         "`judgekeeper fix` again.")
+    assert "mark 7 more" not in flat and "mark 9 more" not in flat
+    new = _mark_more(ws, 10, 40)
+    code, flat = _fix(capsys, "--yes")
+    assert code == 0 and holder["evals"] == 8, flat
+    assert "Tested on the 10 marks kept aside:" in flat  # the promised test, on the new set
+    assert sorted(_split(ws)["hidden"]) == sorted(new)
+
+
+def test_a_new_rule_while_a_top_up_waits_is_named(fixing, capsys):
+    from judgekeeper import targets
+    from tests.test_fix import _split, _write_rule, project
+
+    root, holder = fixing
+    holder["half"] = 40
+    ws = project(root, n=80, marked=60)
+    _fix(capsys)
+    _write_rule(ws, _leans_better(ws, holder))
+    _fix(capsys, "--yes")
+    more = targets.top_up(len(_split(ws)["hidden"]))
+    _write_rule(ws, "Another rule.")
+    code, flat = _fix(capsys, "--yes")
+    assert code == 3 and holder["evals"] == 2
+    assert "testing your new rule" not in flat
+    assert f"Your new rule is waiting: first mark {more} more answers" in flat
