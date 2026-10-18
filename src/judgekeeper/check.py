@@ -1199,7 +1199,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     if not worse:  # after "Worse" the old judge stays the reference until it comes back
         judge_setup.save(state.ws, new, found.metric)
         _adopt(state.ws, found, tested)
-    _report(state.ws)
+    _report(state.ws, adopted=not worse)
     return EXIT_WORSE if exit_worse else EXIT_OK
 
 
@@ -1215,12 +1215,21 @@ def _same_as_last(state: State, line: dict) -> bool:
     return same and last.get("groups") == line["groups"]
 
 
-def _report(ws: Workspace) -> None:
-    """report.html again (when there is a result)."""
-    from judgekeeper.start_label import write_report
+def _report(ws: Workspace, adopted: bool = False) -> None:
+    """report.html again (when there is a result). `adopted`: the marks test the new judge
+    now, so the result is made again from its grades (start_label.store_result): the report's
+    counts, lists and kept-aside count all describe that one judge."""
+    from judgekeeper.start_label import StartSession, store_result, write_report
 
     try:
-        write_report(ws)
+        saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    try:
+        if adopted and isinstance(saved, dict):
+            store_result(ws, StartSession(ws), saved.get("command"))
+        else:
+            write_report(ws)
     except OSError:
         pass  # the check is saved; the report catches up with the next result
 

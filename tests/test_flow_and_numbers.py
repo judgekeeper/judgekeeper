@@ -332,3 +332,37 @@ def test_fix_without_npx_names_the_install_command(tmp_path, capsys, npx):
     assert code == 3, out
     assert _next(out) == ("Next: run `npm install promptfoo@0.124.1` in your project, then run "
                           "`judgekeeper fix` again.")
+
+
+# 4. report.html after check describes one judge ----------------------------------------------
+
+def _report(root) -> str:
+    return flat((root / ".judgekeeper" / "report.html").read_text(encoding="utf-8"))
+
+
+def _said_in_report(report: str) -> list[str]:
+    """The headline, the two counts and the kept-aside line, as report.html says them."""
+    text = re.sub(r"<[^>]+>", "", report)
+    return re.findall(r"Your judge [^.]*\.|Too early to tell\.|You (?:passed|failed) \d+ "
+                      r"answers\. Of those, your judge passed \d+ and failed \d+\.|"
+                      r"\* \d+ more (?:is|are) kept aside", text)
+
+
+def test_report_after_a_check_is_the_new_judges(here, capsys):
+    from tests.start_projects import table_project
+
+    table_project(here, split(30, 30))
+    assert _jk(capsys)[0] == 0
+    # the person fails 12 answers the judge passed and passes 4 it failed
+    _mark(Workspace(here), {i: "fail" for i in range(12)} | {i: "pass" for i in range(30, 34)})
+    assert "disagreed on <b>16</b> of <b>60</b>" in (_jk(capsys), _report(here))[1]
+    new = split(30, 30)
+    new[2:12] = [False] * 10  # the new judge fails 10 of the 12
+    table_project(here, new)
+    code, out = _check(capsys)
+    assert code == 0, out
+    after_check = _report(here)
+    assert ("You failed 38 answers. Of those, your judge passed 2 and failed 36."
+            in _said_in_report(after_check)), _said_in_report(after_check)
+    _jk(capsys)
+    assert _said_in_report(_report(here)) == _said_in_report(after_check)
