@@ -431,7 +431,7 @@ Every fingerprint field except `created_at` may be unknown: provider, model, sna
 
 ## The .judgekeeper/ folder
 
-judgekeeper writes only inside `.judgekeeper/` in your project. On macOS and Linux, only your user can read what it writes there: its files are 0600 and its folders 0700. Every string from a results file is scrubbed of credentials before it is written. It does not write through links: if `.judgekeeper/`, or anything in it, is a link (a symlink, as a cloned repository can hold), it stops and says which, before writing anything. Every file is written as a new file that replaces the old one. Your own `.gitignore` is never changed: the folder holds your answers' text, so commit it only if your data may live in your repository.
+judgekeeper writes only inside `.judgekeeper/` in your project. On macOS and Linux, only your user can read what it writes there: its files are 0600 and its folders 0700. Every string from a results file is scrubbed of credentials before it is written. It does not write through links: if `.judgekeeper/`, or anything in it, is a link (a symlink, as a cloned repository can hold), it stops and says which, before writing anything. Every file is written as a new file that replaces the old one. Your git hooks are never changed either: when your `.git/hooks/pre-commit` still runs `judgekeeper check --fast` (removed in 1.0), every run says once to delete that line. Your own `.gitignore` is never changed: the folder holds your answers' text, so commit it only if your data may live in your repository.
 
 | File | What it holds | When it is written |
 |---|---|---|

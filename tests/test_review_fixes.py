@@ -899,3 +899,30 @@ def test_a_one_line_file_too_big_to_look_into_is_named(here, capsys):
     assert code == 3
     assert "data/prompt_evals.jsonl" in flat, out
     assert "too big to look into" in flat
+
+
+# 17. An old pre-commit hook line --------------------------------------------------------------
+
+OLD_HOOK = ("Your git pre-commit hook still runs `judgekeeper check --fast`, which was removed. "
+            "Delete that line from .git/hooks/pre-commit.")
+
+
+@pytest.mark.parametrize("argv", [(), ("check",), ("fix",), ("mark", "--no-browser")])
+def test_an_old_pre_commit_line_is_said_once(here, capsys, argv):
+    hook = here / ".git" / "hooks" / "pre-commit"
+    hook.parent.mkdir(parents=True)
+    text = "#!/bin/sh\nuvx judgekeeper@1.0.0b2 check --fast || exit $?\n"
+    hook.write_text(text, encoding="utf-8")
+    promptfoo_project(here, split(20, 16))
+    _, out, _ = run(capsys, *argv)
+    assert " ".join(out.split()).count(OLD_HOOK) == 1, out
+    assert hook.read_text(encoding="utf-8") == text  # never edited
+
+
+def test_a_hook_without_the_old_line_says_nothing(here, capsys):
+    hook = here / ".git" / "hooks" / "pre-commit"
+    hook.parent.mkdir(parents=True)
+    hook.write_text("#!/bin/sh\nruff check\n", encoding="utf-8")
+    promptfoo_project(here, split(20, 16))
+    _, out, _ = run(capsys)
+    assert "pre-commit" not in out

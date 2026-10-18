@@ -60,6 +60,7 @@ from judgekeeper.start_label import Workspace, next_marks, shown_folder
 from judgekeeper.textio import (
     jsonl_lines,
     make_private,
+    old_hook,
     plural,
     program,
     quote_arg,
@@ -721,6 +722,10 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     talk = Talk(path)
     talk.say(f"judgekeeper {__version__}")
     talk.say()
+    hook = old_hook(path)
+    if hook:
+        talk.para(hook)
+        talk.say()
     state = _state(path)
     ws = state.ws if state is not None else None
     m = Marks(ws) if ws is not None else None

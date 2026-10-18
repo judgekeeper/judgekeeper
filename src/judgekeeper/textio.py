@@ -385,6 +385,26 @@ WORKSPACE_FILE = (".judgekeeper is a file, but judgekeeper keeps its files in a 
 WORKSPACE_FILE_NEXT = "move or rename the file .judgekeeper, then run `{command}`."
 WORKSPACE_DENIED = ("judgekeeper can't write in .judgekeeper/ (permission denied): it keeps "
                     "its files there.")
+OLD_HOOK = ("Your git pre-commit hook still runs `judgekeeper check --fast`, which was removed. "
+            "Delete that line from .git/hooks/pre-commit.")
+
+
+def old_hook(path: str | Path) -> str | None:
+    """OLD_HOOK when the git pre-commit hook of the repository `path` is in still runs
+    `judgekeeper check --fast` (gone in 1.0), else None. The hook is only read: judgekeeper
+    never edits it."""
+    here = Path(path).resolve()
+    for folder in (here, *here.parents):
+        if (folder / ".git").exists():
+            try:
+                text = (folder / ".git" / "hooks" / "pre-commit").read_text(
+                    encoding="utf-8", errors="replace")
+            except OSError:
+                return None
+            return OLD_HOOK if "judgekeeper" in text and "check --fast" in text else None
+    return None
+
+
 WORKSPACE_DENIED_NEXT = ("give your user permission to write in .judgekeeper/, then run "
                          "`{command}`.")  # never "remove it": it holds the marks
 WORKSPACE_BUSY = ("Another program had a file in .judgekeeper/ open, so judgekeeper could not "

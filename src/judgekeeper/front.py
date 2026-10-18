@@ -85,7 +85,7 @@ from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
-from judgekeeper.textio import plural, program, quote_arg, wrap
+from judgekeeper.textio import old_hook, plural, program, quote_arg, wrap
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -269,6 +269,10 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
     """`judgekeeper`, or (`marking`) `judgekeeper mark`. Returns the exit code."""
     talk.say(f"judgekeeper {__version__}")
     talk.say()
+    hook = old_hook(path)
+    if hook:
+        talk.para(hook)
+        talk.say()
     try:
         if stop:
             return _stop(talk, path)

@@ -70,7 +70,15 @@ from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_value
 from judgekeeper.start_label import Workspace, every_marked, next_marks
-from judgekeeper.textio import make_private, plural, program, quote_arg, wrap, write_replacing
+from judgekeeper.textio import (
+    make_private,
+    old_hook,
+    plural,
+    program,
+    quote_arg,
+    wrap,
+    write_replacing,
+)
 
 EXIT_OK, EXIT_WORSE, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 1, 2, 3
 VERDICTS = "verdicts"
@@ -1448,6 +1456,11 @@ def run(path: str = ".", yes: bool = False) -> int:
     """`judgekeeper check`. Returns the exit code."""
     _print(f"judgekeeper {__version__}")
     _print()
+    hook = old_hook(path)
+    if hook:
+        for line in wrap(hook):
+            _print(line)
+        _print()
     _print(STEP)
     _print()
     return full(path, _Printed(), yes=yes)
