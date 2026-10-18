@@ -554,6 +554,13 @@ def test_entry(answer: dict, row: dict, comps: list, test_opts: dict, default_te
             "assert": [dict(c["assertion"]) for c in comps]}
 
 
+def graders_handed(plan: Plan) -> set[str]:
+    """The grader of each test judgekeeper hands to promptfoo (test_entry), by its id; the
+    default grader, which the file never names, is left out."""
+    ids = {_grader_id(test_entry(*p)["options"].get("provider")) for p in plan.payload}
+    return {i for i in ids if i}
+
+
 def regrade_config() -> dict:
     return {"description": "judgekeeper re-check (temporary file)",
             "prompts": ["{{judgekeeper_prompt}}"], "providers": ["echo"],

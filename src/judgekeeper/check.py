@@ -14,8 +14,9 @@ For a changed setup:
 2. the rest only after the person's yes: `check` says how many answers and calls it would
    ask about and asks `Go ahead? [y/N]` at a terminal (Enter is no); without a terminal only
    `--yes` says yes, else it stops (exit 3) before anything is asked or saved. The person's
-   own judge is then asked once about each, through `again/` (no menu). When a call used
-   another model than the new judge's (wrong_model), nothing is saved (exit 2);
+   own judge is then asked once about each, through `again/` (no menu). When the model
+   judgekeeper would hand the eval tool is not the new judge's, nothing is asked; when the
+   tool says a call was answered by another model (wrong_model), nothing is saved (exit 2);
 3. per group (the answers the person passed, and failed), every mark with an old and a new
    verdict: how many went from right to wrong and from wrong to right, and a range on the
    paired change (targets.paired_verdict): "Worse", "No drop bigger than 20 points" or
@@ -485,6 +486,10 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     if not plan.key_ok:
         out.reasons.append(NO_KEY)
         return out
+    wrong = wrong_model(_handed(plan), found)
+    if wrong:  # (a): what judgekeeper would hand the eval tool is not the new judge
+        out.wrong_model = wrong
+        return out
     said.say()
     _wrap(said, ASK_FIRST.format(which="the other " if rest else "your ",
                                  n=_n(len(ids), "marked answer"), calls=_n(plan.calls, "AI call"),
@@ -505,7 +510,7 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
         out.calls = plan.calls
         return out
     wrong = wrong_model(fresh.models_used(), found)
-    if wrong:  # not the new judge's answers: nothing is kept
+    if wrong:  # (b): the calls say another model answered: nothing is kept
         shutil.rmtree(plan.folder, ignore_errors=True)
         out.wrong_model, out.calls = wrong, plan.calls
         return out
@@ -532,6 +537,16 @@ def downloads(plan) -> str:
     """The sentence the question about the calls adds when running the judge downloads its
     tool first (npx), else ""."""
     return DOWNLOADS.format(version=plan.tool_version) if plan.download else ""
+
+
+def _handed(plan) -> set[str]:
+    """The models judgekeeper hands the eval tool for a re-ask: promptfoo's grader on each
+    test, else the plan's model."""
+    from judgekeeper.again.promptfoo import graders_handed
+
+    if plan.tool == "promptfoo":
+        return graders_handed(plan)
+    return {plan.model} if isinstance(plan.model, str) and plan.model else set()
 
 
 def _model_name(model: str) -> str:

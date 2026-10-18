@@ -790,3 +790,20 @@ def test_marks_saved_while_the_results_file_is_gone_are_said(here, capsys):
     assert code == 3, out
     assert ("No eval results found in this folder. Your 50 marks are saved in .judgekeeper/; "
             "they come back when your results file is back.") in flat(out)
+
+
+def test_the_guard_stops_before_any_call_when_the_old_grader_would_be_handed(here, capsys,
+                                                                           grader,
+                                                                           monkeypatch):
+    """(a): the config judgekeeper hands to promptfoo holds the old grader (made by hand)."""
+    from judgekeeper.again import promptfoo as pf
+
+    ws = _marked(here)
+    _new_judge_on_a_few(here)
+    monkeypatch.setattr(pf, "_with_grader", lambda row, template: (row, {}, template[2]))
+    code, out = _check(capsys, "--yes")
+    assert code == 2, out
+    assert (f"judgekeeper asked the wrong model ({MODEL}, not {NEW}), so this check is not "
+            "saved.") in flat(out)
+    assert "fake" not in grader or not grader["fake"].graders  # no call was made
+    assert _history(ws) == [] and not (ws.dir / "verdicts").exists()
