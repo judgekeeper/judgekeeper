@@ -624,7 +624,7 @@ OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({nam
                 "with input, output and verdict columns.")
 OLD_EVALUATE_NEXT = ("run your judge with mlflow.genai.evaluate() and scorers, then run "
                      "`{command}` again; or save its verdicts as a CSV and run "
-                     "`{program} <the CSV>`.")
+                     "`{program} PATH`, with PATH the path of your CSV.")
 # The run metrics mlflow.evaluate() logs for a judged metric: faithfulness/v1/mean, ...
 _OLD_METRIC = re.compile(r"(.+/v\d+)/(mean|variance|p90)")
 

@@ -558,3 +558,25 @@ def test_a_split_the_sign_test_does_not_pass_is_cant_tell_yet():
                                          "the old rule.")
     assert targets.fix_verdict(0, 12, 26).kind == "worse"
     assert fix.RESULT["worse"] == "Result: it looks worse. Keep the old rule."
+
+
+def test_a_bad_pass_if_is_not_repeated_in_the_next_line(here, capsys):
+    from tests.start_projects import table_project
+
+    table_project(here, split(20, 16))
+    code, _, err = run(capsys, "--pass-if", "0.5", "--no-browser")
+    assert code == 2
+    assert err.splitlines()[-1] == ("Next: run `judgekeeper --no-browser --pass-if "
+                                    "'score>=0.5'`."), err
+    code, _, err = run(capsys, "--label-map", "good", "--no-browser")
+    assert code == 2
+    assert "--label-map good" not in err.splitlines()[-1], err
+
+
+def test_no_placeholder_in_angle_brackets_in_backticks():
+    pattern = re.compile(r"`[^`\n]*<[a-z][^`>\n]*>[^`\n]*`")
+    for path in (ROOT / "src" / "judgekeeper").rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        found = [m for m in pattern.findall(text) if "previous-<date>" not in m
+                 and "<criterion>" not in m and "<scorer>" not in m]
+        assert not [m for m in found if "<the" in m or "<your" in m], (path.name, found)

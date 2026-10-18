@@ -105,6 +105,7 @@ def test_started_by_uvx_with_an_extra_the_next_lines_keep_it(here, capsys, monke
     command = f'uvx --from "judgekeeper[mlflow]=={__version__}" judgekeeper'
     (here / "survey.csv").write_text("No,Question,Answer\n1,q,a\n", encoding="utf-8")
     code, out, _ = run(capsys, "survey.csv")
-    assert f"`{command} <the CSV>`" in assert_one_next_at_the_end(out)
+    assert f"`{command} PATH`, with PATH the path of your CSV." in assert_one_next_at_the_end(
+        out)
     assert "`judgekeeper " not in out
     assert code == 3

@@ -38,8 +38,8 @@ In this project, my LLM judge saves its results in its own format. Please:
 3. Write one CSV per judge or criterion. Leave out rows where the judge gave an error, and
    scores made by a rule instead of an LLM.
 4. Keep everything on this computer: never send the data anywhere.
-5. Run `judgekeeper <the CSV file>` and show me what it prints, so I can check the
-   counts and the example rows."""
+5. Run `judgekeeper PATH`, with PATH the path of the CSV file, and show me what it prints,
+   so I can check the counts and the example rows."""
 
 SCORE_KEYS = frozenset({"score", "scores", "verdict", "pass", "passed", "success", "label"})
 INPUT_WORDS = ("input", "prompt", "question", "query", "instruction", "message")
