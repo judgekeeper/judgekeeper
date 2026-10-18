@@ -123,9 +123,7 @@ def page_server(ws: Workspace, port: int, command: str,
         session.link = PRINTED
 
     def result(session: StartSession, back: str) -> str:
-        r = start_label.store_result(ws, session, start_command)
-        return start_label.result_html(start_label._scrubbed(r), back,
-                                       fixing=start_label._fixing(ws))
+        return start_label.live_result(ws, session, start_command, back)
 
     return make_server(session, port, result=result,
                        page=start_label.page_template(ws.data(), command), lock=ws.dir,

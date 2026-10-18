@@ -1224,7 +1224,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     worse = was and checking.worse_step(was["before"], was["after"], _check_command(talk))
     r = start_label.store_result(ws, session, _command_of(talk, saved), worse=worse or None,
                                  redraw=True)
-    made = r.get("made") or marks.made(marks.read(ws.marks), ids=set(session.by_id))
+    made = marks.made(marks.read(ws.marks), ids=set(session.by_id))  # reasons added since
     for line in made_lines(made)[1:]:  # the notes on how they were made; the count is below
         talk.para(line)
         talk.say()

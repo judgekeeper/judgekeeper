@@ -1,0 +1,530 @@
+"""Why the person disagrees with the judge: the reasons they give on the live result page.
+
+On each disagreement the person can see (never a mark kept aside for `fix`'s fair test), the
+result page asks why they marked it so, with reasons to tap (REASONS, by the judge's grade),
+buttons from the parts of their own rule (split_rule), their own reasons as buttons (typed once
+in "Other…", kept in .judgekeeper/reasons.json, at most MAX_OWN), and "Mark this part" for words
+in the answer. Each change is one stamped line in marks.jsonl with the same mark (marks.py):
+"reasons" (ids from REASONS, or "own-N"), "note" (the "Other…" box), "rule_parts" with the
+rule's hash, and "spans" ([start, end] in the answer's text, never the text). The marking page
+never asks: it shows no grade, and the person doesn't know yet where they disagree.
+
+"I'm not sure about my own mark" never changes the mark: it is only counted. A mark changed on
+the marking page after the judge's grades were shown is stamped "after_result" (saw_grades).
+
+All the rest is plain counting and fixed templates, no AI: `fix`'s first clue, the "missed it
+or allowed it" check (mentioned) and suggestions.md. judgekeeper never writes rule.txt.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from collections import Counter
+from pathlib import Path
+
+from judgekeeper.fingerprint import rule_hash, utc_now
+from judgekeeper.redact import scrub, visible
+from judgekeeper.textio import make_private, plural, write_replacing
+
+FILE = "reasons.json"
+# id: (words on the button, the judge's grade it is asked on; None for both)
+REASONS = {
+    "wrong_fact": ("It has a wrong fact", "pass"),
+    "no_answer": ("It doesn't answer the question", "pass"),
+    "left_out": ("It leaves out something important", "pass"),
+    "unsafe": ("It's unsafe or not allowed", "pass"),
+    "format_tone": ("Wrong format or tone", "pass"),
+    "worded_differently": ("It's right, just worded differently", "fail"),
+    "small_slips": ("Small slips don't matter here", "fail"),
+    "short_ok": ("Short, but it answers the question", "fail"),
+    "not_asked": ("The judge wanted something I didn't ask for", "fail"),
+    "rule_silent": ("The rule doesn't say how to judge this", None),
+    "unsure": ("I'm not sure about my own mark", None),
+}
+UNSURE = "unsure"
+OWN = "own-"
+OTHER = "Other…"
+FIELDS = ("reasons", "note", "rule_parts", "rule_hash", "spans")  # a reason line's own keys
+MAX_NOTE = 500
+MAX_SPANS = 3
+MAX_OWN = 8
+MAX_PARTS = 6
+PART_CHARS = 60
+TWICE = 2  # taps that make a clue line or a suggested rule line
+KEPT_ASIDE = "this answer is kept aside to test a new rule fairly"
+QUESTION = "Why did you mark it {mark}?"
+PART_QUESTION = {"pass": "Which part of your rule does this answer break?",
+                 "fail": "Which part did your judge get wrong?"}
+ADD = "Add a reason to any answer below. `fix` uses them."
+
+
+def offered(judge: str) -> list[str]:
+    """The reasons asked on an answer the judge graded `judge`, in order."""
+    return [k for k, (_, side) in REASONS.items() if side in (judge, None)]
+
+
+def lower(text: str) -> str:
+    """A button's words inside a sentence: its first letter small ("I" stays)."""
+    return text if text.startswith(("I ", "I'")) else text[:1].lower() + text[1:]
+
+
+# The parts of the rule ------------------------------------------------------------------------
+
+_BULLET = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
+_SENTENCE = re.compile(r"(?<=[.!?])\s+")
+_LIST = re.compile(r",\s*(?:and\s+)?|\s+and\s+")
+
+
+def _cut(text: str) -> str:
+    if len(text) <= PART_CHARS:
+        return text
+    cut = text[:PART_CHARS - 1]
+    if " " in cut:
+        cut = cut[:cut.rindex(" ")]
+    return cut.rstrip(" ,;:") + "…"
+
+
+def split_rule(rule: str | None) -> list[str]:
+    """The parts of a rule, by plain text rules: one per line, bullet or numbered line and
+    sentence; a sentence is split on ";", and on "and" when it lists checks with commas. No
+    template part ({{ ... }}). At most MAX_PARTS, each cut to PART_CHARS on a word. Fewer than
+    two parts: none (the general buttons are enough)."""
+    parts: list[str] = []
+    for line in (rule or "").splitlines():
+        line = _BULLET.sub("", line).strip()
+        for sentence in _SENTENCE.split(line):
+            for piece in sentence.split(";"):
+                pieces = _LIST.split(piece) if "," in piece and " and " in piece else [piece]
+                parts += [p.strip().rstrip(".!?:,").strip() for p in pieces]
+    parts = [p for p in dict.fromkeys(parts) if p and "{" not in p and len(p.split()) >= 2]
+    parts = [_cut(p) for p in parts[:MAX_PARTS]]
+    return parts if len(parts) > 1 else []
+
+
+def rule_parts(data: dict) -> list[str]:
+    """The rule's parts for a check whose start.json is `data`: none without one rule for every
+    answer."""
+    from judgekeeper.start_fix_rule import rule_text
+
+    if not data.get("rule") or not data.get("one_rule", True):
+        return []
+    return split_rule(rule_text(data["rule"], data.get("tool") or ""))
+
+
+# The answer's text the spans point into -------------------------------------------------------
+
+def canonical(text: str) -> str:
+    """An answer as the result page shows it, before any cut: one kind of line break and no
+    hidden character, so an offset counted in the browser points at the same words here."""
+    return visible(text.replace("\r\n", "\n").replace("\r", "\n"))
+
+
+def marked(text: str, spans) -> list[str]:
+    """The words of `spans` in an answer's canonical text."""
+    return [text[s:e] for s, e in spans or [] if 0 <= s < e <= len(text)]
+
+
+def merged(spans, length: int) -> list[tuple[int, int]]:
+    """`spans` inside the first `length` characters, sorted, overlaps joined."""
+    out: list[list[int]] = []
+    for s, e in sorted((max(0, s), min(e, length)) for s, e in spans or []):
+        if s >= e:
+            continue
+        if out and s <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], e)
+        else:
+            out.append([s, e])
+    return [(s, e) for s, e in out]
+
+
+def bold(text: str, spans) -> str:
+    """`text` with each span in **bold** (mistakes.md)."""
+    for s, e in reversed(merged(spans, len(text))):
+        text = f"{text[:s]}**{text[s:e]}**{text[e:]}"
+    return text
+
+
+# reasons.json: the person's own buttons, and when the judge's grades were first shown --------
+
+def _path(ws) -> Path:
+    return ws.dir / FILE
+
+
+def read_file(ws) -> dict:
+    try:
+        data = json.loads(_path(ws).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"own": []}
+    if not isinstance(data, dict):
+        return {"own": []}
+    own = [c for c in data.get("own") or [] if isinstance(c, dict)
+           and isinstance(c.get("id"), str) and c["id"].startswith(OWN)
+           and isinstance(c.get("text"), str) and c["text"]]
+    return {**data, "own": own}
+
+
+def _write(ws, data: dict) -> None:
+    from judgekeeper import marks
+
+    path = _path(ws)
+    marks._refuse_links(path)
+    make_private(path.parent)
+    write_replacing(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+def own_chips(ws) -> list[dict]:
+    """The person's own buttons: [{"id", "text", "from": the answer whose box it was typed in}]."""
+    return read_file(ws)["own"]
+
+
+def sync_own(ws, item_id: str, note: str | None, tapped: set[str]) -> None:
+    """After `item_id`'s "Other…" box was saved: its button follows the words in the box (one
+    button per box, so typing on never makes a button per save); an empty box removes it,
+    unless another answer tapped it (`tapped`). A new button only while there are fewer than
+    MAX_OWN, and not for words a button already has."""
+    if note is None:
+        return
+    data = read_file(ws)
+    own = data["own"]
+    mine = next((c for c in own if c.get("from") == item_id), None)
+    text = " ".join(note.split())
+    taken = {c["text"].casefold() for c in own if c is not mine} | {
+        w.casefold() for w, _ in REASONS.values()}
+    if mine is not None and (not text or text.casefold() in taken):
+        if mine["id"] in tapped:
+            mine["from"] = None
+        else:
+            own.remove(mine)
+        mine = None
+    if text and text.casefold() not in taken:
+        if mine is not None:
+            mine["text"] = text
+        elif len(own) < MAX_OWN:
+            n = max((int(c["id"][len(OWN):]) for c in own
+                     if c["id"][len(OWN):].isdigit()), default=0) + 1
+            n = max(n, int(data.get("next") or 1))
+            own.append({"id": f"{OWN}{n}", "text": text, "from": item_id})
+            data["next"] = n + 1
+    _write(ws, data)
+
+
+def saw_grades(ws) -> None:
+    """The judge's grade on single answers was shown (a result page with disagreements): marks
+    changed from now on are stamped "after_result"."""
+    data = read_file(ws)
+    if not data.get("grades_shown_at"):
+        data["grades_shown_at"] = utc_now()
+        _write(ws, data)
+
+
+def grades_shown(ws) -> bool:
+    return bool(read_file(ws).get("grades_shown_at"))
+
+
+# Checking a post ------------------------------------------------------------------------------
+
+def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
+          before: dict | None = None) -> dict:
+    """The fields of a reason line from a post (`body`: "reasons", "note", "rule_parts",
+    "spans"), checked; a ValueError says what is wrong. A field the post leaves out keeps its
+    value in `before` (the answer's line now). Only for an answer marked Pass or Fail that the
+    judge graded the other way, on the marks the person can see: the marks are set aside first
+    when the result page hasn't done it yet (fix.prepare_split)."""
+    from judgekeeper import fix
+
+    split = fix.read_split(ws)
+    if split is None:
+        fix.prepare_split(ws)
+        split = fix.read_split(ws)
+    if split is not None and item_id in split.hidden:
+        raise ValueError(KEPT_ASIDE)
+    if mark not in ("pass", "fail"):
+        raise ValueError("mark this answer Pass or Fail first")
+    if judge == mark:
+        raise ValueError("reasons are only for answers you and your judge disagree on")
+    if split is None or item_id not in split.seen:
+        raise ValueError("this answer is not on your result page yet: open it again")
+    data = ws.data()
+    own = {c["id"] for c in own_chips(ws)}
+    saved = of_line(before)
+    body = {"reasons": saved["reasons"], "note": saved["note"],
+            "rule_parts": saved["rule_parts"] if saved["rule_hash"] == rule_hash(data.get("rule"))
+            else [], "spans": saved["spans"], **body}
+    got = body.get("reasons", [])
+    if not isinstance(got, list) or not all(isinstance(r, str) for r in got) or \
+            len(set(got)) != len(got):
+        raise ValueError("reasons must be a list of reason ids, each once")
+    unknown = [r for r in got if r not in REASONS and r not in own]
+    if unknown:
+        raise ValueError(f"unknown reason: {unknown[0]}")
+    out: dict = {"reasons": list(got)}
+    note = body.get("note")
+    if note is not None:
+        if not isinstance(note, str):
+            raise ValueError("note must be a string")
+        if len(note) > MAX_NOTE:
+            raise ValueError(f"a reason can be at most {MAX_NOTE} characters")
+        if note.strip():
+            out["note"] = scrub(note.strip())
+    parts = body.get("rule_parts") or []
+    count = len(rule_parts(data))
+    if not isinstance(parts, list) or len(set(map(repr, parts))) != len(parts) or not all(
+            isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= count for n in parts):
+        raise ValueError(f"rule_parts must be part numbers from 1 to {count}, each once")
+    if parts:
+        out["rule_parts"] = sorted(parts)
+        out["rule_hash"] = rule_hash(data.get("rule"))
+    spans = body.get("spans") or []
+    length = len(canonical(_output(ws, item_id)))
+    if not isinstance(spans, list) or len(spans) > MAX_SPANS or not all(
+            isinstance(s, list) and len(s) == 2
+            and all(isinstance(x, int) and not isinstance(x, bool) for x in s)
+            and 0 <= s[0] < s[1] <= length for s in spans):
+        raise ValueError(f"spans must be at most {MAX_SPANS} [start, end] pairs inside the "
+                         "answer")
+    if spans:
+        out["spans"] = [list(s) for s in spans]
+    return out
+
+
+def _output(ws, item_id: str) -> str:
+    from judgekeeper.start_label import display
+    from judgekeeper.textio import jsonl_lines
+
+    for line in jsonl_lines(ws.pool.read_text(encoding="utf-8")):
+        if line.strip():
+            row = json.loads(line)
+            if row.get("id") == item_id:
+                return display(row.get("output"))
+    return ""
+
+
+def of_line(line: dict | None) -> dict:
+    """A marks line's reasons, as the page and `fix` read them."""
+    line = line or {}
+    return {"reasons": [r for r in line.get("reasons") or [] if isinstance(r, str)],
+            "note": str(line.get("note") or ""),
+            "rule_parts": [n for n in line.get("rule_parts") or [] if isinstance(n, int)],
+            "rule_hash": line.get("rule_hash"),
+            "spans": [s for s in line.get("spans") or []
+                      if isinstance(s, list) and len(s) == 2
+                      and all(isinstance(x, int) for x in s)]}
+
+
+# Counting: `fix`'s clues and suggestions.md ----------------------------------------------------
+# A row (fix.Marks.row): "id", "judge", "final", "output", "reason" (the judge's), "why" (the
+# note), "reasons" (ids, an own button's id on the answer it was typed for), "words" ({own id:
+# its words}), "parts" ([[n, words]]), "spans".
+
+def _words(row: dict, key: str) -> str:
+    if key in REASONS:
+        return lower(REASONS[key][0])
+    return f"“{row.get('words', {}).get(key, key)}”"
+
+
+def tally(rows: list[dict]) -> Counter:
+    """How often each reason was tapped, but "not sure"."""
+    return Counter(k for r in rows for k in r.get("reasons") or [] if k != UNSURE)
+
+
+def has_any(rows: list[dict]) -> bool:
+    return any(r.get("reasons") or r.get("why") or r.get("parts") or r.get("spans")
+               for r in rows)
+
+
+def _names(rows: list[dict]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for r in rows:
+        for k in r.get("reasons") or []:
+            out.setdefault(k, _words(r, k))
+    return out
+
+
+def _order(counts: Counter) -> list[str]:
+    known = list(REASONS)
+    return sorted(counts, key=lambda k: (-counts[k], known.index(k) if k in known else 99, k))
+
+
+def mentioned(rows: list[dict]) -> tuple[int, int]:
+    """Of the answers the judge passed and the person failed with words marked: (how many the
+    judge's reason mentions, how many it doesn't). Mentioned: any number, or any word of four
+    letters or more that is not a common word, of a marked part is in the reason, ignoring
+    case. Rough, so the lines say "seems"."""
+    from judgekeeper.fix import STOPWORDS
+
+    yes = no = 0
+    for r in rows:
+        if r.get("judge") != "pass" or not r.get("spans"):
+            continue
+        text = " ".join(marked(canonical(r.get("output") or ""), r["spans"])).lower()
+        words = set(re.findall(r"\d+(?:[.,]\d+)?", text)) | {
+            w for w in re.findall(r"[^\W\d_]{4,}", text) if w not in STOPWORDS}
+        reason = (r.get("reason") or "").lower()
+        if any(re.search(rf"(?<!\w){re.escape(w)}(?!\w)", reason) for w in words):
+            yes += 1
+        else:
+            no += 1
+    return yes, no
+
+
+def clue_lines(rows: list[dict]) -> list[str]:
+    """The first clue, from the person's reasons on the mistakes they can see: the reasons
+    counted, a line when "the rule doesn't say" or "wrong fact" (on the judge's passes) was
+    tapped TWICE or more, the rule parts tapped TWICE or more, the "missed it or allowed it"
+    check on the answers with words marked, and how many marks the person wasn't sure
+    about."""
+    counts, names = tally(rows), _names(rows)
+    out = []
+    if counts:
+        out.append("Your reasons: " + ", ".join(f"{names[k]} ({counts[k]})"
+                                                for k in _order(counts)) + ".")
+    if counts["rule_silent"] >= TWICE:
+        out.append("Your rule may be missing something: write in it how to judge these "
+                   "answers.")
+    if sum("wrong_fact" in (r.get("reasons") or []) for r in rows
+           if r.get("judge") == "pass") >= TWICE:
+        out.append("Your judge misses wrong facts: say in the rule that one wrong fact is a "
+                   "Fail.")
+    parts = Counter((n, text) for r in rows for n, text in r.get("parts") or [])
+    for (n, text), k in sorted(parts.items(), key=lambda x: (-x[1], x[0][0])):
+        if k >= TWICE:
+            out.append(f"Your marks say your judge misses rule part {n}, '{text}' ({k}).")
+    yes, no = mentioned(rows)
+    if no:
+        out.append(f"Your judge didn't mention the part you marked in {no} of {yes + no} "
+                   "answers: it seems to miss these problems. A clearer rule may help, or a "
+                   "stronger model.")
+    if yes:
+        out.append(f"In {plural(yes, 'answer')} your judge mentioned the part you marked but "
+                   f"still passed {'it' if yes == 1 else 'them'}: your rule seems to allow "
+                   "this. Say in the rule that it's a Fail.")
+    unsure = sum(UNSURE in (r.get("reasons") or []) for r in rows)
+    if unsure:
+        out.append(f"You weren't sure about {unsure} of your marks: they're listed last in "
+                   "mistakes.md.")
+    return out
+
+
+def said_line(row: dict) -> str | None:
+    """"You said: ..." for one mistake in mistakes.md: the reasons tapped, the rule parts by
+    number, and the marked words (in bold in the answer). The note is fenced, not here."""
+    said = [_words(row, k) for k in row.get("reasons") or [] if not k.startswith(OWN)]
+    said += [_words(row, k) for k in row.get("reasons") or [] if k.startswith(OWN)
+             and row.get("words", {}).get(k) != row.get("why")]
+    said += [f"rule part {n}" for n, _ in row.get("parts") or []]
+    if row.get("spans"):
+        said.append("the words in bold")
+    return f"You said: {'; '.join(said)}." if said else None
+
+
+def groups(rows: list[dict]) -> list[tuple[str, list[dict]]]:
+    """The mistakes grouped by their most-tapped reason (the reason of theirs tapped most over
+    all mistakes), most-tapped group first; then those with none, then those the person wasn't
+    sure about, last."""
+    counts, names = tally(rows), _names(rows)
+    keyed: dict[str, list[dict]] = {}
+    for r in rows:
+        if UNSURE in (r.get("reasons") or []):
+            key = UNSURE
+        else:
+            mine = [k for k in r.get("reasons") or [] if k != UNSURE]
+            key = _order(Counter({k: counts[k] for k in mine}))[0] if mine else ""
+        keyed.setdefault(key, []).append(r)
+    order = [k for k in _order(Counter({k: counts[k] for k in keyed if k not in ("", UNSURE)}))]
+    out = [(f"Your reason: {names[k]} ({len(keyed[k])})", keyed[k]) for k in order]
+    if "" in keyed:
+        out.append(("No reason given", keyed[""]))
+    if UNSURE in keyed:
+        out.append(("You weren't sure about your own mark", keyed[UNSURE]))
+    return out
+
+
+# suggestions.md ---------------------------------------------------------------------------------
+
+TEMPLATES = {
+    "wrong_fact": "Fail an answer with any wrong fact, even a small one.",
+    "no_answer": "Fail an answer that doesn't answer the question asked.",
+    "left_out": "Fail an answer that leaves out {words}.",
+    "unsafe": "Fail an answer that is unsafe or not allowed.",
+    "format_tone": "Fail an answer with the wrong format or tone.",
+    "worded_differently": "Pass a correct answer even when its words differ from what you "
+                          "expect.",
+    "small_slips": "Small slips in spelling or format don't make an answer Fail.",
+    "short_ok": "A short answer that answers the question is a Pass.",
+    "not_asked": "Don't fail an answer for leaving out something the question didn't ask for.",
+    "rule_silent": "Your rule doesn't cover {n} answers: write how to judge them.",
+}
+PART_LINE = "Make this part of your rule more exact: '{part}'. Your judge missed it {times}."
+SUGGESTIONS = "suggestions.md"
+SHOWN = 300  # characters of an answer in suggestions.md
+
+
+def _line(key: str, side: str, hits: list[dict]) -> str:
+    if key.startswith(OWN):
+        words = hits[0].get("words", {}).get(key, key)
+        return (f"Fail when: “{words}”" if side == "pass"
+                else f"Pass even when: “{words}”")
+    notes = [r["why"] for r in hits if r.get("why")]
+    return TEMPLATES[key].format(n=len(hits), words="; ".join(notes) or "something important")
+
+
+def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int]], list[tuple[str, list]]]:
+    """(suggested lines with their counts: each reason tapped TWICE or more, by the side it was
+    tapped on; seen once: [(line, the answers)] for each reason, rule part, marked part and own
+    words given only once). "Not sure" is about the person's mark: it makes no line."""
+    by: dict[tuple[str, str], list[dict]] = {}
+    for r in rows:
+        for k in r.get("reasons") or []:
+            if k != UNSURE and (k in TEMPLATES or k.startswith(OWN)):
+                side = r["judge"] if k.startswith(OWN) else ""
+                by.setdefault((k, side), []).append(r)
+    known = list(REASONS)
+    keys = sorted(by, key=lambda x: (-len(by[x]), known.index(x[0]) if x[0] in known else 99,
+                                     x))
+    suggested = [(_line(k, s, by[(k, s)]), len(by[(k, s)])) for k, s in keys
+                 if len(by[(k, s)]) >= TWICE]
+    once = [(_line(k, s, by[(k, s)]), by[(k, s)]) for k, s in keys if len(by[(k, s)]) < TWICE]
+    parts: dict[tuple[int, str], list[dict]] = {}
+    for r in rows:
+        for n, text in r.get("parts") or []:
+            parts.setdefault((n, text), []).append(r)
+    for (_, text), hits in sorted(parts.items(), key=lambda x: (-len(x[1]), x[0][0])):
+        line = PART_LINE.format(part=text, times=plural(len(hits), "time"))
+        (suggested.append((line, len(hits))) if len(hits) >= TWICE
+         else once.append((line, hits)))
+    for r in rows:
+        own = {w for w in r.get("words", {}).values()}
+        if r.get("why") and r["why"] not in own and not any(
+                k == "left_out" for k in r.get("reasons") or []):
+            once.append((f"Your own words: “{r['why']}”", [r]))
+        for words in marked(canonical(r.get("output") or ""), r.get("spans")):
+            once.append((f"The part you marked: “{' '.join(words.split())}”", [r]))
+    return suggested, once
+
+
+def suggestions_md(rows: list[dict], fix_folder: str, command: str = "judgekeeper fix",
+                   can_test: bool = True) -> str:
+    """.judgekeeper/fix/suggestions.md: the suggested rule lines from the person's reasons on
+    the marks they can see, then everything given once, each with its answer fenced as data."""
+    from judgekeeper.start_fix_rule import DATA_WARNING, MARKS, fenced
+
+    suggested, once = suggestions(rows)
+    where = (f"into {fix_folder}/rule.txt, then run `{command}` to test the new rule on your "
+             "marks kept aside" if can_test else "into your rule where your eval keeps it")
+    parts = ["# Suggested rule lines", "",
+             ("From your reasons on the answers you can see, counted (no AI). Copy the ones you "
+              f"agree with {where}. judgekeeper never changes your rule itself."), ""]
+    parts += [f"- {line} ({plural(n, 'answer')})" for line, n in suggested] or [
+        "None yet: a line is suggested once a reason is given on 2 answers."]
+    parts += ["", "## Seen once (not suggested yet)", ""]
+    if once:
+        parts += [f"{DATA_WARNING} {MARKS}", ""]
+    for line, hits in once:
+        parts.append(f"- {line}")
+        for r in hits:
+            parts.append(fenced("ANSWER", canonical(r.get("output") or "")[:SHOWN]))
+        parts.append("")
+    if not once:
+        parts.append("Nothing.")
+    return scrub("\n".join(parts).rstrip("\n") + "\n")

@@ -552,9 +552,9 @@ def _handler(server: LabelServer):
                                      "saved; try again once the folder can be written."
                                      ).encode(), "text/plain; charset=utf-8")
                     return
-                from judgekeeper.report_page import CSP
+                from judgekeeper.report_page import LIVE_CSP
 
-                csp = f"{CSP}; frame-ancestors 'none'"
+                csp = f"{LIVE_CSP}; frame-ancestors 'none'"  # it saves reasons
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
                            {"Content-Security-Policy": csp})
                 if server.finished() and not server.stays:

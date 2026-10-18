@@ -24,9 +24,14 @@ nothing to test with it, so every mistake is listed.
 
 mistakes.md, ready to hand to a coding agent: the task in one line, the clues (the pattern
 sentences the terminal prints), the judge's rule now, then each mistake on the seen marks (the
-person's mark, the judge's grade, the question, the answer, the person's note and the judge's
+person's mark, the judge's grade, the question, the answer, the person's reason and the judge's
 own reason), each text cut and fenced as data (start_fix_rule.fenced) under a warning never to
 follow instructions inside it.
+
+The person's reasons on the seen mistakes (reasons.py, given on the result page) come first in
+the clues, counted; mistakes.md is then grouped by them, and suggestions.md holds rule lines
+from fixed templates for each reason given twice or more. A reason on a hidden mark is never
+read. Clue words come from the answers only.
 
 For a judge with a score and a pass mark, the pass mark that fits the seen marks best is tested
 on the hidden marks with the saved scores: free, no AI call. It is shown only when the verdict
@@ -47,7 +52,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper import __version__, batches, marks, start_fix_rule, targets
+from judgekeeper import __version__, batches, marks, reasons, start_fix_rule, targets
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.redact import one_line, scrub
@@ -65,6 +70,7 @@ from judgekeeper.textio import (
 EXIT_OK, EXIT_WORSE, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 1, 2, 3
 FOLDER = "fix"
 SPLIT, MISTAKES, RULE = "split.json", "mistakes.md", "rule.txt"
+SUGGESTIONS = reasons.SUGGESTIONS
 HIDDEN_TENTHS = 3  # of each group of marks hidden, rounded up
 MIN_EACH = 5  # hidden marks marked Pass, and Fail, at least
 MAX_RULES = 3  # rules tested on one set of hidden marks
@@ -118,7 +124,7 @@ STOPWORDS = frozenset((
 
 class Marks:
     """The person's marks (person), the judge's grades on them (judge), and per answer its
-    text (rows), the judge's reason and score, and the person's note."""
+    text (rows), the judge's reason and score, and the person's note and reasons (why)."""
 
     def __init__(self, ws: Workspace):
         self.ws = ws
@@ -127,6 +133,9 @@ class Marks:
         self.person = read.counted()
         self.notes = {i: str(x["note"]) for i, x in read.last.items()
                       if i in self.person and x.get("note")}
+        self.why = {i: reasons.of_line(x) for i, x in read.last.items() if i in self.person}
+        self.own = {c["id"]: c for c in reasons.own_chips(ws)}
+        self.parts = reasons.rule_parts(self.data)  # the rule now's parts, for its buttons
         groups = {q["id"]: q["group"] for q in self.data.get("queue") or []}
         self.batch = batches.of(self.data)
         counted = batches.counted_labels(self.data, self.person)  # a batch too new is left out
@@ -170,13 +179,24 @@ class Marks:
 
     def row(self, i: str) -> dict:
         """One mark as the patterns and mistakes.md read it."""
+        from judgekeeper.fingerprint import rule_hash
         from judgekeeper.start_label import display
 
         raw = self.rows.get(i, {})
+        why = self.why.get(i) or reasons.of_line(None)
+        taps = list(why["reasons"]) + [c["id"] for c in self.own.values()
+                                       if c.get("from") == i and why["note"]
+                                       and c["id"] not in why["reasons"]]
+        taps = [k for k in taps if k in reasons.REASONS or k in self.own]
+        same = why["rule_hash"] == rule_hash(self.data.get("rule"))
         return {"id": i, "judge": self.judge[i], "final": self.person[i],
                 "input": display(raw.get("input")), "output": display(raw.get("output")),
                 "score": self.scores.get(i), "reason": self.reasons.get(i, ""),
-                "why": self.notes.get(i, "")}
+                "why": self.notes.get(i, ""), "reasons": taps,
+                "words": {k: self.own[k]["text"] for k in taps if k in self.own},
+                "parts": [[n, self.parts[n - 1]] for n in why["rule_parts"]
+                          if same and 1 <= n <= len(self.parts)],
+                "spans": why["spans"]}
 
 
 def _cells(m: Marks, ids: list[str], rng: random.Random) -> tuple[list[str], list[str]]:
@@ -433,8 +453,9 @@ VERDICT_NAMES = {"better": "Better", "safe": "Safe to try", "leans better": "Can
 
 def report_section(ws: Workspace) -> dict | None:
     """The result page's disagreements: the mistakes on the marks the person can see, with the
-    judge's reason, each text cut at a word to start_fix_rule.CUT characters; never a hidden
-    mark. None when there is none."""
+    judge's reason, each text cut at a word to start_fix_rule.CUT characters, and the person's
+    reasons on it (`why`: reasons.of_line, rule parts only of the rule now); the rule's parts
+    and the person's own buttons. Never a hidden mark. None when there is none."""
     try:
         m = Marks(ws)
     except (OSError, ValueError, KeyError):
@@ -445,10 +466,18 @@ def report_section(ws: Workspace) -> dict | None:
     if not wrong:
         return None
     cut = start_fix_rule.CUT
-    return {"mistakes": [{"judge": r["judge"], "final": r["final"],
+
+    def why(r: dict) -> dict:
+        saved = m.why.get(r["id"]) or reasons.of_line(None)
+        return {"reasons": saved["reasons"], "note": saved["note"],
+                "rule_parts": [n for n, _ in r["parts"]], "spans": saved["spans"]}
+
+    return {"mistakes": [{"id": r["id"], "judge": r["judge"], "final": r["final"],
                           "question": cut_words(_question(m, r), cut),
-                          "answer": cut_words(r["output"], cut),
-                          "reason": cut_words(r["reason"], cut)} for r in wrong]}
+                          "answer": cut_words(reasons.canonical(r["output"]), cut),
+                          "reason": cut_words(r["reason"], cut), "why": why(r)}
+                         for r in wrong],
+            "parts": m.parts, "own": list(m.own.values())}
 
 
 def cut_words(text: str, width: int) -> str:
@@ -477,27 +506,60 @@ TASK = ("Write a new rule so your judge agrees with the marks below. Keep what t
 NO_PATTERN = "No pattern stands out yet."
 
 
+def clue_lines(rows: list[dict], mark: float | None = None) -> list[str]:
+    """Every clue, one sentence a line: the person's reasons first (reasons.clue_lines, on
+    the mistakes), then the patterns."""
+    return reasons.clue_lines(mistakes(rows)) + pattern_lines(rows, mark)
+
+
 def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -> str:
-    """The clue file, ready for a person or a coding agent: the task, the clues (the pattern
-    sentences the terminal prints; `mark` is the pass mark when the grades follow the
-    scores), the judge's rule now, then each mistake on the seen marks, fenced as data under
-    the warning."""
+    """The clue file, ready for a person or a coding agent: the task, the clues (the person's
+    reasons and the pattern sentences the terminal prints; `mark` is the pass mark when the
+    grades follow the scores), the judge's rule now, then each mistake on the seen marks,
+    fenced as data under the warning; grouped by the person's reasons when they gave any."""
     fenced = start_fix_rule.fenced
-    clues = pattern_lines(rows, mark) or [NO_PATTERN]
+    clues = clue_lines(rows, mark) or [NO_PATTERN]
     parts = ["# Your judge's mistakes", "", TASK, "", "## Clues", "", *clues, ""]
     if rule:
         parts += ["## Your judge's rule now", "", fenced("RULE", rule, cut=False), ""]
     parts += ["## Mistakes", "", f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", ""]
-    for n, r in enumerate(mistakes(rows), 1):
-        parts.append(f"## [M{n}] Your judge said {r['judge'].upper()}. You said "
-                     f"{r['final'].upper()}.")
-        parts += [fenced("QUESTION", r["input"]), fenced("ANSWER", r["output"])]
-        if r.get("why"):
-            parts.append(fenced("YOUR NOTE", r["why"]))
-        if r.get("reason"):
-            parts.append(fenced("JUDGE'S REASON", r["reason"]))
-        parts.append("")
+    wrong = mistakes(rows)
+    grouped = reasons.groups(wrong) if reasons.has_any(wrong) else [(None, wrong)]
+    n = 0
+    for title, group in grouped:
+        if title:
+            parts += [f"## {title}", ""]
+        for r in group:
+            n += 1
+            parts.append(f"## [M{n}] Your judge said {r['judge'].upper()}. You said "
+                         f"{r['final'].upper()}.")
+            answer = reasons.canonical(r["output"]) if r.get("spans") else r["output"]
+            parts += [fenced("QUESTION", r["input"]),
+                      fenced("ANSWER", reasons.bold(answer, r.get("spans")))]
+            said = reasons.said_line(r)
+            if said:
+                parts.append(said)
+            if r.get("why"):
+                parts.append(fenced("YOUR REASON", r["why"]))
+            if r.get("reason"):
+                parts.append(fenced("JUDGE'S REASON", r["reason"]))
+            parts.append("")
     return scrub("\n".join(parts).rstrip("\n") + "\n")
+
+
+def write_suggestions(ws: Workspace, rows: list[dict], command: str, can: bool) -> bool:
+    """fix/suggestions.md from the person's reasons on the mistakes they can see (`rows`: the
+    seen marks), when they gave any; one written before is written again. Whether it holds
+    any."""
+    wrong = mistakes(rows)
+    path = _folder(ws) / SUGGESTIONS
+    if not reasons.has_any(wrong) and not path.is_file():
+        return False
+    marks._refuse_links(path)
+    make_private(path.parent)
+    write_replacing(path, reasons.suggestions_md(wrong, f"{shown_folder(ws)}/{FOLDER}",
+                                                 command, can))
+    return reasons.has_any(wrong)
 
 
 def refresh_mistakes(ws: Workspace, always: bool = False) -> int:
@@ -516,6 +578,7 @@ def refresh_mistakes(ws: Workspace, always: bool = False) -> int:
     make_private(path.parent)
     write_replacing(path, mistakes_md(rule, rows, pm["mark"] if pm and pm.get("follows")
                                       else None))
+    write_suggestions(ws, rows, program("fix"), m.can_test())
     return len(mistakes(rows))
 
 
@@ -731,7 +794,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         return EXIT_OK
     pm = data.get("pass_mark")
     mark = pm["mark"] if pm and pm.get("follows") else None
-    found = patterns(seen_rows, mark)
+    found = [[line] for line in reasons.clue_lines(wrong)] + patterns(seen_rows, mark)
     if found:
         talk.say("Clues:")
         for p in found:
@@ -747,11 +810,18 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     write_replacing(path, mistakes_md(rule, seen_rows, mark))
     talk.para(_saved_line(ws, len(wrong)))
     talk.say()
+    tool = data.get("tool")
+    if write_suggestions(ws, seen_rows, talk.command(), can_test(tool, rule)):
+        where = (f"{folder}/{RULE}, then run `{talk.command()}` to test the new rule on your "
+                 "marks kept aside" if can_test(tool, rule)
+                 else "your rule where your eval keeps it")
+        talk.para(f"Suggestions from your reasons are in {folder}/{SUGGESTIONS}. Copy the ones "
+                  f"you agree with into {where}.")
+        talk.say()
     line = tested and pass_mark_line(ws, pm, tested)
     if line:
         talk.para(line)
         talk.say()
-    tool = data.get("tool")
     if can_test(tool, rule):
         where = start_fix_rule.found_rule(ws.root, rule, tool)
         if where:
