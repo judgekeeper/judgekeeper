@@ -54,6 +54,7 @@ RESULT_LINK = "Open this link in your browser to see your result:"
 DONE = "When you're done, run {program} in your terminal."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
 OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
+PICKS = 10  # ports tried when one judgekeeper picked is taken before the page binds it
 SLOW_BROWSER = 10  # seconds: a browser that took longer to open may not have shown the page
 _clock = time.monotonic
 ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
@@ -164,7 +165,8 @@ def open_new(ws: Workspace, port: int, command: str, start_command: str,
     the open page itself, on its port, when it shows the same (page_key); else it is
     closed and a page started (on its port when free, else on a free port when the default
     is taken, choose_port; `say` says why): in the background, or served by this process
-    (`here`, for --wait). None when it could not start."""
+    (`here`, for --wait). When a port judgekeeper picked is taken before the page binds it
+    (another run), the next free one, up to PICKS tries. None when it could not start."""
     with _opening(ws.dir, say):
         old = live_lock(ws.dir)
         token = old["token"] if old else secrets.token_urlsafe(32)
@@ -174,16 +176,27 @@ def open_new(ws: Workspace, port: int, command: str, start_command: str,
         if is_open(ws.dir):
             background.stop(ws.dir)
         stamp = old["link"] if old is not None else None
+        picked = port == DEFAULT_PORT  # judgekeeper's choice, not the person's
         if old is not None and port in (0, DEFAULT_PORT) and port_free(old["port"]):
             port = old["port"]  # the open tab's link still works
         else:
             port = choose_port(port, say)
-        if here:
-            server = page_server(ws, port, command, start_command, token=token, stamp=stamp)
-            return Page(server.url, server.port, server.token, server)
-        settings = {"root": str(ws.root.resolve()), "port": port, "command": command,
-                    "start_command": start_command, "link": stamp}
-        url = background.start(ws.dir, settings, token)
+        for _ in range(PICKS):
+            try:
+                if here:
+                    server = page_server(ws, port, command, start_command, token=token,
+                                         stamp=stamp)
+                    return Page(server.url, server.port, server.token, server)
+                settings = {"root": str(ws.root.resolve()), "port": port, "command": command,
+                            "start_command": start_command, "link": stamp}
+                url = background.start(ws.dir, settings, token)
+            except LabelError:
+                url = None
+                if not picked or port_free(port):
+                    raise
+            if url is not None or not picked or port_free(port):
+                break
+            port = next((p for p in (DEFAULT_PORT, *OTHER_PORTS) if port_free(p)), 0)
     if url is None:
         return None
     from urllib.parse import urlsplit

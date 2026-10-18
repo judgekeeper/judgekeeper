@@ -926,3 +926,38 @@ def test_a_hook_without_the_old_line_says_nothing(here, capsys):
     promptfoo_project(here, split(20, 16))
     _, out, _ = run(capsys)
     assert "pre-commit" not in out
+
+
+# 18. A port judgekeeper picked and lost before the page bound it ------------------------------
+
+def test_a_picked_port_lost_to_another_run_gets_the_next_free_one(here, capsys, monkeypatch,
+                                                                   pages):
+    from judgekeeper import background, page
+
+    started, _ = pages
+    fake = background.start
+    lost = set()
+
+    def start(folder, settings, token, timeout=background.WAIT):
+        if not lost:  # another run took the port between the check and the bind
+            lost.add(settings["port"])
+            started.append(dict(settings))
+            return None
+        return fake(folder, settings, token, timeout)
+
+    monkeypatch.setattr(background, "start", start)
+    real_free = page.port_free
+    monkeypatch.setattr(page, "port_free", lambda port: port not in lost and real_free(port))
+    promptfoo_project(here, split(20, 16))
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert "could not start" not in out
+    assert len(started) == 2 and started[1]["port"] != started[0]["port"]
+
+
+def test_a_port_the_person_named_is_not_changed(here, capsys, pages):
+    _, state = pages
+    state["fail"] = True
+    promptfoo_project(here, split(20, 16))
+    code, out, _ = run(capsys, "--port", "9871")
+    assert code == 3 and len(pages[0]) == 1
