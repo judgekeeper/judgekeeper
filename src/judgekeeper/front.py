@@ -908,7 +908,7 @@ def _to_save(talk: FrontTalk, found: start.Found,
             new.judge = found.metric
         if found.tool == "mlflow":
             new.file = talk.store or new.file
-        if found.tool == "deepeval" and talk.store is not None:  # which folder
+        if found.tool in ("deepeval", "inspect") and talk.store is not None:  # which folder
             new.file = talk.store
             new.experiment = talk.answers.get("--experiment", new.experiment)
         question = SAVE

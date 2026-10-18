@@ -325,3 +325,51 @@ def test_check_names_the_key_its_new_judge_needs(here, capsys, monkeypatch):
     assert NEEDS in flat
     assert flat.endswith("Next: set ANTHROPIC_API_KEY in your shell or in .env, then run "
                          "`judgekeeper check` again.")
+
+
+# 7. Inspect logs in more than one folder: which -------------------------------------------------
+
+def test_inspect_logs_in_two_folders_are_asked_about(here, capsys):
+    import os
+
+    from judgekeeper.textio import quote_arg
+    from tests.start_projects import inspect_project
+    from tests.test_front import assert_one_next_at_the_end
+
+    old = inspect_project(here, split(20, 16), name="evals/quiz/logs/2026-10-01_quiz.json")
+    new = inspect_project(here, split(20, 16), name="evals/chat/logs/2026-10-02_chat.json",
+                          tag=" chat")
+    os.utime(old, (new.stat().st_mtime - 60,) * 2)
+    code, out, _ = run(capsys)
+    assert code == 3, out
+    assert "Inspect logs in more than one folder:" in out
+    chat, quiz = (quote_arg(f"evals/{a}/logs") for a in ("chat", "quiz"))
+    assert assert_one_next_at_the_end(out) == (
+        "Next: choose which Inspect logs to check (evals/chat/logs, evals/quiz/logs), then run "
+        f"`judgekeeper {chat}` or `judgekeeper {quiz}`.")
+    assert not (here / ".judgekeeper" / "pool.jsonl").exists()
+    code, out, _ = run(capsys, "evals/quiz/logs")
+    assert "Inspect logs in more than one folder" not in out
+    assert "36 answers" in out
+
+
+def test_at_a_terminal_the_logs_folder_is_asked_and_kept(here, capsys, monkeypatch):
+    import os
+    import tomllib
+
+    from tests.start_projects import inspect_project
+    from tests.test_front import terminal
+
+    answers, _ = terminal.__wrapped__(monkeypatch)
+    old = inspect_project(here, split(20, 16), name="evals/quiz/logs/2026-10-01_quiz.json")
+    new = inspect_project(here, split(9, 9), name="evals/chat/logs/2026-10-02_chat.json",
+                          tag=" chat")
+    os.utime(old, (new.stat().st_mtime - 60,) * 2)
+    answers += ["2", ""]  # evals/quiz/logs; save? yes
+    run(capsys)
+    saved = tomllib.loads((here / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
+    assert saved["source"] == "inspect" and saved["file"] == "evals/quiz/logs"
+    _, out, _ = run(capsys)  # asked once
+    assert "more than one folder" not in out
+    started = (here / ".judgekeeper" / "start.json").read_text(encoding="utf-8")
+    assert "evals/quiz/logs/2026-10-01_quiz.json" in started and "chat" not in started
