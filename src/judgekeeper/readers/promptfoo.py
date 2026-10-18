@@ -142,7 +142,7 @@ def is_stripped_warning(text: str) -> bool:
 TWO_JUDGES = ("{where}: test {test}{config} has more than one {name!r} judge. Give each one a "
               "name with metric: in its assertion, then run your eval again (that makes model "
               "calls).")
-TWO_DEFAULT = ("{where}: defaultTest{config} adds {a} {name} to every test, and each test has "
+TWO_DEFAULT = ("{where}: defaultTest adds {a} {name} to every test{config}, and each test has "
                "its own, so each has two. Give each one a name with metric: in its assertion, "
                "then run your eval again (that makes model calls).")
 

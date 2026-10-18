@@ -32,7 +32,7 @@ def test_a_table_too_deep_is_named_with_the_command_that_reads_it(here, capsys):
     code, out, _ = run(capsys, "--no-browser")
     text = _flat(out)
     assert ("No eval results found where judgekeeper looks: 4 folders down from support-bot "
-            "(tables: 1 folder down).") in text
+            "(tables: 2 folders deep).") in text
     assert "evals/2026/october/judged.csv (3 folders down)" in out
     path = quote_arg(Path("evals/2026/october/judged.csv"))  # as the shell in use writes it
     assert f"Next: if that is your results, run `judgekeeper {path} --no-browser`." in text
@@ -91,7 +91,7 @@ def test_nothing_results_like_says_where_it_looked(here, capsys):
     code, out, _ = run(capsys, "--no-browser")
     text = _flat(out)
     assert ("No eval results found in this folder (support-bot). judgekeeper looked 4 folders "
-            "down (tables: 1 folder down).") in text
+            "down (tables: 2 folders deep).") in text
     assert "`judgekeeper PATH --no-browser`" in text
     assert code == 3
 

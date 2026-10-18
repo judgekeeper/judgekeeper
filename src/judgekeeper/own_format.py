@@ -15,6 +15,7 @@ import csv
 import io
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -118,6 +119,17 @@ def _sample(path: Path):
     return {c: None for c in columns}
 
 
+def might_be_results(path: Path) -> bool:
+    """Whether a file too big to look into might hold judge results: its name says results, or
+    its first bytes hold a score-like key and an input-like one."""
+    if find._results_like(path):
+        return True
+    head = find._head(path).decode("utf-8", errors="replace").lower()
+    keys = re.findall(r'"([^"\n]{1,60})"\s*:', head)
+    return (any(k in SCORE_KEYS for k in keys)
+            and any(w in k for k in keys for w in INPUT_WORDS))
+
+
 def too_big(path: Path) -> bool:
     """Whether `path` is too big to look into: a .json over JSON_BYTES, or a first line longer
     than what is read of the file."""
@@ -164,7 +176,7 @@ def search(root: Path, unlooked: list[OwnFile] | None = None) -> OwnFile | None:
         try:
             if looks_judged(_sample(path)):
                 return OwnFile(path, path.relative_to(root).as_posix())
-            if unlooked is not None and find._results_like(path) and too_big(path):
+            if unlooked is not None and too_big(path) and might_be_results(path):
                 unlooked.append(OwnFile(path, path.relative_to(root).as_posix()))
         except (OSError, ValueError, csv.Error, RecursionError):
             continue

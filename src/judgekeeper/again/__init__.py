@@ -309,11 +309,10 @@ UVX_PYTHON = "the Python uvx runs judgekeeper with"
 
 
 def python_name(python: str) -> str:
-    """`python` as said to the person: its path, or, for the Python in uv's cache that uvx runs
-    judgekeeper with, those words (the cache path means nothing to them)."""
-    from judgekeeper.textio import started_by_uvx
-
-    return UVX_PYTHON if python == sys.executable and started_by_uvx() else python
+    """`python` as said to the person: its path, or, for a Python in uv's cache (the one uvx runs
+    judgekeeper with, in a folder `archive-v<N>`), those words: the cache path means nothing to
+    them."""
+    return UVX_PYTHON if any(p.startswith("archive-v") for p in Path(python).parts) else python
 
 
 def your_python(python: str) -> str:

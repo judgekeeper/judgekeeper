@@ -488,9 +488,9 @@ def test_a_rubric_in_default_test_is_said(here, capsys):
     code, out, err = run(capsys)
     flat = " ".join((out + err).split())
     assert code == 2
-    assert ("results.json: defaultTest in promptfooconfig.yaml adds an llm-rubric to every "
-            "test, and each test has its own, so each has two. Give each one a name with "
-            "metric: in its assertion") in flat
+    assert ("results.json: defaultTest adds an llm-rubric to every test in "
+            "promptfooconfig.yaml, and each test has its own, so each has two. Give each one a "
+            "name with metric: in its assertion") in flat
     assert "test 1 in" not in flat
 
 
@@ -623,10 +623,9 @@ def test_the_table_depth_is_said_alike_in_the_terminal_and_the_reference():
     from judgekeeper import find
 
     said = find.looked(ROOT)
-    assert "(tables: 1 folder down)" in said
+    assert "(tables: 2 folders deep)" in said and "1 folder down" not in said
     ref = " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
-    assert "A CSV, TSV or JSONL file in the folder or at most 1 folder down" in ref
-    assert "two folders deep" not in ref
+    assert "A CSV, TSV or JSONL file at most two folders deep" in ref
 
 
 def test_one_damaged_row_is_its_only_row():
@@ -973,7 +972,7 @@ def test_a_port_the_person_named_is_not_changed(here, capsys, pages):
 def test_uvx_python_is_named_in_words(tmp_path, monkeypatch):
     import sys
 
-    from judgekeeper import again, textio
+    from judgekeeper import again
     from judgekeeper.again import AgainOptions, make_plan
     from tests.start_projects import deepeval_project
     from tests.test_again_tools import _checked
@@ -981,10 +980,29 @@ def test_uvx_python_is_named_in_words(tmp_path, monkeypatch):
     cache = "/home/me/.cache/uv/archive-v0/abc123/bin/python"
     monkeypatch.delenv("VIRTUAL_ENV", raising=False)
     monkeypatch.setattr(sys, "executable", cache)
-    monkeypatch.setattr(textio, "started_by_uvx", lambda: True)
     monkeypatch.setattr(again, "run_worker", lambda *a, **k: {"ok": False, "missing": True})
     ws = _checked(tmp_path, lambda r, v: deepeval_project(r, v))
     plan = make_plan(ws, AgainOptions(fields="input,actual_output"), dry=True)
     said = " ".join([plan.why or "", plan.plain or "", *plan.side_effects])
     assert "archive-v0" not in said and ".cache/uv" not in said, said
     assert "the Python uvx runs judgekeeper with" in said
+
+
+def test_a_rubric_from_default_test_in_the_config_file_is_said(here, capsys):
+    from tests.test_promptfoo_two_rubrics import CONFIG
+
+    (here / "promptfooconfig.yaml").write_text(
+        CONFIG + "defaultTest:\n  assert:\n    - type: llm-rubric\n      value: Polite.\n",
+        encoding="utf-8")
+    (here / "results.json").write_text(json.dumps(_two_rubrics()), encoding="utf-8")
+    _, out, err = run(capsys)
+    assert ("defaultTest adds an llm-rubric to every test in promptfooconfig.yaml" in
+            " ".join((out + err).split()))
+
+
+def test_a_big_one_line_file_named_otherwise_is_named_by_its_keys(here, capsys):
+    rows = [{"id": f"c{i}", "question": f"Fact {i}?", "answer": {"text": "x" * 80,
+             "scores": {"quality": {"score": 0.5}}}} for i in range(40000)]
+    (here / "cases.json").write_text(json.dumps({"cases": rows}), encoding="utf-8")
+    _, out, _ = run(capsys)
+    assert "cases.json" in out and "too big to look into" in " ".join(out.split())

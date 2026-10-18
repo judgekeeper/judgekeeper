@@ -181,7 +181,7 @@ It looks only inside the folder, to a depth of four folders, skipping `.git`, `n
 | DeepEval | `.deepeval/`, or `deepeval` in `pyproject.toml` or `requirements*.txt` | `test_run_*.json` (in `DEEPEVAL_RESULTS_FOLDER` when it points inside the folder, or any results folder), else DeepEval's copy of its newest run, `.deepeval/.latest_run_full.json` |
 | Inspect AI | `logs/`, or `inspect-ai` in the dependencies | `.json` logs, and `.eval` logs with the `inspect` extra. Also `INSPECT_LOG_DIR` inside the folder |
 | MLflow | `mlruns/` or `mlflow.db` | The local store, with the `mlflow` extra |
-| A CSV or JSONL file | A CSV, TSV or JSONL file in the folder or at most 1 folder down, with `input`, `output` and `verdict` columns | That file |
+| A CSV or JSONL file | A CSV, TSV or JSONL file at most two folders deep (the folder and one below it), with `input`, `output` and `verdict` columns | That file |
 | `judgekeeper.record()` | `.judgekeeper/records/*.jsonl` | The lines your eval code saved ([below](#record-save-your-own-judges-verdicts-with-one-line)) |
 
 ### promptfoo

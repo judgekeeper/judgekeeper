@@ -171,7 +171,7 @@
 <tr><td>DeepEval</td><td><code>.deepeval/</code>, or <code>deepeval</code> in <code>pyproject.toml</code> or <code>requirements*.txt</code></td><td><code>test_run_*.json</code> (in <code>DEEPEVAL_RESULTS_FOLDER</code> when it points inside the folder, or any results folder), else DeepEval's copy of its newest run, <code>.deepeval/.latest_run_full.json</code></td></tr>
 <tr><td>Inspect AI</td><td><code>logs/</code>, or <code>inspect-ai</code> in the dependencies</td><td><code>.json</code> logs, and <code>.eval</code> logs with the <code>inspect</code> extra. Also <code>INSPECT_LOG_DIR</code> inside the folder</td></tr>
 <tr><td>MLflow</td><td><code>mlruns/</code> or <code>mlflow.db</code></td><td>The local store, with the <code>mlflow</code> extra</td></tr>
-<tr><td>A CSV or JSONL file</td><td>A CSV, TSV or JSONL file in the folder or at most 1 folder down, with <code>input</code>, <code>output</code> and <code>verdict</code> columns</td><td>That file</td></tr>
+<tr><td>A CSV or JSONL file</td><td>A CSV, TSV or JSONL file at most two folders deep (the folder and one below it), with <code>input</code>, <code>output</code> and <code>verdict</code> columns</td><td>That file</td></tr>
 <tr><td><code>judgekeeper.record()</code></td><td><code>.judgekeeper/records/*.jsonl</code></td><td>The lines your eval code saved (<a href="#record-save-your-own-judges-verdicts-with-one-line">below</a>)</td></tr>
 </tbody>
 </table></div>

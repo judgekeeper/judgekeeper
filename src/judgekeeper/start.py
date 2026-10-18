@@ -488,8 +488,9 @@ def _unread(error: RecordsError, result: find.Result, root: Path) -> str:
     if isinstance(error, LinkOnly):
         return LINK_ONLY.format(file=result.rel)
     if isinstance(error, TwoJudges):
-        return two_judges(result.rel, error.test, error.name,
-                          f" in {_config_named(root, result)}", error.default)
+        config = _config_named(root, result)
+        default = error.default or _default_test_has(root / config, error.name)
+        return two_judges(result.rel, error.test, error.name, f" in {config}", default)
     return str(error)
 
 
@@ -1210,6 +1211,36 @@ def _promptfoo_config(path: Path) -> tuple[bool, str | None]:
 def _project_descriptions(root: Path) -> set[str]:
     """The descriptions of every promptfoo config in the project (_promptfoo_configs)."""
     return {d for d in _promptfoo_configs(root).values() if d}
+
+
+def _default_test_has(path: Path, name: str) -> bool:
+    """Whether the promptfoo config at `path` gives defaultTest a judge named `name` (its type
+    or metric): JSON read as JSON, YAML scanned line by line (no YAML parser)."""
+    from judgekeeper.readers.promptfoo import _in_default
+
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    try:
+        data = json.loads(text)
+    except ValueError:
+        data = None
+    if isinstance(data, dict):
+        default = data.get("defaultTest")
+        return isinstance(default, dict) and _in_default(default, name)
+    lines = text.splitlines()
+    value = re.compile(rf"""(?:type|metric)\s*:\s*['"]?{re.escape(name)}['"]?\s*(?:#.*)?$""")
+    for i, line in enumerate(lines):
+        head = re.match(r"(\s*)defaultTest\s*:", line)
+        if not head:
+            continue
+        for more in lines[i + 1:]:
+            if more.strip() and len(more) - len(more.lstrip()) <= len(head[1]):
+                break
+            if value.search(more):
+                return True
+    return False
 
 
 def _config_named(root: Path, result: find.Result) -> str:

@@ -235,7 +235,7 @@ def test_screen_7_nothing_found(tmp_path, capsys, monkeypatch):
         "Step 1 of 5: Find",
         "",
         "No eval results found in this folder (my-app). judgekeeper",
-        "looked 4 folders down (tables: 1 folder down).",
+        "looked 4 folders down (tables: 2 folders deep).",
         "judgekeeper can read results from promptfoo, DeepEval,",
         "Inspect AI, MLflow, or a CSV or JSONL file.",
         "",

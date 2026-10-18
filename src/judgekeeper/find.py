@@ -577,7 +577,7 @@ def _down(n: int) -> str:
 
 def looked(root: Path) -> str:
     """How far the walk looks, said when nothing is found."""
-    return f"{_down(MAX_DEPTH)} from {root.name} (tables: {_down(TABLE_DEPTH - 1)})"
+    return f"{_down(MAX_DEPTH)} from {root.name} (tables: {TABLE_DEPTH} folders deep)"
 
 
 def _look_deeper(walk: _Walk) -> None:
