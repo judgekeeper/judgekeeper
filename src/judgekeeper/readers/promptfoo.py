@@ -142,15 +142,35 @@ def is_stripped_warning(text: str) -> bool:
 TWO_JUDGES = ("{where}: test {test}{config} has more than one {name!r} judge. Give each one a "
               "name with metric: in its assertion, then run your eval again (that makes model "
               "calls).")
+TWO_DEFAULT = ("{where}: defaultTest{config} adds {a} {name} to every test, and each test has "
+               "its own, so each has two. Give each one a name with metric: in its assertion, "
+               "then run your eval again (that makes model calls).")
 
 
 class TwoJudges(RecordsError):
     """A test holds two judges of the same name. Only its number is kept (counted from 1):
-    its description and variables are input text, never shown."""
+    its description and variables are input text, never shown. `default`: one of the two
+    comes from defaultTest, so every test has two."""
 
-    def __init__(self, path: Path, test, name: str):
-        self.test, self.name = test, name
-        super().__init__(TWO_JUDGES.format(where=path, test=test, config="", name=name))
+    def __init__(self, path: Path, test, name: str, default: bool = False):
+        self.test, self.name, self.default = test, name, default
+        super().__init__(two_judges(path, test, name, "", default))
+
+
+def two_judges(where, test, name: str, config: str, default: bool = False) -> str:
+    """The line for a test with two judges of one name `name`; `config`: " in <its file>"."""
+    if default:
+        a = "an" if name[:1].lower() in "aeiou" or name.lower().startswith("llm") else "a"
+        return TWO_DEFAULT.format(where=where, config=config, a=a, name=name)
+    return TWO_JUDGES.format(where=where, test=test, config=config, name=name)
+
+
+def _in_default(default_test: dict, name: str) -> bool:
+    """Whether defaultTest's assertions hold a judge named `name` (its metric, else its type):
+    then every test gets it as well as its own."""
+    asserts = default_test.get("assert")
+    return isinstance(asserts, list) and any(
+        isinstance(a, dict) and (a.get("metric") or a.get("type")) == name for a in asserts)
 
 
 def _load(path: Path) -> dict:
@@ -381,7 +401,8 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
             per_row[name] += 1
             if per_row[name] > 1:
                 idx = r.get("testIdx")
-                raise TwoJudges(path, idx + 1 if isinstance(idx, int) else idx, name)
+                raise TwoJudges(path, idx + 1 if isinstance(idx, int) else idx, name,
+                                default=_in_default(default_test, name))
             grader = grader_of(a, test_opts, default_test)
             evaluator = _provider(grader)
             if not evaluator:

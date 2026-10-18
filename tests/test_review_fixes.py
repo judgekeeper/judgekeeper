@@ -442,3 +442,47 @@ def test_promptfoos_default_grader_is_explained_once(here, capsys):
     assert flat.count("default grader") == 1  # the Judge: line
     assert flat.count("defaultTest.options.provider") == 1
     assert "came from promptfoo's default grader" not in flat
+
+
+# 10. The llm-rubric line names the config file; defaultTest's rubric is said -------------------
+
+def _two_rubrics(default: bool = False) -> dict:
+    from tests.test_promptfoo_two_rubrics import _two_rubrics as two
+
+    data = two()
+    if default:  # defaultTest adds one to every test, and each test has its own
+        data["config"]["defaultTest"] = {"assert": [{"type": "llm-rubric", "value": "Polite."}]}
+        for row in data["results"]["results"]:
+            comps = row["gradingResult"]["componentResults"]
+            if len(comps) == 1:
+                comps.append(json.loads(json.dumps(comps[0])))
+    return data
+
+
+def test_two_configs_name_the_one_beside_the_results(here, capsys):
+    from tests.test_promptfoo_two_rubrics import CONFIG
+
+    for folder in ("02", "03"):  # neither says which results are its own
+        (here / folder).mkdir()
+        (here / folder / "promptfooconfig.yaml").write_text(
+            CONFIG.replace("description: support bot\n", ""), encoding="utf-8")
+    data = _two_rubrics()
+    data["config"].pop("description")
+    (here / "03" / "results.json").write_text(json.dumps(data), encoding="utf-8")
+    _, out, err = run(capsys)
+    assert "your promptfoo config" not in out + err, out + err
+    assert "03/results.json: test 3 in 03/promptfooconfig.yaml has more than one" in err, out
+
+
+def test_a_rubric_in_default_test_is_said(here, capsys):
+    from tests.test_promptfoo_two_rubrics import _config
+
+    _config(here)
+    (here / "results.json").write_text(json.dumps(_two_rubrics(default=True)), encoding="utf-8")
+    code, out, err = run(capsys)
+    flat = " ".join((out + err).split())
+    assert code == 2
+    assert ("results.json: defaultTest in promptfooconfig.yaml adds an llm-rubric to every "
+            "test, and each test has its own, so each has two. Give each one a name with "
+            "metric: in its assertion") in flat
+    assert "test 1 in" not in flat

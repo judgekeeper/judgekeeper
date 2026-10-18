@@ -482,13 +482,13 @@ def _unread(error: RecordsError, result: find.Result, root: Path) -> str:
     met: a DeepEval file that only links to Confident AI; a promptfoo test with two judges of
     one name, with the config file it is in."""
     from judgekeeper.readers.deepeval import LINK_ONLY, LinkOnly
-    from judgekeeper.readers.promptfoo import TWO_JUDGES, TwoJudges
+    from judgekeeper.readers.promptfoo import TwoJudges, two_judges
 
     if isinstance(error, LinkOnly):
         return LINK_ONLY.format(file=result.rel)
     if isinstance(error, TwoJudges):
-        return TWO_JUDGES.format(where=result.rel, test=error.test, name=error.name,
-                                 config=f" in {_config_named(root, result)}")
+        return two_judges(result.rel, error.test, error.name,
+                          f" in {_config_named(root, result)}", error.default)
     return str(error)
 
 
@@ -1198,13 +1198,16 @@ def _project_descriptions(root: Path) -> set[str]:
 
 def _config_named(root: Path, result: find.Result) -> str:
     """The promptfoo config `result` was made from, as a path in the project: the only one,
-    else the one with its description; else "your promptfoo config"."""
+    else the one with its description, else the one in its folder; else promptfoo's own
+    name for it, promptfooconfig.yaml."""
     configs = _promptfoo_configs(root)
     if len(configs) == 1:
         return next(iter(configs))
     theirs = results_description(result)
     same = [rel for rel, mine in configs.items() if theirs is not None and mine == theirs]
-    return same[0] if len(same) == 1 else "your promptfoo config"
+    folder = Path(result.rel).parent
+    beside = [rel for rel in configs if Path(rel).parent == folder]
+    return next((x[0] for x in (same, beside) if len(x) == 1), find.PROMPTFOO_CONFIGS[0])
 
 
 def _promptfoo_configs(root: Path) -> dict[str, str | None]:
