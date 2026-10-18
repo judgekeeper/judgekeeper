@@ -264,7 +264,7 @@ def test_a_judge_whose_rule_judgekeeper_cant_swap(here, capsys, monkeypatch):
     code, out = run(capsys)
     assert code == 3
     flat = " ".join(out.split())
-    assert "judgekeeper can't re-run this kind of judge itself." in flat
+    assert "judgekeeper can't ask this judge itself." in flat
     assert ("Next: change its rule where your eval keeps it, run your eval, then run "
             "`judgekeeper check`.") in flat
 

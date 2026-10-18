@@ -625,7 +625,7 @@ def _details(r: dict) -> str:
 def _fix(r: dict) -> str:
     """Fix it: the command that saves the clues and tests a new rule, with Copy. For a judge
     judgekeeper can't ask (fix.can_test), the same words as `judgekeeper fix`."""
-    from judgekeeper.fix import CANT_ASK, NEXT_CANT_ASK, can_test
+    from judgekeeper.fix import CANT_RERUN, NEXT_CANT_ASK, can_test
 
     fix = _e(commands(r)["fix"])
     judge = r.get("judge") or {}
@@ -637,7 +637,7 @@ def _fix(r: dict) -> str:
     else:
         check = NEXT_CANT_ASK.format(command=commands(r)["check"]).split("`")
         then = (f"It lists the answers your judge got wrong and saves them in {saved}. "
-                f"{_e(CANT_ASK.removesuffix('.'))}, so {_e(check[0])}"
+                f"{_e(CANT_RERUN)}, so {_e(check[0])}"
                 f"<code>{_e(check[1])}</code>{_e(check[2])}")
     return ('<section class="fix band" aria-labelledby="fix-h"><div class="fix-in">'
             '<h2 id="fix-h">Fix it</h2>'

@@ -493,7 +493,8 @@ def quote_arg(arg: str | Path) -> str:
 
 
 WIDTH = 64  # what judgekeeper says wraps here; a command in backticks is never split
-WHOLE = ("Inspect AI",)  # names never split either
+WHOLE = ("Inspect AI", "left out")  # never split either: a name, and the words a line that
+# leaves a file out is found by
 
 
 def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:

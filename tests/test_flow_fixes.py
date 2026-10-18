@@ -295,7 +295,7 @@ def test_after_a_check_the_result_and_fix_are_about_the_new_judge(here, capsys, 
 
 # 6. fix for a judge it can't ask -------------------------------------------------------------
 
-CANT_ASK = "judgekeeper can't re-run this kind of judge itself."
+CANT_ASK = "judgekeeper can't ask this judge itself."
 NEXT_CANT_ASK = ("Next: change its rule where your eval keeps it, run your eval, then run "
                  "`judgekeeper check`.")
 
