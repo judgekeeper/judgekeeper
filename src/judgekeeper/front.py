@@ -196,7 +196,8 @@ class FrontTalk(start.Talk):
         if flag is None:
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
-        names = ", ".join(quote_arg(str(v)) for v in values)
+        names = ", ".join(f"'{v}'" if flag == "--metric" else quote_arg(str(v))  # names alike
+                          for v in values)
         if flag == "PATH":
             commands = [f"`{self.command_at(v)}`" for v in values]
             then = start._or(commands)
@@ -797,7 +798,8 @@ def found_block(found: start.Found) -> list[str]:
     """Screen 1's "Find" block: the eval tool, the answers, the judge and its rule."""
     answers = found.check.answers if found.check else len(found.pool.answers)
     tool = tool_name(found.tool, [str(found.results[0].rel)])
-    graded = ("each graded by your judge" if found.pool.answers or found.pool.unread
+    graded = ((f"{'' if answers == 1 else 'each '}graded by your judge")
+              if found.pool.answers or found.pool.unread
               else "none with a clear grade from your judge")
     unscored = found.check.counts().get(judge_check.NOT_SCORED, 0) if found.check else 0
     counted = f"{_n(answers, 'answer')}, {graded}"

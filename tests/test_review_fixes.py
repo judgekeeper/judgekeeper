@@ -486,3 +486,55 @@ def test_a_rubric_in_default_test_is_said(here, capsys):
             "test, and each test has its own, so each has two. Give each one a name with "
             "metric: in its assertion") in flat
     assert "test 1 in" not in flat
+
+
+# 11. Small words ----------------------------------------------------------------------------------
+
+def test_judge_names_in_a_list_are_quoted_alike(here, capsys):
+    import copy
+
+    from tests.start_projects import deepeval_data
+
+    data = deepeval_data(split(5, 5))
+    for case in data["testCases"]:
+        case["metricsData"][0]["name"] = "Answer Relevancy"
+        other = copy.deepcopy(case["metricsData"][0])
+        other["name"] = "Faithfulness"
+        case["metricsData"].append(other)
+    (here / ".deepeval").mkdir()
+    (here / ".deepeval" / ".latest_run_full.json").write_text(json.dumps(data),
+                                                              encoding="utf-8")
+    _, out, _ = run(capsys)
+    assert "('Answer Relevancy', 'Faithfulness')" in " ".join(out.split()), out
+
+
+def test_one_answer_is_not_each(here, capsys):
+    promptfoo_project(here, [True])
+    _, out, _ = run(capsys, "--no-browser")
+    assert "Answers:     1 answer, graded by your judge" in out, out
+
+
+PIN_LINE = ("judgekeeper can't see your eval tool's version. Write its version in your project's "
+            "requirements{example}, so `check` notices when it changes.")
+
+
+@pytest.mark.parametrize("venv, example", [
+    (True, " (e.g. `deepeval==3.4.1`)"),  # the project's, never the one uvx runs judgekeeper with
+    (False, ""),
+])
+def test_pin_it_says_what_and_why_with_the_projects_version(here, capsys, monkeypatch, venv,
+                                                             example):
+    from judgekeeper import judge_check, textio
+    from tests.start_projects import deepeval_project
+
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    monkeypatch.setattr(judge_check, "installed", lambda package: "9.9.9")
+    monkeypatch.setattr(textio, "started_by_uvx", lambda: True)
+    if venv:
+        site = here / ".venv" / "lib" / "python3.12" / "site-packages"
+        (site / "deepeval-3.4.1.dist-info").mkdir(parents=True)
+    deepeval_project(here, split(20, 16))
+    _, out, _ = run(capsys, "--no-browser")
+    flat = " ".join(out.split())
+    assert PIN_LINE.format(example=example) in flat, out
+    assert "9.9.9" not in flat and "Pin it" not in flat

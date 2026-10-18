@@ -357,11 +357,13 @@ def test_an_unknown_tool_version_is_said(tmp_path, monkeypatch, capsys):
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(judge_check, "installed", lambda package: "4.3.0")
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)  # the project has no environment of its own
     deepeval_project(tmp_path, split(20, 16))
     front.run()
     out = " ".join(capsys.readouterr().out.split())
-    assert ("judgekeeper can't see your eval tool's version, so an update to it won't be "
-            "noticed. Pin it in your project (e.g. `deepeval==4.3.0`).") in out  # installed
+    assert ("judgekeeper can't see your eval tool's version. Write its version in your "
+            "project's requirements (e.g. `deepeval==4.3.0`), so `check` notices when it "
+            "changes.") in out  # installed
 
 
 def test_a_pinned_tool_version_is_not_said(tmp_path, monkeypatch, capsys):
