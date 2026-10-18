@@ -1,7 +1,12 @@
-"""Fixes from the security reviews (the stranger test and the scenario test on 1.0).
+"""Fixes from the security reviews of 1.0.
 
 - A page opened by the program named in BROWSER stamps its marks, and the result says so
   once; the docs never say the marks are the person's.
+- --debug shows where it went wrong, never the error's text; a "Not sure" check stays open;
+  fix's top-up after a 3rd rule, its not-counted answers and the missing key; Inspect logs in
+  several folders are asked about.
+- The order and the words of what is said, the ports, the page that stops once every answer
+  is marked, Ctrl-C from the first line, damaged files named, an old pre-commit line.
 No test calls an AI API.
 """
 
@@ -582,7 +587,7 @@ def test_no_placeholder_in_angle_brackets_in_backticks():
         assert not [m for m in found if "<the" in m or "<your" in m], (path.name, found)
 
 
-# Q16. Wording ---------------------------------------------------------------------------------
+# 11. More small words --------------------------------------------------------------------------
 
 @pytest.mark.usefixtures("no_calls")
 def test_a_damaged_results_file_in_check_ends_with_one_stop(here, capsys):
