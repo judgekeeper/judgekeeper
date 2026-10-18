@@ -60,7 +60,7 @@ judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a 
 | `--fields LIST` | A DeepEval GEval judge: the parts it reads, e.g. `input,actual_output` |
 | `--yes` | Without a terminal: yes to the questions judgekeeper printed. It never picks a tool, a judge or a pass mark for you |
 | `--port PORT` | Port on 127.0.0.1 for the page (default 8765). When it is taken, the next free one; `0` for any free port. A page already open for the project keeps its own port |
-| `--no-browser` | Print the page's link without opening a browser. For a remote machine. Run again while the page is open, it prints the same link, so the open tab keeps working; two runs at once print the same link too |
+| `--no-browser` | Print the page's link without opening a browser. It is printed anyway when no browser opens, or one takes more than 10 seconds. For a remote machine. Run again while the page is open, it prints the same link, so the open tab keeps working; two runs at once print the same link too |
 | `--new` | Start over: your marks move to `.judgekeeper/previous-<date>/` (asked first; nothing is deleted) |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background |
 | `--stop` | Close the open page. Your marks are saved |

@@ -696,3 +696,16 @@ def test_a_rule_change_made_without_fix_is_no_pick(here, capsys):
     assert "Your judge changed: rule changed." in flat, out
     assert "helped pick" not in flat
     assert "you looked at to write this rule" not in flat
+
+
+def test_a_browser_that_hangs_still_gets_the_link_printed(here, capsys, monkeypatch):
+    from judgekeeper import page
+    from tests.test_loop import LINK, OPEN
+
+    ticks = iter([0.0, 31.0])
+    monkeypatch.setattr(page, "_clock", lambda: next(ticks, 31.0))
+    promptfoo_project(here, split(20, 16))
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert LINK in out and "http://127.0.0.1:" in out
+    assert OPEN not in out
