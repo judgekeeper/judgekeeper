@@ -258,3 +258,24 @@ def test_a_new_rule_while_a_top_up_waits_is_named(fixing, capsys):
     assert code == 3 and holder["evals"] == 2
     assert "testing your new rule" not in flat
     assert f"Your new rule is waiting: first mark {more} more answers" in flat
+
+
+# 5. Answers the judge errors on in both runs are counted once --------------------------------
+
+def test_answers_not_counted_in_both_runs_are_counted_once(fixing, capsys):
+    from tests.test_again_run import FakePromptfoo
+    from tests.test_fix import NEW_RULE, _split, _write_rule, project
+
+    root, holder = fixing
+    ws = project(root)
+    _fix(capsys)
+    hidden = _split(ws)["hidden"]
+    k = len(hidden) // 2
+    holder["fake"] = FakePromptfoo(Workspace(root), version="0.124.1")
+    holder["fake"].errors = set(hidden[:k])  # in the old rule's run and in the new one's
+    _write_rule(ws, NEW_RULE)
+    code, flat = _fix(capsys, "--yes")
+    assert code == 0, flat
+    assert f"Tested on the {len(hidden) - k} marks kept aside:" in flat
+    assert f"{k} answers were not counted: the judge gave no clear decision." in flat
+    assert flat.count("were not counted") == 1

@@ -918,7 +918,7 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
     from judgekeeper.again.fresh import write_files
     from judgekeeper.fingerprint import rule_hash
 
-    grades, left = [], Counter()
+    grades, left = [], {}
     for plan, text in zip(plans, (m.data.get("rule") or "", rule), strict=True):
         plan.folder = _run_folder(ws, rule_hash(text))
         try:
@@ -930,9 +930,10 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
             return EXIT_NEEDS_YOU
         write_files(ws, plan, fresh, prefix="fix")  # its grades, each with the fingerprint
         grades.append({i: v[0] for i, v in fresh.verdicts.items()})
-        left.update(fresh.not_counted.values())
+        for i, why in fresh.not_counted.items():
+            left.setdefault(i, why)  # an answer not counted in both runs is one answer
     reasons = []
-    for why, k in left.items():
+    for why, k in Counter(left.values()).items():
         one, many = NOT_COUNTED.get(why, (why, why))
         reasons.append(f"1 answer was not counted: {one}." if k == 1 else
                        f"{k} answers were not counted: {many}.")
