@@ -8,6 +8,7 @@ No test calls an AI API.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -538,3 +539,12 @@ def test_pin_it_says_what_and_why_with_the_projects_version(here, capsys, monkey
     flat = " ".join(out.split())
     assert PIN_LINE.format(example=example) in flat, out
     assert "9.9.9" not in flat and "Pin it" not in flat
+
+
+def test_one_range_form_everywhere():
+    assert start_label.side_sentence("tpr", 0.61, (0.42, 0.78)) == (
+        "You passed: your judge also passed about 61% (between 42% and 78%).")
+    for name in ("README.md", "docs/reference.md", "website/index.html"):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert not re.search(r"could be \d+%", text), name
+    assert '"about 95% (between 92% and 98%)"' in (ROOT / "README.md").read_text(encoding="utf-8")

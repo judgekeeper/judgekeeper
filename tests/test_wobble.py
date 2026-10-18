@@ -100,4 +100,4 @@ def test_check_widens_the_numbers_after_a_change_for_the_wobble():
     steady = check._after_lines(marks, tested, picked, pool)
     wobbly = check._after_lines(marks, tested, picked, pool, wobble=0.1)
     assert steady[0] == wobbly[0] and steady[1] != wobbly[1]
-    assert "about 90% (could be" in wobbly[1] and len(wobbly[1]) <= 80
+    assert "about 90% (between" in wobbly[1] and len(wobbly[1]) <= 80

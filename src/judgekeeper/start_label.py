@@ -608,14 +608,14 @@ def too_early(value, interval) -> bool:
 
 def side_sentence(key: str, value, interval) -> str:
     """One side of the result, as the terminal says it: "You passed: your judge also passed
-    about 61% (could be 42% to 78%)."; too early to tell while its range is too wide."""
+    about 61% (between 42% and 78%)."; too early to tell while its range is too wide."""
     did = DID[key]
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."
     if targets.width_word(interval) == "exact":
         return f"You {did}: your judge also {did} {_pct(value)} (exactly)."
-    return (f"You {did}: your judge also {did} about {_pct(value)} (could be "
-            f"{_pct(interval[0])} to {_pct(interval[1])}).")
+    return (f"You {did}: your judge also {did} about {_pct(value)} (between "
+            f"{_pct(interval[0])} and {_pct(interval[1])}).")
 
 
 def all_labeled(r: dict) -> bool:

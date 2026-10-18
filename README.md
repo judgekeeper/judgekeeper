@@ -38,7 +38,7 @@ Finding, marking and the result make no AI call and need no API key. judgekeeper
 
 ## What you get
 
-TPR: of the answers you passed, how many your judge passed. TNR: of the answers you failed, how many it failed. Kappa: how much you agree beyond coincidence, on your real mix of answers (it moves with how many answers pass, so it is in the report's details and never decides the result). Each comes with a range: "about 95% (could be 92% to 98%)". The numbers are estimates from the answers you marked, not a promise about the next ones.
+TPR: of the answers you passed, how many your judge passed. TNR: of the answers you failed, how many it failed. Kappa: how much you agree beyond coincidence, on your real mix of answers (it moves with how many answers pass, so it is in the report's details and never decides the result). Each comes with a range: "about 95% (between 92% and 98%)". The numbers are estimates from the answers you marked, not a promise about the next ones.
 
 ## Numbers
 
