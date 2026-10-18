@@ -6,6 +6,8 @@ token."""
 from __future__ import annotations
 
 import json
+import os
+import stat
 import threading
 
 import pytest
@@ -64,8 +66,10 @@ def test_a_second_server_on_the_project_is_refused(ws):
     server, thread = _serving(ws)
     try:
         lock = json.loads((ws.dir / label_mod.LOCK).read_text(encoding="utf-8"))
-        assert lock == {"pid": lock["pid"], "port": server.port, "stop": server.stop_secret}
-        assert server.token not in json.dumps(lock)
+        assert lock == {"pid": lock["pid"], "port": server.port, "stop": server.stop_secret,
+                        "token": server.token, "settings": None, "printed": False}
+        if os.name != "nt":
+            assert stat.S_IMODE((ws.dir / label_mod.LOCK).stat().st_mode) == 0o600
         with pytest.raises(LabelError) as e:
             make_server(StartSession(ws), 0, page="<p>page</p>", lock=ws.dir)
         assert str(e.value) == ("A judgekeeper page is already open for this project. Close "

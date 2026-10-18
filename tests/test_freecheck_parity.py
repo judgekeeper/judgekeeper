@@ -92,5 +92,5 @@ def test_every_kind_of_file_is_compared():
     for name in ("errors-counted-as-passes.json", "empty-answers.json", "one-grade.json",
                  "two-judges.json", "score-and-pass-mark.json", "table.csv", "table.tsv",
                  "table.jsonl", "ab.csv", "not-results.json", "broken.json", "not-utf8.csv",
-                 "rules-in-code.json"):
+                 "rules-in-code.json", "empty.jsonl"):
         assert name in names, name

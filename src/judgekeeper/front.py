@@ -1055,9 +1055,14 @@ def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool)
 
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown)."""
-    opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved, "mark"),
-                           _command_of(talk, saved), here=wait, say=talk.say)
-    shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait)
+    opened = None
+    try:
+        opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved, "mark"),
+                               _command_of(talk, saved), here=wait, say=talk.say)
+        shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait)
+    except KeyboardInterrupt:  # before its link was printed: no page is left running
+        page.close(ws, opened)
+        raise
     if not shown:
         if opened is not None and opened.server is None:
             background.stop(ws.dir)
@@ -1078,8 +1083,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
           enough: bool, head: list[str], marking: bool, first: bool) -> int:
     """Step 2: the count so far and the page, opened in the browser (its link printed with
     --no-browser). `judgekeeper` again before a first result keeps a page that is still open
-    (its tab still works); `mark`, and --no-browser (its link can't be shown again), open a
-    new one."""
+    (its tab still works); `mark`, and --no-browser, show it again with the same link
+    (page.open_new)."""
     n_pass, n_fail = counts["correct"], counts["wrong"]
     n = n_pass + n_fail
     items = StartSession(ws).items

@@ -15,9 +15,12 @@ data is reset on Windows, and the answer is lost. A body over MAX_BODY is read a
 then answered 413. Any other method (OPTIONS, HEAD...) gets the
 same Host and token checks, then 405; no answer names the Python version. The server stops on Ctrl-C, on a
 POST to /stop (it works the same on every system), and after IDLE_TIMEOUT seconds without a
-request. The project's lock (server.json) holds a separate stop secret, never the token: with
-it a request can only ask whether the page is open (GET /alive) or close it (POST /stop). A
-copy of the lock (page.json) lets --stop find the page when server.json is gone.
+request. The project's lock (server.json) holds a separate stop secret: with it a request can
+only ask whether the page is open (GET /alive) or close it (POST /stop). It also holds the
+page's token, so a second run prints the same link and the open tab keeps working: the lock
+is owner-only (0600) in the owner-only, git-ignored .judgekeeper/, and removed when the page
+stops; a program that can read it could write marks.jsonl as well. A copy of the lock
+(page.json) lets --stop find the page when server.json is gone.
 GET /favicon.ico needs no token and gets 204 No Content: the page has no icon, and a 403
 there would be two errors in the browser's console on every load. POST /printed (with the
 token) says the link was printed where a coding agent could read it:
@@ -225,16 +228,36 @@ RELEASE_PAUSE = 0.05
 
 
 def read_lock(folder: Path) -> dict | None:
-    """{"pid", "port", "stop"} of the page named in the project's lock, or None. When
-    server.json can't be read, its copy (page.json) is."""
+    """{"pid", "port", "stop", "token", "settings", "printed"} of the page named in the
+    project's lock, or None (a lock from before 1.0 has no token: None). When server.json
+    can't be read, its copy (page.json) is."""
     for name in (LOCK, LOCK_COPY):
         try:
             lock = json.loads((Path(folder) / name).read_text(encoding="utf-8"))
+            token, settings = lock.get("token"), lock.get("settings")
             return {"pid": int(lock["pid"]), "port": int(lock["port"]),
-                    "stop": str(lock["stop"])}
+                    "stop": str(lock["stop"]), "token": token if isinstance(token, str) else None,
+                    "settings": settings if isinstance(settings, dict) else None,
+                    "printed": lock.get("printed") is True}
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             continue
     return None
+
+
+def live_lock(folder: Path) -> dict | None:
+    """The project's lock when its page answers to its stop secret and to its token, else
+    None. A lock whose page is gone is removed: its token is no use to anyone."""
+    lock = read_lock(folder)
+    if lock is None:
+        return None
+    if ask(lock["port"], "GET", "/alive", {"stop": lock["stop"]}) != 200:
+        for name in (LOCK, LOCK_COPY):
+            try:
+                (Path(folder) / name).unlink()
+            except OSError:
+                pass
+        return None
+    return lock if lock["token"] and answers(lock["port"], lock["token"]) else None
 
 
 def _answer(port: int, method: str, path: str, query: dict,
@@ -323,12 +346,21 @@ class LabelServer:
         self.busy = threading.Lock()  # held while a request is handled: one at a time
         self._stopped = False
         self.lock: Path | None = None  # the lock file this server wrote (make_server)
+        self.settings: dict | None = None  # what the page shows (page.page_key), in the lock
 
-    def hold(self, folder: Path) -> None:
-        """Write the project's lock and its copy: this process, port and stop secret (never
-        the token: any program that can read .judgekeeper/ can read the lock)."""
+    def hold(self, folder: Path, settings: dict | None = None) -> None:
+        """Write the project's lock and its copy (owner-only): this process, port, stop
+        secret and token, whether its link was printed for another program, and `settings`."""
         self.lock = Path(folder) / LOCK
-        text = json.dumps({"pid": os.getpid(), "port": self.port, "stop": self.stop_secret})
+        self.settings = settings
+        self.write_lock()
+
+    def write_lock(self) -> None:
+        if self.lock is None:
+            return
+        text = json.dumps({"pid": os.getpid(), "port": self.port, "stop": self.stop_secret,
+                           "token": self.token, "settings": self.settings,
+                           "printed": getattr(self.session, "link", None) == PRINTED})
         write_replacing(self.lock, text)
         write_replacing(self.lock.with_name(LOCK_COPY), text)
 
@@ -540,6 +572,10 @@ def _handler(server: LabelServer):
                 return
             if url.path == "/printed" and hasattr(server.session, "link"):
                 server.session.link = PRINTED
+                try:
+                    server.write_lock()  # a page started again with this token is stamped too
+                except OSError:
+                    pass
                 self._json(200, {"printed": True})
                 return
             if url.path != "/label":
@@ -590,12 +626,12 @@ def _handler(server: LabelServer):
 
 def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
                 page: str, lock: Path | None = None, stays: bool = False,
-                token: str | None = None) -> LabelServer:
+                token: str | None = None, settings: dict | None = None) -> LabelServer:
     """A server for `session`, or a LabelError that says why there cannot be one. With `lock`
     (the project's .judgekeeper/), one server per project: when its page is already open,
     that is the error; else this server holds the lock until it stops. Two pages on one
     project would each write their marks over the other's. `token`: the one its caller made
-    (default: a new one)."""
+    (default: a new one); `settings`: kept in the lock."""
     if lock is not None and is_open(lock):
         from judgekeeper.textio import program
 
@@ -611,7 +647,7 @@ def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
         raise LabelError(f"cannot listen on {HOST}:{port} ({e.strerror}); try --port") from None
     if lock is not None:
         try:
-            server.hold(lock)
+            server.hold(lock, settings)
         except OSError:
             pass  # no lock: the labels' own write still says when it can't save
     return server

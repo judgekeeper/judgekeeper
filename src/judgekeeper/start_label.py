@@ -112,7 +112,7 @@ NEEDS_EACH = " A result needs at least {n} of each."
 TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges still too wide
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}` to mark the new "
-                   "results. Your marks so far are kept in {folder}/previous-<date>/.")
+                   "results. `--new` moves your marks to {folder}/previous-<date>/.")
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
@@ -642,8 +642,8 @@ _plural = plural  # textio.plural
 
 def made_lines(made: dict | None) -> list[str]:
     """How the marks were made (marks.made), and a note when more than a quarter took under a
-    second each, when lines of marks.jsonl are not counted, or when marks were made through a
-    link printed where another program could read it (no terminal)."""
+    second each, when lines of marks.jsonl are not counted, or when marks came through a link
+    printed where another program could read it (no terminal), and what that means."""
     if not made or not made["marks"]:
         return []
     n, quick = made["marks"], made["under_second"]
@@ -659,9 +659,11 @@ def made_lines(made: dict | None) -> list[str]:
                    "as the marks.")
     not_counted = marks.not_counted_line(made.get("not_counted") or 0)
     printed = made.get("printed") or 0
+    them = "it" if printed == 1 else "them"
     return out + ([not_counted] if not_counted else []) + (
-        [(f"{printed} of your marks were made through a link printed where another program "
-          "could read it.")]
+        [(f"{printed} of your marks came through a link printed in a terminal, so another "
+          f"program on this computer could have made {them}. If you marked {them} yourself, "
+          "nothing to do.")]
         if printed else [])
 
 

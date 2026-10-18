@@ -565,6 +565,15 @@ EVAL_SKIPPED = ("Your newest Inspect AI log, {eval}, is a .eval log, which judge
                 "{get}.")
 
 
+def _get_extra(talk: Talk, extra: str) -> str:
+    """How to get `extra` and read again with the same flags, as the end of a sentence: the
+    uvx command that has it, else the install line and the command."""
+    if textio.started_by_uvx():
+        return "run `" + " ".join((textio.uvx_with(extra), *filter(None, [talk.subcommand]),
+                                   *talk.flags)) + "`"
+    return f"install the extra ({textio.install_extra(extra)}), then run `{talk.command()}` again"
+
+
 def _needs_extra(talk: Talk, tool: str, where: str) -> Stop:
     """Reading `tool` needs an extra: started by uvx, the uvx command that has it (pip would
     not reach uvx's environment); else pip install, then the same command again."""
@@ -1090,7 +1099,13 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
     if len(found.skipped) > 5:
         talk.say(f"  and {len(found.skipped) - 5} more")
     which = "that is" if len(found.skipped) == 1 else "one of these is"
-    next_step = f"if {which} your results, run `{talk.command_at(found.skipped[0][0])}`."
+    first, why = found.skipped[0]
+    if why == find.NOT_UTF8:  # running it as it is would only say to save it as UTF-8
+        which = "that is" if len(found.skipped) == 1 else f"{first} is"
+        next_step = (f"if {which} your results, save it as UTF-8, then run "
+                     f"`{talk.command_at(first)}` again.")
+    else:
+        next_step = f"if {which} your results, run `{talk.command_at(first)}`."
     if not getattr(talk, "screens", False):
         talk.say(f"Next: {next_step[0].upper()}{next_step[1:]}")
     return talk.stop(EXIT_USAGE, next_step)
@@ -1474,7 +1489,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                 raise _needs_extra(talk, "inspect", _folder_of(newest))
             if newest.path.suffix.lower() == ".eval":  # never read an older log in silence
                 _note(talk, EVAL_SKIPPED.format(eval=newest.rel, json=json_logs[0].rel,
-                                                get=textio.get_extra("inspect")))
+                                                get=_get_extra(talk, "inspect")))
                 talk.say()
             results, newest = json_logs, json_logs[0]
         if kind == "promptfoo":

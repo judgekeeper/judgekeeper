@@ -14,6 +14,10 @@ back within a week.
   is scrubbed for it before it is written.
 - `judgekeeper` and `judgekeeper mark` open the marking page and the result from a local
   web server on 127.0.0.1 with a random token in the URL. It does not listen on the network.
+  While the page is open, the token is also kept in `.judgekeeper/server.json`, so a second
+  run prints the same link: the file is readable by your user only (0600, in a 0700 folder),
+  is removed when the page stops, and sits in the folder judgekeeper keeps out of git. A
+  program that can read it could already write `.judgekeeper/marks.jsonl` directly.
 - The pages judgekeeper writes escape the values they show, so a hostile model response,
   item text or model id cannot inject markup. Spreadsheets that judgekeeper writes
   neutralize cells that would run as formulas, the id column included.

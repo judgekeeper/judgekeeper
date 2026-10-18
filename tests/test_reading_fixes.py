@@ -289,6 +289,8 @@ def test_a_utf16_file_is_named_as_left_out(here, capsys):
     _, out = find(capsys)
     text = flat(out)
     assert "left out" in text and "results.tsv" in text and "UTF-8" in text, out
+    assert next_lines(out) == [("Next: if that is your results, save it as UTF-8, then run "
+                               "`judgekeeper results.tsv --port 0 --no-browser` again.")]
 
 
 def test_a_cr_only_file_is_read_in_the_search(here, capsys):
@@ -363,6 +365,35 @@ def test_a_newer_eval_log_without_the_extra_is_said(here, capsys, monkeypatch):
     os.utime(here / "logs" / "2026-10-17T17-49-42-00-00_qa_new.eval", (later, later))
     _, out = find(capsys)
     assert ".eval" in out and "judgekeeper[inspect]" in out, out
+
+
+@pytest.mark.parametrize("uvx", [True, False])
+def test_the_eval_log_advice_keeps_the_reading_flags(here, capsys, monkeypatch, uvx):
+    """The command it gives to read the newest .eval log repeats --metric and --label-map."""
+    import sys
+
+    from judgekeeper import __version__, start, textio
+    from tests.test_uvx import CACHES
+
+    if uvx:
+        monkeypatch.setenv("UV", "/Users/me/.local/bin/uv")
+        monkeypatch.setattr(sys, "prefix", CACHES[0])
+    monkeypatch.setattr(textio, "extras_here", lambda: ())
+    monkeypatch.setattr(start, "_has", lambda name: name != "inspect_ai")
+    _inspect_log(here, "2026-10-17T17-47-27-00-00_qa_old.json", inspect_data(split(20, 20)))
+    with zipfile.ZipFile(here / "logs" / "2026-10-17T17-49-42-00-00_qa_new.eval", "w") as z:
+        z.writestr("header.json", "{}")
+    later = time.time() + 60
+    os.utime(here / "logs" / "2026-10-17T17-49-42-00-00_qa_new.eval", (later, later))
+    _, out = find(capsys, "--metric", "model_graded_qa", "--label-map", "maybe=error")
+    flags = "--metric model_graded_qa --label-map maybe=error --port 0 --no-browser"
+    if uvx:
+        said = (f'To read the newest, run `uvx --from "judgekeeper[inspect]=={__version__}" '
+                f"judgekeeper {flags}`.")
+    else:
+        said = (f"To read the newest, install the extra ({textio.install_extra('inspect')}), "
+                f"then run `judgekeeper {flags}` again.")
+    assert said in flat(out), out
 
 
 def _errored_inspect(verdicts, errored=(3, 7)) -> dict:

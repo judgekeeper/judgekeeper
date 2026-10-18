@@ -36,7 +36,7 @@ LINK = page.LINK
 ALL_MARKED = ("You've marked every answer: 28 Pass, 12 Fail. A result needs at least 15 of "
               "each.")
 NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper --new` to mark "
-                   "the new results. Your marks so far are kept in "
+                   "the new results. `--new` moves your marks to "
                    ".judgekeeper/previous-<date>/.")
 RULE_A = "Is polite and correct."
 RULE_B = "Is polite, correct and short."

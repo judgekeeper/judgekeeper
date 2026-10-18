@@ -59,8 +59,8 @@ judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a 
 | `--judge-model NAME` | The judge's model, when the results do not record it. It is kept with your marks: later runs use it while the results still don't name one |
 | `--fields LIST` | A DeepEval GEval judge: the parts it reads, e.g. `input,actual_output` |
 | `--yes` | Without a terminal: yes to the questions judgekeeper printed. It never picks a tool, a judge or a pass mark for you |
-| `--port PORT` | Port on 127.0.0.1 for the page (default 8765). When it is taken, the next free one; `0` for any free port |
-| `--no-browser` | Print the page's link without opening a browser. For a remote machine. Run again while the page is open, it opens it again and prints the new link (the old one stops working) |
+| `--port PORT` | Port on 127.0.0.1 for the page (default 8765). When it is taken, the next free one; `0` for any free port. A page already open for the project keeps its own port |
+| `--no-browser` | Print the page's link without opening a browser. For a remote machine. Run again while the page is open, it prints the same link, so the open tab keeps working; two runs at once print the same link too |
 | `--new` | Start over: your marks move to `.judgekeeper/previous-<date>/` (asked first; nothing is deleted) |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background |
 | `--stop` | Close the open page. Your marks are saved |
@@ -440,7 +440,7 @@ judgekeeper writes only inside `.judgekeeper/` in your project. On macOS and Lin
 | `pool.jsonl` | Each answer to mark: its id, input and output | When marking starts |
 | `pool-judge.jsonl` | Your judge's grade on every answer, each line with the full fingerprint | When marking starts, and with a check that is not "Worse" |
 | `marks.jsonl` | Your marks: a line about the judge first, then one line per click (the answer's id, your mark, the time; no answer text) | On every click |
-| `server.json`, `page.json` | The open marking page: its port, its process and a secret that only closes it (never the page's token) | While the page is open |
+| `server.json`, `page.json` | The open marking page: its port, its process, a secret that only closes it, and the page's token, so a second run prints the same link (only your user can read them, like everything here; a program that can read them could write your marks file as well) | While the page is open: removed when it stops, and a stale one is removed |
 | `opening` | Empty: a run is opening the marking page, so a second run waits | While the page opens |
 | `result.json`, `report.html` | The result: every number, the counts of your marks, the fingerprint and the date. The report opens in your browser without a server. When your judge needs work, it ends with Fix it: the command to run | With each result |
 | `history/` | Earlier results | When a new result replaces one |
@@ -460,7 +460,7 @@ judgekeeper writes only inside `.judgekeeper/` in your project. On macOS and Lin
 ## Your API keys
 
 - Your key is used only by your own eval tool, when it asks your judge. judgekeeper has no server: your eval tool's requests go from your machine straight to the provider. A key in promptfoo's config `env:` block counts, as it does in your own promptfoo runs: judgekeeper passes that block to promptfoo in its environment.
-- judgekeeper never prints a key or writes one to a file. Before any text reaches disk or your terminal, the value of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET` (`DATABRICKS_TOKEN`, `MLFLOW_TRACKING_TOKEN`) is replaced with `[REDACTED]`, as is anything shaped like a key: OpenAI and Anthropic (`sk-ant-…`, `sk-…`), AWS (`AKIA…`, `ASIA…`, and the secret after `aws_secret_access_key`), GitHub (`ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`), Google (`AIza…`), Slack (`xoxb-…`, `xoxp-…`), `Bearer …` and `Basic …`. So is the `user:password@` part of a URL.
+- judgekeeper never prints a key or writes one to a file. Before any text reaches disk or your terminal, the value of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET` (`DATABRICKS_TOKEN`, `MLFLOW_TRACKING_TOKEN`) is replaced with `[REDACTED]`, as is anything shaped like a key: OpenAI and Anthropic (`sk-ant-…`, `sk-…`), AWS (`AKIA…`, `ASIA…`, and a 40-character secret after `aws_secret_access_key` or `AWS_SECRET_ACCESS_KEY` (then `=`, `:` or a space, with quotes or not) or on the same line as an `AKIA…` or `ASIA…` key; a 40-character string with neither clue is left as it is, since guessing would hide real text), GitHub (`ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`), Google (`AIza…`), Slack (`xoxb-…`, `xoxp-…`), `Bearer …` and `Basic …`. So is the `user:password@` part of a URL.
 - Finding, marking and the result make no AI call and need no key. Before any AI call, judgekeeper says how many calls it makes and asks first (`Go ahead? [y/N]`, Enter is No). Without a terminal only `--yes` says yes.
 - Error text is scrubbed too. An unexpected error prints one line, never its own text (it can hold an answer's text), and exits 2; `--debug` adds the traceback, still scrubbed.
 - There is no flag that takes a key, and there never will be.
