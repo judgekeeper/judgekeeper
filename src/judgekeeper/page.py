@@ -48,6 +48,7 @@ from judgekeeper.label import (
 from judgekeeper.start_label import StartSession, Workspace
 
 LINK = "Open this link in your browser to mark answers:"
+RESULT_LINK = "Open this link in your browser to see your result:"
 DONE = "When you're done, run {program} in your terminal."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
 OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
@@ -146,6 +147,11 @@ class Page:
     server: LabelServer | None = None  # served by this process (--wait)
     kept: bool = False  # the page that was open already: this run did not start it
 
+    @property
+    def result_url(self) -> str:
+        """The same page, opened at its result page (/result), with its token."""
+        return self.url.replace("/?token=", "/result?token=", 1)
+
 
 def open_new(ws: Workspace, port: int, command: str, start_command: str,
              here: bool = False, say=lambda line: None) -> Page | None:
@@ -241,19 +247,22 @@ def terminal() -> bool:
     return output and _interactive()
 
 
-def show(say, page: Page, no_browser: bool, wait: bool) -> str | None:
+def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) -> str | None:
     """Open the page in the person's browser (BROWSER: nothing is said, the caller says it).
     At a terminal, print the link when no browser opened, with --no-browser or with --wait
     (TERMINAL). Without one, stamp the page's marks first, then print the link (PRINTED).
-    None when the marks could not be stamped: then the link is not printed."""
+    None when the marks could not be stamped: then the link is not printed. `result`: the
+    page is opened at its result page (every answer is marked: the reason boxes are
+    what is left)."""
     at_terminal = terminal()
-    in_browser = not no_browser and webbrowser.open(page.url)
+    url = page.result_url if result else page.url
+    in_browser = not no_browser and webbrowser.open(url)
     if in_browser and not (at_terminal and wait):
         return BROWSER
     if not at_terminal and not _stamp_printed(page):
         return None
-    say(LINK)
-    print(page.url)  # the link whole: printed by hand, never by say
+    say(RESULT_LINK if result else LINK)
+    print(url)  # the link whole: printed by hand, never by say
     sys.stdout.flush()
     return TERMINAL if at_terminal else PRINTED
 

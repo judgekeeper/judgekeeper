@@ -10,16 +10,32 @@ writes suggestions.md. judgekeeper never writes rule.txt. No test calls an API.
 
 from __future__ import annotations
 
+import http.client
 import json
 import re
 import threading
+import urllib.request
+from urllib.parse import urlsplit
 
 import pytest
 
-from judgekeeper import fix, marks, page, reasons, report_page, start_again, start_label
+from judgekeeper import (
+    batches,
+    fix,
+    marks,
+    page,
+    reasons,
+    report_page,
+    start,
+    start_again,
+    start_label,
+)
+from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
-from tests.test_fix import project
+from tests.start_projects import promptfoo_data
+from tests.test_fix import TAG, N, _outputs, project
 from tests.test_fix import run as run_fix
+from tests.test_front import assert_one_next_at_the_end
 from tests.test_label_server import Client
 
 RULE = ("Every claim is supported by the article. The answer is polite; it never promises a "
@@ -552,7 +568,7 @@ def test_mistakes_md_groups_the_mistakes_by_their_most_tapped_reason(here, capsy
                        re.MULTILINE)
     assert heads[0] == "Your reason: it has a wrong fact (2)"
     assert heads[1] == "Your reason: short, but it answers the question (1)"
-    assert heads[-1].startswith("You weren't sure")
+    assert heads[-1] == "You weren't sure about your mark"  # the last group, no count
     assert md.index("Off topic") < md.index("Your reason: short")  # its note beside it
 
 
@@ -727,6 +743,189 @@ def _box_row(html: str, item_id: str) -> str:
 
 def test_the_workspace_has_the_reasons_file_name():
     assert reasons.FILE == "reasons.json" and Workspace(".").dir.name == ".judgekeeper"
+
+
+# Every chip is a button ------------------------------------------------------------------------
+
+def test_every_reason_chip_is_a_button_with_aria_pressed_and_its_id(here):
+    ws, passes, fails, _ = _ready(here)
+    _say(ws, passes[0], note="Gives a price without the currency")  # one of the person's own
+    for item in (passes[1], fails[0]):
+        chips = re.findall(r"<(\w+)([^>]*)class=\"chip\"([^>]*)>", _box(_live(ws), item))
+        assert chips, item
+        for tag, before, after in chips:
+            attrs = before + after
+            assert tag == "button" and 'type="button"' in attrs
+            if "other" in attrs:
+                assert 'aria-expanded="' in attrs  # Other… opens the box: not a reason
+                continue
+            assert re.search(r'aria-pressed="(true|false)"', attrs), attrs
+            found = re.search(r'data-reason="([^"]+)"|data-part="(\d+)"', attrs)
+            assert found, attrs
+            if found[1]:
+                assert found[1] in reasons.REASONS or found[1].startswith(reasons.OWN)
+
+
+# 6. Batches ----------------------------------------------------------------------------------
+
+def _grow(root, n: int) -> list[str]:
+    """The eval ran on `n` questions (more than before, the old ones kept): the new answers
+    join as a batch; their ids."""
+    half = n // 2
+    data = promptfoo_data([True] * half + [False] * (n - half), rubric=RULE, tag=TAG,
+                          outputs=_outputs(n))
+    data["metadata"]["promptfooVersion"] = "0.124.1"
+    (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
+    ws = Workspace(root)
+    before = {q["id"] for q in ws.data()["queue"]}
+    assert batches.add(ws, start.find_judge(root)) == n - N
+    return [q["id"] for q in ws.data()["queue"] if q["id"] not in before]
+
+
+def test_a_new_batchs_disagreements_get_boxes_the_same_way(here, served):
+    ws, _, _, _ = _ready(here)
+    new = _grow(here, N + 10)
+    judge = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    for i in new:  # the person disagrees with the judge on every new answer
+        _say(ws, i, label="fail" if judge[i] == "pass" else "pass", seconds=4)
+    html = _live(ws)
+    boxed = [i for i in new if f'data-id="{i}"' in html]
+    assert boxed  # the batch's disagreements the person can see have a box
+    assert len(boxed) < len(new)  # some of the batch are kept aside, like the first batch
+    status, _ = served(ws).label(id=boxed[0], reasons=["wrong_fact"]
+                                 if judge[boxed[0]] == "pass" else ["short_ok"])
+    assert status == 200
+    assert _lines(ws)[-1]["id"] == boxed[0]
+    assert "wrong_fact" in _lines(ws)[-1]["reasons"] or "short_ok" in _lines(ws)[-1]["reasons"]
+
+
+# 5b. Getting back to the boxes later ----------------------------------------------------------
+
+NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
+                   "answers join the ones you marked.")
+SAY_WHY = "Say why on the answers you and your judge disagree on; `fix` uses your reasons."
+
+
+def _run(capsys, *argv) -> tuple[int, str]:
+    capsys.readouterr()  # what setting the project up printed
+    code = main([str(a) for a in argv])
+    out, err = capsys.readouterr()
+    assert TAG.strip() not in out + err
+    return code, out + err
+
+
+def _get(url: str) -> str:
+    with urllib.request.urlopen(url, timeout=5) as resp:
+        return resp.read().decode("utf-8")
+
+
+def _post(url: str, body: dict) -> int:
+    """A POST to /label as the page at `url` sends it (its token, its Origin)."""
+    u = urlsplit(url)
+    conn = http.client.HTTPConnection(u.hostname, u.port, timeout=5)
+    try:
+        conn.request("POST", f"/label?{u.query}", body=json.dumps(body).encode(),
+                     headers={"Origin": f"http://{u.hostname}:{u.port}",
+                              "Content-Type": "application/json"})
+        resp = conn.getresponse()
+        resp.read()
+        return resp.status
+    finally:
+        conn.close()
+
+
+def test_mark_with_every_answer_marked_opens_the_result_page_with_the_boxes(
+        here, capsys, pages, no_browser):
+    ws, passes, _, _ = _ready(here)
+    code, out = _run(capsys, "mark")
+    assert code == 0, out
+    assert f"You have marked all {N} answers. There are no more to mark." in out
+    flat = " ".join(out.split())
+    assert f"Your result page is open in your browser. {SAY_WHY}" in flat
+    assert assert_one_next_at_the_end(out) == NEXT_ALL_MARKED
+    assert len(no_browser) == 1
+    url = no_browser[0]
+    assert re.fullmatch(r"http://127\.0\.0\.1:\d+/result\?token=[\w-]+", url), url
+    html = _get(url)
+    assert "Why did you mark it Fail?" in html and f'data-id="{passes[0]}"' in html
+    assert 'data-reason="wrong_fact"' in _box(html, passes[0])
+    before = len(_lines(ws))
+    assert _post(url, {"id": passes[0], "reasons": ["wrong_fact"], "note": ""}) == 200
+    added = _lines(ws)[before:]
+    assert len(added) == 1 and added[0]["reasons"] == ["wrong_fact"]
+    assert added[0]["mark"] == "fail"  # the mark as it was
+
+
+def test_mark_with_every_answer_marked_prints_the_result_link_with_no_browser(
+        here, capsys, pages, no_browser):
+    _, passes, _, _ = _ready(here)
+    code, out = _run(capsys, "mark", "--no-browser")
+    assert code == 0, out
+    lines = out.splitlines()
+    at = lines.index("Open this link in your browser to see your result:")
+    url = lines[at + 1]
+    assert re.fullmatch(r"http://127\.0\.0\.1:\d+/result\?token=[\w-]+", url), url
+    assert SAY_WHY in " ".join(out.split())
+    assert no_browser == []
+    assert 'data-reason="wrong_fact"' in _box(_get(url), passes[0])
+    assert assert_one_next_at_the_end(out) == NEXT_ALL_MARKED
+
+
+def test_mark_opens_the_result_page_again_while_the_page_is_open(here, capsys, pages,
+                                                                 no_browser):
+    """The page open for this project is kept: its tab still works, and the result page is
+    opened on it."""
+    _ready(here)
+    started = len(pages[0])  # setting the project up opened (and closed) the page once
+    assert _run(capsys, "mark")[0] == 0
+    assert _run(capsys, "mark")[0] == 0
+    assert len(pages[0]) == started + 1 and len(no_browser) == 2
+    assert no_browser[0] == no_browser[1]
+
+
+def test_mark_with_every_answer_marked_and_no_disagreement_opens_no_page(here, capsys, pages,
+                                                                         no_browser):
+    from tests.start_projects import promptfoo_project, split
+    from tests.test_mark import _click
+
+    promptfoo_project(here, split(20, 16))
+    assert _run(capsys, "mark")[0] == 0
+    _click(Workspace(here))  # as the judge did: no disagreement
+    assert _run(capsys)[0] == 0  # a result
+    started = len(pages[0])
+    code, out = _run(capsys, "mark")
+    assert code == 0, out
+    assert "You have marked all 36 answers. There are no more to mark." in out
+    assert "result page" not in out and "Say why" not in out
+    assert len(pages[0]) == started and len(no_browser) == 1  # the marking page, once
+
+
+def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages, no_browser):
+    ws, _, _, _ = _ready(here)
+    code, out = _run(capsys)
+    assert code == 0, out
+    lines = out.splitlines()
+    at = next(i for i, line in enumerate(lines) if line.startswith("  You failed "))
+    assert lines[at + 1] == ""
+    assert lines[at + 2] == "To say why on these, run `judgekeeper mark`."
+    assert out.count("To say why") == 1
+    report = _report(ws)
+    assert report.count("To say why on these, run <code>judgekeeper mark</code>.") == 1
+    assert report.index("You said Fail, your judge said Pass") < report.index("To say why")
+    assert "To say why" not in _live(ws)  # the live page has the boxes
+
+
+def test_measure_says_nothing_about_why_when_you_agreed_on_all(here, capsys, pages,
+                                                                no_browser):
+    from tests.start_projects import promptfoo_project, split
+    from tests.test_mark import _click
+
+    promptfoo_project(here, split(20, 16))
+    assert _run(capsys, "mark")[0] == 0
+    _click(Workspace(here))
+    code, out = _run(capsys)
+    assert code == 0 and "agreed on all 36 answers" in out, out
+    assert "To say why" not in out and "To say why" not in _report(Workspace(here))
 
 
 # The page in a browser: 390px and desktop, keyboard only, screen-reader labels ----------------

@@ -350,6 +350,13 @@ def next_step(r: dict) -> str | None:
     return "fix" if level == "not_gate" else None if level == "gate" else "mark"
 
 
+def shows_disagreements(r: dict) -> bool:
+    """Whether the page lists the disagreements (and the estimates): real numbers, not too
+    early to tell."""
+    level = r.get("verdict_level") if r["check"] != "too_few" else None
+    return level not in ("too_early", None)
+
+
 def _all_marked(r: dict) -> str:
     """start_label.all_marked_lines as one paragraph, its command as code."""
     from judgekeeper.start_label import all_marked_lines
@@ -530,9 +537,14 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
             f'<tbody>{"".join(body)}</tbody></table></section>')
 
 
-def _groups(c: dict, fixing: dict | None, live: bool = False) -> str:
+def _groups(c: dict, fixing: dict | None, live: bool = False,
+            mark: str | None = None) -> str:
     """The disagreements on the marks the person can see, in two groups, and how many more
-    are among the hidden marks. On the live page, a line first: add a reason."""
+    are among the hidden marks. On the live page, a line first: add a reason. In
+    report.html, which can't save one, a line last: to say why, run `mark` (`mark`: the
+    command)."""
+    from judgekeeper.start_label import SAY_WHY_RUN
+
     mistakes = (fixing or {}).get("mistakes") or []
     parts, own = (fixing or {}).get("parts") or [], (fixing or {}).get("own") or []
     out = []
@@ -549,6 +561,9 @@ def _groups(c: dict, fixing: dict | None, live: bool = False) -> str:
         out.append(f'<div class="band"><p class="note">* {hidden} more '
                    f'{"is" if hidden == 1 else "are"} kept aside to test your new rule '
                    "fairly.</p></div>")
+    if mistakes and not live and mark:
+        out.append(f'<div class="band"><p class="add-why">'
+                   f"{_code_line(SAY_WHY_RUN.format(command=mark))}</p></div>")
     return "".join(out)
 
 
@@ -634,8 +649,9 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     level = r.get("verdict_level") if r["check"] != "too_few" else None
     parts = [_verdict(r, c, back, worse), _counts(r, c)]
     live = back is not None
-    if level not in ("too_early", None):  # real numbers: the disagreements and the estimates
-        parts += [_groups(c, fixing, live), _details(r)]
+    if shows_disagreements(r):  # real numbers: the disagreements and the estimates
+        mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out
+        parts += [_groups(c, fixing, live, mark), _details(r)]
     if level == "not_gate" and not worse:
         parts.append(_fix(r))
     meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'

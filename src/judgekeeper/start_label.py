@@ -113,6 +113,7 @@ ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
 TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges still too wide
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
+SAY_WHY_RUN = "To say why on these, run `{command}`."  # under the disagreements
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
                    "the ones you marked.")
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
@@ -744,6 +745,20 @@ def _fixing(ws: Workspace) -> dict | None:
     for m, i in zip(section["mistakes"], ids, strict=True):
         m["id"] = i
     return section
+
+
+def why_count(ws: Workspace, r: dict) -> int:
+    """How many disagreements the result page lists with a reason box, for the result
+    `r`: none while it is too early to tell (the page lists none), else the mistakes on
+    the marks the person can see (fix.report_section), the hidden marks set aside first."""
+    from judgekeeper import fix
+    from judgekeeper.report_page import shows_disagreements
+
+    if not shows_disagreements(r):
+        return 0
+    fix.prepare_split(ws)
+    section = fix.report_section(ws)
+    return len(section["mistakes"]) if section else 0
 
 
 def _now(ws: Workspace, r: dict) -> dict:

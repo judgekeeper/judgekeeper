@@ -436,7 +436,7 @@ def groups(rows: list[dict]) -> list[tuple[str, list[dict]]]:
     if "" in keyed:
         out.append(("No reason given", keyed[""]))
     if UNSURE in keyed:
-        out.append(("You weren't sure about your own mark", keyed[UNSURE]))
+        out.append(("You weren't sure about your mark", keyed[UNSURE]))
     return out
 
 
