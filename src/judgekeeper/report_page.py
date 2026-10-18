@@ -512,13 +512,20 @@ def _made(r: dict) -> str:
 
 
 def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False,
-           parts: list[str] | None = None, own: list[dict] | None = None) -> str:
-    """One group of disagreements: its title, "Show all" past ROWS_SHOWN rows, the table.
-    Each row is followed by its reason box on the live page (`live`), or by the person's
-    reasons, read-only, in report.html."""
+           parts: list[str] | None = None, own: list[dict] | None = None,
+           hidden: int = 0) -> str:
+    """One group of disagreements: its title (with how many more are kept aside to test a new
+    rule, `hidden`), "Show all" past ROWS_SHOWN rows, the table. Each row is followed by its
+    reason box on the live page (`live`), or by the person's reasons, read-only, in
+    report.html."""
     why = f"Why your judge {judge} it"
     parts, own = parts or [], own or []
     words = {c["id"]: c["text"] for c in own}
+    count = (f"{len(rows)} shown; {hidden} more {'is' if hidden == 1 else 'are'} kept aside to "
+             "test a new rule fairly" if hidden else f"{len(rows)}")
+    if not rows:  # every one is kept aside: the title alone
+        return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
+                f'<h2 id="g-{key}">{said} ({count})</h2></div></section>')
     body = []
     for k, m in enumerate(rows):
         n = f"{key}-{k}"
@@ -540,7 +547,7 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
     more = (f'<button type="button" class="more" aria-expanded="false" '
             f'aria-controls="t-{key}">Show all</button>' if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
-            f'<h2 id="g-{key}">{said} ({len(rows)})</h2>{more}</div>'
+            f'<h2 id="g-{key}">{said} ({count})</h2>{more}</div>'
             f'<table class="tbl" id="t-{key}"><colgroup><col class="c1"><col class="c2">'
             '<col class="c3"></colgroup><thead><tr><th scope="col">Question</th>'
             f'<th scope="col">Answer</th><th scope="col">{why}</th></tr></thead>'
@@ -549,10 +556,10 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
 
 def _groups(c: dict, fixing: dict | None, live: bool = False,
             mark: str | None = None) -> str:
-    """The disagreements on the marks the person can see, in two groups, and how many more
-    are among the hidden marks. On the live page, a line first: add a reason. In
-    report.html, which can't save one, a line last: to say why, run `mark` (`mark`: the
-    command)."""
+    """The disagreements on the marks the person can see, in two groups, each saying in its
+    title how many more are among the hidden marks. On the live page, a line first: add a
+    reason. In report.html, which can't save one, a line last: to say why, run `mark` (`mark`:
+    the command)."""
     from judgekeeper.start_label import SAY_WHY_RUN
 
     mistakes = (fixing or {}).get("mistakes") or []
@@ -563,14 +570,10 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     for key, said, judge in (("easy", "You said Fail, your judge said Pass", "pass"),
                              ("strict", "You said Pass, your judge said Fail", "fail")):
         rows = [m for m in mistakes if m.get("judge") == judge]
-        if rows:
+        hidden = max(0, c[key] - len(rows))
+        if rows or hidden:
             out.append(_group(key, said, "passed" if judge == "pass" else "failed", rows,
-                              live, parts, own))
-    hidden = max(0, c["strict"] + c["easy"] - len(mistakes))
-    if hidden:
-        out.append(f'<div class="band"><p class="note">* {hidden} more '
-                   f'{"is" if hidden == 1 else "are"} kept aside to test your new rule '
-                   "fairly.</p></div>")
+                              live, parts, own, hidden))
     if mistakes and not live and mark:
         out.append(f'<div class="band"><p class="add-why">'
                    f"{_code_line(SAY_WHY_RUN.format(command=mark))}</p></div>")

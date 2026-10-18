@@ -516,9 +516,11 @@ def test_answers_with_no_pass_or_fail_from_the_judge_are_said_under_the_counts()
 
 def test_the_disagreement_groups_show_three_rows_then_show_all():
     r = _result(*NOT_GATE_TNR)
+    c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(5, 2)})
     first = _part(html, '<section class="group band" aria-labelledby="g-easy">')
-    assert '<h2 id="g-easy">You said Fail, your judge said Pass (5)</h2>' in first
+    assert (f'<h2 id="g-easy">You said Fail, your judge said Pass (5 shown; {c["easy"] - 5} '
+            'more are kept aside to test a new rule fairly)</h2>') in first
     assert ('<button type="button" class="more" aria-expanded="false" aria-controls="t-easy">'
             "Show all</button>") in first
     assert ('<thead><tr><th scope="col">Question</th><th scope="col">Answer</th>'
@@ -528,12 +530,13 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
     assert ('<td data-label="Question">easy 0</td><td data-label="Answer" id="a-easy-0">a</td>'
             '<td data-label="Why your judge passed it">r</td>') in first
     second = _part(html, '<section class="group band" aria-labelledby="g-strict">')
-    assert '<h2 id="g-strict">You said Pass, your judge said Fail (2)</h2>' in second
+    assert '<h2 id="g-strict">You said Pass, your judge said Fail (2' in second
     assert '<th scope="col">Why your judge failed it</th>' in second and "why strict 1" in second
     assert 'class="more"' not in second  # 3 rows or fewer: no link
     assert html.index('id="g-easy"') < html.index('id="g-strict"')
-    only = start_label.result_html(r, fixing={"mistakes": _mistakes(0, 2)})
-    assert 'id="g-easy"' not in only and 'id="g-strict"' in only  # a group with no rows: gone
+    only = start_label.result_html(r, fixing={"mistakes": _mistakes(0, c["strict"])})
+    easy = _part(only, '<section class="group band" aria-labelledby="g-easy">')
+    assert "0 shown" in easy and "<table" not in easy  # none to show: its title alone
 
 
 def test_the_judges_text_in_the_tables_is_escaped():
@@ -543,20 +546,24 @@ def test_the_judges_text_in_the_tables_is_escaped():
     assert '<td data-label="Why your judge passed it">No reason given</td>' in html
 
 
-def test_the_kept_aside_note_counts_the_hidden_marks_and_has_the_only_star():
+def test_each_group_says_in_its_header_how_many_are_kept_aside():
     r = _result(*NOT_GATE_TNR)
     c = report_page.counts(r)
-    shown = c["easy"] + c["strict"] - 6
-    html = start_label.result_html(r, fixing={"mistakes": _mistakes(shown - 1, 1)})
-    note = '<p class="note">* 6 more are kept aside to test your new rule fairly.</p>'
-    assert note in html and _text(html).count("*") == 1  # no star anywhere else
-    assert html.index('id="g-strict"') < html.index(note) < html.index('id="details-h"')
-    one = start_label.result_html(r, fixing={"mistakes": _mistakes(shown + 4, 1)})
-    assert "* 1 more is kept aside to test your new rule fairly." in one
-    none = start_label.result_html(r, fixing={"mistakes": _mistakes(shown + 5, 1)})
-    assert 'class="note"' not in none
+    html = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"] - 4,
+                                                                    c["strict"] - 1)})
+    assert (f'<h2 id="g-easy">You said Fail, your judge said Pass ({c["easy"] - 4} shown; 4 '
+            'more are kept aside to test a new rule fairly)</h2>') in html
+    assert (f'<h2 id="g-strict">You said Pass, your judge said Fail ({c["strict"] - 1} shown; '
+            '1 more is kept aside to test a new rule fairly)</h2>') in html
+    assert "*" not in _text(html) and 'class="note"' not in html
+    none = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], c["strict"])})
+    assert "kept aside" not in none
+    assert f'<h2 id="g-easy">You said Fail, your judge said Pass ({c["easy"]})</h2>' in none
+    hidden_only = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], 0)})
+    assert (f'<h2 id="g-strict">You said Pass, your judge said Fail (0 shown; {c["strict"]} '
+            'more are kept aside to test a new rule fairly)</h2>') in hidden_only
     early = start_label.result_html(_result(*TOO_EARLY), fixing={"mistakes": []})
-    assert 'class="note"' not in early and 'class="group' not in early
+    assert "kept aside" not in early and 'class="group' not in early
 
 
 @pytest.mark.parametrize("counts", [GATE, CHECK, NOT_GATE_TNR])
@@ -601,7 +608,7 @@ def test_can_t_tell_yet_keeps_everything_but_fix_it():
     r = _result(*CHECK)
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"] - 1, c["strict"])})
-    for needed in ('class="counts"', 'id="g-easy"', 'id="g-strict"', 'class="note"',
+    for needed in ('class="counts"', 'id="g-easy"', 'id="g-strict"', "1 more is kept aside",
                    'id="details-h"'):
         assert needed in html, needed
     assert 'class="fix' not in html and "Keep checking it" not in html
@@ -792,7 +799,9 @@ def test_the_counts_on_the_page_add_up(tmp_path, monkeypatch):
     assert c["easy"] + c["strict"] == seen + hidden and hidden > 0
     html = ws.report_html.read_text(encoding="utf-8")
     assert html.count('<td data-label="Question">') == seen
-    assert f"* {hidden} more are kept aside to test your new rule fairly." in _text(html)
+    kept = re.findall(r"\d+ shown; (\d+) more (?:is|are) kept aside to test a new rule fairly",
+                      _text(html))
+    assert sum(map(int, kept)) == hidden
 
 # The page for an old link ------------------------------------------------------------------
 
