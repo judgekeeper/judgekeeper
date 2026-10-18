@@ -111,7 +111,7 @@ The marks kept aside are never shown: nothing prints them or writes them anywher
 |---|---|
 | Better / Worse | The exact two-sided sign test on fixed against broke, at 5% |
 | Safe to try | Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 points worse |
-| Can't tell yet | Else; it says whether it leans toward better, looks the same, or looks worse |
+| Can't tell yet | Else; it says whether it leans toward better, looks the same, or leans toward worse (keep the old rule). Only a split past the sign test is called worse |
 
 Each extra test on the same marks kept aside is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". Over all tries on one set, a wrong "safe to try" stays under about 1 in 20. After a "can't tell yet" that leans toward better, it asks once for a few more marks (7 when about 10 are kept aside, 9 when about 15): they join the marks kept aside and the same rule is tested again. After 3 rules, 10 new marks become a new set of marks kept aside; when the 3rd rule leans toward better, it asks for those 10 at once (no top-up), and tests that rule again on the new set. A new rule written in `rule.txt` while marks are awaited is said to be waiting for them.
 

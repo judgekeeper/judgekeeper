@@ -548,3 +548,13 @@ def test_one_range_form_everywhere():
         text = (ROOT / name).read_text(encoding="utf-8")
         assert not re.search(r"could be \d+%", text), name
     assert '"about 95% (between 92% and 98%)"' in (ROOT / "README.md").read_text(encoding="utf-8")
+
+
+def test_a_split_the_sign_test_does_not_pass_is_cant_tell_yet():
+    from judgekeeper import fix, targets
+
+    assert targets.fix_verdict(2, 8, 26).kind == "leans worse"  # p = 0.11
+    assert fix.RESULT["leans worse"] == ("Result: can't tell yet. That leans toward worse; keep "
+                                         "the old rule.")
+    assert targets.fix_verdict(0, 12, 26).kind == "worse"
+    assert fix.RESULT["worse"] == "Result: it looks worse. Keep the old rule."

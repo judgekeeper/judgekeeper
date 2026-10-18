@@ -90,8 +90,8 @@ RESULT = {
                      "could easily be a coincidence."),
     "same": ("Result: can't tell yet. The two rules look about the same here. More marks are "
              "unlikely to change that much."),
-    "leans worse": "Result: it looks worse. Keep the old rule.",
-    "worse": "Result: worse. Keep the old rule.",
+    "leans worse": "Result: can't tell yet. That leans toward worse; keep the old rule.",
+    "worse": "Result: it looks worse. Keep the old rule.",  # only past the sign test
 }
 # A judge judgekeeper can't ask (can_test): the same words on every run and in report.html
 CANT_ASK = "judgekeeper can't re-run this kind of judge itself."
