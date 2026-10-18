@@ -1015,9 +1015,12 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     enough = min(counts["correct"], counts["wrong"]) >= targets.ROUGH
     every = bool(session.items) and all(i["label"] for i in session.items)
     head = []
-    changed = [] if first else _changed(ws, found)
-    grades = 0 if first or changed else check.grades_changed(ws, found)  # a table judge
-    if changed:
+    back = None if first else check.back_to_marked(ws, found)  # the judge the marks were made on
+    changed = [] if first or back else _changed(ws, found)
+    grades = 0 if first or changed or back else check.grades_changed(ws, found)  # a table judge
+    if back:
+        head.append(back)
+    elif changed:
         head.append(JUDGE_CHANGED.format(what=", ".join(changed)))
     elif grades:
         head.append(check.GRADES.format(k=grades))

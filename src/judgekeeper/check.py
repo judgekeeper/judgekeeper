@@ -959,6 +959,7 @@ def _free(found, marked: dict[str, str]) -> dict[str, str]:
 
 
 GRADES = "Your judge's grades changed on {k} of your marked answers."
+BACK = "Your judge is back to the one you marked with ({model}). Your marks' result still holds."
 HOLD = "Your newest results hold {k} of your {n}."  # some marked answers, not all
 ADDED = "You added {n} since your last check."
 
@@ -1066,8 +1067,11 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     found, new = (now.found, now.setup) if now is not None else (None, None)
     before, added = _added_since_check(state, new) if now is not None else (None, [])
     no_rule = new is not None and new.get("rule_hash") is None  # its grades tell a change
+    checks = _history(state.ws)
+    moved = bool(checks) and new is not None and judge_setup.hash_of(
+        checks[-1].get("after") or {}) != judge_setup.hash_of(new)  # back from the last check
     if now is not None and found is None and (judge_setup.changes(old, new) or added or
-                                               no_rule):
+                                               no_rule or moved):
         found, problem = _newest(state)  # remembered, but a re-check needs the answers
         new = judge_setup.of(found) if found is not None else new
     switched = _switched(state) if problem else None
@@ -1085,6 +1089,17 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say()
         said.say(NEXT_RUN_EVAL.format(command=_command(state)))
         return EXIT_NEEDS_YOU
+    back = back_to_marked(state.ws, found) if found is not None else None
+    if back:
+        said.say(back)
+        marks.append(state.ws.history_jsonl, scrub_value({
+            "time": utc_now(), "kind": "check", "trigger": "back", "before": old, "after": new,
+            "changed": ["back to the judge the marks were made on"], "marks": len(state.marks),
+            "free": 0, "asked": 0, "calls": 0, "groups": {}}))
+        _report(state.ws)  # no "Worse" from the other judge on it
+        said.say()
+        said.say(NEXT_SAME.format(command=_command(state)))
+        return EXIT_OK
     changed = judge_setup.changes(old, new)
     if not changed and added:  # marks made since the last check: that change again
         old, changed = before, judge_setup.changes(before, new)
@@ -1274,6 +1289,54 @@ def open_worse(ws: Workspace, found) -> dict | None:
         if flips != sorted(last.get("flipped") or []):
             return None
     return {"before": last["before"], "after": now}
+
+
+def _marked_setup(ws: Workspace) -> dict | None:
+    """The judge the marks were made on: the one the first check since they began started
+    from. None before any check."""
+    since = str((marks.read(ws.marks).header or {}).get("created_at") or "")
+    return next((x["before"] for x in _history(ws)
+                 if str(x.get("time") or "") >= since and isinstance(x.get("before"), dict)),
+                None)
+
+
+def back_to_marked(ws: Workspace, found) -> str | None:
+    """The judge in the newest results (`found`) is the one the marks were made on, and the
+    last check was of another judge: the line that says so, else None. When that check moved
+    the marks to the other judge, they test the judge they were made on again, with the grades
+    they were made on (no AI call, _restore); after a "Worse", nothing was moved, and that
+    "Worse" no longer applies (open_worse)."""
+    marked, saved, checks = _marked_setup(ws), judge_setup.read(ws), _history(ws)
+    if marked is None or saved is None or not checks:
+        return None
+    now = judge_setup.of(found)
+    if (judge_setup.hash_of(now) != judge_setup.hash_of(marked)
+            or judge_setup.hash_of(checks[-1].get("after") or {}) == judge_setup.hash_of(now)):
+        return None
+    if saved["setup_hash"] != judge_setup.hash_of(now):
+        _restore(ws, found, now)
+    names = [re.split(r"[:/]", str(m))[-1] for m in now.get("models") or []]
+    return BACK.format(model=", ".join(names) or "model not named")
+
+
+def _restore(ws: Workspace, found, setup: dict) -> None:
+    """The marks test the judge they were made on again (`found`, its `setup`): start.json
+    takes back the grades the marks were picked by, judge.json that judge, and the result is
+    made again from them."""
+    from judgekeeper.start_label import _write_json
+
+    data = ws.data()
+    picked = data.get("picked") or {}
+    groups = picked.get("groups") or {q["id"]: q["group"] for q in data.get("queue") or []}
+    _adopt(ws, found, {i: groups[i] for i in marks.read(ws.marks).counted() if i in groups})
+    data = ws.data()
+    data["queue"] = [{**q, "group": groups.get(q["id"], q["group"])} for q in data["queue"]]
+    data["pool"] = picked.get("pool") or data.get("pool")
+    for key in ("picked", "checked_at"):
+        data.pop(key, None)
+    _write_json(ws.start, data)
+    judge_setup.save(ws, setup, found.metric)
+    _report(ws, adopted=True)
 
 
 def _same_as_last(state: State, line: dict) -> bool:

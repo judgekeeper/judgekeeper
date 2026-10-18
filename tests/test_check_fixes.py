@@ -202,7 +202,8 @@ def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys, no_calls):
     assert len(_history(ws)) == 1  # the same check is in the History once
     _results(here, MARKED)  # back to the old judge
     code, out = run(capsys)
-    assert code == 0 and "has not changed" in out
+    assert code == 0 and "has not changed" not in out
+    assert "Your judge is back to the one you marked with" in _flat(out)  # v2-bugfix-2 LE3
 
 
 def test_after_worse_judgekeeper_still_points_at_check(here, capsys, no_calls):

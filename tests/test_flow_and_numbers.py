@@ -873,3 +873,47 @@ def test_deepevals_own_setup_command_is_the_next_step(tmp_path, stubs, monkeypat
     monkeypatch.setenv("STUB_MODEL_ERROR", "a quota error")
     p = make_plan(ws, AgainOptions(python=sys.executable, fields="input,actual_output"))
     assert p.status == again.CANT and p.install is None  # never a guess
+
+
+def test_back_to_the_marked_judge_after_a_worse_check(here, capsys, no_calls):
+    """LE3: a check on another model said "Worse"; the eval runs with the old judge again."""
+    from tests.test_check import LENIENT, MARKED, _results
+
+    ws = _marked(here)
+    _results(here, LENIENT, model=NEW)
+    assert _check(capsys)[0] == 1  # Worse
+    _results(here, MARKED)  # back to the judge the marks were made on
+    out = _jk(capsys)[1]
+    assert "Your judge is back to the one you marked with (gpt-4.1-mini)." in flat(out), out
+    assert "go back to" not in out and "go back to" not in _report(here).lower()
+    code, out = _check(capsys)
+    assert code == 0, out
+    assert ("Your judge is back to the one you marked with (gpt-4.1-mini). Your marks' result "
+            "still holds.") in flat(out)
+    assert "has not changed since your last check" not in out
+    assert judge_models(ws) == [MODEL]
+
+
+def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys, no_calls):
+    """LE3: a check moved the marks to another model; the eval runs with the old judge again:
+    no AI call, and the result is the marks' own again."""
+    from tests.test_check import MARKED, _results
+
+    ws = _marked(here)
+    before = _jk(capsys)[1]
+    other = list(MARKED)
+    other[0] = not other[0]  # the other model differs on one answer: not worse
+    _results(here, other, model=NEW)
+    assert _check(capsys)[0] == 0
+    assert judge_models(ws) == [NEW]
+    _results(here, MARKED)
+    out = _jk(capsys)[1]
+    assert ("Your judge is back to the one you marked with (gpt-4.1-mini). Your marks' result "
+            "still holds.") in flat(out), out
+    assert judge_models(ws) == [MODEL]
+    assert "picked" not in ws.data()
+    agreed = [line for line in before.splitlines() if "You and your judge" in line]
+    assert agreed and agreed[0] in out
+    code, out = _check(capsys)  # the check that sees it says it too, and keeps it in history
+    assert code == 0 and "back to the one you marked with" in flat(out), out
+    assert "has not changed since your last check" in _check(capsys)[1]
