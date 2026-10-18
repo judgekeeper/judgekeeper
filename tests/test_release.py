@@ -191,7 +191,7 @@ def test_wheel_ships_the_package_and_no_demo(tmp_path):
         assert not any(name.startswith(gone) for name in names), gone
     dist_info = f"judgekeeper-{VERSION}.dist-info"
     entry_points = zipfile.ZipFile(wheel).read(f"{dist_info}/entry_points.txt").decode()
-    assert "[pytest11]" not in entry_points and "judgekeeper.cli:main" in entry_points
+    assert "[pytest11]" not in entry_points and "judgekeeper.__main__:main" in entry_points
     assert f"{dist_info}/licenses/LICENSE" in names
 
 

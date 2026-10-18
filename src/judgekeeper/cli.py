@@ -400,6 +400,14 @@ def main(argv: list[str] | None = None) -> int:
     except BrokenPipeError:  # piped into a program that stopped reading (`| head`): no error
         _quiet_stdout()
         return EXIT_OK
+    except KeyboardInterrupt:  # before a command started (reading the flags): as _main says it
+        return _stopped(command_first(sys.argv[1:] if argv is None else argv))
+
+
+def _stopped(args_list: list[str]) -> int:
+    print("\nStopped.")
+    _next(_step(NEXT_STOPPED, args_list), file=sys.stdout)
+    return EXIT_STOPPED
 
 
 def _quiet_stdout() -> None:
@@ -427,9 +435,7 @@ def _main(argv: list[str] | None) -> int:
     try:
         return COMMANDS[args.command](args)
     except KeyboardInterrupt:  # Ctrl-C, often at a question: what was saved stays saved
-        print("\nStopped.")
-        _next(_step(NEXT_STOPPED, args_list), file=sys.stdout)
-        return EXIT_STOPPED
+        return _stopped(args_list)
     except BrokenPipeError:
         raise  # said by main: nothing went wrong
     except (AnchorError, JudgmentsError, NormaliseError, TableError,

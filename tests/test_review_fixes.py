@@ -787,3 +787,48 @@ def test_a_rule_copied_from_answers_is_not_printed(fixing, capsys):
     assert "New rule: from .judgekeeper/fix/rule.txt" in flat, flat
     assert "It copies text from your answers" in flat
     assert copied[:20] not in flat
+
+
+# 15. Ctrl-C from the first line --------------------------------------------------------------
+
+def test_ctrl_c_while_the_commands_load_says_stopped(monkeypatch, capsys):
+    import builtins
+    import sys
+
+    from judgekeeper import __main__ as entry
+
+    real = builtins.__import__
+
+    def interrupted(name, *args, **kwargs):
+        if name == "judgekeeper.cli":
+            raise KeyboardInterrupt
+        return real(name, *args, **kwargs)
+
+    monkeypatch.delitem(sys.modules, "judgekeeper.cli", raising=False)
+    monkeypatch.setattr(builtins, "__import__", interrupted)
+    assert entry.main(["--no-browser"]) == 130
+    out = capsys.readouterr()
+    assert "Traceback" not in out.out + out.err
+    assert out.out.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper` to carry on."]
+
+
+def test_ctrl_c_while_the_arguments_are_read_says_stopped(monkeypatch, capsys):
+    from judgekeeper import cli
+
+    def interrupted(args_list):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "parse_args", interrupted)
+    assert cli.main(["--no-browser"]) == 130
+    out = capsys.readouterr()
+    assert out.out == "\nStopped.\nNext: run `judgekeeper --no-browser` to carry on.\n"
+
+
+def test_the_command_starts_from_the_light_entry():
+    import tomllib
+
+    scripts = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "scripts"]
+    assert scripts == {"judgekeeper": "judgekeeper.__main__:main"}
+    text = (ROOT / "src" / "judgekeeper" / "__main__.py").read_text(encoding="utf-8")
+    assert "\nfrom judgekeeper.cli import" not in text  # loaded inside main, under its try
