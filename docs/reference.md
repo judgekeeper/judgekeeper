@@ -459,7 +459,7 @@ judgekeeper writes only inside `.judgekeeper/` in your project. On macOS and Lin
 
 ## Your API keys
 
-- Your key is used only by your own eval tool, when it asks your judge. judgekeeper has no server: your eval tool's requests go from your machine straight to the provider.
+- Your key is used only by your own eval tool, when it asks your judge. judgekeeper has no server: your eval tool's requests go from your machine straight to the provider. A key in promptfoo's config `env:` block counts, as it does in your own promptfoo runs: judgekeeper passes that block to promptfoo in its environment.
 - judgekeeper never prints a key or writes one to a file. Before any text reaches disk or your terminal, the value of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET` (`DATABRICKS_TOKEN`, `MLFLOW_TRACKING_TOKEN`) is replaced with `[REDACTED]`, as is anything shaped like a key: OpenAI and Anthropic (`sk-ant-…`, `sk-…`), AWS (`AKIA…`, `ASIA…`, and the secret after `aws_secret_access_key`), GitHub (`ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`), Google (`AIza…`), Slack (`xoxb-…`, `xoxp-…`), `Bearer …` and `Basic …`. So is the `user:password@` part of a URL.
 - Finding, marking and the result make no AI call and need no key. Before any AI call, judgekeeper says how many calls it makes and asks first (`Go ahead? [y/N]`, Enter is No). Without a terminal only `--yes` says yes.
 - Error text is scrubbed too. An unexpected error prints one line, never its own text (it can hold an answer's text), and exits 2; `--debug` adds the traceback, still scrubbed.

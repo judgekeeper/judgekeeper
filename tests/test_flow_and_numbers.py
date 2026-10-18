@@ -148,6 +148,31 @@ def test_a_reask_that_used_another_model_saves_nothing(here, capsys, grader):
     assert not (ws.dir / "verdicts").exists()
 
 
+
+# 1a. A key set in the eval tool's own config counts ----------------------------------------
+
+@pytest.mark.parametrize("config", [
+    "description: support bot\nenv: {OPENAI_API_KEY: sk-config-ZQKEY-0123456789abcdef}\n",
+    json.dumps({"description": "support bot",
+                "env": {"OPENAI_API_KEY": "sk-config-ZQKEY-0123456789abcdef"}}, indent=1),
+])
+def test_a_key_in_the_configs_env_block_counts(here, capsys, grader, monkeypatch, config):
+    from tests.test_check import MARKED, _new_outputs, _results
+
+    _marked(here)
+    monkeypatch.delenv("OPENAI_API_KEY")
+    (here / "promptfooconfig.yaml").write_text(config, encoding="utf-8")
+    _results(here, MARKED, model="openai:gpt-4.1-nano", outputs=_new_outputs())
+    _, out = _check(capsys, "--yes")
+    assert "isn't set" not in out and "not set in your shell" not in out, out
+    assert grader["fake"].graders, out  # the judge was asked
+    fake = grader["fake"]
+    run = next(c for c in fake.calls if "eval" in c.argv)  # promptfoo gets the key as in your runs
+    assert run.env["OPENAI_API_KEY"] == "sk-config-ZQKEY-0123456789abcdef"
+    assert "ZQKEY" not in json.dumps(fake.files_seen)  # never written to a file
+    assert "ZQKEY" not in out
+
+
 # 2. No Next line points to marking when nothing is left to mark ------------------------------
 
 def says_mark(line: str) -> bool:

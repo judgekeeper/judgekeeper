@@ -29,7 +29,8 @@ and whose provider is promptfoo's echo, and a tests file (kept separate, so prom
 fill `{{ env.X }}` into saved answers) with each labeled answer as a fixed answer
 (`providerOutput`), its saved vars and only its model-graded assertions and grader, copied
 unchanged. promptfoo then runs with `--no-cache --no-write --no-share` and its telemetry,
-update check, sharing and logs off; `--grader` is never passed. Both files are removed
+update check, sharing and logs off; `--grader` is never passed. The `env:` block of the user's
+config (where a key may be set) goes into promptfoo's environment, never into a file. Both files are removed
 afterwards, also after an error or Ctrl-C. Exit codes 0 and 100 (some test failed) both mean
 finished. An llm-rubric answer whose new grading prompt is not byte for byte the saved one is
 not counted.
@@ -57,7 +58,7 @@ from judgekeeper.readers.promptfoo import (
     read_promptfoo,
 )
 from judgekeeper.records import LLM, derive_record_id
-from judgekeeper.redact import scrub
+from judgekeeper.redact import register_secret, scrub
 from judgekeeper.table import make_fingerprint
 from judgekeeper.textio import make_private, write_replacing
 
@@ -559,6 +560,17 @@ def regrade_config() -> dict:
             "evaluateOptions": {"cache": False}, "tests": f"file://{TESTS}"}
 
 
+def _config_env(config: Path | None) -> dict[str, str]:
+    """The person's config's `env:` block (the values it can read), which promptfoo uses
+    over the shell in their own runs: a key set there is the one their judge uses. Passed in
+    promptfoo's environment, never written; each credential among them is scrubbed from
+    everything judgekeeper writes or prints."""
+    env = {k: v for k, v in keys.config_env(config).items() if isinstance(v, str)}
+    for name, value in env.items():
+        register_secret(name, value)
+    return env
+
+
 def _rendered(comps) -> list:
     return [(c.get("metadata") or {}).get("renderedGradingPrompt") for c in comps]
 
@@ -585,7 +597,8 @@ def run(ws, plan: Plan, talk) -> Fresh:
             talk.say(again.LOCAL_MODEL)
         progress = again.Progress(talk, None)  # promptfoo writes its results at the end
         with again.watching(progress.tick):
-            proc = again.run_process(argv, cwd=root, env={**os.environ, **RUN_ENV})
+            proc = again.run_process(argv, cwd=root,
+                                     env={**os.environ, **_config_env(config), **RUN_ENV})
     finally:
         for path in files:
             path.unlink(missing_ok=True)
