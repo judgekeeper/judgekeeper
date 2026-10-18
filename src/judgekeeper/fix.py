@@ -49,7 +49,7 @@ from judgekeeper import __version__, marks, start_fix_rule, targets
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.redact import one_line, scrub
-from judgekeeper.start_label import Workspace, shown_folder
+from judgekeeper.start_label import Workspace, next_marks, shown_folder
 from judgekeeper.textio import (
     jsonl_lines,
     make_private,
@@ -577,7 +577,8 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     talk.say()
     if split is None:
         talk.para("You have not marked enough answers yet to fix your judge.")
-        talk.next(f"run `{program('mark')}` to mark more answers.")
+        step = f"run `{program('mark')}` to mark more answers."
+        talk.next(next_marks(ws, step) if ws is not None else step)
         return EXIT_NEEDS_YOU
     if split.fresh or (split.topup and not split.topup.get("done")):
         return _waiting(talk, ws, split)
@@ -596,8 +597,8 @@ def _waiting(talk: Talk, ws: Workspace, split: Split) -> int:
         want, then = split.topup["want"], ""
     if split.pending:
         talk.para(f"You have marked {len(split.pending)} of the {want} more answers.")
-    talk.next(f"mark {want - len(split.pending)} more answers with `{program('mark')}`, then "
-              f"run `{talk.command()}` again{then}.")
+    talk.next(next_marks(ws, f"mark {want - len(split.pending)} more answers with "
+                             f"`{program('mark')}`, then run `{talk.command()}` again{then}."))
     return EXIT_NEEDS_YOU
 
 
@@ -812,15 +813,16 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     if v.kind == "leans better" and split.topup is None:
         split.topup = {"want": targets.top_up(v.n), "rule_hash": h, "done": False}
         save_split(ws, split)
-        talk.next(f"mark {split.topup['want']} more answers with `{program('mark')}`, then run "
-                  f"`{talk.command()}` again.")
+        talk.next(next_marks(ws, f"mark {split.topup['want']} more answers with "
+                                 f"`{program('mark')}`, then run `{talk.command()}` again."))
         return EXIT_OK
     if v.kind == "leans better":  # one top-up per set: a new set is the way on
         split.fresh = {"want": FRESH}
         save_split(ws, split)
-        talk.next(f"keep the old rule for now, or mark {FRESH} more answers with "
-                  f"`{program('mark')}`, then run `{talk.command()}` again: they become a new "
-                  "set of marks kept aside.")
+        more = next_marks(ws, f"mark {FRESH} more answers with `{program('mark')}`, then run "
+                              f"`{talk.command()}` again: they become a new set of marks kept "
+                              "aside.")
+        talk.next(f"keep the old rule for now, or {more}")
         return EXIT_OK
     talk.next(f"keep the old rule, or write another rule in {folder}/{RULE} and run "
               f"`{talk.command()}` again.")

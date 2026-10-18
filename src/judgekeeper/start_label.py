@@ -108,6 +108,7 @@ ALL_LABELED = "Every saved answer is marked. Run your eval again for more answer
 ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
 TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges still too wide
+EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}` to mark the new "
                    "results. Your marks so far are kept in {folder}/previous-<date>/.")
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
@@ -389,11 +390,14 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     counted = session.group_counts()
     status = progress_status(session.pool["pass"], session.pool["fail"], *counted["pass"],
                              *counted["fail"])
-    if not status["ready"] and session.items and all(i["label"] for i in session.items):
+    every = bool(session.items) and all(i["label"] for i in session.items)
+    if not status["ready"] and every:
         counts = session.counts()  # nothing left to mark: the end card says what comes next
         done = all_marked_lines({"correct": counts["correct"], "wrong": counts["wrong"]},
                                 new_command(run))
         status.update(text=done[0], done=done)
+    elif every:  # never "marking more answers narrows...": there is none left to mark
+        status.update(text=EVERY_MARKED)
     return status
 
 
@@ -607,6 +611,30 @@ def all_marked_lines(labels: dict, command: str | None = None,
     return [first, "Next: " + NEXT_ALL_MARKED.format(command=command, folder=folder)]
 
 
+def every_marked(ws: Workspace) -> bool:
+    """Whether every answer in the pool has a Pass or Fail mark: none is left to mark."""
+    try:
+        queue = ws.data().get("queue") or []
+        counted = marks.read(ws.marks).counted()
+    except (OSError, ValueError, AttributeError):
+        return False
+    return bool(queue) and all(q["id"] in counted for q in queue)
+
+
+def next_marks(ws: Workspace, step: str) -> str:
+    """The next step after Measure, Fix or Check that asks for more marks (`step`, without
+    "Next: "), unless every answer in the pool is marked: then all_marked_lines' next step, as
+    there is nothing left to mark and new answers never join. The one place this is decided."""
+    if not every_marked(ws):
+        return step
+    try:
+        command = json.loads(ws.result_json.read_text(encoding="utf-8")).get("command")
+    except (OSError, ValueError, AttributeError):
+        command = None
+    return NEXT_ALL_MARKED.format(command=new_command(command if isinstance(command, str)
+                                                      else None), folder=shown_folder(ws))
+
+
 _plural = plural  # textio.plural
 
 
@@ -732,7 +760,7 @@ def compute(ws: Workspace, session: StartSession) -> dict:
                                                r["tpr"], r["tnr"])
     from judgekeeper import check
 
-    r["picks"] = check.picks_lines(check.picks(ws))  # how many changes the marks helped pick
+    r["picks"] = check.picks_lines(check.picks(ws), r["left"] == 0)  # changes the marks picked
     return r
 
 

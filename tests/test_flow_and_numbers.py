@@ -17,12 +17,13 @@ No test calls an AI API.
 from __future__ import annotations
 
 import json
+import re
 from types import SimpleNamespace
 
 import pytest
 
 from judgekeeper import again, keys
-from judgekeeper.start_label import Workspace
+from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import project_promptfoo, promptfoo_data, split
 from tests.test_again_run import FakePromptfoo
 from tests.test_check import HAIKU, MODEL, TAG, _history, _marked
@@ -142,3 +143,104 @@ def test_a_reask_that_used_another_model_saves_nothing(here, capsys, grader):
     assert _history(ws) == []
     assert not list((ws.dir / "checks").glob("*/check-*.jsonl"))
     assert not (ws.dir / "verdicts").exists()
+
+
+# 2. No Next line points to marking when nothing is left to mark ------------------------------
+
+def says_mark(line: str) -> bool:
+    """A Next line that sends the person to mark more answers."""
+    return bool(re.search(r"judgekeeper mark\b|mark (\d+ )?(more|new) answers", line))
+
+
+def _mark(ws: Workspace, person=None) -> None:
+    """The person marks every answer: as the judge did, or `person[i]` for answer i."""
+    session = StartSession(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    for item in session.items:
+        text = session.raw[item["id"]]["input"]
+        i = int(re.search(r"Question (\d+)\?", json.dumps(text))[1])
+        session.update({"id": item["id"], "label": (person or {}).get(i, groups[item["id"]]),
+                        "seconds": 6})
+
+
+def _jk(capsys, *argv):
+    from judgekeeper.cli import main
+
+    code = main(list(argv))
+    out, err = capsys.readouterr()
+    return code, out + err
+
+
+def _rubric(root, verdicts, rule, name="results.json", only=None, model=MODEL):
+    data = promptfoo_data(verdicts, rubric=rule, model=model)
+    data["metadata"]["promptfooVersion"] = "0.124.1"
+    if only is not None:
+        data["results"]["results"] = [r for i, r in enumerate(data["results"]["results"])
+                                      if i in only]
+    (root / name).write_text(json.dumps(data), encoding="utf-8")
+
+
+RULE_A = "Is polite and correct."
+RULE_B = "Is polite, correct and short."
+RULE_C = "Is correct, polite and kind."
+
+
+def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys, grader):
+    """Every answer marked, then Fix, Re-check and Fix again: every Next line is possible."""
+    (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    _rubric(here, split(20, 20), RULE_A)
+    assert _jk(capsys)[0] == 0
+    person = {i: "fail" for i in range(8)} | {i: "pass" for i in range(20, 24)}
+    _mark(Workspace(here), person)
+    said = [_jk(capsys)[1]]
+    said.append(_jk(capsys, "fix")[1])
+    (here / ".judgekeeper" / "fix" / "rule.txt").write_text(RULE_B, encoding="utf-8")
+    said.append(_jk(capsys, "fix", "--yes")[1])
+    _rubric(here, split(20, 20), RULE_B)  # the rule copied into the config, the eval run
+    said.append(_jk(capsys, "check")[1])
+    said.append(_jk(capsys, "fix")[1])
+    (here / ".judgekeeper" / "fix" / "rule.txt").write_text(RULE_C, encoding="utf-8")
+    said.append(_jk(capsys, "fix")[1])
+    _rubric(here, split(20, 20), RULE_B, only=range(10), model=NEW)  # 10 questions, new model
+    said.append(_jk(capsys, "check")[1])
+    for out in said:
+        assert "Step" in out
+        assert not says_mark(_next(out)), out
+    assert "judgekeeper --new" in _next(said[4])  # fix after the rule was adopted
+
+
+def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
+    from tests.start_projects import promptfoo_project
+
+    promptfoo_project(here, split(20, 20))
+    assert _jk(capsys)[0] == 0
+    _mark(Workspace(here), {i: "fail" for i in (0, 1, 2)} | {i: "pass" for i in (20, 21, 22)})
+    _, out = _jk(capsys)
+    assert "Result: too early to tell." in out
+    assert "Mark more answers" not in out
+    assert not says_mark(_next(out))
+
+
+def test_the_page_line_never_says_mark_more_once_every_answer_is_marked(here, capsys):
+    from judgekeeper import page
+    from tests.start_projects import promptfoo_project
+
+    promptfoo_project(here, split(20, 20))
+    assert _jk(capsys)[0] == 0
+    ws = Workspace(here)
+    _mark(ws, {i: "fail" for i in (0, 1, 2)} | {i: "pass" for i in (20, 21, 22)})
+    status = page.marking_status(StartSession(ws))
+    assert status["ready"] is True
+    assert status["text"] == ("You marked every answer. When you're done, run judgekeeper in "
+                              "your terminal.")
+
+
+def test_the_picks_line_says_it_once_and_never_asks_with_nothing_left():
+    from judgekeeper import check
+
+    p = {"n": 3, "new_marks": 0, "ask": True}
+    assert check.picks_lines(p, every=True) == [
+        "These marks have helped pick 3 changes, so they may now flatter your judge."]
+    assert check.picks_lines(p) == [
+        ("These marks have helped pick 3 changes, so they may now flatter your judge. Mark 10 "
+         "new answers for a fair check.")]

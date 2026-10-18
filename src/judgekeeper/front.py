@@ -1080,7 +1080,10 @@ def verdict_line(r: dict) -> str | None:
     headlines; None before a first result."""
     if r["verdict_level"] is None:
         return None
-    return f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}"
+    verdict = r["verdict"]
+    if start_label.all_labeled(r):  # nothing left to mark
+        verdict = verdict.replace(f" {start_label.MARK_MORE}", "")
+    return f"Result: {verdict[:1].lower()}{verdict[1:]}"
 
 
 def _which_judge(ws: Workspace, found: start.Found) -> str | None:

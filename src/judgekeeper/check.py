@@ -57,7 +57,7 @@ from judgekeeper import __version__, find, judge_setup, marks, start, targets, w
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_value
-from judgekeeper.start_label import Workspace
+from judgekeeper.start_label import Workspace, every_marked, next_marks
 from judgekeeper.textio import make_private, plural, program, quote_arg, wrap, write_replacing
 
 EXIT_OK, EXIT_WORSE, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 1, 2, 3
@@ -70,7 +70,7 @@ MAX_ENTRIES = 20_000  # files in a results folder (an MLflow store) looked at, a
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers you failed"))
 SAID = {"passed": "You passed", "failed": "You failed"}
-NEXT_NOT_SURE = ("Next: mark more answers with `{mark}`, then run `{command}` again.")
+NEXT_NOT_SURE = "mark more answers with `{mark}`, then run `{command}` again."
 VERDICT_WORDS = {"worse": "Worse", "not_sure": "Not sure",
                  "no_drop": f"No drop bigger than {round(targets.NO_DROP_MARGIN * 100)} points"}
 
@@ -615,8 +615,8 @@ def groups(marked: dict[str, str], old: dict[str, str], new: dict[str, str],
 
 WRITTEN_FROM = ("This includes marks you looked at to write this rule, so it may read a few "
                 "points high.")
-AFTER_NONE = ("On marks made after this change: {said}. Mark more answers to see it on answers "
-              "it was not written for.")
+AFTER_NONE = "On marks made after this change: {said}."
+AFTER_MORE = " Mark more answers to see it on answers it was not written for."
 AFTER_NUMBERS = 10  # of each kind: their numbers are shown
 AFTER_HEADLINE = 15  # of each kind: they decide the verdict
 
@@ -642,16 +642,19 @@ def _made_after(state: State, since: str, tested: dict[str, str]) -> dict[str, s
 
 
 def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str, str],
-                 pool: dict[str, int], wobble: float | None = None) -> list[str]:
+                 pool: dict[str, int], wobble: float | None = None,
+                 every: bool = False) -> list[str]:
     """The new judge on the marks made after the change: none yet, how many so far, or (with
     AFTER_NUMBERS of each) its numbers with their ranges, widened for its `wobble` (the share
-    of answers it graded differently when asked twice)."""
+    of answers it graded differently when asked twice). `every`: every answer is marked, so
+    none is left to mark."""
     from judgekeeper.start_label import side_sentence
 
     kinds = list(fresh.values())
     n_pass, n_fail = kinds.count("pass"), kinds.count("fail")
     if min(n_pass, n_fail) < AFTER_NUMBERS:
-        return [AFTER_NONE.format(said=f"{len(fresh)} so far" if fresh else "none yet")]
+        said = f"{len(fresh)} so far" if fresh else "none" if every else "none yet"
+        return [AFTER_NONE.format(said=said) + ("" if every else AFTER_MORE)]
     items = [(picked.get(i, tested[i]), fresh[i], tested[i]) for i in fresh]
     out = weighted.general(items, pool["pass"], pool["fail"], wobble=wobble)
     return [f"On marks made after this change ({n_pass} Pass, {n_fail} Fail):",
@@ -775,7 +778,7 @@ def _not_set_up(path: str, state: State | None, said) -> int:
     if state is not None:
         said.say(NOT_SET_UP)
         said.say()
-        said.say(f"Next: run `{program('mark')}` to mark more answers.")
+        said.say("Next: " + next_marks(state.ws, f"run `{program('mark')}` to mark more answers."))
         return EXIT_NEEDS_YOU
     folder = _project(given)
     above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)
@@ -861,7 +864,7 @@ def _no_change(state: State) -> str:
 
 PICKS_ASK = 3
 PICK_MARKS = 10
-NEXT_NEW_MARKS = ("Next: run `{mark}` to mark {n} new answers, then run `{command}` again.")
+NEXT_NEW_MARKS = "run `{mark}` to mark {n} new answers, then run `{command}` again."
 
 
 def is_pick(line: dict) -> bool:
@@ -896,15 +899,16 @@ def picks(ws: Workspace, now: bool = False) -> dict:
             "ask": len(times) >= PICKS_ASK and made < PICK_MARKS}
 
 
-def picks_lines(p: dict) -> list[str]:
+def picks_lines(p: dict, every: bool = False) -> list[str]:
+    """How many changes the marks helped pick, said once; with PICKS_ASK picks, that they may
+    flatter the judge, and (unless `every` answer is marked: none is left) to mark new ones."""
     if not p["n"]:
         return []
-    out = [f"These marks have helped pick {plural(p['n'], 'change')}."]
-    if p["ask"]:
-        out.append(f"Your marks have been used to pick {plural(p['n'], 'change')}, so they may "
-                   f"now flatter your judge. Mark {PICK_MARKS} new answers to keep the check "
-                   "honest.")
-    return out
+    picked = f"These marks have helped pick {plural(p['n'], 'change')}"
+    if not p["ask"]:
+        return [picked + "."]
+    return [f"{picked}, so they may now flatter your judge."
+            + ("" if every else f" Mark {PICK_MARKS} new answers for a fair check.")]
 
 
 def _history(ws: Workspace) -> list[dict]:
@@ -1133,7 +1137,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
             said.say(WRITTEN_FROM)
             wobble = asked.wobble[0] / asked.wobble[1] if asked.wobble and asked.wobble[1] \
                 else None
-            for line in _after_lines(fresh, tested, picked, pool, wobble):
+            for line in _after_lines(fresh, tested, picked, pool, wobble,
+                                     every=every_marked(state.ws)):
                 said.say(line)
             said.say()
     if asked.close:
@@ -1150,7 +1155,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     unsure = [k for k in ("failed", "passed") if g[k]["verdict"] == "not_sure"]
     picked = picks(state.ws, now=rule_changed(changed)  # a pick, unless checked before
                    and not _checked_before(state, old, new))
-    for line in picks_lines(picked):
+    every = every_marked(state.ws)
+    for line in picks_lines(picked, every):
         said.say(line)
     if picks_lines(picked):
         said.say()
@@ -1160,10 +1166,11 @@ def full(path: str, said: Said, yes: bool = False) -> int:
                 if judge_setup.tool_only(old, new) else "the old judge")
         said.say(NEXT_WORSE.format(back=back, command=_command(state)))
     elif picked["ask"]:
-        said.say(NEXT_NEW_MARKS.format(mark=program("mark"), n=PICK_MARKS - picked["new_marks"],
-                                       command=_command(state)))
+        said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
+            mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))
     elif unsure:
-        said.say(NEXT_NOT_SURE.format(mark=program("mark"), command=_command(state)))
+        said.say("Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
+            mark=program("mark"), command=_command(state))))
     else:
         said.say(NEXT_SAME.format(command=_command(state)))
     exit_worse = any(g[k].get("exit_worse") for k in g)
