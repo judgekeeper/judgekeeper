@@ -549,9 +549,18 @@ def _handed(plan) -> set[str]:
     return {plan.model} if isinstance(plan.model, str) and plan.model else set()
 
 
+# Provider and API words a tool writes before a model's own name ("openai:chat:", "openai:/",
+# "anthropic/", "anthropic:messages:")
+_PREFIX = re.compile(r"^(?:openai|anthropic|azure|azureopenai|google|vertex|gemini|bedrock|"
+                     r"ollama|mistral|groq|deepseek|xai|openrouter|together|litellm|"
+                     r"huggingface|hf)(?::/|:|/)")
+_API = re.compile(r"^(?:chat|messages|completion|responses):")
+
+
 def _model_name(model: str) -> str:
-    """A model's name without its provider: "openai:chat:gpt-4.1" and "gpt-4.1" are one."""
-    return re.split(r"[:/]", model.strip().lower())[-1]
+    """A model's name without the provider and API words before it: "openai:chat:gpt-4.1",
+    "openai/gpt-4.1" and "gpt-4.1" are one; the rest of the name is kept whole."""
+    return _API.sub("", _PREFIX.sub("", model.strip().lower(), count=1), count=1)
 
 
 def wrong_model(used: set[str], found) -> tuple[str, str] | None:
@@ -1374,7 +1383,7 @@ def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> N
         return
     try:
         if adopted and isinstance(saved, dict):
-            store_result(ws, StartSession(ws), saved.get("command"))
+            store_result(ws, StartSession(ws), saved.get("command"), redraw=True)
         else:
             write_report(ws, worse=worse)
     except OSError:

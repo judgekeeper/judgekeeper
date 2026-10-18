@@ -167,8 +167,9 @@ def _scalar(text: str) -> str | None:
     """A YAML value written on its key's line, as text: quotes taken off, a comment cut;
     None when there is none (a nested block)."""
     text = text.strip()
-    if text[:1] in ("'", '"') and text[-1:] == text[:1] and len(text) > 1:
-        return text[1:-1]
+    quoted = re.match(r"([\"'])(.*)\1\s*(#.*)?$", text)
+    if quoted:
+        return quoted[2]
     text = re.split(r"\s+#", text, maxsplit=1)[0].strip()
     return text or None
 

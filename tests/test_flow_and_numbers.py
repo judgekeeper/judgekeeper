@@ -957,3 +957,22 @@ def test_an_mlflow_reask_records_the_model_that_answered(tmp_path, stubs, monkey
     assert fresh.models_used() == {"openai:/gpt-4.1-nano"}
     out = next((ws.dir / "again").glob("*/mlflow.jsonl")).read_text(encoding="utf-8")
     assert '"model": "openai:/gpt-4.1-nano"' in out
+
+
+def test_model_names_are_compared_without_their_provider_words():
+    from judgekeeper import check
+
+    found = SimpleNamespace(models=["openai:chat:gpt-4.1-nano"], fingerprint={})
+    assert check.wrong_model({"openai:gpt-4.1-nano", "gpt-4.1-nano"}, found) is None
+    assert check.wrong_model({"openai:chat:gpt-4.1-mini"}, found) == (
+        "openai:chat:gpt-4.1-mini", "openai:chat:gpt-4.1-nano")
+    found = SimpleNamespace(models=["ollama:llama3:8b"], fingerprint={})
+    assert check.wrong_model({"ollama:mistral:8b"}, found) is not None  # never just "8b"
+
+
+def test_a_quoted_key_with_a_comment_loses_its_quotes(tmp_path):
+    from judgekeeper.keys import config_env
+
+    config = tmp_path / "promptfooconfig.yaml"
+    config.write_text('env:\n  OPENAI_API_KEY: "sk-abc-123456"  # my key\n', encoding="utf-8")
+    assert config_env(config) == {"OPENAI_API_KEY": "sk-abc-123456"}
