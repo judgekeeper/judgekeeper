@@ -501,6 +501,16 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict]) -> str:
     return "".join(out) + "</div>"
 
 
+def _made(r: dict) -> str:
+    """The notes on marks another program could have made (start_label.link_lines), as in the
+    terminal."""
+    from judgekeeper.start_label import link_lines
+
+    said = link_lines(r.get("made"))
+    return ('<div class="band">' + "".join(f'<p class="note">{_e(x)}</p>' for x in said)
+            + "</div>") if said else ""
+
+
 def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None) -> str:
     """One group of disagreements: its title, "Show all" past ROWS_SHOWN rows, the table.
@@ -647,7 +657,7 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     model = (r.get("fingerprint") or {}).get("model")
     left = look.meta(_e(model) if model else None, _e(tool) if tool else None)
     level = r.get("verdict_level") if r["check"] != "too_few" else None
-    parts = [_verdict(r, c, back, worse), _counts(r, c)]
+    parts = [_verdict(r, c, back, worse), _counts(r, c), _made(r)]
     live = back is not None
     if shows_disagreements(r):  # real numbers: the disagreements and the estimates
         mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out

@@ -45,11 +45,15 @@ calls a re-check needs and asks before it makes them.
 ## Running judgekeeper through a coding agent
 
 judgekeeper 1.0 is made for a person to run in their own terminal, marking in their own
-browser. Running it through a coding agent isn't supported in 1.0. The marks are meant to be
-the person's own, so the marking page saves a mark only from a browser on that page: every
-request needs the page's random token, and every change also needs to come from the page
-itself, its own origin (`Origin: http://127.0.0.1:<port>`, and `Sec-Fetch-Site: same-origin`
-when the browser sends it).
+browser. Running it through a coding agent isn't supported in 1.0.
+
+- The page accepts marks only from itself, so another website can't send marks. A program on
+  your computer could, the same way it could edit your files. Every request needs the page's
+  random token, and every change also needs to come from the page itself, its own origin
+  (`Origin: http://127.0.0.1:<port>`, and `Sec-Fetch-Site: same-origin` when the browser
+  sends it).
+- When the program named in `BROWSER` opens the page, or the page's link is printed with no
+  terminal, each mark is stamped so, and the result says how many marks came that way.
 
 ## Things that run your own code, by design
 

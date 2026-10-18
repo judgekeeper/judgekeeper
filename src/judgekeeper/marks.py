@@ -5,7 +5,8 @@ pass mark, fingerprint), the pool sizes (`weighted` corrects for picking half fr
 judge's groups) and the results files. Then one line per click:
 {"id", "mark": "pass" | "fail" | "skip" | null, "group", "at", "seconds", "sitting", "by":
 "page"}, plus "note" when the page sends one, and "link": "printed" when the page's link was
-printed where a coding agent could read it (no browser opened, no terminal), and
+printed where a coding agent could read it (no browser opened, no terminal), or "link":
+"browser-env" when the program named in BROWSER opened the page, and
 "after_result": true on a mark changed after the judge's grades were shown. `group` is the
 judge's verdict on the answer, `at` the server's UTC time, `seconds` what the page measured
 from showing the answer to the click (kept between 0 and MAX_SECONDS), `sitting` a random id
@@ -41,6 +42,8 @@ MAX_SECONDS = 3600
 BY = "page"
 STAMPS = ("by", "at", "sitting")
 PRINTED = "printed"
+BROWSER_ENV = "browser-env"  # the page was opened by the program named in BROWSER
+LINKS = (PRINTED, BROWSER_ENV)
 
 
 class MarksError(OSError):
@@ -70,7 +73,8 @@ def stamp(item_id: str, mark: str | None, group: str | None, seconds, sitting: s
           note: str | None = None, link: str | None = None, why: dict | None = None,
           after_result: bool = False) -> dict:
     """One click as a line of marks.jsonl; `link` is PRINTED for a page whose link was printed
-    where a coding agent could read it; `why`: a reason line's fields (reasons.check)."""
+    where a coding agent could read it, BROWSER_ENV for a page the program named in BROWSER
+    opened; `why`: a reason line's fields (reasons.check)."""
     if mark not in MARKS:
         raise ValueError("mark must be pass, fail, skip or null")
     line = {"id": item_id, "mark": mark, "group": group, "at": utc_now(),
@@ -88,8 +92,8 @@ def stamp(item_id: str, mark: str | None, group: str | None, seconds, sitting: s
 
 def _line(data: dict) -> str:
     """One JSON line; U+2028 and U+2029 escaped, so no reader splits it."""
-    return (json.dumps(data, ensure_ascii=False).replace(" ", "\\u2028")
-            .replace(" ", "\\u2029") + "\n")
+    return (json.dumps(data, ensure_ascii=False).replace("\u2028", "\\u2028")
+            .replace("\u2029", "\\u2029") + "\n")
 
 
 def _refuse_links(path: Path) -> None:
@@ -178,8 +182,9 @@ def made(m: Marks, ids=None) -> dict:
     """How the marks that count (of the answers `ids`, default all) were made: how many, how
     many Pass and Fail, in how many sittings, the middle value of their seconds (None when no
     mark has one), how many took under a second, the lines not counted, how many were made
-    through a printed link, how many the person wasn't sure about (reasons.UNSURE), and how
-    many were changed after the judge's grades were shown."""
+    through a printed link or a page the program named in BROWSER opened, how many the
+    person wasn't sure about (reasons.UNSURE), and how many were changed after the judge's
+    grades were shown."""
     from judgekeeper.reasons import UNSURE
 
     lines = [m.last[i] for i in m.counted() if ids is None or i in ids]
@@ -190,6 +195,7 @@ def made(m: Marks, ids=None) -> dict:
             "seconds": round(statistics.median(seconds)) if seconds else None,
             "under_second": sum(s < 1 for s in seconds), "not_counted": m.not_counted,
             "printed": sum(x.get("link") == PRINTED for x in lines),
+            "browser_env": sum(x.get("link") == BROWSER_ENV for x in lines),
             "unsure": sum(UNSURE in (x.get("reasons") or []) for x in lines),
             "after_result": sum(x["id"] in m.after_result for x in lines)}
 

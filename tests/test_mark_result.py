@@ -82,7 +82,7 @@ def test_marks_made_through_a_printed_link_are_said(ws):
 def test_the_result_keeps_how_the_marks_were_made_and_the_smallest_drop(ws):
     r = save_result(ws, _mark(ws, seconds=0.5), say=lambda line: None)
     assert r["made"] == {"marks": 40, "pass": 20, "fail": 20, "sittings": 1, "seconds": 0,
-                         "under_second": 40, "not_counted": 0, "printed": 0, "unsure": 0,
+                         "under_second": 40, "not_counted": 0, "printed": 0, "browser_env": 0, "unsure": 0,
                          "after_result": 0}
     assert r["smallest_drop"] == 25
 

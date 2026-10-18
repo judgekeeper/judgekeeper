@@ -12,7 +12,7 @@ your own terminal.
   AI calls, it says how many and asks first (without a terminal, `--yes` says yes).
 - The report has a History of every check.
 - Every screen says which of the 5 steps it is, and its `Next:` line says what you do next.
-- The marking page saves a mark only when it comes from the page itself.
+- The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files.
 - Broken results files give a clear message instead of a Python error.
 - Every number comes with its range, and the result calls a judge good only when the ranges do.
 - A new look for the marking page and the report, dark like the website; the report's next

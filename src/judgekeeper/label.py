@@ -23,8 +23,9 @@ stops; a program that can read it could write marks.jsonl as well. A copy of the
 (page.json) lets --stop find the page when server.json is gone.
 GET /favicon.ico needs no token and gets 204 No Content: the page has no icon, and a 403
 there would be two errors in the browser's console on every load. POST /printed (with the
-token) says the link was printed where a coding agent could read it:
-every later mark is stamped so. Every POST also needs the page's own Origin
+token) says the link was printed where a coding agent could read it, or (with {"link":
+"browser-env"}) that the program named in BROWSER opened the page: every later mark is
+stamped so. Every POST also needs the page's own Origin
 (http://127.0.0.1:<port>, or localhost) and, when the browser sends it, `Sec-Fetch-Site:
 same-origin`: only the page's own script marks, never another site or a program that has the
 link (judgekeeper's own requests, `ask`, send the Origin).
@@ -57,7 +58,7 @@ from socketserver import TCPServer
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 from judgekeeper.anchors import LABELS
-from judgekeeper.marks import PRINTED
+from judgekeeper.marks import LINKS, PRINTED
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue
 from judgekeeper.redact import visible_value
 from judgekeeper.table import (
@@ -228,17 +229,20 @@ RELEASE_PAUSE = 0.05
 
 
 def read_lock(folder: Path) -> dict | None:
-    """{"pid", "port", "stop", "token", "settings", "printed"} of the page named in the
-    project's lock, or None (a lock from before 1.0 has no token: None). When server.json
-    can't be read, its copy (page.json) is."""
+    """{"pid", "port", "stop", "token", "settings", "link"} of the page named in the
+    project's lock, or None (a lock from before 1.0 has no token: None). `link`: how its marks
+    are stamped (marks.LINKS), or None. When server.json can't be read, its copy (page.json)
+    is."""
     for name in (LOCK, LOCK_COPY):
         try:
             lock = json.loads((Path(folder) / name).read_text(encoding="utf-8"))
-            token, settings = lock.get("token"), lock.get("settings")
+            token, settings, how = lock.get("token"), lock.get("settings"), lock.get("link")
+            if how not in LINKS:
+                how = PRINTED if lock.get("printed") is True else None  # a lock before the stamps
             return {"pid": int(lock["pid"]), "port": int(lock["port"]),
                     "stop": str(lock["stop"]), "token": token if isinstance(token, str) else None,
                     "settings": settings if isinstance(settings, dict) else None,
-                    "printed": lock.get("printed") is True}
+                    "link": how}
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             continue
     return None
@@ -350,7 +354,7 @@ class LabelServer:
 
     def hold(self, folder: Path, settings: dict | None = None) -> None:
         """Write the project's lock and its copy (owner-only): this process, port, stop
-        secret and token, whether its link was printed for another program, and `settings`."""
+        secret and token, how its marks are stamped (marks.LINKS), and `settings`."""
         self.lock = Path(folder) / LOCK
         self.settings = settings
         self.write_lock()
@@ -360,7 +364,7 @@ class LabelServer:
             return
         text = json.dumps({"pid": os.getpid(), "port": self.port, "stop": self.stop_secret,
                            "token": self.token, "settings": self.settings,
-                           "printed": getattr(self.session, "link", None) == PRINTED})
+                           "link": getattr(self.session, "link", None)})
         write_replacing(self.lock, text)
         write_replacing(self.lock.with_name(LOCK_COPY), text)
 
@@ -571,12 +575,19 @@ def _handler(server: LabelServer):
                 server.stop()
                 return
             if url.path == "/printed" and hasattr(server.session, "link"):
-                server.session.link = PRINTED
+                try:
+                    how = (json.loads(raw) if raw else {}).get("link", PRINTED)
+                except (ValueError, AttributeError):
+                    how = None
+                if how not in LINKS:
+                    self._json(400, {"error": "unknown link"})
+                    return
+                server.session.link = how
                 try:
                     server.write_lock()  # a page started again with this token is stamped too
                 except OSError:
                     pass
-                self._json(200, {"printed": True})
+                self._json(200, {"link": how})
                 return
             if url.path != "/label":
                 self._json(404, {"error": "not found"})

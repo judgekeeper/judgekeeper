@@ -14,7 +14,8 @@ pytest_plugins = ["tests.again_stubs"]
 @pytest.fixture(autouse=True)
 def no_browser(monkeypatch):
     """No test opens the browser of the machine it runs on. The links it would have opened
-    are kept, for a test that wants to see them."""
+    are kept, for a test that wants to see them. BROWSER is unset, as for most people."""
+    monkeypatch.delenv("BROWSER", raising=False)
     opened = []
     monkeypatch.setattr("webbrowser.open", lambda url, *a, **k: opened.append(url) or True)
     return opened
