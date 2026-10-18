@@ -158,10 +158,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         out = again.run_worker("inspect", python, {"mode": "dry", "scorer": metric}, root)
         if not out.get("ok"):
             if out.get("missing"):
-                return cant("inspect", judge, f"Inspect AI is not installed in {python}. Activate "
+                return cant("inspect", judge, f"Inspect AI is not installed in {again.python_name(python)}. Activate "
                             "the virtual environment you run your evals with, then try again",
                             short="Inspect AI is not installed here")
-            return cant("inspect", judge, f"Inspect AI could not load your scorer in {python}: "
+            return cant("inspect", judge, f"Inspect AI could not load your scorer in {again.python_name(python)}: "
                         f"{out.get('error')}", short="Inspect AI could not load your scorer")
         installed, builtin, loads_env = out["version"], out["builtin"], out.get("dotenv", False)
         if installed and _version(installed) < MIN_VERSION:  # score_async has no model_roles
@@ -244,7 +244,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                      "new": new, "rule": opts.rule,
                      "rule_field": data.get("rule_field") or "instructions"},
                 side_effects=[(f"Your app or agent is not run. Inspect re-scores a copy of your "
-                               f"log in your Python ({python}); your log is never changed.")])
+                               f"log in {again.your_python(python)}; your log is never changed.")])
 
 
 def _fingerprint(log: dict, metric: str) -> dict:

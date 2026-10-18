@@ -959,5 +959,27 @@ def test_a_port_the_person_named_is_not_changed(here, capsys, pages):
     _, state = pages
     state["fail"] = True
     promptfoo_project(here, split(20, 16))
-    code, out, _ = run(capsys, "--port", "9871")
+    code, _, _ = run(capsys, "--port", "9871")
     assert code == 3 and len(pages[0]) == 1
+
+
+# 19. The Python uvx runs judgekeeper with is never named by its cache path --------------------
+
+def test_uvx_python_is_named_in_words(tmp_path, monkeypatch):
+    import sys
+
+    from judgekeeper import again, textio
+    from judgekeeper.again import AgainOptions, make_plan
+    from tests.start_projects import deepeval_project
+    from tests.test_again_tools import _checked
+
+    cache = "/home/me/.cache/uv/archive-v0/abc123/bin/python"
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    monkeypatch.setattr(sys, "executable", cache)
+    monkeypatch.setattr(textio, "started_by_uvx", lambda: True)
+    monkeypatch.setattr(again, "run_worker", lambda *a, **k: {"ok": False, "missing": True})
+    ws = _checked(tmp_path, lambda r, v: deepeval_project(r, v))
+    plan = make_plan(ws, AgainOptions(fields="input,actual_output"), dry=True)
+    said = " ".join([plan.why or "", plan.plain or "", *plan.side_effects])
+    assert "archive-v0" not in said and ".cache/uv" not in said, said
+    assert "the Python uvx runs judgekeeper with" in said

@@ -305,6 +305,23 @@ def user_python(root: Path, given: str | None) -> str:
     return sys.executable
 
 
+UVX_PYTHON = "the Python uvx runs judgekeeper with"
+
+
+def python_name(python: str) -> str:
+    """`python` as said to the person: its path, or, for the Python in uv's cache that uvx runs
+    judgekeeper with, those words (the cache path means nothing to them)."""
+    from judgekeeper.textio import started_by_uvx
+
+    return UVX_PYTHON if python == sys.executable and started_by_uvx() else python
+
+
+def your_python(python: str) -> str:
+    """"your Python (<path>)", or UVX_PYTHON."""
+    name = python_name(python)
+    return name if name == UVX_PYTHON else f"your Python ({python})"
+
+
 def start_worker(tool: str, python: str, job: dict, cwd: Path, out_path: Path,
                  env: dict | None = None, drop: tuple = (),
                  timeout: float | None = WORKER_TIMEOUT):

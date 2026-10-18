@@ -257,10 +257,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             env=worker_env(info.get("uri")))
         if not worker.get("ok"):
             if worker.get("missing"):
-                return cant("mlflow", judge, f"MLflow is not installed in {python}. Activate "
+                return cant("mlflow", judge, f"MLflow is not installed in {again.python_name(python)}. Activate "
                             "the virtual environment you run your evals with, then try again",
                             short="MLflow is not installed here")
-            return cant("mlflow", judge, f"MLflow could not load your judge in {python}: "
+            return cant("mlflow", judge, f"MLflow could not load your judge in {again.python_name(python)}: "
                         f"{worker.get('error')}", short="MLflow could not load your judge")
     status, why = classify(info, worker)
     if status == CANT:
@@ -307,7 +307,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 tool_version=version, left_out=left, runner=[python], payload=payload,
                 job={"uri": info.get("uri"), "judge": job},
                 side_effects=[(f"Your app or agent is not run. MLflow calls your judge directly "
-                               f"in your Python ({python}); never mlflow.genai.evaluate(), so "
+                               f"in {again.your_python(python)}; never mlflow.genai.evaluate(), so "
                                "nothing is added to your MLflow store.")])
 
 
