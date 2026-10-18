@@ -832,3 +832,70 @@ def test_the_command_starts_from_the_light_entry():
     assert scripts == {"judgekeeper": "judgekeeper.__main__:main"}
     text = (ROOT / "src" / "judgekeeper" / "__main__.py").read_text(encoding="utf-8")
     assert "\nfrom judgekeeper.cli import" not in text  # loaded inside main, under its try
+
+
+# 16. Damage named ------------------------------------------------------------------------------
+
+def _promptfoo_shaped(root, change) -> None:
+    from tests.start_projects import promptfoo_data
+
+    data = promptfoo_data(split(20, 16))
+    (root / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    (root / "results.json").write_text(json.dumps(change(data)), encoding="utf-8")
+
+
+@pytest.mark.parametrize("change, why", [
+    (lambda d: {**d, "results": d["results"]["results"]}, 'its "results" is a list'),
+    (lambda d: "a string", "it holds a string, not a JSON object"),
+    (lambda d: {**d, "config": [1, 2]}, 'its "config" is a list'),
+])
+def test_a_promptfoo_results_file_of_the_wrong_shape_is_named(here, capsys, change, why):
+    _promptfoo_shaped(here, change)
+    code, out, err = run(capsys, "--no-browser")
+    flat = " ".join((out + err).split())
+    assert code == 2, flat
+    assert f"results.json isn't a promptfoo results file ({why})." in flat
+    assert "didn't expect" not in flat and "own database" not in flat
+
+
+class MlflowException(Exception):
+    """MLflow's own error, as it wraps the database's."""
+
+
+def _store_error(*args, **kwargs):
+    import sqlite3
+
+    try:
+        raise sqlite3.DatabaseError("file is not a database")
+    except sqlite3.DatabaseError as e:
+        raise MlflowException(f"(sqlite3.DatabaseError) {e}") from e
+
+
+def test_a_damaged_mlflow_db_is_named(here, capsys, monkeypatch):
+    from judgekeeper import start
+    from judgekeeper.readers import mlflow_store
+
+    (here / "mlflow.db").write_bytes(b"not a database at all " * 40)
+    monkeypatch.setattr(start, "_has", lambda module: True)
+    monkeypatch.setattr(mlflow_store, "store_uri", lambda path, say=None: f"sqlite:///{path}")
+    monkeypatch.setattr(start, "_mlflow_experiment", _store_error)
+    code, out, err = run(capsys, "--no-browser")
+    flat = " ".join((out + err).split())
+    assert code == 2, flat
+    assert "mlflow.db can't be read: it's damaged. Save it again from MLflow." in flat
+    assert "didn't expect" not in flat
+
+
+def test_a_one_line_file_too_big_to_look_into_is_named(here, capsys):
+    row = {"run_id": "run-0", "judge": "claude-opus-5",
+           "cases": [{"case_id": f"case-{i}", "prompt": f"Question {i}?",
+                      "responses": {"A": "x" * 200},
+                      "scores": {"A": {"safe": {"score": 0.9, "reason": "r"}}}}
+                     for i in range(600)]}
+    (here / "data").mkdir()
+    (here / "data" / "prompt_evals.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
+    code, out, _ = run(capsys)
+    flat = " ".join(out.split())
+    assert code == 3
+    assert "data/prompt_evals.jsonl" in flat, out
+    assert "too big to look into" in flat

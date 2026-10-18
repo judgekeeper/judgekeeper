@@ -366,9 +366,10 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
             or search.skipped or find.records_above(root) is not None
             or "promptfoo" in search.signs or find.results_above(root) is not None):
         return path, None  # find_judge reads them, or says how
-    own = own_format.search(root)
+    unlooked: list = []
+    own = own_format.search(root, unlooked)
     if own is None:
-        raise _nothing_found(talk, root, search.signs, find.nested_results(search))
+        raise _nothing_found(talk, root, search.signs, find.nested_results(search), unlooked)
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
 
@@ -518,10 +519,11 @@ def _nested_line(nested: list[str]) -> str:
 
 
 def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
-                   nested: list[str] | None = None) -> Stop:
+                   nested: list[str] | None = None, unlooked: list | None = None) -> Stop:
     """No results: the tools found here (with what saves their results), else what
     judgekeeper can read. The folder by its name only. Results in a project of its own below
-    (`nested`) are named, never read."""
+    (`nested`) are named, never read; results-like files too big to look into (`unlooked`,
+    own_format.search) are named."""
     if nested:
         talk.para(_nested_line(nested))
         where = start._or([f"{p}/" for p in nested])
@@ -541,6 +543,12 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         talk.para(f"No eval results found in this folder ({root.name}). judgekeeper looked "
                   f"{down}.")
         talk.para(READS)
+    for own in (unlooked or [])[:OTHERS]:
+        size = own.path.stat().st_size
+        shown = (f"{size / 1_000_000:,.0f} MB" if size >= 1_000_000
+                 else f"{size / 1000:,.0f} KB")
+        talk.para(f"It left out {own.rel} ({shown}): too big to look into. If it holds your "
+                  f"judge's results, run `{talk.command_at(own.rel)}`.")
     again = f"`{talk.command()}`"
     other = "" if signs else (f" If your results are somewhere else, run "
                               f"`{talk.command_at('PATH')}` with their file or folder.")

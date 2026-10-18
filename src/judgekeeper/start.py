@@ -57,6 +57,7 @@ from judgekeeper.records import (
     derive_record_id,
     fingerprint_known,
     left_out_note,
+    load_json,
     read_records,
 )
 from judgekeeper.redact import one_line, scrub
@@ -607,13 +608,13 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
     """(experiment name, its runs newest first). An mlflow.db store is read through a
     temporary copy (mlflow_store.store_uri), never opened itself. `metric` (--metric) may name
     a judge whose assessments are only on spans. MLflow's own log lines are kept out."""
-    from judgekeeper.readers.mlflow_store import folder_store_allowed, quiet, store_uri
+    from judgekeeper.readers import mlflow_store
 
-    with quiet():
+    with mlflow_store.quiet():
         if not _has("mlflow"):
             raise _needs_extra(talk, "mlflow", _store_name(store))
-        uri = store_uri(store.path, say=talk.say)
-        with folder_store_allowed(uri, say=talk.say):
+        uri = mlflow_store.store_uri(store.path, say=talk.say)
+        with mlflow_store.folder_store_allowed(uri, say=talk.say), mlflow_store.store_damage(uri):
             return _mlflow_experiment(talk, store, experiment, metric, uri)
 
 
@@ -899,6 +900,7 @@ def _export(talk: Talk, path: Path, tool: str | None, root: Path, config: str):
     then carry on with the file; else print the export commands and stop."""
     from judgekeeper import start_export
 
+    _misshapen(root)
     screens = getattr(talk, "screens", False)  # `judgekeeper`'s own words (front.FrontTalk)
     if screens:
         talk.para(f"Found promptfoo in this folder ({config}), but no saved results file yet. "
@@ -919,6 +921,20 @@ def _export(talk: Talk, path: Path, tool: str | None, root: Path, config: str):
                                  f"run `{talk.command()}` again.")
     raise talk.stop(EXIT_OK, "nothing. Find your promptfoo run as said above, then run "
                              f"`{talk.command()}` again.")
+
+
+def _misshapen(root: Path) -> None:
+    """A results file promptfoo would write beside its config that isn't one: named, never
+    taken for no file at all."""
+    from judgekeeper.readers.promptfoo import not_results, not_results_error
+
+    for name in ("results.json", "promptfoo-results.json"):
+        path = root / name
+        if not path.is_file():
+            continue
+        why = not_results(load_json(path, "promptfoo"))  # Damaged when it isn't JSON
+        if why:
+            raise not_results_error(path, why)
 
 
 def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, dict]:
@@ -1697,6 +1713,7 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
         experiments_with_traces,
         folder_store_allowed,
         quiet,
+        store_damage,
         store_uri,
     )
 
@@ -1704,7 +1721,7 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
     names = []
     for s in stores:
         uri = store_uri(s.path, say=talk.say)
-        with quiet(), folder_store_allowed(uri, say=talk.say):
+        with quiet(), folder_store_allowed(uri, say=talk.say), store_damage(uri):
             names.append(experiments_with_traces(uri))
     if experiment is not None:
         having = [s for s, n in zip(stores, names, strict=True) if experiment in n]

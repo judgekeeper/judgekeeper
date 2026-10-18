@@ -118,9 +118,19 @@ def _sample(path: Path):
     return {c: None for c in columns}
 
 
-def search(root: Path) -> OwnFile | None:
+def too_big(path: Path) -> bool:
+    """Whether `path` is too big to look into: a .json over JSON_BYTES, or a first line longer
+    than what is read of the file."""
+    size = path.stat().st_size
+    if path.suffix.lower() == ".json":
+        return size > JSON_BYTES
+    return size > find.HEAD_BYTES and b"\n" not in find._head(path)
+
+
+def search(root: Path, unlooked: list[OwnFile] | None = None) -> OwnFile | None:
     """The most recently changed file in `root` (at most find.MAX_DEPTH folders deep, changed
-    in the last RECENT_DAYS days) that looks like judge results in a format of its own."""
+    in the last RECENT_DAYS days) that looks like judge results in a format of its own. The
+    files whose names say results but are too big to look into go to `unlooked`."""
     root = Path(root).resolve()
     since = time.time() - RECENT_DAYS * 86400
     started = time.monotonic()
@@ -154,6 +164,8 @@ def search(root: Path) -> OwnFile | None:
         try:
             if looks_judged(_sample(path)):
                 return OwnFile(path, path.relative_to(root).as_posix())
+            if unlooked is not None and find._results_like(path) and too_big(path):
+                unlooked.append(OwnFile(path, path.relative_to(root).as_posix()))
         except (OSError, ValueError, csv.Error, RecursionError):
             continue
     return None

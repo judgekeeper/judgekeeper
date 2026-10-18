@@ -173,14 +173,39 @@ def _in_default(default_test: dict, name: str) -> bool:
         isinstance(a, dict) and (a.get("metric") or a.get("type")) == name for a in asserts)
 
 
+JSON_KINDS = {list: "a list", str: "a string", int: "a number", float: "a number",
+              bool: "true or false", type(None): "null"}  # what a JSON value is, in words
+
+
+def not_results(data) -> str | None:
+    """Why `data` (a JSON document) isn't a promptfoo results file, or None when it has the
+    shape of one: results.results[], and config an object when it is there."""
+    if not isinstance(data, dict):
+        return f"it holds {JSON_KINDS.get(type(data), 'a value')}, not a JSON object"
+    results = data.get("results")
+    if results is None:
+        return 'it has no "results"'
+    if not isinstance(results, dict):
+        return f'its "results" is {JSON_KINDS.get(type(results), "not an object")}'
+    if not isinstance(results.get("results"), list):
+        return 'its "results" holds no list of results'
+    config = data.get("config")
+    if config is not None and not isinstance(config, dict):
+        return f'its "config" is {JSON_KINDS.get(type(config), "not an object")}'
+    return None
+
+
+def not_results_error(path: Path, why: str) -> Damaged:
+    return Damaged(f"{path.name} isn't a promptfoo results file ({why}).",
+                   f"save {path.name} again with `promptfoo eval -o {path.name}`, then run "
+                   "`{command}`.")
+
+
 def _load(path: Path) -> dict:
     data = load_json(path, "promptfoo")
-    results = data.get("results") if isinstance(data, dict) else None
-    if not isinstance(results, dict) or not isinstance(results.get("results"), list):
-        raise Damaged(f"{path.name}: not a promptfoo results file (no results.results[]); "
-                      "write one with `promptfoo eval -o results.json`",
-                      "write it again with `promptfoo eval -o results.json`, then run "
-                      "`{command}`.")
+    why = not_results(data)
+    if why:
+        raise not_results_error(path, why)
     return data
 
 
