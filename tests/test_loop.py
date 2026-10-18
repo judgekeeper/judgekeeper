@@ -28,6 +28,7 @@ NEXT_KEEP = 'Next: keep marking until "See your result" appears, then click it.'
 NEXT_RESULT = ("Next: nothing to do. When you change your judge or update your eval tool, run "
                "`judgekeeper check`.")
 RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
+ADDED = "Your newest results have 36 answers you haven't seen. They're added for marking."
 LINK = "Open this link in your browser to mark answers:"
 PRINTED_LINE = ("{n} of your marks came through a link printed in a terminal, so another "
                 "program on this computer could have made them. If you marked them yourself, "
@@ -361,10 +362,10 @@ def test_a_new_eval_run_keeps_the_marks_and_marking_goes_on(here, capsys, pages)
     code, out, err = run(capsys)
     assert code == 0, out
     assert START_OVER not in _flat(out) and "other results" not in out
-    assert _flat(out).count(RAN_AGAIN) == 1
+    assert _flat(out).count(ADDED) == 1  # the new answers join as a second batch
     assert "You marked 6 answers so far: " in out
     assert _check(out, err) == NEXT_KEEP
-    assert ws.pool.read_text(encoding="utf-8") == pool  # the answers being marked are kept
+    assert ws.pool.read_text(encoding="utf-8").endswith(pool)  # the answers marked are kept
     assert not list(ws.dir.glob("previous-*"))
 
 
@@ -376,8 +377,10 @@ def test_after_a_new_eval_run_the_result_goes_on(here, capsys, pages):
     promptfoo_project(here, split(18, 18), tag=" new")
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert _flat(out).count(RAN_AGAIN) == 1
+    assert _flat(out).count(ADDED) == 1
     assert "How often your judge agrees with you (estimates):" in out
+    assert ("This result is on 1 of 2 batches (36 answers). 36 newer answers need a few marks "
+            "first.") in _flat(out)
     assert _check(out) == NEXT_RESULT
 
 

@@ -54,7 +54,17 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from judgekeeper import __version__, again, find, judge_setup, marks, start, targets, weighted
+from judgekeeper import (
+    __version__,
+    again,
+    batches,
+    find,
+    judge_setup,
+    marks,
+    start,
+    targets,
+    weighted,
+)
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_value
@@ -166,7 +176,8 @@ def _state(path: str) -> State | None:
         return None
     if saved is None or not isinstance(data, dict):
         return None
-    return State(ws=ws, path=path, data=data, marks=marks.read(ws.marks).counted(), saved=saved)
+    counted = batches.counted_labels(data, marks.read(ws.marks).counted())  # not a new batch's
+    return State(ws=ws, path=path, data=data, marks=counted, saved=saved)
 
 
 def _newest(state: State):
@@ -587,25 +598,20 @@ def _old_verdicts(state: State, old: dict) -> dict[str, str]:
     return {**pool, **_read_verdicts(state.ws, setup_hash)}
 
 
-def _picks(state: State) -> tuple[dict[str, str], dict[str, int]]:
-    """(the group each mark was picked from, that pool's sizes): start.json's queue, or the
-    groups a re-check kept (start_label.picked_numbers)."""
-    data = state.data
-    queue = {q["id"]: q["group"] for q in data.get("queue") or []}
-    picked = data.get("picked") or {}
-    pool = picked.get("pool") or data.get("pool") or {}
-    return {**queue, **(picked.get("groups") or {})}, {g: int(pool.get(g) or 0)
-                                                       for g in ("pass", "fail")}
+def _picks(state: State) -> tuple[dict[str, tuple[int, str]], dict[tuple[int, str], int]]:
+    """(the stratum each mark was picked from, the strata's sizes) (batches.strata): its batch
+    and start.json's queue group, or the group a re-check kept (start_label.picked_numbers)."""
+    return batches.strata(state.data)
 
 
-def _rates(marked: dict[str, str], verdicts: dict[str, str], picked: dict[str, str],
-           pool: dict[str, int]) -> dict:
-    """TPR and TNR of `verdicts` on the marks, re-weighted by the groups they were picked
-    from (weighted.general): the numbers the report shows."""
+def _rates(marked: dict[str, str], verdicts: dict[str, str], picked: dict,
+           pool: dict) -> dict:
+    """TPR and TNR of `verdicts` on the marks, re-weighted by the strata (or groups) they were
+    picked from (weighted.general_strata): the numbers the report shows."""
     items = [(picked.get(i, v), marked[i], v) for i, v in verdicts.items() if i in marked]
-    if not items or not pool.get("pass", 0) + pool.get("fail", 0):
+    if not items or not sum(pool.values()):
         return {"tpr": None, "tnr": None}
-    out = weighted.general(items, pool["pass"], pool["fail"], draws=200)
+    out = weighted.general_strata(items, pool, draws=200)
     return {"tpr": out["tpr"], "tnr": out["tnr"]}
 
 
@@ -688,7 +694,7 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
         said = f"{len(fresh)} so far" if fresh else "none" if every else "none yet"
         return [AFTER_NONE.format(said=said) + ("" if every else AFTER_MORE)]
     items = [(picked.get(i, tested[i]), fresh[i], tested[i]) for i in fresh]
-    out = weighted.general(items, pool["pass"], pool["fail"], wobble=wobble)
+    out = weighted.general_strata(items, pool, wobble=wobble)
     return [f"On marks made after this change ({n_pass} Pass, {n_fail} Fail):",
             *(f"  {side_sentence(k, out[k], out[f'{k}_interval'])}" for k in ("tpr", "tnr"))]
 
@@ -1035,6 +1041,8 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
     now = {**{i: a.verdict for i, a in answers.items()}, **tested}
     picked = data.get("picked") or {"pool": data.get("pool"),
                                     "groups": {q["id"]: q["group"] for q in queue}}
+    for q in queue:  # a batch added since the last check: picked by the grades it has now
+        picked["groups"].setdefault(q["id"], q["group"])
     queue = [{**q, "group": now.get(q["id"], q["group"])} for q in queue]
     kinds = [q["group"] for q in queue]
     data.update(picked=picked, queue=queue, rule=found.rule, one_rule=found.one_rule,

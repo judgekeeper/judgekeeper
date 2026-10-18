@@ -136,9 +136,8 @@ def test_too_few_marks_says_so_without_a_number(here, capsys):
     assert code == 3
     assert "You have not marked enough answers yet for a re-check." in out
     assert "15" not in out
-    assert _next(out) == ("Next: run your eval on more questions, then run `judgekeeper --new` "
-                          "to mark the new results. `--new` moves your marks to "
-                          ".judgekeeper/previous-<date>/.")  # every answer is marked
+    assert _next(out) == ("Next: run your eval on more questions, then run `judgekeeper mark`: "
+                          "the new answers join the ones you marked.")  # every answer is marked
 
 
 # A missing results file -----------------------------------------------------------------------

@@ -424,18 +424,19 @@ READING = ("judgekeeper --tool mlflow --experiment 7 --tracking-uri sqlite:///m.
 
 
 @pytest.mark.parametrize(("run", "new"), [
-    ("judgekeeper --port 8801 --no-browser", "judgekeeper --new"),
-    ("judgekeeper results.csv --port 8801 --no-browser", "judgekeeper results.csv --new"),
+    ("judgekeeper --port 8801 --no-browser", "judgekeeper mark"),
+    ("judgekeeper results.csv --port 8801 --no-browser", "judgekeeper mark results.csv"),
     ("judgekeeper r.csv --label-map ok=pass,no=fail --pass-if 'score>=0.5' --port 8801",
-     "judgekeeper r.csv --label-map ok=pass,no=fail --pass-if 'score>=0.5' --new"),
-    (f"{READING} --no-browser", f"{READING} --new"),
+     "judgekeeper mark r.csv --label-map ok=pass,no=fail --pass-if 'score>=0.5'"),
+    (f"{READING} --no-browser", READING.replace("judgekeeper", "judgekeeper mark", 1)),
 ])
-def test_every_answer_marked_names_judgekeeper_new_without_the_page_flags(run, new):
+def test_every_answer_marked_names_judgekeeper_mark_without_the_page_flags(run, new):
     r = _result(*TOO_FEW, command=run, left=0)
     assert r["check"] == "too_few"
     for name, html in (("result page", start_label.result_html(r, back="/?token=t")),
                        ("report.html", start_label.result_html(r))):
         text = _text(html)
-        assert f"Run your eval on more questions, then run {new} to mark the new" in text, name
+        assert (f"Run your eval on more questions, then run {new}: the new answers join the "
+                "ones you marked.") in text, name
         assert "--port" not in text and "--no-browser" not in text, name
     assert f"`{new}`" in start_label.sentences(r)[1]

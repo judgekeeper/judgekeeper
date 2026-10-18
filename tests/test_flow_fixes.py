@@ -35,9 +35,8 @@ from tests.test_front import flat, next_lines, run
 LINK = page.LINK
 ALL_MARKED = ("You've marked every answer: 28 Pass, 12 Fail. A result needs at least 15 of "
               "each.")
-NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper --new` to mark "
-                   "the new results. `--new` moves your marks to "
-                   ".judgekeeper/previous-<date>/.")
+NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
+                   "answers join the ones you marked.")
 RULE_A = "Is polite and correct."
 RULE_B = "Is polite, correct and short."
 
@@ -166,7 +165,7 @@ def test_every_answer_marked_with_too_few_fails_says_so(here, capsys, pages):
     assert len(pages[0]) == started  # no page: nothing is left to mark on it
 
 
-def test_the_new_command_never_repeats_the_pages_flags(here, capsys):
+def test_the_mark_command_never_repeats_the_pages_flags(here, capsys):
     promptfoo_project(here, split(28, 12))
     assert run(capsys, "--no-browser", "--port", "0")[0] == 0
     _mark(Workspace(here))

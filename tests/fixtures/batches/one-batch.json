@@ -1,0 +1,463 @@
+{
+ "pure": {
+  "corrected(0, 30, 0, 0, 12, 3)": {
+   "a": null,
+   "a_interval": [
+    null,
+    null
+   ],
+   "b": 0.25,
+   "b_interval": [
+    0.07019813403930691,
+    0.5461468527483575
+   ],
+   "draws": 20000,
+   "groups": {
+    "fail": {
+     "correct": 3,
+     "labeled": 12,
+     "pool": 30
+    },
+    "pass": {
+     "correct": 0,
+     "labeled": 0,
+     "pool": 0
+    }
+   },
+   "judge_pass_rate": 0.0,
+   "kappa": 0.0,
+   "kappa_interval": [
+    0.0,
+    0.0
+   ],
+   "level": 0.96,
+   "method": "jeffreys",
+   "pi": 0.0,
+   "real_pass_rate": 0.25,
+   "real_pass_rate_interval": [
+    0.07019813403930691,
+    0.5461468527483575
+   ],
+   "seed": 20261008,
+   "tnr": 1.0,
+   "tnr_interval": [
+    1.0,
+    1.0
+   ],
+   "tpr": 0.0,
+   "tpr_interval": [
+    0.0,
+    0.0
+   ]
+  },
+  "corrected(200, 800, 25, 20, 25, 6)": {
+   "a": 0.8,
+   "a_interval": [
+    0.6062428632604994,
+    0.9243999282132542
+   ],
+   "b": 0.24,
+   "b_interval": [
+    0.10182114864352276,
+    0.43663513920253727
+   ],
+   "draws": 20000,
+   "groups": {
+    "fail": {
+     "correct": 6,
+     "labeled": 25,
+     "pool": 800
+    },
+    "pass": {
+     "correct": 20,
+     "labeled": 25,
+     "pool": 200
+    }
+   },
+   "judge_pass_rate": 0.2,
+   "kappa": 0.43579766536965014,
+   "kappa_interval": [
+    0.19170143779324209,
+    0.6629972137207947
+   ],
+   "level": 0.96,
+   "method": "jeffreys",
+   "pi": 0.2,
+   "real_pass_rate": 0.35200000000000004,
+   "real_pass_rate_interval": [
+    0.23291525267197866,
+    0.509321584090708
+   ],
+   "seed": 20261008,
+   "tnr": 0.9382716049382716,
+   "tnr_interval": [
+    0.8782145424794682,
+    0.9759372796396342
+   ],
+   "tpr": 0.4545454545454546,
+   "tpr_interval": [
+    0.2988426180909647,
+    0.6634445682039966
+   ]
+  },
+  "corrected(50, 50, 12, 0, 0, 0)": {
+   "a": 0.0,
+   "a_interval": [
+    0.0,
+    0.1937459500681487
+   ],
+   "b": null,
+   "b_interval": [
+    null,
+    null
+   ],
+   "draws": 20000,
+   "groups": {
+    "fail": {
+     "correct": 0,
+     "labeled": 0,
+     "pool": 50
+    },
+    "pass": {
+     "correct": 0,
+     "labeled": 12,
+     "pool": 50
+    }
+   },
+   "judge_pass_rate": 0.5,
+   "kappa": null,
+   "kappa_interval": [
+    null,
+    null
+   ],
+   "level": 0.96,
+   "method": "jeffreys",
+   "pi": 0.5,
+   "real_pass_rate": null,
+   "real_pass_rate_interval": [
+    null,
+    null
+   ],
+   "seed": 20261008,
+   "tnr": null,
+   "tnr_interval": [
+    null,
+    null
+   ],
+   "tpr": null,
+   "tpr_interval": [
+    null,
+    null
+   ]
+  },
+  "corrected(60, 40, 20, 15, 20, 4)": {
+   "a": 0.75,
+   "a_interval": [
+    0.5260570448328312,
+    0.9032712652681171
+   ],
+   "b": 0.2,
+   "b_interval": [
+    0.06653549215508042,
+    0.41757741949591315
+   ],
+   "draws": 20000,
+   "groups": {
+    "fail": {
+     "correct": 4,
+     "labeled": 20,
+     "pool": 40
+    },
+    "pass": {
+     "correct": 15,
+     "labeled": 20,
+     "pool": 60
+    }
+   },
+   "judge_pass_rate": 0.6,
+   "kappa": 0.5344129554655871,
+   "kappa_interval": [
+    0.23084182924795227,
+    0.7486794987980293
+   ],
+   "level": 0.96,
+   "method": "jeffreys",
+   "pi": 0.6,
+   "real_pass_rate": 0.53,
+   "real_pass_rate_interval": [
+    0.38638743832110234,
+    0.6585523002265113
+   ],
+   "seed": 20261008,
+   "tnr": 0.6808510638297872,
+   "tnr_interval": [
+    0.5096806713459365,
+    0.8462906352127014
+   ],
+   "tpr": 0.8490566037735848,
+   "tpr_interval": [
+    0.7121947050447163,
+    0.9446090781602521
+   ]
+  },
+  "corrected(90, 10, 10, 10, 10, 0)": {
+   "a": 1.0,
+   "a_interval": [
+    0.7698413261351387,
+    1.0
+   ],
+   "b": 0.0,
+   "b_interval": [
+    0.0,
+    0.23021722342867165
+   ],
+   "draws": 20000,
+   "groups": {
+    "fail": {
+     "correct": 0,
+     "labeled": 10,
+     "pool": 10
+    },
+    "pass": {
+     "correct": 10,
+     "labeled": 10,
+     "pool": 90
+    }
+   },
+   "judge_pass_rate": 0.9,
+   "kappa": 1.0,
+   "kappa_interval": [
+    0.3766386579575996,
+    1.0
+   ],
+   "level": 0.96,
+   "method": "jeffreys",
+   "pi": 0.9,
+   "real_pass_rate": 0.9,
+   "real_pass_rate_interval": [
+    0.697064200539565,
+    0.9137797073287823
+   ],
+   "seed": 20261008,
+   "tnr": 1.0,
+   "tnr_interval": [
+    0.3145152237257031,
+    1.0
+   ],
+   "tpr": 1.0,
+   "tpr_interval": [
+    0.9739610250472228,
+    1.0
+   ]
+  },
+  "general": {
+   "draws": 20000,
+   "groups": {
+    "fail": {
+     "labeled": 19,
+     "pool": 30
+    },
+    "pass": {
+     "labeled": 17,
+     "pool": 70
+    }
+   },
+   "interval_methods": {
+    "tnr": "jeffreys",
+    "tpr": "jeffreys"
+   },
+   "kappa": 0.3844672646616764,
+   "kappa_interval": [
+    0.03557353218639475,
+    0.6503736272296836
+   ],
+   "level": 0.96,
+   "seed": 20261008,
+   "tnr": 0.6134020618556701,
+   "tnr_interval": [
+    0.38584097077152096,
+    0.8350007955667592
+   ],
+   "tpr": 0.7725072604065827,
+   "tpr_interval": [
+    0.5519546227621428,
+    0.9097899684424487
+   ],
+   "wobble": null
+  },
+  "general_steady": {
+   "draws": 20000,
+   "groups": {
+    "fail": {
+     "labeled": 18,
+     "pool": 30
+    },
+    "pass": {
+     "labeled": 15,
+     "pool": 70
+    }
+   },
+   "interval_methods": {
+    "tnr": "jeffreys",
+    "tpr": "jeffreys"
+   },
+   "kappa": 0.5400593471810089,
+   "kappa_interval": [
+    0.201631361159081,
+    0.7777360626607508
+   ],
+   "level": 0.96,
+   "seed": 20261008,
+   "tnr": 0.625,
+   "tnr_interval": [
+    0.4014308476353621,
+    0.8556919466619674
+   ],
+   "tpr": 0.8936170212765958,
+   "tpr_interval": [
+    0.7876333603924653,
+    0.9609952449167967
+   ],
+   "wobble": null
+  },
+  "general_wobble": {
+   "draws": 20000,
+   "groups": {
+    "fail": {
+     "labeled": 19,
+     "pool": 30
+    },
+    "pass": {
+     "labeled": 17,
+     "pool": 70
+    }
+   },
+   "interval_methods": {
+    "tnr": "jeffreys, with the judge's wobble",
+    "tpr": "jeffreys, with the judge's wobble"
+   },
+   "kappa": 0.3844672646616764,
+   "kappa_interval": [
+    0.052615045304282064,
+    0.6474978756727888
+   ],
+   "level": 0.96,
+   "seed": 20261008,
+   "tnr": 0.6134020618556701,
+   "tnr_interval": [
+    0.40368848433851223,
+    0.842360726345501
+   ],
+   "tpr": 0.7725072604065827,
+   "tpr_interval": [
+    0.543819746053175,
+    0.9037564972611767
+   ],
+   "wobble": 0.1
+  },
+  "picked": {
+   "a": 0.8666666666666667,
+   "a_interval": [
+    0.6232559613838828,
+    0.974352942425175
+   ],
+   "b": 0.2,
+   "b_interval": [
+    0.04057426406049998,
+    0.5179593605863504
+   ],
+   "draws": 20000,
+   "groups": {
+    "fail": {
+     "correct": 2,
+     "labeled": 10,
+     "pool": 20
+    },
+    "pass": {
+     "correct": 13,
+     "labeled": 15,
+     "pool": 30
+    }
+   },
+   "judge_pass_rate": 0.66,
+   "kappa": 0.8275862068965518,
+   "kappa_interval": [
+    0.551554283735441,
+    0.9644097881020822
+   ],
+   "level": 0.96,
+   "method": "jeffreys",
+   "pi": 0.6,
+   "real_pass_rate": 0.6000000000000001,
+   "real_pass_rate_interval": [
+    0.4430398188358823,
+    0.7416034831800234
+   ],
+   "seed": 20261008,
+   "tnr": 0.8,
+   "tnr_interval": [
+    0.5507570575741902,
+    0.9538187863068044
+   ],
+   "tpr": 1.0,
+   "tpr_interval": [
+    0.798256963235626,
+    1.0
+   ]
+  }
+ },
+ "result": {
+  "a": 0.7916666666666666,
+  "a_interval": [
+   0.5923323207836045,
+   0.9210075148980348
+  ],
+  "b": 0.25,
+  "b_interval": [
+   0.08523013264780664,
+   0.5021735455949343
+  ],
+  "check": "rough",
+  "disagreements": 9,
+  "groups": {
+   "fail": {
+    "correct": 4,
+    "labeled": 16,
+    "pool": 20
+   },
+   "pass": {
+    "correct": 19,
+    "labeled": 24,
+    "pool": 30
+   }
+  },
+  "kappa": 0.5360824742268041,
+  "kappa_interval": [
+   0.216670513516848,
+   0.7513608651742574
+  ],
+  "labels": {
+   "correct": 23,
+   "wrong": 17
+  },
+  "left": 10,
+  "pi": 0.6,
+  "real_pass_rate": 0.575,
+  "real_pass_rate_interval": [
+   0.437157037113953,
+   0.701787029178247
+  ],
+  "smallest_drop": 30,
+  "tnr": 0.7058823529411765,
+  "tnr_interval": [
+   0.5195281078391119,
+   0.8642693278271857
+  ],
+  "tpr": 0.8260869565217391,
+  "tpr_interval": [
+   0.688316893287336,
+   0.9330753389244999
+  ],
+  "verdict_level": "check"
+ }
+}

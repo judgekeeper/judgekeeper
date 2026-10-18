@@ -41,6 +41,15 @@ TPR and TNR is 75% and 80%; weighted.general when the judge asked again (twice, 
 re-check does) changes its mind, with and without the wobble it showed; and how often `check` says "Worse" (and exits 1) when nothing changed, with and without the judge's
 own wobble when asked again.
 
+The batch grid (`batches`): new answers join as batches (batches.py), and the numbers are
+stratified by (batch, the judge's grade). Two and three batches of different sizes, judges whose
+accuracy differs between batches, and BATCH_MARKS marks per stratum; the ranges judgekeeper
+shows (weighted.stratified, at weighted.LEVEL with weighted.DRAWS draws) and after asking a
+steady judge again (weighted.general_strata). The bar is the level's: FLOOR_CELL in every cell
+and FLOOR_MEAN on average.
+
+    python scripts/coverage_check.py --batches   # only the batch grid, added to the files
+
 Standard library only. Uses every processor core; the full grid takes a few minutes.
 """
 
@@ -93,6 +102,18 @@ ALSO_CHANGED = (0.0, 0.3)
 WOBBLES = (0.0, 0.05, 0.10)  # the same judge asked again: the share of answers whose grade
 # comes out different, half of them turning wrong and half turning right (nothing changed)
 WIDTHS = (0.25, 0.30, 0.35, 0.40)
+# The batch grid: answers per batch (the shapes 40 + 20 and 60 + 30 + 30, ten times over so a
+# stratum holds the marks; and a small new batch of 15); per batch (pi, a, w), judges whose
+# accuracy differs between batches (the first two or three batches of each); marks per stratum
+# in each batch (the last repeats), never more than the stratum holds
+BATCH_SHAPES = ((400, 200), (600, 300, 300), (60, 15))
+BATCH_JUDGES = (((0.7, 0.90, 0.80), (0.5, 0.70, 0.60), (0.9, 0.95, 0.60)),
+                ((0.5, 0.80, 0.95), (0.9, 0.95, 0.60), (0.7, 0.60, 0.80)),
+                ((0.9, 0.95, 0.95), (0.7, 0.60, 0.60), (0.5, 0.80, 0.80)),
+                ((0.7, 0.80, 0.80), (0.7, 0.60, 0.95), (0.7, 0.95, 0.60)))
+BATCH_MARKS = ((10,), (15,), (25,), (40,), (40, 10))
+BATCH_CHECKS = 1500
+GENERAL_DRAWS = 4000  # after asking again, as the other re-check rows
 BOOT_SEED = 20261005
 RESAMPLES = 2000
 
@@ -626,6 +647,113 @@ def accuracy_markdown(acc: dict) -> list[str]:
     return lines
 
 
+# Batches ------------------------------------------------------------------------------------
+
+def batch_cells() -> list[tuple]:
+    return [(shape, judge[:len(shape)], marks) for shape in BATCH_SHAPES
+            for judge in BATCH_JUDGES for marks in BATCH_MARKS]
+
+
+def _batch_strata(shape: tuple, judge: tuple) -> list[tuple[int, str, int, float]]:
+    """(batch, grade, answers, chance an answer is Correct) per stratum."""
+    out = []
+    for b, (size, (pi, a, w)) in enumerate(zip(shape, judge), 1):
+        n_pass = round(pi * size)
+        out += [(b, "pass", n_pass, a), (b, "fail", size - n_pass, 1 - w)]
+    return out
+
+
+def batch_truth(strata: list[tuple]) -> dict:
+    """The true TPR, TNR and real pass rate of the whole pool: each stratum's answers, the
+    share of them Correct."""
+    tp = sum(n * p for _, g, n, p in strata if g == "pass")
+    fn = sum(n * p for _, g, n, p in strata if g == "fail")
+    fp = sum(n * (1 - p) for _, g, n, p in strata if g == "pass")
+    tn = sum(n * (1 - p) for _, g, n, p in strata if g == "fail")
+    return {"tpr": tp / (tp + fn), "tnr": tn / (tn + fp),
+            "real_pass_rate": (tp + fn) / (tp + fn + fp + tn)}
+
+
+def _batch_cell(args: tuple) -> dict:
+    """One cell of the batch grid: BATCH_CHECKS simulated checks, each stratum marked
+    min(marks, its answers) times, each mark Correct with the stratum's chance."""
+    index, (shape, judge, marks) = args
+    rng = random.Random(SEED + 7919 * (index + 1))
+    strata = _batch_strata(shape, judge)
+    true = batch_truth(strata)
+    pool = {(b, g): n for b, g, n, _ in strata}
+    hits: dict[str, dict] = {}
+    for _ in range(BATCH_CHECKS):
+        rows, items = [], []
+        for b, g, n_pool, p in strata:
+            n = min(marks[min(b, len(marks)) - 1], n_pool)
+            c = _binomial(rng, n, p)
+            rows.append((b, g, n_pool, n, c))
+            items += [((b, g), "pass", g)] * c + [((b, g), "fail", g)] * (n - c)
+        start = weighted.stratified(rows)
+        again = weighted.general_strata(items, pool, draws=GENERAL_DRAWS)
+        for k in START_METRICS:
+            _tally(hits, f"start/{k}", None if start[k] is None else start[f"{k}_interval"],
+                   true[k])
+        for k in GENERAL_METRICS:
+            _tally(hits, f"general/{k}", None if again[k] is None else again[f"{k}_interval"],
+                   true[k])
+    return {"shape": list(shape), "judge": [list(x) for x in judge], "marks": list(marks),
+            "truth": true, "ranges": {key: _summary(row) for key, row in sorted(hits.items())}}
+
+
+def batch_grid(workers: int | None = None) -> dict:
+    """The batch grid's cells, and for each kind of range its lowest cell, average and whether
+    it passes the bar."""
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        rows = list(ex.map(_batch_cell, enumerate(batch_cells())))
+    return {"checks_per_cell": BATCH_CHECKS, "level": weighted.LEVEL, "draws": weighted.DRAWS,
+            "general_draws": GENERAL_DRAWS, "grid_seed": SEED,
+            "start": judge_levels(rows, "start", START_METRICS),
+            "general": judge_levels(rows, "general", GENERAL_METRICS), "rows": rows}
+
+
+def batches_markdown(g: dict) -> list[str]:
+    start, again = g["start"], g["general"]
+
+    def shape(row):
+        return " + ".join(map(str, row["shape"]))
+
+    def judge(row):
+        return "; ".join(f"{pi:.0%}, {a}, {w}" for pi, a, w in row["judge"])
+
+    def marks(row):
+        m = row["marks"]
+        return str(m[0]) if len(m) == 1 else f"{m[0]}, then {m[1]}"
+
+    lines = ["", "## Batches", "",
+             ("New answers join as batches, and the numbers are stratified by (batch, the "
+              "judge's grade). Two and three batches of different sizes (answers per batch), "
+              "judges whose accuracy differs between batches (per batch: pi, a, w), and marks "
+              "per stratum (in the first batch, then in each later one; never more than the "
+              f"stratum holds). {g['checks_per_cell']:,} simulated checks per cell, fixed seed "
+              f"{g['grid_seed']}. The ranges `judgekeeper` shows: level {g['level']:.0%}, "
+              f"{g['draws']:,} draws. After asking a steady judge again: "
+              f"{g['general_draws']:,} draws. The bar: at least {FLOOR_CELL:.0%} in every "
+              f"cell and {FLOOR_MEAN:.0%} on average."), "",
+             "| Ranges | Lowest cell | Average | Passes |", "|---|---|---|---|",
+             (f"| `judgekeeper` (TPR, TNR, real pass rate) | {_pct(start['min_cell'])} | "
+              f"{_pct(start['mean'])} | {'yes' if start['passes'] else 'no'} |"),
+             (f"| After asking again (TPR, TNR) | {_pct(again['min_cell'])} | "
+              f"{_pct(again['mean'])} | {'yes' if again['passes'] else 'no'} |"), "",
+             "Coverage % / average width.", "",
+             ("| Answers | Judge per batch (pi, a, w) | Marks | TPR | TNR | Real pass rate | "
+              "TPR again | TNR again |"), "|---|---|---|---|---|---|---|---|"]
+    for row in g["rows"]:
+        r = row["ranges"]
+        cells_ = [f"{_pct(r[key]['coverage'])} / {_w(r[key]['width'])}"
+                  for key in ("start/tpr", "start/tnr", "start/real_pass_rate", "general/tpr",
+                              "general/tnr")]
+        lines.append(f"| {shape(row)} | {judge(row)} | {marks(row)} | " + " | ".join(cells_)
+                     + " |")
+    return lines
+
+
 # Writing it down ----------------------------------------------------------------------------
 
 def _pct(x: float | None) -> str:
@@ -713,10 +841,28 @@ def markdown(result: dict) -> str:
                      + f" | {_w(case['mean_width']['tpr'])} | {_w(case['mean_width']['tnr'])} |")
     if result.get("accuracy"):
         lines += accuracy_markdown(result["accuracy"])
+    if result.get("batches"):
+        lines += batches_markdown(result["batches"])
     return "\n".join(lines) + "\n"
 
 
+def _write(result: dict) -> None:
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "coverage.json").write_text(json.dumps(result, indent=1) + "\n", encoding="utf-8")
+    (OUT / "coverage.md").write_text(markdown(result), encoding="utf-8")
+
+
 def main() -> None:
+    if "--batches" in sys.argv[1:]:  # only the batch grid, added to the committed grid
+        result = json.loads((OUT / "coverage.json").read_text(encoding="utf-8"))
+        result["batches"] = batch_grid()
+        _write(result)
+        b = result["batches"]
+        print(f"batches: lowest cell {b['start']['min_cell']:.4f}, average "
+              f"{b['start']['mean']:.4f}, passes {b['start']['passes']}; after asking again "
+              f"{b['general']['min_cell']:.4f}, {b['general']['mean']:.4f}, "
+              f"passes {b['general']['passes']}")
+        return
     rows = run_grid(cells(), CHECKS)
     chosen, levels = choose_level(rows)
     result = {
@@ -732,10 +878,9 @@ def main() -> None:
         "reliable": reliable_widths(),
         "accuracy": accuracy(),
         "rows": rows,
+        "batches": batch_grid(),
     }
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "coverage.json").write_text(json.dumps(result, indent=1) + "\n", encoding="utf-8")
-    (OUT / "coverage.md").write_text(markdown(result), encoding="utf-8")
+    _write(result)
     print(f"chosen level: {chosen}; wrote {OUT / 'coverage.md'} and coverage.json")
 
 

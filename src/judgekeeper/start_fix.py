@@ -39,19 +39,28 @@ def _mark(x: float) -> str:
 # The split --------------------------------------------------------------------------------
 
 
-def cell(m: dict) -> tuple[str, bool]:
-    """The cell of a final mark: the judge's group, and whether the judge agrees with it."""
+def cell(m: dict) -> tuple:
+    """The cell of a final mark: the judge's group, and whether the judge agrees with it;
+    and its batch, when the mark has one (several batches)."""
+    if "batch" in m:
+        return m["judge"], m["judge"] == m["final"], m["batch"]
     return m["judge"], m["judge"] == m["final"]
+
+
+def _group(c: tuple):
+    """The pool group of a cell: the judge's group, or the stratum (batch, group)."""
+    return c[0] if len(c) == 2 else (c[2], c[0])
 
 
 def cell_weights(marks: list[dict], part: list[dict], pool: dict) -> dict:
     """The weight of an answer in each cell of `part` (the used or the set-aside answers of
-    `marks`): the pool's group size times the cell's share of the group's marks, over the
-    cell's answers in the part. The numbers on the part are then those of all the marks."""
+    `marks`): the pool's group (or stratum) size times the cell's share of the group's marks,
+    over the cell's answers in the part. The numbers on the part are then those of all the
+    marks."""
     labeled = Counter(cell(m) for m in marks)
-    groups = Counter(m["judge"] for m in marks)
+    groups = Counter(_group(cell(m)) for m in marks)
     here = Counter(cell(m) for m in part)
-    return {c: pool[c[0]] * labeled[c] / groups[c[0]] / k for c, k in here.items()}
+    return {c: pool[_group(c)] * labeled[c] / groups[_group(c)] / k for c, k in here.items()}
 
 
 # The pass mark ----------------------------------------------------------------------------

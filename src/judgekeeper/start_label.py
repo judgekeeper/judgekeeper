@@ -12,7 +12,9 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
 - pool.jsonl (id, input, output, in queue order; plus trajectory, outcome and app_version
   when the results have them, never shown on a page) and pool-judge.jsonl (the judge's
   verdict on every pool answer, in the run-file format, each line with the full fingerprint).
-  Written when labeling starts.
+  Written when labeling starts, and when new answers join as a batch (batches.py: a line and
+  a queue entry of a later batch has its `batch`; start.json's `batches` says when each
+  joined).
 - marks.jsonl: the person's marks (marks.py), a header written when labeling starts, then
   one stamped line per click, written by the page. No answer text. File names and keys use
   "label", "pass" and "fail". A labels.csv (judgekeeper 0.2, no stamps) is never read.
@@ -51,7 +53,7 @@ import re
 import secrets
 from pathlib import Path
 
-from judgekeeper import __version__, judge_check, marks, targets, weighted
+from judgekeeper import __version__, batches, judge_check, marks, targets, weighted
 from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import JudgeFingerprint, rule_hash, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
@@ -111,8 +113,8 @@ ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
 TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges still too wide
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
-NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}` to mark the new "
-                   "results. `--new` moves your marks to {folder}/previous-<date>/.")
+NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
+                   "the ones you marked.")
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
@@ -259,14 +261,11 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     first = old is None
     make_folder(ws)
 
-    given = found.fingerprint.get("model_source") is not None
     pool, records = [], []
     for q in queue:
         a = answers[q["id"]]
         pool.append({"id": a.id, "input": a.input, "output": a.output, **a.agent})
-        fp = a.fingerprint.with_(model=found.fingerprint["model"]) if given else a.fingerprint
-        records.append(judgment_to_record(a.id, Judgment(
-            verdict=a.verdict, raw_score=a.score, rationale=a.reason), fp))
+        records.append(judge_record(a, found))
     pool = _scrubbed(pool)
     write_replacing(ws.pool, "".join(json.dumps(p, ensure_ascii=False) + "\n" for p in pool))
     pool_sha = canonical_hash(pool)
@@ -311,6 +310,15 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     if first:
         say(SAVED_NOTE.format(folder=shown_folder(ws)))
     return ws
+
+
+def judge_record(a, found) -> dict:
+    """pool-judge.jsonl's line for the answer `a` (a start.Answer) of `found`: its verdict,
+    score and reason, with its fingerprint (the model given by the person, when given)."""
+    given = found.fingerprint.get("model_source") is not None
+    fp = a.fingerprint.with_(model=found.fingerprint["model"]) if given else a.fingerprint
+    return judgment_to_record(a.id, Judgment(verdict=a.verdict, raw_score=a.score,
+                                             rationale=a.reason), fp)
 
 
 def judge_of(data: dict) -> dict:
@@ -380,23 +388,27 @@ def status_line(r: dict) -> str:
 def progress_status(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f: int,
                     c_f: int) -> dict:
     """The line under the meters on the labeling page (status_line), and whether a result is
-    ready: from the marks in each group, as the result counts them."""
-    r = describe(weighted.corrected(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f))
+    ready: from the marks in each group, as the result counts them (one batch)."""
+    return strata_status([(1, "pass", n_pool_pass, n_p, c_p), (1, "fail", n_pool_fail, n_f, c_f)])
+
+
+def strata_status(strata: list[tuple[int, str, int, int, int]]) -> dict:
+    """progress_status from the marks in each stratum, as the result counts them
+    (batches.counted_strata)."""
+    r = describe(weighted.stratified(strata))
     return {"text": status_line(r), "ready": r["check"] != "too_few"}
 
 
 def start_status(session: StartSession, run: str | None = None) -> dict:
     """The line under the meters for `start`'s labeling: from the session's labels. With
     every answer marked and no result yet, `done` holds what the end card says
-    (all_marked_lines, with new_command of `run`, the command that opened the page)."""
-    counted = session.group_counts()
-    status = progress_status(session.pool["pass"], session.pool["fail"], *counted["pass"],
-                             *counted["fail"])
+    (all_marked_lines, with mark_command of `run`, the command that opened the page)."""
+    status = strata_status(batches.counted_strata(session.workspace.data(), session.marked()))
     every = bool(session.items) and all(i["label"] for i in session.items)
     if not status["ready"] and every:
         counts = session.counts()  # nothing left to mark: the end card says what comes next
         done = all_marked_lines({"correct": counts["correct"], "wrong": counts["wrong"]},
-                                new_command(run))
+                                mark_command(run))
         status.update(text=done[0], done=done)
     elif every:  # never "marking more answers narrows...": there is none left to mark
         status.update(text=EVERY_MARKED)
@@ -470,16 +482,9 @@ class StartSession(LabelSession):
         return {"correct": labels.count("pass"), "wrong": labels.count("fail"),
                 "skipped": sum(i["deferred"] for i in self.items)}
 
-    def group_counts(self) -> dict:
-        """{"pass": [marked, marked Pass], "fail": [...]}: the marks in each of the judge's
-        groups."""
-        counted = {"pass": [0, 0], "fail": [0, 0]}
-        for item in self.items:
-            if item["label"]:
-                g = counted[self.groups[item["id"]]]
-                g[0] += 1
-                g[1] += item["label"] == "pass"
-        return counted
+    def marked(self) -> dict[str, str]:
+        """{id: "pass" or "fail"}: the answers marked."""
+        return {i["id"]: i["label"] for i in self.items if i["label"]}
 
     def summary(self) -> dict:
         counts = self.counts()
@@ -560,7 +565,7 @@ def sentences(r: dict) -> list[str]:
     place a count is said: it explains a stop, it is not a target)."""
     if r["check"] == "too_few":
         if all_labeled(r):
-            return all_marked_lines(r["labels"], new_command(r.get("command")))
+            return all_marked_lines(r["labels"], mark_command(r.get("command")))
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     return [side_sentence(key, r[key], r[f"{key}_interval"]) for key in SAID]
 
@@ -592,25 +597,28 @@ def all_labeled(r: dict) -> bool:
 _PAGE_FLAGS = re.compile(r" --(?:port \d+|no-browser|wait|yes)(?= |$)")
 
 
-def new_command(run: str | None = None) -> str:
-    """`judgekeeper --new` for the run that made the marks (`run`, start.Talk.command): its
+def mark_command(run: str | None = None) -> str:
+    """`judgekeeper mark` for the run that made the marks (`run`, start.Talk.command): its
     path and the flags that change how the results are read (start.REPEATED), never the
     page's own (--port, --no-browser, --wait, --yes). The same in the terminal, on the
     marking page's end card, the result page and report.html."""
-    return f"{_PAGE_FLAGS.sub('', run or program())} --new"
+    run = _PAGE_FLAGS.sub("", run or program())
+    flags = run[len(program()):].strip() if run.startswith(program()) else ""
+    if flags == "start" or flags.startswith("start "):  # a result made before 1.0
+        flags = flags[len("start"):].strip()
+    return " ".join(x for x in (program("mark"), flags) if x)
 
 
-def all_marked_lines(labels: dict, command: str | None = None,
-                     folder: str = FOLDER) -> list[str]:
+def all_marked_lines(labels: dict, command: str | None = None) -> list[str]:
     """Every answer is marked, so there is none left to mark: the line that says so (what a
     result needs while a kind is under ROUGH, else that it is still too early to tell), and the
-    Next: line. New answers do not join the marks: `command` (new_command) marks the new
-    results from the start."""
-    command = command or new_command()
+    Next: line. New answers join the marks as a batch (batches.py): `command` (mark_command)
+    adds them once the eval ran on more questions."""
+    command = command or mark_command()
     short = min(labels["correct"], labels["wrong"]) < ROUGH
     first = ALL_MARKED.format(marks=marks_words(labels)) + (NEEDS_EACH.format(n=ROUGH)
                                                              if short else TOO_FEW_TO_TELL)
-    return [first, "Next: " + NEXT_ALL_MARKED.format(command=command, folder=folder)]
+    return [first, "Next: " + NEXT_ALL_MARKED.format(command=command)]
 
 
 def every_marked(ws: Workspace) -> bool:
@@ -626,15 +634,16 @@ def every_marked(ws: Workspace) -> bool:
 def next_marks(ws: Workspace, step: str) -> str:
     """The next step after Measure, Fix or Check that asks for more marks (`step`, without
     "Next: "), unless every answer in the pool is marked: then all_marked_lines' next step, as
-    there is nothing left to mark and new answers never join. The one place this is decided."""
+    there is nothing left to mark until the eval runs on more questions. The one place this is
+    decided."""
     if not every_marked(ws):
         return step
     try:
         command = json.loads(ws.result_json.read_text(encoding="utf-8")).get("command")
     except (OSError, ValueError, AttributeError):
         command = None
-    return NEXT_ALL_MARKED.format(command=new_command(command if isinstance(command, str)
-                                                      else None), folder=shown_folder(ws))
+    return NEXT_ALL_MARKED.format(command=mark_command(command if isinstance(command, str)
+                                                       else None))
 
 
 _plural = plural  # textio.plural
@@ -713,20 +722,32 @@ def page_template(about: dict | None = None, command: str | None = None) -> str:
                       tool=tool_name(about.get("tool"), about.get("results_files")))
 
 
-def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict, **draws) -> dict:
+def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict,
+                   batch: dict | None = None, **draws) -> dict:
     """The numbers of marks made before the judge's verdicts changed (a re-check): weighted
-    by the groups they were picked from and that pool's sizes (`picked`: {"pool", "groups"}),
-    against the new verdicts (weighted.general). The real pass rate comes from the marks and
-    their pick groups; the judge's own pass share from the new pool (`pool`). A mark made
-    after the re-check counts in the group of its verdict now."""
-    by = {i: picked["groups"].get(i, verdicts[i]) for i in labels}
-    counts = {g: [sum(by[i] == g for i in labels),
-                  sum(by[i] == g and labels[i] == "pass" for i in labels)]
-              for g in ("pass", "fail")}
-    p = picked["pool"]
-    out = weighted.corrected(p["pass"], p["fail"], *counts["pass"], *counts["fail"], **draws)
-    new = weighted.general([(by[i], labels[i], verdicts[i]) for i in labels], p["pass"],
-                           p["fail"], **draws)
+    by the strata they were picked from (`picked`: {"pool", "groups"}; `batch`: {id: batch},
+    batch 1 when not given) and those strata's sizes, against the new verdicts `verdicts` (of
+    every answer in the pool) (weighted.general_strata). The real pass rate comes from the
+    marks and their strata; the judge's own pass share from the new pool (`pool`). A mark made
+    after the re-check counts in the group of its verdict now. `labels`: the marks of the
+    batches that count; with one batch the sizes are `picked`'s pool."""
+    from collections import Counter
+
+    batch = batch or {}
+    groups = picked.get("groups") or {}
+    by = {i: (batch.get(i, 1), groups.get(i, verdicts[i])) for i in labels}
+    if set(batch.values()) <= {1}:
+        sizes = {(1, g): picked["pool"][g] for g in ("pass", "fail")}
+    else:
+        n = Counter((batch.get(i, 1), groups.get(i, v)) for i, v in verdicts.items())
+        keep = {b for b, _ in by.values()} | {min(batch.values())}
+        sizes = {(b, g): n[(b, g)] for b in sorted(keep) for g in ("pass", "fail")}
+    rows = [(b, g, size, sum(by[i] == (b, g) for i in labels),
+             sum(by[i] == (b, g) and labels[i] == "pass" for i in labels))
+            for (b, g), size in sizes.items()]
+    out = weighted.stratified(rows, **draws)
+    new = weighted.general_strata([(by[i], labels[i], verdicts[i]) for i in labels], sizes,
+                                  **draws)
     out.update({k: new[k] for k in ("tpr", "tnr", "kappa", "tpr_interval", "tnr_interval",
                                     "kappa_interval")})
     total = pool["pass"] + pool["fail"]
@@ -735,22 +756,24 @@ def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict, **dra
 
 
 def compute(ws: Workspace, session: StartSession) -> dict:
+    """The result from the marks of the batches that count (batches.counting)."""
     data = ws.data()
     groups = {q["id"]: q["group"] for q in data["queue"]}
-    counted = session.group_counts()
-    disagreements = sum(item["label"] != groups[item["id"]] for item in session.items
-                        if item["label"])
+    labels = batches.counted_labels(data, session.marked())
+    disagreements = sum(m != groups[i] for i, m in labels.items())
     if data.get("picked"):  # a re-check: the marks keep the groups they were picked by
-        labels = {i["id"]: i["label"] for i in session.items if i["label"]}
-        r = describe(picked_numbers(data["picked"], labels, groups, data["pool"]))
+        r = describe(picked_numbers(data["picked"], labels, groups, data["pool"],
+                                     batches.of(data)))
         r["groups"] = {g: {"pool": data["pool"][g],  # the counts: by the judge's grades now
                            "labeled": sum(groups[i] == g for i in labels),
                            "correct": sum(groups[i] == g and m == "pass"
                                           for i, m in labels.items())}
                        for g in ("pass", "fail")}
     else:
-        r = describe(weighted.corrected(data["pool"]["pass"], data["pool"]["fail"],
-                                        *counted["pass"], *counted["fail"]))
+        r = describe(weighted.stratified(batches.counted_strata(data, labels)))
+    about = batches.about(data, session.marked())
+    if about is not None:
+        r["batches"] = about
     r.update(skipped=session.counts()["skipped"], disagreements=disagreements,
              left=sum(1 for item in session.items if not item["label"]),
              made_at=utc_now(),
@@ -800,10 +823,13 @@ def history_line(ws: Workspace, r: dict) -> dict:
         return {"value": r[key], "low": lo, "high": hi}
 
     labels = r["labels"]
-    return {"time": r["made_at"], "kind": "result", "judge": head.get("judge"),
+    line = {"time": r["made_at"], "kind": "result", "judge": head.get("judge"),
             "marks": labels["correct"] + labels["wrong"], "pass": labels["correct"],
             "fail": labels["wrong"], "marks_hash": r["marks_sha256"], "tpr": rate("tpr"),
             "tnr": rate("tnr"), "kappa": r["kappa"], "smallest_drop": r.get("smallest_drop")}
+    if r.get("batches"):  # which batches the result is on (batches.about)
+        line["batches"] = r["batches"]
+    return line
 
 
 def store_result(ws: Workspace, session: StartSession,

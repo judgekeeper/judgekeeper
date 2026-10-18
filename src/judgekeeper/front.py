@@ -65,6 +65,7 @@ from pathlib import Path
 from judgekeeper import (
     __version__,
     background,
+    batches,
     find,
     judge_check,
     judge_setup,
@@ -1010,22 +1011,28 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if not ws.start.is_file():
         start_label.prepare(found, say=lambda line: None)
     start_label.repair(ws)  # a result whose saving was stopped half way
-    session = StartSession(ws)
-    counts = session.counts()
-    enough = min(counts["correct"], counts["wrong"]) >= targets.ROUGH
-    every = bool(session.items) and all(i["label"] for i in session.items)
     head = []
     back = None if first else check.back_to_marked(ws, found)  # the judge the marks were made on
     changed = [] if first or back else _changed(ws, found)
     grades = 0 if first or changed or back else check.grades_changed(ws, found)  # a table judge
+    added = 0 if first or changed or back or grades else batches.add(ws, found)
     if back:
         head.append(back)
     elif changed:
         head.append(JUDGE_CHANGED.format(what=", ".join(changed)))
     elif grades:
         head.append(check.GRADES.format(k=grades))
+    elif added:
+        head.append(batches.added_line(added))
+        if is_open(ws.dir):  # the page open shows the pool without the new batch
+            background.stop(ws.dir)
     elif not first and _ran_again(ws, found):
         head.append(RAN_AGAIN_CHECKED if ws.data().get("checked_at") else RAN_AGAIN)
+    session = StartSession(ws)
+    counts = session.counts()
+    counted = list(batches.counted_labels(ws.data(), session.marked()).values())
+    enough = min(counted.count("pass"), counted.count("fail")) >= targets.ROUGH
+    every = bool(session.items) and all(i["label"] for i in session.items)
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))
     if every and not enough:  # nothing left to mark, and no result yet
@@ -1049,8 +1056,8 @@ def _all_marked(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool,
 
 def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool) -> list[str]:
     labels = {"correct": counts["correct"], "wrong": counts["wrong"]}
-    return start_label.all_marked_lines(labels, start_label.new_command(_command_of(talk, saved)),
-                                        shown_folder(ws))
+    return start_label.all_marked_lines(labels,
+                                        start_label.mark_command(_command_of(talk, saved)))
 
 
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool) -> tuple[page.Page, str]:
@@ -1092,7 +1099,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if marking and n and n == len(items):
         talk.say(f"You have marked all {_n(n, 'answer')}. There are no more to mark.")
         talk.say()
-        talk.para(_all_marked_lines(talk, ws, counts, saved)[1])  # new answers never join
+        talk.para(_all_marked_lines(talk, ws, counts, saved)[1])  # new answers join later
         return EXIT_OK
     talk.say(STEP.format(n=2, name="Mark (more answers)" if marking and enough else "Mark"))
     talk.say()
@@ -1235,6 +1242,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     if which:
         talk.say()
         talk.para(which)
+    left = batches.line(r.get("batches"))  # a batch with too few marks: never left out silently
+    if left:
+        talk.say()
+        talk.para(left)
     talk.say()
     talk.say(f"Full report: {shown_folder(ws)}/{ws.report_html.name} (open it in your browser)")
     talk.say()

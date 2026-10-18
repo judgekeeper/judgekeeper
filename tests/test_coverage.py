@@ -96,3 +96,27 @@ def test_the_numbers_on_screen_are_in_the_committed_grid():
         assert figure in readme and figure in md, figure
     for page in (readme, (root / "docs" / "reference.md").read_text(encoding="utf-8")):
         assert "examples/coverage" in page
+
+
+def test_the_batch_grid_is_committed_and_holds_the_bar():
+    """New answers join as batches: the ranges on 2 and 3 batches, run at today's level and
+    committed, hold the true value as often as the level asks; the reference's figures come
+    from there."""
+    import json
+
+    from judgekeeper import weighted
+
+    root = SCRIPT.parent.parent
+    folder = root / "docs" / "examples" / "coverage"
+    grid = json.loads((folder / "coverage.json").read_text(encoding="utf-8"))["batches"]
+    module = _module()
+    assert grid["level"] == weighted.LEVEL and grid["draws"] == weighted.DRAWS
+    assert len(grid["rows"]) == len(module.batch_cells())
+    assert {len(row["shape"]) for row in grid["rows"]} == {2, 3}
+    start = grid["start"]
+    assert start["min_cell"] >= module.FLOOR_CELL and start["mean"] >= module.FLOOR_MEAN
+    assert "## Batches" in (folder / "coverage.md").read_text(encoding="utf-8")
+    reference = " ".join((root / "docs" / "reference.md").read_text(encoding="utf-8").split())
+    for figure in (f"at least {start['min_cell'] * 100:.1f} times in 100",
+                   f"{start['mean'] * 100:.1f} on average"):
+        assert figure in reference, figure

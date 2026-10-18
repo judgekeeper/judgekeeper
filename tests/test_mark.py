@@ -30,7 +30,7 @@ COULD_NOT = ("Next: run `judgekeeper mark --wait` in your own terminal (it keeps
              "there).")
 START_OVER = ("Start over with these results? Your old marks move to "
               ".judgekeeper/previous-<date>/.")
-RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
+ADDED = "Your newest results have {n} answers you haven't seen. They're added for marking."
 
 
 @pytest.fixture
@@ -169,9 +169,9 @@ def test_enough_marks_open_the_page_and_leave_the_result_to_judgekeeper(here, ca
     assert len(pages[0]) == 1  # the open page, kept
 
 
-def test_every_answer_marked_after_a_result_points_to_new(here, capsys, pages):
-    """New answers never join the marks: with a result already made and every answer
-    marked, `mark` points to `judgekeeper --new`, never to running the eval for `mark`."""
+def test_every_answer_marked_after_a_result_points_to_mark(here, capsys, pages):
+    """With a result already made and every answer marked, `mark` points to running the eval
+    on more questions, then `judgekeeper mark`: the new answers join as a batch."""
     promptfoo_project(here, split(20, 16))
     run(capsys, "mark")
     _click(start_label.Workspace(here))
@@ -182,8 +182,8 @@ def test_every_answer_marked_after_a_result_points_to_new(here, capsys, pages):
     assert code == 0, out
     assert "You have marked all 36 answers. There are no more to mark." in out
     assert _check(out, err) == (
-        "Next: run your eval on more questions, then run `judgekeeper --new` to mark the new "
-        "results. `--new` moves your marks to .judgekeeper/previous-<date>/.")
+        "Next: run your eval on more questions, then run `judgekeeper mark`: the new answers "
+        "join the ones you marked.")
     assert "again to get new answers" not in out
     assert len(pages[0]) == 1  # no page opened for it
 
@@ -195,9 +195,9 @@ def test_every_answer_marked_opens_no_page(here, capsys, pages):
     code, out, err = run(capsys, "mark")
     assert code == 0, out
     assert "You have marked all 36 answers. There are no more to mark." in out
-    assert _check(out, err) == (  # new answers never join the marks: item 2's Next line
-        "Next: run your eval on more questions, then run `judgekeeper --new` to mark the new "
-        "results. `--new` moves your marks to .judgekeeper/previous-<date>/.")
+    assert _check(out, err) == (  # new answers join as a batch once the eval ran again
+        "Next: run your eval on more questions, then run `judgekeeper mark`: the new answers "
+        "join the ones you marked.")
     assert "run your eval again to get new answers" not in out
     assert len(pages[0]) == 1
 
@@ -213,9 +213,10 @@ def test_a_new_eval_run_goes_on_with_the_marks(here, capsys, pages):
     code, out, err = run(capsys, "mark")
     assert code == 0, out
     assert START_OVER not in _flat(out)
-    assert _flat(out).count(RAN_AGAIN) == 1
+    assert ADDED.format(n=36) in _flat(out)  # the new answers join as a second batch
     assert "You marked 6 answers so far: " in out
     assert marks.read(ws.marks).header["pool"] == {"pass": 20, "fail": 16}
+    assert len(ws.data()["queue"]) == 72
     assert _check(out, err) == NEXT_KEEP
 
 

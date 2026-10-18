@@ -47,7 +47,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper import __version__, marks, start_fix_rule, targets
+from judgekeeper import __version__, batches, marks, start_fix_rule, targets
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.redact import one_line, scrub
@@ -128,8 +128,10 @@ class Marks:
         self.notes = {i: str(x["note"]) for i, x in read.last.items()
                       if i in self.person and x.get("note")}
         groups = {q["id"]: q["group"] for q in self.data.get("queue") or []}
+        self.batch = batches.of(self.data)
+        counted = batches.counted_labels(self.data, self.person)  # a batch too new is left out
         self.judge = {i: groups[i] for i in self.person if i in groups}
-        self.person = {i: m for i, m in self.person.items() if i in self.judge}
+        self.person = {i: m for i, m in self.person.items() if i in self.judge and i in counted}
         self.order = sorted(self.person, key=lambda i: str(read.last[i].get("at") or ""))
         _, records = read_run(ws.pool_judge)
         self.reasons = {i: scrub(r.get("rationale") or "") for i, r in records.items()}
@@ -177,19 +179,28 @@ class Marks:
                 "why": self.notes.get(i, "")}
 
 
-def make_split(m: Marks, seed: int) -> tuple[list[str], list[str]]:
-    """(seen ids, hidden ids): HIDDEN_TENTHS of each of the four groups hidden, rounded up,
-    except a group of one; then more hidden until MIN_EACH marked Pass and Fail are."""
-    rng = random.Random(seed)
+def _cells(m: Marks, ids: list[str], rng: random.Random) -> tuple[list[str], list[str]]:
+    """(seen, hidden) of `ids`: HIDDEN_TENTHS of each stratum's cell (batch, the judge's
+    grade, whether the person agrees) hidden, rounded up, except a cell of one."""
+    batch = m.batch
     seen, hidden = [], []
-    for judge in ("pass", "fail"):
-        for agrees in (True, False):
-            ids = sorted(i for i in m.person
-                         if m.judge[i] == judge and (m.person[i] == judge) == agrees)
-            rng.shuffle(ids)
-            n = -(-len(ids) * HIDDEN_TENTHS // 10) if len(ids) > 1 else 0
-            hidden += ids[:n]
-            seen += ids[n:]
+    for b in sorted({batch.get(i, 1) for i in ids}):
+        for judge in ("pass", "fail"):
+            for agrees in (True, False):
+                cell = sorted(i for i in ids if batch.get(i, 1) == b and m.judge[i] == judge
+                              and (m.person[i] == judge) == agrees)
+                rng.shuffle(cell)
+                n = -(-len(cell) * HIDDEN_TENTHS // 10) if len(cell) > 1 else 0
+                hidden += cell[:n]
+                seen += cell[n:]
+    return seen, hidden
+
+
+def make_split(m: Marks, seed: int) -> tuple[list[str], list[str]]:
+    """(seen ids, hidden ids): HIDDEN_TENTHS of each cell of each stratum hidden (_cells);
+    then more hidden until MIN_EACH marked Pass and Fail are."""
+    rng = random.Random(seed)
+    seen, hidden = _cells(m, list(m.person), rng)
     for mark in ("pass", "fail"):
         more = [i for i in seen if m.person[i] == mark]
         rng.shuffle(more)
@@ -284,8 +295,16 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
             split.topup["done"] = split.retest = True
         else:
             split.pending = new_ids
-    else:
-        split.seen += new_ids
+    else:  # a batch new to the set is kept aside at the same share, within each stratum
+        known_batches = {m.batch.get(i, 1) for i in known}
+        later = [i for i in new_ids if m.batch.get(i, 1) not in known_batches]
+        split.seen += [i for i in new_ids if i not in later]
+        if later and split.hidden:
+            seen, hidden = _cells(m, later, random.Random(f"{split.seed}/{len(known_batches)}"))
+            split.seen += seen
+            split.hidden += hidden
+        else:
+            split.seen += later
     split.seen = [i for i in split.seen if i in m.person]
     split.hidden = [i for i in split.hidden if i in m.person]
     save_split(ws, split)
@@ -529,8 +548,14 @@ def test_pass_mark(m: Marks, split: Split) -> dict | None:
     if split.pass_mark is not None:
         return split.pass_mark or None
     rows = {i: {"judge": m.judge[i], "final": m.person[i]} for i in m.person}
+    pool = m.data.get("pool") or {}
+    if len(set(m.batch.values())) > 1:  # each answer weighs by its stratum
+        for i, row in rows.items():
+            row["batch"] = m.batch.get(i, 1)
+        pool = Counter((m.batch[q], g) for q, g in
+                       ((q["id"], q["group"]) for q in m.data.get("queue") or []))
     seen = [rows[i] for i in split.seen]
-    weights = cell_weights(list(rows.values()), seen, m.data.get("pool") or {})
+    weights = cell_weights(list(rows.values()), seen, pool)
     current, op = pm["mark"], pm["op"]
     new = choose_mark([(cell(rows[i]), m.person[i], m.scores[i]) for i in split.seen],
                       current, op, weights)
