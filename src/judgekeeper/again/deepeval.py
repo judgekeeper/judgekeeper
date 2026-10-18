@@ -203,6 +203,16 @@ def by_name(model: str) -> tuple[dict | None, str]:
     return {"name": model}, ""
 
 
+_SETUP = re.compile(r"deepeval set-[a-z0-9-]+(?: --[a-z0-9-]+(?:=[^\s`'\"]+)?)*")
+
+
+def setup_command(error: str | None) -> str | None:
+    """The `deepeval set-...` command DeepEval's own error names as the setup step its model
+    needs, else None (never a guess)."""
+    m = _SETUP.search(error or "")
+    return m[0] if m else None
+
+
 def _on_ollama(model: str) -> bool:
     m = SUFFIX.search(str(model))
     return bool(m) and m[1].strip().lower() == "ollama"
@@ -371,9 +381,12 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
 
     python = again.user_python(root, opts.python)
     version, version_ok, built, notes = None, False, None, []
+    # a provider DeepEval writes after the name (Anthropic...): its own class, by that name,
+    # never DeepEval's default model first (it may need a key the person doesn't use)
+    named = by_name(model)[0] if SUFFIX.search(model) and not _on_ollama(model) else None
     if dry:
         out = again.run_worker("deepeval", python, {"mode": "dry", "metric": metric_job(
-            found[0][2], fields)}, root, env=WORKER_ENV, drop=WORKER_DROP)
+            found[0][2], fields, named)}, root, env=WORKER_ENV, drop=WORKER_DROP)
         if not out.get("ok"):
             if out.get("missing"):
                 return cant("deepeval", judge, f"DeepEval is not installed in {python}. Activate "
@@ -381,8 +394,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                             short="DeepEval is not installed here")
             if _on_ollama(model):
                 return _ollama_cant(judge)
-            return cant("deepeval", judge, f"DeepEval could not build your judge in {python}: "
+            plan = cant("deepeval", judge, f"DeepEval could not build your judge in {python}: "
                         f"{out.get('error')}", short="DeepEval could not build your judge")
+            plan.install = setup_command(out.get("error"))
+            return plan
         version = out["version"]
         turned = _turned(found, version)
         if turned:
@@ -390,7 +405,13 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         picked = out["evaluation_model"]
         if picked != model and _on_ollama(model):
             return _ollama_cant(judge)
-        if picked != model:
+        if named is not None:
+            if picked != model:
+                return cant("deepeval", judge, f"your saved decisions came from {model}; built "
+                            f"with that name, DeepEval reports {picked}",
+                            short="DeepEval reports another model")
+            built = named
+        elif picked != model:
             head = (f"your DeepEval settings pick {picked} now, but your saved decisions came "
                     f"from {model}")
             short = "your DeepEval settings pick another model"

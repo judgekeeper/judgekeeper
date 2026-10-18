@@ -85,7 +85,8 @@ class Plan:
     key_ok: bool = True  # the key the judge needs was found (by name)
     runner: list[str] = field(default_factory=list)  # the command that runs the tool
     download: bool = False  # the runner downloads the tool first (npx)
-    install: str | None = None  # the command that installs the tool, when nothing can run it
+    install: str | None = None  # a command to run in the project first: it installs the tool
+    # (npm install promptfoo@<version>), or sets up its model (DeepEval's own `deepeval set-...`)
     payload: list = field(default_factory=list)  # per asked answer, for the tool's run
     job: dict = field(default_factory=dict)  # the rest of a worker's job for the run
     folder: Path | None = None  # where the run's files go (default: again/<date>/)

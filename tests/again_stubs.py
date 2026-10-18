@@ -72,6 +72,9 @@ STUB_DEEPEVAL = {
             _log("construct", cls=type(self).__name__, kwargs=kwargs)
             self.kwargs = kwargs
             model = kwargs.get("model")
+            if model is None and os.environ.get("STUB_DEFAULT_NEEDS_KEY") and \
+                    not os.environ.get("OPENAI_API_KEY"):  # DeepEval's default OpenAI model
+                raise ValueError("OpenAI API key is not configured")
             if model is None:  # DeepEval's own settings pick the model: STUB_MODEL
                 self.evaluation_model = os.environ.get("STUB_MODEL", "gpt-4.1")
             elif isinstance(model, str):  # a name: OpenAI, unless a USE_* setting says other
@@ -116,7 +119,10 @@ STUB_DEEPEVAL = {
     class _Model:
         LABEL = ""
         def __init__(self, model=None, **kwargs):
+            import os
             _log("model", cls=type(self).__name__, model=model, kwargs=kwargs)
+            if os.environ.get("STUB_MODEL_ERROR"):  # the provider needs a setup step first
+                raise ValueError(os.environ["STUB_MODEL_ERROR"])
             self.name = model
         def get_model_name(self):
             return f"{self.name} ({self.LABEL})"

@@ -829,3 +829,47 @@ def test_fix_runs_in_the_same_second_keep_their_own_folders(tmp_path, capsys, mo
         lines = (folder / "fix-1.jsonl").read_text(encoding="utf-8").splitlines()
         graded = [json.loads(x) for x in lines[1:]]
         assert graded and all(g["fingerprint"]["model"] == "openai:gpt-4.1-mini" for g in graded)
+
+
+def _anthropic_only(tmp_path, monkeypatch):
+    """LE2: a DeepEval GEval judged by an Anthropic model; only ANTHROPIC_API_KEY is set, and
+    DeepEval's default OpenAI model can't be built without its key."""
+    from tests.test_again_tools import _deepeval_model
+
+    ws = _deepeval_model(tmp_path, "claude-haiku-5-5 (Anthropic)", monkeypatch)
+    for name in keys.all_names():
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "y" * 30)
+    monkeypatch.setenv("STUB_DEFAULT_NEEDS_KEY", "1")
+    return ws
+
+
+def test_deepeval_builds_its_anthropic_judge_never_the_default_first(tmp_path, stubs,
+                                                                    monkeypatch):
+    import sys
+
+    from judgekeeper.again import AgainOptions, make_plan
+
+    ws = _anthropic_only(tmp_path, monkeypatch)
+    p = make_plan(ws, AgainOptions(python=sys.executable, fields="input,actual_output"))
+    assert p.status != again.CANT, p.why
+    assert p.key_ok
+    assert all(e["kwargs"]["model"] is not None for e in stubs("construct"))  # never the default
+    assert [(e["cls"], e["model"]) for e in stubs("model")] == [("AnthropicModel",
+                                                                 "claude-haiku-5-5")]
+
+
+def test_deepevals_own_setup_command_is_the_next_step(tmp_path, stubs, monkeypatch):
+    import sys
+
+    from judgekeeper.again import AgainOptions, make_plan
+
+    ws = _anthropic_only(tmp_path, monkeypatch)
+    monkeypatch.setenv("STUB_MODEL_ERROR", "Anthropic is not set up: run `deepeval "
+                                           "set-anthropic --save=dotenv` first")
+    p = make_plan(ws, AgainOptions(python=sys.executable, fields="input,actual_output"))
+    assert p.status == again.CANT
+    assert p.install == "deepeval set-anthropic --save=dotenv"
+    monkeypatch.setenv("STUB_MODEL_ERROR", "a quota error")
+    p = make_plan(ws, AgainOptions(python=sys.executable, fields="input,actual_output"))
+    assert p.status == again.CANT and p.install is None  # never a guess
