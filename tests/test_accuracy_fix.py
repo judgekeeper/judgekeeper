@@ -234,9 +234,8 @@ def test_check_after_three_picks_with_every_answer_marked(here, capsys):
     out = _flat(capsys.readouterr().out)
     assert "These marks have helped pick 4 changes, so they may now flatter your judge." in out
     assert "Mark 10 new answers" not in out and "honest" not in out
-    assert out.endswith("Next: run your eval on more questions, then run `judgekeeper --new` to "
-                        "mark the new results. `--new` moves your marks to "
-                        ".judgekeeper/previous-<date>/.")
+    assert out.endswith("Next: run your eval on more questions, then run `judgekeeper mark`: "
+                        "the new answers join the ones you marked.")
     assert code == 0
 
 

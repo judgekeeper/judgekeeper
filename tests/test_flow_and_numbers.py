@@ -176,7 +176,10 @@ def test_a_key_in_the_configs_env_block_counts(here, capsys, grader, monkeypatch
 # 2. No Next line points to marking when nothing is left to mark ------------------------------
 
 def says_mark(line: str) -> bool:
-    """A Next line that sends the person to mark more answers."""
+    """A Next line that sends the person to mark more answers now (not after running the eval
+    on more questions: then new answers join the marks)."""
+    if "run your eval on more questions, then run `judgekeeper mark`" in line:
+        return False
     return bool(re.search(r"judgekeeper mark\b|mark (\d+ )?(more|new) answers", line))
 
 
@@ -234,7 +237,7 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys, grad
     for out in said:
         assert "Step" in out
         assert not says_mark(_next(out)), out
-    assert "judgekeeper --new" in _next(said[4])  # fix after the rule was adopted
+    assert "run your eval on more questions" in _next(said[4])  # fix after the rule was adopted
     assert "You have tested 1 rule on these marks kept aside." in flat(said[4])
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
     assert RULE_B in mistakes and RULE_A not in mistakes  # the judge the marks test now

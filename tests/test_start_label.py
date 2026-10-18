@@ -450,8 +450,8 @@ def test_every_answer_marked_but_a_kind_short_says_why_there_is_no_result(correc
     r = {"check": "too_few", "left": 0, "labels": {"correct": correct, "wrong": wrong}}
     first = (f"You've marked every answer: {correct} Pass, {wrong} Fail. A result needs at "
              "least 15 of each.")
-    then = ("Next: run your eval on more questions, then run `judgekeeper --new` to mark the "
-            "new results. `--new` moves your marks to .judgekeeper/previous-<date>/.")
+    then = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
+            "answers join the ones you marked.")
     assert start_label.sentences(r) == [first, then]
     r["left"] = 3  # answers still to mark: mark more, as before
     assert start_label.sentences(r)[0].startswith("Mark a few more answers")

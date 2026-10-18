@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from html import escape
 
-from judgekeeper import look, targets
+from judgekeeper import batches, look, targets
 from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
@@ -192,9 +192,9 @@ def counts(r: dict) -> dict:
 
 def commands(r: dict) -> dict[str, str]:
     """The commands the page names, from the one that made the result (r["command"]: the path
-    and the person's flags), as the terminal prints them: `mark` keeps every flag, `check`
-    and `fix` the path only, `new` (start_label.new_command) the flags that read results."""
-    from judgekeeper.start_label import new_command
+    and the person's flags), as the terminal prints them: `mark` keeps every flag, `check` and
+    `fix` the path only, `more` (start_label.mark_command) the flags that read results."""
+    from judgekeeper.start_label import mark_command
     from judgekeeper.textio import program
 
     run = r.get("command") or program()
@@ -206,7 +206,7 @@ def commands(r: dict) -> dict[str, str]:
     return {"run": run, "mark": " ".join(x for x in (program("mark"), flags) if x),
             "check": " ".join(x for x in (program("check"), path) if x),
             "fix": " ".join(x for x in (program("fix"), path) if x),
-            "new": new_command(run)}
+            "more": mark_command(run)}
 
 
 def next_step(r: dict) -> str | None:
@@ -220,7 +220,7 @@ def _all_marked(r: dict) -> str:
     """start_label.all_marked_lines as one paragraph, its command as code."""
     from judgekeeper.start_label import all_marked_lines
 
-    first, then = all_marked_lines(r["labels"], commands(r)["new"])
+    first, then = all_marked_lines(r["labels"], commands(r)["more"])
     return f"{_e(first)} {_code_line(then.removeprefix('Next: '))}"
 
 
@@ -281,6 +281,9 @@ def _counts(r: dict, c: dict) -> str:
            f'<p>{count_line("passed", c["passed"], c["passed"] - c["strict"], c["strict"])}</p>'
            f'<p>{count_line("failed", c["failed"], c["easy"], c["failed"] - c["easy"])}</p>'
            "</div>")
+    left = batches.line(r.get("batches"))
+    if left:
+        row += f'<p class="left-out band">{_e(left)}</p>'
     block = r.get("judge_check") or {}
     none = sum(int(block.get(k) or 0) for k in NO_DECISION)
     if none:

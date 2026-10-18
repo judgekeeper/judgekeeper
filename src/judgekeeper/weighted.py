@@ -31,9 +31,16 @@ draw reaches). A group with no labels has an unknown rate (None), and so does ev
 that needs it; an undefined division is unknown too, never an error. Kappa's range comes from
 the same draws through the kappa formula.
 
+Batches (batches.py): when new answers join as batches, the groups become strata, (batch, the
+judge's grade), each with its pool size N_s and n_s labeled (`stratified`). a and b are then
+each stratum's share Correct weighed by its pool, so each labeled answer weighs N_s / n_s, and
+the formulas above are the same. The Jeffreys draws are per stratum, Beta(c + 0.5, n - c + 0.5),
+in order with the one seeded generator. With one batch this is the form above to the last
+digit: `corrected` is `stratified` with one batch.
+
 After asking the judge again (`general`, `steadiness`), the fresh verdicts may differ from the
-saved ones, but the groups stay the saved verdicts: that is how the answers were picked. So
-each labeled answer weighs N_group / n_group, TPR is the weighted share of the answers that
+saved ones, but the groups stay the saved verdicts: that is how the answers were picked (with
+batches, the strata: `general_strata`). So each labeled answer weighs N_group / n_group, TPR is the weighted share of the answers that
 should pass that the judge passed, TNR likewise, and kappa is Cohen's kappa on the weighted
 table. When the fresh verdicts equal the saved groups this is the form above. Its ranges are
 Jeffreys draws too, per saved group: the share marked Correct (p) is Beta(k + 0.5, n - k + 0.5)
@@ -121,14 +128,50 @@ def _kappa(pi: float, a: float | None, b: float | None) -> float | None:
 
 def corrected(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f: int,
               c_f: int, level: float = LEVEL, draws: int = DRAWS, seed: int = SEED) -> dict:
-    """Every corrected number, with its range, and the counts it came from.
+    """Every corrected number, with its range, and the counts it came from: `stratified` with
+    one batch.
 
     A group that the pool does not hold (N = 0) needs no labels: its rate does not count.
     """
+    return stratified([(1, "pass", n_pool_pass, n_p, c_p), (1, "fail", n_pool_fail, n_f, c_f)],
+                      level, draws, seed)
+
+
+def _pooled(strata: list[tuple], grade: str, rates: dict) -> float | None:
+    """The share marked Correct among the answers the judge gave `grade`: each stratum's
+    share (`rates`, by its place in `strata`) weighed by its pool. One stratum: its own share,
+    exactly (1.0 times it)."""
+    total = sum(s[2] for s in strata if s[1] == grade)
+    out = 0.0
+    for k, (_, g, pool, _, _) in enumerate(strata):
+        if g != grade or pool <= 0:
+            continue
+        if rates[k] is None:
+            return None
+        out += pool / total * rates[k]
+    return out
+
+
+def stratified(strata: list[tuple[int, str, int, int, int]], level: float = LEVEL,
+               draws: int = DRAWS, seed: int = SEED) -> dict:
+    """Every corrected number, with its range, from strata (batch, the judge's grade, pool
+    size, labeled, labeled Correct): a and b are the pools' shares Correct, each stratum's
+    weighed by its pool, so each labeled answer weighs N_stratum / n_stratum. With one batch
+    this is the module's form above, to the last digit.
+
+    A grade that the pool does not hold (N = 0) needs no labels: its rate does not count. A
+    stratum of the pool with no labels leaves its grade's rate unknown."""
+    n_pool_pass = sum(s[2] for s in strata if s[1] == "pass")
+    n_pool_fail = sum(s[2] for s in strata if s[1] == "fail")
     total = n_pool_pass + n_pool_fail
     pi = _div(n_pool_pass, total)
-    a, b = _div(c_p, n_p), _div(c_f, n_f)
-    samples = jeffreys_samples(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f, draws, seed)
+    shares = [_div(c, n) for _, _, _, n, c in strata]
+    a, b = _pooled(strata, "pass", shares), _pooled(strata, "fail", shares)
+    if not n_pool_pass:  # nothing to weigh: the share of the marks, as it is shown
+        a = _div(*_sums(strata, "pass"))
+    if not n_pool_fail:
+        b = _div(*_sums(strata, "fail"))
+    samples = strata_samples(strata, draws, seed)
     point = {"a": a, "b": b, "tpr": None, "tnr": None, "kappa": None, "real_pass_rate": None}
     if pi is not None:
         fa = 0.0 if n_pool_pass == 0 else a  # an empty group of the pool: any value gives
@@ -138,30 +181,59 @@ def corrected(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f: int,
     out = {"pi": pi, "judge_pass_rate": pi, **point}
     for key in ("a", "b", "tpr", "tnr", "real_pass_rate", "kappa"):
         out[f"{key}_interval"] = middle(samples.get(key), level, point[key])
-    out.update(groups={"pass": {"pool": n_pool_pass, "labeled": n_p, "correct": c_p},
-                       "fail": {"pool": n_pool_fail, "labeled": n_f, "correct": c_f}},
-               method="jeffreys", level=level, draws=draws, seed=seed)
+    groups = {}
+    for g in ("pass", "fail"):
+        labeled, correct = (sum(s[i] for s in strata if s[1] == g) for i in (3, 4))
+        groups[g] = {"pool": sum(s[2] for s in strata if s[1] == g), "labeled": labeled,
+                     "correct": correct}
+    out.update(groups=groups, method="jeffreys", level=level, draws=draws, seed=seed)
     return out
+
+
+def _sums(strata: list[tuple], grade: str) -> tuple[int, int]:
+    """(labeled Correct, labeled) over the strata of `grade`."""
+    return (sum(s[4] for s in strata if s[1] == grade),
+            sum(s[3] for s in strata if s[1] == grade))
 
 
 def jeffreys_samples(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f: int,
                      c_f: int, draws: int = DRAWS, seed: int = SEED) -> dict[str, list[float]]:
     """Sorted draws of a, b, TPR, TNR, the real pass rate and kappa; a key is missing when
-    unknown.
+    unknown: `strata_samples` with one batch."""
+    return strata_samples([(1, "pass", n_pool_pass, n_p, c_p), (1, "fail", n_pool_fail, n_f, c_f)],
+                          draws, seed)
 
-    a and b are drawn from Beta(c + 0.5, n - c + 0.5), a first, with one random generator
-    seeded with `seed`. A group the pool does not hold has the rate 0 in every draw."""
+
+def strata_samples(strata: list[tuple[int, str, int, int, int]], draws: int = DRAWS,
+                   seed: int = SEED) -> dict[str, list[float]]:
+    """Sorted draws of a, b, TPR, TNR, the real pass rate and kappa from strata (see
+    `stratified`); a key is missing when unknown.
+
+    Each stratum's share Correct is drawn from Beta(c + 0.5, n - c + 0.5), stratum by stratum
+    in the order given, with one random generator seeded with `seed`; a and b are those draws
+    weighed by the strata's pools. A grade the pool does not hold has the rate 0 in every
+    draw."""
+    n_pool_pass = sum(s[2] for s in strata if s[1] == "pass")
+    n_pool_fail = sum(s[2] for s in strata if s[1] == "fail")
     total = n_pool_pass + n_pool_fail
     if total <= 0:
         return {}
     pi = n_pool_pass / total
     rng = random.Random(seed)
+    drawn = {}
+    for k, (_, _, pool, n, c) in enumerate(strata):
+        if pool > 0 and n > 0:
+            drawn[k] = [rng.betavariate(c + 0.5, n - c + 0.5) for _ in range(draws)]
     rates = {}
-    for group, pool, n, c in (("a", n_pool_pass, n_p, c_p), ("b", n_pool_fail, n_f, c_f)):
+    for key, grade, pool in (("a", "pass", n_pool_pass), ("b", "fail", n_pool_fail)):
         if pool == 0:
-            rates[group] = [0.0] * draws
-        elif n > 0:
-            rates[group] = [rng.betavariate(c + 0.5, n - c + 0.5) for _ in range(draws)]
+            rates[key] = [0.0] * draws
+            continue
+        parts = [k for k, s in enumerate(strata) if s[1] == grade and s[2] > 0]
+        if all(k in drawn for k in parts):
+            weights = [strata[k][2] / pool for k in parts]
+            rates[key] = [sum((w * drawn[k][i] for w, k in zip(weights, parts)), 0.0)
+                          for i in range(draws)]
     out = {k: sorted(v) for k, v in rates.items() if (k == "a" and n_pool_pass) or
            (k == "b" and n_pool_fail)}
     if "a" in rates and "b" in rates:
@@ -242,9 +314,10 @@ def _general_draws(by_group: dict, pool: dict, draws: int, seed: int,
     """Sorted draws of TPR, TNR and kappa of the weighted table (see `general`)."""
     rng = random.Random(seed)
     shares = []  # per group: (pool, draws of p, of q, of r)
-    for g, xs in by_group.items():
-        if pool[g] <= 0:
+    for key, xs in by_group.items():
+        if pool[key] <= 0:
             continue
+        g = _grade(key)
         correct = [x for x in xs if x[1] == "pass"]
         wrong = [x for x in xs if x[1] != "pass"]
         passed = sum(x[2] == "pass" for x in correct)
@@ -260,7 +333,7 @@ def _general_draws(by_group: dict, pool: dict, draws: int, seed: int,
         else:
             q = _verdict_shares(rng, passed, len(correct), float(g == "pass"), draws, jeffreys)
             r = _verdict_shares(rng, failed, len(wrong), float(g == "fail"), draws, jeffreys)
-        shares.append((pool[g], p, q, r))
+        shares.append((pool[key], p, q, r))
     values: dict[str, list[float]] = {"tpr": [], "tnr": [], "kappa": []}
     for i in range(draws):
         tp = fn = fp = tn = 0.0
@@ -274,16 +347,33 @@ def _general_draws(by_group: dict, pool: dict, draws: int, seed: int,
     return {k: sorted(v) for k, v in values.items()}
 
 
+def _grade(key) -> str:
+    """The judge's grade of a group: the group itself, or a stratum's (batch, grade)."""
+    return key if isinstance(key, str) else key[1]
+
+
 def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: int,
             level: float = LEVEL, draws: int = DRAWS, seed: int = SEED,
             wobble: float | None = None) -> dict:
     """TPR, TNR and kappa of the person's labels against fresh verdicts, weighted by the saved
-    groups, each with its range. `items` are (saved group, label,
-    fresh verdict), each "pass" or "fail". A group of the pool with no labeled answer counts
-    for nothing in the numbers, and leaves the ranges unknown, as in `corrected`. `wobble`: the
-    share of answers whose grades differed when the judge was asked twice, which widens the
-    ranges (see the module)."""
-    pool = {"pass": n_pool_pass, "fail": n_pool_fail}
+    groups, each with its range: `general_strata` with one batch. `items` are (saved group,
+    label, fresh verdict), each "pass" or "fail"."""
+    out = general_strata(items, {"pass": n_pool_pass, "fail": n_pool_fail}, level, draws, seed,
+                         wobble)
+    out["groups"] = out.pop("strata")
+    return out
+
+
+def general_strata(items: list[tuple], pool: dict, level: float = LEVEL, draws: int = DRAWS,
+                   seed: int = SEED, wobble: float | None = None) -> dict:
+    """TPR, TNR and kappa of the person's labels against fresh verdicts, weighted by the
+    strata the answers were picked from, each with its range. `items` are (stratum, label,
+    fresh verdict); a stratum is (batch, the judge's saved grade), or a saved grade alone, and
+    `pool` its size. Each labeled answer weighs N_stratum / n_stratum and the draws are per
+    stratum. A stratum of the pool with no labeled answer counts for nothing in the numbers,
+    and leaves the ranges unknown, as in `stratified`. `wobble`: the share of answers whose
+    grades differed when the judge was asked twice, which widens the ranges (see the
+    module)."""
     by_group = {g: [x for x in items if x[0] == g] for g in pool}
     weights = {g: _div(pool[g], len(xs)) or 0.0 for g, xs in by_group.items()}
     out = _table(items, weights)
@@ -312,7 +402,10 @@ def general(items: list[tuple[str, str, str]], n_pool_pass: int, n_pool_fail: in
             out[f"{key}_interval"] = interval
         out["kappa_interval"] = middle(drawn["kappa"], level, out["kappa"])
     out.update(interval_methods=methods, level=level, draws=draws, seed=seed, wobble=wobble,
-               groups={g: {"pool": pool[g], "labeled": len(by_group[g])} for g in pool})
+               strata={_name(g): {"pool": pool[g], "labeled": len(by_group[g])} for g in pool})
     return out
 
 
+def _name(key) -> str:
+    """A stratum as a JSON key: the grade alone, or "<batch>/<grade>"."""
+    return key if isinstance(key, str) else f"{key[0]}/{key[1]}"
