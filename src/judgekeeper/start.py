@@ -474,7 +474,7 @@ def _readable(talk: Talk, results: list[find.Result], root: Path):
         try:
             yield _read(r)
         except RecordsError as e:
-            talk.say(f"{_unread(e, r, root)} It is left out.")
+            _note(talk, f"{_unread(e, r, root)} It is left out.")
 
 
 def _unread(error: RecordsError, result: find.Result, root: Path) -> str:
@@ -578,15 +578,13 @@ def _needs_extra(talk: Talk, tool: str, where: str) -> Stop:
     """Reading `tool` needs an extra: started by uvx, the uvx command that has it (pip would
     not reach uvx's environment); else pip install, then the same command again."""
     extra = find.EXTRAS[tool]
+    _note(talk, f"{find.NAMES[tool]} found ({where}). Reading {find.NAMES[tool]} results needs "
+                f"judgekeeper's {extra} extra.")  # the command is in the Next: line, once
     if textio.started_by_uvx():
         command = " ".join((textio.uvx_with(extra), *filter(None, [talk.subcommand]),
                             *talk.flags))
-        talk.say(f"{find.NAMES[tool]} found ({where}). To read {find.NAMES[tool]} results, "
-                 f"run `{command}`.")
         return talk.stop(EXIT_USAGE, f"run `{command}`.")
     install = textio.install_extra(extra)
-    talk.say(f"{find.NAMES[tool]} found ({where}). To read it, add the extra in your "
-             f"project's environment: {install}, then run {talk.command()} again.")
     return talk.stop(EXIT_USAGE, f"add judgekeeper's {extra} extra ({install} in your "
                                  f"project's environment), then run `{talk.command()}` "
                                  "again.")
@@ -1438,7 +1436,7 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
     if models:
         return f"{metric}{quoted}{with_model}"
     if tool == "promptfoo":
-        return "promptfoo's default grader (the results file does not say which model)"
+        return "promptfoo's default grader (no model written in your config)"
     if tool == "records":
         return f"{metric}{quoted} (your records do not say which model: pass judge= to record())"
     return f"{metric}{quoted} (the results file does not say which model)"
@@ -1529,7 +1527,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                 except RecordsError as e:
                     if not rest and not unjudged:
                         raise usage_error(e, _unread(e, newest, root)) from None
-                    talk.say(f"{_unread(e, newest, root)} It is left out.")
+                    _note(talk, f"{_unread(e, newest, root)} It is left out.")
                     if not rest:
                         raise _no_judge(talk, kind, [r.rel for r in unjudged], rules,
                                         False) from None

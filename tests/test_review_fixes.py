@@ -373,3 +373,72 @@ def test_at_a_terminal_the_logs_folder_is_asked_and_kept(here, capsys, monkeypat
     assert "more than one folder" not in out
     started = (here / ".judgekeeper" / "start.json").read_text(encoding="utf-8")
     assert "evals/quiz/logs/2026-10-01_quiz.json" in started and "chat" not in started
+
+
+# 8. "Left out" lines come after Step 1, with a blank line before the found block ---------------
+
+def _inspect_log(root, name, created, judged=True, n=(18, 18)):
+    from tests.test_inspect_newest_judge import _log
+
+    _log(root, name, created, judged=judged, n=n)
+
+
+def _before(out: str, first: str, then: str) -> bool:
+    return first in out and then in out and out.index(first) < out.index(then)
+
+
+def test_a_left_out_log_after_marking_comes_after_step_1(here, capsys):
+    _inspect_log(here, "2026-10-01_support.json", "2026-10-01T10:00:00+00:00")
+    run(capsys)
+    _click(Workspace(here))
+    run(capsys, "--stop")
+    _inspect_log(here, "2026-10-02_exact.json", "2026-10-02T10:00:00+00:00", judged=False)
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    left = "logs/2026-10-02_exact.json is left out: no LLM judge in it."
+    assert "Step 1 of 5: Find\n\n" + left + "\n\nStep 3 of 5: Measure" in out
+
+
+def test_a_subfolder_with_no_judge_still_says_step_1(here, capsys):
+    _inspect_log(here, "2026-10-01_support.json", "2026-10-01T10:00:00+00:00")
+    run(capsys)
+    _inspect_log(here / "sub", "2026-10-03_exact.json", "2026-10-03T10:00:00+00:00",
+                 judged=False)
+    code, out, _ = run(capsys, "sub")
+    assert code == 3
+    assert out.startswith("judgekeeper ") and out.splitlines()[2] == "Step 1 of 5: Find", out
+
+
+def test_a_file_left_out_is_followed_by_a_blank_line(here, capsys):
+    import os
+
+    from tests.start_projects import promptfoo_data
+
+    (here / "results.json").write_text(json.dumps(promptfoo_data(split(5, 5))),
+                                       encoding="utf-8")
+    old = json.dumps(promptfoo_data(split(20, 16)))
+    (here / "results-old.json").write_text(old[:len(old) // 2], encoding="utf-8")
+    os.utime(here / "results-old.json", (1, 1))
+    _, out, _ = run(capsys, "--no-browser")
+    lines = out.splitlines()
+    at = next(i for i, x in enumerate(lines) if x.startswith("Eval tool:"))
+    assert lines[at - 1] == "", out
+    assert all(len(x) <= 80 for x in lines), out
+    assert _before(out, "Step 1 of 5: Find", "left out") and _before(out, "left out", "Eval tool")
+
+
+# 9. Said once: promptfoo's default grader, and the MLflow command --------------------------------
+
+def test_promptfoos_default_grader_is_explained_once(here, capsys):
+    from tests.start_projects import promptfoo_data
+
+    (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    (here / "results.json").write_text(json.dumps(promptfoo_data(split(20, 16), model=None)),
+                                       encoding="utf-8")
+    _, out, _ = run(capsys, "--no-browser")
+    flat = " ".join(out.split())
+    assert "Judge: promptfoo's default grader (no model written in your config)" in flat, out
+    assert "model not found" not in flat and "--judge-model" not in flat
+    assert flat.count("default grader") == 1  # the Judge: line
+    assert flat.count("defaultTest.options.provider") == 1
+    assert "came from promptfoo's default grader" not in flat

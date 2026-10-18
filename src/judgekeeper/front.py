@@ -112,6 +112,8 @@ RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still te
 RAN_AGAIN_CHECKED = ("Your eval ran again. Your judge is the one your last check re-tested, so "
                      "your marks still test it.")
 JUDGE_CHANGED = "Your judge changed since your marks: {what}."
+DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
+DEFAULT_GRADER_NOTE = "came from promptfoo's default grader"  # readers.promptfoo's warning
 STEP = "Step {n} of 5: {name}"
 INDENT = " " * 13  # under the value of "Eval tool:   "
 EVERY_ANSWER = "your judge gave every answer a clear Pass or Fail."
@@ -162,6 +164,7 @@ class FrontTalk(start.Talk):
         self.answers: dict[str, str] = {}  # what the person chose at a terminal: flag -> value
         self.store: str | None = None  # the MLflow store chosen at a terminal
         self.noted: list[str] = []  # yes/no questions taken as yes without a terminal
+        self.step: str | None = None  # said before the first line, when there is one (go)
         self.refresh()
 
     def refresh(self) -> None:
@@ -223,6 +226,13 @@ class FrontTalk(start.Talk):
         raise self.stop(EXIT_QUESTION, f"run {again} in a terminal to answer, or {yes} to say "
                                        f"yes{'' if one else ' to all'}.")
 
+    def say(self, text: str = "") -> None:
+        if text and self.step is not None:  # Find says something: under its step label
+            step, self.step = self.step, None
+            super().say(step)
+            super().say()
+        super().say(text)
+
     def para(self, text: str = "", indent: str = "") -> None:
         """Say `text` wrapped (textio.wrap)."""
         for line in wrap(text, indent=indent):
@@ -262,6 +272,8 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
         if not marking and not _started(path):
             talk.say(STEP.format(n=1, name="Find"))
             talk.say()
+        else:  # said only when Find has something to say (a file left out, an error)
+            talk.step = STEP.format(n=1, name="Find")
         return _run(talk, path, wait, marking)
     except Stop as e:
         return EXIT_NEEDS_YOU if e.code == EXIT_QUESTION else e.code
@@ -278,7 +290,8 @@ def _started(path: Path) -> bool:
 # Finding -----------------------------------------------------------------------------------
 
 def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
-    found, mapped = find_found(talk, path)
+    found, mapped = find_found(talk, path)  # anything it says comes under Step 1's label
+    talk.step = None
     ws = Workspace(found.root)
     if not marking and not ws.start.is_file() and not ws.labels.is_file():
         return _say(talk, found, mapped, wait)
@@ -584,6 +597,8 @@ def _map_line(saved: settings.StartSettings) -> str:
 
 def _notes(found: start.Found) -> list[str]:
     pool, out = found.pool, [*found.stopped, *found.warnings]
+    if judge_check.model_not_written(found):  # said once, with its fix, by the free checks
+        out = [w for w in out if DEFAULT_GRADER_NOTE not in w]
     if pool.n_merged:
         out.append(f"{_n(pool.n_merged, 'repeat')} of the same answer "
                    f"{'was' if pool.n_merged == 1 else 'were'} merged.")
@@ -745,6 +760,8 @@ def _judge_value(found: start.Found) -> str:
             model += " (as you said)"
         elif found.model_source:
             model += f" ({found.model_source})"
+    elif found.tool == "promptfoo":  # explained once, with its fix (judge_check.setup_lines)
+        model = DEFAULT_GRADER
     else:
         model = "model not found in your results (add --judge-model NAME)"
     return ", ".join([*parts, model])
@@ -816,6 +833,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     """Found, no marking started: Screen 1's "Find" block and the free checks, then the
     page."""
     listed = _listed(found)
+    talk.say()  # a blank line after what Find said first (a file left out), never two
     for line in found_block(found):
         talk.say(line)
     if found.tool == "table":

@@ -269,11 +269,17 @@ def installed(package: str) -> str | None:
         return None
 
 
+def model_not_written(found) -> bool:
+    """Whether the promptfoo judge's model comes from no file: promptfoo's default grader, or
+    a model given to judgekeeper alone."""
+    return found.tool == "promptfoo" and (not found.models or bool(found.model_source))
+
+
 def setup_lines(found, setup: dict) -> list[str]:
     """The free checks on the judge's setup (judge_setup.of): what can change the judge
     without judgekeeper seeing it."""
     out = []
-    if found.tool == "promptfoo" and (not found.models or found.model_source):
+    if model_not_written(found):
         out.append(MODEL_NOT_WRITTEN)
     if found.tool in PINS and setup.get("tool_version") is None:  # the project pins none
         have = installed(PINS[found.tool])  # never older than the version installed

@@ -80,7 +80,8 @@ REFERENCE_TYPES = frozenset({"factuality", "model-graded-factuality"})
 AGENT_GRADED = frozenset({"agent-rubric", "trajectory:goal-success"})
 DEFAULT_GRADER = ("{n} of your judge's grades came from promptfoo's default grader: no grader is "
                   "set on those tests or in defaultTest, so promptfoo picked one, and its "
-                  "results don't say which model.")
+                  "results don't say which model. Write the grader in your config "
+                  "(`defaultTest.options.provider`).")
 SET_GRADER = ("{n} of your judge's grades came from a grader set with promptfoo's --grader: its "
               "results keep only the model's name.")
 CACHED = ("{n} judgments in {file} came from promptfoo's cache: they may be old replies, not "
