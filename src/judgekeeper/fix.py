@@ -18,7 +18,9 @@ number shown before the test use only the other marks, so the new rule is never 
 hidden answer. Nothing about a hidden mark (its id or its text) is printed or written anywhere
 but split.json while the set is in use. A set is retired when a rule tested on it is the
 judge's rule now (adopted), after MAX_RULES rules, or with `fix --new`: then its marks are seen
-like the others, and the next FRESH new marks make a new set.
+like the others, and the next FRESH new marks make a new set. For a judge `fix` can't ask
+whose grades don't follow a pass mark (a table, record()), nothing is kept aside: there is
+nothing to test with it, so every mistake is listed.
 
 mistakes.md, ready to hand to a coding agent: the task in one line, the clues (the pattern
 sentences the terminal prints), the judge's rule now, then each mistake on the seen marks (the
@@ -142,6 +144,28 @@ class Marks:
         values = list(self.person.values())
         return min(values.count("pass"), values.count("fail")) >= targets.ROUGH
 
+    def can_test(self) -> bool:
+        """Whether `fix` can test a new rule for this judge (can_test)."""
+        return can_test(self.data.get("tool"), self.data.get("rule")
+                        if self.data.get("one_rule", True) else None)
+
+    def keeps_aside(self) -> bool:
+        """Whether marks kept aside can test anything: a new rule, or a pass mark that
+        follows the judge's scores (free). Else every mark is seen."""
+        return self.can_test() or _follows(self, self.data.get("pass_mark"))
+
+    def judge_now(self, found) -> None:
+        """The grades and reasons of the judge in the newest results (`found`) on the marks,
+        in place of the ones they were made on: after a check found that judge worse, its
+        mistakes are the ones to fix."""
+        from judgekeeper.check import _free
+
+        answers = {a.id: a for a in found.pool.answers}
+        for i, verdict in _free(found, self.person).items():
+            self.judge[i] = verdict
+            self.reasons[i] = scrub(answers[i].reason or "")
+            self.scores[i] = answers[i].score
+
     def row(self, i: str) -> dict:
         """One mark as the patterns and mistakes.md read it."""
         from judgekeeper.start_label import display
@@ -230,6 +254,13 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
     """The saved split with marks made since it added as seen; a new one when there is none
     (or with `new`)."""
     split = None if new else read_split(ws)
+    if not m.keeps_aside():  # nothing to test with marks kept aside: every mark is seen
+        split = Split(seed=split.seed if split else secrets.randbelow(2 ** 31),
+                      seen=sorted(m.person), hidden=[],
+                      made_at=split.made_at if split else utc_now(),
+                      reset_at=utc_now() if new else (split.reset_at if split else ""))
+        save_split(ws, split)
+        return split
     if split is None:
         seed = secrets.randbelow(2 ** 31)
         seen, hidden = make_split(m, seed)
@@ -566,9 +597,10 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     state = _state(path)
     ws = state.ws if state is not None else None
     m = Marks(ws) if ws is not None else None
+    testable = m is not None and m.can_test()
+    if m is not None and not testable and m.data.get("rule") is None:
+        _after_worse(state, m)
     split = current_split(ws, m, new=new) if m is not None and m.enough() else None
-    testable = m is not None and can_test(m.data.get("tool"), m.data.get("rule") if
-                                          m.data.get("one_rule", True) else None)
     rule = _new_rule(ws, split) if split is not None and not new and testable else None
     if split is not None and split.retest:  # a top-up was just marked: the same rule again
         rule = (ws.dir / "rules" / f"{split.topup['rule_hash'].removeprefix('sha256:')}.txt"
@@ -585,6 +617,18 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     if rule is not None:
         return test_rule(talk, ws, m, split, rule, yes)
     return first_run(talk, ws, m, split)
+
+
+def _after_worse(state, m: Marks) -> None:
+    """For a judge whose results hold no rule (a table), after a check found its new grades
+    worse (check.open_worse): the mistakes are the new judge's."""
+    from judgekeeper.check import _history, _newest, open_worse
+
+    if not _history(state.ws):
+        return
+    found, _ = _newest(state)
+    if found is not None and open_worse(state.ws, found) is not None:
+        m.judge_now(found)
 
 
 def _waiting(talk: Talk, ws: Workspace, split: Split) -> int:
@@ -644,9 +688,10 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
                  else "Your judge's rule:")
         talk.say(f"  {_rule_quote(rule)}")
         talk.say()
-    talk.para(f"{len(split.hidden)} more of your marks "
-              f"{'is' if len(split.hidden) == 1 else 'are'} kept aside to test your new rule "
-              "fairly.")
+    if split.hidden:
+        talk.para(f"{len(split.hidden)} more of your marks "
+                  f"{'is' if len(split.hidden) == 1 else 'are'} kept aside to test your new rule "
+                  "fairly.")
     if not can_test(tool, rule):
         talk.say()
         talk.para(CANT_ASK)

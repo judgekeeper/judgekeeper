@@ -366,3 +366,60 @@ def test_report_after_a_check_is_the_new_judges(here, capsys):
             in _said_in_report(after_check)), _said_in_report(after_check)
     _jk(capsys)
     assert _said_in_report(_report(here)) == _said_in_report(after_check)
+
+
+# 5. After "Worse" for a table judge, no loop ---------------------------------------------------
+
+NEXT_WORSE_TABLE = ("Next: go back to your old judge, or change its rule; then run your eval "
+                    "and `judgekeeper check`.")
+
+
+def _truth(i: int) -> bool:
+    return i % 3 != 0
+
+
+def test_after_worse_a_table_judge_gets_one_way_out(here, capsys):
+    from tests.start_projects import table_project
+
+    old = [(not _truth(i)) if i % 4 == 1 else _truth(i) for i in range(60)]
+    table_project(here, old)
+    assert _jk(capsys)[0] == 0
+    _mark(Workspace(here), {i: "pass" if _truth(i) else "fail" for i in range(60)})
+    _jk(capsys)
+    new = [(not v) if i % 2 == 0 or i % 4 == 1 else v for i, v in enumerate(old)]
+    table_project(here, new)
+    code, out = _check(capsys)
+    assert code == 1 and "Worse" in out, out
+    assert _next(out) == NEXT_WORSE_TABLE
+    code, out = _jk(capsys)
+    assert _next(out) == NEXT_WORSE_TABLE, out
+    assert "re-check your changed judge" not in out
+    assert _next(_check(capsys)[1]) == NEXT_WORSE_TABLE
+    report = _report(here)
+    assert ("Go back to your old judge, or change its rule; then run your eval and "
+            "<code>judgekeeper check</code>.") in report
+    assert "judgekeeper mark</code>" not in report and 'id="fix-h"' not in report
+    _jk(capsys, "fix")
+    mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    wrong_now = [i for i in range(60) if new[i] != _truth(i)]
+    assert mistakes.count("## [M") == len(wrong_now)
+    assert "Question 9?" not in mistakes  # the old judge's mistake the new judge gets right
+    assert "Question 2?" in mistakes  # and a new one
+
+
+# 9. A judge fix can't ask: nothing kept aside ------------------------------------------------
+
+def test_fix_for_a_table_judge_keeps_nothing_aside(here, capsys):
+    from tests.start_projects import table_project
+
+    old = [(not _truth(i)) if i % 4 == 1 else _truth(i) for i in range(60)]
+    table_project(here, old)
+    assert _jk(capsys)[0] == 0
+    _mark(Workspace(here), {i: "pass" if _truth(i) else "fail" for i in range(60)})
+    _jk(capsys)
+    code, out = _jk(capsys, "fix")
+    assert code == 3, out
+    assert "kept aside" not in out
+    wrong = sum(old[i] != _truth(i) for i in range(60))
+    assert f"all {wrong} mistakes are saved" in flat(out)
+    assert "kept aside" not in _report(here)

@@ -1125,11 +1125,15 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.para(line)
     if head:
         talk.say()
+    from judgekeeper import check as checking
     from judgekeeper import fix
 
     fix.prepare_split(ws)  # before any mistake is shown or written: some marks are hidden
     session = StartSession(ws)
-    r = start_label.store_result(ws, session, _command_of(talk, saved))
+    was = checking.open_worse(ws, found) if check else None  # checking again says the same
+    worse = was and checking.worse_step(was["before"], was["after"], _check_command(talk))
+    r = start_label.store_result(ws, session, _command_of(talk, saved), worse=worse or None,
+                                 redraw=True)
     made = r.get("made") or marks.made(marks.read(ws.marks), ids=set(session.by_id))
     for line in made_lines(made)[1:]:  # the notes on how they were made; the count is below
         talk.para(line)
@@ -1170,7 +1174,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     else:
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
     talk.say()
-    if check:
+    if worse:
+        next_step = worse
+    elif check:
         next_step = NEXT_CHECK.format(command=_check_command(talk))
     elif step == "mark":  # too early to tell
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))

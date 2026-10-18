@@ -663,13 +663,15 @@ def made_lines(made: dict | None) -> list[str]:
         if printed else [])
 
 
-def result_html(r: dict, back: str | None = None, fixing: dict | None = None) -> str:
+def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
+                worse: str | None = None) -> str:
     """The result page; `back`: the link to the marking page while it runs; `fixing`: the
-    mistakes the person can see (fix.report_section). No value on it holds a hidden character
+    mistakes the person can see (fix.report_section); `worse`: the next step after a check
+    found the new judge worse (check.worse_step). No value on it holds a hidden character
     (redact.visible)."""
     from judgekeeper.report_page import page
 
-    return visible(page(r, back, fixing))
+    return visible(page(r, back, fixing, worse))
 
 
 def _fixing(ws: Workspace) -> dict | None:
@@ -682,14 +684,15 @@ def _fixing(ws: Workspace) -> dict | None:
     return _scrubbed(section) if section else None
 
 
-def write_report(ws: Workspace) -> None:
+def write_report(ws: Workspace, worse: str | None = None) -> None:
     """report.html again from the saved result; nothing when there is no result yet."""
     try:
         r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
     if isinstance(r, dict):
-        write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws)))
+        write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws),
+                                                    worse=worse))
 
 
 def page_template(about: dict | None = None, command: str | None = None) -> str:
@@ -800,16 +803,20 @@ def history_line(ws: Workspace, r: dict) -> dict:
 
 
 def store_result(ws: Workspace, session: StartSession,
-                 command: str | None = None) -> dict:
+                 command: str | None = None, worse: str | None = None,
+                 redraw: bool = False) -> dict:
     """Make a result from the marks so far: anchors, result.json and report.html (the last
     result moves to history/; a result.html from before goes), and a line in history.jsonl.
     `command` (start.Talk.command) is kept in it: every next command it shows starts with it.
     With no new marks since the saved result, that result stays as it is, and history.jsonl
-    gets no line."""
+    gets no line; `redraw` draws its report.html again. `worse`: the next step after a check
+    found the new judge worse (check.worse_step), on report.html."""
     command = command or program()
     digest = marks_digest(ws, session)
     same = _same_result(ws, digest)
     if same is not None:
+        if redraw:
+            write_report(ws, worse=worse)
         return same
     r = compute(ws, session)
     r["command"] = command
@@ -834,7 +841,7 @@ def store_result(ws: Workspace, session: StartSession,
             n += 1
         ws.result_json.replace(target)
     _write_json(ws.result_json, r)
-    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws)))
+    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws), worse=worse))
     if ws.result_html.is_file() and not ws.result_html.is_symlink():
         ws.result_html.unlink()
     marks.append(ws.history_jsonl, _scrubbed(history_line(ws, r)))

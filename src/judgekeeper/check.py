@@ -96,7 +96,10 @@ NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
-NEXT_WORSE = "Next: go back to {back}, or change your judge and run `{command}` again."
+NEXT_WORSE = "go back to {back}, or change your judge and run `{command}` again."
+# A judge whose results hold no rule (a table): it changes only where the eval keeps it
+NEXT_WORSE_TABLE = ("go back to your old judge, or change its rule; then run your eval and "
+                    "`{command}`.")
 SWITCHED = ("Your results now come from {new}, not {old}.",
             "judgekeeper can't compare judges across two eval tools.")
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
@@ -1169,10 +1172,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     if picks_lines(picked):
         said.say()
     if worse:
-        tool = find.NAMES.get(new.get("tool"), new.get("tool"))
-        back = (f"the old version of {tool} ({old.get('tool_version')})"
-                if judge_setup.tool_only(old, new) else "the old judge")
-        said.say(NEXT_WORSE.format(back=back, command=_command(state)))
+        said.say("Next: " + worse_step(old, new, _command(state)))
     elif picked["ask"]:
         said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
             mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))
@@ -1199,8 +1199,52 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     if not worse:  # after "Worse" the old judge stays the reference until it comes back
         judge_setup.save(state.ws, new, found.metric)
         _adopt(state.ws, found, tested)
-    _report(state.ws, adopted=not worse)
+    _report(state.ws, adopted=not worse,
+            worse=worse_step(old, new, _command(state)) if worse else None)
     return EXIT_WORSE if exit_worse else EXIT_OK
+
+
+def worse_step(old: dict, new: dict, command: str) -> str:
+    """The next step after "Worse" (without "Next: "), the same in `check`, `judgekeeper` and
+    report.html: go back to the old judge (or tool version), or change the judge."""
+    if judge_setup.tool_only(old, new):
+        tool = find.NAMES.get(new.get("tool"), new.get("tool"))
+        return NEXT_WORSE.format(back=f"the old version of {tool} ({old.get('tool_version')})",
+                                 command=command)
+    if new.get("rule_hash") is None:
+        return NEXT_WORSE_TABLE.format(command=command)
+    return NEXT_WORSE.format(back="the old judge", command=command)
+
+
+def open_worse(ws: Workspace, found) -> dict | None:
+    """The last check, when it found the judge in the newest results (`found`) worse than the
+    one the marks test, and no mark was made since: checking again says the same, so the next
+    step is worse_step. For a judge whose results hold no rule (a table), only while its grades
+    are the ones that check saw. None otherwise."""
+    saved = judge_setup.read(ws)
+    checks = _history(ws)
+    if saved is None or not checks:
+        return None
+    last, now = checks[-1], judge_setup.of(found)
+    if (judge_setup.hash_of(last.get("before") or {}) != saved["setup_hash"]
+            or judge_setup.hash_of(last.get("after") or {}) != judge_setup.hash_of(now)):
+        return None
+    if not any(isinstance(g, dict) and g.get("verdict") == "worse"
+               for g in (last.get("groups") or {}).values()):
+        return None
+    read = marks.read(ws.marks)
+    counted = read.counted()
+    time = str(last.get("time") or "")
+    if any(str((read.last.get(i) or {}).get("at") or "") > time for i in counted):
+        return None
+    if now.get("rule_hash") is None:  # a table: the same grades as that check saw
+        data = ws.data()
+        old = {**{q["id"]: q["group"] for q in data.get("queue") or []},
+               **_read_verdicts(ws, saved["setup_hash"])}
+        flips = sorted(i for i, v in _free(found, counted).items() if i in old and old[i] != v)
+        if flips != sorted(last.get("flipped") or []):
+            return None
+    return {"before": last["before"], "after": now}
 
 
 def _same_as_last(state: State, line: dict) -> bool:
@@ -1215,10 +1259,11 @@ def _same_as_last(state: State, line: dict) -> bool:
     return same and last.get("groups") == line["groups"]
 
 
-def _report(ws: Workspace, adopted: bool = False) -> None:
+def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> None:
     """report.html again (when there is a result). `adopted`: the marks test the new judge
     now, so the result is made again from its grades (start_label.store_result): the report's
-    counts, lists and kept-aside count all describe that one judge."""
+    counts, lists and kept-aside count all describe that one judge. `worse`: the next step
+    after a "Worse" (worse_step)."""
     from judgekeeper.start_label import StartSession, store_result, write_report
 
     try:
@@ -1229,7 +1274,7 @@ def _report(ws: Workspace, adopted: bool = False) -> None:
         if adopted and isinstance(saved, dict):
             store_result(ws, StartSession(ws), saved.get("command"))
         else:
-            write_report(ws)
+            write_report(ws, worse=worse)
     except OSError:
         pass  # the check is saved; the report catches up with the next result
 
