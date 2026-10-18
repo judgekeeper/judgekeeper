@@ -743,3 +743,28 @@ def test_without_the_token_only_the_folder_name_is_told(here, capsys):
     assert label.page_folder(port) == here.name
     status, body = label._answer(port, "GET", "/state", {})
     assert status == 403 and b"Question" not in body
+
+
+# 13. Every answer marked and the result opened: the page stops ---------------------------------
+
+def test_the_page_stops_once_every_answer_is_marked_and_the_result_is_opened(here, capsys,
+                                                                             no_browser):
+    import time
+    import urllib.request
+
+    from judgekeeper import label
+
+    promptfoo_project(here, split(20, 16))
+    run(capsys)
+    ws = Workspace(here)
+    _post_marks(no_browser[-1], ws, 36)
+    base, token = no_browser[-1].split("/?token=")
+    with urllib.request.urlopen(f"{base}/result?token={token}", timeout=10) as r:
+        assert r.status == 200
+    for _ in range(50):
+        if not label.is_open(ws.dir):
+            break
+        time.sleep(0.1)
+    assert not label.is_open(ws.dir)
+    _, out, _ = run(capsys, "--stop")
+    assert "No marking page is open." in out

@@ -39,7 +39,8 @@ after the last item if nobody fetches it. While an item is deferred, the page
 offers to look at it again, so the server keeps serving (until Ctrl-C or IDLE_TIMEOUT), also
 after the result page; the page asking again (GET /, /state) or a label taken back (undo)
 stops the RESULT_WAIT count. A server that `stays` (the page `judgekeeper mark` serves) never
-stops by itself after the result: the person may mark more.
+stops by itself after the result while an item is unlabeled or deferred: the person may mark
+more. Once every item is labeled, it stops right after serving the result page too.
 """
 
 from __future__ import annotations
@@ -576,7 +577,7 @@ def _handler(server: LabelServer):
                 csp = f"{LIVE_CSP}; frame-ancestors 'none'"  # it saves reasons
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
                            {"Content-Security-Policy": csp})
-                if server.finished() and not server.stays:
+                if server.finished():
                     server.stop()  # nothing left to label: the page holds the result
             else:
                 self._json(404, {"error": "not found"})
