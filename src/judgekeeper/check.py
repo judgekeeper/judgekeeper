@@ -1105,7 +1105,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say(NEXT_FRESH.format(command=program(), new=names.get(switched, switched)))
         return EXIT_NEEDS_YOU
     if problem:
-        said.say(problem + ".")
+        said.say(problem if problem.endswith(".") else problem + ".")  # one stop
         said.say()
         said.say(NEXT_RUN_EVAL.format(command=_command(state)))
         return EXIT_NEEDS_YOU

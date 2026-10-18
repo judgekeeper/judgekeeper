@@ -41,7 +41,7 @@ def _para(talk: Talk, text: str) -> None:
 def cannot(talk: Talk, rel: str, why: str):
     """The file cannot be mapped: what to do instead. Returns the Stop to raise."""
     _para(talk, f"judgekeeper cannot read {rel} by itself: {why}.")
-    _para(talk, RECORD_DOOR)
+    _para(talk, f"Turn it into a CSV, as the Next: line says. {RECORD_DOOR}")
     return talk.stop(EXIT_USAGE, (
         f"turn {rel} into a CSV with the columns id, input, output, verdict (pass or fail) "
         "and reason, one CSV per judge, leaving out errors and scores made by a rule. Then "

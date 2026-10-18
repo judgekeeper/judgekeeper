@@ -580,3 +580,78 @@ def test_no_placeholder_in_angle_brackets_in_backticks():
         found = [m for m in pattern.findall(text) if "previous-<date>" not in m
                  and "<criterion>" not in m and "<scorer>" not in m]
         assert not [m for m in found if "<the" in m or "<your" in m], (path.name, found)
+
+
+# Q16. Wording ---------------------------------------------------------------------------------
+
+@pytest.mark.usefixtures("no_calls")
+def test_a_damaged_results_file_in_check_ends_with_one_stop(here, capsys):
+    from tests.test_check import _marked
+    from tests.test_check import run as check
+
+    _marked(here)
+    text = (here / "results.json").read_text(encoding="utf-8")
+    (here / "results.json").write_text(text[:len(text) // 2], encoding="utf-8")
+    code, out = check(capsys)
+    flat = " ".join(out.split())
+    assert code == 3 and "Save it again from promptfoo." in flat, out
+    assert ".." not in flat
+
+
+def test_fix_waits_for_one_more_answer_in_the_singular(fixing, capsys):
+    from tests.test_fix import _mark_more, _write_rule, project
+
+    root, holder = fixing
+    holder["half"] = 40
+    ws = project(root, n=80, marked=60)
+    _fix(capsys)
+    for k in range(3):
+        _write_rule(ws, f"Rule number {k}.")
+        _fix(capsys, "--yes")
+    _mark_more(ws, 9, 40)
+    _write_rule(ws, "Rule number 3.")
+    _, flat = _fix(capsys)
+    assert "Next: mark 1 more answer with `judgekeeper mark`" in flat, flat
+
+
+def test_the_table_depth_is_said_alike_in_the_terminal_and_the_reference():
+    from judgekeeper import find
+
+    said = find.looked(ROOT)
+    assert "(tables: 1 folder down)" in said
+    ref = " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
+    assert "A CSV, TSV or JSONL file in the folder or at most 1 folder down" in ref
+    assert "two folders deep" not in ref
+
+
+def test_one_damaged_row_is_its_only_row():
+    from judgekeeper.records import Damaged, RecordList, all_damaged, left_out_note
+
+    records = RecordList(unit="row")
+    records.left_out = [1]
+    with pytest.raises(Damaged) as e:
+        all_damaged("results.json", "promptfoo", records)
+    assert "results.json is damaged: its only row has a damaged field." in str(e.value)
+    assert "each of its 1" not in str(e.value)
+    lines = RecordList(unit="line")
+    lines.left_out = [4]
+    assert left_out_note(lines, "x.jsonl").endswith("line 4 has a damaged field.")
+
+
+def test_or_save_comes_after_its_first_choice(capsys):
+    from judgekeeper import own_map, start
+
+    talk = start.Talk()
+    with pytest.raises(start.Stop):
+        raise own_map.cannot(talk, "history/evals.jsonl", "no judge verdicts were found in it")
+    out = " ".join(capsys.readouterr().out.split())
+    first = "Turn it into a CSV, as the Next: line says."
+    assert first in out and out.index(first) < out.index("Or save your judge's decisions")
+
+
+def test_fix_with_no_results_says_so_first(here, capsys):
+    code, flat = _fix(capsys)
+    assert code == 3
+    assert f"No eval results found in this folder ({here.name})." in flat, flat
+    assert "marked enough" not in flat and "`judgekeeper mark`" not in flat
+    assert flat.endswith("Next: run your eval once from this folder, then run `judgekeeper`.")

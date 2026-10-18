@@ -735,6 +735,10 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     waiting = split is not None and (split.fresh or (split.topup and not split.topup.get("done")))
     talk.say(STEP if rule is None or waiting else STEP_TEST)
     talk.say()
+    if ws is None and not _has_results(Path(path)):
+        talk.para(f"No eval results found in this folder ({Path(path).resolve().name}).")
+        talk.next(f"run your eval once from this folder, then run `{program()}`.")
+        return EXIT_NEEDS_YOU
     if split is None:
         talk.para("You have not marked enough answers yet to fix your judge.")
         step = f"run `{program('mark')}` to mark more answers."
@@ -748,6 +752,17 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     if tested is not None:
         return tested_before(talk, ws, m, *tested)
     return first_run(talk, ws, m, split)
+
+
+def _has_results(path: Path) -> bool:
+    """Whether judgekeeper finds eval results it reads at `path` (nothing is read)."""
+    from judgekeeper import find
+
+    try:
+        found = find.search(path)
+    except OSError:
+        return True  # said by the step that reads them
+    return any(found.readable(t) for t in find.TOOLS)
 
 
 def _after_worse(state, m: Marks) -> None:

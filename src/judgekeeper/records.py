@@ -450,8 +450,14 @@ def left_out_note(records: RecordList, file: str) -> str | None:
 def all_damaged(path: str | Path, tool: str, records: RecordList) -> None:
     """Damaged when every row of the file was left out (there were rows; none was read)."""
     if records.left_out and not records:
-        each = plural(len(records.left_out), records.unit)
-        raise damaged(path, tool, f"is damaged: each of its {each} has a damaged field")
+        raise damaged(path, tool, f"is damaged: {_each(records.left_out, records.unit)} has a "
+                                  "damaged field")
+
+
+def _each(left_out: list, unit: str) -> str:
+    """"each of its 3 rows", or "its only row"."""
+    return (f"its only {unit}" if len(left_out) == 1
+            else f"each of its {plural(len(left_out), unit)}")
 
 
 def _content(v):
@@ -685,8 +691,8 @@ def read_records(path: str | Path, column_map: str | dict | None = None,
         n_big += size > BIG
         records.append(rec)
     if records.left_out and not records:
-        lines = plural(len(records.left_out), "line")
-        raise Damaged(f"{path.name} is damaged: each of its {lines} has a damaged field.",
+        raise Damaged(f"{path.name} is damaged: {_each(records.left_out, 'line')} has a damaged "
+                      "field.",
                       "run your eval again (it writes new records), then run `{command}`.")
     records.warnings += file_warnings(path.name, records, n_big)
     if cut:
