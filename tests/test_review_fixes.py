@@ -175,6 +175,7 @@ def test_a_not_sure_check_says_it_again(here, capsys):
     from judgekeeper import judge_setup
     from tests.test_check import _flat, _history, _next, _results
     from tests.test_check import run as check
+    from tests.test_flow_fixes import NEXT_ALL_MARKED
 
     ws = _n03(here)
     before = judge_setup.read(ws)["setup_hash"]
@@ -185,7 +186,7 @@ def test_a_not_sure_check_says_it_again(here, capsys):
     assert code == 1, out
     assert NOT_SURE in _flat(out)
     assert "has not changed" not in out
-    assert "mark" not in _next(out).split("--new")[0].replace("marked", "")  # every one marked
+    assert _next(out) == NEXT_ALL_MARKED  # every one marked: no "mark N more" from a Not sure
     assert len(_history(ws)) == 1
     _results(here, OLD)  # back to the judge the marks were made on
     code, out = check(capsys)
