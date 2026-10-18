@@ -176,8 +176,8 @@ def _state(path: str) -> State | None:
         return None
     if saved is None or not isinstance(data, dict):
         return None
-    counted = batches.counted_labels(data, marks.read(ws.marks).counted())  # a batch too new
-    return State(ws=ws, path=path, data=data, marks=counted, saved=saved)   # is left out
+    counted = batches.counted_labels(data, marks.read(ws.marks).counted())  # not a new batch's
+    return State(ws=ws, path=path, data=data, marks=counted, saved=saved)
 
 
 def _newest(state: State):

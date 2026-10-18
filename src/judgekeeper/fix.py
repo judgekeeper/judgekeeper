@@ -182,7 +182,7 @@ class Marks:
 def _cells(m: Marks, ids: list[str], rng: random.Random) -> tuple[list[str], list[str]]:
     """(seen, hidden) of `ids`: HIDDEN_TENTHS of each stratum's cell (batch, the judge's
     grade, whether the person agrees) hidden, rounded up, except a cell of one."""
-    batch = getattr(m, "batch", {})
+    batch = m.batch
     seen, hidden = [], []
     for b in sorted({batch.get(i, 1) for i in ids}):
         for judge in ("pass", "fail"):
