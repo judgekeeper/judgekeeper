@@ -82,7 +82,10 @@ def project(tmp_path):
         pid = None
     background.stop(folder)
     if pid and alive(pid):  # never leave a page running after a failed test
-        os.kill(pid, signal.SIGTERM)
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass  # it was on its way out
 
 
 def page_log(project: Path) -> str:
