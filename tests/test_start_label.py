@@ -221,9 +221,9 @@ def test_see_my_result_works_before_everything_is_labeled(workspace):
         resp, payload = client.request("GET", "/result")
         assert resp.status == 200
         assert resp.getheader("Content-Type").startswith("text/html")
-        from judgekeeper.report_page import CSP
+        from judgekeeper.report_page import LIVE_CSP
 
-        assert resp.getheader("Content-Security-Policy") == f"{CSP}; frame-ancestors 'none'"
+        assert resp.getheader("Content-Security-Policy") == f"{LIVE_CSP}; frame-ancestors 'none'"
         assert "font-src data:" in resp.getheader("Content-Security-Policy")
         html = payload.decode()
         assert '<h1 id="verdict-h" class="plain">Too early to tell.</h1>' in html

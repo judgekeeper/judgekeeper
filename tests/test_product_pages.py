@@ -525,7 +525,7 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
             '<th scope="col">Why your judge passed it</th></tr></thead>') in first
     rows = re.findall(r"<tr( class=\"extra\" hidden)?><td data-label", first)
     assert [bool(x) for x in rows] == [False] * 3 + [True] * 2
-    assert ('<td data-label="Question">easy 0</td><td data-label="Answer">a</td>'
+    assert ('<td data-label="Question">easy 0</td><td data-label="Answer" id="a-easy-0">a</td>'
             '<td data-label="Why your judge passed it">r</td>') in first
     second = _part(html, '<section class="group band" aria-labelledby="g-strict">')
     assert '<h2 id="g-strict">You said Pass, your judge said Fail (2)</h2>' in second

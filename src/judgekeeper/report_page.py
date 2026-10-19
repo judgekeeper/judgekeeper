@@ -5,6 +5,12 @@ escaped. Its one script ("Show all" and Copy) is fixed text: the page's
 Content-Security-Policy lets exactly that run (by its hash) and nothing else, both when it is
 served and in the saved copy, which opens with no server.
 
+Served by the marking page (`back` given), each disagreement also asks why the person marked
+it so (reasons.py): buttons to tap, the parts of their rule, their own buttons, an "Other…"
+box and "Mark this part" for words in the answer. A second fixed script (REASONS_SCRIPT) saves
+each change with POST /label, and only that page may connect back (LIVE_CSP). It has no button
+to change a mark. report.html shows the reasons read-only: it has no box, since it can't save.
+
 One column, top to bottom: the verdict, the counts, the disagreements (the marks the person
 can see), how many more are kept aside (the hidden marks: fix.py keeps those to test a new
 rule fairly), More details (the estimates), and Fix it. Which of these show depends on the
@@ -20,9 +26,10 @@ result's level (targets.level):
 
 from __future__ import annotations
 
+import json
 from html import escape
 
-from judgekeeper import batches, look, targets
+from judgekeeper import batches, look, reasons, targets
 from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
@@ -63,8 +70,104 @@ SCRIPT = """
     });
   })();
 """.replace("__TICK__", TICK)
+# The live page's second script: the reason boxes. Each change is saved at once (the "Other…"
+# box when it is left, and at most once a second while typing); the token is the page's own.
+REASONS_SCRIPT = """
+  (function () {
+    var token = new URLSearchParams(location.search).get("token") || "", MAX = __MAX__;
+    function count(text) { return Array.from(text).length; }
+    function each(list, f) { Array.prototype.forEach.call(list, f); }
+    function on(b) { return b.getAttribute("aria-pressed") === "true"; }
+    each(document.querySelectorAll(".why"), function (box) {
+      var saved = box.querySelector(".saved"), input = box.querySelector("input"),
+          other = box.querySelector(".other"), mark = box.querySelector(".mark-part"),
+          clear = box.querySelector(".clear-part"),
+          cell = document.getElementById(box.getAttribute("data-answer")),
+          text = cell.textContent, shown = parseInt(box.getAttribute("data-len"), 10),
+          spans = JSON.parse(box.getAttribute("data-spans") || "[]"),
+          sent = input.value, last = 0, timer = null, pick = null;
+      function body() {
+        var taps = Array.prototype.filter.call(box.querySelectorAll(".chip[aria-pressed]"), on);
+        return {id: box.getAttribute("data-id"),
+                reasons: taps.filter(function (b) { return b.hasAttribute("data-reason"); })
+                  .map(function (b) { return b.getAttribute("data-reason"); }),
+                rule_parts: taps.filter(function (b) { return b.hasAttribute("data-part"); })
+                  .map(function (b) { return Number(b.getAttribute("data-part")); }),
+                spans: spans, note: input.value};
+      }
+      function send() {
+        clearTimeout(timer); last = Date.now(); sent = input.value; saved.textContent = "";
+        window.fetch("/label?token=" + encodeURIComponent(token), {method: "POST",
+          headers: {"Content-Type": "application/json"}, body: JSON.stringify(body())})
+          .then(function (r) {
+            if (r.ok) { saved.textContent = "Saved"; return; }
+            return r.json().then(function (e) {
+              saved.textContent = "Not saved: " + (e.error || r.status); });
+          }, function () { saved.textContent = "Not saved: judgekeeper is not running."; });
+      }
+      function draw() {
+        var chars = Array.from(text), at = 0;
+        while (cell.firstChild) { cell.removeChild(cell.firstChild); }
+        spans.slice().sort(function (a, b) { return a[0] - b[0]; }).forEach(function (s) {
+          var from = Math.max(s[0], at), to = Math.min(s[1], shown);
+          if (to <= from) { return; }
+          cell.appendChild(document.createTextNode(chars.slice(at, from).join("")));
+          var b = document.createElement("b");
+          b.className = "hl"; b.textContent = chars.slice(from, to).join("");
+          cell.appendChild(b); at = to;
+        });
+        cell.appendChild(document.createTextNode(chars.slice(at).join("")));
+        clear.hidden = !spans.length;
+      }
+      each(box.querySelectorAll(".chip[aria-pressed]"), function (b) {
+        b.addEventListener("click", function () {
+          b.setAttribute("aria-pressed", String(!on(b))); send(); });
+      });
+      other.addEventListener("click", function () {
+        var open = other.getAttribute("aria-expanded") !== "true";
+        other.setAttribute("aria-expanded", String(open));
+        document.getElementById(other.getAttribute("aria-controls")).hidden = !open;
+        if (open) { input.focus(); }
+      });
+      input.addEventListener("input", function () {
+        var wait = 1000 - (Date.now() - last);
+        clearTimeout(timer);
+        if (wait <= 0) { send(); } else { timer = setTimeout(send, wait); }
+      });
+      input.addEventListener("blur", function () { if (input.value !== sent) { send(); } });
+      document.addEventListener("selectionchange", function () {
+        var sel = window.getSelection();
+        if (!sel.rangeCount || sel.isCollapsed) { return; }  // a tap on the button may clear it
+        var r = sel.getRangeAt(0), before = document.createRange();
+        pick = null;
+        if (cell.contains(r.startContainer) && cell.contains(r.endContainer)) {
+          before.setStart(cell, 0); before.setEnd(r.startContainer, r.startOffset);
+          var s = count(before.toString()), e = Math.min(s + count(r.toString()), shown);
+          if (e > s) { pick = [s, e]; }
+        }
+        mark.hidden = !pick || spans.length >= MAX;
+      });
+      mark.addEventListener("mousedown", function (e) { e.preventDefault(); });
+      mark.addEventListener("click", function () {
+        if (!pick || spans.length >= MAX) { return; }
+        spans.push(pick); pick = null; mark.hidden = true;
+        window.getSelection().removeAllRanges(); draw(); send(); clear.focus();
+      });
+      clear.addEventListener("click", function () {
+        spans = []; draw(); send(); other.focus(); });
+    });
+  })();
+""".replace("__MAX__", str(reasons.MAX_SPANS))
 CSP = ("default-src 'none'; script-src " + look.script_hash(SCRIPT) + "; style-src "
        "'unsafe-inline'; font-src data:; img-src 'none'; base-uri 'none'; form-action 'none'")
+LIVE_CSP = ("default-src 'none'; script-src " + look.script_hash(SCRIPT) + " "
+            + look.script_hash(REASONS_SCRIPT) + "; style-src 'unsafe-inline'; font-src data:; "
+            "connect-src 'self'; img-src 'none'; base-uri 'none'; form-action 'none'")
+
+
+def script_csp(live: bool = False) -> str:
+    """The page's Content-Security-Policy: the live page may also save reasons."""
+    return LIVE_CSP if live else CSP
 
 STYLE = """
 :root { --gutter: 32px; }
@@ -101,6 +204,34 @@ table { border-collapse: collapse; width: 100%; }
 .tbl th:last-child, .tbl td:last-child { padding-right: 0; }
 .tbl td:last-child { color: var(--muted); }
 .note { margin: 16px 0 0; font-size: 13px; color: var(--muted); text-align: left; }
+.add-why { margin: 24px 0 0; font-size: 15px; color: var(--muted); }
+.add-why code { font-size: 14px; color: var(--text); }
+.tbl tr.has-why td { border-bottom: 0; padding-bottom: 10px; }
+.tbl td.why-cell { white-space: normal; padding-top: 0; color: var(--text); }
+.said { margin: 0; font-size: 15px; line-height: 1.5; color: var(--muted); }
+b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
+  text-decoration-color: var(--amber); text-decoration-thickness: 2px;
+  text-underline-offset: 3px; }
+.why .q { margin: 0 0 10px; font-size: 15px; font-weight: 700; }
+.why .sub { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips + .sub, .chips + .chips { margin-top: 14px; }
+.chip { font-size: 14px; line-height: 1.35; padding: 8px 12px; border: 1px solid var(--line);
+  color: var(--muted); text-align: left; max-width: 100%; overflow-wrap: anywhere; }
+.chip:hover { color: var(--text); background: var(--hover); }
+.chip[aria-pressed="true"] { color: var(--bg); background: var(--text);
+  border-color: var(--text); }
+.chip[aria-pressed="true"]:focus-visible { outline-color: var(--bg); }
+.other[aria-expanded="true"] { color: var(--text); border-color: var(--text); }
+.other-box { margin-top: 12px; display: grid; gap: 6px; max-width: 640px; }
+.other-box label { font-size: 13px; color: var(--muted); }
+.other-box input { font: inherit; font-size: 15px; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); padding: 10px 12px; width: 100%; }
+.marked { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center;
+  gap: 8px 16px; min-height: 24px; }
+.mark-part, .clear-part { font-size: 14px; text-decoration: underline;
+  text-underline-offset: 3px; }
+.saved { font-size: 13px; color: var(--muted); }
 .details { padding-top: 64px; }
 .details h2, .fix h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
 .panel { margin-top: 32px; table-layout: fixed; }
@@ -148,6 +279,9 @@ table { border-collapse: collapse; width: 100%; }
   .tbl td::before { content: attr(data-label); display: block; font-family: var(--mono);
     font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
     margin-bottom: 3px; }
+  .tbl tr.has-why { border-bottom: 0; padding-bottom: 8px; }
+  .tbl tr.why-row { padding-top: 0; }
+  .tbl td.why-cell::before { content: none; }
   .panel, .panel tbody, .panel tr, .panel td, .panel caption { display: block; }
   .panel tr { padding: 12px 0; border-bottom: 1px solid var(--line); }
   .panel td { border: 0; padding: 0; }
@@ -214,6 +348,13 @@ def next_step(r: dict) -> str | None:
     the judge needs work, None when it is good enough, else "mark" (too early to tell)."""
     level = r.get("verdict_level") if r["check"] != "too_few" else None
     return "fix" if level == "not_gate" else None if level == "gate" else "mark"
+
+
+def shows_disagreements(r: dict) -> bool:
+    """Whether the page lists the disagreements (and the estimates): real numbers, not too
+    early to tell."""
+    level = r.get("verdict_level") if r["check"] != "too_few" else None
+    return level not in ("too_early", None)
 
 
 def _all_marked(r: dict) -> str:
@@ -290,19 +431,102 @@ def _counts(r: dict, c: dict) -> str:
         row += (f'<p class="left-out band">Your judge gave no Pass or Fail on '
                 f'{_plural(none, "answer", "answers")}. '
                 f'{"It is" if none == 1 else "They are"} left out.</p>')
+    from judgekeeper.start_label import second_thoughts
+
+    for line in second_thoughts(r.get("made")):
+        row += f'<p class="left-out band">{_e(line)}</p>'
     return row
 
 
-def _group(key: str, said: str, judge: str, rows: list[dict]) -> str:
-    """One group of disagreements: its title, "Show all" past ROWS_SHOWN rows, the table."""
+def _answer(text: str, spans) -> str:
+    """An answer, the words the person marked in bold."""
+    end = len(text) - 1 if text.endswith("…") else len(text)
+    out, at = [], 0
+    for s, e in reasons.merged(spans, end):
+        out += [_e(text[at:s]), f'<b class="hl">{_e(text[s:e])}</b>']
+        at = e
+    return "".join(out) + _e(text[at:])
+
+
+def _said(m: dict, parts: list[str], own: dict[str, str]) -> str:
+    """"Your reason: ..." for report.html, or nothing when the person gave none."""
+    why = m.get("why") or {}
+    said = [reasons.lower(reasons.REASONS[k][0]) if k in reasons.REASONS
+            else f"\u201c{own[k]}\u201d" for k in why.get("reasons") or []
+            if k in reasons.REASONS or k in own]
+    said += [f"rule part {n} (\u201c{parts[n - 1]}\u201d)" for n in why.get("rule_parts") or []
+             if 1 <= n <= len(parts)]
+    if why.get("note"):
+        said.append(f"\u201c{why['note']}\u201d")
+    return f'<p class="said">Your reason: {_e("; ".join(said))}</p>' if said else ""
+
+
+def _chip(text: str, pressed: bool, attr: str) -> str:
+    return (f'<button type="button" class="chip" aria-pressed="{str(pressed).lower()}" '
+            f"{attr}>{_e(text)}</button>")
+
+
+def _box(m: dict, n: str, parts: list[str], own: list[dict]) -> str:
+    """The reason box of one disagreement on the live page."""
+    why = m.get("why") or {}
+    taps, chosen = set(why.get("reasons") or []), set(why.get("rule_parts") or [])
+    mark = "Fail" if m["final"] == "fail" else "Pass"
+    out = [(f'<div class="why" data-id="{_e(m["id"])}" data-answer="a-{n}" '
+            f'data-len="{len(m["answer"]) - m["answer"].endswith("…")}" '
+            f'data-spans="{_e(json.dumps(why.get("spans") or []))}" role="group" '
+            f'aria-labelledby="q-{n}">'),
+           f'<p class="q" id="q-{n}">{_e(reasons.QUESTION.format(mark=mark))}</p>']
+    if parts:
+        out.append(f'<p class="sub" id="p-{n}">{_e(reasons.PART_QUESTION[m["judge"]])}</p>'
+                   f'<div class="chips" role="group" aria-labelledby="p-{n}">'
+                   + "".join(_chip(f"{k}. {text}", k in chosen, f'data-part="{k}"')
+                             for k, text in enumerate(parts, 1)) + "</div>")
+    chips = [_chip(reasons.REASONS[k][0], k in taps, f'data-reason="{k}"')
+             for k in reasons.offered(m["judge"])]
+    chips += [_chip(c["text"], c["id"] in taps, f'data-reason="{_e(c["id"])}"')
+              for c in own if c.get("from") != m["id"]]
+    note, opened = why.get("note") or "", bool(why.get("note"))
+    chips.append(f'<button type="button" class="chip other" aria-expanded="'
+                 f'{str(opened).lower()}" aria-controls="o-{n}">{_e(reasons.OTHER)}</button>')
+    out.append(f'<div class="chips" role="group" aria-labelledby="q-{n}">{"".join(chips)}'
+               "</div>")
+    out.append(f'<div class="other-box" id="o-{n}"{"" if opened else " hidden"}>'
+               f'<label for="n-{n}">Your reason, in your words</label>'
+               f'<input type="text" id="n-{n}" maxlength="{reasons.MAX_NOTE}" '
+               f'autocomplete="off" value="{_e(note)}"></div>')
+    out.append('<div class="marked"><button type="button" class="mark-part" hidden>Mark this '
+               'part</button><button type="button" class="clear-part"'
+               f'{"" if why.get("spans") else " hidden"}>Clear marked words</button>'
+               '<span class="saved" aria-live="polite"></span></div>')
+    return "".join(out) + "</div>"
+
+
+def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False,
+           parts: list[str] | None = None, own: list[dict] | None = None) -> str:
+    """One group of disagreements: its title, "Show all" past ROWS_SHOWN rows, the table.
+    Each row is followed by its reason box on the live page (`live`), or by the person's
+    reasons, read-only, in report.html."""
     why = f"Why your judge {judge} it"
+    parts, own = parts or [], own or []
+    words = {c["id"]: c["text"] for c in own}
     body = []
     for k, m in enumerate(rows):
-        extra = ' class="extra" hidden' if k >= ROWS_SHOWN else ""
-        body.append(f'<tr{extra}><td data-label="Question">{_e(m["question"])}</td>'
-                    f'<td data-label="Answer">{_e(m["answer"])}</td>'
+        n = f"{key}-{k}"
+        after = (_box(m, n, parts, own) if live and m.get("id") is not None
+                 else _said(m, parts, words))
+        extra = ["extra"] if k >= ROWS_SHOWN else []
+        hidden = " hidden" if extra else ""
+        cls = " ".join(extra + (["has-why"] if after else []))
+        cls = f' class="{cls}"' if cls else ""
+        body.append(f'<tr{cls}{hidden}>'
+                    f'<td data-label="Question">{_e(m["question"])}</td>'
+                    f'<td data-label="Answer" id="a-{n}">'
+                    f'{_answer(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
                     f'<td data-label="{why}">{_e(m.get("reason") or "No reason given")}</td>'
                     "</tr>")
+        if after:
+            body.append(f'<tr class="{" ".join(extra + ["why-row"])}"{hidden}>'
+                        f'<td colspan="3" class="why-cell">{after}</td></tr>')
     more = (f'<button type="button" class="more" aria-expanded="false" '
             f'aria-controls="t-{key}">Show all</button>' if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
@@ -313,21 +537,33 @@ def _group(key: str, said: str, judge: str, rows: list[dict]) -> str:
             f'<tbody>{"".join(body)}</tbody></table></section>')
 
 
-def _groups(c: dict, fixing: dict | None) -> str:
+def _groups(c: dict, fixing: dict | None, live: bool = False,
+            mark: str | None = None) -> str:
     """The disagreements on the marks the person can see, in two groups, and how many more
-    are among the hidden marks."""
+    are among the hidden marks. On the live page, a line first: add a reason. In
+    report.html, which can't save one, a line last: to say why, run `mark` (`mark`: the
+    command)."""
+    from judgekeeper.start_label import SAY_WHY_RUN
+
     mistakes = (fixing or {}).get("mistakes") or []
+    parts, own = (fixing or {}).get("parts") or [], (fixing or {}).get("own") or []
     out = []
+    if live and mistakes:
+        out.append(f'<div class="band"><p class="add-why">{_code_line(reasons.ADD)}</p></div>')
     for key, said, judge in (("easy", "You said Fail, your judge said Pass", "pass"),
                              ("strict", "You said Pass, your judge said Fail", "fail")):
         rows = [m for m in mistakes if m.get("judge") == judge]
         if rows:
-            out.append(_group(key, said, "passed" if judge == "pass" else "failed", rows))
+            out.append(_group(key, said, "passed" if judge == "pass" else "failed", rows,
+                              live, parts, own))
     hidden = max(0, c["strict"] + c["easy"] - len(mistakes))
     if hidden:
         out.append(f'<div class="band"><p class="note">* {hidden} more '
                    f'{"is" if hidden == 1 else "are"} kept aside to test your new rule '
                    "fairly.</p></div>")
+    if mistakes and not live and mark:
+        out.append(f'<div class="band"><p class="add-why">'
+                   f"{_code_line(SAY_WHY_RUN.format(command=mark))}</p></div>")
     return "".join(out)
 
 
@@ -412,11 +648,16 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     left = look.meta(_e(model) if model else None, _e(tool) if tool else None)
     level = r.get("verdict_level") if r["check"] != "too_few" else None
     parts = [_verdict(r, c, back, worse), _counts(r, c)]
-    if level not in ("too_early", None):  # real numbers: the disagreements and the estimates
-        parts += [_groups(c, fixing), _details(r)]
+    live = back is not None
+    if shows_disagreements(r):  # real numbers: the disagreements and the estimates
+        mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out
+        parts += [_groups(c, fixing, live, mark), _details(r)]
     if level == "not_gate" and not worse:
         parts.append(_fix(r))
-    meta = f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
+    meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'
+    scripts = f"<script>{SCRIPT}</script>\n"
+    if live and 'class="why"' in "".join(parts):
+        scripts += f"<script>{REASONS_SCRIPT}</script>\n"
     return (look.head("judgekeeper: your result", STYLE, meta)
             + look.top(left, "") + '<main class="result">' + "".join(parts)
-            + f"</main>\n<script>{SCRIPT}</script>\n</body>\n</html>\n")
+            + f"</main>\n{scripts}</body>\n</html>\n")

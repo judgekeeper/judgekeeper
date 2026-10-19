@@ -133,6 +133,8 @@ STILL_OPEN = "The marking page is still open if you want to mark more answers."
 AGREES = "How often your judge agrees with you (estimates):"
 NEXT_MARK_MORE = "run `{command}` to mark more answers."
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
+SAY_WHY = "Say why on the answers you and your judge disagree on; `fix` uses your reasons."
+RESULT_OPEN = "Your result page is open in your browser."
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
 NEXT_ANY_PORT = "run `{command}` (it opens the page on any free port)."
@@ -1060,13 +1062,16 @@ def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool)
                                         start_label.mark_command(_command_of(talk, saved)))
 
 
-def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool) -> tuple[page.Page, str]:
-    """A new page (the open one closed), shown: (the page, how it was shown)."""
+def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
+          result: bool = False) -> tuple[page.Page, str]:
+    """A new page (the open one closed), shown: (the page, how it was shown). `result`:
+    opened at its result page."""
     opened = None
     try:
         opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved, "mark"),
                                _command_of(talk, saved), here=wait, say=talk.say)
-        shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait)
+        shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait,
+                                     result)
     except KeyboardInterrupt:  # before its link was printed: no page is left running
         page.close(ws, opened)
         raise
@@ -1094,12 +1099,23 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     (page.open_new)."""
     n_pass, n_fail = counts["correct"], counts["wrong"]
     n = n_pass + n_fail
-    items = StartSession(ws).items
+    session = StartSession(ws)
+    items = session.items
     command = _command_of(talk, saved)
     if marking and n and n == len(items):
         talk.say(f"You have marked all {_n(n, 'answer')}. There are no more to mark.")
         talk.say()
+        opened = None
+        # disagreements the person can see: the result page, with its reason boxes
+        if start_label.why_count(ws, start_label.compute(ws, session)):
+            opened, shown = _open(talk, ws, wait, saved, result=True)
+            talk.para(f"{RESULT_OPEN} {SAY_WHY}" if shown == page.BROWSER else SAY_WHY)
+            if opened.server is not None:
+                talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
+            talk.say()
         talk.para(_all_marked_lines(talk, ws, counts, saved)[1])  # new answers join later
+        if opened is not None and opened.server is not None:
+            page.serve(opened.server)
         return EXIT_OK
     talk.say(STEP.format(n=2, name="Mark (more answers)" if marking and enough else "Mark"))
     talk.say()
@@ -1224,7 +1240,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     worse = was and checking.worse_step(was["before"], was["after"], _check_command(talk))
     r = start_label.store_result(ws, session, _command_of(talk, saved), worse=worse or None,
                                  redraw=True)
-    made = r.get("made") or marks.made(marks.read(ws.marks), ids=set(session.by_id))
+    made = marks.made(marks.read(ws.marks), ids=set(session.by_id))  # reasons added since
     for line in made_lines(made)[1:]:  # the notes on how they were made; the count is below
         talk.para(line)
         talk.say()
@@ -1234,6 +1250,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.say(line)
         else:
             talk.para(line)
+    if not worse and start_label.why_count(ws, r):  # the result page has a box on each
+        talk.say()
+        talk.para(start_label.SAY_WHY_RUN.format(command=_command_of(talk, saved, "mark")))
     if r["verdict_level"] in ("gate", "not_gate"):  # too early to tell: counts only
         talk.say()
         for line in estimate_lines(r):

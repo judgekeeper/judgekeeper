@@ -588,12 +588,12 @@ def test_a_result_before_the_end_keeps_serving(tmp_path):
     client.label(id="it0", label="pass")
     resp, payload = client.request("GET", "/result")
     assert resp.status == 200 and b"1 labeled" in payload
-    from judgekeeper.report_page import CSP
+    from judgekeeper.report_page import LIVE_CSP
 
     csp = resp.getheader("Content-Security-Policy")
-    assert csp == f"{CSP}; frame-ancestors 'none'"
+    assert csp == f"{LIVE_CSP}; frame-ancestors 'none'"  # it may save reasons
     scripts = csp.split("script-src ")[1].split(";")[0].split()
-    assert len(scripts) == 1 and scripts[0].startswith("'sha256-")  # its own one
+    assert len(scripts) == 2 and all(s.startswith("'sha256-") for s in scripts)  # its own two
     thread.join(timeout=0.5)
     assert thread.is_alive()
     server.stop()

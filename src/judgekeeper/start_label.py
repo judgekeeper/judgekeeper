@@ -53,7 +53,7 @@ import re
 import secrets
 from pathlib import Path
 
-from judgekeeper import __version__, batches, judge_check, marks, targets, weighted
+from judgekeeper import __version__, batches, judge_check, marks, reasons, targets, weighted
 from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import JudgeFingerprint, rule_hash, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
@@ -113,6 +113,7 @@ ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
 TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges still too wide
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
+SAY_WHY_RUN = "To say why on these, run `{command}`."  # under the disagreements
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
                    "the ones you marked.")
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
@@ -457,22 +458,50 @@ class StartSession(LabelSession):
     def update(self, body: dict) -> None:
         """Apply one change ({"id", "label"?, "deferred"?, "note"?, "seconds"?}) and add its
         stamped line. The marks on disk are read again first, so marks another page wrote are
-        kept."""
+        kept. A change with reasons and no mark (the result page) is a reason line
+        (add_reasons). A mark changed after the judge's grades were shown is stamped so."""
         self._reread()
         item = self.by_id[body["id"]]
+        if any(k in body for k in ("reasons", "note", "rule_parts", "spans")):
+            if "label" in body or "deferred" in body:
+                raise ValueError("a reason is given on your result page, not with a mark")
+            self.add_reasons(item, body)
+            return
         before = dict(item)
         try:
             self._apply(item, body)
             mark = item["label"] or ("skip" if item["deferred"] else None)
+            changed = before["label"] in ("pass", "fail") and mark != before["label"]
             line = marks.stamp(item["id"], mark, self.groups.get(item["id"]),
                                body.get("seconds"), self.sitting, note=body.get("note"),
-                               link=self.link)
+                               link=self.link,
+                               after_result=changed and reasons.grades_shown(self.workspace))
             if not self.out.is_file():
                 begin_marks(self.workspace)
             marks.append(self.out, line)
         except BaseException:
             item.update(before)  # memory matches the file on disk
             raise
+
+    def add_reasons(self, item: dict, body: dict) -> None:
+        """Why the person disagrees with the judge on `item` (reasons.check), as a line with
+        the same mark; the person's own button follows the "Other…" box, and report.html is
+        drawn again with the reasons."""
+        why = reasons.check(self.workspace, item["id"], item["label"],
+                            self.groups.get(item["id"]), body,
+                            marks.read(self.out).last.get(item["id"]))
+        marks.append(self.out, marks.stamp(item["id"], item["label"],
+                                           self.groups.get(item["id"]), None, self.sitting,
+                                           link=self.link, why=why))
+        if "note" in body:
+            m = marks.read(self.out)
+            tapped = {k for i, x in m.last.items() if i != item["id"]
+                      for k in x.get("reasons") or []}
+            reasons.sync_own(self.workspace, item["id"], why.get("note", ""), tapped)
+        try:
+            write_report(self.workspace)
+        except OSError:
+            pass  # the reasons are saved; report.html catches up with the next result
 
     def write(self) -> None:
         raise NotImplementedError("marks.jsonl gets one line per change: use update()")
@@ -673,15 +702,28 @@ def made_lines(made: dict | None) -> list[str]:
         [(f"{printed} of your marks came through a link printed in a terminal, so another "
           f"program on this computer could have made {them}. If you marked {them} yourself, "
           "nothing to do.")]
-        if printed else [])
+        if printed else []) + second_thoughts(made)
+
+
+def second_thoughts(made: dict | None) -> list[str]:
+    """How many marks the person wasn't sure about, and how many they changed after seeing the
+    judge's grades (marks.made): the same in the terminal, on the result page and report.html."""
+    made = made or {}
+    out = []
+    if made.get("unsure"):
+        out.append(f"You weren't sure about {made['unsure']} of your marks.")
+    if made.get("after_result"):
+        out.append(f"You changed {_plural(made['after_result'], 'mark', 'marks')} after seeing "
+                   "your judge's grades.")
+    return out
 
 
 def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
                 worse: str | None = None) -> str:
-    """The result page; `back`: the link to the marking page while it runs; `fixing`: the
-    mistakes the person can see (fix.report_section); `worse`: the next step after a check
-    found the new judge worse (check.worse_step). No value on it holds a hidden character
-    (redact.visible)."""
+    """The result page; `back`: the link to the marking page while it runs (the page then asks
+    why on each disagreement); `fixing`: the mistakes the person can see
+    (fix.report_section); `worse`: the next step after a check found the new judge worse
+    (check.worse_step). No value on it holds a hidden character (redact.visible)."""
     from judgekeeper.report_page import page
 
     return visible(page(r, back, fixing, worse))
@@ -689,12 +731,44 @@ def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
 
 def _fixing(ws: Workspace) -> dict | None:
     """The disagreements, after the hidden marks are set aside (fix.prepare_split): no mistake
-    is shown from a mark that a later test hides."""
+    is shown from a mark that a later test hides. Once they are shown, a mark changed later is
+    stamped (reasons.saw_grades). The answers' ids stay as they are: the page posts them."""
     from judgekeeper import fix
 
     fix.prepare_split(ws)
     section = fix.report_section(ws)
-    return _scrubbed(section) if section else None
+    if not section:
+        return None
+    reasons.saw_grades(ws)
+    ids = [m["id"] for m in section["mistakes"]]
+    section = _scrubbed(section)
+    for m, i in zip(section["mistakes"], ids, strict=True):
+        m["id"] = i
+    return section
+
+
+def why_count(ws: Workspace, r: dict) -> int:
+    """How many disagreements the result page lists with a reason box, for the result
+    `r`: none while it is too early to tell (the page lists none), else the mistakes on
+    the marks the person can see (fix.report_section), the hidden marks set aside first."""
+    from judgekeeper import fix
+    from judgekeeper.report_page import shows_disagreements
+
+    if not shows_disagreements(r):
+        return 0
+    fix.prepare_split(ws)
+    section = fix.report_section(ws)
+    return len(section["mistakes"]) if section else 0
+
+
+def _now(ws: Workspace, r: dict) -> dict:
+    """`r` with how the marks were made counted again: reasons added after the result change
+    what the pages say, not the result."""
+    try:
+        ids = {q["id"] for q in ws.data().get("queue") or []}
+        return {**r, "made": marks.made(marks.read(ws.marks), ids=ids)}
+    except (OSError, ValueError, KeyError, TypeError):
+        return r
 
 
 def write_report(ws: Workspace, worse: str | None = None) -> None:
@@ -704,8 +778,16 @@ def write_report(ws: Workspace, worse: str | None = None) -> None:
     except (OSError, ValueError):
         return
     if isinstance(r, dict):
-        write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws),
+        write_replacing(ws.report_html, result_html(_scrubbed(_now(ws, r)), fixing=_fixing(ws),
                                                     worse=worse))
+
+
+def live_result(ws: Workspace, session: StartSession, command: str | None = None,
+                back: str = "/") -> str:
+    """The result page the marking page serves at /result: the result from the marks so far,
+    with the reason boxes."""
+    r = store_result(ws, session, command)
+    return result_html(_scrubbed(_now(ws, r)), back, fixing=_fixing(ws))
 
 
 def page_template(about: dict | None = None, command: str | None = None) -> str:
