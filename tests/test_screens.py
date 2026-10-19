@@ -181,6 +181,8 @@ def test_screen_4_every_answer_marked(here, capsys, pages):
     assert code == 0
     assert lines == [
         *HEAD,
+        "Step 2 of 5: Mark",
+        "",
         "You have marked all 40 answers. There are no more to mark.",
         "",
         "Next: run your eval on more questions, then run",

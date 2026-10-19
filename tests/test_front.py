@@ -453,11 +453,11 @@ def test_the_questions_are_listed_together_after_the_checks(here, capsys):
     nested_runs_project(here)
     code, out, _ = run(capsys, "--metric", "Safe wording")
     assert code == 3
-    assert "(read from history/evals.jsonl, 3 lines)" in out  # the counts the questions lead to
-    assert "42 answers, each graded by your judge" in out
+    # the counts depend on the answers (A and B; rows left out): printed after them
+    assert "answers, each graded by your judge" not in out and "Checked:" not in out
     heading = front.QUESTIONS.format(which="these 3 questions")
     listed = flat(out[out.index(heading):])
-    assert out.index("Checked:") < out.index(heading)
+    assert out.index("How judgekeeper reads it:") < out.index(heading)
     assert "1. Each item has 2 answers (A and B). Count each as its own answer?" in listed
     assert "2. 6 answers have an error or a score made by a rule" in listed
     assert "3. Save how to read history/evals.jsonl in judgekeeper.toml?" in listed

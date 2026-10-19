@@ -35,7 +35,10 @@ def judge_model(spec):
     if spec.get("class"):
         from deepeval import models
 
-        return getattr(models, spec["class"])(model=spec["name"])
+        cls = getattr(models, spec["class"])
+        if spec["class"] == "AzureOpenAIModel":  # endpoint, key and version: its own settings
+            return cls(model_name=spec["name"])
+        return cls(model=spec["name"])
     return spec["name"]
 
 

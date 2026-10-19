@@ -10,7 +10,6 @@ your own terminal.
   re-tests the new judge on your marks and says whether it got worse on the answers you passed
   or failed. Grades your newest results already hold are used first, for free. When it needs
   AI calls, it says how many and asks first (without a terminal, `--yes` says yes).
-- The report has a History of every check.
 - Every screen says which of the 5 steps it is, and its `Next:` line says what you do next.
 - The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files.
 - Broken results files give a clear message instead of a Python error.

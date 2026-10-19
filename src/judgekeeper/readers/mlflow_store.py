@@ -60,6 +60,7 @@ import os
 import shutil
 import tempfile
 import threading
+from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -252,6 +253,25 @@ def remove_copies() -> None:
 atexit.register(remove_copies)
 
 
+@contextmanager
+def _tracking(uri) -> Iterator[None]:
+    """MLflow's own tracking URI set to the store read, for this read only: MLflow resolves
+    where a trace's files are against it, and its default (./mlruns) is never the store the
+    person chose."""
+    try:
+        import mlflow
+    except ImportError:
+        yield
+        return
+    before = mlflow.get_tracking_uri()
+    try:
+        if uri:
+            mlflow.set_tracking_uri(uri)
+        yield
+    finally:
+        mlflow.set_tracking_uri(before)
+
+
 def _client(tracking_uri):
     try:
         from mlflow import MlflowClient
@@ -304,12 +324,20 @@ def _traces(client, experiment_id: str, folder: Path | None = None,
     store is copied or cloned, and then drops the trace. A trace whose files are in neither
     place is left out, its id added to `missing`."""
     scope = _trace_scope(client.search_traces, experiment_id)
-    local = folder is not None and "include_spans" in inspect.signature(
-        client.search_traces).parameters
+    can_skip = "include_spans" in inspect.signature(client.search_traces).parameters
+    local = folder is not None and can_skip
+    server_only = False  # the spans are on an artifact server that isn't there
     token = None
     while True:
-        extra = {"include_spans": False} if local else {}
-        page = client.search_traces(**scope, max_results=PAGE_SIZE, page_token=token, **extra)
+        extra = {"include_spans": False} if local or server_only else {}
+        try:
+            page = client.search_traces(**scope, max_results=PAGE_SIZE, page_token=token,
+                                        **extra)
+        except Exception as e:  # MLflow's own error, read for one cause only
+            if server_only or not can_skip or "mlflow-artifacts" not in str(e):
+                raise
+            server_only = True  # read what the store itself holds (the previews)
+            continue
         for trace in page:
             if local:
                 page_trace_id = trace.info.trace_id
@@ -362,6 +390,9 @@ def _content(trace) -> tuple:
         request = meta.get(TRACE_INPUTS)
     if response is None:
         response = meta.get(TRACE_OUTPUTS)
+    if request is None and response is None:  # no spans: what the store keeps of them
+        request = getattr(trace.info, "request_preview", None)
+        response = getattr(trace.info, "response_preview", None)
     return _json(request), _json(response)
 
 
@@ -386,8 +417,8 @@ def _value(feedback: dict) -> tuple:
     """(label, score, error text) from an assessment's feedback."""
     error = feedback.get("error")
     if error:
-        code, message = error.get("error_code"), error.get("error_message")
-        return None, None, ": ".join(str(x) for x in (code, message) if x) or "error"
+        code = error.get("error_code") if isinstance(error, dict) else None
+        return None, None, str(code) if code else "error"  # never the message: it can quote data
     v = feedback.get("value")
     if isinstance(v, bool):
         return ("pass" if v else "fail"), None, None
@@ -436,7 +467,7 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     """
     said: list[str] = []
     uri = tracking_uri or os.environ.get("MLFLOW_TRACKING_URI")
-    with folder_store_allowed(uri, say=said.append), quiet():
+    with folder_store_allowed(uri, say=said.append), quiet(), _tracking(uri):
         try:
             files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature,
                                  metric, folder_of(uri))
@@ -527,26 +558,29 @@ class JudgeCallsFailed(RecordsError):
                  "evaluation again, then run `{command}`.")
 
 
-def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, experiment) -> None:
+def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, experiment,
+                code_names: set | None = None) -> None:
     """The failed calls (SCORER_ERROR) of each LLM judge, as its verdicts with no decision:
-    the same judge (evaluator) as its other verdicts, MLflow's error text as the
-    explanation. With no LLM judge verdict at all, every call failed: RecordsError."""
+    the same judge (evaluator) as its other verdicts, the error's code as the explanation.
+    A scorer that only ever failed (no verdict of its name, from a judge or from code) is
+    taken for a judge whose every call failed, never dropped in silence; one that also has
+    code verdicts is a code scorer. With no LLM judge verdict at all: RecordsError."""
     evaluators: dict[tuple, dict] = {}
     for run, recs in judged.items():
         for r in recs:
             evaluators.setdefault((run, r.name), r.evaluator)
             evaluators.setdefault((None, r.name), r.evaluator)
-    gone = [f for f in failed if not wanted or f[0] in wanted]
+    code_names = code_names or set()
+    gone = [f for f in failed if (not wanted or f[0] in wanted)
+            and not (f[1]["name"] in code_names and (None, f[1]["name"]) not in evaluators)]
     if not judged and gone:
         names = sorted({str(f[1]["name"]) for f in gone})
         raise JudgeCallsFailed(
             f"MLflow experiment {experiment!r}: every call of your judge "
             f"{', '.join(names)} failed ({len(gone)} saved as errors).")
     for run, fields, error in gone:
-        evaluator = evaluators.get((run, fields["name"])) or evaluators.get((None,
-                                                                             fields["name"]))
-        if evaluator is None:
-            continue  # a code scorer that failed: not a judge's call
+        evaluator = evaluators.get((run, fields["name"])) or evaluators.get(
+            (None, fields["name"])) or {}  # a judge that only failed: its model unknown
         judged.setdefault(run, RecordList()).append(ScoreRecord(
             annotator_kind=LLM, explanation=error, evaluator=dict(evaluator), label=None,
             score=None, metadata={}, mark=Mark(problem="error"), **fields))
@@ -554,6 +588,17 @@ def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, exper
 
 class TracesMissing(RecordsError):
     """The experiment's traces are listed, but the files that hold them are not there."""
+
+
+class ArtifactServer(RecordsError):
+    """The traces' text lives on a tracking server (mlflow-artifacts:) that isn't running,
+    and the store itself holds none of it."""
+
+    next_step = "start that server, then run `{command}` with MLFLOW_TRACKING_URI set to it."
+
+
+SERVER_ONLY = ("These MLflow traces were saved to a tracking server (mlflow-artifacts:). "
+               "Their text isn't in {store}, so there is nothing to show you for marking.")
 
 
 def missing_line(n: int, folder: str) -> str:
@@ -579,6 +624,7 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     on_spans: list[tuple[str | None, ScoreRecord]] = []  # (run, record) of span assessments
     missing_ids = 0
     n_traces = 0
+    no_text = 0  # traces with neither spans nor previews: their text is elsewhere
     missing: list[str] = []
     damaged: list[str] = []  # the ids of traces left out for a damaged field
     capped = False
@@ -592,12 +638,17 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
                  {run: len(recs) for run, recs in judged.items()})
         try:
             request, response = _content(trace)
+            if request is None and response is None:
+                no_text += 1
+                continue
             item_id = _item_id(trace, request, id_from)
             if item_id is None:
                 missing_ids += 1
                 continue
             trace_run = (trace.info.trace_metadata or {}).get(TRACE_SOURCE_RUN)
             root = _root_span(trace)
+            # no spans at all (their files are on a server): every assessment is on the answer
+            no_spans = not (getattr(getattr(trace, "data", None), "spans", None) or [])
             for a in trace.info.assessments or []:
                 d = a.to_dictionary()
                 feedback = d.get("feedback")
@@ -620,7 +671,7 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
                           "label": label, "score": score, "input": request, "output": response,
                           "created_at": d.get("create_time"),
                           "metadata": {"span_id": span} if span else {}}
-                if span == root:
+                if span == root or no_spans:
                     span = None  # on the root span: a verdict on the whole answer
                 if kind == HUMAN and d.get("valid") is False:
                     continue  # overridden by a later human assessment
@@ -673,7 +724,10 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
             "evaluation again on this computer, or point judgekeeper at a store that has them.")
     if n_traces == 0:
         raise RecordsError(f"MLflow experiment {exp.name!r} has no traces")
-    _add_failed(judged, failed, wanted, exp.name)
+    _add_failed(judged, failed, wanted, exp.name,
+                code_names={r.name for r in humans if r.annotator_kind == CODE})
+    if no_text and no_text == n_traces:
+        raise ArtifactServer(SERVER_ONLY.format(store=store_name(tracking_uri)))
     on_traces = {r.name for recs in judged.values() for r in recs}
     left_out = 0
     for run, record in on_spans:
@@ -702,10 +756,16 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
         shown.append(f"{n} = {run_id}" + (f" ({name})" if name else ""))
         files.append((run_id, recs))
     humans.ids_derived = id_from is None
+    code_counts = Counter(r.name for r in humans if r.annotator_kind == CODE)
+    if code_counts:
+        n = sum(code_counts.values())
+        humans.notes.append(f"{n} {'assessment' if n == 1 else 'assessments'} from code scorers "
+                            f"({', '.join(sorted(map(str, code_counts)))}) are rules in code, "
+                            "not an LLM judge: left out.")
     humans.notes.append(f"Runs are MLflow runs in start order: {', '.join(shown)}.")
     if NO_RUN in judged:
-        humans.notes.append("Some judge assessments carry no MLflow run id (logged outside "
-                            "mlflow.genai.evaluate): they form one run, listed last.")
+        humans.notes.append("Some judge assessments carry no MLflow run id (logged by hand, "
+                            "outside an evaluate run): they form one run, listed last.")
     if not any(r.evaluator.get("rule") for recs in judged.values() for r in recs):
         humans.notes.append("MLflow does not save the judge's prompt with its assessments: "
                             "prompt hash unknown.")

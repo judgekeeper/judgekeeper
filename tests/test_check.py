@@ -230,7 +230,7 @@ SCENE_6 = [
     "  You failed 25 answers. Your old judge agreed with you on 25,",
     "  your new judge on 16.",
     "    Worse: 9 answers went from right to wrong, and none from wrong to right.",
-    "    That is about 36 points lower, and could be as much as 52.",
+    "    That is about 36 points lower (between 22 and 52).",
     "",
 ]
 

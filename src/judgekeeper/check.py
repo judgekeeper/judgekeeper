@@ -732,8 +732,8 @@ def paired_lines(g: dict) -> list[str]:
     if g["verdict"] == "worse":
         went = f"{wrong} {'answer' if wrong == 1 else 'answers'} went"
         return [f"Worse: {went} from right to wrong, and {_count(right)} from wrong to right.",
-                (f"That is about {_points(g['change'])} points lower, and could be as much as "
-                 f"{_points(g['low'])}.")]
+                (f"That is about {_points(g['change'])} points lower (between "
+                 f"{_points(g['high'])} and {_points(g['low'])}).")]
     if g["verdict"] == "not_sure":
         return [(f"Not sure: {_count(wrong)} went from right to wrong, and {_count(right)} from "
                  f"wrong to right. It could be up to {_points(g['low'])} points worse.")]

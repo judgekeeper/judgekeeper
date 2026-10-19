@@ -50,6 +50,7 @@ from judgekeeper.records import (
     load_json,
     read_rows,
 )
+from judgekeeper.textio import error_type
 
 POSITIONAL = re.compile(r"(conversational_)?test_case_\d+")
 STAMP = re.compile(r"test_run_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})")
@@ -192,7 +193,8 @@ def read_deepeval(path: str | Path) -> RecordList:
             label = None if not isinstance(success, bool) else ("pass" if success else "fail")
             records.append(ScoreRecord(
                 target_id=item_id, name=md["name"], annotator_kind=LLM, label=label,
-                score=md.get("score"), explanation=md.get("reason") or md.get("error") or None,
+                score=md.get("score"), explanation=md.get("reason") or (error_type(md["error"]) if md.get("error")
+                                                 else None),
                 input=item_input, output=output, evaluator=evaluator, created_at=created_at,
                 mark=_mark(md, label, conversational)))
 

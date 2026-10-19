@@ -134,7 +134,8 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
     ws = start_label.Workspace(here)
     assert marks.read(ws.marks).header["pool"] == {"pass": 20, "fail": 16}
     assert ws.start.is_file() and ws.pool.is_file()
-    assert (ws.dir / "judge.json").is_file() and (ws.dir / "judge-check.json").is_file()
+    assert (ws.dir / "judge.json").is_file()
+    assert not (ws.dir / "judge-check.json").exists()  # nothing to list: no file
 
 
 def test_a_question_is_asked_as_today(here, capsys, pages):

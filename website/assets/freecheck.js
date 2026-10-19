@@ -50,8 +50,11 @@
   var NOT_UTF8 = 'This file is not saved as UTF-8 text, so it cannot be read.';
   var EMPTY = 'This file is empty.';
   var FULL_TOOL = 'Inspect AI and MLflow results are read by the full tool: run uvx judgekeeper in your project.';
-  // first bytes: a zip (Inspect's .eval log) and an SQLite file (an MLflow store)
-  var BINARY_STARTS = [[0x50, 0x4B, 0x03, 0x04], Array.from('SQLite format 3\0', function (c) { return c.charCodeAt(0); })];
+  var EXCEL_FILE = "Excel files aren't read. Save it as CSV UTF-8.";
+  // first bytes: a zip (Inspect's .eval log, or an Excel file) and an SQLite file (an MLflow store)
+  var ZIP_START = [0x50, 0x4B, 0x03, 0x04];
+  var BINARY_STARTS = [ZIP_START, Array.from('SQLite format 3\0', function (c) { return c.charCodeAt(0); })];
+  var EXCEL_ENTRIES = ['[Content_Types].xml', 'xl/', '_rels/', 'docProps/'];
   var NOT_JSON = "This file isn't valid JSON that judgekeeper can read.";
   var EVERY_ANSWER = 'your judge gave every answer a clear Pass or Fail.';
   var FREE_CHECK = 'Checked: ';
@@ -538,16 +541,21 @@
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ r: r, v: v, kind: kind });
     });
-    var pool = { answers: [], left: [], merged: 0, unmapped: unmapped, unread: unread };
+    var pool = { answers: [], left: [], merged: 0, split: [], unmapped: unmapped, unread: unread };
     groups.forEach(function (seen) {
       var judged = seen.filter(function (s) { return s.kind === null; });
       if (!judged.length) { pool.left.push({ kind: seen[0].kind, r: seen[0].r }); return; }
-      pool.merged += judged.length - 1;
       var passes = judged.filter(function (s) { return s.v.verdict === 'pass'; }).length;
-      var verdict = passes * 2 > judged.length ? 'pass' : 'fail';
-      var chosen = judged.slice().reverse().find(function (s) { return s.v.verdict === verdict; });
-      pool.answers.push({ verdict: verdict, input: chosen.r.input, output: chosen.r.output, outputElsewhere: !!chosen.r.outputElsewhere,
-        reason: chosen.v.rationale || chosen.r.reason || '', score: pyNumber(chosen.r.score), passMark: pyNumber(threshold) });
+      if (passes === 0 || passes === judged.length) {  // the same grade every time: one answer
+        pool.merged += judged.length - 1;
+        judged = judged.slice(-1);
+      } else {  // different grades: each repeat is its own answer, never merged in silence
+        pool.split.push([judged.length, passes, judged.length - passes]);
+      }
+      judged.forEach(function (chosen) {
+        pool.answers.push({ verdict: chosen.v.verdict, input: chosen.r.input, output: chosen.r.output, outputElsewhere: !!chosen.r.outputElsewhere,
+          reason: chosen.v.rationale || chosen.r.reason || '', score: pyNumber(chosen.r.score), passMark: pyNumber(threshold) });
+      });
     });
     pool.nPass = pool.answers.filter(function (a) { return a.verdict === 'pass'; }).length;
     pool.nFail = pool.answers.length - pool.nPass;
@@ -766,11 +774,21 @@
 
   /* ---------- the check: text in, report data out ---------- */
 
+  // an Excel file is a zip whose first entry is [Content_Types].xml, xl/, _rels/ or docProps/:
+  // the entry's name starts at byte 30 of a zip, its length is at bytes 26-27
+  function isExcel(bytes) {
+    if (!ZIP_START.every(function (b, i) { return bytes[i] === b; }) || bytes.length < 30) return false;
+    var length = bytes[26] + 256 * bytes[27];
+    var name = '';
+    for (var i = 30; i < 30 + length && i < bytes.length; i++) name += String.fromCharCode(bytes[i]);
+    return EXCEL_ENTRIES.some(function (entry) { return name.indexOf(entry) === 0; });
+  }
+
   // the file's bytes, as the page reads them: the kinds told by their first bytes, then UTF-8
   function checkBytes(bytes, fileName) {
     bytes = new Uint8Array(bytes);
     if (BINARY_STARTS.some(function (start) { return start.every(function (b, i) { return bytes[i] === b; }); })) {
-      return fail('full-tool', FULL_TOOL);
+      return fail(isExcel(bytes) ? 'excel' : 'full-tool', isExcel(bytes) ? EXCEL_FILE : FULL_TOOL);
     }
     var fileText;
     try { fileText = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (e) { return fail('not-utf8', NOT_UTF8); }
@@ -822,7 +840,7 @@
       showName: nMetrics > 1 || r.tool === 'deepeval',
       answers: block.answers,
       pass: pool.nPass, fail: pool.nFail,
-      merged: pool.merged, human: r.nHuman, unmapped: pool.unmapped,
+      merged: pool.merged, split: pool.split, human: r.nHuman, unmapped: pool.unmapped,
       unread: pool.unread.slice(0, 3).map(function (v) { return oneLine(clean(v, 30)); }),
       moreUnread: pool.unread.length > 3,
       counts: block,
@@ -861,6 +879,12 @@
     if (j.pass + j.fail) L.push({ text: "Your judge's grades: " + j.pass + ' Pass, ' + j.fail + ' Fail.' });
     var notes = [];
     if (j.merged) notes.push(n(j.merged, 'repeat') + ' of the same answer ' + (j.merged === 1 ? 'was' : 'were') + ' merged.');
+    if (j.split && j.split.length === 1) {
+      notes.push(j.split[0][0] + ' repeats of one answer got different grades (' + j.split[0][1] + ' Pass, ' + j.split[0][2] + ' Fail); each is its own answer.');
+    } else if (j.split && j.split.length) {
+      var repeats = j.split.reduce(function (sum, s) { return sum + s[0]; }, 0);
+      notes.push(j.split.length + ' answers were graded more than once with different grades (' + repeats + ' repeats in all); each repeat is its own answer.');
+    }
     if (j.human) notes.push('Your results also hold ' + n(j.human, 'human label') + '. judgekeeper does not use them: you mark the answers yourself.');
     var total = j.pass + j.fail;
     [[j.fail, 'failed', 'passes too much'], [j.pass, 'passed', 'fails too much']].forEach(function (x) {

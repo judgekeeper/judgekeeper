@@ -129,7 +129,6 @@ class Result:
     tool: str
     findings: list[Finding] = field(default_factory=list)
     same_decision: str | None = None  # "pass" or "fail" when it is the same for every answer
-    tied: int = 0  # answers asked more than once whose grades split evenly (start.tie_break)
 
     def counts(self) -> dict[str, int]:
         return {k: sum(f.problem == k for f in self.findings) for k in KINDS}
@@ -137,7 +136,7 @@ class Result:
     def block(self) -> dict:
         """The counts, as start.json and result.json keep them (the `judge_check` block)."""
         return {"answers": self.answers, **self.counts(), "same_decision": self.same_decision,
-                "tool": self.tool, "tool_counted_as": self._counted_as(), "tied": self.tied}
+                "tool": self.tool, "tool_counted_as": self._counted_as()}
 
     def to_json(self) -> dict:
         return {"counts": self.block(), "findings": [f.to_dict() for f in self.findings]}
@@ -180,7 +179,7 @@ def check(pool, tool: str, score_judge: bool = False) -> Result:
         same = "pass" if pool.n_pass else "fail"
     seen = {a.id for a in pool.answers} | set(pool.left) | set(getattr(pool, "unread", ()))
     return Result(answers=len(seen), tool=tool, findings=findings,
-                  same_decision=same, tied=getattr(pool, "n_tied", 0))
+                  same_decision=same)
 
 
 # What it says ----------------------------------------------------------------------------
@@ -240,9 +239,6 @@ def lines(block: dict | None) -> list[list[str]]:
         out.append([line])
     if block.get("same_decision") in _SAME:
         out.append([_SAME[block["same_decision"]]])
-    if block.get("tied"):
-        out.append([(f"{_n(block['tied'], 'answer', 'answers')} got a tied grade when asked "
-                     "more than once; judgekeeper took one of the two, the same each time.")])
     return out
 
 

@@ -201,7 +201,7 @@ def test_deepeval_errors_and_empty_checks_are_marked(tmp_path):
     records = read_deepeval(_write_json(tmp_path / "test_run_20261009_120000.json", data))
     assert _marks(records) == [("error", "fail"), ("nothing_checked", "pass"), (None, None),
                                (None, None), ("error", "fail")]
-    assert records[0].explanation == "RateLimitError: Error code: 429"
+    assert records[0].explanation == "RateLimitError"  # the type only, never the message
 
 
 def test_a_deepeval_score_below_full_marks_with_no_verdicts_is_not_marked(tmp_path):
@@ -263,7 +263,7 @@ def test_mlflow_feedback_errors_are_marked(mlflow_store):
     runs = read_mlflow("qa-judge", tracking_uri=mlflow_store, metric="concise")
     marked = [(r.mark.problem, r.mark.tool_counted_as, r.explanation) for _, recs in runs
               for r in recs if r.annotator_kind == LLM and r.mark.problem]
-    assert marked == [("error", None, "TIMEOUT: judge timed out")]
+    assert marked == [("error", None, "TIMEOUT")]
 
 
 def test_the_mark_is_never_written_and_never_compared():

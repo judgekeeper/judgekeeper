@@ -46,10 +46,10 @@ def test_every_nested_path_is_listed_with_an_example_cut_to_60_characters():
     listed = dict(mapper.listing(unit, judges=["Safe wording", "Plain language"]))
     assert listed["run_id"] == '"2026-10-01T10:00"'
     assert listed["cases[].A.output"].startswith('"Answer 0.')
-    assert listed["cases[].A.scores.<criterion>.score"] == "0.9"
-    assert "cases[].B.scores.<criterion>.reason" in listed
+    assert listed['cases[].A.scores."Safe wording".score'] == "0.9"  # the first judge, for real
+    assert 'cases[].B.scores."Safe wording".reason' in listed
     assert len(listed["cases[].prompt"]) == 60 and listed["cases[].prompt"].endswith("…")
-    assert not any("Safe wording" in path for path in listed)
+    assert not any("Plain language" in path or "<" in path for path in listed)
 
 
 # Guessing --------------------------------------------------------------------------------

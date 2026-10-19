@@ -90,7 +90,7 @@ TURNED_IN = (4, 2, 0)
 # DeepEval's model classes that need only a model name (the key comes from the environment),
 # by the provider label DeepEval writes after the name in `evaluationModel`.
 BY_NAME = {"Anthropic": "AnthropicModel", "Gemini": "GeminiModel", "Deepseek": "DeepSeekModel",
-           "Grok": "GrokModel", "KIMI": "KimiModel"}
+           "Grok": "GrokModel", "KIMI": "KimiModel", "Azure": "AzureOpenAIModel"}
 _BEDROCK = re.compile(r"[a-z][a-z0-9-]*\.[a-z]")  # "anthropic.claude-...", "us.amazon.nova-..."
 NOT_CONFIRMED = "which fields your judge reads was not confirmed"
 OLLAMA = "A DeepEval judge on Ollama can't be asked again yet."
@@ -194,8 +194,6 @@ def by_name(model: str) -> tuple[dict | None, str]:
         label = m[1].strip()
         if label in BY_NAME:
             return {"class": BY_NAME[label], "name": model[:m.start()]}, ""
-        if label == "Azure":
-            return None, "an Azure judge needs its endpoint and deployment as well as its name"
         article = "an" if label[:1].upper() in "AEIOU" else "a"
         return None, f"{article} {label} judge needs more than its name"
     if "/" in model or ":" in model or _BEDROCK.match(model):

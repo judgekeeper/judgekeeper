@@ -11,7 +11,8 @@ back within a week.
 - judgekeeper needs no API key: your own eval tool reads its keys. Any key it can see in an
   environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, any name ending in `_API_KEY`,
   the Langfuse and MLflow credentials) is never written to a file, and any page or error text
-  is scrubbed for it before it is written.
+  is scrubbed for it before it is written (values of 8 characters or more; a shorter value is
+  not hidden).
 - `judgekeeper` and `judgekeeper mark` open the marking page and the result from a local
   web server on 127.0.0.1 with a random token in the URL. It does not listen on the network.
   While the page is open, the token is also kept in `.judgekeeper/server.json`, so a second
@@ -38,9 +39,10 @@ back within a week.
 
 ## What judgekeeper writes
 
-judgekeeper writes only inside `.judgekeeper/` in your project, plus, each only after you say
-yes, `judgekeeper.toml` (where your results are and how to read them) and
-`promptfoo-results.json` (your last promptfoo run, exported for you). It never edits other
+judgekeeper writes only inside `.judgekeeper/` in your project, plus `judgekeeper.toml` (where
+your results are and how to read them) only after you say yes, and two temporary files next to
+your promptfoo config while it asks your judge again (removed when promptfoo is done). It
+never edits other
 tools' settings: no editor or agent hooks, no git hooks, no `.pre-commit-config.yaml`, no
 requirements files. It never runs your judge by itself: `judgekeeper check` says how many AI
 calls a re-check needs and asks before it makes them.

@@ -128,7 +128,7 @@ def test_feedback_error_becomes_a_verdict_with_no_decision(mlflow_store):
     files = _read(mlflow_store, id_from="qid", metric="concise")
     q7 = {r.run: r for r in _records(files, "LLM", "concise") if r.target_id == "Q7"}
     assert q7[1].label is None and q7[1].score is None
-    assert "judge timed out" in q7[1].explanation
+    assert q7[1].explanation == "TIMEOUT"  # the code only: the message can quote the answer
     assert q7[2].label == "yes"
     # scorer name and version metadata become the rubric version
     assert fingerprint_known(q7[1].evaluator)["rubric_version"] == "concise@2"

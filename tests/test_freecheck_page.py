@@ -226,3 +226,15 @@ def test_the_next_and_privacy_lines_are_the_pages_own():
     assert ("Your file never leaves this page: it is read on your computer. Turn off Wi-Fi and "
             "it still works.") in code
     assert "var MAX_BYTES = 50 * 1024 * 1024;" in code
+
+
+@needs_node
+def test_an_excel_file_is_named_not_called_inspect(tmp_path):
+    """An .xlsx is a zip too: the page looks at the first entry's name."""
+    path = tmp_path / "judged.xlsx"
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("[Content_Types].xml", "<Types/>")
+        z.writestr("xl/workbook.xml", "<workbook/>")
+    result = browser(path)
+    assert not result["ok"]
+    assert result["message"] == "Excel files aren't read. Save it as CSV UTF-8."
