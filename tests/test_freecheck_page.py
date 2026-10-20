@@ -160,7 +160,7 @@ def test_a_local_provider_file_is_named_without_its_path():
 def test_the_report_keeps_the_tools_word_rules(name):
     result = browser(FREECHECK / name)
     text = "\n".join(line for j in result["judges"] for line in j["lines"]
-                     if not line.startswith("Read the columns")).lower()  # its real names
+                     if not line.startswith("  ")).lower()  # the read-from rows: real names
     assert "checked: " in text and "free check" not in text and "your app" not in text
     for banned in ("verdict", "trusted", "proven", "luck", "chance", "works with"):
         assert banned not in text, (name, banned)
@@ -172,10 +172,10 @@ def test_the_report_names_the_file_tool_judge_and_grades():
     (judge,) = result["judges"]
     assert judge["lines"][:4] == [
         "Eval tool:   your own CSV file",
-        "Answers:     12 answers, each graded by your judge",
-        "             (read from table.csv)",
+        "File:        table.csv",
+        "Answers:     12 answers",
         "Judge:       claude-haiku-4-5"]
-    assert "Your judge's grades: 8 Pass, 4 Fail." in judge["lines"]
+    assert "Your judge passed 8 answers and failed 4." in judge["lines"]
     assert ("Checked: on 1 answer, your judge's reason says the opposite of its "
             "decision.") in judge["lines"]
 
@@ -238,3 +238,19 @@ def test_an_excel_file_is_named_not_called_inspect(tmp_path):
     result = browser(path)
     assert not result["ok"]
     assert result["message"] == "Excel files aren't read. Save it as CSV UTF-8."
+
+
+@needs_node
+def test_the_page_block_says_what_the_terminal_says(tmp_path):
+    path = tmp_path / "table.csv"
+    rows = [["input", "output", "verdict"]] + [[f"Q{i}?", f"A{i}.", "pass" if i < 8 else "fail"]
+                                               for i in range(12)]
+    path.write_text("\n".join(",".join(r) for r in rows) + "\n", encoding="utf-8")
+    (judge,) = browser(path)["judges"]
+    lines = judge["lines"]
+    assert lines[:3] == ["Eval tool:   your own CSV file", "File:        table.csv",
+                         "Answers:     12 answers"]
+    assert "Read from your file:" in lines
+    assert "  grade      the verdict column" in lines
+    assert "Your judge passed 8 answers and failed 4." in lines
+    assert not any("Read the columns" in x or "grades:" in x or "(read from" in x for x in lines)

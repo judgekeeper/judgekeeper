@@ -125,7 +125,7 @@ def test_mlflow_prints_nothing_of_its_own(folder_only):
                              "--no-browser"], capture_output=True, text=True, env=env,
                             stdin=subprocess.DEVNULL, timeout=300, check=False)
     out = result.stdout + result.stderr
-    assert "(read from mlruns, experiment qa-folder)" in out, out
+    assert "Store:       mlruns, experiment qa-folder" in out, out
     assert "mlflow." not in out and "INFO" not in out and "WARNING" not in out, out
     assert "MLFLOW_DISABLE_AGENT_HINT" not in out
 
@@ -287,7 +287,7 @@ def test_judgekeeper_asks_which_store_without_a_terminal(two, capsys, monkeypatc
     code = main([str(two / "mlruns")])
     out = capsys.readouterr().out
     assert code in (0, 3) and "Eval tool:   MLflow" in out
-    assert "(read from mlruns, experiment qa-folder)" in out
+    assert "Store:       mlruns, experiment qa-folder" in out
     assert "Two MLflow stores" not in out
 
 
@@ -299,12 +299,12 @@ def test_judgekeeper_asks_which_store_at_a_terminal_and_saves_it(two, capsys, mo
     monkeypatch.setattr(builtins, "input", lambda prompt="": answers.pop(0))
     main([str(two)])
     out = capsys.readouterr().out
-    assert "Eval tool:   MLflow" in out and "(read from mlruns, experiment qa-folder)" in out
+    assert "Eval tool:   MLflow" in out and "Store:       mlruns, experiment qa-folder" in out
     saved = tomllib.loads((two / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
     assert saved == {"source": "mlflow", "file": "mlruns"}
     monkeypatch.setattr(start, "_interactive", lambda: False)
     main([str(two)])  # asked once: read from judgekeeper.toml now
-    assert "(read from mlruns, " in capsys.readouterr().out
+    assert "Store:       mlruns, " in capsys.readouterr().out
 
 
 # A very big experiment: the newest traces, said ----------------------------------------------

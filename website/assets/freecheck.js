@@ -187,6 +187,9 @@
     if (id !== null && id.indexOf('file://') === 0) {  // the person's own provider: never its path
       return 'your own provider (' + id.slice(7).split(/[\\/]/).pop().split(':')[0] + ')';
     }
+    if (id !== null && id.indexOf('exec:') === 0) {  // the person's own script: its command, never a path
+      return 'your own script (' + id.slice(5).trim().split(/\s+/).map(function (w) { return w.split(/[\\/]/).pop(); }).join(' ') + ')';
+    }
     return id;
   }
 
@@ -450,12 +453,16 @@
       });
       if (human && !blank(row[human])) nHuman += 1;
     });
-    // front._columns_line: which columns were read (never the rows)
+    // front.read_rows: which columns were read (never the rows)
     var headVerdict = VERDICT_COLUMNS.find(function (c) { return firstColumns.indexOf(c) >= 0; });
-    var readCols = ['input', 'output', headVerdict, 'reason', 'model', 'judge_model', 'app_version'].concat(HUMAN_COLUMNS);
-    var used = firstColumns.filter(function (c) { return readCols.indexOf(c) >= 0; });
+    var readRows = [['question', 'the input column'], ['answer', 'the output column'], ['grade', 'the ' + clean(headVerdict, 40) + ' column']];
+    var modelCol = ['judge_model', 'model'].find(function (c) { return firstColumns.indexOf(c) >= 0; });
+    var labelCol = HUMAN_COLUMNS.find(function (c) { return firstColumns.indexOf(c) >= 0; });
+    [['reason', firstColumns.indexOf('reason') >= 0 ? 'reason' : null], ['model', modelCol || null],
+     ['version', firstColumns.indexOf('app_version') >= 0 ? 'app_version' : null], ['your labels', labelCol || null]]
+      .forEach(function (x) { if (x[1]) readRows.push([x[0], 'the ' + x[1] + ' column']); });
     return { tool: 'table', kindWord: kindWord, judged: judged, nHuman: nHuman, perMetric: {}, scoreJudge: false,
-      columnsLine: used.length ? 'Read the columns ' + andList(used.map(function (c) { return clean(c, 40); })) + '.' : null };
+      readRows: readRows };
   }
   function andList(items) { return items.length === 1 ? items[0] : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]; }
 
@@ -541,11 +548,13 @@
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ r: r, v: v, kind: kind });
     });
-    var pool = { answers: [], left: [], merged: 0, split: [], unmapped: unmapped, unread: unread };
+    var pool = { answers: [], left: [], merged: 0, results: 0, repeatSizes: [], split: [], unmapped: unmapped, unread: unread };
     groups.forEach(function (seen) {
       var judged = seen.filter(function (s) { return s.kind === null; });
       if (!judged.length) { pool.left.push({ kind: seen[0].kind, r: seen[0].r }); return; }
       var passes = judged.filter(function (s) { return s.v.verdict === 'pass'; }).length;
+      pool.results += judged.length;
+      if (pool.repeatSizes.indexOf(judged.length) < 0) pool.repeatSizes.push(judged.length);
       if (passes === 0 || passes === judged.length) {  // the same grade every time: one answer
         pool.merged += judged.length - 1;
         judged = judged.slice(-1);
@@ -674,8 +683,8 @@
     }
     if (b.nothing_checked) {
       var one2 = b.nothing_checked === 1;
-      out.push('On ' + n(b.nothing_checked, 'answer', 'answers') + ' your judge checked nothing, and ' + (name || 'your eval tool') +
-        ' gave ' + (one2 ? 'it' : 'them') + ' full marks. ' + (one2 ? 'It is' : 'They are') + ' left out here.');
+      out.push('On ' + n(b.nothing_checked, 'answer', 'answers') + ' your judge found nothing to check, but ' + (name || 'your eval tool') +
+        ' still gave ' + (one2 ? 'it' : 'them') + ' full marks, so ' + (one2 ? 'it is' : 'they are') + ' left out.');
     }
     if (b.empty_answer_passed) out.push('Your judge passed ' + n(b.empty_answer_passed, 'empty answer', 'empty answers') + '.');
     if (b.reason_says_opposite) out.push('On ' + n(b.reason_says_opposite, 'answer', 'answers') + ", your judge's reason says the opposite of its decision.");
@@ -813,7 +822,7 @@
     var shown = {};
     judges.forEach(function (j) { shown[j.name] = (shown[j.name] || 0) + 1; if (shown[j.name] > 1) j.name += ' (' + shown[j.name] + ')'; });
     var toolName = r.tool === 'table' ? 'your own ' + r.kindWord + ' file' : COUNTING_TOOLS[r.tool];
-    return { ok: true, tool: r.tool, toolName: toolName, columnsLine: r.columnsLine || null,
+    return { ok: true, tool: r.tool, toolName: toolName, readRows: r.readRows || null,
       file: oneLine(clean(fileName || 'your file', 80)), judges: judges };
   }
 
@@ -840,7 +849,7 @@
       showName: nMetrics > 1 || r.tool === 'deepeval',
       answers: block.answers,
       pass: pool.nPass, fail: pool.nFail,
-      merged: pool.merged, split: pool.split, human: r.nHuman, unmapped: pool.unmapped,
+      merged: pool.merged, results: pool.results, repeatSizes: pool.repeatSizes, split: pool.split, human: r.nHuman, unmapped: pool.unmapped,
       unread: pool.unread.slice(0, 3).map(function (v) { return oneLine(clean(v, 30)); }),
       moreUnread: pool.unread.length > 3,
       counts: block,
@@ -861,8 +870,14 @@
     var L = [];
     var pad = '             ';
     L.push({ k: 'Eval tool:   ', text: result.toolName, tone: 'g' });
-    L.push({ k: 'Answers:     ', text: n(j.answers, 'answer') + ', each graded by your judge' });
-    L.push({ k: pad, text: '(read from ' + result.file + ')', tone: 'dim' });
+    L.push({ k: 'File:        ', text: result.file });
+    if (j.merged) {  // repeats of the same answer with the same grade count once (front.found_block)
+      var times = j.repeatSizes.length === 1 ? j.repeatSizes[0] : null;
+      L.push({ k: 'Answers:     ', text: j.answers + ' different answers' });
+      L.push({ k: pad, text: '(your file has ' + j.results + ' results: ' + (times ? 'each answer was run ' + times + ' times' : 'some answers are in it more than once') + ', so each is counted once)', tone: 'dim' });
+    } else {
+      L.push({ k: 'Answers:     ', text: n(j.answers, 'answer') });
+    }
     var model = j.models.length ? j.models.join(', ') : 'model not found in your file';
     L.push({ k: 'Judge:       ', text: (j.showName ? j.name + ', ' : '') + model });
     if (!j.rule) {
@@ -873,12 +888,18 @@
       L.push({ k: 'Judge rule:  ', text: '"' + j.rule.slice(0, RULE_SHOWN - 1).replace(/\s+$/, '') + '…"' });
       L.push({ k: pad, text: '(shortened)', tone: 'dim' });
     }
-    if (j.passMark) L.push({ k: 'Pass mark:   ', text: passMarkWords(j.passMark) });
-    if (result.columnsLine) { L.push({ text: '' }); L.push({ text: result.columnsLine, tone: 'dim' }); }
+    var mark = j.passMark ? ': Pass at ' + passMarkWords(j.passMark).replace(/^score /, '') : '';
+    var rows = result.readRows ? result.readRows.slice() : [];
+    if (result.tool === 'promptfoo') rows = [['question', "each test's vars"], ['answer', "each test's output"], ['grade', "your judge's Pass or Fail" + mark]];
+    if (result.tool === 'deepeval') rows = [['question', "each test case's input"], ['answer', "each test case's actual_output"], ['grade', 'the ' + j.name + ' score' + mark], ['reason', "your judge's reason"]];
+    if (rows.length) {
+      var width = rows.reduce(function (w, r) { return Math.max(w, r[0].length); }, 0) + 3;
+      L.push({ text: 'Read from your file:' });
+      rows.forEach(function (r) { L.push({ text: '  ' + r[0] + new Array(width - r[0].length + 1).join(' ') + r[1] }); });
+    }
     L.push({ text: '' });
-    if (j.pass + j.fail) L.push({ text: "Your judge's grades: " + j.pass + ' Pass, ' + j.fail + ' Fail.' });
+    if (j.pass + j.fail) L.push({ text: 'Your judge passed ' + n(j.pass, 'answer') + ' and failed ' + j.fail + '.' });
     var notes = [];
-    if (j.merged) notes.push(n(j.merged, 'repeat') + ' of the same answer ' + (j.merged === 1 ? 'was' : 'were') + ' merged.');
     if (j.split && j.split.length === 1) {
       notes.push(j.split[0][0] + ' repeats of one answer got different grades (' + j.split[0][1] + ' Pass, ' + j.split[0][2] + ' Fail); each is its own answer.');
     } else if (j.split && j.split.length) {

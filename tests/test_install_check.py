@@ -270,7 +270,7 @@ def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
     assert fronts == [["--no-browser", "--port", "5"], ["--no-browser", "--port", "5"]]
     assert after[0][:1] == ["fix"]
     first = " ".join(ran[0][1])
-    assert "Open this link" in first and "Your judge's grades: 28 Pass, 22 Fail" in first
+    assert "Open this link" in first and "Your judge passed 28 answers and failed 22" in first
     result = " ".join(ran[1][1])
     assert "You passed \\d+ answers\\. Of those, your judge passed" in result
     assert "Result: " in result
@@ -292,7 +292,7 @@ def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tm
     assert fronts[1:] == [["--no-browser", "--port", "5"]]
     first = " ".join(ran[0][1])
     assert "Saved judgekeeper" in first and re.escape("my-judge-1") in first
-    assert "Your judge's grades: 28 Pass, 22 Fail" in first and "Open this link" in first
+    assert "Your judge passed 28 answers and failed 22" in first and "Open this link" in first
     assert ("judgekeeper.toml saved", True) in [(name, ok) for name, ok, *_ in steps]
 
 

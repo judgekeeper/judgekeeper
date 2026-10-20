@@ -85,8 +85,8 @@ def test_nested_runs_asks_four_questions_and_one_yes(tmp_path, capsys, terminal)
     assert "cases[].A.output" in out and 'cases[].A.scores."Safe wording".score' in out
     assert "Question " not in out and "Answer " not in out  # paths, never values
     assert "Eval tool:   your own format" in out
-    assert "42 answers, each graded by your judge" in out
-    assert "(read from history/evals.jsonl, 3 lines)" in out
+    assert "Answers:     42 answers" in out
+    assert "File:        history/evals.jsonl, 3 lines" in out
     assert "The marking page is open in your browser." in out
 
 
@@ -125,7 +125,7 @@ def test_then_judgekeeper_reads_it_without_a_question(tmp_path, capsys, terminal
     fresh(tmp_path)
     code, out = check(capsys, tmp_path)
     assert code == 0 and len(asked) == before
-    assert ("Read as judgekeeper.toml says: input prompt, answer A.output and B.output"
+    assert ("Read from your file: question prompt answer A.output and B.output"
             in " ".join(out.split()))
     code, out = check(capsys, tmp_path)  # marking started: straight to marking
     assert code == 0 and len(asked) == before

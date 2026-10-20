@@ -226,9 +226,9 @@ def lines(block: dict | None) -> list[list[str]]:
     nothing = block.get(NOTHING_CHECKED, 0)
     if nothing:
         one = nothing == 1
-        line = (f"On {_n(nothing, 'answer', 'answers')} your judge checked nothing, and "
-                f"{name or 'your eval tool'} gave {'it' if one else 'them'} full marks. "
-                f"{'It is' if one else 'They are'} left out here.")
+        line = (f"On {_n(nothing, 'answer', 'answers')} your judge found nothing to check, but "
+                f"{name or 'your eval tool'} still gave {'it' if one else 'them'} full marks, "
+                f"so {'it is' if one else 'they are'} left out.")
         out.append([line])
     if block.get(PASSED_EMPTY):
         empty = _n(block[PASSED_EMPTY], "empty answer", "empty answers")

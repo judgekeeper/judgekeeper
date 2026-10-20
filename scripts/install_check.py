@@ -641,8 +641,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         link printed: no browser, no terminal); the stand-in person marks on it; `judgekeeper`
         then prints the result; `--stop` closes the page. For a file in your own format the
         first run maps it (answers given by --yes) and goes on: it is the first look."""
-        decisions = (rf"Your judge's grades: {len(JUDGE_PASSES)} Pass, "
-                     rf"{N - len(JUDGE_PASSES)} Fail\.")
+        decisions = (rf"Your judge passed {len(JUDGE_PASSES)} answers and failed "
+                     rf"{N - len(JUDGE_PASSES)}\.")
         # Started by uvx, a Next: line that names a command names `uvx judgekeeper@<version>`
         # (it may wrap). The first look's names none: mark, then click "See your result".
         uvx = [r"Next: [^`]*`uvx judgekeeper@"] if self.via == "uvx" else []

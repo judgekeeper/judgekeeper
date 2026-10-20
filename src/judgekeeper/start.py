@@ -285,6 +285,8 @@ class Pool:
     unmapped: list = field(default_factory=list)
     n_unmapped: dict = field(default_factory=dict)  # how many verdicts had each unmapped value
     n_merged: int = 0
+    n_results: int = 0  # grades read for the chosen judge, repeats counted each
+    repeat_sizes: set = field(default_factory=set)  # how many times each answer was graded
     n_human: int = 0
     # answers graded more than once with different grades, each repeat its own answer:
     # id -> (repeats, passes, fails)
@@ -382,6 +384,8 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                 pool.left[key] = (seen[0][2], seen[0][0])
                 continue
             passes = sum(v.verdict == "pass" for _, v in judged)
+            pool.n_results += len(judged)
+            pool.repeat_sizes.add(len(judged))
             if passes in (0, len(judged)):  # the same grade every time: one answer
                 pool.n_merged += len(judged) - 1
                 judged = judged[-1:]
@@ -1840,6 +1844,11 @@ def _pass_mark_words(pm: dict) -> str:
     words = {">=": f"{mark} or more", ">": f"more than {mark}", "<=": f"{mark} or less",
              "<": f"less than {mark}"}
     return f"score {words[pm['op']]}" if pm.get("op") in words else f"score {mark}"
+
+
+def pass_at(pm: dict) -> str:
+    """"Pass at 0.6 or more": the pass mark, as the Read-from-your-file rows say it."""
+    return "Pass at " + _pass_mark_words(pm).removeprefix("score ")
 
 
 SENTENCE = re.compile(r"[.!?;:]")  # punctuation a grade word does not hold

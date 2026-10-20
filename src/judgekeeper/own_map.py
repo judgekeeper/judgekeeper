@@ -82,19 +82,19 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
         score += f" (judges: {', '.join(g.judges)})"
     if len(g.sides) > 1 and mapper.SIDE in g.score:
         score += f" and the same under {' and '.join(g.sides[1:])}"
-    label = "score:" if g.kind == "score" else "decision:"
-    lines = [f"  one answer:      {each}", f"  input:           {mapper.filled(g.input)}",
+    label = "grade:"
+    lines = [f"  one answer:      {each}", f"  question:        {mapper.filled(g.input)}",
              f"  answer:          {answer}", f"  {label:<17}{score}"]
     if g.reason:
         lines.append(f"  reason:          {mapper.filled(g.reason, side, judge)}")
     if g.id:
         lines.append(f"  id:              {g.id}")
     if g.model_key:
-        lines.append(f"  judge's model:   {mapper.filled(g.model_key, side, judge)} ({g.model})")
+        lines.append(f"  model:           {mapper.filled(g.model_key, side, judge)} ({g.model})")
     elif judge_model:
-        lines.append(f"  judge's model:   {judge_model} (given with --judge-model)")
+        lines.append(f"  model:           {judge_model} (given with --judge-model)")
     else:
-        lines.append("  judge's model:   not in the file")
+        lines.append("  model:           not in the file")
     if g.kind == "score":
         if g.pass_mark_given:
             where = " (given by you)"

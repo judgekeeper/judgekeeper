@@ -65,7 +65,7 @@ def test_real_promptfoo_repeats_become_runs():
     fps = {make_fingerprint(fingerprint_known(r.evaluator)) for r in records}
     assert len({fp.identity() for fp in fps}) == 1
     fp = fps.pop()
-    assert fp.model == "exec: python3 grader.py"
+    assert fp.model == "your own script (python3 grader.py)"
     assert fp.provider == "exec"
     # the prompt hash is promptfoo's grading template (the saved grading prompt with the answer
     # and vars put back as placeholders), the same on every row

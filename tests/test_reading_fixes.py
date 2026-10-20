@@ -66,7 +66,7 @@ def scored(n: int, seed: int = 1) -> list[tuple]:
 
 
 def grades(out: str):
-    m = re.search(r"grades: (\d+) Pass, (\d+) Fail", flat(out))
+    m = re.search(r"passed (\d+) answers? and failed (\d+)", flat(out))
     return (int(m[1]), int(m[2])) if m else None
 
 

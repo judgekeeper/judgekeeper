@@ -293,6 +293,9 @@ def _provider(value) -> dict:
     if pid.startswith("file://"):  # the person's own provider: its file's name, never a path
         name = re.split(r"[\\/]", pid.removeprefix("file://"))[-1].split(":", 1)[0]
         ev = {"provider": "file", "model": f"your own provider ({name})"}
+    elif pid.startswith("exec:"):  # the person's own script: its command, never a path
+        words = [re.split(r"[\\/]", w)[-1] for w in pid.removeprefix("exec:").split()]
+        ev = {"provider": "exec", "model": f"your own script ({' '.join(words)})"}
     else:
         ev = {"provider": pid.split(":", 1)[0], "model": pid}
     if isinstance(config, dict) and config.get("temperature") is not None:

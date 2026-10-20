@@ -195,7 +195,7 @@ def test_a_store_whose_spans_are_on_a_server_is_read_from_what_it_holds(here, ca
     code, out = run(capsys, "--metric", "correctness")
     assert code == 3, out
     assert "a problem it didn't expect" not in out and "--debug" not in out
-    assert "9 answers, each graded by your judge" in out
+    assert "Answers:     9 answers" in out
 
 
 def test_a_store_whose_text_is_only_on_a_server_says_to_start_it(here, capsys, store):
