@@ -160,6 +160,19 @@ def refuse_links(ws: Workspace) -> None:
                                      program=program()))
 
 
+def check_writable(ws: Workspace) -> None:
+    """StartError when judgekeeper can't write in `ws.dir` (a read-only .judgekeeper/): the
+    same words wherever the first write would have failed."""
+    from judgekeeper.start import StartError
+    from judgekeeper.textio import WORKSPACE_DENIED, WORKSPACE_DENIED_NEXT
+
+    try:
+        if ws.dir.is_dir() and not ws.dir.is_symlink() and not os.access(ws.dir, os.W_OK):
+            raise StartError(WORKSPACE_DENIED, WORKSPACE_DENIED_NEXT)
+    except OSError:
+        return
+
+
 def make_folder(ws: Workspace) -> None:
     """Make `ws.dir` (after `refuse_links`), with its .gitignore when a first check starts in
     the project's own folder and it has none. One holding exactly the text 0.2 wrote is

@@ -368,13 +368,8 @@ def _plain_text(value) -> bool:
     text = value.strip()
     if text.lower() in VERDICT_VALUES:
         return False
-    if text[:1] in "[{" and text[-1:] in "]}":
-        try:
-            json.loads(text)
-        except ValueError:
-            return True
-        return False
-    return True
+    # a list or object, as JSON or as pandas writes a list, is not an answer
+    return not (text[:1] in "[{" and text[-1:] in "]}")
 
 
 def _text_like(values) -> bool:

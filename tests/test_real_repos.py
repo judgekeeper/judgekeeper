@@ -719,3 +719,129 @@ def test_marks_made_on_eval_logs_this_install_cannot_read_are_said(here, capsys)
     assert ("Your marks were made on logs/2026-10-03_support.eval, which this install reads "
             "only with its Inspect extra. To keep checking the same answers,") in flat(out)
     assert "judgekeeper[inspect]" in assert_one_next_at_the_end(out)
+
+
+# Kit follow-ups --------------------------------------------------------------------------------
+
+def test_a_keyword_list_written_by_pandas_is_never_an_answer(here, capsys):
+    columns = ["question", "answer_keywords", "response_text", "judge_verdict"]
+    rows = [[question(i), str(["refund", "policy", "days"]),
+             f"This is a full answer number {i} that explains the refund policy.",
+             "FAIL" if i % 3 else "PASS"] for i in range(40)]
+    write_csv(here / "results" / "results.csv", columns, rows)
+    _, out = run(capsys, "results", "--metric", "judge_verdict")
+    assert "Count each as its own answer" not in out, out
+    assert "  answer:          response_text" in out
+
+
+def test_a_standard_csv_with_two_verdict_columns_asks_which_judge(here, capsys):
+    rows = [[question(i), f"A full answer number {i}.", "pass" if i % 2 else "fail",
+             "pass" if i % 3 else "fail"] for i in range(60)]
+    write_csv(here / "results.csv", ["input", "output", "verdict", "judge_verdict"], rows)
+    code, out = run(capsys)
+    assert code == 3, out
+    assert "http://127.0.0.1" not in out
+    assert out.index("judge_verdict (60 answers)") < out.index("verdict (60 answers)")
+    line = assert_one_next_at_the_end(out)
+    assert "--metric NAME" in line
+    code, out = run(capsys, "--metric", "judge_verdict")
+    assert code == 0, out
+    assert "Your judge's grades: 40 Pass, 20 Fail." in out
+    assert "Judge:       judge_verdict" in out
+
+
+def test_a_standard_csv_model_column_of_rule_names_is_not_the_judge(here, capsys):
+    rows = [[question(i), f"A full answer number {i}.", "pass" if i % 2 else "fail",
+             "string_match" if i < 9 else "checks+judge"] for i in range(60)]
+    write_csv(here / "results.csv", ["input", "output", "verdict", "model"], rows)
+    code, out = run(capsys)
+    assert code == 0, out
+    judge_line = next(x for x in out.splitlines() if x.startswith("Judge:"))
+    assert "checks+judge" not in judge_line and "string_match" not in judge_line
+    assert "model not found in your results" in judge_line
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "geteuid") or __import__("os").geteuid() == 0,
+                    reason="permissions mean nothing to root or on Windows")
+def test_a_read_only_judgekeeper_folder_is_said_before_the_page_starts(here, capsys):
+    import os
+
+    from tests.start_projects import promptfoo_project, split
+
+    promptfoo_project(here, split(20, 16))
+    code, out = run(capsys, "--no-browser")
+    assert code == 0, out
+    folder = here / ".judgekeeper"
+    try:
+        for p in folder.rglob("*"):
+            os.chmod(p, 0o555 if p.is_dir() else 0o444)
+        os.chmod(folder, 0o555)
+        code, out = run(capsys, "--no-browser")
+    finally:
+        os.chmod(folder, 0o755)
+        for p in folder.rglob("*"):
+            os.chmod(p, 0o755 if p.is_dir() else 0o644)
+    assert code == 2, out
+    assert "judgekeeper can't write in .judgekeeper/ (permission denied)" in flat(out)
+    assert "could not start in the background" not in out and "page.log" not in out
+    assert "remove the folder" not in out
+
+
+def two_epoch_log(root: Path) -> Path:
+    """An Inspect log with 2 epochs: 10 answers graded the same in both, 5 graded C then I."""
+    base = json.loads(INSPECT.read_text(encoding="utf-8"))
+    sample0 = base["samples"][0]
+    samples = []
+    for epoch in (1, 2):
+        for i in range(15):
+            s = json.loads(json.dumps(sample0))
+            s.update(id=i, epoch=epoch, input=question(i))
+            s["output"]["completion"] = f"Answer {i}."
+            grade = "C" if i < 10 or epoch == 1 else "I"
+            s["scores"] = {"model_graded_qa": {"value": grade, "explanation": "why",
+                                               "history": []}}
+            samples.append(s)
+    spec = json.loads(json.dumps(base["eval"]))
+    spec["scorers"] = [x for x in spec["scorers"] if x["name"] == "model_graded_qa"]
+    path = root / "logs" / "2026-10-02_support.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({**base, "eval": spec, "samples": samples}), encoding="utf-8")
+    return path
+
+
+def test_inspect_epochs_with_different_grades_are_said_and_counted(here, capsys):
+    two_epoch_log(here)
+    code, out = run(capsys)
+    assert code == 3, out  # 20 answers: not enough for a first result
+    assert "20 answers, each graded by your judge" in out
+    assert "10 repeats of the same answer were merged." in flat(out)
+    assert ("5 answers got different grades when graded more than once (10 repeats in all); "
+            "each repeat is its own answer.") in flat(out)
+
+
+def test_the_judge_list_counts_answers_as_the_pool_does(here, capsys):
+    """Two judges in a log with 2 epochs: the list says how many answers each has after
+    repeats with the same grade are merged, the number the pool then shows."""
+    path = two_epoch_log(here)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for s in data["samples"]:
+        s["scores"]["rubric"] = {"value": "C", "explanation": "why", "history": []}
+    data["eval"]["scorers"].append({"name": "rubric", "options": {}})
+    path.write_text(json.dumps(data), encoding="utf-8")
+    code, out = run(capsys)
+    assert code == 3, out
+    assert "model_graded_qa (20 answers)" in out
+    assert "rubric (15 answers)" in out
+
+
+def test_no_answer_count_while_the_partial_credit_question_is_open(here, capsys):
+    path = two_epoch_log(here)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for s in data["samples"][:4]:
+        s["scores"]["model_graded_qa"]["value"] = "P"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    code, out = run(capsys)
+    assert code == 3, out
+    assert "Inspect gave partial credit (P) on 4 answers." in flat(out)
+    assert "Answers:" not in out
+    assert "Eval tool:   Inspect AI" in out

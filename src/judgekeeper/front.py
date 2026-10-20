@@ -524,8 +524,9 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     terminal = start._interactive()
     if found.tool == "inspect" and "P" in values:  # model_graded_qa(partial_credit=True)
         n = found.pool.n_unmapped.get(repr("P"), 0)
-        for line in found_block(found):  # what was found, before the question
-            talk.say(line)
+        for line in found_block(found):  # what was found; the count waits for the answer
+            if not line.startswith("Answers:"):
+                talk.say(line)
         talk.say()
         talk.say(f"Inspect gave partial credit (P) on {_n(n, 'answer')}.")
         if not terminal:
@@ -677,8 +678,8 @@ def _columns_line(found: start.Found, pass_if: str | None = None) -> str | None:
     verdict = next((c for c in find.VERDICT_COLUMNS if c in columns), None)
     if pass_if and verdict and "score" in columns:
         return SCORE_READ
-    read = ("input", "output", verdict, "reason", "model", "judge_model", "app_version",
-            *start.HUMAN_COLUMNS)
+    read = ("input", "output", *find.VERDICT_COLUMNS, "reason", "model", "judge_model",
+            "app_version", *start.HUMAN_COLUMNS)
     used = [c for c in columns if c in read]
     return f"Read the columns {start._and(used)}." if used else None
 
@@ -712,8 +713,8 @@ def _notes(found: start.Found) -> list[str]:
                    "Fail); each is its own answer.")
     elif pool.split:
         repeats = sum(n for n, _, _ in pool.split.values())
-        out.append(f"{len(pool.split)} answers were graded more than once with different "
-                   f"grades ({repeats} repeats in all); each repeat is its own answer.")
+        out.append(f"{len(pool.split)} answers got different grades when graded more than once "
+                   f"({repeats} repeats in all); each repeat is its own answer.")
     if pool.n_human:
         out.append(f"Your results also hold {_n(pool.n_human, 'human label')}. judgekeeper does "
                    "not use them: you mark the answers yourself.")
@@ -1202,6 +1203,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
           result: bool = False) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown). `result`:
     opened at its result page."""
+    start_label.check_writable(ws)  # said here, never as "the page could not start"
     opened = None
     try:
         opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved, "mark"),

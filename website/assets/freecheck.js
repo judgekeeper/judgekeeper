@@ -883,7 +883,7 @@
       notes.push(j.split[0][0] + ' repeats of one answer got different grades (' + j.split[0][1] + ' Pass, ' + j.split[0][2] + ' Fail); each is its own answer.');
     } else if (j.split && j.split.length) {
       var repeats = j.split.reduce(function (sum, s) { return sum + s[0]; }, 0);
-      notes.push(j.split.length + ' answers were graded more than once with different grades (' + repeats + ' repeats in all); each repeat is its own answer.');
+      notes.push(j.split.length + ' answers got different grades when graded more than once (' + repeats + ' repeats in all); each repeat is its own answer.');
     }
     if (j.human) notes.push('Your results also hold ' + n(j.human, 'human label') + '. judgekeeper does not use them: you mark the answers yourself.');
     var total = j.pass + j.fail;

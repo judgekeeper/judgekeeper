@@ -424,7 +424,8 @@ def test_samples_that_failed_before_scoring(here, capsys):
     assert "calls failed" not in out
     assert "2 answers have no score: the run failed before scoring." in flat(out), out
     # only the answers with a grade (v2-bugfix-2 item 7)
-    assert answers(first) is not None and answers(first) == answers(out) == 18, (first, out)
+    # no count while the partial-credit question is open: the answer decides it
+    assert answers(first) is None and answers(out) == 18, (first, out)
 
 
 # 31 and 34. DeepEval ---------------------------------------------------------------------------

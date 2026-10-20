@@ -426,31 +426,35 @@ def read_results_table(path: Path) -> RecordList:
     columns = list(dict.fromkeys(k for row in rows for k in row))
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
-    verdict = next((c for c in find.VERDICT_COLUMNS if c in columns), None)
+    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns]  # each one is a judge
+    verdict = verdicts[0] if verdicts else None
     if verdict is None or "input" not in columns or "output" not in columns:
         raise StartError(f"{path.name} needs input, output and verdict columns; columns are: "
                          f"{', '.join(columns)}")
     human = next((c for c in HUMAN_COLUMNS if c in columns), None)
     records = RecordList(ids_derived=not own)
     if "id" in columns and not own:
-        records.per_metric = {verdict: {"warnings": [MADE_IDS]}}
+        records.per_metric = {v: {"warnings": [MADE_IDS]} for v in verdicts}
     for n, row in enumerate(rows, 1):
         textio.reading(n)
         content = {"target_id": ids[n - 1] if own else derive_record_id(row.get("input"),
                                                                         row.get("output")),
                    "input": row.get("input"), "output": row.get("output")}
         model = row.get("model") if not _blank(row.get("model")) else row.get("judge_model")
+        if not mapper._model_like(model):  # "string_match": a rule's name, not a model's
+            model = None
         score = _number(mapper.number(row.get("score"))) if "score" in columns else None
-        records.append(ScoreRecord(
-            name=verdict, annotator_kind=LLM, score=score,
-            label=None if _blank(row.get(verdict)) else row[verdict],
-            explanation=None if _blank(row.get("reason")) else str(row["reason"]),
-            evaluator={} if _blank(model) else {"model": str(model)},
-            app_version=None if _blank(row.get("app_version")) else str(row["app_version"]),
-            **content))
+        for verdict in verdicts:
+            records.append(ScoreRecord(
+                name=verdict, annotator_kind=LLM, score=score,
+                label=None if _blank(row.get(verdict)) else row[verdict],
+                explanation=None if _blank(row.get("reason")) else str(row["reason"]),
+                evaluator={} if _blank(model) else {"model": str(model)},
+                app_version=None if _blank(row.get("app_version")) else str(row["app_version"]),
+                **content))
         if human and not _blank(row.get(human)):
-            records.append(ScoreRecord(name=verdict, annotator_kind=HUMAN, label=row[human],
-                                       **content))
+            records.append(ScoreRecord(name=verdicts[0], annotator_kind=HUMAN,
+                                       label=row[human], **content))
     return records
 
 
@@ -1333,9 +1337,19 @@ def _project_description(root: Path) -> str | None:
 
 
 def _judges(records, kind: str | None = None) -> Counter:
-    """How many decisions each LLM judge in `records` made. A DeepEval metric with no model
-    (Exact Match, a check written in Python) is a rule in code, not a judge."""
-    counts = Counter(r.name for r in records if r.annotator_kind == LLM)
+    """How many answers each LLM judge in `records` graded, counted as the pool counts them:
+    repeats of one answer with the same grade once, with different grades each. A DeepEval
+    metric with no model (Exact Match, a check written in Python) is a rule in code, not a
+    judge."""
+    grades: dict[tuple, list] = {}
+    for r in records:
+        if r.annotator_kind == LLM:
+            key = (r.name, r.target_id if r.target_id and not getattr(records, "ids_derived", True)
+                   else derive_record_id(r.input, r.output, r.trajectory))
+            grades.setdefault(key, []).append(r.label)
+    counts: Counter = Counter()
+    for (name, _), labels in grades.items():
+        counts[name] += len(labels) if len(set(labels)) > 1 else 1
     if kind == "deepeval":
         judged = {r.name for r in records
                   if r.annotator_kind == LLM and (r.evaluator or {}).get("model")}
