@@ -615,7 +615,8 @@ def test_can_t_tell_yet_keeps_everything_but_fix_it():
 
 
 def test_fix_it_is_only_for_a_judge_that_needs_work():
-    html = start_label.result_html(_result(*NOT_GATE_TNR))
+    judge = {"tool": "promptfoo", "rule": "Is polite."}  # a rule fix can swap in
+    html = start_label.result_html(_result(*NOT_GATE_TNR, judge=judge))
     part = _part(html, '<section class="fix band" aria-labelledby="fix-h">')
     fix = program("fix")
     assert '<h2 id="fix-h">Fix it</h2>' in part

@@ -1077,6 +1077,61 @@ def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_brow
         assert ".latest_run_full.json is damaged: its only row has a damaged field." in err
         assert out.splitlines()[2:4] == ["Step 1 of 5: Find", ""], out
 
+# S11. The result page says what fix does for a judge judgekeeper can't ask ------------------
+
+S11_FIX = ("In your project folder, run `judgekeeper fix`. It lists the answers your judge got "
+           "wrong and saves them in .judgekeeper/fix/. judgekeeper can't re-run this kind of judge "
+           "itself, so change its rule where your eval keeps it, run your eval, then run "
+           "`judgekeeper check`.")
+
+
+def _page_text(html: str) -> str:
+    """What a reader sees, a command in backticks as the terminal writes it."""
+    from html import unescape
+
+    html = re.sub(r"<code>(.*?)</code>", r"`\1`", html)
+    return " ".join(unescape(re.sub(r"<[^>]+>", " ", html)).split())
+
+
+def test_the_live_result_page_says_what_fix_does_for_an_own_file(here, capsys, no_browser):
+    """A file in a format of its own: fix can't swap a rule in. The live result page and
+    report.html say so, in the words of the terminal."""
+    import urllib.request
+
+    from tests.start_projects import flat_jsonl
+
+    flat_jsonl(here / "graded.jsonl", 36)
+    code, out, _ = run(capsys, "--yes")
+    assert code == 0, out
+    ws = Workspace(here)
+    base, token = no_browser[-1].split("/?token=")
+
+    def call(path, body=None):
+        req = urllib.request.Request(f"{base}{path}?token={token}",
+                                     data=None if body is None else json.dumps(body).encode(),
+                                     headers={"Content-Type": "application/json",
+                                              "Origin": base})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    flipped = 0
+    for item in call("/state")["items"]:  # 16 Pass, 20 Fail; the judge passed 8 of the fails
+        label = groups[item["id"]]
+        if label == "pass" and flipped < 8:
+            label, flipped = "fail", flipped + 1
+        call("/label", {"id": item["id"], "label": label, "seconds": 5})
+    with urllib.request.urlopen(f"{base}/result?token={token}", timeout=10) as r:
+        live = r.read().decode("utf-8")
+    assert 'id="fix-h"' in live, live
+    assert S11_FIX in _page_text(live), live
+    assert "tells you where to write a better rule" not in live
+    run(capsys, "--yes")
+    report = ws.report_html.read_text(encoding="utf-8")
+    assert S11_FIX in _page_text(report), report
+    assert "tells you where to write a better rule" not in report
+
+
 # Two runs at once: one prepares the pool at a time, as one opens the page ----------------------
 
 def test_the_pool_is_prepared_while_the_opening_mark_is_held(here, capsys, no_browser,

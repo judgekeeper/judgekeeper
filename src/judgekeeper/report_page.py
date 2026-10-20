@@ -631,7 +631,7 @@ def _fix(r: dict) -> str:
     judge = r.get("judge") or {}
     rule = judge.get("rule") if judge.get("one_rule", True) else None
     saved = f"{FOLDER}/fix/"
-    if judge.get("tool") is None or can_test(judge.get("tool"), rule):
+    if can_test(judge.get("tool"), rule):  # no tool (an own file): it can't be asked either
         then = (f"It lists the answers your judge got wrong, saves them in {saved} and tells you "
                 f"where to write a better rule. Then run <code>{fix}</code> again to test it.")
     else:
