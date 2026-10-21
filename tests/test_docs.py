@@ -1,10 +1,9 @@
 """The README and the docs folder: what each holds, in the agreed words. The README's numbers
-come from the committed report in docs/examples/llmbar-haiku.
+come from the committed reports in docs/examples/.
 """
 
 from __future__ import annotations
 
-import json
 import re
 
 from tests.website_pages import ROOT
@@ -50,24 +49,27 @@ def test_the_readme_has_each_step_with_its_command():
         assert command in line, step
 
 
-def _pct(x: float) -> str:
-    return f"{round(x * 100)}%"
+EXAMPLES = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/"
 
 
-def test_the_readme_numbers_are_the_llmbar_reports():
-    """LLMBar is pairwise (which of two answers is better), so no Pass, Fail, TPR or TNR."""
-    report = json.loads((ROOT / "docs/examples/llmbar-haiku/report.json").read_text(
-        encoding="utf-8"))
-    h = report["headline"]
-    numbers = _flat(_sections(_readme())["Numbers"])
-    needed = (f"**A real judge, checked.** Claude Haiku 4.5 on the LLMBar benchmark: "
-              f"{report['anchors']['n_items']} pairs of answers where the benchmark's authors "
-              f"marked the better one. It picked the same one {_pct(h['accuracy_mean'])} of the "
-              f"time (kappa {h['kappa_mean']:.2f}), over {report['n_runs']} runs. [Report](")
-    assert needed in numbers
-    llmbar = numbers[numbers.index(needed):numbers.index("**Its ranges hold")]
-    for word in ("Pass", "Fail", "TPR", "TNR"):
-        assert word not in llmbar, word
+def test_the_readme_numbers_are_in_the_reports_they_link():
+    """Each Numbers line links its report, and every % and decimal on the line is in it."""
+    lines = [x for x in _sections(_readme())["Numbers"].splitlines() if x.startswith("- ")]
+    linked = {}
+    for line in lines:
+        found = re.findall(rf"\]\({re.escape(EXAMPLES)}([\w./-]+)\)", line)
+        if not found:
+            continue
+        report = (ROOT / "docs" / "examples" / found[0]).read_text(encoding="utf-8")
+        for figure in re.findall(r"\d+\.\d+|\d+%", line):
+            assert figure in report, (found[0], figure)
+        linked[found[0]] = line
+    assert sorted(linked) == ["coverage/coverage.md", "jailbreakbench/report.md",
+                              "probes/report.md", "ragtruth/report.md"]
+    assert "in 20 of 20 draws" in linked["jailbreakbench/report.md"]
+    assert "needs work" in linked["ragtruth/report.md"]
+    for gone in ("LLMBar", "MT-Bench", "real-data-check"):
+        assert gone not in _readme(), gone
 
 
 def test_the_readme_keeps_to_the_agreed_words():
