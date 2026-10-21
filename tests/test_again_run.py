@@ -370,6 +370,7 @@ def test_a_real_regrade_matches_every_grading_prompt(tmp_path, monkeypatch):
         session.update({"id": q["id"], "label": q["group"]})
     save_result(ws, session, say=_quiet)
     monkeypatch.setattr(pf, "_code", lambda values: False)  # the fake grader is exec: code
+    monkeypatch.setattr(pf, "_model", lambda provider_id: True)
     plan = make_plan(ws, AgainOptions(times=1))
     assert plan.status != "cant", plan.why
     fresh = pf.run(ws, plan, start.Talk(quiet=True))
