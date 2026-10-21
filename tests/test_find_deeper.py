@@ -6,7 +6,6 @@ It never says to run the eval again when results-like files are there."""
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pytest
 
@@ -32,9 +31,9 @@ def test_a_table_too_deep_is_named_with_the_command_that_reads_it(here, capsys):
     code, out, _ = run(capsys, "--no-browser")
     text = _flat(out)
     assert ("No eval results found where judgekeeper looks: 4 folders down from support-bot "
-            "(tables: 1 folder down).") in text
+            "(tables: 2 folders deep).") in text
     assert "evals/2026/october/judged.csv (3 folders down)" in out
-    path = quote_arg(Path("evals/2026/october/judged.csv"))  # as the shell in use writes it
+    path = quote_arg("evals/2026/october/judged.csv")  # as the line above names it
     assert f"Next: if that is your results, run `judgekeeper {path} --no-browser`." in text
     assert "run your eval" not in text
     assert code == 3
@@ -82,7 +81,7 @@ def test_a_results_file_in_the_folder_above_is_named(tmp_path, capsys, monkeypat
     monkeypatch.chdir(top / "notes")
     code, out, _ = run(capsys, "--no-browser")
     assert "../results.json (in the folder above)" in out
-    assert f"run `judgekeeper {quote_arg(Path('../results.json'))} --no-browser`" in _flat(out)
+    assert f"run `judgekeeper {quote_arg('../results.json')} --no-browser`" in _flat(out)
     assert code == 3
 
 
@@ -91,7 +90,7 @@ def test_nothing_results_like_says_where_it_looked(here, capsys):
     code, out, _ = run(capsys, "--no-browser")
     text = _flat(out)
     assert ("No eval results found in this folder (support-bot). judgekeeper looked 4 folders "
-            "down (tables: 1 folder down).") in text
+            "down (tables: 2 folders deep).") in text
     assert "`judgekeeper PATH --no-browser`" in text
     assert code == 3
 

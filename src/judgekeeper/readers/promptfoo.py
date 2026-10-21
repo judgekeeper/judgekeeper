@@ -80,7 +80,8 @@ REFERENCE_TYPES = frozenset({"factuality", "model-graded-factuality"})
 AGENT_GRADED = frozenset({"agent-rubric", "trajectory:goal-success"})
 DEFAULT_GRADER = ("{n} of your judge's grades came from promptfoo's default grader: no grader is "
                   "set on those tests or in defaultTest, so promptfoo picked one, and its "
-                  "results don't say which model.")
+                  "results don't say which model. Write the grader in your config "
+                  "(`defaultTest.options.provider`).")
 SET_GRADER = ("{n} of your judge's grades came from a grader set with promptfoo's --grader: its "
               "results keep only the model's name.")
 CACHED = ("{n} judgments in {file} came from promptfoo's cache: they may be old replies, not "
@@ -141,25 +142,70 @@ def is_stripped_warning(text: str) -> bool:
 TWO_JUDGES = ("{where}: test {test}{config} has more than one {name!r} judge. Give each one a "
               "name with metric: in its assertion, then run your eval again (that makes model "
               "calls).")
+TWO_DEFAULT = ("{where}: defaultTest adds {a} {name} to every test{config}, and each test has "
+               "its own, so each has two. Give each one a name with metric: in its assertion, "
+               "then run your eval again (that makes model calls).")
 
 
 class TwoJudges(RecordsError):
     """A test holds two judges of the same name. Only its number is kept (counted from 1):
-    its description and variables are input text, never shown."""
+    its description and variables are input text, never shown. `default`: one of the two
+    comes from defaultTest, so every test has two."""
 
-    def __init__(self, path: Path, test, name: str):
-        self.test, self.name = test, name
-        super().__init__(TWO_JUDGES.format(where=path, test=test, config="", name=name))
+    def __init__(self, path: Path, test, name: str, default: bool = False):
+        self.test, self.name, self.default = test, name, default
+        super().__init__(two_judges(path, test, name, "", default))
+
+
+def two_judges(where, test, name: str, config: str, default: bool = False) -> str:
+    """The line for a test with two judges of one name `name`; `config`: " in <its file>"."""
+    if default:
+        a = "an" if name[:1].lower() in "aeiou" or name.lower().startswith("llm") else "a"
+        return TWO_DEFAULT.format(where=where, config=config, a=a, name=name)
+    return TWO_JUDGES.format(where=where, test=test, config=config, name=name)
+
+
+def _in_default(default_test: dict, name: str) -> bool:
+    """Whether defaultTest's assertions hold a judge named `name` (its metric, else its type):
+    then every test gets it as well as its own."""
+    asserts = default_test.get("assert")
+    return isinstance(asserts, list) and any(
+        isinstance(a, dict) and (a.get("metric") or a.get("type")) == name for a in asserts)
+
+
+JSON_KINDS = {list: "a list", str: "a string", int: "a number", float: "a number",
+              bool: "true or false", type(None): "null"}  # what a JSON value is, in words
+
+
+def not_results(data) -> str | None:
+    """Why `data` (a JSON document) isn't a promptfoo results file, or None when it has the
+    shape of one: results.results[], and config an object when it is there."""
+    if not isinstance(data, dict):
+        return f"it holds {JSON_KINDS.get(type(data), 'a value')}, not a JSON object"
+    results = data.get("results")
+    if results is None:
+        return 'it has no "results"'
+    if not isinstance(results, dict):
+        return f'its "results" is {JSON_KINDS.get(type(results), "not an object")}'
+    if not isinstance(results.get("results"), list):
+        return 'its "results" holds no list of results'
+    config = data.get("config")
+    if config is not None and not isinstance(config, dict):
+        return f'its "config" is {JSON_KINDS.get(type(config), "not an object")}'
+    return None
+
+
+def not_results_error(path: Path, why: str) -> Damaged:
+    return Damaged(f"{path.name} isn't a promptfoo results file ({why}).",
+                   f"save {path.name} again with `promptfoo eval -o {path.name}`, then run "
+                   "`{command}`.")
 
 
 def _load(path: Path) -> dict:
     data = load_json(path, "promptfoo")
-    results = data.get("results") if isinstance(data, dict) else None
-    if not isinstance(results, dict) or not isinstance(results.get("results"), list):
-        raise Damaged(f"{path.name}: not a promptfoo results file (no results.results[]); "
-                      "write one with `promptfoo eval -o results.json`",
-                      "write it again with `promptfoo eval -o results.json`, then run "
-                      "`{command}`.")
+    why = not_results(data)
+    if why:
+        raise not_results_error(path, why)
     return data
 
 
@@ -380,7 +426,8 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
             per_row[name] += 1
             if per_row[name] > 1:
                 idx = r.get("testIdx")
-                raise TwoJudges(path, idx + 1 if isinstance(idx, int) else idx, name)
+                raise TwoJudges(path, idx + 1 if isinstance(idx, int) else idx, name,
+                                default=_in_default(default_test, name))
             grader = grader_of(a, test_opts, default_test)
             evaluator = _provider(grader)
             if not evaluator:

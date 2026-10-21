@@ -30,7 +30,7 @@ import json
 from html import escape
 
 from judgekeeper import batches, look, reasons, targets
-from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS
+from judgekeeper.start_label import EARLY, FOLDER, GOOD, MARK_MORE, NEEDS
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
 KAPPA_MEANS = ("Kappa is agreement beyond coincidence. 0 means no better than coincidence, 1 "
@@ -501,14 +501,31 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict]) -> str:
     return "".join(out) + "</div>"
 
 
+def _made(r: dict) -> str:
+    """The notes on marks another program could have made (start_label.link_lines), as in the
+    terminal."""
+    from judgekeeper.start_label import link_lines
+
+    said = link_lines(r.get("made"))
+    return ('<div class="band">' + "".join(f'<p class="note">{_e(x)}</p>' for x in said)
+            + "</div>") if said else ""
+
+
 def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False,
-           parts: list[str] | None = None, own: list[dict] | None = None) -> str:
-    """One group of disagreements: its title, "Show all" past ROWS_SHOWN rows, the table.
-    Each row is followed by its reason box on the live page (`live`), or by the person's
-    reasons, read-only, in report.html."""
+           parts: list[str] | None = None, own: list[dict] | None = None,
+           hidden: int = 0) -> str:
+    """One group of disagreements: its title (with how many more are kept aside to test a new
+    rule, `hidden`), "Show all" past ROWS_SHOWN rows, the table. Each row is followed by its
+    reason box on the live page (`live`), or by the person's reasons, read-only, in
+    report.html."""
     why = f"Why your judge {judge} it"
     parts, own = parts or [], own or []
     words = {c["id"]: c["text"] for c in own}
+    count = (f"{len(rows)} shown; {hidden} more {'is' if hidden == 1 else 'are'} kept aside to "
+             "test a new rule fairly" if hidden else f"{len(rows)}")
+    if not rows:  # every one is kept aside: the title alone
+        return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
+                f'<h2 id="g-{key}">{said} ({count})</h2></div></section>')
     body = []
     for k, m in enumerate(rows):
         n = f"{key}-{k}"
@@ -530,7 +547,7 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
     more = (f'<button type="button" class="more" aria-expanded="false" '
             f'aria-controls="t-{key}">Show all</button>' if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
-            f'<h2 id="g-{key}">{said} ({len(rows)})</h2>{more}</div>'
+            f'<h2 id="g-{key}">{said} ({count})</h2>{more}</div>'
             f'<table class="tbl" id="t-{key}"><colgroup><col class="c1"><col class="c2">'
             '<col class="c3"></colgroup><thead><tr><th scope="col">Question</th>'
             f'<th scope="col">Answer</th><th scope="col">{why}</th></tr></thead>'
@@ -539,10 +556,10 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
 
 def _groups(c: dict, fixing: dict | None, live: bool = False,
             mark: str | None = None) -> str:
-    """The disagreements on the marks the person can see, in two groups, and how many more
-    are among the hidden marks. On the live page, a line first: add a reason. In
-    report.html, which can't save one, a line last: to say why, run `mark` (`mark`: the
-    command)."""
+    """The disagreements on the marks the person can see, in two groups, each saying in its
+    title how many more are among the hidden marks. On the live page, a line first: add a
+    reason. In report.html, which can't save one, a line last: to say why, run `mark` (`mark`:
+    the command)."""
     from judgekeeper.start_label import SAY_WHY_RUN
 
     mistakes = (fixing or {}).get("mistakes") or []
@@ -553,14 +570,10 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     for key, said, judge in (("easy", "You said Fail, your judge said Pass", "pass"),
                              ("strict", "You said Pass, your judge said Fail", "fail")):
         rows = [m for m in mistakes if m.get("judge") == judge]
-        if rows:
+        hidden = max(0, c[key] - len(rows))
+        if rows or hidden:
             out.append(_group(key, said, "passed" if judge == "pass" else "failed", rows,
-                              live, parts, own))
-    hidden = max(0, c["strict"] + c["easy"] - len(mistakes))
-    if hidden:
-        out.append(f'<div class="band"><p class="note">* {hidden} more '
-                   f'{"is" if hidden == 1 else "are"} kept aside to test your new rule '
-                   "fairly.</p></div>")
+                              live, parts, own, hidden))
     if mistakes and not live and mark:
         out.append(f'<div class="band"><p class="add-why">'
                    f"{_code_line(SAY_WHY_RUN.format(command=mark))}</p></div>")
@@ -612,22 +625,23 @@ def _details(r: dict) -> str:
 def _fix(r: dict) -> str:
     """Fix it: the command that saves the clues and tests a new rule, with Copy. For a judge
     judgekeeper can't ask (fix.can_test), the same words as `judgekeeper fix`."""
-    from judgekeeper.fix import CANT_ASK, NEXT_CANT_ASK, can_test
+    from judgekeeper.fix import CANT_RERUN, NEXT_CANT_ASK, can_test
 
     fix = _e(commands(r)["fix"])
     judge = r.get("judge") or {}
     rule = judge.get("rule") if judge.get("one_rule", True) else None
-    if judge.get("tool") is None or can_test(judge.get("tool"), rule):
-        then = ("the clues and tells you where to write a better rule. Then run "
-                f"<code>{fix}</code> again to test it.")
+    saved = f"{FOLDER}/fix/"
+    if can_test(judge.get("tool"), rule):  # no tool (an own file): it can't be asked either
+        then = (f"It lists the answers your judge got wrong, saves them in {saved} and tells you "
+                f"where to write a better rule. Then run <code>{fix}</code> again to test it.")
     else:
         check = NEXT_CANT_ASK.format(command=commands(r)["check"]).split("`")
-        then = (f"the clues. {_e(CANT_ASK)} {_e(check[0][:1].upper() + check[0][1:])}"
+        then = (f"It lists the answers your judge got wrong and saves them in {saved}. "
+                f"{_e(CANT_RERUN)}, so {_e(check[0])}"
                 f"<code>{_e(check[1])}</code>{_e(check[2])}")
     return ('<section class="fix band" aria-labelledby="fix-h"><div class="fix-in">'
             '<h2 id="fix-h">Fix it</h2>'
-            f"<p>In your project folder, open a terminal and run <code>{fix}</code>. It saves "
-            f"{then}</p>"
+            f"<p>In your project folder, run <code>{fix}</code>. {then}</p>"
             f'<div class="cmd"><code id="fix-cmd">{fix}</code><button type="button" '
             'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div></div></section>')
 
@@ -647,7 +661,7 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     model = (r.get("fingerprint") or {}).get("model")
     left = look.meta(_e(model) if model else None, _e(tool) if tool else None)
     level = r.get("verdict_level") if r["check"] != "too_few" else None
-    parts = [_verdict(r, c, back, worse), _counts(r, c)]
+    parts = [_verdict(r, c, back, worse), _counts(r, c), _made(r)]
     live = back is not None
     if shows_disagreements(r):  # real numbers: the disagreements and the estimates
         mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out

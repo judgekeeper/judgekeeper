@@ -50,5 +50,6 @@ def test_judge_scores_from_mlflow_evaluate_are_named_and_not_read(here, capsys):
     assert "no MLflow experiment" not in out + err
     assert assert_one_next_at_the_end(out) == (
         "Next: run your judge with mlflow.genai.evaluate() and scorers, then run "
-        "`judgekeeper` again; or save its verdicts as a CSV and run `judgekeeper <the CSV>`.")
+        "`judgekeeper` again; or save its verdicts as a CSV and run `judgekeeper PATH`, with PATH the "
+        "path of your CSV.")
     assert code == 3

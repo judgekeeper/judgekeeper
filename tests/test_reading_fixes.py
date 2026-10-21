@@ -481,10 +481,12 @@ def test_without_a_pin_the_installed_version_is_named(monkeypatch):
     from judgekeeper import judge_check
 
     monkeypatch.setattr(judge_check, "installed", lambda package: "9.9.9")
-    found = type("F", (), {"tool": "deepeval", "models": ["m"], "model_source": None})()
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    found = type("F", (), {"tool": "deepeval", "models": ["m"], "model_source": None,
+                           "root": "no-such-folder"})()
     assert judge_check.setup_lines(found, {"tool_version": None}) == [
-        ("judgekeeper can't see your eval tool's version, so an update to it won't be noticed. "
-        "Pin it in your project (e.g. `deepeval==9.9.9`).")]
+        ("judgekeeper can't see your eval tool's version. Write its version in your project's "
+         "requirements (e.g. `deepeval==9.9.9`), so `check` notices when it changes.")]
 
 
 # 44. The file's own ids ------------------------------------------------------------------------

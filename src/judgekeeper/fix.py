@@ -60,6 +60,7 @@ from judgekeeper.start_label import Workspace, next_marks, shown_folder
 from judgekeeper.textio import (
     jsonl_lines,
     make_private,
+    old_hook,
     plural,
     program,
     quote_arg,
@@ -90,11 +91,12 @@ RESULT = {
                      "could easily be a coincidence."),
     "same": ("Result: can't tell yet. The two rules look about the same here. More marks are "
              "unlikely to change that much."),
-    "leans worse": "Result: it looks worse. Keep the old rule.",
-    "worse": "Result: worse. Keep the old rule.",
+    "leans worse": "Result: can't tell yet. That leans toward worse; keep the old rule.",
+    "worse": "Result: it looks worse. Keep the old rule.",  # only past the sign test
 }
 # A judge judgekeeper can't ask (can_test): the same words on every run and in report.html
 CANT_ASK = "judgekeeper can't ask this judge itself."
+CANT_RERUN = "judgekeeper can't re-run this kind of judge itself"  # the result page's words
 NEXT_CANT_ASK = ("change its rule where your eval keeps it, run your eval, then run "
                  "`{command}`.")
 
@@ -721,6 +723,10 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     talk = Talk(path)
     talk.say(f"judgekeeper {__version__}")
     talk.say()
+    hook = old_hook(path)
+    if hook:
+        talk.para(hook)
+        talk.say()
     state = _state(path)
     ws = state.ws if state is not None else None
     m = Marks(ws) if ws is not None else None
@@ -732,21 +738,37 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
     if split is not None and split.retest:  # a top-up was just marked: the same rule again
         rule = (ws.dir / "rules" / f"{split.topup['rule_hash'].removeprefix('sha256:')}.txt"
                 ).read_text(encoding="utf-8")
-    talk.say(STEP if rule is None else STEP_TEST)
+    waiting = split is not None and (split.fresh or (split.topup and not split.topup.get("done")))
+    talk.say(STEP if rule is None or waiting else STEP_TEST)
     talk.say()
+    if ws is None and not _has_results(Path(path)):
+        talk.para(f"No eval results found in this folder ({Path(path).resolve().name}).")
+        talk.next(f"run your eval once from this folder, then run `{program()}`.")
+        return EXIT_NEEDS_YOU
     if split is None:
         talk.para("You have not marked enough answers yet to fix your judge.")
         step = f"run `{program('mark')}` to mark more answers."
         talk.next(next_marks(ws, step) if ws is not None else step)
         return EXIT_NEEDS_YOU
-    if split.fresh or (split.topup and not split.topup.get("done")):
-        return _waiting(talk, ws, split)
+    if waiting:
+        return _waiting(talk, ws, split, rule)
     if rule is not None:
         return test_rule(talk, ws, m, split, rule, yes)
     tested = _tested_rule(ws, split) if testable and not new else None
     if tested is not None:
-        return tested_before(talk, ws, m, *tested)
+        return tested_before(talk, ws, m, split, *tested)
     return first_run(talk, ws, m, split)
+
+
+def _has_results(path: Path) -> bool:
+    """Whether judgekeeper finds eval results it reads at `path` (nothing is read)."""
+    from judgekeeper import find
+
+    try:
+        found = find.search(path)
+    except OSError:
+        return True  # said by the step that reads them
+    return any(found.readable(t) for t in find.TOOLS)
 
 
 def _after_worse(state, m: Marks) -> None:
@@ -761,8 +783,9 @@ def _after_worse(state, m: Marks) -> None:
         m.judge_now(found)
 
 
-def _waiting(talk: Talk, ws: Workspace, split: Split) -> int:
-    """New marks are needed first: for the top-up, or for a new set of hidden marks."""
+def _waiting(talk: Talk, ws: Workspace, split: Split, rule: str | None = None) -> int:
+    """New marks are needed first: for the top-up, or for a new set of hidden marks. A new
+    rule in rule.txt (`rule`) waits for them, and that is said."""
     if split.fresh:
         want, then = split.fresh["want"], ": they become a new set of marks kept aside"
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
@@ -776,8 +799,14 @@ def _waiting(talk: Talk, ws: Workspace, split: Split) -> int:
         want, then = split.topup["want"], ""
     if split.pending:
         talk.para(f"You have marked {len(split.pending)} of the {want} more answers.")
-    talk.next(next_marks(ws, f"mark {want - len(split.pending)} more answers with "
-                             f"`{program('mark')}`, then run `{talk.command()}` again{then}."))
+    left = want - len(split.pending)
+    if rule is not None:
+        after = ("the rule before it is tested again; then it is tested" if not split.fresh
+                 else "it is tested on them")
+        talk.para(f"Your new rule is waiting: first mark {plural(left, 'more answer')}, then "
+                  f"{after}.")
+    talk.next(next_marks(ws, f"mark {plural(left, 'more answer')} with `{program('mark')}`, "
+                             f"then run `{talk.command()}` again{then}."))
     return EXIT_NEEDS_YOU
 
 
@@ -876,14 +905,21 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
     code when nothing was asked."""
     from judgekeeper import again
     from judgekeeper.again.fresh import NOT_COUNTED, AgainError
-    from judgekeeper.check import CAN_WRITE, NO_KEY, _can_write, _go_ahead, _Quiet, downloads
+    from judgekeeper.check import CAN_WRITE, NOT_ASKED, _can_write, _go_ahead, _Quiet, downloads
 
     ids = set(split.hidden)
     plans = [again.make_plan(ws, again.AgainOptions(times=1, rule=r), dry=True, only=ids)
              for r in (None, rule)]
     cant = next((p for p in plans if p.status == again.CANT), None)
+    no_key = next((p for p in plans if not p.key_ok), None) if cant is None else None
+    if no_key is not None:  # which key, and where to set it: never its value
+        for line in no_key.key_lines:
+            talk.para(line)
+        talk.para(NOT_ASKED)
+        step = no_key.key_step or "set the key your judge needs"
+        talk.next(f"{step}, then run `{talk.command()}` again.")
+        return EXIT_NEEDS_YOU
     why = cant and (cant.plain or f"Your judge can't be asked again: {cant.why}.")
-    why = why or (NO_KEY if not all(p.key_ok for p in plans) else None)
     if why:
         talk.para(why)
         if cant is not None and cant.install:
@@ -910,7 +946,7 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
     from judgekeeper.again.fresh import write_files
     from judgekeeper.fingerprint import rule_hash
 
-    grades, left = [], Counter()
+    grades, left = [], {}
     for plan, text in zip(plans, (m.data.get("rule") or "", rule), strict=True):
         plan.folder = _run_folder(ws, rule_hash(text))
         try:
@@ -922,9 +958,10 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
             return EXIT_NEEDS_YOU
         write_files(ws, plan, fresh, prefix="fix")  # its grades, each with the fingerprint
         grades.append({i: v[0] for i, v in fresh.verdicts.items()})
-        left.update(fresh.not_counted.values())
+        for i, why in fresh.not_counted.items():
+            left.setdefault(i, why)  # an answer not counted in both runs is one answer
     reasons = []
-    for why, k in left.items():
+    for why, k in Counter(left.values()).items():
         one, many = NOT_COUNTED.get(why, (why, why))
         reasons.append(f"1 answer was not counted: {one}." if k == 1 else
                        f"{k} answers were not counted: {many}.")
@@ -959,15 +996,26 @@ def _copy_step(ws: Workspace, m: Marks, talk: Talk) -> str:
             f"`{talk.command('check')}`.")
 
 
-def tested_before(talk: Talk, ws: Workspace, m: Marks, rule: str, test: dict) -> int:
+def _say_rule(talk: Talk, ws: Workspace, rule: str, problems: list[dict]) -> None:
+    """The new rule's first words and where it is; only where it is when it copies text from
+    the answers (it would print them)."""
+    folder = f"{shown_folder(ws)}/{FOLDER}"
+    if any(c["text"] == start_fix_rule.COPIES for c in problems):
+        talk.say(f"New rule:  from {folder}/{RULE}")
+    else:
+        talk.say(f"New rule:  {_rule_quote(rule)}")
+        talk.say(f"           (from {folder}/{RULE})")
+    talk.say()
+
+
+def tested_before(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str,
+                  test: dict) -> int:
     """The rule in rule.txt was tested on these marks kept aside: its saved result, never a
     new test, and the next step that result gave."""
     from judgekeeper.check import _day
 
     folder = f"{shown_folder(ws)}/{FOLDER}"
-    talk.say(f"New rule:  {_rule_quote(rule)}")
-    talk.say(f"           (from {folder}/{RULE})")
-    talk.say()
+    _say_rule(talk, ws, rule, _problems(m, split, rule))
     day = _day(test.get("time"))
     talk.para(f"You tested this rule before{f' ({day})' if day else ''}. On the "
               f"{test.get('n')} marks kept aside it fixed {test.get('fixed')} and broke "
@@ -1007,10 +1055,8 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     from judgekeeper.fingerprint import rule_hash
 
     folder = f"{shown_folder(ws)}/{FOLDER}"
-    talk.say(f"New rule:  {_rule_quote(rule)}")
-    talk.say(f"           (from {folder}/{RULE})")
-    talk.say()
     problems = _problems(m, split, rule)
+    _say_rule(talk, ws, rule, problems)
     for c in problems:
         talk.para(c["text"])
     if any(c["blocking"] for c in problems):
@@ -1043,6 +1089,15 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     _keep(ws, split, rule, h, v)
     if v.kind in ("better", "safe"):
         talk.next(_copy_step(ws, m, talk))
+        return EXIT_OK
+    if v.kind == "leans better" and len(split.rules()) >= MAX_RULES:  # no top-up: a new set
+        retire(split)
+        save_split(ws, split)
+        talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
+                  f"aside. Mark {FRESH} more answers with `{program('mark')}`: they become a new "
+                  f"set kept aside, and `{talk.command()}` tests this rule again on them.")
+        talk.next(next_marks(ws, f"mark {FRESH} more answers with `{program('mark')}`, then "
+                                 f"run `{talk.command()}` again."))
         return EXIT_OK
     if v.kind == "leans better" and split.topup is None:
         split.topup = {"want": targets.top_up(v.n), "rule_hash": h, "done": False}

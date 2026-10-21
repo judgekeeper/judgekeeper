@@ -67,7 +67,7 @@ def test_a_second_server_on_the_project_is_refused(ws):
     try:
         lock = json.loads((ws.dir / label_mod.LOCK).read_text(encoding="utf-8"))
         assert lock == {"pid": lock["pid"], "port": server.port, "stop": server.stop_secret,
-                        "token": server.token, "settings": None, "printed": False}
+                        "token": server.token, "settings": None, "link": None}
         if os.name != "nt":
             assert stat.S_IMODE((ws.dir / label_mod.LOCK).stat().st_mode) == 0o600
         with pytest.raises(LabelError) as e:

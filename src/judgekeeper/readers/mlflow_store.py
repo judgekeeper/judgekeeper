@@ -440,7 +440,9 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
         try:
             files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature,
                                  metric, folder_of(uri))
-        except UNREADABLE:  # caught before MLflow says more: its words can hold the text
+        except Exception as e:  # never MLflow's words: they can hold the text
+            if not is_damage(e):
+                raise
             raise damaged_store(uri) from None
     for _, records in files:
         records.source = store_name(uri)
@@ -467,12 +469,47 @@ def _unreadable() -> tuple[type[BaseException], ...]:
 UNREADABLE = _unreadable()
 
 
+def is_damage(e: BaseException | None) -> bool:
+    """Whether `e`, or an error it came from, is the store's damage (UNREADABLE), MLflow's
+    own error wrapping it included."""
+    seen = set()
+    while e is not None and id(e) not in seen:
+        seen.add(id(e))
+        if isinstance(e, UNREADABLE) or (type(e).__name__ == "MlflowException" and str(
+                e).startswith(("(sqlite3.", "(sqlalchemy."))):
+            return True
+        e = e.__cause__ or e.__context__
+    return False
+
+
+@contextmanager
+def store_damage(uri) -> Iterator[None]:
+    """Damage met while the store at `uri` is read, said as damaged_db, never in MLflow's
+    words."""
+    try:
+        yield
+    except Damaged:
+        raise
+    except Exception as e:
+        if not is_damage(e):
+            raise
+        raise damaged_db(uri) from None
+
+
 def store_name(uri) -> str:
     """The store at `uri` as the person knows it: mlflow.db, or the mlruns folder."""
     folder = folder_of(uri)
     if folder is not None:
         return folder.name
     return Path(str(uri).removeprefix("sqlite:///")).name if uri else "Your MLflow store"
+
+
+def damaged_db(uri) -> Damaged:
+    """A store that can't be opened or listed: damaged."""
+    name = store_name(uri)
+    return Damaged(f"{name} can't be read: it's damaged. Save it again from MLflow.",
+                   f"save {name} again from MLflow (log your evaluation again), then run "
+                   "`{command}`.")
 
 
 def damaged_store(uri) -> Damaged:

@@ -57,6 +57,7 @@ from judgekeeper.records import (
     derive_record_id,
     fingerprint_known,
     left_out_note,
+    load_json,
     read_records,
 )
 from judgekeeper.redact import one_line, scrub
@@ -156,11 +157,12 @@ class Talk:
         return " ".join((self.program, *self.flags, *extra))
 
     def command_at(self, where: str | Path, *extra: str) -> str:
-        """`command`, with `where` (a path inside the folder the person gave) as the path."""
+        """`command`, with `where` (a path inside the folder the person gave) as the path,
+        written with forward slashes on every system, as the lines that name it write it."""
         given = self.flags[:1] == (quote_arg(self.path),) and self.path != "."
         flags = self.flags[1:] if given else self.flags
         path = Path(where) if self.path == "." else Path(self.path) / where
-        return " ".join((self.program, quote_arg(path), *flags, *extra))
+        return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
 
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):
@@ -474,7 +476,7 @@ def _readable(talk: Talk, results: list[find.Result], root: Path):
         try:
             yield _read(r)
         except RecordsError as e:
-            talk.say(f"{_unread(e, r, root)} It is left out.")
+            _note(talk, f"{_unread(e, r, root)} It is left out.")
 
 
 def _unread(error: RecordsError, result: find.Result, root: Path) -> str:
@@ -482,13 +484,14 @@ def _unread(error: RecordsError, result: find.Result, root: Path) -> str:
     met: a DeepEval file that only links to Confident AI; a promptfoo test with two judges of
     one name, with the config file it is in."""
     from judgekeeper.readers.deepeval import LINK_ONLY, LinkOnly
-    from judgekeeper.readers.promptfoo import TWO_JUDGES, TwoJudges
+    from judgekeeper.readers.promptfoo import TwoJudges, two_judges
 
     if isinstance(error, LinkOnly):
         return LINK_ONLY.format(file=result.rel)
     if isinstance(error, TwoJudges):
-        return TWO_JUDGES.format(where=result.rel, test=error.test, name=error.name,
-                                 config=f" in {_config_named(root, result)}")
+        config = _config_named(root, result)
+        default = error.default or _default_test_has(root / config, error.name)
+        return two_judges(result.rel, error.test, error.name, f" in {config}", default)
     return str(error)
 
 
@@ -578,15 +581,13 @@ def _needs_extra(talk: Talk, tool: str, where: str) -> Stop:
     """Reading `tool` needs an extra: started by uvx, the uvx command that has it (pip would
     not reach uvx's environment); else pip install, then the same command again."""
     extra = find.EXTRAS[tool]
+    _note(talk, f"{find.NAMES[tool]} found ({where}). Reading {find.NAMES[tool]} results needs "
+                f"judgekeeper's {extra} extra.")  # the command is in the Next: line, once
     if textio.started_by_uvx():
         command = " ".join((textio.uvx_with(extra), *filter(None, [talk.subcommand]),
                             *talk.flags))
-        talk.say(f"{find.NAMES[tool]} found ({where}). To read {find.NAMES[tool]} results, "
-                 f"run `{command}`.")
         return talk.stop(EXIT_USAGE, f"run `{command}`.")
     install = textio.install_extra(extra)
-    talk.say(f"{find.NAMES[tool]} found ({where}). To read it, add the extra in your "
-             f"project's environment: {install}, then run {talk.command()} again.")
     return talk.stop(EXIT_USAGE, f"add judgekeeper's {extra} extra ({install} in your "
                                  f"project's environment), then run `{talk.command()}` "
                                  "again.")
@@ -609,13 +610,13 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
     """(experiment name, its runs newest first). An mlflow.db store is read through a
     temporary copy (mlflow_store.store_uri), never opened itself. `metric` (--metric) may name
     a judge whose assessments are only on spans. MLflow's own log lines are kept out."""
-    from judgekeeper.readers.mlflow_store import folder_store_allowed, quiet, store_uri
+    from judgekeeper.readers import mlflow_store
 
-    with quiet():
+    with mlflow_store.quiet():
         if not _has("mlflow"):
             raise _needs_extra(talk, "mlflow", _store_name(store))
-        uri = store_uri(store.path, say=talk.say)
-        with folder_store_allowed(uri, say=talk.say):
+        uri = mlflow_store.store_uri(store.path, say=talk.say)
+        with mlflow_store.folder_store_allowed(uri, say=talk.say), mlflow_store.store_damage(uri):
             return _mlflow_experiment(talk, store, experiment, metric, uri)
 
 
@@ -626,7 +627,7 @@ OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({nam
                 "with input, output and verdict columns.")
 OLD_EVALUATE_NEXT = ("run your judge with mlflow.genai.evaluate() and scorers, then run "
                      "`{command}` again; or save its verdicts as a CSV and run "
-                     "`{program} <the CSV>`.")
+                     "`{program} PATH`, with PATH the path of your CSV.")
 # The run metrics mlflow.evaluate() logs for a judged metric: faithfulness/v1/mean, ...
 _OLD_METRIC = re.compile(r"(.+/v\d+)/(mean|variance|p90)")
 
@@ -901,6 +902,7 @@ def _export(talk: Talk, path: Path, tool: str | None, root: Path, config: str):
     then carry on with the file; else print the export commands and stop."""
     from judgekeeper import start_export
 
+    _misshapen(root)
     screens = getattr(talk, "screens", False)  # `judgekeeper`'s own words (front.FrontTalk)
     if screens:
         talk.para(f"Found promptfoo in this folder ({config}), but no saved results file yet. "
@@ -921,6 +923,20 @@ def _export(talk: Talk, path: Path, tool: str | None, root: Path, config: str):
                                  f"run `{talk.command()}` again.")
     raise talk.stop(EXIT_OK, "nothing. Find your promptfoo run as said above, then run "
                              f"`{talk.command()}` again.")
+
+
+def _misshapen(root: Path) -> None:
+    """A results file promptfoo would write beside its config that isn't one: named, never
+    taken for no file at all."""
+    from judgekeeper.readers.promptfoo import not_results, not_results_error
+
+    for name in ("results.json", "promptfoo-results.json"):
+        path = root / name
+        if not path.is_file():
+            continue
+        why = not_results(load_json(path, "promptfoo"))  # Damaged when it isn't JSON
+        if why:
+            raise not_results_error(path, why)
 
 
 def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, dict]:
@@ -1012,7 +1028,10 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
 
 def _eval_folder(result: find.Result) -> str | None:
     """The folder DeepEval saved a results file in (a .deepeval/ or results folder): one
-    eval. None for a file under a name of its own (a run copied out), read with any."""
+    eval. None for a file under a name of its own (a run copied out), read with any. For
+    Inspect AI, the folder a log is in (its logs/ folder)."""
+    if result.tool == "inspect":
+        return Path(result.rel).parent.as_posix()
     name = result.path.name
     if name in find.DEEPEVAL_COPIES or find.DEEPEVAL_RUN.fullmatch(name):
         return Path(result.rel).parent.as_posix()
@@ -1030,13 +1049,16 @@ def _link_only(result: find.Result) -> bool:
         return False
 
 
-def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None) -> list:
-    """DeepEval results in more than one folder are separate evals, never one pool: the
-    results of one folder, the last check's (`prefer`) or the one the person picks."""
+def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None,
+                   kind: str = "deepeval") -> list:
+    """DeepEval results (or Inspect AI logs) in more than one folder are separate evals,
+    never one pool: the results of one folder, the last check's (`prefer`) or the one the
+    person picks."""
     folders = list(dict.fromkeys(f for f in map(_eval_folder, results) if f))  # newest first
     if len(folders) < 2:
         return results
-    if all(_link_only(r) for r in results):
+    what = "Inspect logs" if kind == "inspect" else "DeepEval results"
+    if kind == "deepeval" and all(_link_only(r) for r in results):
         from judgekeeper.readers.deepeval import LinkOnly
 
         raise StartError(f"Each DeepEval results folder here ({', '.join(folders)}) only links "
@@ -1047,9 +1069,9 @@ def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None) -
                  for f in folders]
         commands = [talk.command_at(f) for f in folders]
         prefer = folders[talk.choose(
-            "DeepEval results in more than one folder:", shown,
-            f"DeepEval results in more than one folder; choose one with {_or(commands)}",
-            flag="PATH", values=folders, what="which DeepEval results to check")]
+            f"{what} in more than one folder:", shown,
+            f"{what} in more than one folder; choose one with {_or(commands)}",
+            flag="PATH", values=folders, what=f"which {what} to check")]
         talk.remember("PATH", prefer, f"(Next time: {talk.command_at(prefer)})")
     return [r for r in results if _eval_folder(r) in (prefer, None)]
 
@@ -1192,15 +1214,48 @@ def _project_descriptions(root: Path) -> set[str]:
     return {d for d in _promptfoo_configs(root).values() if d}
 
 
+def _default_test_has(path: Path, name: str) -> bool:
+    """Whether the promptfoo config at `path` gives defaultTest a judge named `name` (its type
+    or metric): JSON read as JSON, YAML scanned line by line (no YAML parser)."""
+    from judgekeeper.readers.promptfoo import _in_default
+
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    try:
+        data = json.loads(text)
+    except ValueError:
+        data = None
+    if isinstance(data, dict):
+        default = data.get("defaultTest")
+        return isinstance(default, dict) and _in_default(default, name)
+    lines = text.splitlines()
+    value = re.compile(rf"""(?:type|metric)\s*:\s*['"]?{re.escape(name)}['"]?\s*(?:#.*)?$""")
+    for i, line in enumerate(lines):
+        head = re.match(r"(\s*)defaultTest\s*:", line)
+        if not head:
+            continue
+        for more in lines[i + 1:]:
+            if more.strip() and len(more) - len(more.lstrip()) <= len(head[1]):
+                break
+            if value.search(more):
+                return True
+    return False
+
+
 def _config_named(root: Path, result: find.Result) -> str:
     """The promptfoo config `result` was made from, as a path in the project: the only one,
-    else the one with its description; else "your promptfoo config"."""
+    else the one with its description, else the one in its folder; else promptfoo's own
+    name for it, promptfooconfig.yaml."""
     configs = _promptfoo_configs(root)
     if len(configs) == 1:
         return next(iter(configs))
     theirs = results_description(result)
     same = [rel for rel, mine in configs.items() if theirs is not None and mine == theirs]
-    return same[0] if len(same) == 1 else "your promptfoo config"
+    folder = Path(result.rel).parent
+    beside = [rel for rel in configs if Path(rel).parent == folder]
+    return next((x[0] for x in (same, beside) if len(x) == 1), find.PROMPTFOO_CONFIGS[0])
 
 
 def _promptfoo_configs(root: Path) -> dict[str, str | None]:
@@ -1432,7 +1487,7 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
     if models:
         return f"{metric}{quoted}{with_model}"
     if tool == "promptfoo":
-        return "promptfoo's default grader (the results file does not say which model)"
+        return "promptfoo's default grader (no model written in your config)"
     if tool == "records":
         return f"{metric}{quoted} (your records do not say which model: pass judge= to record())"
     return f"{metric}{quoted} (the results file does not say which model)"
@@ -1461,7 +1516,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         prefer = prefer or saved.judge
     if saved is not None and saved.source == "mlflow":  # the store and experiment asked once
         store, experiment = store or saved.file, experiment or saved.experiment
-    if saved is not None and saved.source == "deepeval":  # the folder asked once
+    if saved is not None and saved.source in ("deepeval", "inspect"):  # the folder asked once
         store = store or saved.file
     if tracking_uri is not None:
         root, kind, results, signs = _given_store(talk, Path(path), tracking_uri)
@@ -1471,8 +1526,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         root, kind, results, signs = _locate(talk, Path(path), tool)
     if kind == "mlflow":
         results = _choose_store(talk, root, results, experiment, store)
-    elif kind == "deepeval":
-        results = _choose_folder(talk, results, store)
+    elif kind in ("deepeval", "inspect"):
+        results = _choose_folder(talk, results, store, kind)
     newest = results[0]
     description = None
     name = None
@@ -1523,7 +1578,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                 except RecordsError as e:
                     if not rest and not unjudged:
                         raise usage_error(e, _unread(e, newest, root)) from None
-                    talk.say(f"{_unread(e, newest, root)} It is left out.")
+                    _note(talk, f"{_unread(e, newest, root)} It is left out.")
                     if not rest:
                         raise _no_judge(talk, kind, [r.rel for r in unjudged], rules,
                                         False) from None
@@ -1690,6 +1745,7 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
         experiments_with_traces,
         folder_store_allowed,
         quiet,
+        store_damage,
         store_uri,
     )
 
@@ -1697,7 +1753,7 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
     names = []
     for s in stores:
         uri = store_uri(s.path, say=talk.say)
-        with quiet(), folder_store_allowed(uri, say=talk.say):
+        with quiet(), folder_store_allowed(uri, say=talk.say), store_damage(uri):
             names.append(experiments_with_traces(uri))
     if experiment is not None:
         having = [s for s, n in zip(stores, names, strict=True) if experiment in n]

@@ -6,7 +6,9 @@ on its stdin (`main`), and opens the link in the person's browser itself (`show`
 says the page is open, with no link. Only when no browser opens (or with --no-browser, on a
 remote machine) is the link printed. Without a terminal (another program reads the output)
 every mark made on that page is stamped "link": "printed", so the result can count them. At a
-terminal (the person's own) a printed link is not stamped.
+terminal (the person's own) a printed link is not stamped. When BROWSER is set, the program
+it names opens the page, not the person's usual browser: every mark is stamped "link":
+"browser-env" (stamped before the page is opened).
 
 The page keeps its token in server.json (owner-only, removed when it stops), so a second
 run prints the same link and the open tab keeps working: when the page open for this project
@@ -52,8 +54,11 @@ RESULT_LINK = "Open this link in your browser to see your result:"
 DONE = "When you're done, run {program} in your terminal."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
 OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
+PICKS = 10  # ports tried when one judgekeeper picked is taken before the page binds it
+SLOW_BROWSER = 10  # seconds: a browser that took longer to open may not have shown the page
+_clock = time.monotonic
 ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
-OPENING = "opening"  # in .judgekeeper/ while a run opens the page
+OPENING = "opening"  # in .judgekeeper/ while a run prepares the pool or opens the page
 OPENING_NOW = "judgekeeper is already opening the marking page for this folder."
 _PORT_FLAG = re.compile(r" --port \d+")
 
@@ -112,16 +117,16 @@ def page_key(ws: Workspace, command: str, start_command: str) -> dict:
 
 def page_server(ws: Workspace, port: int, command: str,
                 start_command: str | None = None, token: str | None = None,
-                printed: bool = False):
+                stamp: str | None = None):
     """The marking page: marking, and the result. Every click is a stamped
     line in marks.jsonl. It holds the project's lock and stays open after the result, until
     /stop, Ctrl-C or 30 minutes idle. `command` is how to come back to it; the result keeps
-    `start_command`. `token`: the one the command made (default: a new one). `printed`: its
-    link was printed for another program before (the same token), so its marks are stamped."""
+    `start_command`. `token`: the one the command made (default: a new one). `stamp`: how the
+    page with the same token was stamped before (marks.LINKS), so its marks are stamped so."""
     start_command = start_command or textio.program()
     session = marking_session(ws, start_command)
-    if printed:
-        session.link = PRINTED
+    if stamp in marks.LINKS:
+        session.link = stamp
 
     def result(session: StartSession, back: str) -> str:
         return start_label.live_result(ws, session, start_command, back)
@@ -136,7 +141,7 @@ def server_for(ws: Workspace, settings: dict, token: str):
     """The marking page `settings` ask for."""
     return page_server(ws, int(settings["port"]), str(settings["command"]),
                        str(settings["start_command"]), token=token,
-                       printed=settings.get("printed") is True)
+                       stamp=settings.get("link"))
 
 
 @dataclass
@@ -159,8 +164,9 @@ def open_new(ws: Workspace, port: int, command: str, start_command: str,
     the open page itself, on its port, when it shows the same (page_key); else it is
     closed and a page started (on its port when free, else on a free port when the default
     is taken, choose_port; `say` says why): in the background, or served by this process
-    (`here`, for --wait). None when it could not start."""
-    with _opening(ws.dir, say):
+    (`here`, for --wait). When a port judgekeeper picked is taken before the page binds it
+    (another run), the next free one, up to PICKS tries. None when it could not start."""
+    with one_at_a_time(ws.dir, say):
         old = live_lock(ws.dir)
         token = old["token"] if old else secrets.token_urlsafe(32)
         if (old is not None and not here
@@ -168,17 +174,28 @@ def open_new(ws: Workspace, port: int, command: str, start_command: str,
             return Page(link(old["port"], token), old["port"], token, kept=True)
         if is_open(ws.dir):
             background.stop(ws.dir)
-        printed = old is not None and old["printed"]
+        stamp = old["link"] if old is not None else None
+        picked = port == DEFAULT_PORT  # judgekeeper's choice, not the person's
         if old is not None and port in (0, DEFAULT_PORT) and port_free(old["port"]):
             port = old["port"]  # the open tab's link still works
         else:
             port = choose_port(port, say)
-        if here:
-            server = page_server(ws, port, command, start_command, token=token, printed=printed)
-            return Page(server.url, server.port, server.token, server)
-        settings = {"root": str(ws.root.resolve()), "port": port, "command": command,
-                    "start_command": start_command, "printed": printed}
-        url = background.start(ws.dir, settings, token)
+        for _ in range(PICKS):
+            try:
+                if here:
+                    server = page_server(ws, port, command, start_command, token=token,
+                                         stamp=stamp)
+                    return Page(server.url, server.port, server.token, server)
+                settings = {"root": str(ws.root.resolve()), "port": port, "command": command,
+                            "start_command": start_command, "link": stamp}
+                url = background.start(ws.dir, settings, token)
+            except LabelError:
+                url = None
+                if not picked or port_free(port):
+                    raise
+            if url is not None or not picked or port_free(port):
+                break
+            port = next((p for p in (DEFAULT_PORT, *OTHER_PORTS) if port_free(p)), 0)
     if url is None:
         return None
     from urllib.parse import urlsplit
@@ -187,9 +204,11 @@ def open_new(ws: Workspace, port: int, command: str, start_command: str,
 
 
 @contextmanager
-def _opening(folder: Path, say):
-    """While this run opens the project's page: .judgekeeper/opening. Another run that is
-    opening it is said and waited for (an older mark, left by a run that stopped, is not)."""
+def one_at_a_time(folder: Path, say):
+    """While this run prepares the project's pool or opens its page: .judgekeeper/opening.
+    Another run that is doing so is said and waited for (an older mark, left by a run that
+    stopped, is not). Two runs at once never write the pool twice, and neither reads a file
+    the other is replacing (Windows refuses that)."""
     path = Path(folder) / OPENING
     wait = 2 * background.WAIT
     said, made = False, False
@@ -226,12 +245,12 @@ def _remove(path: Path) -> None:
         pass
 
 
-def _stamp_printed(page: Page) -> bool:
-    """Every later mark on `page` is stamped "link": "printed"."""
+def _stamp(page: Page, how: str = PRINTED) -> bool:
+    """Every later mark on `page` is stamped "link": `how` (marks.LINKS)."""
     if page.server is not None:
-        page.server.session.link = PRINTED
+        page.server.session.link = how
         return True
-    return ask(page.port, "POST", "/printed", {"token": page.token}, body={}) == 200
+    return ask(page.port, "POST", "/printed", {"token": page.token}, body={"link": how}) == 200
 
 
 def terminal() -> bool:
@@ -249,17 +268,23 @@ def terminal() -> bool:
 
 def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) -> str | None:
     """Open the page in the person's browser (BROWSER: nothing is said, the caller says it).
-    At a terminal, print the link when no browser opened, with --no-browser or with --wait
-    (TERMINAL). Without one, stamp the page's marks first, then print the link (PRINTED).
-    None when the marks could not be stamped: then the link is not printed. `result`: the
-    page is opened at its result page (every answer is marked: the reason boxes are
-    what is left)."""
+    When the BROWSER variable names the program that opens it, stamp the page's marks first.
+    At a terminal, print the link when no browser opened (or it took more than SLOW_BROWSER
+    seconds), with --no-browser or with --wait (TERMINAL). Without one, stamp the page's marks first, then print the link (PRINTED).
+    None when the marks could not be stamped: then the page is not opened, or the link not
+    printed. `result`: the page is opened at its result page (every answer is marked: the
+    reason boxes are what is left)."""
     at_terminal = terminal()
     url = page.result_url if result else page.url
+    if not no_browser and os.environ.get("BROWSER") and not _stamp(page, marks.BROWSER_ENV):
+        return None
+    began = _clock()
     in_browser = not no_browser and webbrowser.open(url)
+    if in_browser and _clock() - began > SLOW_BROWSER:  # it hung: the link is printed too
+        in_browser = False
     if in_browser and not (at_terminal and wait):
         return BROWSER
-    if not at_terminal and not _stamp_printed(page):
+    if not at_terminal and not _stamp(page):
         return None
     say(RESULT_LINK if result else LINK)
     print(url)  # the link whole: printed by hand, never by say
@@ -307,7 +332,7 @@ def main() -> int:
         token, root = str(given["token"]), Path(given["root"])
         settings = {"port": int(given["port"]), "command": str(given["command"]),
                     "start_command": str(given["start_command"]),
-                    "printed": given.get("printed") is True}
+                    "link": given.get("link")}
     except (ValueError, KeyError, TypeError):
         faulthandler.cancel_dump_traceback_later()
         print("judgekeeper: the page got no token on its input, so it did not start.",

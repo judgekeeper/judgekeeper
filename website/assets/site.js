@@ -274,7 +274,7 @@
     "6,0": "Result: your new rule is better. A difference this large is very unlikely to be a coincidence.",
     "4,0": "Result: safe to try. Not clearly better yet, but very unlikely to be more than 10 points worse.",
     "4,2": "Result: can't tell yet. That leans toward better, but a split this small could easily be a coincidence.",
-    "1,3": "Result: it looks worse. Keep the old rule."
+    "1,3": "Result: can't tell yet. That leans toward worse; keep the old rule."
   };
 
   function setUpKept() {

@@ -26,10 +26,11 @@ For a changed setup:
    are re-weighted by the groups the marks were picked from, so the old one is the report's;
 4. the lines below, a `history.jsonl` line (no answer text), the new verdicts in
    `verdicts/<hash>.jsonl` (ids and verdicts only, under a header with the setup and the
-   judge's fingerprint), and judge.json moves to the new setup. Unless it is "Worse", the
-   marks then test the new judge: start.json and pool-judge.jsonl take its grades (_adopt),
-   so the result and `fix` are about it. When no answer could be tested, nothing is saved:
-   the check stays pending.
+   judge's fingerprint), and judge.json moves to the new setup. Unless it is "Worse" or "Not
+   sure" with a drop bigger than 20 points (exit 1), the marks then test the new judge:
+   start.json and pool-judge.jsonl take its grades (_adopt), so the result and `fix` are about
+   it. Such a check stays open: the next check of the same judge says it again, until the
+   judge changes or more marks are re-checked. When no answer could be tested, nothing is saved: the check stays pending.
 
 A setup counts as changed too when its judge's results hold no rule (a table) and its grades
 on marked answers differ in the newest results (grades_changed), and the last check's change
@@ -69,7 +70,15 @@ from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_value
 from judgekeeper.start_label import Workspace, every_marked, next_marks
-from judgekeeper.textio import make_private, plural, program, quote_arg, wrap, write_replacing
+from judgekeeper.textio import (
+    make_private,
+    old_hook,
+    plural,
+    program,
+    quote_arg,
+    wrap,
+    write_replacing,
+)
 
 EXIT_OK, EXIT_WORSE, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 1, 2, 3
 VERDICTS = "verdicts"
@@ -116,7 +125,7 @@ SWITCHED = ("Your results now come from {new}, not {old}.",
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
 STEP = "Step 5 of 5: Re-check"
 NEXT_INSTALL = "Next: run `{install}` in your project, then run `{command}` again."
-NO_KEY = "The key your judge needs isn't set where judgekeeper runs, so your judge wasn't asked."
+NEXT_KEY = "{step}, then run `{command}` again."  # the key the judge needs is not set
 CLOSE = "This was a close copy of your judge, not an exact one: {why}."
 WRONG_MODEL = "judgekeeper asked the wrong model ({used}, not {new}), so this check is not saved."
 NEXT_WRONG_MODEL = ("Next: check which model your eval's config names for your judge, run your "
@@ -431,6 +440,7 @@ class Asked:
     install: str | None = None  # the command that installs the judge's tool (Plan.install)
     wobble: tuple[int, int] | None = None  # asked twice: (answers whose grades differ, of)
     wrong_model: tuple[str, str] | None = None  # (a model a call used, the new judge's)
+    key_step: str | None = None  # the key the judge needs is not set: where to set it
 
 
 def _can_write(setup: dict) -> bool:
@@ -494,8 +504,9 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
         out.not_marked = plan.why == again.NOT_MARKED
         out.install = plan.install
         return out
-    if not plan.key_ok:
-        out.reasons.append(NO_KEY)
+    if not plan.key_ok:  # which key, and where to set it: never its value
+        out.reasons += [*plan.key_lines, NOT_ASKED]
+        out.key_step = plan.key_step or "set the key your judge needs"
         return out
     wrong = wrong_model(_handed(plan), found)
     if wrong:  # (a): what judgekeeper would hand the eval tool is not the new judge
@@ -896,9 +907,10 @@ def _no_change(state: State) -> str:
 
 
 # How many changes the marks have helped pick -------------------------------------------------
-# A pick: a `fix` test on these marks, or a check of a rule or pass-mark change (a change made
-# by looking at the marks). A model change or a tool update is not one. After PICKS_ASK picks,
-# until PICK_MARKS marks are made after the last one, the marks may flatter the judge.
+# A pick: a `fix` test on these marks, or a check of a rule or pass-mark change `fix` tested
+# (a change made by looking at the marks). A model change, a tool update, or a rule or pass mark
+# changed without `fix` is not one. After PICKS_ASK picks, until PICK_MARKS marks are made after
+# the last one, the marks may flatter the judge.
 
 PICKS_ASK = 3
 PICK_MARKS = 10
@@ -906,16 +918,33 @@ NEXT_NEW_MARKS = "run `{mark}` to mark {n} new answers, then run `{command}` aga
 
 
 def is_pick(line: dict) -> bool:
-    """Whether a history.jsonl line is a pick (above)."""
+    """Whether a history.jsonl line is a pick (above). A check line from before `from_fix` was
+    kept counts its rule or pass-mark change."""
     if line.get("kind") == "fix":
         return True
     changed = line.get("changed") or []
-    return line.get("kind") == "check" and any(
+    return line.get("kind") == "check" and line.get("from_fix", True) is not False and any(
         c == "rule changed" or str(c).startswith("pass mark") for c in changed)
 
 
 def rule_changed(changed: list[str]) -> bool:
     return is_pick({"kind": "check", "changed": changed})
+
+
+def from_fix(ws: Workspace, old: dict, new: dict) -> bool:
+    """Whether the change from `old` to `new` brings in a rule or a pass mark `fix` tested on
+    these marks: one written by looking at them."""
+    from judgekeeper import fix
+
+    rule = new.get("rule_hash")
+    if rule != old.get("rule_hash") and rule in {
+            x.get("rule_hash") for x in _history_all(ws) if x.get("kind") == "fix"}:
+        return True
+    split = fix.read_split(ws)
+    mark = (new.get("pass_mark") or {}).get("mark")
+    return (mark != (old.get("pass_mark") or {}).get("mark") and split is not None
+            and any(t.get("kind") == "pass mark" and t.get("new") == mark
+                    for t in split.tests))
 
 
 def picks(ws: Workspace, now: bool = False) -> dict:
@@ -1102,7 +1131,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say(NEXT_FRESH.format(command=program(), new=names.get(switched, switched)))
         return EXIT_NEEDS_YOU
     if problem:
-        said.say(problem + ".")
+        said.say(problem if problem.endswith(".") else problem + ".")  # one stop
         said.say()
         said.say(NEXT_RUN_EVAL.format(command=_command(state)))
         return EXIT_NEEDS_YOU
@@ -1171,8 +1200,10 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say()
         later = (NEXT_INSTALL if asked.install else NEXT_NOT_MARKED if asked.not_marked
                  else NEXT_LATER)
+        if asked.key_step:
+            later = "Next: " + NEXT_KEY
         said.say(later.format(command=_command(state), new=program("--new"),
-                              install=asked.install))
+                              install=asked.install, step=asked.key_step))
         return EXIT_NEEDS_YOU
 
     n, total = len(tested), len(state.marks)
@@ -1187,8 +1218,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     old_verdicts = _old_verdicts(state, old)
     picked, pool = _picks(state)
     g = groups(state.marks, old_verdicts, tested, picked, pool)
-    fresh = (_made_after(state, _first_seen(state, old, new), tested)
-             if rule_changed(changed) else None)
+    pick = rule_changed(changed) and from_fix(state.ws, old, new)
+    fresh = _made_after(state, _first_seen(state, old, new), tested) if pick else None
     kinds = list(fresh.values()) if fresh is not None else []
     if min(kinds.count("pass"), kinds.count("fail")) >= AFTER_HEADLINE:
         g = groups(fresh, old_verdicts, tested, picked, pool)  # the headline now
@@ -1224,7 +1255,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
                                  g["failed"]["old"])
     worse = [k for k in ("failed", "passed") if g[k]["verdict"] == "worse"]
     unsure = [k for k in ("failed", "passed") if g[k]["verdict"] == "not_sure"]
-    picked = picks(state.ws, now=rule_changed(changed)  # a pick, unless checked before
+    picked = picks(state.ws, now=pick  # a pick, unless checked before
                    and not _checked_before(state, old, new))
     every = every_marked(state.ws)
     for line in picks_lines(picked, every):
@@ -1233,6 +1264,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say()
     if worse:
         said.say("Next: " + worse_step(old, new, _command(state)))
+    elif asked.key_step:  # the rest can be re-checked once the key is set
+        said.say("Next: " + NEXT_KEY.format(step=asked.key_step, command=_command(state)))
     elif picked["ask"]:
         said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
             mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))
@@ -1249,18 +1282,19 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         "changed": changed or [f"grades changed on {_n(grades, 'marked answer')}"],
         "marks": total, "free": len(free), "asked": len(asked.verdicts),
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": g,
-        "smallest_drop": drop, "flipped": flipped,
+        "smallest_drop": drop, "flipped": flipped, "from_fix": pick,
         "made_after_change": None if fresh is None else len(fresh)})
     if not _same_as_last(state, line):
         marks.append(state.ws.history_jsonl, line)
-    if not worse or judge_setup.hash_of(old) != judge_setup.hash_of(new):
+    held = exit_worse  # "Worse", or "Not sure" with a big drop: the next check says it again
+    if not held or judge_setup.hash_of(old) != judge_setup.hash_of(new):
         _save_verdicts(state.ws, new, found, tested)  # a "Worse" of the same setup (a table's
         # new grades) keeps the old grades: the next check says worse again
-    if not worse:  # after "Worse" the old judge stays the reference until it comes back
+    if not held:  # after "Worse" the old judge stays the reference until it comes back
         judge_setup.save(state.ws, new, found.metric)
         _adopt(state.ws, found, tested)
         _refresh_mistakes(state.ws)
-    _report(state.ws, adopted=not worse,
+    _report(state.ws, adopted=not held,
             worse=worse_step(old, new, _command(state)) if worse else None)
     return EXIT_WORSE if exit_worse else EXIT_OK
 
@@ -1422,6 +1456,11 @@ def run(path: str = ".", yes: bool = False) -> int:
     """`judgekeeper check`. Returns the exit code."""
     _print(f"judgekeeper {__version__}")
     _print()
+    hook = old_hook(path)
+    if hook:
+        for line in wrap(hook):
+            _print(line)
+        _print()
     _print(STEP)
     _print()
     return full(path, _Printed(), yes=yes)

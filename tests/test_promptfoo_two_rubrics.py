@@ -59,10 +59,10 @@ def test_a_config_under_another_name(here, capsys):
     assert SENTINEL not in out + err
 
 
-def test_without_a_config_file_your_promptfoo_config(here, capsys):
+def test_without_a_config_file_promptfoos_own_name_for_it(here, capsys):
     (here / "results.json").write_text(json.dumps(_two_rubrics()), encoding="utf-8")
     _, out, err = run(capsys)
-    assert f"results.json: test 3 in your promptfoo config {SAYS}" in err
+    assert f"results.json: test 3 in promptfooconfig.yaml {SAYS}" in err
     assert SENTINEL not in out + err
 
 
@@ -75,6 +75,7 @@ def test_beside_a_good_file_it_is_left_out_in_full_sentences(here, capsys):
                    encoding="utf-8")
     os.utime(good, (bad.stat().st_mtime - 60,) * 2)
     code, out, err = run(capsys)
-    assert f"results.json: test 3 in promptfooconfig.yaml {SAYS} It is left out." in out
+    assert (f"results.json: test 3 in promptfooconfig.yaml {SAYS} It is left out."
+            in " ".join(out.split()))
     assert SENTINEL not in out + err
     assert code == 0, out

@@ -254,9 +254,34 @@ def has_rows(block: dict | None) -> bool:
 MODEL_NOT_WRITTEN = ("Your judge's model isn't written in your config. promptfoo picks it "
                      "from whichever API key is set, so it can change without any file "
                      "changing. Write it in your config (`defaultTest.options.provider`).")
-VERSION_NOT_SEEN = ("judgekeeper can't see your eval tool's version, so an update to it won't "
-                    "be noticed. Pin it in your project{example}.")
+VERSION_NOT_SEEN = ("judgekeeper can't see your eval tool's version. Write its version in your "
+                    "project's requirements{example}, so `check` notices when it changes.")
 PINS = {"deepeval": "deepeval", "mlflow": "mlflow"}  # results hold no version: their packages
+
+
+def project_version(root, package: str) -> str | None:
+    """The version of `package` in the project's own environment (the active virtual
+    environment, else its .venv or venv), from the package's metadata folder: nothing is run.
+    Else the one installed where judgekeeper runs, unless that is uvx's own environment."""
+    import os
+    import re
+    from pathlib import Path
+
+    from judgekeeper.textio import started_by_uvx
+
+    envs = [Path(v) for v in (os.environ.get("VIRTUAL_ENV"),) if v]
+    envs += [Path(root) / name for name in (".venv", "venv")]
+    pattern = re.compile(rf"{re.escape(package)}-([\w.+!]+)\.dist-info", re.IGNORECASE)
+    for env in envs:
+        for site in (*env.glob("lib/python*/site-packages"), env / "Lib" / "site-packages"):
+            try:
+                names = [e.name for e in os.scandir(site)]
+            except OSError:
+                continue
+            found = next((m[1] for m in map(pattern.fullmatch, names) if m), None)
+            if found:
+                return found
+    return None if started_by_uvx() else installed(package)
 
 
 def installed(package: str) -> str | None:
@@ -269,14 +294,20 @@ def installed(package: str) -> str | None:
         return None
 
 
+def model_not_written(found) -> bool:
+    """Whether the promptfoo judge's model comes from no file: promptfoo's default grader, or
+    a model given to judgekeeper alone."""
+    return found.tool == "promptfoo" and (not found.models or bool(found.model_source))
+
+
 def setup_lines(found, setup: dict) -> list[str]:
     """The free checks on the judge's setup (judge_setup.of): what can change the judge
     without judgekeeper seeing it."""
     out = []
-    if found.tool == "promptfoo" and (not found.models or found.model_source):
+    if model_not_written(found):
         out.append(MODEL_NOT_WRITTEN)
     if found.tool in PINS and setup.get("tool_version") is None:  # the project pins none
-        have = installed(PINS[found.tool])  # never older than the version installed
+        have = project_version(found.root, PINS[found.tool])
         out.append(VERSION_NOT_SEEN.format(
             example=f" (e.g. `{PINS[found.tool]}=={have}`)" if have else ""))
     return out

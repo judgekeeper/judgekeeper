@@ -83,6 +83,7 @@ class Plan:
     settings: list[str] = field(default_factory=list)  # setting variable names that are set
     tool_version: str | None = None
     key_ok: bool = True  # the key the judge needs was found (by name)
+    key_step: str | None = None  # when not: where to set it (keys.KeyCheck.step)
     runner: list[str] = field(default_factory=list)  # the command that runs the tool
     download: bool = False  # the runner downloads the tool first (npx)
     install: str | None = None  # a command to run in the project first: it installs the tool
@@ -302,6 +303,22 @@ def user_python(root: Path, given: str | None) -> str:
         if (Path(root) / name / rel).exists():
             return str(Path(root) / name / rel)
     return sys.executable
+
+
+UVX_PYTHON = "the Python uvx runs judgekeeper with"
+
+
+def python_name(python: str) -> str:
+    """`python` as said to the person: its path, or, for a Python in uv's cache (the one uvx runs
+    judgekeeper with, in a folder `archive-v<N>`), those words: the cache path means nothing to
+    them."""
+    return UVX_PYTHON if any(p.startswith("archive-v") for p in Path(python).parts) else python
+
+
+def your_python(python: str) -> str:
+    """"your Python (<path>)", or UVX_PYTHON."""
+    name = python_name(python)
+    return name if name == UVX_PYTHON else f"your Python ({python})"
 
 
 def start_worker(tool: str, python: str, job: dict, cwd: Path, out_path: Path,

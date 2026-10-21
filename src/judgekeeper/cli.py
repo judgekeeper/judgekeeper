@@ -13,7 +13,8 @@ Exit codes: 0 success, 2 usage error, 3 the person is needed (the Next: line say
 Every error ends with one `Next:` line, printed here. Everything printed as an error goes
 through redact.scrub. A failure with no better message never prints its own text (it can hold
 an answer's text): one line says judgekeeper hit a problem it didn't expect and where to report
-it, exit 2; --debug adds the traceback, also scrubbed. A path that cannot be written or read
+it, exit 2; --debug adds where it went wrong (`_frames`: each frame's file, line and function,
+and the error's type, never its text), also scrubbed. A path that cannot be written or read
 (no permission, a file where a folder should be) is a usage error: one line that names the
 path and what to do.
 
@@ -59,7 +60,8 @@ UNEXPECTED = ("judgekeeper hit a problem it didn't expect reading {what}. Please
               f"{ISSUES} (remove any answer text first).")
 # The Next: line of an error; {command} is the command as it was run
 NEXT_FIX = "fix what the line above says, then run `{command}`."
-NEXT_UNEXPECTED = "report it; to see where it went wrong, run `{command} --debug`."
+NEXT_REPORT = f"report it at {ISSUES.removeprefix('https://')} with the lines above."
+NEXT_UNEXPECTED = NEXT_REPORT + " `--debug` shows where it went wrong, without your answers."
 NEXT_WRITE = ("make this folder writable (judgekeeper keeps its files in .judgekeeper/ here), "
               "then run `{command}`.")
 NEXT_PATH = "check the path, then run `{command}`."
@@ -219,8 +221,8 @@ def _front_parser() -> argparse.ArgumentParser:
     _page_args(p)
     p.add_argument("--version", action=_Version, nargs=0, help="show the version and exit")
     p.add_argument("--debug", action="store_true",
-                   help="on an unexpected error, also print the traceback (credentials are "
-                        "still scrubbed)")
+                   help="on an unexpected error, also print where it went wrong (files, lines "
+                        "and the error's type, never its text)")
     return p
 
 
@@ -398,6 +400,14 @@ def main(argv: list[str] | None = None) -> int:
     except BrokenPipeError:  # piped into a program that stopped reading (`| head`): no error
         _quiet_stdout()
         return EXIT_OK
+    except KeyboardInterrupt:  # before a command started (reading the flags): as _main says it
+        return _stopped(command_first(sys.argv[1:] if argv is None else argv))
+
+
+def _stopped(args_list: list[str]) -> int:
+    print("\nStopped.")
+    _next(_step(NEXT_STOPPED, args_list), file=sys.stdout)
+    return EXIT_STOPPED
 
 
 def _quiet_stdout() -> None:
@@ -425,9 +435,7 @@ def _main(argv: list[str] | None) -> int:
     try:
         return COMMANDS[args.command](args)
     except KeyboardInterrupt:  # Ctrl-C, often at a question: what was saved stays saved
-        print("\nStopped.")
-        _next(_step(NEXT_STOPPED, args_list), file=sys.stdout)
-        return EXIT_STOPPED
+        return _stopped(args_list)
     except BrokenPipeError:
         raise  # said by main: nothing went wrong
     except (AnchorError, JudgmentsError, NormaliseError, TableError,
@@ -438,7 +446,7 @@ def _main(argv: list[str] | None) -> int:
         return EXIT_USAGE
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see
         if args.debug:
-            _say(scrub(traceback.format_exc()), file=sys.stderr, end="")
+            _say(scrub(_frames(e)), file=sys.stderr, end="")
         workspace = textio.workspace_problem(e) if isinstance(e, OSError) else None
         if workspace:
             _error(workspace[0])
@@ -451,8 +459,30 @@ def _main(argv: list[str] | None) -> int:
                         args_list))
             return EXIT_USAGE
         _error(UNEXPECTED.format(what=textio.last_read or "your results"))
-        _next(_step(NEXT_UNEXPECTED, args_list))
+        _next(NEXT_REPORT if args.debug else NEXT_UNEXPECTED)
         return EXIT_USAGE
+
+
+def _frames(e: BaseException) -> str:
+    """Where `e` went wrong, as a traceback without any text from the data: each frame's file,
+    line and function, and each error's type, never its message or a line of source (an
+    error's message can quote an answer). The errors it came from first."""
+    chain, seen = [], set()
+    while e is not None and id(e) not in seen:
+        seen.add(id(e))
+        chain.append(e)
+        e = e.__cause__ or (None if e.__suppress_context__ else e.__context__)
+    out = []
+    for n, err in enumerate(reversed(chain)):
+        if n:
+            out.append("\nThe error above led to this one:\n\n")
+        out.append("Traceback (most recent call last):\n")
+        for frame in traceback.extract_tb(err.__traceback__):
+            out.append(f'  File "{frame.filename}", line {frame.lineno}, in {frame.name}\n')
+        kind = type(err)
+        module = "" if kind.__module__ == "builtins" else f"{kind.__module__}."
+        out.append(f"{module}{kind.__qualname__}\n")
+    return "".join(out)
 
 
 if __name__ == "__main__":

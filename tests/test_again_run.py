@@ -66,12 +66,16 @@ class FakePromptfoo:
     """promptfoo, as far as judgekeeper sees it: `--version`, and `eval` reading the two files
     judgekeeper wrote and writing the -o file. `flips` maps (answer id, repeat) to the opposite
     of the saved verdict; `prompt_changed` holds ids whose grading prompt comes back
-    different; `extra` is put into every reason (a planted secret)."""
+    different; `errors` ids whose first grade is empty (pass null); `grader_errors` ids whose
+    grader call failed, saved as promptfoo saves it (pass false, score 0, the provider's error
+    as the reason, `metadata.graderError`); `extra` is put into every reason (a planted
+    secret)."""
 
     def __init__(self, ws, version="0.123.1"):
         self.ws, self.version = ws, version
         self.calls, self.files_seen = [], {}
         self.flips, self.prompt_changed, self.errors = set(), set(), set()
+        self.grader_errors = set()
         self.code, self.stderr, self.extra, self.interrupt = None, "", "", False
         saved = json.loads((ws.root / "results.json").read_text(encoding="utf-8"))
         self.saved = {}
@@ -103,10 +107,14 @@ class FakePromptfoo:
                 if t["description"] in self.prompt_changed:
                     prompt = "a different grading prompt"
                 error = t["description"] in self.errors and r == 0
+                failed = t["description"] in self.grader_errors
+                verdict = False if failed else verdict
+                metadata = {"renderedGradingPrompt": prompt} if prompt else {}
                 comps = [{"assertion": a, "pass": None if error else verdict,
                           "score": None if error else int(verdict),
-                          "reason": f"again {r}{self.extra}",
-                          "metadata": {"renderedGradingPrompt": prompt} if prompt else {}}
+                          "reason": ("API error: 400 Bad Request" if failed
+                                     else f"again {r}{self.extra}"),
+                          "metadata": {**metadata, "graderError": True} if failed else metadata}
                          for a in t["assert"]]
                 rows.append({"testIdx": len(rows), "promptIdx": 0,
                              "description": t["description"],

@@ -160,6 +160,8 @@ def sniff_json(head: bytes) -> str | None:
     if re.search(r'"results"\s*:\s*\{', text) and re.search(
             r'"(evalId|promptfooVersion|prompts|stats)"\s*:', text):
         return "promptfoo"
+    if re.search(r'"results"\s*:', text) and re.search(r'"(evalId|promptfooVersion)"\s*:', text):
+        return "promptfoo"  # of the wrong shape: its reader says what is wrong
     if re.search(r'"(testCases|conversationalTestCases|testRunData)"\s*:', text):
         return "deepeval"
     if re.match(r'\{\s*"head"\s*:\s*\{', text) and re.search(r'"body"\s*:\s*\[', text):
@@ -575,7 +577,7 @@ def _down(n: int) -> str:
 
 def looked(root: Path) -> str:
     """How far the walk looks, said when nothing is found."""
-    return f"{_down(MAX_DEPTH)} from {root.name} (tables: {_down(TABLE_DEPTH - 1)})"
+    return f"{_down(MAX_DEPTH)} from {root.name} (tables: {TABLE_DEPTH} folders deep)"
 
 
 def _look_deeper(walk: _Walk) -> None:

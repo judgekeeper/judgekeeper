@@ -15,6 +15,7 @@ import csv
 import io
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,8 +39,8 @@ In this project, my LLM judge saves its results in its own format. Please:
 3. Write one CSV per judge or criterion. Leave out rows where the judge gave an error, and
    scores made by a rule instead of an LLM.
 4. Keep everything on this computer: never send the data anywhere.
-5. Run `judgekeeper <the CSV file>` and show me what it prints, so I can check the
-   counts and the example rows."""
+5. Run `judgekeeper PATH`, with PATH the path of the CSV file, and show me what it prints,
+   so I can check the counts and the example rows."""
 
 SCORE_KEYS = frozenset({"score", "scores", "verdict", "pass", "passed", "success", "label"})
 INPUT_WORDS = ("input", "prompt", "question", "query", "instruction", "message")
@@ -118,9 +119,30 @@ def _sample(path: Path):
     return {c: None for c in columns}
 
 
-def search(root: Path) -> OwnFile | None:
+def might_be_results(path: Path) -> bool:
+    """Whether a file too big to look into might hold judge results: its name says results, or
+    its first bytes hold a score-like key and an input-like one."""
+    if find._results_like(path):
+        return True
+    head = find._head(path).decode("utf-8", errors="replace").lower()
+    keys = re.findall(r'"([^"\n]{1,60})"\s*:', head)
+    return (any(k in SCORE_KEYS for k in keys)
+            and any(w in k for k in keys for w in INPUT_WORDS))
+
+
+def too_big(path: Path) -> bool:
+    """Whether `path` is too big to look into: a .json over JSON_BYTES, or a first line longer
+    than what is read of the file."""
+    size = path.stat().st_size
+    if path.suffix.lower() == ".json":
+        return size > JSON_BYTES
+    return size > find.HEAD_BYTES and b"\n" not in find._head(path)
+
+
+def search(root: Path, unlooked: list[OwnFile] | None = None) -> OwnFile | None:
     """The most recently changed file in `root` (at most find.MAX_DEPTH folders deep, changed
-    in the last RECENT_DAYS days) that looks like judge results in a format of its own."""
+    in the last RECENT_DAYS days) that looks like judge results in a format of its own. The
+    files whose names say results but are too big to look into go to `unlooked`."""
     root = Path(root).resolve()
     since = time.time() - RECENT_DAYS * 86400
     started = time.monotonic()
@@ -154,6 +176,8 @@ def search(root: Path) -> OwnFile | None:
         try:
             if looks_judged(_sample(path)):
                 return OwnFile(path, path.relative_to(root).as_posix())
+            if unlooked is not None and too_big(path) and might_be_results(path):
+                unlooked.append(OwnFile(path, path.relative_to(root).as_posix()))
         except (OSError, ValueError, csv.Error, RecursionError):
             continue
     return None

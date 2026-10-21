@@ -26,6 +26,7 @@ import re
 from dataclasses import dataclass
 
 from judgekeeper.anchors import LABELS, PAIRWISE, SINGLE
+from judgekeeper.textio import quote_arg
 
 ERROR = "error"
 
@@ -52,7 +53,16 @@ PASS_IF_EXAMPLE = '--pass-if "score>=0.5"'
 
 
 class NormaliseError(Exception):
-    """A usage problem: unmapped values, a bad --pass-if rule or --label-map."""
+    """A usage problem: unmapped values, a bad --pass-if rule or --label-map. `next_step` and
+    `drop`, when set, as start.StartError's: the Next: line never repeats the flag at fault."""
+
+    next_step: str | None = None
+    drop: str | None = None
+
+    def __init__(self, message: str = "", next_step: str | None = None,
+                 drop: str | None = None):
+        super().__init__(message)
+        self.next_step, self.drop = next_step, drop
 
 
 class UnmappedValue(Exception):
@@ -86,9 +96,19 @@ class PassIf:
 def parse_pass_if(text: str) -> PassIf:
     m = _RULE.match(text or "")
     if not m:
+        try:
+            rule = f"score>={float(text):g}"  # a pass mark alone: the rule it means
+            then = f"run `{{command}} --pass-if {quote_arg(rule)}`."
+        except (TypeError, ValueError):
+            then = ("run `{command} --pass-if RULE`, with RULE like score>=0.5 and your own "
+                    "pass mark.")
         raise NormaliseError(f"--pass-if {text!r} is not a rule like score>=0.5 "
-                             "(operators: >=, >, <=, <, ==)")
+                             "(operators: >=, >, <=, <, ==)", then, "--pass-if")
     return PassIf(text=text.strip(), name=m.group(1), op=m.group(2), threshold=float(m.group(3)))
+
+
+LABEL_MAP_NEXT = ("run `{command} --label-map MAP`, with MAP your values each set to pass or "
+                  "fail, like good=pass,bad=fail.")
 
 
 def parse_label_map(text: str | dict | None, kind: str = SINGLE) -> dict[str, str]:
@@ -104,12 +124,13 @@ def parse_label_map(text: str | dict | None, kind: str = SINGLE) -> dict[str, st
     for key, value in pairs:
         key = str(key).strip().lower()
         if not key or value is None:
-            raise NormaliseError(f"--label-map entries look like value=label, got {key!r}")
+            raise NormaliseError(f"--label-map entries look like value=label, got {key!r}",
+                                 LABEL_MAP_NEXT, "--label-map")
         label = labels.get(str(value).strip().lower())
         if label is None:
             raise NormaliseError(f"--label-map maps {key!r} to {value!r}; labels for "
                                  f"{kind} items are {', '.join(LABELS[kind])} (or error, "
-                                 "for no decision)")
+                                 "for no decision)", LABEL_MAP_NEXT, "--label-map")
         out[key] = label
     return out
 

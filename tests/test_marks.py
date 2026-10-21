@@ -108,7 +108,7 @@ def test_how_the_marks_were_made(tmp_path):
     marks.append(path, marks.stamp("skipped", "skip", "pass", 0.1, "s3"))
     made = marks.made(marks.read(path))
     assert made == {"marks": 5, "pass": 2, "fail": 3, "sittings": 2, "seconds": 7,
-                    "under_second": 2, "not_counted": 0, "printed": 0, "unsure": 0,
+                    "under_second": 2, "not_counted": 0, "printed": 0, "browser_env": 0, "unsure": 0,
                     "after_result": 0}
     assert marks.made(marks.read(path), ids={"a0", "a1"})["marks"] == 2
 

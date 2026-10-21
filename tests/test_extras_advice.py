@@ -50,7 +50,8 @@ def test_started_by_uvx_the_advice_is_the_uvx_command_with_the_extra(
     make(here)
     code, out, _ = run(capsys)
     command = f'uvx --from "judgekeeper[{extra}]=={__version__}" judgekeeper'
-    assert f"To read {name} results, run `{command}`." in out
+    assert f"Reading {name} results needs judgekeeper's {extra} extra." in " ".join(out.split())
+    assert " ".join(out.split()).count(command) == 1  # in the Next: line only
     assert "pip install" not in out
     assert assert_one_next_at_the_end(out) == f"Next: run `{command}`."
     assert code == 3  # the person is needed
@@ -68,7 +69,7 @@ def test_otherwise_pip_install_with_the_version(here, capsys, monkeypatch, modul
     code, out, _ = run(capsys)
     install = f'pip install "judgekeeper[{extra}]{PIN}"'
     assert f"{name} found" in out
-    assert install in out
+    assert " ".join(out.split()).count(install) == 1  # in the Next: line only
     assert install in assert_one_next_at_the_end(out)
     assert code == 3  # the person is needed
 
@@ -104,6 +105,7 @@ def test_started_by_uvx_with_an_extra_the_next_lines_keep_it(here, capsys, monke
     command = f'uvx --from "judgekeeper[mlflow]=={__version__}" judgekeeper'
     (here / "survey.csv").write_text("No,Question,Answer\n1,q,a\n", encoding="utf-8")
     code, out, _ = run(capsys, "survey.csv")
-    assert f"`{command} <the CSV>`" in assert_one_next_at_the_end(out)
+    assert f"`{command} PATH`, with PATH the path of your CSV." in assert_one_next_at_the_end(
+        out)
     assert "`judgekeeper " not in out
     assert code == 3

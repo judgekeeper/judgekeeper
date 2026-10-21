@@ -389,12 +389,14 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             found[0][2], fields, named)}, root, env=WORKER_ENV, drop=WORKER_DROP)
         if not out.get("ok"):
             if out.get("missing"):
-                return cant("deepeval", judge, f"DeepEval is not installed in {python}. Activate "
+                return cant("deepeval", judge, f"DeepEval is not installed in "
+                            f"{again.python_name(python)}. Activate "
                             "the virtual environment you run your evals with, then try again",
                             short="DeepEval is not installed here")
             if _on_ollama(model):
                 return _ollama_cant(judge)
-            plan = cant("deepeval", judge, f"DeepEval could not build your judge in {python}: "
+            plan = cant("deepeval", judge, "DeepEval could not build your judge in "
+                        f"{again.python_name(python)}: "
                         f"{out.get('error')}", short="DeepEval could not build your judge")
             plan.install = setup_command(out.get("error"))
             return plan
@@ -484,10 +486,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 status=status, why=why, model=model, provider=check.provider,
                 key_lines=check.lines, notes=notes, calls_each=calls_each,
                 calls_note="at least" if at_least else "", tokens=tokens, left_out=left,
-                settings=check.settings, key_ok=check.ok, tool_version=version,
+                settings=check.settings, key_ok=check.ok, key_step=check.step, tool_version=version,
                 runner=[python], payload=payload,
                 side_effects=[(f"Your app or agent is not run. DeepEval measures your metric "
-                               f"directly in your Python ({python}); never deepeval.evaluate(), so "
+                               f"directly in {again.your_python(python)}; never deepeval.evaluate(), so "
                                "nothing is written to .deepeval/ or sent to Confident AI.")])
 
 

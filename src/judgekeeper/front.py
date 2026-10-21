@@ -80,12 +80,12 @@ from judgekeeper import (
     targets,
 )
 from judgekeeper.fingerprint import rule_hash
-from judgekeeper.label import DEFAULT_PORT, is_open
+from judgekeeper.label import DEFAULT_PORT, is_open, page_folder
 from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
-from judgekeeper.textio import plural, program, quote_arg, wrap
+from judgekeeper.textio import old_hook, plural, program, quote_arg, wrap
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -112,6 +112,8 @@ RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still te
 RAN_AGAIN_CHECKED = ("Your eval ran again. Your judge is the one your last check re-tested, so "
                      "your marks still test it.")
 JUDGE_CHANGED = "Your judge changed since your marks: {what}."
+DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
+DEFAULT_GRADER_NOTE = "came from promptfoo's default grader"  # readers.promptfoo's warning
 STEP = "Step {n} of 5: {name}"
 INDENT = " " * 13  # under the value of "Eval tool:   "
 EVERY_ANSWER = "your judge gave every answer a clear Pass or Fail."
@@ -137,6 +139,8 @@ SAY_WHY = "Say why on the answers you and your judge disagree on; `fix` uses you
 RESULT_OPEN = "Your result page is open in your browser."
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
+PORT_PAGE = "Port {port} is in use by judgekeeper's marking page for {folder}."
+NEXT_STOP_THERE = "run `{stop}` there, or `{command}`."
 NEXT_ANY_PORT = "run `{command}` (it opens the page on any free port)."
 # A tool found here with no saved results: what saves them
 SAVES = {"deepeval": "DeepEval saves results only when you run deepeval test run or evaluate().",
@@ -162,6 +166,7 @@ class FrontTalk(start.Talk):
         self.answers: dict[str, str] = {}  # what the person chose at a terminal: flag -> value
         self.store: str | None = None  # the MLflow store chosen at a terminal
         self.noted: list[str] = []  # yes/no questions taken as yes without a terminal
+        self.step: str | None = None  # said before the first line, when there is one (go)
         self.refresh()
 
     def refresh(self) -> None:
@@ -193,7 +198,8 @@ class FrontTalk(start.Talk):
         if flag is None:
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
-        names = ", ".join(quote_arg(str(v)) for v in values)
+        names = ", ".join(f"'{v}'" if flag == "--metric" else quote_arg(str(v))  # names alike
+                          for v in values)
         if flag == "PATH":
             commands = [f"`{self.command_at(v)}`" for v in values]
             then = start._or(commands)
@@ -222,6 +228,18 @@ class FrontTalk(start.Talk):
         yes, again = f"`{self.command('--yes')}`", f"`{self.command()}`"
         raise self.stop(EXIT_QUESTION, f"run {again} in a terminal to answer, or {yes} to say "
                                        f"yes{'' if one else ' to all'}.")
+
+    def say(self, text: str = "") -> None:
+        if text:  # Find says something: under its step label
+            self.say_step()
+        super().say(text)
+
+    def say_step(self) -> None:
+        """The step label waiting to be said (`step`), once, before Find's first line."""
+        if self.step is not None:
+            step, self.step = self.step, None
+            super().say(step)
+            super().say()
 
     def para(self, text: str = "", indent: str = "") -> None:
         """Say `text` wrapped (textio.wrap)."""
@@ -256,13 +274,23 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
     """`judgekeeper`, or (`marking`) `judgekeeper mark`. Returns the exit code."""
     talk.say(f"judgekeeper {__version__}")
     talk.say()
+    hook = old_hook(path)
+    if hook:
+        talk.para(hook)
+        talk.say()
     try:
         if stop:
             return _stop(talk, path)
         if not marking and not _started(path):
             talk.say(STEP.format(n=1, name="Find"))
             talk.say()
-        return _run(talk, path, wait, marking)
+        else:  # said only when Find has something to say (a file left out, an error)
+            talk.step = STEP.format(n=1, name="Find")
+        try:
+            return _run(talk, path, wait, marking)
+        except Exception:
+            talk.say_step()  # the error cli.py prints comes under Step 1 too
+            raise
     except Stop as e:
         return EXIT_NEEDS_YOU if e.code == EXIT_QUESTION else e.code
 
@@ -278,7 +306,8 @@ def _started(path: Path) -> bool:
 # Finding -----------------------------------------------------------------------------------
 
 def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
-    found, mapped = find_found(talk, path)
+    found, mapped = find_found(talk, path)  # anything it says comes under Step 1's label
+    talk.step = None
     ws = Workspace(found.root)
     if not marking and not ws.start.is_file() and not ws.labels.is_file():
         return _say(talk, found, mapped, wait)
@@ -350,9 +379,10 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
             or search.skipped or find.records_above(root) is not None
             or "promptfoo" in search.signs or find.results_above(root) is not None):
         return path, None  # find_judge reads them, or says how
-    own = own_format.search(root)
+    unlooked: list = []
+    own = own_format.search(root, unlooked)
     if own is None:
-        raise _nothing_found(talk, root, search.signs, find.nested_results(search))
+        raise _nothing_found(talk, root, search.signs, find.nested_results(search), unlooked)
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
 
@@ -502,10 +532,11 @@ def _nested_line(nested: list[str]) -> str:
 
 
 def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
-                   nested: list[str] | None = None) -> Stop:
+                   nested: list[str] | None = None, unlooked: list | None = None) -> Stop:
     """No results: the tools found here (with what saves their results), else what
     judgekeeper can read. The folder by its name only. Results in a project of its own below
-    (`nested`) are named, never read."""
+    (`nested`) are named, never read; results-like files too big to look into (`unlooked`,
+    own_format.search) are named."""
     if nested:
         talk.para(_nested_line(nested))
         where = start._or([f"{p}/" for p in nested])
@@ -525,6 +556,12 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         talk.para(f"No eval results found in this folder ({root.name}). judgekeeper looked "
                   f"{down}.")
         talk.para(READS)
+    for own in (unlooked or [])[:OTHERS]:
+        size = own.path.stat().st_size
+        shown = (f"{size / 1_000_000:,.0f} MB" if size >= 1_000_000
+                 else f"{size / 1000:,.0f} KB")
+        talk.para(f"It left out {own.rel} ({shown}): too big to look into. If it holds your "
+                  f"judge's results, run `{talk.command_at(own.rel)}`.")
     again = f"`{talk.command()}`"
     other = "" if signs else (f" If your results are somewhere else, run "
                               f"`{talk.command_at('PATH')}` with their file or folder.")
@@ -584,6 +621,8 @@ def _map_line(saved: settings.StartSettings) -> str:
 
 def _notes(found: start.Found) -> list[str]:
     pool, out = found.pool, [*found.stopped, *found.warnings]
+    if judge_check.model_not_written(found):  # said once, with its fix, by the free checks
+        out = [w for w in out if DEFAULT_GRADER_NOTE not in w]
     if pool.n_merged:
         out.append(f"{_n(pool.n_merged, 'repeat')} of the same answer "
                    f"{'was' if pool.n_merged == 1 else 'were'} merged.")
@@ -745,6 +784,8 @@ def _judge_value(found: start.Found) -> str:
             model += " (as you said)"
         elif found.model_source:
             model += f" ({found.model_source})"
+    elif found.tool == "promptfoo":  # explained once, with its fix (judge_check.setup_lines)
+        model = DEFAULT_GRADER
     else:
         model = "model not found in your results (add --judge-model NAME)"
     return ", ".join([*parts, model])
@@ -780,7 +821,8 @@ def found_block(found: start.Found) -> list[str]:
     """Screen 1's "Find" block: the eval tool, the answers, the judge and its rule."""
     answers = found.check.answers if found.check else len(found.pool.answers)
     tool = tool_name(found.tool, [str(found.results[0].rel)])
-    graded = ("each graded by your judge" if found.pool.answers or found.pool.unread
+    graded = ((f"{'' if answers == 1 else 'each '}graded by your judge")
+              if found.pool.answers or found.pool.unread
               else "none with a clear grade from your judge")
     unscored = found.check.counts().get(judge_check.NOT_SCORED, 0) if found.check else 0
     counted = f"{_n(answers, 'answer')}, {graded}"
@@ -816,6 +858,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     """Found, no marking started: Screen 1's "Find" block and the free checks, then the
     page."""
     listed = _listed(found)
+    talk.say()  # a blank line after what Find said first (a file left out), never two
     for line in found_block(found):
         talk.say(line)
     if found.tool == "table":
@@ -908,7 +951,7 @@ def _to_save(talk: FrontTalk, found: start.Found,
             new.judge = found.metric
         if found.tool == "mlflow":
             new.file = talk.store or new.file
-        if found.tool == "deepeval" and talk.store is not None:  # which folder
+        if found.tool in ("deepeval", "inspect") and talk.store is not None:  # which folder
             new.file = talk.store
             new.experiment = talk.answers.get("--experiment", new.experiment)
         question = SAVE
@@ -1011,7 +1054,9 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     from judgekeeper import check
 
     if not ws.start.is_file():
-        start_label.prepare(found, say=lambda line: None)
+        with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the pool
+            if not ws.start.is_file():
+                start_label.prepare(found, say=lambda line: None)
     start_label.repair(ws)  # a result whose saving was stopped half way
     head = []
     back = None if first else check.back_to_marked(ws, found)  # the judge the marks were made on
@@ -1080,10 +1125,15 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
             background.stop(ws.dir)
         tried = page.choose_port(talk.options["port"], lambda line: None)
         if opened is None and not page.port_free(tried):  # --wait would need the same port
-            talk.say(PORT_TAKEN.format(port=tried))
             path, options = answered(talk, saved)
             command = " ".join((program(), *start.repeated_flags(path, **{**options,
                                                                           "port": 0})))
+            folder = page_folder(tried)
+            if folder is not None:  # another project's page: it can be closed there
+                talk.para(PORT_PAGE.format(port=tried, folder=folder))
+                raise talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(
+                    stop=program("--stop"), command=command))
+            talk.say(PORT_TAKEN.format(port=tried))
             raise talk.stop(EXIT_QUESTION, NEXT_ANY_PORT.format(command=command))
         talk.say(f"The marking page could not start in the background (what went wrong is in "
                  f"{shown_folder(ws)}/{background.LOG}).")

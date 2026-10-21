@@ -17,7 +17,10 @@ back within a week.
   While the page is open, the token is also kept in `.judgekeeper/server.json`, so a second
   run prints the same link: the file is readable by your user only (0600, in a 0700 folder),
   is removed when the page stops, and sits in the folder judgekeeper keeps out of git. A
-  program that can read it could already write `.judgekeeper/marks.jsonl` directly.
+  program that can read it could already write `.judgekeeper/marks.jsonl` directly. Without
+  the token, a request gets only the page's empty icon and the name of its project folder
+  (`GET /project`), so a run for another project can say which page holds the port it asked
+  for.
 - The pages judgekeeper writes escape the values they show, so a hostile model response,
   item text or model id cannot inject markup. Spreadsheets that judgekeeper writes
   neutralize cells that would run as formulas, the id column included.
@@ -45,11 +48,15 @@ calls a re-check needs and asks before it makes them.
 ## Running judgekeeper through a coding agent
 
 judgekeeper 1.0 is made for a person to run in their own terminal, marking in their own
-browser. Running it through a coding agent isn't supported in 1.0. The marks are meant to be
-the person's own, so the marking page saves a mark only from a browser on that page: every
-request needs the page's random token, and every change also needs to come from the page
-itself, its own origin (`Origin: http://127.0.0.1:<port>`, and `Sec-Fetch-Site: same-origin`
-when the browser sends it).
+browser. Running it through a coding agent isn't supported in 1.0.
+
+- The page accepts marks only from itself, so another website can't send marks. A program on
+  your computer could, the same way it could edit your files. Every request needs the page's
+  random token, and every change also needs to come from the page itself, its own origin
+  (`Origin: http://127.0.0.1:<port>`, and `Sec-Fetch-Site: same-origin` when the browser
+  sends it).
+- When the program named in `BROWSER` opens the page, or the page's link is printed with no
+  terminal, each mark is stamped so, and the result says how many marks came that way.
 
 ## Things that run your own code, by design
 

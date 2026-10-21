@@ -22,9 +22,12 @@ is owner-only (0600) in the owner-only, git-ignored .judgekeeper/, and removed w
 stops; a program that can read it could write marks.jsonl as well. A copy of the lock
 (page.json) lets --stop find the page when server.json is gone.
 GET /favicon.ico needs no token and gets 204 No Content: the page has no icon, and a 403
-there would be two errors in the browser's console on every load. POST /printed (with the
-token) says the link was printed where a coding agent could read it:
-every later mark is stamped so. Every POST also needs the page's own Origin
+there would be two errors in the browser's console on every load. GET /project needs no token
+either: it answers with the name of the project folder the page is for (its last part only),
+so a run for another project can say which page holds the port it asked for. POST /printed (with the
+token) says the link was printed where a coding agent could read it, or (with {"link":
+"browser-env"}) that the program named in BROWSER opened the page: every later mark is
+stamped so. Every POST also needs the page's own Origin
 (http://127.0.0.1:<port>, or localhost) and, when the browser sends it, `Sec-Fetch-Site:
 same-origin`: only the page's own script marks, never another site or a program that has the
 link (judgekeeper's own requests, `ask`, send the Origin).
@@ -36,7 +39,8 @@ after the last item if nobody fetches it. While an item is deferred, the page
 offers to look at it again, so the server keeps serving (until Ctrl-C or IDLE_TIMEOUT), also
 after the result page; the page asking again (GET /, /state) or a label taken back (undo)
 stops the RESULT_WAIT count. A server that `stays` (the page `judgekeeper mark` serves) never
-stops by itself after the result: the person may mark more.
+stops by itself after the result, also once every item is labeled (the result page may still
+ask it): the person may mark more, and IDLE_TIMEOUT closes it.
 """
 
 from __future__ import annotations
@@ -57,7 +61,7 @@ from socketserver import TCPServer
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 from judgekeeper.anchors import LABELS
-from judgekeeper.marks import PRINTED
+from judgekeeper.marks import LINKS, PRINTED
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue
 from judgekeeper.redact import visible_value
 from judgekeeper.table import (
@@ -228,17 +232,20 @@ RELEASE_PAUSE = 0.05
 
 
 def read_lock(folder: Path) -> dict | None:
-    """{"pid", "port", "stop", "token", "settings", "printed"} of the page named in the
-    project's lock, or None (a lock from before 1.0 has no token: None). When server.json
-    can't be read, its copy (page.json) is."""
+    """{"pid", "port", "stop", "token", "settings", "link"} of the page named in the
+    project's lock, or None (a lock from before 1.0 has no token: None). `link`: how its marks
+    are stamped (marks.LINKS), or None. When server.json can't be read, its copy (page.json)
+    is."""
     for name in (LOCK, LOCK_COPY):
         try:
             lock = json.loads((Path(folder) / name).read_text(encoding="utf-8"))
-            token, settings = lock.get("token"), lock.get("settings")
+            token, settings, how = lock.get("token"), lock.get("settings"), lock.get("link")
+            if how not in LINKS:
+                how = PRINTED if lock.get("printed") is True else None  # a lock before the stamps
             return {"pid": int(lock["pid"]), "port": int(lock["port"]),
                     "stop": str(lock["stop"]), "token": token if isinstance(token, str) else None,
                     "settings": settings if isinstance(settings, dict) else None,
-                    "printed": lock.get("printed") is True}
+                    "link": how}
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             continue
     return None
@@ -305,6 +312,16 @@ def is_open(folder: Path) -> bool:
     return lock is not None and ask(lock["port"], "GET", "/alive", {"stop": lock["stop"]}) == 200
 
 
+def page_folder(port: int) -> str | None:
+    """The name of the project folder whose judgekeeper page listens on `port`, or None."""
+    answer = _answer(port, "GET", "/project", {})
+    try:
+        folder = json.loads(answer[1]).get("folder") if answer and answer[0] == 200 else None
+    except (ValueError, AttributeError):
+        return None
+    return folder if isinstance(folder, str) and folder else None
+
+
 def answers(port: int, token: str) -> bool:
     """Whether a page on `port` answers to `token`."""
     return ask(port, "GET", "/state", {"token": token}) == 200
@@ -350,7 +367,7 @@ class LabelServer:
 
     def hold(self, folder: Path, settings: dict | None = None) -> None:
         """Write the project's lock and its copy (owner-only): this process, port, stop
-        secret and token, whether its link was printed for another program, and `settings`."""
+        secret and token, how its marks are stamped (marks.LINKS), and `settings`."""
         self.lock = Path(folder) / LOCK
         self.settings = settings
         self.write_lock()
@@ -360,7 +377,7 @@ class LabelServer:
             return
         text = json.dumps({"pid": os.getpid(), "port": self.port, "stop": self.stop_secret,
                            "token": self.token, "settings": self.settings,
-                           "printed": getattr(self.session, "link", None) == PRINTED})
+                           "link": getattr(self.session, "link", None)})
         write_replacing(self.lock, text)
         write_replacing(self.lock.with_name(LOCK_COPY), text)
 
@@ -462,8 +479,8 @@ def _handler(server: LabelServer):
             if self.headers.get("Host") != f"{HOST}:{server.port}":
                 self._json(403, {"error": "wrong Host header"})
                 return False
-            if url.path == "/favicon.ico" and self.command == "GET":
-                return True  # a browser asks for it without the token
+            if url.path in ("/favicon.ico", "/project") and self.command == "GET":
+                return True  # a browser asks for the icon without the token
             query = parse_qs(url.query)
             token = query.get("token", [""])[0]
             if hmac.compare_digest(token.encode(), server.token.encode()):
@@ -532,6 +549,9 @@ def _handler(server: LabelServer):
                 server.done_at = None  # the page is open and asking: keep serving it
             if url.path == "/favicon.ico":
                 self._send(204, b"", None)  # no icon
+            elif url.path == "/project":
+                folder = server.lock.parent.parent.name if server.lock is not None else None
+                self._json(200, {"folder": folder})
             elif url.path == "/alive":
                 self._json(200, {"open": True})
             elif url.path == "/":
@@ -571,12 +591,19 @@ def _handler(server: LabelServer):
                 server.stop()
                 return
             if url.path == "/printed" and hasattr(server.session, "link"):
-                server.session.link = PRINTED
+                try:
+                    how = (json.loads(raw) if raw else {}).get("link", PRINTED)
+                except (ValueError, AttributeError):
+                    how = None
+                if how not in LINKS:
+                    self._json(400, {"error": "unknown link"})
+                    return
+                server.session.link = how
                 try:
                     server.write_lock()  # a page started again with this token is stamped too
                 except OSError:
                     pass
-                self._json(200, {"printed": True})
+                self._json(200, {"link": how})
                 return
             if url.path != "/label":
                 self._json(404, {"error": "not found"})

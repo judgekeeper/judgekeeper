@@ -130,7 +130,7 @@ def test_the_token_never_reaches_the_agents_output(here, capsys, no_browser, spa
     assert token not in json.dumps(dict(os.environ))
     lock = label.read_lock(folder)
     assert set(json.loads((folder / label.LOCK).read_text(encoding="utf-8"))) == \
-        {"pid", "port", "stop", "token", "settings", "printed"}
+        {"pid", "port", "stop", "token", "settings", "link"}
     assert lock["token"] == token
     assert lock["pid"] != os.getpid() and alive(lock["pid"])
     assert token not in _process_text(lock["pid"])

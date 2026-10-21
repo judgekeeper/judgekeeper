@@ -608,14 +608,14 @@ def too_early(value, interval) -> bool:
 
 def side_sentence(key: str, value, interval) -> str:
     """One side of the result, as the terminal says it: "You passed: your judge also passed
-    about 61% (could be 42% to 78%)."; too early to tell while its range is too wide."""
+    about 61% (between 42% and 78%)."; too early to tell while its range is too wide."""
     did = DID[key]
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."
     if targets.width_word(interval) == "exact":
         return f"You {did}: your judge also {did} {_pct(value)} (exactly)."
-    return (f"You {did}: your judge also {did} about {_pct(value)} (could be "
-            f"{_pct(interval[0])} to {_pct(interval[1])}).")
+    return (f"You {did}: your judge also {did} about {_pct(value)} (between "
+            f"{_pct(interval[0])} and {_pct(interval[1])}).")
 
 
 def all_labeled(r: dict) -> bool:
@@ -680,8 +680,8 @@ _plural = plural  # textio.plural
 
 def made_lines(made: dict | None) -> list[str]:
     """How the marks were made (marks.made), and a note when more than a quarter took under a
-    second each, when lines of marks.jsonl are not counted, or when marks came through a link
-    printed where another program could read it (no terminal), and what that means."""
+    second each (more than half: it looks like a program), when lines of marks.jsonl are not
+    counted, or when marks came through a page another program could have used (link_lines)."""
     if not made or not made["marks"]:
         return []
     n, quick = made["marks"], made["under_second"]
@@ -694,15 +694,10 @@ def made_lines(made: dict | None) -> list[str]:
     out = [line + "."]
     if quick and quick * 4 > n:
         out.append(f"{quick} of your marks took under a second each. A result is only as good "
-                   "as the marks.")
+                   "as the marks." + (" This looks like a program, not a person."
+                                      if quick * 2 > n else ""))
     not_counted = marks.not_counted_line(made.get("not_counted") or 0)
-    printed = made.get("printed") or 0
-    them = "it" if printed == 1 else "them"
-    return out + ([not_counted] if not_counted else []) + (
-        [(f"{printed} of your marks came through a link printed in a terminal, so another "
-          f"program on this computer could have made {them}. If you marked {them} yourself, "
-          "nothing to do.")]
-        if printed else []) + second_thoughts(made)
+    return out + ([not_counted] if not_counted else []) + link_lines(made) + second_thoughts(made)
 
 
 def second_thoughts(made: dict | None) -> list[str]:
@@ -715,6 +710,27 @@ def second_thoughts(made: dict | None) -> list[str]:
     if made.get("after_result"):
         out.append(f"You changed {_plural(made['after_result'], 'mark', 'marks')} after seeing "
                    "your judge's grades.")
+    return out
+
+
+PRINTED_NOTE = ("a link printed in a terminal, so another program on this computer could "
+                "have made {them}")
+BROWSER_ENV_NOTE = ("a page opened by the program named in BROWSER, so a program could have "
+                    "made {them}")
+LINK_NOTES = (("printed", PRINTED_NOTE), ("browser_env", BROWSER_ENV_NOTE))  # marks.made's key
+
+
+def link_lines(made: dict | None) -> list[str]:
+    """A note for the marks that came through a link printed where another program could read
+    it (no terminal), and one for those made on a page the program named in BROWSER opened:
+    what each means. In the terminal and on the result page, once each."""
+    out = []
+    for key, how in LINK_NOTES:
+        n = (made or {}).get(key) or 0
+        if n:
+            them = "it" if n == 1 else "them"
+            out.append(f"{n} of your marks came through {how.format(them=them)}. If you marked "
+                       f"{them} yourself, nothing to do.")
     return out
 
 
