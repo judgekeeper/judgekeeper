@@ -41,6 +41,7 @@ def _steps_text(job: dict) -> str:
 
 # The version and the distribution
 
+@pytest.mark.version_number
 def test_versions_agree():
     from judgekeeper import __version__
 
@@ -126,6 +127,61 @@ def test_release_workflow_builds_checks_and_tests_the_wheel():
         assert publish.get("needs")  # publishes only what the build job built and tested
 
 
+def test_practice_release_runs_only_by_hand_and_uploads_to_testpypi_without_a_token():
+    text = (WORKFLOWS / "testpypi.yml").read_text(encoding="utf-8")
+    assert "secrets." not in text and "password" not in text and "TOKEN" not in text
+    wf = _workflow("testpypi.yml")
+    assert set(wf["on"]) == {"workflow_dispatch"}
+    rc = wf["on"]["workflow_dispatch"]["inputs"]["rc"]
+    assert rc["type"] == "number" and rc["default"] == 1
+    assert wf.get("permissions") == {"contents": "read"}
+    publish = _publish_jobs(wf)
+    assert [_env_name(j) for j in publish.values()] == ["testpypi"]
+    for job in publish.values():
+        assert job["permissions"] == {"id-token": "write"} and job.get("needs")
+        (step,) = [s for s in job["steps"] if "pypa/gh-action-pypi-publish" in s.get("uses", "")]
+        assert step["with"] == {"repository-url": "https://test.pypi.org/legacy/"}
+        # The same pinned commit as the real release.
+        real = _publish_jobs(_workflow("release.yml"))["publish"]["steps"]
+        assert step["uses"] in [s.get("uses") for s in real]
+    for name, other in wf["jobs"].items():
+        if name not in publish:
+            assert "id-token" not in (other.get("permissions") or {}), name
+
+
+def test_practice_release_builds_rc_in_the_runner_and_tests_it_like_the_release():
+    wf = _workflow("testpypi.yml")
+    build = _steps_text(wf["jobs"]["build"])
+    for needed in ("${version}rc${RC}", "pyproject.toml", "src/judgekeeper/__init__.py",
+                   "python -m build", "twine check --strict", "venv", ".whl",
+                   "judgekeeper --version", "judgekeeper.record(",
+                   '-m pytest -p no:cacheprovider -m \\"not version_number\\"'):
+        assert needed in build, needed
+    text = (WORKFLOWS / "testpypi.yml").read_text(encoding="utf-8")
+    assert "git commit" not in text and "git push" not in text  # main keeps its version
+    assert "persist-credentials: false" in text
+    # Only the practice run leaves the tests of the version number out.
+    for name in ("ci.yml", "release.yml", "windows.yml"):
+        assert "version_number" not in (WORKFLOWS / name).read_text(encoding="utf-8"), name
+
+
+def test_practice_release_installs_from_testpypi_on_three_systems():
+    job = _workflow("testpypi.yml")["jobs"]["install"]
+    assert set(job["needs"]) == {"build", "publish"}
+    matrix = job["strategy"]["matrix"]
+    assert set(matrix["os"]) == {"ubuntu-latest", "macos-latest", "windows-latest"}
+    assert matrix["python"] == ["3.11", "3.14"] and job["strategy"]["fail-fast"] is False
+    assert job["env"]["INDEX"] == "https://test.pypi.org/simple/"
+    steps = _steps_text(job)
+    uvx = 'uvx --index-url \\"$INDEX\\" \\"judgekeeper==$VERSION\\"'
+    for needed in (f"{uvx} --version", f"{uvx} --help", f"{uvx} --no-browser", f"{uvx} --stop",
+                   "seq 1 30", "sleep 10", "range(1, 41)", "Step 1 of 5: Find",
+                   "http://127"):
+        assert needed in steps, needed
+    for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", " fix", " check"):
+        assert key not in steps, key  # it never makes an AI call
+
+
 def test_ci_builds_and_runs_the_installed_wheel_on_every_push():
     wf = _workflow("ci.yml")
     assert "push" in wf["on"]
@@ -187,6 +243,7 @@ def _build_wheel(src: Path, out: Path) -> Path:
     return wheel
 
 
+@pytest.mark.version_number
 def test_wheel_ships_the_package_and_no_demo(tmp_path):
     wheel = _build_wheel(ROOT, tmp_path)
     assert wheel.name == f"judgekeeper-{VERSION}-py3-none-any.whl"
@@ -242,7 +299,7 @@ def test_sdist_holds_only_the_package_and_its_readme_licence_and_changelog(tmp_p
 
 def test_release_workflows_test_the_wheels_from_the_checkout_not_the_sdist():
     """The sdist ships no tests, so the workflows must run the suite from the checkout."""
-    for name in ("release.yml", "ci.yml"):
+    for name in ("release.yml", "ci.yml", "testpypi.yml"):
         text = (WORKFLOWS / name).read_text(encoding="utf-8")
         assert "actions/checkout@" in text
         assert ".tar.gz" not in text and "tar x" not in text, name
@@ -450,7 +507,7 @@ def test_security_policy_and_dependabot_exist():
 BUILD_TOOLS = {"ruff", "build", "hatchling"}  # in [dev] to build and lint, not for the tests
 
 
-@pytest.mark.parametrize("workflow", ["ci.yml", "release.yml"])
+@pytest.mark.parametrize("workflow", ["ci.yml", "release.yml", "testpypi.yml"])
 def test_the_installed_wheel_gets_every_package_the_tests_need(workflow):
     """The wheel jobs list the test-only packages by hand: each one in [dev] must be there."""
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]

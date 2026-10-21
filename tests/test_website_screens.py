@@ -152,6 +152,7 @@ def _site(page: str) -> dict[str, list[str]]:
             for el in parse(WEBSITE / page).iter() if el.tag == "template"}
 
 
+@pytest.mark.version_number  # the screens show the version line
 @pytest.mark.parametrize("page", ["index.html"])
 def test_each_screen_on_the_site_is_what_judgekeeper_prints(tmp_path, monkeypatch, capsys,
                                                             pages, page):

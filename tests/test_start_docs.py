@@ -7,6 +7,8 @@ from __future__ import annotations
 import re
 import tomllib
 
+import pytest
+
 from judgekeeper import __version__
 from tests.website_pages import ROOT
 
@@ -30,6 +32,7 @@ def test_the_readme_makes_uvx_the_main_path():
 
 # The version -----------------------------------------------------------------------------
 
+@pytest.mark.version_number
 def test_the_version_is_1_0_0_everywhere():
     main_toml = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert __version__ == main_toml["project"]["version"] == "1.0.0"
