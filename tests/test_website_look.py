@@ -559,7 +559,7 @@ def test_privacy_says_what_the_site_and_the_tool_do_with_data():
                               ("#questions", "Questions")]
     site, providers, rights, local = (_all(_by_id(PRIVACY, s), "li")
                                       for s in ("site", "providers", "rights", "local"))
-    assert (len(site), len(providers), len(rights), len(local)) == (4, 4, 3, 4)
+    assert (len(site), len(providers), len(rights), len(local)) == (4, 3, 3, 4)
     text = _flat(_main(PRIVACY))
     assert "light or dark" not in text and "local storage" not in text  # dark only, no store
     assert "never uploaded" in text
@@ -574,20 +574,21 @@ def test_privacy_is_the_notice_the_law_asks_for():
     for words in ("run by Sathvik Thota, the author of the open-source judgekeeper project",
                   "no cookies of its own",
                   "your IP address, your browser's user agent and the page you asked for",
-                  "Railway hosts the site. It keeps request logs for up to 90 days",
+                  "Railway hosts the site. To deliver and protect it, Railway processes",
+                  "Railway keeps these request logs for up to 90 days, then deletes them",
+                  "Contact: judgekeeper.project@outlook.com.",
+                  "by writing to judgekeeper.project@outlook.com.",
                   "Data Privacy Framework and Standard Contractual Clauses",
                   "my legitimate interest", "not sold, shared or combined",
                   "Do Not Track", "erased or restricted, or object to its use",
                   "Information Commissioner's Office", "Last updated: 21 October 2026"):
         assert words in text, words
-    # Cloudflare: one item, marked so it can be removed with the sentence around it intact
     page = PRIVACY.read_text(encoding="utf-8")
-    (cloudflare,) = [li for li in _all(_by_id(PRIVACY, "providers"), "li")
-                     if "data-cloudflare" in li.attrs]
-    assert "__cf_bm" in _flat(cloudflare) and "cf_clearance" in _flat(cloudflare)
-    assert "Cloudflare" not in text.replace(_flat(cloudflare), "")
-    assert "<!-- Cloudflare: remove the next item" in page
-    assert "Each of these companies is based in the US" in text  # true with one or two
+    assert "Cloudflare" not in page and "CONTACT_ADDRESS" not in page  # Railway only
+    mail = [a.attrs["href"] for a in _all(_main(PRIVACY), "a") if a.attrs["href"].startswith(
+        "mailto:")]
+    assert mail == ["mailto:judgekeeper.project@outlook.com"] * 2
+    assert "Railway is based in the US and acts for me" in text
 
 
 def test_the_site_speaks_as_judgekeeper_or_i_never_we():
