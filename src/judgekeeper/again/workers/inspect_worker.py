@@ -9,7 +9,7 @@ function the `inspect` command calls), which asking again uses so the key can st
 The dry run does not call it. No model is called, and no log is read or written.
 
 Mode "run" calls that loader (when it is there), reads the log with `read_eval_log` (never
-writing it), keeps the job's samples (for a new judge, which never graded the person's marked
+writing it; a `.eval` log one sample at a time, `read_log`), keeps the job's samples (for a new judge, which never graded the person's marked
 answers: puts those answers into copies of the log's first sample) and rebuilds the recorded
 scorer from Inspect's own registry with its saved options. Then, once per time asked,
 `score_async(log, [scorer], action="append", copy=True)` re-scores a copy in memory, with
@@ -111,6 +111,28 @@ def new_samples(log, answers):
     return samples, wanted
 
 
+def read_log(path, wanted, new):
+    """The log, with only the samples asked about (`wanted`), or for a `new` judge only its
+    first sample (the template). A `.eval` log is read as its header, then one sample at a
+    time, when this Inspect can: never every sample in memory at once."""
+    from inspect_ai.log import read_eval_log
+
+    try:
+        from inspect_ai.log import read_eval_log_samples
+    except ImportError:
+        read_eval_log_samples = None
+    if read_eval_log_samples is None or not str(path).lower().endswith(".eval"):
+        return read_eval_log(path)
+    log = read_eval_log(path, header_only=True)
+    log.samples = []
+    for sample in read_eval_log_samples(path, all_samples_required=False):
+        if new or (str(sample.id), sample.epoch) in wanted:
+            log.samples.append(sample)
+            if new:
+                break
+    return log
+
+
 def usage_of(sample):
     """{model: its usage as text}: what Inspect counted for a sample, by model."""
     usage = getattr(sample, "model_usage", None) or {}
@@ -125,15 +147,15 @@ def run(job, out_path, version):
     if init_dotenv is not None:
         init_dotenv()
     from inspect_ai import score_async
-    from inspect_ai.log import read_eval_log
     from inspect_ai.model import GenerateConfig, get_model
     from inspect_ai.util import registry_create
 
-    log = read_eval_log(job["log"])
     if job.get("new"):
+        log = read_log(job["log"], {}, True)
         log.samples, wanted = new_samples(log, job["answers"])
     else:
         wanted = {(str(a["sample"]), a["epoch"]): a["id"] for a in job["answers"]}
+        log = read_log(job["log"], wanted, False)
         log.samples = [s for s in log.samples or [] if (str(s.id), s.epoch) in wanted]
     before = {(str(s.id), s.epoch): set(s.scores or {}) for s in log.samples}
     usage = {(str(s.id), s.epoch): usage_of(s) for s in log.samples}
