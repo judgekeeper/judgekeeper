@@ -576,9 +576,9 @@ def test_privacy_is_the_notice_the_law_asks_for():
                   "your IP address, your browser's user agent and the page you asked for",
                   "Railway hosts the site. To deliver and protect it, Railway processes",
                   "Railway keeps these request logs for a limited time, then deletes them",
-                  "judgekeeper.com without www, GoDaddy, the domain registrar, forwards you "
-                  "to www.judgekeeper.com and sees that one request: your IP address and the "
-                  "page you asked for.",
+                  ("judgekeeper.com without www, GoDaddy, the domain registrar, forwards you "
+                   "to www.judgekeeper.com and sees that one request: your IP address and the "
+                   "page you asked for."),
                   "once the page has loaded, it works with Wi-Fi turned off",
                   "Contact: judgekeeper.project@outlook.com.",
                   "by writing to judgekeeper.project@outlook.com.",

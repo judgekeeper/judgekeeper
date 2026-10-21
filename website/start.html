@@ -75,7 +75,7 @@
       <div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
       <p><b>promptfoo, DeepEval, Inspect AI or MLflow:</b> write your new rule in <code>.judgekeeper/fix/rule.txt</code> and run <code>judgekeeper fix</code> again. It tests the rule on marks kept aside, and asks before it calls your judge.</p>
       <p><b>Your own CSV or JSONL file, or <code>judgekeeper.record()</code>:</b> judgekeeper can't ask this judge itself, so it can't test a new rule. Change the rule where your eval keeps it, run your eval, then <code>judgekeeper check</code>.</p>
-      <div class="tw"><table>
+      <div class="tw" tabindex="0" role="region" aria-label="Table: what fix says and what to do"><table>
         <thead><tr><th>Result</th><th>What judgekeeper says</th><th>What to do</th></tr></thead>
         <tbody>
           <tr><td>Better</td><td>Your new rule is better. A difference this large is very unlikely to be a coincidence.</td><td>Use the new rule.</td></tr>
@@ -107,7 +107,7 @@
     <p>No eval tool? Save one row per answer in a CSV or JSONL file with three columns: <code>input</code> (the question), <code>output</code> (the answer that was graded) and <code>verdict</code> (pass or fail; true/false, yes/no and 1/0 work too).</p>
     <p>Judge gives a score? Say where Pass starts: <code class="long">judgekeeper --pass-if 'score&gt;=0.5'</code>.</p>
     <p>When your judge runs in your own code and saves nothing judgekeeper reads, add one line right after it gives each grade, in your eval code:</p>
-    <pre class="gx-code"><code>import judgekeeper
+    <pre class="gx-code" tabindex="0" role="region" aria-label="Code: judgekeeper.record() in your eval"><code>import judgekeeper
 judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
                    reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")</code></pre>
     <p>Then run your eval once and <code>judgekeeper</code>: it finds the records. Install judgekeeper inside your project's environment (<code>pip install judgekeeper</code>) for the import.</p>
@@ -115,7 +115,7 @@ judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
   </div>
   <div class="gx-card gx-text" id="misc">
     <h3>Handy commands</h3>
-    <div class="tw"><table class="gx-cmds">
+    <div class="tw" tabindex="0" role="region" aria-label="Table: handy commands"><table class="gx-cmds">
       <tbody>
         <tr><td><code>judgekeeper --stop</code></td><td>Close the marking page</td></tr>
         <tr><td><code>judgekeeper --new</code></td><td>Start over (your old marks are kept)</td></tr>

@@ -526,3 +526,34 @@ def test_the_check_page_says_what_it_reads_and_that_the_file_stays():
                   "Drop it on the left. It stays on your computer.",
                   "To run judgekeeper in your project folder: uvx judgekeeper"):
         assert words in text, words
+
+
+# Scroll areas: one the keyboard can't reach can't be scrolled without a mouse (Lighthouse and
+# axe: "scrollable-region-focusable"). Each class whose rule scrolls (overflow auto or scroll)
+# is checked on every page that uses it, unless the area holds a link or button of its own.
+SCROLLS = re.compile(r"(?m)^\s*\.([\w-]+)\s*\{[^}]*overflow(?:-[xy])?:\s*(?:auto|scroll)")
+FOCUSABLE = {"a", "button", "input", "select", "textarea", "summary"}
+
+
+def _scroll_areas(path: Path, css: str) -> list:
+    classes = set(SCROLLS.findall(css))
+    return [el for el in parse(path).iter() if classes & el.classes()
+            and not [d for d in el.iter() if d is not el and d.tag in FOCUSABLE]]
+
+
+def test_every_scroll_area_can_be_reached_by_keyboard():
+    site_css = "".join(p.read_text(encoding="utf-8")
+                       for p in sorted((WEBSITE / "assets").glob("*.css")))
+    reports = sorted((ROOT / "docs" / "examples").rglob("*.html"))
+    checked = 0
+    for path in [*pages(), WEBSITE / "errors" / "404.html", *reports]:
+        text = path.read_text(encoding="utf-8")
+        css = site_css if path.is_relative_to(WEBSITE) else "".join(
+            re.findall(r"<style>(.*?)</style>", text, re.DOTALL))
+        for el in _scroll_areas(path, css):
+            where = f"{path.relative_to(ROOT).as_posix()}: {el.tag}.{'.'.join(el.classes())}"
+            assert el.attrs.get("tabindex") == "0", where
+            assert el.attrs.get("role") == "region", where
+            assert el.attrs.get("aria-label", "").strip(), where
+            checked += 1
+    assert checked >= 10  # the Guide's code and tables, the terminals, the old report's tables
