@@ -1,0 +1,125 @@
+{
+  "source": {
+    "dataset": "JailbreakBench JBB-Behaviors (huggingface.co/datasets/JailbreakBench/JBB-Behaviors), MIT license, Copyright (c) 2023 JailbreakBench Team",
+    "revision": "886acc352a31533ffbcf4ef22c744658688086fc",
+    "subset": "config judge_comparison, split test (data/judge-comparison.csv, 300 rows)",
+    "grades": "judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)",
+    "text": "ids, grades and counts only; no prompt or response"
+  },
+  "judge_model": "openai:gpt-4-0613",
+  "rows": 300,
+  "true_all_rows": {
+    "n": 300,
+    "expert_pass_judge_pass": 171,
+    "expert_pass_judge_fail": 19,
+    "expert_fail_judge_pass": 10,
+    "expert_fail_judge_fail": 100,
+    "tpr": 0.9,
+    "tnr": 0.9090909090909091,
+    "agreement": 0.9033333333333333,
+    "kappa": 0.7953904045155221,
+    "paper_fpr": 0.1,
+    "paper_fnr": 0.09090909090909091,
+    "tpr_wilson95": [
+      0.8491030544571008,
+      0.9350429217299712
+    ],
+    "tnr_wilson95": [
+      0.840703472165014,
+      0.9498696712610923
+    ]
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "command": "judgekeeper",
+      "port": 9871,
+      "page_items": 100,
+      "marked_this_round": 100,
+      "marked_total": 100,
+      "measure_exit": 0,
+      "stop_said": [
+        "No marking page is open.",
+        "",
+        "Next: run `judgekeeper` when you want to continue."
+      ],
+      "screen_dataset_pieces": 0,
+      "report_dataset_pieces": 475,
+      "report_rows_not_matched": 0,
+      "judgekeeper": {
+        "tpr": 0.9157138520692097,
+        "tpr_interval": [
+          0.853142442870203,
+          0.9605852163571779
+        ],
+        "tnr": 1.0,
+        "tnr_interval": [
+          0.9157677473660164,
+          1.0
+        ],
+        "kappa": 0.8811275897203669,
+        "kappa_interval": [
+          0.7557273952816813,
+          0.9416664013256439
+        ],
+        "method": "jeffreys",
+        "level": 0.96,
+        "groups": {
+          "pass": {
+            "pool": 181,
+            "labeled": 50,
+            "correct": 50
+          },
+          "fail": {
+            "pool": 119,
+            "labeled": 50,
+            "correct": 7
+          }
+        },
+        "labels": {
+          "correct": 57,
+          "wrong": 43
+        },
+        "check": "reliable",
+        "verdict_level": "gate",
+        "verdict": "Your judge is good enough to use.",
+        "disagreements": 7,
+        "left": 200,
+        "made": {
+          "marks": 100,
+          "pass": 57,
+          "fail": 43,
+          "sittings": 1,
+          "seconds": null,
+          "under_second": 0,
+          "not_counted": 0,
+          "printed": 100,
+          "browser_env": 0,
+          "unsure": 0,
+          "after_result": 0
+        }
+      },
+      "raw_on_marked": {
+        "n": 100,
+        "expert_pass_judge_pass": 50,
+        "expert_pass_judge_fail": 7,
+        "expert_fail_judge_pass": 0,
+        "expert_fail_judge_fail": 43,
+        "tpr": 0.8771929824561403,
+        "tnr": 1.0,
+        "agreement": 0.93,
+        "kappa": 0.8600000000000001,
+        "paper_fpr": 0.12280701754385964,
+        "paper_fnr": 0.0,
+        "tpr_wilson95": [
+          0.7675355146130891,
+          0.9392193987412181
+        ],
+        "tnr_wilson95": [
+          0.9179901955865446,
+          1.0
+        ]
+      }
+    }
+  ]
+}

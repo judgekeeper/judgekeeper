@@ -1,0 +1,28 @@
+# Source: JailbreakBench JBB-Behaviors (huggingface.co/datasets/JailbreakBench/JBB-Behaviors), MIT license, Copyright (c) 2023 JailbreakBench Team
+# Revision: 886acc352a31533ffbcf4ef22c744658688086fc
+# Subset: config judge_comparison, split test (data/judge-comparison.csv, 300 rows)
+# Grades: judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)
+# Holds: ids, grades and counts only; no prompt or response
+# The screen below is judgekeeper's Measure output, copied exactly.
+
+judgekeeper 1.0.0b2
+
+Step 3 of 5: Measure
+
+100 of your marks were made through a link printed where another
+program could read it.
+
+Result: too early to tell. Mark more answers to get a result.
+You and your judge disagreed on 10 of 100 answers.
+
+  You passed 54 answers. Of those, your judge passed 47 and failed 7.
+  You failed 46 answers. Of those, your judge passed 3 and failed 43.
+
+Full report: .judgekeeper/report.html (open it in your browser)
+
+To mark more answers at any time, run
+`judgekeeper mark --judge-model openai:gpt-4-0613 --port 9901 --no-browser`.
+
+Next: run
+`judgekeeper mark --judge-model openai:gpt-4-0613 --port 9901 --no-browser`
+to mark more answers.

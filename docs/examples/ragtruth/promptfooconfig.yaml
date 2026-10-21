@@ -1,0 +1,41 @@
+# judgekeeper launch check: RAGTruth news summaries, one LLM-as-a-judge per run.
+# Frozen 2026-10-17, before any result. The rule below is rule.txt word for word
+# (make_tests.py checks this and stops if they differ).
+#
+# This file is the template. make_tests.py writes one copy per judge into cache/run/<judge>/,
+# with the provider id below filled in as exactly one of:
+#   haiku:  anthropic:messages:claude-haiku-5-5
+#   sonnet: anthropic:messages:claude-sonnet-5-5
+#
+# No app is called: the provider is promptfoo's echo, and the prompt is the dataset's own
+# summary, so the output being graded is the RAGTruth answer itself.
+#
+# Temperature: the protocol asked for 0, but Claude Haiku 5.5 and Claude Sonnet 5.5 reject any
+# non-default temperature (HTTP 400), and promptfoo 0.124 drops temperature for every Claude 5
+# model anyway (with a warning). So the request goes out with no temperature, which is the
+# API default, 1. It is written here as 1 so the judge fingerprint records what really ran.
+# Thinking and effort are left at the models' defaults (adaptive thinking; effort medium on
+# Haiku 5.5, high on Sonnet 5.5). max_tokens is raised from promptfoo's 2048 so thinking
+# cannot cut the JSON reply short.
+description: RAGTruth news summaries, launch check
+prompts:
+  - "{{summary}}"
+providers:
+  - echo
+defaultTest:
+  options:
+    provider:
+      id: JUDGE_PROVIDER
+      config:
+        temperature: 1
+        max_tokens: 8192
+  assert:
+    - type: llm-rubric
+      value: |-
+        Every claim in the summary is supported by the article. Pass if every claim is supported by the article. Fail if any claim is not supported by the article or contradicts it.
+
+        Article:
+        <article>
+        {{article}}
+        </article>
+tests: file://tests.yaml
