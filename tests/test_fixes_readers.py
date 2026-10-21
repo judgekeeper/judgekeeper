@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -60,6 +61,9 @@ def test_provider_errors_are_never_the_judges_fail(here, capsys):
     assert code == 0, out
     assert "Your judge passed 18 answers and failed 16." in out
     assert "failed 22" not in out
+    assert ("6 answers have no answer: the call to the model you test failed, so your judge "
+            "never ran. They are left out here.") in flat(out)
+    assert "calls failed" not in out
 
 
 def test_a_file_of_provider_errors_only_has_no_judge_decisions(here, capsys):
@@ -73,6 +77,12 @@ def test_a_file_of_provider_errors_only_has_no_judge_decisions(here, capsys):
     assert "failed 2" not in out
     assert "too strict" not in out
     assert "http://127.0.0.1" not in out
+    assert ("The call to the model you test failed on every answer, so your judge never ran "
+            "and there is nothing to mark.") in flat(out)
+    assert "fix your judge" not in out
+    line = assert_one_next_at_the_end(out)
+    assert line.startswith("Next: re-run your eval once the model you test answers, then run "
+                           "`judgekeeper")
 
 
 # Two judge columns -------------------------------------------------------------------------
@@ -188,6 +198,10 @@ def test_report_after_worse_says_the_last_check_at_the_top(here, capsys, monkeyp
     assert "Worse" in top
     assert "9 answers went from right to wrong" in flat(top)
     assert "points lower (between" in top
+    said = flat(re.sub("<[^>]+>", " ", top))
+    for side in ("Pass", "Fail"):  # the new judge's two numbers, each with its range
+        assert re.search(rf"When you say {side}, it also says {side}: about \d+% "
+                         rf"\(between \d+% and \d+%\)", said), said
     assert "Go back to the old judge" in top
     assert html.count("Go back to the old judge") == 1
     assert "Answers you passed" in html or "agreed on all" in html  # the old judge stays

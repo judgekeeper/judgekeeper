@@ -193,3 +193,53 @@ def test_a_deepeval_field_of_the_wrong_type_is_left_out_as_the_tool_does(tmp_pat
     path.write_text(json.dumps(_deepeval(metrics)), encoding="utf-8")
     assert _page(browser(path)) == tool(path)
     assert "undefined" not in json.dumps(browser(path))
+
+
+# a promptfoo row whose call to the model under test failed: the same words as the tool -------
+
+def _failed_row(i: int) -> dict:
+    """A row as promptfoo saves it when the model under test never answered."""
+    message = "API call error: Request failed after 0 retries: fetch failed"
+    return {"testIdx": i, "vars": {"question": f"q {i}"}, "response": {"error": message},
+            "error": message, "success": False, "score": 0, "failureReason": 2,
+            "gradingResult": None,
+            "testCase": {"vars": {"question": f"q {i}"},
+                         "assert": [{"type": "llm-rubric", "value": "Is it right?"}],
+                         "options": {"provider": "openai:gpt-4.1-mini"}}}
+
+
+def _one_rubric_row(i: int) -> dict:
+    row = _failed_row(i)
+    row.update(response={"output": f"a {i}"}, success=i % 3 != 0, score=int(i % 3 != 0),
+               failureReason=0 if i % 3 else 1)
+    del row["error"]
+    return row
+
+
+def test_a_failed_call_to_the_tested_model_is_said_as_the_tool_says_it(tmp_path):
+    from judgekeeper import judge_check
+
+    rows = [_failed_row(i) for i in range(6)] + [_one_rubric_row(i) for i in range(6, 40)]
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(_promptfoo(rows)), encoding="utf-8")
+    page = browser(path)
+    assert _page(page) == tool(path)
+    (judge,) = page["judges"]
+    line = (f"6 answers have{judge_check.MODEL_FAILED_LINE.split('{n}')[1]} They are left out "
+            "here.")
+    assert line in judge["findings"]
+    assert not any("calls failed" in f for f in judge["findings"])
+
+
+def test_every_call_to_the_tested_model_failed_says_what_to_do(tmp_path):
+    from judgekeeper import judge_check
+
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(_promptfoo([_failed_row(i) for i in range(2)])), encoding="utf-8")
+    (judge,) = browser(path)["judges"]
+    assert judge_check.ALL_MODEL_FAILED in judge["lines"]
+    page = (Path(__file__).parent.parent / "website" / "assets" / "freecheck.js").read_text(
+        encoding="utf-8")
+    words = judge_check.MODEL_FAILED_NEXT.split(", then run")[0]  # the page names no flags
+    assert f"var MODEL_FAILED_NEXT = '{words}, then run judgekeeper" in page
+    assert "fix your judge" not in " ".join(judge["lines"])

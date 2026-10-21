@@ -7,7 +7,8 @@ and the marks the readers set (records.Mark). Four checks:
    ("unreadable"), the tool would not judge an empty answer ("empty_answer_refused": DeepEval
    refuses one), or there is no decision at all ("empty"); for DeepEval, a check of
    nothing that still got full marks ("nothing_checked"); for Inspect AI, a sample whose run
-   failed before scoring ("not_scored"). These are left out of the pool.
+   failed before scoring ("not_scored"); for promptfoo, a row whose call to the model under
+   test failed, so the judge never ran ("model_failed"). These are left out of the pool.
 2. Passed an empty answer: the app's answer is empty after trimming spaces and the judge
    passed it. These stay in the pool: a real, bad decision, worth a person's mark.
 3. The same decision for everything: the judge passed (or failed) every answer.
@@ -37,8 +38,14 @@ from judgekeeper.textio import plural
 ERROR, UNREADABLE, EMPTY, NOTHING_CHECKED = "error", "unreadable", "empty", "nothing_checked"
 EMPTY_ANSWER_REFUSED = "empty_answer_refused"
 NOT_SCORED = "not_scored"  # the run failed before scoring: the judge was never called
+MODEL_FAILED = "model_failed"  # the call to the model under test failed: no answer to judge
 NO_DECISION = (ERROR, UNREADABLE, EMPTY_ANSWER_REFUSED, EMPTY)
-LEFT_OUT = (*NO_DECISION, NOTHING_CHECKED, NOT_SCORED)  # left out of the pool
+LEFT_OUT = (*NO_DECISION, NOTHING_CHECKED, NOT_SCORED, MODEL_FAILED)  # left out of the pool
+# Said the same by the tool and the website's free check (website/assets/freecheck.js)
+MODEL_FAILED_LINE = "{n} no answer: the call to the model you test failed, so your judge never ran."
+ALL_MODEL_FAILED = ("The call to the model you test failed on every answer, so your judge never "
+                    "ran and there is nothing to mark.")
+MODEL_FAILED_NEXT = "re-run your eval once the model you test answers, then run `{command}`."
 PASSED_EMPTY = "empty_answer_passed"  # kept in the pool: a real decision
 OPPOSITE = "reason_says_opposite"
 KINDS = (*LEFT_OUT, PASSED_EMPTY, OPPOSITE)
@@ -219,6 +226,10 @@ def lines(block: dict | None) -> list[list[str]]:
         first = (f"Your judge made no real decision on {no_decision} of {block['answers']} "
                  f"answers: {', '.join(parts)}.")
         out.append([first, f"{said}{'It is' if one else 'They are'} left out here."])
+    if block.get(MODEL_FAILED):
+        n = block[MODEL_FAILED]
+        out.append([MODEL_FAILED_LINE.format(n=_n(n, "answer has", "answers have")),
+                     f"{'It is' if n == 1 else 'They are'} left out here."])
     if block.get(NOT_SCORED):
         n = block[NOT_SCORED]
         line = f"{_n(n, 'answer has', 'answers have')} no score: the run failed before scoring."

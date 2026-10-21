@@ -1058,7 +1058,14 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
 def _nothing_to_mark(talk: FrontTalk, found: start.Found, listed: str | None) -> Stop:
     """No answer has a clear Pass or Fail: the person fixes the judge and runs the eval
     again (exit 3)."""
-    failed = {kind for kind, _ in found.pool.left.values()} == {judge_check.ERROR}
+    kinds = {kind for kind, _ in found.pool.left.values()}
+    if kinds == {judge_check.MODEL_FAILED}:  # the model under test failed, not the judge
+        talk.para(judge_check.ALL_MODEL_FAILED)
+        if listed:
+            talk.para(f"The list is in {listed}.")
+        return talk.stop(EXIT_QUESTION, judge_check.MODEL_FAILED_NEXT.format(
+            command=talk.command()))
+    failed = kinds == {judge_check.ERROR}
     talk.para("Your judge's calls failed on every answer, so there is nothing to mark."
               if failed else "No answer has a clear Pass or Fail from your judge, so there is "
                              "nothing to mark.")

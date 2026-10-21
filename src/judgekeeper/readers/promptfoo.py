@@ -52,6 +52,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from judgekeeper.anchors import canonical_json
+from judgekeeper.judge_check import MODEL_FAILED
 from judgekeeper.records import (
     CODE,
     HUMAN,
@@ -481,7 +482,7 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                 prompt = f"{prompt or ''}\n\n{_text(rubric_prompt)}"
             if prompt is not None:
                 evaluator["prompt"] = prompt
-            problem = "error" if failed else grader_problem(c, metadata)
+            problem = MODEL_FAILED if failed else grader_problem(c, metadata)
             counted = "fail" if failed else label
             mark = Mark(problem=problem, tool_counted_as=counted if problem else None)
             record = ScoreRecord(

@@ -63,6 +63,10 @@
   var FREE_CHECK = 'Checked: ';
   var MODEL_NOT_WRITTEN = "Your judge's model isn't written in your config. promptfoo picks it from whichever API key is set, so it can change without any file changing. Write it in your config (defaultTest.options.provider).";
   var NO_CLEAR = 'No answer has a clear Pass or Fail from your judge, so there is nothing to mark.';
+  // judge_check.MODEL_FAILED_LINE, ALL_MODEL_FAILED and MODEL_FAILED_NEXT: the same words
+  var MODEL_FAILED_LINE = ' no answer: the call to the model you test failed, so your judge never ran.';
+  var ALL_MODEL_FAILED = 'The call to the model you test failed on every answer, so your judge never ran and there is nothing to mark.';
+  var MODEL_FAILED_NEXT = 're-run your eval once the model you test answers, then run judgekeeper in your project folder.';
   var ALL_FAILED = "Your judge's calls failed on every answer, so there is nothing to mark.";
   var PRIVACY = 'Your file never leaves this page: it is read on your computer. Turn off Wi-Fi and it still works.';
 
@@ -195,6 +199,19 @@
     return get(or(c.assertion, {}), 'type') === 'assert-set' || (isObj(marker) && marker.type === 'assert-set');
   }
 
+  // promptfoo.py _one_rubric: the one model-graded assertion of a row saved with no
+  // gradingResult, when it is the test's only assertion (the row's success is its decision)
+  function oneRubric(r) {
+    if (truthy(r.gradingResult) || typeof r.success !== 'boolean') return null;
+    var asserts = get(or(r.testCase, {}), 'assert');
+    if (!Array.isArray(asserts) || asserts.length !== 1 || !isObj(asserts[0])) return null;
+    return judgeType(asserts[0].type) ? asserts[0] : null;
+  }
+  // promptfoo.py _provider_failed: the model under test never answered, so the judge never ran
+  function providerFailed(r) {
+    return r.failureReason === 2 || truthy(r.error) || truthy(get(or(r.response, {}), 'error'));
+  }
+
   function components(grading) {
     var out = [];
     var comps = (or(get(or(grading, {}), 'componentResults'), []) || []);
@@ -268,7 +285,7 @@
     var leftOut = summary.results.length - rows.length, kept = 0;
     var defaultTest = get(or(data.config, {}), 'defaultTest');
     defaultTest = isObj(defaultTest) ? defaultTest : {};
-    var gone = stripped(rows);
+    var gone = stripped(rows.filter(function (r) { return oneRubric(r) === null; }));
     if (gone.length) return { error: 'stripped', message: strippedMessage(gone.indexOf('grading') >= 0 ? 'grading' : gone[0]) };
     var judged = [], nHuman = 0, nCode = 0;
     var readRow = function (r) {
@@ -278,6 +295,8 @@
       var input = r.vars === undefined ? null : r.vars;
       var perRow = {};
       var comps = components(r.gradingResult);
+      var only = oneRubric(r), failed = only !== null && providerFailed(r);
+      if (only !== null) comps = [{ pass: failed ? null : r.success, score: null, reason: '', assertion: only }];
       for (var ci = 0; ci < comps.length; ci++) {
         var c = comps[ci];
         damagedIf(truthy(c.assertion) && !isObj(c.assertion));
@@ -308,14 +327,14 @@
         var rubricPrompt = or(a.rubricPrompt, testOpts.rubricPrompt, options(defaultTest).rubricPrompt);
         var prompt = text(a.value);
         if (truthy(rubricPrompt)) prompt = (prompt || '') + '\n\n' + text(rubricPrompt);
-        var problem = graderProblem(c, metadata);
+        var problem = failed ? 'model_failed' : graderProblem(c, metadata);
         checkRecord({ name: name, label: label, score: score, explanation: or(c.reason, null), input: input, output: output, model: model });
         judged.push({
           name: name, input: input, output: output, label: label,
           score: score, scoreKind: numberKind(c, 'score'),
           reason: isStr(c.reason) ? c.reason : '',
           model: model, prompt: prompt, problem: problem,
-          countedAs: problem ? label : null
+          countedAs: failed ? 'fail' : problem ? label : null
         });
       }
     };
@@ -862,7 +881,7 @@
   };
 
   function judgeCheck(pool, tool, scoreJudge) {
-    var counts = { error: 0, unreadable: 0, empty_answer_refused: 0, empty: 0, nothing_checked: 0, empty_answer_passed: 0, reason_says_opposite: 0 };
+    var counts = { error: 0, unreadable: 0, empty_answer_refused: 0, empty: 0, nothing_checked: 0, model_failed: 0, empty_answer_passed: 0, reason_says_opposite: 0 };
     var said = new Set();
     pool.left.forEach(function (l) { counts[l.kind] += 1; if (NO_DECISION.indexOf(l.kind) >= 0) said.add(l.r.countedAs); });
     pool.answers.forEach(function (a) {
@@ -891,6 +910,10 @@
       var said = name && counted ? name + ' ' + counted[one ? 0 : 1] + '. ' : '';
       out.push('Your judge made no real decision on ' + noDecision + ' of ' + b.answers + ' answers: ' + parts.join(', ') + '. ' +
         said + (one ? 'It is' : 'They are') + ' left out here.');
+    }
+    if (b.model_failed) {
+      out.push(n(b.model_failed, 'answer has', 'answers have') + MODEL_FAILED_LINE + ' ' +
+        (b.model_failed === 1 ? 'It is' : 'They are') + ' left out here.');
     }
     if (b.nothing_checked) {
       var one2 = b.nothing_checked === 1;
@@ -1083,6 +1106,7 @@
       moreUnread: pool.unread.length > 3,
       counts: block,
       allFailed: !pool.answers.length && pool.left.length > 0 && pool.left.every(function (l) { return l.kind === 'error'; }),
+      allModelFailed: !pool.answers.length && pool.left.length > 0 && pool.left.every(function (l) { return l.kind === 'model_failed'; }),
       passMark: r.tool === 'deepeval' ? passMarkOf(pool) : null,
       modelNotWritten: r.tool === 'promptfoo' && !models.length,
       models: models.map(function (m) { return oneLine(clean(m, 120)); }),
@@ -1154,7 +1178,7 @@
       });
     }
     if (j.modelNotWritten) L.push({ text: MODEL_NOT_WRITTEN, tone: 'y' });
-    if (!total) L.push({ text: j.allFailed ? ALL_FAILED : NO_CLEAR, tone: 'y' });
+    if (!total) L.push({ text: j.allModelFailed ? ALL_MODEL_FAILED : j.allFailed ? ALL_FAILED : NO_CLEAR, tone: 'y' });
     return L;
   }
 
@@ -1341,7 +1365,7 @@
           row.appendChild(el('span', tone, line.text));
           pre.appendChild(row);
         });
-        termNext(pre, NEXT);
+        termNext(pre, j.allModelFailed ? MODEL_FAILED_NEXT : NEXT);
       }
     }
   }
