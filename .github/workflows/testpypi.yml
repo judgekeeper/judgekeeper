@@ -1,0 +1,168 @@
+# A practice release: builds judgekeeper as <version>rc<rc> and uploads it to TestPyPI
+# (test.pypi.org, PyPI's practice site), then installs it from there with uvx on Linux, macOS
+# and Windows. It runs only by hand (Actions > TestPyPI > Run workflow) and never touches PyPI.
+# The version changes in the runner only: nothing is committed. TestPyPI Trusted Publishing
+# (OIDC) authenticates the upload: there is no API token anywhere. TestPyPI and the
+# repository's environment are set up once, by hand.
+name: TestPyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      rc:
+        description: "the practice number: the version becomes <version>rc<rc>"
+        required: true
+        default: 1
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Set the practice version, in this runner only
+        id: version
+        env:
+          RC: ${{ inputs.rc }}
+        run: |
+          if ! [[ "$RC" =~ ^[1-9][0-9]*$ ]]; then
+            echo "rc must be a whole number from 1, not: $RC"
+            exit 1
+          fi
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "pyproject.toml must hold a final version, not: $version"
+            exit 1
+          fi
+          practice="${version}rc${RC}"
+          sed -i "s/^version = \"$version\"$/version = \"$practice\"/" pyproject.toml
+          sed -i "s/^__version__ = \"$version\"$/__version__ = \"$practice\"/" src/judgekeeper/__init__.py
+          grep -qx "version = \"$practice\"" pyproject.toml
+          grep -qx "__version__ = \"$practice\"" src/judgekeeper/__init__.py
+          echo "version=$practice" >> "$GITHUB_OUTPUT"
+      - name: Install build tools
+        run: python -m pip install --upgrade pip build twine
+      - name: Build both distributions
+        run: python -m build --outdir dist .
+      - name: Check the metadata TestPyPI will render
+        run: twine check --strict dist/*
+      - name: Check the wheel has the practice version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: ls dist/judgekeeper-"$VERSION"-py3-none-any.whl
+      - name: Install the wheel into a clean venv
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install dist/judgekeeper-*.whl "pytest>=8" "pyyaml>=6" \
+            "jsonschema>=4.18"
+      - name: Run the installed judgekeeper outside the checkout
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -x
+          venv/bin/judgekeeper --version
+          venv/bin/judgekeeper --help
+          venv/bin/judgekeeper mark --help
+          venv/bin/python -c 'import judgekeeper; judgekeeper.record(input="q", output="a", verdict="pass")'
+          ls .judgekeeper/records/*.jsonl
+      - name: Run the test suite against the built wheel
+        run: |
+          # src/ is not on the path: every test imports the installed wheel. The tests of the
+          # version number itself expect main's version, not the practice one.
+          "$RUNNER_TEMP/venv/bin/python" -c 'import judgekeeper, sys; assert "site-packages" in judgekeeper.__file__, judgekeeper.__file__'
+          "$RUNNER_TEMP/venv/bin/python" -m pytest -p no:cacheprovider -m "not version_number"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/judgekeeper/
+    permissions:
+      id-token: write  # Trusted Publishing: TestPyPI exchanges this OIDC token for a short upload token
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  install:
+    needs: [build, publish]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11", "3.14"]
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      INDEX: https://test.pypi.org/simple/
+      PYTHONUTF8: "1"
+      NO_COLOR: "1"
+    steps:
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        id: python
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+      - name: Wait until TestPyPI serves the new version
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          for try in $(seq 1 30); do
+            if uvx --refresh --index-url "$INDEX" "judgekeeper==$VERSION" --version; then
+              exit 0
+            fi
+            echo "Not on TestPyPI yet; trying again in 10 s."
+            sleep 10
+          done
+          echo "judgekeeper==$VERSION is not on TestPyPI after 5 minutes."
+          exit 1
+      - name: Run the version and the help
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          uvx --index-url "$INDEX" "judgekeeper==$VERSION" --version | tee version.txt
+          grep -q "^judgekeeper $VERSION" version.txt
+          uvx --index-url "$INDEX" "judgekeeper==$VERSION" --help
+      - name: Find the judge of a 40-row CSV in an empty folder (no AI call)
+        working-directory: ${{ runner.temp }}
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          mkdir practice && cd practice
+          python - <<'EOF'
+          rows = ["input,output,verdict,judge_model"]
+          for i in range(1, 41):
+              verdict = "pass" if i <= 23 else "fail"
+              rows.append(f'"Question {i}: what is {i} + {i}?","The answer is {2 * i}.",{verdict},my-judge-1')
+          with open("results.csv", "w", encoding="utf-8") as f:
+              f.write("\n".join(rows) + "\n")
+          EOF
+          uvx --index-url "$INDEX" "judgekeeper==$VERSION" --no-browser < /dev/null > out.txt 2>&1 || {
+            cat out.txt; exit 1; }
+          cat out.txt
+          grep -q "Step 1 of 5: Find" out.txt
+          grep -Eq "http://127\.0\.0\.1:[0-9]+/\?token=" out.txt
+          uvx --index-url "$INDEX" "judgekeeper==$VERSION" --stop < /dev/null

@@ -15,6 +15,8 @@ import re
 import tomllib
 from pathlib import Path
 
+import pytest
+
 from judgekeeper import __version__
 from tests.website_pages import NAV, ROOT, WEBSITE, Element, pages, parse
 
@@ -108,6 +110,7 @@ def _screens() -> dict[str, str]:
             if el.tag == "template"}
 
 
+@pytest.mark.version_number  # each screen shows the version line
 def test_the_home_terminal_has_a_screen_for_each_step_and_the_fix_test():
     screens = _screens()
     assert list(screens) == ["find", "mark", "measure", "fix", "fix_test", "check"]
