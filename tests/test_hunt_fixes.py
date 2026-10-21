@@ -191,3 +191,98 @@ def test_report_after_worse_says_the_last_check_at_the_top(here, capsys, monkeyp
     assert "Go back to the old judge" in top
     assert html.count("Go back to the old judge") == 1
     assert "Answers you passed" in html or "agreed on all" in html  # the old judge stays
+
+
+# Reading damaged and far-away files --------------------------------------------------------
+
+def test_a_damaged_csv_row_is_named_by_its_line_never_quoted(here, capsys):
+    lines = ["verdict,answer,question"] + [f"{i % 2},Answer text {i},Question {i}?"
+                                           for i in range(40)]
+    (here / "judged.csv").write_text("\n".join(lines) + '\n"unclosed,QZX99 my answer\n',
+                                     encoding="utf-8")
+    _, out = run(capsys)
+    assert "QZX99" not in out
+    assert "line 42" in out
+
+
+def test_an_ndjson_file_is_read_as_jsonl(here, capsys):
+    rows = [{"input": question(i), "output": f"A full answer number {i}.",
+             "verdict": "fail" if i % 3 == 0 else "pass"} for i in range(30)]
+    text = "".join(json.dumps(r) + "\n" for r in rows)
+    (here / "out.ndjson").write_text(text, encoding="utf-8")
+    code, out = run(capsys)
+    assert code == 0, out
+    assert "Your judge passed 20 answers and failed 10." in out
+    from judgekeeper import find
+
+    assert find.classify_file(here / "out.ndjson") == "table"  # named on the command line
+
+
+TABLE = "question,generated_answer,llm_grade\n" + "".join(
+    f"Question {k}?,This is answer number {k}.,{'PASS' if k % 3 else 'FAIL'}\n" for k in range(40))
+
+
+@pytest.mark.parametrize("far", ["above", "deep"])
+def test_a_far_results_file_never_hides_the_table_here(tmp_path, monkeypatch, capsys, far):
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / "eval.csv").write_text(TABLE, encoding="utf-8")
+    if far == "above":
+        (tmp_path / "results.jsonl").write_text('{"x": 1}\n', encoding="utf-8")
+    else:
+        deep = project / "a" / "b" / "c" / "d" / "e"
+        deep.mkdir(parents=True)
+        (deep / "results.jsonl").write_text('{"x": 1}\n', encoding="utf-8")
+    monkeypatch.chdir(project)
+    _, out = run(capsys)
+    assert "No eval results found" not in out, out
+    assert "eval.csv" in out
+
+
+@pytest.mark.parametrize("value", [{"a": 1}, [1, 2]])
+def test_a_verdict_that_is_an_object_names_its_line(here, capsys, value):
+    rows = [{"input": question(i), "output": f"A full answer number {i}.",
+             "verdict": "pass" if i % 2 else "fail"} for i in range(30)]
+    rows[4]["verdict"] = value
+    (here / "judged.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows),
+                                       encoding="utf-8")
+    _, out = run(capsys, "judged.jsonl")
+    assert "didn't expect" not in out, out
+    assert "line 5 of judged.jsonl has a verdict judgekeeper can't read" in flat(out)
+
+
+@pytest.mark.parametrize("body", [b"\x00" * 100, "verdict,é\n".encode("latin-1")],
+                         ids=["nul", "latin-1"])
+def test_a_file_that_is_not_utf8_says_save_it_as_utf8(here, capsys, body):
+    (here / "results.json").write_bytes(body)
+    _, out = run(capsys, "results.json")
+    assert str(here) not in out
+    assert ".." not in out.replace("...", "")
+    assert "UTF-8" in assert_one_next_at_the_end(out)
+
+
+def test_answers_in_an_older_file_too_are_never_run_1_times(here, capsys):
+    import os
+
+    from tests.start_projects import deepeval_project
+
+    old = deepeval_project(here, split(10, 10), name="results/test_run_20261001_100000.json")
+    new = deepeval_project(here, split(10, 10), name="results/test_run_20261002_100000.json",
+                           start=5)
+    os.utime(old, (new.stat().st_mtime - 60,) * 2)
+    _, out = run(capsys)
+    assert "1 times" not in out
+    assert "Answers:     25 different answers" in out
+    assert "has 40 results" in flat(out)
+
+
+@pytest.mark.parametrize("column", ["verdict", "llm_grade", "judge_verdict"])
+def test_a_table_with_no_question_says_so(here, capsys, column):
+    rows = [{"output": f"A full answer number {i}.", column: "FAIL" if i % 3 == 0 else "PASS"}
+            for i in range(40)]
+    (here / "judge.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows),
+                                      encoding="utf-8")
+    _, out = run(capsys)
+    assert "No eval results found" not in out, out
+    assert "judge.jsonl has your judge's verdicts and the answers but no question" in flat(out)
+    assert "question column" in assert_one_next_at_the_end(out)
