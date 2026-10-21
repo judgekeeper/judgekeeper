@@ -391,6 +391,14 @@ def _judge_first(judges: list[str]) -> list[str]:
     return named + [j for j in judges if j not in named]
 
 
+def _judge_column(seg: tuple, values) -> bool:
+    """A column named for a judge (llm_judge) holding only 0/1 or true/false: a verdict."""
+    if not _is(seg[-1], JUDGE_WORDS) or _setting(seg[:-1]):
+        return False
+    values = [str(v).strip().lower() for v in values if not blank(v)]
+    return bool(values) and all(v in RULE_VALUES for v in values)
+
+
 def _rule_column(key: str, values) -> bool:
     """A score column that a rule in code made, not an LLM judge: named for the rule
     (keyword_score, regex_match, exact_match, contains_ok) and holding only 0/1."""
@@ -494,9 +502,9 @@ def guess(units: list, each: str | None = None) -> Guess:
     output_seg = outputs[0]
 
     # the score or verdict, per side and per judge: named so, and verdict-like values
-    scores = [seg for seg, v in _leaves(first) if _named_verdict(seg)
+    scores = [seg for seg, v in _leaves(first) if (_named_verdict(seg)
               and (blank(v) or _verdict_value(v))  # the first row's cell may be empty
-              and _verdict_like(_at(sample, seg))]
+              and _verdict_like(_at(sample, seg)) or _judge_column(seg, _at(sample, seg)))]
     rules = [seg for seg, _ in _leaves(first) if _rule_column(seg[-1], _at(sample, seg))]
     scores = [seg for seg in scores if seg not in rules]
     if not scores and rules:
@@ -624,9 +632,14 @@ def _every_judge(sample: list[dict], score_seg: tuple, sides: list[str],
                     continue
                 if str(key) not in found:
                     found.append(str(key))
-    return [j for j in found if _named_verdict((*parent, j, *rest)) and _verdict_like(
-        _values_of(sample, _as_path(score_seg), sides, j))
-            and not _rule_column(j, _values_of(sample, _as_path(score_seg), sides, j))]
+
+    def verdict(j: str) -> bool:
+        values = _values_of(sample, _as_path(score_seg), sides, j)
+        seg = (*parent, j, *rest)
+        return (_named_verdict(seg) and _verdict_like(values) or _judge_column(seg, values)) \
+            and not _rule_column(j, values)
+
+    return [j for j in found if verdict(j)]
 
 
 def _values_of(sample: list[dict], path: str, sides: list[str], judge: str) -> list:

@@ -60,7 +60,14 @@ from judgekeeper.records import (
     read_records,
 )
 from judgekeeper.redact import one_line, scrub
-from judgekeeper.table import _blank, make_fingerprint, open_quote, read_table, sheet_id
+from judgekeeper.table import (
+    KNOWN_COLUMNS,
+    _blank,
+    make_fingerprint,
+    open_quote,
+    read_table,
+    sheet_id,
+)
 from judgekeeper.textio import plural, quote_arg, read_utf8, tick
 
 EXIT_OK = 0
@@ -431,6 +438,10 @@ def read_results_table(path: Path) -> RecordList:
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
     verdicts = [c for c in find.VERDICT_COLUMNS if c in columns]  # each one is a judge
+    if verdicts:  # and a 0/1 column named for a judge (llm_judge), the judge-named first
+        verdicts = mapper._judge_first(verdicts + [
+            c for c in columns if c not in verdicts and c not in KNOWN_COLUMNS
+            and mapper._judge_column((c,), [row.get(c) for row in rows])])
     verdict = verdicts[0] if verdicts else None
     if verdict is None or "input" not in columns or "output" not in columns:
         raise StartError(f"{path.name} needs input, output and verdict columns; columns are: "
