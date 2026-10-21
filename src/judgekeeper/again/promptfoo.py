@@ -10,10 +10,14 @@ again to rebuild the judge, and says:
 - a close copy: the file records no promptfoo version, or the grader is promptfoo's default,
   which the file never records (named "probably", from the key names present);
 - can't: the grader was set with `--grader` (saved without its name), its settings hold a
-  secret promptfoo hid (`[REDACTED]`), or the judge runs the user's own code: a `file://`,
-  `exec:` or `python:` grader or rubric, a `transform` or `contextTransform` on the
-  assertion, a `transform...` option on the test or in the grader's settings (JavaScript
-  promptfoo runs), or a grader that is a URL (`https://`, `webhook:`), which gets the answers.
+  secret promptfoo hid (`[REDACTED]`), or the judge runs the user's own code: a grader that
+  is not a model provider promptfoo calls over HTTP (MODEL_PROVIDERS, in any case: so never
+  `package:`, `exec:`, `python:`, `file://`, or a URL or `webhook:`, which gets the answers),
+  a grader that runs an agent with tools (AGENT_TYPES: `anthropic:claude-agent-sdk`,
+  `openai:codex-sdk`, `openai:agents:...`),
+  a rubric or rule that starts with `package:`, `file://` or another code prefix, a
+  `transform` or `contextTransform` on the assertion, or a `transform...` option on the test
+  or in the grader's settings (JavaScript promptfoo runs).
 
 A version from the results file is used only when it reads as one (`1.2.3`, `1.2.3-beta.1`):
 it goes into `npx promptfoo@<version>`, so anything else (an npm alias, a git URL, shell
@@ -72,15 +76,30 @@ PROMPT_TYPES = {"factuality", "model-graded-factuality", "model-graded-closedqa"
                 "answer-relevance", "context-faithfulness", "context-recall",
                 "context-relevance"}
 TEMPLATE_MARKS = ("{{", "{%", "{#")
-CODE_PREFIXES = ("exec:", "python:", "file://", "golang:", "ruby:", "javascript:")
-URL_PREFIXES = ("http://", "https://", "ws://", "wss://", "webhook:")
+# A rule or rubric that starts with one of these is code or a file promptfoo loads
+CODE_PREFIXES = ("exec:", "python:", "file://", "golang:", "ruby:", "javascript:", "package:")
+# The providers in promptfoo's list (0.120 to 0.124) that call a model over HTTP: the only
+# graders asked again. Any other (package:, exec:, a file, a URL, echo, an unknown name) is
+# the person's own code, or sends the answers elsewhere.
+MODEL_PROVIDERS = frozenset({
+    "openai", "anthropic", "azure", "azureopenai", "bedrock", "vertex", "google", "gemini",
+    "palm", "mistral", "ollama", "groq", "togetherai", "openrouter", "huggingface", "hf",
+    "cohere", "deepseek", "perplexity", "xai", "ai21", "aimlapi", "alibaba", "alicloud",
+    "aliyun", "dashscope", "cerebras", "cloudflare-ai", "cloudflare-gateway", "cometapi",
+    "databricks", "fireworks", "github", "helicone", "hyperbolic", "litellm", "llamaapi",
+    "localai", "minimax", "moonshot", "novita", "nscale", "nvidia", "portkey", "replicate",
+    "sagemaker", "snowflake", "truefoundry", "vercel", "voyage", "watsonx"})
+# The kinds of provider, after its name (`openai:codex-sdk`), that run an agent with tools
+# instead of sending a prompt to a model and reading its text back: never asked again.
+AGENT_TYPES = frozenset({
+    "claude-agent-sdk", "claude-code", "agents", "agents-api", "assistant", "chatkit", "codex",
+    "codex-sdk", "codex-app-server", "codex-desktop", "codex-security", "foundry-agent"})
 # In a grader's settings: a key that points it at another server (apiBaseUrl, apiHost,
 # baseURL, endpoint, proxy...) or a value that is an address or a file
 ADDRESS_KEY = re.compile(r"url|host|base|endpoint|proxy", re.IGNORECASE)
 ADDRESS_VALUES = ("http://", "https://", "ws://", "wss://", "file://")
 # Grader settings that run the user's code or read another server's reply
 CODE_KEYS = ("functionToolCallbacks", "responseParser")
-CODE_FILES = (".js", ".mjs", ".cjs", ".ts", ".py")  # a provider id that is a file's path
 VERSION = re.compile(r"\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?")
 CONFIG = ".judgekeeper-regrade.promptfoo.json"
 TESTS = ".judgekeeper-regrade.tests.json"
@@ -119,9 +138,26 @@ def _code(values) -> bool:
         if isinstance(v, list):
             if _code(v):
                 return True
-        elif isinstance(v, str) and ("file://" in v or v.startswith(CODE_PREFIXES)):
+        elif isinstance(v, str) and ("file://" in v.lower()
+                                     or v.strip().lower().startswith(CODE_PREFIXES)):
             return True
     return False
+
+
+def _model(provider_id: str) -> bool:
+    """Whether a grader's id names a model provider promptfoo calls over HTTP (an agent is
+    not one: _agent)."""
+    plain = provider_id.strip().lower()
+    return ":" in plain and plain.split(":", 1)[0] in MODEL_PROVIDERS and not _code([plain])
+
+
+def _agent(grader) -> str | None:
+    """The id in a grader of a provider that runs an agent with tools, or None."""
+    for i in _ids(grader):
+        parts = i.strip().lower().split(":")
+        if len(parts) > 1 and parts[0] in MODEL_PROVIDERS and parts[1] in AGENT_TYPES:
+            return i
+    return None
 
 
 def _ids(value):
@@ -218,9 +254,7 @@ def _grader_code(grader) -> str | None:
     None. A results file comes with a project someone else may have written: a grader that
     reads another key or talks to another server is not your judge as you know it."""
     for i in _ids(grader):
-        plain = i.strip().lower()
-        if (_code([i]) or plain.startswith(URL_PREFIXES) or plain in ("http", "https")
-                or plain.split(":", 1)[0].endswith(CODE_FILES)):
+        if not _model(i):
             return i
     found = _key(grader, CODE_KEYS)
     if found:
@@ -384,6 +418,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             return cant("promptfoo", judge,
                         "your grader's settings hold a secret written in the config, which "
                         "promptfoo hides in the results", short="your grader holds a secret")
+        agent = _agent(g)
+        if agent:
+            return cant("promptfoo", judge, f"your judge is an agent that can use tools "
+                                            f"({agent})", short="your judge is an agent")
         own = _grader_code(g)
         if own:
             return cant("promptfoo", judge, f"your judge runs your own code ({own})",
@@ -398,7 +436,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                               test_opts.get("rubricPrompt"),
                               _options(default_test).get("rubricPrompt")])):
                 return cant("promptfoo", judge,
-                            "your judge runs your own code (a file:// rubric or transform)",
+                            "your judge runs your own code (a rule that loads a file or "
+                            "package, or a transform)",
                             short="your judge is your own code")
     if not judged:
         return not_marked("promptfoo", judge)

@@ -473,15 +473,15 @@ def test_one_silent_connection_does_not_stall_the_page(tmp_path, serve):
 
 @pytest.mark.parametrize("query", ["", "?token=wrong", "?token={token}&x=1"])
 def test_a_refused_post_is_answered_after_its_body_is_read(tmp_path, serve, query):
-    """A POST refused before its body is used (no token, or a path that isn't there) still
-    has its body read: closing a connection with unread data resets it on Windows, and the
-    answer is lost."""
+    """A POST refused before its body is used (no token, no Origin) still has a body as the
+    page sends it read: closing a connection with unread data resets it on Windows, and the
+    answer is lost. A bigger one is not read (test_security_review)."""
     import socket
 
     client = serve(_items(tmp_path), tmp_path / "labels.csv")
     port = client.server.port
     path = "/nowhere" if "x=1" in query else "/label"
-    body = json.dumps({"id": "it0", "label": "pass", "pad": "x" * 200_000}).encode()
+    body = json.dumps({"id": "it0", "label": "pass", "pad": "x" * 20_000}).encode()
     head = (f"POST {path}{query.format(token=client.server.token)} HTTP/1.1\r\n"
             f"Host: 127.0.0.1:{port}\r\nContent-Type: application/json\r\n"
             f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n").encode()

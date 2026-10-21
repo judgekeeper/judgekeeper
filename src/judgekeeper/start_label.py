@@ -508,14 +508,14 @@ class StartSession(LabelSession):
         why = reasons.check(self.workspace, item["id"], item["label"],
                             self.groups.get(item["id"]), body,
                             marks.read(self.out).last.get(item["id"]))
-        marks.append(self.out, marks.stamp(item["id"], item["label"],
-                                           self.groups.get(item["id"]), None, self.sitting,
-                                           link=self.link, why=why))
-        if "note" in body:
+        if "note" in body:  # the button first: the page says "Saved" only once both are
             m = marks.read(self.out)
             tapped = {k for i, x in m.last.items() if i != item["id"]
                       for k in x.get("reasons") or []}
             reasons.sync_own(self.workspace, item["id"], why.get("note", ""), tapped)
+        marks.append(self.out, marks.stamp(item["id"], item["label"],
+                                           self.groups.get(item["id"]), None, self.sitting,
+                                           link=self.link, why=why))
         try:
             write_report(self.workspace)
         except OSError:

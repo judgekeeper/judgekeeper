@@ -561,8 +561,14 @@ def _saved(path: Path):
 
 
 def _mapped_source(talk: Talk, root: Path, saved) -> tuple[Path, str, list, dict]:
-    """The results file judgekeeper.toml maps: no search."""
+    """The results file judgekeeper.toml maps: no search. Only a file inside the project, as
+    for every other results file (find._inside): a judgekeeper.toml comes with the project."""
     path = root / saved.file
+    inside = find._inside(root.resolve(), saved.file)
+    if Path(saved.file).is_absolute() or ".." in Path(saved.file).parts or inside is None:
+        raise StartError(f"{settings.FILE} names a file outside this project "
+                         f"({one_line(saved.file)}); judgekeeper reads results only "
+                         "inside the project.")
     if not path.is_file():
         raise StartError(f"{settings.FILE} says your judge's results are in {saved.file}, "
                          f"which is not there. Run {textio.program()} again to set it up.")

@@ -33,7 +33,7 @@ from pathlib import Path
 
 from judgekeeper import __version__
 from judgekeeper.fingerprint import utc_now
-from judgekeeper.textio import jsonl_lines, link_in, open_private, write_replacing
+from judgekeeper.textio import hard_linked, jsonl_lines, link_in, open_private, write_replacing
 
 FILE = "marks.jsonl"
 VERSION = 1
@@ -97,7 +97,10 @@ def _line(data: dict) -> str:
 
 
 def _refuse_links(path: Path) -> None:
-    link = link_in(path.parent) or (path if os.path.islink(path) else None)
+    """A MarksError when `path`, its folder or a file in it is a link, or `path` is hard
+    linked (a file with a second name elsewhere would be written there too)."""
+    link = link_in(path.parent) or (path if os.path.islink(path) or hard_linked(path)
+                                    else None)
     if link is not None:
         raise MarksError(f"{link} is a link. judgekeeper does not write through links. Remove "
                          "it, then mark again.")

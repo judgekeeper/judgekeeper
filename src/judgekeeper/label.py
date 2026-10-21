@@ -9,13 +9,18 @@ Security: the page and every request need a random token from the URL; a request
 header is not the bound address is refused (DNS rebinding); every displayed string goes
 through textContent, and the data is embedded as JSON with <, > and & escaped. Each
 connection is read in a thread of its own, so a slow or silent one never holds up the rest;
-it is dropped after CONNECTION_TIMEOUT seconds. Requests are then handled one at a time
-(LabelServer.busy). A POST's body is read before any answer: a connection closed with unread
-data is reset on Windows, and the answer is lost. A body over MAX_BODY is read and dropped,
-then answered 413. Any other method (OPTIONS, HEAD...) gets the
-same Host and token checks, then 405; no answer names the Python version. The server stops on Ctrl-C, on a
-POST to /stop (it works the same on every system), and after IDLE_TIMEOUT seconds without a
-request. The project's lock (server.json) holds a separate stop secret: with it a request can
+it is dropped after CONNECTION_TIMEOUT seconds, and when its request line and headers
+take more than HEADER_DEADLINE seconds. At most MAX_CONNECTIONS are open at once: one more
+drops the one that has waited longest for its headers (or, when none waits, the new one).
+Requests are then handled one at a time (LabelServer.busy). The Host header and the token
+are checked before a POST's body is read; a refused request is answered with `Connection:
+close` after at most REFUSED_READ bytes of its body are read and dropped (a connection
+closed with unread data is reset on Windows, and the answer is lost). An allowed POST's body
+is read before any answer; one over MAX_BODY is read and dropped, then answered 413. Any
+other method (OPTIONS, HEAD...) gets the same Host and token checks, then 405; no answer
+names the Python version. The server stops on Ctrl-C, on a POST to /stop (it works the same
+on every system), and after IDLE_TIMEOUT seconds without a request that has the token or
+the stop secret. The project's lock (server.json) holds a separate stop secret: with it a request can
 only ask whether the page is open (GET /alive) or close it (POST /stop). It also holds the
 page's token, so a second run prints the same link and the open tab keeps working: the lock
 is owner-only (0600) in the owner-only, git-ignored .judgekeeper/, and removed when the page
@@ -85,6 +90,12 @@ IDLE_TIMEOUT = 30 * 60  # seconds
 CONNECTION_TIMEOUT = 5
 MAX_BODY = 1_000_000
 MAX_DRAIN = 64_000_000  # a body over MAX_BODY is read and dropped up to this, then 413
+MAX_CONNECTIONS = 32
+CLOSING = 4  # connections over MAX_CONNECTIONS while the ones closed for them end
+READ_STEP = 0.25  # seconds of each read of a request line and headers
+MAX_HEAD = 256 * 1024  # bytes read before the request line and headers are parsed
+HEADER_DEADLINE = 5  # seconds a connection may take to send its request line and headers
+REFUSED_READ = 65_536  # bytes of a refused request's body read and dropped before closing
 TOO_LARGE = "too large: the page sends at most 1 MB"
 # Seconds a page may take to fetch its result after the last item before the server stops.
 RESULT_WAIT = 60
@@ -224,6 +235,7 @@ def _json_for_html(data) -> str:
 ONLY_PAGE = "only the marking page in your browser can send this"
 LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
 LOCK_COPY = "page.json"  # the same, read when server.json is gone
+MAX_LOCK = 64 * 1024  # bytes of a lock read: a real one is a few hundred
 ALREADY_OPEN = ("A judgekeeper page is already open for this project. Close it with Ctrl-C in "
                 "its terminal, or run `{program} --stop`.")
 PROBE_TIMEOUT = 2  # seconds to wait for the page named in the lock to answer
@@ -235,10 +247,17 @@ def read_lock(folder: Path) -> dict | None:
     """{"pid", "port", "stop", "token", "settings", "link"} of the page named in the
     project's lock, or None (a lock from before 1.0 has no token: None). `link`: how its marks
     are stamped (marks.LINKS), or None. When server.json can't be read, its copy (page.json)
-    is."""
+    is. A lock that is a link, or over MAX_LOCK, is not read."""
     for name in (LOCK, LOCK_COPY):
         try:
-            lock = json.loads((Path(folder) / name).read_text(encoding="utf-8"))
+            path = Path(folder) / name
+            if path.is_symlink():
+                continue
+            with path.open("rb") as f:
+                raw = f.read(MAX_LOCK + 1)
+            if len(raw) > MAX_LOCK:
+                continue
+            lock = json.loads(raw.decode("utf-8"))
             token, settings, how = lock.get("token"), lock.get("settings"), lock.get("link")
             if how not in LINKS:
                 how = PRINTED if lock.get("printed") is True else None  # a lock before the stamps
@@ -252,8 +271,10 @@ def read_lock(folder: Path) -> dict | None:
 
 
 def live_lock(folder: Path) -> dict | None:
-    """The project's lock when its page answers to its stop secret and to its token, else
-    None. A lock whose page is gone is removed: its token is no use to anyone."""
+    """The project's lock when its page answers to its stop secret and to its token, and as
+    judgekeeper's page for this project does (`is_page`, and /project names the project's
+    folder), else None. A lock whose page is gone is removed: its token is no use to anyone.
+    One that names another program's listener is left: judgekeeper never vouches for it."""
     lock = read_lock(folder)
     if lock is None:
         return None
@@ -264,7 +285,9 @@ def live_lock(folder: Path) -> dict | None:
             except OSError:
                 pass
         return None
-    return lock if lock["token"] and answers(lock["port"], lock["token"]) else None
+    project = Path(folder).absolute().parent.name
+    own = is_page(lock["port"]) and page_folder(lock["port"]) == project
+    return lock if own and lock["token"] and answers(lock["port"], lock["token"]) else None
 
 
 def _answer(port: int, method: str, path: str, query: dict,
@@ -331,16 +354,107 @@ def link(port: int, token: str) -> str:
     return f"http://{HOST}:{port}/?token={token}"
 
 
+class _Head(io.RawIOBase):
+    """A connection's bytes: those already read (its request line and headers), then the
+    socket's."""
+
+    def __init__(self, head: bytes, sock):
+        self.head, self.sock = head, sock
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, b) -> int:
+        if self.head:
+            n = min(len(b), len(self.head))
+            b[:n], self.head = self.head[:n], self.head[n:]
+            return n
+        return self.sock.recv_into(b)
+
+
 class _HTTPServer(ThreadingHTTPServer):
     """ThreadingHTTPServer without the host-name lookup it makes when it binds (socket.getfqdn
     of 127.0.0.1), which can hang for many seconds on some machines. The page needs no name.
-    Closing it waits for no connection: the one being handled holds LabelServer.busy."""
+    Closing it waits for no connection: the one being handled holds LabelServer.busy. At most
+    MAX_CONNECTIONS are open (CLOSING more while the ones dropped for them end): `waiting`
+    holds each one still sending its request line and headers, with when it began, and one
+    more drops the oldest of those (`dropped`), which its own thread sees within READ_STEP
+    seconds. No thread touches another's socket: on Windows a shutdown doesn't wake a thread
+    waiting to read, and a socket closed under one could be read again as the next one."""
 
     block_on_close = False
+
+    def __init__(self, *args, **kwargs):
+        self.open = 0
+        self.waiting: dict = {}  # connection -> time.monotonic() when its request began
+        self.dropped: set = set()
+        self.count_lock = threading.Lock()
+        super().__init__(*args, **kwargs)
 
     def server_bind(self) -> None:
         TCPServer.server_bind(self)
         self.server_name, self.server_port = HOST, self.server_address[1]
+
+    def process_request(self, request, client_address) -> None:
+        with self.count_lock:
+            if self.open >= MAX_CONNECTIONS:
+                oldest = min(self.waiting, key=self.waiting.get, default=None)
+                if oldest is None or self.open >= MAX_CONNECTIONS + CLOSING:
+                    self.shutdown_request(request)
+                    return
+                self.waiting.pop(oldest)
+                self.dropped.add(oldest)
+            self.open += 1
+            self.waiting[request] = time.monotonic()
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._done(request)
+            raise
+
+    def process_request_thread(self, request, client_address) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._done(request)
+
+    def _done(self, request) -> None:
+        with self.count_lock:
+            self.open -= 1
+            self.waiting.pop(request, None)
+            self.dropped.discard(request)
+
+    def handle_error(self, request, client_address) -> None:
+        if isinstance(sys.exc_info()[1], OSError):
+            return  # a connection the other end closed, or one dropped here: no news
+        super().handle_error(request, client_address)
+
+    def read_head(self, request, timeout: float) -> bytes | None:
+        """`request`'s request line and headers (and any bytes after them), read in steps of
+        READ_STEP seconds; None when it was dropped, took over HEADER_DEADLINE seconds or
+        closed first. The socket then waits `timeout` seconds again."""
+        end = time.monotonic() + HEADER_DEADLINE
+        head = b""
+        try:
+            request.settimeout(READ_STEP)
+            while b"\r\n\r\n" not in head and len(head) <= MAX_HEAD:
+                with self.count_lock:
+                    if request in self.dropped:
+                        return None
+                if time.monotonic() > end:
+                    return None
+                try:
+                    chunk = request.recv(65536)
+                except TimeoutError:
+                    continue
+                if not chunk:
+                    return head or None
+                head += chunk
+            request.settimeout(timeout)
+        finally:
+            with self.count_lock:
+                self.waiting.pop(request, None)
+        return head
 
 
 class LabelServer:
@@ -368,7 +482,7 @@ class LabelServer:
     def hold(self, folder: Path, settings: dict | None = None) -> None:
         """Write the project's lock and its copy (owner-only): this process, port, stop
         secret and token, how its marks are stamped (marks.LINKS), and `settings`."""
-        self.lock = Path(folder) / LOCK
+        self.lock = Path(folder).absolute() / LOCK  # /project names its folder
         self.settings = settings
         self.write_lock()
 
@@ -450,6 +564,15 @@ def _handler(server: LabelServer):
         def version_string(self) -> str:
             return "judgekeeper"  # the Server header: not the Python version
 
+        def handle_one_request(self):
+            head = server.httpd.read_head(self.connection, self.timeout)
+            if head is None:
+                self.close_connection = True
+                return
+            self.rfile.close()  # nothing read from it yet
+            self.rfile = io.BufferedReader(_Head(head, self.connection))
+            super().handle_one_request()
+
         def __getattr__(self, name: str):
             if name.startswith("do_"):  # a method with no do_ of its own
                 return self._other
@@ -464,6 +587,8 @@ def _handler(server: LabelServer):
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("X-Frame-Options", "DENY")
+            if self.close_connection:
+                self.send_header("Connection", "close")
             for k, v in (extra or {}).items():
                 self.send_header(k, v)
             self.end_headers()
@@ -474,8 +599,8 @@ def _handler(server: LabelServer):
             self._send(status, shown(data).encode("utf-8"), "application/json; charset=utf-8")
 
         def _allowed(self, url) -> bool:
-            """The token, or the stop secret on the two paths it opens (/alive, /stop)."""
-            server.last_request = time.monotonic()
+            """The token, or the stop secret on the two paths it opens (/alive, /stop). Only
+            a request with one of them keeps the page open (IDLE_TIMEOUT)."""
             if self.headers.get("Host") != f"{HOST}:{server.port}":
                 self._json(403, {"error": "wrong Host header"})
                 return False
@@ -484,10 +609,12 @@ def _handler(server: LabelServer):
             query = parse_qs(url.query)
             token = query.get("token", [""])[0]
             if hmac.compare_digest(token.encode(), server.token.encode()):
+                server.last_request = time.monotonic()
                 return True
             stop = query.get("stop", [""])[0]
             if url.path in ("/alive", "/stop") and hmac.compare_digest(
                     stop.encode(), server.stop_secret.encode()):
+                server.last_request = time.monotonic()
                 return True
             if self.command in ("GET", "HEAD") and url.path == "/" and \
                     "text/html" in (self.headers.get("Accept") or ""):  # a browser: a page
@@ -529,17 +656,39 @@ def _handler(server: LabelServer):
             with server.busy:
                 self._get()
 
+        def _refused(self) -> bool:
+            """Whether a request with a body is refused (wrong Host, no token, or a POST from
+            elsewhere), checked before its body is read; a refused one is answered and closed,
+            with no more than REFUSED_READ bytes of its body read and dropped."""
+            asked, self.close_connection = self.close_connection, True
+            refused = not self._allowed(urlsplit(self.path)) or (
+                self.command == "POST" and not self._same_origin())
+            if not refused:
+                self.close_connection = asked
+                return False
+            try:
+                left = min(int(self.headers.get("Content-Length") or 0), REFUSED_READ)
+                self.connection.settimeout(0.2)
+                while left > 0 and (chunk := self.rfile.read1(min(left, 65536))):
+                    left -= len(chunk)
+            except (OSError, ValueError):
+                pass
+            return True
+
         def do_POST(self):
+            if self._refused():
+                return
             body = self._body()
             with server.busy:
                 self._post(body)
 
         def _other(self):
+            if self._refused():
+                return
             self._body()
             with server.busy:
-                if self._allowed(urlsplit(self.path)):
-                    self._send(405, b'{"error": "method not allowed"}',
-                               "application/json; charset=utf-8", {"Allow": "GET, POST"})
+                self._send(405, b'{"error": "method not allowed"}',
+                           "application/json; charset=utf-8", {"Allow": "GET, POST"})
 
         def _get(self):
             url = urlsplit(self.path)
@@ -583,9 +732,7 @@ def _handler(server: LabelServer):
                 self._json(404, {"error": "not found"})
 
         def _post(self, raw: bytes | None):
-            url = urlsplit(self.path)
-            if not self._allowed(url) or not self._same_origin():
-                return
+            url = urlsplit(self.path)  # Host, token and Origin are checked (_refused)
             if url.path == "/stop":
                 self._json(200, {"stopped": True})
                 server.stop()
@@ -633,6 +780,10 @@ def _handler(server: LabelServer):
                 server.session.update(body)
             except ValueError as e:
                 self._json(400, {"error": str(e)})
+                return
+            except (TypeError, KeyError) as e:  # a damaged file in .judgekeeper/
+                self._json(400, {"error": f"not saved: a file in .judgekeeper/ is damaged "
+                                          f"({type(e).__name__})"})
                 return
             except OSError as e:
                 self._json(500, {"error": describe_os_error(e)
