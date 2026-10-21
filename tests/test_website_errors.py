@@ -92,11 +92,13 @@ def test_its_frame_is_the_sites_frame_with_links_from_the_root():
         assert rooted in text
 
 
-# Old addresses: a 301 to the page that has their content now
+# Old addresses: a 301 to the page that has their content now. The pages that were removed
+# (reference, learn, and docs and how-it-works that led to them) get the page for a wrong
+# address, with its links to Home and the Guide.
 
-REDIRECTS = {"/docs": "/reference", "/setup": "/start#keys", "/assistant": "/start",
-             "/own-metric": "/start#own-format", "/tutorial": "/start", "/guide": "/start",
-             "/how-it-works": "/learn"}
+REDIRECTS = {"/setup": "/start#keys", "/assistant": "/start", "/own-metric": "/start#own-format",
+             "/tutorial": "/start", "/guide": "/start"}
+GONE = ("/docs", "/how-it-works", "/reference", "/learn")
 
 
 def _redirects() -> dict[str, str]:
@@ -115,6 +117,8 @@ def test_old_addresses_move_to_their_new_page():
         assert found.get(old) == new, old
         assert found.get(f"{old}.html") == new, f"{old}.html"
     assert set(found) == set(REDIRECTS) | {f"{old}.html" for old in REDIRECTS}
+    for gone in GONE:
+        assert gone not in found and not (WEBSITE / f"{gone[1:]}.html").exists(), gone
 
 
 def test_each_redirect_lands_on_a_page_and_a_place_it_has():

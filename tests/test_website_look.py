@@ -1,17 +1,19 @@
 """The look every page shares, and the parts of each page the design pins.
 
 - The frame: every page carries the head lines, the menu and the footer that
-  scripts/site_frame.py writes. The menu is four links, the logo and GitHub; the footer is the
-  logo, Privacy, Trademarks, Security and the copyright.
+  scripts/site_frame.py writes. The menu is Home, the Guide, the logo and GitHub; the footer is
+  the logo, Full reference (docs/reference.md on GitHub), Privacy, Trademarks, Security and the
+  copyright.
 - Dark only: the product's dark colours, no switch, no light rules, nothing kept in the browser.
 - Fonts from the site only: Manrope and JetBrains Mono with their licences; no ligatures in
   monospace, so "->" shows as typed.
-- Motion: only the green line under the five words, the terminal typing and the scroll to the
-  steps, and none of them under reduced motion.
-- Phone: tables and code scroll inside their box.
+- Motion: only the green line under the five words, the terminal typing, the scroll to the
+  steps and the browser check's waiting cursor, and none of them under reduced motion.
+- Phone: tables and code scroll inside their box; the browser check's lines wrap.
 - Home: the hero, the demo card that works like the marking page, the steps with their
-  terminal, the closing box. The Guide, How it works, Privacy, the browser check and the
-  Reference: their side lists and their parts.
+  terminal, the closing box. The Guide: Home's hero with the install, the 5 steps as a list, three
+  cards. The browser check: Home's hero with the drop card and a terminal. Privacy: its side
+  list.
 
 The tests run no JavaScript: the pages were checked in Chrome at 1440 and 390 wide.
 """
@@ -23,9 +25,6 @@ import json
 import re
 from pathlib import Path
 
-import pytest
-
-from judgekeeper import targets
 from tests.website_pages import (
     GITHUB,
     LEGAL,
@@ -33,17 +32,14 @@ from tests.website_pages import (
     ROOT,
     WEBSITE,
     Element,
-    hand_written_pages,
     pages,
     parse,
 )
 
 HOME = WEBSITE / "index.html"
 GUIDE = WEBSITE / "start.html"
-LEARN = WEBSITE / "learn.html"
 PRIVACY = WEBSITE / "privacy.html"
 CHECK = WEBSITE / "check.html"
-REFERENCE = WEBSITE / "reference.html"
 NOT_FOUND = WEBSITE / "errors" / "404.html"
 CSS = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
 JS = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
@@ -100,7 +96,7 @@ def test_every_page_carries_the_frame_site_frame_writes():
             assert block in text, f"{page.name}: run python scripts/site_frame.py"
 
 
-def test_the_menu_is_four_links_the_logo_and_github():
+def test_the_menu_is_home_the_guide_the_logo_and_github():
     for page in pages():
         (header,) = _all(parse(page), "header", "menu")
         (nav,) = _all(header, "nav", "menu-l")
@@ -266,7 +262,10 @@ COLOUR_ONLY = {"color", "background", "background-color", "border-color", "filte
 def test_the_only_motion_is_the_underline_and_the_terminal_typing():
     """Hover colours may fade; nothing else moves, slides, turns or appears by itself. The green
     line under the five words grows, and a click on a word scrolls to the steps."""
-    assert "@keyframes" not in CSS and "animation:" not in CSS.replace("animation: none", "")
+    # one animation: the browser check's cursor blinks while it waits for a file
+    assert re.findall(r"@keyframes ([\w-]+)", CSS) == ["ck-blink"]
+    assert re.findall(r"animation:\s*([^;]+);", CSS.replace("animation: none !important", "")) == [
+        "ck-blink 1.1s steps(1) infinite"]
     for selector, declarations in _rules():
         for value in re.findall(r"transition:\s*([^;]+)", declarations):
             if value.startswith("none"):
@@ -296,12 +295,13 @@ def test_each_screen_types_once_and_replay_types_it_again():
 # Phone -------------------------------------------------------------------------------------
 
 def test_tables_and_code_scroll_inside_their_box():
-    for page in [*hand_written_pages(), REFERENCE]:
+    for page in pages():
         for table in _all(parse(page), "table"):
             assert "tw" in table.parent.classes(), page.name
     assert "overflow-x: auto" in _rule(".tw")
     assert "overflow: auto" in _rule(".term-out")
-    assert "overflow-x: auto" in _rule(".g-ref .g-main pre")
+    assert "overflow-x: auto" in _rule(".gx-code")
+    assert "overflow-x: auto" in _rule(".cmd code")
     assert "@media (max-width: 760px)" in CSS and "@media (max-width: 860px)" in CSS
     for page in [*pages(), NOT_FOUND]:
         (meta,) = [el for el in parse(page).iter() if el.attrs.get("name") == "viewport"]
@@ -335,6 +335,20 @@ def _main(page: Path) -> Element:
 def test_home_is_the_hero_the_steps_and_the_closing_box():
     sections = [el for el in _main(HOME).children if isinstance(el, Element)]
     assert [s.classes() for s in sections] == [{"hero"}, {"steps"}, {"close"}]
+
+
+def test_the_demo_card_keeps_one_height():
+    """The card is as tall as its tallest answer or its end card, measured on load, when the
+    fonts arrive and on resize, so nothing below it moves while you mark (checked in Chrome at
+    1440, 1000 and 390 wide: the same height for every answer and the end card)."""
+    lock = JS[JS.index("function lockHeight("):]
+    lock = lock[:lock.index("\n    }\n")]
+    assert "items.forEach" in lock and 'classList.add("is-end")' in lock
+    assert 'card.style.minHeight = tallest + "px"' in lock
+    assert 'addEventListener("resize"' in JS and "document.fonts.ready.then(lockHeight)" in JS
+    # the room the card gets sits under the answer, or around the end card
+    assert "flex: 1" in _rule(".jk-live") and "flex: 1" in _rule(".jk-row-a")
+    assert "flex: 1" in _rule(".jk-card.is-end .jk-end")
 
 
 def test_the_hero_is_the_headline_the_five_words_two_buttons_and_the_demo():
@@ -404,6 +418,9 @@ def test_the_steps_list_picks_a_screen_for_the_terminal():
     assert [(_flat(b), b.attrs["data-screen"]) for b in _all(fix_tabs, "button")] == [
         ("First run", "fix"), ("Testing your rule", "fix_test")]
     assert _flat(_by_id(HOME, "t-replay")) == "Replay"
+    (more,) = _all(steps, "p", "steps-more")
+    (link,) = _all(more, "a")
+    assert (link.attrs["href"], _flat(link)) == ("start.html", "Try it on your own eval: Guide")
 
 
 def test_the_closing_box_points_to_the_browser_check():
@@ -415,44 +432,63 @@ def test_the_closing_box_points_to_the_browser_check():
     assert (button.attrs["href"], _flat(button)) == ("check.html", "Check in your browser")
 
 
-# The pages with a side list -----------------------------------------------------------------
+# The Guide ------------------------------------------------------------------------------------
 
-def _side(page: Path) -> list[tuple[str, str]]:
-    (nav,) = _all(_main(page), "nav", "g-nav")
-    return [(a.attrs["href"], _flat(a)) for a in _all(nav, "a")]
-
-
-def test_each_side_list_points_at_its_sections():
-    for page in (GUIDE, LEARN, PRIVACY, REFERENCE):
-        ids = {el.attrs.get("id") for el in _els(page)}
-        side = _side(page)
-        assert side, page.name
-        for href, _ in side:
-            assert href.startswith("#") and href[1:] in ids, (page.name, href)
-        (head,) = _all(_main(page), "header", "g-head")
-        assert len(_all(head, "h1")) == 1 and _all(head, "p", "g-lede"), page.name
+REFERENCE_MD = f"{GITHUB}/blob/main/docs/reference.md"
+GUIDE_STEPS = [("step-find", "Find your results"), ("step-mark", "Mark answers Pass or Fail"),
+               ("step-measure", "Read your result"),
+               ("step-fix", "Write a better rule and test it"),
+               ("step-check", "Re-check after you change your judge")]
 
 
-def test_the_guide_is_install_five_steps_then_keys_format_and_more():
-    assert _side(GUIDE) == [
-        ("#install", "Install"), ("#find", "Step 1 · Find"), ("#mark", "Step 2 · Mark"),
-        ("#measure", "Step 3 · Measure"), ("#fix", "Step 4 · Fix"),
-        ("#recheck", "Step 5 · Re-check"), ("#keys", "Keys and costs"),
-        ("#own-format", "Your own format"), ("#misc", "Start over, stop, remote")]
-    assert _flat(_all(_main(GUIDE), "h1")[0]) == "Guide"
-    for step in ("find", "mark", "measure", "fix", "recheck"):
-        section = _by_id(GUIDE, step)
-        (eyebrow,) = _all(section, "p", "eyebrow")
-        assert _flat(eyebrow).startswith("Step "), step
-        done = [_flat(p) for p in _all(section, "p", "done")]
-        assert done == [] if step == "recheck" else done[0].startswith("Done when "), step
-    (fold,) = _all(_by_id(GUIDE, "find"), "details")
+def test_the_guide_is_the_install_the_five_steps_and_three_cards():
+    sections = [el for el in _main(GUIDE).children if isinstance(el, Element)]
+    assert [s.classes() for s in sections] == [{"hero", "gx-hero"}, {"gx-steps"}, {"gx-more"}]
+    hero = sections[0]
+    assert hero.attrs["id"] == "install"  # judgekeeper prints start.html#install
+    assert _flat(_all(hero, "h1")[0]) == "Start in one command."
+    (card,) = _all(hero, "div", "gx-install")
+    assert _flat(_all(card, "p", "gx-k")[0]) == "In your project folder, run"
+    assert _flat(_all(card, "code")[0]) == "uvx judgekeeper"
+    assert not _all(_main(GUIDE), "nav")  # no side list
+    # the cards; Your own format holds the record() line judgekeeper links to
+    cards = [(c.attrs["id"], _flat(_all(c, "h3")[0])) for c in _all(sections[2], "div", "gx-card")]
+    assert cards == [("keys", "Keys and costs"), ("own-format", "Your own format"),
+                     ("misc", "Handy commands")]
+    (record,) = _all(_by_id(GUIDE, "own-format"), "pre", "gx-code")
+    assert record.text().startswith("import judgekeeper\njudgekeeper.record(input=question,")
+    reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
+    assert record.text() in reference  # moved from the reference, not rewritten
+
+
+def test_the_guide_lists_the_five_steps_with_no_tabs_or_terminal():
+    (steps,) = _all(_main(GUIDE), "ol", "gl")
+    items = _all(steps, "li", "gl-step")
+    assert [(li.attrs["id"], _flat(_all(li, "h3")[0])) for li in items] == GUIDE_STEPS
+    for n, li in enumerate(items, 1):
+        (number,) = _all(li, "span", "gl-n")
+        assert _flat(number) == str(n) and number.attrs.get("aria-hidden") == "true"
+    for step in ("step-find", "step-mark", "step-measure", "step-fix"):
+        done = [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
+        assert done[0].startswith("Done when "), step
+    (fold,) = _all(_by_id(GUIDE, "step-find"), "details")
     assert _flat(_all(fold, "summary")[0]) == "Didn't work?"
-    (nxt,) = _all(_main(GUIDE), "a", "next")
-    assert (nxt.attrs["href"], _flat(nxt)) == ("learn.html", "Next · How it works")
+    # how the numbers are worked out: in the full reference
+    links = [a.attrs["href"] for a in _all(_by_id(GUIDE, "step-measure"), "a")]
+    assert links == [f"{REFERENCE_MD}#how-the-numbers-are-worked-out"]
+    assert "\n## How the numbers are worked out\n" in (ROOT / "docs" / "reference.md").read_text(
+        encoding="utf-8")
+    assert "The result is Worse, No drop bigger than 20 points, or Not sure." in _flat(
+        _by_id(GUIDE, "step-check"))
+    text = GUIDE.read_text(encoding="utf-8")
+    for gone in ("<template", "steplist", "t-out", "learn.html", "data-panel", "npx"):
+        assert gone not in text, gone
+    # a number in a circle, and a line down to the next one
+    assert "var(--green)" in _rule(".gl-n") and "border-radius: 50%" in _rule(".gl-n")
+    assert "width: 1px" in _rule(".gl-step:not(:last-child)::before")
 
 
-def test_every_command_box_has_a_copy_button_that_ticks():
+def test_every_command_box_has_a_copy_button_that_says_copied():
     boxes = [box for page in (GUIDE, CHECK) for box in _all(parse(page), "div", "cmd")]
     assert [_flat(_all(b, "code")[0]) for b in boxes] == [
         "uvx judgekeeper", "judgekeeper", "judgekeeper fix", "judgekeeper check",
@@ -464,75 +500,34 @@ def test_every_command_box_has_a_copy_button_that_ticks():
         (said,) = _all(button, "span", "copied")
         assert said.attrs.get("aria-live") == "polite"
     assert '"Copied"' in JS and "clipboard" in JS
-
-
-def test_the_guide_shows_the_existing_pictures_of_the_real_pages():
-    """New pictures come later; until then the pictures in assets/shots/."""
-    for step, src in (("mark", "assets/shots/label.webp"), ("measure", "assets/shots/result.webp")):
-        (figure,) = _all(_by_id(GUIDE, step), "figure", "shot")
-        (link,) = _all(figure, "a")
-        (img,) = _all(figure, "img")
-        assert link.attrs["href"] == img.attrs["src"] == src
-        assert (WEBSITE / src).is_file() and (WEBSITE / src).stat().st_size < 250_000
-        assert (img.attrs.get("width"), img.attrs.get("height")) == ("1440", "900")
-        assert img.attrs.get("alt", "").strip(), src
-    assert "width: 100%" in _rule(".shot img") and "height: auto" in _rule(".shot img")
+    # the tick and "Copied" show in green inside the button, never over the command
+    assert "color: var(--green)" in _rule(".cmd .copy.done")
+    assert "position" not in _rule(".cmd .copied") and "display: inline" in _rule(
+        ".cmd .copy.done .copied")
+    assert "padding: 12px 18px" in _rule(".cmd code")
+    assert "padding: 14px 20px" in _rule(".cmd-big code")
 
 
 def test_the_guide_tables():
     def rows(section: str) -> list[list[str]]:
         (table,) = _all(_by_id(GUIDE, section), "table")
-        return [[_flat(td) for td in _all(tr, "td")] for tr in _all(table, "tr")][1:]
-    assert rows("fix") == [
+        return [[_flat(td) for td in _all(tr, "td")] for tr in _all(table, "tr")
+                if _all(tr, "td")]
+    assert rows("step-fix") == [
         ["Better", "Use the new rule."],
         ["Safe to try", ("Not clearly better yet, and very unlikely to be more than 10 points "
                         "worse. You can try it.")],
         ["Can't tell yet", "Mark a few more answers and test again."],
         ["Looks worse, or Worse", "Keep the old rule."]]
-    assert [r[0] for r in rows("own-format")] == ["input", "output", "verdict"]
-    assert [r[1] for r in rows("misc")] == ["judgekeeper --stop", "judgekeeper --new",
+    assert [r[0] for r in rows("misc")] == ["judgekeeper --stop", "judgekeeper --new",
                                             "judgekeeper --no-browser", "judgekeeper --help"]
 
 
-def test_how_it_works_has_its_side_list_the_range_and_the_marks_kept_aside():
-    assert _side(LEARN) == [
-        ("#why", "Why check an LLM-as-a-judge"), ("#first-check", "The first check"),
-        ("#numbers", "What the numbers mean"), ("#kept-aside", "Marks kept aside"),
-        ("#recheck", "How a re-check works"), ("#questions", "Questions")]
-    slider = _by_id(LEARN, "n")
-    assert {k: slider.attrs[k] for k in ("type", "min", "max", "step", "value")} == {
-        "type": "range", "min": "10", "max": "200", "step": "5", "value": "15"}
-    assert _flat(_by_id(LEARN, "n-out")) == "15"
-    sim = _by_id(LEARN, "sim")
-    assert "data-example" in sim.attrs
-    assert ("An example: a judge that agrees with you about 61% of the time. Move the slider: "
-            "more marks, smaller range.") in _flat(sim)
-    kept = _by_id(LEARN, "kept")
-    assert _flat(_all(kept, "p", "kept-h")[0]) == "10 marks kept aside"
-    buttons = [(int(b.attrs["data-fixed"]), int(b.attrs["data-broke"]), _flat(b))
-               for b in _all(kept, "button")]
-    assert buttons == [(6, 0, "Fixed 6, broke 0"), (4, 0, "Fixed 4, broke 0"),
-                       (4, 2, "Fixed 4, broke 2"), (1, 3, "Fixed 1, broke 3")]
-    assert _flat(_all(kept, "p", "kept-cap")[0]) == (
-        "Examples. Your result always comes from your own marks.")
-    assert _by_id(LEARN, "kept-out").attrs.get("aria-live") == "polite"
+# Privacy ------------------------------------------------------------------------------------
 
-
-@pytest.mark.parametrize(("fixed", "broke"), [(6, 0), (4, 0), (4, 2), (1, 3)])
-def test_each_kept_aside_example_says_what_judgekeeper_would(fixed, broke):
-    """The readout for each example is the line judgekeeper prints for its verdict on 10
-    marks kept aside."""
-    from judgekeeper import fix
-
-    kind = targets.fix_verdict(fixed, broke, 10).kind
-    assert f'"{fixed},{broke}": {json.dumps(fix.RESULT[kind])}' in JS
-
-
-def test_the_result_table_takes_its_bar_from_the_code():
-    (table,) = _all(_by_id(LEARN, "numbers"), "table")
-    bars = [el for el in table.iter() if "data-const" in el.attrs]
-    assert [el.attrs["data-const"] for el in bars] == ["judgekeeper.targets:RATE_GATE"] * 3
-    assert targets.RATE_GATE == 0.80
+def _side(page: Path) -> list[tuple[str, str]]:
+    (nav,) = _all(_main(page), "nav", "g-nav")
+    return [(a.attrs["href"], _flat(a)) for a in _all(nav, "a")]
 
 
 def test_privacy_says_what_the_site_and_the_tool_do_with_data():
@@ -547,76 +542,78 @@ def test_privacy_says_what_the_site_and_the_tool_do_with_data():
     assert f"{GITHUB}/issues" in hrefs and f"{GITHUB}/blob/main/SECURITY.md" in hrefs
 
 
-def test_the_browser_check_is_one_column_with_the_drop_area_and_its_result():
+# The browser check ---------------------------------------------------------------------------
+
+def test_the_browser_check_is_homes_hero_with_the_drop_card_and_a_terminal():
     main = _main(CHECK)
-    assert {"g", "g-check"} <= main.classes()
+    assert main.classes() == {"ck"}
+    (hero,) = _all(main, "section", "hero")
+    assert "ck-hero" in hero.classes()
+    assert _flat(_all(hero, "h1")[0]) == "Check your LLM-as-a-judge in your browser."
     drop = _by_id(CHECK, "fc-drop")
     assert drop.tag == "button" and drop.attrs.get("type") == "button"
     assert [_flat(el) for el in drop.iter() if {"fc-main", "fc-kinds"} & el.classes()] == [
-        "Drop your results file here, or click to choose one.",
-        "promptfoo · DeepEval · CSV · JSONL"]
+        "Drop your results file here, or choose one", "promptfoo · DeepEval · CSV · JSONL"]
     file_input = _by_id(CHECK, "fc-file")
     assert file_input.attrs["type"] == "file" and "sr" in file_input.classes()
+    # under the drop card, always shown: the command row
+    (run,) = _all(main, "div", "ck-run")
+    assert _flat(_all(run, "p")[0]) == "To run judgekeeper in your project folder:"
+    assert _flat(_all(run, "code")[0]) == "uvx judgekeeper"
+    # the terminal: the file's name in its bar once read, Clear, the waiting screen, the result
+    assert _flat(_by_id(CHECK, "ck-title")) == "your results file"
+    clear = _by_id(CHECK, "ck-clear")
+    assert clear.tag == "button" and "hidden" in clear.attrs and _flat(clear) == "Clear"
+    assert " ".join(_by_id(CHECK, "ck-wait").text().split()) == (
+        "$ judgekeeper Step 1 of 5: Find Waiting for your results file. Drop it on the left. "
+        "It stays on your computer. ▋")
     result = _by_id(CHECK, "fc-result")
     assert result.attrs.get("aria-live") == "polite" and not result.children
-    after = _by_id(CHECK, "fc-next")
-    assert "hidden" in after.attrs and _all(after, "div", "cmd")
-    # no line about Inspect AI and MLflow: the error for a file the page can't read says it
-    assert not _all(main, "p", "fc-alt") and ".fc-alt" not in CSS
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
     assert ('NOT_RECOGNISED = "This doesn\'t look like results judgekeeper can read in the '
             'browser. The tool also reads Inspect AI and MLflow: run uvx judgekeeper in your '
             'project.";') in script
-    # what freecheck.js writes into the result has its look
-    for selector in (".fc-result .fc-term", ".fc-problem", ".fc-pick-list .btn"):
-        assert selector + " {" in CSS, selector
+    assert "zone.focus()" in script  # Clear puts the focus back on the drop card
 
 
-def test_on_a_phone_the_check_result_puts_each_value_under_its_label():
-    """At 390px a label and its value don't fit side by side: the value goes under its label,
-    and a line that only goes on from the one above has no indent."""
+def test_the_browser_check_fits_one_screen_with_one_line_above_the_footer():
+    assert "border-bottom: 0" in _rule(".hero.ck-hero")  # the footer draws the line
+    assert "padding-block: 48px" in _rule(".ck-hero .wrap")
+    assert "font-size: 46px" in _rule(".ck-hero h1")
+    term = _rule(".ck-term")
+    for part in ("height: calc(100vh - 262px)", "min-height: 420px", "max-height: 760px"):
+        assert part in term, part
+    assert "overflow-y: auto" in _rule(".ck-out")  # long output scrolls inside the terminal
+    # the drop card's hover, drag and focus: a green border inside it, no ring outside
+    focus = _rule(".fc-drop:hover, .fc-drop.over, .fc-drop:focus-visible")
+    assert "inset 0 0 0 1px var(--green)" in focus and "outline: none" in focus
+
+
+def test_the_browser_check_lines_wrap_and_never_scroll_sideways():
+    """At every width a line wraps inside the terminal (checked in Chrome at 1440 and 390
+    wide). On a phone a value goes under its label, and a line that only goes on from the one
+    above has no indent."""
+    term = _rule(".fc-term")
+    assert "white-space: pre-wrap" in term and "overflow-wrap: anywhere" in term
+    assert not [s for s, d in _rules() if "fc-term" in s and "overflow-x" in d]
     phone = CSS[CSS.index("@media (max-width: 760px) {\n  .fc-drop"):]
     phone = phone[:phone.index("\n}\n")]
     assert "flex-direction: column" in _rule(".fc-term .ln", phone)
     assert "display: none" in _rule(".fc-term .ln > .pad", phone)
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
-    assert "line.k.trim() ? 'dim' : 'dim pad'" in script
-
-
-# The reference: rendered from docs/reference.md -----------------------------------------------
-
-def test_the_reference_has_a_side_list_of_its_sections_and_keeps_the_usage_lines():
-    markdown = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
-    headings = re.findall(r"^## (.+)$", markdown, flags=re.MULTILINE)
-    assert [label for _, label in _side(REFERENCE)] == [
-        h.replace("`", "").replace("**", "") for h in headings]
-    head = _all(_main(REFERENCE), "header", "g-head")[0]
-    assert _flat(_all(head, "h1")[0]) == "judgekeeper reference"
-    assert _flat(_all(head, "p")[0]) == ("Every command, flag, exit code, file and format. The "
-                                         "README has the short version.")
-    blocks = re.findall(r"^```[a-z]*\n(.*?)\n```$", markdown, flags=re.MULTILINE | re.DOTALL)
-    shown = [el.text() for el in _els(REFERENCE) if el.tag == "code" and el.parent.tag == "pre"]
-    assert shown == blocks  # every line break kept
-    assert {"g", "g-ref"} <= _main(REFERENCE).classes()
+    assert "line.k.trim() ? 'k t-label' : 'k t-label pad'" in script
+    # Home's terminal colours
+    for cls in ("t-prompt", "t-cmd", "t-step", "t-label", "t-warn", "t-good", "t-next"):
+        assert f"'{cls}'" in script, cls
+        assert f".term .{cls}" in CSS, cls
 
 
 def test_a_line_quoted_from_judgekeeper_is_what_it_prints():
     """`data-said-by` names the module that prints the quoted line (cut at its last full
     stop when the page quotes only the start)."""
-    quoted = [el for page in hand_written_pages() for el in parse(page).iter()
+    quoted = [el for page in pages() for el in parse(page).iter()
               if "data-said-by" in el.attrs]
-    assert quoted
     for el in quoted:
         source = (ROOT / "src" / "judgekeeper" / f"{el.attrs['data-said-by']}.py").read_text(
             encoding="utf-8")
         assert el.text().strip().removesuffix(".") in source, el.text()
-
-
-def test_the_reference_table_headers_are_plain_text():
-    """A header is a label, not something to type: no code box, even where the Markdown has
-    backticks in it."""
-    markdown = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
-    assert re.search(r"^\|[^\n]*`[^\n]*\|\n\|[ :|-]+\|$", markdown, flags=re.MULTILINE)
-    headers = [th for th in _els(REFERENCE) if th.tag == "th"]
-    assert headers and not [th for th in headers if _all(th, "code")]
-    assert not [th for th in headers if "`" in th.text()]

@@ -64,7 +64,7 @@ SHARP_WIDTH = 0.20  # this wide or less: sharp
 
 # The bar a judge is good enough at: the low end of both the TPR and the TNR range reach it.
 RATE_GATE = 0.80
-# The thresholds of the committed LLMBar example report and the learn page that quotes it;
+# The thresholds of the committed LLMBar example report;
 # the verdict here uses neither (kappa moves with how many answers pass).
 KAPPA_GATE = 0.6
 RATE_CARE = 0.90

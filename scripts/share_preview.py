@@ -3,9 +3,8 @@
 The share-preview tags (Open Graph, and the ones X reads) are what WhatsApp, LinkedIn, Slack
 and X use to show a picture, a title and one line when someone pastes a link to the site.
 
-The address of the picture and its alt text are written here, once. The generated pages get
-this block from scripts/render_reference.py; the hand-written pages carry the same block, typed
-in, and tests/test_website.py compares every page with head(). The addresses are absolute and on
+The address of the picture and its alt text are written here, once. The pages carry the same
+block, typed in, and tests/test_website.py compares every page with tags(). The addresses are absolute and on
 the site's own domain, because the apps that read them fetch the picture themselves. No page
 loads it. Standard library only.
 """
@@ -41,11 +40,3 @@ def tags(target: str, title: str, description: str) -> str:
     return "\n".join(
         [f'<meta property="og:{key}" content="{_attr(value)}">' for key, value in og]
         + [f'<meta name="twitter:{key}" content="{_attr(value)}">' for key, value in x])
-
-
-def head(target: str, title: str, description: str) -> str:
-    """The <title>, the description and the share-preview tags of a generated page."""
-    title = f"{title} | judgekeeper"
-    return (f"<title>{title}</title>\n"
-            f'<meta name="description" content="{_attr(description)}">\n'
-            f"{tags(target, title, description)}")

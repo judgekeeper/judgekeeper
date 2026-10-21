@@ -1,5 +1,5 @@
 /* judgekeeper.com: the copy buttons; on the home page the demo marking card and the terminal
-   for each step; on How it works the range example and the marks kept aside.
+   for each step.
 
    The only motion: the green underline passes once over the five words, and each terminal
    screen is typed the first time it shows (Replay types it again). Under reduced motion both
@@ -128,6 +128,27 @@
       render();
     }
 
+    /* One height for the card: that of its tallest answer or of the end card, measured on load,
+       when the fonts arrive and on resize, so nothing below it moves while you mark. */
+    function lockHeight() {
+      var ended = card.classList.contains("is-end"), sum = $("d-sum"), said = sum.textContent;
+      var tallest = 0;
+      card.style.minHeight = "";
+      card.classList.remove("is-end");
+      items.forEach(function (item) {
+        $("d-q").textContent = item[0];
+        $("d-a").textContent = item[1];
+        tallest = Math.max(tallest, card.offsetHeight);
+      });
+      sum.textContent = "You and your judge disagreed on " + items.length + " of " + items.length + ".";
+      card.classList.add("is-end");
+      tallest = Math.max(tallest, card.offsetHeight);
+      sum.textContent = said;
+      card.classList.toggle("is-end", ended);
+      render();
+      card.style.minHeight = tallest + "px";
+    }
+
     $("d-fail").addEventListener("click", function () { mark("fail"); });
     $("d-pass").addEventListener("click", function () { mark("pass"); });
     $("d-skip").addEventListener("click", function () { mark("skip"); });
@@ -146,6 +167,13 @@
       else if (e.key === "z" || e.key === "Z") { e.preventDefault(); undo(); }
     });
     reset();
+    lockHeight();
+    var resized;
+    window.addEventListener("resize", function () {
+      clearTimeout(resized);
+      resized = setTimeout(lockHeight, 100);
+    });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(lockHeight);
   }
 
   /* Colours for terminal text: the prompt and command, step headings, field labels, the result
@@ -284,65 +312,7 @@
     if (!reduce && words.length && !location.hash) sweep();
   }
 
-  /* How it works: more marks, a smaller range. An example with a judge right 61% of the time. */
-  function setUpRange() {
-    var input = $("n");
-    if (!input) return;
-    var count = $("n-out"), range = $("sim-range"), lo = $("sim-lo"), hi = $("sim-hi");
-    var rate = 0.61, z = 2.054;
-    function draw() {
-      var k = Number(input.value), mid = (rate * k + 0.5) / (k + 1);
-      var sd = Math.sqrt(mid * (1 - mid) / (k + 2));
-      var a = Math.max(0, mid - z * sd), b = Math.min(1, mid + z * sd);
-      count.value = String(k);
-      count.textContent = String(k);
-      range.style.left = (a * 100) + "%";
-      range.style.width = ((b - a) * 100) + "%";
-      lo.textContent = Math.round(a * 100) + "%";
-      hi.textContent = Math.round(b * 100) + "%";
-      $("sim-dot").style.left = (rate * 100) + "%";
-    }
-    input.addEventListener("input", draw);
-    draw();
-  }
-
-  /* How it works: the 10 marks kept aside, and what judgekeeper says for each example. */
-  var KEPT = {
-    "6,0": "Result: your new rule is better. A difference this large is very unlikely to be a coincidence.",
-    "4,0": "Result: safe to try. Not clearly better yet, but very unlikely to be more than 10 points worse.",
-    "4,2": "Result: can't tell yet. That leans toward better, but a split this small could easily be a coincidence.",
-    "1,3": "Result: can't tell yet. That leans toward worse; keep the old rule."
-  };
-
-  function setUpKept() {
-    var row = $("kept-row");
-    if (!row) return;
-    var said = $("kept-out"), buttons = $all(".kept-btns button");
-    function show(fixed, broke) {
-      row.textContent = "";
-      for (var i = 0; i < 10; i++) {
-        row.appendChild(i < fixed ? make("span", "fx", "✓")
-          : i < fixed + broke ? make("span", "br", "✕") : make("span"));
-      }
-      said.textContent = KEPT[fixed + "," + broke];
-      buttons.forEach(function (b) {
-        var on = b.getAttribute("data-fixed") === String(fixed) &&
-          b.getAttribute("data-broke") === String(broke);
-        b.setAttribute("aria-pressed", String(on));
-      });
-    }
-    buttons.forEach(function (b) {
-      b.addEventListener("click", function () {
-        show(Number(b.getAttribute("data-fixed")), Number(b.getAttribute("data-broke")));
-      });
-    });
-    show(6, 0);
-  }
-
   setUpCopy();
   setUpDemo();
   setUpTour();
-  $all(".term-static .term-out").forEach(function (el) { el.innerHTML = shade(el.textContent); });
-  setUpRange();
-  setUpKept();
 })();

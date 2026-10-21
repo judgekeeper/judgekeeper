@@ -1,6 +1,5 @@
 """Plain words on the website: no word that sounds like marketing copy, no time estimates and
-no "AI judge" ("your judge" or "the judge"; "LLM-as-a-judge" outside the tool). Every page,
-reference.html included.
+no "AI judge" ("your judge" or "the judge"; "LLM-as-a-judge" outside the tool). Every page.
 """
 
 from __future__ import annotations
@@ -10,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.website_pages import WEBSITE, hand_written_pages, in_output, pages, parse
+from tests.website_pages import WEBSITE, in_output, pages, parse
 
 NEVER = ("seamless", "seamlessly", "effortless", "effortlessly", "empower", "empowers",
          "unlock", "unlocks", "leverage", "leverages", "supercharge", "supercharges", "elevate",
@@ -39,7 +38,7 @@ def _shown(page: Path) -> str:
 
 
 def test_the_pages_checked_are_every_page():
-    assert (WEBSITE / "index.html") in CHECKED and (WEBSITE / "reference.html") in CHECKED
+    assert (WEBSITE / "index.html") in CHECKED and (WEBSITE / "start.html") in CHECKED
 
 
 @pytest.mark.parametrize("page", CHECKED, ids=lambda p: p.name)
@@ -77,10 +76,9 @@ def test_no_raw_markdown_in_what_a_page_shows(page):
     assert "](" not in text and "**" not in text, page.name
 
 
-# The site's own word rules (the hand-written pages, the page for a wrong address and
-# llms.txt; reference.html follows docs/reference.md, whose wording changes with the docs)
+# The site's own word rules (every page, the page for a wrong address and llms.txt)
 
-WRITTEN = [*hand_written_pages(), WEBSITE / "errors/404.html"]
+WRITTEN = [*pages(), WEBSITE / "errors/404.html"]
 BANNED = [  # (pattern, what to say instead)
     (r"\bfree\b", 'nothing has a price: no "free", "for free" or "free check"'),
     (r"\byour app\b", 'never "your app": "your answers", "whatever made the answers"'),
@@ -120,12 +118,10 @@ def test_llms_txt_follows_the_word_rules():
 
 
 def test_the_pages_use_the_words_the_rules_ask_for():
-    words = {p.name: _visible(p) for p in hand_written_pages()}
+    words = {p.name: _visible(p) for p in pages()}
     assert "Check your LLM-as-a-judge" in words["index.html"]
     assert "Check your LLM-as-a-judge" in words["check.html"]
-    for name in ("start.html", "learn.html"):
-        assert "kept aside" in words[name], name
-    assert "coincidence" in words["learn.html"]
+    assert "kept aside" in words["start.html"]
 
 
 def test_the_word_rules_find_a_banned_word(tmp_path):

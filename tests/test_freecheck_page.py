@@ -180,6 +180,32 @@ def test_the_report_names_the_file_tool_judge_and_grades():
             "decision.") in judge["lines"]
 
 
+def _first(judge: dict) -> list[str]:
+    code = ("const fc = require(process.argv[1]); const j = JSON.parse(process.argv[2]);"
+            "console.log(JSON.stringify(fc.firstAnswerLines(j).map(l => (l.k || '') + l.text)));")
+    out = subprocess.run([NODE, "-e", code, str(SCRIPT), json.dumps(judge)], capture_output=True,
+                         text=True, check=True, encoding="utf-8")
+    return json.loads(out.stdout)
+
+
+@needs_node
+def test_the_page_shows_the_first_answer_in_the_file():
+    """After the check, the page shows the first answer it read: the question and the answer
+    cut to 140 characters, and the judge's grade."""
+    lines = _first({"first": {"input": "Q" * 200, "output": "An  answer.\n", "verdict": "pass"}})
+    assert lines == ["", "First answer in your file:", "  Question:  " + "Q" * 139 + "…",
+                     "  Answer:    An answer.", "  Judge:     Pass"]
+    # promptfoo's vars: the question's var, else the longest text in them
+    vars_ = {"context": "a much longer text than the question", "query": "Where is it?"}
+    assert _first({"first": {"input": vars_, "output": None, "verdict": "fail"}})[2:] == [
+        "  Question:  Where is it?", "  Answer:    (none)", "  Judge:     Fail"]
+    assert _first({"first": {"input": {"a": "short", "b": "the longest one"}, "output": "x",
+                             "verdict": "pass"}})[2] == "  Question:  the longest one"
+    assert _first({"first": None}) == []
+    (judge,) = browser(FREECHECK / "table.csv")["judges"]
+    assert judge["first"]["verdict"] in ("pass", "fail") and judge["first"]["input"]
+
+
 def test_the_check_words_are_the_tools():
     """The page prints the lines judgekeeper prints in Find (front.py)."""
     from judgekeeper import front
@@ -191,10 +217,12 @@ def test_the_check_words_are_the_tools():
     assert "from your app" not in code and "Free check" not in code
 
 
-def test_the_limit_and_privacy_lines_are_the_pages_own():
+def test_the_next_and_privacy_lines_are_the_pages_own():
     code = SCRIPT.read_text(encoding="utf-8")
-    assert ("This shows whether your judge is really judging, not whether it agrees with you. "
-            "To see that, run uvx judgekeeper in your project and mark some answers.") in code
+    assert ("var NEXT = 'to see how often your judge agrees with you, run judgekeeper in your "
+            "project folder and mark some answers.';") in code
+    assert ("var NEXT_AFTER_ERROR = 'pick another file, or run uvx judgekeeper in your project: "
+            "it finds your results by itself.';") in code
     assert ("Your file never leaves this page: it is read on your computer. Turn off Wi-Fi and "
             "it still works.") in code
     assert "var MAX_BYTES = 50 * 1024 * 1024;" in code
