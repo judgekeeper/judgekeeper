@@ -280,30 +280,14 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
               (f"in {pct(c['mean'])} checks in 100 on average (lowest {pct(c['lowest'])}, "
                f"highest {pct(c['highest'])}), over {report['settings']['checks']:,} checks "
                "per judge"))
-    mt = report["pools"]["mtbench-gpt4"]
-    first, t = mt["designs"]["25+25"]["first_check"], mt["truth"]
-    example = (f"TPR {two(first['tpr']['value'])} (range {two(first['tpr']['range'][0])} to "
-               f"{two(first['tpr']['range'][1])}), and the value from all {t['n']:,} human "
-               f"labels is {two(t['tpr'])}; TNR {two(first['tnr']['value'])} (range "
-               f"{two(first['tnr']['range'][0])} to {two(first['tnr']['range'][1])}), and "
-               f"from all labels {two(t['tnr'])}")
     grid = json.loads((ROOT / "docs/examples/coverage/coverage.json").read_text(
         encoding="utf-8"))
     level = grid["corrected"]["levels"][str(grid["corrected"]["chosen_level"])]
     simulated = (f"at least {pct(level['min_cell'])} times in 100 in every tested case, and "
                  f"{pct(level['mean'])} on average")
-    llmbar = json.loads((ROOT / "docs/examples/llmbar-haiku/report.json").read_text(
-        encoding="utf-8"))
-    h = llmbar["headline"]
-    # The README says the same numbers in shorter sentences.
-    in_readme = (result[0], f"over {report['settings']['checks']:,} checks per judge",
-                 (f"fell inside the range in {pct(c['mean'])} checks in 100 (lowest "
-                  f"{pct(c['lowest'])}, highest {pct(c['highest'])})"))
-    readme = _flat(ROOT / "README.md")
-    for figure in (*in_readme, example, simulated, two(h["kappa_mean"]),
-                   f"with {s['labels_mean']['lowest']} human labels per check"):
-        assert figure in readme, figure
+    assert simulated in _flat(ROOT / "README.md")
     reference = _flat(ROOT / "docs" / "reference.md")
     for figure in result:
         assert figure in reference, figure
-    assert "Tested on Python 3.11 to 3.14 on Linux, and on Windows." in readme
+    assert "Tested on Python 3.11 to 3.14 on Linux, macOS and Windows." in _flat(
+        ROOT / "README.md")

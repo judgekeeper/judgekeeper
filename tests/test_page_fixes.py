@@ -45,7 +45,7 @@ def here(tmp_path, monkeypatch):
 OLD_WORDS = [  # (where, the old text)
     ("src", r"Re-checked for free"),
     ("README.md", r"checks its grades for free"),
-    ("README.md", r"never runs your app(?! or agent)"),
+    ("README.md", r"never runs your app"),
     ("src", r"Your app is not run\."),
     ("src", r"the trace of your app's run"),
     ("src", r"hold your app's answers"),
@@ -80,7 +80,7 @@ def test_the_new_words():
     assert Path(start.__file__).read_text(encoding="utf-8").count("(it runs no test)") >= 2
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "checks its grades with no AI call" in readme
-    assert "judgekeeper never runs your app or agent" in readme
+    assert "judgekeeper never runs your eval's code" in readme
     assert 'alt="The marking page: a question, the answer' in readme
     ref = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     assert "What the first check found" in ref

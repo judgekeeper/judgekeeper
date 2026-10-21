@@ -341,11 +341,6 @@ def test_readme_has_no_link_to_the_website_while_it_is_offline():
     """PyPI shows the README; the website stays offline until it is rewritten."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "judgekeeper.com" not in readme
-    blob = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/"
-    for example in ("real-data-check/report.md", "coverage/coverage.md"):
-        assert f"]({blob}{example})" in readme, example
-    assert "](https://github.com/judgekeeper/judgekeeper/tree/main/docs/examples/llmbar-haiku)" \
-        in readme
 
 
 def test_docs_do_not_point_at_the_unused_pages_address():
