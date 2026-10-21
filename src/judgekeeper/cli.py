@@ -77,7 +77,10 @@ STEPS = """\
   3. Measure   judgekeeper          shows how often your judge agrees with
                                     you, and where it goes wrong
   4. Fix       judgekeeper fix      if your judge needs work, write a better
-                                    rule and test it on marks kept aside
+                                    rule. promptfoo, DeepEval, Inspect AI and
+                                    MLflow: tests it on marks kept aside. Your
+                                    own file or record(): change the rule where
+                                    your eval keeps it, then judgekeeper check
   5. Re-check  judgekeeper check    after you change your judge, see if it
                                     still agrees with you"""
 READS = """\

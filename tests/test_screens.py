@@ -256,7 +256,7 @@ def test_screen_8_help(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[:20] == [
+    assert lines[:23] == [
         "Check your LLM-as-a-judge in 5 steps.",
         "",
         "  1. Find      judgekeeper          finds your eval results and the judge",
@@ -265,7 +265,10 @@ def test_screen_8_help(capsys):
         "  3. Measure   judgekeeper          shows how often your judge agrees with",
         "                                    you, and where it goes wrong",
         "  4. Fix       judgekeeper fix      if your judge needs work, write a better",
-        "                                    rule and test it on marks kept aside",
+        "                                    rule. promptfoo, DeepEval, Inspect AI and",
+        "                                    MLflow: tests it on marks kept aside. Your",
+        "                                    own file or record(): change the rule where",
+        "                                    your eval keeps it, then judgekeeper check",
         "  5. Re-check  judgekeeper check    after you change your judge, see if it",
         "                                    still agrees with you",
         "",
@@ -278,7 +281,7 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[20:23] == [
+    assert lines[23:26] == [
         "  fix     see where your judge goes wrong and test a better rule",
         "  check   re-check your LLM-as-a-judge on your marks after a change", ""]
     assert "Options:" in lines
