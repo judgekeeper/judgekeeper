@@ -517,7 +517,8 @@ def test_the_guide_tables():
         ["Better", "Use the new rule."],
         ["Safe to try", ("Not clearly better yet, and very unlikely to be more than 10 points "
                         "worse. You can try it.")],
-        ["Can't tell yet", "Mark a few more answers and test again."],
+        ["Can't tell yet", ("Mark a few more answers and test again. If it says it leans toward "
+                            "worse, keep the old rule.")],
         ["Looks worse, or Worse", "Keep the old rule."]]
     assert [r[0] for r in rows("misc")] == ["judgekeeper --stop", "judgekeeper --new",
                                             "judgekeeper --no-browser", "judgekeeper --help"]
