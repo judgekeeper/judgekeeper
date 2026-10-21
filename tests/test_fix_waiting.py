@@ -40,7 +40,7 @@ def _waiting_top_up(root, holder, capsys, clear: str = "empty"):
     ws = project(root)  # every answer marked
     _fix(capsys)
     split, m = fix.read_split(ws), fix.Marks(ws)
-    seen = next(i for i in split.seen if m.person[i] != m.judge[i])
+    seen = next(i for i in split.seen if m.person[i] != m.judge[i] == "pass")  # asked there
     StartSession(ws).update({"id": seen, "reasons": ["wrong_fact"]})
     _write_rule(ws, _leans_better(ws, holder))
     code, flat = _fix(capsys, "--yes")

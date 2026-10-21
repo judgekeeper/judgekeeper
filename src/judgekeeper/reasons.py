@@ -204,7 +204,8 @@ def own_chips(ws) -> list[dict]:
 def sync_own(ws, item_id: str, note: str | None, tapped: set[str]) -> None:
     """After `item_id`'s "Other…" box was saved: its button follows the words in the box (one
     button per box, so typing on never makes a button per save); an empty box removes it,
-    unless another answer tapped it (`tapped`). A new button only while there are fewer than
+    unless another answer tapped it (`tapped`). A button another answer tapped keeps its words:
+    new words in the box make a new button. A new button only while there are fewer than
     MAX_OWN, and not for words a button already has."""
     if note is None:
         return
@@ -212,6 +213,9 @@ def sync_own(ws, item_id: str, note: str | None, tapped: set[str]) -> None:
     own = data["own"]
     mine = next((c for c in own if c.get("from") == item_id), None)
     text = " ".join(note.split())
+    if mine is not None and mine["id"] in tapped and text.casefold() != mine["text"].casefold():
+        mine["from"] = None  # what the other answers tapped stays as they tapped it
+        mine = None
     taken = {c["text"].casefold() for c in own if c is not mine} | {
         w.casefold() for w, _ in REASONS.values()}
     if mine is not None and (not text or text.casefold() in taken):
@@ -280,6 +284,9 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
     unknown = [r for r in got if r not in REASONS and r not in own]
     if unknown:
         raise ValueError(f"unknown reason: {unknown[0]}")
+    other_side = [r for r in got if r in REASONS and r not in offered(judge)]
+    if other_side:  # only a program sends these: the page shows each side its own
+        raise ValueError(f"reason {other_side[0]} is not asked on this answer")
     out: dict = {"reasons": list(got)}
     note = body.get("note")
     if note is not None:
@@ -528,7 +535,8 @@ def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int, list]], list[tup
         if r.get("why") and r["why"] not in own and not any(
                 k == "left_out" for k in r.get("reasons") or []):
             once.append(("Your own words:", [r], [r["why"]]))
-        for words in marked(canonical(r.get("output") or ""), r.get("spans")):
+        text = canonical(r.get("output") or "")
+        for words in marked(text, merged(r.get("spans"), len(text))):  # as mistakes.md joins
             once.append((f"The part you marked: “{one_line(' '.join(words.split()))}”", [r],
                          []))
     return suggested, once

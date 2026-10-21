@@ -29,6 +29,7 @@ import os
 import secrets
 import statistics
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 from judgekeeper import __version__
@@ -127,6 +128,8 @@ class Marks:
     last: dict[str, dict] = field(default_factory=dict)  # answer id -> its last stamped line
     not_counted: int = 0  # lines without their stamps, or that can't be read
     after_result: set[str] = field(default_factory=set)  # changed after the grades were shown
+    gap: dict[str, float] = field(default_factory=dict)  # answer id -> seconds since the mark
+    # before it in the same sitting, by `at`: the timing when the page sent no `seconds`
 
     def counted(self) -> dict[str, str]:
         """{answer id: "pass" or "fail"}: the marks that count."""
@@ -162,6 +165,8 @@ def read(path: str | Path) -> Marks:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return out
+    was: dict[str, str | None] = {}  # answer id -> its mark before the first change after
+    last_at: dict[str, datetime] = {}  # sitting -> the time of its last mark
     for n, raw in enumerate(jsonl_lines(text)):
         if not raw.strip():
             continue
@@ -173,30 +178,49 @@ def read(path: str | Path) -> Marks:
         if n == 0 and isinstance(x, dict) and x.get("marks") == VERSION:
             out.header = x
         elif _stamped(x):
-            out.last[x["id"]] = _with_reasons(out.last.get(x["id"]), x)
-            if x.get("after_result") is True:
-                out.after_result.add(x["id"])
+            before = out.last.get(x["id"])
+            if x.get("after_result") is True and x["id"] not in was:
+                was[x["id"]] = before and before["mark"]
+            out.last[x["id"]] = _with_reasons(before, x)
+            if "reasons" not in x:  # a mark, not a reason line
+                _timed(out, x, last_at)
         else:
             out.not_counted += 1
+    # changed after the grades were shown, and not back to the mark it had then
+    out.after_result = {i for i, mark in was.items() if out.last[i]["mark"] != mark}
     return out
+
+
+def _timed(out: Marks, x: dict, last_at: dict) -> None:
+    try:
+        at = datetime.strptime(x["at"], "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return
+    if x["sitting"] in last_at and at >= last_at[x["sitting"]]:
+        out.gap[x["id"]] = (at - last_at[x["sitting"]]).total_seconds()
+    else:
+        out.gap.pop(x["id"], None)
+    last_at[x["sitting"]] = at
 
 
 def made(m: Marks, ids=None) -> dict:
     """How the marks that count (of the answers `ids`, default all) were made: how many, how
     many Pass and Fail, in how many sittings, the middle value of their seconds (None when no
-    mark has one), how many took under a second, the lines not counted, how many were made
-    through a printed link or a page the program named in BROWSER opened, how many the
-    person wasn't sure about (reasons.UNSURE), and how many were changed after the judge's
-    grades were shown."""
+    mark has one), how many took under a second (by `seconds`, else by the time since the
+    mark before), the lines not counted, how many were made through a printed link or a page
+    the program named in BROWSER opened, how many the person wasn't sure about
+    (reasons.UNSURE), and how many were changed after the judge's grades were shown."""
     from judgekeeper.reasons import UNSURE
 
     lines = [m.last[i] for i in m.counted() if ids is None or i in ids]
     seconds = [x["seconds"] for x in lines if isinstance(x.get("seconds"), (int, float))]
+    timed = seconds + [m.gap[x["id"]] for x in lines  # no `seconds`: the time between marks
+                       if not isinstance(x.get("seconds"), (int, float)) and x["id"] in m.gap]
     return {"marks": len(lines), "pass": sum(x["mark"] == "pass" for x in lines),
             "fail": sum(x["mark"] == "fail" for x in lines),
             "sittings": len({x["sitting"] for x in lines}),
             "seconds": round(statistics.median(seconds)) if seconds else None,
-            "under_second": sum(s < 1 for s in seconds), "not_counted": m.not_counted,
+            "under_second": sum(s < 1 for s in timed), "not_counted": m.not_counted,
             "printed": sum(x.get("link") == PRINTED for x in lines),
             "browser_env": sum(x.get("link") == BROWSER_ENV for x in lines),
             "unsure": sum(UNSURE in (x.get("reasons") or []) for x in lines),

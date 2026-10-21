@@ -459,8 +459,12 @@ def old_hook(path: str | Path) -> str | None:
                     encoding="utf-8", errors="replace")
             except OSError:
                 return None
-            return OLD_HOOK if "judgekeeper" in text and "check --fast" in text else None
+            return OLD_HOOK if any(_OLD_HOOK_LINE.search(line) for line in text.splitlines()
+                                   if not line.lstrip().startswith("#")) else None
     return None
+
+
+_OLD_HOOK_LINE = re.compile(r"\bjudgekeeper\b.*\bcheck\s+--fast\b")
 
 
 WORKSPACE_DENIED_NEXT = ("give your user permission to write in .judgekeeper/, then run "
