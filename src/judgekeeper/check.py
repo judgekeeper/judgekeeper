@@ -91,6 +91,7 @@ MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", 
 GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers you failed"))
 SAID = {"passed": "You passed", "failed": "You failed"}
 NEXT_NOT_SURE = "mark more answers with `{mark}`, then run `{command}` again."
+NEXT_ALL_QUESTIONS = "run your eval on all your questions, then run `{command}`."
 VERDICT_WORDS = {"worse": "Worse", "not_sure": "Not sure",
                  "no_drop": f"No drop bigger than {round(targets.NO_DROP_MARGIN * 100)} points"}
 
@@ -1269,6 +1270,9 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say("Next: " + worse_step(old, new, _command(state)))
     elif asked.key_step:  # the rest can be re-checked once the key is set
         said.say("Next: " + NEXT_KEY.format(step=asked.key_step, command=_command(state)))
+    elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
+        # more marks can't be made, and new answers would not help
+        said.say("Next: " + NEXT_ALL_QUESTIONS.format(command=_command(state)))
     elif picked["ask"]:
         said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
             mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))
@@ -1355,12 +1359,12 @@ def open_worse(ws: Workspace, found) -> dict | None:
                for g in (last.get("groups") or {}).values()):
         return None
     read = marks.read(ws.marks)
-    counted = read.counted()
+    data = ws.data()
+    counted = batches.counted_labels(data, read.counted())  # as check: not a waiting batch's
     time = str(last.get("time") or "")
     if any(str((read.last.get(i) or {}).get("at") or "") > time for i in counted):
         return None
     if now.get("rule_hash") is None:  # a table: the same grades as that check saw
-        data = ws.data()
         old = {**{q["id"]: q["group"] for q in data.get("queue") or []},
                **_read_verdicts(ws, saved["setup_hash"])}
         flips = sorted(i for i, v in _free(found, counted).items() if i in old and old[i] != v)

@@ -37,6 +37,18 @@ def added_line(n: int) -> str:
                         they="It's" if n == 1 else "They're")
 
 
+def waiting_line(n: int, changed: bool = False, worse: bool = False) -> str:
+    """The line said when the newest results hold `n` new answers that join no batch, as they
+    came with changed grades (or a changed judge, `changed`): they join once `judgekeeper
+    check` took the change (the Next: line names it); after a "Worse" (`worse`), once the
+    judge is the marks' again or a changed one is checked."""
+    what = "your changed judge" if changed else "changed grades"
+    they = "it waits" if n == 1 else "they wait"
+    then = ("you go back to your old judge or check a changed one" if worse
+            else "your changed judge is checked")
+    return f"{plural(n, 'new answer', 'new answers')} came with {what}, so {they} until {then}."
+
+
 def of(data: dict) -> dict[str, int]:
     """{answer id: its batch} from start.json's queue."""
     return {q["id"]: _batch(q) for q in data.get("queue") or []}
@@ -129,10 +141,30 @@ def line(batches: dict | None) -> str | None:
     if not batches or not batches.get("waiting"):
         return None
     waiting = batches["waiting"]
-    need = "needs" if waiting == 1 else "need"
+    need = "needs a mark" if waiting == 1 else "need a few marks"
     return (f"This result is on {len(batches['counted'])} of {batches['of']} batches "
             f"({plural(batches['answers'], 'answer', 'answers')}). "
-            f"{plural(waiting, 'newer answer', 'newer answers')} {need} a few marks first.")
+            f"{plural(waiting, 'newer answer', 'newer answers')} {need} first.")
+
+
+def results_key(found) -> str:
+    """The newest results (`found`) as start.json's `results_seen` keeps them: their files and
+    each answer's grade. Once said ("Your eval ran again") or added as a batch, the same
+    results are not said again."""
+    import hashlib
+
+    grades = sorted((str(a.id), str(a.verdict)) for a in found.pool.answers)
+    text = json.dumps([list(map(str, found.used)), grades], ensure_ascii=False)
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def seen(ws, found) -> None:
+    """start.json keeps that the newest results (`found`) were said (results_key)."""
+    from judgekeeper.start_label import _write_json
+
+    data = ws.data()
+    data["results_seen"] = results_key(found)
+    _write_json(ws.start, data)
 
 
 def _text(question, answer) -> str:
@@ -209,6 +241,7 @@ def add(ws, found) -> int:
     added.append({"batch": batch, "results_files": list(found.used), "added_at": utc_now(),
                   "seed": seed, "answers": len(named)})
     data.update(queue=queue, batches=added, pool_sha256=pool_sha, updated_at=utc_now(),
+                results_seen=results_key(found),
                 pool={**(data.get("pool") or {}), "answers": len(queue),
                       "pass": kinds.count("pass"), "fail": kinds.count("fail")})
     _write_json(ws.start, data)

@@ -250,6 +250,30 @@ def _cells(m: Marks, ids: list[str], rng: random.Random) -> tuple[list[str], lis
     return seen, hidden
 
 
+def _top_up(m: Marks, new: list[str], known: set[str], hidden: list[str],
+            rng: random.Random) -> tuple[list[str], list[str]]:
+    """(seen, hidden) of the `new` marks of later batches: each cell (as _cells) of each batch,
+    with the marks already split (`known`), gets HIDDEN_TENTHS hidden, rounded up, except a
+    cell of one; the new marks make up what is missing. With none split yet, as _cells."""
+    def where(i):
+        return m.batch.get(i, 1), m.judge[i], m.person[i] == m.judge[i]
+
+    kept = set(hidden)
+    seen, out = [], []
+    for b in sorted({m.batch.get(i, 1) for i in new}):
+        for judge in ("pass", "fail"):
+            for agrees in (True, False):
+                cell = sorted(i for i in new if where(i) == (b, judge, agrees))
+                old = [i for i in known if where(i) == (b, judge, agrees)]
+                size = len(cell) + len(old)
+                want = -(-size * HIDDEN_TENTHS // 10) if size > 1 else 0
+                n = max(0, want - sum(i in kept for i in old))
+                rng.shuffle(cell)
+                out += cell[:n]
+                seen += cell[n:]
+    return seen, out
+
+
 def make_split(m: Marks, seed: int) -> tuple[list[str], list[str]]:
     """(seen ids, hidden ids): HIDDEN_TENTHS of each cell of each stratum hidden (_cells);
     then more hidden until MIN_EACH marked Pass and Fail are."""
@@ -349,12 +373,14 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
             split.topup["done"] = split.retest = True
         else:
             split.pending = new_ids
-    else:  # a batch new to the set is kept aside at the same share, within each stratum
-        known_batches = {m.batch.get(i, 1) for i in known}
-        later = [i for i in new_ids if m.batch.get(i, 1) not in known_batches]
+    else:  # a later batch is kept aside at the same share, within each stratum, however
+        # many sittings its marks came in; the first batch's new marks are seen
+        first = min((m.batch.get(i, 1) for i in known), default=1)
+        later = [i for i in new_ids if m.batch.get(i, 1) != first]
         split.seen += [i for i in new_ids if i not in later]
         if later and split.hidden:
-            seen, hidden = _cells(m, later, random.Random(f"{split.seed}/{len(known_batches)}"))
+            seen, hidden = _top_up(m, later, set(known) & set(m.person), split.hidden,
+                                   random.Random(f"{split.seed}/{len(known)}"))
             split.seen += seen
             split.hidden += hidden
         else:
