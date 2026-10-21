@@ -51,10 +51,13 @@
   var EMPTY = 'This file is empty.';
   var FULL_TOOL = 'Inspect AI and MLflow results are read by the full tool: run uvx judgekeeper in your project.';
   var EXCEL_FILE = "Excel files aren't read. Save it as CSV UTF-8.";
-  // first bytes: a zip (Inspect's .eval log, or an Excel file) and an SQLite file (an MLflow store)
+  var SPREADSHEET_FILE = "Spreadsheet files aren't read. Save it as CSV UTF-8.";
+  // first bytes: a zip (Inspect's .eval log, or an Excel or OpenDocument spreadsheet) and an
+  // SQLite file (an MLflow store)
   var ZIP_START = [0x50, 0x4B, 0x03, 0x04];
   var BINARY_STARTS = [ZIP_START, Array.from('SQLite format 3\0', function (c) { return c.charCodeAt(0); })];
   var EXCEL_ENTRIES = ['[Content_Types].xml', 'xl/', '_rels/', 'docProps/'];
+  var OPENDOCUMENT = 'application/vnd.oasis.opendocument.';  // the text of an OpenDocument's first entry, mimetype
   var NOT_JSON = "This file isn't valid JSON that judgekeeper can read.";
   var EVERY_ANSWER = 'your judge gave every answer a clear Pass or Fail.';
   var FREE_CHECK = 'Checked: ';
@@ -136,6 +139,41 @@
   }
   function oneLine(s) { return clean(s).split(/\s+/).filter(Boolean).join(' '); }
 
+  /* ---------- records.read_rows: a row with a field of the wrong type is left out ---------- */
+
+  // Thrown where the tool's reading of a row raises (a string where an object should be, a
+  // list for a name...): the row adds nothing and is counted. When every row is left out, the
+  // file is damaged (records.all_damaged).
+  var DAMAGED = { damaged: true };
+  var ROW_NESTING = 100;
+  function damagedIf(bad) { if (bad) throw DAMAGED; }
+  // json.dumps(allow_nan=False) of an answer: no number too big, nested at most ROW_NESTING deep
+  function badAnswer(value) {
+    var stack = [[value, 0]];
+    while (stack.length) {
+      var top = stack.pop(), v = top[0], d = top[1];
+      if (typeof v === 'number' && !isFinite(v)) return true;
+      if (v === null || typeof v !== 'object') continue;
+      if (d + 1 > ROW_NESTING) return true;
+      (Array.isArray(v) ? v : Object.keys(v).map(function (k) { return v[k]; })).forEach(function (x) { stack.push([x, d + 1]); });
+    }
+    return false;
+  }
+  function plainValue(v) {
+    return v === null || v === undefined || isStr(v) || typeof v === 'boolean' || (typeof v === 'number' && isFinite(v));
+  }
+  // records.check_record: a value judgekeeper can't use further on damages the row
+  function checkRecord(rec) {
+    damagedIf(!isStr(rec.name) || !plainValue(rec.label) || !plainValue(rec.score));
+    damagedIf(rec.explanation !== null && rec.explanation !== undefined && !isStr(rec.explanation));
+    damagedIf(badAnswer(rec.input) || badAnswer(rec.output));
+    damagedIf(rec.model !== null && rec.model !== undefined && !isStr(rec.model));
+  }
+  function damagedFile(rows, tool) {
+    return { error: 'damaged', message: 'This file is damaged: ' + (rows === 1 ? 'its only row' : 'each of its ' + rows + ' rows') +
+      ' has a damaged field. Save it again from ' + tool + '.' };
+  }
+
   /* ---------- readers/promptfoo.py ---------- */
 
   function judgeType(kind) {
@@ -164,7 +202,10 @@
     var i = 0;
     while (i < comps.length) {
       var c = comps[i]; i += 1;
-      var nested = Array.isArray(c.componentResults) ? c.componentResults.filter(isObj) : [];
+      var inner = c.componentResults;
+      damagedIf(truthy(inner) && (typeof inner === 'number' || typeof inner === 'boolean'));  // can't be walked
+      var nested = Array.isArray(inner) ? inner.filter(isObj) : [];
+      if (nested.length) damagedIf(truthy(c.assertion) && !isObj(c.assertion));
       if (!(nested.length && isSet(c))) { out.push(c); continue; }
       out = out.concat(components(c));
       var again = comps.slice(i, i + nested.length);
@@ -193,6 +234,18 @@
     return id;
   }
 
+  // promptfoo._shaped: each part an object or missing, so the row can be read
+  function shaped(r) {
+    if (!isObj(r)) return false;
+    var parts = [r.response, r.testCase, r.vars, r.gradingResult];
+    if (!parts.every(function (p) { return p === null || p === undefined || isObj(p); })) return false;
+    var comps = get(or(r.gradingResult, {}), 'componentResults');
+    if (!(comps === null || comps === undefined || Array.isArray(comps))) return false;
+    var testVars = get(or(r.testCase, {}), 'vars');
+    var description = or(get(or(r.testCase, {}), 'description'), r.description === undefined ? null : r.description);
+    return (testVars === null || testVars === undefined || isObj(testVars)) && (description === null || isStr(description));
+  }
+
   function stripped(rows) {
     var lacks = {
       output: function (r) { var o = get(or(r.response, {}), 'output'); return o === null || o === undefined; },
@@ -211,14 +264,15 @@
   // Every judge record in the file, as the reader makes them (the code checks are skipped)
   function readPromptfoo(data) {
     var summary = data.results;
-    var rows = summary.results.filter(isObj);
+    var rows = summary.results.filter(shaped);  // each other row is left out
+    var leftOut = summary.results.length - rows.length, kept = 0;
     var defaultTest = get(or(data.config, {}), 'defaultTest');
     defaultTest = isObj(defaultTest) ? defaultTest : {};
     var gone = stripped(rows);
     if (gone.length) return { error: 'stripped', message: strippedMessage(gone.indexOf('grading') >= 0 ? 'grading' : gone[0]) };
     var judged = [], nHuman = 0, nCode = 0;
-    for (var ri = 0; ri < rows.length; ri++) {
-      var r = rows[ri];
+    var readRow = function (r) {
+      damagedIf(Array.isArray(r.promptIdx) || isObj(r.promptIdx));  // a key the tool counts repeats by
       var testOpts = options(r.testCase);
       var output = text(get(or(r.response, {}), 'output'));
       var input = r.vars === undefined ? null : r.vars;
@@ -226,12 +280,20 @@
       var comps = components(r.gradingResult);
       for (var ci = 0; ci < comps.length; ci++) {
         var c = comps[ci];
+        damagedIf(truthy(c.assertion) && !isObj(c.assertion));
         var a = isObj(c.assertion) ? c.assertion : {};
         var kind = a.type;
         var label = typeof c.pass === 'boolean' ? (c.pass ? 'pass' : 'fail') : null;
-        if (kind === 'human') { nHuman += 1; continue; }
-        if (judgeType(kind) === null) { nCode += 1; continue; }
-        var name = String(or(a.metric, kind, 'unknown'));
+        var score = c.score === undefined ? null : c.score;
+        if (kind === 'human') {
+          checkRecord({ name: 'human', label: label, score: score, explanation: or(c.comment, null), input: input, output: output });
+          nHuman += 1; continue;
+        }
+        var name = or(a.metric, kind, 'unknown');
+        if (judgeType(kind) === null) {
+          checkRecord({ name: name, label: label, score: score, input: input, output: output });
+          nCode += 1; continue;
+        }
         perRow[name] = (perRow[name] || 0) + 1;
         if (perRow[name] > 1) {
           var idx = r.testIdx;
@@ -247,15 +309,29 @@
         var prompt = text(a.value);
         if (truthy(rubricPrompt)) prompt = (prompt || '') + '\n\n' + text(rubricPrompt);
         var problem = graderProblem(c, metadata);
+        checkRecord({ name: name, label: label, score: score, explanation: or(c.reason, null), input: input, output: output, model: model });
         judged.push({
           name: name, input: input, output: output, label: label,
-          score: c.score === undefined ? null : c.score, scoreKind: numberKind(c, 'score'),
-          reason: isStr(c.reason) ? c.reason : (truthy(c.reason) ? text(c.reason) : ''),
+          score: score, scoreKind: numberKind(c, 'score'),
+          reason: isStr(c.reason) ? c.reason : '',
           model: model, prompt: prompt, problem: problem,
           countedAs: problem ? label : null
         });
       }
+    };
+    for (var ri = 0; ri < rows.length; ri++) {
+      var before = [judged.length, nHuman, nCode];
+      try {
+        var stop = readRow(rows[ri]);
+        if (stop) return stop;
+        kept += judged.length - before[0] + nHuman - before[1] + nCode - before[2];
+      } catch (e) {
+        if (e !== DAMAGED) throw e;
+        judged.length = before[0]; nHuman = before[1]; nCode = before[2];
+        leftOut += 1;
+      }
     }
+    if (leftOut && !kept) return damagedFile(leftOut, 'promptfoo');
     return { judged: judged, nHuman: nHuman, rulesInCode: nCode > 0 };
   }
 
@@ -290,34 +366,56 @@
     var cases = [];
     (truthy(data.testCases) && Array.isArray(data.testCases) ? data.testCases : []).forEach(function (c) { cases.push([c, false]); });
     (truthy(data.conversationalTestCases) && Array.isArray(data.conversationalTestCases) ? data.conversationalTestCases : []).forEach(function (c) { cases.push([c, true]); });
-    cases.forEach(function (pair) {
-      var c = pair[0], conversational = pair[1];
-      if (!isObj(c)) return;
+    var readCase = function (c, conversational) {
+      damagedIf(!isObj(c));
       var input, output;
       if (conversational) { input = truthy(c.scenario) ? c.scenario : canonical(truthy(c.turns) ? c.turns : []); output = ''; }
       else { input = c.input === undefined ? null : c.input; output = c.actualOutput === undefined ? null : c.actualOutput; }
-      (Array.isArray(c.metricsData) ? c.metricsData : []).forEach(function (md) {
-        if (!isObj(md)) return;
-        var name = String(md.name);
-        if (md.threshold !== null && md.threshold !== undefined) {
-          thresholds[name] = thresholds[name] || [];
-          if (!thresholds[name].some(function (t) { return t === md.threshold; })) thresholds[name].push(md.threshold);
+      var caseName = c.name;  // text or a whole number, when there is one
+      damagedIf(!(caseName === null || caseName === undefined || isStr(caseName) ||
+        (typeof caseName === 'number' && Number.isInteger(caseName) && numberKind(c, 'name') !== 'float')));
+      damagedIf(truthy(c.metricsData) && !Array.isArray(c.metricsData));
+      var read = [];
+      (truthy(c.metricsData) ? c.metricsData : []).forEach(function (md) {
+        damagedIf(!isObj(md));
+        damagedIf(truthy(md.verboseLogs) && !isStr(md.verboseLogs));
+        var named = Object.prototype.hasOwnProperty.call(md, 'name'), name = md.name;
+        if (typeof md.threshold === 'number') {
+          damagedIf(!named);
+          if (isStr(name)) {
+            thresholds[name] = thresholds[name] || [];
+            if (!thresholds[name].some(function (t) { return t === md.threshold; })) thresholds[name].push(md.threshold);
+          }
         }
-        if (md.strictMode === true) strict[name] = true;
+        if (md.strictMode === true) { damagedIf(!named); if (isStr(name)) strict[name] = true; }
+        damagedIf(!named);
         var label = typeof md.success === 'boolean' ? (md.success ? 'pass' : 'fail') : null;
         var problem = null;
         if (deFailed(md)) problem = String(md.error || '').indexOf(EMPTY_REFUSED) === 0 ? 'empty_answer_refused' : 'error';
         else if (checkedNothing(md)) problem = 'nothing_checked';
+        var model = truthy(md.evaluationModel) ? md.evaluationModel : null;
+        read.push({ name: name, label: label, score: md.score === undefined ? null : md.score, explanation: or(md.reason, null),
+          input: input, output: output, model: model });
         judged.push({
           name: name, input: input, output: output, label: label,
           score: md.score === undefined ? null : md.score, scoreKind: numberKind(md, 'score'),
           reason: pyText(or(md.reason, md.error, null)),
-          model: truthy(md.evaluationModel) ? String(md.evaluationModel) : null,
-          prompt: rubricFromLogs(md.verboseLogs), problem: problem,
+          model: model, prompt: rubricFromLogs(md.verboseLogs), problem: problem,
           countedAs: problem ? label : null, outputElsewhere: conversational
         });
       });
+      read.forEach(checkRecord);
+    };
+    var leftOut = 0;
+    cases.forEach(function (pair) {
+      var before = judged.length;
+      try { readCase(pair[0], pair[1]); } catch (e) {
+        if (e !== DAMAGED) throw e;
+        judged.length = before;
+        leftOut += 1;
+      }
     });
+    if (leftOut && !judged.length) return damagedFile(leftOut, 'DeepEval');
     var perMetric = {};
     Object.keys(thresholds).forEach(function (k) {
       var ts = thresholds[k];
@@ -337,6 +435,21 @@
     'judge', 'label', 'human_label', 'reason', 'notes', 'score', 'model', 'judge_model', 'app_version'];
   var VERDICT_COLUMNS = ['verdict', 'judge_verdict', 'judge'];
   var HUMAN_COLUMNS = ['human_label', 'label'];
+  // mapper.py: a column named for the judge is listed first; a 0/1 column named for one is a verdict
+  var JUDGE_NAMED = ['judge', 'llm'];
+  var JUDGE_WORDS = ['judge', 'judgment', 'judgement', 'eval', 'evaluation', 'grader', 'grading'];
+  var RULE_VALUES = ['0', '1', 'true', 'false'];
+  var NONE_WORDS = ['error', 'n/a', 'null', 'none', 'nan'];  // normalise.NO_DECISION
+  var VERDICT_VALUES = ['pass', 'passed', 'fail', 'failed', 'true', 'false', 'yes', 'no', 'y', 'n', 'correct',
+    'incorrect', 'right', 'wrong', 'good', 'bad', 'ok', 'accept', 'accepted', 'reject',
+    'rejected', 'success', 'failure', 'partial', 'partially correct', 'c', 'i', 'p'];
+  // Words a model's name holds: a model column whose values have none of them (and no digit,
+  // slash or colon) names a rule, not a model
+  var MODEL_WORDS = ['gpt', 'claude', 'gemini', 'llama', 'mistral', 'mixtral', 'qwen', 'deepseek',
+    'sonnet', 'haiku', 'opus', 'openai', 'anthropic', 'azure', 'bedrock', 'ollama',
+    'groq', 'cohere', 'command', 'phi', 'gemma', 'grok', 'openrouter', 'vertex',
+    'together', 'fireworks', 'nova', 'titan', 'palm', 'codex'];
+  var WORD = /[A-Z]?[a-z]+|[A-Z]+(?![a-z])|[0-9]+/g;
   var PAIRWISE = 'These are A/B comparisons (output_a and output_b). judgekeeper handles answers with a Pass or Fail for now.';
 
   function columnName(name) {
@@ -362,6 +475,38 @@
   }
   function isRecordsFile(columns) { return columns.indexOf('annotator_kind') >= 0 || columns.indexOf('schema_version') >= 0; }
   function blank(v) { return v === null || v === undefined || (isStr(v) && !v.trim()); }
+
+  function words(key) { return (String(key).match(WORD) || []).map(function (w) { return w.toLowerCase(); }); }
+  function namedFor(key, list) { return words(key).some(function (w) { return list.indexOf(w) >= 0; }); }
+  // mapper.blank: no score at all (an empty cell, or a word for none)
+  function noScore(v) { return v === null || v === undefined || (isStr(v) && (!v.trim() || NONE_WORDS.indexOf(v.trim().toLowerCase()) >= 0)); }
+  // mapper._judge_column: a column named for a judge (llm_judge) holding only 0/1 or true/false
+  function judgeColumn(col, rows) {
+    if (!namedFor(col, JUDGE_WORDS)) return false;
+    var seen = rows.filter(function (row) { return !noScore(row[col]); });
+    return seen.length > 0 && seen.every(function (row) {
+      var v = row[col];
+      if (typeof v === 'boolean') return true;
+      if (typeof v === 'number') return (v === 0 || v === 1) && numberKind(row, col) !== 'float';  // str(1.0) is "1.0"
+      return isStr(v) && RULE_VALUES.indexOf(v.trim().toLowerCase()) >= 0;
+    });
+  }
+  // mapper._judge_first: the judges named for a judge (judge_verdict, llm_judge) first
+  function judgeFirst(judges) {
+    var named = judges.filter(function (j) { return namedFor(j, JUDGE_NAMED); });
+    return named.concat(judges.filter(function (j) { return named.indexOf(j) < 0; }));
+  }
+  // mapper._model_like: a value that reads as a model's name (gpt-4.1, ollama/qwen2.5:3b)
+  function modelLike(v) {
+    if (!isStr(v) || !v.trim()) return false;
+    var t = v.trim().toLowerCase();
+    return /[0-9\/:]/.test(t) || namedFor(t, MODEL_WORDS);
+  }
+  // mapper._verdict_value, for a cell's text: a verdict word, or a number from 0 to 100
+  function verdictValue(v) {
+    if (/^\s*[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?\s*$/.test(v)) { var x = parseFloat(v); return x >= 0 && x <= 100; }
+    return VERDICT_VALUES.indexOf(v.trim().toLowerCase()) >= 0;
+  }
 
   // table._delimiter: a header with no comma but semicolons or tabs uses those
   function delimiterOf(text, tsv) {
@@ -403,6 +548,59 @@
     if (state !== 'record' && (field.length || state === 'quoted' || state === 'field' || state === 'in' || state === 'quote2')) { save(); rows.push(row); }
     return rows;
   }
+  // table.open_quote: the line where a quoted cell starts that swallows the rows after it (its
+  // quote never closes, or closes only rows later), or null. Read as Python's csv reader reads
+  // with strict on: a line at a time, and a quote out of place elsewhere ends the look.
+  function openQuote(text, d) {
+    var lines = text.match(/[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$/g) || [];
+    var header = null, verdict = null, start = 1, k = 0, EOL = null;
+    for (;;) {
+      var fields = [], field = '', state = 'record';
+      do {
+        if (k >= lines.length) return state === 'quoted' || field.length ? start : null;
+        var line = lines[k++];
+        for (var i = 0; i <= line.length; i++) {
+          var c = i < line.length ? line[i] : EOL, newline = c === '\n' || c === '\r' || c === EOL;
+          if (state === 'record') {
+            if (c === EOL) break;  // an empty line: []
+            if (newline) { state = 'eat'; continue; }
+            state = 'field';
+          }
+          if (state === 'field' || state === 'in') {
+            if (newline) { fields.push(field); field = ''; state = c === EOL ? 'record' : 'eat'; }
+            else if (c === '"' && state === 'field') state = 'quoted';
+            else if (c === d) { fields.push(field); field = ''; state = 'field'; }
+            else { field += c; state = 'in'; }
+          } else if (state === 'quoted') {
+            if (c === '"') state = 'quote2'; else if (c !== EOL) field += c;
+          } else if (state === 'quote2') {
+            if (c === '"') { field += c; state = 'quoted'; }
+            else if (c === d) { fields.push(field); field = ''; state = 'field'; }
+            else if (newline) { fields.push(field); field = ''; state = c === EOL ? 'record' : 'eat'; }
+            else return null;  // a quote out of place, not one that never closes
+          } else if (state === 'eat') {
+            if (c === EOL) state = 'record'; else if (!newline) return null;
+          }
+        }
+      } while (state !== 'record');
+      if (header === null) {
+        header = fields;
+        verdict = header.findIndex(function (h) { return VERDICT_COLUMNS.indexOf(columnName(h)) >= 0; });
+        if (verdict < 0) verdict = null;
+      } else if (header.length >= 3 && fields.some(function (cell) { return cell.indexOf('\n') >= 0 && rowsInside(cell, d, header.length, verdict) >= 2; })) {
+        return start;
+      }
+      start = k + 1;
+    }
+  }
+  // table._rows_inside: how many lines of a cell read as a whole row, with a grade at `verdict`
+  function rowsInside(cell, d, columns, verdict) {
+    return cell.split('\n').filter(function (line) {
+      var r = parseCsv(line, d)[0] || [];
+      return r.length === columns && (verdict === null || verdictValue(r[verdict]));
+    }).length;
+  }
+
   // csv.DictReader: the first row names the columns, empty lines are skipped
   function csvRows(text, d) {
     var all = parseCsv(text, d);
@@ -437,32 +635,45 @@
     var columns = [];
     rows.forEach(function (r) { Object.keys(r).forEach(function (k) { if (columns.indexOf(k) < 0) columns.push(k); }); });
     if (columns.indexOf('output_a') >= 0 && columns.indexOf('output_b') >= 0) return { error: 'pairwise', message: PAIRWISE };
-    var verdict = VERDICT_COLUMNS.find(function (c) { return columns.indexOf(c) >= 0; });
-    if (!verdict || columns.indexOf('input') < 0 || columns.indexOf('output') < 0) {
+    var verdicts = VERDICT_COLUMNS.filter(function (c) { return columns.indexOf(c) >= 0; });  // each one is a judge
+    if (verdicts.length) {  // and a 0/1 column named for a judge (llm_judge), the judge-named first
+      verdicts = judgeFirst(verdicts.concat(columns.filter(function (c) {
+        return verdicts.indexOf(c) < 0 && KNOWN_COLUMNS.indexOf(c) < 0 && judgeColumn(c, rows);
+      })));
+    }
+    if (!verdicts.length || columns.indexOf('input') < 0 || columns.indexOf('output') < 0) {
       return { error: 'columns', message: 'This file needs input, output and verdict columns.' };
     }
     var human = HUMAN_COLUMNS.find(function (c) { return columns.indexOf(c) >= 0; });
     var judged = [], nHuman = 0;
     rows.forEach(function (row) {
       var model = !blank(row.model) ? row.model : row.judge_model;
-      judged.push({
-        name: verdict, input: row.input === undefined ? null : row.input, output: row.output === undefined ? null : row.output,
-        label: blank(row[verdict]) ? null : row[verdict], labelKind: numberKind(row, verdict), score: null,
-        reason: blank(row.reason) ? '' : pyText(row.reason),
-        model: blank(model) ? null : pyText(model), prompt: null, problem: null, countedAs: null, outputElsewhere: false
+      if (!modelLike(model)) model = null;  // "string_match": a rule's name, not a model's
+      verdicts.forEach(function (verdict) {
+        judged.push({
+          name: verdict, input: row.input === undefined ? null : row.input, output: row.output === undefined ? null : row.output,
+          label: blank(row[verdict]) ? null : row[verdict], labelKind: numberKind(row, verdict), score: null,
+          reason: blank(row.reason) ? '' : pyText(row.reason),
+          model: model, prompt: null, problem: null, countedAs: null, outputElsewhere: false
+        });
       });
       if (human && !blank(row[human])) nHuman += 1;
     });
-    // front.read_rows: which columns were read (never the rows)
+    // front.read_rows: which columns were read (never the rows); the grade from the judge's own
     var headVerdict = VERDICT_COLUMNS.find(function (c) { return firstColumns.indexOf(c) >= 0; });
-    var readRows = [['question', 'the input column'], ['answer', 'the output column'], ['grade', 'the ' + clean(headVerdict, 40) + ' column']];
     var modelCol = ['judge_model', 'model'].find(function (c) { return firstColumns.indexOf(c) >= 0; });
     var labelCol = HUMAN_COLUMNS.find(function (c) { return firstColumns.indexOf(c) >= 0; });
-    [['reason', firstColumns.indexOf('reason') >= 0 ? 'reason' : null], ['model', modelCol || null],
-     ['version', firstColumns.indexOf('app_version') >= 0 ? 'app_version' : null], ['your labels', labelCol || null]]
-      .forEach(function (x) { if (x[1]) readRows.push([x[0], 'the ' + x[1] + ' column']); });
-    return { tool: 'table', kindWord: kindWord, judged: judged, nHuman: nHuman, perMetric: {}, scoreJudge: false,
-      readRows: readRows };
+    var readRows = {};
+    verdicts.forEach(function (verdict) {
+      var grade = firstColumns.indexOf(verdict) >= 0 ? verdict : headVerdict;
+      var said = [['question', 'the input column'], ['answer', 'the output column'], ['grade', 'the ' + clean(grade, 40) + ' column']];
+      [['reason', firstColumns.indexOf('reason') >= 0 ? 'reason' : null], ['model', modelCol || null],
+       ['version', firstColumns.indexOf('app_version') >= 0 ? 'app_version' : null], ['your labels', labelCol || null]]
+        .forEach(function (x) { if (x[1]) said.push([x[0], 'the ' + x[1] + ' column']); });
+      readRows[verdict] = said;
+    });
+    return { tool: 'table', kindWord: kindWord, judged: judged, nHuman: nHuman, humanFor: verdicts[0], perMetric: {},
+      scoreJudge: false, order: verdicts, readRows: readRows };
   }
   function andList(items) { return items.length === 1 ? items[0] : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]; }
 
@@ -773,6 +984,8 @@
       var d = delimiterOf(fileText, /\.tsv$/.test(lower));
       var header = (parseCsv(head, d)[0] || []).map(columnName);
       if (isTable(header)) {
+        var open = openQuote(fileText, d);
+        if (open !== null) return fail('open-quote', 'Line ' + open + " of this file has a quote that never closes, so the rows after it can't be read.");
         var t = csvRows(fileText, d);
         return readTable(t.rows, header, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
       }
@@ -783,21 +996,35 @@
 
   /* ---------- the check: text in, report data out ---------- */
 
-  // an Excel file is a zip whose first entry is [Content_Types].xml, xl/, _rels/ or docProps/:
-  // the entry's name starts at byte 30 of a zip, its length is at bytes 26-27
-  function isExcel(bytes) {
-    if (!ZIP_START.every(function (b, i) { return bytes[i] === b; }) || bytes.length < 30) return false;
-    var length = bytes[26] + 256 * bytes[27];
-    var name = '';
-    for (var i = 30; i < 30 + length && i < bytes.length; i++) name += String.fromCharCode(bytes[i]);
-    return EXCEL_ENTRIES.some(function (entry) { return name.indexOf(entry) === 0; });
+  // an Excel file is a zip whose first entry is [Content_Types].xml, xl/, _rels/ or docProps/;
+  // an OpenDocument file's first entry is mimetype, its text the kind of document. The
+  // entry's name starts at byte 30 of a zip, its length is at bytes 26-27 and the length of
+  // the extra field after it at bytes 28-29. 'excel', 'spreadsheet', 'opendocument' or null.
+  function zipKind(bytes) {
+    if (!ZIP_START.every(function (b, i) { return bytes[i] === b; }) || bytes.length < 30) return null;
+    var length = bytes[26] + 256 * bytes[27], extra = bytes[28] + 256 * bytes[29];
+    var ascii = function (from, to) {
+      var s = '';
+      for (var i = from; i < to && i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+      return s;
+    };
+    var name = ascii(30, 30 + length);
+    if (EXCEL_ENTRIES.some(function (entry) { return name.indexOf(entry) === 0; })) return 'excel';
+    if (name !== 'mimetype') return null;
+    var kind = ascii(30 + length + extra, 30 + length + extra + 80);
+    if (kind.indexOf(OPENDOCUMENT) !== 0) return null;
+    return kind.indexOf(OPENDOCUMENT + 'spreadsheet') === 0 ? 'spreadsheet' : 'opendocument';
   }
 
   // the file's bytes, as the page reads them: the kinds told by their first bytes, then UTF-8
   function checkBytes(bytes, fileName) {
     bytes = new Uint8Array(bytes);
     if (BINARY_STARTS.some(function (start) { return start.every(function (b, i) { return bytes[i] === b; }); })) {
-      return fail(isExcel(bytes) ? 'excel' : 'full-tool', isExcel(bytes) ? EXCEL_FILE : FULL_TOOL);
+      var zip = zipKind(bytes);
+      if (zip === 'excel') return fail('excel', EXCEL_FILE);
+      if (zip === 'spreadsheet') return fail('excel', SPREADSHEET_FILE);
+      if (zip === 'opendocument') return fail('not-recognised', NOT_RECOGNISED);
+      return fail('full-tool', FULL_TOOL);
     }
     var fileText;
     try { fileText = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (e) { return fail('not-utf8', NOT_UTF8); }
@@ -811,7 +1038,7 @@
     var r = read(fileText, fileName);
     if (r.ok === false) return r;
     if (r.error) return fail(r.error, r.message);
-    var metrics = Array.from(new Set(r.judged.map(function (x) { return x.name; }))).sort(pyOrder);
+    var metrics = r.order || Array.from(new Set(r.judged.map(function (x) { return x.name; }))).sort(pyOrder);
     if (!metrics.length) {
       var said = oneLine(clean(fileName || 'This file', 80)) + NO_JUDGE;
       if (r.rulesInCode) said += ' These ' + RULES[r.tool] + RULES_IN_CODE;
@@ -822,7 +1049,7 @@
     var shown = {};
     judges.forEach(function (j) { shown[j.name] = (shown[j.name] || 0) + 1; if (shown[j.name] > 1) j.name += ' (' + shown[j.name] + ')'; });
     var toolName = r.tool === 'table' ? 'your own ' + r.kindWord + ' file' : COUNTING_TOOLS[r.tool];
-    return { ok: true, tool: r.tool, toolName: toolName, readRows: r.readRows || null,
+    return { ok: true, tool: r.tool, toolName: toolName,
       file: oneLine(clean(fileName || 'your file', 80)), judges: judges };
   }
 
@@ -849,7 +1076,9 @@
       showName: nMetrics > 1 || r.tool === 'deepeval',
       answers: block.answers,
       pass: pool.nPass, fail: pool.nFail,
-      merged: pool.merged, results: pool.results, repeatSizes: pool.repeatSizes, split: pool.split, human: r.nHuman, unmapped: pool.unmapped,
+      merged: pool.merged, results: pool.results, repeatSizes: pool.repeatSizes, split: pool.split,
+      human: r.humanFor === undefined || r.humanFor === metric ? r.nHuman : 0, unmapped: pool.unmapped,
+      readRows: r.readRows ? r.readRows[metric] : null,
       unread: pool.unread.slice(0, 3).map(function (v) { return oneLine(clean(v, 30)); }),
       moreUnread: pool.unread.length > 3,
       counts: block,
@@ -873,7 +1102,7 @@
     L.push({ k: 'File:        ', text: result.file });
     if (j.merged) {  // repeats of the same answer with the same grade count once (front.found_block)
       var times = j.repeatSizes.length === 1 ? j.repeatSizes[0] : null;
-      L.push({ k: 'Answers:     ', text: j.answers + ' different answers' });
+      L.push({ k: 'Answers:     ', text: n(j.answers, 'different answer') });
       L.push({ k: pad, text: '(your file has ' + j.results + ' results: ' + (times ? 'each answer was run ' + times + ' times' : 'some answers are in it more than once') + ', so each is counted once)', tone: 'dim' });
     } else {
       L.push({ k: 'Answers:     ', text: n(j.answers, 'answer') });
@@ -889,7 +1118,7 @@
       L.push({ k: pad, text: '(shortened)', tone: 'dim' });
     }
     var mark = j.passMark ? ': Pass at ' + passMarkWords(j.passMark).replace(/^score /, '') : '';
-    var rows = result.readRows ? result.readRows.slice() : [];
+    var rows = j.readRows ? j.readRows.slice() : [];
     if (result.tool === 'promptfoo') rows = [['question', "each test's vars"], ['answer', "each test's output"], ['grade', "your judge's Pass or Fail" + mark]];
     if (result.tool === 'deepeval') rows = [['question', "each test case's input"], ['answer', "each test case's actual_output"], ['grade', 'the ' + j.name + ' score' + mark], ['reason', "your judge's reason"]];
     if (rows.length) {
