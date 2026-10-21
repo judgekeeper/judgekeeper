@@ -68,7 +68,7 @@
   var ALL_MODEL_FAILED = 'The call to the model you test failed on every answer, so your judge never ran and there is nothing to mark.';
   var MODEL_FAILED_NEXT = 're-run your eval once the model you test answers, then run judgekeeper in your project folder.';
   var ALL_FAILED = "Your judge's calls failed on every answer, so there is nothing to mark.";
-  var PRIVACY = 'Your file never leaves this page: it is read on your computer. Turn off Wi-Fi and it still works.';
+  var PRIVACY = 'Your file never leaves this page: it is read on your computer. Once the page has loaded, it works with Wi-Fi turned off.';
 
   /* ---------- small helpers, each the Python behaviour it stands for ---------- */
 
