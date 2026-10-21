@@ -559,7 +559,7 @@ def test_privacy_says_what_the_site_and_the_tool_do_with_data():
                               ("#questions", "Questions")]
     site, providers, rights, local = (_all(_by_id(PRIVACY, s), "li")
                                       for s in ("site", "providers", "rights", "local"))
-    assert (len(site), len(providers), len(rights), len(local)) == (4, 3, 3, 4)
+    assert (len(site), len(providers), len(rights), len(local)) == (4, 4, 3, 4)
     text = _flat(_main(PRIVACY))
     assert "light or dark" not in text and "local storage" not in text  # dark only, no store
     assert "never uploaded" in text
@@ -575,7 +575,11 @@ def test_privacy_is_the_notice_the_law_asks_for():
                   "no cookies of its own",
                   "your IP address, your browser's user agent and the page you asked for",
                   "Railway hosts the site. To deliver and protect it, Railway processes",
-                  "Railway keeps these request logs for up to 90 days, then deletes them",
+                  "Railway keeps these request logs for a limited time, then deletes them",
+                  "judgekeeper.com without www, GoDaddy, the domain registrar, forwards you "
+                  "to www.judgekeeper.com and sees that one request: your IP address and the "
+                  "page you asked for.",
+                  "once the page has loaded, it works with Wi-Fi turned off",
                   "Contact: judgekeeper.project@outlook.com.",
                   "by writing to judgekeeper.project@outlook.com.",
                   "Data Privacy Framework and Standard Contractual Clauses",
@@ -584,6 +588,7 @@ def test_privacy_is_the_notice_the_law_asks_for():
                   "Information Commissioner's Office", "Last updated: 21 October 2026"):
         assert words in text, words
     page = PRIVACY.read_text(encoding="utf-8")
+    assert "90 days" not in page  # Railway gives no period in its policy or its DPA
     assert "Cloudflare" not in page and "CONTACT_ADDRESS" not in page  # Railway only
     mail = [a.attrs["href"] for a in _all(_main(PRIVACY), "a") if a.attrs["href"].startswith(
         "mailto:")]
