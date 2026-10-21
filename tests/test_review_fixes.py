@@ -262,8 +262,10 @@ def test_a_new_rule_while_a_top_up_waits_is_named(fixing, capsys):
     more = targets.top_up(len(_split(ws)["hidden"]))
     _write_rule(ws, "Another rule.")
     code, flat = _fix(capsys, "--yes")
-    assert code == 3 and holder["evals"] == 2
+    assert code == 0 and holder["evals"] == 2  # the clues show while the test waits
     assert "testing your new rule" not in flat
+    assert (f"Your last rule test is waiting for more marks: it couldn't tell yet. Mark {more} "
+            "more answers, and `judgekeeper fix` tests that rule again on them.") in flat
     assert f"Your new rule is waiting: first mark {more} more answers" in flat
 
 
