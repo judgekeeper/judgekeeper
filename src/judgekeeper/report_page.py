@@ -383,18 +383,19 @@ def disagreed(c: dict) -> str:
     return f"You and your judge disagreed on <b>{d}</b> of <b>{n}</b> answers."
 
 
-def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None) -> str:
+def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
+             above: bool = False) -> str:
     """The headline, and under it the disagreements, for every result, as in the terminal;
     then, too early to tell, how to mark more: a link to the marking page while it runs, the
     command in the saved copy; with every answer marked, what comes next
     (start_label.all_marked_lines). After a check found the new judge worse, the next step
-    that check gave (`worse`)."""
+    that check gave (`worse`), unless the Last check block `above` gives it."""
     from judgekeeper.start_label import all_labeled
 
     level = r.get("verdict_level") if r["check"] != "too_few" else None
     cls, headline = STATES.get(level, STATES[None])
     if worse:
-        then = _code_line(worse)
+        then = "" if above else _code_line(worse)
     elif cls != "plain":
         then = ""
     elif all_labeled(r):
@@ -648,12 +649,24 @@ def _fix(r: dict) -> str:
             'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div></div></section>')
 
 
+def _last_check(last: dict | None, worse: str) -> str:
+    """After a check found the new judge worse: that judge, "Worse", the counts and ranges the
+    terminal gave, and the way back. The rest of the page stays the old judge's result."""
+    if not last:
+        return ""
+    judge = f"Your new judge ({_e(last['judge'])})" if last.get("judge") else "Your new judge"
+    said = "".join(f"<p>{_e(x)}</p>" for x in last.get("lines") or [])
+    return (f'<section class="band last-check" aria-labelledby="last-h"><h2 id="last-h">'
+            f"Last check</h2><p>{judge}: <b>Worse</b>. The result below is still your old "
+            f"judge's.</p>{said}<p>{_code_line(worse)}</p></section>")
+
+
 def page(r: dict, back: str | None = None, fixing: dict | None = None,
-         worse: str | None = None) -> str:
+         worse: str | None = None, last: dict | None = None) -> str:
     """The result page. `r`: the result; `back`: the link to the marking page while it runs
     (None in report.html); `fixing`: fix.report_section (the mistakes the person can see);
     `worse`: the next step after a check found the new judge worse, in place of the lead's
-    and of Fix it. The page carries its Content-Security-Policy in a meta tag, so the saved
+    and of Fix it; `last`: that check (check.last_check), said at the top. The page carries its Content-Security-Policy in a meta tag, so the saved
     copy keeps it too."""
     from judgekeeper.front import tool_name
 
@@ -663,7 +676,8 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     model = (r.get("fingerprint") or {}).get("model")
     left = look.meta(_e(model) if model else None, _e(tool) if tool else None)
     level = r.get("verdict_level") if r["check"] != "too_few" else None
-    parts = [_verdict(r, c, back, worse), _counts(r, c), _made(r)]
+    top = _last_check(last, worse) if worse else ""
+    parts = [top, _verdict(r, c, back, worse, above=bool(top)), _counts(r, c), _made(r)]
     live = back is not None
     if shows_disagreements(r):  # real numbers: the disagreements and the estimates
         mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out

@@ -1318,6 +1318,26 @@ def worse_step(old: dict, new: dict, command: str) -> str:
     return NEXT_WORSE.format(back="the old judge", command=command)
 
 
+def last_check(ws: Workspace) -> dict | None:
+    """The last check when it found the new judge worse, as report.html says it at the top:
+    the new judge's name and the lines the terminal gave for each group. None otherwise."""
+    checks = _history(ws)
+    last = checks[-1] if checks else {}
+    g = last.get("groups") if isinstance(last.get("groups"), dict) else {}
+    if not any(isinstance(x, dict) and x.get("verdict") == "worse" for x in g.values()):
+        return None
+    after = last.get("after") if isinstance(last.get("after"), dict) else {}
+    names = [str(m) for m in after.get("models") or []]
+    lines = []
+    for key, _, _title in GROUPS:
+        if isinstance(g.get(key), dict) and "n" in g[key]:
+            try:
+                lines.append(" ".join(x.strip() for x in _group_lines(key, g[key])))
+            except (KeyError, TypeError):
+                continue
+    return {"judge": ", ".join(names) or None, "lines": lines}
+
+
 def open_worse(ws: Workspace, found) -> dict | None:
     """The last check, when it found the judge in the newest results (`found`) worse than the
     one the marks test, and no mark was made since: checking again says the same, so the next

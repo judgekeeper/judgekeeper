@@ -803,14 +803,15 @@ def link_lines(made: dict | None) -> list[str]:
 
 
 def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
-                worse: str | None = None) -> str:
+                worse: str | None = None, last: dict | None = None) -> str:
     """The result page; `back`: the link to the marking page while it runs (the page then asks
     why on each disagreement); `fixing`: the mistakes the person can see
     (fix.report_section); `worse`: the next step after a check found the new judge worse
-    (check.worse_step). No value on it holds a hidden character (redact.visible)."""
+    (check.worse_step), and `last` that check (check.last_check). No value on it holds a
+    hidden character (redact.visible)."""
     from judgekeeper.report_page import page
 
-    return visible(page(r, back, fixing, worse))
+    return visible(page(r, back, fixing, worse, last))
 
 
 def _fixing(ws: Workspace) -> dict | None:
@@ -855,6 +856,14 @@ def _now(ws: Workspace, r: dict) -> dict:
         return r
 
 
+def _last_check(ws: Workspace, worse: str | None) -> dict | None:
+    """The check that found the new judge worse, for the top of report.html (only with its
+    next step, `worse`)."""
+    from judgekeeper import check
+
+    return _scrubbed(check.last_check(ws)) if worse else None
+
+
 def write_report(ws: Workspace, worse: str | None = None) -> None:
     """report.html again from the saved result; nothing when there is no result yet."""
     try:
@@ -863,7 +872,7 @@ def write_report(ws: Workspace, worse: str | None = None) -> None:
         return
     if isinstance(r, dict):
         write_replacing(ws.report_html, result_html(_scrubbed(_now(ws, r)), fixing=_fixing(ws),
-                                                    worse=worse))
+                                                    worse=worse, last=_last_check(ws, worse)))
 
 
 def live_result(ws: Workspace, session: StartSession, command: str | None = None,
@@ -1025,7 +1034,8 @@ def store_result(ws: Workspace, session: StartSession,
         write_anchor_file(ws.anchors, _scrubbed(anchors))
     # report.html, the history line, then result.json: stopped half way (Ctrl-C), the saved
     # result is the old one, which the next run sees as not made from these marks (repair)
-    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws), worse=worse))
+    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws), worse=worse,
+                                                last=_last_check(ws, worse)))
     if ws.result_html.is_file() and not ws.result_html.is_symlink():
         ws.result_html.unlink()
     _add_history_line(ws, r)

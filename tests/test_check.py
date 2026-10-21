@@ -547,7 +547,9 @@ def test_a_check_writes_the_report_again_with_no_history_on_it(here, capsys, no_
     assert run(capsys)[0] == 1
     html = ws.report_html.read_text(encoding="utf-8")  # written again by the check
     assert 'id="verdict-h"' in html
-    assert "History" not in html and HAIKU not in html.split("<body>")[1].split("</header>")[1]
+    body = html.split("<body>")[1].split("</header>")[1]
+    rest = body[:body.index("Last check")] + body[body.index('id="verdict-h"'):]
+    assert "History" not in html and HAIKU not in rest  # named in the Last check block only
     assert any(json.loads(x).get("kind") == "check"  # history.jsonl is still written
                for x in ws.history_jsonl.read_text(encoding="utf-8").splitlines())
 
