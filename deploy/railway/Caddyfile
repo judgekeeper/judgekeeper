@@ -48,4 +48,9 @@
 		rewrite * /errors/404.html
 		file_server
 	}
+	# Any other error (400 for a bad address, 405 for a POST) keeps the same headers, with no
+	# Server header, and an empty body.
+	handle_errors {
+		import security
+	}
 }

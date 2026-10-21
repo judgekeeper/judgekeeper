@@ -9,7 +9,12 @@ it too: the Caddyfile sets them in one snippet, used by the normal route and the
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
+import urllib.error
+import urllib.request
+
+import pytest
 
 from tests.website_pages import NAV, ROOT, WEBSITE, pages, parse
 
@@ -80,6 +85,32 @@ def test_the_security_headers_apply_to_every_response():
     errors = site[site.index("handle_errors 404 {"):]
     assert "import security" in site[:site.index("handle_errors")]
     assert "import security" in errors
+    # every other error (400, 405) too: one handle_errors with no status, the headers only
+    other = re.search(r"^\thandle_errors \{\n(.*?)^\t\}", site, flags=re.DOTALL | re.MULTILINE)
+    assert other and other.group(1).strip() == "import security"
+
+
+SECURITY = ("Content-Security-Policy", "Strict-Transport-Security", "X-Content-Type-Options",
+            "X-Frame-Options", "Referrer-Policy")
+
+
+@pytest.mark.skipif(not os.environ.get("JK_SITE_URL"), reason="needs the site's image running: "
+                    "JK_SITE_URL=http://127.0.0.1:8098 after docker build -f "
+                    "deploy/railway/Dockerfile and docker run -p 127.0.0.1:8098:8080")
+@pytest.mark.parametrize(("method", "path", "status"), [
+    ("GET", "/", 200), ("GET", "/nope", 404), ("GET", "/check%00", 400), ("POST", "/", 405)])
+def test_the_image_sends_the_headers_and_no_server_on_every_status(method, path, status):
+    request = urllib.request.Request(os.environ["JK_SITE_URL"].rstrip("/") + path, method=method,
+                                     data=b"" if method == "POST" else None)
+    try:
+        with urllib.request.urlopen(request, timeout=10) as reply:
+            got, headers = reply.status, reply.headers
+    except urllib.error.HTTPError as error:
+        got, headers = error.code, error.headers
+    assert got == status
+    for name in SECURITY:
+        assert headers.get(name), (path, name)
+    assert headers.get("Server") is None
 
 
 def test_its_frame_is_the_sites_frame_with_links_from_the_root():
