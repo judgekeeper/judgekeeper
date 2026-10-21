@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Check your LLM-as-a-judge in 5 steps | judgekeeper</title>
-<meta name="description" content="See if your LLM-as-a-judge grades the way you would, find where it goes wrong, and test a better rule before you use it. It all runs in your own terminal.">
+<meta name="description" content="See if your LLM-as-a-judge grades the way you would and find where it goes wrong. For promptfoo, DeepEval, Inspect AI and MLflow, test a better rule before you use it. It all runs on your own computer.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="Check your LLM-as-a-judge in 5 steps | judgekeeper">
-<meta property="og:description" content="See if your LLM-as-a-judge grades the way you would, find where it goes wrong, and test a better rule before you use it. It all runs in your own terminal.">
+<meta property="og:description" content="See if your LLM-as-a-judge grades the way you would and find where it goes wrong. For promptfoo, DeepEval, Inspect AI and MLflow, test a better rule before you use it. It all runs on your own computer.">
 <meta property="og:url" content="https://www.judgekeeper.com/">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
@@ -16,12 +16,12 @@
 <meta property="og:image:alt" content="Check your LLM-as-a-judge in 5 steps.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Check your LLM-as-a-judge in 5 steps | judgekeeper">
-<meta name="twitter:description" content="See if your LLM-as-a-judge grades the way you would, find where it goes wrong, and test a better rule before you use it. It all runs in your own terminal.">
+<meta name="twitter:description" content="See if your LLM-as-a-judge grades the way you would and find where it goes wrong. For promptfoo, DeepEval, Inspect AI and MLflow, test a better rule before you use it. It all runs on your own computer.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=3">
-<script src="assets/site.js?v=3" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=4">
+<script src="assets/site.js?v=4" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -64,16 +64,16 @@
 </div></section>
 <section class="steps" id="steps"><div class="wrap">
   <h2>What each step looks like.</h2>
-  <div class="steps-grid"><ol class="steplist" role="tablist" aria-label="Steps"><li><button type="button" role="tab" data-step="find" aria-selected="true" aria-controls="t-out"><span class="n">1</span><span class="t"><b>Find</b><span class="d">Finds your eval results and the judge that graded them.</span></span></button></li><li><button type="button" role="tab" data-step="mark" aria-selected="false" aria-controls="t-out"><span class="n">2</span><span class="t"><b>Mark</b><span class="d">You mark answers Pass or Fail in your browser.</span></span></button></li><li><button type="button" role="tab" data-step="measure" aria-selected="false" aria-controls="t-out"><span class="n">3</span><span class="t"><b>Measure</b><span class="d">Shows how often your judge agrees with you, and where it goes wrong.</span></span></button></li><li><button type="button" role="tab" data-step="fix" aria-selected="false" aria-controls="t-out"><span class="n">4</span><span class="t"><b>Fix</b><span class="d">If your judge needs work, write a better rule and test it on marks kept aside.</span></span></button></li><li><button type="button" role="tab" data-step="check" aria-selected="false" aria-controls="t-out"><span class="n">5</span><span class="t"><b>Re-check</b><span class="d">After you change your judge, see if it still agrees with you.</span></span></button></li></ol><div class="term" id="term">
+  <div class="steps-grid"><div class="steplist" role="tablist" aria-label="Steps" aria-orientation="vertical"><button type="button" role="tab" id="tab-find" data-step="find" aria-selected="true" aria-controls="term" tabindex="0"><span class="n">1</span><span class="t"><b>Find</b><span class="d">Finds your eval results and the judge that graded them.</span></span></button><button type="button" role="tab" id="tab-mark" data-step="mark" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">2</span><span class="t"><b>Mark</b><span class="d">You mark answers Pass or Fail in your browser.</span></span></button><button type="button" role="tab" id="tab-measure" data-step="measure" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">3</span><span class="t"><b>Measure</b><span class="d">Shows how often your judge agrees with you, and where it goes wrong.</span></span></button><button type="button" role="tab" id="tab-fix" data-step="fix" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">4</span><span class="t"><b>Fix</b><span class="d">If your judge needs work, write a better rule. For promptfoo, DeepEval, Inspect AI and MLflow, test it on marks kept aside.</span></span></button><button type="button" role="tab" id="tab-check" data-step="check" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">5</span><span class="t"><b>Re-check</b><span class="d">After you change your judge, see if it still agrees with you.</span></span></button></div><div class="term" id="term" role="tabpanel" aria-labelledby="tab-find">
     <div class="term-bar">
       <span class="term-title">example project</span>
       <div class="term-tabs" id="t-tabs" role="tablist" aria-label="Fix" hidden>
-        <button type="button" role="tab" data-screen="fix" aria-selected="true">First run</button>
-        <button type="button" role="tab" data-screen="fix_test" aria-selected="false">Testing your rule</button>
+        <button type="button" role="tab" data-screen="fix" aria-selected="true" aria-controls="t-out" tabindex="0">First run</button>
+        <button type="button" role="tab" data-screen="fix_test" aria-selected="false" aria-controls="t-out" tabindex="-1">Testing your rule</button>
       </div>
       <button type="button" class="term-replay" id="t-replay">Replay</button>
     </div>
-    <pre class="term-out" id="t-out" aria-live="off">$ judgekeeper
+    <pre class="term-out" id="t-out" aria-live="off" tabindex="0">$ judgekeeper
 judgekeeper 1.0.0b2
 
 Step 1 of 5: Find
@@ -234,7 +234,7 @@ These marks have helped pick 1 change.
 Next: go back to the old judge, or change your judge and run
 `judgekeeper check` again.</template>
   </div></div>
-  <p class="steps-more"><a href="start.html">Try it on your own eval: Guide</a></p>
+  <p class="steps-more">The terminal shows an example project (made-up answers): <a href="examples/site-example/report.html">its report</a>.</p>
 </div></section>
 <section class="close"><div class="wrap">
   <div class="close-box">

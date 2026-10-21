@@ -53,7 +53,7 @@ TOKENS = """
 :root { color-scheme: dark;
   --bg: #0b0c0e; --text: #e6e8eb; --muted: #8b919a; --faint: #585e68;
   --line: #262a30; --hover: #121418; --current: #17191e;
-  --green: #10B981; --green-fill: #0d9668; --red: #e5484d; --red-fill: #c73b40;
+  --green: #10B981; --green-fill: #047857; --red: #e5484d; --red-fill: #c73b40;
   --amber: #e0a43a; --scrim: rgba(0,0,0,.66);
   --sans: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }

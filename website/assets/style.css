@@ -9,7 +9,7 @@
   --bg: #0b0c0e; --fg: #e6e8eb; --muted: #8b919a; --faint: #585e68; --line: #262a30;
   --hover: #121418; --current: #17191e; --panel: #0b0c0e; --rule: #343941;
   --term-bg: #07080a; --term-bar: #101215; --term-dot: #33373e;
-  --green: #10B981; --green-fill: #0d9668; --red: #e5484d; --red-fill: #c73b40;
+  --green: #10B981; --green-fill: #047857; --red: #e5484d; --red-fill: #c73b40;
   --sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, monospace; }
 
@@ -75,7 +75,7 @@ img, svg { max-width: 100%; }
 .jk-row { padding: 32px 40px; border-bottom: 1px solid var(--line); }
 .jk-row-q { display: grid; grid-template-columns: 1fr auto; gap: 16px; }
 .jk-row-a { flex: 1; min-height: 168px; }
-.jk-label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
+.jk-label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
 .jk-state { font-size: 13px; color: var(--muted); white-space: nowrap; }
 .jk-state b { font-weight: 700; }
 .jk-state b.p { color: var(--green); }
@@ -90,8 +90,8 @@ img, svg { max-width: 100%; }
 .jk-btn .key { font-family: var(--mono); font-variant-ligatures: none; font-size: 12px; font-weight: 400; opacity: .85; margin-left: 8px; }
 .jk-fail { background: var(--red-fill); }
 .jk-pass { background: var(--green-fill); }
-.jk-fail:hover { background: var(--red); }
-.jk-pass:hover { background: var(--green); }
+.jk-fail:hover { filter: brightness(1.08); }
+.jk-pass:hover { filter: brightness(1.08); }
 .jk-sub { display: flex; align-items: center; justify-content: center; padding: 0 24px 10px; }
 .jk-sub button { padding: 8px 20px; font-size: 14px; color: var(--muted); }
 .jk-sub button:hover { color: var(--fg); background: var(--hover); }
@@ -168,17 +168,16 @@ img, svg { max-width: 100%; }
 .steps h2 { font-size: 32px; font-weight: 800; letter-spacing: -.022em; margin: 0 0 36px; }
 .steps-grid { display: grid; grid-template-columns: 400px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .steplist { list-style: none; margin: 0; padding: 0; border-right: 1px solid var(--line); display: grid; grid-template-rows: repeat(5, 1fr); min-height: 0; }
-.steplist li { display: flex; min-height: 0; }
 .steplist button { width: 100%; height: 100%; text-align: left; display: grid; grid-template-columns: 28px 1fr; align-content: center; gap: 12px; padding: 16px 22px 16px 20px; border-bottom: 1px solid var(--line); border-left: 2px solid transparent; color: var(--muted); line-height: 1.4; }
-.steplist li:last-child button { border-bottom: 0; }
+.steplist button:last-child { border-bottom: 0; }
 .steplist button:hover { background: var(--hover); color: var(--fg); }
 .steplist button[aria-selected=true] { background: var(--current); color: var(--fg); border-left-color: var(--fg); }
-.steplist .n { font-family: var(--mono); font-variant-ligatures: none; font-size: 12px; color: var(--faint); padding-top: 4px; }
+.steplist .n { font-family: var(--mono); font-variant-ligatures: none; font-size: 12px; color: var(--muted); padding-top: 4px; }
 .steplist button[aria-selected=true] .n { color: var(--fg); }
 .steplist b { display: block; font-size: 16px; font-weight: 700; color: var(--fg); }
 .steplist .d { display: block; font-size: 14.5px; margin-top: 2px; }
 .steps-grid .term { border: 0; min-width: 0; }
-.steps-more { margin: 24px 0 0; font-weight: 700; }
+.steps-more { margin: 16px 0 0; font-size: 14px; color: var(--muted); }
 .steps-more a { text-underline-offset: 3px; text-decoration-color: var(--muted); }
 .steps-more a:hover { text-decoration-color: var(--fg); }
 .close .wrap { padding-block: 80px; }
@@ -275,6 +274,9 @@ td:first-child { min-width: 14ch; }
 .gx-text p { margin: 0 0 14px; line-height: 1.6; max-width: 66ch; overflow-wrap: anywhere; }
 .gx-text p:last-child { margin-bottom: 0; }
 .gx-text .cmd { margin: 2px 0 16px; }
+/* a picture of the real page, after a step's first paragraph */
+.gx-shot { margin: 4px 0 18px; max-width: 760px; }
+.gx-shot img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; }
 .gx-code { margin: 0 0 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; }
 .gx-steps .wrap { padding-block: 80px; }
 .gx-steps h2, .gx-more h2 { margin: 0 0 44px; font-size: 32px; font-weight: 800; letter-spacing: -.022em; }

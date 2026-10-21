@@ -261,6 +261,10 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     index = (tmp_path / "examples" / "index.html").read_text(encoding="utf-8")
     assert index.startswith("<!doctype html>")
     assert 'href="llmbar-haiku/"' in index
+    # Home's terminal figures: their report, said to be made-up
+    assert (tmp_path / "examples" / "site-example" / "index.html").is_file()
+    assert re.search(r'href="site-example/".*Example project \(made-up answers\), '
+                     r"openai:gpt-4\.1-mini", index)
     assert "http" not in index.replace("http-equiv", "")  # no external assets
     assert (tmp_path / ".nojekyll").is_file()
     assert not (tmp_path / "CNAME").exists()  # the build sets no custom domain

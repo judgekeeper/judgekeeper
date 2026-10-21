@@ -25,6 +25,7 @@ import json
 import re
 from pathlib import Path
 
+from judgekeeper import fix
 from tests.website_pages import (
     GITHUB,
     LEGAL,
@@ -199,7 +200,7 @@ def test_monospace_text_shows_what_you_type():
 DARK = {"bg": "#0b0c0e", "fg": "#e6e8eb", "muted": "#8b919a", "faint": "#585e68",
         "line": "#262a30", "hover": "#121418", "current": "#17191e", "panel": "#0b0c0e",
         "rule": "#343941", "term-bg": "#07080a", "term-bar": "#101215", "term-dot": "#33373e",
-        "green": "#10B981", "green-fill": "#0d9668", "red": "#e5484d", "red-fill": "#c73b40"}
+        "green": "#10B981", "green-fill": "#047857", "red": "#e5484d", "red-fill": "#c73b40"}
 
 
 def _tokens() -> dict[str, str]:
@@ -228,16 +229,18 @@ def _contrast(a: str, b: str) -> float:
 
 
 def test_text_colours_meet_wcag_aa():
-    """Body text 4.5 to 1 on every ground it sits on; the small labels in the faint colour,
-    the green underline and white on the bold Pass and Fail fills 3 to 1, as on the
-    product's pages."""
+    """Body text and white on the green and red buttons 4.5 to 1 on every ground it sits on;
+    the green underline 3 to 1. The small labels use the muted colour, not the faint one."""
     t = _tokens()
     for text in ("fg", "muted"):
         for ground in ("bg", "hover", "current"):
             assert _contrast(t[text], t[ground]) >= 4.5, (text, ground)
     assert _contrast(t["green"], t["bg"]) >= 3 and _contrast(t["faint"], t["bg"]) >= 2.9
     for fill in ("green-fill", "red-fill"):
-        assert _contrast("#FFFFFF", t[fill]) >= 3, fill
+        assert _contrast("#FFFFFF", t[fill]) >= 4.5, fill
+    assert "var(--faint)" not in CSS
+    # a hover brightens the fill a little, so white text keeps its contrast
+    assert "filter: brightness(1.08)" in _rule(".jk-pass:hover")
 
 
 def test_keyboard_focus_shows_a_soft_ring_and_a_click_leaves_none():
@@ -324,7 +327,8 @@ STEPS = [("find", "Find", "Finds your eval results and the judge that graded the
          ("measure", "Measure",
           "Shows how often your judge agrees with you, and where it goes wrong."),
          ("fix", "Fix",
-          "If your judge needs work, write a better rule and test it on marks kept aside."),
+          ("If your judge needs work, write a better rule. For promptfoo, DeepEval, Inspect AI "
+          "and MLflow, test it on marks kept aside.")),
          ("check", "Re-check", "After you change your judge, see if it still agrees with you.")]
 
 
@@ -405,22 +409,38 @@ def test_the_steps_list_picks_a_screen_for_the_terminal():
     steps = _all(_main(HOME), "section", "steps")[0]
     assert steps.attrs.get("id") == "steps"
     assert _flat(_all(steps, "h2")[0]) == "What each step looks like."
-    (tabs,) = _all(steps, "ol", "steplist")
+    (tabs,) = _all(steps, "div", "steplist")
+    assert (tabs.attrs.get("role"), tabs.attrs.get("aria-orientation")) == ("tablist", "vertical")
+    buttons = _all(tabs, "button")
+    assert [el for el in tabs.children if getattr(el, "tag", None)] == buttons  # tabs, no list
     found = [(b.attrs["data-step"], _flat(_all(b, "b")[0]), _flat(_all(b, "span", "d")[0]))
-             for b in _all(tabs, "button")]
+             for b in buttons]
     assert found == STEPS
-    assert [b.attrs.get("aria-selected") for b in _all(tabs, "button")] == [
+    assert [b.attrs.get("aria-selected") for b in buttons] == [
         "true", "false", "false", "false", "false"]
+    assert [b.attrs.get("tabindex") for b in buttons] == ["0", "-1", "-1", "-1", "-1"]
+    assert [b.attrs.get("id") for b in buttons] == [f"tab-{s}" for s, *_ in STEPS]
+    assert {b.attrs.get("role") for b in buttons} == {"tab"}
+    assert {b.attrs.get("aria-controls") for b in buttons} == {"term"}
     (term,) = [el for el in steps.iter() if el.attrs.get("id") == "term"]
+    assert (term.attrs.get("role"), term.attrs.get("aria-labelledby")) == ("tabpanel", "tab-find")
+    assert _by_id(HOME, "t-out").attrs.get("tabindex") == "0"  # it scrolls: the keyboard can too
+    for words in ('term.setAttribute("aria-labelledby", tab.id)', "b.tabIndex = b === chosen",
+                  "ArrowDown", "ArrowUp", "Home: 0", "End: n - 1"):
+        assert words in JS, words
     assert _flat(_all(term, "span", "term-title")[0]) == "example project"
     fix_tabs = _by_id(HOME, "t-tabs")
     assert "hidden" in fix_tabs.attrs
     assert [(_flat(b), b.attrs["data-screen"]) for b in _all(fix_tabs, "button")] == [
         ("First run", "fix"), ("Testing your rule", "fix_test")]
     assert _flat(_by_id(HOME, "t-replay")) == "Replay"
+    fix_buttons = _all(fix_tabs, "button")
+    assert [b.attrs.get("tabindex") for b in fix_buttons] == ["0", "-1"]
+    # under the terminal, its source: no link to the Guide
     (more,) = _all(steps, "p", "steps-more")
+    assert "example project (made-up answers)" in _flat(more)
     (link,) = _all(more, "a")
-    assert (link.attrs["href"], _flat(link)) == ("start.html", "Try it on your own eval: Guide")
+    assert (link.attrs["href"], _flat(link)) == ("examples/site-example/report.html", "its report")
 
 
 def test_the_closing_box_points_to_the_browser_check():
@@ -513,13 +533,14 @@ def test_the_guide_tables():
         (table,) = _all(_by_id(GUIDE, section), "table")
         return [[_flat(td) for td in _all(tr, "td")] for tr in _all(table, "tr")
                 if _all(tr, "td")]
-    assert rows("step-fix") == [
-        ["Better", "Use the new rule."],
-        ["Safe to try", ("Not clearly better yet, and very unlikely to be more than 10 points "
-                        "worse. You can try it.")],
-        ["Can't tell yet", ("Mark a few more answers and test again. If it says it leans toward "
-                            "worse, keep the old rule.")],
-        ["Looks worse, or Worse", "Keep the old rule."]]
+    # every result fix can give: its name and its words, as fix.py has them
+    said = [(fix.VERDICT_NAMES[k], fix.RESULT[k].removeprefix("Result: ")) for k in fix.RESULT]
+    assert [(name, words[0].upper() + words[1:]) for name, words in said] == [
+        tuple(row[:2]) for row in rows("step-fix")]
+    assert [row[2] for row in rows("step-fix")] == [
+        "Use the new rule.", "You can use the new rule.",
+        "Mark the few more answers it asks for, then run judgekeeper fix again.",
+        "Keep the old rule, or write a different one.", "Keep the old rule.", "Keep the old rule."]
     assert [r[0] for r in rows("misc")] == ["judgekeeper --stop", "judgekeeper --new",
                                             "judgekeeper --no-browser", "judgekeeper --help"]
 
@@ -532,15 +553,55 @@ def _side(page: Path) -> list[tuple[str, str]]:
 
 
 def test_privacy_says_what_the_site_and_the_tool_do_with_data():
-    assert _side(PRIVACY) == [("#site", "This website"), ("#local", "judgekeeper on your computer"),
+    assert _side(PRIVACY) == [("#site", "This website"), ("#providers", "Who sees your visit"),
+                              ("#rights", "Why, and your rights"),
+                              ("#local", "judgekeeper on your computer"),
                               ("#questions", "Questions")]
-    site, local = (_all(_by_id(PRIVACY, s), "li") for s in ("site", "local"))
-    assert len(site) == 4 and len(local) == 4
+    site, providers, rights, local = (_all(_by_id(PRIVACY, s), "li")
+                                      for s in ("site", "providers", "rights", "local"))
+    assert (len(site), len(providers), len(rights), len(local)) == (4, 4, 3, 4)
     text = _flat(_main(PRIVACY))
     assert "light or dark" not in text and "local storage" not in text  # dark only, no store
-    assert "Railway" in text and "never uploaded" in text
+    assert "never uploaded" in text
     hrefs = [a.attrs["href"] for a in _all(_main(PRIVACY), "a")]
     assert f"{GITHUB}/issues" in hrefs and f"{GITHUB}/blob/main/SECURITY.md" in hrefs
+
+
+def test_privacy_is_the_notice_the_law_asks_for():
+    """Who runs the site and how to reach them, what each provider sees and keeps, the transfer
+    safeguard, the legal basis, Do Not Track, the rights and where to complain, and a date."""
+    text = _flat(_main(PRIVACY))
+    for words in ("run by Sathvik Thota, the author of the open-source judgekeeper project",
+                  "no cookies of its own",
+                  "your IP address, your browser's user agent and the page you asked for",
+                  "Railway hosts the site. It keeps request logs for up to 90 days",
+                  "Data Privacy Framework and Standard Contractual Clauses",
+                  "my legitimate interest", "not sold, shared or combined",
+                  "Do Not Track", "erased or restricted, or object to its use",
+                  "Information Commissioner's Office", "Last updated: 21 October 2026"):
+        assert words in text, words
+    # Cloudflare: one item, marked so it can be removed with the sentence around it intact
+    page = PRIVACY.read_text(encoding="utf-8")
+    (cloudflare,) = [li for li in _all(_by_id(PRIVACY, "providers"), "li")
+                     if "data-cloudflare" in li.attrs]
+    assert "__cf_bm" in _flat(cloudflare) and "cf_clearance" in _flat(cloudflare)
+    assert "Cloudflare" not in text.replace(_flat(cloudflare), "")
+    assert "<!-- Cloudflare: remove the next item" in page
+    assert "Each of these companies is based in the US" in text  # true with one or two
+
+
+def test_the_site_speaks_as_judgekeeper_or_i_never_we():
+    """No business voice: "we", "us" or "our" only in the Home demo's made-up answers."""
+    for page in [*pages(), WEBSITE / "errors" / "404.html"]:
+        main = _main(page)
+        demo = [el for el in main.iter() if el.attrs.get("id") == "demo"]
+        text = _flat(main)
+        for el in demo:
+            text = text.replace(_flat(el), "")
+        found = re.findall(r"\b(?:[Ww]e|us|[Oo]urs?)\b", text)
+        assert not found, (page.name, found)
+    llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
+    assert not re.findall(r"\b(?:[Ww]e|us|[Oo]urs?)\b", llms)
 
 
 # The browser check ---------------------------------------------------------------------------
@@ -618,3 +679,58 @@ def test_a_line_quoted_from_judgekeeper_is_what_it_prints():
         source = (ROOT / "src" / "judgekeeper" / f"{el.attrs['data-said-by']}.py").read_text(
             encoding="utf-8")
         assert el.text().strip().removesuffix(".") in source, el.text()
+
+
+# The pictures and what fix can test --------------------------------------------------------
+
+def test_the_guide_shows_the_marking_and_result_pages_after_their_first_paragraph():
+    for step, picture in (("step-mark", "label.webp"), ("step-measure", "result.webp")):
+        body = _all(_by_id(GUIDE, step), "div", "gl-body")[0]
+        tags = [el.tag for el in body.children if not isinstance(el, str)]
+        assert tags[:3] == ["h3", "p", "figure"], step
+        (img,) = _all(body, "img")
+        assert img.attrs["src"] == f"assets/shots/{picture}"
+        assert (WEBSITE / "assets" / "shots" / picture).is_file()
+        assert (img.attrs["width"], img.attrs["height"]) == ("2880", "1800")
+        assert len(img.attrs["alt"]) > 80 and "screenshot" not in img.attrs["alt"].lower()
+    assert "max-width: 760px" in _rule(".gx-shot")
+    shot = _rule(".gx-shot img")
+    assert "width: 100%" in shot and "border-radius: 8px" in shot and "border: 1px" in shot
+    # Home stays terminal: no picture there
+    assert not _all(_main(HOME), "img") and not _all(_main(HOME), "figure")
+
+
+TOOLS = "For promptfoo, DeepEval, Inspect AI and MLflow"
+
+
+def test_testing_a_new_rule_is_said_only_for_the_tools_fix_can_ask():
+    """fix can't ask a judge in your own file or record() (fix.can_test): the site says what to
+    do instead, and never that every judge's rule is tested on marks kept aside."""
+    assert set(fix.SWAPPABLE) == {"promptfoo", "deepeval", "inspect", "mlflow"}
+    meta = [el.attrs["content"] for el in parse(HOME).iter()
+            if el.tag == "meta" and "description" in el.attrs.get("name", "")
+            + el.attrs.get("property", "")]
+    assert len(meta) == 3 and all(TOOLS in m and "on your own computer" in m for m in meta)
+    assert TOOLS + ", test it on marks kept aside." in _flat(_by_id(HOME, "tab-fix"))
+    step = _flat(_by_id(GUIDE, "step-fix"))
+    assert "promptfoo, DeepEval, Inspect AI or MLflow: write your new rule" in step
+    assert ("Your own CSV or JSONL file, or judgekeeper.record(): "
+            + fix.CANT_ASK.removesuffix(".") + ", so it can't test a new rule.") in step
+    assert "Change the rule where your eval keeps it, run your eval, then judgekeeper check." \
+        in step
+    assert "its mistakes on the marks you can see" in step and "every mistake" not in step
+    own = _flat(_by_id(GUIDE, "own-format"))
+    assert "can't test a new rule: change the rule in your eval, run it, then judgekeeper " \
+           "check." in own
+    llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
+    assert ("for promptfoo, DeepEval, Inspect AI and MLflow, tests a better rule on marks kept "
+            "aside (for your own CSV or JSONL file or `judgekeeper.record()`, you change the rule "
+            "in your eval, run it, then `judgekeeper check`)") in llms
+    assert "re-checks your LLM-as-a-judge" in llms and "re-checks your judge" not in llms
+    for page in pages():
+        assert "own terminal" not in _flat(_main(page)), page.name
+
+
+def test_privacy_says_re_runs_use_temporary_copies():
+    local = _flat(_by_id(PRIVACY, "local"))
+    assert "runs your eval on temporary copies and deletes them after" in local

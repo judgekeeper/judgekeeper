@@ -206,20 +206,40 @@
     });
     var tabs = $("t-tabs"), replay = $("t-replay"), term = $("term");
     var steps = $all(".steplist [data-step]"), words = $all(".five [data-step]");
+    var fixTabs = $all("[data-screen]", tabs);
     var current = "find", fixTab = "fix", frame = null, seen = {};
 
     function screenKey() { return current === "fix" ? fixTab : current; }
     function underline(step) {
       words.forEach(function (w) { w.classList.toggle("is-on", w.getAttribute("data-step") === step); });
     }
+    /* A tab list: only the chosen tab is in the Tab order; the arrow keys, Home and End move
+       to another tab and choose it. */
+    function choose(list, chosen) {
+      list.forEach(function (b) {
+        b.setAttribute("aria-selected", String(b === chosen));
+        b.tabIndex = b === chosen ? 0 : -1;
+      });
+    }
+    function arrows(list, go) {
+      list.forEach(function (b, i) {
+        b.addEventListener("keydown", function (e) {
+          var n = list.length, to = { ArrowDown: i + 1, ArrowRight: i + 1, ArrowUp: i - 1,
+            ArrowLeft: i - 1, Home: 0, End: n - 1 }[e.key];
+          if (to === undefined || e.metaKey || e.ctrlKey || e.altKey) return;
+          e.preventDefault();
+          var next = list[(to + n) % n];
+          next.focus();
+          go(next);
+        });
+      });
+    }
     function paint() {
-      steps.forEach(function (b) {
-        b.setAttribute("aria-selected", String(b.getAttribute("data-step") === current));
-      });
+      var tab = steps.filter(function (b) { return b.getAttribute("data-step") === current; })[0];
+      choose(steps, tab);
+      term.setAttribute("aria-labelledby", tab.id);
       underline(current);
-      $all("[data-screen]", tabs).forEach(function (b) {
-        b.setAttribute("aria-selected", String(b.getAttribute("data-screen") === fixTab));
-      });
+      choose(fixTabs, fixTabs.filter(function (b) { return b.getAttribute("data-screen") === fixTab; })[0]);
       tabs.hidden = current !== "fix";
     }
     function type(key, animate) {
@@ -257,6 +277,7 @@
     steps.forEach(function (b) {
       b.addEventListener("click", function () { pick(b.getAttribute("data-step")); });
     });
+    arrows(steps, function (b) { pick(b.getAttribute("data-step")); });
     /* A click on one of the five words brings the whole section into view, with the same space
        above the heading as below the box (or the heading near the top when the section is taller
        than the window). The address still gets #steps, as the link does without JavaScript. */
@@ -278,13 +299,15 @@
         if (history.replaceState) history.replaceState(null, "", "#steps");
       });
     });
-    $all("[data-screen]", tabs).forEach(function (b) {
-      b.addEventListener("click", function () {
-        fixTab = b.getAttribute("data-screen");
-        paint();
-        show();
-      });
+    function pickScreen(b) {
+      fixTab = b.getAttribute("data-screen");
+      paint();
+      show();
+    }
+    fixTabs.forEach(function (b) {
+      b.addEventListener("click", function () { pickScreen(b); });
     });
+    arrows(fixTabs, pickScreen);
     replay.addEventListener("click", function () { type(screenKey(), true); });
     paint();
 

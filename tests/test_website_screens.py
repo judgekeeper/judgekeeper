@@ -7,11 +7,19 @@ them, and the model changes to gpt-4.1-nano for `judgekeeper check`. The two ste
 judge use the fake promptfoo of the other tests (no AI call), and the person answers "y" at
 the terminal. Each screen on the Home page must be the
 output line for line, after the "$ judgekeeper ..." line the site adds.
+
+The same run's report.html and result.json are committed in docs/examples/site-example/, so
+the figures on the screens come from a report. To write them again:
+
+    JK_WRITE_SITE_EXAMPLE=1 pytest tests/test_website_screens.py
 """
 
 from __future__ import annotations
 
 import json
+import os
+import re
+from pathlib import Path
 
 import pytest
 
@@ -42,6 +50,7 @@ defaultTest:
 tests: file://tests.yaml
 """
 SEED = 7  # the marks fix keeps aside
+SITE_EXAMPLE = Path(__file__).resolve().parent.parent / "docs" / "examples" / "site-example"
 COMMANDS = {"find": "judgekeeper", "mark": "judgekeeper", "measure": "judgekeeper",
             "fix": "judgekeeper fix", "fix_test": "judgekeeper fix", "check": "judgekeeper check"}
 
@@ -162,3 +171,26 @@ def test_each_screen_on_the_site_is_what_judgekeeper_prints(tmp_path, monkeypatc
     for name, lines in _site(page).items():
         assert lines[0] == f"$ {COMMANDS[name]}", (page, name)
         assert lines[1:] == [as_shown(line) for line in real[name]], (page, name)
+
+
+def _steady(name: str, text: str) -> str:
+    """The file without what changes from run to run: the times, and the hash of the marks
+    (each mark keeps its time)."""
+    if name == "result.json":
+        text = re.sub(r'"marks_sha256": "[0-9a-f]+"', '"marks_sha256": "…"', text)
+    return re.sub(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", "…", text)
+
+
+def test_the_site_example_report_is_this_run(tmp_path, monkeypatch, capsys):
+    root = tmp_path / "example-project"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    real_screens(root, capsys, monkeypatch)
+    for name in ("report.html", "result.json"):
+        made = (root / ".judgekeeper" / name).read_text(encoding="utf-8")
+        if os.environ.get("JK_WRITE_SITE_EXAMPLE"):
+            SITE_EXAMPLE.mkdir(parents=True, exist_ok=True)
+            (SITE_EXAMPLE / name).write_text(made, encoding="utf-8", newline="\n")
+        kept = (SITE_EXAMPLE / name).read_text(encoding="utf-8")
+        assert _steady(name, kept) == _steady(name, made), name
+    assert "made-up answers" in (SITE_EXAMPLE / "README.md").read_text(encoding="utf-8")
