@@ -1286,6 +1286,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     else:
         said.say(NEXT_SAME.format(command=_command(state)))
     exit_worse = any(g[k].get("exit_worse") for k in g)
+    new_rates = _new_rates(state.marks, tested, *_picks(state), asked.wobble) if worse else None
 
     flipped = [i for i in tested if i in old_verdicts and old_verdicts[i] != tested[i]]
     line = scrub_value({
@@ -1294,7 +1295,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         "marks": total, "free": len(free), "asked": len(asked.verdicts),
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": g,
         "smallest_drop": drop, "flipped": flipped, "from_fix": pick,
-        "made_after_change": None if fresh is None else len(fresh)})
+        "made_after_change": None if fresh is None else len(fresh),
+        **({"new_rates": new_rates} if new_rates else {})})
     if not _same_as_last(state, line):
         marks.append(state.ws.history_jsonl, line)
     held = exit_worse  # "Worse", or "Not sure" with a big drop: the next check says it again
@@ -1308,6 +1310,16 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     _report(state.ws, adopted=not held,
             worse=worse_step(old, new, _command(state)) if worse else None)
     return EXIT_WORSE if exit_worse else EXIT_OK
+
+
+def _new_rates(marked: dict[str, str], tested: dict[str, str], picked: dict[str, str],
+               pool: dict[str, int], wobble) -> dict:
+    """The new judge's TPR and TNR on the marks it was tested on, each with its range, as the
+    result's are worked out (weighted.general_strata): for report.html's Last check block."""
+    items = [(picked[i], marked[i], v) for i, v in tested.items() if i in marked and i in picked]
+    share = wobble[0] / wobble[1] if wobble and wobble[1] else None
+    out = weighted.general_strata(items, pool, wobble=share)
+    return {k: out[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval")}
 
 
 def worse_step(old: dict, new: dict, command: str) -> str:
@@ -1339,6 +1351,11 @@ def last_check(ws: Workspace) -> dict | None:
                 lines.append(" ".join(x.strip() for x in _group_lines(key, g[key])))
             except (KeyError, TypeError):
                 continue
+    rates = last.get("new_rates") if isinstance(last.get("new_rates"), dict) else {}
+    if rates:
+        from judgekeeper.front import estimate_lines
+
+        lines += [x.strip() for x in estimate_lines(rates)[1:]]
     return {"judge": ", ".join(names) or None, "lines": lines}
 
 

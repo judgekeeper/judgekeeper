@@ -93,6 +93,7 @@
     "empty": 0,
     "nothing_checked": 0,
     "not_scored": 0,
+    "model_failed": 0,
     "empty_answer_passed": 0,
     "reason_says_opposite": 0,
     "same_decision": null,
