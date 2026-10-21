@@ -91,6 +91,7 @@ MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", 
 GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers you failed"))
 SAID = {"passed": "You passed", "failed": "You failed"}
 NEXT_NOT_SURE = "mark more answers with `{mark}`, then run `{command}` again."
+NEXT_ALL_QUESTIONS = "run your eval on all your questions, then run `{command}`."
 VERDICT_WORDS = {"worse": "Worse", "not_sure": "Not sure",
                  "no_drop": f"No drop bigger than {round(targets.NO_DROP_MARGIN * 100)} points"}
 
@@ -1269,6 +1270,9 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say("Next: " + worse_step(old, new, _command(state)))
     elif asked.key_step:  # the rest can be re-checked once the key is set
         said.say("Next: " + NEXT_KEY.format(step=asked.key_step, command=_command(state)))
+    elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
+        # more marks can't be made, and new answers would not help
+        said.say("Next: " + NEXT_ALL_QUESTIONS.format(command=_command(state)))
     elif picked["ask"]:
         said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
             mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))
@@ -1282,6 +1286,7 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     else:
         said.say(NEXT_SAME.format(command=_command(state)))
     exit_worse = any(g[k].get("exit_worse") for k in g)
+    new_rates = _new_rates(state.marks, tested, *_picks(state), asked.wobble) if worse else None
 
     flipped = [i for i in tested if i in old_verdicts and old_verdicts[i] != tested[i]]
     line = scrub_value({
@@ -1290,7 +1295,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         "marks": total, "free": len(free), "asked": len(asked.verdicts),
         "calls": asked.calls, "exact": "close" if asked.close else "exact", "groups": g,
         "smallest_drop": drop, "flipped": flipped, "from_fix": pick,
-        "made_after_change": None if fresh is None else len(fresh)})
+        "made_after_change": None if fresh is None else len(fresh),
+        **({"new_rates": new_rates} if new_rates else {})})
     if not _same_as_last(state, line):
         marks.append(state.ws.history_jsonl, line)
     held = exit_worse  # "Worse", or "Not sure" with a big drop: the next check says it again
@@ -1306,6 +1312,16 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     return EXIT_WORSE if exit_worse else EXIT_OK
 
 
+def _new_rates(marked: dict[str, str], tested: dict[str, str], picked: dict[str, str],
+               pool: dict[str, int], wobble) -> dict:
+    """The new judge's TPR and TNR on the marks it was tested on, each with its range, as the
+    result's are worked out (weighted.general_strata): for report.html's Last check block."""
+    items = [(picked[i], marked[i], v) for i, v in tested.items() if i in marked and i in picked]
+    share = wobble[0] / wobble[1] if wobble and wobble[1] else None
+    out = weighted.general_strata(items, pool, wobble=share)
+    return {k: out[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval")}
+
+
 def worse_step(old: dict, new: dict, command: str) -> str:
     """The next step after "Worse" (without "Next: "), the same in `check`, `judgekeeper` and
     report.html: go back to the old judge (or tool version), or change the judge."""
@@ -1316,6 +1332,31 @@ def worse_step(old: dict, new: dict, command: str) -> str:
     if new.get("rule_hash") is None:
         return NEXT_WORSE_TABLE.format(command=command)
     return NEXT_WORSE.format(back="the old judge", command=command)
+
+
+def last_check(ws: Workspace) -> dict | None:
+    """The last check when it found the new judge worse, as report.html says it at the top:
+    the new judge's name and the lines the terminal gave for each group. None otherwise."""
+    checks = _history(ws)
+    last = checks[-1] if checks else {}
+    g = last.get("groups") if isinstance(last.get("groups"), dict) else {}
+    if not any(isinstance(x, dict) and x.get("verdict") == "worse" for x in g.values()):
+        return None
+    after = last.get("after") if isinstance(last.get("after"), dict) else {}
+    names = [str(m) for m in after.get("models") or []]
+    lines = []
+    for key, _, _title in GROUPS:
+        if isinstance(g.get(key), dict) and "n" in g[key]:
+            try:
+                lines.append(" ".join(x.strip() for x in _group_lines(key, g[key])))
+            except (KeyError, TypeError):
+                continue
+    rates = last.get("new_rates") if isinstance(last.get("new_rates"), dict) else {}
+    if rates:
+        from judgekeeper.front import estimate_lines
+
+        lines += [x.strip() for x in estimate_lines(rates)[1:]]
+    return {"judge": ", ".join(names) or None, "lines": lines}
 
 
 def open_worse(ws: Workspace, found) -> dict | None:
@@ -1335,12 +1376,12 @@ def open_worse(ws: Workspace, found) -> dict | None:
                for g in (last.get("groups") or {}).values()):
         return None
     read = marks.read(ws.marks)
-    counted = read.counted()
+    data = ws.data()
+    counted = batches.counted_labels(data, read.counted())  # as check: not a waiting batch's
     time = str(last.get("time") or "")
     if any(str((read.last.get(i) or {}).get("at") or "") > time for i in counted):
         return None
     if now.get("rule_hash") is None:  # a table: the same grades as that check saw
-        data = ws.data()
         old = {**{q["id"]: q["group"] for q in data.get("queue") or []},
                **_read_verdicts(ws, saved["setup_hash"])}
         flips = sorted(i for i, v in _free(found, counted).items() if i in old and old[i] != v)

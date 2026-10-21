@@ -815,7 +815,8 @@ def test_inspect_epochs_with_different_grades_are_said_and_counted(here, capsys)
     code, out = run(capsys)
     assert code == 3, out  # 20 answers: not enough for a first result
     assert "Answers:     20 different answers" in out
-    assert "(your file has 30 results: each answer was run 2 times, so each is counted once)" in flat(out)
+    assert ("(your file has 30 results: each answer was run 2 times, so each is counted once "
+            "unless its grades differ)") in flat(out)
     assert ("5 answers got different grades when graded more than once (10 repeats in all); "
             "each repeat is its own answer.") in flat(out)
 

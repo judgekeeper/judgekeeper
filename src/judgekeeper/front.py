@@ -136,6 +136,7 @@ NEXT_CONTINUE = "run `{command}` when you want to continue."
 STILL_OPEN = "The marking page is still open if you want to mark more answers."
 AGREES = "How often your judge agrees with you (estimates):"
 NEXT_MARK_MORE = "run `{command}` to mark more answers."
+SAY_WHY_NEXT = "The Next step below also lets you say why on these."  # its command once
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Say why on the answers you and your judge disagree on; `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
@@ -428,12 +429,13 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         return path, None
     search = find.search(root)
     if (any(search.readable(t) for t in find.TOOLS) or search.too_big() or search.unreadable
-            or search.skipped or find.records_above(root) is not None
-            or "promptfoo" in search.signs or find.results_above(root) is not None):
+            or find.records_above(root) is not None or "promptfoo" in search.signs):
         return path, None  # find_judge reads them, or says how
     unlooked: list = []
     tables: list[str] = []
     own = own_format.search(root, unlooked, tables)
+    if own is None and (search.skipped or find.results_above(root) is not None):
+        return path, None  # results-like files too far up or down: find_judge names them
     if own is None and tables:  # promptfoo's table output, found past the walk's limits
         raise start.table_output(tables[0])
     for rel in tables:
@@ -443,6 +445,12 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         talk.para(f"{rel} has your judge's verdicts but no answer text, so there's nothing to "
                   "show you for marking.")
         raise talk.stop(EXIT_QUESTION, "add the answer column (the text that was judged) to "
+                                       f"{rel}, then run `{talk.command()}`.")
+    if own is None and search.no_question:
+        rel = search.no_question[0]
+        talk.para(f"{rel} has your judge's verdicts and the answers but no question, so the "
+                  "answers can't be shown with what they answer.")
+        raise talk.stop(EXIT_QUESTION, "add the question column (what each answer answers) to "
                                        f"{rel}, then run `{talk.command()}`.")
     if own is None:
         raise _nothing_found(talk, root, search.signs, find.nested_results(search), unlooked,
@@ -907,11 +915,13 @@ def found_block(found: start.Found, pass_if: str | None = None,
         lines.append(f"Answers:     {_n(answers, 'answer')}, none with a clear grade")
     elif pool.n_merged:  # repeats of the same answer with the same grade count once
         times = next(iter(pool.repeat_sizes)) if len(pool.repeat_sizes) == 1 else None
-        lines.append(f"Answers:     {answers} different answers")
-        lines.append(f"{INDENT}(your file has {pool.n_results} results: "
+        times = times if times and times > 1 else None  # merged with a newer file's: no runs
+        lines.append(f"Answers:     {_n(answers, 'different answer')}")
+        lines.append(f"{INDENT}(your file has {answers + pool.n_merged} results: "
                      + (f"each answer was run {times} times" if times
                         else "some answers are in it more than once")
-                     + ", so each is counted once)")
+                     + (", so each is counted once unless its grades differ)" if pool.split
+                        else ", so each is counted once)"))
     else:
         lines.append(f"Answers:     {_n(answers, 'answer')}")
     lines += [f"Judge:       {_judge_value(found)}", *_rule_lines(found)]
@@ -1048,7 +1058,14 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
 def _nothing_to_mark(talk: FrontTalk, found: start.Found, listed: str | None) -> Stop:
     """No answer has a clear Pass or Fail: the person fixes the judge and runs the eval
     again (exit 3)."""
-    failed = {kind for kind, _ in found.pool.left.values()} == {judge_check.ERROR}
+    kinds = {kind for kind, _ in found.pool.left.values()}
+    if kinds == {judge_check.MODEL_FAILED}:  # the model under test failed, not the judge
+        talk.para(judge_check.ALL_MODEL_FAILED)
+        if listed:
+            talk.para(f"The list is in {listed}.")
+        return talk.stop(EXIT_QUESTION, judge_check.MODEL_FAILED_NEXT.format(
+            command=talk.command()))
+    failed = kinds == {judge_check.ERROR}
     talk.para("Your judge's calls failed on every answer, so there is nothing to mark."
               if failed else "No answer has a clear Pass or Fail from your judge, so there is "
                              "nothing to mark.")
@@ -1189,6 +1206,8 @@ def _ran_again(ws: Workspace, found: start.Found) -> bool:
         files = list(data.get("results_files") or [])
     except (OSError, ValueError, KeyError, TypeError):
         return False
+    if data.get("results_seen") == batches.results_key(found):  # said, or added as a batch
+        return False
     return files != list(found.used) or marked != {a.id: a.verdict for a in found.pool.answers}
 
 
@@ -1208,18 +1227,20 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     changed = [] if first or back else _changed(ws, found)
     grades = 0 if first or changed or back else check.grades_changed(ws, found)  # a table judge
     added = 0 if first or changed or back or grades else batches.add(ws, found)
+    then = None  # new answers that came with changed grades: they wait, and the next step
     if back:
         head.append(back)
-    elif changed:
-        head.append(JUDGE_CHANGED.format(what=", ".join(changed)))
-    elif grades:
-        head.append(check.GRADES.format(k=grades))
+    elif changed or grades:
+        head.append(JUDGE_CHANGED.format(what=", ".join(changed)) if changed
+                    else check.GRADES.format(k=grades))
+        then = _waiting(talk, ws, found, head, bool(changed))
     elif added:
         head.append(batches.added_line(added))
         if is_open(ws.dir):  # the page open shows the pool without the new batch
             background.stop(ws.dir)
     elif not first and _ran_again(ws, found):
         head.append(RAN_AGAIN_CHECKED if ws.data().get("checked_at") else RAN_AGAIN)
+        batches.seen(ws, found)  # said once
     session = StartSession(ws)
     counts = session.counts()
     counted = list(batches.counted_labels(ws.data(), session.marked()).values())
@@ -1228,12 +1249,28 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))
     if every and not enough:  # nothing left to mark, and no result yet
-        return _all_marked(talk, ws, counts, saved, head)
-    return _page(talk, ws, counts, wait, saved, enough, head, marking, first)
+        return _all_marked(talk, ws, counts, saved, head, then)
+    return _page(talk, ws, counts, wait, saved, enough, head, marking, first, then)
+
+
+def _waiting(talk: FrontTalk, ws: Workspace, found: start.Found, head: list[str],
+             changed: bool) -> str | None:
+    """New answers in the newest results that came with changed grades join no batch: the
+    line that says they wait goes in `head`; the next step once every answer is marked
+    (`judgekeeper check`, or after a "Worse" check.worse_step). None when there are none."""
+    from judgekeeper import check
+
+    n = len(batches.new_answers(ws, found))
+    if not n:
+        return None
+    was = check.open_worse(ws, found)
+    head.append(batches.waiting_line(n, changed, worse=was is not None))
+    return (check.worse_step(was["before"], was["after"], _check_command(talk)) if was
+            else NEXT_CHECK.format(command=_check_command(talk)))
 
 
 def _all_marked(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool,
-                head: list[str]) -> int:
+                head: list[str], then: str | None = None) -> int:
     """Every answer is marked and a kind is still short: said, and no page (exit 3)."""
     talk.say(STEP.format(n=2, name="Mark"))
     talk.say()
@@ -1241,9 +1278,9 @@ def _all_marked(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool,
         talk.para(line)
     if head:
         talk.say()
-    first, then = _all_marked_lines(talk, ws, counts, saved)
+    first, step = _all_marked_lines(talk, ws, counts, saved)
     talk.para(first)
-    raise talk.stop(EXIT_QUESTION, then.removeprefix("Next: "))
+    raise talk.stop(EXIT_QUESTION, then or step.removeprefix("Next: "))
 
 
 def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool) -> list[str]:
@@ -1288,7 +1325,8 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
 
 
 def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
-          enough: bool, head: list[str], marking: bool, first: bool) -> int:
+          enough: bool, head: list[str], marking: bool, first: bool,
+          then: str | None = None) -> int:
     """Step 2: the count so far and the page, opened in the browser (its link printed with
     --no-browser). `judgekeeper` again before a first result keeps a page that is still open
     (its tab still works); `mark`, and --no-browser, show it again with the same link
@@ -1303,6 +1341,10 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         talk.say()
         talk.say(f"You have marked all {_n(n, 'answer')}. There are no more to mark.")
         talk.say()
+        for line in head:
+            talk.para(line)
+        if head:
+            talk.say()
         opened = None
         # disagreements the person can see: the result page, with its reason boxes
         if start_label.why_count(ws, start_label.compute(ws, session)):
@@ -1311,7 +1353,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
             if opened.server is not None:
                 talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
             talk.say()
-        talk.para(_all_marked_lines(talk, ws, counts, saved)[1])  # new answers join later
+        talk.para("Next: " + then if then  # the new answers wait for a check
+                  else _all_marked_lines(talk, ws, counts, saved)[1])  # they join later
         if opened is not None and opened.server is not None:
             page.serve(opened.server)
         return EXIT_OK
@@ -1322,7 +1365,15 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if head:
         talk.say()
     if n:
-        talk.say(f"You marked {_n(n, 'answer')} so far: {n_pass} Pass, {n_fail} Fail.")
+        counted = list(batches.counted_labels(ws.data(), session.marked()).values())
+        waiting = n - len(counted)
+        if waiting:  # the counts before "not enough" are those that count, never the batch's
+            talk.para(f"You marked {_n(n, 'answer')} so far: {counted.count('pass')} Pass, "
+                      f"{counted.count('fail')} Fail count for a result, and {waiting} more "
+                      f"{'is' if waiting == 1 else 'are'} in a newer batch that doesn't count "
+                      "yet.")
+        else:
+            talk.say(f"You marked {_n(n, 'answer')} so far: {n_pass} Pass, {n_fail} Fail.")
         if not enough:
             talk.say(NOT_ENOUGH)
         talk.say()
@@ -1448,9 +1499,14 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.say(line)
         else:
             talk.para(line)
-    if not worse and start_label.why_count(ws, r):  # the result page has a box on each
+    step = report_page.next_step(r)  # the report's next step
+    # the Next: line runs `mark` (too early to tell, answers left): its command is named once
+    mark_next = not worse and not check and step == "mark" and not start_label.all_labeled(r)
+    why = not worse and start_label.why_count(ws, r)
+    if why:  # the result page has a box on each
         talk.say()
-        talk.para(start_label.SAY_WHY_RUN.format(command=_command_of(talk, saved, "mark")))
+        talk.para(SAY_WHY_NEXT if mark_next
+                  else start_label.SAY_WHY_RUN.format(command=_command_of(talk, saved, "mark")))
     if r["verdict_level"] in ("gate", "not_gate"):  # too early to tell: counts only
         talk.say()
         for line in estimate_lines(r):
@@ -1466,7 +1522,6 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     talk.say()
     talk.say(f"Full report: {shown_folder(ws)}/{ws.report_html.name} (open it in your browser)")
     talk.say()
-    step = report_page.next_step(r)  # the report's next step
     opened = None
     if start_label.all_labeled(r):  # nothing left to mark: no page
         if step == "mark" and not check:
@@ -1482,9 +1537,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     elif wait:
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
-    else:
+    elif not mark_next and not why:  # else the Next: line or "To say why" names it
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
-    talk.say()
+    if start_label.all_labeled(r) or is_open(ws.dir) or wait or not (mark_next or why):
+        talk.say()
     if worse:
         next_step = worse
     elif check:

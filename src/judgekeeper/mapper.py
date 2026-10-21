@@ -45,6 +45,8 @@ SCORE_WORDS = ("score", "verdict", "passed", "pass", "label", "success", "grade"
                "judgment", "judgement")
 REASON_WORDS = ("reason", "reasoning", "explanation", "rationale", "comment", "feedback",
                 "justification", "why")
+# An answer's reference (expected_output, reference_answer, ground_truth): never the answer
+REFERENCE_WORDS = ("expected", "reference", "gold", "ideal", "target", "ground", "truth")
 CRITERIA_WORDS = ("scores", "metrics", "criteria", "judges", "evaluations", "grades",
                   "ratings", "results")
 ID_KEYS = ("id", "case_id", "item_id", "example_id", "sample_id", "test_id", "uid")
@@ -158,8 +160,12 @@ def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[i
     suffix = path.suffix.lower()
     text = read_utf8(path, MapError).removeprefix("﻿")
     if suffix in (".csv", ".tsv"):
-        from judgekeeper.table import csv_numbered
+        from judgekeeper.table import csv_numbered, open_quote
 
+        line = open_quote(path)
+        if line is not None:  # the rows after it would be read as one cell: never shown
+            raise MapError(f"line {line} of {path.name} has a quote that never closes, so the "
+                           "rows after it can't be read")
         return [(n, {k: v for k, v in row.items() if k is not None})
                 for n, row in csv_numbered(text, suffix)]
     if suffix == ".json":
@@ -245,8 +251,8 @@ def _example(value) -> str:
 
 def listing(unit, judges=()) -> list[tuple[str, str]]:
     """[(path, example value)] of every leaf in a unit: the first element of each list,
-    and of the keys in `judges` only the first, by its real name (the others have the same
-    shape)."""
+    and of the keys in `judges` that hold parts of their own only the first, by its real name
+    (the others have the same shape); judges that are columns of their own are each listed."""
     out, seen = [], set()
 
     def walk(obj, prefix, depth):
@@ -255,7 +261,7 @@ def listing(unit, judges=()) -> list[tuple[str, str]]:
         present = [j for j in judges if j in obj]  # the first judge stands for them all
         for key, value in obj.items():
             key = str(key)
-            if key in judges and key != present[0]:
+            if key in judges and key != present[0] and (prefix or isinstance(value, dict)):
                 continue
             seg = [*prefix, (key, False)]
             if isinstance(value, dict) and value:
@@ -382,6 +388,7 @@ def _text_like(values) -> bool:
 def _outputs(item: dict) -> list[tuple]:
     return [seg for seg, v in _leaves(item) if isinstance(v, str)
             and any(_is(k, OUTPUT_WORDS) for k in seg) and not _is(seg[-1], REASON_WORDS)
+            and not _is(seg[-1], REFERENCE_WORDS)  # expected_output: the reference answer
             and not any(_is(k, INPUT_WORDS) for k in seg) and not _setting(seg)]
 
 
@@ -389,6 +396,14 @@ def _judge_first(judges: list[str]) -> list[str]:
     """The judges with the ones named for a judge (judge_verdict, llm_score) first."""
     named = [j for j in judges if _words(j) & set(JUDGE_NAMED)]
     return named + [j for j in judges if j not in named]
+
+
+def _judge_column(seg: tuple, values) -> bool:
+    """A column named for a judge (llm_judge) holding only 0/1 or true/false: a verdict."""
+    if not _is(seg[-1], JUDGE_WORDS) or _setting(seg[:-1]):
+        return False
+    values = [str(v).strip().lower() for v in values if not blank(v)]
+    return bool(values) and all(v in RULE_VALUES for v in values)
 
 
 def _rule_column(key: str, values) -> bool:
@@ -494,9 +509,9 @@ def guess(units: list, each: str | None = None) -> Guess:
     output_seg = outputs[0]
 
     # the score or verdict, per side and per judge: named so, and verdict-like values
-    scores = [seg for seg, v in _leaves(first) if _named_verdict(seg)
+    scores = [seg for seg, v in _leaves(first) if (_named_verdict(seg)
               and (blank(v) or _verdict_value(v))  # the first row's cell may be empty
-              and _verdict_like(_at(sample, seg))]
+              and _verdict_like(_at(sample, seg)) or _judge_column(seg, _at(sample, seg)))]
     rules = [seg for seg, _ in _leaves(first) if _rule_column(seg[-1], _at(sample, seg))]
     scores = [seg for seg in scores if seg not in rules]
     if not scores and rules:
@@ -624,9 +639,14 @@ def _every_judge(sample: list[dict], score_seg: tuple, sides: list[str],
                     continue
                 if str(key) not in found:
                     found.append(str(key))
-    return [j for j in found if _named_verdict((*parent, j, *rest)) and _verdict_like(
-        _values_of(sample, _as_path(score_seg), sides, j))
-            and not _rule_column(j, _values_of(sample, _as_path(score_seg), sides, j))]
+
+    def verdict(j: str) -> bool:
+        values = _values_of(sample, _as_path(score_seg), sides, j)
+        seg = (*parent, j, *rest)
+        return (_named_verdict(seg) and _verdict_like(values) or _judge_column(seg, values)) \
+            and not _rule_column(j, values)
+
+    return [j for j in found if verdict(j)]
 
 
 def _values_of(sample: list[dict], path: str, sides: list[str], judge: str) -> list:

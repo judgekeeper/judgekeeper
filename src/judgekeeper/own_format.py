@@ -45,7 +45,7 @@ In this project, my LLM judge saves its results in its own format. Please:
 SCORE_KEYS = frozenset({"score", "scores", "verdict", "pass", "passed", "success", "label"})
 INPUT_WORDS = ("input", "prompt", "question", "query", "instruction", "message")
 OUTPUT_WORDS = ("output", "response", "answer", "completion", "reply", "generation")
-SUFFIXES = (".json", ".jsonl", ".csv")
+SUFFIXES = (".json", *find.JSONL_SUFFIXES, ".csv")
 RECENT_DAYS = 90
 MAX_FILES = 300
 MAX_SECONDS = 2
@@ -106,7 +106,7 @@ def _sample(path: Path):
             return None
         return json.loads(path.read_text(encoding="utf-8", errors="replace"))
     head = find._head(path).decode("utf-8", errors="replace").removeprefix("﻿")
-    if suffix == ".jsonl":
+    if suffix in find.JSONL_SUFFIXES:
         rows = []
         for line in jsonl_lines(head)[:JSONL_LINES]:
             try:

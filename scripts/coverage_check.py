@@ -49,6 +49,10 @@ steady judge again (weighted.general_strata). The bar is the level's: FLOOR_CELL
 and FLOOR_MEAN on average.
 
     python scripts/coverage_check.py --batches   # only the batch grid, added to the files
+    python scripts/coverage_check.py --one-grade # only the one-grade grid, added likewise
+
+The one-grade grid (`one_grade`): a judge that passed (or failed) every answer of the pool,
+with ONE_GRADE_MARKS marks, each the judge's own grade with chance ONE_GRADE_AGREE.
 
 Standard library only. Uses every processor core; the full grid takes a few minutes.
 """
@@ -113,6 +117,9 @@ BATCH_JUDGES = (((0.7, 0.90, 0.80), (0.5, 0.70, 0.60), (0.9, 0.95, 0.60)),
                 ((0.7, 0.80, 0.80), (0.7, 0.60, 0.95), (0.7, 0.95, 0.60)))
 BATCH_MARKS = ((10,), (15,), (25,), (40,), (40, 10))
 BATCH_CHECKS = 1500
+ONE_GRADE_AGREE = (0.6, 0.8, 0.95)  # the chance a mark is the judge's own grade
+ONE_GRADE_MARKS = (20, 25, 30, 40)
+ONE_GRADE_CHECKS = 2000
 GENERAL_DRAWS = 4000  # after asking again, as the other re-check rows
 BOOT_SEED = 20261005
 RESAMPLES = 2000
@@ -754,6 +761,78 @@ def batches_markdown(g: dict) -> list[str]:
     return lines
 
 
+# A judge that gives every answer one grade --------------------------------------------------
+
+def one_grade_cells() -> list[tuple]:
+    return [(grade, p, n) for grade in ("pass", "fail") for p in ONE_GRADE_AGREE
+            for n in ONE_GRADE_MARKS]
+
+
+def _one_grade_ranges(args: tuple) -> tuple:
+    """The ranges `judgekeeper` shows when the judge gave all POOL answers `grade`: n marked,
+    c of them the judge's own grade."""
+    grade, n, c = args  # c: marked Pass (Correct), as in weighted.stratified
+    other = "fail" if grade == "pass" else "pass"
+    start = weighted.stratified([(1, grade, POOL, n, c), (1, other, 0, 0, 0)])
+    return args, {k: (start[f"{k}_interval"] if start[k] is not None
+                      and start[f"{k}_interval"][0] is not None else None)
+                  for k in START_METRICS}
+
+
+def one_grade_grid(workers: int | None = None) -> dict:
+    """The one-grade cells (the judge gave all POOL answers one grade; n of them marked, each
+    the same way as the judge with chance p; ONE_GRADE_CHECKS checks per cell), and the
+    lowest cell, average and bar of their ranges."""
+    sims = {}
+    for index, (grade, p, n) in enumerate(one_grade_cells()):
+        rng = random.Random(SEED + 104729 * (index + 1))
+        agree = [_binomial(rng, n, p) for _ in range(ONE_GRADE_CHECKS)]
+        sims[(grade, p, n)] = agree if grade == "pass" else [n - k for k in agree]
+    needed = sorted({(grade, n, c) for (grade, _, n), cs in sims.items() for c in cs})
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        computed = dict(ex.map(_one_grade_ranges, needed, chunksize=4))
+    rows = []
+    for (grade, p, n), cs in sims.items():
+        pi = 1.0 if grade == "pass" else 0.0
+        true = truth(pi, *((p, 0.0) if grade == "pass" else (0.0, 1 - p)))
+        true["real_pass_rate"] = p if grade == "pass" else 1 - p
+        hits: dict[str, dict] = {}
+        for c in cs:
+            for k, interval in computed[(grade, n, c)].items():
+                _tally(hits, f"start/{k}", interval, true[k])
+        rows.append({"grade": grade, "agree": p, "marks": n, "truth": true,
+                     "ranges": {key: _summary(row) for key, row in sorted(hits.items())}})
+    return {"checks_per_cell": ONE_GRADE_CHECKS, "level": weighted.LEVEL,
+            "draws": weighted.DRAWS, "grid_seed": SEED,
+            "start": judge_levels(rows, "start", START_METRICS), "rows": rows}
+
+
+def one_grade_markdown(g: dict) -> list[str]:
+    s = g["start"]
+    lines = ["", "## A judge that gives every answer one grade", "",
+             ("The judge passed (or failed) every answer of a pool of "
+              f"{POOL:,}; that many marks, each one the same way as the judge with the chance "
+              "given (agree). Its TPR and TNR are then 100% and 0% (or 0% and 100%), and "
+              "their ranges are the plain Jeffreys ranges of the marks. "
+              f"{g['checks_per_cell']:,} simulated checks per cell, fixed seed "
+              f"{g['grid_seed']}, level {g['level']:.0%}, {g['draws']:,} draws. Checks where "
+              "a number is unknown (TNR when every mark agrees, say) are left out and counted."),
+             "",
+             (f"Lowest cell {_pct(s['min_cell'])}, average {_pct(s['mean'])}: "
+              f"{'passes' if s['passes'] else 'does not pass'} the bar "
+              f"({FLOOR_CELL:.0%} in every cell, {FLOOR_MEAN:.0%} on average)."), "",
+             "Coverage % / average width.", "",
+             "| Judge | Agree | Marks | TPR | TNR | Real pass rate |", "|---|---|---|---|---|---|"]
+    for row in g["rows"]:
+        r = row["ranges"]
+        cells_ = [f"{_pct(r[f'start/{k}']['coverage'])} / {_w(r[f'start/{k}']['width'])}"
+                  for k in START_METRICS]
+        judge = "passes every answer" if row["grade"] == "pass" else "fails every answer"
+        lines.append(f"| {judge} | {row['agree']} | {row['marks']} | " + " | ".join(cells_)
+                     + " |")
+    return lines
+
+
 # Writing it down ----------------------------------------------------------------------------
 
 def _pct(x: float | None) -> str:
@@ -843,6 +922,8 @@ def markdown(result: dict) -> str:
         lines += accuracy_markdown(result["accuracy"])
     if result.get("batches"):
         lines += batches_markdown(result["batches"])
+    if result.get("one_grade"):
+        lines += one_grade_markdown(result["one_grade"])
     return "\n".join(lines) + "\n"
 
 
@@ -853,6 +934,14 @@ def _write(result: dict) -> None:
 
 
 def main() -> None:
+    if "--one-grade" in sys.argv[1:]:  # only the one-grade grid, added to the committed grid
+        result = json.loads((OUT / "coverage.json").read_text(encoding="utf-8"))
+        result["one_grade"] = one_grade_grid()
+        _write(result)
+        g = result["one_grade"]["start"]
+        print(f"one grade: lowest cell {g['min_cell']:.4f}, average {g['mean']:.4f}, "
+              f"passes {g['passes']}")
+        return
     if "--batches" in sys.argv[1:]:  # only the batch grid, added to the committed grid
         result = json.loads((OUT / "coverage.json").read_text(encoding="utf-8"))
         result["batches"] = batch_grid()
@@ -879,6 +968,7 @@ def main() -> None:
         "accuracy": accuracy(),
         "rows": rows,
         "batches": batch_grid(),
+        "one_grade": one_grade_grid(),
     }
     _write(result)
     print(f"chosen level: {chosen}; wrote {OUT / 'coverage.md'} and coverage.json")

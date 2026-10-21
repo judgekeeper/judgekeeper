@@ -60,7 +60,14 @@ from judgekeeper.records import (
     read_records,
 )
 from judgekeeper.redact import one_line, scrub
-from judgekeeper.table import _blank, make_fingerprint, open_quote, read_table, sheet_id
+from judgekeeper.table import (
+    KNOWN_COLUMNS,
+    _blank,
+    make_fingerprint,
+    open_quote,
+    read_table,
+    sheet_id,
+)
 from judgekeeper.textio import plural, quote_arg, read_utf8, tick
 
 EXIT_OK = 0
@@ -431,10 +438,21 @@ def read_results_table(path: Path) -> RecordList:
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
     verdicts = [c for c in find.VERDICT_COLUMNS if c in columns]  # each one is a judge
+    if verdicts:  # and a 0/1 column named for a judge (llm_judge), the judge-named first
+        verdicts = mapper._judge_first(verdicts + [
+            c for c in columns if c not in verdicts and c not in KNOWN_COLUMNS
+            and mapper._judge_column((c,), [row.get(c) for row in rows])])
     verdict = verdicts[0] if verdicts else None
     if verdict is None or "input" not in columns or "output" not in columns:
         raise StartError(f"{path.name} needs input, output and verdict columns; columns are: "
                          f"{', '.join(columns)}")
+    header = path.suffix.lower() in (".csv", ".tsv")  # a CSV's first line names the columns
+    for n, row in enumerate(rows, 1):  # a JSON object or list: no grade (CSV values are text)
+        if any(isinstance(row.get(v), dict | list) for v in verdicts):
+            raise StartError(f"line {n + header} of {path.name} has a verdict judgekeeper "
+                             "can't read: an object or a list, not a grade.",
+                             f"write a grade (pass or fail) in the verdict of line {n + header} "
+                             f"of {path.name}, then run `{{command}}`.")
     human = next((c for c in HUMAN_COLUMNS if c in columns), None)
     records = RecordList(ids_derived=not own)
     if "id" in columns and not own:
@@ -537,9 +555,9 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
             except UNREADABLE:
                 raise unreadable(r.path, "records") from None
         except RecordsError as e:
-            text = str(e)
+            text = str(e).removeprefix(f"{r.path.name} is damaged: ")
             text = text[text.find("line "):] if "line " in text else text
-            talk.say(f"  {r.rel} could not be read ({text}), so it was left out.")
+            talk.say(f"  {r.rel} could not be read ({text.rstrip('.')}), so it was left out.")
             continue
         if CUT_END in records.notes:
             talk.say(f"  Note: the last line of {r.rel} was cut short (the program stopped while "
@@ -653,8 +671,18 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
         if not _has("mlflow"):
             raise _needs_extra(talk, "mlflow", _store_name(store))
         uri = mlflow_store.store_uri(store.path, say=talk.say)
-        with mlflow_store.folder_store_allowed(uri, say=talk.say), mlflow_store.store_damage(uri):
-            return _mlflow_experiment(talk, store, experiment, metric, uri)
+        trash = store.path / ".trash" if store.path.is_dir() else None  # MLflow makes it
+        made = trash is not None and not trash.exists()
+        try:
+            with mlflow_store.folder_store_allowed(uri, say=talk.say), \
+                    mlflow_store.store_damage(uri):
+                return _mlflow_experiment(talk, store, experiment, metric, uri)
+        finally:
+            if made:  # left as it was: nothing is written outside .judgekeeper/
+                try:
+                    trash.rmdir()
+                except OSError:
+                    pass
 
 
 OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({names}). "

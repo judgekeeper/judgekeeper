@@ -166,9 +166,19 @@ def checks(old: str, new: str, tool: str, outputs: list[str]) -> list[dict]:
     if len(new) > BIG * len(old) + BIG_EXTRA:
         out.append({"text": BIG_CHANGE, "blocking": False})
     copied = _runs(_words(new)) - _runs(_words(old))
-    if copied and any(copied & _runs(_words(o)) for o in outputs):
+    if copied and any(copied & _runs(_words(o)) for o in outputs) or any(
+            _copies_whole(_words(o), _words(new), _words(old)) for o in outputs):
         out.append({"text": COPIES, "blocking": False})
     return out
+
+
+def _copies_whole(answer: list[str], new: list[str], old: list[str]) -> bool:
+    """Whether the new rule, and not the old one, holds the whole of a short answer (two to
+    COPIED words), which a run of COPIED words can't find."""
+    def holds(words: list[str]) -> bool:
+        return any(words[i:i + len(answer)] == answer for i in range(len(words)))
+
+    return 2 <= len(answer) < COPIED and holds(new) and not holds(old)
 
 
 def added_template(old: str, new: str) -> str | None:

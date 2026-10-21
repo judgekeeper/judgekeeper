@@ -52,6 +52,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from judgekeeper.anchors import canonical_json
+from judgekeeper.judge_check import MODEL_FAILED
 from judgekeeper.records import (
     CODE,
     HUMAN,
@@ -127,13 +128,21 @@ NO_DETAILS = ("promptfoo didn't save the grader's details; the pass/fail of each
 
 def _one_rubric(r: dict) -> dict | None:
     """The one model-graded assertion of a row saved with no gradingResult, when that is the
-    test's only assertion: the row's `success` is then that judge's decision."""
+    test's only assertion: the row's `success` is then that judge's decision, unless the row
+    is a provider error (_provider_failed)."""
     if r.get("gradingResult") or not isinstance(r.get("success"), bool):
         return None
     asserts = (r.get("testCase") or {}).get("assert")
     if not isinstance(asserts, list) or len(asserts) != 1 or not isinstance(asserts[0], dict):
         return None
     return asserts[0] if judge_type(asserts[0].get("type")) else None
+
+
+def _provider_failed(r: dict) -> bool:
+    """A row whose model under test never answered (failureReason 2, ERROR, or an error with
+    no grading): the judge never ran, so its `success: false` is no decision of the judge."""
+    return (r.get("failureReason") == 2 or bool(r.get("error"))
+            or bool((r.get("response") or {}).get("error")))
 
 
 def _stripped(rows: list[dict]) -> list[str]:
@@ -413,7 +422,8 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
     records = RecordList(version=version if isinstance(version, str | int) else None,
                          ids_derived=derived,
                          warnings=[stripped_message(part, path) for part in stripped],
-                         notes=[NO_DETAILS] if no_details else [])
+                         notes=[NO_DETAILS] if any(not _provider_failed(r) for r in rows
+                                                   if id(r) in no_details) else [])
     records.left_out = [n for n, r in numbered if not _shaped(r)]
     seen: Counter = Counter()
     n_default: Counter = Counter()  # judgments by the default grader, per metric name
@@ -431,9 +441,10 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
         content = {"input": r.get("vars"), "output": _text((r.get("response") or {}).get("output"))}
         per_row = defaultdict(int)
         components = _components(r.get("gradingResult"))
+        failed = id(r) in no_details and _provider_failed(r)
         if id(r) in no_details:  # the row's pass/fail stands for its one judge's decision
-            components = [{"pass": r["success"], "score": None, "reason": "",
-                           "assertion": no_details[id(r)]}]
+            components = [{"pass": None if failed else r["success"], "score": None,
+                           "reason": "", "assertion": no_details[id(r)]}]
         for c in components:
             a = c.get("assertion") or {}
             kind = a.get("type")
@@ -471,8 +482,9 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                 prompt = f"{prompt or ''}\n\n{_text(rubric_prompt)}"
             if prompt is not None:
                 evaluator["prompt"] = prompt
-            problem = grader_problem(c, metadata)
-            mark = Mark(problem=problem, tool_counted_as=label if problem else None)
+            problem = MODEL_FAILED if failed else grader_problem(c, metadata)
+            counted = "fail" if failed else label
+            mark = Mark(problem=problem, tool_counted_as=counted if problem else None)
             record = ScoreRecord(
                 target_id=item_id, name=name, annotator_kind=LLM, label=label,
                 score=c.get("score"), explanation=c.get("reason") or None, run=run, **content,

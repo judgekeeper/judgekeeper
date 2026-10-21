@@ -169,7 +169,7 @@ def error_type(message) -> str:
 # Reading -------------------------------------------------------------------------------------
 
 def not_utf8_message(path: str | Path) -> str:
-    message = f"{path} is not saved as UTF-8 text, so it cannot be read."
+    message = f"{Path(path).name} is not saved as UTF-8 text, so it cannot be read."
     if Path(path).suffix.lower() in SPREADSHEET_SUFFIXES:
         return (f'{message} In Excel, save it again as "CSV UTF-8 (Comma delimited)"; in '
                 "Google Sheets, use File > Download > Comma-separated values (.csv).")
@@ -459,8 +459,12 @@ def old_hook(path: str | Path) -> str | None:
                     encoding="utf-8", errors="replace")
             except OSError:
                 return None
-            return OLD_HOOK if "judgekeeper" in text and "check --fast" in text else None
+            return OLD_HOOK if any(_OLD_HOOK_LINE.search(line) for line in text.splitlines()
+                                   if not line.lstrip().startswith("#")) else None
     return None
+
+
+_OLD_HOOK_LINE = re.compile(r"\bjudgekeeper\b.*\bcheck\s+--fast\b")
 
 
 WORKSPACE_DENIED_NEXT = ("give your user permission to write in .judgekeeper/, then run "

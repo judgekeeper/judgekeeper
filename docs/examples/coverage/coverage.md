@@ -458,3 +458,38 @@ Coverage % / average width.
 | 60 + 15 | 70%, 0.8, 0.8; 70%, 0.6, 0.95 | 25 | 95.7 / 0.14 | 95.7 / 0.28 | 94.5 / 0.21 | 95.6 / 0.15 | 95.9 / 0.28 |
 | 60 + 15 | 70%, 0.8, 0.8; 70%, 0.6, 0.95 | 40 | 96.5 / 0.14 | 95.6 / 0.25 | 96.2 / 0.19 | 96.5 / 0.14 | 95.6 / 0.25 |
 | 60 + 15 | 70%, 0.8, 0.8; 70%, 0.6, 0.95 | 40, then 10 | 95.6 / 0.14 | 96.2 / 0.25 | 96.3 / 0.19 | 95.5 / 0.14 | 96.3 / 0.25 |
+
+## A judge that gives every answer one grade
+
+The judge passed (or failed) every answer of a pool of 1,000; that many marks, each one the same way as the judge with the chance given (agree). Its TPR and TNR are then 100% and 0% (or 0% and 100%), and their ranges are the plain Jeffreys ranges of the marks. 2,000 simulated checks per cell, fixed seed 20261008, level 96%, 20,000 draws. Checks where a number is unknown (TNR when every mark agrees, say) are left out and counted.
+
+Lowest cell 94.7, average 98.9: passes the bar (93% in every cell, 95% on average).
+
+Coverage % / average width.
+
+| Judge | Agree | Marks | TPR | TNR | Real pass rate |
+|---|---|---|---|---|---|
+| passes every answer | 0.6 | 20 | 100.0 / 0.20 | 100.0 / 0.30 | 96.5 / 0.41 |
+| passes every answer | 0.6 | 25 | 100.0 / 0.17 | 100.0 / 0.24 | 95.6 / 0.37 |
+| passes every answer | 0.6 | 30 | 100.0 / 0.14 | 100.0 / 0.21 | 95.7 / 0.35 |
+| passes every answer | 0.6 | 40 | 100.0 / 0.11 | 100.0 / 0.16 | 97.0 / 0.30 |
+| passes every answer | 0.8 | 20 | 100.0 / 0.16 | 100.0 / 0.50 | 96.0 / 0.34 |
+| passes every answer | 0.8 | 25 | 100.0 / 0.13 | 100.0 / 0.43 | 94.7 / 0.31 |
+| passes every answer | 0.8 | 30 | 100.0 / 0.11 | 100.0 / 0.38 | 96.8 / 0.28 |
+| passes every answer | 0.8 | 40 | 100.0 / 0.08 | 100.0 / 0.30 | 95.7 / 0.25 |
+| passes every answer | 0.95 | 20 | 100.0 / 0.13 | 100.0 / 0.78 | 98.7 / 0.20 |
+| passes every answer | 0.95 | 25 | 100.0 / 0.11 | 100.0 / 0.76 | 96.7 / 0.18 |
+| passes every answer | 0.95 | 30 | 100.0 / 0.09 | 100.0 / 0.73 | 98.0 / 0.16 |
+| passes every answer | 0.95 | 40 | 100.0 / 0.07 | 100.0 / 0.68 | 98.7 / 0.14 |
+| fails every answer | 0.6 | 20 | 100.0 / 0.29 | 100.0 / 0.20 | 96.0 / 0.41 |
+| fails every answer | 0.6 | 25 | 100.0 / 0.24 | 100.0 / 0.17 | 95.4 / 0.37 |
+| fails every answer | 0.6 | 30 | 100.0 / 0.20 | 100.0 / 0.14 | 95.4 / 0.35 |
+| fails every answer | 0.6 | 40 | 100.0 / 0.16 | 100.0 / 0.11 | 96.5 / 0.30 |
+| fails every answer | 0.8 | 20 | 100.0 / 0.51 | 100.0 / 0.15 | 96.2 / 0.34 |
+| fails every answer | 0.8 | 25 | 100.0 / 0.43 | 100.0 / 0.13 | 95.9 / 0.31 |
+| fails every answer | 0.8 | 30 | 100.0 / 0.38 | 100.0 / 0.11 | 96.5 / 0.28 |
+| fails every answer | 0.8 | 40 | 100.0 / 0.30 | 100.0 / 0.08 | 95.2 / 0.25 |
+| fails every answer | 0.95 | 20 | 100.0 / 0.78 | 100.0 / 0.13 | 98.6 / 0.20 |
+| fails every answer | 0.95 | 25 | 100.0 / 0.75 | 100.0 / 0.11 | 96.2 / 0.18 |
+| fails every answer | 0.95 | 30 | 100.0 / 0.72 | 100.0 / 0.09 | 98.9 / 0.16 |
+| fails every answer | 0.95 | 40 | 100.0 / 0.67 | 100.0 / 0.07 | 98.9 / 0.14 |
