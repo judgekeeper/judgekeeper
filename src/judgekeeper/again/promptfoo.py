@@ -13,6 +13,8 @@ again to rebuild the judge, and says:
   secret promptfoo hid (`[REDACTED]`), or the judge runs the user's own code: a grader that
   is not a model provider promptfoo calls over HTTP (MODEL_PROVIDERS, in any case: so never
   `package:`, `exec:`, `python:`, `file://`, or a URL or `webhook:`, which gets the answers),
+  a grader that runs an agent with tools (AGENT_TYPES: `anthropic:claude-agent-sdk`,
+  `openai:codex-sdk`, `openai:agents:...`),
   a rubric or rule that starts with `package:`, `file://` or another code prefix, a
   `transform` or `contextTransform` on the assertion, or a `transform...` option on the test
   or in the grader's settings (JavaScript promptfoo runs).
@@ -87,6 +89,11 @@ MODEL_PROVIDERS = frozenset({
     "databricks", "fireworks", "github", "helicone", "hyperbolic", "litellm", "llamaapi",
     "localai", "minimax", "moonshot", "novita", "nscale", "nvidia", "portkey", "replicate",
     "sagemaker", "snowflake", "truefoundry", "vercel", "voyage", "watsonx"})
+# The kinds of provider, after its name (`openai:codex-sdk`), that run an agent with tools
+# instead of sending a prompt to a model and reading its text back: never asked again.
+AGENT_TYPES = frozenset({
+    "claude-agent-sdk", "claude-code", "agents", "agents-api", "assistant", "chatkit", "codex",
+    "codex-sdk", "codex-app-server", "codex-desktop", "codex-security", "foundry-agent"})
 # In a grader's settings: a key that points it at another server (apiBaseUrl, apiHost,
 # baseURL, endpoint, proxy...) or a value that is an address or a file
 ADDRESS_KEY = re.compile(r"url|host|base|endpoint|proxy", re.IGNORECASE)
@@ -138,9 +145,19 @@ def _code(values) -> bool:
 
 
 def _model(provider_id: str) -> bool:
-    """Whether a grader's id names a model provider promptfoo calls over HTTP."""
+    """Whether a grader's id names a model provider promptfoo calls over HTTP (an agent is
+    not one: _agent)."""
     plain = provider_id.strip().lower()
     return ":" in plain and plain.split(":", 1)[0] in MODEL_PROVIDERS and not _code([plain])
+
+
+def _agent(grader) -> str | None:
+    """The id in a grader of a provider that runs an agent with tools, or None."""
+    for i in _ids(grader):
+        parts = i.strip().lower().split(":")
+        if len(parts) > 1 and parts[0] in MODEL_PROVIDERS and parts[1] in AGENT_TYPES:
+            return i
+    return None
 
 
 def _ids(value):
@@ -401,6 +418,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             return cant("promptfoo", judge,
                         "your grader's settings hold a secret written in the config, which "
                         "promptfoo hides in the results", short="your grader holds a secret")
+        agent = _agent(g)
+        if agent:
+            return cant("promptfoo", judge, f"your judge is an agent that can use tools "
+                                            f"({agent})", short="your judge is an agent")
         own = _grader_code(g)
         if own:
             return cant("promptfoo", judge, f"your judge runs your own code ({own})",
