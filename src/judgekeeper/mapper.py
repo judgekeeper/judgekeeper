@@ -158,8 +158,12 @@ def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[i
     suffix = path.suffix.lower()
     text = read_utf8(path, MapError).removeprefix("﻿")
     if suffix in (".csv", ".tsv"):
-        from judgekeeper.table import csv_numbered
+        from judgekeeper.table import csv_numbered, open_quote
 
+        line = open_quote(path)
+        if line is not None:  # the rows after it would be read as one cell: never shown
+            raise MapError(f"line {line} of {path.name} has a quote that never closes, so the "
+                           "rows after it can't be read")
         return [(n, {k: v for k, v in row.items() if k is not None})
                 for n, row in csv_numbered(text, suffix)]
     if suffix == ".json":
