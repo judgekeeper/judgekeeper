@@ -1365,14 +1365,15 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if head:
         talk.say()
     if n:
-        talk.say(f"You marked {_n(n, 'answer')} so far: {n_pass} Pass, {n_fail} Fail.")
         counted = list(batches.counted_labels(ws.data(), session.marked()).values())
-        if len(counted) < n:  # a batch that doesn't count yet: its marks are said apart
-            talk.para(f"Of these, {len(counted)} count toward a result "
-                      f"({counted.count('pass')} Pass, {counted.count('fail')} Fail); "
-                      + ("the other one needs" if n - len(counted) == 1
-                         else f"the other {n - len(counted)} need")
-                      + " a few more marks in their batch first.")
+        waiting = n - len(counted)
+        if waiting:  # the counts before "not enough" are those that count, never the batch's
+            talk.para(f"You marked {_n(n, 'answer')} so far: {counted.count('pass')} Pass, "
+                      f"{counted.count('fail')} Fail count for a result, and {waiting} more "
+                      f"{'is' if waiting == 1 else 'are'} in a newer batch that doesn't count "
+                      "yet.")
+        else:
+            talk.say(f"You marked {_n(n, 'answer')} so far: {n_pass} Pass, {n_fail} Fail.")
         if not enough:
             talk.say(NOT_ENOUGH)
         talk.say()

@@ -175,10 +175,21 @@ def test_a_waiting_batchs_marks_are_named_apart(here, capsys, pages):
     _mark(ws, only={34, 39, 40})  # 1 Pass and 2 Fail in batch 2: it doesn't count yet
     _, out, _ = run(capsys, "--no-browser")
     text = flat(out)
-    assert "You marked 37 answers so far: 21 Pass, 16 Fail." in text, out
-    assert ("Of these, 34 count toward a result (20 Pass, 14 Fail); the other 3 need a few "
-            "more marks in their batch first.") in text
+    # the counts before "not enough" are the ones that count; the waiting batch's said apart
+    assert ("You marked 37 answers so far: 20 Pass, 14 Fail count for a result, and 3 more "
+            "are in a newer batch that doesn't count yet.") in text, out
+    assert "21 Pass" not in text and "16 Fail" not in text
     assert "That's not enough for a result yet." in text
+    assert text.index("count for a result") < text.index("not enough for a result yet")
+
+
+def test_with_no_waiting_batch_the_count_line_is_as_before(here, capsys, pages):
+    promptfoo_project(here, split(20, 14))
+    ws = start_label.prepare(start.find_judge(here), say=lambda line: None)
+    _mark(ws, only=set(range(10)) | set(range(20, 25)))  # 10 Pass and 5 Fail
+    _, out, _ = run(capsys, "--no-browser")
+    assert "You marked 15 answers so far: 10 Pass, 5 Fail." in out, out
+    assert "newer batch" not in out
 
 
 # one newer answer ------------------------------------------------------------------------
