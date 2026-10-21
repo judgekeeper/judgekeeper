@@ -169,7 +169,7 @@ def error_type(message) -> str:
 # Reading -------------------------------------------------------------------------------------
 
 def not_utf8_message(path: str | Path) -> str:
-    message = f"{path} is not saved as UTF-8 text, so it cannot be read."
+    message = f"{Path(path).name} is not saved as UTF-8 text, so it cannot be read."
     if Path(path).suffix.lower() in SPREADSHEET_SUFFIXES:
         return (f'{message} In Excel, save it again as "CSV UTF-8 (Comma delimited)"; in '
                 "Google Sheets, use File > Download > Comma-separated values (.csv).")
