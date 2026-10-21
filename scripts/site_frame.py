@@ -1,9 +1,8 @@
 """The frame every page shares: the lines in <head> that load the look, the menu and the footer.
 
-Written here, once. scripts/render_reference.py puts them into the generated pages; the
-hand-written pages carry the same blocks, and tests/test_website_look.py compares every page
-with them. After a change here, run this script: it rewrites the blocks in the hand-written
-pages (and run scripts/render_reference.py for the generated ones). Standard library only.
+Written here, once. Every page carries the same blocks, and tests/test_website_look.py
+compares every page with them. After a change here, run this script: it rewrites the blocks in
+the pages. Standard library only.
 """
 
 from __future__ import annotations
@@ -14,11 +13,12 @@ from pathlib import Path
 
 WEBSITE = Path(__file__).resolve().parent.parent / "website"
 GITHUB = "https://github.com/judgekeeper/judgekeeper"
-NAV = [("index.html", "Home"), ("start.html", "Guide"), ("learn.html", "How it works"),
-       ("reference.html", "Reference")]
-LEGAL = [("privacy.html", "Privacy"), (f"{GITHUB}/blob/main/TRADEMARKS.md", "Trademarks"),
+NAV = [("index.html", "Home"), ("start.html", "Guide")]
+LEGAL = [(f"{GITHUB}/blob/main/docs/reference.md", "Full reference"), ("privacy.html", "Privacy"),
+         (f"{GITHUB}/blob/main/TRADEMARKS.md", "Trademarks"),
          (f"{GITHUB}/blob/main/SECURITY.md", "Security")]
 FONTS = ("manrope-latin-wght-normal.woff2",)  # the text font, so the first screen never jumps
+ASSETS = 3  # ?v= on style.css and site.js: add one when either changes, so visitors load them again
 LOGO = ('<svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
         '<path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>'
         '<path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>'
@@ -31,7 +31,12 @@ def head_links() -> str:
     preload = "".join(f'<link rel="preload" href="assets/fonts/{f}" as="font" type="font/woff2" '
                       "crossorigin>\n" for f in FONTS)
     return ('<link rel="icon" href="assets/logo.svg" type="image/svg+xml">\n' + preload
-            + '<link rel="stylesheet" href="assets/style.css">')
+            + f'<link rel="stylesheet" href="assets/style.css?v={ASSETS}">')
+
+
+def script() -> str:
+    """The site's script, after the styles (the page for a wrong address has none)."""
+    return f'<script src="assets/site.js?v={ASSETS}" defer></script>'
 
 
 def _links(items, target: str = "") -> str:
@@ -64,8 +69,9 @@ def footer() -> str:
 
 
 BLOCKS = [  # (pattern of the block in a page, what it becomes)
-    (r'<link rel="icon".*?<link rel="stylesheet" href="assets/style.css">',
+    (r'<link rel="icon".*?<link rel="stylesheet" href="assets/style\.css[^"]*">',
      lambda name: head_links()),
+    (r'<script src="assets/site\.js[^"]*" defer></script>', lambda name: script()),
     (r'<a class="skip".*?</header>', header),
     (r'<footer class="foot">.*?</footer>', lambda name: footer()),
 ]
@@ -83,7 +89,5 @@ def apply(page: Path) -> None:
 
 
 if __name__ == "__main__":
-    generated = {"reference.html"}
-    for page in sys.argv[1:] or sorted(p for p in WEBSITE.glob("*.html")
-                                       if p.name not in generated):
+    for page in sys.argv[1:] or sorted(WEBSITE.glob("*.html")):
         apply(Path(page))

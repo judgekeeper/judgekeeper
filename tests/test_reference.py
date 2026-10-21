@@ -228,13 +228,12 @@ def _ids(page: str) -> set[str]:
 
 def test_every_site_link_the_code_prints_points_at_an_id_a_page_has():
     """Each judgekeeper.com/<page>#<id> in src/. The Guide (start.html) must keep its ids when
-    the pages are rewritten: own-format and install today."""
+    the pages are rewritten: own-format (which shows the record() line) and install today."""
     links = set()
     for path in (ROOT / "src" / "judgekeeper").rglob("*.py"):
         links |= set(re.findall(r"judgekeeper\.com/([\w-]+\.html#[\w-]+)",
                                 path.read_text(encoding="utf-8")))
-    assert {"reference.html#record-save-your-own-judges-verdicts-with-one-line",
-            "start.html#own-format", "start.html#install"} <= links
+    assert {"start.html#own-format", "start.html#install"} <= links
     for link in sorted(links):
         page, wanted = link.split("#")
         assert wanted in _ids(page), link

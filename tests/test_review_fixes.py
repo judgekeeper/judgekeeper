@@ -89,8 +89,8 @@ def test_the_docs_never_say_the_marks_are_yours():
         text = " ".join((ROOT / name).read_text(encoding="utf-8").split())
         assert "so the marks are yours" not in text, name
         assert said in text, name
-    assert "so the marks are yours" not in (ROOT / "website" / "reference.html").read_text(
-        encoding="utf-8")
+    for page in (ROOT / "website").rglob("*.html"):  # the full reference is docs/reference.md
+        assert "so the marks are yours" not in page.read_text(encoding="utf-8"), page.name
 
 
 def test_a_kept_page_is_stamped_too(here, capsys, no_browser, monkeypatch):

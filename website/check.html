@@ -21,39 +21,50 @@
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css">
-<script src="assets/site.js" defer></script>
-<script src="assets/freecheck.js" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=3">
+<script src="assets/site.js?v=3" defer></script>
+<script src="assets/freecheck.js?v=2" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
 <header class="menu"><div class="wrap">
-<nav class="menu-l" aria-label="Pages"><a href="index.html">Home</a><a href="start.html">Guide</a><a href="learn.html">How it works</a><a href="reference.html">Reference</a></nav>
+<nav class="menu-l" aria-label="Pages"><a href="index.html">Home</a><a href="start.html">Guide</a></nav>
 <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></a>
 <div class="menu-r"><a class="gh" href="https://github.com/judgekeeper/judgekeeper">GitHub</a></div>
 </div></header>
-<main id="main" class="g g-check"><div class="wrap"><div class="g-main">
-<header class="g-head">
-  <h1>Check your LLM-as-a-judge</h1>
-  <p class="g-lede">Drop the results file your eval tool saved. It stays on your computer.</p>
-</header>
-<section class="fc">
-  <button type="button" class="fc-drop" id="fc-drop">
-    <span class="fc-main"><b>Drop your results file here,</b> or click to choose one.</span>
-    <span class="fc-kinds">promptfoo · DeepEval · CSV · JSONL</span>
-  </button>
-  <input type="file" id="fc-file" class="sr" tabindex="-1" aria-hidden="true">
-  <p class="fc-alt">Using Inspect AI or MLflow? <a href="start.html#install">The full tool reads those too.</a></p>
-  <div class="fc-result" id="fc-result" aria-live="polite"></div>
-  <div class="fc-next" id="fc-next" hidden>
-    <p class="fc-note">This shows whether your judge gives real Pass or Fail grades, not whether it agrees with you. To see that, run uvx judgekeeper in your project and mark some answers.</p>
-    <div class="cmd"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+<main id="main" class="ck">
+<section class="hero ck-hero"><div class="wrap">
+  <div class="hero-l">
+    <h1>Check your <span class="nb">LLM-as-a-judge</span> <span class="nb">in your browser.</span></h1>
+    <button type="button" class="fc-drop" id="fc-drop">
+      <span class="fc-main"><b>Drop your results file here</b><span class="sr">, or choose one</span></span>
+      <span class="fc-kinds">promptfoo · DeepEval · CSV · JSONL</span>
+    </button>
+    <input type="file" id="fc-file" class="sr" tabindex="-1" aria-hidden="true">
+    <div class="ck-run">
+      <p>To run judgekeeper in your project folder:</p>
+      <div class="cmd"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+    </div>
   </div>
-</section>
-</div></div></main>
+  <div class="hero-r">
+    <div class="term ck-term">
+      <div class="term-bar"><span class="term-title" id="ck-title">your results file</span><button type="button" class="term-replay" id="ck-clear" hidden>Clear</button></div>
+      <div class="ck-out">
+<pre class="ck-wait" id="ck-wait"><span class="t-prompt">$ </span><span class="t-cmd">judgekeeper</span>
+<span class="t-step">Step 1 of 5: Find</span>
+
+<span class="t-dim">Waiting for your results file.</span>
+<span class="t-dim">Drop it on the left. It stays on your computer.</span>
+<span class="ck-cursor" aria-hidden="true">▋</span></pre>
+        <div class="fc-result" id="fc-result" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+</main>
 <footer class="foot"><div class="wrap">
 <div class="brand"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></div>
-<div class="foot-r" role="navigation" aria-label="Legal"><a href="privacy.html">Privacy</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">Trademarks</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md">Security</a><span class="copy">© 2026 Sathvik Thota · <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE">MIT license</a></span></div>
+<div class="foot-r" role="navigation" aria-label="Legal"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md">Full reference</a><a href="privacy.html">Privacy</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">Trademarks</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md">Security</a><span class="copy">© 2026 Sathvik Thota · <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE">MIT license</a></span></div>
 </div></footer>
 </body>
 </html>

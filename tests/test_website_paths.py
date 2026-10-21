@@ -5,7 +5,7 @@ tests/test_website.py already checks, for every page, that commands parse, links
 nothing loads from another site; tests/test_website_look.py checks the frame, the look and the
 parts of each page; tests/test_website_screens.py checks each screen against what judgekeeper
 prints. This file checks that every page carries the same menu; the install is inside the
-project; the Home page and the Guide show one set of screens; and the links in llms.txt point
+project; the Home page shows the screens and the Guide none; and the links in llms.txt point
 at real files.
 """
 
@@ -18,8 +18,7 @@ from pathlib import Path
 from judgekeeper import __version__
 from tests.website_pages import NAV, ROOT, WEBSITE, Element, pages, parse
 
-PAGES = ["index.html", "start.html", "learn.html", "check.html", "privacy.html",
-         "reference.html"]
+PAGES = ["index.html", "start.html", "check.html", "privacy.html"]
 
 
 def _els(page: str | Path) -> list[Element]:
@@ -95,14 +94,11 @@ def test_the_guide_installs_in_the_project_with_the_python_the_package_needs():
         "requires-python"]
     assert needs == ">=3.11"
     install = _flat(_by_id("start.html", "install"))
-    assert "In your project folder, run: uvx judgekeeper" in install
+    assert "In your project folder, run uvx judgekeeper" in install
     assert ("No uv? Run pip install judgekeeper, then judgekeeper. Needs Python 3.11 or newer, "
             "on macOS, Linux or Windows.") in install
     hrefs = [a.attrs.get("href") for a in _by_id("start.html", "install").iter() if a.tag == "a"]
-    for needed in ("https://docs.astral.sh/uv/", "https://pypi.org/project/judgekeeper/",
-                   "https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE",
-                   "https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"):
-        assert needed in hrefs, needed
+    assert hrefs == ["https://docs.astral.sh/uv/"]  # the license is in the footer
 
 
 # The terminal screens
@@ -126,11 +122,10 @@ def test_the_home_terminal_has_a_screen_for_each_step_and_the_fix_test():
     assert _by_id("index.html", "t-out").text().strip("\n") == screens["find"]
 
 
-def test_the_guide_shows_the_same_screens():
-    shown = [el.text().strip("\n") for el in _els("start.html")
-             if el.tag == "pre" and "term-out" in el.classes()]
-    screens = _screens()
-    assert shown == [screens[name] for name in ("find", "fix", "fix_test", "check")]
+def test_the_guide_shows_no_screens():
+    """Home shows what each step looks like; the Guide says how to do it."""
+    assert not [el for el in _els("start.html") if el.tag in {"pre", "template"}
+                and {"term-out", "output"} & el.classes()]
 
 
 # llms.txt and the sitemap
@@ -168,8 +163,7 @@ def test_llms_txt_lists_the_pages_and_every_link_resolves():
 def test_the_sitemap_and_llms_txt_list_the_pages_in_the_menus_order():
     site = "https://www.judgekeeper.com/"
     order = [site + ("" if p == "index.html" else p) for p in
-             ["index.html", "start.html", "learn.html", "reference.html", "check.html",
-              "privacy.html"]]
+             ["index.html", "start.html", "check.html", "privacy.html"]]
     locs = re.findall(r"<loc>(.*?)</loc>", (WEBSITE / "sitemap.xml").read_text(encoding="utf-8"))
     assert [u for u in locs if u in order] == order
     for gone in ("docs.html", "setup.html"):

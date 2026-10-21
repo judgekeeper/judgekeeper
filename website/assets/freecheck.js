@@ -17,6 +17,7 @@
   var MAX_BYTES = 50 * 1024 * 1024;
   var MAX_NESTING = 500;
   var RULE_SHOWN = 58;
+  var FIRST_SHOWN = 140;  // the page's first answer: question and answer cut to this many characters
   var ROUGH = 15, MIN_POOL = 30;
 
   // Assertion types graded by a model, and judges that are not one model call
@@ -57,7 +58,6 @@
   var MODEL_NOT_WRITTEN = "Your judge's model isn't written in your config. promptfoo picks it from whichever API key is set, so it can change without any file changing. Write it in your config (defaultTest.options.provider).";
   var NO_CLEAR = 'No answer has a clear Pass or Fail from your judge, so there is nothing to mark.';
   var ALL_FAILED = "Your judge's calls failed on every answer, so there is nothing to mark.";
-  var LIMIT = 'This shows whether your judge is really judging, not whether it agrees with you. To see that, run uvx judgekeeper in your project and mark some answers.';
   var PRIVACY = 'Your file never leaves this page: it is read on your computer. Turn off Wi-Fi and it still works.';
 
   /* ---------- small helpers, each the Python behaviour it stands for ---------- */
@@ -546,7 +546,7 @@
       var passes = judged.filter(function (s) { return s.v.verdict === 'pass'; }).length;
       var verdict = passes * 2 > judged.length ? 'pass' : 'fail';
       var chosen = judged.slice().reverse().find(function (s) { return s.v.verdict === verdict; });
-      pool.answers.push({ verdict: verdict, output: chosen.r.output, outputElsewhere: !!chosen.r.outputElsewhere,
+      pool.answers.push({ verdict: verdict, input: chosen.r.input, output: chosen.r.output, outputElsewhere: !!chosen.r.outputElsewhere,
         reason: chosen.v.rationale || chosen.r.reason || '', score: pyNumber(chosen.r.score), passMark: pyNumber(threshold) });
     });
     pool.nPass = pool.answers.filter(function (a) { return a.verdict === 'pass'; }).length;
@@ -831,7 +831,8 @@
       modelNotWritten: r.tool === 'promptfoo' && !models.length,
       models: models.map(function (m) { return oneLine(clean(m, 120)); }),
       rule: rule === null ? null : oneLine(clean(rule)),
-      findings: findingLines(block)
+      findings: findingLines(block),
+      first: pool.answers.length ? { input: pool.answers[0].input, output: pool.answers[0].output, verdict: pool.answers[0].verdict } : null
     };
   }
 
@@ -883,7 +884,31 @@
     return L;
   }
 
-  var api = { check: check, checkBytes: checkBytes, reportLines: reportLines, MAX_BYTES: MAX_BYTES, LIMIT: LIMIT, PRIVACY: PRIVACY,
+  /* ---------- the page's own lines: the first answer it read ---------- */
+
+  // A question or answer on one line, cut short. For promptfoo's vars, the question's var,
+  // else the longest text in them.
+  function shortText(v) {
+    if (v === null || v === undefined) return '';
+    if (isObj(v)) {
+      var key = ['question', 'input', 'prompt', 'query'].find(function (k) { return isStr(v[k]); });
+      var texts = Object.keys(v).map(function (k) { return v[k]; }).filter(isStr)
+        .sort(function (a, b) { return b.length - a.length; });
+      v = key ? v[key] : (texts.length ? texts[0] : canonical(v));
+    }
+    var s = oneLine(isStr(v) ? v : canonical(v));
+    return s.length > FIRST_SHOWN ? s.slice(0, FIRST_SHOWN - 1).replace(/\s+$/, '') + '…' : s;
+  }
+
+  function firstAnswerLines(j) {
+    if (!j.first) return [];
+    return [{ text: '' }, { text: 'First answer in your file:' },
+      { k: '  Question:  ', text: shortText(j.first.input) || '(none)' },
+      { k: '  Answer:    ', text: shortText(j.first.output) || '(none)' },
+      { k: '  Judge:     ', text: j.first.verdict === 'pass' ? 'Pass' : 'Fail' }];
+  }
+
+  var api = { check: check, checkBytes: checkBytes, reportLines: reportLines, firstAnswerLines: firstAnswerLines, MAX_BYTES: MAX_BYTES, PRIVACY: PRIVACY,
     TOO_BIG: TOO_BIG, NOT_UTF8: NOT_UTF8, NOT_RECOGNISED: NOT_RECOGNISED, clean: clean,
     _internal: { statedDecisions: statedDecisions, graderProblem: graderProblem, ruleText: ruleText, passMarkWords: passMarkWords } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -899,15 +924,47 @@
     return e;
   }
 
+  var NEXT = 'to see how often your judge agrees with you, run judgekeeper in your project folder and mark some answers.';
+  var NEXT_AFTER_ERROR = 'pick another file, or run uvx judgekeeper in your project: it finds your results by itself.';
+
+  // A line of the terminal: [class, text] parts; the class is one of Home's terminal colours
+  function termLine(parts) {
+    var row = el('span', 'ln');
+    parts.forEach(function (p) { row.appendChild(el('span', p[0], p[1])); });
+    return row;
+  }
+  function termTop(pre) {
+    pre.appendChild(termLine([['t-prompt', '$ '], ['t-cmd', 'judgekeeper']]));
+    pre.appendChild(termLine([['t-step', 'Step 1 of 5: Find']]));
+    pre.appendChild(termLine([[null, '']]));
+  }
+  function termNext(pre, text) {
+    pre.appendChild(termLine([[null, '']]));
+    var row = termLine([['t-next', 'Next:'], [null, ' ' + text]]);
+    row.classList.add('ln-next');
+    pre.appendChild(row);
+  }
+
   function setup() {
     var zone = document.getElementById('fc-drop');
     var input = document.getElementById('fc-file');
     var out = document.getElementById('fc-result');
-    var next = document.getElementById('fc-next');
-    if (!zone || !input || !out || !next) return;
+    var wait = document.getElementById('ck-wait');
+    var title = document.getElementById('ck-title');
+    var clear = document.getElementById('ck-clear');
+    if (!zone || !input || !out || !wait || !title || !clear) return;
+    var waitTitle = title.textContent;
 
     zone.addEventListener('click', function () { input.click(); });
     input.addEventListener('change', function () { if (input.files && input.files[0]) take(input.files[0], input.files.length); input.value = ''; });
+    // Clear: back to the waiting screen, ready for the next file
+    clear.addEventListener('click', function () {
+      out.replaceChildren();
+      wait.hidden = false;
+      clear.hidden = true;
+      title.textContent = waitTitle;
+      zone.focus();
+    });
 
     // a file dropped anywhere on the page goes to the check, never opens in the tab
     ['dragenter', 'dragover'].forEach(function (t) {
@@ -922,30 +979,37 @@
 
     function take(file, count) {
       zone.classList.add('busy');
-      if (file.size > MAX_BYTES) { done(); return showError(TOO_BIG); }
+      if (file.size > MAX_BYTES) { done(); return showError(TOO_BIG, file.name); }
       var reader = new FileReader();
-      reader.onerror = function () { done(); showError('This file could not be read. Try picking it again.'); };
+      reader.onerror = function () { done(); showError('This file could not be read. Try picking it again.', file.name); };
       reader.onload = function () {
         done();
-        show(checkBytes(reader.result, file.name), count);
+        show(checkBytes(reader.result, file.name), count, file.name);
       };
       reader.readAsArrayBuffer(file);
     }
     function done() { zone.classList.remove('busy'); }
 
-    function showError(message) {
+    function begin(fileName) {
       out.replaceChildren();
-      next.hidden = true;
-      var card = el('div', 'card fc-problem');
-      card.appendChild(el('p', 'fc-problem-h', message));
-      card.appendChild(el('p', 'small', 'Pick another file, or run uvx judgekeeper in your project: it finds your results by itself.'));
-      out.appendChild(card);
+      wait.hidden = true;
+      clear.hidden = false;
+      title.textContent = oneLine(clean(fileName || 'your file', 80));
     }
 
-    function show(result, count) {
-      if (!result.ok) return showError(result.message);
-      out.replaceChildren();
-      if (count > 1) out.appendChild(el('p', 'small', 'You gave ' + count + ' files. This page reads one at a time: it read ' + result.file + '.'));
+    function showError(message, fileName) {
+      begin(fileName);
+      var pre = el('pre', 'fc-term');
+      termTop(pre);
+      pre.appendChild(termLine([['t-warn', message]]));
+      termNext(pre, NEXT_AFTER_ERROR);
+      out.appendChild(pre);
+    }
+
+    function show(result, count, fileName) {
+      if (!result.ok) return showError(result.message, fileName);
+      begin(result.file);
+      if (count > 1) out.appendChild(el('p', 'fc-many', 'You gave ' + count + ' files. This page reads one at a time: it read ' + result.file + '.'));
       var current = 0;
       var pre = el('pre', 'output fc-term');
 
@@ -987,16 +1051,23 @@
         out.appendChild(pre);
         paint();
       }
-      next.hidden = false;
 
+      // Labels dim, headings ("...:" on a line of their own) as Home's step lines, the all-clear
+      // line green, findings amber.
       function paint() {
         pre.replaceChildren();
-        reportLines(result, result.judges[current]).forEach(function (line) {
+        termTop(pre);
+        var j = result.judges[current];
+        reportLines(result, j).concat(firstAnswerLines(j)).forEach(function (line) {
           var row = el('span', 'ln');
-          if (line.k) row.appendChild(el('span', line.k.trim() ? 'dim' : 'dim pad', line.k));
-          row.appendChild(el('span', { g: 'ok', y: 'care', dim: 'dim' }[line.tone] || null, line.text));
+          if (line.k) row.appendChild(el('span', line.k.trim() ? 'k t-label' : 'k t-label pad', line.k));
+          var tone = line.tone === 'y' ? 't-warn' : line.tone === 'dim' ? 't-label'
+            : line.tone === 'g' && line.text.indexOf(FREE_CHECK) === 0 ? 't-good'
+              : !line.k && /:$/.test(line.text) ? 't-step' : null;
+          row.appendChild(el('span', tone, line.text));
           pre.appendChild(row);
         });
+        termNext(pre, NEXT);
       }
     }
   }

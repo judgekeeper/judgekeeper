@@ -250,8 +250,7 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     _build_pages(tmp_path)
     assert (tmp_path / "index.html").read_bytes() == (ROOT / "website" / "index.html").read_bytes()
     assert not (tmp_path / "examples.html").exists()
-    for page in ("start.html", "learn.html", "check.html", "privacy.html",
-                 "reference.html", "llms.txt", "assets/style.css"):
+    for page in ("start.html", "check.html", "privacy.html", "llms.txt", "assets/style.css"):
         assert (tmp_path / page).is_file(), page
     assert not (tmp_path / "README.md").exists()
     banner = "assets/social-preview.png"  # the picture in link previews; og:image points at it

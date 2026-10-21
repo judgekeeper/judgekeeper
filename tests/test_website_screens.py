@@ -5,7 +5,7 @@ openai:gpt-4.1-mini (23 Pass, 17 Fail), the rule on line 14 of promptfooconfig.y
 person marks 12 answers, then 30; `judgekeeper fix` keeps some aside, a new rule is tested on
 them, and the model changes to gpt-4.1-nano for `judgekeeper check`. The two steps that ask the
 judge use the fake promptfoo of the other tests (no AI call), and the person answers "y" at
-the terminal. Each screen on the Home page, and the same screens on the Guide, must be the
+the terminal. Each screen on the Home page must be the
 output line for line, after the "$ judgekeeper ..." line the site adds.
 """
 
@@ -148,16 +148,11 @@ def real_screens(root, capsys, monkeypatch) -> dict[str, list[str]]:
 
 
 def _site(page: str) -> dict[str, list[str]]:
-    els = list(parse(WEBSITE / page).iter())
-    if page == "index.html":
-        return {el.attrs["data-screen"]: el.text().strip("\n").splitlines()
-                for el in els if el.tag == "template"}
-    shown = [el.text().strip("\n").splitlines() for el in els
-             if el.tag == "pre" and "term-out" in el.classes()]
-    return dict(zip(["find", "fix", "fix_test", "check"], shown, strict=True))
+    return {el.attrs["data-screen"]: el.text().strip("\n").splitlines()
+            for el in parse(WEBSITE / page).iter() if el.tag == "template"}
 
 
-@pytest.mark.parametrize("page", ["index.html", "start.html"])
+@pytest.mark.parametrize("page", ["index.html"])
 def test_each_screen_on_the_site_is_what_judgekeeper_prints(tmp_path, monkeypatch, capsys,
                                                             pages, page):
     root = tmp_path / "example-project"
