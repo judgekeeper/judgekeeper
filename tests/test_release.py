@@ -19,8 +19,8 @@ yaml = pytest.importorskip("yaml")
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
-VERSION = "1.0.0b2"
-BETA = "Development Status :: 4 - Beta"
+VERSION = "1.0.0"
+STABLE = "Development Status :: 5 - Production/Stable"
 EXAMPLE = ROOT / "docs" / "examples" / "llmbar-haiku"
 
 
@@ -41,14 +41,27 @@ def _steps_text(job: dict) -> str:
 
 # The version and the distribution
 
+@pytest.mark.version_number
 def test_versions_agree():
     from judgekeeper import __version__
 
     main = _toml(ROOT / "pyproject.toml")["project"]
     assert main["version"] == __version__ == VERSION
-    assert BETA in main["classifiers"]
+    assert STABLE in main["classifiers"]
+    assert not [c for c in main["classifiers"] if c.startswith("Development Status")
+                and c != STABLE]
     for minor in ("3.11", "3.12", "3.13", "3.14"):
         assert f"Programming Language :: Python :: {minor}" in main["classifiers"]
+
+
+def test_package_says_what_it_is_for_whom_and_where_it_runs():
+    main = _toml(ROOT / "pyproject.toml")["project"]
+    assert main["description"] == "Check your LLM-as-a-judge in 5 steps."
+    for needed in ("Intended Audience :: Developers", "Environment :: Console",
+                   "Operating System :: MacOS", "Operating System :: Microsoft :: Windows",
+                   "Operating System :: POSIX :: Linux",
+                   "Topic :: Scientific/Engineering :: Artificial Intelligence"):
+        assert needed in main["classifiers"], needed
 
 
 def test_no_pytest_plugin_and_no_api_extras():
@@ -70,6 +83,7 @@ def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = re.findall(r"^## (\S+)", text, flags=re.MULTILINE)
     assert entries == [VERSION, "1.0.0b1", "0.1.3", "0.1.2", "0.1.1", "0.1.0"]
+    assert "1.0.0b2" not in text  # never released: its entry is part of 1.0.0
 
 
 # Workflows
@@ -111,6 +125,61 @@ def test_release_workflow_builds_checks_and_tests_the_wheel():
     assert "venv" in text and "pytest" in text and ".whl" in text
     for publish in _publish_jobs(wf).values():
         assert publish.get("needs")  # publishes only what the build job built and tested
+
+
+def test_practice_release_runs_only_by_hand_and_uploads_to_testpypi_without_a_token():
+    text = (WORKFLOWS / "testpypi.yml").read_text(encoding="utf-8")
+    assert "secrets." not in text and "password" not in text and "TOKEN" not in text
+    wf = _workflow("testpypi.yml")
+    assert set(wf["on"]) == {"workflow_dispatch"}
+    rc = wf["on"]["workflow_dispatch"]["inputs"]["rc"]
+    assert rc["type"] == "number" and rc["default"] == 1
+    assert wf.get("permissions") == {"contents": "read"}
+    publish = _publish_jobs(wf)
+    assert [_env_name(j) for j in publish.values()] == ["testpypi"]
+    for job in publish.values():
+        assert job["permissions"] == {"id-token": "write"} and job.get("needs")
+        (step,) = [s for s in job["steps"] if "pypa/gh-action-pypi-publish" in s.get("uses", "")]
+        assert step["with"] == {"repository-url": "https://test.pypi.org/legacy/"}
+        # The same pinned commit as the real release.
+        real = _publish_jobs(_workflow("release.yml"))["publish"]["steps"]
+        assert step["uses"] in [s.get("uses") for s in real]
+    for name, other in wf["jobs"].items():
+        if name not in publish:
+            assert "id-token" not in (other.get("permissions") or {}), name
+
+
+def test_practice_release_builds_rc_in_the_runner_and_tests_it_like_the_release():
+    wf = _workflow("testpypi.yml")
+    build = _steps_text(wf["jobs"]["build"])
+    for needed in ("${version}rc${RC}", "pyproject.toml", "src/judgekeeper/__init__.py",
+                   "python -m build", "twine check --strict", "venv", ".whl",
+                   "judgekeeper --version", "judgekeeper.record(",
+                   '-m pytest -p no:cacheprovider -m \\"not version_number\\"'):
+        assert needed in build, needed
+    text = (WORKFLOWS / "testpypi.yml").read_text(encoding="utf-8")
+    assert "git commit" not in text and "git push" not in text  # main keeps its version
+    assert "persist-credentials: false" in text
+    # Only the practice run leaves the tests of the version number out.
+    for name in ("ci.yml", "release.yml", "windows.yml"):
+        assert "version_number" not in (WORKFLOWS / name).read_text(encoding="utf-8"), name
+
+
+def test_practice_release_installs_from_testpypi_on_three_systems():
+    job = _workflow("testpypi.yml")["jobs"]["install"]
+    assert set(job["needs"]) == {"build", "publish"}
+    matrix = job["strategy"]["matrix"]
+    assert set(matrix["os"]) == {"ubuntu-latest", "macos-latest", "windows-latest"}
+    assert matrix["python"] == ["3.11", "3.14"] and job["strategy"]["fail-fast"] is False
+    assert job["env"]["INDEX"] == "https://test.pypi.org/simple/"
+    steps = _steps_text(job)
+    uvx = 'uvx --index-url \\"$INDEX\\" \\"judgekeeper==$VERSION\\"'
+    for needed in (f"{uvx} --version", f"{uvx} --help", f"{uvx} --no-browser", f"{uvx} --stop",
+                   "seq 1 30", "sleep 10", "range(1, 41)", "Step 1 of 5: Find",
+                   "http://127"):
+        assert needed in steps, needed
+    for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", " fix", " check"):
+        assert key not in steps, key  # it never makes an AI call
 
 
 def test_ci_builds_and_runs_the_installed_wheel_on_every_push():
@@ -174,6 +243,7 @@ def _build_wheel(src: Path, out: Path) -> Path:
     return wheel
 
 
+@pytest.mark.version_number
 def test_wheel_ships_the_package_and_no_demo(tmp_path):
     wheel = _build_wheel(ROOT, tmp_path)
     assert wheel.name == f"judgekeeper-{VERSION}-py3-none-any.whl"
@@ -229,7 +299,7 @@ def test_sdist_holds_only_the_package_and_its_readme_licence_and_changelog(tmp_p
 
 def test_release_workflows_test_the_wheels_from_the_checkout_not_the_sdist():
     """The sdist ships no tests, so the workflows must run the suite from the checkout."""
-    for name in ("release.yml", "ci.yml"):
+    for name in ("release.yml", "ci.yml", "testpypi.yml"):
         text = (WORKFLOWS / name).read_text(encoding="utf-8")
         assert "actions/checkout@" in text
         assert ".tar.gz" not in text and "tar x" not in text, name
@@ -268,18 +338,19 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
 
 # The README and the changelog (the README's own contract is in test_docs.py)
 
-def test_changelog_entry_says_1_0_is_commands_you_run():
+def test_changelog_entry_says_what_1_0_does():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    entry = text[text.index(f"## {VERSION}"):text.index("## 1.0.0b1")]
+    entry = text[text.index(f"## {VERSION} "):text.index("## 1.0.0b1")]
     assert len(entry.strip().splitlines()) < 20
     flat = " ".join(entry.split())
-    removed = ("Removed: automatic checks, the GitHub Action and the agent skill. 1.0 is "
-               "commands you run yourself; agent support may come back later.")
-    for needed in (f"`uvx judgekeeper@{VERSION}`", f"`pip install judgekeeper=={VERSION}`",
-                   "`judgekeeper check`", "asks first",
-                   "Find. Mark. Measure. Fix. Re-check.", removed):
+    removed = ("Removed: automatic checks, the GitHub Action, the agent skill and "
+               "`judgekeeper start`.")
+    for needed in ("`uvx judgekeeper`", "`pip install judgekeeper`", "`judgekeeper mark`",
+                   "`judgekeeper fix`", "`judgekeeper check`", "range", "kept aside",
+                   "asks first", "Find. Mark. Measure. Fix. Re-check.", removed):
         assert needed in flat, needed
-    for gone in ("--off", "Only your click", "action.yml", "mode: fast", "hook"):
+    for gone in ("--off", "Only your click", "action.yml", "mode: fast", "hook", "beta ",
+                 "hidden", "History", "free"):
         assert gone not in flat, gone
 
 
@@ -312,54 +383,53 @@ def test_older_changelog_entries_stay_as_they_were_written():
 
 def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert f"\nuvx judgekeeper@{VERSION}\n" in readme
-    assert f"\npip install judgekeeper=={VERSION}\n" in readme
-    assert "beta" in readme
+    assert "\nuvx judgekeeper\n" in readme
+    assert "\npip install judgekeeper\n" in readme
+    assert not re.search(r"\bbeta\b", readme, re.IGNORECASE)
     for gone in ("judgekeeper start", "judgekeeper demo", "before the first PyPI release"):
         assert gone not in readme, gone
     for needed in ("TPR", "TNR", "kappa"):
         assert needed in readme, needed
 
 
-def test_every_install_command_names_the_version_in_pyproject():
-    """uv and pip skip betas unless the version is named: `uvx judgekeeper` and `pip install
-    judgekeeper` would get 0.1.3. README and the changelog's newest entry name the
-    exact version in pyproject.toml, so the next beta can't forget it."""
-    version = _toml(ROOT / "pyproject.toml")["project"]["version"]
+def test_no_install_command_names_a_version():
+    """1.0.0 is a final release: `uvx judgekeeper` and `pip install judgekeeper` get it, so the
+    README and the changelog's newest entry name no version."""
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     texts = {"README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
              "CHANGELOG.md": changelog[:changelog.index("## ", changelog.index("## ") + 3)]}
     for name, text in texts.items():
         uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", text)
         pip = re.findall(r"pip install judgekeeper(==[\w.]+)?", text)
-        assert uvx and set(uvx) == {f"@{version}"}, (name, uvx)
-        assert set(pip) <= {f"=={version}"}, (name, pip)
-    assert re.findall(r"pip install judgekeeper(==[\w.]+)?", texts["README.md"])
+        assert uvx and set(uvx) == {""}, (name, uvx)
+        assert pip and set(pip) == {""}, (name, pip)
 
 
-def test_readme_has_no_link_to_the_website_while_it_is_offline():
-    """PyPI shows the README; the website stays offline until it is rewritten."""
+def test_readme_links_the_website_and_its_guide():
+    """PyPI shows the README: the website is the first stop, the reference stays on GitHub."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "judgekeeper.com" not in readme
-    blob = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/"
-    for example in ("real-data-check/report.md", "coverage/coverage.md"):
-        assert f"]({blob}{example})" in readme, example
-    assert "](https://github.com/judgekeeper/judgekeeper/tree/main/docs/examples/llmbar-haiku)" \
-        in readme
+    assert "](https://www.judgekeeper.com)" in readme
+    assert "](https://www.judgekeeper.com/start.html)" in readme
+    assert "](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md)" in readme
+    assert not re.findall(r"https?://judgekeeper\.com", readme)  # always www.
 
 
 def test_docs_do_not_point_at_the_unused_pages_address():
     assert "judgekeeper.github.io" not in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
-def test_package_metadata_links_the_repo_while_the_website_is_offline():
-    """PyPI shows these links. The README is the documentation until the website is back."""
+def test_package_metadata_links_the_website_the_guide_and_the_repo():
+    """PyPI shows these links. The website has no reference page: it is docs/reference.md."""
     urls = _toml(ROOT / "pyproject.toml")["project"]["urls"]
-    assert urls["Homepage"] == "https://github.com/judgekeeper/judgekeeper"
-    assert urls["Source"] == "https://github.com/judgekeeper/judgekeeper"
-    assert "Documentation" not in urls
-    assert urls["Issues"] == "https://github.com/judgekeeper/judgekeeper/issues"
-    assert not [u for u in urls.values() if "judgekeeper.com" in u]
+    assert urls == {
+        "Homepage": "https://www.judgekeeper.com",
+        "Guide": "https://www.judgekeeper.com/start.html",
+        "Reference": "https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md",
+        "Source": "https://github.com/judgekeeper/judgekeeper",
+        "Issues": "https://github.com/judgekeeper/judgekeeper/issues",
+        "Changelog": "https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"}
+    assert (ROOT / "website" / "start.html").is_file()
+    assert (ROOT / "docs" / "reference.md").is_file()
 
 
 def test_contributing_says_issues_not_pull_requests_and_how_to_report_privately():
@@ -437,7 +507,7 @@ def test_security_policy_and_dependabot_exist():
 BUILD_TOOLS = {"ruff", "build", "hatchling"}  # in [dev] to build and lint, not for the tests
 
 
-@pytest.mark.parametrize("workflow", ["ci.yml", "release.yml"])
+@pytest.mark.parametrize("workflow", ["ci.yml", "release.yml", "testpypi.yml"])
 def test_the_installed_wheel_gets_every_package_the_tests_need(workflow):
     """The wheel jobs list the test-only packages by hand: each one in [dev] must be there."""
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]

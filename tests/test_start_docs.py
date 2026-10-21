@@ -7,6 +7,8 @@ from __future__ import annotations
 import re
 import tomllib
 
+import pytest
+
 from judgekeeper import __version__
 from tests.website_pages import ROOT
 
@@ -23,16 +25,17 @@ def _sections(path) -> dict[str, str]:
 
 def test_the_readme_makes_uvx_the_main_path():
     sections = _sections(README)
-    assert f"\ncd your-project\nuvx judgekeeper@{__version__}\n" in sections["Install"]
+    assert "\ncd your-project\nuvx judgekeeper\n" in sections["Install"]
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
         assert tool in sections["The 5 steps"], tool
 
 
 # The version -----------------------------------------------------------------------------
 
-def test_the_version_is_1_0_0b1_everywhere():
+@pytest.mark.version_number
+def test_the_version_is_1_0_0_everywhere():
     main_toml = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert __version__ == main_toml["project"]["version"] == "1.0.0b2"
+    assert __version__ == main_toml["project"]["version"] == "1.0.0"
 
 
 # Results in your own format, and after the first result ----------------------------------

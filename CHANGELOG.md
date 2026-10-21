@@ -1,23 +1,24 @@
 # Changelog
 
-## 1.0.0b2 (2026-10-13)
+## 1.0.0 (2026-10-20)
 
 Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. Run
-`uvx judgekeeper@1.0.0b2`, or `pip install judgekeeper==1.0.0b2` and then `judgekeeper`, in
-your own terminal.
+`uvx judgekeeper`, or `pip install judgekeeper` and then `judgekeeper`, in your own terminal.
 
-- `judgekeeper check`: when your judge's model, rule, pass mark or eval tool changes, it
-  re-tests the new judge on your marks and says whether it got worse on the answers you passed
-  or failed. Grades your newest results already hold are used first, for free. When it needs
-  AI calls, it says how many and asks first (without a terminal, `--yes` says yes).
-- Every screen says which of the 5 steps it is, and its `Next:` line says what you do next.
-- The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files.
-- Broken results files give a clear message instead of a Python error.
-- Every number comes with its range, and the result calls a judge good only when the ranges do.
-- A new look for the marking page and the report, dark like the website; the report's next
-  step follows from your result, and its counts of the judge's mistakes add up.
-- Removed: automatic checks, the GitHub Action and the agent skill. 1.0 is commands you run
-  yourself; agent support may come back later.
+- `judgekeeper` finds the results your eval tool saved (promptfoo, DeepEval, Inspect AI,
+  MLflow, or your own CSV or JSONL file) and your judge, and checks its grades with no AI call.
+- It opens a page where you mark answers Pass or Fail without seeing your judge's grade;
+  `judgekeeper mark` opens it again. Where you and your judge disagree, you can say why.
+- Run it again for the result: how often your judge agrees with you on the answers you
+  passed and on those you failed, each an estimate with its range, and where it goes wrong.
+  When there are too few marks to tell, new answers from your eval join the ones you marked.
+- `judgekeeper fix` lists your judge's mistakes with its own reasons, and tests a new rule on
+  marks kept aside: better, safe to try, can't tell yet, or worse.
+- `judgekeeper check` re-tests your judge on your marks after you change it or your eval tool.
+- Everything stays on your computer. AI calls go through your own eval tool, and judgekeeper
+  says how many and asks first. The page accepts marks only from itself, so another website
+  can't send marks. A program on your computer could, the same way it could edit your files.
+- Removed: automatic checks, the GitHub Action, the agent skill and `judgekeeper start`.
 
 ## 1.0.0b1 (2026-10-12)
 

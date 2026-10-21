@@ -17,13 +17,17 @@ What a stranger does, with nobody at the keyboard and no API key:
    to a fake judge this script serves on 127.0.0.1: an OpenAI-compatible API and Ollama's own,
    which pass questions 1 to 28 and fail 29 to 50, so the numbers are known.
 4. The way a person goes: `judgekeeper` (the first look and the page in the background; with
-   `--no-browser` its link is printed), every answer marked on the page (25 Pass, 25 Fail),
-   `judgekeeper` again for the result, `judgekeeper --stop`, `judgekeeper fix` (and for a
-   judge whose rule it can swap, a new rule tested with `fix --yes`); then the new rule put in
-   the tool's own file and the tool run again, and `check --yes` (the re-check on the marks;
-   --yes answers its question about judge calls, as there is no terminal) and that the report
-   is still there. judgekeeper's input is a closed pipe; the page is used through its own HTTP
-   calls, with a stand-in person whose marks are fixed.
+   `--no-browser` its link is printed), every answer marked on the page by a stand-in person
+   who agrees with the judge on all but one, `judgekeeper` again for the result ("good
+   enough"), `judgekeeper --stop`. Two copies of the project, with the same results, go the
+   same way to the result with other marks: mostly against the judge ("needs work"), and
+   against it on 9 of 50 ("too early to tell", exit 3: run the eval on more questions). Then in
+   the project `judgekeeper fix` (and for a judge whose rule it can swap, a new rule tested
+   with `fix --yes`); then the new rule put in the tool's own file and the tool run again, and
+   `check --yes` (the re-check on the marks; --yes answers its question about judge calls, as
+   there is no terminal) and that the report is still there. judgekeeper's input is a closed
+   pipe; the page is used through its own HTTP calls, with a stand-in person whose marks are
+   fixed.
 5. Every command's output, then "N of N steps OK". Exit 1 on any failed step or "Traceback".
 
 Tools: table, promptfoo, deepeval, inspect, mlflow, record (your own judge code with
@@ -64,7 +68,14 @@ MARKER = ".made-by-install-check"  # only a folder holding this file is ever rem
 
 N = 50
 JUDGE_PASSES = frozenset(range(1, 29))  # the fake judge passes 1-28 and fails 29-50
-PERSON_PASSES = frozenset(range(1, 23)) | {31, 32, 33}  # the stand-in: 25 Pass, 25 Fail
+# The answers the stand-in person passes, by the result their 50 marks give: against the
+# judge on 29 only; on 47 (25 Pass, 25 Fail); on 23-28 and 31-33 (25 Pass, 25 Fail).
+PERSON_PASSES = {"good enough": frozenset(range(1, 30)),
+                 "needs work": frozenset(range(1, 4)) | frozenset(range(29, N + 1)),
+                 "too early": frozenset(range(1, 23)) | {31, 32, 33}}
+RESULT = {"good enough": r"Result: your judge is good enough to use\.",
+          "needs work": r"Result: your judge needs work\.",
+          "too early": r"Result: too early to tell\."}
 RULE_OLD = "Pass only if the answer gives the right sum."
 RULE_NEW = "Pass only if the answer gives the right sum, written as a number."
 OLLAMA_MODEL = "llama3.2:3b"
@@ -105,9 +116,10 @@ def quiz(i: int) -> tuple[str, str]:
     return f"Question {i}: what is {i} + {i}?", f"The answer is {2 * i}."
 
 
-def person_mark(item) -> str:
-    """The stand-in person's mark for a page item: Pass or Fail by a fixed pattern."""
-    return "pass" if question_number(item) in PERSON_PASSES else "fail"
+def person_mark(item, result: str = "good enough") -> str:
+    """The stand-in person's mark for a page item: Pass or Fail by the pattern that gives
+    `result`."""
+    return "pass" if question_number(item) in PERSON_PASSES[result] else "fail"
 
 
 def page_link(text: str) -> tuple[str, str] | None:
@@ -311,13 +323,14 @@ class Check:
         return shutil.which(name, path=self.env.get("PATH")) or name
 
     def run(self, name: str, args, ok_codes=(0,), expect=(), timeout=900, record=True,
-            env=None):
-        """Run a command in the project with a closed input; check its exit code, that the
-        output holds every pattern in `expect`, and that nothing printed a traceback."""
+            env=None, cwd=None):
+        """Run a command in the project (or `cwd`) with a closed input; check its exit code,
+        that the output holds every pattern in `expect`, and that nothing printed a
+        traceback."""
         args = [str(a) for a in args]
         print(f"\n--- {name}: {' '.join(args)}", flush=True)
         try:
-            p = subprocess.run(args, check=False, cwd=self.project, input="",
+            p = subprocess.run(args, check=False, cwd=cwd or self.project, input="",
                                capture_output=True,
                                text=True, encoding="utf-8", errors="replace",
                                timeout=timeout, env=env or self.env)
@@ -364,12 +377,13 @@ class Check:
         except urllib.error.HTTPError as e:
             raise RuntimeError(f"{path}: HTTP {e.code} {e.read().decode('utf-8', 'replace')}")
 
-    def post_marks(self, base: str, token: str):
+    def post_marks(self, base: str, token: str, result: str = "good enough"):
         """The stand-in person marks every answer on the page `judgekeeper mark` opened, a few
-        seconds each."""
+        seconds each, so that the result is `result`."""
         state = self.call(base, token, "/state")
         for item in state["items"]:
-            self.call(base, token, "/label", {"id": item["id"], "label": person_mark(item),
+            self.call(base, token, "/label", {"id": item["id"],
+                                              "label": person_mark(item, result),
                                               "seconds": 4})
         return True, f"({len(state['items'])} marked)"
 
@@ -636,11 +650,27 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
 
     # The user's path
 
-    def mark_path(self):
+    def other(self, result: str) -> Path:
+        """The copy of the project the stand-in person marks so that the result is `result`."""
+        return self.work / f"{self.tool} project, {result}"
+
+    def copy_project(self, result: str):
+        """A copy of the project with the results just made, before judgekeeper ran in it
+        (without the environment and node_modules: only judgekeeper runs there)."""
+        folder = self.other(result)
+        remove_own(folder)
+        shutil.copytree(self.project, folder, ignore=shutil.ignore_patterns(".venv",
+                                                                            "node_modules"))
+        self.step(f"the project copied for the {result} marks", (folder / MARKER).is_file())
+
+    def mark_path(self, result: str = "good enough"):
         """`judgekeeper` finds the judge, checks it and opens the page in the background (its
         link printed: no browser, no terminal); the stand-in person marks on it; `judgekeeper`
         then prints the result; `--stop` closes the page. For a file in your own format the
-        first run maps it (answers given by --yes) and goes on: it is the first look."""
+        first run maps it (answers given by --yes) and goes on: it is the first look. "good
+        enough" is the project itself; the other results are its copies (other)."""
+        cwd = self.project if result == "good enough" else self.other(result)
+        n = "2" if result == "good enough" else f"2 ({result})"
         decisions = (rf"Your judge passed {len(JUDGE_PASSES)} answers and failed "
                      rf"{N - len(JUDGE_PASSES)}\.")
         # Started by uvx, a Next: line that names a command names `uvx judgekeeper@<version>`
@@ -649,29 +679,41 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         expect = [r"Step 1 of 5: Find", rf"Judge: .*{re.escape(JUDGE_NAME[self.tool])}",
                   decisions, r"Step 2 of 5: Mark",
                   r"Open this link in your browser to mark answers:\s+http://127\.0\.0\.1:"]
+        first = "1" if result == "good enough" else n
         if self.tool == "own-format":
-            p = self.mark_step("1. judgekeeper maps the file (answers given by --yes, no "
+            p = self.mark_step(f"{first}. judgekeeper maps the file (answers given by --yes, no "
                                "terminal): the first look, and the page in the background",
-                               self.front("--yes"), [r"Saved judgekeeper\.toml", *expect])
-            self.step("judgekeeper.toml saved", (self.project / "judgekeeper.toml").is_file())
+                               self.front("--yes"), [r"Saved judgekeeper\.toml", *expect],
+                               cwd=cwd)
+            self.step(f"judgekeeper.toml saved ({result})",
+                      (cwd / "judgekeeper.toml").is_file())
         else:
-            p = self.mark_step("1. judgekeeper: the first look, and the page in the background",
-                               self.front(), expect)
+            p = self.mark_step(f"{first}. judgekeeper: the first look, and the page in the "
+                               "background", self.front(), expect, cwd=cwd)
         link = page_link(p.stdout) if p else None
-        if not self.step("2. the page's link is printed", link is not None):
+        if not self.step(f"{n}. the page's link is printed", link is not None):
             return
         try:
-            ok, detail = self.post_marks(*link)
+            ok, detail = self.post_marks(*link, result=result)
         except Exception as e:  # noqa: BLE001 - any failure is this step's failure
             ok, detail = False, f"({type(e).__name__}: {e})"
-        self.step("2. the stand-in person marks every answer on the page", ok, detail)
-        self.mark_step("2. judgekeeper prints the result", self.front(),
-                       [r"Result: ",
-                        r"You passed \d+ answers\. Of those, your judge passed",
-                        r"You failed \d+ answers\. Of those, your judge passed",
-                        r"Step 3 of 5: Measure", *uvx])
-        self.mark_step("2. judgekeeper --stop closes the page", [*self.jk, "--stop"],
-                       [r"Closed the marking page"])
+        self.step(f"{n}. the stand-in person marks every answer on the page", ok, detail)
+        if result == "too early":
+            # Every answer is marked: the new answers come from the eval (it may wrap).
+            more = (r"Next:\s+run\s+your\s+eval\s+on\s+more\s+questions,\s+then\s+run\s+"
+                    r"`[^`]*judgekeeper(@\S+)?\s+mark`:\s+the\s+new\s+answers\s+join\s+the\s+"
+                    r"ones\s+you\s+marked\.")
+            self.mark_step(f"{n}. judgekeeper prints the result: too early to tell",
+                           self.front(), [RESULT[result], r"Step 3 of 5: Measure", more],
+                           ok_codes=(3,), cwd=cwd)
+        else:
+            self.mark_step(f"{n}. judgekeeper prints the result: {result}", self.front(),
+                           [RESULT[result],
+                            r"You passed \d+ answers\. Of those, your judge passed",
+                            r"You failed \d+ answers\. Of those, your judge passed",
+                            r"Step 3 of 5: Measure", *uvx], cwd=cwd)
+        self.mark_step(f"{n}. judgekeeper --stop closes the page", [*self.jk, "--stop"],
+                       [r"Closed the marking page"], cwd=cwd)
 
     def recheck(self):
         """The new rule is in the results: `check --yes` re-tests it on the marks, and the
@@ -687,12 +729,12 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             html = ""
         self.step("3. report.html is there after the check", 'id="verdict-h"' in html)
 
-    def mark_step(self, name: str, args, expect, env=None):
+    def mark_step(self, name: str, args, expect, env=None, ok_codes=(0,), cwd=None):
         """A step that opens or closes the page; when it fails, what the page's own process
         wrote to .judgekeeper/page.log, and whether its lock is still there."""
-        p = self.run(name, args, expect=expect, env=env)
+        p = self.run(name, args, expect=expect, env=env, ok_codes=ok_codes, cwd=cwd)
         if self.steps and not self.steps[-1][1]:
-            folder = self.project / ".judgekeeper"
+            folder = (cwd or self.project) / ".judgekeeper"
             try:
                 log = (folder / "page.log").read_text(encoding="utf-8", errors="replace")
             except OSError as e:
@@ -704,7 +746,12 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
 
     def walk(self):
         self.make_results(RULE_OLD, "old rule")
+        others = ("needs work", "too early")
+        for result in others:
+            self.copy_project(result)
         self.mark_path()
+        for result in others:
+            self.mark_path(result)
         self.fix_path()
         # The person puts the new rule in the tool's own file and runs their eval again.
         self.make_results(RULE_NEW, "new rule")
@@ -718,7 +765,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         self.run("2. judgekeeper fix: where your judge goes wrong", [*self.jk, "fix"],
                  ok_codes=(0,) if swap else (3,),
                  expect=[r"Step 4 of 5: Fix", r"mistakes\.md",
-                         *([] if swap else [r"can't test a new rule"])])
+                         *([] if swap else [r"judgekeeper can't ask this judge itself\."])])
         if not swap:
             return
         rule = self.project / ".judgekeeper" / "fix" / "rule.txt"
@@ -790,7 +837,8 @@ def main(argv=None) -> int:
         check.judge.stop()
     code = check.summary()
     if not args.keep:
-        for folder in (check.project, check.dist):
+        for folder in (check.project, check.dist, check.other("needs work"),
+                       check.other("too early")):
             if folder is None:
                 continue
             try:

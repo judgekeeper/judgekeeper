@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import fix, start_fix_rule
+from judgekeeper import __version__, fix, start_fix_rule
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer, promptfoo_data, question
@@ -145,7 +145,7 @@ def test_the_first_run(here, capsys):
     seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
     passed = sum(marks.judge[i] == "pass" for i in seen)
     lines = out.splitlines()
-    assert lines[:5] == ["judgekeeper 1.0.0b2", "", "Step 4 of 5: Fix", "", "Clues:"]
+    assert lines[:5] == [f"judgekeeper {__version__}", "", "Step 4 of 5: Fix", "", "Clues:"]
     assert lines[5] == f"  {passed} of its {len(seen)} mistakes are answers it passed but you failed."
     assert lines[6] == "  Its rule may be too easy."
     saved = next(n for n, line in enumerate(lines) if line.startswith("The clues and all "))
