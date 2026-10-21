@@ -67,7 +67,8 @@ DEEPEVAL_COPIES = (".latest_run_full.json", ".latest_test_run.json")
 # only <date>_<time>, with no .json (read when its content is a DeepEval run)
 DEEPEVAL_RUN = re.compile(r"(?:test_run_)?(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})(?:\.json)?")
 VERDICT_COLUMNS = ("verdict", "judge_verdict", "judge")
-TABLE_SUFFIXES = (".csv", ".tsv", ".jsonl")
+JSONL_SUFFIXES = (".jsonl", ".ndjson")  # one JSON object per line, under either name
+TABLE_SUFFIXES = (".csv", ".tsv", *JSONL_SUFFIXES)
 RESULTS_VARS = {"deepeval": "DEEPEVAL_RESULTS_FOLDER", "inspect": "INSPECT_LOG_DIR"}
 INSPECT_SKIP = "logs.json"  # Inspect's listing of a log folder, not a log
 INSPECT_MANIFESTS = (INSPECT_SKIP, "eval-set.json")  # Inspect's own files next to logs
@@ -125,6 +126,7 @@ class Search:
     skipped: list[tuple[str, str]] = field(default_factory=list)  # results-like, not looked in
     nested: list[Path] = field(default_factory=list)  # projects of their own, not walked
     judge_only: list[str] = field(default_factory=list)  # tables of verdicts with no answer text
+    no_question: list[str] = field(default_factory=list)  # verdicts and answers, no question
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -188,11 +190,11 @@ def table_columns(path: Path) -> list[str]:
 
     text = _head(path).decode("utf-8", errors="replace").removeprefix("﻿")
     first = re.split(r"\r\n|\r|\n", text, maxsplit=1)[0]  # a CR-only file too
-    if path.suffix.lower() == ".jsonl" and "\n" not in text:  # a first line over HEAD_BYTES
+    if path.suffix.lower() in JSONL_SUFFIXES and "\n" not in text:  # a first line over HEAD_BYTES
         with path.open("rb") as f:
             first = f.readline(MAX_BYTES).decode("utf-8", errors="replace")
         first = first.removeprefix("﻿").rstrip("\r\n")
-    if path.suffix.lower() == ".jsonl":
+    if path.suffix.lower() in JSONL_SUFFIXES:
         try:
             row = json.loads(first)
         except ValueError:
@@ -229,6 +231,20 @@ def judge_table_without_answers(columns) -> bool:
     verdicts = any(w & _VERDICT_WORDS or (w & _JUDGE_WORDS and w & _DECISION_WORDS)
                    for w in words)
     return verdicts and not any(w & _ANSWER_WORDS for w in words)
+
+
+_QUESTION_WORDS = frozenset({"input", "prompt", "question", "query", "instruction", "message",
+                             "request"})
+
+
+def judge_table_without_questions(columns) -> bool:
+    """A table of a judge's verdicts and the answers, with no column holding the question:
+    the answers can't be shown for marking without what they answer."""
+    words = [_column_words(c) for c in columns]
+    verdicts = any(w & _VERDICT_WORDS or (w & _JUDGE_WORDS and w & _DECISION_WORDS)
+                   for w in words)
+    return (verdicts and any(w & _ANSWER_WORDS for w in words)
+            and not any(w & _QUESTION_WORDS for w in words))
 
 
 def title_row(path: Path) -> bool:
@@ -307,7 +323,7 @@ def classify_file(path: Path) -> str | None:
         return "inspect"
     if path.name == "mlflow.db":
         return "mlflow"
-    if suffix == ".jsonl" and is_records(table_columns(path)):
+    if suffix in JSONL_SUFFIXES and is_records(table_columns(path)):
         return "records"
     if suffix in TABLE_SUFFIXES:
         return "table" if is_table(table_columns(path)) else None
@@ -462,7 +478,7 @@ class _Walk:
                 self.skip(path, NOT_UTF8)
                 return
             columns = table_columns(path)
-            if suffix == ".jsonl" and is_records(columns):  # record()'s format, moved
+            if suffix in JSONL_SUFFIXES and is_records(columns):  # record()'s format, moved
                 self.add("records", path, size)
             elif is_table(columns):
                 self.add("table", path, size)
@@ -470,9 +486,11 @@ class _Walk:
                 self.search.unreadable.append((self.rel(path), TITLE_ROW))
             elif judge_table_without_answers(columns):
                 self.search.judge_only.append(self.rel(path))
+            elif judge_table_without_questions(columns):
+                self.search.no_question.append(self.rel(path))
         elif suffix in TABLE_SUFFIXES and _results_like(path):  # deeper than tables are read
             columns = table_columns(path)
-            if is_table(columns) or (suffix == ".jsonl" and is_records(columns)):
+            if is_table(columns) or (suffix in JSONL_SUFFIXES and is_records(columns)):
                 self.skip(path, _down(depth - 1))
             elif judge_table_without_answers(columns):
                 self.search.judge_only.append(self.rel(path))
@@ -580,7 +598,7 @@ def records_above(folder: str | Path) -> Path | None:
     records = root / RECORDS_DIR
     try:
         if records.is_dir() and not records.is_symlink() and any(
-                p.suffix == ".jsonl" and p.is_file() for p in records.iterdir()):
+                p.suffix in JSONL_SUFFIXES and p.is_file() for p in records.iterdir()):
             return root
     except OSError:
         return None
