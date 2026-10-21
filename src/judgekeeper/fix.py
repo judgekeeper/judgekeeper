@@ -56,7 +56,7 @@ from judgekeeper import __version__, batches, marks, reasons, start_fix_rule, ta
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.redact import one_line, scrub
-from judgekeeper.start_label import Workspace, next_marks, shown_folder
+from judgekeeper.start_label import Workspace, every_marked, next_marks, shown_folder
 from judgekeeper.textio import (
     jsonl_lines,
     make_private,
@@ -99,6 +99,10 @@ CANT_ASK = "judgekeeper can't ask this judge itself."
 CANT_RERUN = "judgekeeper can't re-run this kind of judge itself"  # the result page's words
 NEXT_CANT_ASK = ("change its rule where your eval keeps it, run your eval, then run "
                  "`{command}`.")
+# A rule test waits for its top-up: said first, then the clues as on a first run
+TOP_UP_WAITING = ("Your last rule test is waiting for more marks: it couldn't tell yet. {step}, "
+                  "and `{command}` tests that rule again on them.")
+TOP_UP_EVAL = "Run your eval on more questions and mark the new answers"  # every answer marked
 
 # The patterns: only when strong, from at least FEW mistakes
 FEW = 3
@@ -751,7 +755,7 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
         talk.next(next_marks(ws, step) if ws is not None else step)
         return EXIT_NEEDS_YOU
     if waiting:
-        return _waiting(talk, ws, split, rule)
+        return _waiting(talk, ws, m, split, rule)
     if rule is not None:
         return test_rule(talk, ws, m, split, rule, yes)
     tested = _tested_rule(ws, split) if testable and not new else None
@@ -783,9 +787,10 @@ def _after_worse(state, m: Marks) -> None:
         m.judge_now(found)
 
 
-def _waiting(talk: Talk, ws: Workspace, split: Split, rule: str | None = None) -> int:
+def _waiting(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str | None = None) -> int:
     """New marks are needed first: for the top-up, or for a new set of hidden marks. A new
-    rule in rule.txt (`rule`) waits for them, and that is said."""
+    rule in rule.txt (`rule`; an empty file is none) waits for them, and that is said. While a
+    top-up waits, the clues show as on a first run: the step is never empty."""
     if split.fresh:
         want, then = split.fresh["want"], ": they become a new set of marks kept aside"
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
@@ -795,29 +800,44 @@ def _waiting(talk: Talk, ws: Workspace, split: Split, rule: str | None = None) -
         if n:
             talk.say()
             talk.para(_saved_line(ws, n))
+    elif not m.can_test():  # the waiting test can't run again: what fix can do for this judge
+        return first_run(talk, ws, m, split)
     else:
         want, then = split.topup["want"], ""
-    if split.pending:
-        talk.para(f"You have marked {len(split.pending)} of the {want} more answers.")
     left = want - len(split.pending)
-    if rule is not None:
+    lines = []
+    if split.pending:
+        lines.append(f"You have marked {len(split.pending)} of the {want} more answers.")
+    if rule:
         after = ("the rule before it is tested again; then it is tested" if not split.fresh
                  else "it is tested on them")
-        talk.para(f"Your new rule is waiting: first mark {plural(left, 'more answer')}, then "
-                  f"{after}.")
-    talk.next(next_marks(ws, f"mark {plural(left, 'more answer')} with `{program('mark')}`, "
-                             f"then run `{talk.command()}` again{then}."))
-    return EXIT_NEEDS_YOU
+        lines.append(f"Your new rule is waiting: first mark {plural(left, 'more answer')}, then "
+                     f"{after}.")
+    step = next_marks(ws, f"mark {plural(left, 'more answer')} with `{program('mark')}`, "
+                          f"then run `{talk.command()}` again{then}.")
+    if split.fresh:
+        for line in lines:
+            talk.para(line)
+        talk.next(step)
+        return EXIT_NEEDS_YOU
+    more = TOP_UP_EVAL if every_marked(ws) else f"Mark {plural(left, 'more answer')}"
+    talk.para(TOP_UP_WAITING.format(step=more, command=talk.command()))
+    talk.say()
+    return first_run(talk, ws, m, split, then=(lines, step))
 
 
-def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
+def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split,
+              then: tuple[list[str], str] | None = None) -> int:
     """Screen 5a: where the judge goes wrong on the seen marks, mistakes.md, the pass mark,
-    where the rule lives, the hidden marks, and what to do next."""
+    where the rule lives, the hidden marks, and what to do next. While a rule test waits for
+    more marks, `then` is (its lines, its next step), said in place of the usual next step."""
     data = m.data
     seen_rows = [m.row(i) for i in split.seen]
     wrong = mistakes(seen_rows)
     if not wrong:
         talk.para("Your judge agrees with every mark you can see, so there is nothing to fix.")
+        if then is not None:
+            return _then(talk, then)
         talk.next(f"nothing to do. When you change your judge or update your eval tool, run "
                   f"`{talk.command('check')}`.")
         return EXIT_OK
@@ -869,8 +889,20 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.para(CANT_ASK)
         talk.next(NEXT_CANT_ASK.format(command=talk.command("check")))
         return EXIT_NEEDS_YOU
+    if then is not None:
+        return _then(talk, then)
     talk.next(f"write your new rule in {folder}/{RULE}, then run `{talk.command()}` again to "
               "test it.")
+    return EXIT_OK
+
+
+def _then(talk: Talk, then: tuple[list[str], str]) -> int:
+    """The end of a first run while a rule test waits: its lines, and its one next step."""
+    lines, step = then
+    for line in lines:
+        talk.say()
+        talk.para(line)
+    talk.next(step)
     return EXIT_OK
 
 

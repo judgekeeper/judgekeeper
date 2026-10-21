@@ -504,9 +504,10 @@ def test_one_top_up_after_cant_tell_goes_to_the_hidden_marks(here, capsys, judge
                          "`judgekeeper fix` again.")
     first = _mark_more(ws, 3, 40)
     code, out = run(capsys)
-    assert code == 3 and judge["evals"] == 2
+    assert code == 0 and judge["evals"] == 2  # the clues, while the test waits
     flat = " ".join(out.split())
-    assert f"You have marked 3 of the {more} more answers." in flat
+    assert flat.index(f"it couldn't tell yet. Mark {more - 3} more answers, and") < flat.index(
+        "Clues:") < flat.index(f"You have marked 3 of the {more} more answers.")
     assert flat.endswith(f"Next: mark {more - 3} more answers with `judgekeeper mark`, then "
                          "run `judgekeeper fix` again.")
     rest = _mark_more(ws, more - 3, 40)
