@@ -691,8 +691,9 @@ def read_records(path: str | Path, column_map: str | dict | None = None,
         n_big += size > BIG
         records.append(rec)
     if records.left_out and not records:
-        raise Damaged(f"{path.name} is damaged: {_each(records.left_out, 'line')} has a damaged "
-                      "field.",
+        where = (f"line {records.left_out[0]}" if len(records.left_out) == 1
+                 else _each(records.left_out, "line"))
+        raise Damaged(f"{path.name} is damaged: {where} has a damaged field.",
                       "run your eval again (it writes new records), then run `{command}`.")
     records.warnings += file_warnings(path.name, records, n_big)
     if cut:

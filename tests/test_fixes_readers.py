@@ -1,7 +1,7 @@
-"""Fixes from the third bug hunt: provider errors read as the judge's Fail, judge columns taken
-without asking, report.html after a check that ends Worse, the marking page's reasons, batches
-and the reading of damaged files. Every fixture here is made up, with the shape of the files
-the hunt used.
+"""Provider errors read as the judge's Fail, judge columns taken without asking, a range of no
+width for a judge that gives every answer one grade, report.html after a check that ends Worse,
+and the reading of damaged and far-away files. Every fixture here is made up, with the shape of
+the files that showed each problem.
 """
 
 from __future__ import annotations
@@ -297,3 +297,67 @@ def test_a_minimal_mlflow_folder_is_damaged_and_gets_no_trash(here, capsys):
     assert "didn't expect" not in out, out
     assert "mlruns can't be read: it's damaged" in flat(out)
     assert not (here / "mlruns" / ".trash").exists()
+
+
+# Wording -------------------------------------------------------------------------------------
+
+def test_repeats_with_different_grades_never_say_each_is_counted_once(here, capsys):
+    data = promptfoo_data(split(9, 9))
+    rows = data["results"]["results"]
+    extra = []
+    for k, verdict in enumerate((True, False)):  # one answer graded twice more, differently
+        row = json.loads(json.dumps(rows[0]))
+        row["testIdx"] = 100 + k
+        row["success"] = row["gradingResult"]["pass"] = verdict
+        row["gradingResult"]["componentResults"][0]["pass"] = verdict
+        extra.append(row)
+    same = json.loads(json.dumps(rows[1]))  # and another twice, with the same grade
+    same["testIdx"] = 102
+    data["results"]["results"] = rows + extra + [same]
+    (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
+    _, out = run(capsys)
+    assert "so each is counted once)" not in flat(out), out
+    assert "counted once unless its grades differ" in flat(out)
+
+
+def test_every_judge_column_is_in_what_one_line_holds(here, capsys):
+    rows = [[question(i), f"A full answer number {i}.", "Pass" if i % 2 else "Fail",
+             "Fail" if i % 3 == 0 else "Pass"] for i in range(60)]
+    write_csv(here / "results.csv", ["question", "answer", "check_verdict", "llm_verdict"], rows)
+    _, out = run(capsys)
+    holds = out[out.index("holds:"):out.index("How judgekeeper reads it")]
+    assert "check_verdict" in holds and "llm_verdict" in holds
+
+
+def test_an_expected_output_column_is_not_a_second_answer(here, capsys):
+    rows = [[question(i), f"A full answer number {i}.", f"The right answer {i}.",
+             "FAIL" if i % 3 == 0 else "PASS"] for i in range(40)]
+    write_csv(here / "eval_results.csv", ["question", "output", "expected_output", "llm_grade"],
+              rows)
+    _, out = run(capsys)
+    assert "Count each as its own answer" not in out, out
+    assert "output and expected_output" not in out
+
+
+def test_a_records_file_with_one_damaged_line_names_it(here, capsys):
+    from judgekeeper.records import Damaged, read_records
+
+    path = here / "results.jsonl"
+    path.write_text(json.dumps({"target_id": "a", "name": "j", "annotator_kind": "LLM",
+                                "label": {"x": [1]}, "score": "not a number"}) + "\n",
+                    encoding="utf-8")
+    with pytest.raises(Damaged) as e:
+        read_records(path, bad_lines_ok=True)
+    assert "line 1 has a damaged field" in str(e.value)
+
+
+def test_a_promptfoo_table_inside_results_is_named_as_the_table_output(here, capsys):
+    body = [{"outputs": [{"text": f"Answer {k}", "pass": k % 2 == 0}], "vars": [f"Q {k}"]}
+            for k in range(40)]
+    table = {"head": {"prompts": [{"raw": "Answer {{q}}", "label": "p"}], "vars": ["q"]},
+             "body": body}
+    (here / "table.json").write_text(json.dumps({"results": {"table": table}}),
+                                     encoding="utf-8")
+    _, out = run(capsys, "table.json")
+    assert "isn't a promptfoo results file" not in out, out
+    assert "table output" in flat(out)

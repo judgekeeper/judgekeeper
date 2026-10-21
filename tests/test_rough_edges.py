@@ -104,7 +104,7 @@ def test_the_framework_readers_say_a_file_is_not_utf8(tmp_path, monkeypatch, rea
     path = _write(tmp_path / name, '{"note": "caf\u00e9"}\n', "cp1252")
     with pytest.raises(RecordsError, match="not saved as UTF-8") as e:
         reader(path)
-    assert str(path) in str(e.value)
+    assert path.name in str(e.value) and str(path.parent) not in str(e.value)  # never the path
     assert "Excel" not in str(e.value)  # the spreadsheet advice is for spreadsheet files
 
 

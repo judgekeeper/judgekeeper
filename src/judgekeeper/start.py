@@ -555,9 +555,9 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
             except UNREADABLE:
                 raise unreadable(r.path, "records") from None
         except RecordsError as e:
-            text = str(e)
+            text = str(e).removeprefix(f"{r.path.name} is damaged: ")
             text = text[text.find("line "):] if "line " in text else text
-            talk.say(f"  {r.rel} could not be read ({text}), so it was left out.")
+            talk.say(f"  {r.rel} could not be read ({text.rstrip('.')}), so it was left out.")
             continue
         if CUT_END in records.notes:
             talk.say(f"  Note: the last line of {r.rel} was cut short (the program stopped while "

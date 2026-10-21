@@ -45,6 +45,8 @@ SCORE_WORDS = ("score", "verdict", "passed", "pass", "label", "success", "grade"
                "judgment", "judgement")
 REASON_WORDS = ("reason", "reasoning", "explanation", "rationale", "comment", "feedback",
                 "justification", "why")
+# An answer's reference (expected_output, reference_answer, ground_truth): never the answer
+REFERENCE_WORDS = ("expected", "reference", "gold", "ideal", "target", "ground", "truth")
 CRITERIA_WORDS = ("scores", "metrics", "criteria", "judges", "evaluations", "grades",
                   "ratings", "results")
 ID_KEYS = ("id", "case_id", "item_id", "example_id", "sample_id", "test_id", "uid")
@@ -249,8 +251,8 @@ def _example(value) -> str:
 
 def listing(unit, judges=()) -> list[tuple[str, str]]:
     """[(path, example value)] of every leaf in a unit: the first element of each list,
-    and of the keys in `judges` only the first, by its real name (the others have the same
-    shape)."""
+    and of the keys in `judges` that hold parts of their own only the first, by its real name
+    (the others have the same shape); judges that are columns of their own are each listed."""
     out, seen = [], set()
 
     def walk(obj, prefix, depth):
@@ -259,7 +261,7 @@ def listing(unit, judges=()) -> list[tuple[str, str]]:
         present = [j for j in judges if j in obj]  # the first judge stands for them all
         for key, value in obj.items():
             key = str(key)
-            if key in judges and key != present[0]:
+            if key in judges and key != present[0] and (prefix or isinstance(value, dict)):
                 continue
             seg = [*prefix, (key, False)]
             if isinstance(value, dict) and value:
@@ -386,6 +388,7 @@ def _text_like(values) -> bool:
 def _outputs(item: dict) -> list[tuple]:
     return [seg for seg, v in _leaves(item) if isinstance(v, str)
             and any(_is(k, OUTPUT_WORDS) for k in seg) and not _is(seg[-1], REASON_WORDS)
+            and not _is(seg[-1], REFERENCE_WORDS)  # expected_output: the reference answer
             and not any(_is(k, INPUT_WORDS) for k in seg) and not _setting(seg)]
 
 

@@ -167,6 +167,8 @@ def sniff_json(head: bytes) -> str | None:
     if (re.search(r'"eval"\s*:', text) and re.search(r'"(status|samples)"\s*:', text)
             and not re.search(r'"(evalId|promptfooVersion)"\s*:', text)):
         return "inspect"
+    if re.search(r'"results"\s*:\s*\{\s*"table"\s*:\s*\{\s*"head"\s*:', text):
+        return PROMPTFOO_TABLE  # the table output inside a results object
     if re.search(r'"results"\s*:\s*\{', text) and re.search(
             r'"(evalId|promptfooVersion|prompts|stats)"\s*:', text):
         return "promptfoo"
