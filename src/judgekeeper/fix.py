@@ -100,6 +100,20 @@ CANT_ASK = "judgekeeper can't ask this judge itself."
 CANT_RERUN = "judgekeeper can't re-run this kind of judge itself"  # the result page's words
 NEXT_CANT_ASK = ("change its rule where your eval keeps it, run your eval, then run "
                  "`{command}`.")
+# Inspect's model_graded_qa / _fact with no instructions= (rule None): Inspect's own text, which
+# no public Inspect AI function gives, so it is not in the person's code to swap
+INSPECT_DEFAULT = ("judgekeeper can't ask this judge itself: Inspect's default {scorer} "
+                   "instructions aren't written in your code. To test a rule, set instructions= "
+                   "in {scorer}(...) and run your eval again.")
+
+
+def cant_ask_line(data: dict) -> str:
+    """Why judgekeeper can't test a rule for this judge, in one line."""
+    scorer = str(data.get("metric") or "").split("/")[-1]
+    if data.get("tool") == "inspect" and not data.get("rule") and scorer in (
+            "model_graded_qa", "model_graded_fact"):
+        return INSPECT_DEFAULT.format(scorer=scorer)
+    return CANT_ASK
 # A rule test waits for its top-up: said first, then the clues as on a first run
 TOP_UP_WAITING = ("Your last rule test is waiting for more marks: it couldn't tell yet. {step}, "
                   "and `{command}` tests that rule again on them.")
@@ -913,7 +927,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split,
                   "fairly.")
     if not can_test(tool, rule):
         talk.say()
-        talk.para(CANT_ASK)
+        talk.para(cant_ask_line(data))
         talk.next(NEXT_CANT_ASK.format(command=talk.command("check")))
         return EXIT_NEEDS_YOU
     if then is not None:

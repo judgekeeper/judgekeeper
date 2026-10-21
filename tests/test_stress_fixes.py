@@ -393,3 +393,31 @@ def test_check_says_how_many_marks_were_not_re_checked(tmp_path, capsys, monkeyp
     assert "Next: nothing to do" not in flat
     assert "Next: 6 marks were not re-checked. Run `" in flat
     assert "check` again to ask your judge about them." in flat
+
+
+# 6. fix, for model_graded_qa with Inspect's default instructions ------------------------------
+
+def test_fix_says_why_it_cant_test_inspects_default_instructions(tmp_path, capsys, monkeypatch):
+    from judgekeeper.cli import main
+    from tests.start_projects import inspect_data, save_result, split
+
+    data = inspect_data(split(40, 40))
+    for s in data["eval"]["scorers"]:
+        s["options"] = {}  # model_graded_qa() as written: Inspect's own instructions
+    path = tmp_path / "logs" / "2026-10-21_qa.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+    monkeypatch.setitem(__import__("sys").modules, "inspect_ai", None)  # read as JSON
+    ws = start_label.prepare(start.find_judge(tmp_path), say=_quiet)
+    session = StartSession(ws)
+    for n, q in enumerate(ws.data()["queue"]):
+        session.update({"id": q["id"], "label": q["group"] if n % 4 else
+                        ("fail" if q["group"] == "pass" else "pass")})
+    save_result(ws, session, say=_quiet)
+    monkeypatch.chdir(tmp_path)
+    capsys.readouterr()
+    main(["fix"])
+    out = " ".join(capsys.readouterr().out.split())
+    assert ("judgekeeper can't ask this judge itself: Inspect's default model_graded_qa "
+            "instructions aren't written in your code. To test a rule, set instructions= in "
+            "model_graded_qa(...) and run your eval again.") in out, out
