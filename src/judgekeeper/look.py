@@ -82,7 +82,7 @@ code, kbd { font-family: var(--mono); }
 .meta { justify-self: start; display: grid; grid-template-columns: auto auto; gap: 2px 12px;
   align-items: baseline; min-width: 0; line-height: 1.4; }
 .meta .k { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
-  color: var(--faint); }
+  color: var(--muted); }
 .meta .v { font-family: var(--mono); font-size: 12.5px; color: var(--text); white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .brand { display: flex; align-items: center; gap: 11px; color: var(--text); justify-self: center;

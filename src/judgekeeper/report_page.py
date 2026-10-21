@@ -241,7 +241,9 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .panel thead td { border-bottom: 1px solid var(--line); }
 .panel td { font-size: 17px; padding: 20px 32px 20px 0; border-bottom: 1px solid var(--line);
   vertical-align: top; }
-.panel td + td { font-family: var(--mono); font-size: 15px; white-space: nowrap; }
+.panel tbody th { font-family: var(--sans); font-size: 17px; font-weight: 400; letter-spacing: 0;
+  text-transform: none; color: var(--text); padding: 20px 32px 20px 0; vertical-align: top; }
+.panel tbody td { font-family: var(--mono); font-size: 15px; white-space: nowrap; }
 .kappa { position: relative; display: inline-block; }
 .kappa .i { font-size: 15px; color: var(--muted); margin-left: 6px; line-height: 1; }
 .kappa .tip { position: absolute; left: 0; bottom: calc(100% + 8px); width: min(320px, 80vw);
@@ -282,10 +284,10 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .tbl tr.has-why { border-bottom: 0; padding-bottom: 8px; }
   .tbl tr.why-row { padding-top: 0; }
   .tbl td.why-cell::before { content: none; }
-  .panel, .panel tbody, .panel tr, .panel td, .panel caption { display: block; }
+  .panel, .panel tbody, .panel tr, .panel th, .panel td, .panel caption { display: block; }
   .panel tr { padding: 12px 0; border-bottom: 1px solid var(--line); }
-  .panel td { border: 0; padding: 0; }
-  .panel td + td { margin-top: 4px; }
+  .panel th, .panel td { border: 0; padding: 0; }
+  .panel tbody td { margin-top: 4px; }
   .panel td[data-label]::before { content: attr(data-label) " "; font-family: var(--sans);
     color: var(--muted); font-size: 13px; }
   .fix { margin-top: 48px; padding-top: 40px; padding-bottom: 56px; }
@@ -608,10 +610,10 @@ def _details(r: dict) -> str:
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
-    body = "".join(f'<tr><td>{_e(name)}</td><td data-label="Estimate">{_e(est)}</td>'
+    body = "".join(f'<tr><th scope="row">{_e(name)}</th><td data-label="Estimate">{_e(est)}</td>'
                    f'<td data-label="Between">{_e(between)}</td></tr>'
                    for name, est, between in rows)
-    body += (f'<tr><td>{tip}</td><td data-label="Estimate">'
+    body += (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">'
              f'{_two(kappa) if kappa is not None else "–"}</td><td data-label="Between">'
              f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
     return ('<section class="details band" aria-labelledby="details-h">'

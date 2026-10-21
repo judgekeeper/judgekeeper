@@ -850,3 +850,21 @@ def test_the_pages_name_the_eval_tool_as_the_terminal_does(tool, files, name):
                                                             "results_files": files}))
     for page in (marking, result):
         assert f'Eval tool:</span><span class="v">{escape(name)}</span>' in page
+
+
+def test_the_top_bar_labels_and_the_details_table_are_readable_by_everyone():
+    """The Judge and Eval tool labels at 4.5:1; every value in More details has a column and a
+    row header, so a screen reader says what each number is."""
+    colours = _tokens()
+    label = re.search(r"\.meta \.k \{([^}]*)\}", look.BASE).group(1)
+    colour = re.search(r"color: var\(--([a-z-]+)\)", label).group(1)
+    assert _contrast(colours[colour], colours["bg"]) >= 4.5, colour
+    html = _served()["report.html"]
+    table = html[html.index('<table class="panel">'):html.index("</table>",
+                                                                 html.index('<table class="panel">'))]
+    rows = re.findall(r"<tr>(.*?)</tr>", table.split("<tbody>")[1])
+    assert len(rows) == 3
+    for row in rows:
+        assert row.startswith('<th scope="row">'), row
+        assert row.count("<td") == 2
+    assert '<th scope="col">Estimate</th><th scope="col">Between</th>' in table
