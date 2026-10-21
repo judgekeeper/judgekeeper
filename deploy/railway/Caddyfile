@@ -26,6 +26,10 @@
 	# site. ">" sets the policy when the response is written, after the site's own above.
 	@check path /check /check.html
 	header @check >Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+	# The example reports are judgekeeper's own report.html: one inline script (Show all, Copy)
+	# and fonts inside the file. Only under /examples/ may a page run them.
+	@examples path /examples/*
+	header @examples >Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 	# Old addresses go to the page that has their content now.
 	redir /setup /start#keys 301
 	redir /setup.html /start#keys 301

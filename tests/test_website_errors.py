@@ -90,6 +90,26 @@ def test_the_security_headers_apply_to_every_response():
     assert other and other.group(1).strip() == "import security"
 
 
+def _policies() -> dict[str, str]:
+    """The Content-Security-Policy each matcher sets: "" for the site's own (the snippet)."""
+    out = {"": re.search(r'Content-Security-Policy "([^"]+)"', CADDYFILE).group(1)}
+    for name, policy in re.findall(r'header @(\w+) >Content-Security-Policy "([^"]+)"', CADDYFILE):
+        out[name] = policy
+    return out
+
+
+def test_only_the_example_reports_may_run_inline_scripts_and_fonts_in_the_file():
+    policies = _policies()
+    assert set(policies) == {"", "check", "examples"}
+    assert re.search(r"^\t@examples path /examples/\*$", CADDYFILE, flags=re.MULTILINE)
+    site, report = policies[""], policies["examples"]
+    assert "unsafe-inline" not in site.replace("style-src 'self' 'unsafe-inline'", "")
+    assert "font-src" not in site and "script-src" not in site
+    # the report's policy is the site's, plus these two and nothing else
+    extra = "script-src 'self' 'unsafe-inline'; font-src 'self' data:; "
+    assert sorted(report.split("; ")) == sorted(site.split("; ") + extra.rstrip("; ").split("; "))
+
+
 SECURITY = ("Content-Security-Policy", "Strict-Transport-Security", "X-Content-Type-Options",
             "X-Frame-Options", "Referrer-Policy")
 
@@ -111,6 +131,21 @@ def test_the_image_sends_the_headers_and_no_server_on_every_status(method, path,
     for name in SECURITY:
         assert headers.get(name), (path, name)
     assert headers.get("Server") is None
+
+
+@pytest.mark.skipif(not os.environ.get("JK_SITE_URL"), reason="needs the site's image running")
+@pytest.mark.parametrize(("path", "loose"), [
+    ("/examples/site-example/report.html", True), ("/examples/", True), ("/", False),
+    ("/start", False), ("/check", False), ("/examples/nope/x", False), ("/examplesx", False)])
+def test_the_image_loosens_the_policy_only_for_the_example_reports(path, loose):
+    request = urllib.request.Request(os.environ["JK_SITE_URL"].rstrip("/") + path)
+    try:
+        with urllib.request.urlopen(request, timeout=10) as reply:
+            policy = reply.headers["Content-Security-Policy"]
+    except urllib.error.HTTPError as error:
+        policy = error.headers["Content-Security-Policy"]
+    assert ("script-src 'self' 'unsafe-inline'" in policy) is loose, path
+    assert ("font-src 'self' data:" in policy) is loose, path
 
 
 def test_its_frame_is_the_sites_frame_with_links_from_the_root():
