@@ -27,7 +27,8 @@ from the other. The whole pool is queued. The seed is saved, so the queue can be
   and one line in history.jsonl for each result made from marks that changed: the judge, the
   counts and the numbers, no answer text and no ids. report.html is written first, then the
   history line, then result.json, each renamed into place; a run stopped half way is repaired
-  by the next one (repair).
+  by the next one (repair). A result whose numbers were worked out another way (its
+  numbers_version) is made again from the marks before it is shown (recompute_old).
 - fix/: fixing the judge with `judgekeeper fix` (fix.py).
 - .gitignore: written when a first check starts in the folder, if there is none, so the
   answers stay off Git (all but judge.json and history.jsonl). Never overwritten, except the
@@ -128,6 +129,10 @@ NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the n
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
+# How the numbers are worked out: one more whenever the Measure maths changes. A result saved
+# with another (or none: 1.0.0b1) is worked out again from the marks before it is shown.
+NUMBERS_VERSION = 2
+WORKED_OUT_AGAIN = "Your numbers were worked out again with this version of judgekeeper."
 
 
 class Workspace:
@@ -865,7 +870,10 @@ def _last_check(ws: Workspace, worse: str | None) -> dict | None:
 
 
 def write_report(ws: Workspace, worse: str | None = None) -> None:
-    """report.html again from the saved result; nothing when there is no result yet."""
+    """report.html again from the saved result (made again first when it was worked out
+    another way: recompute_old); nothing when there is no result yet."""
+    if recompute_old(ws, worse=worse):
+        return
     try:
         r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -951,7 +959,7 @@ def compute(ws: Workspace, session: StartSession) -> dict:
         r["batches"] = about
     r.update(skipped=session.counts()["skipped"], disagreements=disagreements,
              left=sum(1 for item in session.items if not item["label"]),
-             made_at=utc_now(),
+             made_at=utc_now(), numbers_version=NUMBERS_VERSION,
              judgekeeper_version=__version__, fingerprint=data["fingerprint"],
              judge={"name": data["judge"], "tool": data["tool"], "metric": data["metric"],
                     "rule": data.get("rule"), "one_rule": data.get("one_rule", True),
@@ -980,12 +988,33 @@ def marks_digest(ws: Workspace, session: StartSession) -> str:
 
 
 def _same_result(ws: Workspace, digest: str) -> dict | None:
-    """The saved result, when it was made from these same marks."""
+    """The saved result, when it was made from these same marks, with these numbers."""
     try:
         saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    return saved if isinstance(saved, dict) and saved.get("marks_sha256") == digest else None
+    return saved if isinstance(saved, dict) and saved.get("marks_sha256") == digest and \
+        saved.get("numbers_version") == NUMBERS_VERSION else None
+
+
+def recompute_old(ws: Workspace, worse: str | None = None) -> bool:
+    """When result.json was worked out another way (NUMBERS_VERSION): the result made again
+    from start.json and the marks, with no AI call, the old one copied to history/. Whether it
+    was. A result that can't be made again is left as it was saved."""
+    try:
+        saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(saved, dict) or "labels" not in saved or \
+            saved.get("numbers_version") == NUMBERS_VERSION:
+        return False
+    command = saved.get("command")
+    try:
+        store_result(ws, StartSession(ws), command if isinstance(command, str) else None,
+                     worse=worse)
+    except (OSError, ValueError, KeyError, TypeError, marks.MarksError):
+        return False
+    return True
 
 
 def history_line(ws: Workspace, r: dict) -> dict:
