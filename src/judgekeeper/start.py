@@ -446,6 +446,13 @@ def read_results_table(path: Path) -> RecordList:
     if verdict is None or "input" not in columns or "output" not in columns:
         raise StartError(f"{path.name} needs input, output and verdict columns; columns are: "
                          f"{', '.join(columns)}")
+    header = path.suffix.lower() in (".csv", ".tsv")  # a CSV's first line names the columns
+    for n, row in enumerate(rows, 1):  # a JSON object or list: no grade (CSV values are text)
+        if any(isinstance(row.get(v), dict | list) for v in verdicts):
+            raise StartError(f"line {n + header} of {path.name} has a verdict judgekeeper "
+                             "can't read: an object or a list, not a grade.",
+                             f"write a grade (pass or fail) in the verdict of line {n + header} "
+                             f"of {path.name}, then run `{{command}}`.")
     human = next((c for c in HUMAN_COLUMNS if c in columns), None)
     records = RecordList(ids_derived=not own)
     if "id" in columns and not own:
