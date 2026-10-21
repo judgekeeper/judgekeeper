@@ -2,7 +2,7 @@
 
 # judgekeeper
 
-<p><a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/v/judgekeeper" alt="PyPI version"></a> <a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/pyversions/judgekeeper" alt="Python 3.11 to 3.14"></a> <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests on main"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/judgekeeper/judgekeeper" alt="MIT license"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"><img src="https://img.shields.io/pypi/status/judgekeeper" alt="Status: beta"></a></p>
+<p><a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/v/judgekeeper" alt="PyPI version"></a> <a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/pyversions/judgekeeper" alt="Python 3.11 to 3.14"></a> <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests on main"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/judgekeeper/judgekeeper" alt="MIT license"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"><img src="https://img.shields.io/pypi/status/judgekeeper" alt="Development status"></a></p>
 
 **Check your LLM-as-a-judge in 5 steps.**
 
@@ -10,23 +10,25 @@ Find. Mark. Measure. Fix. Re-check.
 
 An LLM-as-a-judge is an AI model that grades the answers of another AI model. judgekeeper shows how often your judge agrees with you, where it goes wrong, and whether a new rule does better, in your own terminal.
 
+Website and guide: [www.judgekeeper.com](https://www.judgekeeper.com)
+
 <p align="center"><img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/readme-label.png" width="720" alt="The marking page: a question, the answer, and equal Fail and Pass buttons. What your judge decided stays hidden."></p>
 
 ## Install
 ```
 cd your-project
-uvx judgekeeper@1.0.0b2
+uvx judgekeeper
 ```
 
-You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). The version is in the command because uv and pip skip betas unless you name one. Without uv, install it in your project's own Python environment, then run it:
+You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). Without uv, install it in your project's own Python environment, then run it:
 ```
-pip install judgekeeper==1.0.0b2
+pip install judgekeeper
 judgekeeper
 ```
 
 ## The 5 steps
 
-Run it in your own terminal. Each run does the next step and ends with one `Next:` line. (With uv, type `uvx judgekeeper@1.0.0b2` where it says `judgekeeper`; judgekeeper prints its commands that way too.)
+Run it in your own terminal. Each run does the next step and ends with one `Next:` line. (With uv, type `uvx judgekeeper` where it says `judgekeeper`.)
 
 1. **Find.** `judgekeeper` reads the results your eval tool already saved, names your judge and checks its grades with no AI call. It can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV or JSONL file.
 2. **Mark.** It opens a page in your browser. You mark answers Pass or Fail without seeing what your judge said; `judgekeeper mark` opens it again to mark more.
@@ -50,7 +52,7 @@ TPR: of the answers you passed, how many your judge passed. TNR: of the answers 
 
 ## Status
 
-Beta (1.0.0b2): commands and report fields may still change. `judgekeeper --help` lists every flag, the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) explains each one, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed.
+Version 1.0. The [guide](https://www.judgekeeper.com/start.html) walks through the 5 steps. `judgekeeper --help` lists every flag, the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) explains each one, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed.
 
 ## Issues
 

@@ -19,8 +19,8 @@ yaml = pytest.importorskip("yaml")
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
-VERSION = "1.0.0b2"
-BETA = "Development Status :: 4 - Beta"
+VERSION = "1.0.0"
+STABLE = "Development Status :: 5 - Production/Stable"
 EXAMPLE = ROOT / "docs" / "examples" / "llmbar-haiku"
 
 
@@ -46,9 +46,21 @@ def test_versions_agree():
 
     main = _toml(ROOT / "pyproject.toml")["project"]
     assert main["version"] == __version__ == VERSION
-    assert BETA in main["classifiers"]
+    assert STABLE in main["classifiers"]
+    assert not [c for c in main["classifiers"] if c.startswith("Development Status")
+                and c != STABLE]
     for minor in ("3.11", "3.12", "3.13", "3.14"):
         assert f"Programming Language :: Python :: {minor}" in main["classifiers"]
+
+
+def test_package_says_what_it_is_for_whom_and_where_it_runs():
+    main = _toml(ROOT / "pyproject.toml")["project"]
+    assert main["description"] == "Check your LLM-as-a-judge in 5 steps."
+    for needed in ("Intended Audience :: Developers", "Environment :: Console",
+                   "Operating System :: MacOS", "Operating System :: Microsoft :: Windows",
+                   "Operating System :: POSIX :: Linux",
+                   "Topic :: Scientific/Engineering :: Artificial Intelligence"):
+        assert needed in main["classifiers"], needed
 
 
 def test_no_pytest_plugin_and_no_api_extras():
@@ -70,6 +82,7 @@ def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = re.findall(r"^## (\S+)", text, flags=re.MULTILINE)
     assert entries == [VERSION, "1.0.0b1", "0.1.3", "0.1.2", "0.1.1", "0.1.0"]
+    assert "1.0.0b2" not in text  # never released: its entry is part of 1.0.0
 
 
 # Workflows
@@ -268,18 +281,19 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
 
 # The README and the changelog (the README's own contract is in test_docs.py)
 
-def test_changelog_entry_says_1_0_is_commands_you_run():
+def test_changelog_entry_says_what_1_0_does():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    entry = text[text.index(f"## {VERSION}"):text.index("## 1.0.0b1")]
+    entry = text[text.index(f"## {VERSION} "):text.index("## 1.0.0b1")]
     assert len(entry.strip().splitlines()) < 20
     flat = " ".join(entry.split())
-    removed = ("Removed: automatic checks, the GitHub Action and the agent skill. 1.0 is "
-               "commands you run yourself; agent support may come back later.")
-    for needed in (f"`uvx judgekeeper@{VERSION}`", f"`pip install judgekeeper=={VERSION}`",
-                   "`judgekeeper check`", "asks first",
-                   "Find. Mark. Measure. Fix. Re-check.", removed):
+    removed = ("Removed: automatic checks, the GitHub Action, the agent skill and "
+               "`judgekeeper start`.")
+    for needed in ("`uvx judgekeeper`", "`pip install judgekeeper`", "`judgekeeper mark`",
+                   "`judgekeeper fix`", "`judgekeeper check`", "range", "kept aside",
+                   "asks first", "Find. Mark. Measure. Fix. Re-check.", removed):
         assert needed in flat, needed
-    for gone in ("--off", "Only your click", "action.yml", "mode: fast", "hook"):
+    for gone in ("--off", "Only your click", "action.yml", "mode: fast", "hook", "beta ",
+                 "hidden", "History", "free"):
         assert gone not in flat, gone
 
 
@@ -312,54 +326,53 @@ def test_older_changelog_entries_stay_as_they_were_written():
 
 def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert f"\nuvx judgekeeper@{VERSION}\n" in readme
-    assert f"\npip install judgekeeper=={VERSION}\n" in readme
-    assert "beta" in readme
+    assert "\nuvx judgekeeper\n" in readme
+    assert "\npip install judgekeeper\n" in readme
+    assert not re.search(r"\bbeta\b", readme, re.IGNORECASE)
     for gone in ("judgekeeper start", "judgekeeper demo", "before the first PyPI release"):
         assert gone not in readme, gone
     for needed in ("TPR", "TNR", "kappa"):
         assert needed in readme, needed
 
 
-def test_every_install_command_names_the_version_in_pyproject():
-    """uv and pip skip betas unless the version is named: `uvx judgekeeper` and `pip install
-    judgekeeper` would get 0.1.3. README and the changelog's newest entry name the
-    exact version in pyproject.toml, so the next beta can't forget it."""
-    version = _toml(ROOT / "pyproject.toml")["project"]["version"]
+def test_no_install_command_names_a_version():
+    """1.0.0 is a final release: `uvx judgekeeper` and `pip install judgekeeper` get it, so the
+    README and the changelog's newest entry name no version."""
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     texts = {"README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
              "CHANGELOG.md": changelog[:changelog.index("## ", changelog.index("## ") + 3)]}
     for name, text in texts.items():
         uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", text)
         pip = re.findall(r"pip install judgekeeper(==[\w.]+)?", text)
-        assert uvx and set(uvx) == {f"@{version}"}, (name, uvx)
-        assert set(pip) <= {f"=={version}"}, (name, pip)
-    assert re.findall(r"pip install judgekeeper(==[\w.]+)?", texts["README.md"])
+        assert uvx and set(uvx) == {""}, (name, uvx)
+        assert pip and set(pip) == {""}, (name, pip)
 
 
-def test_readme_has_no_link_to_the_website_while_it_is_offline():
-    """PyPI shows the README; the website stays offline until it is rewritten."""
+def test_readme_links_the_website_and_its_guide():
+    """PyPI shows the README: the website is the first stop, the reference stays on GitHub."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "judgekeeper.com" not in readme
-    blob = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/"
-    for example in ("real-data-check/report.md", "coverage/coverage.md"):
-        assert f"]({blob}{example})" in readme, example
-    assert "](https://github.com/judgekeeper/judgekeeper/tree/main/docs/examples/llmbar-haiku)" \
-        in readme
+    assert "](https://www.judgekeeper.com)" in readme
+    assert "](https://www.judgekeeper.com/start.html)" in readme
+    assert "](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md)" in readme
+    assert not re.findall(r"https?://judgekeeper\.com", readme)  # always www.
 
 
 def test_docs_do_not_point_at_the_unused_pages_address():
     assert "judgekeeper.github.io" not in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
-def test_package_metadata_links_the_repo_while_the_website_is_offline():
-    """PyPI shows these links. The README is the documentation until the website is back."""
+def test_package_metadata_links_the_website_the_guide_and_the_repo():
+    """PyPI shows these links. The website has no reference page: it is docs/reference.md."""
     urls = _toml(ROOT / "pyproject.toml")["project"]["urls"]
-    assert urls["Homepage"] == "https://github.com/judgekeeper/judgekeeper"
-    assert urls["Source"] == "https://github.com/judgekeeper/judgekeeper"
-    assert "Documentation" not in urls
-    assert urls["Issues"] == "https://github.com/judgekeeper/judgekeeper/issues"
-    assert not [u for u in urls.values() if "judgekeeper.com" in u]
+    assert urls == {
+        "Homepage": "https://www.judgekeeper.com",
+        "Guide": "https://www.judgekeeper.com/start.html",
+        "Reference": "https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md",
+        "Source": "https://github.com/judgekeeper/judgekeeper",
+        "Issues": "https://github.com/judgekeeper/judgekeeper/issues",
+        "Changelog": "https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"}
+    assert (ROOT / "website" / "start.html").is_file()
+    assert (ROOT / "docs" / "reference.md").is_file()
 
 
 def test_contributing_says_issues_not_pull_requests_and_how_to_report_privately():
