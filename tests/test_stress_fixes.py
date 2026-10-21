@@ -421,3 +421,38 @@ def test_fix_says_why_it_cant_test_inspects_default_instructions(tmp_path, capsy
     assert ("judgekeeper can't ask this judge itself: Inspect's default model_graded_qa "
             "instructions aren't written in your code. To test a rule, set instructions= in "
             "model_graded_qa(...) and run your eval again.") in out, out
+
+
+# 8. A body far over the limit ----------------------------------------------------------------
+
+def test_a_body_far_over_the_limit_gets_its_413_before_it_is_read(tmp_path, monkeypatch):
+    """Over MAX_DRAIN, the page answers 413 at once and closes: the client reads the answer,
+    never a reset."""
+    import socket
+    import threading
+
+    from judgekeeper import label as label_mod
+    from tests.test_label_server import PAGE, Session, _items
+
+    monkeypatch.setattr(label_mod, "MAX_DRAIN", 2_000_000)
+    server = label_mod.LabelServer(Session(_items(tmp_path), tmp_path / "labels.csv"), port=0,
+                                   page=PAGE)
+    thread = threading.Thread(target=server.serve, daemon=True)
+    thread.start()
+    try:
+        port = server.port
+        head = (f"POST /label?token={server.token} HTTP/1.1\r\n"
+                f"Host: 127.0.0.1:{port}\r\nContent-Type: application/json\r\n"
+                f"Origin: http://127.0.0.1:{port}\r\n"
+                f"Content-Length: 100000000\r\n\r\n").encode()
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
+            s.sendall(head + b"x" * 300_000)  # a little of the 100 MB, then it waits
+            answer = b""
+            while chunk := s.recv(65536):  # a reset raises here
+                answer += chunk
+        assert answer.startswith(b"HTTP/1.0 413 "), answer[:80]
+        assert b"too large" in answer.lower()
+        assert not (tmp_path / "labels.csv").exists()
+    finally:
+        server.stop()
+        thread.join(timeout=10)

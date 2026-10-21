@@ -16,7 +16,8 @@ Requests are then handled one at a time (LabelServer.busy). The Host header and 
 are checked before a POST's body is read; a refused request is answered with `Connection:
 close` after at most REFUSED_READ bytes of its body are read and dropped (a connection
 closed with unread data is reset on Windows, and the answer is lost). An allowed POST's body
-is read before any answer; one over MAX_BODY is read and dropped, then answered 413. Any
+is read before any answer; one over MAX_BODY is read and dropped, then answered 413,
+and one over MAX_DRAIN is answered 413 before it is read, and closed. Any
 other method (OPTIONS, HEAD...) gets the same Host and token checks, then 405; no answer
 names the Python version. The server stops on Ctrl-C, on a POST to /stop (it works the same
 on every system), and after IDLE_TIMEOUT seconds without a request that has the token or
@@ -57,6 +58,7 @@ import io
 import json
 import os
 import secrets
+import socket
 import sys
 import threading
 import time
@@ -676,11 +678,35 @@ def _handler(server: LabelServer):
             return True
 
         def do_POST(self):
-            if self._refused():
+            if self._refused() or self._far_too_large():  # the token first
                 return
             body = self._body()
             with server.busy:
                 self._post(body)
+
+        def _far_too_large(self) -> bool:
+            """A body over MAX_DRAIN is answered 413 at once, before any of it is read, and
+            the connection closed: the sending side first, then what is still on its way is
+            read and dropped for a moment, so closing does not reset the answer away."""
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return False
+            if length <= MAX_DRAIN:
+                return False
+            self.close_connection = True
+            self._send(413, shown({"error": TOO_LARGE}).encode("utf-8"),
+                       "application/json; charset=utf-8", {"Connection": "close"})
+            try:
+                self.wfile.flush()
+                self.connection.shutdown(socket.SHUT_WR)
+                left, until = MAX_DRAIN, time.monotonic() + CONNECTION_TIMEOUT
+                while left > 0 and time.monotonic() < until and (
+                        chunk := self.rfile.read1(65536)):
+                    left -= len(chunk)
+            except OSError:
+                pass
+            return True
 
         def _other(self):
             if self._refused():
