@@ -1369,7 +1369,7 @@ def _rules_in_code(records, kind: str | None) -> bool:
 
 NO_JUDGE_NOUN = {"inspect": "Inspect logs", "table": "results tables"}
 RULES_WORD = {"deepeval": "metrics", "inspect": "scorers", "mlflow": "scorers"}
-NO_JUDGE_NEXT = "add an LLM judge to your eval and run it once, then run `{command}` again."
+NO_JUDGE_NEXT = "add an LLM-as-a-judge to your eval and run it once, then run `{command}` again."
 
 
 def _run_has_no_cases(result: find.Result) -> bool:
@@ -1387,13 +1387,13 @@ def _no_judge(talk: Talk, kind: str, files: list, rules: bool, empty: bool = Fal
         return _stop_with(talk, text,
                           f"run your eval with its test cases, then run `{talk.command()}`.")
     if len(files) == 1:
-        text = f"{files[0]} holds no decisions from an LLM judge."
+        text = f"{files[0]} holds no decisions from an LLM-as-a-judge."
     else:
         noun = NO_JUDGE_NOUN.get(kind, f"{find.NAMES.get(kind, kind)} results files")
-        text = f"None of your {len(files)} {noun} holds decisions from an LLM judge."
+        text = f"None of your {len(files)} {noun} holds decisions from an LLM-as-a-judge."
     if rules:
-        text += (f" These {RULES_WORD.get(kind, 'checks')} are rules in code, not an LLM "
-                 "judge. judgekeeper checks LLM judges.")
+        text += (f" These {RULES_WORD.get(kind, 'checks')} are rules in code, not an "
+                 "LLM-as-a-judge. judgekeeper checks an LLM-as-a-judge.")
     return _stop_with(talk, text, NO_JUDGE_NEXT.format(command=talk.command()))
 
 

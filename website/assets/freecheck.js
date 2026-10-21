@@ -43,9 +43,9 @@
   var SETTINGS = "This is judgekeeper's settings file (judgekeeper.toml)." + IN_PROJECT;
   var TABLE_OUTPUT = "This is promptfoo's table output, which doesn't keep the judge's own decisions. Save the full results with promptfoo eval -o results.json.";
   // start._no_judge: a file with no LLM judge's decisions
-  var NO_JUDGE = ' holds no decisions from an LLM judge.';
+  var NO_JUDGE = ' holds no decisions from an LLM-as-a-judge.';
   var RULES = { promptfoo: 'checks', deepeval: 'metrics' };
-  var RULES_IN_CODE = ' are rules in code, not an LLM judge. judgekeeper checks LLM judges.';
+  var RULES_IN_CODE = ' are rules in code, not an LLM-as-a-judge. judgekeeper checks an LLM-as-a-judge.';
   var TOO_BIG = 'This file is bigger than 50 MB, so this page does not read it. Run uvx judgekeeper in your project instead: it reads big files too.';
   var NOT_UTF8 = 'This file is not saved as UTF-8 text, so it cannot be read.';
   var EMPTY = 'This file is empty.';

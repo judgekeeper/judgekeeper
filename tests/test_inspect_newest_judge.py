@@ -45,6 +45,7 @@ def test_no_log_with_a_judge_is_said_once(here, capsys):
     _log(here, "2026-10-01_exact.json", "2026-10-01T10:00:00+00:00", judged=False)
     _log(here, "2026-10-02_exact.json", "2026-10-02T10:00:00+00:00", judged=False)
     code, out, _ = run(capsys)
-    assert "None of your 2 Inspect logs holds decisions from an LLM judge." in out
+    assert ("None of your 2 Inspect logs holds decisions from an\nLLM-as-a-judge."
+            in out)
     assert "left out" not in out
     assert code == 3

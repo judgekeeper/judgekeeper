@@ -88,9 +88,9 @@ NOT_CHECKED = {
     "table-output.json": ("This is promptfoo's table output, which doesn't keep the judge's "
                           "own decisions. Save the full results with promptfoo eval -o "
                           "results.json."),
-    "rules-in-code.json": ("rules-in-code.json holds no decisions from an LLM judge. These "
-                           "metrics are rules in code, not an LLM judge. judgekeeper checks "
-                           "LLM judges."),
+    "rules-in-code.json": ("rules-in-code.json holds no decisions from an LLM-as-a-judge. "
+                           "These metrics are rules in code, not an LLM-as-a-judge. "
+                           "judgekeeper checks an LLM-as-a-judge."),
     "not-utf8.csv": "This file is not saved as UTF-8 text, so it cannot be read.",
     "ab.csv": ("These are A/B comparisons (output_a and output_b). judgekeeper handles answers "
                "with a Pass or Fail for now."),
