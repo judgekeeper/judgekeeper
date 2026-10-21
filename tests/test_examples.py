@@ -91,3 +91,20 @@ def test_the_datasets_licenses_and_citations_are_in_the_notices():
     for folder in ("jailbreakbench", "ragtruth"):
         loader = (ROOT / "docs" / "examples" / folder / "load.py").read_text(encoding="utf-8")
         assert DATASETS[folder] in loader and "print(NOTICE)" in loader, folder
+
+
+def test_example_reports_in_the_1_0_look_use_its_colours():
+    """A committed report keeps its numbers, but its colours are 1.0's: the labels at the top
+    in the muted colour (the faint one is too low in contrast) and the current green."""
+    from judgekeeper import look
+
+    green = re.search(r"--green-fill: #[0-9a-fA-F]{6};", look.TOKENS).group()
+    reports = [p for p in (ROOT / "docs" / "examples").rglob("*.html")
+               if ".meta .k" in p.read_text(encoding="utf-8")]
+    assert len(reports) >= 3
+    for path in reports:
+        text = " ".join(path.read_text(encoding="utf-8").split())
+        name = path.relative_to(ROOT).as_posix()
+        assert ".meta .k { font-size: 12px; font-weight: 600; letter-spacing: .04em; " \
+               "text-transform: uppercase; color: var(--muted); }" in text, name
+        assert green in text, name
