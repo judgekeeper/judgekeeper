@@ -13,7 +13,7 @@
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
-<meta property="og:image:alt" content="judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, in one command.">
+<meta property="og:image:alt" content="Check your LLM-as-a-judge in 5 steps.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Check your LLM-as-a-judge in 5 steps | judgekeeper">
 <meta name="twitter:description" content="See if your LLM-as-a-judge grades the way you would, find where it goes wrong, and test a better rule before you use it. It all runs in your own terminal.">
@@ -79,12 +79,16 @@ judgekeeper 1.0.0b2
 Step 1 of 5: Find
 
 Eval tool:   promptfoo
-Answers:     40 answers, each graded by your judge
-             (read from results.json)
+File:        results.json
+Answers:     40 answers
 Judge:       openai:gpt-4.1-mini
 Judge rule:  "The answer solves the customer's problem and is polite."
+Read from your file:
+  question   each test's vars
+  answer     each test's output
+  grade      your judge's Pass or Fail
 
-Your judge's grades: 23 Pass, 17 Fail.
+Your judge passed 23 answers and failed 17.
 Checked: your judge gave every answer a clear Pass or Fail.
 
 Step 2 of 5: Mark
@@ -100,12 +104,16 @@ judgekeeper 1.0.0b2
 Step 1 of 5: Find
 
 Eval tool:   promptfoo
-Answers:     40 answers, each graded by your judge
-             (read from results.json)
+File:        results.json
+Answers:     40 answers
 Judge:       openai:gpt-4.1-mini
 Judge rule:  "The answer solves the customer's problem and is polite."
+Read from your file:
+  question   each test's vars
+  answer     each test's output
+  grade      your judge's Pass or Fail
 
-Your judge's grades: 23 Pass, 17 Fail.
+Your judge passed 23 answers and failed 17.
 Checked: your judge gave every answer a clear Pass or Fail.
 
 Step 2 of 5: Mark
@@ -211,7 +219,7 @@ Re-checked on all 30 of your marks:
   You passed 15 answers. Your old judge agreed with you on 7,
   your new judge on 1.
     Worse: 6 answers went from right to wrong, and none from wrong to right.
-    That is about 40 points lower, and could be as much as 61.
+    That is about 40 points lower (between 19 and 61).
 
   You failed 15 answers. Your old judge agreed with you on 7,
   your new judge on 7.

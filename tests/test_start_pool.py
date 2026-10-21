@@ -68,15 +68,19 @@ def _pool(files, label_map=None):
     return start.build_pool(files, "judge", Normaliser(label_map=label_map))
 
 
-def test_repeats_of_one_answer_count_once_with_the_majority():
+def test_repeats_with_different_grades_are_each_their_own_answer():
+    """Repeats that agree count once; repeats that differ are never merged into one grade:
+    each is its own answer, and the pool says so (split)."""
     newest = RecordList([_rec(0, "pass"), _rec(0, "fail", run=2), _rec(0, "fail", run=3),
-                         _rec(1, "pass"), _rec(1, "fail", run=2),  # a tie goes to fail
-                         _rec(2, "pass")])
+                         _rec(1, "pass"), _rec(1, "fail", run=2),
+                         _rec(2, "pass"), _rec(2, "pass", run=2)])
     pool = _pool([("new.json", newest)])
-    verdicts = {a.input: a.verdict for a in pool.answers}
-    assert verdicts == {"q0": "fail", "q1": "fail", "q2": "pass"}
-    assert pool.n_merged == 3
-    assert (pool.n_pass, pool.n_fail) == (1, 2)
+    verdicts = [(a.input, a.verdict) for a in pool.answers]
+    assert verdicts == [("q0", "pass"), ("q0", "fail"), ("q0", "fail"), ("q1", "pass"),
+                        ("q1", "fail"), ("q2", "pass")]
+    assert pool.n_merged == 1  # q2's second pass
+    assert sorted(pool.split.values()) == [(2, 1, 1), (3, 1, 2)]
+    assert (pool.n_pass, pool.n_fail) == (3, 3)
 
 
 def test_the_newest_file_wins_for_an_answer_in_several():

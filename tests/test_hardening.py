@@ -397,7 +397,7 @@ def test_an_inspect_nan_score_is_no_decision(project, capsys):
     _dump(path, data)
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
-    assert "Your judge's grades: 9 Pass, 10 Fail." in flat(text)
+    assert "Your judge passed 9 answers and failed 10." in flat(text)
 
 
 # A table, the own format and judgekeeper.record() ------------------------------------------

@@ -84,8 +84,10 @@ DEFAULT_GRADER = ("{n} of your judge's grades came from promptfoo's default grad
                   "(`defaultTest.options.provider`).")
 SET_GRADER = ("{n} of your judge's grades came from a grader set with promptfoo's --grader: its "
               "results keep only the model's name.")
-CACHED = ("{n} judgments in {file} came from promptfoo's cache: they may be old replies, not "
-          "fresh decisions.")
+CACHED = ("{n} of these grades were cached by promptfoo: they may be old replies, not fresh "
+          "decisions.")
+CODE_ASSERTIONS = ("Your tests also have {n} code assertions ({types}): they are not an LLM "
+                   "judge, so they are left out.")
 
 
 # How promptfoo words a grader failure (graderFail callers in src/matchers/rubric.ts,
@@ -117,6 +119,21 @@ STRIPPED = ("The {what} are missing from {file}. promptfoo leaves them out when 
 STRIP_SETTINGS = {"output": ("answers", "PROMPTFOO_STRIP_RESPONSE_OUTPUT"),
                   "vars": ("inputs", "PROMPTFOO_STRIP_TEST_VARS"),
                   "grading": ("judge's decisions", "PROMPTFOO_STRIP_GRADING_RESULT")}
+
+
+NO_DETAILS = ("promptfoo didn't save the grader's details; the pass/fail of each row is "
+              "used.")
+
+
+def _one_rubric(r: dict) -> dict | None:
+    """The one model-graded assertion of a row saved with no gradingResult, when that is the
+    test's only assertion: the row's `success` is then that judge's decision."""
+    if r.get("gradingResult") or not isinstance(r.get("success"), bool):
+        return None
+    asserts = (r.get("testCase") or {}).get("assert")
+    if not isinstance(asserts, list) or len(asserts) != 1 or not isinstance(asserts[0], dict):
+        return None
+    return asserts[0] if judge_type(asserts[0].get("type")) else None
 
 
 def _stripped(rows: list[dict]) -> list[str]:
@@ -276,6 +293,9 @@ def _provider(value) -> dict:
     if pid.startswith("file://"):  # the person's own provider: its file's name, never a path
         name = re.split(r"[\\/]", pid.removeprefix("file://"))[-1].split(":", 1)[0]
         ev = {"provider": "file", "model": f"your own provider ({name})"}
+    elif pid.startswith("exec:"):  # the person's own script: its command, never a path
+        words = [re.split(r"[\\/]", w)[-1] for w in pid.removeprefix("exec:").split()]
+        ev = {"provider": "exec", "model": f"your own script ({' '.join(words)})"}
     else:
         ev = {"provider": pid.split(":", 1)[0], "model": pid}
     if isinstance(config, dict) and config.get("temperature") is not None:
@@ -383,7 +403,8 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
     default_test = default_test if isinstance(default_test, dict) else {}
     created_at = summary.get("timestamp")
     created_at = created_at if isinstance(created_at, str | int | float) else None
-    stripped = _stripped(rows)
+    no_details = {id(r): a for r in rows if (a := _one_rubric(r)) is not None}
+    stripped = _stripped([r for r in rows if id(r) not in no_details])
     if "grading" in stripped:
         raise RecordsError(stripped_message("grading", path))
     ids, derived = _ids(rows, id_var, path)
@@ -391,13 +412,15 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
     version = summary.get("version")
     records = RecordList(version=version if isinstance(version, str | int) else None,
                          ids_derived=derived,
-                         warnings=[stripped_message(part, path) for part in stripped])
+                         warnings=[stripped_message(part, path) for part in stripped],
+                         notes=[NO_DETAILS] if no_details else [])
     records.left_out = [n for n, r in numbered if not _shaped(r)]
     seen: Counter = Counter()
     n_default: Counter = Counter()  # judgments by the default grader, per metric name
     n_set: Counter = Counter()  # judgments by a grader set with --grader, per metric name
     templates: dict[str, list] = defaultdict(list)  # metric -> (record, template or None)
     n_cached = 0
+    code_types: Counter = Counter()  # assertions checked in code, by type
 
     def read_row(row: tuple[dict, str]) -> None:
         nonlocal n_cached
@@ -407,7 +430,11 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
         test_opts = _options(r.get("testCase"))
         content = {"input": r.get("vars"), "output": _text((r.get("response") or {}).get("output"))}
         per_row = defaultdict(int)
-        for c in _components(r.get("gradingResult")):
+        components = _components(r.get("gradingResult"))
+        if id(r) in no_details:  # the row's pass/fail stands for its one judge's decision
+            components = [{"pass": r["success"], "score": None, "reason": "",
+                           "assertion": no_details[id(r)]}]
+        for c in components:
             a = c.get("assertion") or {}
             kind = a.get("type")
             label = None if not isinstance(c.get("pass"), bool) else (
@@ -420,6 +447,7 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                 continue
             name = a.get("metric") or kind or "unknown"
             if judge_type(kind) is None:
+                code_types[str(kind or "unknown")] += 1
                 records.append(ScoreRecord(target_id=item_id, name=name, annotator_kind=CODE,
                                            label=label, score=c.get("score"), run=run, **content))
                 continue
@@ -468,7 +496,10 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
             for record, _ in judged:
                 record.evaluator["prompt_hash"] = digest
     if n_cached:
-        records.warnings.append(CACHED.format(n=n_cached, file=path.name))
+        records.warnings.append(CACHED.format(n=n_cached))
+    if code_types and any(r.annotator_kind == LLM for r in records):
+        records.notes.append(CODE_ASSERTIONS.format(
+            n=sum(code_types.values()), types=", ".join(sorted(code_types))))
     per_metric: dict[str, dict] = defaultdict(lambda: {"warnings": []})
     for name, n in n_default.items():
         per_metric[name]["warnings"].append(DEFAULT_GRADER.format(n=n))

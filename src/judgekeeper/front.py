@@ -99,6 +99,8 @@ SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
 QUESTIONS = "judgekeeper needs your answer to {which}:"
+# Questions whose answer changes what is counted: the counts are printed after them
+COUNT_QUESTIONS = ("Count each as its own answer?", "Leave them out?")
 READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV "
          "or JSONL file.")
 # The options that find the judge, as start.find_judge takes them
@@ -214,6 +216,11 @@ class FrontTalk(start.Talk):
             self.noted.append(question)
         return True
 
+    def counts_wait(self) -> bool:
+        """Whether a noted question changes the counts (how many answers, which are left
+        out): then the counts are printed only once it is answered."""
+        return any(q.endswith(COUNT_QUESTIONS) for q in self.noted)
+
     def ask_noted(self) -> None:
         """The yes/no questions noted on the way, as one list, before anything is written."""
         if not self.noted:
@@ -325,9 +332,54 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     path = _remembered(talk, path)
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
+    found = _marked_files(talk, where, saved, found)
     if path.is_file() or find.is_mlflow_folder(path):  # read there; kept in the project
         found = start.rebased(found, start_again._project(path))
     return found, saved
+
+
+def install_switch(files: list[str], used: list[str], can_read_eval: bool) -> str | None:
+    """Why the files read differ from the ones the marks were made on (`files`), when only
+    the install changed: "keep" when the extra arrived and .eval logs now stand in for the
+    .json logs marked (read the same logs instead); "cant" when the marks are on .eval logs
+    this install can't read; None otherwise (the same files, or a new run)."""
+    if not files or set(files) == set(used):
+        return None
+    evals = [f for f in files if f.lower().endswith(".eval")]
+    if evals and not can_read_eval:
+        return "cant"
+    if not evals and any(f.lower().endswith(".eval") for f in used) and all(
+            f.lower().endswith(".json") for f in files):
+        return "keep"
+    return None
+
+
+def _marked_files(talk: FrontTalk, path: Path, saved, found: start.Found) -> start.Found:
+    """The results files the marks were made on win over the install's choice: an install
+    that gained the Inspect extra reads the same .json logs, never the .eval logs beside
+    them (a different file choice is no judge change); one that lost it says so."""
+    ws = Workspace(found.root)
+    if not ws.start.is_file() or found.tool != "inspect":
+        return found
+    try:
+        data = ws.data()
+        files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
+        if data.get("given") or data.get("tool") != found.tool:
+            return found
+    except (OSError, ValueError, TypeError, AttributeError):
+        return found
+    if not all((found.root / f).is_file() for f in files):
+        return found  # replaced by a new run: what changed is real
+    switch = install_switch(files, list(found.used), start._has("inspect_ai"))
+    if switch == "keep":
+        return _find(talk, path, saved, only=files)
+    if switch == "cant":
+        evals = [f for f in files if f.lower().endswith(".eval")]
+        talk.para(f"Your marks were made on {start._and(evals)}, which this install reads "
+                  "only with its Inspect extra. To keep checking the same answers, "
+                  f"{start._get_extra(talk, 'inspect')}.")
+        raise talk.stop(EXIT_QUESTION, f"{start._get_extra(talk, 'inspect')}.")
+    return found
 
 
 def _remembered(talk: FrontTalk, path: Path) -> Path:
@@ -380,15 +432,28 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
             or "promptfoo" in search.signs or find.results_above(root) is not None):
         return path, None  # find_judge reads them, or says how
     unlooked: list = []
-    own = own_format.search(root, unlooked)
+    tables: list[str] = []
+    own = own_format.search(root, unlooked, tables)
+    if own is None and tables:  # promptfoo's table output, found past the walk's limits
+        raise start.table_output(tables[0])
+    for rel in tables:
+        talk.para(f"{rel} {find.TABLE_OUTPUT}, so it was left out.")
+    if own is None and search.judge_only:
+        rel = search.judge_only[0]
+        talk.para(f"{rel} has your judge's verdicts but no answer text, so there's nothing to "
+                  "show you for marking.")
+        raise talk.stop(EXIT_QUESTION, "add the answer column (the text that was judged) to "
+                                       f"{rel}, then run `{talk.command()}`.")
     if own is None:
-        raise _nothing_found(talk, root, search.signs, find.nested_results(search), unlooked)
+        raise _nothing_found(talk, root, search.signs, find.nested_results(search), unlooked,
+                             stopped=search.stopped)
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
 
 
-def _find(talk: FrontTalk, path: Path, saved) -> start.Found:
-    """find_judge, again after each answer about decisions it cannot read as Pass or Fail."""
+def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> start.Found:
+    """find_judge, again after each answer about decisions it cannot read as Pass or Fail.
+    `only`: the results files the marks were made on (_marked_files)."""
     given = _given_model(path) if talk.options["judge_model"] is None and saved is None else None
     while True:
         options = {k: talk.options[k] for k in FIND}
@@ -400,8 +465,8 @@ def _find(talk: FrontTalk, path: Path, saved) -> start.Found:
         try:
             try:
                 found = start.find_judge(path, talk=talk, saved=saved, store=talk.store,
-                                         **{**options, "judge_model": given or
-                                            options["judge_model"]})
+                                         only=only, **{**options, "judge_model": given or
+                                                       options["judge_model"]})
             except StartError:
                 if given is None:
                     raise
@@ -459,8 +524,9 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     terminal = start._interactive()
     if found.tool == "inspect" and "P" in values:  # model_graded_qa(partial_credit=True)
         n = found.pool.n_unmapped.get(repr("P"), 0)
-        for line in found_block(found):  # what was found, before the question
-            talk.say(line)
+        for line in found_block(found):  # what was found; the count waits for the answer
+            if not line.startswith("Answers:"):
+                talk.say(line)
         talk.say()
         talk.say(f"Inspect gave partial credit (P) on {_n(n, 'answer')}.")
         if not terminal:
@@ -532,17 +598,26 @@ def _nested_line(nested: list[str]) -> str:
 
 
 def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
-                   nested: list[str] | None = None, unlooked: list | None = None) -> Stop:
+                   nested: list[str] | None = None, unlooked: list | None = None,
+                   stopped: str | None = None) -> Stop:
     """No results: the tools found here (with what saves their results), else what
     judgekeeper can read. The folder by its name only. Results in a project of its own below
     (`nested`) are named, never read; results-like files too big to look into (`unlooked`,
-    own_format.search) are named."""
+    own_format.search) are named. `stopped` (find.Search.stopped): the walk gave up before
+    the end, so the person gives the path."""
+    if stopped:
+        talk.para(f"judgekeeper {stopped[0].lower()}{stopped[1:]}")
+        return talk.stop(EXIT_QUESTION, (f"give the path of your results: run "
+                                         f"`{talk.command_at('PATH')}` with their file or "
+                                         "folder."))
     if nested:
         talk.para(_nested_line(nested))
         where = start._or([f"{p}/" for p in nested])
         return talk.stop(EXIT_QUESTION, f"run `{program()}` in {where}.")
     saved = _saved_marks(root)
     if saved:  # the results file is gone, the marks are not
+        talk.say(STEP.format(n=1, name="Find"))
+        talk.say()
         talk.para(f"No eval results found in this folder. Your {_n(saved, 'mark')} "
                   f"{'is' if saved == 1 else 'are'} saved in {FOLDER}/; they come back when "
                   "your results file is back.")
@@ -597,35 +672,27 @@ _n = plural  # textio.plural
 
 
 def _columns_line(found: start.Found, pass_if: str | None = None) -> str | None:
-    """Which columns of a table were read (never the rows); with --pass-if and a score column
-    next to the verdict column, that the score is read."""
+    """SCORE_READ when --pass-if reads a table's score column next to its verdict column;
+    else None (the Read-from-your-file rows name the columns)."""
     columns = find.table_columns(found.results[0].path)
     verdict = next((c for c in find.VERDICT_COLUMNS if c in columns), None)
-    if pass_if and verdict and "score" in columns:
-        return SCORE_READ
-    read = ("input", "output", verdict, "reason", "model", "judge_model", "app_version",
-            *start.HUMAN_COLUMNS)
-    used = [c for c in columns if c in read]
-    return f"Read the columns {start._and(used)}." if used else None
-
-
-def _map_line(saved: settings.StartSettings) -> str:
-    """How an own-format file is read, as judgekeeper.toml says: paths only."""
-    from judgekeeper import mapper
-
-    m = saved.map
-    score = "score" if m.get("kind", "score") == "score" else "decision"
-    return (f"Read as {settings.FILE} says: input {mapper.shown(m['input'])}, answer "
-            f"{mapper.shown(m['output'])}, {score} {mapper.shown(m['score'])}.")
+    return SCORE_READ if pass_if and verdict and "score" in columns else None
 
 
 def _notes(found: start.Found) -> list[str]:
     pool, out = found.pool, [*found.stopped, *found.warnings]
     if judge_check.model_not_written(found):  # said once, with its fix, by the free checks
         out = [w for w in out if DEFAULT_GRADER_NOTE not in w]
-    if pool.n_merged:
-        out.append(f"{_n(pool.n_merged, 'repeat')} of the same answer "
-                   f"{'was' if pool.n_merged == 1 else 'were'} merged.")
+    if not pool.answers:  # "none with a clear grade": where the grades came from is moot
+        out = [w for w in out if "default grader" not in w]
+    if len(pool.split) == 1:
+        (n, n_pass, n_fail), = pool.split.values()
+        out.append(f"{n} repeats of one answer got different grades ({n_pass} Pass, {n_fail} "
+                   "Fail); each is its own answer.")
+    elif pool.split:
+        repeats = sum(n for n, _, _ in pool.split.values())
+        out.append(f"{len(pool.split)} answers got different grades when graded more than once "
+                   f"({repeats} repeats in all); each repeat is its own answer.")
     if pool.n_human:
         out.append(f"Your results also hold {_n(pool.n_human, 'human label')}. judgekeeper does "
                    "not use them: you mark the answers yourself.")
@@ -738,7 +805,7 @@ def _write(found: start.Found) -> None:
     from judgekeeper import start_label
 
     ws = start_label.Workspace(found.root)
-    start_label.save_judge_check(ws, found)  # also when it lists nothing: no list stays stale
+    start_label.save_judge_check(ws, found)  # only when it lists something
     if not ws.start.is_file() or judge_setup.read(ws) is None:
         judge_setup.save(ws, judge_setup.of(found), found.metric)
 
@@ -817,25 +884,104 @@ def _rule_lines(found: start.Found) -> list[str]:
             f"{INDENT}(shortened{f'; full rule in {where}' if where else ''})"]
 
 
-def found_block(found: start.Found) -> list[str]:
-    """Screen 1's "Find" block: the eval tool, the answers, the judge and its rule."""
+def passed_failed(n_pass: int, n_fail: int) -> str:
+    return f"Your judge passed {_n(n_pass, 'answer')} and failed {n_fail}."
+
+
+def found_block(found: start.Found, pass_if: str | None = None,
+                mapped: settings.StartSettings | None = None) -> list[str]:
+    """Screen 1's "Find" block: the eval tool, the file, the answers, the judge, its rule and
+    what was read from the file."""
     answers = found.check.answers if found.check else len(found.pool.answers)
     tool = tool_name(found.tool, [str(found.results[0].rel)])
-    graded = ((f"{'' if answers == 1 else 'each '}graded by your judge")
-              if found.pool.answers or found.pool.unread
-              else "none with a clear grade from your judge")
     unscored = found.check.counts().get(judge_check.NOT_SCORED, 0) if found.check else 0
-    counted = f"{_n(answers, 'answer')}, {graded}"
-    if unscored and found.pool.answers:  # only answers with a grade are said to have one
-        counted = (f"{_n(answers - unscored, 'answer')} with a grade ({unscored} failed before "
-                   "scoring)")
-    lines = [f"Eval tool:   {tool}",
-             f"Answers:     {counted}",
-             f"{INDENT}(read from {_read_from(found)})",
-             f"Judge:       {_judge_value(found)}", *_rule_lines(found)]
-    if found.pass_mark:
-        lines.append(f"Pass mark:   {start._pass_mark_words(found.pass_mark)}")
+    pool = found.pool
+    where = _read_from(found)
+    label = ("Store:" if found.tool == "mlflow" else "Files:"
+             if found.tool == "records" or "older file" in where else "File:")
+    lines = [f"Eval tool:   {tool}", f"{label:<13}{where}"]
+    if unscored and pool.answers:  # only answers with a grade are said to have one
+        lines.append(f"Answers:     {_n(answers - unscored, 'answer')} with a grade ({unscored} "
+                     "failed before scoring)")
+    elif not pool.answers and not pool.unread:
+        lines.append(f"Answers:     {_n(answers, 'answer')}, none with a clear grade")
+    elif pool.n_merged:  # repeats of the same answer with the same grade count once
+        times = next(iter(pool.repeat_sizes)) if len(pool.repeat_sizes) == 1 else None
+        lines.append(f"Answers:     {answers} different answers")
+        lines.append(f"{INDENT}(your file has {pool.n_results} results: "
+                     + (f"each answer was run {times} times" if times
+                        else "some answers are in it more than once")
+                     + ", so each is counted once)")
+    else:
+        lines.append(f"Answers:     {_n(answers, 'answer')}")
+    lines += [f"Judge:       {_judge_value(found)}", *_rule_lines(found)]
+    rows = read_rows(found, pass_if, mapped)
+    if rows:
+        width = max(len(k) for k, _ in rows) + 3
+        lines.append("Read from your file:")
+        lines += [f"  {k:<{width}}{v}" for k, v in rows]
     return lines
+
+
+def read_rows(found: start.Found, pass_if: str | None = None,
+              mapped: settings.StartSettings | None = None) -> list[tuple[str, str]]:
+    """What was read from the file, as (what, where) rows: the question, the answer, the
+    grade (with the pass mark when there is one), then the reason, model, version and your
+    labels when the file has them."""
+    pm = found.pass_mark
+    mark = f": {start.pass_at(pm)}" if pm else ""
+    if found.tool == "promptfoo":
+        return [("question", "each test's vars"), ("answer", "each test's output"),
+                ("grade", "your judge's Pass or Fail" + mark)]
+    if found.tool == "deepeval":
+        return [("question", "each test case's input"),
+                ("answer", "each test case's actual_output"),
+                ("grade", f"the {found.metric} score{mark}"), ("reason", "your judge's reason")]
+    if found.tool == "inspect":
+        grade = f"the scorer's score{mark}" if pm else "the scorer's grade (C or I)"
+        return [("question", "each sample's input"), ("answer", "each sample's output"),
+                ("grade", grade)]
+    if found.tool == "mlflow":
+        return [("question", "each trace's request"), ("answer", "its response"),
+                ("grade", "your judge's assessment" + mark)]
+    if found.tool == "records":
+        return [("question", "each line's input"), ("answer", "each line's output"),
+                ("grade", "each line's label" + mark)]
+    if found.tool == "table":
+        columns = find.table_columns(found.results[0].path)
+        verdict = found.metric if found.metric in columns else next(
+            (c for c in find.VERDICT_COLUMNS if c in columns), "verdict")
+        grade = (f"the score column{mark}" if pass_if and "score" in columns
+                 else f"the {verdict} column{mark}")
+        rows = [("question", "the input column"), ("answer", "the output column"),
+                ("grade", grade)]
+        model = next((c for c in ("judge_model", "model") if c in columns), None)
+        labels = next((c for c in start.HUMAN_COLUMNS if c in columns), None)
+        for what, column in (("reason", "reason" if "reason" in columns else None),
+                             ("model", model),
+                             ("version", "app_version" if "app_version" in columns else None),
+                             ("your labels", labels)):
+            if column:
+                rows.append((what, f"the {column} column"))
+        return rows
+    if found.tool == "mapped":  # the map made in this run, else judgekeeper.toml's
+        saved = mapped if mapped is not None and mapped.map else start._saved(found.root)
+        m = saved.map if saved is not None and saved.map else None
+        if not m:
+            return []
+        from judgekeeper import mapper
+
+        sides = list(m.get("sides") or [])
+        judge = saved.judge if saved.judge not in (None, "*") else (m.get("judges") or [None])[0]
+        side = sides[0] if sides else None
+        answer = (" and ".join(mapper.filled(m["output"], s) for s in sides) if sides
+                  else mapper.filled(m["output"]))
+        rows = [("question", mapper.filled(m["input"])), ("answer", answer),
+                ("grade", mapper.filled(m["score"], side, judge) + mark)]
+        if m.get("model_key"):
+            rows.append(("model", mapper.filled(m["model_key"], side, judge)))
+        return rows
+    return []
 
 
 def _free_check(talk: FrontTalk, found: start.Found, listed: str) -> None:
@@ -857,20 +1003,19 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
          wait: bool) -> int:
     """Found, no marking started: Screen 1's "Find" block and the free checks, then the
     page."""
+    if talk.counts_wait():  # the counts depend on the answers: they come after them
+        _to_save(talk, found, mapped)  # noted with the others, so --yes answers it too
+        talk.ask_noted()
     listed = _listed(found)
     talk.say()  # a blank line after what Find said first (a file left out), never two
-    for line in found_block(found):
+    for line in found_block(found, talk.options["pass_if"], mapped):
         talk.say(line)
-    if found.tool == "table":
-        talk.para(_columns_line(found, talk.options["pass_if"]) or "")
-    if found.tool == "mapped" and mapped is None:
-        saved = start._saved(found.root)
-        if saved is not None and saved.map:
-            talk.para(_map_line(saved))
+    if found.tool == "table" and _columns_line(found, talk.options["pass_if"]):
+        talk.para(SCORE_READ)
     talk.say()
     pool = found.pool
     if pool.answers:
-        talk.say(f"Your judge's grades: {pool.n_pass} Pass, {pool.n_fail} Fail.")
+        talk.say(passed_failed(pool.n_pass, pool.n_fail))
     for note in _notes(found):
         talk.para(note)
     for others in (_other_files(found), _other_projects(found), _nested_here(found),
@@ -1111,6 +1256,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
           result: bool = False) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown). `result`:
     opened at its result page."""
+    start_label.check_writable(ws)  # said here, never as "the page could not start"
     opened = None
     try:
         opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved, "mark"),
@@ -1153,6 +1299,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     items = session.items
     command = _command_of(talk, saved)
     if marking and n and n == len(items):
+        talk.say(STEP.format(n=2, name="Mark"))
+        talk.say()
         talk.say(f"You have marked all {_n(n, 'answer')}. There are no more to mark.")
         talk.say()
         opened = None
@@ -1192,9 +1340,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()
     next_step = (NEXT_MORE if enough else NEXT_KEEP_MARKING if n else NEXT_MARK)
-    talk.para("Next: " + next_step.format(command=command))
     if opened is not None and opened.server is not None:
-        page.serve(opened.server)
+        page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
+    talk.para("Next: " + next_step.format(command=command))
     return EXIT_OK
 
 

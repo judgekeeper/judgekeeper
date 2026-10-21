@@ -42,6 +42,7 @@ from __future__ import annotations
 import logging
 import math
 import re
+from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -61,7 +62,7 @@ from judgekeeper.records import (
     load_json,
     read_rows,
 )
-from judgekeeper.textio import get_extra, read_json
+from judgekeeper.textio import error_type, get_extra, read_json
 
 DEFAULT_LABELS = {"C": "pass", "I": "fail"}
 # Inspect's scorers that check text in code, never with a model: not judges, left out
@@ -80,7 +81,7 @@ SAMPLE_ERROR = "sample_error"  # judgekeeper's own reason: the sample errored, n
 def _sample_error(error) -> dict:
     """A stand-in score for a sample that errored before it was scored."""
     message = error.get("message") if isinstance(error, dict) else error
-    return {"value": None, "reason": SAMPLE_ERROR, "explanation": str(message or "error")}
+    return {"value": None, "reason": SAMPLE_ERROR, "explanation": error_type(message)}
 
 
 def _mark(score: dict, label) -> Mark:
@@ -272,19 +273,30 @@ STOPPED = "Your Inspect run stopped early"  # how its note starts
 
 
 def stopped_early(data: dict) -> str | None:
-    """A note when the log's run did not finish (status error or cancelled): how far it got
-    and its error, in one line; else None."""
+    """A note when the log's run did not finish (status error or cancelled): how far it got,
+    and the type and count of the errors, never their text (an error Inspect saves can hold
+    the eval's prompt and request); else None."""
     status = data.get("status")
     if status not in ("error", "cancelled"):
         return None
-    done = len(data.get("samples") or [])
-    total = ((data.get("results") or {}).get("total_samples")
+    samples = [s for s in data.get("samples") or [] if isinstance(s, dict)]
+    results = data.get("results") if isinstance(data.get("results"), dict) else {}
+    total = (results.get("total_samples")
              or ((data.get("eval") or {}).get("dataset") or {}).get("samples"))
+    errored = Counter(error_type((s["error"] or {}).get("message")
+                                 if isinstance(s["error"], dict) else s["error"])
+                      for s in samples if s.get("error"))
+    done = results.get("completed_samples")
+    if not isinstance(done, int) or isinstance(done, bool):
+        done = len(samples) - sum(errored.values())
     far = f"{done} of {total} samples" if isinstance(total, int) and total else f"{done} samples"
     if status == "cancelled":
         return f"{STOPPED} ({far}): it was cancelled."
-    error = " ".join(str((data.get("error") or {}).get("message") or "an error").split())
-    return f"{STOPPED} ({far}): {error[:300]}"
+    if errored:
+        kinds = ", ".join(f"{kind} on {n} sample{'' if n == 1 else 's'}"
+                          for kind, n in errored.most_common())
+        return f"{STOPPED} ({far}): {kinds}."
+    return f"{STOPPED} ({far}): {error_type((data.get('error') or {}).get('message'))}."
 
 
 def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
@@ -306,6 +318,7 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
     grader_model, temperature = _model((spec.get("model_roles") or {}).get("grader"))
     scorer_options = {s.get("name"): s.get("options") or {}
                       for s in spec.get("scorers") or [] if isinstance(s, dict)}
+    _format_1(data, samples, scorer_options)
 
     records = RecordList(version=data.get("version"), label_map=DEFAULT_LABELS)
     keys: dict[str, list[str]] = {}  # each scorer's judges, as its scores name them
@@ -377,6 +390,21 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
     read_rows(records, enumerate(samples, 1), read_sample)
     all_damaged(path, "Inspect AI", records)
     return records
+
+
+def _format_1(data: dict, samples: list, scorer_options: dict) -> None:
+    """Logs of format 1 (2024) hold one `score` per sample and name the scorer in
+    `results.scorer`: read as the current shape (`scores.<scorer>`), in place."""
+    results = data.get("results") if isinstance(data.get("results"), dict) else {}
+    scorer = results.get("scorer") if isinstance(results.get("scorer"), dict) else None
+    name = scorer.get("name") if scorer else None
+    if not isinstance(name, str) or not name:
+        return
+    scorer_options.setdefault(name, scorer.get("params") or {})
+    for sample in samples:
+        if isinstance(sample, dict) and "scores" not in sample and isinstance(
+                sample.get("score"), dict):
+            sample["scores"] = {name: sample["score"]}
 
 
 def _verdicts(name: str, value) -> list[tuple[str, object]]:

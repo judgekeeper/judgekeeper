@@ -36,7 +36,7 @@ def screen(capsys, *argv) -> tuple[int, list[str]]:
     lines = (out + err).splitlines()
     for line in lines:
         assert len(line) <= 80, line
-        column = line.strip().startswith(("input,", "Read the columns"))  # its real name
+        column = line.strip().startswith("input,") or line.endswith(" column")  # its real name
         assert "verdict" not in line.lower() or column, line
         assert "tell the person" not in line and "ask the person" not in line, line
     return code, lines
@@ -58,12 +58,16 @@ FIRST = [
     "Step 1 of 5: Find",
     "",
     "Eval tool:   promptfoo",
-    "Answers:     40 answers, each graded by your judge",
-    "             (read from results.json)",
+    "File:        results.json",
+    "Answers:     40 answers",
     "Judge:       openai:gpt-4.1-mini",
     f'Judge rule:  "{RULE}"',
+    "Read from your file:",
+    "  question   each test's vars",
+    "  answer     each test's output",
+    "  grade      your judge's Pass or Fail",
     "",
-    "Your judge's grades: 23 Pass, 17 Fail.",
+    "Your judge passed 23 answers and failed 17.",
     "Checked: your judge gave every answer a clear Pass or Fail.",
     "",
     "Step 2 of 5: Mark",
@@ -181,6 +185,8 @@ def test_screen_4_every_answer_marked(here, capsys, pages):
     assert code == 0
     assert lines == [
         *HEAD,
+        "Step 2 of 5: Mark",
+        "",
         "You have marked all 40 answers. There are no more to mark.",
         "",
         "Next: run your eval on more questions, then run",

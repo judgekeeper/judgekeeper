@@ -341,8 +341,7 @@ SITE = "https://www.judgekeeper.com/"
 SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url", "og:image",
               "og:image:width", "og:image:height", "og:image:alt", "twitter:card",
               "twitter:title", "twitter:description", "twitter:image"]
-SHARE_ALT = ("judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, "
-             "in one command.")
+SHARE_ALT = "Check your LLM-as-a-judge in 5 steps."
 SITE_PAGES = {"index.html", "start.html", "check.html", "privacy.html"}
 
 

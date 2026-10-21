@@ -160,6 +160,19 @@ def refuse_links(ws: Workspace) -> None:
                                      program=program()))
 
 
+def check_writable(ws: Workspace) -> None:
+    """StartError when judgekeeper can't write in `ws.dir` (a read-only .judgekeeper/): the
+    same words wherever the first write would have failed."""
+    from judgekeeper.start import StartError
+    from judgekeeper.textio import WORKSPACE_DENIED, WORKSPACE_DENIED_NEXT
+
+    try:
+        if ws.dir.is_dir() and not ws.dir.is_symlink() and not os.access(ws.dir, os.W_OK):
+            raise StartError(WORKSPACE_DENIED, WORKSPACE_DENIED_NEXT)
+    except OSError:
+        return
+
+
 def make_folder(ws: Workspace) -> None:
     """Make `ws.dir` (after `refuse_links`), with its .gitignore when a first check starts in
     the project's own folder and it has none. One holding exactly the text 0.2 wrote is
@@ -223,6 +236,11 @@ def save_judge_check(ws: Workspace, found) -> None:
     answers with their text) for `found.check`, scrubbed; CSV cells guarded as labels.csv's."""
     check = found.check
     if check is None:
+        return
+    if not judge_check.has_rows(check.block()):  # nothing to list: no file, no stale list
+        for stale in (ws.judge_check_json, ws.judge_check_csv):
+            if stale.is_file() and not stale.is_symlink():
+                stale.unlink()
         return
     make_folder(ws)
     _write_json(ws.judge_check_json, check.to_json())

@@ -74,7 +74,7 @@ def test_no_key_leaks_anywhere(env, capsys):
     results = _results_with_keys(env)
     assert main([]) == 0  # the page opens in the background
     printed = capsys.readouterr()
-    assert "Your judge's grades:" in printed.out
+    assert "Your judge passed " in printed.out
     # What the page does next: save the marks and the result.
     said = []
     ws = start_label.prepare(start.find_judge(env), say=said.append)
@@ -121,7 +121,7 @@ def test_an_mlflow_store_with_keys_never_shows_them(env, capsys, monkeypatch):
     build_mlflow_store(env, note=f" (debug: {KEYS})")
     assert main(["--metric", "correctness"]) == 3  # too few answers for a result
     printed = capsys.readouterr()
-    assert "Your judge's grades:" in printed.out
+    assert "Your judge passed " in printed.out
     for value in SENTINELS.values():
         assert value not in printed.out + printed.err
     said = []

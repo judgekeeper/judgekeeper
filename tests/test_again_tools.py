@@ -245,8 +245,6 @@ def test_a_provider_suffix_is_built_with_that_providers_class(tmp_path, stubs, m
 
 
 @pytest.mark.parametrize("saved, words", [
-    ("my-deployment (Azure)", ("an Azure judge needs its endpoint and deployment as well as "
-                               "its name")),
     ("my-model (Local Model)", "a Local Model judge needs more than its name"),
     ("anthropic.claude-3-5-sonnet-20240620-v1:0", "this judge needs more than its name"),
 ])
@@ -279,7 +277,7 @@ def test_a_deepeval_judge_on_ollama_its_settings_pick_is_asked(tmp_path, stubs, 
     ("gpt-4.1-mini", {"name": "gpt-4.1-mini"}),
     ("claude-sonnet-4-6 (Anthropic)", {"class": "AnthropicModel", "name": "claude-sonnet-4-6"}),
     ("gemini-3.8-flash (Gemini)", {"class": "GeminiModel", "name": "gemini-3.8-flash"}),
-    ("x (Azure)", None),
+    ("my-deployment (Azure)", {"class": "AzureOpenAIModel", "name": "my-deployment"}),
     ("x (OpenRouter)", None),
     ("us.anthropic.claude-opus-5", None),
     ("meta/llama-4", None),

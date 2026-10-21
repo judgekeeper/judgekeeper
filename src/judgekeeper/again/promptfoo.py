@@ -561,6 +561,18 @@ def graders_handed(plan: Plan) -> set[str]:
     return {i for i in ids if i}
 
 
+def _downloaded_version(plan: Plan) -> str | None:
+    """The promptfoo version npx fetches for this plan (`promptfoo@<version>`), or None."""
+    if not plan.download:
+        return None
+    return next((w.split("@", 1)[1] for w in plan.runner if w.startswith("promptfoo@")), None)
+
+
+def _before(version: str, than: tuple[int, ...]) -> bool:
+    parts = tuple(int(x) for x in re.findall(r"\d+", version)[:len(than)])
+    return bool(parts) and parts < than
+
+
 def regrade_config() -> dict:
     return {"description": "judgekeeper re-check (temporary file)",
             "prompts": ["{{judgekeeper_prompt}}"], "providers": ["echo"],
@@ -610,6 +622,10 @@ def run(ws, plan: Plan, talk) -> Fresh:
         for path in files:
             path.unlink(missing_ok=True)
     if proc.returncode not in (0, 100) or not out.is_file():
+        version = _downloaded_version(plan)
+        if version and _before(version, (0, 121)):  # 0.120 crashes right after npx fetches it
+            raise AgainError(f"promptfoo {version} doesn't start after download. Run your eval "
+                             "again with promptfoo 0.121 or newer.")
         tail = [x for x in (proc.stderr or proc.stdout or "").strip().splitlines() if x.strip()]
         raise AgainError("promptfoo did not finish: "
                          + (scrub(tail[-1]) if tail else f"exit code {proc.returncode}"))

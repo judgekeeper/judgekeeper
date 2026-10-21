@@ -104,14 +104,18 @@ def test_promptfoo(here, capsys):
     code, out, err = run(capsys)
     assert code == 0, out + err
     assert out.splitlines()[:2] == [f"judgekeeper {__version__}", ""]
-    assert out.splitlines()[2:10] == [
+    assert out.splitlines()[2:14] == [
         "Step 1 of 5: Find", "",
         "Eval tool:   promptfoo",
-        "Answers:     36 answers, each graded by your judge",
-        "             (read from results.json)",
+        "File:        results.json",
+        "Answers:     36 answers",
         "Judge:       openai:gpt-4.1-mini",
-        'Judge rule:  "Is polite and correct. Second line of the rubric."', ""]
-    assert "Your judge's grades: 20 Pass, 16 Fail." in out
+        'Judge rule:  "Is polite and correct. Second line of the rubric."',
+        "Read from your file:",
+        "  question   each test's vars",
+        "  answer     each test's output",
+        "  grade      your judge's Pass or Fail", ""]
+    assert "Your judge passed 20 answers and failed 16." in out
     assert "Checked: your judge gave every answer a clear Pass or Fail." in out
     assert assert_one_next_at_the_end(out) == START
     assert err == ""
@@ -122,9 +126,9 @@ def test_deepeval(here, capsys):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert "Eval tool:   DeepEval" in out
-    assert "(read from .deepeval/.latest_run_full.json)" in out and "35 answers" in out
+    assert "File:        .deepeval/.latest_run_full.json" in out and "35 answers" in out
     assert "Judge:       Correctness [GEval], gpt-4.1" in out and "Judge rule:  " in out
-    assert "Your judge's grades: 18 Pass, 17 Fail." in out
+    assert "Your judge passed 18 answers and failed 17." in out
     assert assert_one_next_at_the_end(out) == START
 
 
@@ -133,8 +137,8 @@ def test_inspect(here, capsys):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert "Eval tool:   Inspect AI" in out and "32 answers" in out
-    assert "(read from logs/2026-10-02_support.json)" in out
-    assert "Your judge's grades: 16 Pass, 16 Fail." in out
+    assert "File:        logs/2026-10-02_support.json" in out
+    assert "Your judge passed 16 answers and failed 16." in out
     assert assert_one_next_at_the_end(out) == START
 
 
@@ -142,8 +146,9 @@ def test_a_table_says_which_columns_were_read(here, capsys):
     table_project(here, split(15, 15), model="claude-haiku-4-5")
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert "Eval tool:   your own CSV file" in out and "(read from results.csv)" in out
-    assert "Read the columns input, output, verdict and model." in out
+    assert "Eval tool:   your own CSV file" in out and "File:        results.csv" in out
+    assert ("Read from your file: question the input column answer the output column grade "
+            "the verdict column model the model column") in flat(out)
     assert "Judge:       claude-haiku-4-5" in out
     assert "Judge rule:  not in your results" in out
     assert "The first 3 rows" not in out
@@ -155,7 +160,7 @@ def test_records(here, capsys):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert "Eval tool:   judgekeeper.record() in your code" in out
-    assert "(read from .judgekeeper/records/, 1 file)" in out and "32 answers" in out
+    assert "Files:       .judgekeeper/records/, 1 file" in out and "32 answers" in out
     assert "Judge:       claude-opus-5" in out and 'Judge rule:  "Be polite."' in out
     assert assert_one_next_at_the_end(out) == START
 
@@ -165,8 +170,8 @@ def test_own_format_with_yes_saves_the_map_and_reads_it(here, capsys):
     code, out, _ = run(capsys, "--yes")
     assert code == 0, out
     assert "Eval tool:   your own format" in out and "36 answers" in out
-    assert "(read from evals/graded.jsonl)" in out
-    assert "  input:           question" in out  # which parts were read: paths only
+    assert "File:        evals/graded.jsonl" in out
+    assert "  question:        question" in out  # which parts were read: paths only
     assert "Saved judgekeeper.toml" in out
     saved = tomllib.loads((here / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
     assert saved["source"] == "map" and saved["file"] == "evals/graded.jsonl"
@@ -197,8 +202,8 @@ def test_answers_with_no_real_verdict_are_left_out_and_listed(here, capsys):
     promptfoo_project(here, [*split(18, 16), None, None, None])
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert "37 answers, each graded by your judge" in out
-    assert "Your judge's grades: 18 Pass, 16 Fail." in out
+    assert "Answers:     37 answers" in out
+    assert "Your judge passed 18 answers and failed 16." in out
     block = flat(out[out.index("Checked:"):out.index("Next:")])
     assert "Checked: your judge made no real decision on 3 of 37 answers" \
         in block
@@ -346,8 +351,8 @@ def test_scores_need_a_pass_mark(here, capsys):
     assert "`judgekeeper --pass-if \"score>=N\"`" in line
     code, out, _ = run(capsys, "--pass-if", "score>=0.5")
     assert code == 0, out
-    assert "Your judge's grades: 16 Pass, 16 Fail." in out
-    assert "Pass mark:   score 0.5 or more" in out
+    assert "Your judge passed 16 answers and failed 16." in out
+    assert "the verdict column: Pass at 0.5 or more" in out and "Pass mark:" not in out
 
 
 def test_words_need_a_label_map(here, capsys):
@@ -453,11 +458,11 @@ def test_the_questions_are_listed_together_after_the_checks(here, capsys):
     nested_runs_project(here)
     code, out, _ = run(capsys, "--metric", "Safe wording")
     assert code == 3
-    assert "(read from history/evals.jsonl, 3 lines)" in out  # the counts the questions lead to
-    assert "42 answers, each graded by your judge" in out
+    # the counts depend on the answers (A and B; rows left out): printed after them
+    assert "answers, each graded by your judge" not in out and "Checked:" not in out
     heading = front.QUESTIONS.format(which="these 3 questions")
     listed = flat(out[out.index(heading):])
-    assert out.index("Checked:") < out.index(heading)
+    assert out.index("How judgekeeper reads it:") < out.index(heading)
     assert "1. Each item has 2 answers (A and B). Count each as its own answer?" in listed
     assert "2. 6 answers have an error or a score made by a rule" in listed
     assert "3. Save how to read history/evals.jsonl in judgekeeper.toml?" in listed

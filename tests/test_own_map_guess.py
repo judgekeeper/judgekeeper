@@ -95,12 +95,12 @@ def test_an_app_model_alone_is_not_the_judge_model():
     assert mapper.guess(units).model_key is None
 
 
-def test_what_it_holds_shows_one_criterion_placeholder_for_both():
+def test_what_it_holds_shows_the_first_judge_for_the_others_too():
     g = mapper.guess(coach_runs_data())
     paths = [p for p, _ in mapper.listing(coach_runs_data()[0], g.judges)]
-    assert "judge.criteria.<criterion>" in paths
-    assert "cases[].answers.A.scores.<criterion>.score" in paths
-    assert not any("helpful" in p or "safe_wording" in p for p in paths)
+    assert "judge.criteria.safe_wording" in paths
+    assert "cases[].answers.A.scores.safe_wording.score" in paths
+    assert not any("helpful" in p or "<" in p for p in paths)
 
 
 def test_the_reader_uses_the_pass_mark_of_each_run(tmp_path):
@@ -123,11 +123,11 @@ def test_how_it_reads_says_where_the_pass_mark_and_model_come_from(tmp_path, cap
     answers += ["", "", "3", "1", ""]  # right; each its own; all; helpful for now; save
     code, out = setup(capsys, tmp_path / "history" / "evals.jsonl")
     assert code == 0
-    assert ("  score:           answers.<side>.scores.<criterion>.score (judges: safe_wording, "
-            "helpful)") in out
-    assert "  judge's model:   judge.model (claude-sonnet-5)" in out
+    assert ("grade: answers.A.scores.safe_wording.score (judges: safe_wording, helpful) and "
+            "the same under B") in " ".join(out.split())
+    assert "  model:           judge.model (claude-sonnet-5)" in out
     assert "  pass mark:       0.7 (judge.pass_mark in the file)" in out
-    assert "Pass mark:   score 0.7 or more" in out
+    assert ": Pass at 0.7 or more" in out and "Pass mark:" not in out
     s = saved(tmp_path)
     assert s["pass_mark"] == 0.7 and s["judge"] == "*"
     assert s["map"]["judges"] == ["safe_wording", "helpful"]
@@ -152,7 +152,7 @@ def test_a_model_given_with_the_flag_shows_in_the_guess(tmp_path, capsys):
     path.write_text("".join(json.dumps(u) + "\n" for u in units), encoding="utf-8")
     code, out = setup(capsys, path, "--yes", "--judge-model", "gpt-4.1")
     assert code == 0
-    assert "  judge's model:   gpt-4.1 (given with --judge-model)" in out
+    assert "  model:           gpt-4.1 (given with --judge-model)" in out
 
 
 def test_at_a_terminal_it_asks_whether_the_guess_is_right(tmp_path, capsys, terminal):

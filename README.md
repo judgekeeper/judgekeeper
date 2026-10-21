@@ -34,7 +34,7 @@ Run it in your own terminal. Each run does the next step and ends with one `Next
 4. **Fix.** `judgekeeper fix` shows where your judge goes wrong. You write a new rule; it tests it on marks kept hidden, asking your own judge, and says whether it is better. It asks before any AI call.
 5. **Re-check.** After you change your judge or update your eval tool, run `judgekeeper check`. It re-tests your judge on your marks. When that needs AI calls, it says how many and asks first.
 
-Finding, marking and the result make no AI call and need no API key. judgekeeper never runs your app or agent, and it writes only inside `.judgekeeper/` in your project. Every command, flag and file is in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md).
+Finding, marking and the result make no AI call and need no API key. judgekeeper never runs your app or agent, and it writes only inside `.judgekeeper/` in your project (plus `judgekeeper.toml` when you say yes). Every command, flag and file is in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md).
 
 ## What you get
 

@@ -334,7 +334,7 @@ def test_which_paired_verdicts_exit_1(right, wrong, n, worse):
     (11, 19, 30, [("Not sure: 19 went from right to wrong, and 11 from wrong to right. It "
                   "could be up to 52 points worse.")]),
     (0, 12, 30, ["Worse: 12 answers went from right to wrong, and none from wrong to right.",
-                 "That is about 40 points lower, and could be as much as 55."]),
+                 "That is about 40 points lower (between 27 and 55)."]),
     (0, 2, 30, [("No drop bigger than 20 points: 2 went from right to wrong, none from wrong "
                  "to right."),
                 "These marks can't rule out a drop of up to 18 points."]),
@@ -351,7 +351,8 @@ def test_the_paired_words(right, wrong, n, words):
 def test_one_answer_worse_is_said_in_the_singular():
     from judgekeeper import check
 
-    g = {"verdict": "worse", "now_wrong": 1, "now_right": 2, "change": -0.1, "low": -0.25}
+    g = {"verdict": "worse", "now_wrong": 1, "now_right": 2, "change": -0.1, "low": -0.25,
+         "high": -0.02}
     assert check.paired_lines(g)[0] == ("Worse: 1 answer went from right to wrong, and 2 from "
                                         "wrong to right.")
 
@@ -381,17 +382,10 @@ def test_the_smallest_drop_follows_the_judges_own_rates():
 
 # Small items ---------------------------------------------------------------------------------
 
-def test_a_tie_takes_the_same_side_every_time_and_splits_evenly():
+def test_repeats_with_different_grades_are_split_not_tied(tmp_path):
+    """An answer graded twice with the other grade is two answers, said as such: no grade is
+    picked for it by a coin."""
     from judgekeeper import start
-
-    ids = [f"answer-{i}" for i in range(1000)]
-    picks = [start.tie_break(i) for i in ids]
-    assert picks == [start.tie_break(i) for i in ids]
-    assert 0.45 <= picks.count("pass") / 1000 <= 0.55
-
-
-def test_tied_answers_are_counted_in_the_free_check(tmp_path):
-    from judgekeeper import judge_check, start
     from tests.start_projects import promptfoo_data, split
 
     data = promptfoo_data(split(20, 16))
@@ -403,10 +397,8 @@ def test_tied_answers_are_counted_in_the_free_check(tmp_path):
     data["results"]["results"] = rows + twice
     (tmp_path / "results.json").write_text(__import__("json").dumps(data), encoding="utf-8")
     found = start.find_judge(tmp_path)
-    assert found.pool.n_tied == 2
-    said = " ".join(" ".join(x) for x in judge_check.lines(found.check.block()))
-    assert ("2 answers got a tied grade when asked more than once; judgekeeper took one of "
-            "the two, the same each time.") in said
+    assert len(found.pool.split) == 2 and len(found.pool.answers) == 38
+    assert all(n == (2, 1, 1) for n in found.pool.split.values())
 
 
 WORDS_NEVER_SHOWN = ("Probably", "probably", "No drop seen", "trusted", "proven", "guaranteed",

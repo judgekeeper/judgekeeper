@@ -33,6 +33,7 @@ import io
 import json
 import os
 import re
+import sqlite3
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -69,6 +70,7 @@ VERDICT_COLUMNS = ("verdict", "judge_verdict", "judge")
 TABLE_SUFFIXES = (".csv", ".tsv", ".jsonl")
 RESULTS_VARS = {"deepeval": "DEEPEVAL_RESULTS_FOLDER", "inspect": "INSPECT_LOG_DIR"}
 INSPECT_SKIP = "logs.json"  # Inspect's listing of a log folder, not a log
+INSPECT_MANIFESTS = (INSPECT_SKIP, "eval-set.json")  # Inspect's own files next to logs
 DEEPEVAL_TEMP = ".temp_test_run_data.json"  # DeepEval's file while a run goes on, not results
 
 _DEPENDENCY = {"deepeval": re.compile(r"(?<![\w-])deepeval(?![\w-])", re.IGNORECASE),
@@ -122,6 +124,7 @@ class Search:
     unreadable: list[tuple[str, str]] = field(default_factory=list)  # results-like: (rel, how)
     skipped: list[tuple[str, str]] = field(default_factory=list)  # results-like, not looked in
     nested: list[Path] = field(default_factory=list)  # projects of their own, not walked
+    judge_only: list[str] = field(default_factory=list)  # tables of verdicts with no answer text
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -141,9 +144,14 @@ _RESULTS_WORDS = re.compile(r"result|output|eval|judg|score|verdict", re.IGNOREC
 
 
 def _results_like(path: Path) -> bool:
-    """A file judgekeeper would read if it could: one whose name says results."""
+    """A file judgekeeper would read if it could: one whose name says results, or an
+    Inspect .eval log (named by its date and task). Never Inspect's manifests."""
     suffix = path.suffix.lower()
-    return ((suffix in (".json", ".eval") or suffix in TABLE_SUFFIXES)
+    if suffix == ".eval":
+        return True
+    if path.name in INSPECT_MANIFESTS:
+        return False
+    return ((suffix == ".json" or suffix in TABLE_SUFFIXES)
             and bool(_RESULTS_WORDS.search(path.stem)))
 
 
@@ -203,6 +211,26 @@ def is_table(columns) -> bool:
     return "input" in columns and outputs and any(c in columns for c in VERDICT_COLUMNS)
 
 
+_VERDICT_WORDS = frozenset({"verdict"})
+_JUDGE_WORDS = frozenset({"judge", "llm", "grader"})
+_DECISION_WORDS = frozenset({"pass", "score", "verdict", "label", "grade", "decision", "result"})
+_ANSWER_WORDS = frozenset({"output", "answer", "response", "completion", "reply", "generation",
+                           "text"})
+
+
+def _column_words(column) -> set[str]:
+    return {w.lower() for w in re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+", str(column))}
+
+
+def judge_table_without_answers(columns) -> bool:
+    """A table of a judge's verdicts (verdict, judge_verdict, llm_judge_pass) with no column
+    holding the answer text: nothing to show for marking."""
+    words = [_column_words(c) for c in columns]
+    verdicts = any(w & _VERDICT_WORDS or (w & _JUDGE_WORDS and w & _DECISION_WORDS)
+                   for w in words)
+    return verdicts and not any(w & _ANSWER_WORDS for w in words)
+
+
 def title_row(path: Path) -> bool:
     """A CSV or TSV whose first row is a title, not the header: its second row reads as the
     header of a table."""
@@ -225,6 +253,37 @@ def title_row(path: Path) -> bool:
 def is_records(columns) -> bool:
     """A file of judgekeeper records, as judgekeeper.record() writes them."""
     return "annotator_kind" in columns or "schema_version" in columns
+
+
+NO_ASSESSMENTS = "holds no judge assessments"
+
+
+def store_facts(path: Path) -> tuple[datetime | None, int | None]:
+    """(when the newest run of an mlflow.db started, how many assessments it holds): read
+    with sqlite3 alone, read-only, without MLflow. (None, None) when the file can't be read
+    that way; an assessment count of None when the store is older than assessments, or when
+    its runs hold mlflow.evaluate() judge metrics (MLflow 2: said by the reader)."""
+    try:
+        con = sqlite3.connect(f"file:{path.as_posix()}?mode=ro&immutable=1", uri=True)
+    except sqlite3.Error:
+        return None, None
+    try:
+        tables = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
+        newest, count = None, None
+        if "runs" in tables:
+            (ms,) = con.execute("select max(start_time) from runs").fetchone()
+            if isinstance(ms, int | float):
+                newest = datetime.fromtimestamp(ms / 1000).astimezone()
+        if "assessments" in tables:
+            (count,) = con.execute("select count(*) from assessments").fetchone()
+        if count == 0 and "metrics" in tables and con.execute(
+                "select 1 from metrics where key like '%/v_/mean' limit 1").fetchone():
+            count = None  # mlflow.evaluate() scores: the reader names them
+        return newest, count
+    except (sqlite3.Error, OSError, ValueError, OverflowError):
+        return None, None
+    finally:
+        con.close()
 
 
 def is_mlflow_folder(path: Path) -> bool:
@@ -281,6 +340,8 @@ def _made_at(result: Result) -> datetime | None:
         if result.tool == "inspect" and result.path.suffix.lower() == ".json":
             m = _CREATED.search(_head(result.path))
             return _parse_date(m[1].decode("utf-8", errors="replace")) if m else None
+        if result.tool == "mlflow" and result.path.is_file():  # the newest run, never the file
+            return store_facts(result.path)[0]
     except (OSError, ValueError, AttributeError):
         return None
     return None
@@ -377,7 +438,10 @@ class _Walk:
                     if pattern.search(text):
                         self.sign(tool, self.rel(path))
         elif name == "mlflow.db":
-            self.add("mlflow", path, size)
+            if store_facts(path)[1] == 0:  # no judge in it: never offered as a tool
+                self.search.unreadable.append((self.rel(path), NO_ASSESSMENTS))
+            else:
+                self.add("mlflow", path, size)
         elif suffix == ".eval":
             self.add("inspect", path, size)
         elif (not suffix and DEEPEVAL_RUN.fullmatch(name)
@@ -386,7 +450,7 @@ class _Walk:
         elif suffix == ".json":
             if DEEPEVAL_RUN.fullmatch(name) or name in DEEPEVAL_COPIES:
                 self.add("deepeval", path, size)
-            elif name not in (INSPECT_SKIP, DEEPEVAL_TEMP) and self.json_sniffed < MAX_JSON:
+            elif name not in (*INSPECT_MANIFESTS, DEEPEVAL_TEMP) and self.json_sniffed < MAX_JSON:
                 self.json_sniffed += 1
                 tool = sniff_json(_head(path))
                 if tool == PROMPTFOO_TABLE:
@@ -404,10 +468,16 @@ class _Walk:
                 self.add("table", path, size)
             elif title_row(path):
                 self.search.unreadable.append((self.rel(path), TITLE_ROW))
+            elif judge_table_without_answers(columns):
+                self.search.judge_only.append(self.rel(path))
         elif suffix in TABLE_SUFFIXES and _results_like(path):  # deeper than tables are read
             columns = table_columns(path)
             if is_table(columns) or (suffix == ".jsonl" and is_records(columns)):
                 self.skip(path, _down(depth - 1))
+            elif judge_table_without_answers(columns):
+                self.search.judge_only.append(self.rel(path))
+        elif suffix in EXCEL and depth <= TABLE_DEPTH:  # named, so the person saves it as CSV
+            self.search.unreadable.append((self.rel(path), EXCEL_FOUND))
 
     def folder(self, path: Path) -> None:
         """Walk `path` breadth first, at most MAX_DEPTH folders below the root."""
@@ -434,12 +504,12 @@ class _Walk:
                         if is_mlflow_folder(sub):  # else only mlflow.db's artifacts
                             self.add("mlflow", sub)
                             self.sign("mlflow", self.rel(sub) + "/")
-                    elif _walked(entry.name) and self.project and is_project(sub):
+                    elif walked(entry) and self.project and is_project(sub):
                         if sub not in self.search.nested:
                             self.search.nested.append(sub)
-                    elif _walked(entry.name) and self.depth(sub) <= MAX_DEPTH:
+                    elif walked(entry) and self.depth(sub) <= MAX_DEPTH:
                         queue.append(sub)
-                    elif _walked(entry.name):
+                    elif walked(entry):
                         self.edge.append(sub)
                 elif entry.is_file(follow_symlinks=False):
                     self.file(entry)
@@ -449,12 +519,27 @@ class _Walk:
 # and 0.1.3's demo data. They are never "your LLM-as-a-judge" or "your own format".
 OWN_FOLDERS = ("judgekeeper-report",)
 OWN_PREFIXES = ("judgekeeper-demo",)
+VENV_MARKER = "pyvenv.cfg"  # every Python virtual environment holds one, whatever its name
 
 
 def _walked(name: str) -> bool:
     if name in SKIP_DIRS or name in OWN_FOLDERS or name.startswith(OWN_PREFIXES):
         return False
     return not name.startswith(".") or name == HIDDEN_KEPT
+
+
+def is_venv(folder: Path) -> bool:
+    """Whether `folder` is a virtual environment (by any name): it holds pyvenv.cfg."""
+    try:
+        return (folder / VENV_MARKER).is_file()
+    except OSError:
+        return False
+
+
+def walked(entry: os.DirEntry) -> bool:
+    """Whether the walk goes into a folder: not skipped by name, and not a virtual
+    environment."""
+    return _walked(entry.name) and not is_venv(Path(entry.path))
 
 
 def _inside(root: Path, value: str | None) -> Path | None:
@@ -548,6 +633,7 @@ ABOVE = "in the folder above"
 NOT_UTF8 = "not saved as UTF-8: save it as UTF-8"
 TITLE_ROW = "has a title row above its header"
 EXCEL = (".xlsx", ".xlsm", ".xls")
+EXCEL_FOUND = "is an Excel file: save it as CSV UTF-8 to use it"  # a whole sentence
 PROJECT_MARKERS = ("pyproject.toml", "package.json", ".git", "judgekeeper.toml", "setup.py")
 
 
@@ -597,7 +683,7 @@ def _look_deeper(walk: _Walk) -> None:
                 continue
             path = Path(entry.path)
             if entry.is_dir(follow_symlinks=False):
-                if _walked(entry.name) and walk.depth(path) <= MAX_DEPTH + DEEPER:
+                if walked(entry) and walk.depth(path) <= MAX_DEPTH + DEEPER:
                     queue.append(path)
             elif entry.is_file(follow_symlinks=False):
                 files += 1

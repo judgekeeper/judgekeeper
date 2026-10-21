@@ -139,10 +139,12 @@ def too_big(path: Path) -> bool:
     return size > find.HEAD_BYTES and b"\n" not in find._head(path)
 
 
-def search(root: Path, unlooked: list[OwnFile] | None = None) -> OwnFile | None:
+def search(root: Path, unlooked: list[OwnFile] | None = None,
+           tables: list[str] | None = None) -> OwnFile | None:
     """The most recently changed file in `root` (at most find.MAX_DEPTH folders deep, changed
     in the last RECENT_DAYS days) that looks like judge results in a format of its own. The
-    files whose names say results but are too big to look into go to `unlooked`."""
+    files whose names say results but are too big to look into go to `unlooked`; promptfoo's
+    table output is never one: its path goes to `tables` (relative) instead."""
     root = Path(root).resolve()
     since = time.time() - RECENT_DAYS * 86400
     started = time.monotonic()
@@ -159,8 +161,7 @@ def search(root: Path, unlooked: list[OwnFile] | None = None) -> OwnFile | None:
                 continue
             path = Path(entry.path)
             if entry.is_dir(follow_symlinks=False):
-                if find._walked(entry.name) and len(path.relative_to(root).parts) <= \
-                        find.MAX_DEPTH:
+                if find.walked(entry) and len(path.relative_to(root).parts) <= find.MAX_DEPTH:
                     queue.append(path)
             elif entry.is_file(follow_symlinks=False) and path.suffix.lower() in SUFFIXES:
                 seen += 1
@@ -170,17 +171,37 @@ def search(root: Path, unlooked: list[OwnFile] | None = None) -> OwnFile | None:
                     continue
                 if changed >= since:
                     candidates.append((changed, path))
+    first = None  # the newest file that looks judged, when none can be mapped
     for _, path in sorted(candidates, reverse=True):
         if find.classify_file(path) is not None:
             continue  # a results file judgekeeper reads already
+        if find.is_promptfoo_table(path):
+            if tables is not None:
+                tables.append(path.relative_to(root).as_posix())
+            continue
         try:
-            if looks_judged(_sample(path)):
-                return OwnFile(path, path.relative_to(root).as_posix())
-            if unlooked is not None and too_big(path) and might_be_results(path):
-                unlooked.append(OwnFile(path, path.relative_to(root).as_posix()))
+            if not looks_judged(_sample(path)):
+                if unlooked is not None and too_big(path) and might_be_results(path):
+                    unlooked.append(OwnFile(path, path.relative_to(root).as_posix()))
+                continue
         except (OSError, ValueError, csv.Error, RecursionError):
             continue
-    return None
+        found = OwnFile(path, path.relative_to(root).as_posix())
+        if _mappable(path):  # a newer file with no verdicts never hides one with them
+            return found
+        first = first or found
+    return first
+
+
+def _mappable(path: Path) -> bool:
+    """Whether the mapper finds answers and verdicts in the file."""
+    from judgekeeper import mapper
+
+    try:
+        mapper.guess(mapper.load(path))
+    except (mapper.MapError, OSError, ValueError, RecursionError):
+        return False
+    return True
 
 
 def agent_prompt() -> str:

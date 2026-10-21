@@ -63,6 +63,17 @@ VERDICT_VALUES = frozenset({
     "incorrect", "right", "wrong", "good", "bad", "ok", "accept", "accepted", "reject",
     "rejected", "success", "failure", "partial", "partially correct", "c", "i", "p"})
 MOST = 0.8  # the share of an answer's values that must be verdict-like
+# A column named for the judge is listed first when a table holds several verdict columns
+JUDGE_NAMED = ("judge", "llm")
+# A 0/1 column named for a rule in code (keyword_score, regex_match) is not an LLM judge
+RULE_WORDS = ("keyword", "keywords", "regex", "exact", "contains")
+RULE_VALUES = frozenset({"0", "1", "true", "false"})
+# Words a model's name holds (with a digit, a slash or a colon, the sign of a model name):
+# a "model" or "grader" column whose values have none of them names a rule, not a model
+MODEL_WORDS = ("gpt", "claude", "gemini", "llama", "mistral", "mixtral", "qwen", "deepseek",
+               "sonnet", "haiku", "opus", "openai", "anthropic", "azure", "bedrock", "ollama",
+               "groq", "cohere", "command", "phi", "gemma", "grok", "openrouter", "vertex",
+               "together", "fireworks", "nova", "titan", "palm", "codex")
 
 _PLAIN = re.compile(r"[A-Za-z0-9_\-]+|\{side\}|\{judge\}")
 _BARE = re.compile(r"[^.\[\]\"]+")
@@ -114,6 +125,19 @@ def parse(text: str) -> list[tuple[str, bool]]:
 def shown(path: str) -> str:
     """A path for people: the placeholders as <side> and <criterion>."""
     return path.replace(SIDE, "<side>").replace(JUDGE, "<criterion>")
+
+
+def filled(path: str | None, side: str | None = None, judge: str | None = None) -> str:
+    """A path for the screen, with its placeholders filled with real names (A.output, the
+    first judge's key): never a placeholder on screen."""
+    if not path:
+        return ""
+    try:
+        parts = parse(path)
+    except MapError:
+        return path
+    return write([(side if k == SIDE and side is not None else judge
+                   if k == JUDGE and judge is not None else k, many) for k, many in parts])
 
 
 def _words(key: str) -> set[str]:
@@ -221,26 +245,25 @@ def _example(value) -> str:
 
 def listing(unit, judges=()) -> list[tuple[str, str]]:
     """[(path, example value)] of every leaf in a unit: the first element of each list,
-    and of the keys in `judges` only the first, shown as <criterion>."""
+    and of the keys in `judges` only the first, by its real name (the others have the same
+    shape)."""
     out, seen = [], set()
 
     def walk(obj, prefix, depth):
         if depth > MAX_DEPTH:
             return
-        criterion_shown = False
+        present = [j for j in judges if j in obj]  # the first judge stands for them all
         for key, value in obj.items():
             key = str(key)
-            if key in judges:
-                if criterion_shown:
-                    continue
-                criterion_shown, key = True, CRITERION
+            if key in judges and key != present[0]:
+                continue
             seg = [*prefix, (key, False)]
             if isinstance(value, dict) and value:
                 walk(value, seg, depth + 1)
             elif isinstance(value, list) and value and all(isinstance(v, dict) for v in value):
                 walk(value[0], [*prefix, (key, True)], depth + 1)
             else:
-                text = write(seg).replace(json.dumps(CRITERION), CRITERION)
+                text = write(seg)
                 if text not in seen:
                     seen.add(text)
                     out.append((text, _example(value)))
@@ -337,10 +360,55 @@ def _verdict_like(values) -> bool:
     return bool(values) and sum(map(_verdict_value, values)) >= MOST * len(values)
 
 
+def _plain_text(value) -> bool:
+    """A value that reads as an answer's text: not a number, true/false or a verdict word,
+    and not a JSON list or object (a list of keywords)."""
+    if not isinstance(value, str) or number(value) is not None:
+        return False
+    text = value.strip()
+    if text.lower() in VERDICT_VALUES:
+        return False
+    # a list or object, as JSON or as pandas writes a list, is not an answer
+    return not (text[:1] in "[{" and text[-1:] in "]}")
+
+
+def _text_like(values) -> bool:
+    """Most of a column's values (MOST, empty ones aside) are text: an answer, not a column
+    of numbers, true/false, 0/1 or keyword lists that happens to be named like one."""
+    values = [v for v in values if not blank(v)]
+    return bool(values) and sum(map(_plain_text, values)) > (1 - MOST) * len(values)
+
+
 def _outputs(item: dict) -> list[tuple]:
     return [seg for seg, v in _leaves(item) if isinstance(v, str)
             and any(_is(k, OUTPUT_WORDS) for k in seg) and not _is(seg[-1], REASON_WORDS)
             and not any(_is(k, INPUT_WORDS) for k in seg) and not _setting(seg)]
+
+
+def _judge_first(judges: list[str]) -> list[str]:
+    """The judges with the ones named for a judge (judge_verdict, llm_score) first."""
+    named = [j for j in judges if _words(j) & set(JUDGE_NAMED)]
+    return named + [j for j in judges if j not in named]
+
+
+def _rule_column(key: str, values) -> bool:
+    """A score column that a rule in code made, not an LLM judge: named for the rule
+    (keyword_score, regex_match, exact_match, contains_ok) and holding only 0/1."""
+    words = _WORD.findall(str(key))
+    if not words or words[0].lower() not in RULE_WORDS:
+        return False
+    values = [str(v).strip().lower() for v in values if not blank(v)]
+    return bool(values) and all(v in RULE_VALUES for v in values)
+
+
+def _model_like(value) -> bool:
+    """A value that reads as a model's name: a digit, a slash or a colon in it (gpt-4.1,
+    ollama/qwen2.5:3b), or a word a model's name holds. "string_match" is not one."""
+    if not isinstance(value, str) or not value.strip():
+        return False
+    text = value.strip().lower()
+    return (any(c.isdigit() or c in "/:" for c in text)
+            or bool(_words(text) & set(MODEL_WORDS)))
 
 
 def _differ_at(paths: list[tuple]) -> int | None:
@@ -405,8 +473,9 @@ def guess(units: list, each: str | None = None) -> Guess:
     first = sample[0]
     unsure = []
 
-    # the answers, and their sides
-    outputs = _outputs(first)
+    # the answers, and their sides: a part named like one, holding text (not a column of
+    # numbers, true/false or keyword lists)
+    outputs = [seg for seg in _outputs(first) if _text_like(_at(sample, seg))]
     sides: list[str] = []
     if not outputs:  # no key says which text is the answer: the longest one
         texts = _texts(first)
@@ -426,8 +495,13 @@ def guess(units: list, each: str | None = None) -> Guess:
 
     # the score or verdict, per side and per judge: named so, and verdict-like values
     scores = [seg for seg, v in _leaves(first) if _named_verdict(seg)
-              and (v is None or _verdict_value(v))
+              and (blank(v) or _verdict_value(v))  # the first row's cell may be empty
               and _verdict_like(_at(sample, seg))]
+    rules = [seg for seg, _ in _leaves(first) if _rule_column(seg[-1], _at(sample, seg))]
+    scores = [seg for seg in scores if seg not in rules]
+    if not scores and rules:
+        raise MapError(f"its score column {_as_path(rules[0])} is a rule in code (a "
+                       f"{_WORD.findall(rules[0][-1])[0].lower()} match), not an LLM judge")
     if not scores:
         raise MapError("no judge verdicts were found in it")
     if sides:
@@ -455,7 +529,7 @@ def guess(units: list, each: str | None = None) -> Guess:
         judges = [score_seg[-2]]
         score_seg = _fill(score_seg, len(score_seg) - 2, JUDGE)
     if JUDGE in score_seg:
-        judges = _every_judge(sample, score_seg, sides, judges)
+        judges = _judge_first(_every_judge(sample, score_seg, sides, judges))
 
     # the input, the reason, the id
     leaves = [(seg, v) for seg, v in _leaves(first) if SIDE not in seg]
@@ -551,7 +625,8 @@ def _every_judge(sample: list[dict], score_seg: tuple, sides: list[str],
                 if str(key) not in found:
                     found.append(str(key))
     return [j for j in found if _named_verdict((*parent, j, *rest)) and _verdict_like(
-        _values_of(sample, _as_path(score_seg), sides, j))]
+        _values_of(sample, _as_path(score_seg), sides, j))
+            and not _rule_column(j, _values_of(sample, _as_path(score_seg), sides, j))]
 
 
 def _values_of(sample: list[dict], path: str, sides: list[str], judge: str) -> list:
@@ -653,10 +728,13 @@ def _model(guess: Guess, units: list) -> None:
     key like judge_model at any depth, a model key inside a judge object (judge.model), or
     a key of its own (model, judge). Never a model elsewhere, such as the app's."""
     used = {parse(p)[0][0] for p in (guess.input, guess.output, guess.score) if p}
-    for obj in _objects(guess, units):
+    sample = [item for unit in units for item, _ in _safe_items(unit, guess.each)]
+    for n, obj in enumerate(_objects(guess, units)):
         found = [(_model_rank(seg), seg, v) for seg, v in _leaves(obj)
                  if seg[0] not in used and isinstance(v, str) and v.strip()]
-        found = [x for x in found if x[0] is not None]
+        # in the items, every value must read as a model's name ("string_match" is a rule)
+        found = [x for x in found if x[0] is not None and (n > 0 or all(
+            _model_like(v) for v in _at(sample, x[1]) if not blank(v)))]
         if found:
             _, seg, value = min(found, key=lambda x: x[0])
             guess.model_key, guess.model = _as_path(seg), value
@@ -803,6 +881,6 @@ def with_part(units: list, g: Guess, role: str, path: str | None) -> Guess:
     return new
 
 
-__all__ = ["Guess", "MapError", "Missing", "choices", "get", "guess", "items", "judged_values",
-           "judges_read", "left_out", "listing", "load", "load_numbered", "made_by_a_rule",
-           "number", "parse", "shown", "value_around", "with_part", "write"]
+__all__ = ["Guess", "MapError", "Missing", "choices", "filled", "get", "guess", "items",
+           "judged_values", "judges_read", "left_out", "listing", "load", "load_numbered",
+           "made_by_a_rule", "number", "parse", "shown", "value_around", "with_part", "write"]

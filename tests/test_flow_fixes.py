@@ -86,7 +86,7 @@ def test_a_results_file_given_by_path_keeps_the_marks_in_the_project(here, capsy
     assert code == 0, out + err
     assert (here / ".judgekeeper" / "start.json").is_file()
     assert not (here / "data" / "a" / "b" / "c" / "d" / ".judgekeeper").exists()
-    assert "(read from data/a/b/c/d/deep.csv)" in out
+    assert "File:        data/a/b/c/d/deep.csv" in out
     _mark(Workspace(here), only=range(6))
     (here / "src").mkdir()
     for folder in (here, here / "src"):

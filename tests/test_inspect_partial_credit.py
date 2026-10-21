@@ -25,7 +25,7 @@ def test_what_was_found_comes_before_the_question(here, capsys):
                     encoding="utf-8")
     code, out, _ = run(capsys)
     found = out.index("Eval tool:   Inspect AI")
-    assert "(read from logs/2026-10-02_support.json)" in out
+    assert "File:        logs/2026-10-02_support.json" in out
     judge = out.index("Judge:       anthropic/claude-haiku-4-5")
     asked = out.index("Inspect gave partial credit (P) on 4 answers.")
     assert found < judge < asked

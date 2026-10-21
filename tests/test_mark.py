@@ -90,7 +90,8 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
     assert len(no_browser) == 1 and label.is_open(here / ".judgekeeper")
     ws = start_label.Workspace(here)
     assert marks.read(ws.marks).header["pool"] == {"pass": 20, "fail": 16}
-    assert (ws.dir / "judge.json").is_file() and (ws.dir / "judge-check.json").is_file()
+    assert (ws.dir / "judge.json").is_file()
+    assert not (ws.dir / "judge-check.json").exists()  # nothing to list: no file
 
 
 def test_the_page_starts_with_the_commands_of_the_flags_given(here, capsys, pages):

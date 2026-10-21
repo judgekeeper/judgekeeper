@@ -26,7 +26,7 @@ from judgekeeper import mapper, own_format, settings, start
 from judgekeeper.normalise import NormaliseError, parse_pass_if
 from judgekeeper.records import LLM, RecordsError
 from judgekeeper.start import EXIT_QUESTION, EXIT_USAGE, StartError, Talk
-from judgekeeper.textio import plural
+from judgekeeper.textio import plural, quote_arg
 
 MAX_PATHS = 24
 RECORD_DOOR = ("Or save your judge's decisions from now on with one judgekeeper.record() line "
@@ -45,7 +45,14 @@ def cannot(talk: Talk, rel: str, why: str):
     return talk.stop(EXIT_USAGE, (
         f"turn {rel} into a CSV with the columns id, input, output, verdict (pass or fail) "
         "and reason, one CSV per judge, leaving out errors and scores made by a rule. Then "
-        f"run `{talk.program} PATH`, with PATH the path of your CSV."))
+        f"run `{csv_command(talk)}`, with PATH the path of your CSV."))
+
+
+def csv_command(talk: Talk) -> str:
+    """`judgekeeper PATH` with the person's flags, PATH standing for the CSV to read: the
+    file they gave, when they gave one, is what PATH replaces."""
+    given = talk.flags[:1] == (quote_arg(talk.path),) and talk.path != "."
+    return " ".join((talk.program, "PATH", *(talk.flags[1:] if given else talk.flags)))
 
 
 UNSURE_PARTS = {"output": "the answer", "input": "the input", "score": "the score"}
@@ -66,21 +73,27 @@ def unsure(talk: Talk, rel: str, g: mapper.Guess):
 def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
     """How judgekeeper reads the file: the paths of each part, never a value."""
     each = f"each item of {g.each}" if g.each else "each line or row"
-    answer = mapper.shown(g.output) + (f" ({' and '.join(g.sides)})" if g.sides else "")
-    score = mapper.shown(g.score) + (f" (judges: {', '.join(g.judges)})" if g.judges else "")
-    label = "score:" if g.kind == "score" else "decision:"
-    lines = [f"  one answer:      {each}", f"  input:           {mapper.shown(g.input)}",
+    side, judge = (g.sides or [None])[0], (g.judges or [None])[0]
+    answer = (" and ".join(mapper.filled(g.output, s) for s in g.sides) if g.sides
+              else mapper.filled(g.output))
+    score = mapper.filled(g.score, side, judge)
+    if g.judges:
+        score += f" (judges: {', '.join(g.judges)})"
+    if len(g.sides) > 1 and mapper.SIDE in g.score:
+        score += f" and the same under {' and '.join(g.sides[1:])}"
+    label = "grade:"
+    lines = [f"  one answer:      {each}", f"  question:        {mapper.filled(g.input)}",
              f"  answer:          {answer}", f"  {label:<17}{score}"]
     if g.reason:
-        lines.append(f"  reason:          {mapper.shown(g.reason)}")
+        lines.append(f"  reason:          {mapper.filled(g.reason, side, judge)}")
     if g.id:
         lines.append(f"  id:              {g.id}")
     if g.model_key:
-        lines.append(f"  judge's model:   {mapper.shown(g.model_key)} ({g.model})")
+        lines.append(f"  model:           {mapper.filled(g.model_key, side, judge)} ({g.model})")
     elif judge_model:
-        lines.append(f"  judge's model:   {judge_model} (given with --judge-model)")
+        lines.append(f"  model:           {judge_model} (given with --judge-model)")
     else:
-        lines.append("  judge's model:   not in the file")
+        lines.append("  model:           not in the file")
     if g.kind == "score":
         if g.pass_mark_given:
             where = " (given by you)"
@@ -127,8 +140,9 @@ def _correct(talk: Talk, units: list, g: mapper.Guess) -> mapper.Guess | None:
         return dataclasses.replace(g, kind="score", pass_mark=mark, pass_mark_sure=True,
                                    pass_mark_given=True, pass_mark_key=None)
     found = mapper.choices(units, g, role)
-    width = min(max((len(mapper.shown(p)) for p, _ in found), default=0), 44)
-    options = [f"{mapper.shown(p) or '(the whole line)':<{width}}"
+    side, judge = (g.sides or [None])[0], (g.judges or [None])[0]
+    width = min(max((len(mapper.filled(p, side, judge)) for p, _ in found), default=0), 44)
+    options = [f"{mapper.filled(p, side, judge) or '(the whole line)':<{width}}"
                + (f"  {example}" if role in SHOWN_EXAMPLES else "")
                for p, example in found] + (["none"] if role in OPTIONAL else [])
     if not options:
@@ -143,13 +157,13 @@ def _correct(talk: Talk, units: list, g: mapper.Guess) -> mapper.Guess | None:
 
 
 def _count(units: list, g: mapper.Guess, judge: str) -> int:
+    """How many answers `judge` graded: the values at its path that are not empty."""
     n = 0
     for unit in units:
         for item, _ in mapper._safe_items(unit, g.each):
             for side in g.sides or [None]:
                 try:
-                    mapper.get(item, g.score, side, judge)
-                    n += 1
+                    n += not mapper.blank(mapper.get(item, g.score, side, judge))
                 except mapper.Missing:
                     continue
     return n

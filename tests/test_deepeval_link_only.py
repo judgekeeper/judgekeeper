@@ -46,8 +46,8 @@ def test_the_full_run_beside_it_is_read(here, capsys):
     full = deepeval_project(here, split(18, 18))
     _link_only(here, newer_than=full)
     code, out, err = run(capsys)
-    assert "Eval tool:   DeepEval" in out and "36 answers, each graded by your judge" in out
-    assert "(read from .deepeval/.latest_run_full.json)" in out
+    assert "Eval tool:   DeepEval" in out and "Answers:     36 answers" in out
+    assert "File:        .deepeval/.latest_run_full.json" in out
     assert "Confident AI" not in out + err
     assert code == 0, out + err
 

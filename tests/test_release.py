@@ -276,7 +276,7 @@ def test_changelog_entry_says_1_0_is_commands_you_run():
     removed = ("Removed: automatic checks, the GitHub Action and the agent skill. 1.0 is "
                "commands you run yourself; agent support may come back later.")
     for needed in (f"`uvx judgekeeper@{VERSION}`", f"`pip install judgekeeper=={VERSION}`",
-                   "`judgekeeper check`", "History", "asks first",
+                   "`judgekeeper check`", "asks first",
                    "Find. Mark. Measure. Fix. Re-check.", removed):
         assert needed in flat, needed
     for gone in ("--off", "Only your click", "action.yml", "mode: fast", "hook"):

@@ -21,7 +21,6 @@ default answer of a yes/no question, but never picks between tools or judges. Ev
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import operator
@@ -78,7 +77,32 @@ RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your judg
 PAIRWISE = "These are A/B comparisons. judgekeeper handles pass/fail answers for now."
 HUMAN_COLUMNS = ("human_label", "label")
 FILE_READERS = {"promptfoo": read_promptfoo, "deepeval": read_deepeval, "inspect": read_inspect}
-_DESCRIPTION = re.compile(r"^description:\s*(.*?)\s*$", re.MULTILINE)
+_DESCRIPTION = re.compile(r"^description:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
+_YAML_BLOCK = re.compile(r"^[>|][+-]?$")  # a folded (>) or literal (|) block scalar
+
+
+def yaml_description(text: str) -> str | None:
+    """The top-level `description:` of a YAML config, with no YAML reader: a plain or quoted
+    value, or a folded (`>-`) or literal (`|`) block, its lines joined with spaces."""
+    m = _DESCRIPTION.search(text)
+    if not m:
+        return None
+    value = m[1].strip()
+    if _YAML_BLOCK.fullmatch(value):
+        lines = []
+        for line in text[m.end():].splitlines()[1:]:
+            if line.strip() and not line.startswith((" ", "\t")):
+                break
+            lines.append(line.strip())
+        value = " ".join(x for x in lines if x)
+    elif len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+        value = value[1:-1]
+    return value.strip() or None
+
+
+def same_words(a: str | None, b: str | None) -> bool:
+    """Two descriptions are the same when they differ only in spaces and line breaks."""
+    return a is not None and b is not None and " ".join(a.split()) == " ".join(b.split())
 
 
 class StartError(Exception):
@@ -261,8 +285,12 @@ class Pool:
     unmapped: list = field(default_factory=list)
     n_unmapped: dict = field(default_factory=dict)  # how many verdicts had each unmapped value
     n_merged: int = 0
+    n_results: int = 0  # grades read for the chosen judge, repeats counted each
+    repeat_sizes: set = field(default_factory=set)  # how many times each answer was graded
     n_human: int = 0
-    n_tied: int = 0  # answers asked more than once whose grades split evenly
+    # answers graded more than once with different grades, each repeat its own answer:
+    # id -> (repeats, passes, fails)
+    split: dict = field(default_factory=dict)
     left: dict = field(default_factory=dict)  # answer id: (judge_check kind, its record)
     unread: set = field(default_factory=set)  # answers whose grades no label map reads yet
 
@@ -307,18 +335,14 @@ def _mark_of(r: ScoreRecord, v, norm: Normaliser, threshold) -> tuple[float | No
     return _number(threshold), None
 
 
-def tie_break(key: str) -> str:
-    """The grade an answer whose grades are tied takes: from a hash of its id, even is pass,
-    so ties split about evenly and one answer always gets the same."""
-    return ("pass", "fail")[int(hashlib.sha256(key.encode("utf-8")).hexdigest(), 16) % 2]
-
-
 def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normaliser,
                own_ids: bool = False) -> Pool:
     """The pool from the judge `metric`'s verdicts in `files`, newest file first. An answer
     whose verdicts are all no real decision (the reader's mark, or nothing the normaliser can
     read) goes to `left` with its kind instead. An answer's id is made from its text, or with
-    `own_ids` (a table, an own format) the file's own id when the reader kept it."""
+    `own_ids` (a table, an own format) the file's own id when the reader kept it. Repeats of
+    an answer with the same grade count once; with different grades, each repeat is its own
+    answer (`split`): they are never merged into one grade silently."""
     pool = Pool()
     chosen: dict[str, Answer] = {}
     for source, records in files:
@@ -359,21 +383,24 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
             if not judged:
                 pool.left[key] = (seen[0][2], seen[0][0])
                 continue
-            pool.n_merged += len(judged) - 1
             passes = sum(v.verdict == "pass" for _, v in judged)
-            if passes * 2 == len(judged):  # a tie: the same side for this answer every time
-                verdict = tie_break(key)
-                pool.n_tied += 1
+            pool.n_results += len(judged)
+            pool.repeat_sizes.add(len(judged))
+            if passes in (0, len(judged)):  # the same grade every time: one answer
+                pool.n_merged += len(judged) - 1
+                judged = judged[-1:]
             else:
-                verdict = "pass" if passes * 2 > len(judged) else "fail"
-            r, v = next((r, v) for r, v in reversed(judged) if v.verdict == verdict)
-            score = v.raw_score if v.raw_score is not None else _number(r.score)
-            pass_mark, pass_op = _mark_of(r, v, norm, threshold)
-            chosen[key] = Answer(
-                id=key, input=r.input, output=r.output, verdict=verdict,
-                reason=v.rationale or r.explanation or "", score=score,
-                fingerprint=make_fingerprint(_known(r.evaluator), r.created_at), source=source,
-                agent=r.agent(), mark=r.mark, pass_mark=pass_mark, pass_op=pass_op)
+                pool.split[key] = (len(judged), passes, len(judged) - passes)
+            for n, (r, v) in enumerate(judged, 1):
+                score = v.raw_score if v.raw_score is not None else _number(r.score)
+                pass_mark, pass_op = _mark_of(r, v, norm, threshold)
+                answer_id = key if n == 1 else f"{key}#{n}"
+                chosen[answer_id] = Answer(
+                    id=answer_id, input=r.input, output=r.output, verdict=v.verdict,
+                    reason=v.rationale or r.explanation or "", score=score,
+                    fingerprint=make_fingerprint(_known(r.evaluator), r.created_at),
+                    source=source, agent=r.agent(), mark=r.mark, pass_mark=pass_mark,
+                    pass_op=pass_op)
     pool.answers = list(chosen.values())
     return pool
 
@@ -403,31 +430,35 @@ def read_results_table(path: Path) -> RecordList:
     columns = list(dict.fromkeys(k for row in rows for k in row))
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
-    verdict = next((c for c in find.VERDICT_COLUMNS if c in columns), None)
+    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns]  # each one is a judge
+    verdict = verdicts[0] if verdicts else None
     if verdict is None or "input" not in columns or "output" not in columns:
         raise StartError(f"{path.name} needs input, output and verdict columns; columns are: "
                          f"{', '.join(columns)}")
     human = next((c for c in HUMAN_COLUMNS if c in columns), None)
     records = RecordList(ids_derived=not own)
     if "id" in columns and not own:
-        records.per_metric = {verdict: {"warnings": [MADE_IDS]}}
+        records.per_metric = {v: {"warnings": [MADE_IDS]} for v in verdicts}
     for n, row in enumerate(rows, 1):
         textio.reading(n)
         content = {"target_id": ids[n - 1] if own else derive_record_id(row.get("input"),
                                                                         row.get("output")),
                    "input": row.get("input"), "output": row.get("output")}
         model = row.get("model") if not _blank(row.get("model")) else row.get("judge_model")
+        if not mapper._model_like(model):  # "string_match": a rule's name, not a model's
+            model = None
         score = _number(mapper.number(row.get("score"))) if "score" in columns else None
-        records.append(ScoreRecord(
-            name=verdict, annotator_kind=LLM, score=score,
-            label=None if _blank(row.get(verdict)) else row[verdict],
-            explanation=None if _blank(row.get("reason")) else str(row["reason"]),
-            evaluator={} if _blank(model) else {"model": str(model)},
-            app_version=None if _blank(row.get("app_version")) else str(row["app_version"]),
-            **content))
+        for verdict in verdicts:
+            records.append(ScoreRecord(
+                name=verdict, annotator_kind=LLM, score=score,
+                label=None if _blank(row.get(verdict)) else row[verdict],
+                explanation=None if _blank(row.get("reason")) else str(row["reason"]),
+                evaluator={} if _blank(model) else {"model": str(model)},
+                app_version=None if _blank(row.get("app_version")) else str(row["app_version"]),
+                **content))
         if human and not _blank(row.get(human)):
-            records.append(ScoreRecord(name=verdict, annotator_kind=HUMAN, label=row[human],
-                                       **content))
+            records.append(ScoreRecord(name=verdicts[0], annotator_kind=HUMAN,
+                                       label=row[human], **content))
     return records
 
 
@@ -492,7 +523,7 @@ def _unread(error: RecordsError, result: find.Result, root: Path) -> str:
         config = _config_named(root, result)
         default = error.default or _default_test_has(root / config, error.name)
         return two_judges(result.rel, error.test, error.name, f" in {config}", default)
-    return str(error)
+    return str(error).replace(str(result.path), result.rel)  # never the full path
 
 
 def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
@@ -554,7 +585,7 @@ def _read_mapped(result: find.Result, saved) -> list[Loaded]:
 def _where(result: find.Result) -> str:
     """The file, and when it was saved: for DeepEval only the run's own time (a file's time
     can be when the project was copied), else no date."""
-    date = result.run_date() if result.tool == "deepeval" else result.date()
+    date = result.run_date() if result.tool in ("deepeval", "mlflow") else result.date()
     return result.rel if date is None else f"{result.rel}, saved {date:%Y-%m-%d %H:%M}"
 
 
@@ -627,7 +658,7 @@ OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({nam
                 "with input, output and verdict columns.")
 OLD_EVALUATE_NEXT = ("run your judge with mlflow.genai.evaluate() and scorers, then run "
                      "`{command}` again; or save its verdicts as a CSV and run "
-                     "`{program} PATH`, with PATH the path of your CSV.")
+                     "`{csv_command}`, with PATH the path of your CSV.")
 # The run metrics mlflow.evaluate() logs for a judged metric: faithfulness/v1/mean, ...
 _OLD_METRIC = re.compile(r"(.+/v\d+)/(mean|variance|p90)")
 
@@ -655,6 +686,7 @@ def _no_experiment(experiment: str,stores: list[tuple[find.Result, list[str]]]) 
 def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                        metric: str | None, uri: str) -> tuple[str, list[Loaded]]:
     from judgekeeper.readers.mlflow_store import (
+        ArtifactServer,
         JudgeCallsFailed,
         TracesMissing,
         experiments_with_traces,
@@ -663,7 +695,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
     if experiment is not None:
         try:
             found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
-        except (TracesMissing, JudgeCallsFailed) as e:
+        except (TracesMissing, JudgeCallsFailed, ArtifactServer) as e:
             raise usage_error(e) from None
         except RecordsError as e:
             if not str(e).startswith("no MLflow experiment named"):
@@ -672,11 +704,11 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
     else:
         from mlflow import MlflowClient
 
-        found, missing = [], []
+        found, missing, code_only = [], [], False
         for exp in MlflowClient(tracking_uri=uri).search_experiments():
             try:
                 runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
-            except (TracesMissing, JudgeCallsFailed) as e:
+            except (TracesMissing, JudgeCallsFailed, ArtifactServer) as e:
                 missing.append(e)
                 continue
             except Damaged:
@@ -685,15 +717,17 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                 continue
             if any(r.annotator_kind == LLM for _, recs in runs for r in recs):
                 found.append((exp.name, runs))
+            elif any(r.annotator_kind == CODE for _, recs in runs for r in recs):
+                code_only = True
         if not found and missing:
             raise usage_error(missing[0])
         old = [] if found else _old_evaluate(uri)
         if old:
             _note(talk, OLD_EVALUATE.format(names=", ".join(old)))
-            raise talk.stop(EXIT_USAGE, OLD_EVALUATE_NEXT.format(command=talk.command(),
-                                                                 program=talk.program))
-        if not found:
-            raise StartError(f"no MLflow experiment in {store.rel} has judge assessments")
+            raise talk.stop(EXIT_USAGE, OLD_EVALUATE_NEXT.format(
+                command=talk.command(), csv_command=talk.command_at("PATH")))
+        if not found:  # the same words as DeepEval's, and a real next step
+            raise _no_judge(talk, "mlflow", [_store_name(store)], rules=code_only)
         if len(found) > 1:
             names = [name for name, _ in found]
             found = [found[talk.choose(
@@ -705,8 +739,8 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
     name, runs = found[0]
     for label, recs in runs:
         for note in recs.notes if label == "human assessments" else ():
-            if "trace files are missing" in note or "judgekeeper read the newest" in note:
-                talk.say(f"  {note}")
+            if not note.startswith(("Runs are MLflow runs", "MLflow does not save")):
+                _note(talk, note)
     judged = [Loaded(label, recs) for label, recs in runs if label != "human assessments"]
     humans = [r for label, recs in runs if label == "human assessments" for r in recs
               if r.annotator_kind == HUMAN]
@@ -974,7 +1008,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     available = [t for t in find.TOOLS if found.readable(t)]
     if found.unreadable and (available or found.too_big()):
         for rel, how in found.unreadable:
-            _note(talk, f"{rel} {how}, so it was left out.")
+            _note(talk, f"{rel} {how}." if how == find.EXCEL_FOUND
+                  else f"{rel} {how}, so it was left out.")
     if "records" not in available and (tool == "records" or tool is None and not available):
         above = find.records_above(root)
         if above is not None:  # record() saves at the project root, from any subfolder
@@ -1100,6 +1135,10 @@ def _unreadable(found: find.Search) -> Damaged:
         return table_output(rel)
     if how == find.TITLE_ROW:
         return title_row(rel)
+    if how == find.EXCEL_FOUND:
+        return Damaged(f"{rel} {how}.", f"save {rel} as CSV UTF-8, then run `{{command}}`.")
+    if how == find.NO_ASSESSMENTS:
+        return Damaged(f"{rel} {how}.", NO_JUDGE_NEXT)
     if how != "is empty":
         return Damaged(f"{rel} {how}.", f"give your user permission to read {rel}, then run "
                                         "`{command}` again.")
@@ -1155,7 +1194,7 @@ def _check_description(talk: Talk, root: Path, theirs: str | None,
     promptfoo configs (when they have one), before anything is read. After No: the newest
     of `others` from this project, or how to name your own."""
     mine = _project_descriptions(root)
-    if theirs is None or not mine or theirs in mine:
+    if theirs is None or not mine or any(same_words(theirs, d) for d in mine):
         return
     said = (f'{result.rel} looks like it is from another project (its description is '
             f'"{theirs}", and no promptfoo config here has it).')
@@ -1201,8 +1240,7 @@ def _promptfoo_config(path: Path) -> tuple[bool, str | None]:
         value = data.get("description") if isinstance(data, dict) else None
     else:
         keys = {m[1] for m in _CONFIG_KEY.finditer(text)}
-        m = _DESCRIPTION.search(text)
-        value = m[1].strip().strip("'\"") if m else None
+        value = yaml_description(text)
     named = path.name.lower() in find.PROMPTFOO_CONFIGS
     if not named and ("prompts" not in keys or not keys & {"providers", "tests"}):
         return False, None
@@ -1298,15 +1336,24 @@ def _project_description(root: Path) -> str | None:
             except (ValueError, AttributeError, RecursionError):
                 return None
             return value.strip() if isinstance(value, str) else None
-        m = _DESCRIPTION.search(text)
-        return m[1].strip().strip("'\"").strip() if m else None
+        return yaml_description(text)
     return None
 
 
 def _judges(records, kind: str | None = None) -> Counter:
-    """How many decisions each LLM judge in `records` made. A DeepEval metric with no model
-    (Exact Match, a check written in Python) is a rule in code, not a judge."""
-    counts = Counter(r.name for r in records if r.annotator_kind == LLM)
+    """How many answers each LLM judge in `records` graded, counted as the pool counts them:
+    repeats of one answer with the same grade once, with different grades each. A DeepEval
+    metric with no model (Exact Match, a check written in Python) is a rule in code, not a
+    judge."""
+    grades: dict[tuple, list] = {}
+    for r in records:
+        if r.annotator_kind == LLM:
+            key = (r.name, r.target_id if r.target_id and not getattr(records, "ids_derived", True)
+                   else derive_record_id(r.input, r.output, r.trajectory))
+            grades.setdefault(key, []).append(r.label)
+    counts: Counter = Counter()
+    for (name, _), labels in grades.items():
+        counts[name] += len(labels) if len(set(labels)) > 1 else 1
     if kind == "deepeval":
         judged = {r.name for r in records
                   if r.annotator_kind == LLM and (r.evaluator or {}).get("model")}
@@ -1321,7 +1368,7 @@ def _rules_in_code(records, kind: str | None) -> bool:
 
 
 NO_JUDGE_NOUN = {"inspect": "Inspect logs", "table": "results tables"}
-RULES_WORD = {"deepeval": "metrics", "inspect": "scorers"}
+RULES_WORD = {"deepeval": "metrics", "inspect": "scorers", "mlflow": "scorers"}
 NO_JUDGE_NEXT = "add an LLM judge to your eval and run it once, then run `{command}` again."
 
 
@@ -1498,14 +1545,16 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                label_map: str | dict | None = None, judge_model: str | None = None,
                talk: Talk | None = None, prefer: str | None = None,
                tracking_uri: str | None = None, store: str | None = None,
-               saved: settings.StartSettings | None = None) -> Found:
+               saved: settings.StartSettings | None = None,
+               only: list[str] | None = None) -> Found:
     """Find the results, choose what to use, make the pool and name the judge.
 
     `talk` says each step and asks the questions; the default says nothing and, with no one
     to ask, stops (Stop) where a question would be needed. `prefer` (the judge of the last
     check) is chosen without asking when the newest results hold it among several; `store`
     (the MLflow store of the last check) likewise. `tracking_uri` names the MLflow store.
-    `saved` stands in for judgekeeper.toml's [start] table (a map not saved yet).
+    `saved` stands in for judgekeeper.toml's [start] table (a map not saved yet). `only`
+    (paths in the project) keeps to those results files: the ones the marks were made on.
     """
     talk = talk or Talk(quiet=True)
     if saved is None and tool is None and tracking_uri is None:
@@ -1524,6 +1573,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         root, kind, results, signs = _mapped_source(talk, Path(path).resolve(), saved)
     else:
         root, kind, results, signs = _locate(talk, Path(path), tool)
+    if only:
+        results = [r for r in results if r.rel in only] or results
     if kind == "mlflow":
         results = _choose_store(talk, root, results, experiment, store)
     elif kind in ("deepeval", "inspect"):
@@ -1547,9 +1598,6 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                                                 get=_get_extra(talk, "inspect")))
                 talk.say()
             results, newest = json_logs, json_logs[0]
-        if kind == "promptfoo":
-            description = results_description(newest)
-            _check_description(talk, root, description, newest, results)
         if kind in ("records", "mapped"):  # every file (or run) the newest judge wrote
             loaded = (_read_records(talk, results) if kind == "records"
                       else _read_mapped(results[0], saved))
@@ -1593,10 +1641,14 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             for r in unjudged[:3]:
                 _note(talk, f"{r.rel} is left out: no LLM judge in it.")
             if len(unjudged) > 3:
-                _note(talk, f"{len(unjudged) - 3} more files are left out: no LLM judge in "
-                            "them.")
+                more = len(unjudged) - 3
+                _note(talk, f"{more} more {'file is' if more == 1 else 'files are'} left out: "
+                            f"no LLM judge in {'it' if more == 1 else 'them'}.")
             if unjudged:
                 talk.say()
+            if kind == "promptfoo":  # asked about the file read, never one left out
+                description = results_description(newest)
+                _check_description(talk, root, description, newest, results)
             results = [newest, *rest]
             read_older = _readable(talk, rest, root)
     if kind in ("records", "mapped"):
@@ -1658,11 +1710,11 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  task_file=_task_file(newest.path) if kind == "inspect" else None,
                  rule_field=_inspect_field(records) if kind == "inspect" and rule else None,
                  models=models, model_source=model_source, experiment=name,
-                 stopped=[n for x in used for n in x.records.notes
-                          if n.startswith("Your Inspect run stopped early")]
+                 stopped=list(dict.fromkeys(n for x in used for n in x.records.notes))
                  + [n for x in used if (n := left_out_note(x.records, x.label))],
                  label_map=label_map or None,
-                 warnings=list(first.records.per_metric.get(metric, {}).get("warnings") or []))
+                 warnings=[w for w in first.records.warnings if not is_stripped_warning(w)]
+                 + list(first.records.per_metric.get(metric, {}).get("warnings") or []))
 
 
 def _rule_key(r, kind: str) -> str | None:
@@ -1750,10 +1802,12 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
     )
 
     stores = sorted(stores, key=lambda s: (s.path.is_dir(), -s.date().timestamp()))
+    if not _has("mlflow"):  # the same screen as for one store: never a bare error
+        raise _needs_extra(talk, "mlflow", _store_name(stores[0]))
     names = []
     for s in stores:
         uri = store_uri(s.path, say=talk.say)
-        with quiet(), folder_store_allowed(uri, say=talk.say), store_damage(uri):
+        with quiet(), folder_store_allowed(uri, say=None), store_damage(uri):  # said when read
             names.append(experiments_with_traces(uri))
     if experiment is not None:
         having = [s for s, n in zip(stores, names, strict=True) if experiment in n]
@@ -1790,6 +1844,11 @@ def _pass_mark_words(pm: dict) -> str:
     words = {">=": f"{mark} or more", ">": f"more than {mark}", "<=": f"{mark} or less",
              "<": f"less than {mark}"}
     return f"score {words[pm['op']]}" if pm.get("op") in words else f"score {mark}"
+
+
+def pass_at(pm: dict) -> str:
+    """"Pass at 0.6 or more": the pass mark, as the Read-from-your-file rows say it."""
+    return "Pass at " + _pass_mark_words(pm).removeprefix("score ")
 
 
 SENTENCE = re.compile(r"[.!?;:]")  # punctuation a grade word does not hold

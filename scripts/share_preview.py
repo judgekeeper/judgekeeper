@@ -16,8 +16,7 @@ import html
 SITE = "https://www.judgekeeper.com/"
 IMAGE = SITE + "assets/social-preview.png"  # the file is website/assets/social-preview.png
 IMAGE_SIZE = (1280, 640)
-IMAGE_ALT = ("judgekeeper: Check your LLM-as-a-judge. See how often it agrees with human labels, "
-             "in one command.")
+IMAGE_ALT = "Check your LLM-as-a-judge in 5 steps."
 
 
 def url(target: str) -> str:

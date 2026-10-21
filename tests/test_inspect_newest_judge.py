@@ -36,8 +36,8 @@ def test_the_newest_log_with_a_judge_is_used(here, capsys):
     _log(here, "2026-10-02_exact.json", "2026-10-02T10:00:00+00:00", judged=False)
     code, out, _ = run(capsys)
     assert "logs/2026-10-02_exact.json is left out: no LLM judge in it.\n\n" in out
-    assert "Eval tool:   Inspect AI" in out and "36 answers, each graded by your judge" in out
-    assert "(read from logs/2026-10-01_support.json)" in out
+    assert "Eval tool:   Inspect AI" in out and "Answers:     36 answers" in out
+    assert "File:        logs/2026-10-01_support.json" in out
     assert code == 0, out
 
 

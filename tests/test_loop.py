@@ -114,12 +114,16 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "Step 1 of 5: Find",
         "",
         "Eval tool:   promptfoo",
-        "Answers:     36 answers, each graded by your judge",
-        "             (read from results.json)",
+        "File:        results.json",
+        "Answers:     36 answers",
         "Judge:       openai:gpt-4.1-mini",
         'Judge rule:  "Is polite and correct. Second line of the rubric."',
+        "Read from your file:",
+        "  question   each test's vars",
+        "  answer     each test's output",
+        "  grade      your judge's Pass or Fail",
         "",
-        "Your judge's grades: 20 Pass, 16 Fail.",
+        "Your judge passed 20 answers and failed 16.",
         "Checked: your judge gave every answer a clear Pass or Fail.",
         "",
         "Step 2 of 5: Mark",
@@ -134,7 +138,8 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
     ws = start_label.Workspace(here)
     assert marks.read(ws.marks).header["pool"] == {"pass": 20, "fail": 16}
     assert ws.start.is_file() and ws.pool.is_file()
-    assert (ws.dir / "judge.json").is_file() and (ws.dir / "judge-check.json").is_file()
+    assert (ws.dir / "judge.json").is_file()
+    assert not (ws.dir / "judge-check.json").exists()  # nothing to list: no file
 
 
 def test_a_question_is_asked_as_today(here, capsys, pages):

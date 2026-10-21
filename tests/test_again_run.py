@@ -375,3 +375,28 @@ def test_a_real_regrade_matches_every_grading_prompt(tmp_path, monkeypatch):
     fresh = pf.run(ws, plan, start.Talk(quiet=True))
     assert fresh.not_counted == {}
     assert len(fresh.verdicts) == plan.answers
+
+
+def test_promptfoo_0_120_that_does_not_start_is_said_plainly(fake, capsys, terminal, monkeypatch):
+    """npx fetches promptfoo 0.120 and it crashes on start: the person is told which version
+    to use, never npm's error."""
+    from types import SimpleNamespace
+
+    (fake.ws.root / "node_modules").rename(fake.ws.root / "node_modules-gone")
+    _edit(fake.ws.root, lambda d: d["metadata"].__setitem__("promptfooVersion", "0.120.0")
+          or d["results"].__setitem__("version", 3) or d)
+    monkeypatch.setattr(again, "which", lambda name: "/usr/bin/npx" if name == "npx" else None)
+
+    def crashing(argv, **kwargs):
+        if argv[:1] == ["/usr/bin/npx"]:
+            return SimpleNamespace(returncode=1, stdout="",
+                                   stderr="npm ERR! code 1\nnpm ERR! ZQ-SECRET-PATH crash")
+        return fake(argv, **kwargs)
+
+    monkeypatch.setattr(again, "run_process", crashing)
+    terminal += ["y", "y"]
+    code, out, _ = run(capsys, fake.ws.root, "--ask-again")
+    assert code == 1, out
+    assert ("promptfoo 0.120.0 doesn't start after download. Run your eval again with "
+            "promptfoo 0.121 or newer") in out
+    assert "npm ERR" not in out and "ZQ-SECRET" not in out

@@ -113,7 +113,7 @@ def test_cached_replies_are_warned_about(tmp_path):
         for c in row["gradingResult"]["componentResults"]:
             c.setdefault("metadata", {})["cachedResponse"] = True
     records = read_promptfoo(_write(tmp_path, data))
-    assert any("promptfoo's cache" in w and "3 judgments" in w for w in records.warnings)
+    assert any("3 of these grades were cached by promptfoo" in w for w in records.warnings)
     assert not any("cache" in w for w in read_promptfoo(REAL).warnings)
 
 

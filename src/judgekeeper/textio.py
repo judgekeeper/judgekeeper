@@ -153,6 +153,18 @@ def plural(n: int, one: str, many: str | None = None) -> str:
     return f"{n} {one if n == 1 else many or one + 's'}"
 
 
+_ERROR_TYPE = re.compile(r"\s*([A-Za-z_][\w.]*?(?:Error|Exception|Interrupt|Timeout|Exit|"
+                         r"Refused|Failure))\b")
+
+
+def error_type(message) -> str:
+    """The type of an error an eval tool saved ("RuntimeError", "openai.RateLimitError"),
+    from the start of its message, else "an error". Never the message itself: it can hold
+    the eval's prompt, a request or a header."""
+    m = _ERROR_TYPE.match(str(message or ""))
+    return m.group(1) if m else "an error"
+
+
 # Reading -------------------------------------------------------------------------------------
 
 def not_utf8_message(path: str | Path) -> str:
