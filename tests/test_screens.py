@@ -281,8 +281,10 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[23:26] == [
-        "  fix     see where your judge goes wrong and test a better rule",
+    assert lines[23:28] == [
+        "  fix     see where your judge goes wrong, then test a better rule (promptfoo,",
+        "          DeepEval, Inspect AI, MLflow) or change it in your eval (your own",
+        "          file, record())",
         "  check   re-check your LLM-as-a-judge on your marks after a change", ""]
     assert "Options:" in lines
     for gone in ("--fast", "--hook", "--on", "--off", "Turn on", "coding agent"):

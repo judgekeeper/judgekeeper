@@ -6,7 +6,7 @@ Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. `judge
 
 - [judgekeeper: find, mark, measure](#judgekeeper-find-mark-measure)
 - [mark: mark more answers](#mark-mark-more-answers)
-- [fix: see where your judge goes wrong and test a better rule](#fix-see-where-your-judge-goes-wrong-and-test-a-better-rule)
+- [fix: see where your judge goes wrong, then test a better rule (promptfoo, DeepEval, Inspect AI, MLflow) or change it in your eval (your own file, record())](#fix-see-where-your-judge-goes-wrong-then-test-a-better-rule-promptfoo-deepeval-inspect-ai-mlflow-or-change-it-in-your-eval-your-own-file-record)
 - [check: re-check your LLM-as-a-judge after a change](#check-re-check-your-llm-as-a-judge-after-a-change)
 - [How the numbers are worked out](#how-the-numbers-are-worked-out)
 - [What it reads](#what-it-reads)
@@ -81,7 +81,7 @@ judgekeeper mark [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
 
 Opens the marking page again, to mark more answers; more marks make your numbers more precise. Run `judgekeeper` afterwards to see your updated result. When every answer is marked, it says so. If you and your judge disagree on answers you can see, it opens your result page (the link printed with `--no-browser` ends in `/result`), with its reason buttons: say why on each, and `fix` uses your reasons. Else it opens no page: run your eval on more questions, then `judgekeeper mark` again, and the new answers join the ones you marked as a new batch, offered first on the page; with too few of one kind for a result it says it as `judgekeeper` does, and the marking page's last card says the same. When two runs open the page of one project at the same time, the second says "judgekeeper is already opening the marking page for this folder", waits, then opens it and prints its link. It takes the same flags as `judgekeeper`, without `--version` and `--debug`.
 
-## fix: see where your judge goes wrong and test a better rule
+## fix: see where your judge goes wrong, then test a better rule (promptfoo, DeepEval, Inspect AI, MLflow) or change it in your eval (your own file, record())
 
 ```
 judgekeeper fix [PATH] [--yes] [--new]

@@ -19,7 +19,9 @@ from tests.website_pages import ROOT, WEBSITE, parse
 REFERENCE = ROOT / "docs" / "reference.md"
 COMMANDS = {None: "judgekeeper: find, mark, measure",
             "mark": "mark: mark more answers",
-            "fix": "fix: see where your judge goes wrong and test a better rule",
+            "fix": ("fix: see where your judge goes wrong, then test a better rule (promptfoo, "
+                    "DeepEval, Inspect AI, MLflow) or change it in your eval (your own file, "
+                    "record())"),
             "check": "check: re-check your LLM-as-a-judge after a change"}
 GONE_FLAGS = ("--review", "--fix", "--ask-again", "--try-new-judge", "--label-more",
               "--test-pass-mark", "--rule-file", "--times", "--allow-calls", "--python",

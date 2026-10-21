@@ -87,9 +87,12 @@ READS = """\
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
 MLflow, or a CSV or JSONL file with these columns:
   input, output, verdict"""
+# fix: a new rule is tested only where judgekeeper can ask the judge (fix.can_test)
+FIX_HELP = ("see where your judge goes wrong, then test a better rule (promptfoo, DeepEval, "
+            "Inspect AI, MLflow) or change it in your eval (your own file, record())")
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
-    ("fix", "see where your judge goes wrong and test a better rule"),
+    ("fix", FIX_HELP),
     ("check", "re-check your LLM-as-a-judge on your marks after a change"),
 )
 HELP_WIDTH = 80
@@ -273,7 +276,7 @@ def _parser() -> argparse.ArgumentParser:
     p.commands["check"] = ck
 
     fx = sub.add_parser("fix", parents=[common],
-                        help="see where your judge goes wrong and test a better rule")
+                        help=FIX_HELP)
     fx.add_argument("path", nargs="?", default=".", metavar="PATH",
                     help="your project folder (default: this folder)")
     fx.add_argument("--yes", action="store_true",
