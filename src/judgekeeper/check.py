@@ -114,6 +114,8 @@ NEXT_LATER = "Next: run `{command}` again when you are ready to re-check your LL
 NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
                    "again; or start over on your new answers with `{new}`.")
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your judge."
+NEXT_REST = ("Next: {marks} {were} not re-checked. Run `{command}` again to ask your judge about "
+             "them.")
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
 NEXT_WORSE = "go back to {back}, or change your judge and run `{command}` again."
@@ -441,6 +443,7 @@ class Asked:
     wobble: tuple[int, int] | None = None  # asked twice: (answers whose grades differ, of)
     wrong_model: tuple[str, str] | None = None  # (a model a call used, the new judge's)
     key_step: str | None = None  # the key the judge needs is not set: where to set it
+    unchecked: int = 0  # marked answers asked about that did not come back counted
 
 
 def _can_write(setup: dict) -> bool:
@@ -529,7 +532,7 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
         fresh = again.run_tool(view, plan, _Quiet())
     except AgainError as e:
         out.reasons.append(f"Asking your judge again did not finish: {scrub(str(e))}")
-        out.calls = plan.calls
+        out.calls, out.unchecked = plan.calls, len(ids)
         return out
     wrong = wrong_model(fresh.models_used(), found)
     if wrong:  # (b): the calls say another model answered: nothing is kept
@@ -539,7 +542,7 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     write_files(ws, plan, fresh, prefix="check", metric=found.metric)
     out.verdicts = {i: v[0] for i, v in fresh.verdicts.items()}  # the first, like one run
     out.wobble = (sum(len(set(v)) > 1 for v in fresh.verdicts.values()), len(fresh.verdicts))
-    out.calls = plan.calls
+    out.calls, out.unchecked = plan.calls, len(fresh.not_counted)
     left: dict[str, int] = {}
     for why in fresh.not_counted.values():
         left[why] = left.get(why, 0) + 1
@@ -1272,6 +1275,10 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     elif unsure:
         said.say("Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
             mark=program("mark"), command=_command(state))))
+    elif asked.unchecked:  # asking again asks about them
+        said.say(NEXT_REST.format(marks=_n(asked.unchecked, "mark"),
+                                  were="was" if asked.unchecked == 1 else "were",
+                                  command=_command(state)))
     else:
         said.say(NEXT_SAME.format(command=_command(state)))
     exit_worse = any(g[k].get("exit_worse") for k in g)

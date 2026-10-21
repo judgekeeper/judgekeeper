@@ -368,3 +368,28 @@ def test_the_worker_keeps_the_scorers_name_for_real_inspect(tmp_path):
     assert scored["2"] == ["model_graded_qa", "model_graded_qa1"]
     assert scored["1"] == ["model_graded_qa"]
     assert failed == {(str(i), 1): "RuntimeError" for i in (1, 3, 5)}
+
+
+# 5. check, after some marks were not re-checked ------------------------------------------------
+
+def test_check_says_how_many_marks_were_not_re_checked(tmp_path, capsys, monkeypatch):
+    from tests.test_again_run import FakePromptfoo
+    from tests.test_check import HAIKU, MARKED, _marked, _new_outputs, _results
+    from tests.test_check import judge as fake_judge
+    from tests.test_check import run as check
+    from tests.test_loop import _flat
+
+    monkeypatch.chdir(tmp_path)
+    holder = fake_judge.__wrapped__(monkeypatch, tmp_path)
+    ws = _marked(tmp_path)
+    _results(tmp_path, MARKED, model=HAIKU, outputs=_new_outputs())
+    holder["fake"] = FakePromptfoo(ws, version="0.124.1")
+    last = marks.read(ws.marks).last
+    marked = {k: sorted(i for i, x in last.items() if x["mark"] == k) for k in ("pass", "fail")}
+    holder["fake"].grader_errors = set(marked["pass"][:3] + marked["fail"][:3])
+    code, out = check(capsys, "--yes")
+    flat = _flat(out)
+    assert code == 0 and "Re-checked on 44 of your 50 marks:" in flat, flat
+    assert "Next: nothing to do" not in flat
+    assert "Next: 6 marks were not re-checked. Run `" in flat
+    assert "check` again to ask your judge about them." in flat
