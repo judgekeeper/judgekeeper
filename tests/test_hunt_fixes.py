@@ -286,3 +286,14 @@ def test_a_table_with_no_question_says_so(here, capsys, column):
     assert "No eval results found" not in out, out
     assert "judge.jsonl has your judge's verdicts and the answers but no question" in flat(out)
     assert "question column" in assert_one_next_at_the_end(out)
+
+
+def test_a_minimal_mlflow_folder_is_damaged_and_gets_no_trash(here, capsys):
+    pytest.importorskip("mlflow")
+    (here / "mlruns" / "0").mkdir(parents=True)
+    (here / "mlruns" / "0" / "meta.yaml").write_text("name: Default\nexperiment_id: '0'\n",
+                                                     encoding="utf-8")
+    _, out = run(capsys)
+    assert "didn't expect" not in out, out
+    assert "mlruns can't be read: it's damaged" in flat(out)
+    assert not (here / "mlruns" / ".trash").exists()

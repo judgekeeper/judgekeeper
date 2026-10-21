@@ -671,8 +671,18 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
         if not _has("mlflow"):
             raise _needs_extra(talk, "mlflow", _store_name(store))
         uri = mlflow_store.store_uri(store.path, say=talk.say)
-        with mlflow_store.folder_store_allowed(uri, say=talk.say), mlflow_store.store_damage(uri):
-            return _mlflow_experiment(talk, store, experiment, metric, uri)
+        trash = store.path / ".trash" if store.path.is_dir() else None  # MLflow makes it
+        made = trash is not None and not trash.exists()
+        try:
+            with mlflow_store.folder_store_allowed(uri, say=talk.say), \
+                    mlflow_store.store_damage(uri):
+                return _mlflow_experiment(talk, store, experiment, metric, uri)
+        finally:
+            if made:  # left as it was: nothing is written outside .judgekeeper/
+                try:
+                    trash.rmdir()
+                except OSError:
+                    pass
 
 
 OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({names}). "

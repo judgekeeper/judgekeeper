@@ -507,9 +507,22 @@ def is_damage(e: BaseException | None) -> bool:
     while e is not None and id(e) not in seen:
         seen.add(id(e))
         if isinstance(e, UNREADABLE) or (type(e).__name__ == "MlflowException" and str(
-                e).startswith(("(sqlite3.", "(sqlalchemy."))):
+                e).startswith(("(sqlite3.", "(sqlalchemy."))) or _in_mlflow(e):
             return True
         e = e.__cause__ or e.__context__
+    return False
+
+
+def _in_mlflow(e: BaseException) -> bool:
+    """A value MLflow could not take from the store (a meta.yaml that lacks a field, trace
+    metadata that isn't JSON): raised inside MLflow's own code while it read the store."""
+    if not isinstance(e, TypeError | KeyError | ValueError | AttributeError):
+        return False
+    tb = e.__traceback__
+    while tb is not None:
+        if "mlflow" in Path(tb.tb_frame.f_code.co_filename).parts:
+            return True
+        tb = tb.tb_next
     return False
 
 
