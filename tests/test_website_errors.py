@@ -118,7 +118,8 @@ SECURITY = ("Content-Security-Policy", "Strict-Transport-Security", "X-Content-T
                     "JK_SITE_URL=http://127.0.0.1:8098 after docker build -f "
                     "deploy/railway/Dockerfile and docker run -p 127.0.0.1:8098:8080")
 @pytest.mark.parametrize(("method", "path", "status"), [
-    ("GET", "/", 200), ("GET", "/nope", 404), ("GET", "/check%00", 400), ("POST", "/", 405)])
+    ("GET", "/", 200), ("GET", "/favicon.ico", 200), ("GET", "/nope", 404),
+    ("GET", "/check%00", 400), ("POST", "/", 405)])
 def test_the_image_sends_the_headers_and_no_server_on_every_status(method, path, status):
     request = urllib.request.Request(os.environ["JK_SITE_URL"].rstrip("/") + path, method=method,
                                      data=b"" if method == "POST" else None)

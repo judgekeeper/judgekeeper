@@ -20,6 +20,7 @@ import importlib
 import importlib.util
 import json
 import re
+import struct
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -271,7 +272,7 @@ def _assets():
             p.relative_to(WEBSITE).parts and p.suffix in {".html", ".css", ".js", ".svg"}]
 
 
-IMAGES = {".png", ".jpg", ".jpeg", ".gif", ".webp"}  # pictures: bytes, with no text to read
+IMAGES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico"}  # pictures: bytes, with no text to read
 # The fonts and their licence texts: no page reads the licences, and fonts are bytes.
 FONTS = WEBSITE / "assets" / "fonts"
 
@@ -392,6 +393,25 @@ def test_the_share_preview_picture_is_a_small_wide_png():
     image = WEBSITE / "assets/social-preview.png"
     assert _png_size(image) == (1280, 640)
     assert image.stat().st_size < 300_000  # some apps show no picture when it is heavier
+
+
+def test_favicon_ico_is_the_logo_at_three_sizes():
+    """/favicon.ico, which browsers ask for on pages without an icon (the example reports):
+    an ICO holding the logo as PNGs, 16, 32 and 48 pixels."""
+    data = (WEBSITE / "favicon.ico").read_bytes()
+    reserved, kind, count = struct.unpack("<HHH", data[:6])
+    assert (reserved, kind, count) == (0, 1, 3)
+    sizes = []
+    for i in range(count):
+        width, height, _, _, _, _, size, offset = struct.unpack(
+            "<BBBBHHII", data[6 + 16 * i:22 + 16 * i])
+        png = data[offset:offset + size]
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"
+        assert (int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")) == (
+            width, height)
+        sizes.append(width)
+    assert sizes == [16, 32, 48]
+    assert len(data) < 10_000
 
 
 def test_every_page_carries_the_tags_the_generators_write():
