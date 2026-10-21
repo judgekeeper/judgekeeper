@@ -247,3 +247,124 @@ def test_a_real_eval_log_reads_the_same_as_its_json(tmp_path):
 
     assert len(seen(read_inspect(path))) == 6
     assert seen(read_inspect(path)) == seen(read_inspect(as_json))
+
+
+# 3 and 4. One failed judge call, and its text ------------------------------------------------
+
+CANARY = "CANARY-prompt-text-7f3a"
+
+
+def _inspect_ws(tmp_path):
+    from judgekeeper.start_label import StartSession as Session
+    from tests.start_projects import save_result, split
+    from tests.test_again_python_run import _inspect
+
+    _inspect()(tmp_path, split(20, 16))
+    ws = start_label.prepare(start.find_judge(tmp_path), say=_quiet)
+    session = Session(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"]})
+    save_result(ws, session, say=_quiet)
+    return ws
+
+
+def _ask(ws):
+    import sys
+
+    from judgekeeper import again
+    from judgekeeper.again import AgainOptions, make_plan
+    from tests.test_again_run import _Said
+
+    plan = make_plan(ws, AgainOptions(python=sys.executable), dry=True)
+    said = _Said()
+    return again.run_tool(ws, plan, said), "\n".join(said.lines)
+
+
+def test_a_failed_judge_call_costs_only_its_own_answer(tmp_path, stubs):
+    from judgekeeper import again
+    from judgekeeper.again.fresh import NOT_COUNTED
+
+    ws = _inspect_ws(tmp_path)
+    inputs = [a["input"] for a in again.labeled_answers(ws)]
+    failing = inputs[1::2]  # every second answer's call fails, both times asked
+    saved = {a["input"]: a["verdict"] == "pass" for a in again.labeled_answers(ws)}
+    stubs.plan(verdicts=saved, errors=[[i, t] for i in failing for t in (0, 1)], error_text=CANARY)
+    fresh, said = _ask(ws)
+    assert len(fresh.verdicts) == len(inputs) - len(failing)
+    assert set(fresh.not_counted.values()) == {"judge call failed"}
+    assert len(fresh.not_counted) == len(failing)
+    assert NOT_COUNTED["judge call failed"][1] == "the judge's calls for them failed"
+    assert fresh.notes == [f"The judge's calls failed: RuntimeError on {len(failing)} answers."]
+    assert CANARY not in said and "[Task]" not in said
+
+
+def test_no_judge_error_text_reaches_a_file(tmp_path, stubs):
+    from judgekeeper import again
+
+    ws = _inspect_ws(tmp_path)
+    inputs = [a["input"] for a in again.labeled_answers(ws)]
+    stubs.plan(errors=[[i, t] for i in inputs[::3] for t in (0, 1)], error_text=CANARY)
+    _ask(ws)
+    for path in ws.root.rglob("*"):
+        if path.is_file():
+            assert CANARY.encode() not in path.read_bytes(), path
+
+
+def test_when_every_call_fails_it_says_the_type_and_count_only(tmp_path, stubs):
+    import pytest
+
+    from judgekeeper import again
+    from judgekeeper.again.fresh import AgainError
+
+    ws = _inspect_ws(tmp_path)
+    inputs = [a["input"] for a in again.labeled_answers(ws)]
+    stubs.plan(errors=[[i, t] for i in inputs for t in (0, 1)], error_text=CANARY)
+    with pytest.raises(AgainError) as e:
+        _ask(ws)
+    assert str(e.value) == (f"Inspect AI could not ask your judge: RuntimeError on "
+                            f"{len(inputs)} answers")
+
+
+def test_the_worker_keeps_the_scorers_name_for_real_inspect(tmp_path):
+    """The guard is a scorer Inspect accepts: score_async names its scores as before, and a
+    failure leaves only that sample unscored."""
+    import asyncio
+    import importlib.util
+
+    import pytest
+
+    pytest.importorskip("inspect_ai")
+    from inspect_ai import score_async
+    from inspect_ai.model import get_model
+    from inspect_ai.scorer import model_graded_qa
+
+    from judgekeeper.again import workers
+
+    spec = importlib.util.spec_from_file_location(
+        "inspect_worker", __import__("pathlib").Path(workers.__file__).parent / "inspect_worker.py")
+    worker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(worker)
+    log = _real_log(tmp_path)
+    inner, failed = model_graded_qa(), {}
+
+    async def flaky(state, target):
+        if int(str(state.sample_id)) % 2:
+            raise RuntimeError(f"Error code: 400 {CANARY}")
+        return await inner(state, target)
+
+    from inspect_ai._util.registry import (
+        registry_info,
+        registry_params,
+        set_registry_info,
+        set_registry_params,
+    )
+
+    set_registry_info(flaky, registry_info(inner))  # as a scorer from Inspect's registry
+    set_registry_params(flaky, registry_params(inner))
+    new = asyncio.run(score_async(log, [worker.guarded(flaky, failed)], action="append",
+                                  model=get_model("mockllm/model"),
+                                  model_roles={"grader": get_model("mockllm/model")}))
+    scored = {str(s.id): sorted(s.scores) for s in new.samples}
+    assert scored["2"] == ["model_graded_qa", "model_graded_qa1"]
+    assert scored["1"] == ["model_graded_qa"]
+    assert failed == {(str(i), 1): "RuntimeError" for i in (1, 3, 5)}

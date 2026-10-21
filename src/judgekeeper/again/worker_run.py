@@ -5,25 +5,44 @@ with the user's own Python, in the project folder, after the person said yes. In
 worker grades every asked answer `times` times and writes one line per answer per time:
 
     {"id": ..., "time": 0, "ok": true, ...what the judge said...}
-    {"id": ..., "time": 0, "ok": false, "error": "RateLimitError: ..."}
+    {"id": ..., "time": 0, "ok": false, "error": "RateLimitError: ...", "call_failed": true}
 
 and a last line `{"ok": true, "done": true, "version": ...}` when it got to the end. Its output
 file is kept in `.judgekeeper/again/<stamp>/<tool>.jsonl`, scrubbed of any key that leaked into
-a reason or an error. The run has no time limit; Ctrl-C stops it.
+a reason, each answer's error cut to its type (`error_kind`: its text can quote the grading
+prompt). The run has no time limit; Ctrl-C stops it.
 
 `count` then keeps an answer only when every time asked came back clean with a clear verdict;
-the others are listed with the reason (`fresh.NOT_COUNTED`). When nothing at all could be
-counted, the tool failed: `AgainError`.
+the others are listed with the reason (`fresh.NOT_COUNTED`), and the errors by type and count
+("RuntimeError on 13 answers"), never their text. When nothing at all could be counted, the
+tool failed: `AgainError`.
 """
 
 from __future__ import annotations
 
 import json
+import re
+from collections import Counter
 
 from judgekeeper import again
 from judgekeeper.again.fresh import AgainError, Fresh, new_folder
 from judgekeeper.redact import scrub
 from judgekeeper.textio import jsonl_lines, make_private, write_replacing
+
+_TYPED = re.compile(r"([A-Za-z_][\w.]*): ")
+
+
+def error_kind(error) -> str:
+    """An error as its type only ("BadRequestError"), never the text after it; judgekeeper's
+    own messages ("Inspect gave no new score") have no type and stay as they are."""
+    m = _TYPED.match(str(error))
+    return m.group(1) if m else str(error)
+
+
+def errors_said(kinds: list[str]) -> str:
+    """ "RuntimeError on 13 answers, TimeoutError on 1 answer": one kind per answer."""
+    return ", ".join(f"{kind} on {n} answer{'' if n == 1 else 's'}"
+                     for kind, n in Counter(kinds).most_common())
 
 
 def ask(ws, plan, talk, name: str, env: dict | None = None,
@@ -51,8 +70,11 @@ def ask(ws, plan, talk, name: str, env: dict | None = None,
     lines = []
     if out.is_file():
         text = scrub(out.read_text(encoding="utf-8"))
-        write_replacing(out, text)
         lines = [json.loads(x) for x in jsonl_lines(text) if x.strip()]
+        for line in lines:
+            if "id" in line and line.get("error"):
+                line["error"] = error_kind(line["error"])
+        write_replacing(out, "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lines))
     done = next((x for x in reversed(lines) if x.get("done")), None)
     if done is None:
         failed = next((x for x in reversed(lines) if "id" not in x and x.get("error")), None)
@@ -75,10 +97,14 @@ def count(fresh: Fresh, plan, got: dict, name: str, verdict_of, differs=None) ->
         answer, item = entry[0], entry[1]
         runs = got.get(answer["id"], {})
         lines = [runs.get(t) for t in range(plan.times)]
-        errors += [x["error"] for x in lines if x is not None and not x.get("ok")]
+        bad = [x for x in lines if x is not None and not x.get("ok")]
+        if bad:  # one kind per answer: the first time it went wrong
+            errors.append(error_kind(bad[0].get("error")))
         if any(x is None for x in lines):
             fresh.not_counted[answer["id"]] = "missing"
-        elif any(not x.get("ok") for x in lines):
+        elif any(x.get("call_failed") for x in bad):
+            fresh.not_counted[answer["id"]] = "judge call failed"
+        elif bad:
             fresh.not_counted[answer["id"]] = "error"
         elif differs is not None and differs(entry, lines):
             fresh.not_counted[answer["id"]] = "grading prompt differs"
@@ -95,7 +121,7 @@ def count(fresh: Fresh, plan, got: dict, name: str, verdict_of, differs=None) ->
             firsts.append(lines[0])
     if not fresh.verdicts:
         raise AgainError(f"{name} could not ask your judge: " + (
-            errors[0] if errors else "no answer came back with a clear verdict"))
+            errors_said(errors) if errors else "no answer came back with a clear verdict"))
     if errors:
-        fresh.notes.append(f"The first error: {errors[0]}")
+        fresh.notes.append(f"The judge's calls failed: {errors_said(errors)}.")
     return firsts
