@@ -568,7 +568,7 @@ def test_judge_names_in_a_list_are_quoted_alike(here, capsys):
 def test_one_answer_is_not_each(here, capsys):
     promptfoo_project(here, [True])
     _, out, _ = run(capsys, "--no-browser")
-    assert "Answers:     1 answer, graded by your judge" in out, out
+    assert "Answers:     1 answer\n" in out and "each" not in out.split("Answers:")[1][:20], out
 
 
 PIN_LINE = ("judgekeeper can't see your eval tool's version. Write its version in your project's "

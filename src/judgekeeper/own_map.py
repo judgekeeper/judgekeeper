@@ -29,9 +29,8 @@ from judgekeeper.start import EXIT_QUESTION, EXIT_USAGE, StartError, Talk
 from judgekeeper.textio import plural, quote_arg
 
 MAX_PATHS = 24
-RECORD_DOOR = ("You can turn it into a CSV (the Next line says how), or save your judge's "
-               "decisions from now on with one judgekeeper.record() line where it runs: "
-               f"{own_format.RECORD_URL} shows the line.")
+RECORD_DOOR = ("Or save your judge's decisions from now on with one judgekeeper.record() line "
+               f"where it runs: {own_format.RECORD_URL} shows the line.")
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
 
 

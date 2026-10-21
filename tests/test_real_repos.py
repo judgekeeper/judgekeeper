@@ -133,7 +133,7 @@ def test_several_verdict_columns_are_listed_as_judges_judge_first(here, capsys):
     assert out.index("check_verdict (60 answers)") < out.index("verdict (69 answers)")
     line = assert_one_next_at_the_end(out)
     assert "--metric NAME" in line
-    assert "judge_verdict, check_verdict, verdict, all" in flat(line)
+    assert "'judge_verdict', 'check_verdict', 'verdict', 'all'" in flat(line)  # quoted alike
 
 
 def test_the_chosen_judge_column_is_read_alone(here, capsys):
@@ -604,7 +604,7 @@ def test_no_default_grader_line_when_no_grade_is_clear(here, capsys):
     code, out = run(capsys)
     assert code == 3, out
     assert "Your judge's calls failed on every answer" in flat(out)
-    assert "default grader" not in out
+    assert "grades came from promptfoo's default grader" not in flat(out)  # no grade to come
 
 
 # The Next line of a file that can't be read keeps the flags --------------------------
@@ -616,8 +616,8 @@ def test_a_file_that_cannot_be_read_keeps_the_flags_in_its_next_line(here, capsy
     assert code == 3, out
     line = assert_one_next_at_the_end(out)
     assert "<the CSV>" not in line and "--port 9100" in line
-    assert "Or save your judge's decisions" not in out
-    assert "or save your judge's decisions from now on" in flat(out)
+    said = flat(out)  # "Or save..." comes after its first choice
+    assert said.index("Turn it into a CSV, as the Next: line says.") < said.index("Or save")
 
 
 # Judge-check files only when they list something ------------------------------------
