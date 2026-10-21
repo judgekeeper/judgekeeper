@@ -650,7 +650,8 @@ def test_suggestions_md_has_a_line_per_reason_tapped_twice_and_lists_the_rest(he
     md = (ws.dir / "fix" / "suggestions.md").read_text(encoding="utf-8")
     suggested, once = md.split("## Seen once (not suggested yet)")
     assert "- Fail an answer with any wrong fact, even a small one." in suggested
-    assert "- Fail an answer that leaves out the order number." in suggested
+    assert ("- Fail an answer that leaves out what you wrote below. (2 answers)\n"
+            "<<<YOUR REASON\nthe order number\nYOUR REASON>>>") in suggested
     assert "- A short answer that answers the question is a Pass." in suggested
     assert "unsafe" not in suggested.lower()
     assert "Fail an answer that is unsafe or not allowed." in once

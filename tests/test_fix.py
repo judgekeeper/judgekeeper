@@ -186,9 +186,10 @@ def test_mistakes_md_is_agent_ready_a_task_line_the_clues_the_rule_then_the_mist
     _, out = run(capsys)
     text = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
     lines = text.splitlines()
-    assert lines[:4] == ["# Your judge's mistakes", "", fix.TASK, ""]
-    assert lines[4:6] == ["## Clues", ""]
-    clues = lines[6:lines.index("## Your judge's rule now")]
+    assert lines[:6] == ["# Your judge's mistakes", "", fix.TASK, "",
+                         f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", ""]
+    assert lines[6:8] == ["## Clues", ""]
+    clues = lines[8:lines.index("## Your judge's rule now")]
     printed = out.splitlines()
     said = printed[printed.index("Clues:") + 1:]
     said = [x.strip() for x in said[:said.index("")]]
@@ -197,9 +198,8 @@ def test_mistakes_md_is_agent_ready_a_task_line_the_clues_the_rule_then_the_mist
     assert lines[rule_at + 2] == "<<<RULE" and RULE in lines[rule_at + 3]
     warn_at = next(n for n, x in enumerate(lines) if x.startswith(start_fix_rule.DATA_WARNING))
     first = next(n for n, x in enumerate(lines) if x.startswith("## [M1] Your judge said "))
-    assert rule_at < warn_at < first
-    assert lines[warn_at].endswith(start_fix_rule.MARKS)
-    assert lines.index("## Mistakes") < warn_at
+    assert warn_at < rule_at < first  # before any of the person's or the app's words
+    assert lines.index("## Mistakes") < first
 
 
 def test_mistakes_md_with_no_clear_pattern_says_so():

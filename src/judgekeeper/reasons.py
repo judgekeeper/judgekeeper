@@ -24,7 +24,7 @@ from collections import Counter
 from pathlib import Path
 
 from judgekeeper.fingerprint import rule_hash, utc_now
-from judgekeeper.redact import scrub, visible
+from judgekeeper.redact import one_line, scrub, visible
 from judgekeeper.textio import make_private, plural, write_replacing
 
 FILE = "reasons.json"
@@ -49,6 +49,7 @@ FIELDS = ("reasons", "note", "rule_parts", "rule_hash", "spans")  # a reason lin
 MAX_NOTE = 500
 MAX_SPANS = 3
 MAX_OWN = 8
+MAX_FILE = 64 * 1024  # bytes of reasons.json read: MAX_OWN buttons are far less
 MAX_PARTS = 6
 PART_CHARS = 60
 TWICE = 2  # taps that make a clue line or a suggested rule line
@@ -125,6 +126,12 @@ def marked(text: str, spans) -> list[str]:
     return [text[s:e] for s, e in spans or [] if 0 <= s < e <= len(text)]
 
 
+def cleaned(text: str) -> str:
+    """A file's whole text (mistakes.md, suggestions.md): one kind of line break and no
+    hidden character (ESC, BEL, bidirectional controls, invisible marks)."""
+    return visible(text.replace("\r\n", "\n").replace("\r", "\n"))
+
+
 def merged(spans, length: int) -> list[tuple[int, int]]:
     """`spans` inside the first `length` characters, sorted, overlaps joined."""
     out: list[list[int]] = []
@@ -151,17 +158,33 @@ def _path(ws) -> Path:
     return ws.dir / FILE
 
 
+def _own_id(value) -> bool:
+    number = value[len(OWN):] if isinstance(value, str) and value.startswith(OWN) else ""
+    return number.isascii() and number.isdigit()
+
+
 def read_file(ws) -> dict:
+    """reasons.json, checked: {"own": the first MAX_OWN buttons, each cut to MAX_NOTE,
+    "next": a number when it is one, "grades_shown_at": text when it is}. A file over MAX_FILE,
+    or one that can't be read, holds none."""
     try:
-        data = json.loads(_path(ws).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {"own": []}
+        with _path(ws).open("rb") as f:
+            raw = f.read(MAX_FILE + 1)
+        data = json.loads(raw.decode("utf-8")) if len(raw) <= MAX_FILE else None
+    except (OSError, ValueError, RecursionError):
+        data = None
     if not isinstance(data, dict):
         return {"own": []}
-    own = [c for c in data.get("own") or [] if isinstance(c, dict)
-           and isinstance(c.get("id"), str) and c["id"].startswith(OWN)
-           and isinstance(c.get("text"), str) and c["text"]]
-    return {**data, "own": own}
+    chips = data.get("own") if isinstance(data.get("own"), list) else []
+    own = [{**c, "text": c["text"][:MAX_NOTE]} for c in chips
+           if isinstance(c, dict) and _own_id(c.get("id")) and isinstance(c.get("text"), str)
+           and c["text"]][:MAX_OWN]
+    out = {"own": own}
+    if isinstance(data.get("next"), int) and not isinstance(data["next"], bool):
+        out["next"] = data["next"]
+    if isinstance(data.get("grades_shown_at"), str):
+        out["grades_shown_at"] = data["grades_shown_at"]
+    return out
 
 
 def _write(ws, data: dict) -> None:
@@ -201,9 +224,8 @@ def sync_own(ws, item_id: str, note: str | None, tapped: set[str]) -> None:
         if mine is not None:
             mine["text"] = text
         elif len(own) < MAX_OWN:
-            n = max((int(c["id"][len(OWN):]) for c in own
-                     if c["id"][len(OWN):].isdigit()), default=0) + 1
-            n = max(n, int(data.get("next") or 1))
+            n = max((int(c["id"][len(OWN):]) for c in own), default=0) + 1
+            n = max(n, data.get("next") or 1)
             own.append({"id": f"{OWN}{n}", "text": text, "from": item_id})
             data["next"] = n + 1
     _write(ws, data)
@@ -320,7 +342,7 @@ def of_line(line: dict | None) -> dict:
 def _words(row: dict, key: str) -> str:
     if key in REASONS:
         return lower(REASONS[key][0])
-    return f"“{row.get('words', {}).get(key, key)}”"
+    return f"“{one_line(row.get('words', {}).get(key, key))}”"
 
 
 def tally(rows: list[dict]) -> Counter:
@@ -389,7 +411,8 @@ def clue_lines(rows: list[dict]) -> list[str]:
     parts = Counter((n, text) for r in rows for n, text in r.get("parts") or [])
     for (n, text), k in sorted(parts.items(), key=lambda x: (-x[1], x[0][0])):
         if k >= TWICE:
-            out.append(f"Your marks say your judge misses rule part {n}, '{text}' ({k}).")
+            out.append(f"Your marks say your judge misses rule part {n}, '{one_line(text)}' "
+                       f"({k}).")
     yes, no = mentioned(rows)
     if no:
         out.append(f"Your judge didn't mention the part you marked in {no} of {yes + no} "
@@ -460,19 +483,24 @@ SUGGESTIONS = "suggestions.md"
 SHOWN = 300  # characters of an answer in suggestions.md
 
 
-def _line(key: str, side: str, hits: list[dict]) -> str:
+def _line(key: str, side: str, hits: list[dict]) -> tuple[str, list[str]]:
+    """A suggested line, and the notes it stands for (fenced below it: the words are data)."""
     if key.startswith(OWN):
-        words = hits[0].get("words", {}).get(key, key)
+        words = one_line(hits[0].get("words", {}).get(key, key))
         return (f"Fail when: “{words}”" if side == "pass"
-                else f"Pass even when: “{words}”")
-    notes = [r["why"] for r in hits if r.get("why")]
-    return TEMPLATES[key].format(n=len(hits), words="; ".join(notes) or "something important")
+                else f"Pass even when: “{words}”"), []
+    notes = [r["why"] for r in hits if r.get("why")] if key == "left_out" else []
+    words = "what you wrote below" if notes else "something important"
+    return TEMPLATES[key].format(n=len(hits), words=words), notes
 
 
-def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int]], list[tuple[str, list]]]:
-    """(suggested lines with their counts: each reason tapped TWICE or more, by the side it was
-    tapped on; seen once: [(line, the answers)] for each reason, rule part, marked part and own
-    words given only once). "Not sure" is about the person's mark: it makes no line."""
+def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int, list]], list[tuple[str, list,
+                                                                                    list]]]:
+    """(suggested lines with their counts and notes: each reason tapped TWICE or more, by the
+    side it was tapped on; seen once: [(line, the answers, notes)] for each reason, rule part,
+    marked part and own words given only once). "Not sure" is about the person's mark: it
+    makes no line. Every word of the person's on a line is on one line, with no hidden
+    character; their notes are fenced apart."""
     by: dict[tuple[str, str], list[dict]] = {}
     for r in rows:
         for k in r.get("reasons") or []:
@@ -482,31 +510,35 @@ def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int]], list[tuple[str
     known = list(REASONS)
     keys = sorted(by, key=lambda x: (-len(by[x]), known.index(x[0]) if x[0] in known else 99,
                                      x))
-    suggested = [(_line(k, s, by[(k, s)]), len(by[(k, s)])) for k, s in keys
+    suggested = [(*_line(k, s, by[(k, s)]), len(by[(k, s)])) for k, s in keys
                  if len(by[(k, s)]) >= TWICE]
-    once = [(_line(k, s, by[(k, s)]), by[(k, s)]) for k, s in keys if len(by[(k, s)]) < TWICE]
+    suggested = [(line, n, notes) for line, notes, n in suggested]
+    once = [(line, by[(k, s)], notes) for k, s in keys if len(by[(k, s)]) < TWICE
+            for line, notes in [_line(k, s, by[(k, s)])]]
     parts: dict[tuple[int, str], list[dict]] = {}
     for r in rows:
         for n, text in r.get("parts") or []:
             parts.setdefault((n, text), []).append(r)
     for (_, text), hits in sorted(parts.items(), key=lambda x: (-len(x[1]), x[0][0])):
-        line = PART_LINE.format(part=text, times=plural(len(hits), "time"))
-        (suggested.append((line, len(hits))) if len(hits) >= TWICE
-         else once.append((line, hits)))
+        line = PART_LINE.format(part=one_line(text), times=plural(len(hits), "time"))
+        (suggested.append((line, len(hits), [])) if len(hits) >= TWICE
+         else once.append((line, hits, [])))
     for r in rows:
         own = {w for w in r.get("words", {}).values()}
         if r.get("why") and r["why"] not in own and not any(
                 k == "left_out" for k in r.get("reasons") or []):
-            once.append((f"Your own words: “{r['why']}”", [r]))
+            once.append(("Your own words:", [r], [r["why"]]))
         for words in marked(canonical(r.get("output") or ""), r.get("spans")):
-            once.append((f"The part you marked: “{' '.join(words.split())}”", [r]))
+            once.append((f"The part you marked: “{one_line(' '.join(words.split()))}”", [r],
+                         []))
     return suggested, once
 
 
 def suggestions_md(rows: list[dict], fix_folder: str, command: str = "judgekeeper fix",
                    can_test: bool = True) -> str:
     """.judgekeeper/fix/suggestions.md: the suggested rule lines from the person's reasons on
-    the marks they can see, then everything given once, each with its answer fenced as data."""
+    the marks they can see, then everything given once, each with its answer fenced as data.
+    The warning comes before any of the person's words, and each note is fenced."""
     from judgekeeper.start_fix_rule import DATA_WARNING, MARKS, fenced
 
     suggested, once = suggestions(rows)
@@ -515,16 +547,20 @@ def suggestions_md(rows: list[dict], fix_folder: str, command: str = "judgekeepe
     parts = ["# Suggested rule lines", "",
              ("From your reasons on the answers you can see, counted (no AI). Copy the ones you "
               f"agree with {where}. judgekeeper never changes your rule itself."), ""]
-    parts += [f"- {line} ({plural(n, 'answer')})" for line, n in suggested] or [
-        "None yet: a line is suggested once a reason is given on 2 answers."]
-    parts += ["", "## Seen once (not suggested yet)", ""]
-    if once:
+    if suggested or once:
         parts += [f"{DATA_WARNING} {MARKS}", ""]
-    for line, hits in once:
+    for line, n, notes in suggested:
+        parts.append(f"- {line} ({plural(n, 'answer')})")
+        parts += [fenced("YOUR REASON", one_line(note)) for note in notes]
+    if not suggested:
+        parts.append("None yet: a line is suggested once a reason is given on 2 answers.")
+    parts += ["", "## Seen once (not suggested yet)", ""]
+    for line, hits, notes in once:
         parts.append(f"- {line}")
+        parts += [fenced("YOUR REASON", one_line(note)) for note in notes]
         for r in hits:
             parts.append(fenced("ANSWER", canonical(r.get("output") or "")[:SHOWN]))
         parts.append("")
     if not once:
         parts.append("Nothing.")
-    return scrub("\n".join(parts).rstrip("\n") + "\n")
+    return cleaned(scrub("\n".join(parts).rstrip("\n") + "\n"))

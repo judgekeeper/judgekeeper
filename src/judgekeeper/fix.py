@@ -522,13 +522,17 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -
     """The clue file, ready for a person or a coding agent: the task, the clues (the person's
     reasons and the pattern sentences the terminal prints; `mark` is the pass mark when the
     grades follow the scores), the judge's rule now, then each mistake on the seen marks,
-    fenced as data under the warning; grouped by the person's reasons when they gave any."""
+    fenced as data; grouped by the person's reasons when they gave any. The warning comes
+    before any of the person's or the app's words; the person's words outside a fence are on
+    one line."""
     fenced = start_fix_rule.fenced
     clues = clue_lines(rows, mark) or [NO_PATTERN]
-    parts = ["# Your judge's mistakes", "", TASK, "", "## Clues", "", *clues, ""]
+    parts = ["# Your judge's mistakes", "", TASK, "",
+             f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", "", "## Clues", "",
+             *clues, ""]
     if rule:
         parts += ["## Your judge's rule now", "", fenced("RULE", rule, cut=False), ""]
-    parts += ["## Mistakes", "", f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", ""]
+    parts += ["## Mistakes", ""]
     wrong = mistakes(rows)
     grouped = reasons.groups(wrong) if reasons.has_any(wrong) else [(None, wrong)]
     n = 0
@@ -539,18 +543,18 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -
             n += 1
             parts.append(f"## [M{n}] Your judge said {r['judge'].upper()}. You said "
                          f"{r['final'].upper()}.")
-            answer = reasons.canonical(r["output"]) if r.get("spans") else r["output"]
+            answer = reasons.canonical(r["output"])
             parts += [fenced("QUESTION", r["input"]),
                       fenced("ANSWER", reasons.bold(answer, r.get("spans")))]
             said = reasons.said_line(r)
             if said:
                 parts.append(said)
             if r.get("why"):
-                parts.append(fenced("YOUR REASON", r["why"]))
+                parts.append(fenced("YOUR REASON", one_line(r["why"])))
             if r.get("reason"):
                 parts.append(fenced("JUDGE'S REASON", r["reason"]))
             parts.append("")
-    return scrub("\n".join(parts).rstrip("\n") + "\n")
+    return reasons.cleaned(scrub("\n".join(parts).rstrip("\n") + "\n"))
 
 
 def write_suggestions(ws: Workspace, rows: list[dict], command: str, can: bool) -> bool:
@@ -693,13 +697,23 @@ def _rule_quote(rule: str) -> str:
 
 # The run ------------------------------------------------------------------------------------
 
+def read_rule(path: Path) -> str:
+    """The rule in rule.txt, stripped. Only its first MAX_RULE bytes and one more are read: a
+    longer file comes back longer than MAX_RULE, unstripped, and the checks refuse it."""
+    with Path(path).open("rb") as f:
+        raw = f.read(start_fix_rule.MAX_RULE + 1)
+    if len(raw) > start_fix_rule.MAX_RULE:
+        return raw.decode("utf-8", errors="replace")
+    return raw.decode("utf-8").strip()
+
+
 def _tested_rule(ws: Workspace, split: Split) -> tuple[str, dict] | None:
     """(the rule in fix/rule.txt, its last test) when it was tested on this set of marks
     kept aside."""
     from judgekeeper.fingerprint import rule_hash
 
     try:
-        text = (_folder(ws) / RULE).read_text(encoding="utf-8").strip()
+        text = read_rule(_folder(ws) / RULE)
     except OSError:
         return None
     tests = [t for t in split.tests if t.get("kind") == "rule"
@@ -711,9 +725,8 @@ def _new_rule(ws: Workspace, split: Split) -> str | None:
     """The rule in fix/rule.txt when it was not tested on this set of hidden marks yet."""
     from judgekeeper.fingerprint import rule_hash
 
-    path = _folder(ws) / RULE
     try:
-        text = path.read_text(encoding="utf-8").strip()
+        text = read_rule(_folder(ws) / RULE)
     except OSError:
         return None
     tested = {t.get("rule_hash") for t in split.tests if t.get("kind") == "rule"}

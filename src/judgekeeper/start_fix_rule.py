@@ -34,6 +34,8 @@ LINE_SHOWN = 120  # characters of the matched line shown
 GRADE = "GRADE: $LETTER"  # the line Inspect's model_graded_qa reads its grade from
 
 EMPTY = "The new rule is empty."
+MAX_RULE = 64 * 1024  # bytes
+TOO_LONG = "rule.txt is over 64 KB; a judge's rule is a few sentences."
 DROPPED = "The new rule dropped {part}: put it back before using it."
 BIG_CHANGE = "This is a big change, not a small edit."
 COPIES = "It copies text from your answers, so it may only fix these answers."
@@ -153,6 +155,8 @@ def checks(old: str, new: str, tool: str, outputs: list[str]) -> list[dict]:
     """The problems with a new rule, each {"text", "blocking"}: an empty rule, judgekeeper's
     prompt pasted back and a dropped template part block saving it; a big change and text
     copied from the used answers are said."""
+    if len(new.encode("utf-8", errors="replace")) > MAX_RULE:
+        return [{"text": TOO_LONG, "blocking": True}]
     if not new.strip():
         return [{"text": EMPTY, "blocking": True}]
     if echoes_prompt(new):

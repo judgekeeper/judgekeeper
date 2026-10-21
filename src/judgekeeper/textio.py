@@ -22,6 +22,7 @@ Four things every command shares:
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import re
@@ -333,9 +334,22 @@ PRIVATE_FILE, PRIVATE_FOLDER = 0o600, 0o700
 
 
 def open_private(path: str | Path, mode: str = "a", **kwargs):
-    """`path` opened to add to ("a", or "ab"); a new file is its owner's only (0600)."""
+    """`path` opened to add to ("a", or "ab"); a new file is its owner's only (0600). A file
+    with another name too (a hard link) is refused: what is added would land there as well."""
     flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_BINARY", 0)
-    return os.fdopen(os.open(path, flags, PRIVATE_FILE), mode, **kwargs)
+    fd = os.open(path, flags, PRIVATE_FILE)
+    if os.fstat(fd).st_nlink > 1:
+        os.close(fd)
+        raise OSError(errno.EMLINK, "it has a second name (a hard link)", str(path))
+    return os.fdopen(fd, mode, **kwargs)
+
+
+def hard_linked(path: str | Path) -> bool:
+    """Whether `path` is a file with more than one name (a hard link)."""
+    try:
+        return os.lstat(path).st_nlink > 1 and not os.path.islink(path)
+    except OSError:
+        return False
 
 
 def make_private(folder: str | Path) -> None:

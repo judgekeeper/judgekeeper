@@ -65,13 +65,18 @@ _LINE = re.compile(r"[^\n]+")
 # C0 controls other than tab and newline, DEL, and the C1 range: what a terminal acts on.
 # And characters that change how text reads without being seen (_HIDDEN): zero-width ones,
 # the marks, overrides and isolates of bidirectional text, and the byte order mark. A name
-# holding them could pass for another name.
-_HIDDEN = "\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff"
+# holding them could pass for another name. Also the marks no screen shows (soft hyphen,
+# U+061C, U+180E, U+2060 to U+2064, the Hangul filler) and the tag characters U+E0000 to
+# U+E007F, which an AI model reads as plain text ("ASCII smuggling").
+_INVISIBLE = "\u00ad\u061c\u180e\u2060-\u2064\u3164\U000e0000-\U000e007f"
+_HIDDEN = "\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff" + _INVISIBLE
 _CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
+# What can hide inside a credential: _CONTROL but tab and the line breaks
+_SPLITTERS = re.compile(f"[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f{_HIDDEN}]")
 # A page keeps the two joiners (U+200C, U+200D): joined emoji and scripts such as Persian
 # and Hindi need them to read right.
 _UNSEEN = re.compile("[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f\\u200b\\u200e\\u200f"
-                     "\\u202a-\\u202e\\u2066-\\u2069\\ufeff]")
+                     f"\\u202a-\\u202e\\u2066-\\u2069\\ufeff{_INVISIBLE}]")
 
 
 def printable(text) -> str:
@@ -144,9 +149,20 @@ def _secret_values() -> list[str]:
 
 
 def scrub(text: str | None) -> str | None:
-    """Return `text` with every credential replaced by [REDACTED]. None passes through."""
+    """Return `text` with every credential replaced by [REDACTED]. None passes through. A
+    credential split by a hidden character (which a page or the terminal then drops) is found
+    too: then the text comes back without its hidden characters."""
     if not text:
         return text
+    text = _scrub(text)
+    if _SPLITTERS.search(text):
+        seen = _SPLITTERS.sub("", text)
+        if _scrub(seen) != seen:
+            return _scrub(seen)
+    return text
+
+
+def _scrub(text: str) -> str:
     for value in _secret_values():
         text = text.replace(value, REDACTED)
     text = _BEARER.sub(rf"\g<1>{REDACTED}", text)
