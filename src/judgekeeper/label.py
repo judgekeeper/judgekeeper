@@ -11,7 +11,7 @@ through textContent, and the data is embedded as JSON with <, > and & escaped. E
 connection is read in a thread of its own, so a slow or silent one never holds up the rest;
 it is dropped after CONNECTION_TIMEOUT seconds, and when its request line and headers
 take more than HEADER_DEADLINE seconds. At most MAX_CONNECTIONS are open at once: one more
-closes the one that has waited longest for its headers (or, when none waits, the new one).
+drops the one that has waited longest for its headers (or, when none waits, the new one).
 Requests are then handled one at a time (LabelServer.busy). The Host header and the token
 are checked before a POST's body is read; a refused request is answered with `Connection:
 close` after at most REFUSED_READ bytes of its body are read and dropped (a connection
@@ -57,7 +57,6 @@ import io
 import json
 import os
 import secrets
-import socket
 import sys
 import threading
 import time
@@ -92,6 +91,9 @@ CONNECTION_TIMEOUT = 5
 MAX_BODY = 1_000_000
 MAX_DRAIN = 64_000_000  # a body over MAX_BODY is read and dropped up to this, then 413
 MAX_CONNECTIONS = 32
+CLOSING = 4  # connections over MAX_CONNECTIONS while the ones closed for them end
+READ_STEP = 0.25  # seconds of each read of a request line and headers
+MAX_HEAD = 256 * 1024  # bytes read before the request line and headers are parsed
 HEADER_DEADLINE = 5  # seconds a connection may take to send its request line and headers
 REFUSED_READ = 65_536  # bytes of a refused request's body read and dropped before closing
 TOO_LARGE = "too large: the page sends at most 1 MB"
@@ -352,18 +354,40 @@ def link(port: int, token: str) -> str:
     return f"http://{HOST}:{port}/?token={token}"
 
 
+class _Head(io.RawIOBase):
+    """A connection's bytes: those already read (its request line and headers), then the
+    socket's."""
+
+    def __init__(self, head: bytes, sock):
+        self.head, self.sock = head, sock
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, b) -> int:
+        if self.head:
+            n = min(len(b), len(self.head))
+            b[:n], self.head = self.head[:n], self.head[n:]
+            return n
+        return self.sock.recv_into(b)
+
+
 class _HTTPServer(ThreadingHTTPServer):
     """ThreadingHTTPServer without the host-name lookup it makes when it binds (socket.getfqdn
     of 127.0.0.1), which can hang for many seconds on some machines. The page needs no name.
     Closing it waits for no connection: the one being handled holds LabelServer.busy. At most
-    MAX_CONNECTIONS are open; `waiting` holds each one still sending its request line and
-    headers, with when it began, and `sweep` closes those past HEADER_DEADLINE."""
+    MAX_CONNECTIONS are open (CLOSING more while the ones dropped for them end): `waiting`
+    holds each one still sending its request line and headers, with when it began, and one
+    more drops the oldest of those (`dropped`), which its own thread sees within READ_STEP
+    seconds. No thread touches another's socket: on Windows a shutdown doesn't wake a thread
+    waiting to read, and a socket closed under one could be read again as the next one."""
 
     block_on_close = False
 
     def __init__(self, *args, **kwargs):
         self.open = 0
         self.waiting: dict = {}  # connection -> time.monotonic() when its request began
+        self.dropped: set = set()
         self.count_lock = threading.Lock()
         super().__init__(*args, **kwargs)
 
@@ -375,54 +399,62 @@ class _HTTPServer(ThreadingHTTPServer):
         with self.count_lock:
             if self.open >= MAX_CONNECTIONS:
                 oldest = min(self.waiting, key=self.waiting.get, default=None)
-                if oldest is None:
+                if oldest is None or self.open >= MAX_CONNECTIONS + CLOSING:
                     self.shutdown_request(request)
                     return
-                self._close(oldest)
+                self.waiting.pop(oldest)
+                self.dropped.add(oldest)
             self.open += 1
+            self.waiting[request] = time.monotonic()
         try:
             super().process_request(request, client_address)
         except BaseException:
-            with self.count_lock:
-                self.open -= 1
+            self._done(request)
             raise
 
     def process_request_thread(self, request, client_address) -> None:
         try:
             super().process_request_thread(request, client_address)
         finally:
-            with self.count_lock:
-                self.open -= 1
-                self.waiting.pop(request, None)
+            self._done(request)
+
+    def _done(self, request) -> None:
+        with self.count_lock:
+            self.open -= 1
+            self.waiting.pop(request, None)
+            self.dropped.discard(request)
 
     def handle_error(self, request, client_address) -> None:
         if isinstance(sys.exc_info()[1], OSError):
-            return  # a connection the other end closed, or one closed here (sweep): no news
+            return  # a connection the other end closed, or one dropped here: no news
         super().handle_error(request, client_address)
 
-    def wait_for(self, request) -> None:
-        with self.count_lock:
-            self.waiting[request] = time.monotonic()
-
-    def got_headers(self, request) -> None:
-        with self.count_lock:
-            self.waiting.pop(request, None)
-
-    def sweep(self) -> None:
-        """Close each connection that has sent no whole request line and headers within
-        HEADER_DEADLINE seconds."""
-        late = time.monotonic() - HEADER_DEADLINE
-        with self.count_lock:
-            for request in [r for r, began in self.waiting.items() if began < late]:
-                self._close(request)
-
-    def _close(self, request) -> None:
-        """Wake the thread reading `request`: it finds the connection closed and ends."""
-        self.waiting.pop(request, None)
+    def read_head(self, request, timeout: float) -> bytes | None:
+        """`request`'s request line and headers (and any bytes after them), read in steps of
+        READ_STEP seconds; None when it was dropped, took over HEADER_DEADLINE seconds or
+        closed first. The socket then waits `timeout` seconds again."""
+        end = time.monotonic() + HEADER_DEADLINE
+        head = b""
         try:
-            request.shutdown(socket.SHUT_RDWR)
-        except OSError:
-            pass
+            request.settimeout(READ_STEP)
+            while b"\r\n\r\n" not in head and len(head) <= MAX_HEAD:
+                with self.count_lock:
+                    if request in self.dropped:
+                        return None
+                if time.monotonic() > end:
+                    return None
+                try:
+                    chunk = request.recv(65536)
+                except TimeoutError:
+                    continue
+                if not chunk:
+                    return head or None
+                head += chunk
+            request.settimeout(timeout)
+        finally:
+            with self.count_lock:
+                self.waiting.pop(request, None)
+        return head
 
 
 class LabelServer:
@@ -498,7 +530,6 @@ class LabelServer:
         try:
             while not self._stopped and time.monotonic() - self.last_request < idle:
                 self.httpd.handle_request()
-                self.httpd.sweep()
                 if self.done_at is not None and time.monotonic() - self.done_at > RESULT_WAIT:
                     break
         finally:
@@ -534,13 +565,13 @@ def _handler(server: LabelServer):
             return "judgekeeper"  # the Server header: not the Python version
 
         def handle_one_request(self):
-            server.httpd.wait_for(self.connection)  # until its headers are in (sweep)
+            head = server.httpd.read_head(self.connection, self.timeout)
+            if head is None:
+                self.close_connection = True
+                return
+            self.rfile.close()  # nothing read from it yet
+            self.rfile = io.BufferedReader(_Head(head, self.connection))
             super().handle_one_request()
-
-        def parse_request(self) -> bool:
-            done = super().parse_request()
-            server.httpd.got_headers(self.connection)
-            return done
 
         def __getattr__(self, name: str):
             if name.startswith("do_"):  # a method with no do_ of its own

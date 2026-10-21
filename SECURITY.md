@@ -81,8 +81,11 @@ environment, else the project's `.venv` or `venv`). Those tools load the project
 and config as they do when you run your evals. judgekeeper asks a promptfoo judge again only
 when its grader is a model provider that promptfoo calls over HTTP, from a fixed list
 (`openai:`, `anthropic:`, `azure:`, `bedrock:`, `vertex:`, `google:`, `mistral:`, `ollama:`
-and others like them, in any case). Any other grader (`package:`, `exec:`, `python:`,
-`file://`, a URL, `webhook:`, a name it doesn't know), a rule or rubric that loads code
+and others like them, in any case) that sends a prompt to a model and reads text back. A
+grader that runs an agent with tools (`anthropic:claude-agent-sdk`, `anthropic:claude-code`,
+`openai:codex-sdk`, `openai:agents:...`, an assistant), any other grader (`package:`,
+`exec:`, `python:`, `file://`, a URL, `webhook:`, a name it doesn't know), a rule or rubric
+that loads code
 (`package:`, `file://`, `exec:`), or a `transform`, makes it a judge judgekeeper cannot ask
 again. It uses a promptfoo version from a results file only when it reads as a plain version
 number.

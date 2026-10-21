@@ -72,6 +72,28 @@ def test_a_model_provider_is_still_asked(tmp_path, grader):
     assert p.status != "cant", p.why
 
 
+@pytest.mark.parametrize("grader", [
+    "anthropic:claude-agent-sdk", "anthropic:claude-code", "openai:codex-sdk", "openai:codex",
+    "OpenAI:Codex-SDK", "openai:codex-app-server", "openai:codex-desktop",
+    "openai:codex-security", "openai:agents:my-agent", "openai:agents-api:my-agent",
+    "openai:assistant:asst_123", "openai:chatkit:wf_1", "azure:assistant:asst_123",
+    "azure:foundry-agent:agent_1", "azureopenai:assistant:asst_123",
+    {"id": "anthropic:claude-agent-sdk", "config": {}},
+    {"text": {"id": "openai:codex-sdk", "config": {"sandbox_mode": "read-only"}}},
+])
+def test_an_agent_grader_is_not_asked(tmp_path, grader):
+    ws = _checked(tmp_path)
+    _graded_by(tmp_path, grader)
+    p = make_plan(ws, AgainOptions(), dry=False)
+    assert p.status == "cant" and "your judge is an agent that can use tools" in p.why
+
+
+def test_a_model_named_like_an_agent_is_still_asked(tmp_path):
+    ws = _checked(tmp_path)
+    _graded_by(tmp_path, "openai:codex-mini-latest")
+    assert make_plan(ws, AgainOptions(), dry=False).status != "cant"
+
+
 @pytest.mark.parametrize("rule", ["package:zqpkg:fn", "Package:zqpkg:fn", "FILE://rubric.js",
                                   "  file://rubric.js", "PYTHON:rubric.py"])
 def test_a_rule_that_loads_code_is_not_asked(tmp_path, rule):
