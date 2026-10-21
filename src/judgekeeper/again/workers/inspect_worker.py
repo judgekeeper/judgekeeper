@@ -9,10 +9,11 @@ function the `inspect` command calls), which asking again uses so the key can st
 The dry run does not call it. No model is called, and no log is read or written.
 
 Mode "run" calls that loader (when it is there), reads the log with `read_eval_log` (never
-writing it), keeps the job's samples (for a new judge, which never graded the person's marked
+writing it; a `.eval` log one sample at a time, `read_log`), keeps the job's samples (for a new judge, which never graded the person's marked
 answers: puts those answers into copies of the log's first sample) and rebuilds the recorded
 scorer from Inspect's own registry with its saved options. Then, once per time asked,
-`score_async(log, [scorer], action="append", copy=True)` re-scores a copy in memory, with
+`score_async(log, [scorer], action="append", copy=True)` re-scores a copy in memory (the
+scorer `guarded`: a judge call that fails costs only its own sample), with
 every model role (and a grader given as a scorer option) rebuilt with its cache off, so each
 time is really asked. When a grader is set, the model under test is `mockllm/model`, Inspect's
 stand-in that can't call anything; without one, the judge is the model under test, rebuilt
@@ -78,6 +79,35 @@ def scorer_from_registry(registry_create, name, options):
     raise error
 
 
+def guarded(scorer, failed):
+    """The scorer, with each sample's judge call on its own: a call that fails (an HTTP 400,
+    say) leaves that sample with no new score and its error's type in `failed`, keyed by
+    (sample id, epoch); the other samples are still scored. Never the error's text: it can
+    quote the grading prompt. The scorer itself when this Inspect has no registry helpers."""
+    try:
+        from inspect_ai._util.registry import (
+            has_registry_params,
+            registry_info,
+            registry_params,
+            set_registry_info,
+            set_registry_params,
+        )
+    except ImportError:
+        return scorer
+
+    async def score(state, target):
+        try:
+            return await scorer(state, target)
+        except Exception as e:  # noqa: BLE001 - this answer's call failed; Ctrl-C still stops
+            failed[(str(state.sample_id), state.epoch)] = type(e).__name__
+            return None
+
+    set_registry_info(score, registry_info(scorer))
+    if has_registry_params(scorer):
+        set_registry_params(score, registry_params(scorer))
+    return score
+
+
 def new_samples(log, answers):
     """The marked answers as samples shaped like the newest log's first sample, for a new
     judge that never graded them: their own input, answer and target; no scores."""
@@ -111,6 +141,28 @@ def new_samples(log, answers):
     return samples, wanted
 
 
+def read_log(path, wanted, new):
+    """The log, with only the samples asked about (`wanted`), or for a `new` judge only its
+    first sample (the template). A `.eval` log is read as its header, then one sample at a
+    time, when this Inspect can: never every sample in memory at once."""
+    from inspect_ai.log import read_eval_log
+
+    try:
+        from inspect_ai.log import read_eval_log_samples
+    except ImportError:
+        read_eval_log_samples = None
+    if read_eval_log_samples is None or not str(path).lower().endswith(".eval"):
+        return read_eval_log(path)
+    log = read_eval_log(path, header_only=True)
+    log.samples = []
+    for sample in read_eval_log_samples(path, all_samples_required=False):
+        if new or (str(sample.id), sample.epoch) in wanted:
+            log.samples.append(sample)
+            if new:
+                break
+    return log
+
+
 def usage_of(sample):
     """{model: its usage as text}: what Inspect counted for a sample, by model."""
     usage = getattr(sample, "model_usage", None) or {}
@@ -125,15 +177,15 @@ def run(job, out_path, version):
     if init_dotenv is not None:
         init_dotenv()
     from inspect_ai import score_async
-    from inspect_ai.log import read_eval_log
     from inspect_ai.model import GenerateConfig, get_model
     from inspect_ai.util import registry_create
 
-    log = read_eval_log(job["log"])
     if job.get("new"):
+        log = read_log(job["log"], {}, True)
         log.samples, wanted = new_samples(log, job["answers"])
     else:
         wanted = {(str(a["sample"]), a["epoch"]): a["id"] for a in job["answers"]}
+        log = read_log(job["log"], wanted, False)
         log.samples = [s for s in log.samples or [] if (str(s.id), s.epoch) in wanted]
     before = {(str(s.id), s.epoch): set(s.scores or {}) for s in log.samples}
     usage = {(str(s.id), s.epoch): usage_of(s) for s in log.samples}
@@ -154,17 +206,22 @@ def run(job, out_path, version):
                           "args": getattr(log.eval, "model_args", None)},
                          GenerateConfig, get_model)
     for time in range(job["times"]):
+        failed = {}
         try:
-            new = asyncio.run(score_async(log, [scorer], action="append", copy=True,
-                                          model_roles=roles or None, model=model))
-        except Exception as e:  # noqa: BLE001 - this time failed for every sample: say why
+            new = asyncio.run(score_async(log, [guarded(scorer, failed)], action="append",
+                                          copy=True, model_roles=roles or None, model=model))
+        except Exception as e:  # noqa: BLE001 - this time failed for every sample: its type
             for item in wanted.values():
                 emit(out_path, {"id": item, "time": time, "ok": False,
-                                "error": f"{type(e).__name__}: {e}"})
+                                "error": type(e).__name__})
             continue
         for sample in new.samples:
             key = (str(sample.id), sample.epoch)
             added = [n for n in (sample.scores or {}) if n not in before[key]]
+            if key in failed:
+                emit(out_path, {"id": wanted[key], "time": time, "ok": False,
+                                "error": failed[key], "call_failed": True})
+                continue
             if not added:
                 emit(out_path, {"id": wanted[key], "time": time, "ok": False,
                                 "error": "Inspect gave no new score"})

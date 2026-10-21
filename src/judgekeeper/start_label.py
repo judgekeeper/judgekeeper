@@ -62,7 +62,16 @@ from judgekeeper.records import AGENT_FIELDS
 from judgekeeper.redact import scrub, scrub_fingerprint, scrub_value, visible
 from judgekeeper.runners.base import Judgment
 from judgekeeper.table import guard_cell, write_anchor_file
-from judgekeeper.textio import jsonl_lines, link_in, make_private, plural, program, write_replacing
+from judgekeeper.textio import (
+    file_stamp,
+    jsonl_lines,
+    link_in,
+    make_private,
+    plural,
+    program,
+    read_cached,
+    write_replacing,
+)
 
 FOLDER = ".judgekeeper"
 BLOCK = 10
@@ -144,6 +153,22 @@ class Workspace:
 
     def data(self) -> dict:
         return json.loads(self.start.read_text(encoding="utf-8"))
+
+    def cached_data(self) -> dict:
+        """start.json, parsed again only when it changed: for reading only (it is shared)."""
+        return read_cached(self.start, _load_start)
+
+    def cached_strata(self) -> tuple:
+        """batches.strata of start.json, worked out again only when it changed: read only."""
+        return read_cached(self.start, _start_strata)
+
+
+def _load_start(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _start_strata(path: Path) -> tuple:
+    return batches.strata(read_cached(path, _load_start))
 
 
 def refuse_links(ws: Workspace) -> None:
@@ -413,7 +438,11 @@ def progress_status(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f:
 
 def strata_status(strata: list[tuple[int, str, int, int, int]]) -> dict:
     """progress_status from the marks in each stratum, as the result counts them
-    (batches.counted_strata)."""
+    (batches.counted_strata). Under ROUGH marks of each kind there is no result yet, a count
+    rule (targets.check): no range is drawn."""
+    correct = sum(s[4] for s in strata)
+    if min(correct, sum(s[3] for s in strata) - correct) < ROUGH:
+        return {"text": VERDICTS[None], "ready": False}
     r = describe(weighted.stratified(strata))
     return {"text": status_line(r), "ready": r["check"] != "too_few"}
 
@@ -422,7 +451,9 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     """The line under the meters for `start`'s labeling: from the session's labels. With
     every answer marked and no result yet, `done` holds what the end card says
     (all_marked_lines, with mark_command of `run`, the command that opened the page)."""
-    status = strata_status(batches.counted_strata(session.workspace.data(), session.marked()))
+    ws = session.workspace
+    status = strata_status(batches.counted_strata(ws.cached_data(), session.marked(),
+                                                  ws.cached_strata()))
     every = bool(session.items) and all(i["label"] for i in session.items)
     if not status["ready"] and every:
         counts = session.counts()  # nothing left to mark: the end card says what comes next
@@ -450,6 +481,9 @@ class StartSession(LabelSession):
         self.sitting = marks.new_sitting()
         self.link: str | None = None  # marks.PRINTED once the page's link was printed for an agent
         self.not_counted = 0  # lines of marks.jsonl not made on the page
+        self.changes = 0  # counts every change to the marks in memory
+        self._marks_seen: tuple | None = None  # marks.jsonl as last read or written
+        self._status: tuple | None = None  # (changes, start.json's stamp, the status)
         super().__init__(ws.pool, ws.marks)
         raw = [json.loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
                if line.strip()]
@@ -457,7 +491,9 @@ class StartSession(LabelSession):
 
     def _resume(self) -> None:
         """The marks on disk: the last stamped line of each answer."""
+        seen = file_stamp(self.out)
         m = marks.read(self.out)
+        self._marks_seen, self.changes = seen, self.changes + 1
         self.not_counted = m.not_counted
         for item in self.items:
             line = m.last.get(item["id"]) or {}
@@ -467,11 +503,21 @@ class StartSession(LabelSession):
             item["note"] = line.get("note") or ""
 
     def _reread(self) -> None:
-        if self.out.is_file():
+        """The marks on disk, when marks.jsonl changed since this session last read or wrote
+        it (another page or run wrote a line)."""
+        if self.out.is_file() and file_stamp(self.out) != self._marks_seen:
             try:
                 self._resume()
             except OSError:
                 pass
+
+    def current_status(self) -> dict:
+        """The line under the meters (`status`), worked out again only after a change to the
+        marks or to start.json: it draws the ranges."""
+        key = (self.changes, file_stamp(self.workspace.start))
+        if self._status is None or self._status[0] != key:
+            self._status = (key, self.status(self))
+        return self._status[1]
 
     def update(self, body: dict) -> None:
         """Apply one change ({"id", "label"?, "deferred"?, "note"?, "seconds"?}) and add its
@@ -496,7 +542,11 @@ class StartSession(LabelSession):
                                after_result=changed and reasons.grades_shown(self.workspace))
             if not self.out.is_file():
                 begin_marks(self.workspace)
+            seen = file_stamp(self.out)
             marks.append(self.out, line)
+            if seen == self._marks_seen:  # nobody else wrote in between: memory is the file
+                self._marks_seen = file_stamp(self.out)
+            self.changes += 1
         except BaseException:
             item.update(before)  # memory matches the file on disk
             raise
@@ -537,7 +587,7 @@ class StartSession(LabelSession):
         counts = self.counts()
         return {"n_items": len(self.items), "n_labeled": counts["correct"] + counts["wrong"],
                 "counts": counts, "done": all(i["label"] or i["deferred"] for i in self.items),
-                "status": self.status(self)}
+                "status": self.current_status()}
 
     def state(self) -> dict:
         """What the page needs: the answers up to the furthest one marked or skipped and the
@@ -552,7 +602,7 @@ class StartSession(LabelSession):
                   "output": display(self.raw[i["id"]].get("output")), "label": i["label"],
                   "skipped": i["deferred"]} for i in shown]
         return {"items": items, "total": len(self.items), "start": start,
-                "counts": self.counts(), "status": self.status(self)}
+                "counts": self.counts(), "status": self.current_status()}
 
 
 # The result ------------------------------------------------------------------------------

@@ -2,7 +2,10 @@
 
 With the optional extra (`pip install "judgekeeper[inspect]"`) any log is read with
 `inspect_ai.log.read_eval_log`. Without it `.json` logs are read directly; a `.eval` log is a
-zip archive, so it needs the extra or `inspect log dump <file> > log.json` first.
+zip archive, so it needs the extra or `inspect log dump <file> > log.json` first. A `.eval`
+log is read as its header, then one sample at a time (`read_eval_log_samples`), keeping only
+SAMPLE_FIELDS: a log of a million samples fits in memory. An Inspect AI without that function
+reads a log whole, so a `.eval` log over WHOLE_LIMIT is not read: it says so.
 
 Shape (inspect_ai log/_log.py `EvalSpec`, `EvalSample`; scorer/_metric.py `Score`): `eval`
 with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, options}`);
@@ -109,6 +112,40 @@ def quiet() -> Iterator[None]:
         logger.setLevel(level)
 
 
+# What judgekeeper reads of a sample (and of its output, the completion only).
+SAMPLE_FIELDS = {"id": True, "epoch": True, "input": True, "target": True,
+                 "output": {"completion"}, "messages": True, "scores": True, "error": True}
+WHOLE_LIMIT = 500 * 2**20  # bytes: the biggest .eval log read whole (no read_eval_log_samples)
+TOO_BIG = ("{path} is {size}. This Inspect AI version reads a log whole, so judgekeeper reads "
+           "Inspect logs up to {limit} with it. Update Inspect AI (it then reads one sample at "
+           "a time), or run your eval on fewer samples.")
+
+
+def _size(n: int) -> str:
+    for unit, step in (("GB", 2**30), ("MB", 2**20), ("KB", 2**10)):
+        if n >= step:
+            return f"{n / step:.1f}".removesuffix(".0") + f" {unit}"
+    return f"{n} bytes"
+
+
+def _by_sample(path: Path, read_eval_log, read_samples) -> dict:
+    """A .eval log as its header and its samples, read one at a time, each kept to
+    SAMPLE_FIELDS."""
+    import inspect
+
+    data = read_eval_log(str(path), header_only=True).model_dump(mode="json",
+                                                                exclude={"samples"})
+    options = {}
+    try:
+        if "exclude_fields" in inspect.signature(read_samples).parameters:
+            options["exclude_fields"] = {"events", "attachments", "store"}
+    except (TypeError, ValueError):
+        pass
+    data["samples"] = [s.model_dump(mode="json", include=SAMPLE_FIELDS)
+                       for s in read_samples(str(path), all_samples_required=False, **options)]
+    return data
+
+
 def _load(path: Path) -> dict:
     try:
         from inspect_ai.log import read_eval_log
@@ -116,7 +153,19 @@ def _load(path: Path) -> dict:
         read_eval_log = None
     if read_eval_log is not None:
         try:
+            from inspect_ai.log import read_eval_log_samples
+        except ImportError:
+            read_eval_log_samples = None
+        is_eval = path.suffix.lower() == ".eval"
+        if is_eval and read_eval_log_samples is None:
+            size = path.stat().st_size
+            if size > WHOLE_LIMIT:
+                raise RecordsError(TOO_BIG.format(path=path, size=_size(size),
+                                                  limit=_size(WHOLE_LIMIT)))
+        try:
             with quiet():
+                if is_eval and read_eval_log_samples is not None:
+                    return _by_sample(path, read_eval_log, read_eval_log_samples)
                 return read_eval_log(str(path)).model_dump(mode="json")
         except Exception:  # noqa: BLE001 - a log cut short, empty or not Inspect's
             if _eval_part_damaged(path):

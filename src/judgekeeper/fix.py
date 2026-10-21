@@ -64,6 +64,7 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
+    read_cached,
     wrap,
     write_replacing,
 )
@@ -99,6 +100,20 @@ CANT_ASK = "judgekeeper can't ask this judge itself."
 CANT_RERUN = "judgekeeper can't re-run this kind of judge itself"  # the result page's words
 NEXT_CANT_ASK = ("change its rule where your eval keeps it, run your eval, then run "
                  "`{command}`.")
+# Inspect's model_graded_qa / _fact with no instructions= (rule None): Inspect's own text, which
+# no public Inspect AI function gives, so it is not in the person's code to swap
+INSPECT_DEFAULT = ("judgekeeper can't ask this judge itself: Inspect's default {scorer} "
+                   "instructions aren't written in your code. To test a rule, set instructions= "
+                   "in {scorer}(...) and run your eval again.")
+
+
+def cant_ask_line(data: dict) -> str:
+    """Why judgekeeper can't test a rule for this judge, in one line."""
+    scorer = str(data.get("metric") or "").split("/")[-1]
+    if data.get("tool") == "inspect" and not data.get("rule") and scorer in (
+            "model_graded_qa", "model_graded_fact"):
+        return INSPECT_DEFAULT.format(scorer=scorer)
+    return CANT_ASK
 # A rule test waits for its top-up: said first, then the clues as on a first run
 TOP_UP_WAITING = ("Your last rule test is waiting for more marks: it couldn't tell yet. {step}, "
                   "and `{command}` tests that rule again on them.")
@@ -128,13 +143,30 @@ STOPWORDS = frozenset((
 
 # The marks ----------------------------------------------------------------------------------
 
+def _judge_said(path: Path) -> dict:
+    """The judge's reason and score on each answer in pool-judge.jsonl."""
+    _, records = read_run(path)
+    return {"reasons": {i: scrub(r.get("rationale") or "") for i, r in records.items()},
+            "scores": {i: r.get("raw_score") for i, r in records.items()}}
+
+
+def _pool_rows(path: Path) -> dict:
+    """{id: row} from pool.jsonl."""
+    rows = {}
+    for line in jsonl_lines(path.read_text(encoding="utf-8")):
+        if line.strip():
+            row = json.loads(line)
+            rows[row["id"]] = row
+    return rows
+
+
 class Marks:
     """The person's marks (person), the judge's grades on them (judge), and per answer its
     text (rows), the judge's reason and score, and the person's note and reasons (why)."""
 
     def __init__(self, ws: Workspace):
         self.ws = ws
-        self.data = ws.data()
+        self.data = ws.cached_data()  # read only
         read = marks.read(ws.marks)
         self.person = read.counted()
         self.notes = {i: str(x["note"]) for i, x in read.last.items()
@@ -148,14 +180,10 @@ class Marks:
         self.judge = {i: groups[i] for i in self.person if i in groups}
         self.person = {i: m for i, m in self.person.items() if i in self.judge and i in counted}
         self.order = sorted(self.person, key=lambda i: str(read.last[i].get("at") or ""))
-        _, records = read_run(ws.pool_judge)
-        self.reasons = {i: scrub(r.get("rationale") or "") for i, r in records.items()}
-        self.scores = {i: r.get("raw_score") for i, r in records.items()}
-        self.rows = {}
-        for line in jsonl_lines(ws.pool.read_text(encoding="utf-8")):
-            if line.strip():
-                row = json.loads(line)
-                self.rows[row["id"]] = row
+        said = read_cached(ws.pool_judge, _judge_said)
+        self.reasons = dict(said["reasons"])  # judge_now changes these two
+        self.scores = dict(said["scores"])
+        self.rows = read_cached(ws.pool, _pool_rows)  # read only
 
     def enough(self) -> bool:
         values = list(self.person.values())
@@ -899,7 +927,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split,
                   "fairly.")
     if not can_test(tool, rule):
         talk.say()
-        talk.para(CANT_ASK)
+        talk.para(cant_ask_line(data))
         talk.next(NEXT_CANT_ASK.format(command=talk.command("check")))
         return EXIT_NEEDS_YOU
     if then is not None:

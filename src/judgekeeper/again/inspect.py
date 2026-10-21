@@ -40,6 +40,7 @@ from judgekeeper.readers.inspect_logs import (
     DEFAULT_LABELS,
     _load,
     _model,
+    eval_header,
     sample_key,
     scorer_prompt,
 )
@@ -280,7 +281,7 @@ def run(ws, plan: Plan, talk) -> Fresh:
 
     fresh, got, done = worker_run.ask(ws, plan, talk, "Inspect AI")
     worker_run.count(fresh, plan, got, "Inspect AI", verdict, differs)
-    log = _load(Path(plan.job["log"]))
+    log = {"eval": eval_header(plan.job["log"])}  # the header only: never every sample again
     made_with = ((log.get("eval") or {}).get("packages") or {}).get("inspect_ai")
     version = done.get("version") or plan.tool_version
     counted = [e for e in plan.payload if e[0]["id"] in fresh.verdicts]

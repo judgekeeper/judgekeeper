@@ -180,7 +180,8 @@ def test_when_every_call_fails_nothing_is_counted(deepeval_ws, stubs, capsys):
     stubs.plan(errors=[[i, t] for i in _inputs(deepeval_ws) for t in (0, 1)])
     code, out = ask(capsys, deepeval_ws, *FIELDS)
     assert code == 1
-    assert "DeepEval could not ask your judge: RuntimeError: rate limited" in out
+    assert "DeepEval could not ask your judge: RuntimeError on 36 answers" in out
+    assert "rate limited" not in out  # never the error's text
     assert "again" not in json.loads(deepeval_ws.result_json.read_text(encoding="utf-8"))
 
 

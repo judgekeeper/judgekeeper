@@ -33,6 +33,7 @@ NOT_COUNTED = {  # key: (one answer, several answers)
          "input")),
     "no clear verdict": ("the judge gave no clear decision", "the judge gave no clear decision"),
     "error": ("the judge's tool gave an error for it", "the judge's tool gave an error for them"),
+    "judge call failed": ("the judge's call for it failed", "the judge's calls for them failed"),
     "missing": ("it is missing from the tool's output",
                 "they are missing from the tool's output"),
 }

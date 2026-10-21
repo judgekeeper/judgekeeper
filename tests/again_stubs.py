@@ -11,7 +11,8 @@ STUB_PLAN):
 - "errors": [[key, time]], the times the judge call raises;
 - "values": {key: value}, a raw value given instead of a verdict;
 - "prompt_changed": [key], Inspect answers whose grading prompt comes back different;
-- "extra": text put into every reason (a planted secret).
+- "extra": text put into every reason (a planted secret);
+- "error_text": text put into an Inspect judge call's error, after the grading prompt.
 """
 
 from __future__ import annotations
@@ -180,6 +181,10 @@ STUB_INSPECT = {
     def score(*a, **k):
         raise AssertionError("the worker uses score_async")
 
+    def _params(scorer):
+        from inspect_ai._util.registry import registry_params
+        return registry_params(scorer)
+
     async def score_async(log, scorers, metrics=None, epochs_reducer=None, model=None,
                           model_roles=None, action=None, display=None, copy=True,
                           samples=None):
@@ -193,26 +198,46 @@ STUB_INSPECT = {
              model=getattr(model, "name", model),
              model_cache=getattr(getattr(model, "config", None), "cache", "unset"),
              roles={k: [v.name, v.config.cache] for k, v in (model_roles or {}).items()},
-             scorer=[s.name for s in scorers], options=[s.options for s in scorers])
+             scorer=[_name(s) for s in scorers], options=[_params(s) for s in scorers])
         new = __import__("copy").deepcopy(log) if copy else log
-        plan = _plan()
-        for s in new.samples:
-            value = _answer(s.input, time)
-            if isinstance(value, bool):
-                value = "C" if value else "I"
-            old = s.scores.get(scorers[0].name)
-            saved = ((old.metadata or {}).get("grading") or [None])[0] if old else None
-            prompt = saved["content"] if isinstance(saved, dict) else f"Grade {s.input}"
-            if s.input in plan.get("prompt_changed", []):
-                prompt = "a different grading prompt"
-            s.scores[f"{scorers[0].name}-1"] = Score(
-                value=value, explanation=f"again {time}{plan.get('extra', '')}",
-                metadata={"grading": [Message("user", prompt),
-                                      Message("assistant", f"GRADE: {value}")]})
+        name = _name(scorers[0])
+        for s in new.samples:  # as Inspect does: the scorer once per sample; None is no score
+            state = State(s, time)
+            score = await scorers[0](state, s.target)
+            if score is not None:
+                s.scores[f"{name}-1"] = score
             if os.environ.get("STUB_ANSWER_MODEL"):  # the model Inspect counts for the grading
                 s.model_usage = {**(getattr(s, "model_usage", None) or {}),
                                  os.environ["STUB_ANSWER_MODEL"]: {"calls": time + 1}}
         return new
+
+    def _name(scorer):
+        from inspect_ai._util.registry import registry_info
+        return registry_info(scorer).name
+
+    class State:
+        def __init__(self, sample, time):
+            self.sample, self.time = sample, time
+            self.sample_id, self.epoch, self.input = sample.id, sample.epoch, sample.input
+
+    async def judge(name, state):
+        # What the stub judge answers for one sample: a planned error raises, with text that
+        # quotes the grading prompt, as a provider's HTTP 400 does.
+        plan, s, time = _plan(), state.sample, state.time
+        old = s.scores.get(name)
+        saved = ((old.metadata or {}).get("grading") or [None])[0] if old else None
+        prompt = saved["content"] if isinstance(saved, dict) else f"Grade {s.input}"
+        if [s.input, time] in plan.get("errors", []):
+            raise RuntimeError(f"Error code: 400 - [Task]: {prompt} "
+                               f"{plan.get('error_text', '')}")
+        value = _answer(s.input, time)
+        if isinstance(value, bool):
+            value = "C" if value else "I"
+        if s.input in plan.get("prompt_changed", []):
+            prompt = "a different grading prompt"
+        return Score(value=value, explanation=f"again {time}{plan.get('extra', '')}",
+                     metadata={"grading": [Message("user", prompt),
+                                           Message("assistant", f"GRADE: {value}")]})
 
     class Score:
         def __init__(self, value, explanation=None, metadata=None):
@@ -232,14 +257,35 @@ STUB_INSPECT = {
     def registry_lookup(kind, name):
         base = name.split("/")[-1]
         return object() if kind == "scorer" and base in BUILTIN else None
+    def registry_info(o):
+        return o._registry_info
+    def set_registry_info(o, info):
+        o._registry_info = info
+        return o
+    def registry_params(o):
+        return o._registry_params
+    def has_registry_params(o):
+        return hasattr(o, "_registry_params")
+    def set_registry_params(o, params):
+        o._registry_params = params
+        return o
     """,
     "inspect_ai/util/__init__.py": """
     from inspect_ai import _log
     from inspect_ai._util.registry import registry_lookup
 
+    class Info:
+        def __init__(self, name):
+            self.name = name
+
     class Scorer:
         def __init__(self, name, options):
             self.name, self.options = name, options
+            self._registry_info, self._registry_params = Info(name), options
+
+        async def __call__(self, state, target):
+            from inspect_ai import judge
+            return await judge(self.name, state)
 
     def registry_create(kind, name, **options):
         if not name.startswith("inspect_ai/") or registry_lookup(kind, name) is None:
