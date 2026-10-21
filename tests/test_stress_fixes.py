@@ -22,6 +22,16 @@ def _page(tmp_path, n=40):
     return ws, StartSession(ws)
 
 
+def _no_inspect(monkeypatch):
+    """judgekeeper's own process without inspect_ai, as CI runs it: the made-up logs are read
+    as JSON (a worker runs in its own Python, with the stub)."""
+    import sys
+
+    for name in [n for n in sys.modules if n == "inspect_ai" or n.startswith("inspect_ai.")]:
+        monkeypatch.setitem(sys.modules, name, None)
+    monkeypatch.setitem(sys.modules, "inspect_ai", None)
+
+
 def _counting(monkeypatch, module, name):
     calls = []
     real = getattr(module, name)
@@ -280,10 +290,11 @@ def _ask(ws):
     return again.run_tool(ws, plan, said), "\n".join(said.lines)
 
 
-def test_a_failed_judge_call_costs_only_its_own_answer(tmp_path, stubs):
+def test_a_failed_judge_call_costs_only_its_own_answer(tmp_path, stubs, monkeypatch):
     from judgekeeper import again
     from judgekeeper.again.fresh import NOT_COUNTED
 
+    _no_inspect(monkeypatch)
     ws = _inspect_ws(tmp_path)
     inputs = [a["input"] for a in again.labeled_answers(ws)]
     failing = inputs[1::2]  # every second answer's call fails, both times asked
@@ -298,9 +309,10 @@ def test_a_failed_judge_call_costs_only_its_own_answer(tmp_path, stubs):
     assert CANARY not in said and "[Task]" not in said
 
 
-def test_no_judge_error_text_reaches_a_file(tmp_path, stubs):
+def test_no_judge_error_text_reaches_a_file(tmp_path, stubs, monkeypatch):
     from judgekeeper import again
 
+    _no_inspect(monkeypatch)
     ws = _inspect_ws(tmp_path)
     inputs = [a["input"] for a in again.labeled_answers(ws)]
     stubs.plan(errors=[[i, t] for i in inputs[::3] for t in (0, 1)], error_text=CANARY)
@@ -310,12 +322,13 @@ def test_no_judge_error_text_reaches_a_file(tmp_path, stubs):
             assert CANARY.encode() not in path.read_bytes(), path
 
 
-def test_when_every_call_fails_it_says_the_type_and_count_only(tmp_path, stubs):
+def test_when_every_call_fails_it_says_the_type_and_count_only(tmp_path, stubs, monkeypatch):
     import pytest
 
     from judgekeeper import again
     from judgekeeper.again.fresh import AgainError
 
+    _no_inspect(monkeypatch)
     ws = _inspect_ws(tmp_path)
     inputs = [a["input"] for a in again.labeled_answers(ws)]
     stubs.plan(errors=[[i, t] for i in inputs for t in (0, 1)], error_text=CANARY)
@@ -407,7 +420,7 @@ def test_fix_says_why_it_cant_test_inspects_default_instructions(tmp_path, capsy
     path = tmp_path / "logs" / "2026-10-21_qa.json"
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps(data), encoding="utf-8")
-    monkeypatch.setitem(__import__("sys").modules, "inspect_ai", None)  # read as JSON
+    _no_inspect(monkeypatch)
     ws = start_label.prepare(start.find_judge(tmp_path), say=_quiet)
     session = StartSession(ws)
     for n, q in enumerate(ws.data()["queue"]):
