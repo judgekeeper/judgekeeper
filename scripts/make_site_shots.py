@@ -8,15 +8,20 @@ judge, "Is polite and correct." with the model name openai:gpt-4.1-mini, decided
 answers. The judge's verdicts are saved with judgekeeper.record(), so the pages know the
 judge's rule. No judge is called, no API key is read, and nothing costs money.
 
-Then it runs `judgekeeper --wait` in that folder, the way a person does, and marks the answers
-through the same HTTP calls the page makes (POST /label). Headless Chrome, driven over its
-DevTools protocol, takes each picture at 1440 x 900, twice the pixels, as WebP:
+Then it runs `judgekeeper --wait` in that folder, the way a person does: at a terminal (a
+pseudo-terminal on macOS and Linux), on judgekeeper's own port. So the link is not one printed
+for a program, and the result page has no note about it. It marks the answers through the same
+HTTP calls the page makes (POST /label). The judge passes 10 answers the person fails and fails
+3 the person passes, so the result reads "Your judge needs work." with its disagreements.
+
+Headless Chrome, driven over its DevTools protocol, takes each picture at 1440 x 900, twice the pixels, as WebP:
 
 - label.webp: the labeling page part of the way through, the dots at the top showing the marks;
-- result.webp: the result page once every answer is marked.
+- result.webp: the result page once every answer is marked;
+- docs/assets/readme-label.png: the labeling page again, 1600 x 1000 PNG, for the README.
 
-Each picture must be under 250 KB; the WebP quality goes down until it is. The page uses port
-8801 and Chrome 8803, and the script stops them and deletes the folder when it is done.
+Each picture must be under 250 KB; the WebP quality goes down until it is. Chrome uses port
+8803, and the script stops judgekeeper and Chrome and deletes the folder when it is done.
 Standard library only, plus judgekeeper itself.
 """
 
@@ -26,6 +31,7 @@ import argparse
 import base64
 import json
 import os
+import pty
 import shutil
 import signal
 import socket
@@ -43,7 +49,8 @@ import judgekeeper
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "website" / "assets" / "shots"
-LABEL_PORT = 8801  # judgekeeper --wait
+README_SHOT = ROOT / "docs" / "assets" / "readme-label.png"  # the README's marking page
+README_WIDTH = 1600
 CHROME_PORT = 8803  # Chrome's DevTools
 WIDTH, HEIGHT, SCALE = 1440, 900, 2
 MAX_BYTES = 250_000
@@ -58,8 +65,10 @@ CHROME_NAMES = ("google-chrome", "google-chrome-stable", "chromium", "chromium-b
                 "chrome")
 
 # The made-up answers: (question, answer, the judge's verdict, the person's mark, the judge's
-# reason). The first four are the home page's (HOME). Six times the two disagree.
+# reason). The first four are the home page's (HOME). The judge passes 10 answers the person
+# fails and fails 3 the person passes.
 P, F = "pass", "fail"
+DIRECT = "Answers the question directly."  # the judge's reason for 7 the person fails
 ANSWERS = [
     ("How do I reset my password?",
      "Go to Settings, then Security, and choose Reset password. We will email you a link.",
@@ -122,18 +131,15 @@ ANSWERS = [
     ("Can I pick up my order in a store?",
      "Not yet. For now we only deliver to your address. Sorry about that.", P, P,
      "Polite and honest."),
-    ("What is your phone number?", "Look it up yourself.", F, F, "Rude."),
-    ("Can I return a sale item?", "No idea. Ask someone else.", F, F,
-     "Rude and does not help."),
-    ("How do I update my address?", "Addresses cannot be changed, ever.", F, F,
-     "Wrong: the address can be changed in Settings."),
-    ("Why is my order late?", "Not our problem. Talk to the courier.", F, F, "Rude."),
-    ("Can I get an extra bag on my flight?", "Extra bags are free and unlimited.", F, F,
-     "Wrong: extra bags cost a fee."),
-    ("How do I log out?", "Why would you want to log out?", F, F, "Does not answer."),
+    ("What is your phone number?", "Look it up yourself.", P, F, DIRECT),
+    ("Can I return a sale item?", "No idea. Ask someone else.", P, F, DIRECT),
+    ("How do I update my address?", "Addresses cannot be changed, ever.", P, F, DIRECT),
+    ("Why is my order late?", "Not our problem. Talk to the courier.", P, F, DIRECT),
+    ("Can I get an extra bag on my flight?", "Extra bags are free and unlimited.", P, F, DIRECT),
+    ("How do I log out?", "Why would you want to log out?", P, F, DIRECT),
     ("Do you sell gift cards?",
      "Gift cards? We sell gift cards, gift boxes, gift bags and gifts. Gifts, gifts, gifts.",
-     F, F, "Does not make sense."),
+     P, F, DIRECT),
     ("Is my payment safe?", "Probably. We have not been hacked this week.", F, F,
      "Not reassuring, and not correct."),
     ("How do I talk to a person?", "You can't. I am all you get.", F, F, "Rude and wrong."),
@@ -188,12 +194,16 @@ class Start:
     """`judgekeeper --wait` serving the marking page in the project, with the link it
     prints."""
 
-    def __init__(self, folder: Path, port: int, *flags: str):
-        env = {**os.environ, "PYTHONUNBUFFERED": "1", "NO_COLOR": "1"}
-        self.process = subprocess.Popen(
-            [sys.executable, "-m", "judgekeeper", "--wait", "--yes", "--no-browser",
-             "--port", str(port), *flags], cwd=folder, env=env, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
+    def __init__(self, folder: Path, *flags: str):
+        env = {**os.environ, "PYTHONUNBUFFERED": "1", "NO_COLOR": "1", "COLUMNS": "80"}
+        main, side = pty.openpty()  # a terminal, as a person's: the link is not for a program
+        try:
+            self.process = subprocess.Popen(
+                [sys.executable, "-m", "judgekeeper", "--wait", "--yes", "--no-browser", *flags],
+                cwd=folder, env=env, stdin=side, stdout=side, stderr=side)
+        finally:
+            os.close(side)
+        self.process.stdout = os.fdopen(main, "r", encoding="utf-8", errors="replace")
         self.said: list[str] = []
         self.url = self._link()
         threading.Thread(target=self._drain, daemon=True).start()
@@ -209,8 +219,11 @@ class Start:
         raise SystemExit("judgekeeper printed no link:\n" + "\n".join(self.said))
 
     def _drain(self) -> None:
-        for line in self.process.stdout:
-            self.said.append(line.rstrip())
+        try:
+            for line in self.process.stdout:
+                self.said.append(line.rstrip())
+        except OSError:  # the terminal closes when judgekeeper stops (EIO on Linux)
+            pass
 
     def address(self, path: str) -> str:
         return f"{self.base}{path}?token={self.token}"
@@ -383,6 +396,13 @@ class Chrome:
         path.write_bytes(data)
         return len(data), quality
 
+    def png(self, path: Path, width: int) -> int:
+        """Save the viewport as PNG, `width` pixels wide: its bytes."""
+        clip = {"x": 0, "y": 0, "width": WIDTH, "height": HEIGHT, "scale": width / WIDTH / SCALE}
+        data = base64.b64decode(self.call("Page.captureScreenshot", format="png", clip=clip)["data"])
+        path.write_bytes(data)
+        return len(data)
+
     def close(self) -> None:
         try:
             self.socket.close()
@@ -415,9 +435,11 @@ def mark(start: Start, items: list[dict]) -> None:
         start.post("/label", {"id": item["id"], "label": my_mark(item)})
 
 
-def label_and_result(chrome: Chrome, folder: Path, out: Path) -> list[Path]:
-    """Mark part of the way and take the labeling page; mark the rest and take the result."""
-    start = Start(folder, LABEL_PORT)
+def label_and_result(chrome: Chrome, folder: Path, out: Path,
+                     readme: Path | None = None) -> list[Path]:
+    """Mark part of the way and take the labeling page (also as the README's PNG, when
+    `readme`); mark the rest and take the result."""
+    start = Start(folder)
     try:
         items = start.get("/state")["items"]
         # Stop at one of the home page's questions when the queue has one in reach.
@@ -433,6 +455,10 @@ def label_and_result(chrome: Chrome, folder: Path, out: Path) -> list[Path]:
             raise SystemExit("the first-time card is still showing")
         label = out / "label.webp"
         report(label, chrome.shot(label))
+        if readme is not None:
+            size = chrome.png(readme, README_WIDTH)
+            print(f"{readme.relative_to(ROOT) if readme.is_relative_to(ROOT) else readme}: "
+                  f"{size / 1000:.0f} KB")
         mark(start, items[first:])
         chrome.visit(start.address("/result"), settle=4.0)  # the result draws itself
         result = out / "result.webp"
@@ -463,7 +489,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         make_project(folder)
         chrome = Chrome(chrome_path, work / "chrome")
-        label_and_result(chrome, folder, args.out)
+        label_and_result(chrome, folder, args.out, README_SHOT if args.out == OUT else None)
     finally:
         if chrome is not None:
             chrome.close()

@@ -53,20 +53,20 @@ def test_many_files_with_no_judge_are_said_once(here, capsys):
             split(5, 5), created=f"2026-10-{i + 1:02}T10:00:00.000Z")))
     code, out, err = run(capsys, "--no-browser")
     text = _flat(out + err)
-    assert text.count("decisions from an LLM judge") == 1, text
-    assert ("None of your 12 promptfoo results files holds decisions from an LLM judge. "
-            "These checks are rules in code, not an LLM judge. judgekeeper checks LLM "
-            "judges.") in text
+    assert text.count("decisions from an LLM-as-a-judge") == 1, text
+    assert ("None of your 12 promptfoo results files holds decisions from an LLM-as-a-judge. "
+            "These checks are rules in code, not an LLM-as-a-judge. judgekeeper checks an "
+            "LLM-as-a-judge.") in text
     assert "left out" not in text
-    assert "Next: add an LLM judge to your eval and run it once, then run `judgekeeper " in text
+    assert "Next: add an LLM-as-a-judge to your eval and run it once, then run `judgekeeper " in text
     assert code == 3
 
 
 def test_one_file_with_no_judge_says_so(here, capsys):
     _write(here / "results.json", _code_only(promptfoo_data(split(5, 5))))
     code, out, err = run(capsys, "--no-browser")
-    assert ("results.json holds no decisions from an LLM judge. These checks are rules in "
-            "code, not an LLM judge.") in _flat(out + err)
+    assert ("results.json holds no decisions from an LLM-as-a-judge. These checks are rules "
+            "in code, not an LLM-as-a-judge.") in _flat(out + err)
     assert code == 3
 
 
@@ -75,8 +75,8 @@ def test_deepeval_metrics_with_no_model_are_rules_in_code(here, capsys):
            deepeval_data(split(10, 10), model=None))
     code, out, err = run(capsys, "--no-browser")
     text = _flat(out + err)
-    assert ("These metrics are rules in code, not an LLM judge. judgekeeper checks LLM "
-            "judges.") in text
+    assert ("These metrics are rules in code, not an LLM-as-a-judge. judgekeeper checks an "
+            "LLM-as-a-judge.") in text
     assert "Your judge" not in text and "Step 2 of 5" not in text
     assert code == 3
 
@@ -100,7 +100,7 @@ def test_inspect_logs_with_no_scorer_say_so_once(here, capsys):
             s.pop("scores", None)
         _write(here / "logs" / f"2026-10-0{day}_exact.json", data)
     code, out, err = run(capsys, "--no-browser")
-    assert ("None of your 2 Inspect logs holds decisions from an LLM judge."
+    assert ("None of your 2 Inspect logs holds decisions from an LLM-as-a-judge."
             in _flat(out + err))
     assert code == 3
 

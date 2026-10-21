@@ -144,9 +144,9 @@ def test_a_store_with_code_scorers_only_is_said_like_deepeval(here, capsys, stor
     code, out = run(capsys)
     assert code == 3, out
     assert "error:" not in out and "fix what the line above says" not in out
-    assert ("mlflow.db holds no decisions from an LLM judge. These scorers are rules in code, "
-            "not an LLM judge. judgekeeper checks LLM judges.") in flat(out)
-    assert "add an LLM judge to your eval" in assert_one_next_at_the_end(out)
+    assert ("mlflow.db holds no decisions from an LLM-as-a-judge. These scorers are rules in "
+            "code, not an LLM-as-a-judge. judgekeeper checks an LLM-as-a-judge.") in flat(out)
+    assert "add an LLM-as-a-judge to your eval" in assert_one_next_at_the_end(out)
 
 
 # A judge whose every call failed, saved as CODE ------------------------------

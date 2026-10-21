@@ -52,14 +52,19 @@ li {{ margin: 12px 0; }}
 """
 
 
-def _describe(report_json: Path) -> str:
-    if not report_json.is_file():
-        return ""
-    r = json.loads(report_json.read_text(encoding="utf-8"))
+def _describe(folder: Path) -> str:
+    """The report's judge, size and date (report.json, or result.json), after the title of its
+    README.md when it has one."""
+    readme, title = folder / "README.md", None
+    if readme.is_file():
+        title = readme.read_text(encoding="utf-8").splitlines()[0].lstrip("# ").strip()
+    report_json = next((p for p in (folder / "report.json", folder / "result.json")
+                        if p.is_file()), None)
+    r = json.loads(report_json.read_text(encoding="utf-8")) if report_json else {}
     fp, a = r.get("fingerprint", {}), r.get("anchors", {})
-    parts = [fp.get("model"), f"{a.get('n_items')} items" if a.get("n_items") else None,
+    parts = [title, fp.get("model"), f"{a.get('n_items')} items" if a.get("n_items") else None,
              f"{r.get('n_runs')} runs" if r.get("n_runs") else None,
-             (r.get("generated_at") or "")[:10] or None]
+             (r.get("generated_at") or r.get("made_at") or "")[:10] or None]
     return ", ".join(str(p) for p in parts if p)
 
 
@@ -78,7 +83,7 @@ def build(website: Path, examples: Path, out: Path) -> list[str]:
         names.append(name)
     items = "\n".join(
         f'<li><a href="{html.escape(n)}/">{html.escape(n)}</a>'
-        f'<div class="meta">{html.escape(_describe(examples / n / "report.json"))}</div></li>'
+        f'<div class="meta">{html.escape(_describe(examples / n))}</div></li>'
         for n in names)
     (out / "examples" / "index.html").write_text(INDEX.format(items=items), encoding="utf-8",
                                                  newline="\n")

@@ -141,7 +141,7 @@ def test_the_colours():
     assert (dark["hover"], dark["current"]) == ("#121418", "#17191e")
     # Green and red: Pass and Fail (their fill, hover and dots) and the "See your result" link
     assert (dark["green-fill"], dark["green"], dark["red-fill"], dark["red"]) == (
-        "#0d9668", "#10B981", "#c73b40", "#e5484d")
+        "#047857", "#10B981", "#c73b40", "#e5484d")
     assert dark["amber"] == "#e0a43a"
     coloured = {k for k, v in dark.items() if v.lower() not in {
         dark["bg"], dark["text"], dark["muted"], dark["faint"], dark["line"],
@@ -171,8 +171,8 @@ def test_text_contrast():
     colours = _tokens()
     for text, ground, least in PAIRS:
         assert _contrast(colours[text], colours[ground]) >= least, (text, ground)
-    for fill in ("green-fill", "red-fill"):  # white bold text on Fail and Pass: the Pass
-        assert _contrast("#FFFFFF", colours[fill]) >= 3, fill  # green is 3.8:1
+    for fill in ("green-fill", "red-fill"):  # white bold text on Fail and Pass
+        assert _contrast("#FFFFFF", colours[fill]) >= 4.5, fill
 
 
 def test_focus_rings_are_inset_in_the_text_colour_and_nothing_is_focused_on_load():
@@ -850,3 +850,21 @@ def test_the_pages_name_the_eval_tool_as_the_terminal_does(tool, files, name):
                                                             "results_files": files}))
     for page in (marking, result):
         assert f'Eval tool:</span><span class="v">{escape(name)}</span>' in page
+
+
+def test_the_top_bar_labels_and_the_details_table_are_readable_by_everyone():
+    """The Judge and Eval tool labels at 4.5:1; every value in More details has a column and a
+    row header, so a screen reader says what each number is."""
+    colours = _tokens()
+    label = re.search(r"\.meta \.k \{([^}]*)\}", look.BASE).group(1)
+    colour = re.search(r"color: var\(--([a-z-]+)\)", label).group(1)
+    assert _contrast(colours[colour], colours["bg"]) >= 4.5, colour
+    html = _served()["report.html"]
+    table = html[html.index('<table class="panel">'):html.index("</table>",
+                                                                 html.index('<table class="panel">'))]
+    rows = re.findall(r"<tr>(.*?)</tr>", table.split("<tbody>")[1])
+    assert len(rows) == 3
+    for row in rows:
+        assert row.startswith('<th scope="row">'), row
+        assert row.count("<td") == 2
+    assert '<th scope="col">Estimate</th><th scope="col">Between</th>' in table

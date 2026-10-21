@@ -440,7 +440,7 @@ def test_an_inspect_log_of_format_1_is_read_without_the_extra(here, capsys):
     inspect_v1_log(here)
     code, out = run(capsys)
     assert code == 3, out  # 3 answers: not enough for a first result
-    assert "holds no decisions from an LLM judge" not in out
+    assert "holds no decisions from an LLM-as-a-judge" not in out
     assert "needs the extra" not in out
     assert "Answers:     3 answers" in out
     assert "Your judge passed 0 answers and failed 3." in out

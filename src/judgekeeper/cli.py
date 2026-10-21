@@ -77,16 +77,22 @@ STEPS = """\
   3. Measure   judgekeeper          shows how often your judge agrees with
                                     you, and where it goes wrong
   4. Fix       judgekeeper fix      if your judge needs work, write a better
-                                    rule and test it on marks kept aside
+                                    rule. promptfoo, DeepEval, Inspect AI and
+                                    MLflow: tests it on marks kept aside. Your
+                                    own file or record(): change the rule where
+                                    your eval keeps it, then judgekeeper check
   5. Re-check  judgekeeper check    after you change your judge, see if it
                                     still agrees with you"""
 READS = """\
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
 MLflow, or a CSV or JSONL file with these columns:
   input, output, verdict"""
+# fix: a new rule is tested only where judgekeeper can ask the judge (fix.can_test)
+FIX_HELP = ("see where your judge goes wrong, then test a better rule (promptfoo, DeepEval, "
+            "Inspect AI, MLflow) or change it in your eval (your own file, record())")
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
-    ("fix", "see where your judge goes wrong and test a better rule"),
+    ("fix", FIX_HELP),
     ("check", "re-check your LLM-as-a-judge on your marks after a change"),
 )
 HELP_WIDTH = 80
@@ -270,7 +276,7 @@ def _parser() -> argparse.ArgumentParser:
     p.commands["check"] = ck
 
     fx = sub.add_parser("fix", parents=[common],
-                        help="see where your judge goes wrong and test a better rule")
+                        help=FIX_HELP)
     fx.add_argument("path", nargs="?", default=".", metavar="PATH",
                     help="your project folder (default: this folder)")
     fx.add_argument("--yes", action="store_true",

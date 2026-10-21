@@ -117,8 +117,8 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .btn kbd { font-family: var(--mono); font-size: 12px; font-weight: 400; opacity: .85; margin-left: 8px; }
 .btn.fail { background: var(--red-fill); }
 .btn.pass { background: var(--green-fill); }
-.btn.fail:hover { background: var(--red); }
-.btn.pass:hover { background: var(--green); }
+.btn.fail:hover { filter: brightness(1.08); }
+.btn.pass:hover { filter: brightness(1.08); }
 .sub { display: flex; align-items: center; justify-content: center; padding: 0 24px 6px; }
 .quiet { padding: 8px 20px; font-size: 14px; color: var(--muted); }
 .quiet:hover { color: var(--text); background: var(--hover); }

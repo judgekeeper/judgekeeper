@@ -20,8 +20,8 @@
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=3">
-<script src="assets/site.js?v=3" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=4">
+<script src="assets/site.js?v=4" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -59,26 +59,31 @@
     <li class="gl-step" id="step-mark"><span class="gl-n" aria-hidden="true">2</span><div class="gl-body gx-text">
       <h3>Mark answers Pass or Fail</h3>
       <p>Mark each answer the way you want your judge to decide. Your judge's grade stays hidden. Use the buttons or the arrow keys. Every mark is saved, so you can close the page and come back.</p>
+      <figure class="gx-shot"><img src="assets/shots/label.webp" width="2880" height="1800" loading="lazy" decoding="async" alt="The marking page: one question and its answer, with Fail and Pass buttons under them. On the left, the list of questions with the marks made so far; at the top, how many are marked."></figure>
       <p class="done"><b>Done when</b> <b>See your result</b> appears at the top. Click it.</p>
     </div></li>
     <li class="gl-step" id="step-measure"><span class="gl-n" aria-hidden="true">3</span><div class="gl-body gx-text">
       <h3>Read your result</h3>
       <p>The result page tells you if your judge is good enough to use, needs work, or if it is too early to tell. It shows where you and your judge disagreed. It is also saved as <code>.judgekeeper/report.html</code>.</p>
+      <figure class="gx-shot"><img src="assets/shots/result.webp" width="2880" height="1800" loading="lazy" decoding="async" alt="The result page: &quot;Your judge needs work. You and your judge disagreed on 13 of 40 answers.&quot; Under it, the answers where you said Fail and your judge said Pass, each with buttons to say why you marked it Fail."></figure>
       <p class="done"><b>Done when</b> you see your result. Too early to tell? Mark more answers with <code>judgekeeper mark</code>.</p>
       <p><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-the-numbers-are-worked-out">How the numbers are worked out</a></p>
     </div></li>
     <li class="gl-step" id="step-fix"><span class="gl-n" aria-hidden="true">4</span><div class="gl-body gx-text">
       <h3>Write a better rule and test it</h3>
-      <p>Judge needs work? Run <code>judgekeeper fix</code>. It saves the clues and every mistake in one file you can hand to a coding agent. On your result page, say why on the answers you and your judge disagree on; <code>fix</code> puts your reasons next to its mistakes.</p>
+      <p>Judge needs work? Run <code>judgekeeper fix</code>. It saves the clues, and its mistakes on the marks you can see, in one file you can hand to a coding agent. On your result page, say why on the answers you and your judge disagree on; <code>fix</code> puts your reasons next to its mistakes.</p>
       <div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-      <p>Write your new rule in <code>.judgekeeper/fix/rule.txt</code> and run <code>judgekeeper fix</code> again. It tests the rule on marks kept aside, and asks before it calls your judge.</p>
+      <p><b>promptfoo, DeepEval, Inspect AI or MLflow:</b> write your new rule in <code>.judgekeeper/fix/rule.txt</code> and run <code>judgekeeper fix</code> again. It tests the rule on marks kept aside, and asks before it calls your judge.</p>
+      <p><b>Your own CSV or JSONL file, or <code>judgekeeper.record()</code>:</b> judgekeeper can't ask this judge itself, so it can't test a new rule. Change the rule where your eval keeps it, run your eval, then <code>judgekeeper check</code>.</p>
       <div class="tw"><table>
-        <thead><tr><th>Result</th><th>What to do</th></tr></thead>
+        <thead><tr><th>Result</th><th>What judgekeeper says</th><th>What to do</th></tr></thead>
         <tbody>
-          <tr><td>Better</td><td>Use the new rule.</td></tr>
-          <tr><td>Safe to try</td><td>Not clearly better yet, and very unlikely to be more than 10 points worse. You can try it.</td></tr>
-          <tr><td>Can't tell yet</td><td>Mark a few more answers and test again. If it says it leans toward worse, keep the old rule.</td></tr>
-          <tr><td>Looks worse, or Worse</td><td>Keep the old rule.</td></tr>
+          <tr><td>Better</td><td>Your new rule is better. A difference this large is very unlikely to be a coincidence.</td><td>Use the new rule.</td></tr>
+          <tr><td>Safe to try</td><td>Safe to try. Not clearly better yet, but very unlikely to be more than 10 points worse.</td><td>You can use the new rule.</td></tr>
+          <tr><td>Can't tell yet</td><td>Can't tell yet. That leans toward better, but a split this small could easily be a coincidence.</td><td>Mark the few more answers it asks for, then run <code>judgekeeper fix</code> again.</td></tr>
+          <tr><td>Can't tell yet</td><td>Can't tell yet. The two rules look about the same here. More marks are unlikely to change that much.</td><td>Keep the old rule, or write a different one.</td></tr>
+          <tr><td>Looks worse</td><td>Can't tell yet. That leans toward worse; keep the old rule.</td><td>Keep the old rule.</td></tr>
+          <tr><td>Worse</td><td>It looks worse. Keep the old rule.</td><td>Keep the old rule.</td></tr>
         </tbody>
       </table></div>
       <p class="done"><b>Done when</b> you have a result. To use the new rule, copy it into your eval config, run your eval, then <code>judgekeeper check</code>.</p>
@@ -106,6 +111,7 @@
 judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
                    reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")</code></pre>
     <p>Then run your eval once and <code>judgekeeper</code>: it finds the records. Install judgekeeper inside your project's environment (<code>pip install judgekeeper</code>) for the import.</p>
+    <p>With your own file or <code>record()</code>, <code>judgekeeper fix</code> shows the clues and mistakes but can't test a new rule: change the rule in your eval, run it, then <code>judgekeeper check</code>.</p>
   </div>
   <div class="gx-card gx-text" id="misc">
     <h3>Handy commands</h3>
