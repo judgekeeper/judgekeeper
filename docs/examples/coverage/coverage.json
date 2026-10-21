@@ -18618,5 +18618,743 @@
     }
    }
   ]
+ },
+ "one_grade": {
+  "checks_per_cell": 2000,
+  "level": 0.96,
+  "draws": 20000,
+  "grid_seed": 20261008,
+  "start": {
+   "min_cell": 0.9465,
+   "mean": 0.988861111111111,
+   "per_metric": {
+    "tpr": 1.0,
+    "tnr": 1.0,
+    "real_pass_rate": 0.9465
+   },
+   "passes": true
+  },
+  "rows": [
+   {
+    "grade": "pass",
+    "agree": 0.6,
+    "marks": 20,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.6
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.965,
+      "width": 0.4116074978419336,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.2985369660782875,
+      "checked": 1999,
+      "unknown": 1
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.20333861238002415,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "pass",
+    "agree": 0.6,
+    "marks": 25,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.6
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.956,
+      "width": 0.3747511140296095,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.24211664963189938,
+      "checked": 1999,
+      "unknown": 1
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.1677582105255774,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "pass",
+    "agree": 0.6,
+    "marks": 30,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.6
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.957,
+      "width": 0.3455534077918178,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.2062327240654812,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.1407994165743173,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "pass",
+    "agree": 0.6,
+    "marks": 40,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.6
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.97,
+      "width": 0.30448278292814746,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.15885538193998114,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.10688175664931601,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "pass",
+    "agree": 0.8,
+    "marks": 20,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.8
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.9605,
+      "width": 0.34103387079324404,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.49962999244219636,
+      "checked": 1980,
+      "unknown": 20
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.15564885395489766,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "pass",
+    "agree": 0.8,
+    "marks": 25,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.8
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.9465,
+      "width": 0.30984462593141454,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.4321861860569127,
+      "checked": 1994,
+      "unknown": 6
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.12680257168780182,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "pass",
+    "agree": 0.8,
+    "marks": 30,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.8
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.9675,
+      "width": 0.28394441574120177,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.38151657815346207,
+      "checked": 1999,
+      "unknown": 1
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.106102095865394,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "pass",
+    "agree": 0.8,
+    "marks": 40,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.8
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.957,
+      "width": 0.2495436552773438,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.30112781671290706,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.0806438431357467,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "pass",
+    "agree": 0.95,
+    "marks": 20,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.95
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.9865,
+      "width": 0.20222076246774406,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.7811581197339181,
+      "checked": 1273,
+      "unknown": 727
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.13122265723569876,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "pass",
+    "agree": 0.95,
+    "marks": 25,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.95
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.967,
+      "width": 0.1803344047652157,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.7557369757662666,
+      "checked": 1459,
+      "unknown": 541
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.10654942844785062,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "pass",
+    "agree": 0.95,
+    "marks": 30,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.95
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.9805,
+      "width": 0.16380349121173138,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.7272823625281198,
+      "checked": 1577,
+      "unknown": 423
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.09027707769609462,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "pass",
+    "agree": 0.95,
+    "marks": 40,
+    "truth": {
+     "tpr": 1.0,
+     "tnr": 0.0,
+     "real_pass_rate": 0.95
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.987,
+      "width": 0.1406103193032876,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.6806346900803114,
+      "checked": 1745,
+      "unknown": 255
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.06820575184465101,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.6,
+    "marks": 20,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.4
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.96,
+      "width": 0.41307868464970754,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.20298900934390765,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.29142515800551727,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.6,
+    "marks": 25,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.4
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.954,
+      "width": 0.3746966650488844,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.1661716550750793,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.24107332035215887,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.6,
+    "marks": 30,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.4
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.954,
+      "width": 0.3454558657648187,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.14074383797149764,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.20367117850487715,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.6,
+    "marks": 40,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.4
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.9655,
+      "width": 0.3041703764151894,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.10692279442690272,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.1566929298874392,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.8,
+    "marks": 20,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.19999999999999996
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.962,
+      "width": 0.3376364695761358,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.15371008983475576,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.5058025494432724,
+      "checked": 1971,
+      "unknown": 29
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.8,
+    "marks": 25,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.19999999999999996
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.9585,
+      "width": 0.3085585628194589,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.12546414465051547,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.4332377322043761,
+      "checked": 1991,
+      "unknown": 9
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.8,
+    "marks": 30,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.19999999999999996
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.9655,
+      "width": 0.2848770853155496,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.10575362039106063,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.37814662567353136,
+      "checked": 1999,
+      "unknown": 1
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.8,
+    "marks": 40,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.19999999999999996
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.952,
+      "width": 0.250073983475159,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.08062618317161212,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.29916099757764925,
+      "checked": 2000,
+      "unknown": 0
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.95,
+    "marks": 20,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.050000000000000044
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.9855,
+      "width": 0.20365477015845213,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.13107177378990292,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.7769326670545229,
+      "checked": 1288,
+      "unknown": 712
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.95,
+    "marks": 25,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.050000000000000044
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.9625,
+      "width": 0.1803673469465037,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.10627179575103997,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.7492156139487101,
+      "checked": 1433,
+      "unknown": 567
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.95,
+    "marks": 30,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.050000000000000044
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.989,
+      "width": 0.16379758135627848,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.08944052417355286,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.724950083360012,
+      "checked": 1561,
+      "unknown": 439
+     }
+    }
+   },
+   {
+    "grade": "fail",
+    "agree": 0.95,
+    "marks": 40,
+    "truth": {
+     "tpr": 0.0,
+     "tnr": 1.0,
+     "real_pass_rate": 0.050000000000000044
+    },
+    "ranges": {
+     "start/real_pass_rate": {
+      "coverage": 0.989,
+      "width": 0.14211367007830394,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tnr": {
+      "coverage": 1.0,
+      "width": 0.06825216174365509,
+      "checked": 2000,
+      "unknown": 0
+     },
+     "start/tpr": {
+      "coverage": 1.0,
+      "width": 0.6670270302048817,
+      "checked": 1713,
+      "unknown": 287
+     }
+    }
+   }
+  ]
  }
 }

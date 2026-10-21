@@ -140,7 +140,7 @@ def test_a_judge_that_fails_every_answer_gets_ranges_of_some_width(marks):
     from judgekeeper import targets, weighted
 
     said_pass, said_fail = marks
-    out = weighted.corrected(0, 40, 0, 0, said_pass + said_fail, said_fail)
+    out = weighted.corrected(0, 40, 0, 0, said_pass + said_fail, said_pass)
     tpr, tnr = out["tpr_interval"], out["tnr_interval"]
     assert out["tpr"] == 0.0 and out["tnr"] == 1.0
     assert tpr[1] - tpr[0] > 0.01 and tnr[1] - tnr[0] > 0.01

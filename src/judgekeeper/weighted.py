@@ -27,7 +27,9 @@ range is the middle LEVEL of those values. LEVEL is the first of 95%, 96% and 97
 scripts/coverage_check.py finds the ranges hold the true value at least 93 times in 100 in
 every cell of its grid and 95 in 100 on average (docs/examples/coverage/coverage.md). A range
 is widened, if needed, to hold the number itself (k of k Correct gives a share of 1, which no
-draw reaches). A group with no labels has an unknown rate (None), and so does every number
+draw reaches). When the judge gave every answer of the pool one grade, TPR and TNR are one
+point in every draw (a judge that passes all has TPR 1 and TNR 0), which a few marks can't
+show: their draws are then the plain Jeffreys draws of the marks the judge got right. A group with no labels has an unknown rate (None), and so does every number
 that needs it; an undefined division is unknown too, never an error. Kappa's range comes from
 the same draws through the kappa formula.
 
@@ -243,7 +245,23 @@ def strata_samples(strata: list[tuple[int, str, int, int, int]], draws: int = DR
             values = [v for x, y in pairs if (v := f(pi, x, y)) is not None]
             if len(values) == len(pairs):
                 out[key] = sorted(values)
+    if (n_pool_pass == 0) != (n_pool_fail == 0):
+        out.update(_one_grade(strata, "pass" if n_pool_pass else "fail", rng, draws))
     return out
+
+
+def _one_grade(strata: list[tuple], grade: str, rng: random.Random,
+               draws: int) -> dict[str, list[float]]:
+    """TPR and TNR drawn from the marks themselves when the judge gave every answer of the
+    pool one grade. The weighted draws are then one point (TPR exactly 1 and TNR 0 for a
+    judge that passes all), which a few marks can't show: so each rate is drawn as the plain
+    Jeffreys share of the marks the judge got right, Beta(k + 0.5, m - k + 0.5)."""
+    marked_pass, labeled = _sums(strata, grade)  # Correct: marked Pass
+    marked_fail = labeled - marked_pass
+    agreed = ({"tpr": (marked_pass, marked_pass), "tnr": (0, marked_fail)} if grade == "pass"
+              else {"tpr": (0, marked_pass), "tnr": (marked_fail, marked_fail)})
+    return {key: sorted(rng.betavariate(k + 0.5, m - k + 0.5) for _ in range(draws))
+            for key, (k, m) in agreed.items() if m > 0}
 
 
 def middle(values: list[float] | None, level: float, point: float | None) -> list:
