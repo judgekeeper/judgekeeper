@@ -262,6 +262,38 @@ def too_deep(data) -> bool:
     return False
 
 
+# What read_cached keeps: (path, parse) -> (the file's stamp, what parse gave). A few files.
+_CACHED: dict = {}
+CACHED_FILES = 16
+
+
+def file_stamp(path: str | Path) -> tuple | None:
+    """What changes when a file is written: its size, times and inode; None when it is not
+    there."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return st.st_size, st.st_mtime_ns, st.st_ctime_ns, st.st_ino
+
+
+def read_cached(path: str | Path, parse):
+    """`parse(path)`, read again only when the file changed (file_stamp); else what it gave
+    last time. Callers never change what it returns: it is shared."""
+    stamp = file_stamp(path)
+    key = (str(path), parse)
+    hit = _CACHED.get(key)
+    if stamp is not None and hit is not None and hit[0] == stamp:
+        return hit[1]
+    value = parse(path)
+    if stamp is not None:
+        _CACHED.pop(key, None)
+        while len(_CACHED) >= CACHED_FILES:
+            _CACHED.pop(next(iter(_CACHED)))
+        _CACHED[key] = (stamp, value)
+    return value
+
+
 def jsonl_lines(text: str) -> list[str]:
     """The lines of JSONL text, split at "\n" only (a "\r" before it is dropped).
 

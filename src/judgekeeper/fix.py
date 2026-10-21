@@ -64,6 +64,7 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
+    read_cached,
     wrap,
     write_replacing,
 )
@@ -128,13 +129,30 @@ STOPWORDS = frozenset((
 
 # The marks ----------------------------------------------------------------------------------
 
+def _judge_said(path: Path) -> dict:
+    """The judge's reason and score on each answer in pool-judge.jsonl."""
+    _, records = read_run(path)
+    return {"reasons": {i: scrub(r.get("rationale") or "") for i, r in records.items()},
+            "scores": {i: r.get("raw_score") for i, r in records.items()}}
+
+
+def _pool_rows(path: Path) -> dict:
+    """{id: row} from pool.jsonl."""
+    rows = {}
+    for line in jsonl_lines(path.read_text(encoding="utf-8")):
+        if line.strip():
+            row = json.loads(line)
+            rows[row["id"]] = row
+    return rows
+
+
 class Marks:
     """The person's marks (person), the judge's grades on them (judge), and per answer its
     text (rows), the judge's reason and score, and the person's note and reasons (why)."""
 
     def __init__(self, ws: Workspace):
         self.ws = ws
-        self.data = ws.data()
+        self.data = ws.cached_data()  # read only
         read = marks.read(ws.marks)
         self.person = read.counted()
         self.notes = {i: str(x["note"]) for i, x in read.last.items()
@@ -148,14 +166,10 @@ class Marks:
         self.judge = {i: groups[i] for i in self.person if i in groups}
         self.person = {i: m for i, m in self.person.items() if i in self.judge and i in counted}
         self.order = sorted(self.person, key=lambda i: str(read.last[i].get("at") or ""))
-        _, records = read_run(ws.pool_judge)
-        self.reasons = {i: scrub(r.get("rationale") or "") for i, r in records.items()}
-        self.scores = {i: r.get("raw_score") for i, r in records.items()}
-        self.rows = {}
-        for line in jsonl_lines(ws.pool.read_text(encoding="utf-8")):
-            if line.strip():
-                row = json.loads(line)
-                self.rows[row["id"]] = row
+        said = read_cached(ws.pool_judge, _judge_said)
+        self.reasons = dict(said["reasons"])  # judge_now changes these two
+        self.scores = dict(said["scores"])
+        self.rows = read_cached(ws.pool, _pool_rows)  # read only
 
     def enough(self) -> bool:
         values = list(self.person.values())

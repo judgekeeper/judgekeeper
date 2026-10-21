@@ -70,11 +70,11 @@ def _first(sizes: dict) -> int:
     return min((b for b, _ in sizes), default=1)
 
 
-def counting(data: dict, labels: dict[str, str]) -> list[int]:
+def counting(data: dict, labels: dict[str, str], known: tuple | None = None) -> list[int]:
     """The batches that count toward the result, from the marks (`labels`: {id: "pass" or
     "fail"}): the first always; a later one when each of its non-empty strata has MIN_MARKS
-    marks or every answer in it marked."""
-    where, sizes = strata(data)
+    marks or every answer in it marked. `known`: strata(data), when the caller has it."""
+    where, sizes = known or strata(data)
     marked = Counter(where[i] for i in labels if i in where)
     out = []
     for b in sorted({b for b, _ in sizes}):
@@ -92,11 +92,12 @@ def counted_labels(data: dict, labels: dict[str, str]) -> dict[str, str]:
     return {i: m for i, m in labels.items() if batch.get(i, 1) in keep}
 
 
-def counted_strata(data: dict, labels: dict[str, str]) -> list[tuple[int, str, int, int, int]]:
+def counted_strata(data: dict, labels: dict[str, str],
+                   known: tuple | None = None) -> list[tuple[int, str, int, int, int]]:
     """(batch, group, pool size, marked, marked Pass) for each stratum of the batches that
-    count, in order (weighted.stratified)."""
-    where, sizes = strata(data)
-    keep = set(counting(data, labels))
+    count, in order (weighted.stratified). `known`: strata(data), when the caller has it."""
+    where, sizes = known or strata(data)
+    keep = set(counting(data, labels, (where, sizes)))
     marked: Counter = Counter()
     passed: Counter = Counter()
     for i, m in labels.items():
