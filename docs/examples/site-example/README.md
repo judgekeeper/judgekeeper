@@ -8,4 +8,7 @@ promptfoo.
 `report.html` and `result.json` are what judgekeeper wrote for it. They are made, and checked
 against the screens, by `tests/test_website_screens.py`:
 
-    JK_WRITE_SITE_EXAMPLE=1 pytest tests/test_website_screens.py
+    TZ=UTC JK_WRITE_SITE_EXAMPLE=1 pytest tests/test_website_screens.py
+
+`results_date` in `result.json` is in the time zone of the computer that made it (UTC here),
+so the test leaves it out of the comparison, with the other times.

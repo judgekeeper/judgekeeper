@@ -61,7 +61,7 @@
   "skipped": 0,
   "disagreements": 16,
   "left": 10,
-  "made_at": "2026-10-21T05:20:20Z",
+  "made_at": "2026-10-21T14:11:53Z",
   "judgekeeper_version": "1.0.0b2",
   "fingerprint": {
     "provider": "openai",
@@ -70,7 +70,7 @@
     "prompt_hash": "375fe5de8e06fe4e3bc138cd08e438d49083693e4ae3a78420dcaaae87d02a67",
     "rubric_version": null,
     "temperature": 0.0,
-    "created_at": "2026-10-21T05:20:19Z",
+    "created_at": "2026-10-21T14:11:53Z",
     "endpoint": "unknown"
   },
   "judge": {
@@ -83,7 +83,7 @@
     "results_files": [
       "results.json"
     ],
-    "results_date": "2026-10-03 10:12"
+    "results_date": "2026-10-03 14:12"
   },
   "judge_check": {
     "answers": 40,
@@ -115,5 +115,5 @@
   "smallest_drop": 35,
   "picks": [],
   "command": "judgekeeper",
-  "marks_sha256": "fcf527f25b681873e0dbd89bcfeb6188348167b66382f31784adff0350e5e97b"
+  "marks_sha256": "a157ed722b8fac83b00329c6dab9991dc01cb928853e4755399151dedc70920e"
 }

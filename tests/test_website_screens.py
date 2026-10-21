@@ -11,7 +11,7 @@ output line for line, after the "$ judgekeeper ..." line the site adds.
 The same run's report.html and result.json are committed in docs/examples/site-example/, so
 the figures on the screens come from a report. To write them again:
 
-    JK_WRITE_SITE_EXAMPLE=1 pytest tests/test_website_screens.py
+    TZ=UTC JK_WRITE_SITE_EXAMPLE=1 pytest tests/test_website_screens.py
 """
 
 from __future__ import annotations
@@ -174,10 +174,11 @@ def test_each_screen_on_the_site_is_what_judgekeeper_prints(tmp_path, monkeypatc
 
 
 def _steady(name: str, text: str) -> str:
-    """The file without what changes from run to run: the times, and the hash of the marks
-    (each mark keeps its time)."""
+    """The file without what changes from run to run: the times, the date of the results in
+    the computer's own time zone, and the hash of the marks (each mark keeps its time)."""
     if name == "result.json":
         text = re.sub(r'"marks_sha256": "[0-9a-f]+"', '"marks_sha256": "…"', text)
+        text = re.sub(r'"results_date": "[^"]*"', '"results_date": "…"', text)
     return re.sub(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", "…", text)
 
 
