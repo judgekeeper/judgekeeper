@@ -1222,7 +1222,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             if not ws.start.is_file():
                 start_label.prepare(found, say=lambda line: None)
     start_label.repair(ws)  # a result whose saving was stopped half way
-    head = []
+    head = [start_label.WORKED_OUT_AGAIN] if start_label.recompute_old(ws) else []
     back = None if first else check.back_to_marked(ws, found)  # the judge the marks were made on
     changed = [] if first or back else _changed(ws, found)
     grades = 0 if first or changed or back else check.grades_changed(ws, found)  # a table judge

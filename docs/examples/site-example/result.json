@@ -62,6 +62,7 @@
   "disagreements": 16,
   "left": 10,
   "made_at": "2026-10-21T14:11:53Z",
+  "numbers_version": 2,
   "judgekeeper_version": "1.0.0b2",
   "fingerprint": {
     "provider": "openai",
