@@ -1015,6 +1015,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         path = path.resolve()
         return path.parent, "mlflow", [find.Result("mlflow", path, path.name)], {}
     if path.is_file():
+        _read_anyway(talk, path)
         kind = tool or find.classify_file(path)
         if kind is None and path.suffix.lower() in find.TABLE_SUFFIXES:
             read_utf8(path, StartError)  # not UTF-8 (a UTF-16 export): how to save it again
@@ -1038,7 +1039,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     for note in found.notes:
         _note(talk, note)
     for big in found.too_big():
-        talk.say(big.too_big_message(talk.program))
+        talk.say(big.too_big_message(talk.command_at(big.rel, "--yes")))
     available = [t for t in find.TOOLS if found.readable(t)]
     if found.unreadable and (available or found.too_big()):
         for rel, how in found.unreadable:
@@ -1209,7 +1210,24 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
 def _too_big(talk: Talk, found: find.Search) -> Stop:
     big = found.too_big()[0]
     return talk.stop(EXIT_USAGE, f"to read {big.rel} anyway, run "
-                                 f"`{talk.command_at(big.rel)}`.")
+                                 f"`{talk.command_at(big.rel, '--yes')}`.")
+
+
+def _read_anyway(talk: Talk, path: Path) -> None:
+    """A file named on the command line over find.MAX_BYTES: read only after a yes (at a
+    terminal, or --yes without one), as a found one is. Asked before anything is read. A
+    quiet talk (check and fix reading the marked results again) asks nothing."""
+    size = path.stat().st_size
+    if size <= find.MAX_BYTES or talk.quiet:
+        return
+    said = f"{path.name} is {find.megabytes(size)}."
+    anyway = f"to read {path.name} anyway, run `{talk.command('--yes')}`."
+    if getattr(talk, "screens", False) and not _interactive() and not talk.yes:
+        raise _stop_with(talk, said, anyway)
+    if talk.confirm(f"{said} Read it anyway?", default=False, with_yes=True,
+                    hint=f"{said} {anyway[0].upper()}{anyway[1:]}"):
+        return
+    raise _stop_with(talk, f"{path.name} was left alone.", anyway, EXIT_OK)
 
 
 def results_description(result: find.Result) -> str | None:
