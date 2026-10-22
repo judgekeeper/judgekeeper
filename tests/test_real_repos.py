@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -215,14 +216,16 @@ def failed_inspect_log(root: Path, name: str = "logs/2026-10-02_support.json") -
         else:
             s["scores"] = {}
             s["error"] = {"message": f"RuntimeError('\\nRequest:\\n{{\"content\": "
-                                     f"\"{CANARY} {i}\"}}')", "traceback": f"... {CANARY}"}
+                                     f"\"{CANARY} {i}\"}}')", "traceback": f"... {CANARY}",
+                          "traceback_ansi": f"... {CANARY}"}
         samples.append(s)
     spec = json.loads(json.dumps(base["eval"]))
     spec["scorers"] = [x for x in spec["scorers"] if x["name"] == "model_graded_qa"]
     data = {**base, "status": "error", "eval": spec, "samples": samples,
             "results": {**base["results"], "total_samples": 18, "completed_samples": 5},
             "error": {"message": f"RuntimeError('\\nRequest: {CANARY}')",
-                      "traceback": f"Traceback ... {CANARY}"}}
+                      "traceback": f"Traceback ... {CANARY}",
+                      "traceback_ansi": f"Traceback ... {CANARY}"}}
     path = root / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data), encoding="utf-8")
@@ -426,7 +429,8 @@ def inspect_v1_log(root: Path, n: int = 3) -> Path:
                 "score": {"value": "I", "answer": f"Answer {i}.", "explanation": f"why {i}"}}
                for i in range(n)]
     data = {"version": 1, "status": "success",
-            "eval": {"task": "private_bench", "model": "openai/gpt-4", "created": "2024-05-01"},
+            "eval": {"task": "private_bench", "model": "openai/gpt-4", "created": "2024-05-01",
+                     "dataset": {}, "config": {}},
             "plan": {"name": "plan", "steps": []},
             "results": {"scorer": {"name": "model_graded_fact", "params": {}}, "metrics": {}},
             "stats": {}, "samples": samples}
@@ -703,9 +707,12 @@ def test_an_install_switch_between_json_and_eval_logs_is_known(files, used, can_
     assert install_switch(files, used, can_read_eval) == expected
 
 
-def test_marks_made_on_eval_logs_this_install_cannot_read_are_said(here, capsys):
+def test_marks_made_on_eval_logs_this_install_cannot_read_are_said(here, capsys, monkeypatch):
     from tests.start_projects import inspect_project
 
+    for name in [n for n in sys.modules if n == "inspect_ai" or n.startswith("inspect_ai.")]:
+        monkeypatch.setitem(sys.modules, name, None)  # an install without the extra
+    monkeypatch.setitem(sys.modules, "inspect_ai", None)
     inspect_project(here, [True] * 20 + [False] * 16)
     code, out = run(capsys)
     assert code == 0, out

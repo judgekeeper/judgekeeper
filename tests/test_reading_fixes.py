@@ -410,7 +410,8 @@ def _errored_inspect(verdicts, errored=(3, 7)) -> dict:
             s["scores"]["rubric"] = {"value": {"accuracy": "C", "tone": "I"}}
             if s["id"] in errored:
                 s["scores"] = {}
-                s["error"] = {"message": "RuntimeError: the app crashed"}
+                s["error"] = {"message": "RuntimeError: the app crashed", "traceback": "",
+                              "traceback_ansi": ""}
             samples.append(s)
     return {**data, "samples": samples}
 

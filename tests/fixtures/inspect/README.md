@@ -3,7 +3,8 @@
 `logs/*.json` is shaped like an Inspect AI log in `.json` format (what `inspect eval
 --log-format json` writes, or `inspect log dump` prints for a `.eval` log). `labels.csv` holds
 the human labels for the samples nobody edited. Made by `../make_framework_fixtures.py`; no
-Inspect run and no API call.
+Inspect run and no API call. It passes inspect_ai's own check of a log
+(`read_eval_log`), so tests run the same with or without the `inspect` extra.
 
 Where the shape comes from (inspect_ai source, checked on 2026-10-01):
 

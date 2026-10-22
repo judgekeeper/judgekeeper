@@ -69,7 +69,7 @@ def _inspect_log(tmp_path, samples):
 
 
 def _sample(i, value, steps=STEPS, scorer="model_graded_qa"):
-    return {"id": i, "epoch": 1, "input": "Refund order 7",
+    return {"id": i, "epoch": 1, "input": "Refund order 7", "target": "",
             "output": {"completion": "Your refund is on its way."}, "messages": steps,
             "scores": {scorer: {"value": value, "explanation": f"reason {i}", "history": []}}}
 
