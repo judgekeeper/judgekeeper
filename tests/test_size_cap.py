@@ -88,3 +88,26 @@ def test_a_re_read_with_nothing_asked_reads_the_file_already_chosen(here):
     found = start.find_judge(here / "results.csv")
     assert found.used == ["results.csv"]
 
+
+# A record over 1 MB: kept, with a warning. Its size is its bytes in the file, measured
+# without a copy of the row (a 10 MB cell read in full is copy enough).
+
+def _write(path, output: str):
+    from judgekeeper.records import read_records
+
+    if path.suffix == ".csv":
+        path.write_text(f'name,input,output,label\nSafe wording,q,"{output}",pass\n',
+                        encoding="utf-8")
+    else:
+        path.write_text('{"name": "Safe wording", "input": "q", "output": "' + output +
+                        '", "label": "pass"}\n', encoding="utf-8")
+    return read_records(path).warnings
+
+
+@pytest.mark.parametrize("name", ["records.csv", "records.jsonl"])
+@pytest.mark.parametrize("char, count, big", [("a", 1_001_000, True), ("a", 999_000, False),
+                                              ("é", 600_000, True),   # 1.2 MB in UTF-8
+                                              ("é", 400_000, False)])  # 0.8 MB
+def test_a_record_over_1_mb_is_said_by_its_size_in_the_file(tmp_path, name, char, count, big):
+    warnings = _write(tmp_path / name, char * count)
+    assert any("over 1 MB" in w for w in warnings) is big, warnings

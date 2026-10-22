@@ -534,6 +534,13 @@ def parse_map(text: str | dict | None) -> dict[str, str]:
     return out
 
 
+def utf8_size(text) -> int:
+    """Bytes of `text` in UTF-8, with no copy when it is ASCII (a huge cell, most often)."""
+    if not isinstance(text, str):  # a CSV row with fewer cells than the header has None
+        return 0
+    return len(text) if text.isascii() else len(text.encode("utf-8"))
+
+
 def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bool]:
     """([(line number, the row or what is wrong with the line, size in bytes)], whether the
     file is a CSV or TSV, whose values are all text). Blank lines are skipped."""
@@ -547,7 +554,7 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
         rows = []
         for row in reader:
             row = {k: v for k, v in row.items() if k is not None}
-            rows.append((reader.line_num, row, len(json.dumps(row).encode("utf-8"))))
+            rows.append((reader.line_num, row, sum(map(utf8_size, (*row, *row.values())))))
         return rows, True
     if suffix in (".jsonl", ".ndjson", ".json"):
         rows = []
@@ -562,7 +569,7 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
             if not isinstance(row, dict):
                 rows.append((n, "each line must be a JSON object", 0))
                 continue
-            rows.append((n, row, len(line.encode("utf-8"))))
+            rows.append((n, row, utf8_size(line)))
         return rows, False
     raise RecordsError(f"{path}: expected a .csv, .tsv or .jsonl file")
 
