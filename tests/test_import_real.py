@@ -11,6 +11,8 @@ and Q2 on its second call only.
 Inspect AI (inspect_ai 0.3.273, model_graded_qa with a mockllm grader, epochs 3): samples 1-6.
 The grader says
   epoch 1: 1 C, 2 C, 3 I, 4 I, 5 I, 6 C     epochs 2, 3: 1-3 C, 4-6 I
+Older Inspect AI logs (old/, inspect_ai 0.3.2 .json and 0.3.204 .eval, model_graded_qa with a
+fixed fake grader): samples 1 I, 2 C.
 
 DeepEval (deepeval 4.2.7, a non-LLM BaseMetric "Listed Passes", DEEPEVAL_RESULTS_FOLDER, three
 runs, one test_run_*.json each): cases c0-c5. The metric passes
@@ -19,6 +21,8 @@ runs, one test_run_*.json each): cases c0-c5. The metric passes
 
 import hashlib
 import json
+
+import pytest
 
 from judgekeeper.anchors import canonical_json
 from judgekeeper.readers import read_deepeval, read_inspect, read_promptfoo
@@ -116,6 +120,15 @@ def test_real_inspect_prompt_hash_is_the_default_template_identity():
                if r.annotator_kind == "LLM"]
     assert {r.evaluator["prompt"] for r in records} == {DEFAULT_QA}
     assert make_fingerprint(fingerprint_known(records[0].evaluator)).prompt_hash == sha(DEFAULT_QA)
+
+
+@pytest.mark.parametrize("name", ["inspect-0.3.2.json", "inspect-0.3.204.eval"])
+def test_real_inspect_logs_from_older_versions_are_read(name):
+    # written by the oldest inspect_ai the extra allows and by one six months older than 1.0
+    if name.endswith(".eval"):
+        pytest.importorskip("inspect_ai")
+    records = read_inspect(INSPECT / "old" / name)
+    assert by_item(records) == {"1": ["I"], "2": ["C"]}
 
 
 # DeepEval -----------------------------------------------------------------------------------

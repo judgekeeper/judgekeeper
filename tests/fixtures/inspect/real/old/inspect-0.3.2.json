@@ -1,0 +1,130 @@
+{
+  "status": "success",
+  "eval": {
+    "task": "qa",
+    "task_version": 0,
+    "task_id": "9sTHe7BMq3AiUB3oFxzLnF",
+    "run_id": "cpjsT6EXLWBNTEXpPRjV7k",
+    "created": "2026-10-21T20:20:39",
+    "dataset": {},
+    "model": "/answer",
+    "task_attribs": {},
+    "task_args": {},
+    "model_args": {},
+    "config": {},
+    "packages": {
+      "inspect_ai": "0.3.2"
+    }
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "generate",
+        "params": {}
+      }
+    ],
+    "config": {}
+  },
+  "samples": [
+    {
+      "id": 1,
+      "epoch": 1,
+      "input": "What is 2+2?",
+      "target": "4",
+      "messages": [
+        {
+          "content": "What is 2+2?",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "content": "5",
+          "source": "generate",
+          "role": "assistant"
+        }
+      ],
+      "output": {
+        "model": "answer",
+        "choices": [
+          {
+            "message": {
+              "content": "5",
+              "source": "generate",
+              "role": "assistant"
+            },
+            "stop_reason": "stop"
+          }
+        ]
+      },
+      "score": {
+        "value": "I",
+        "explanation": "Wrong.\nGrade: I"
+      },
+      "metadata": {}
+    },
+    {
+      "id": 2,
+      "epoch": 1,
+      "input": "Capital of France?",
+      "target": "Paris",
+      "messages": [
+        {
+          "content": "Capital of France?",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "content": "Paris",
+          "source": "generate",
+          "role": "assistant"
+        }
+      ],
+      "output": {
+        "model": "answer",
+        "choices": [
+          {
+            "message": {
+              "content": "Paris",
+              "source": "generate",
+              "role": "assistant"
+            },
+            "stop_reason": "stop"
+          }
+        ]
+      },
+      "score": {
+        "value": "C",
+        "explanation": "Looks right.\nGrade: C"
+      },
+      "metadata": {}
+    }
+  ],
+  "results": {
+    "scorer": {
+      "name": "model_graded_qa",
+      "params": {
+        "model": "fixed/grader"
+      }
+    },
+    "metrics": {
+      "accuracy": {
+        "name": "accuracy",
+        "value": 0.5,
+        "options": {}
+      },
+      "bootstrap_std": {
+        "name": "bootstrap_std",
+        "value": 0.34997714211073844,
+        "options": {}
+      }
+    }
+  },
+  "stats": {
+    "started_at": "2026-10-21T20:20:39",
+    "completed_at": "2026-10-21T20:20:39",
+    "model_usage": {}
+  },
+  "logging": [],
+  "version": 1
+}
