@@ -198,6 +198,8 @@ img, svg { max-width: 100%; }
 .hero-r { min-width: 0; }
 .hero-r .jk-card { width: 100%; }
 .hero h1 { font-size: 62px; line-height: 1.02; letter-spacing: -.028em; font-weight: 800; margin: 0; }
+/* the Guide's "Install judgekeeper" fits its column on one line from 1000px wide */
+.gx-hero h1 { font-size: clamp(42px, calc(11vw - 80px), 62px); }
 .five { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 19px; font-weight: 700; }
 .five a { color: var(--fg); text-decoration: none; position: relative; display: inline-block; padding-bottom: 6px; }
 /* the green line grows from the left on hover or focus, and stays under the chosen step; the
@@ -240,6 +242,7 @@ img, svg { max-width: 100%; }
 @media (max-width: 1100px) {
   .hero .wrap { grid-template-columns: minmax(0, 1fr) 500px; gap: 48px; }
   .hero h1 { font-size: 52px; }
+  .gx-hero h1 { font-size: clamp(42px, 4.2vw, 52px); }
   .steps-grid { grid-template-columns: 340px minmax(0, 1fr); }
 }
 @media (max-width: 860px) {
@@ -318,6 +321,7 @@ td:first-child { min-width: 14ch; }
 }
 
 /* ---- the Guide: Home's hero with the install, the steps and three blocks, each a window ---- */
+.gx-hero .wrap { padding-block: 64px 56px; }
 .gx-hero .hero-l { gap: 24px; }
 .h-brand { color: var(--green); }
 .gx-lede { margin: 0; font-size: 18px; line-height: 1.55; color: var(--muted); max-width: 44ch; }
@@ -346,8 +350,8 @@ td:first-child { min-width: 14ch; }
 .gx-shot { margin: 16px 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .gx-shot img { display: block; width: 100%; height: auto; }
 .gx-code { margin: 0 0 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bg); font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; }
-/* the steps and the windows below: one centred column */
-.gx-steps .wrap { padding-block: 80px 32px; max-width: 960px; margin-inline: auto; }
+/* the steps and the windows below: as wide as the top section, so their edges line up */
+.gx-steps .wrap { padding-block: 48px 32px; }
 .gx-steps h2, .gx-more h2 { margin: 0 0 44px; font-size: 32px; font-weight: 800; letter-spacing: -.022em; }
 /* each step: a green-ringed number, a thin line down to the next one, and a window */
 .gl { list-style: none; margin: 0; padding: 0; }
@@ -368,7 +372,7 @@ td:first-child { min-width: 14ch; }
 .sw-body > :first-child { margin-top: 0; }
 .sw-body > :last-child { margin-bottom: 0; }
 .gx-more { padding-top: 8px; }
-.gx-more .wrap { padding-block: 20px 80px; display: grid; gap: 20px; max-width: 960px; margin-inline: auto; }
+.gx-more .wrap { padding-block: 20px 80px; display: grid; gap: 20px; }
 .gm-row .gx-text p { max-width: none; }
 /* the reference line sits apart from the code above it */
 #own-format .gx-code { margin-bottom: 0; }
@@ -378,14 +382,16 @@ td:first-child { min-width: 14ch; }
 .gm-pre { margin: 0; padding: 20px 24px; font-family: var(--mono); font-variant-ligatures: none; font-size: 14px; line-height: 1.8; color: var(--fg); overflow-x: auto; }
 .gm-pre .t-prompt { color: var(--green); }
 .gm-pre .t-dim { color: var(--muted); }
-/* wide screens: the windows are wider and the number rail hangs in the left margin */
+/* wide screens: keys and costs beside the handy commands */
 @media (min-width: 1100px) {
-  .gx-steps .wrap, .gx-more .wrap { max-width: 1120px; }
+  .gm-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+}
+/* only where the left margin has room, the number rail hangs in it */
+@media (min-width: 1440px) {
   .gl-step { display: block; }
   .gl-n { position: absolute; left: -68px; top: 0; margin-top: 0; }
   .gl-step:not(:last-child)::before { left: -47px; }
   .gl-step::after { top: 22px; left: -24px; width: 24px; }
-  .gm-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
 }
 @media (max-width: 860px) {
   .gx-steps .wrap { padding-block: 56px 32px; }

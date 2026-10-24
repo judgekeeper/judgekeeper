@@ -98,10 +98,10 @@ def _phone(css: str = CSS) -> str:
     return "\n".join(inside)
 
 
-def _wide(css: str = CSS) -> str:
-    """Every rule inside the wide-screen blocks (`@media (min-width: 1100px)`)."""
+def _wide(width: int = 1100, css: str = CSS) -> str:
+    """Every rule inside the wide-screen blocks (`@media (min-width: <width>px)`)."""
     inside, at = [], 0
-    while (at := css.find("@media (min-width: 1100px) {", at)) != -1:
+    while (at := css.find(f"@media (min-width: {width}px) {{", at)) != -1:
         depth, open_at = 0, css.index("{", at)
         for i in range(open_at, len(css)):
             depth += {"{": 1, "}": -1}.get(css[i], 0)
@@ -574,9 +574,16 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     hero = sections[0]
     assert hero.attrs["id"] == "install"  # judgekeeper prints start.html#install
     (h1,) = _all(hero, "h1")
-    assert _flat(h1) == "Start judgekeeper in your project."
+    assert _flat(h1) == "Install judgekeeper in your project."
     assert [_flat(s) for s in _all(h1, "span", "h-brand")] == ["judgekeeper"]
     assert "color: var(--green)" in _rule(".h-brand")
+    # "Install judgekeeper" stays on one line from 1000px: the text column is only 385px at
+    # 1101 wide and 388px at 1000, so the heading shrinks with the screen there
+    assert "font-size: clamp(42px, calc(11vw - 80px), 62px)" in _rule(".gx-hero h1")
+    assert CSS.index(".gx-hero h1 {") < CSS.index("@media (max-width: 860px)")
+    mid = CSS[CSS.index("@media (max-width: 1100px) {"):]
+    mid = mid[:mid.index("\n}\n")]
+    assert "font-size: clamp(42px, 4.2vw, 52px)" in _rule(".gx-hero h1", mid)
     assert _flat(_all(hero, "p", "gx-lede")[0]) == (
         "Works with promptfoo, DeepEval, Inspect AI, MLflow or your own file.")
     # the install card is a window on your project folder: pip and uv, both in view
@@ -612,11 +619,13 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
         "Steps 1 to 3 need no API key. Steps 4 and 5 may use your own key, and ask you first. "
         "judgekeeper never saves your key.")
     assert not _all(sections[2], "div", "gx-card")
-    # one centred column for the steps and the windows below, wider on wide screens
-    for wrap in (".gx-steps .wrap", ".gx-more .wrap"):
-        assert "max-width: 960px" in _rule(wrap) and "margin-inline: auto" in _rule(wrap), wrap
-        assert any(wrap in s.split(", ") and "max-width: 1120px" in d
-                   for s, d in _rules(_wide())), wrap
+    # the steps and the windows below are as wide as the top section: "The 5 steps." starts
+    # under "Install", and the windows end where the install window ends
+    assert not [s for s, d in _rules() if ("gx-steps .wrap" in s or "gx-more .wrap" in s)
+                and "max-width" in d]
+    # the top section is shorter, so the start of the steps shows on the first screen
+    assert "padding-block: 64px 56px" in _rule(".gx-hero .wrap")
+    assert "padding-block: 48px 32px" in _rule(".gx-steps .wrap")
     # the step windows and the windows below share one look and the column's full width
     (window,) = [d for s, d in _rules() if s.endswith("\n.sw, .gm-row")]
     for part in ("border: 1px solid var(--line)", "border-radius: 12px",
@@ -697,11 +706,12 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     assert "var(--green)" in _rule(".gl-n") and "border-radius: 50%" in _rule(".gl-n")
     assert "width: 1px" in _rule(".gl-step:not(:last-child)::before")
     # a short line from each number to its window's bar
-    joins = [_rule(".gl-step::after", css) for css in (CSS, _wide())]
+    joins = [_rule(".gl-step::after", css) for css in (CSS, _wide(1440))]
     assert "height: 1px" in joins[0] and "background: var(--line)" in joins[0]
     assert "left: -24px" in joins[1]
-    assert "left: -68px" in _rule(".gl-n", _wide()) and "display: block" in _rule(
-        ".gl-step", _wide())
+    assert "left: -68px" in _rule(".gl-n", _wide(1440)) and "display: block" in _rule(
+        ".gl-step", _wide(1440))
+    assert ".gl-n" not in _wide()  # from 1100 to 1440 wide the numbers keep their column
     done = {step: [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
             for step in ("step-find", "step-mark", "step-measure")}
     assert done == {
