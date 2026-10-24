@@ -557,9 +557,9 @@ def test_the_demo_card_is_a_window_called_marking_page():
 # The Guide ------------------------------------------------------------------------------------
 
 REFERENCE_MD = f"{GITHUB}/blob/main/docs/reference.md"
-GUIDE_STEPS = [("step-find", "Find your results"),
+GUIDE_STEPS = [("step-find", "Find your eval results"),
                ("step-mark", "Mark your answers Pass or Fail"),
-               ("step-measure", "See your result"),
+               ("step-measure", "See how often your LLM-as-a-judge agrees with you"),
                ("step-fix", "Write a better rule and test it"),
                ("step-check", "Re-check after you change your LLM-as-a-judge")]
 
@@ -589,16 +589,24 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
         "Works on macOS, Linux and Windows, with Python 3.11 or newer."]
     assert not _all(_main(GUIDE), "nav")  # no side list
-    # three windows, the title in each bar (the h3 stays for screen readers); Your own format
-    # holds the record() line judgekeeper links to
+    # three windows, the title in each bar (the h3 stays for screen readers): your own file
+    # or code across the column, then the keys and the handy commands side by side
     rows = _all(sections[2], "div", "gm-row")
     assert [(r.attrs["id"], _flat(_all(r, "h3")[0])) for r in rows] == [
-        ("keys", "Keys and costs"), ("own-format", "Your own format"), ("misc", "Handy commands")]
+        ("own-format", "Your own file or code"), ("keys", "API keys and costs"),
+        ("misc", "Handy commands")]
     for r in rows:
         (h3,) = _all(r, "h3")
         (bar,) = _all(r, "div", "rt-bar")
         assert "sr" in h3.classes() and _flat(bar) == _flat(h3), r.attrs["id"]
         assert bar.attrs.get("aria-hidden") == "true"
+    (pair,) = _all(sections[2], "div", "gm-pair")
+    assert [r.attrs["id"] for r in _all(pair, "div", "gm-row")] == ["keys", "misc"]
+    assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr)" in _rule(".gm-pair", _wide())
+    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gm-pair")  # stacked, keys first
+    assert _flat(_all(_by_id(GUIDE, "keys"), "div", "gx-text")[0]) == (
+        "Steps 1 to 3 need no API key. Steps 4 and 5 may use your own key, and ask you first. "
+        "judgekeeper never saves your key.")
     assert not _all(sections[2], "div", "gx-card")
     # one centred column for the steps and the windows below, wider on wide screens
     for wrap in (".gx-steps .wrap", ".gx-more .wrap"):
@@ -612,10 +620,57 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
         assert part in window, part
     assert "margin-left" not in window
     assert "clip: rect(0 0 0 0)" in _rule(".sr")
-    (record,) = _all(_by_id(GUIDE, "own-format"), "pre", "gx-code")
-    assert record.text().startswith("import judgekeeper\njudgekeeper.record(input=question,")
+
+
+def test_your_own_file_or_code_is_two_short_ways_and_a_link_for_the_rest():
+    """A first-timer sees a three-column file and its command, and the one record() line;
+    scores, pass marks and every other option are in the reference."""
+    own = _all(_by_id(GUIDE, "own-format"), "div", "gx-text")[0]
+    said = [(el.tag, _flat(el)) for el in own.children if isinstance(el, Element)]
+    assert said == [
+        ("p", ("No eval tool? Save your results as a CSV or JSONL file with three columns: input "
+              "(the question), output (the answer) and verdict (Pass or Fail from your "
+              "LLM-as-a-judge). Then run:")),
+        ("div", "judgekeeper results.csv"),
+        ("p", "Your LLM-as-a-judge runs in your own code? Add this after each grade:"),
+        ("pre", ("import judgekeeper judgekeeper.record(input=question, output=answer, "
+                "verdict=grade)")),
+        ("p", ("Your LLM-as-a-judge gives a score instead of Pass or Fail? The full reference "
+              "shows how to set where Pass starts, and every other option."))]
+    assert [_flat(b) for p in _all(own, "p") for b in _all(p, "b")] == [
+        "No eval tool?", "Your LLM-as-a-judge runs in your own code?"]
+    (link,) = _all(own, "a")
+    assert link.attrs["href"] == f"{REFERENCE_MD}#how-grades-are-read"
     reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
-    assert record.text() in reference  # moved from the reference, not rewritten
+    assert "\n## How grades are read\n" in reference
+    # the reference line sits apart from the code: a gap, a thin line, room under it
+    small = _rule("#own-format .gx-small")
+    for part in ("margin-top: 24px", "padding-top: 18px", "border-top: 1px solid var(--line)",
+                 "line-height: 1.7"):
+        assert part in small, part
+    text = GUIDE.read_text(encoding="utf-8")
+    for gone in ("--pass-if", "pass_mark=", "can't test a new rule"):
+        assert gone not in text, gone
+
+
+def test_the_guides_record_line_saves_what_judgekeeper_reads(tmp_path, monkeypatch):
+    """The two lines the Guide shows, run as they are after a grade, give answers judgekeeper
+    finds."""
+    from judgekeeper import recorder, start
+
+    (code,) = _all(_by_id(GUIDE, "own-format"), "pre", "gx-code")
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'app'\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("JUDGEKEEPER_RECORD", raising=False)
+    recorder._reset()
+    try:
+        for i, grade in enumerate(["pass", "fail"]):
+            space = {"question": f"Do you ship to {i}?", "answer": "Yes.", "grade": grade}
+            exec(code.text(), space)  # noqa: S102 - the Guide's own two lines
+    finally:
+        recorder._reset()
+    found = start.find_judge(tmp_path)
+    assert (found.pool.n_pass, found.pool.n_fail) == (1, 1)
 
 
 def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
@@ -637,6 +692,10 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     # numbers in green circles joined by a line; on wide screens they hang in the margin
     assert "var(--green)" in _rule(".gl-n") and "border-radius: 50%" in _rule(".gl-n")
     assert "width: 1px" in _rule(".gl-step:not(:last-child)::before")
+    # a short line from each number to its window's bar
+    joins = [_rule(".gl-step::after", css) for css in (CSS, _wide())]
+    assert "height: 1px" in joins[0] and "background: var(--line)" in joins[0]
+    assert "left: -24px" in joins[1]
     assert "left: -68px" in _rule(".gl-n", _wide()) and "display: block" in _rule(
         ".gl-step", _wide())
     done = {step: [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
@@ -645,24 +704,50 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
         "step-find": [("Nothing found? Run your eval first so it saves its results, or point "
                        "judgekeeper to your results file:")],
         "step-mark": ["When See your result appears, click it."],
-        "step-measure": ["Too early to tell? Mark more answers:"]}
+        "step-measure": [("Result says it’s too early to tell? Your LLM-as-a-judge needs more "
+                          "of your marks to be measured. Mark more answers, then look again:")]}
+    # each step's words, as the person reads them
+    said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "sw-body")[0], "p")
+                   if "done" not in p.classes() and "gx-small" not in p.classes()]
+            for step in ("step-mark", "step-measure", "step-fix", "step-check")}
+    assert said == {
+        "step-mark": [("Mark each answer Pass or Fail, the way you would grade it. You won’t see "
+                       "your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, "
+                       "so you can stop at any time and come back later.")],
+        "step-measure": [("The result page tells you one of three things: your LLM-as-a-judge "
+                          "is good enough to use, it needs work, or it’s too early to tell. "
+                          "Below that, it lists every answer where you and your LLM-as-a-judge "
+                          "disagreed.")],
+        "step-fix": [
+            "Result says your LLM-as-a-judge needs work? Run:",
+            ("It saves every answer your LLM-as-a-judge got wrong in "
+             ".judgekeeper/fix/mistakes.md. Read it to write a better rule yourself, or hand "
+             "it to a coding agent to help you write one."),
+            ("Write your new rule in .judgekeeper/fix/rule.txt and run judgekeeper fix again. "
+             "judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
+             "better, worse, or if it can’t tell yet.")],
+        "step-check": [
+            ("Changed your LLM-as-a-judge’s model or rule, or moved to a new eval tool? Run "
+             "your eval again, then:"),
+            ("judgekeeper compares your LLM-as-a-judge’s new grades with the marks you already "
+             "made, and tells you if it still agrees with you. You don’t need to mark anything "
+             "again.")]}
+    bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
+            for step in ("step-measure", "step-fix", "step-check")}
+    assert bold == {"step-measure": ["Result says it’s too early to tell?"],
+                    "step-fix": ["Result says your LLM-as-a-judge needs work?", "better",
+                                 "worse", "can’t tell yet"],
+                    "step-check": [("Changed your LLM-as-a-judge’s model or rule, or moved to a "
+                                    "new eval tool?")]}
     assert not _all(_main(GUIDE), "details")  # no fold
     assert not _all(_by_id(GUIDE, "step-measure"), "a")  # the numbers: in the reference
     assert not _all(_by_id(GUIDE, "step-fix"), "table")  # the six results: in the reference
     # step 4 opens with when to run fix, then what it saves
     body = _all(_by_id(GUIDE, "step-fix"), "div", "gl-body")[0]
-    opening = [(el.tag, _flat(el)) for el in body.children if isinstance(el, Element)][:4]
-    assert opening == [
-        ("h3", "Write a better rule and test it"), ("p", "LLM-as-a-judge needs work? Run:"),
-        ("div", "judgekeeper fix"),
-        ("p", ("It saves every mistake your LLM-as-a-judge made in one file. Use it to write a "
-              "better rule, or hand it to a coding agent to help you write one."))]
+    opening = [el.tag for el in body.children if isinstance(el, Element)][:4]
+    assert opening == ["h3", "p", "div", "p"]
     assert [_flat(p) for p in _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")] == [
         "Testing works with promptfoo, DeepEval, Inspect AI and MLflow."]
-    assert _flat(_all(_by_id(GUIDE, "step-check"), "div", "sw-body")[0]) == (
-        "Re-check after you change your LLM-as-a-judge Changed the model, the rule or your "
-        "eval tool? Run your eval, then: judgekeeper check It tells you if your LLM-as-a-judge "
-        "still agrees with you, on the same marks.")
     # the two pictures sit in their step's window with a plain border, no second bar
     shots = [li.attrs["id"] for li in items for f in _all(li, "figure", "gx-shot")]
     assert shots == ["step-mark", "step-measure"]
@@ -676,15 +761,15 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
 
 def test_the_guides_commands_look_like_terminal_lines():
     """A green "$" before each one-line command, drawn by CSS so Copy copies the command
-    alone. Handy commands are a small terminal window."""
+    alone. Handy commands are a window of terminal lines."""
     assert 'content: "$"' in _rule(".gx .cmd code::before")
     assert "var(--green)" in _rule(".gx .cmd code::before")
     assert "background: var(--term-bg)" in _rule(".gx .cmd")
     assert "code.textContent" in JS  # what Copy copies: never the "$"
-    (misc,) = _all(_by_id(GUIDE, "misc"), "div", "gm-cmds")
-    assert "gwin" in misc.classes()
+    misc = _by_id(GUIDE, "misc")
     assert _flat(_all(misc, "div", "rt-bar")[0]) == "Handy commands"
     (pre,) = _all(misc, "pre", "gm-pre")
+    assert pre.parent is misc  # straight in the window, no second bar
     lines = [" ".join(line.split()) for line in pre.text().splitlines()]
     assert lines == ["$ judgekeeper --stop # close the marking page",
                      "$ judgekeeper --new # start over (old marks are kept)",
@@ -699,7 +784,7 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
     assert [_flat(_all(b, "code")[0]) for b in boxes] == [
         *install, "judgekeeper", "judgekeeper path/to/results.json",
         "judgekeeper mark", "judgekeeper fix", "judgekeeper check",
-        "judgekeeper --pass-if 'score>=0.5'", *install]
+        "judgekeeper results.csv", *install]
     for box in boxes:
         (button,) = _all(box, "button", "copy")
         assert "data-copy" in button.attrs and button.attrs["aria-label"].startswith("Copy")
@@ -940,9 +1025,10 @@ TOOLS = "For promptfoo, DeepEval, Inspect AI and MLflow"
 
 
 def test_testing_a_new_rule_is_said_only_for_the_tools_fix_can_ask():
-    """fix can't ask a judge in your own file or record() (fix.can_test): the Guide says what
-    to do instead. Home's step list says "test it on marks kept aside" without the tool names;
-    the limit is said where the detail lives (the Guide's Fix step, the meta description)."""
+    """fix can't ask a judge in your own file or record() (fix.can_test): the Guide's Fix step
+    names the tools it can test with (the reference says what to do instead). Home's step list
+    says "test it on marks kept aside" without the tool names; the limit is said where the
+    detail lives (the Guide's Fix step, the meta description)."""
     assert set(fix.SWAPPABLE) == {"promptfoo", "deepeval", "inspect", "mlflow"}
     meta = [el.attrs["content"] for el in parse(HOME).iter()
             if el.tag == "meta" and "description" in el.attrs.get("name", "")
@@ -952,11 +1038,7 @@ def test_testing_a_new_rule_is_said_only_for_the_tools_fix_can_ask():
     assert "promptfoo" not in _flat(_by_id(HOME, "tab-fix"))
     step = _flat(_by_id(GUIDE, "step-fix"))
     assert step.endswith("Testing works with promptfoo, DeepEval, Inspect AI and MLflow.")
-    assert ("Write your new rule in .judgekeeper/fix/rule.txt and run judgekeeper fix again. "
-            "It tests the rule and tells you if it's better, worse, or can't tell yet.") in step
-    own = _flat(_by_id(GUIDE, "own-format"))
-    assert ("With your own file, judgekeeper can't test a new rule: change it in your eval, run "
-            "it, then judgekeeper check.") in own
+    assert "judgekeeper tests the new rule on the marks kept aside" in step
     llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
     assert ("for promptfoo, DeepEval, Inspect AI and MLflow, tests a better rule on marks kept "
             "aside (for your own CSV or JSONL file or `judgekeeper.record()`, you change the rule "

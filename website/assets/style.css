@@ -321,7 +321,7 @@ td:first-child { min-width: 14ch; }
 .gx-hero .hero-l { gap: 24px; }
 .h-brand { color: var(--green); }
 .gx-lede { margin: 0; font-size: 18px; line-height: 1.55; color: var(--muted); max-width: 44ch; }
-/* a window like Home's: the install card and the handy commands */
+/* a window like Home's: the install card */
 .gwin { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--term-bg); }
 .gwin-body { padding: 22px 28px 24px; display: grid; gap: 10px; }
 /* the install card: pip and uv, both in view, one command per box, all the same width */
@@ -354,6 +354,8 @@ td:first-child { min-width: 14ch; }
 .gl-step { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 20px; position: relative; padding-bottom: 20px; }
 .gl-step:last-child { padding-bottom: 0; }
 .gl-step:not(:last-child)::before { content: ""; position: absolute; left: 21px; top: 50px; bottom: 6px; width: 1px; background: var(--line); }
+/* and a short line from the number to its window's bar */
+.gl-step::after { content: ""; position: absolute; top: 24px; left: 44px; width: 20px; height: 1px; background: var(--line); }
 .gl-n { width: 44px; height: 44px; margin-top: 2px; border-radius: 50%; border: 1px solid var(--green); color: var(--green); background: var(--bg); display: grid; place-items: center; font-family: var(--mono); font-variant-ligatures: none; font-size: 15px; font-weight: 500; }
 .gl-body > p { max-width: none; }  /* the steps fill their window */
 /* a window: the three dots, then its title, bold, on the left */
@@ -368,8 +370,12 @@ td:first-child { min-width: 14ch; }
 .gx-more { padding-top: 8px; }
 .gx-more .wrap { padding-block: 20px 80px; display: grid; gap: 20px; max-width: 960px; margin-inline: auto; }
 .gm-row .gx-text p { max-width: none; }
-.gm-row#misc { border: 0; background: none; overflow: visible; }
-.gm-pre { margin: 0; padding: 18px 22px; font-family: var(--mono); font-variant-ligatures: none; font-size: 14px; line-height: 1.8; color: var(--fg); overflow-x: auto; }
+/* the reference line sits apart from the code above it */
+#own-format .gx-code { margin-bottom: 0; }
+#own-format .gx-small { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); line-height: 1.7; }
+/* API keys and costs beside the handy commands on wide screens; stacked, keys first, below */
+.gm-pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.gm-pre { margin: 0; padding: 20px 24px; font-family: var(--mono); font-variant-ligatures: none; font-size: 14px; line-height: 1.8; color: var(--fg); overflow-x: auto; }
 .gm-pre .t-prompt { color: var(--green); }
 .gm-pre .t-dim { color: var(--muted); }
 /* wide screens: the windows are wider and the number rail hangs in the left margin */
@@ -378,6 +384,8 @@ td:first-child { min-width: 14ch; }
   .gl-step { display: block; }
   .gl-n { position: absolute; left: -68px; top: 0; margin-top: 0; }
   .gl-step:not(:last-child)::before { left: -47px; }
+  .gl-step::after { top: 22px; left: -24px; width: 24px; }
+  .gm-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
 }
 @media (max-width: 860px) {
   .gx-steps .wrap { padding-block: 56px 32px; }
@@ -392,6 +400,7 @@ td:first-child { min-width: 14ch; }
   .gl-step { grid-template-columns: 32px minmax(0, 1fr); gap: 12px; }
   .gl-n { width: 32px; height: 32px; font-size: 13px; }
   .gl-step:not(:last-child)::before { left: 15px; top: 40px; }
+  .gl-step::after { top: 18px; left: 32px; width: 12px; }
   .sw-body, .gm-row > .gx-text { padding: 18px 16px 20px; }
   .sw-bar::before { margin-right: 36px; }
 }
