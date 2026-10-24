@@ -91,7 +91,7 @@ EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_NEEDS_YOU = 3
 FIRST_SHOWN = 26  # characters of the first rule shown when they differ per test
-RULE_SHOWN = 54  # characters of the judge's rule shown, "…" included, on one line
+RULE_SHOWN = 58  # characters of the judge's rule shown, "…" included, on one line
 VALUE_WIDTH = 40  # characters of a judge's decision value shown
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
 LABEL_MAP = '"VALUE=pass,VALUE=fail,VALUE=error"'

@@ -1,10 +1,10 @@
 name: Results not found
-description: judgekeeper did not find or could not read your judge's results.
+description: judgekeeper did not find or could not read your LLM-as-a-judge's results.
 body:
   - type: markdown
     attributes:
       value: |
-        Tell us where your judge's results are and how they are saved. Describe the file's shape (its keys or columns) with made-up values: never paste real answers, data you are not allowed to share, or API keys.
+        Tell us where your LLM-as-a-judge's results are and how they are saved. Describe the file's shape (its keys or columns) with made-up values: never paste real answers, data you are not allowed to share, or API keys.
   - type: input
     id: tool
     attributes:

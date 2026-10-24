@@ -1,6 +1,7 @@
 """Every place a person reads the word for what judgekeeper checks, it says "LLM-as-a-judge",
 never "judge" alone: the strings in the code (terminal lines, the marking page, the result page,
-the report), the records schema, the README, the reference and the website.
+the report), the records schema, the README, the reference, the security and trademark
+notes, the GitHub templates and the website.
 
 Not checked, on purpose: code names (keys, columns, flags, the `judge=` argument of record()),
 docstrings and comments, the verb ("how to judge them"), and the reports in docs/examples/,
@@ -95,9 +96,18 @@ def prose(path: Path) -> str:
     return re.sub(r"`[^`\n]*`|\]\([^)]*\)", "", text)
 
 
-@pytest.mark.parametrize("name", ["README.md", "docs/reference.md"])
+@pytest.mark.parametrize("name", ["README.md", "docs/reference.md", "SECURITY.md",
+                                  "TRADEMARKS.md", ".github/CONTRIBUTING.md",
+                                  ".github/PULL_REQUEST_TEMPLATE.md"])
 def test_the_docs_say_llm_as_a_judge(name):
     found = bare(prose(ROOT / name))
+    assert not found, found
+
+
+@pytest.mark.parametrize("path", sorted((ROOT / ".github" / "ISSUE_TEMPLATE").glob("*.yml")),
+                         ids=lambda p: p.name)
+def test_the_issue_forms_say_llm_as_a_judge(path):
+    found = bare(prose(path))
     assert not found, found
 
 

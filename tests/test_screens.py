@@ -61,8 +61,7 @@ FIRST = [
     "File:            results.json",
     "Answers:         40 answers",
     "LLM-as-a-judge:  openai:gpt-4.1-mini",
-    f'Rule:            "{RULE[:53]}…"',
-    "                 (shortened; full rule in promptfooconfig.yaml)",
+    f'Rule:            "{RULE}"',
     "Read from your file:",
     "  question   each test's vars",
     "  answer     each test's output",
@@ -115,7 +114,7 @@ def test_screen_1_a_long_rule_is_one_line_cut_short(here, capsys):
     promptfoo_project(here, split(23, 17), rubric=LONG_RULE)
     _, lines = screen(capsys)
     at = next(i for i, line in enumerate(lines) if line.startswith("Rule:"))
-    assert lines[at] == 'Rule:            "The answer must fully solve the customer\'s problem, b…"'
+    assert lines[at] == 'Rule:            "The answer must fully solve the customer\'s problem, be po…"'
     assert lines[at + 1] == "                 (shortened; full rule in promptfooconfig.yaml)"
 
 
