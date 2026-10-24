@@ -234,7 +234,8 @@ def test_inspect_grader_failures_are_marked(tmp_path):
 def test_an_inspect_grader_failure_without_the_explanation_is_an_error(tmp_path):
     data = inspect_data(split(1, 0))
     data["samples"][0]["scores"] = {"model_graded_qa": {
-        "value": None, "reason": "grader_failed", "explanation": "refused", "history": []}}
+        "value": float("nan"), "reason": "grader_failed", "explanation": "refused",
+        "history": []}}
     records = read_inspect(_write_json(tmp_path / "log.json", data))
     assert _marks(records) == [("error", "left out")]
 

@@ -101,6 +101,7 @@ def test_the_label_session_raises_its_own_error_for_a_file_that_is_not_utf8(tmp_
                                          (read_records, "records.jsonl")])
 def test_the_framework_readers_say_a_file_is_not_utf8(tmp_path, monkeypatch, reader, name):
     monkeypatch.setitem(sys.modules, "inspect_ai", None)  # the plain JSON reader
+    monkeypatch.setitem(sys.modules, "inspect_ai.log", None)
     path = _write(tmp_path / name, '{"note": "caf\u00e9"}\n', "cp1252")
     with pytest.raises(RecordsError, match="not saved as UTF-8") as e:
         reader(path)

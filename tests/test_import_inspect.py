@@ -29,6 +29,11 @@ OPTIONS = {"instructions": "Grade the answer as C (correct) or I (incorrect).",
            "partial_credit": True}
 
 
+def test_the_fixture_is_a_log_inspect_ai_accepts():
+    log = pytest.importorskip("inspect_ai.log")
+    assert len(log.read_eval_log(str(LOG)).samples) == 18
+
+
 def test_the_log_reads_as_judge_records_with_its_label_map():
     records = read_inspect(LOG)
     assert records.version == 2
@@ -124,9 +129,60 @@ def test_scorer_without_options_hashes_the_default_template_not_the_grading_prom
 
 def test_eval_without_the_extra_gives_the_documented_error(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "inspect_ai", None)  # import inspect_ai fails
+    monkeypatch.setitem(sys.modules, "inspect_ai.log", None)
     path = tmp_path / "2026-09-30_qa.eval"
     path.write_bytes(b"PK\x03\x04 not a real archive")
     with pytest.raises(RecordsError, match=r"judgekeeper\[inspect\].*inspect log dump"):
+        read_inspect(path)
+
+
+def refusing_inspect_ai(monkeypatch):
+    """An installed inspect_ai that refuses every log."""
+    def read_eval_log(path, **kwargs):
+        raise ValueError("not valid")
+
+    pkg, log_mod = ModuleType("inspect_ai"), ModuleType("inspect_ai.log")
+    log_mod.read_eval_log = read_eval_log
+    pkg.log = log_mod
+    monkeypatch.setitem(sys.modules, "inspect_ai", pkg)
+    monkeypatch.setitem(sys.modules, "inspect_ai.log", log_mod)
+
+
+def test_a_json_log_inspect_ai_refuses_is_read_as_json(tmp_path, monkeypatch):
+    data = json.loads(LOG.read_text(encoding="utf-8"))
+    data["samples"][0]["scores"] = "damaged"
+    path = tmp_path / "log.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    expected = read_inspect(path, with_errors=True)
+    refusing_inspect_ai(monkeypatch)
+    assert read_inspect(path, with_errors=True) == expected
+
+
+def test_a_cut_off_json_log_is_said_as_cut_off_with_inspect_ai(tmp_path, monkeypatch):
+    refusing_inspect_ai(monkeypatch)
+    path = tmp_path / "log.json"
+    path.write_text(LOG.read_text(encoding="utf-8")[:500], encoding="utf-8")
+    with pytest.raises(RecordsError, match="cut off or damaged"):
+        read_inspect(path)
+
+
+@pytest.mark.parametrize("data, said", [({"results": [{"text": "secret"}]}, "not an Inspect AI log"),
+                                        ({"eval": {}, "samples": []}, "the log has no samples")])
+def test_json_that_is_no_inspect_log_is_still_refused_with_inspect_ai(tmp_path, monkeypatch,
+                                                                      data, said):
+    refusing_inspect_ai(monkeypatch)
+    path = tmp_path / "log.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(RecordsError, match=said) as e:
+        read_inspect(path)
+    assert "secret" not in str(e.value)
+
+
+def test_an_eval_log_inspect_ai_refuses_is_said_in_plain_words(tmp_path, monkeypatch):
+    refusing_inspect_ai(monkeypatch)
+    path = tmp_path / "log.eval"
+    path.write_bytes(b"PK\x03\x04 not a real archive")
+    with pytest.raises(RecordsError, match="may be cut short, or not an Inspect AI log"):
         read_inspect(path)
 
 

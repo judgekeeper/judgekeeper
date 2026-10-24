@@ -19,3 +19,11 @@ What the real log shows: `eval.scorers[0].options` is `{}`, and `score.metadata.
 the rendered grading prompt with each sample's question and answer in it, so it must not be
 hashed. The reader hashes the scorer's template and instructions, or Inspect's default for the
 scorer when they are unset. Expected numbers: `tests/test_import_real.py`.
+
+## Older logs
+
+`old/inspect-0.3.2.json` and `old/inspect-0.3.204.eval` were written by those versions of
+inspect_ai with `make_old_logs.py` (see its docstring): 0.3.2 is the oldest version the
+`inspect` extra allows, 0.3.204 is from April 2026. The answer model and the grader are a
+fixed fake defined in the script, so nothing calls an API. They check that a log written by an
+older inspect_ai is still read when a newer one is installed (`tests/test_import_real.py`).

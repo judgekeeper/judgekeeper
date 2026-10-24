@@ -251,6 +251,7 @@ def inspect_log() -> None:
             "created": "2026-09-30T10:00:00+00:00",
             "task": "qa",
             "task_id": "qa-fixture",
+            "dataset": {"samples": 6, "sample_ids": list(range(1, 7)), "shuffled": False},
             "model": "openai/gpt-4.1",
             "model_generate_config": {},
             "model_roles": {"grader": {"model": "anthropic/claude-haiku-4-5",

@@ -1,7 +1,8 @@
 """Inspect AI: `.eval` or `.json` logs.
 
 With the optional extra (`pip install "judgekeeper[inspect]"`) any log is read with
-`inspect_ai.log.read_eval_log`. Without it `.json` logs are read directly; a `.eval` log is a
+`inspect_ai.log.read_eval_log`. Without it `.json` logs are read directly, and so is a `.json`
+log inspect_ai refuses (a damaged one is then said the same way); a `.eval` log is a
 zip archive, so it needs the extra or `inspect log dump <file> > log.json` first. A `.eval`
 log is read as its header, then one sample at a time (`read_eval_log_samples`), keeping only
 SAMPLE_FIELDS: a log of a million samples fits in memory. An Inspect AI without that function
@@ -168,11 +169,11 @@ def _load(path: Path) -> dict:
                     return _by_sample(path, read_eval_log, read_eval_log_samples)
                 return read_eval_log(str(path)).model_dump(mode="json")
         except Exception:  # noqa: BLE001 - a log cut short, empty or not Inspect's
-            if _eval_part_damaged(path):
-                raise damaged(path, "Inspect AI", EVAL_DAMAGED) from None
-            raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
-                                              "an Inspect AI log") from None
-    if path.suffix.lower() == ".eval":
+            if is_eval:
+                raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
+                                                  "an Inspect AI log") from None
+            # a .json log inspect_ai refuses is read as without it: the same checks and words
+    elif path.suffix.lower() == ".eval":
         raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path, get=get_extra("inspect")))
     return load_json(path, "Inspect AI")
 
@@ -180,34 +181,26 @@ def _load(path: Path) -> dict:
 EVAL_DAMAGED = "can't be read: its eval part is damaged"
 
 
-def _eval_part_damaged(path: Path) -> bool:
-    """A JSON log whose "eval" is there but is not an object."""
-    if path.suffix.lower() != ".json":
-        return False
-    try:
-        data = load_json(path, "Inspect AI")
-    except RecordsError:
-        return False
-    return isinstance(data, dict) and "eval" in data and not isinstance(data["eval"], dict)
-
-
 def eval_header(path: str | Path) -> dict:
     """The log's `eval` part (task_file, model, model_roles, ...), or {} when it cannot be
-    read. With inspect_ai, only the header is read; without it, a .json log as JSON."""
+    read. With inspect_ai, only the header is read; without it, or when it refuses a .json log,
+    a .json log as JSON."""
     path = Path(path)
     try:
         from inspect_ai.log import read_eval_log
     except ImportError:
         read_eval_log = None
+    spec = None
     if read_eval_log is not None:
         try:
             with quiet():
                 spec = read_eval_log(str(path), header_only=True).eval.model_dump(mode="json")
         except Exception:  # noqa: BLE001 - Inspect's own errors: the header only shapes advice
-            return {}
+            if path.suffix.lower() == ".eval":
+                return {}
     elif path.suffix.lower() == ".eval":
         return {}
-    else:
+    if spec is None:
         try:
             spec = read_json(path, RecordsError).get("eval")
         except (OSError, ValueError, AttributeError, RecordsError):
