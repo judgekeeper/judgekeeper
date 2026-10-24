@@ -322,14 +322,15 @@ DEMO = [["Can I return a lamp after 60 days?",
          "replacement."), "fail"],
         ["Do you ship to Canada?",
          "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]
-STEPS = [("find", "Find", "Finds your eval results and the judge that graded them."),
-         ("mark", "Mark", "You mark answers Pass or Fail in your browser."),
+STEPS = [("find", "Find", "Finds your eval results and the LLM-as-a-judge that graded them."),
+         ("mark", "Mark",
+          "You mark answers Pass or Fail in your browser, the way you would grade them."),
          ("measure", "Measure",
-          "Shows how often your judge agrees with you, and where it goes wrong."),
+          "Shows how often your LLM-as-a-judge agrees with you, and where it goes wrong."),
          ("fix", "Fix",
-          ("If your judge needs work, write a better rule. For promptfoo, DeepEval, Inspect AI "
-          "and MLflow, test it on marks kept aside.")),
-         ("check", "Re-check", "After you change your judge, see if it still agrees with you.")]
+          "If your LLM-as-a-judge needs work, write a better rule and test it on marks kept aside."),
+         ("check", "Re-check",
+          "After you change your LLM-as-a-judge, see if it still agrees with you.")]
 
 
 def _main(page: Path) -> Element:
@@ -348,6 +349,7 @@ def test_the_demo_card_keeps_one_height():
     lock = JS[JS.index("function lockHeight("):]
     lock = lock[:lock.index("\n    }\n")]
     assert "items.forEach" in lock and 'classList.add("is-end")' in lock
+    assert "fillList(" in lock  # the end card is measured with its list filled
     assert 'card.style.minHeight = tallest + "px"' in lock
     assert 'addEventListener("resize"' in JS and "document.fonts.ready.then(lockHeight)" in JS
     # the room the card gets sits under the answer, or around the end card
@@ -377,8 +379,8 @@ def test_the_demo_card_is_drawn_like_the_marking_page():
     demo = _by_id(HOME, "demo")
     assert demo.attrs.get("aria-label") == "Live demo of the marking page"
     labels = [_flat(el) for el in demo.iter() if "jk-label" in el.classes()]
-    assert labels == ["Question", "Answer"]
-    assert _flat(_by_id(HOME, "d-state")) == "Not marked yet"
+    assert labels == ["Question", "Answer", "Your result"]
+    assert _flat(_by_id(HOME, "d-state")) == "0 of 4 marked"
     assert _by_id(HOME, "d-state").attrs.get("aria-live") == "polite"
     assert [_flat(_by_id(HOME, i)) for i in ("d-fail", "d-pass", "d-skip", "d-undo")] == [
         "Fail ←", "Pass →", "Skip this one S", "Undo Z"]
@@ -387,16 +389,40 @@ def test_the_demo_card_is_drawn_like_the_marking_page():
     data = _by_id(HOME, "demo-items")
     assert data.tag == "script" and data.attrs.get("type") == "application/json"
     assert json.loads(data.text()) == DEMO
+    # The end card reads like a result: the label and "Try again" on top, the result line,
+    # one row per answer (your mark, the LLM-as-a-judge's grade), the button alone below.
     end = _by_id(HOME, "d-end")
-    assert _flat(_all(end, "h2")[0]) == "You marked every answer."
-    (go,) = _all(end, "a", "jk-go")
+    (top,) = _all(end, "div", "jk-end-top")
+    assert [c.attrs.get("id") or _flat(c) for c in top.children if not isinstance(c, str)] == [
+        "Your result", "d-again"]
+    (sum_line,) = _all(end, "h2")
+    assert sum_line.attrs.get("id") == "d-sum" and _flat(sum_line) == ""
+    (rows,) = _all(end, "ul", "jk-end-list")
+    assert rows.attrs.get("id") == "d-list"
+    assert rows.attrs.get("aria-label") == "Your marks and the LLM-as-a-judge's grades"
+    (actions,) = _all(end, "div", "jk-end-actions")
+    (go,) = _all(actions, "a", "jk-go")
     assert (go.attrs["href"], _flat(go)) == ("start.html", "Check your own LLM-as-a-judge")
+    assert [c for c in actions.children if not isinstance(c, str)] == [go]
     assert _flat(_by_id(HOME, "d-again")) == "↻ Try again"
-    for words in ('"Marked "', '"Skipped"', '"Not marked yet"',
-                  '"You and your judge disagreed on "', '" of "',
-                  '"You and your judge agreed on all "', 'ArrowLeft: "fail"',
-                  'ArrowRight: "pass"'):
+    for words in ('"Marked "', '"Skipped · "', '" of "', '" marked"',
+                  '"You and your LLM-as-a-judge disagreed on "',
+                  '"You and your LLM-as-a-judge agreed on all "', '"LLM-as-a-judge"',
+                  'ArrowLeft: "fail"', 'ArrowRight: "pass"'):
         assert words in JS, words
+    for gone in ('"Not marked yet"', '"Skipped"', "your judge"):
+        assert gone not in JS, gone
+    # the count sits in a small pill; the result line keeps to one line on a desktop
+    state = _rule(".jk-state")
+    for wanted in ("border-radius: 999px", "font-variant-numeric: tabular-nums",
+                   "font-size: 12.5px", "color: var(--fg)"):
+        assert wanted in state, wanted
+    assert "align-self: flex-start" in _rule(".jk-row-q .jk-state")
+    assert "margin-bottom: 22px" in _rule(".jk-end-top")
+    assert "font-size: clamp(16px, 1.6vw, 20px)" in _rule(".jk-end-head h2")
+    assert "white-space: nowrap" in _rule(".jk-end-head h2 .mono")
+    assert "@media (min-width: 1000px) { .jk-end-head h2 { white-space: nowrap; } }" in CSS
+    assert "justify-content: center" in _rule(".jk-end-actions")
     # the judge's grade stays hidden while you mark, as on the real page
     assert "Your judge said" not in JS
     sizes = {"jk-question": "font-size: 26px", "jk-answer": "font-size: 20px",
@@ -717,14 +743,16 @@ TOOLS = "For promptfoo, DeepEval, Inspect AI and MLflow"
 
 
 def test_testing_a_new_rule_is_said_only_for_the_tools_fix_can_ask():
-    """fix can't ask a judge in your own file or record() (fix.can_test): the site says what to
-    do instead, and never that every judge's rule is tested on marks kept aside."""
+    """fix can't ask a judge in your own file or record() (fix.can_test): the Guide says what
+    to do instead. Home's step list says "test it on marks kept aside" without the tool names;
+    the limit is said where the detail lives (the Guide's Fix step, the meta description)."""
     assert set(fix.SWAPPABLE) == {"promptfoo", "deepeval", "inspect", "mlflow"}
     meta = [el.attrs["content"] for el in parse(HOME).iter()
             if el.tag == "meta" and "description" in el.attrs.get("name", "")
             + el.attrs.get("property", "")]
     assert len(meta) == 3 and all(TOOLS in m and "on your own computer" in m for m in meta)
-    assert TOOLS + ", test it on marks kept aside." in _flat(_by_id(HOME, "tab-fix"))
+    assert "test it on marks kept aside." in _flat(_by_id(HOME, "tab-fix"))
+    assert "promptfoo" not in _flat(_by_id(HOME, "tab-fix"))
     step = _flat(_by_id(GUIDE, "step-fix"))
     assert "promptfoo, DeepEval, Inspect AI or MLflow: write your new rule" in step
     assert ("Your own CSV or JSONL file, or judgekeeper.record(): "

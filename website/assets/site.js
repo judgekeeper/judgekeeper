@@ -56,8 +56,8 @@
     });
   }
 
-  /* The demo works like the marking page: the judge's grade stays hidden while you mark, and
-     the end card says how often you and the judge disagreed. */
+  /* The demo works like the marking page: the LLM-as-a-judge's grade stays hidden while you
+     mark, and the end card shows, answer by answer, where you and it disagreed. */
   function setUpDemo() {
     var card = $("demo");
     if (!card) return;
@@ -95,20 +95,42 @@
         line.appendChild(document.createTextNode("Marked "));
         line.appendChild(make("b", s === "pass" ? "p" : "f", s === "pass" ? "Pass" : "Fail"));
       } else {
-        line.textContent = s === "skip" ? "Skipped" : "Not marked yet";
+        var done = state.filter(function (x) { return x === "pass" || x === "fail"; }).length;
+        line.textContent = (s === "skip" ? "Skipped · " : "") + done + " of " + items.length + " marked";
       }
+    }
+    /* One row per answer on the end card: the question, your mark and the LLM-as-a-judge's
+       grade, with a red dot where the two differ. */
+    function fillList(marks) {
+      var list = $("d-list"), head = make("li", "head", "");
+      list.textContent = "";
+      head.appendChild(make("span", "", ""));
+      head.appendChild(make("span", "", "Question"));
+      head.appendChild(make("span", "g", "You"));
+      head.appendChild(make("span", "g", "LLM-as-a-judge"));
+      list.appendChild(head);
+      items.forEach(function (item, i) {
+        var you = marks[i], judge = item[2], li = make("li", you === judge ? "agree" : "differ", "");
+        li.appendChild(make("span", "dot", ""));
+        li.appendChild(make("span", "q", item[0]));
+        li.appendChild(make("b", "g " + (you === "pass" ? "p" : "f"), you === "pass" ? "Pass" : "Fail"));
+        li.appendChild(make("b", "g " + (judge === "pass" ? "p" : "f"), judge === "pass" ? "Pass" : "Fail"));
+        list.appendChild(li);
+      });
     }
     function finish() {
       var n = 0;
       items.forEach(function (item, i) { if (state[i] !== item[2]) n += 1; });
       var sum = $("d-sum");
       sum.textContent = "";
-      var parts = n ? ["You and your judge disagreed on ", [n], " of ", [items.length], "."]
-        : ["You and your judge agreed on all ", [items.length], "."];
+      var parts = n ? ["You and your LLM-as-a-judge disagreed on ", [n], " of ", [items.length], "."]
+        : ["You and your LLM-as-a-judge agreed on all ", [items.length], "."];
       parts.forEach(function (part) {
         sum.appendChild(typeof part === "string" ? document.createTextNode(part)
           : make("span", "mono", String(part[0])));
       });
+      sum.classList.toggle("ok", !n);
+      fillList(state);
       card.classList.add("is-end");
     }
     function mark(kind) {
@@ -140,7 +162,8 @@
         $("d-a").textContent = item[1];
         tallest = Math.max(tallest, card.offsetHeight);
       });
-      sum.textContent = "You and your judge disagreed on " + items.length + " of " + items.length + ".";
+      sum.textContent = "You and your LLM-as-a-judge disagreed on " + items.length + " of " + items.length + ".";
+      fillList(items.map(function (item) { return item[2] === "pass" ? "fail" : "pass"; }));
       card.classList.add("is-end");
       tallest = Math.max(tallest, card.offsetHeight);
       sum.textContent = said;
