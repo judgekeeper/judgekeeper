@@ -558,12 +558,12 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
 
 
 def _groups(c: dict, fixing: dict | None, live: bool = False,
-            mark: str | None = None) -> str:
+            mark: str | None = None, fix: str | None = None) -> str:
     """The disagreements on the marks the person can see, in two groups, each saying in its
     title how many more are among the hidden marks. On the live page, a line first: add a
-    reason. In report.html, which can't save one, a line last: to say why, run `mark` (`mark`:
-    the command)."""
-    from judgekeeper.start_label import SAY_WHY_RUN
+    reason. In report.html, which can't save one, two lines last: to say why, run `mark`, and
+    `fix` uses the reasons (`mark`, `fix`: the commands)."""
+    from judgekeeper.start_label import SAY_WHY_FIX, SAY_WHY_RUN
 
     mistakes = (fixing or {}).get("mistakes") or []
     parts, own = (fixing or {}).get("parts") or [], (fixing or {}).get("own") or []
@@ -578,8 +578,9 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
             out.append(_group(key, said, "passed" if judge == "pass" else "failed", rows,
                               live, parts, own, hidden))
     if mistakes and not live and mark:
-        out.append(f'<div class="band"><p class="add-why">'
-                   f"{_code_line(SAY_WHY_RUN.format(command=mark))}</p></div>")
+        tell = SAY_WHY_RUN.format(n=c["strict"] + c["easy"], command=mark)
+        uses = f'<p class="add-why">{_code_line(SAY_WHY_FIX.format(fix=fix))}</p>' if fix else ""
+        out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p>{uses}</div>')
     return "".join(out)
 
 
@@ -681,7 +682,8 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     live = back is not None
     if shows_disagreements(r):  # real numbers: the disagreements and the estimates
         mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out
-        parts += [_groups(c, fixing, live, mark), _details(r)]
+        fix = None if next_step(r) == "mark" else commands(r)["fix"]  # never while too early
+        parts += [_groups(c, fixing, live, mark, fix), _details(r)]
     if level == "not_gate" and not worse:
         parts.append(_fix(r))
     meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'

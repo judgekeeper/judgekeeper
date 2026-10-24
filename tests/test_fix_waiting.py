@@ -68,8 +68,8 @@ def test_a_waiting_rule_test_shows_why_and_the_clues(fixing, capsys, clear):
     ws = _waiting_top_up(root, holder, capsys, clear)
     code, out, flat = _run(capsys)
     assert code == 0, out
-    assert flat.index(WAITING) < flat.index("Your reasons: it has a wrong fact (1)")
-    assert "Clues:" in out and ".judgekeeper/fix/mistakes.md" in flat
+    assert flat.index(WAITING) < flat.index("Your reasons for your LLM-as-a-judge's mistakes: it has a wrong fact (1)")
+    assert "Where your LLM-as-a-judge goes wrong:" in out and ".judgekeeper/fix/mistakes.md" in flat
     assert "Your judge's rule is in promptfooconfig.yaml" in flat
     assert "kept aside to test your new rule fairly" in flat
     assert "Your new rule is waiting" not in flat  # no new rule in rule.txt
@@ -88,7 +88,7 @@ def test_a_different_rule_while_a_test_waits_is_named_after_the_clues(fixing, ca
     _write_rule(ws, "Another rule.")
     code, out, flat = _run(capsys)
     assert code == 0 and "testing your new rule" not in flat, out
-    assert flat.index(WAITING) < flat.index("Clues:") < flat.index(
+    assert flat.index(WAITING) < flat.index("Where your LLM-as-a-judge goes wrong:") < flat.index(
         f"Your new rule is waiting: first mark {more} more answers")
     assert assert_one_next_at_the_end(out) == NEXT_ALL_MARKED
     assert holder["evals"] == 2
@@ -106,7 +106,7 @@ def test_a_judge_fix_cant_ask_shows_its_clues_not_the_wait(fixing, capsys):
     ws.start.write_text(json.dumps(data), encoding="utf-8")
     code, out, flat = _run(capsys)
     assert code == 3, out
-    assert WAITING not in flat and "Clues:" in out
-    assert "Your reasons: it has a wrong fact (1)" in flat
+    assert WAITING not in flat and "Where your LLM-as-a-judge goes wrong:" in out
+    assert "Your reasons for your LLM-as-a-judge's mistakes: it has a wrong fact (1)" in flat
     assert fix.CANT_ASK in flat
     assert assert_one_next_at_the_end(out).startswith("Next: change its rule where your eval")

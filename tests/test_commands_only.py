@@ -88,7 +88,7 @@ def test_a_whole_run_changes_nothing_outside_judgekeeper(here, capsys, judge):  
     before = _tree(here)
     code, out, _ = _cli(capsys, "check", "--yes")
     assert code == 1, out
-    assert "asks your new judge about" in out and "Re-checked on all 50 of your marks:" in out
+    assert "will have your new LLM-as-a-judge grade" in out and "Agreed with you:" in out
     assert _tree(here) == before
     assert not (here / ".claude" / "settings.local.json").exists()
     assert not (here / ".cursor" / "hooks.json").exists()

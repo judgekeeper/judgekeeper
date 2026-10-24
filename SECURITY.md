@@ -36,8 +36,9 @@ back within a week.
 - judgekeeper reads results only inside your project: a `judgekeeper.toml` that names a file
   outside it is refused.
 - The browser check on the website (`check.html`) reads the file you give it inside the page:
-  its script makes no request, and the page's Content-Security-Policy (`connect-src 'none'`)
-  blocks every connection, so the file never leaves your computer.
+  its script sends nothing, and the page's Content-Security-Policy (`connect-src 'none'`)
+  blocks every connection, so the file never leaves your computer. The only thing it loads is
+  an example file from the same site, when you click one.
 - `judgekeeper` has no runtime dependencies. The optional extras (`inspect`, `mlflow`)
   are the platform SDKs.
 

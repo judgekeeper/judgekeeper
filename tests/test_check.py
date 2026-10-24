@@ -213,24 +213,23 @@ def test_a_store_folder_is_seen_to_change_deep_inside(tmp_path):
 
 # check: free first ---------------------------------------------------------------------------
 
+TABLE_HEAD = "Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge"
 SCENE_6 = [
     "Step 5 of 5: Re-check",
     "",
-    f"Your judge changed: model {MODEL} -> {HAIKU}.",
+    "Your LLM-as-a-judge's model changed:",
+    f"  {MODEL} -> {HAIKU}",
     "Re-checked with no AI call, from your new results.",
     "",
-    "Re-checked on all 50 of your marks:",
+    "Result: worse. Your new LLM-as-a-judge agrees with you less.",
     "",
-    "  You passed 25 answers. Your old judge agreed with you on 25,",
-    "  your new judge on 25.",
-    "    No drop bigger than 20 points: none went from right to",
-    "    wrong, none from wrong to right.",
-    "    These marks can't rule out a drop of up to 10 points.",
+    TABLE_HEAD,
+    "  When you said Pass    25 of 25             25 of 25             No big drop",
+    "  When you said Fail    25 of 25             16 of 25             Worse",
     "",
-    "  You failed 25 answers. Your old judge agreed with you on 25,",
-    "  your new judge on 16.",
-    "    Worse: 9 answers went from right to wrong, and none from wrong to right.",
-    "    That is about 36 points lower (between 22 and 52).",
+    "On answers you pass, agreement drops by no more than 10 in every 100.",
+    "On answers you fail, agreement drops by about 36 in every 100",
+    "(somewhere between 22 and 52).",
     "",
 ]
 
@@ -243,10 +242,10 @@ def test_a_model_change_rechecked_free(here, capsys, no_calls):
     lines = out.splitlines()
     start_at = lines.index(SCENE_6[0])
     assert lines[start_at:start_at + len(SCENE_6)] == SCENE_6
-    for gone in ("can see a drop", "No drop seen", "%"):  # counts only on this screen
-        assert gone not in out, gone
-    assert _next(out) == ("Next: go back to the old judge, or change your judge and run "
-                          "`judgekeeper check` again.")
+    for gone in ("can see a drop", "No drop seen", "%", "points", "right to wrong"):
+        assert gone not in out, gone  # counts only on this screen; the detail is on the report
+    assert _next(out) == ("Next: go back to your old LLM-as-a-judge, or try another change and "
+                          "run `judgekeeper check` again.")
     saved = judge_setup.read(ws)["setup"]
     assert saved["models"] == [MODEL]  # after "Worse" the old judge stays the reference
 
@@ -256,10 +255,9 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_c
     _results(here, MARKED, model=HAIKU)
     code, out = run(capsys)
     assert code == 0
-    assert ("You failed 25 answers. Your old judge agreed with you on 25, your new judge on "
-            "25.") in _flat(out)
-    assert ("No drop bigger than 20 points: none went from right to wrong, none from wrong to "
-            "right.") in _flat(out)
+    assert "Result: no drop bigger than 20 in every 100 answers for your new LLM-as-a-judge." in out
+    assert "  When you said Fail    25 of 25             25 of 25             No big drop" in out
+    assert "On answers you fail, agreement drops by no more than 10 in every 100." in out
     assert "turned" not in out
     assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
                           "change your judge.")
@@ -282,7 +280,7 @@ def test_a_rule_change(here, capsys, no_calls):
     _results(here, MARKED, rubric="Is polite, correct and short.")
     code, out = run(capsys)
     assert code == 0
-    assert "Your judge changed: rule changed." in out
+    assert "Your LLM-as-a-judge changed: rule changed." in out
 
 
 def test_a_pass_mark_change(here, capsys, no_calls):
@@ -300,7 +298,7 @@ def test_a_pass_mark_change(here, capsys, no_calls):
     _write(here / ".deepeval" / ".latest_run_full.json", data)
     code, out = run(capsys)
     assert code == 0
-    assert "Your judge changed: pass mark 0.5 -> 0.7." in out
+    assert "Your LLM-as-a-judge changed: pass mark 0.5 -> 0.7." in out
 
 
 def test_a_promptfoo_version_bump_only(here, capsys, no_calls):
@@ -308,10 +306,10 @@ def test_a_promptfoo_version_bump_only(here, capsys, no_calls):
     _results(here, MARKED, version="0.125.0")
     code, out = run(capsys)
     assert code == 0
-    assert ("Your eval tool changed: promptfoo 0.124.1 -> 0.125.0. Your judge's rule and model "
+    assert ("Your eval tool changed: promptfoo 0.124.1 -> 0.125.0. Your LLM-as-a-judge's rule and model "
             "are the same.") in _flat(out)
     assert "Re-checked with no AI call, from your new results." in out
-    assert "Re-checked on all 50 of your marks:" in out
+    assert TABLE_HEAD in out
 
 
 def test_an_inspect_version_bump_only(here, capsys, no_calls):
@@ -328,15 +326,14 @@ def test_an_inspect_version_bump_only(here, capsys, no_calls):
     _write(here / "logs" / "a.json", log)
     code, out = run(capsys)
     assert code == 0
-    assert ("Your eval tool changed: Inspect AI 0.3.278 -> 0.3.280. Your judge's rule and "
+    assert ("Your eval tool changed: Inspect AI 0.3.278 -> 0.3.280. Your LLM-as-a-judge's rule and "
             "model are the same.") in _flat(out)
 
 
 # check: asking the judge, only after a yes -----------------------------------------------------
 
-ASK = ("To re-check, judgekeeper asks your new judge about your 50 marked answers, twice each. "
-       "That is 100 AI calls, paid with your own key. Asking twice shows how much the judge "
-       "varies by itself.")
+ASK = ("judgekeeper will have your new LLM-as-a-judge grade your 50 marked answers, twice each: "
+       "100 AI calls, paid with your own key.")
 
 
 @pytest.fixture
@@ -375,9 +372,9 @@ def test_with_yes_the_rest_is_asked_again(here, capsys, judge):
     _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
     code, out = run(capsys, "--yes")
     assert code == 1
-    assert "Re-checked on all 50 of your marks:" in out
+    assert TABLE_HEAD in out
     assert "Re-checked for free" not in out
-    assert "Worse: 9 answers went from right to wrong, and none from wrong to right." in _flat(out)
+    assert "  When you said Fail    25 of 25             16 of 25             Worse" in out
     assert _evals(judge) == 1
     tests = judge["fake"].files_seen["tests"]
     assert len(tests) == 50
@@ -425,8 +422,8 @@ def test_some_free_and_a_no_tests_the_free_ones(here, capsys, judge, terminal):
     _results(here, MARKED, model=HAIKU, outputs=outputs)
     code, out = run(capsys)
     assert code == 0
-    assert ("judgekeeper asks your new judge about the other 10 marked answers, twice each. That "
-            "is 20 AI calls") in _flat(out)
+    assert ("judgekeeper will have your new LLM-as-a-judge grade the other 10 marked answers, "
+            "twice each: 20 AI calls") in _flat(out)
     assert "Re-checked on 40 of your 50 marks:" in out
 
 
@@ -445,7 +442,7 @@ def test_free_first_then_asked(here, capsys, judge):
     _results(here, MARKED, model=HAIKU, outputs=outputs)
     code, out = run(capsys, "--yes")
     assert code == 0
-    assert "Re-checked on all 50 of your marks:" in out
+    assert TABLE_HEAD in out
     assert len(judge["fake"].files_seen["tests"]) == 25
 
 
@@ -476,8 +473,9 @@ def test_the_next_check_compares_with_the_last_checks_verdicts(here, capsys, no_
     _results(here, LENIENT, model="anthropic:claude-sonnet-5")
     code, out = run(capsys)
     assert code == 1  # against the last check's verdicts (all agreed): 9 new mistakes
-    assert "Your old judge agreed with you on 25, your new judge on 16." in _flat(out)
-    assert f"Your judge changed: model {HAIKU} -> anthropic:claude-sonnet-5." in _flat(out)
+    assert "When you said Fail 25 of 25 16 of 25 Worse" in _flat(out)
+    assert (f"Your LLM-as-a-judge's model changed: {HAIKU} -> anthropic:claude-sonnet-5"
+            in _flat(out))
 
 
 # History and saved verdicts -------------------------------------------------------------------

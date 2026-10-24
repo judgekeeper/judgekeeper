@@ -406,29 +406,29 @@ def clue_lines(rows: list[dict]) -> list[str]:
     counts, names = tally(rows), _names(rows)
     out = []
     if counts:
-        out.append("Your reasons: " + ", ".join(f"{names[k]} ({counts[k]})"
-                                                for k in _order(counts)) + ".")
+        out.append("Your reasons for your LLM-as-a-judge's mistakes: "
+                   + ", ".join(f"{names[k]} ({counts[k]})" for k in _order(counts)) + ".")
     if counts["rule_silent"] >= TWICE:
-        out.append("Your rule may be missing something: write in it how to judge these "
-                   "answers.")
+        out.append("Your LLM-as-a-judge's rule may be missing something: write in it how to "
+                   "judge these answers.")
     if sum("wrong_fact" in (r.get("reasons") or []) for r in rows
            if r.get("judge") == "pass") >= TWICE:
-        out.append("Your judge misses wrong facts: say in the rule that one wrong fact is a "
-                   "Fail.")
+        out.append("Your LLM-as-a-judge says Pass on answers with wrong facts: say in the rule "
+                   "that one wrong fact is a Fail.")
     parts = Counter((n, text) for r in rows for n, text in r.get("parts") or [])
     for (n, text), k in sorted(parts.items(), key=lambda x: (-x[1], x[0][0])):
         if k >= TWICE:
-            out.append(f"Your marks say your judge misses rule part {n}, '{one_line(text)}' "
-                       f"({k}).")
+            out.append(f"Your marks say your LLM-as-a-judge misses rule part {n}, "
+                       f"'{one_line(text)}' ({k}).")
     yes, no = mentioned(rows)
     if no:
-        out.append(f"Your judge didn't mention the part you marked in {no} of {yes + no} "
-                   "answers: it seems to miss these problems. A clearer rule may help, or a "
-                   "stronger model.")
+        out.append(f"Your LLM-as-a-judge didn't mention the part you marked in {no} of "
+                   f"{yes + no} answers: it seems to miss these problems. A clearer rule may "
+                   "help, or a stronger model.")
     if yes:
-        out.append(f"In {plural(yes, 'answer')} your judge mentioned the part you marked but "
-                   f"still passed {'it' if yes == 1 else 'them'}: your rule seems to allow "
-                   "this. Say in the rule that it's a Fail.")
+        out.append(f"In {plural(yes, 'answer')} your LLM-as-a-judge mentioned the part you "
+                   "marked but still said Pass: your rule seems to allow this. Say in the rule "
+                   "that it's a Fail.")
     unsure = sum(UNSURE in (r.get("reasons") or []) for r in rows)
     if unsure:
         out.append(f"You weren't sure about {unsure} of your marks: they're listed last in "

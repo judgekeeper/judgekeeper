@@ -17,8 +17,9 @@ What a stranger does, with nobody at the keyboard and no API key:
    to a fake judge this script serves on 127.0.0.1: an OpenAI-compatible API and Ollama's own,
    which pass questions 1 to 28 and fail 29 to 50, so the numbers are known.
 4. The way a person goes: `judgekeeper` (the first look and the page in the background; with
-   `--no-browser` its link is printed), every answer marked on the page (25 Pass, 25 Fail),
-   `judgekeeper` again for the result, `judgekeeper --stop`, `judgekeeper fix` (and for a
+   `--no-browser` its link is printed), every answer marked on the page (25 Pass, 25 Fail:
+   against the judge on 9 of 50), `judgekeeper` again for the result ("too early to tell",
+   exit 3: run the eval on more questions), `judgekeeper --stop`, `judgekeeper fix` (and for a
    judge whose rule it can swap, a new rule tested with `fix --yes`); then the new rule put in
    the tool's own file and the tool run again, and `check --yes` (the re-check on the marks;
    --yes answers its question about judge calls, as there is no terminal) and that the report
@@ -639,8 +640,9 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
     def mark_path(self):
         """`judgekeeper` finds the judge, checks it and opens the page in the background (its
         link printed: no browser, no terminal); the stand-in person marks on it; `judgekeeper`
-        then prints the result; `--stop` closes the page. For a file in your own format the
-        first run maps it (answers given by --yes) and goes on: it is the first look."""
+        then prints the result (too early to tell: exit 3); `--stop` closes the page. For a
+        file in your own format the first run maps it (answers given by --yes) and goes on: it
+        is the first look."""
         decisions = (rf"Your judge passed {len(JUDGE_PASSES)} answers and failed "
                      rf"{N - len(JUDGE_PASSES)}\.")
         # Started by uvx, a Next: line that names a command names `uvx judgekeeper@<version>`
@@ -665,11 +667,16 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         except Exception as e:  # noqa: BLE001 - any failure is this step's failure
             ok, detail = False, f"({type(e).__name__}: {e})"
         self.step("2. the stand-in person marks every answer on the page", ok, detail)
-        self.mark_step("2. judgekeeper prints the result", self.front(),
-                       [r"Result: ",
+        # Every answer is marked and 50 is too few to tell: the new answers come from the
+        # eval (exit 3, and the line may wrap).
+        more = (r"Next:\s+run\s+your\s+eval\s+on\s+more\s+questions,\s+then\s+run\s+"
+                r"`[^`]*judgekeeper(@\S+)?\s+mark`:\s+the\s+new\s+answers\s+join\s+the\s+"
+                r"ones\s+you\s+marked\.")
+        self.mark_step("2. judgekeeper prints the result: too early to tell", self.front(),
+                       [r"Result: too early to tell\.",
                         r"You passed \d+ answers\. Of those, your judge passed",
                         r"You failed \d+ answers\. Of those, your judge passed",
-                        r"Step 3 of 5: Measure", *uvx])
+                        r"Step 3 of 5: Measure", more, *uvx], ok_codes=(3,))
         self.mark_step("2. judgekeeper --stop closes the page", [*self.jk, "--stop"],
                        [r"Closed the marking page"])
 
@@ -677,9 +684,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         """The new rule is in the results: `check --yes` re-tests it on the marks, and the
         report holds the check."""
         self.run("3. check re-tests the new judge on the marks", [*self.jk, "check", "--yes"],
-                 expect=[r"Re-checked on (all 50 of your marks|\d+ of your 50 marks):",
-                         r"You passed \d+ answers\. Your old judge agreed with you on",
-                         r"You failed \d+ answers\. Your old judge agreed with you on"])
+                 expect=[r"Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge",
+                         r"  When you said Pass    \d+ of \d+", r"  When you said Fail    \d+ of \d+"])
         report = self.project / ".judgekeeper" / "report.html"
         try:
             html = report.read_text(encoding="utf-8")
@@ -687,10 +693,10 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             html = ""
         self.step("3. report.html is there after the check", 'id="verdict-h"' in html)
 
-    def mark_step(self, name: str, args, expect, env=None):
+    def mark_step(self, name: str, args, expect, env=None, ok_codes=(0,)):
         """A step that opens or closes the page; when it fails, what the page's own process
         wrote to .judgekeeper/page.log, and whether its lock is still there."""
-        p = self.run(name, args, expect=expect, env=env)
+        p = self.run(name, args, ok_codes=ok_codes, expect=expect, env=env)
         if self.steps and not self.steps[-1][1]:
             folder = self.project / ".judgekeeper"
             try:
@@ -718,7 +724,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         self.run("2. judgekeeper fix: where your judge goes wrong", [*self.jk, "fix"],
                  ok_codes=(0,) if swap else (3,),
                  expect=[r"Step 4 of 5: Fix", r"mistakes\.md",
-                         *([] if swap else [r"can't test a new rule"])])
+                         *([] if swap else [r"can't ask this judge itself"])])
         if not swap:
             return
         rule = self.project / ".judgekeeper" / "fix" / "rule.txt"
@@ -728,7 +734,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         before = len(judge.calls) if judge else 0
         self.run("2. judgekeeper fix --yes: the new rule tested on the marks kept aside",
                  [*self.jk, "fix", "--yes"],
-                 expect=[r"Tested on the \d+ marks kept aside", r"Result: "])
+                 expect=[r"tested on the \d+ marks kept aside", r"Result: "])
         if judge:
             made = len(judge.calls) - before
             self.step("2. the judge was asked with the old and the new rule", made > 0,

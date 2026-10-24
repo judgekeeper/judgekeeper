@@ -62,7 +62,7 @@ FIRST = [
     "Answers:     40 answers",
     "Judge:       openai:gpt-4.1-mini",
     f'Judge rule:  "{RULE}"',
-    "Read from your file:",
+    "judgekeeper has read from your file:",
     "  question   each test's vars",
     "  answer     each test's output",
     "  grade      your judge's Pass or Fail",
@@ -321,7 +321,8 @@ def test_the_result_is_step_3_and_speaks_to_the_person(here, capsys):
     code, lines = screen(capsys)
     assert code == 0
     assert lines[2:4] == ["Step 3 of 5: Measure", ""]
-    assert "The marking page is still open if you want to mark more answers." in lines
+    assert ("The marking page is still open. Mark more answers to make these ranges narrower, "
+            "so the numbers are more certain.") in " ".join(lines)
     assert lines[-2:] == ["Next: nothing to do. When you change your judge or update your",
                           "eval tool, run `judgekeeper check`."]
 
@@ -346,7 +347,7 @@ def test_a_switch_to_another_eval_tool_gives_no_check_verdict(here, capsys):
         "",
         "Next: run `judgekeeper` to start fresh with DeepEval.",
     ]
-    for word in ("Worse", "No drop", "Re-checked on"):
+    for word in ("Worse", "No big drop", "Agreed with you"):
         assert word not in "\n".join(lines), word
 
 

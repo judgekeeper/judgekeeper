@@ -97,8 +97,8 @@ def test_a_later_batch_marked_in_two_sittings_gets_the_same_share_kept_aside(her
 
 # after "Worse", a waiting batch keeps one way out ----------------------------------------
 
-NEXT_WORSE_TABLE = ("Next: go back to your old judge, or change its rule; then run your eval "
-                    "and `judgekeeper check`.")
+NEXT_WORSE_TABLE = ("Next: go back to your old LLM-as-a-judge, or change its rule; then run "
+                    "your eval and `judgekeeper check`.")
 
 
 def _truth(i: int) -> bool:

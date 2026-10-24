@@ -125,8 +125,8 @@ def test_then_judgekeeper_reads_it_without_a_question(tmp_path, capsys, terminal
     fresh(tmp_path)
     code, out = check(capsys, tmp_path)
     assert code == 0 and len(asked) == before
-    assert ("Read from your file: question prompt answer A.output and B.output"
-            in " ".join(out.split()))
+    assert ("judgekeeper has read from your file: question prompt answer A.output and "
+            "B.output") in " ".join(out.split())
     code, out = check(capsys, tmp_path)  # marking started: straight to marking
     assert code == 0 and len(asked) == before
     assert "Step 2 of 5: Mark" in out

@@ -186,4 +186,6 @@ So with 100 marks, whether you get a verdict yet depends on which answers you we
 
 Every CSV, text and JSON file here starts with the same header: the dataset, its revision, the subset and split, and where the grades come from. The report pages carry it as a comment.
 
+Both report pages use 1.0's colours, for easier reading; their numbers and contents are as the runs made them.
+
 Data: JailbreakBench, Chao et al., NeurIPS 2024 Datasets and Benchmarks Track, MIT license, Copyright (c) 2023 JailbreakBench Team. The license and the full citation are in [THIRD_PARTY_NOTICES.md](../../../THIRD_PARTY_NOTICES.md).

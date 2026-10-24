@@ -273,11 +273,11 @@ def test_the_picks_line_says_it_once_and_never_asks_with_nothing_left():
     from judgekeeper import check
 
     p = {"n": 3, "new_marks": 0, "ask": True}
-    assert check.picks_lines(p, every=True) == [
-        "These marks have helped pick 3 changes, so they may now flatter your judge."]
-    assert check.picks_lines(p) == [
-        ("These marks have helped pick 3 changes, so they may now flatter your judge. Mark 10 "
-         "new answers for a fair check.")]
+    warn = ("You've used these marks to choose 3 changes, so they may now make your "
+            "LLM-as-a-judge look better than it is.")
+    assert check.picks_lines(p, every=True) == [warn]
+    assert check.picks_lines(p) == [f"{warn} Mark some new answers."]
+    assert check.picks_lines({"n": 3, "new_marks": 0, "ask": False}) == []
 
 
 # 3. promptfoo through npx -------------------------------------------------------------------
@@ -317,7 +317,7 @@ def test_check_asks_about_the_npx_download_with_the_calls(here, capsys, npx):
     _changed_model(here)
     code, out = _check(capsys)
     assert code == 3, out
-    assert ("That is 100 AI calls, paid with your own key. It also downloads promptfoo 0.124.1 "
+    assert ("twice each: 100 AI calls, paid with your own key. It also downloads promptfoo 0.124.1 "
             "with npx.") in flat(out)
     assert "doesn't download anything" not in out
     assert npx["argv"] == []
@@ -431,8 +431,8 @@ def test_report_after_a_too_early_check_says_how_many_you_disagreed_on(here, cap
 
 # 5. After "Worse" for a table judge, no loop ---------------------------------------------------
 
-NEXT_WORSE_TABLE = ("Next: go back to your old judge, or change its rule; then run your eval "
-                    "and `judgekeeper check`.")
+NEXT_WORSE_TABLE = ("Next: go back to your old LLM-as-a-judge, or change its rule; then run "
+                    "your eval and `judgekeeper check`.")
 
 
 def _truth(i: int) -> bool:
@@ -457,7 +457,7 @@ def test_after_worse_a_table_judge_gets_one_way_out(here, capsys):
     assert "re-check your changed judge" not in out
     assert _next(_check(capsys)[1]) == NEXT_WORSE_TABLE
     report = _report(here)
-    assert ("Go back to your old judge, or change its rule; then run your eval and "
+    assert ("Go back to your old LLM-as-a-judge, or change its rule; then run your eval and "
             "<code>judgekeeper check</code>.") in report
     assert "judgekeeper mark</code>" not in report and 'id="fix-h"' not in report
     _jk(capsys, "fix")
@@ -482,7 +482,7 @@ def test_fix_for_a_table_judge_keeps_nothing_aside(here, capsys):
     assert code == 3, out
     assert "kept aside" not in out
     wrong = sum(old[i] != _truth(i) for i in range(60))
-    assert f"all {wrong} mistakes are saved" in flat(out)
+    assert f"All {wrong} mistakes your LLM-as-a-judge made are saved" in flat(out)
     assert "kept aside" not in _report(here)
 
 
@@ -599,7 +599,7 @@ def test_a_partial_eval_says_how_many_marked_answers_it_holds(here, capsys, no_c
     _rubric(here, split(20, 20), RULE_B)  # then the whole eval
     _, out = _check(capsys)
     assert "You added" not in out, out  # no mark was made since
-    assert "Re-checked on all 40 of your marks:" in out
+    assert "Agreed with you:" in out
 
 
 def test_marks_really_added_since_a_check_are_counted(here, capsys, no_calls):
@@ -614,7 +614,7 @@ def test_marks_really_added_since_a_check_are_counted(here, capsys, no_calls):
     for item in session.items[:40]:
         session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 6})
     _rubric(here, split(25, 25), RULE_B)
-    assert "Re-checked on all 40 of your marks:" in _check(capsys)[1]
+    assert "Agreed with you:" in _check(capsys)[1]
     time.sleep(1.1)  # marks are stamped to the second
     session = Session(ws)
     for item in session.items[40:]:

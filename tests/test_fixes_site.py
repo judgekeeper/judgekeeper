@@ -106,14 +106,14 @@ def test_an_ods_file_is_named_as_a_spreadsheet(tmp_path):
     assert result["message"] == "Spreadsheet files aren't read. Save it as CSV UTF-8."
 
 
-# one answer run three times is "1 different answer" -----------------------------------
+# one answer run three times is "1 answer" ----------------------------------------------
 
-def test_one_answer_run_three_times_is_one_different_answer(tmp_path):
+def test_one_answer_run_three_times_is_one_answer(tmp_path):
     path = _csv(tmp_path / "judged.csv", "input,output,verdict", ["q,a,pass"] * 3)
     (judge,) = browser(path)["judges"]
-    assert "Answers:     1 different answer" in judge["lines"]
+    assert "Answers:     1 answer" in judge["lines"]
     lines = front.found_block(start.find_judge(path))
-    assert "Answers:     1 different answer" in lines
+    assert "Answers:     1 answer" in lines
 
 
 # fields of the wrong type: the same "damaged" call as the tool -------------------------
@@ -243,3 +243,61 @@ def test_every_call_to_the_tested_model_failed_says_what_to_do(tmp_path):
     words = judge_check.MODEL_FAILED_NEXT.split(", then run")[0]  # the page names no flags
     assert f"var MODEL_FAILED_NEXT = '{words}, then run judgekeeper" in page
     assert "fix your judge" not in " ".join(judge["lines"])
+
+
+# repeated answers: the page counts and says them as the tool does ----------------------------
+
+def _repeats(path: Path, times: int = 3, flips=(), extra=()) -> Path:
+    """A promptfoo file of 6 answers (4 Pass, 2 Fail), each run `times` times. `flips` gives
+    the grade of chosen repeats the other way ((answer, run) pairs); `extra` adds one more run
+    of an answer, with the grade given."""
+    from tests.start_projects import promptfoo_data, split
+
+    data = promptfoo_data(split(4, 2))
+    rows = data["results"]["results"]
+
+    def run_of(i: int, run: int, verdict: bool | None = None) -> dict:
+        row = json.loads(json.dumps(rows[i]))
+        row["testIdx"] = 100 * run + i
+        if verdict is not None:
+            row["success"] = row["gradingResult"]["pass"] = verdict
+            row["gradingResult"]["componentResults"][0]["pass"] = verdict
+        return row
+
+    flipped = set(flips)
+    data["results"]["results"] = [
+        run_of(i, run, not rows[i]["success"] if (i, run) in flipped else None)
+        for run in range(times) for i in range(len(rows))] + [
+        run_of(i, times, verdict) for i, verdict in extra]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+ALL = "(your file has 18 results: 6 answers, each run 3 times"
+SAME = "Repeats with the same grade count once."
+UNEVEN = "(your file has 7 results: some answers are in it more than once"
+
+
+@pytest.mark.parametrize("shape, answers, note", [
+    # A real file: 6 prompts run 3 times, one of them graded 1 Pass and 2 Fail
+    ({"flips": [(0, 1), (0, 2)]}, 8,
+     f"{ALL}. {SAME} 1 answer got different grades, so its 3 repeats each count.)"),
+    ({"flips": [(0, 1), (0, 2), (1, 1), (1, 2)]}, 10,
+     f"{ALL}. {SAME} 2 answers got different grades, so their 6 repeats each count.)"),
+    ({}, 6, f"{ALL}, so each counts once.)"),
+    ({"times": 1, "extra": [(0, True)]}, 6, f"{UNEVEN}, so each counts once.)"),
+    ({"times": 1, "extra": [(0, False)]}, 7,
+     f"{UNEVEN}. {SAME} 1 answer got different grades, so its 2 repeats each count.)"),
+])
+def test_the_page_and_the_tool_say_repeated_answers_in_the_same_lines(tmp_path, shape, answers,
+                                                                       note):
+    path = _repeats(tmp_path / "results.json", **shape)
+    (judge,) = browser(path)["judges"]
+    found = start.find_judge(path)
+    expected = [f"Answers:     {answers} answers", f"{front.INDENT}{note}"]
+    for lines in (judge["lines"], front.found_block(found)):
+        at = lines.index(expected[0])
+        assert lines[at:at + 2] == expected, lines
+    # said once, under Answers: no second line about the repeats among the notes
+    for lines in (judge["lines"], front._notes(found)):
+        assert not any("its own answer" in line or "repeats in all" in line for line in lines)

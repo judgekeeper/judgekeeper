@@ -230,7 +230,7 @@ def test_a_table_judge_whose_grades_changed_is_re_checked(here, capsys, no_calls
                           "your marks.")
     _, out, _ = run(capsys, "check")
     assert "Your judge's grades changed on 7 of your marked answers." in flat(out)
-    assert "Re-checked on all 40 of your marks:" in out
+    assert "Agreed with you:" in out
     assert "has not changed" not in out
 
 
@@ -260,12 +260,12 @@ def test_marks_added_after_a_check_are_re_checked(here, capsys, no_calls):
     _mark(Workspace(here), only=range(5, 45))
     _rule_project(here, split(25, 25), RULE_B)
     out = run(capsys, "check")[1]
-    assert "Re-checked on all 40 of your marks:" in out
+    assert "Agreed with you:" in out
     _mark(Workspace(here), only=[*range(5), *range(45, 50)])
     _, out, _ = run(capsys, "check")
     assert "has not changed" not in out, out
     assert "You added 10 marks since your last check." in out
-    assert "Re-checked on all 50 of your marks:" in out
+    assert "Agreed with you:" in out
 
 
 def test_after_a_check_the_result_and_fix_are_about_the_new_judge(here, capsys, no_calls,

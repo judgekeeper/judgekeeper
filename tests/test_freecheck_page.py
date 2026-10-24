@@ -223,8 +223,9 @@ def test_the_next_and_privacy_lines_are_the_pages_own():
             "project folder and mark some answers.';") in code
     assert ("var NEXT_AFTER_ERROR = 'pick another file, or run uvx judgekeeper in your project: "
             "it finds your results by itself.';") in code
-    assert ("Your file never leaves this page: it is read on your computer. Turn off Wi-Fi and "
-            "it still works.") in code
+    assert ("Your file never leaves this page: it is read on your computer. Once the page has "
+            "loaded, it works with Wi-Fi turned off.") in code
+    assert "Turn off Wi-Fi and it still works" not in code
     assert "var MAX_BYTES = 50 * 1024 * 1024;" in code
 
 
@@ -250,7 +251,7 @@ def test_the_page_block_says_what_the_terminal_says(tmp_path):
     lines = judge["lines"]
     assert lines[:3] == ["Eval tool:   your own CSV file", "File:        table.csv",
                          "Answers:     12 answers"]
-    assert "Read from your file:" in lines
+    assert "judgekeeper has read from your file:" in lines
     assert "  grade      the verdict column" in lines
     assert "Your judge passed 8 answers and failed 4." in lines
     assert not any("Read the columns" in x or "grades:" in x or "(read from" in x for x in lines)

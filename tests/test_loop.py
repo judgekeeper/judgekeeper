@@ -118,7 +118,7 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "Answers:     36 answers",
         "Judge:       openai:gpt-4.1-mini",
         'Judge rule:  "Is polite and correct. Second line of the rubric."',
-        "Read from your file:",
+        "judgekeeper has read from your file:",
         "  question   each test's vars",
         "  answer     each test's output",
         "  grade      your judge's Pass or Fail",

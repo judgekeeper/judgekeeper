@@ -202,8 +202,8 @@ def test_report_after_worse_says_the_last_check_at_the_top(here, capsys, monkeyp
     for side in ("Pass", "Fail"):  # the new judge's two numbers, each with its range
         assert re.search(rf"When you say {side}, it also says {side}: about \d+% "
                          rf"\(between \d+% and \d+%\)", said), said
-    assert "Go back to the old judge" in top
-    assert html.count("Go back to the old judge") == 1
+    assert "Go back to your old LLM-as-a-judge" in top
+    assert html.count("Go back to your old LLM-as-a-judge") == 1
     assert "Answers you passed" in html or "agreed on all" in html  # the old judge stays
 
 
@@ -286,7 +286,7 @@ def test_answers_in_an_older_file_too_are_never_run_1_times(here, capsys):
     os.utime(old, (new.stat().st_mtime - 60,) * 2)
     _, out = run(capsys)
     assert "1 times" not in out
-    assert "Answers:     25 different answers" in out
+    assert "Answers:     25 answers" in out
     assert "has 40 results" in flat(out)
 
 
@@ -330,8 +330,9 @@ def test_repeats_with_different_grades_never_say_each_is_counted_once(here, caps
     data["results"]["results"] = rows + extra + [same]
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     _, out = run(capsys)
-    assert "so each is counted once)" not in flat(out), out
-    assert "counted once unless its grades differ" in flat(out)
+    assert "so each counts once.)" not in flat(out), out
+    assert ("Repeats with the same grade count once. 1 answer got different grades, so its 3 "
+            "repeats each count.)") in flat(out)
 
 
 def test_every_judge_column_is_in_what_one_line_holds(here, capsys):

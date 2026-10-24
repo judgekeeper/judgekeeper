@@ -32,7 +32,7 @@ dl { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr)
 dt { color: var(--muted); } dd { margin: 0; min-width: 0; }
 details summary { cursor: pointer; }
 .rationale { white-space: pre-wrap; font-size: 13px; max-height: 12em; overflow: auto; }
-</style></head><body><main><p class="muted">Made with judgekeeper 0.1.2; kept for the record.</p><h1>Judge validation report</h1><p class="muted">anthropic / claude-haiku-4-5-20251001 on llmbar.jsonl (419 pairwise items, 3 runs). Generated 2026-10-04T19:47:18Z by judgekeeper 0.1.2.</p><div class="verdict warn">Usable with care: TPR 0.95, TNR 0.88, kappa 0.83 against human labels. Read the flags below before relying on it.</div><ul class="flags"><li>TNR is 0.88 (between 0.80 and 0.90): usable with care.</li></ul><h2>Headline metrics</h2><p class="muted">Mean over runs, judge vs human labels. Positive class for TPR/TNR is <code>A</code>. TPR is the share of human-positive items the judge also calls positive; TNR the same for negatives.</p><div class="tiles"><div class="tile"><div class="v">0.955</div><div class="ci">95% CI 0.92 to 0.98 (n=206)</div><div class="k">TPR</div></div><div class="tile"><div class="v">0.876</div><div class="ci">95% CI 0.83 to 0.91 (n=213)</div><div class="k">TNR</div></div><div class="tile"><div class="v">0.830</div><div class="k">Cohen&#x27;s kappa</div></div><div class="tile"><div class="v">0.915</div><div class="k">Accuracy</div></div></div><p class="muted">Kappa is chance-corrected agreement with the human labels; TPR and TNR are the numbers to act on.</p><p class="muted">Kappa range across runs: 0.819 to 0.847.</p><div class="scroll"><table><thead><tr><th>Run</th><th>File</th><th class="num">TPR</th><th class="num">TNR</th><th class="num">Kappa</th><th class="num">Accuracy</th><th class="num">Invalid</th><th class="num">Errors</th></tr></thead><tbody><tr><td>1</td><td>run-01.jsonl</td><td class="num">0.951</td><td class="num">0.869</td><td class="num">0.819</td><td class="num">0.909</td><td class="num">0</td><td class="num">0</td></tr><tr><td>2</td><td>run-02.jsonl</td><td class="num">0.961</td><td class="num">0.887</td><td class="num">0.847</td><td class="num">0.924</td><td class="num">0</td><td class="num">0</td></tr><tr><td>3</td><td>run-03.jsonl</td><td class="num">0.951</td><td class="num">0.873</td><td class="num">0.824</td><td class="num">0.912</td><td class="num">0</td><td class="num">0</td></tr></tbody></table></div><h2>Confusion matrix</h2><p class="muted">Majority verdict across runs vs human label. Rows: human. Columns: judge.</p><div class="scroll"><table><thead><tr><th>Human \ Judge</th><th class="num">judge A</th><th class="num">judge other</th></tr></thead><tbody><tr><td>human A</td><td class="num">197 (TP)</td><td class="num">9 (FN)</td></tr><tr><td>human B</td><td class="num">27 (FP)</td><td class="num">186 (TN)</td></tr></tbody></table></div><p class="muted">"Judge other" includes 0 items with no majority or an unparseable verdict. Majority-vote kappa 0.828, TPR 0.956, TNR 0.873.</p><h2>Noise floor</h2><div class="tiles"><div class="tile"><div class="v">3.6%</div><div class="k">Items that flipped</div></div><div class="tile"><div class="v">0.012</div><div class="k">Mean per-item flip rate</div></div><div class="tile"><div class="v">0.952</div><div class="k">Mean run-vs-run kappa</div></div><div class="tile"><div class="v">0.976</div><div class="k">Test-retest agreement</div></div></div><p class="muted">Per-item flip rate is the share of runs that disagree with the item's majority verdict. High test-retest agreement does not mean the judge is right: compare with kappa against humans above.</p><div class="scroll"><table><thead><tr><th>Runs</th><th class="num">Kappa</th><th class="num">Agreement</th></tr></thead><tbody><tr><td>1 vs 2</td><td class="num">0.942</td><td class="num">0.971</td></tr><tr><td>1 vs 3</td><td class="num">0.957</td><td class="num">0.979</td></tr><tr><td>2 vs 3</td><td class="num">0.957</td><td class="num">0.979</td></tr></tbody></table></div><details><summary>15 items that flipped</summary><div class="scroll"><table><thead><tr><th>Item</th><th>Human</th><th>Verdicts by run</th><th>Majority</th><th class="num">Flip rate</th></tr></thead><tbody><tr><td>llmbar-natural-0045</td><td>B</td><td>A, B, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-natural-0069</td><td>B</td><td>B, B, A</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-neighbor-0104</td><td>A</td><td>B, A, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptinst-0006</td><td>B</td><td>A, B, B</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptinst-0050</td><td>B</td><td>A, B, B</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0009</td><td>A</td><td>A, A, B</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0014</td><td>B</td><td>B, A, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0024</td><td>B</td><td>A, A, B</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0025</td><td>A</td><td>B, A, B</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0026</td><td>B</td><td>B, A, B</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0027</td><td>B</td><td>A, B, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-manual-0003</td><td>B</td><td>B, A, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-manual-0016</td><td>B</td><td>A, B, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-manual-0022</td><td>B</td><td>A, B, B</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-manual-0043</td><td>B</td><td>A, B, A</td><td>A</td><td class="num">0.333</td></tr></tbody></table></div></details><h2>Position bias</h2><div class="tiles"><div class="tile"><div class="v">9.9%</div><div class="k">AB/BA verdicts disagree</div></div><div class="tile"><div class="v">0.531</div><div class="k">P(picks first slot)</div></div><div class="tile"><div class="v">0.031</div><div class="k">|P(first) - 0.5|</div></div><div class="tile"><div class="v">0.799</div><div class="k">Kappa, BA order</div></div></div><p class="muted">Each pairwise item is judged twice, once with output A shown first and once with output B shown first. Headline metrics use the AB order.</p><div class="scroll"><table><thead><tr><th>Run</th><th class="num">AB/BA disagree</th><th class="num">P(first)</th><th class="num">|P(first) - 0.5|</th></tr></thead><tbody><tr><td>1</td><td class="num">9.3%</td><td class="num">0.537</td><td class="num">0.037</td></tr><tr><td>2</td><td class="num">10.3%</td><td class="num">0.527</td><td class="num">0.027</td></tr><tr><td>3</td><td class="num">10.3%</td><td class="num">0.530</td><td class="num">0.030</td></tr></tbody></table></div><h2>Per-slice breakdown</h2><div class="scroll"><table><thead><tr><th>Slice</th><th class="num">Items</th><th class="num">Kappa</th><th class="num">TPR</th><th class="num">TNR</th><th class="num">Accuracy</th></tr></thead><tbody><tr><td>Adversarial/GPTInst</td><td class="num">92</td><td class="num">0.920</td><td class="num">1.000</td><td class="num">0.922</td><td class="num">0.960</td></tr><tr><td>Adversarial/GPTOut</td><td class="num">47</td><td class="num">0.564</td><td class="num">0.864</td><td class="num">0.707</td><td class="num">0.780</td></tr><tr><td>Adversarial/Manual</td><td class="num">46</td><td class="num">0.640</td><td class="num">0.909</td><td class="num">0.736</td><td class="num">0.819</td></tr><tr><td>Adversarial/Neighbor</td><td class="num">134</td><td class="num">0.843</td><td class="num">0.956</td><td class="num">0.881</td><td class="num">0.923</td></tr><tr><td>Natural</td><td class="num">100</td><td class="num">0.939</td><td class="num">0.976</td><td class="num">0.966</td><td class="num">0.970</td></tr></tbody></table></div><p class="muted">Means over runs.</p><h2>Disagreements</h2><p class="muted">43 items where at least one run disagreed with the human label. Rationale is from the first disagreeing run.</p><div class="scroll"><table><thead><tr><th>Item</th><th>Slice</th><th>Human</th><th>Verdicts by run</th><th>Rationale</th></tr></thead><tbody><tr><td>llmbar-natural-0012</td><td>Natural</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale"># Analysis
+</style></head><body><main><p class="muted">Made with judgekeeper 0.1.2; kept for the record.</p><h1>Judge validation report</h1><p class="muted">anthropic / claude-haiku-4-5-20251001 on llmbar.jsonl (419 pairwise items, 3 runs). Generated 2026-10-04T19:47:18Z by judgekeeper 0.1.2.</p><div class="verdict warn">Usable with care: TPR 0.95, TNR 0.88, kappa 0.83 against human labels. Read the flags below before relying on it.</div><ul class="flags"><li>TNR is 0.88 (between 0.80 and 0.90): usable with care.</li></ul><h2>Headline metrics</h2><p class="muted">Mean over runs, judge vs human labels. Positive class for TPR/TNR is <code>A</code>. TPR is the share of human-positive items the judge also calls positive; TNR the same for negatives.</p><div class="tiles"><div class="tile"><div class="v">0.955</div><div class="ci">95% CI 0.92 to 0.98 (n=206)</div><div class="k">TPR</div></div><div class="tile"><div class="v">0.876</div><div class="ci">95% CI 0.83 to 0.91 (n=213)</div><div class="k">TNR</div></div><div class="tile"><div class="v">0.830</div><div class="k">Cohen&#x27;s kappa</div></div><div class="tile"><div class="v">0.915</div><div class="k">Accuracy</div></div></div><p class="muted">Kappa is chance-corrected agreement with the human labels; TPR and TNR are the numbers to act on.</p><p class="muted">Kappa range across runs: 0.819 to 0.847.</p><div class="scroll" tabindex="0" role="region" aria-label="Table: Headline metrics"><table><thead><tr><th>Run</th><th>File</th><th class="num">TPR</th><th class="num">TNR</th><th class="num">Kappa</th><th class="num">Accuracy</th><th class="num">Invalid</th><th class="num">Errors</th></tr></thead><tbody><tr><td>1</td><td>run-01.jsonl</td><td class="num">0.951</td><td class="num">0.869</td><td class="num">0.819</td><td class="num">0.909</td><td class="num">0</td><td class="num">0</td></tr><tr><td>2</td><td>run-02.jsonl</td><td class="num">0.961</td><td class="num">0.887</td><td class="num">0.847</td><td class="num">0.924</td><td class="num">0</td><td class="num">0</td></tr><tr><td>3</td><td>run-03.jsonl</td><td class="num">0.951</td><td class="num">0.873</td><td class="num">0.824</td><td class="num">0.912</td><td class="num">0</td><td class="num">0</td></tr></tbody></table></div><h2>Confusion matrix</h2><p class="muted">Majority verdict across runs vs human label. Rows: human. Columns: judge.</p><div class="scroll" tabindex="0" role="region" aria-label="Table: Confusion matrix"><table><thead><tr><th>Human \ Judge</th><th class="num">judge A</th><th class="num">judge other</th></tr></thead><tbody><tr><td>human A</td><td class="num">197 (TP)</td><td class="num">9 (FN)</td></tr><tr><td>human B</td><td class="num">27 (FP)</td><td class="num">186 (TN)</td></tr></tbody></table></div><p class="muted">"Judge other" includes 0 items with no majority or an unparseable verdict. Majority-vote kappa 0.828, TPR 0.956, TNR 0.873.</p><h2>Noise floor</h2><div class="tiles"><div class="tile"><div class="v">3.6%</div><div class="k">Items that flipped</div></div><div class="tile"><div class="v">0.012</div><div class="k">Mean per-item flip rate</div></div><div class="tile"><div class="v">0.952</div><div class="k">Mean run-vs-run kappa</div></div><div class="tile"><div class="v">0.976</div><div class="k">Test-retest agreement</div></div></div><p class="muted">Per-item flip rate is the share of runs that disagree with the item's majority verdict. High test-retest agreement does not mean the judge is right: compare with kappa against humans above.</p><div class="scroll" tabindex="0" role="region" aria-label="Table: Noise floor"><table><thead><tr><th>Runs</th><th class="num">Kappa</th><th class="num">Agreement</th></tr></thead><tbody><tr><td>1 vs 2</td><td class="num">0.942</td><td class="num">0.971</td></tr><tr><td>1 vs 3</td><td class="num">0.957</td><td class="num">0.979</td></tr><tr><td>2 vs 3</td><td class="num">0.957</td><td class="num">0.979</td></tr></tbody></table></div><details><summary>15 items that flipped</summary><div class="scroll" tabindex="0" role="region" aria-label="Table: 15 items that flipped"><table><thead><tr><th>Item</th><th>Human</th><th>Verdicts by run</th><th>Majority</th><th class="num">Flip rate</th></tr></thead><tbody><tr><td>llmbar-natural-0045</td><td>B</td><td>A, B, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-natural-0069</td><td>B</td><td>B, B, A</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-neighbor-0104</td><td>A</td><td>B, A, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptinst-0006</td><td>B</td><td>A, B, B</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptinst-0050</td><td>B</td><td>A, B, B</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0009</td><td>A</td><td>A, A, B</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0014</td><td>B</td><td>B, A, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0024</td><td>B</td><td>A, A, B</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0025</td><td>A</td><td>B, A, B</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0026</td><td>B</td><td>B, A, B</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-gptout-0027</td><td>B</td><td>A, B, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-manual-0003</td><td>B</td><td>B, A, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-manual-0016</td><td>B</td><td>A, B, A</td><td>A</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-manual-0022</td><td>B</td><td>A, B, B</td><td>B</td><td class="num">0.333</td></tr><tr><td>llmbar-adversarial-manual-0043</td><td>B</td><td>A, B, A</td><td>A</td><td class="num">0.333</td></tr></tbody></table></div></details><h2>Position bias</h2><div class="tiles"><div class="tile"><div class="v">9.9%</div><div class="k">AB/BA verdicts disagree</div></div><div class="tile"><div class="v">0.531</div><div class="k">P(picks first slot)</div></div><div class="tile"><div class="v">0.031</div><div class="k">|P(first) - 0.5|</div></div><div class="tile"><div class="v">0.799</div><div class="k">Kappa, BA order</div></div></div><p class="muted">Each pairwise item is judged twice, once with output A shown first and once with output B shown first. Headline metrics use the AB order.</p><div class="scroll" tabindex="0" role="region" aria-label="Table: Position bias"><table><thead><tr><th>Run</th><th class="num">AB/BA disagree</th><th class="num">P(first)</th><th class="num">|P(first) - 0.5|</th></tr></thead><tbody><tr><td>1</td><td class="num">9.3%</td><td class="num">0.537</td><td class="num">0.037</td></tr><tr><td>2</td><td class="num">10.3%</td><td class="num">0.527</td><td class="num">0.027</td></tr><tr><td>3</td><td class="num">10.3%</td><td class="num">0.530</td><td class="num">0.030</td></tr></tbody></table></div><h2>Per-slice breakdown</h2><div class="scroll" tabindex="0" role="region" aria-label="Table: Per-slice breakdown"><table><thead><tr><th>Slice</th><th class="num">Items</th><th class="num">Kappa</th><th class="num">TPR</th><th class="num">TNR</th><th class="num">Accuracy</th></tr></thead><tbody><tr><td>Adversarial/GPTInst</td><td class="num">92</td><td class="num">0.920</td><td class="num">1.000</td><td class="num">0.922</td><td class="num">0.960</td></tr><tr><td>Adversarial/GPTOut</td><td class="num">47</td><td class="num">0.564</td><td class="num">0.864</td><td class="num">0.707</td><td class="num">0.780</td></tr><tr><td>Adversarial/Manual</td><td class="num">46</td><td class="num">0.640</td><td class="num">0.909</td><td class="num">0.736</td><td class="num">0.819</td></tr><tr><td>Adversarial/Neighbor</td><td class="num">134</td><td class="num">0.843</td><td class="num">0.956</td><td class="num">0.881</td><td class="num">0.923</td></tr><tr><td>Natural</td><td class="num">100</td><td class="num">0.939</td><td class="num">0.976</td><td class="num">0.966</td><td class="num">0.970</td></tr></tbody></table></div><p class="muted">Means over runs.</p><h2>Disagreements</h2><p class="muted">43 items where at least one run disagreed with the human label. Rationale is from the first disagreeing run.</p><div class="scroll" tabindex="0" role="region" aria-label="Table: Disagreements"><table><thead><tr><th>Item</th><th>Slice</th><th>Human</th><th>Verdicts by run</th><th>Rationale</th></tr></thead><tbody><tr><td>llmbar-natural-0012</td><td>Natural</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-natural-0012"># Analysis
 
 **Instruction Compliance:**
 
@@ -65,7 +65,7 @@ The person asks: &quot;can I continue my passion for physics while I&#x27;m doin
 
 Output B directly answers this with a real example showing yes, it&#x27;s possible. Output A suggests doing both separately, which doesn&#x27;t address the time constraint concern.
 
-Verdict: B</div></details></td></tr><tr><td>llmbar-natural-0023</td><td>Natural</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Evaluation
+Verdict: B</div></details></td></tr><tr><td>llmbar-natural-0023</td><td>Natural</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-natural-0023"># Evaluation
 
 **Instruction Adherence:**
 
@@ -93,7 +93,7 @@ Output A is better organized with numbered points and clearer explanations. Outp
 
 Output A better follows the instruction&#x27;s requirement for accuracy and precision, despite being less NLP-specific. Output B attempts to be NLP-specific but introduces a factual error that undermines its credibility. Rule 1 prioritizes honest and precise execution over other factors.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-natural-0045</td><td>Natural</td><td>B</td><td>A, B, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+Verdict: A</div></details></td></tr><tr><td>llmbar-natural-0045</td><td>Natural</td><td>B</td><td>A, B, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-natural-0045"># Reasoning
 
 The instruction asks me to &quot;suggest one correction&quot; to the sentence &quot;I am going to the the store.&quot;
 
@@ -109,7 +109,7 @@ In terms of following the instruction precisely, &quot;suggest a correction&quot
 
 Both are concise and appropriate in length.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-natural-0069</td><td>Natural</td><td>B</td><td>B, B, A</td><td><details><summary>run 3</summary><div class="rationale"># Reasoning
+Verdict: A</div></details></td></tr><tr><td>llmbar-natural-0069</td><td>Natural</td><td>B</td><td>B, B, A</td><td><details><summary>run 3</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-natural-0069"># Reasoning
 
 The instruction asks to &quot;Talk about Who wears short shorts?&quot; This is ambiguous and could refer to either:
 1. A philosophical/practical question about who actually wears short shorts
@@ -123,7 +123,7 @@ Both responses follow the instruction to &quot;talk about&quot; the topic, thoug
 
 Given that the instruction is ambiguous, Output A&#x27;s straightforward interpretation is defensible, but Output B&#x27;s recognition of the likely cultural reference (the famous song) is probably what most people asking this question would be referring to. However, Output B is incomplete in its execution.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0006</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Evaluation
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0006</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-neighbor-0006"># Evaluation
 
 Both responses attempt to address the instruction to construct a database system for a car dealership&#x27;s customer records. Let me evaluate them against the criteria:
 
@@ -144,7 +144,7 @@ Both responses follow the instruction to construct a database system, but they i
 
 Output A better executes the instruction by providing an actual database structure with defined tables and fields, which is what &quot;construct a database system&quot; typically means. While Output B has slightly better domain-specific details, it&#x27;s less complete as a database system design.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0008</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Analysis
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0008</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-neighbor-0008"># Analysis
 
 Both responses attempt to appraise an imagined website design, but they differ in how well they follow the instruction.
 
@@ -164,7 +164,7 @@ An &quot;appraisal&quot; typically involves a balanced evaluation that considers
 
 Both responses follow the basic instruction to appraise an imagined website. However, Output A provides a more thorough and balanced appraisal, which better fulfills what an appraisal typically entails. Output B&#x27;s one-sided positive evaluation is less substantive as an appraisal.
 
-**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0029</td><td>Adversarial/Neighbor</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0029</td><td>Adversarial/Neighbor</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-neighbor-0029"># Reasoning
 
 The instruction asks for &quot;the most appropriate answer&quot; to the question &quot;In what form is data typically stored on a computer?&quot;
 
@@ -176,7 +176,7 @@ The instruction asks for &quot;the most appropriate answer,&quot; which implies 
 
 Both responses follow the instruction&#x27;s basic requirement, but Output B provides a substantially more appropriate and informative answer to the specific question asked.
 
-Verdict: B</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0080</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+Verdict: B</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0080</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-neighbor-0080"># Reasoning
 
 Let me evaluate both responses against the instruction to &quot;Compare and contrast cellular respiration and photosynthesis.&quot;
 
@@ -207,7 +207,7 @@ Output A attempts a thorough comparison/contrast but contains a factual error. O
 
 Given Rule 1 (honest and precise execution), the factual error in Output A is problematic. However, Output A still attempts to comprehensively address the instruction despite this error, while Output B significantly undershoots what was asked for.
 
-**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0086</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Evaluation
+**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0086</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-neighbor-0086"># Evaluation
 
 Let me assess how well each response follows the instruction.
 
@@ -245,7 +245,7 @@ Both responses address the instruction, but there are key differences:
 
 Both responses follow the instruction adequately. Output A is more helpful with specific, actionable recommendations. Output B more directly addresses the &quot;causes&quot; part of the question. Given Rule 3 (prefer more helpful when both follow instructions equally), Output A&#x27;s greater specificity and actionability make it more helpful for someone actually trying to solve this problem.
 
-**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0093</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0093</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-neighbor-0093"># Reasoning
 
 Both responses provide metaphors for determination in pursuing goals, as requested.
 
@@ -255,7 +255,7 @@ Both responses provide metaphors for determination in pursuing goals, as request
 
 Both responses follow the instruction accurately and are appropriately concise. Output A is slightly more effective because it more thoroughly develops the metaphorical comparison and explicitly ties the effort to the reward, making the metaphor more complete and illustrative of what determination entails. Output B&#x27;s metaphor is valid but less elaborated.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0096</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Analysis
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0096</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-neighbor-0096"># Analysis
 
 **Instruction Compliance:**
 
@@ -287,7 +287,7 @@ The instruction asks: &quot;What is the best programming language for 2023&quot;
 
 Output A better follows the instruction by providing substantive, nuanced information that actually helps answer the question, while appropriately acknowledging its subjectivity. Output B is too brief and generic to be genuinely helpful.
 
-`Verdict: A`</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0099</td><td>Adversarial/Neighbor</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale"># Analysis
+`Verdict: A`</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0099</td><td>Adversarial/Neighbor</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-neighbor-0099"># Analysis
 
 The instruction is ambiguous: &quot;How to load image here?&quot; could mean:
 1. How to load/view an image on a website
@@ -304,7 +304,7 @@ Output B is also more practical and actionable, with specific service recommenda
 
 Both responses attempt to address the ambiguous instruction, but Output B provides more useful, concrete guidance based on a more reasonable interpretation of what &quot;load image here&quot; likely means in a platform context.
 
-**Verdict: B**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0104</td><td>Adversarial/Neighbor</td><td>A</td><td>B, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+**Verdict: B**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0104</td><td>Adversarial/Neighbor</td><td>A</td><td>B, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-neighbor-0104"># Reasoning
 
 The instruction asks for a &quot;short synopsis&quot; of code that was supposed to be provided. 
 
@@ -318,7 +318,7 @@ Output A, despite being incomplete and unhelpful, is technically more honest abo
 
 However, evaluating strictly by the rules: Rule 1 prioritizes honest and precise execution. Output A doesn&#x27;t execute the instruction at all (it just says it will try). Output B attempts to execute it but does so by hallucinating code content. Neither response is ideal, but Output B at least attempts to provide the requested synopsis format, even if the source material wasn&#x27;t provided.
 
-**Verdict: B**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0118</td><td>Adversarial/Neighbor</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale">Let me evaluate each response against the instruction.
+**Verdict: B**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0118</td><td>Adversarial/Neighbor</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-neighbor-0118">Let me evaluate each response against the instruction.
 
 **Instruction Analysis:**
 The patient cannot recognize written words anymore. The question asks what neuropsychological syndrome could account for this specific symptom.
@@ -346,7 +346,7 @@ The most accurate answer would be **alexia** (inability to read) or **pure alexi
 
 Output B is closer to the right domain (language/neuropsychological syndromes) even though LPPA isn&#x27;t the best answer. Output A conflates motivation with perception/recognition, which is a more fundamental misunderstanding of the symptom.
 
-**Verdict: B**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0127</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+**Verdict: B**</div></details></td></tr><tr><td>llmbar-adversarial-neighbor-0127</td><td>Adversarial/Neighbor</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-neighbor-0127"># Reasoning
 
 The instruction asks to &quot;explain like im 5&quot; - this is a request to explain something in simple, child-friendly language. However, the instruction is incomplete; it doesn&#x27;t specify *what* should be explained.
 
@@ -360,7 +360,7 @@ However, evaluating strictly against the instruction &quot;explain like im 5&quo
 
 Following Rule 1 (honestly and precisely executing the instruction), Output A makes a reasonable attempt to fulfill the request despite the ambiguity, while Output B declines to attempt the instruction.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptinst-0006</td><td>Adversarial/GPTInst</td><td>B</td><td>A, B, B</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptinst-0006</td><td>Adversarial/GPTInst</td><td>B</td><td>A, B, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptinst-0006"># Reasoning
 
 Both responses provide a single creative slogan as requested, so both follow the instruction&#x27;s basic requirement.
 
@@ -372,7 +372,7 @@ Both are appropriate for an environmental NGO. Output A demonstrates greater cre
 
 Output A is slightly more creative in its language choices, which directly addresses the instruction&#x27;s emphasis on creativity.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptinst-0007</td><td>Adversarial/GPTInst</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale">Let me evaluate both responses against the instruction.
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptinst-0007</td><td>Adversarial/GPTInst</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptinst-0007">Let me evaluate both responses against the instruction.
 
 **Instruction Analysis:**
 The task asks to &quot;Create an algorithm to identify the most cost effective location to produce a product&quot; given three cities with production costs of $100, $200, and $300.
@@ -402,7 +402,7 @@ Output B overcomplicates the problem with undefined thresholds, introduces facto
 
 Following Rule 1: Output A honestly and precisely executes the instruction, while Output B does something else (adds complexity and undefined variables not requested).
 
-**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptinst-0026</td><td>Adversarial/GPTInst</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Analysis
+**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptinst-0026</td><td>Adversarial/GPTInst</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptinst-0026"># Analysis
 
 **Instruction Compliance:**
 
@@ -432,7 +432,7 @@ Output B offers general advice about what *should be considered* when developing
 
 Output A directly and completely fulfills the instruction by providing developed scoring criteria. Output B discusses the topic but doesn&#x27;t deliver the actual criteria requested. This is a clear case where one response executes the instruction while the other discusses it instead.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptinst-0050</td><td>Adversarial/GPTInst</td><td>B</td><td>A, B, B</td><td><details><summary>run 1</summary><div class="rationale">Let me analyze both responses against the instruction.
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptinst-0050</td><td>Adversarial/GPTInst</td><td>B</td><td>A, B, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptinst-0050">Let me analyze both responses against the instruction.
 
 **Instruction Requirements:**
 - Make Multiple Choice Questions from given notes
@@ -457,7 +457,7 @@ Given Rule 1 (execute the instruction honestly and precisely), Output A attempts
 
 Neither response perfectly follows the instruction, but Output A at least attempts to create questions, even though the format is wrong. Output B provides no questions whatsoever.
 
-**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptinst-0090</td><td>Adversarial/GPTInst</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptinst-0090</td><td>Adversarial/GPTInst</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptinst-0090"># Reasoning
 
 The instruction asks me to &quot;breakdown each point into separate emails that sound motivating and have strong call to action for the read to sign up.&quot;
 
@@ -472,7 +472,7 @@ The instruction asks me to &quot;breakdown each point into separate emails that 
 
 The instruction is clear and actionable as written. Output A demonstrates understanding and execution, while Output B fails to attempt the task at all.
 
-**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0001</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Evaluation
+**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0001</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0001"># Evaluation
 
 **Instruction Analysis:**
 The instruction asks to &quot;design a database to record employee salaries.&quot; This is a straightforward request for a database design focused on salary recording.
@@ -500,7 +500,7 @@ Rule 3 (Helpfulness, accuracy, harmlessness): Both are accurate and harmless, bu
 
 Output A better follows the instruction by providing exactly what was asked—a database design for recording employee salaries—without adding unrequested features or scope creep.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0005</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0005</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0005"># Reasoning
 
 Let me evaluate both responses against the instruction to rewrite the sentence more concisely while preserving meaning.
 
@@ -520,7 +520,7 @@ The instruction explicitly asks to &quot;rewrite the following sentence in a mor
 
 Output B barely qualifies as more concise and fails to adequately fulfill the primary instruction.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0009</td><td>Adversarial/GPTOut</td><td>A</td><td>A, A, B</td><td><details><summary>run 3</summary><div class="rationale">Let me evaluate both responses against the instruction to &quot;Design a birthday card for a 7-year-old.&quot;
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0009</td><td>Adversarial/GPTOut</td><td>A</td><td>A, A, B</td><td><details><summary>run 3</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0009">Let me evaluate both responses against the instruction to &quot;Design a birthday card for a 7-year-old.&quot;
 
 **Output A Analysis:**
 - Provides a generic birthday message template
@@ -545,7 +545,7 @@ Output A is a generic message that could work but doesn&#x27;t really &quot;desi
 
 **Verdict:** Output B attempts to follow the instruction more literally by actually designing a card structure, but the content is inappropriate for the age group. Output A is safe and appropriate but doesn&#x27;t really design a card. Given that the instruction specifically asks to &quot;design&quot; (implying structure and visual elements), Output B&#x27;s approach is closer to what was asked, despite its content flaw.
 
-Verdict: B</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0014</td><td>Adversarial/GPTOut</td><td>B</td><td>B, A, A</td><td><details><summary>run 2</summary><div class="rationale"># Evaluation
+Verdict: B</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0014</td><td>Adversarial/GPTOut</td><td>B</td><td>B, A, A</td><td><details><summary>run 2</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0014"># Evaluation
 
 **Instruction Compliance:**
 
@@ -576,7 +576,7 @@ Output B&#x27;s sorting algorithm is more accurate (correct selection sort), but
 
 Output A better follows the instruction by providing only what was asked for, though it has an algorithmic issue. Output B exceeds the scope by adding input handling code that wasn&#x27;t requested.
 
-**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0021</td><td>Adversarial/GPTOut</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0021</td><td>Adversarial/GPTOut</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0021"># Reasoning
 
 The instruction is straightforward: &quot;Make up a nickname for me.&quot; This requires the AI to create and provide a nickname.
 
@@ -588,7 +588,7 @@ Despite Output B&#x27;s lack of creativity, it still technically completes the i
 
 According to Rule 1, a response that executes the instruction (even poorly) beats one that does something else entirely.
 
-`Verdict: B`</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0024</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, B</td><td><details><summary>run 1</summary><div class="rationale"># Analysis
+`Verdict: B`</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0024</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0024"># Analysis
 
 **Instruction Compliance:**
 
@@ -620,7 +620,7 @@ Rule 3 (Helpfulness, accuracy, harmlessness): While Output B attempts to be more
 
 Output A better follows the instruction by honestly and directly addressing why the question cannot be answered with a specific date. Output B, while attempting to be more comprehensive, violates Rule 2 by providing more information than requested and provides less precise answers by mixing different types of predictions and using outdated data.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0025</td><td>Adversarial/GPTOut</td><td>A</td><td>B, A, B</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0025</td><td>Adversarial/GPTOut</td><td>A</td><td>B, A, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0025"># Reasoning
 
 The instruction asks a straightforward factual question: &quot;How many ounces are there in a pint?&quot;
 
@@ -632,7 +632,7 @@ According to Rule 2, a response should not contain more than the instruction ask
 
 Both responses are accurate regarding the US pint, but Output B better adheres to the instruction by providing exactly what was asked without unnecessary additions.
 
-Verdict: B</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0026</td><td>Adversarial/GPTOut</td><td>B</td><td>B, A, B</td><td><details><summary>run 2</summary><div class="rationale"># Analysis
+Verdict: B</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0026</td><td>Adversarial/GPTOut</td><td>B</td><td>B, A, B</td><td><details><summary>run 2</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0026"># Analysis
 
 Let me evaluate each response against the instruction to play a game of chess where the human plays white and the AI plays black.
 
@@ -658,7 +658,7 @@ Output B makes a basic error in chess notation that shows a misunderstanding of 
 
 While Output A goes beyond what was asked, it at least demonstrates correct chess understanding and makes a proper move. Output B&#x27;s notation error is a more fundamental mistake in executing the instruction itself - it doesn&#x27;t even correctly respond to the opening move.
 
-**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0027</td><td>Adversarial/GPTOut</td><td>B</td><td>A, B, A</td><td><details><summary>run 1</summary><div class="rationale">Let me analyze both responses against the instruction.
+**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0027</td><td>Adversarial/GPTOut</td><td>B</td><td>A, B, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0027">Let me analyze both responses against the instruction.
 
 **Instruction Analysis:**
 The task asks for:
@@ -696,7 +696,7 @@ Given Rule 1 (execute the instruction honestly and precisely), Output A follows 
 
 **Verdict: A**
 
-Output A better follows the instruction format by providing a straightforward answer with explanation, though both responses have analytical weaknesses regarding the actual analogy.</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0028</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Analysis
+Output A better follows the instruction format by providing a straightforward answer with explanation, though both responses have analytical weaknesses regarding the actual analogy.</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0028</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0028"># Analysis
 
 **Instruction Compliance:**
 
@@ -726,7 +726,7 @@ Rule 3: Not applicable here since Output A follows the instruction more precisel
 
 Output A better follows the instruction by providing exactly what was asked—a direct answer to the analogy—without excess elaboration. Output B, while creative and historically informed, violates the principle of not providing more than instructed.
 
-**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0034</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0034</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0034"># Reasoning
 
 The instruction asks what I would say if calling a doctor to schedule an appointment. This is asking for the actual words/dialogue I would use in that scenario.
 
@@ -738,7 +738,7 @@ Additionally, Output B includes unsolicited medical advice/analysis that goes be
 
 Output A directly executes the instruction by providing actual dialogue, while Output B misses the core request by providing explanation instead of the requested speech.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0035</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0035</td><td>Adversarial/GPTOut</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0035"># Reasoning
 
 The instruction asks for a lesson plan for grade 3 science. Let me evaluate each response:
 
@@ -750,7 +750,7 @@ While Output A contains problematic content (unicorns are not real), it at least
 
 Output A better follows the instruction despite its content flaw, as it provides the requested format and structure, whereas Output B does not deliver a lesson plan at all.
 
-**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0044</td><td>Adversarial/GPTOut</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale"># Analysis
+**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-gptout-0044</td><td>Adversarial/GPTOut</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-gptout-0044"># Analysis
 
 Let me evaluate both responses against the instruction to divide the word &#x27;configure&#x27; into syllables.
 
@@ -775,7 +775,7 @@ Output B: Provides the division with introductory text (&quot;Sure, the word &#x
 
 **Rule 3 consideration:** Since accuracy matters for a factual task like syllable division, the more correct answer (4 syllables) should be preferred.
 
-Verdict: B</div></details></td></tr><tr><td>llmbar-adversarial-manual-0003</td><td>Adversarial/Manual</td><td>B</td><td>B, A, A</td><td><details><summary>run 2</summary><div class="rationale"># Reasoning
+Verdict: B</div></details></td></tr><tr><td>llmbar-adversarial-manual-0003</td><td>Adversarial/Manual</td><td>B</td><td>B, A, A</td><td><details><summary>run 2</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-manual-0003"># Reasoning
 
 Let me evaluate both responses against the instruction criteria.
 
@@ -811,7 +811,7 @@ Output A follows the instruction format better (more detailed, concrete plan) bu
 
 Given Rule 1 (execute the instruction precisely), Output A better follows the specific instruction to provide a &quot;concrete plan&quot; that is &quot;as detailed as you can.&quot; However, the instruction doesn&#x27;t explicitly require the project to be scientifically rigorous, only that it be for a &quot;national competition about science and technology.&quot;
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0005</td><td>Adversarial/Manual</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0005</td><td>Adversarial/Manual</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-manual-0005"># Reasoning
 
 The instruction asks to identify &quot;the country with the most people living in poverty in 2020.&quot; This phrasing is ambiguous and could mean either:
 1. The country with the highest *percentage* of its population in poverty
@@ -827,7 +827,7 @@ Output A provides specific data, a source, and a clear methodology (percentage-b
 
 Even if Output B happens to be correct under one interpretation (absolute numbers), it fails to explain its reasoning or provide evidence. Output A at least clearly states its interpretation and provides verifiable data with a source, which better follows the instruction by being honest and precise about what it&#x27;s claiming.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0007</td><td>Adversarial/Manual</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0007</td><td>Adversarial/Manual</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-manual-0007"># Reasoning
 
 The instruction asks for &quot;5 examples of a fun prompt you&#x27;ve found&quot; - meaning prompts that the AI engineer has discovered and found to be fun/effective for instructing ChatGPT.
 
@@ -839,7 +839,7 @@ The critical difference: Output A demonstrates understanding that &quot;fun prom
 
 Output A better executes the instruction by providing examples of the type of creative, scenario-based prompts that an AI engineer would actually curate and find fun to use. Output B&#x27;s prompts are too generic and don&#x27;t reflect the kind of carefully crafted prompts an experienced engineer would highlight.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0016</td><td>Adversarial/Manual</td><td>B</td><td>A, B, A</td><td><details><summary>run 1</summary><div class="rationale"># Evaluation
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0016</td><td>Adversarial/Manual</td><td>B</td><td>A, B, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-manual-0016"># Evaluation
 
 **Instruction Compliance:**
 
@@ -863,7 +863,7 @@ The instruction asks to &quot;describe this scenario&quot; - referring to the NB
 
 Output A more directly follows the instruction by providing a concrete scenario description, even though it may contain minor factual inaccuracies. Output B, while well-written, is too vague and generic—it describes what a ceremony *might* be like rather than describing the actual scenario.
 
-**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-manual-0018</td><td>Adversarial/Manual</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+**Verdict: A**</div></details></td></tr><tr><td>llmbar-adversarial-manual-0018</td><td>Adversarial/Manual</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-manual-0018"># Reasoning
 
 The instruction asks how to &quot;beef up&quot; a chocolate chip cake recipe, which is a common idiomatic expression meaning to make it better, richer, or more substantial.
 
@@ -880,7 +880,7 @@ While Output B could have offered more suggestions (like adding vanilla extract,
 
 Output A&#x27;s attempt to be clever by considering a literal interpretation actually fails to follow the instruction, which clearly uses &quot;beef up&quot; in its standard idiomatic sense.
 
-Verdict: B</div></details></td></tr><tr><td>llmbar-adversarial-manual-0022</td><td>Adversarial/Manual</td><td>B</td><td>A, B, B</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+Verdict: B</div></details></td></tr><tr><td>llmbar-adversarial-manual-0022</td><td>Adversarial/Manual</td><td>B</td><td>A, B, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-manual-0022"># Reasoning
 
 This is a classic riddle that tests whether the reader carefully tracks all the information given. Let me analyze each response:
 
@@ -896,7 +896,7 @@ However, Output B appears to be attempting a clever interpretation by suggesting
 
 Output A more honestly and precisely executes the instruction by acknowledging the limitation in the information provided, rather than inventing details.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0024</td><td>Adversarial/Manual</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Reasoning
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0024</td><td>Adversarial/Manual</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-manual-0024"># Reasoning
 
 Let me check whether each response follows the instruction to paraphrase the sentence with exactly one word changed.
 
@@ -916,7 +916,7 @@ Both responses follow the instruction equally well—each changes exactly one wo
 
 To differentiate, I should consider which paraphrase is more natural and accurate. &quot;Expenditure&quot; is a more formal, precise term commonly used in financial contexts and is slightly more distinct from the original word &quot;cost.&quot; &quot;Expense&quot; is also a synonym but is somewhat closer in meaning and formality to &quot;cost.&quot; Both are acceptable, but &quot;expenditure&quot; represents a slightly more meaningful paraphrase since it&#x27;s a more distinct word choice.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0025</td><td>Adversarial/Manual</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale">Let me analyze each response against the instruction.
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0025</td><td>Adversarial/Manual</td><td>A</td><td>B, B, B</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-manual-0025">Let me analyze each response against the instruction.
 
 **Instruction Analysis:**
 The task is to &quot;Identify the sentence(s) that is(are) grammatically incorrect.&quot;
@@ -942,7 +942,7 @@ Output B correctly identifies the grammatically incorrect sentence and provides 
 
 Output B is clearly superior because it correctly identifies the grammatically incorrect sentence(s), while Output A incorrectly lists all options.
 
-**Verdict: B**</div></details></td></tr><tr><td>llmbar-adversarial-manual-0026</td><td>Adversarial/Manual</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale"># Evaluation
+**Verdict: B**</div></details></td></tr><tr><td>llmbar-adversarial-manual-0026</td><td>Adversarial/Manual</td><td>B</td><td>A, A, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-manual-0026"># Evaluation
 
 Both responses attempt to create a multiple choice quiz on Space Exploration, but they differ significantly in execution.
 
@@ -969,7 +969,7 @@ Additionally, Output A presents the quiz in standard format without answers, whi
 
 Output A better executes the instruction by providing an actual quiz with multiple questions in standard format.
 
-Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0043</td><td>Adversarial/Manual</td><td>B</td><td>A, B, A</td><td><details><summary>run 1</summary><div class="rationale"># Evaluation
+Verdict: A</div></details></td></tr><tr><td>llmbar-adversarial-manual-0043</td><td>Adversarial/Manual</td><td>B</td><td>A, B, A</td><td><details><summary>run 1</summary><div class="rationale" tabindex="0" role="region" aria-label="Rationale for llmbar-adversarial-manual-0043"># Evaluation
 
 Let me check how well each response follows the instruction to &quot;Find and cite the metaphor used in the passage.&quot;
 

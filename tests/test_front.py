@@ -111,7 +111,7 @@ def test_promptfoo(here, capsys):
         "Answers:     36 answers",
         "Judge:       openai:gpt-4.1-mini",
         'Judge rule:  "Is polite and correct. Second line of the rubric."',
-        "Read from your file:",
+        "judgekeeper has read from your file:",
         "  question   each test's vars",
         "  answer     each test's output",
         "  grade      your judge's Pass or Fail", ""]
@@ -147,8 +147,8 @@ def test_a_table_says_which_columns_were_read(here, capsys):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert "Eval tool:   your own CSV file" in out and "File:        results.csv" in out
-    assert ("Read from your file: question the input column answer the output column grade "
-            "the verdict column model the model column") in flat(out)
+    assert ("judgekeeper has read from your file: question the input column answer the output "
+            "column grade the verdict column model the model column") in flat(out)
     assert "Judge:       claude-haiku-4-5" in out
     assert "Judge rule:  not in your results" in out
     assert "The first 3 rows" not in out
