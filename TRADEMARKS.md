@@ -19,7 +19,7 @@ If you fork the project, give your version its own name and logo.
 
 ## Other names
 
-judgekeeper can read results from tools made by others, and checks judges that use models
-made by others, such as promptfoo, DeepEval, Inspect AI, MLflow, Langfuse, Claude and OpenAI
-models. These names belong to their owners and are used only to say what judgekeeper can read
-results from. judgekeeper is not affiliated with, sponsored by or endorsed by any of them.
+judgekeeper can read results from tools made by others, and checks an LLM-as-a-judge that uses
+models made by others, such as promptfoo, DeepEval, Inspect AI, MLflow, Langfuse, Claude and
+OpenAI models. These names belong to their owners and are used only to say what judgekeeper can
+read results from. judgekeeper is not affiliated with, sponsored by or endorsed by any of them.
