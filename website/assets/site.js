@@ -203,6 +203,24 @@
      and the Next line. */
   function shade(text) {
     var esc = function (t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+    var span = function (cls, t) { return '<span class="' + cls + '">' + t + '</span>'; };
+    /* Words inside a line: Pass green, Fail red, outcome words, the main numbers, ranges dim,
+       file names, quoted text and `commands`. Quoted text is left as it is inside. */
+    var paint = function (t) {
+      return t.split(/("[^"]*"|`[^`]*`)/).map(function (part, i) {
+        if (i % 2) return span(part.charAt(0) === "`" ? "t-cmd" : "t-quote", part);
+        return part
+          .replace(/(\(between [^)]*\)|\(somewhere between [^)]*\))/g, function (x) { return span("t-dim", x); })
+          .replace(/\b(about \d+%|\d+ of \d+\b)/g, function (x) { return span("t-num", x); })
+          .replace(/\bPass\b/g, span("t-pass", "Pass"))
+          .replace(/\bFail\b/g, span("t-fail", "Fail"))
+          .replace(/\b(Worse|needs work)\b/g, function (x) { return span("t-warn", x); })
+          .replace(/\b(Not sure)\b/g, function (x) { return span("t-unsure", x); })
+          .replace(/\b(is better|Better)\b/g, function (x) { return span("t-good", x); })
+          .replace(/(\.judgekeeper\/[\w\/.-]+|\b[\w-]+\.(?:json|yaml|yml|md|txt|html)\b)/g, function (x) { return span("t-path", x); })
+          .replace(/(\[y\/N\]) y$/, function (x, q) { return span("t-dim", q) + " " + span("t-good", "y"); });
+      }).join("");
+    };
     return text.split("\n").map(function (line) {
       var m;
       if ((m = /^(\$ )(.*)$/.exec(line))) return '<span class="t-prompt">' + esc(m[1]) + '</span><span class="t-cmd">' + esc(m[2]) + '</span>';
@@ -212,9 +230,11 @@
         var tone = /needs work|worse/i.test(m[2]) ? "t-warn" : /good enough|better/i.test(m[2]) ? "t-good" : "t-step";
         return '<span class="t-label">' + esc(m[1]) + '</span><span class="' + tone + '">' + esc(m[2]) + '</span>';
       }
-      if ((m = /^(Next:)(.*)$/.exec(line))) return '<span class="t-next">' + esc(m[1]) + '</span>' + esc(m[2]);
-      if ((m = /^([A-Z][A-Za-z ]{1,14}:)( {2,}.*)$/.exec(line))) return '<span class="t-label">' + esc(m[1]) + '</span>' + esc(m[2]);
-      return esc(line);
+      if ((m = /^(Next:)(.*)$/.exec(line))) return '<span class="t-next">' + esc(m[1]) + '</span>' + paint(esc(m[2]));
+      if ((m = /^(Checked:)(.*)$/.exec(line))) return span("t-good", esc(m[1])) + paint(esc(m[2]));
+      if (/^Agreed with you: /.test(line)) return span("t-label", esc(line));  // the table's head
+      if ((m = /^([A-Z][A-Za-z -]{1,16}:)( {2,}.*)$/.exec(line))) return '<span class="t-label">' + esc(m[1]) + '</span>' + paint(esc(m[2]));
+      return paint(esc(line));
     }).join("\n");
   }
 

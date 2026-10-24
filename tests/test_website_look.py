@@ -23,7 +23,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 from judgekeeper import fix
 from tests.website_pages import (
@@ -765,6 +769,66 @@ def test_the_browser_check_lines_wrap_and_never_scroll_sideways():
     for cls in ("t-prompt", "t-cmd", "t-step", "t-label", "t-warn", "t-good", "t-next"):
         assert f"'{cls}'" in script, cls
         assert f".term .{cls}" in CSS, cls
+
+
+def _shade(lines: list[str]) -> list[str]:
+    """Home's terminal lines as site.js colours them, run in node."""
+    body = JS[JS.index("  function shade(text) {"):]
+    body = body[:body.index("\n  }\n") + 4]
+    code = (body + "\nprocess.stdout.write(JSON.stringify(shade(" + json.dumps("\n".join(lines))
+            + ").split('\\n')));")
+    out = subprocess.run([shutil.which("node"), "-e", code], capture_output=True, text=True,
+                         check=True, timeout=30)
+    return json.loads(out.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to run site.js")
+def test_home_terminal_paints_words_inside_lines():
+    """Pass green, Fail red, outcome words, the main numbers, ranges dim, file names, quoted
+    text and commands plain white; "[y/N]" dim with the typed "y" green; "Checked:" green.
+    Nothing inside quotes is painted."""
+    said = dict(zip(["pass", "num", "range", "path", "quote", "cmd", "yes", "checked", "warn",
+                     "unsure", "better"], _shade([
+        "  You passed 15 answers. Of those, it said Pass on 7 and Fail on 8.",
+        "You and your judge disagreed on 16 of 30 answers.",
+        "  When you said Pass: about 54% (between 35% and 72%)",
+        "All 10 mistakes are saved in .judgekeeper/fix/mistakes.md and promptfooconfig.yaml.",
+        '  "The answer is Pass when it is polite, about 54% of the time."',
+        "Next: run `judgekeeper fix` again.",
+        "Go on? [y/N] y",
+        "Checked: every answer has a clear Pass or Fail.",
+        "  When you said Pass    22 of 25    15 of 25    Worse",
+        "  When you said Fail    19 of 25    Not sure",
+        "The new rule looks Better here."])))
+    assert '<span class="t-pass">Pass</span>' in said["pass"]
+    assert '<span class="t-fail">Fail</span>' in said["pass"]
+    assert '<span class="t-num">16 of 30</span>' in said["num"]
+    assert '<span class="t-num">about 54%</span>' in said["range"]
+    assert '<span class="t-dim">(between 35% and 72%)</span>' in said["range"]
+    assert '<span class="t-path">.judgekeeper/fix/mistakes.md</span>' in said["path"]
+    assert '<span class="t-path">promptfooconfig.yaml</span>' in said["path"]
+    # a quote is one plain span: its Pass and numbers stay as they are
+    assert said["quote"] == ('  <span class="t-quote">"The answer is Pass when it is polite, '
+                             'about 54% of the time."</span>')
+    assert '<span class="t-cmd">`judgekeeper fix`</span>' in said["cmd"]
+    assert said["yes"].endswith('<span class="t-dim">[y/N]</span> <span class="t-good">y</span>')
+    assert said["checked"].startswith('<span class="t-good">Checked:</span>')
+    assert '<span class="t-warn">Worse</span>' in said["warn"]
+    assert '<span class="t-unsure">Not sure</span>' in said["unsure"]
+    assert '<span class="t-good">Better</span>' in said["better"]
+    # only the brand's green, red and amber, with white and grey
+    def names(selector: str) -> list[str]:
+        return re.sub(r"/\*.*?\*/", "", selector, flags=re.DOTALL).strip().split(", ")
+
+    colours = {cls: " ".join(d for s, d in _rules() if f".term .{cls}" in names(s))
+               for cls in ("t-pass", "t-fail", "t-num", "t-unsure", "t-path", "t-quote",
+                           "t-cmd")}
+    assert "var(--green)" in colours["t-pass"] and "var(--red)" in colours["t-fail"]
+    assert "font-weight: 500" in colours["t-pass"] and "font-weight: 500" in colours["t-fail"]
+    assert "var(--fg)" in colours["t-num"] and "var(--muted)" in colours["t-unsure"]
+    assert "dotted" in colours["t-path"] and "var(--fg)" in colours["t-quote"]
+    for rule in colours.values():
+        assert not re.search(r"#[0-9a-f]{3,6}|blue|sand", rule), rule
 
 
 def test_a_line_quoted_from_judgekeeper_is_what_it_prints():

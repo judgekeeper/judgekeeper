@@ -169,6 +169,13 @@ img, svg { max-width: 100%; }
 .term .t-label, .term .t-dim { color: var(--muted); }
 .term .t-warn { color: #e0a43a; font-weight: 500; }  /* the result page's "needs work" amber */
 .term .t-good { color: var(--green); font-weight: 500; }
+/* words inside a line: Pass, Fail, the main numbers, file names, quotes and commands */
+.term .t-pass { color: var(--green); font-weight: 500; }
+.term .t-fail { color: var(--red); font-weight: 500; }
+.term .t-num { color: var(--fg); font-weight: 500; }
+.term .t-unsure { color: var(--muted); font-weight: 500; }
+.term .t-path { color: var(--fg); text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+.term .t-quote { color: var(--fg); }
 /* the terminal's status bar: where the example comes from, and its report */
 .term-foot { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 20px; border-top: 1px solid var(--line); background: var(--term-bar); font-family: var(--mono); font-variant-ligatures: none; font-size: 12px; color: var(--muted); flex: none; }
 .tf-dot { width: 7px; height: 7px; border-radius: 50%; background: #f5a524; flex: none; }
