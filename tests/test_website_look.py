@@ -322,15 +322,12 @@ DEMO = [["Can I return a lamp after 60 days?",
          "replacement."), "fail"],
         ["Do you ship to Canada?",
          "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]
-STEPS = [("find", "Find", "Finds your eval results and the LLM-as-a-judge that graded them."),
-         ("mark", "Mark",
-          "You mark answers Pass or Fail in your browser, the way you would grade them."),
-         ("measure", "Measure",
-          "Shows how often your LLM-as-a-judge agrees with you, and where it goes wrong."),
-         ("fix", "Fix",
-          "If your LLM-as-a-judge needs work, write a better rule and test it on marks kept aside."),
-         ("check", "Re-check",
-          "After you change your LLM-as-a-judge, see if it still agrees with you.")]
+# Each step starts with what you do, in a few plain words
+STEPS = [("find", "Find", "Find your eval results and the LLM-as-a-judge that graded them."),
+         ("mark", "Mark", "Mark your answers Pass or Fail in your browser."),
+         ("measure", "Measure", "See how often your LLM-as-a-judge agrees with you."),
+         ("fix", "Fix", "Write a better rule and test it on marks kept aside."),
+         ("check", "Re-check", "Change your LLM-as-a-judge and see if it still agrees with you.")]
 
 
 def _main(page: Path) -> Element:
