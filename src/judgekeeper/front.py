@@ -131,9 +131,10 @@ NEXT_MORE = "mark more answers, then run `{command}` to see your updated result.
 NEXT_CHECK = "run `{command}` to re-check your changed judge on your marks."
 NEXT_RESULT = ("nothing to do. When you change your judge or update your eval tool, run "
                "`{command}`.")
-NEXT_FIX = "to try a better rule, run `{command}`."
+NEXT_FIX = "to improve your LLM-as-a-judge's rule, run `{command}`."
 NEXT_CONTINUE = "run `{command}` when you want to continue."
-STILL_OPEN = "The marking page is still open if you want to mark more answers."
+STILL_OPEN = ("The marking page is still open. Mark more answers to make these ranges "
+              "narrower, so the numbers are more certain.")
 AGREES = "How often your judge agrees with you (estimates):"
 NEXT_MARK_MORE = "run `{command}` to mark more answers."
 SAY_WHY_NEXT = "The Next step below also lets you say why on these."  # its command once
@@ -1505,8 +1506,15 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     why = not worse and start_label.why_count(ws, r)
     if why:  # the result page has a box on each
         talk.say()
-        talk.para(SAY_WHY_NEXT if mark_next
-                  else start_label.SAY_WHY_RUN.format(command=_command_of(talk, saved, "mark")))
+        if mark_next:
+            talk.para(SAY_WHY_NEXT)
+        else:
+            from judgekeeper.report_page import counts
+
+            c = counts(r)
+            talk.para(start_label.SAY_WHY_RUN.format(
+                n=c["strict"] + c["easy"], command=_command_of(talk, saved, "mark")))
+            talk.para(start_label.SAY_WHY_FIX.format(fix=_command_of(talk, False, "fix")))
     if r["verdict_level"] in ("gate", "not_gate"):  # too early to tell: counts only
         talk.say()
         for line in estimate_lines(r):
@@ -1533,7 +1541,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(then)
             return EXIT_NEEDS_YOU
     elif is_open(ws.dir):
-        talk.say(STILL_OPEN)
+        talk.para(STILL_OPEN)
     elif wait:
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
