@@ -13,16 +13,19 @@ An LLM-as-a-judge is an AI model that grades the answers of another AI model. ju
 <p align="center"><img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/readme-label.png" width="720" alt="The marking page: a question, the answer, and equal Fail and Pass buttons. What your judge decided is kept aside."></p>
 
 ## Install
+In your project folder, run one of these. With pip (most Python setups):
+```
+cd your-project
+pip install judgekeeper==1.0.0b2
+judgekeeper
+```
+With [uv](https://docs.astral.sh/uv/):
 ```
 cd your-project
 uvx judgekeeper@1.0.0b2
 ```
 
-You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). The version is in the command because uv and pip skip betas unless you name one. Without uv, install it in your project's own Python environment, then run it:
-```
-pip install judgekeeper==1.0.0b2
-judgekeeper
-```
+You need Python 3.11 or newer. The version is in the command because uv and pip skip betas unless you name one.
 
 ## The 5 steps
 

@@ -33,13 +33,22 @@
 <main id="main" class="gx">
 <section class="hero gx-hero" id="install"><div class="wrap">
   <div class="hero-l">
-    <h1>Start in<br>one command.</h1>
+    <h1>Start in<br>your project.</h1>
     <p class="gx-lede">You need eval results already graded by an LLM-as-a-judge: from promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV or JSONL file.</p>
   </div>
   <div class="hero-r"><div class="gx-install">
-    <p class="gx-k">In your project folder, run</p>
-    <div class="cmd cmd-big"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-    <p class="gx-small">No <a href="https://docs.astral.sh/uv/">uv</a>? Run <code>pip install judgekeeper</code>, then <code>judgekeeper</code>. Needs Python 3.11 or newer, on macOS, Linux or Windows.</p>
+    <p class="gx-k">In your project folder, run one of these</p>
+    <div class="gx-way">
+      <p class="gx-way-h"><b>With pip</b> <span>(most Python setups)</span></p>
+      <div class="cmd cmd-big cmd-2"><code>pip install judgekeeper
+judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy the pip commands"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+      <p class="gx-small">That's it: all 5 steps work. You don't need uv.</p>
+    </div>
+    <div class="gx-way">
+      <p class="gx-way-h"><b>With <a href="https://docs.astral.sh/uv/">uv</a></b></p>
+      <div class="cmd cmd-big"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy the uv command"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+    </div>
+    <p class="gx-small">Needs Python 3.11 or newer, on macOS, Linux or Windows.</p>
   </div></div>
 </div></section>
 <section class="gx-steps" id="steps"><div class="wrap">

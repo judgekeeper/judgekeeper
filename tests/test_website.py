@@ -95,7 +95,7 @@ def test_the_pages_show_commands():
     counts = {p.name: len(commands(p)) for p in pages()}
     assert counts["index.html"] == 0  # Home is about judgekeeper; setup lives on the Guide
     assert counts["start.html"] >= 6  # the install, then a command for each step
-    assert counts["check.html"] == 1  # uvx judgekeeper, under the drop card
+    assert counts["check.html"] == 2  # pip's judgekeeper and uvx judgekeeper, under the drop card
 
 
 def _options() -> set[str]:
@@ -524,7 +524,8 @@ def test_the_check_page_says_what_it_reads_and_that_the_file_stays():
                   "promptfoo · DeepEval · CSV · JSONL",
                   "Waiting for your results file.",
                   "Drop it on the left. It stays on your computer.",
-                  "To run judgekeeper in your project folder: uvx judgekeeper"):
+                  ("To run judgekeeper in your project folder, with pip (most Python setups) "
+                   "or with uv: pip install judgekeeper judgekeeper uvx judgekeeper")):
         assert words in text, words
 
 

@@ -466,10 +466,14 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert [s.classes() for s in sections] == [{"hero", "gx-hero"}, {"gx-steps"}, {"gx-more"}]
     hero = sections[0]
     assert hero.attrs["id"] == "install"  # judgekeeper prints start.html#install
-    assert _flat(_all(hero, "h1")[0]) == "Start in one command."
+    assert _flat(_all(hero, "h1")[0]) == "Start in your project."
     (card,) = _all(hero, "div", "gx-install")
-    assert _flat(_all(card, "p", "gx-k")[0]) == "In your project folder, run"
-    assert _flat(_all(card, "code")[0]) == "uvx judgekeeper"
+    assert _flat(_all(card, "p", "gx-k")[0]) == "In your project folder, run one of these"
+    # pip and uv as equals, both in view: pip first, its two lines in one box
+    assert [_flat(c) for c in _all(card, "code")] == ["pip install judgekeeper judgekeeper",
+                                                     "uvx judgekeeper"]
+    assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == ["With pip (most Python setups)",
+                                                              "With uv"]
     assert not _all(_main(GUIDE), "nav")  # no side list
     # the cards; Your own format holds the record() line judgekeeper links to
     cards = [(c.attrs["id"], _flat(_all(c, "h3")[0])) for c in _all(sections[2], "div", "gx-card")]
@@ -510,12 +514,13 @@ def test_the_guide_lists_the_five_steps_with_no_tabs_or_terminal():
 
 def test_every_command_box_has_a_copy_button_that_says_copied():
     boxes = [box for page in (GUIDE, CHECK) for box in _all(parse(page), "div", "cmd")]
+    pip = "pip install judgekeeper judgekeeper"  # two lines, one box, one copy button
     assert [_flat(_all(b, "code")[0]) for b in boxes] == [
-        "uvx judgekeeper", "judgekeeper", "judgekeeper fix", "judgekeeper check",
-        "uvx judgekeeper"]
+        pip, "uvx judgekeeper", "judgekeeper", "judgekeeper fix", "judgekeeper check",
+        pip, "uvx judgekeeper"]
     for box in boxes:
         (button,) = _all(box, "button", "copy")
-        assert "data-copy" in button.attrs and button.attrs["aria-label"] == "Copy"
+        assert "data-copy" in button.attrs and button.attrs["aria-label"].startswith("Copy")
         assert _all(button, "svg", "i-copy") and _all(button, "svg", "i-tick")
         (said,) = _all(button, "span", "copied")
         assert said.attrs.get("aria-live") == "polite"
@@ -626,8 +631,10 @@ def test_the_browser_check_is_homes_hero_with_the_drop_card_and_a_terminal():
     assert file_input.attrs["type"] == "file" and "sr" in file_input.classes()
     # under the drop card, always shown: the command row
     (run,) = _all(main, "div", "ck-run")
-    assert _flat(_all(run, "p")[0]) == "To run judgekeeper in your project folder:"
-    assert _flat(_all(run, "code")[0]) == "uvx judgekeeper"
+    assert _flat(_all(run, "p")[0]) == ("To run judgekeeper in your project folder, with pip "
+                                        "(most Python setups) or with uv:")
+    assert [_flat(c) for c in _all(run, "code")] == ["pip install judgekeeper judgekeeper",
+                                                    "uvx judgekeeper"]
     # the terminal: the file's name in its bar once read, Clear, the waiting screen, the result
     assert _flat(_by_id(CHECK, "ck-title")) == "your results file"
     clear = _by_id(CHECK, "ck-clear")
