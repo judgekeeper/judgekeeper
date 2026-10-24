@@ -1,5 +1,5 @@
 """Fixes from running judgekeeper on public projects: tables whose other columns were counted
-as answers, the wrong column taken as the judge, error text quoted from logs, and the small
+as answers, the wrong column taken as the LLM-as-a-judge, error text quoted from logs, and the small
 things around them. Every fixture here is made up, with the shape (column names, values) of
 the real ones.
 """
@@ -76,7 +76,7 @@ def test_the_rag_table_has_one_answer_side_and_no_count_question(here, capsys):
     assert "Count each as its own answer?" not in out
     assert "<side>" not in out
     assert "  answer:          generated_answer" in out
-    assert "Answers:     1509 answers" in out
+    assert "Answers:         1509 answers" in out
     assert "Each item has" not in out
 
 
@@ -89,12 +89,12 @@ def test_counts_wait_until_a_question_that_changes_them_is_answered(here, capsys
     code, out = run(capsys, "--metric", "Safe wording")
     assert code == 3, out
     assert "Count each as its own answer?" in flat(out)
-    assert "answers, each graded by your judge" not in out
-    assert "Your judge's grades:" not in out
+    assert "answers, each graded by your LLM-as-a-judge" not in out
+    assert "Your LLM-as-a-judge's grades:" not in out
     assert "Checked:" not in out
     code, out = run(capsys, "--metric", "Safe wording", "--yes")
     assert code == 0, out
-    assert "Answers:     42 answers" in out
+    assert "Answers:         42 answers" in out
 
 
 # The wrong column taken as the judge ------------------------------------------------------
@@ -105,7 +105,7 @@ HARNESS_COLUMNS = ["id", "task", "prompt", "response", "grader", "check_verdict"
 
 def harness_rows() -> list[list]:
     rows = []
-    for i in range(9):  # string-match rows: no judge
+    for i in range(9):  # string-match rows: no LLM-as-a-judge
         rows.append([f"t{i}", "lookup", question(i), f"Answer {i}.", "string_match", "", "",
                      "PASS" if i % 2 else "FAIL", "", "120"])
     for i in range(9, 69):  # rows with code checks and a judge
@@ -127,7 +127,7 @@ def test_several_verdict_columns_are_listed_as_judges_judge_first(here, capsys):
     write_csv(here / "results.csv", HARNESS_COLUMNS, harness_rows())
     code, out = run(capsys)
     assert code == 3, out
-    assert "Judge:" not in out
+    assert "LLM-as-a-judge:" not in out
     assert "string_match" not in out and "checks+judge" not in out
     assert "  model:           not in the file" in out
     assert out.index("judge_verdict (60 answers)") < out.index("check_verdict (60 answers)")
@@ -141,8 +141,8 @@ def test_the_chosen_judge_column_is_read_alone(here, capsys):
     write_csv(here / "results.csv", HARNESS_COLUMNS, harness_rows())
     code, out = run(capsys, "--metric", "judge_verdict", "--yes")
     assert code == 0, out
-    assert "Your judge passed 52 answers and failed 8." in out  # the 60 judged rows
-    assert "9 empty decisions" in flat(out)  # the string-match rows have no judge
+    assert "Your LLM-as-a-judge passed 52 answers and failed 8." in out  # the 60 judged rows
+    assert "9 empty decisions" in flat(out)  # the string-match rows have no LLM-as-a-judge
     assert "string_match" not in out and "checks+judge" not in out
 
 
@@ -158,7 +158,7 @@ def test_the_screen_names_real_paths_never_placeholders(here, capsys):
     assert '  cases[].A.scores."Safe wording".score' in out  # the first judge, for real
     assert "Plain language" not in out[:out.index("How judgekeeper reads it")]
     assert "  answer:          A.output and B.output" in out
-    assert ('grade: A.scores."Safe wording".score (judges: Safe wording, Plain language) and '
+    assert ('grade: A.scores."Safe wording".score (LLM-as-a-judge names: Safe wording, Plain language) and '
             "the same under B") in flat(out)
     code, out = run(capsys, "--metric", "Safe wording", "--yes")
     assert code == 0, out
@@ -274,7 +274,7 @@ def test_a_promptfoo_table_is_never_guessed_as_a_format_of_its_own(here, capsys,
     assert code == 2, out
     assert "format of its own" not in out
     assert flat(out).count("evaluation/results/eval-single-turn-results.json is promptfoo's "
-                           "table output, which doesn't keep the judge's own decisions") == 1
+                           "table output, which doesn't keep the LLM-as-a-judge's own decisions") == 1
     assert "promptfoo eval -o results.json" in flat(out)
 
 
@@ -351,7 +351,7 @@ def test_repeats_with_different_grades_are_each_their_own_answer(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 0, out
-    assert "Answers:     38 answers" in out
+    assert "Answers:         38 answers" in out
     assert ("3 repeats of one answer got different grades (1 Pass, 2 Fail); each is its own "
             "answer.") in flat(out)
     assert "tied grade" not in out and "merged" not in out
@@ -366,7 +366,7 @@ def test_repeats_with_the_same_grade_are_still_merged(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 0, out
-    assert "Answers:     36 different answers" in out
+    assert "Answers:         36 different answers" in out
     assert "(your file has 37 results: some answers are in it more than once, so each is counted once)" in flat(out)
     assert "merged" not in out
 
@@ -384,8 +384,8 @@ def test_a_null_grading_result_with_one_rubric_uses_the_rows_success(here, capsy
     code, out = run(capsys)
     assert code == 0, out
     assert "PROMPTFOO_STRIP_GRADING_RESULT" not in out
-    assert "Answers:     36 answers" in out
-    assert "Your judge passed 20 answers and failed 16." in out
+    assert "Answers:         36 answers" in out
+    assert "Your LLM-as-a-judge passed 20 answers and failed 16." in out
     assert ("promptfoo didn't save the grader's details; the pass/fail of each row is used."
             in flat(out))
 
@@ -446,8 +446,8 @@ def test_an_inspect_log_of_format_1_is_read_without_the_extra(here, capsys):
     assert code == 3, out  # 3 answers: not enough for a first result
     assert "holds no decisions from an LLM-as-a-judge" not in out
     assert "needs the extra" not in out
-    assert "Answers:     3 answers" in out
-    assert "Your judge passed 0 answers and failed 3." in out
+    assert "Answers:         3 answers" in out
+    assert "Your LLM-as-a-judge passed 0 answers and failed 3." in out
 
 
 # Judge tables reported as nothing --------------------------------------------------------
@@ -466,7 +466,7 @@ def test_a_judge_table_with_no_answer_column_is_named(here, capsys, name, column
     code, out = run(capsys)
     assert code == 3, out
     assert "No eval results found" not in out
-    assert (f"{name} has your judge's verdicts but no answer text, so there's nothing to show "
+    assert (f"{name} has your LLM-as-a-judge's verdicts but no answer text, so there's nothing to show "
             "you for marking.") in flat(out)
     line = assert_one_next_at_the_end(out)
     assert "add the answer column (the text that was judged)" in flat(out)
@@ -489,7 +489,7 @@ def test_a_csv_with_the_judge_is_read_when_the_newer_json_has_none(here, capsys)
     os.utime(csv_path, (old, old))  # the JSON is the newer file
     code, out = run(capsys)
     assert code == 3, out
-    assert "results/results_gpt4_llm_judge.csv looks like your judge's results" in flat(out)
+    assert "results/results_gpt4_llm_judge.csv looks like your LLM-as-a-judge's results" in flat(out)
     assert "judgekeeper cannot read" not in out
 
 
@@ -522,7 +522,7 @@ def test_a_results_file_with_no_judge_is_left_out_without_the_question(here, cap
     code, out = run(capsys)
     assert code == 0, out
     assert "another project" not in out
-    assert "other.json is left out: no LLM judge in it." in flat(out)
+    assert "other.json is left out: no LLM-as-a-judge in it." in flat(out)
 
 
 # Paths relative to the project ------------------------------------------------------------
@@ -593,7 +593,7 @@ def test_one_more_file_left_out_is_singular(here, capsys):
         (here / f"smoke-{n}.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 0, out
-    assert "1 more file is left out: no LLM judge in it." in flat(out)
+    assert "1 more file is left out: no LLM-as-a-judge in it." in flat(out)
     assert "more files are" not in out
 
 
@@ -607,7 +607,7 @@ def test_no_default_grader_line_when_no_grade_is_clear(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 3, out
-    assert "Your judge's calls failed on every answer" in flat(out)
+    assert "Your LLM-as-a-judge's calls failed on every answer" in flat(out)
     assert "grades came from promptfoo's default grader" not in flat(out)  # no grade to come
 
 
@@ -674,7 +674,7 @@ def test_code_assertions_next_to_the_judge_are_said(here, capsys):
     code, out = run(capsys)
     assert code == 0, out
     assert ("Your tests also have 72 code assertions (contains, javascript): they are not an "
-            "LLM judge, so they are left out.") in flat(out)
+            "LLM-as-a-judge, so they are left out.") in flat(out)
 
 
 def test_deepeval_positional_names_are_said(here, capsys):
@@ -723,7 +723,7 @@ def test_marks_made_on_eval_logs_this_install_cannot_read_are_said(here, capsys,
     (here / "logs" / "2026-10-03_support.eval").write_bytes(b"PK\x03\x04" + b"\0" * 20)
     code, out = run(capsys)
     assert code == 3, out
-    assert "Your judge changed" not in out
+    assert "Your LLM-as-a-judge changed" not in out
     assert ("Your marks were made on logs/2026-10-03_support.eval, which this install reads "
             "only with its Inspect extra. To keep checking the same answers,") in flat(out)
     assert "judgekeeper[inspect]" in assert_one_next_at_the_end(out)
@@ -754,8 +754,8 @@ def test_a_standard_csv_with_two_verdict_columns_asks_which_judge(here, capsys):
     assert "--metric NAME" in line
     code, out = run(capsys, "--metric", "judge_verdict")
     assert code == 0, out
-    assert "Your judge passed 40 answers and failed 20." in out
-    assert "Judge:       judge_verdict" in out
+    assert "Your LLM-as-a-judge passed 40 answers and failed 20." in out
+    assert "LLM-as-a-judge:  judge_verdict" in out
 
 
 def test_a_standard_csv_model_column_of_rule_names_is_not_the_judge(here, capsys):
@@ -764,7 +764,7 @@ def test_a_standard_csv_model_column_of_rule_names_is_not_the_judge(here, capsys
     write_csv(here / "results.csv", ["input", "output", "verdict", "model"], rows)
     code, out = run(capsys)
     assert code == 0, out
-    judge_line = next(x for x in out.splitlines() if x.startswith("Judge:"))
+    judge_line = next(x for x in out.splitlines() if x.startswith("LLM-as-a-judge:"))
     assert "checks+judge" not in judge_line and "string_match" not in judge_line
     assert "model not found in your results" in judge_line
 
@@ -821,7 +821,7 @@ def test_inspect_epochs_with_different_grades_are_said_and_counted(here, capsys)
     two_epoch_log(here)
     code, out = run(capsys)
     assert code == 3, out  # 20 answers: not enough for a first result
-    assert "Answers:     20 different answers" in out
+    assert "Answers:         20 different answers" in out
     assert ("(your file has 30 results: each answer was run 2 times, so each is counted once "
             "unless its grades differ)") in flat(out)
     assert ("5 answers got different grades when graded more than once (10 repeats in all); "
@@ -853,7 +853,7 @@ def test_no_answer_count_while_the_partial_credit_question_is_open(here, capsys)
     assert code == 3, out
     assert "Inspect gave partial credit (P) on 4 answers." in flat(out)
     assert "Answers:" not in out
-    assert "Eval tool:   Inspect AI" in out
+    assert "Eval tool:       Inspect AI" in out
 
 
 # The Step 1 block ---------------------------------------------------------------------------
@@ -873,18 +873,18 @@ def test_the_promptfoo_block_names_the_file_and_what_was_read(here, capsys):
     code, out = run(capsys)
     assert code == 0, out
     assert block_of(out) == [
-        "Eval tool:   promptfoo",
-        "File:        results.json",
-        "Answers:     40 answers",
-        "Judge:       openai:gpt-4.1-mini",
-        f'Judge rule:  "{" ".join(RUBRIC.split())}"',
+        "Eval tool:       promptfoo",
+        "File:            results.json",
+        "Answers:         40 answers",
+        "LLM-as-a-judge:  openai:gpt-4.1-mini",
+        f'Rule:            "{" ".join(RUBRIC.split())}"',
         "Read from your file:",
         "  question   each test's vars",
         "  answer     each test's output",
-        "  grade      your judge's Pass or Fail",
+        "  grade      your LLM-as-a-judge's Pass or Fail",
     ]
-    assert "Your judge passed 23 answers and failed 17." in out
-    assert "Your judge's grades" not in out and "(read from" not in out
+    assert "Your LLM-as-a-judge passed 23 answers and failed 17." in out
+    assert "Your LLM-as-a-judge's grades" not in out and "(read from" not in out
 
 
 def test_repeats_run_the_same_number_of_times_are_said_as_such(here, capsys):
@@ -896,11 +896,11 @@ def test_repeats_run_the_same_number_of_times_are_said_as_such(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 3, out
-    assert "Answers:     6 different answers" in out
+    assert "Answers:         6 different answers" in out
     assert ("(your file has 18 results: each answer was run 3 times, so each is counted once)"
             in flat(out))
     assert "merged" not in out
-    assert "Your judge passed 4 answers and failed 2." in out
+    assert "Your LLM-as-a-judge passed 4 answers and failed 2." in out
 
 
 def test_repeats_of_some_answers_only_are_said_as_such(here, capsys):
@@ -912,7 +912,7 @@ def test_repeats_of_some_answers_only_are_said_as_such(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 3, out
-    assert "Answers:     6 different answers" in out
+    assert "Answers:         6 different answers" in out
     assert ("(your file has 7 results: some answers are in it more than once, so each is "
             "counted once)") in flat(out)
 
@@ -924,14 +924,14 @@ def test_the_deepeval_block_puts_the_pass_mark_in_the_grade_row(here, capsys):
     code, out = run(capsys, "--metric", "Correctness [GEval]")
     assert code == 0, out
     block = block_of(out)
-    assert "File:        .deepeval/.latest_run_full.json" in block
-    assert "Answers:     36 answers" in block
+    assert "File:            .deepeval/.latest_run_full.json" in block
+    assert "Answers:         36 answers" in block
     assert block[-5:] == [
         "Read from your file:",
         "  question   each test case's input",
         "  answer     each test case's actual_output",
         "  grade      the Correctness [GEval] score: Pass at 0.5 or more",
-        "  reason     your judge's reason",
+        "  reason     your LLM-as-a-judge's reason",
     ]
     assert "Pass mark:" not in out
 
@@ -977,7 +977,7 @@ def test_a_promptfoo_exec_grader_is_your_own_script(here, capsys):
     promptfoo_project(here, split(20, 16), model="exec: python3 graders/grader.py")
     code, out = run(capsys)
     assert code == 0, out
-    assert "Judge:       your own script (python3 grader.py)" in out
+    assert "LLM-as-a-judge:  your own script (python3 grader.py)" in out
     assert "exec:" not in out
 
 
@@ -987,7 +987,7 @@ def test_one_pass_is_said_in_the_singular(here, capsys):
     promptfoo_project(here, split(1, 17))
     code, out = run(capsys)
     assert code == 3, out
-    assert "Your judge passed 1 answer and failed 17." in out
+    assert "Your LLM-as-a-judge passed 1 answer and failed 17." in out
 
 
 def test_deepeval_nothing_checked_is_said_plainly(here, capsys):
@@ -1003,6 +1003,6 @@ def test_deepeval_nothing_checked_is_said_plainly(here, capsys):
     path.write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys, "--metric", "Correctness [GEval]")
     assert code == 0, out
-    assert ("Checked: on 8 answers your judge found nothing to check, but DeepEval still gave "
+    assert ("Checked: on 8 answers your LLM-as-a-judge found nothing to check, but DeepEval still gave "
             "them full marks, so they are left out.") in flat(out)
     assert "checked nothing" not in out

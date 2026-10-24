@@ -68,7 +68,7 @@ def test_a_mark_changed_and_changed_back_is_not_counted(here):  # noqa: F811
     _say(ws, fails[0], label="fail", seconds=4)
     made = marks.made(marks.read(ws.marks))
     assert made["after_result"] == 1
-    assert "You changed 1 mark after seeing your judge's grades." in start_label.made_lines(made)
+    assert "You changed 1 mark after seeing your LLM-as-a-judge's grades." in start_label.made_lines(made)
 
 
 # Overlapping marked parts are joined in suggestions.md -----------------------------------
@@ -91,7 +91,7 @@ def test_measure_with_the_page_closed_names_the_mark_command_once(here, capsys, 
     for _ in range(2):  # the second time with the reasons asked on the result page
         code, out = _run(capsys)
         assert code == 0, out
-        assert "You and your judge disagreed on" in out, out
+        assert "You and your LLM-as-a-judge disagreed on" in out, out
         assert " ".join(out.split()).count("`judgekeeper mark`") == 1, out
         assert_one_next_at_the_end(out)
 

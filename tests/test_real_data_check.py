@@ -276,10 +276,10 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
 
     s = report["summary"]["25+25"]
     c = s["tpr_tnr"]
-    result = (f"{s['judges']} real judges from {s['datasets']} public datasets",
+    result = (f"{s['judges']} real LLM-as-a-judge setups from {s['datasets']} public datasets",
               (f"in {pct(c['mean'])} checks in 100 on average (lowest {pct(c['lowest'])}, "
                f"highest {pct(c['highest'])}), over {report['settings']['checks']:,} checks "
-               "per judge"))
+               "per LLM-as-a-judge"))
     grid = json.loads((ROOT / "docs/examples/coverage/coverage.json").read_text(
         encoding="utf-8"))
     level = grid["corrected"]["levels"][str(grid["corrected"]["chosen_level"])]

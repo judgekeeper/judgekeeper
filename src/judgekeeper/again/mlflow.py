@@ -108,32 +108,32 @@ def classify(info: dict, worker: dict) -> tuple[str, str]:
     worker found in the user's Python."""
     source = info.get("source_id") or ""
     if source == "databricks" or source.startswith("endpoints:/"):
-        return CANT, ("your judge runs on Databricks. Run judgekeeper inside your Databricks "
-                      "workspace")
+        return CANT, ("your LLM-as-a-judge runs on Databricks. Run judgekeeper inside your "
+                      "Databricks workspace")
     name = info.get("scorer_name") or info.get("name")
     if info.get("scorer_name") and worker.get("registered"):
         if info.get("scorer_version"):
-            return EXACT, (f"MLflow calls your registered judge {name}, version "
+            return EXACT, (f"MLflow calls your registered LLM-as-a-judge {name}, version "
                            f"{info['scorer_version']}")
         return CLOSE, ("no version was saved with your assessments, so the latest registered "
                        "version is used")
     if info.get("name") == "guidelines":
         n = info.get("guidelines")
         if n == 1:
-            return EXACT, "MLflow's built-in Guidelines judge with your one guideline"
+            return EXACT, "MLflow's built-in Guidelines LLM-as-a-judge with your one guideline"
         if n:
-            return CANT, ("your Guidelines judge has several guidelines, which MLflow saves as "
-                          "one text")
-        return CANT, "your Guidelines judge's guidelines were not saved"
+            return CANT, ("your Guidelines LLM-as-a-judge has several guidelines, which MLflow "
+                          "saves as one text")
+        return CANT, "your Guidelines LLM-as-a-judge's guidelines were not saved"
     if worker.get("builtin"):
-        return EXACT, (f"MLflow's built-in {info.get('name')} judge with the model saved with "
-                       "your assessments")
+        return EXACT, (f"MLflow's built-in {info.get('name')} LLM-as-a-judge with the model saved "
+                       "with your assessments")
     if info.get("instructions"):
         if worker.get("version") is None or _version(worker.get("version")) >= (3, 14):
             return CLOSE, ("an unregistered make_judge: its instructions and model are saved; "
                            "its output type and temperature are not saved")
         return CANT, "a make_judge from MLflow before 3.14 does not save its instructions"
-    return CANT, "your judge is a custom scorer, which runs your own code"
+    return CANT, "your LLM-as-a-judge is a custom scorer, which runs your own code"
 
 
 def judge_meta(meta: dict) -> dict:
@@ -213,7 +213,7 @@ def assessment_info(ws, metric: str, run: str | None = None) -> dict:
                                 "scorer_version": meta.get(SCORER_VERSION),
                                 "experiment": exp.experiment_id, **judge_meta(meta)}
     if info is None:
-        raise ValueError(f"no judge assessment named {metric} in your MLflow store")
+        raise ValueError(f"no LLM-as-a-judge assessment named {metric} in your MLflow store")
     return {**info, "uri": uri, "traces": traces, "all_traces": every}
 
 
@@ -231,8 +231,10 @@ def judge_job(info: dict, worker: dict) -> dict:
     return {**base, "kind": "make_judge", "text": info.get("text")}
 
 
-NEEDS_TRACE = ("its trace is not in your MLflow store, and your judge reads the whole trace",
-               "their traces are not in your MLflow store, and your judge reads the whole trace")
+NEEDS_TRACE = (("its trace is not in your MLflow store, and your LLM-as-a-judge reads the whole "
+                "trace"),
+               ("their traces are not in your MLflow store, and your LLM-as-a-judge reads the "
+                "whole trace"))
 
 
 def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> Plan:
@@ -260,8 +262,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 return cant("mlflow", judge, f"MLflow is not installed in {again.python_name(python)}. Activate "
                             "the virtual environment you run your evals with, then try again",
                             short="MLflow is not installed here")
-            return cant("mlflow", judge, f"MLflow could not load your judge in {again.python_name(python)}: "
-                        f"{worker.get('error')}", short="MLflow could not load your judge")
+            return cant("mlflow", judge, "MLflow could not load your LLM-as-a-judge in "
+                                         f"{again.python_name(python)}: {worker.get('error')}",
+                        short="MLflow could not load your LLM-as-a-judge")
     status, why = classify(info, worker)
     if status == CANT:
         return cant("mlflow", judge, why, short=re.split(r"[.,](?:\s|$)", why)[0])
@@ -269,7 +272,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     if opts.rule is not None:
         if job["kind"] not in ("guidelines", "make_judge"):
             return cant("mlflow", judge, again.NO_SWAP.format(
-                what="an MLflow judge that is registered or built in"), short="no rule to swap")
+                what="an MLflow LLM-as-a-judge that is registered or built in"), short="no rule to "
+                                                                                       "swap")
         job = {**job, "text": opts.rule}
     version = worker.get("version")
     if status == EXACT:
@@ -306,9 +310,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 settings=check.settings, key_ok=check.ok, key_step=check.step,
                 tool_version=version, left_out=left, runner=[python], payload=payload,
                 job={"uri": info.get("uri"), "judge": job},
-                side_effects=[(f"Your app or agent is not run. MLflow calls your judge directly "
-                               f"in {again.your_python(python)}; never mlflow.genai.evaluate(), so "
-                               "nothing is added to your MLflow store.")])
+                side_effects=[("Your app or agent is not run. MLflow calls your LLM-as-a-judge "
+                               f"directly in {again.your_python(python)}; never "
+                               "mlflow.genai.evaluate(), so nothing is added to your MLflow "
+                               "store.")])
 
 
 def run(ws, plan: Plan, talk) -> Fresh:

@@ -182,7 +182,7 @@ def sniff_json(head: bytes) -> str | None:
 
 
 PROMPTFOO_TABLE = "promptfoo-table"  # `promptfoo eval -o table.json`: no judge's decisions
-TABLE_OUTPUT = "is promptfoo's table output, which doesn't keep the judge's own decisions"
+TABLE_OUTPUT = "is promptfoo's table output, which doesn't keep the LLM-as-a-judge's own decisions"
 
 
 def table_columns(path: Path) -> list[str]:
@@ -273,7 +273,7 @@ def is_records(columns) -> bool:
     return "annotator_kind" in columns or "schema_version" in columns
 
 
-NO_ASSESSMENTS = "holds no judge assessments"
+NO_ASSESSMENTS = "holds no LLM-as-a-judge assessments"
 
 
 def store_facts(path: Path) -> tuple[datetime | None, int | None]:

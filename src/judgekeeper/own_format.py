@@ -28,16 +28,16 @@ OWN_FORMAT_URL = "www.judgekeeper.com/start.html#own-format"
 INSTALL_URL = "www.judgekeeper.com/start.html#install"
 RECORD_URL = OWN_FORMAT_URL  # the Guide's "Your own format" shows the record() line
 AGENT_PROMPT = """\
-In this project, my LLM judge saves its results in its own format. Please:
+In this project, my LLM-as-a-judge saves its results in its own format. Please:
 
 1. Install judgekeeper into this project's own Python environment, as a dev tool: for
    example `uv add --dev judgekeeper`, `poetry add --group dev judgekeeper`, or
    `pip install judgekeeper` with the project's virtual environment active.
-2. Find where the judge's results are saved, and write a small script that turns them into
+2. Find where the LLM-as-a-judge's results are saved, and write a small script that turns them into
    judgekeeper's table: a CSV with the columns id, input, output, verdict and reason, plus
    judge_model when you can tell which model judged. The verdict is pass or fail.
-3. Write one CSV per judge or criterion. Leave out rows where the judge gave an error, and
-   scores made by a rule instead of an LLM.
+3. Write one CSV per LLM-as-a-judge or criterion. Leave out rows where the LLM-as-a-judge gave
+   an error, and scores made by a rule instead of an LLM.
 4. Keep everything on this computer: never send the data anywhere.
 5. Run `judgekeeper PATH`, with PATH the path of the CSV file, and show me what it prints,
    so I can check the counts and the example rows."""

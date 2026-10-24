@@ -1,8 +1,8 @@
-"""No credential reaches disk, stdout or stderr, whatever the judge's results hold.
+"""No credential reaches disk, stdout or stderr, whatever the LLM-as-a-judge's results hold.
 
 Sentinel values sit in ANTHROPIC_API_KEY, OPENAI_API_KEY, the Langfuse keys and a custom
-variable whose name ends in _API_KEY. The judge's saved results echo every one of them in the
-questions, the answers, the judge's reasons and the model it names. Then `start` reads them,
+variable whose name ends in _API_KEY. The LLM-as-a-judge's saved results echo every one of them in the
+questions, the answers, the LLM-as-a-judge's reasons and the model it names. Then `start` reads them,
 the page's marks are saved and the result is written, and every file and every line printed
 is searched.
 """
@@ -74,7 +74,7 @@ def test_no_key_leaks_anywhere(env, capsys):
     results = _results_with_keys(env)
     assert main([]) == 0  # the page opens in the background
     printed = capsys.readouterr()
-    assert "Your judge passed " in printed.out
+    assert "Your LLM-as-a-judge passed " in printed.out
     # What the page does next: save the marks and the result.
     said = []
     ws = start_label.prepare(start.find_judge(env), say=said.append)
@@ -121,7 +121,7 @@ def test_an_mlflow_store_with_keys_never_shows_them(env, capsys, monkeypatch):
     build_mlflow_store(env, note=f" (debug: {KEYS})")
     assert main(["--metric", "correctness"]) == 3  # too few answers for a result
     printed = capsys.readouterr()
-    assert "Your judge passed " in printed.out
+    assert "Your LLM-as-a-judge passed " in printed.out
     for value in SENTINELS.values():
         assert value not in printed.out + printed.err
     said = []

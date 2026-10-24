@@ -1,9 +1,9 @@
-"""Ranges after asking the judge again, when it changes its own grade now and then.
+"""Ranges after asking the LLM-as-a-judge again, when it changes its own grade now and then.
 
 A judge asked twice about the same answer does not always give the same grade. The share of
 answers whose two grades differ (its wobble) is measured when a paid re-check asks twice. Each
 re-asked grade can then have turned round by itself, so "every answer agreed" is no longer
-exact: the range for the new judge's numbers is widened for it, most where a group of the marks
+exact: the range for the new LLM-as-a-judge's numbers is widened for it, most where a group of the marks
 holds few answers. A judge that gave the same grade both times keeps its ranges as they were.
 """
 
@@ -18,7 +18,7 @@ from judgekeeper import weighted
 
 def _coverage(pi, n, flip, runs, use_wobble, systematic=0.0, seed=11):
     """How often the TPR and TNR ranges hold the asked judge's true rates. The pool: 1,000
-    answers, a share `pi` passed by the judge; 90% of its passes should pass, 15% of its fails
+    answers, a share `pi` passed by the LLM-as-a-judge; 90% of its passes should pass, 15% of its fails
     should. Asked again, each grade turns round with chance `flip`, asked twice to measure it;
     `systematic`: a share of the answers it failed that should fail now passes."""
     a, b = 0.9, 0.15

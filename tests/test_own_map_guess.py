@@ -2,8 +2,8 @@
 model at the run level and holds two criteria per answer (tests/start_projects.py,
 coach_project: the shape of a real homemade judge's history, with made-up text).
 
-The guess reads the pass mark and the judge's model wherever the file keeps them (the run
-or the item) and says where; it lists every criterion as a judge; and at a terminal the
+The guess reads the pass mark and the LLM-as-a-judge's model wherever the file keeps them (the run
+or the item) and says where; it lists every criterion as an LLM-as-a-judge; and at a terminal the
 person is asked whether the guess is right. After No they say which part is wrong and
 correct only that part; the coding-agent prompt comes only when none of the parts fit.
 """
@@ -123,7 +123,7 @@ def test_how_it_reads_says_where_the_pass_mark_and_model_come_from(tmp_path, cap
     answers += ["", "", "3", "1", ""]  # right; each its own; all; helpful for now; save
     code, out = setup(capsys, tmp_path / "history" / "evals.jsonl")
     assert code == 0
-    assert ("grade: answers.A.scores.safe_wording.score (judges: safe_wording, helpful) and "
+    assert ("grade: answers.A.scores.safe_wording.score (LLM-as-a-judge names: safe_wording, helpful) and "
             "the same under B") in " ".join(out.split())
     assert "  model:           judge.model (claude-sonnet-5)" in out
     assert "  pass mark:       0.7 (judge.pass_mark in the file)" in out
@@ -172,7 +172,7 @@ def test_after_no_correct_the_pass_mark(tmp_path, capsys, terminal):
     assert code == 0
     assert "Which part is wrong?" in out
     for n, part in enumerate(("what one answer is", "the input", "the answer", "the score",
-                              "the reason", "the id", "the judge's model", "the pass mark",
+                              "the reason", "the id", "the LLM-as-a-judge's model", "the pass mark",
                               "none of these fit"), 1):
         assert f"  {n}. {part}" in out
     assert "  pass mark:       0.5 (given by you)" in out
@@ -188,7 +188,7 @@ def test_after_no_correct_the_judge_model(tmp_path, capsys, terminal):
     answers += ["n", "7"]
     code, out = setup_with_choice(capsys, answers, tmp_path, "app.model")
     assert code == 0
-    assert "Which path holds the judge's model?" in out
+    assert "Which path holds the LLM-as-a-judge's model?" in out
     assert saved(tmp_path)["map"]["model_key"] == "app.model"
 
 

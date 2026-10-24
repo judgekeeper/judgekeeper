@@ -28,12 +28,16 @@ from judgekeeper.textio import PRIVATE_FOLDER, make_private
 
 NOT_COUNTED = {  # key: (one answer, several answers)
     "grading prompt differs": (
-        "its grading prompt differs from the saved one, so it was not the same judge input",
-        ("their grading prompts differ from the saved ones, so they were not the same judge "
-         "input")),
-    "no clear verdict": ("the judge gave no clear decision", "the judge gave no clear decision"),
-    "error": ("the judge's tool gave an error for it", "the judge's tool gave an error for them"),
-    "judge call failed": ("the judge's call for it failed", "the judge's calls for them failed"),
+        ("its grading prompt differs from the saved one, so the LLM-as-a-judge did not get the "
+         "same input"),
+        ("their grading prompts differ from the saved ones, so the LLM-as-a-judge did not get the "
+         "same input")),
+    "no clear verdict": ("the LLM-as-a-judge gave no clear decision",
+                         "the LLM-as-a-judge gave no clear decision"),
+    "error": ("the LLM-as-a-judge's tool gave an error for it",
+              "the LLM-as-a-judge's tool gave an error for them"),
+    "judge call failed": ("the LLM-as-a-judge's call for it failed",
+                          "the LLM-as-a-judge's calls for them failed"),
     "missing": ("it is missing from the tool's output",
                 "they are missing from the tool's output"),
 }

@@ -192,7 +192,7 @@ def test_the_top_bar_is_the_same_on_every_page():
     for name, page in (("marking", _marking()),
                        ("result", start_label.result_html(_result(*CHECK), back="/?token=t"))):
         bar = page.split('<header class="top">')[1].split("</header>")[0]
-        assert bar.startswith('<div class="meta"><span class="k">Judge:</span>'
+        assert bar.startswith('<div class="meta"><span class="k">LLM-as-a-judge:</span>'
                               '<span class="v" title="openai:gpt-4.1-mini">openai:gpt-4.1-mini'
                               '</span>'
                               '<span class="k">Eval tool:</span><span class="v">promptfoo</span>'
@@ -234,7 +234,7 @@ def test_the_marking_page_shows_nothing_the_judge_decided():
 
 def test_the_marking_page_words():
     text = _text(_marking())
-    for line in ("Judge: openai:gpt-4.1-mini", "Eval tool: promptfoo", "0 marked",
+    for line in ("LLM-as-a-judge: openai:gpt-4.1-mini", "Eval tool: promptfoo", "0 marked",
                  "See your result", "Pass Fail Not marked", "Question", "Answer",
                  "Not marked yet", "Fail ←", "Pass →", "Skip this one S", "Undo Z",
                  "Come back any time: judgekeeper mark", mark_page.TITLE, "Start marking"):
@@ -424,9 +424,9 @@ def test_the_result_top_bar_has_the_judge_and_the_logo_only():
 
 
 @pytest.mark.parametrize("counts, state, headline", [
-    (GATE, "good", "Your judge is good enough to use."),
-    (NOT_GATE_TNR, "needs", "Your judge needs work."),
-    (NOT_GATE_TPR, "needs", "Your judge needs work."),
+    (GATE, "good", "Your LLM-as-a-judge is good enough to use."),
+    (NOT_GATE_TNR, "needs", "Your LLM-as-a-judge needs work."),
+    (NOT_GATE_TPR, "needs", "Your LLM-as-a-judge needs work."),
     (CHECK, "plain", "Too early to tell."),
     (TOO_EARLY, "plain", "Too early to tell."),
     (TOO_FEW, "plain", "Too early to tell.")])
@@ -439,13 +439,13 @@ def test_each_result_level_shows_its_state(counts, state, headline):
 def test_good_and_needs_work_lead_with_the_disagreements():
     for counts, d, n in ((GATE, 2, 40), (NOT_GATE_TNR, 20, 80)):
         html = start_label.result_html(_result(*counts))
-        assert (f'<p class="lead">You and your judge disagreed on <b>{d}</b> of <b>{n}</b> '
+        assert (f'<p class="lead">You and your LLM-as-a-judge disagreed on <b>{d}</b> of <b>{n}</b> '
                 "answers.</p>") in html
 
 
 @pytest.mark.parametrize("counts, said", [
-    (CHECK, "You and your judge disagreed on <b>6</b> of <b>30</b> answers. "),
-    (TOO_EARLY, "You and your judge disagreed on <b>2</b> of <b>50</b> answers. "),
+    (CHECK, "You and your LLM-as-a-judge disagreed on <b>6</b> of <b>30</b> answers. "),
+    (TOO_EARLY, "You and your LLM-as-a-judge disagreed on <b>2</b> of <b>50</b> answers. "),
     (TOO_FEW, "")])  # no result yet: no count
 def test_too_early_leads_to_the_marking_page_or_says_the_command(counts, said):
     served = start_label.result_html(_result(*counts), back="/?token=t")
@@ -460,13 +460,13 @@ def test_too_early_leads_to_the_marking_page_or_says_the_command(counts, said):
 @pytest.mark.parametrize("counts, level", [(GATE, "gate"), (NOT_GATE_TNR, "not_gate"),
                                            (CHECK, "check"), (TOO_EARLY, "too_early")])
 def test_every_result_level_says_how_many_answers_you_disagreed_on(counts, level):
-    """The terminal's line ("You and your judge disagreed on 6 of 60 answers."), on the
+    """The terminal's line ("You and your LLM-as-a-judge disagreed on 6 of 60 answers."), on the
     report for every level of result."""
     r = _result(*counts)
     assert r["verdict_level"] == level
     c = report_page.counts(r)
     html = start_label.result_html(r)
-    assert (f"You and your judge disagreed on <b>{c['strict'] + c['easy']}</b> of "
+    assert (f"You and your LLM-as-a-judge disagreed on <b>{c['strict'] + c['easy']}</b> of "
             f"<b>{c['passed'] + c['failed']}</b> answers.") in html
 
 
@@ -485,19 +485,19 @@ def test_the_counts_row_in_every_state():
         r = _result(*counts)
         c = report_page.counts(r)
         text = _text(start_label.result_html(r))
-        assert (f"You passed {c['passed']} answers. Of those, your judge passed "
+        assert (f"You passed {c['passed']} answers. Of those, your LLM-as-a-judge passed "
                 f"{c['passed'] - c['strict']} and failed {c['strict']}.") in text, counts
-        assert (f"You failed {c['failed']} answers. Of those, your judge passed {c['easy']} "
+        assert (f"You failed {c['failed']} answers. Of those, your LLM-as-a-judge passed {c['easy']} "
                 f"and failed {c['failed'] - c['easy']}.") in text, counts
     html = start_label.result_html(_result(*NOT_GATE_TNR))
     assert ('<div class="counts"><p>You passed <span class="mono">24</span> answers. Of those, '
-            'your judge passed <span class="mono">22</span> and failed <span class="mono">2'
+            'your LLM-as-a-judge passed <span class="mono">22</span> and failed <span class="mono">2'
             "</span>.</p><p>") in html
 
 
 def test_one_answer_is_said_in_the_singular():
     assert report_page.count_line("passed", 1, 1, 0) == (
-        'You passed <span class="mono">1</span> answer. Of those, your judge passed '
+        'You passed <span class="mono">1</span> answer. Of those, your LLM-as-a-judge passed '
         '<span class="mono">1</span> and failed <span class="mono">0</span>.')
 
 
@@ -505,10 +505,10 @@ def test_answers_with_no_pass_or_fail_from_the_judge_are_said_under_the_counts()
     check = {"answers": 57, "error": 2, "unreadable": 1, "nothing_checked": 4,
              "tool": "promptfoo", "tool_counted_as": "fail"}
     html = start_label.result_html(_result(*CHECK, judge_check=check))
-    assert ('<p class="left-out band">Your judge gave no Pass or Fail on 3 answers. They are '
+    assert ('<p class="left-out band">Your LLM-as-a-judge gave no Pass or Fail on 3 answers. They are '
             "left out.</p>") in html
     one = start_label.result_html(_result(*CHECK, judge_check={"answers": 9, "empty": 1}))
-    assert "Your judge gave no Pass or Fail on 1 answer. It is left out." in _text(one)
+    assert "Your LLM-as-a-judge gave no Pass or Fail on 1 answer. It is left out." in _text(one)
     for clean in ({"answers": 57}, None):
         assert 'class="left-out' not in start_label.result_html(_result(*CHECK,
                                                                          judge_check=clean))
@@ -519,19 +519,19 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(5, 2)})
     first = _part(html, '<section class="group band" aria-labelledby="g-easy">')
-    assert (f'<h2 id="g-easy">You said Fail, your judge said Pass (5 shown; {c["easy"] - 5} '
+    assert (f'<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass (5 shown; {c["easy"] - 5} '
             'more are kept aside to test a new rule fairly)</h2>') in first
     assert ('<button type="button" class="more" aria-expanded="false" aria-controls="t-easy">'
             "Show all</button>") in first
     assert ('<thead><tr><th scope="col">Question</th><th scope="col">Answer</th>'
-            '<th scope="col">Why your judge passed it</th></tr></thead>') in first
+            '<th scope="col">Why your LLM-as-a-judge passed it</th></tr></thead>') in first
     rows = re.findall(r"<tr( class=\"extra\" hidden)?><td data-label", first)
     assert [bool(x) for x in rows] == [False] * 3 + [True] * 2
     assert ('<td data-label="Question">easy 0</td><td data-label="Answer" id="a-easy-0">a</td>'
-            '<td data-label="Why your judge passed it">r</td>') in first
+            '<td data-label="Why your LLM-as-a-judge passed it">r</td>') in first
     second = _part(html, '<section class="group band" aria-labelledby="g-strict">')
-    assert '<h2 id="g-strict">You said Pass, your judge said Fail (2' in second
-    assert '<th scope="col">Why your judge failed it</th>' in second and "why strict 1" in second
+    assert '<h2 id="g-strict">You said Pass, your LLM-as-a-judge said Fail (2' in second
+    assert '<th scope="col">Why your LLM-as-a-judge failed it</th>' in second and "why strict 1" in second
     assert 'class="more"' not in second  # 3 rows or fewer: no link
     assert html.index('id="g-easy"') < html.index('id="g-strict"')
     only = start_label.result_html(r, fixing={"mistakes": _mistakes(0, c["strict"])})
@@ -543,7 +543,7 @@ def test_the_judges_text_in_the_tables_is_escaped():
     html = start_label.result_html(_result(*NOT_GATE_TNR), fixing={"mistakes": [
         {**MISTAKE, "question": "<b>q</b>", "answer": "a & b", "reason": None}]})
     assert "&lt;b&gt;q&lt;/b&gt;" in html and "a &amp; b" in html and "<b>q</b>" not in html
-    assert '<td data-label="Why your judge passed it">No reason given</td>' in html
+    assert '<td data-label="Why your LLM-as-a-judge passed it">No reason given</td>' in html
 
 
 def test_each_group_says_in_its_header_how_many_are_kept_aside():
@@ -551,16 +551,16 @@ def test_each_group_says_in_its_header_how_many_are_kept_aside():
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"] - 4,
                                                                     c["strict"] - 1)})
-    assert (f'<h2 id="g-easy">You said Fail, your judge said Pass ({c["easy"] - 4} shown; 4 '
+    assert (f'<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass ({c["easy"] - 4} shown; 4 '
             'more are kept aside to test a new rule fairly)</h2>') in html
-    assert (f'<h2 id="g-strict">You said Pass, your judge said Fail ({c["strict"] - 1} shown; '
+    assert (f'<h2 id="g-strict">You said Pass, your LLM-as-a-judge said Fail ({c["strict"] - 1} shown; '
             '1 more is kept aside to test a new rule fairly)</h2>') in html
     assert "*" not in _text(html) and 'class="note"' not in html
     none = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], c["strict"])})
     assert "kept aside" not in none
-    assert f'<h2 id="g-easy">You said Fail, your judge said Pass ({c["easy"]})</h2>' in none
+    assert f'<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass ({c["easy"]})</h2>' in none
     hidden_only = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], 0)})
-    assert (f'<h2 id="g-strict">You said Pass, your judge said Fail (0 shown; {c["strict"]} '
+    assert (f'<h2 id="g-strict">You said Pass, your LLM-as-a-judge said Fail (0 shown; {c["strict"]} '
             'more are kept aside to test a new rule fairly)</h2>') in hidden_only
     early = start_label.result_html(_result(*TOO_EARLY), fixing={"mistakes": []})
     assert "kept aside" not in early and 'class="group' not in early
@@ -572,15 +572,15 @@ def test_more_details_is_open_with_the_estimates_and_kappa(counts):
     html = start_label.result_html(r)
     part = _part(html, '<section class="details band" aria-labelledby="details-h">')
     assert '<h2 id="details-h">More details</h2>' in part
-    assert "<caption>How often your judge agrees with you (estimates)</caption>" in part
+    assert "<caption>How often your LLM-as-a-judge agrees with you (estimates)</caption>" in part
     assert ('<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
             "</tr></thead>") in part
     (plo, phi), (flo, fhi), (klo, khi) = (r["tpr_interval"], r["tnr_interval"],
                                           r["kappa_interval"])
     text = _text(part)
-    assert (f"When you say Pass, your judge also says Pass about {r['tpr']:.0%} {plo:.0%} and "
+    assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {r['tpr']:.0%} {plo:.0%} and "
             f"{phi:.0%}") in text
-    assert (f"When you say Fail, your judge also says Fail about {r['tnr']:.0%} {flo:.0%} and "
+    assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} {flo:.0%} and "
             f"{fhi:.0%}") in text
     kappa = f"{r['kappa']:.2f} {klo:.2f} and {khi:.2f}".replace("-", "−")
     assert f"Kappa ⓘ {report_page.KAPPA_MEANS} {kappa}" in text
@@ -593,7 +593,7 @@ def test_a_side_still_too_early_has_no_number_in_more_details():
     r = _result(100, 100, 40, 22, 40, 2)
     r["tnr_interval"] = [0.1, 0.9]  # wider than a number can be given for
     part = _part(start_label.result_html(r), 'aria-labelledby="details-h">')
-    assert "When you say Fail, your judge also says Fail too early to tell –" in _text(part)
+    assert "When you say Fail, your LLM-as-a-judge also says Fail too early to tell –" in _text(part)
 
 
 @pytest.mark.parametrize("counts", [TOO_EARLY, TOO_FEW])
@@ -621,7 +621,7 @@ def test_fix_it_is_only_for_a_judge_that_needs_work():
     fix = program("fix")
     assert '<h2 id="fix-h">Fix it</h2>' in part
     assert (f"<p>In your project folder, run <code>{fix}</code>. It lists the answers your "
-            "judge got wrong, saves them in .judgekeeper/fix/ and tells you where to write a "
+            "LLM-as-a-judge got wrong, saves them in .judgekeeper/fix/ and tells you where to write a "
             f"better rule. Then run <code>{fix}</code> again to test it.</p>") in part
     assert (f'<div class="cmd"><code id="fix-cmd">{fix}</code><button type="button" '
             'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div>') in part
@@ -634,8 +634,8 @@ def test_fix_it_says_what_fix_does_for_a_judge_judgekeeper_cant_ask():
     part = _part(html, '<section class="fix band" aria-labelledby="fix-h">')
     fix, check = program("fix"), program("check")
     assert (f"<p>In your project folder, run <code>{fix}</code>. It lists the answers your "
-            "judge got wrong and saves them in .judgekeeper/fix/. judgekeeper can't re-run this "
-            "kind of judge itself, so change its rule where your eval keeps it, run your eval, "
+            "LLM-as-a-judge got wrong and saves them in .judgekeeper/fix/. judgekeeper can't re-run this "
+            "kind of LLM-as-a-judge itself, so change its rule where your eval keeps it, run your eval, "
             f"then run <code>{check}</code>.</p>") in unescape(part), part
     for counts in (GATE, CHECK, TOO_EARLY, TOO_FEW):
         assert 'class="fix' not in start_label.result_html(_result(*counts)), counts
@@ -647,10 +647,10 @@ def test_fix_it_keeps_the_path_the_result_was_made_for():
 
 
 GONE = ("History", "Your marks:", "Where it goes wrong", "Its rule may be", "results.json",
-        "made on", "This page is saved", "Changed your judge", "judgekeeper check",
-        "showed you half", "Your judge passes", "Next step", "Did your judge actually judge?",
+        "made on", "This page is saved", "Changed your LLM-as-a-judge", "judgekeeper check",
+        "showed you half", "Your LLM-as-a-judge passes", "Next step", "Did your LLM-as-a-judge actually judge?",
         "Nothing to do", "Use your tested rule", "Keep checking it", "Details</h3>",
-        "too strict on", "too easy on", "Your judge's rule")
+        "too strict on", "too easy on", "Your LLM-as-a-judge's rule")
 
 
 @pytest.mark.parametrize("counts", [GATE, CHECK, NOT_GATE_TNR, TOO_EARLY, TOO_FEW])

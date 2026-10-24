@@ -3,7 +3,7 @@
 The script runs judgekeeper at a terminal, as a person does, on judgekeeper's own port, so the
 pages it takes show no note about a link printed for a program, and the marking page's footer
 shows the command a person types. Its made-up judge disagrees with the person often enough for
-a decided result: "Your judge needs work.". No Chrome here: the pages are read over HTTP.
+a decided result: "Your LLM-as-a-judge needs work.". No Chrome here: the pages are read over HTTP.
 """
 
 from __future__ import annotations
@@ -51,6 +51,6 @@ def test_the_pages_are_a_persons_and_the_judge_needs_work(shots, tmp_path, monke
         result = start.get("/result").decode("utf-8")
     finally:
         start.stop()
-    assert "Your judge needs work." in result
+    assert "Your LLM-as-a-judge needs work." in result
     assert "printed in a terminal" not in result
     assert "program" not in result

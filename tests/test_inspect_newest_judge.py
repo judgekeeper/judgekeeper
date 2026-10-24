@@ -1,6 +1,6 @@
 """Inspect AI: a project often has logs that hold no judge decisions (a run with --no-score,
 say) beside the ones that do. The newest log that holds judge decisions is used; when the
-newest has none, one line says it is left out. Only when no log has a judge is it said, once
+newest has none, one line says it is left out. Only when no log has an LLM-as-a-judge is it said, once
 (tests/test_no_judge.py has the other tools)."""
 
 from __future__ import annotations
@@ -35,9 +35,9 @@ def test_the_newest_log_with_a_judge_is_used(here, capsys):
     _log(here, "2026-10-01_support.json", "2026-10-01T10:00:00+00:00")
     _log(here, "2026-10-02_exact.json", "2026-10-02T10:00:00+00:00", judged=False)
     code, out, _ = run(capsys)
-    assert "logs/2026-10-02_exact.json is left out: no LLM judge in it.\n\n" in out
-    assert "Eval tool:   Inspect AI" in out and "Answers:     36 answers" in out
-    assert "File:        logs/2026-10-01_support.json" in out
+    assert "logs/2026-10-02_exact.json is left out: no LLM-as-a-judge in it.\n\n" in out
+    assert "Eval tool:       Inspect AI" in out and "Answers:         36 answers" in out
+    assert "File:            logs/2026-10-01_support.json" in out
     assert code == 0, out
 
 

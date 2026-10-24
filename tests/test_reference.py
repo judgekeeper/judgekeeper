@@ -19,7 +19,7 @@ from tests.website_pages import ROOT, WEBSITE, parse
 REFERENCE = ROOT / "docs" / "reference.md"
 COMMANDS = {None: "judgekeeper: find, mark, measure",
             "mark": "mark: mark more answers",
-            "fix": ("fix: see where your judge goes wrong, then test a better rule (promptfoo, "
+            "fix": ("fix: see where your LLM-as-a-judge goes wrong, then test a better rule (promptfoo, "
                     "DeepEval, Inspect AI, MLflow) or change it in your eval (your own file, "
                     "record())"),
             "check": "check: re-check your LLM-as-a-judge after a change"}
@@ -27,7 +27,7 @@ GONE_FLAGS = ("--review", "--fix", "--ask-again", "--try-new-judge", "--label-mo
               "--test-pass-mark", "--rule-file", "--times", "--allow-calls", "--python",
               "--judge-command", "--agent-prompt")
 # The code prints a link to this heading's id, so its words stay.
-RECORD_HEADING = "record(): save your own judge's verdicts with one line"
+RECORD_HEADING = "record(): save your own LLM-as-a-judge's verdicts with one line"
 
 
 def _text() -> str:

@@ -567,8 +567,8 @@ class JudgeCallsFailed(RecordsError):
     """Every call of the experiment's judge failed: MLflow saved only errors. The errors'
     text is never said: it can hold an answer's text."""
 
-    next_step = ("fix your judge's calls (MLflow keeps each error with its trace), run your "
-                 "evaluation again, then run `{command}`.")
+    next_step = ("fix your LLM-as-a-judge's calls (MLflow keeps each error with its trace), run "
+                 "your evaluation again, then run `{command}`.")
 
 
 def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, experiment,
@@ -589,7 +589,7 @@ def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, exper
     if not judged and gone:
         names = sorted({str(f[1]["name"]) for f in gone})
         raise JudgeCallsFailed(
-            f"MLflow experiment {experiment!r}: every call of your judge "
+            f"MLflow experiment {experiment!r}: every call of your LLM-as-a-judge "
             f"{', '.join(names)} failed ({len(gone)} saved as errors).")
     for run, fields, error in gone:
         evaluator = evaluators.get((run, fields["name"])) or evaluators.get(
@@ -773,15 +773,15 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     if code_counts:
         n = sum(code_counts.values())
         humans.notes.append(f"{n} {'assessment' if n == 1 else 'assessments'} from code scorers "
-                            f"({', '.join(sorted(map(str, code_counts)))}) are rules in code, "
-                            "not an LLM judge: left out.")
+                            f"({', '.join(sorted(map(str, code_counts)))}) are rules in code, not "
+                            "an LLM-as-a-judge: left out.")
     humans.notes.append(f"Runs are MLflow runs in start order: {', '.join(shown)}.")
     if NO_RUN in judged:
-        humans.notes.append("Some judge assessments carry no MLflow run id (logged by hand, "
-                            "outside an evaluate run): they form one run, listed last.")
+        humans.notes.append("Some LLM-as-a-judge assessments carry no MLflow run id (logged by "
+                            "hand, outside an evaluate run): they form one run, listed last.")
     if not any(r.evaluator.get("rule") for recs in judged.values() for r in recs):
-        humans.notes.append("MLflow does not save the judge's prompt with its assessments: "
-                            "prompt hash unknown.")
+        humans.notes.append("MLflow does not save the LLM-as-a-judge's prompt with its "
+                            "assessments: prompt hash unknown.")
     if left_out:
         what = "assessment" if left_out == 1 else "assessments"
         humans.notes.append(f"{left_out} span-level {what} (on one step inside a trace, not "

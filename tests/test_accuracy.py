@@ -4,7 +4,7 @@ The words for each number follow the width of its range; the verdict follows the
 never the point numbers or kappa; kappa has a range; a re-check keeps the groups the marks
 were picked by; `check` decides from a range on the paired change.
 
-The cases: the judge passes a share of a pool of 1,000 answers; marks in its pass group and
+The cases: the LLM-as-a-judge passes a share of a pool of 1,000 answers; marks in its pass group and
 its fail group, and how many of each the person marked Pass.
 """
 
@@ -20,7 +20,7 @@ from judgekeeper import report_page, start_label, targets, weighted
 
 def result(judge_passes: float, pass_group: tuple[int, int], fail_group: tuple[int, int],
            pool: int = 1000) -> dict:
-    """The result for marks in each of the judge's groups: (marked, of them marked Pass)."""
+    """The result for marks in each of the LLM-as-a-judge's groups: (marked, of them marked Pass)."""
     n_pass = round(pool * judge_passes)
     return start_label.describe(weighted.corrected(n_pass, pool - n_pass, *pass_group,
                                                    *fail_group))
@@ -76,13 +76,13 @@ def test_green_is_reachable():
 def test_red_when_a_side_is_clearly_below_the_bar():
     r = result(0.5, (40, 38), (40, 24))  # many answers it failed should pass
     assert r["tpr_interval"][1] < targets.RATE_GATE
-    assert r["verdict"] == "Your judge needs work."
+    assert r["verdict"] == "Your LLM-as-a-judge needs work."
     assert r["verdict_level"] == "not_gate"
 
 
 def test_kappa_is_not_in_the_verdict():
     """Both rates clearly above 80% on a mix where nearly every answer passes: kappa is low,
-    the judge is still good enough."""
+    the LLM-as-a-judge is still good enough."""
     r = result(0.876, (4000, 3990), (400, 313), pool=100_000)
     assert r["kappa"] < 0.6
     assert r["tpr_interval"][0] >= 0.8 and r["tnr_interval"][0] >= 0.8
@@ -92,7 +92,7 @@ def test_kappa_is_not_in_the_verdict():
 def _simulate_first_result(rng: random.Random, a: float, b: float, n_pass: int,
                            n_fail: int) -> str:
     """Mark in blocks of 5 from each group until 15 Pass and 15 Fail: the verdict then. `a`
-    and `b`: the chance the person marks Pass an answer of the judge's pass and fail group."""
+    and `b`: the chance the person marks Pass an answer of the LLM-as-a-judge's pass and fail group."""
     groups = {"pass": [0, 0], "fail": [0, 0]}
     while True:
         for g, share in (("pass", a), ("fail", b)):
@@ -135,7 +135,7 @@ def test_ready_follows_the_widths_only():
 
 def _measured(project, capsys, marks, limit: int | None = None) -> str:
     """`judgekeeper` once to start marking, the marks (`marks(group, n)`: what the person
-    says to the n-th answer of the judge's group; the first `limit` answers of the page
+    says to the n-th answer of the LLM-as-a-judge's group; the first `limit` answers of the page
     only), then `judgekeeper` for the result."""
     from judgekeeper.cli import main
 
@@ -167,7 +167,7 @@ def test_the_result_has_each_side_on_one_line_with_its_range(project, capsys):
                                                                     else "pass"))
     lines = out.splitlines()
     assert "Step 3 of 5: Measure" in lines
-    at = lines.index("How often your judge agrees with you (estimates):")
+    at = lines.index("How often your LLM-as-a-judge agrees with you (estimates):")
     for line, word in zip(lines[at + 1:at + 3], ("Pass", "Fail"), strict=True):
         assert line.startswith(f"  When you say {word}, it also says {word}: about ")
         assert " (between " in line and line.endswith("%)")
@@ -201,7 +201,7 @@ def _true_kappa(real: float, tpr: float, tnr: float) -> float:
 
 @pytest.mark.parametrize("real,expected", [(0.8, 0.65), (0.9, 0.53)])
 def test_kappa_is_reweighted_to_the_real_mix(real, expected):
-    """Half the marks from each of the judge's groups, re-weighted: the mean kappa is the
+    """Half the marks from each of the LLM-as-a-judge's groups, re-weighted: the mean kappa is the
     kappa of all the answers."""
     tpr, tnr, n = 0.90, 0.80, 50
     assert _true_kappa(real, tpr, tnr) == pytest.approx(expected, abs=0.005)
@@ -251,8 +251,8 @@ def test_kappa_is_in_more_details_with_its_range_and_no_bar():
 # A re-check keeps the groups the marks were picked by ----------------------------------------
 
 def test_a_recheck_weights_the_marks_by_the_groups_they_were_picked_from():
-    """Pools of 2,000, 80% truly Pass. The old judge passes 97% of true Pass and 50% of true
-    Fail; the new one 80% and 15%. 25 + 25 marks picked by the old judge's groups: the new
+    """Pools of 2,000, 80% truly Pass. The old LLM-as-a-judge passes 97% of true Pass and 50% of true
+    Fail; the new one 80% and 15%. 25 + 25 marks picked by the old LLM-as-a-judge's groups: the new
     judge's numbers come out right on average. Re-weighting by the new verdicts instead (as a
     re-check did) is far off."""
     rng = random.Random(2000)
@@ -358,8 +358,8 @@ def test_one_answer_worse_is_said_in_the_singular():
 
 
 def test_check_rates_are_the_reports():
-    """The judge passes 90%; of 20 marks in its pass group 18 Pass, of 20 in its fail group 4
-    Pass. The old judge's TNR in check is the report's (47%), not the raw 89%."""
+    """The LLM-as-a-judge passes 90%; of 20 marks in its pass group 18 Pass, of 20 in its fail group 4
+    Pass. The old LLM-as-a-judge's TNR in check is the report's (47%), not the raw 89%."""
     from judgekeeper import check
 
     marked, old, groups = {}, {}, {}

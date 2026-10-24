@@ -79,8 +79,8 @@ MIN_POOL = 2 * ROUGH  # a rough check needs ROUGH of each
 RUBRIC_WIDTH = 70  # characters of the rule's first line shown in the first block
 GIVEN_BY_YOU = "given by you"
 POINT_ME = "Point me at the results: {program} path/to/results.json"
-RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your judge's decisions at "
-                 "the project root: reading them in {root}.")
+RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your LLM-as-a-judge's "
+                 "decisions at the project root: reading them in {root}.")
 PAIRWISE = "These are A/B comparisons. judgekeeper handles pass/fail answers for now."
 HUMAN_COLUMNS = ("human_label", "label")
 FILE_READERS = {"promptfoo": read_promptfoo, "deepeval": read_deepeval, "inspect": read_inspect}
@@ -588,7 +588,7 @@ def _mapped_source(talk: Talk, root: Path, saved) -> tuple[Path, str, list, dict
                          f"({one_line(saved.file)}); judgekeeper reads results only "
                          "inside the project.")
     if not path.is_file():
-        raise StartError(f"{settings.FILE} says your judge's results are in {saved.file}, "
+        raise StartError(f"{settings.FILE} says your LLM-as-a-judge's results are in {saved.file}, "
                          f"which is not there. Run {textio.program()} again to set it up.")
     talk.looking(root)
     return root, "mapped", [find.Result("mapped", path, saved.file, path.stat().st_size)], {}
@@ -685,14 +685,14 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
                     pass
 
 
-OLD_EVALUATE = ("Your MLflow runs hold judge scores from mlflow.evaluate() ({names}). "
-                "judgekeeper reads judges run with mlflow.genai.evaluate() and scorers "
-                "(MLflow 3). Reading these older results isn't supported. To check this judge, "
-                "run it with mlflow.genai.evaluate() and scorers, or save its verdicts as a CSV "
-                "with input, output and verdict columns.")
-OLD_EVALUATE_NEXT = ("run your judge with mlflow.genai.evaluate() and scorers, then run "
-                     "`{command}` again; or save its verdicts as a CSV and run "
-                     "`{csv_command}`, with PATH the path of your CSV.")
+OLD_EVALUATE = ("Your MLflow runs hold LLM-as-a-judge scores from mlflow.evaluate() ({names}). "
+                "judgekeeper reads LLM-as-a-judge results from mlflow.genai.evaluate() and scorers "
+                "(MLflow 3). Reading these older results isn't supported. To check this "
+                "LLM-as-a-judge, run it with mlflow.genai.evaluate() and scorers, or save its "
+                "verdicts as a CSV with input, output and verdict columns.")
+OLD_EVALUATE_NEXT = ("run your LLM-as-a-judge with mlflow.genai.evaluate() and scorers, then run "
+                     "`{command}` again; or save its verdicts as a CSV and run `{csv_command}`, "
+                     "with PATH the path of your CSV.")
 # The run metrics mlflow.evaluate() logs for a judged metric: faithfulness/v1/mean, ...
 _OLD_METRIC = re.compile(r"(.+/v\d+)/(mean|variance|p90)")
 
@@ -765,8 +765,8 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         if len(found) > 1:
             names = [name for name, _ in found]
             found = [found[talk.choose(
-                "Several MLflow experiments have judge results:", names,
-                f"Several MLflow experiments have judge results; choose one with "
+                "Several MLflow experiments have LLM-as-a-judge results:", names,
+                "Several MLflow experiments have LLM-as-a-judge results; choose one with "
                 f"{_or([f'--experiment {quote_arg(n)}' for n in names])}",
                 flag="--experiment", values=names, what="which MLflow experiment to read")]]
             _next_time(talk, "--experiment", found[0][0])
@@ -906,7 +906,7 @@ NO_RESULTS = {
                  "run or evaluate(); calling a metric's measure() directly saves nothing."),
     "inspect": ("but it has no saved logs in this folder yet. Run your eval (inspect eval saves "
                 "its logs in logs/), then run {program} again."),
-    "mlflow": "but it has no saved judge assessments in this folder yet.",
+    "mlflow": "but it has no saved LLM-as-a-judge assessments in this folder yet.",
 }
 
 
@@ -924,12 +924,12 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
            f"{own_format.OWN_FORMAT_URL}), or ask your coding agent with the prompt below.")
     if own is not None:
         setup = textio.program() + ("" if talk.path == "." else f" {quote_arg(talk.path)}")
-        talk.say(f"{own.rel} looks like saved judge results in your own format.")
+        talk.say(f"{own.rel} looks like saved LLM-as-a-judge results in your own format.")
         talk.say(f"To use it as it is, run {setup}: it asks how to read it and saves that in "
                  "judgekeeper.toml.")
         talk.say(f"Or {how}")
     elif "deepeval" in signs:
-        talk.say("If your judge saves its results in a format of its own: "
+        talk.say("If your LLM-as-a-judge saves its results in a format of its own: "
                  + how.replace("turn it into", "turn them into"))
     if own is not None or "deepeval" in signs:
         talk.say()
@@ -938,8 +938,9 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
         for line in own_format.agent_prompt().splitlines():
             talk.say(line)
         talk.say()
-        talk.say("Or save your judge's decisions from now on with one judgekeeper.record() line "
-                 f"where it runs: {own_format.RECORD_URL} shows the line.")
+        talk.say("Or save your LLM-as-a-judge's decisions from now on with one "
+                 f"judgekeeper.record() line where it runs: {own_format.RECORD_URL} shows the "
+                 "line.")
     talk.say("judgekeeper reads the results that promptfoo, DeepEval, Inspect AI and "
              "MLflow save, or a CSV or JSONL file with input, output and verdict columns.")
     talk.say(POINT_ME.format(program=talk.program))
@@ -1454,7 +1455,7 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
         return prefer
     if metric is not None:
         if metric not in counts:
-            raise StartError(f"no judge named {metric!r}; judges are: "
+            raise StartError(f"no LLM-as-a-judge named {metric!r}; the names are: "
                              f"{', '.join(repr(n) for n in names)}",
                              f"run `{{command}} --metric {quote_arg(names[0])}`.", "--metric")
         return metric
@@ -1462,9 +1463,10 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
         return names[0]
     options = [f"{n} ({_plural(counts[n], 'answer', 'answers')})" for n in names]
     name = names[talk.choose(
-        "These results hold more than one judge:", options,
-        f"Several judges found; choose one with {_or([f'--metric {quote_arg(n)}' for n in names])}",
-        flag="--metric", values=names, what="which judge to check")]
+        "These results hold more than one LLM-as-a-judge:", options,
+        "Several LLM-as-a-judge metrics found; choose one with "
+        f"{_or([f'--metric {quote_arg(n)}' for n in names])}",
+        flag="--metric", values=names, what="which LLM-as-a-judge to check")]
     _next_time(talk, "--metric", name)
     return name
 
@@ -1621,7 +1623,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         read_older = iter(runs[1:])
         first = runs[0] if runs else None
         if first is None:
-            raise StartError(f"MLflow experiment {name!r} has no judge assessments")
+            raise StartError(f"MLflow experiment {name!r} has no LLM-as-a-judge assessments")
     else:
         if kind == "inspect" and not _has("inspect_ai"):
             json_logs = [r for r in results if r.path.suffix.lower() != ".eval"]
@@ -1642,7 +1644,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             loaded = [x for x in loaded
                       if any(r.annotator_kind == LLM and r.name == metric for r in x.records)]
             if not loaded:
-                raise StartError(f"no judge named {metric!r} in {_folder_of(newest)}")
+                raise StartError(f"no LLM-as-a-judge named {metric!r} in {_folder_of(newest)}")
             if kind == "records":
                 labels = [x.label for x in loaded]
                 results = sorted((r for r in results if r.rel in labels),
@@ -1673,11 +1675,11 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                         raise _no_judge(talk, kind, [r.rel for r in unjudged], rules, empty)
                     first = None
             for r in unjudged[:3]:
-                _note(talk, f"{r.rel} is left out: no LLM judge in it.")
+                _note(talk, f"{r.rel} is left out: no LLM-as-a-judge in it.")
             if len(unjudged) > 3:
                 more = len(unjudged) - 3
-                _note(talk, f"{more} more {'file is' if more == 1 else 'files are'} left out: "
-                            f"no LLM judge in {'it' if more == 1 else 'them'}.")
+                _note(talk, f"{more} more {'file is' if more == 1 else 'files are'} left out: no "
+                            f"LLM-as-a-judge in {'it' if more == 1 else 'them'}.")
             if unjudged:
                 talk.say()
             if kind == "promptfoo":  # asked about the file read, never one left out
@@ -1712,7 +1714,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     model_source = None
     if judge_model is not None:
         if models:
-            raise StartError(f"{Path(first.label).name} already names the judge's model "
+            raise StartError(f"{Path(first.label).name} already names the LLM-as-a-judge's model "
                              f"({', '.join(models)}): drop --judge-model")
         model_source = GIVEN_BY_YOU
         fingerprint.update(model=judge_model, model_source=model_source)

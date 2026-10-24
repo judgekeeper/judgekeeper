@@ -92,8 +92,8 @@ TURNED_IN = (4, 2, 0)
 BY_NAME = {"Anthropic": "AnthropicModel", "Gemini": "GeminiModel", "Deepseek": "DeepSeekModel",
            "Grok": "GrokModel", "KIMI": "KimiModel", "Azure": "AzureOpenAIModel"}
 _BEDROCK = re.compile(r"[a-z][a-z0-9-]*\.[a-z]")  # "anthropic.claude-...", "us.amazon.nova-..."
-NOT_CONFIRMED = "which fields your judge reads was not confirmed"
-OLLAMA = "A DeepEval judge on Ollama can't be asked again yet."
+NOT_CONFIRMED = "which fields your LLM-as-a-judge reads was not confirmed"
+OLLAMA = "A DeepEval LLM-as-a-judge on Ollama can't be asked again yet."
 WORKER_ENV = {"DEEPEVAL_TELEMETRY_OPT_OUT": "1"}
 WORKER_DROP = ("CONFIDENT_API_KEY", "DEEPEVAL_RESULTS_FOLDER")
 _RUBRIC = re.compile(r"(\d+)(?:-(\d+))?: (.*)\Z")
@@ -141,11 +141,12 @@ def classify(md: dict) -> str:
 def cant_reason(md: dict) -> str | None:
     kind = classify(md)
     if kind == "dag":
-        return "your judge is a DAG metric, built from your own code"
+        return "your LLM-as-a-judge is a DAG metric, built from your own code"
     if kind == "conversational":
         return "conversational metrics can't be asked again yet"
     if kind == "custom":
-        return f"your judge is a custom metric ({md.get('name')}), which runs your own code"
+        return (f"your LLM-as-a-judge is a custom metric ({md.get('name')}), which runs your own "
+                "code")
     if not md.get("evaluationModel"):
         return "your results do not say which model judged"
     return None
@@ -195,9 +196,9 @@ def by_name(model: str) -> tuple[dict | None, str]:
         if label in BY_NAME:
             return {"class": BY_NAME[label], "name": model[:m.start()]}, ""
         article = "an" if label[:1].upper() in "AEIOU" else "a"
-        return None, f"{article} {label} judge needs more than its name"
+        return None, f"{article} {label} LLM-as-a-judge needs more than its name"
     if "/" in model or ":" in model or _BEDROCK.match(model):
-        return None, "this judge needs more than its name"
+        return None, "this LLM-as-a-judge needs more than its name"
     return {"name": model}, ""
 
 
@@ -217,7 +218,7 @@ def _on_ollama(model: str) -> bool:
 
 
 def _ollama_cant(judge: str) -> Plan:
-    plan = cant("deepeval", judge, OLLAMA.rstrip("."), short="a judge on Ollama, not yet")
+    plan = cant("deepeval", judge, OLLAMA.rstrip("."), short="an LLM-as-a-judge on Ollama, not yet")
     plan.plain = OLLAMA
     return plan
 
@@ -282,7 +283,7 @@ def _fields(opts, talk, dry: bool, have: list[str]) -> tuple[list[str], bool, st
     if talk is not None and dry:
         if not talk.quiet and start_interactive():
             talk.say(f"Your saved answers have: {', '.join(have)}.")
-        answer = talk.ask("Which fields does your judge read?", ", ".join(DEFAULT_FIELDS))
+        answer = talk.ask("Which fields does your LLM-as-a-judge read?", ", ".join(DEFAULT_FIELDS))
     if answer is None:
         return list(DEFAULT_FIELDS), False, None
     fields = [f.strip() for f in answer.split(",") if f.strip()]
@@ -313,8 +314,8 @@ def _cases(root, files: list[str], metric: str) -> dict[str, tuple[dict, dict]]:
 
 
 CASE_EXTRAS = ("expectedOutput", "context", "retrievalContext", "toolsCalled", "expectedTools")
-STEPS_DIFFER = ("your new judge's steps differ from answer to answer; I used the steps of the "
-                "newest answer with the same input, else the steps most answers share")
+STEPS_DIFFER = ("your new LLM-as-a-judge's steps differ from answer to answer; I used the steps of "
+                "the newest answer with the same input, else the steps most answers share")
 
 
 def _new_cases(ws, answers: list[dict], metric: str) -> tuple[list, str | None]:
@@ -393,9 +394,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                             short="DeepEval is not installed here")
             if _on_ollama(model):
                 return _ollama_cant(judge)
-            plan = cant("deepeval", judge, "DeepEval could not build your judge in "
-                        f"{again.python_name(python)}: "
-                        f"{out.get('error')}", short="DeepEval could not build your judge")
+            plan = cant("deepeval", judge, "DeepEval could not build your LLM-as-a-judge in "
+                                           f"{again.python_name(python)}: {out.get('error')}",
+                        short="DeepEval could not build your LLM-as-a-judge")
             plan.install = setup_command(out.get("error"))
             return plan
         version = out["version"]
@@ -427,8 +428,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             if out["evaluation_model"] != model:
                 return cant("deepeval", judge, f"{head}; built with that name, DeepEval "
                             f"reports {out['evaluation_model']}", short=short)
-            notes.append(f"Your DeepEval settings pick {picked}; judgekeeper builds your judge "
-                         f"with the model your results name, {model}, and DeepEval confirms it.")
+            notes.append(f"Your DeepEval settings pick {picked}; judgekeeper builds your "
+                         f"LLM-as-a-judge with the model your results name, {model}, and DeepEval "
+                         "confirms it.")
         if talk is not None:
             version_ok = talk.ask_yes(f"Is DeepEval {version} the version you ran your eval "
                                       "with?")

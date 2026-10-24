@@ -3,7 +3,7 @@ result and kept out of sight while in use, every fix test counted, few mistakes 
 how many changes the marks have helped pick, the person's own slips, a range that stays honest
 while the person is still marking, and paid re-checks that ask twice.
 
-No test calls an API: the judge is the faked promptfoo of tests/test_fix.py.
+No test calls an API: the LLM-as-a-judge is the faked promptfoo of tests/test_fix.py.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ def test_few_mistakes_hidden_are_said_before_the_question(here, capsys, judge, m
                                                                                   "better"))
     better = next(f for f in range(n + 1) if targets.fix_verdict(f, 0, n).kind == "better")
     said = (f"The marks kept aside hold only {wrong} {'answer' if wrong == 1 else 'answers'} "
-            f"your judge got wrong. A new rule needs at least {safe} of those fixed to be "
+            f"your LLM-as-a-judge got wrong. A new rule needs at least {safe} of those fixed to be "
             f"called safe to try, and about {better} to be called better, so this test can "
             "only catch a worse rule.")
     assert said in _flat(out)
@@ -122,7 +122,7 @@ def test_hidden_marks_never_show_while_the_set_is_in_use(here, capsys):
 
 
 def test_a_retired_set_may_show_its_answers(here, capsys, judge):
-    """A rule tested on the set is now the judge's rule: the hidden marks are seen again, and
+    """A rule tested on the set is now the LLM-as-a-judge's rule: the hidden marks are seen again, and
     the next marks make a new set."""
     from judgekeeper import judge_setup
     from judgekeeper.fingerprint import rule_hash
@@ -158,7 +158,7 @@ def test_three_rules_retire_the_set(here, capsys, judge):
 # How many changes the marks have helped pick ---------------------------------------------------
 
 def _marked_some(root, first: int):
-    """A promptfoo project marked as the judge graded, the first `first` answers only."""
+    """A promptfoo project marked as the LLM-as-a-judge graded, the first `first` answers only."""
     from judgekeeper import judge_setup, start, start_label
     from judgekeeper.start_label import StartSession
     from tests.start_projects import split as both
@@ -200,7 +200,7 @@ def test_three_picks_ask_for_new_marks_and_ten_new_marks_end_it(tmp_path, monkey
     p = check.picks(ws)
     assert p["n"] == 3 and p["ask"]
     assert check.picks_lines(p) == [
-        ("These marks have helped pick 3 changes, so they may now flatter your judge. Mark 10 "
+        ("These marks have helped pick 3 changes, so they may now flatter your LLM-as-a-judge. Mark 10 "
          "new answers for a fair check.")]
     time.sleep(1.1)  # marks are stamped to the second
     for q in queue[40:50]:
@@ -234,7 +234,7 @@ def test_check_after_three_picks_with_every_answer_marked(here, capsys):
     _tested_by_fix(here, ws)  # a rule fix tested (a pick), and its check (another)
     code = main(["check"])
     out = _flat(capsys.readouterr().out)
-    assert "These marks have helped pick 4 changes, so they may now flatter your judge." in out
+    assert "These marks have helped pick 4 changes, so they may now flatter your LLM-as-a-judge." in out
     assert "Mark 10 new answers" not in out and "honest" not in out
     assert out.endswith("Next: run your eval on more questions, then run `judgekeeper mark`: "
                         "the new answers join the ones you marked.")
@@ -342,7 +342,7 @@ def test_ten_of_each_made_after_the_change_show_their_numbers(here, capsys):
     out = capsys.readouterr().out
     flat = _flat(out)
     assert "On marks made after this change (" in flat
-    assert "  You passed: your judge also passed about " in out
+    assert "  You passed: your LLM-as-a-judge also passed about " in out
     assert flat.index("Re-checked on all 50 of your marks:") < flat.index(
         "On marks made after this change (")
     assert WARN in flat
@@ -442,9 +442,9 @@ def test_no_message_while_marking_compares_a_number_with_the_bar():
 
 # Paid re-checks ask the judge twice ------------------------------------------------------------
 
-ASK_TWICE = ("To re-check, judgekeeper asks your new judge about your 50 marked answers, twice "
+ASK_TWICE = ("To re-check, judgekeeper asks your new LLM-as-a-judge about your 50 marked answers, twice "
              "each. That is 100 AI calls, paid with your own key. Asking twice shows how much "
-             "the judge varies by itself.")
+             "the LLM-as-a-judge varies by itself.")
 
 
 @pytest.fixture
@@ -483,7 +483,7 @@ def test_asked_twice_the_wobble_is_said_and_the_first_grades_decide(here, capsys
     out = _flat(capsys.readouterr().out)
     evals = [c.argv for c in fake.calls if "eval" in c.argv]
     assert len(evals) == 1 and evals[0][evals[0].index("--repeat") + 1] == "2"
-    assert ("Asked twice, your new judge changed its own grade on 3 of your 50 answers. "
+    assert ("Asked twice, your new LLM-as-a-judge changed its own grade on 3 of your 50 answers. "
             "Differences that small can come from that alone.") in out
     assert "Worse: 9 answers went from right to wrong, and none from wrong to right." in out
 

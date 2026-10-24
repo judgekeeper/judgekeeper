@@ -89,7 +89,7 @@ def test_the_judge_line_names_the_models_the_tool_names(tmp_path):
                 [*rows, "q 6,a 6,,old-model-made-up"])
     (judge,) = browser(path)["judges"]
     assert judge["models"] == ["gpt-4.1"]
-    assert "Judge:       gpt-4.1" in judge["lines"]
+    assert "LLM-as-a-judge:  gpt-4.1" in judge["lines"]
     assert _page(browser(path)) == tool(path)
 
 
@@ -111,9 +111,9 @@ def test_an_ods_file_is_named_as_a_spreadsheet(tmp_path):
 def test_one_answer_run_three_times_is_one_different_answer(tmp_path):
     path = _csv(tmp_path / "judged.csv", "input,output,verdict", ["q,a,pass"] * 3)
     (judge,) = browser(path)["judges"]
-    assert "Answers:     1 different answer" in judge["lines"]
+    assert "Answers:         1 different answer" in judge["lines"]
     lines = front.found_block(start.find_judge(path))
-    assert "Answers:     1 different answer" in lines
+    assert "Answers:         1 different answer" in lines
 
 
 # fields of the wrong type: the same "damaged" call as the tool -------------------------
@@ -242,4 +242,4 @@ def test_every_call_to_the_tested_model_failed_says_what_to_do(tmp_path):
         encoding="utf-8")
     words = judge_check.MODEL_FAILED_NEXT.split(", then run")[0]  # the page names no flags
     assert f"var MODEL_FAILED_NEXT = '{words}, then run judgekeeper" in page
-    assert "fix your judge" not in " ".join(judge["lines"])
+    assert "fix your LLM-as-a-judge" not in " ".join(judge["lines"])

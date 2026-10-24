@@ -2,10 +2,10 @@
 
 - With one batch, every number is the one judgekeeper gave before batches, to the last digit
   (fixtures/batches/one-batch.json, saved from judgekeeper before batches).
-- A second batch is added when the newest results hold new graded answers and the judge is the
-  same; never when the judge changed.
+- A second batch is added when the newest results hold new graded answers and the LLM-as-a-judge is the
+  same; never when the LLM-as-a-judge changed.
 - The marking page offers the newest batch first, half passed and half failed.
-- The numbers are stratified by (batch, the judge's grade): a hand-worked example.
+- The numbers are stratified by (batch, the LLM-as-a-judge's grade): a hand-worked example.
 - A batch with too few marks is left out of the result and named, in the terminal, on
   report.html and in history.jsonl.
 - The marks kept aside for `fix` are drawn within each stratum.
@@ -42,7 +42,7 @@ def _index(value) -> int:
 
 
 def _mark(ws: Workspace, person=None, only=None) -> None:
-    """The person marks answers on the page: as the judge did, or `person[i]` for answer i;
+    """The person marks answers on the page: as the LLM-as-a-judge did, or `person[i]` for answer i;
     `only`: just those answers."""
     session = StartSession(ws)
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
@@ -445,7 +445,7 @@ def test_check_weighs_the_marks_by_stratum(here):
 
 
 def test_a_recheck_keeps_each_batchs_picked_groups(here):
-    """After a check moved the marks to a new judge, a later batch keeps the grades it was
+    """After a check moved the marks to a new LLM-as-a-judge, a later batch keeps the grades it was
     picked by when the marks move again."""
     from judgekeeper import check
 

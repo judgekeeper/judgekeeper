@@ -1,4 +1,4 @@
-"""Which key a judge will use: names only, never a value."""
+"""Which key an LLM-as-a-judge will use: names only, never a value."""
 
 from __future__ import annotations
 
@@ -88,7 +88,7 @@ def test_a_key_in_the_shell(clean, tmp_path):
     clean.setenv("OPENAI_API_KEY", FAKE)
     k = check("openai:gpt-4.1-mini", "promptfoo", tmp_path)
     assert k.ok and k.name == "OPENAI_API_KEY"
-    assert k.lines == [("Your judge will use your OpenAI key (OPENAI_API_KEY, set in your "
+    assert k.lines == [("Your LLM-as-a-judge will use your OpenAI key (OPENAI_API_KEY, set in your "
                         "shell).")]
 
 
@@ -96,7 +96,7 @@ def test_a_key_in_env_that_the_tool_loads(clean, tmp_path):
     (tmp_path / ".env").write_text(f"OPENAI_API_KEY={FAKE}\n", encoding="utf-8")
     k = check("openai:gpt-4.1-mini", "promptfoo", tmp_path)
     assert k.ok
-    assert k.lines == [("Your judge will use your OpenAI key (OPENAI_API_KEY, in .env in this "
+    assert k.lines == [("Your LLM-as-a-judge will use your OpenAI key (OPENAI_API_KEY, in .env in this "
                         "folder; promptfoo loads it).")]
 
 
@@ -111,7 +111,7 @@ def test_the_promptfoo_config_env_block_wins(clean, tmp_path):
     config = tmp_path / "promptfooconfig.yaml"
     config.write_text("env:\n  OPENAI_API_KEY: x\n", encoding="utf-8")
     k = check("openai:gpt-4.1-mini", "promptfoo", tmp_path, config=config)
-    assert k.lines[0] == ("Your judge will use your OpenAI key (OPENAI_API_KEY, in the env: "
+    assert k.lines[0] == ("Your LLM-as-a-judge will use your OpenAI key (OPENAI_API_KEY, in the env: "
                           "block of promptfooconfig.yaml; promptfoo uses it).")
 
 
@@ -131,7 +131,7 @@ def test_mlflow_needs_the_key_in_the_shell(clean, tmp_path):
     k = check("openai:/gpt-4.1-mini", "mlflow", tmp_path)
     assert not k.ok
     (line,) = k.lines
-    assert line.startswith("Your judge needs OPENAI_API_KEY. It is in .env in this folder, but "
+    assert line.startswith("Your LLM-as-a-judge needs OPENAI_API_KEY. It is in .env in this folder, but "
                            "MLflow does not load .env files: set it in your shell (")
     how = "$env:OPENAI_API_KEY = '...'" if sys.platform == "win32" else "export OPENAI_API_KEY=..."
     assert how in line
@@ -140,7 +140,7 @@ def test_mlflow_needs_the_key_in_the_shell(clean, tmp_path):
 def test_a_missing_key(clean, tmp_path):
     k = check("openai:gpt-4.1-mini", "promptfoo", tmp_path)
     assert not k.ok
-    assert k.lines == [("Your judge needs OPENAI_API_KEY. It is not set in your shell or in "
+    assert k.lines == [("Your LLM-as-a-judge needs OPENAI_API_KEY. It is not set in your shell or in "
                         ".env.")]
 
 
@@ -156,7 +156,7 @@ def test_one_of_several_names(clean, tmp_path):
     assert k.ok and k.name == "GEMINI_API_KEY"
     clean.delenv("GEMINI_API_KEY")
     assert check("google:gemini-3.8-flash", "promptfoo", tmp_path).lines == [
-        ("Your judge needs GOOGLE_API_KEY (or GEMINI_API_KEY or PALM_API_KEY). It is not set "
+        ("Your LLM-as-a-judge needs GOOGLE_API_KEY (or GEMINI_API_KEY or PALM_API_KEY). It is not set "
          "in your shell or in .env.")]
 
 
@@ -166,17 +166,17 @@ def test_credential_files_are_named_never_read(clean, tmp_path):
     (aws / "credentials").write_text(f"[default]\naws_secret_access_key = {FAKE}\n",
                                      encoding="utf-8")
     k = check("bedrock:anthropic.claude-haiku", "promptfoo", tmp_path)
-    assert k.ok and k.lines == ["AWS profile found; your judge will use it."]
+    assert k.ok and k.lines == ["AWS profile found; your LLM-as-a-judge will use it."]
     gcloud = keys.HOME / ".config" / "gcloud"
     gcloud.mkdir(parents=True)
     (gcloud / "application_default_credentials.json").write_text("{}", encoding="utf-8")
     k = check("vertex:gemini-3.8-flash", "promptfoo", tmp_path)
-    assert k.ok and k.lines == ["Google default credentials found; your judge will use them."]
+    assert k.ok and k.lines == ["Google default credentials found; your LLM-as-a-judge will use them."]
 
 
 def test_ollama_needs_no_key(clean, tmp_path):
     k = check("ollama:chat:llama3.3", "promptfoo", tmp_path)
-    assert k.ok and k.lines == ["Your judge runs on Ollama; it needs no key."]
+    assert k.ok and k.lines == ["Your LLM-as-a-judge runs on Ollama; it needs no key."]
 
 
 @pytest.mark.parametrize("model, tool", [("ollama/llama3.2:3b", "inspect"),
@@ -185,7 +185,7 @@ def test_ollama_needs_no_key(clean, tmp_path):
 def test_ollama_in_each_tools_own_form_needs_no_key(clean, tmp_path, model, tool):
     k = check(model, tool, tmp_path)
     assert k.provider == "ollama"
-    assert k.ok and k.lines == ["Your judge runs on Ollama; it needs no key."]
+    assert k.ok and k.lines == ["Your LLM-as-a-judge runs on Ollama; it needs no key."]
 
 
 def test_a_colon_after_the_slash_keeps_the_provider():
@@ -197,7 +197,7 @@ def test_a_colon_after_the_slash_keeps_the_provider():
 def test_an_unknown_provider_is_said(clean, tmp_path):
     k = check("mystery-model", "inspect", tmp_path)
     assert k.ok and k.provider is None
-    assert k.lines == [("I can't tell which key your judge needs (its model is "
+    assert k.lines == [("I can't tell which key your LLM-as-a-judge needs (its model is "
                         "mystery-model); your tool looks for it itself.")]
 
 
@@ -207,14 +207,14 @@ def test_setting_variables_are_named(clean, tmp_path):
     (tmp_path / ".env").write_text("OPENAI_BASE_URL=http://proxy\n", encoding="utf-8")
     k = check("openai:gpt-4.1-mini", "promptfoo", tmp_path)
     assert k.settings == ["OPENAI_BASE_URL", "OPENAI_TEMPERATURE"]
-    assert "OPENAI_BASE_URL and OPENAI_TEMPERATURE are set; they change your judge." in k.lines
+    assert "OPENAI_BASE_URL and OPENAI_TEMPERATURE are set; they change your LLM-as-a-judge." in k.lines
 
 
 def test_one_setting_variable(clean, tmp_path):
     clean.setenv("AWS_BEDROCK_TEMPERATURE", "1")
     clean.setenv("AWS_BEARER_TOKEN_BEDROCK", FAKE)
     k = check("bedrock:x", "promptfoo", tmp_path)
-    assert "AWS_BEDROCK_TEMPERATURE is set; it changes your judge." in k.lines
+    assert "AWS_BEDROCK_TEMPERATURE is set; it changes your LLM-as-a-judge." in k.lines
 
 
 def test_no_value_ever_reaches_any_output(clean, tmp_path, capsys):
