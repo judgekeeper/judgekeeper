@@ -80,6 +80,20 @@ def _rule(selector: str, css: str = CSS) -> str:
     return css[start + len(selector) + 2:css.index("}", start)]
 
 
+def _phone(css: str = CSS) -> str:
+    """Every rule inside the phone blocks (`@media (max-width: 760px)`), one after another."""
+    inside, at = [], 0
+    while (at := css.find("@media (max-width: 760px) {", at)) != -1:
+        depth, open_at = 0, css.index("{", at)
+        for i in range(open_at, len(css)):
+            depth += {"{": 1, "}": -1}.get(css[i], 0)
+            if not depth:
+                break
+        inside.append(css[open_at + 1:i])
+        at = i
+    return "\n".join(inside)
+
+
 def _rules(css: str = CSS) -> list[tuple[str, str]]:
     """(selector, declarations) for every rule, those inside @media included."""
     inner = re.sub(r"@media[^{]*\{", "", css)
@@ -459,11 +473,21 @@ def test_the_steps_list_picks_a_screen_for_the_terminal():
     assert _flat(_by_id(HOME, "t-replay")) == "Replay"
     fix_buttons = _all(fix_tabs, "button")
     assert [b.attrs.get("tabindex") for b in fix_buttons] == ["0", "-1"]
-    # under the terminal, its source: no link to the Guide
-    (more,) = _all(steps, "p", "steps-more")
-    assert "example project (made-up answers)" in _flat(more)
-    (link,) = _all(more, "a")
-    assert (link.attrs["href"], _flat(link)) == ("examples/site-example/report.html", "its report")
+    # the terminal's own status bar says where it comes from; no grey line under the box
+    assert not _all(steps, "p", "steps-more")
+    (foot,) = _all(term, "div", "term-foot")
+    (dot,) = _all(foot, "span", "tf-dot")
+    assert dot.attrs.get("aria-hidden") == "true"
+    assert _flat(_all(foot, "span", "tf-text")[0]) == "made-up answers · not a real project"
+    (link,) = _all(foot, "a", "tf-link")
+    assert (link.attrs["href"], _flat(link)) == ("examples/site-example/report.html",
+                                                 "open its report")
+    assert 'content: " ↗"' in _rule(".tf-link::after")
+    assert "dashed" in _rule(".tf-link")
+    bar = _rule(".term-foot")
+    assert "height: 38px" in bar and "border-top: 1px solid var(--line)" in bar
+    assert "background: var(--term-bar)" in bar and "font-size: 12px" in bar
+    assert "font-size: 11px" in _rule(".term-foot", _phone())
 
 
 def test_the_closing_box_points_to_the_browser_check():
@@ -473,6 +497,43 @@ def test_the_closing_box_points_to_the_browser_check():
                                           "computer.")
     (button,) = _all(close, "a", "b-main")
     assert (button.attrs["href"], _flat(button)) == ("check.html", "Check in your browser")
+
+
+def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
+    """A window like the others, titled "your project", with a green border and no glow; a
+    "$" and a blinking cursor wait under the line, 56px below the steps."""
+    close = _all(_main(HOME), "section", "close")[0]
+    (win,) = _all(close, "div", "close-win")
+    (bar,) = _all(win, "div", "rt-bar")
+    assert _flat(_all(bar, "span", "rt-title")[0]) == "your project"
+    (prompt,) = _all(win, "p", "close-prompt")
+    assert prompt.attrs.get("aria-hidden") == "true"
+    assert _flat(_all(prompt, "span", "t-prompt")[0]) == "$"
+    assert _all(prompt, "span", "ck-cursor")
+    rule = _rule(".close-win")
+    assert "border-radius: 12px" in rule and "var(--green)" in rule
+    assert "box-shadow" not in rule
+    assert "font-family: var(--mono)" in _rule(".close-win h2")
+    assert "font-size: 26px" in _rule(".close-win h2")
+    assert "padding-top: 56px" in _rule(".close")
+    assert "> " not in _flat(win)
+
+
+def test_every_window_has_the_three_dots_and_a_centred_title():
+    """The demo card, the closing box and the Guide's install card share the terminal's bar."""
+    bar = _rule(".rt-bar")
+    assert "background: var(--term-bar)" in bar and "font-family: var(--mono)" in bar
+    assert "var(--term-dot)" in _rule(".rt-bar::before")
+    assert "text-align: center" in _rule(".rt-title")
+
+
+def test_the_demo_card_is_a_window_called_marking_page():
+    (card,) = _all(_main(HOME), "section", "jk-card")
+    first = next(el for el in card.children if isinstance(el, Element))
+    assert {"rt-bar", "jk-bar"} <= first.classes() and first.attrs.get("aria-hidden") == "true"
+    assert _flat(_all(first, "span", "rt-title")[0]) == "marking page"
+    assert "background: var(--term-bg)" in _rule(".jk-card")
+    assert "flex: none" in _rule(".jk-bar")
 
 
 # The Guide ------------------------------------------------------------------------------------

@@ -38,6 +38,7 @@
     <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-side" href="check.html">Check in your browser</a></div>
   </div>
   <div class="hero-r"><section class="jk-card" id="demo" tabindex="0" aria-label="Live demo of the marking page">
+    <div class="rt-bar jk-bar" aria-hidden="true"><span class="rt-title">marking page</span></div>
     <div class="jk-live">
       <div class="jk-row jk-row-q">
         <div><div class="jk-label">Question</div><h2 class="jk-question" id="d-q">Can I return a lamp after 60 days?</h2></div>
@@ -99,6 +100,7 @@ one at a time. Mark each one Pass or Fail, the way you want your
 judge to decide. Your judge's grade stays hidden.
 
 Next: mark until "See your result" appears, then click it.</pre>
+    <div class="term-foot"><span class="tf-dot" aria-hidden="true"></span><span class="tf-text">made-up answers · not a real project</span><a class="tf-link" href="examples/site-example/report.html">open its report</a></div>
 <template data-screen="find">$ judgekeeper
 judgekeeper 1.0.0b2
 
@@ -173,10 +175,10 @@ Where your LLM-as-a-judge goes wrong:
   Your LLM-as-a-judge made 10 mistakes. In 5, it said Pass where
   you said Fail. In the other 5, it said Fail where you said
   Pass.
-
-All 10 mistakes your LLM-as-a-judge made are saved in
   Where it said Pass where you said Fail, the answers are long
   (about 11 words, against 6).
+
+All 10 mistakes your LLM-as-a-judge made are saved in
 .judgekeeper/fix/mistakes.md. Use it to write a better rule, or
 hand it to a coding agent to help you write one.
 
@@ -242,13 +244,14 @@ new may not be real.
 Next: go back to your old LLM-as-a-judge, or try another change
 and run `judgekeeper check` again.</template>
   </div></div>
-  <p class="steps-more">The terminal shows an example project (made-up answers): <a href="examples/site-example/report.html">its report</a>.</p>
 </div></section>
 <section class="close"><div class="wrap">
+  <div class="close-win"><div class="rt-bar" aria-hidden="true"><span class="rt-title">your project</span></div>
   <div class="close-box">
-    <div><h2>Have eval results?</h2><p>Check your LLM-as-a-judge. Your file stays on your computer.</p></div>
+    <div><h2>Have eval results?</h2><p>Check your LLM-as-a-judge. Your file stays on your computer.</p>
+    <p class="close-prompt" aria-hidden="true"><span class="t-prompt">$</span> <span class="ck-cursor">▍</span></p></div>
     <a class="b-main" href="check.html">Check in your browser</a>
-  </div>
+  </div></div>
 </div></section>
 </main>
 <footer class="foot"><div class="wrap">

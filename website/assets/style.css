@@ -68,8 +68,9 @@ img, svg { max-width: 100%; }
 }
 
 /* ---- the marking card, as the product draws it ---- */
-.jk-card { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg); color: var(--fg); display: flex; flex-direction: column; text-align: left; min-width: 0; font-family: var(--sans); }
+.jk-card { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--term-bg); color: var(--fg); display: flex; flex-direction: column; text-align: left; min-width: 0; font-family: var(--sans); }
 .jk-card:focus-visible { border-radius: 12px; }
+.jk-bar { flex: none; }  /* the window bar: it never takes the card's spare room */
 /* site.js gives the card the height of its tallest answer; the room left sits under the answer */
 .jk-live { flex: 1; display: flex; flex-direction: column; }
 .jk-row { padding: 32px 40px; border-bottom: 1px solid var(--line); }
@@ -151,6 +152,10 @@ img, svg { max-width: 100%; }
 /* three quiet dots on the left, like a terminal window */
 .term-bar::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--term-dot); box-shadow: 16px 0 0 var(--term-dot), 32px 0 0 var(--term-dot); margin-right: 32px; }
 .term-title { flex: 1; white-space: nowrap; text-align: center; }
+/* the same bar on the other windows: three dots and a centred title */
+.rt-bar { display: flex; align-items: center; height: 44px; padding: 0 20px; border-bottom: 1px solid var(--line); background: var(--term-bar); font-family: var(--mono); font-variant-ligatures: none; font-size: 12.5px; color: var(--muted); }
+.rt-bar::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--term-dot); box-shadow: 16px 0 0 var(--term-dot), 32px 0 0 var(--term-dot); margin-right: 32px; }
+.rt-title { flex: 1; text-align: center; margin-right: 74px; white-space: nowrap; }
 .term-tabs { display: flex; gap: 18px; height: 100%; }
 .term-tabs button { color: var(--muted); height: 100%; border-bottom: 2px solid transparent; white-space: nowrap; }
 .term-tabs button:hover { color: var(--fg); }
@@ -164,10 +169,19 @@ img, svg { max-width: 100%; }
 .term .t-label, .term .t-dim { color: var(--muted); }
 .term .t-warn { color: #e0a43a; font-weight: 500; }  /* the result page's "needs work" amber */
 .term .t-good { color: var(--green); font-weight: 500; }
+/* the terminal's status bar: where the example comes from, and its report */
+.term-foot { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 20px; border-top: 1px solid var(--line); background: var(--term-bar); font-family: var(--mono); font-variant-ligatures: none; font-size: 12px; color: var(--muted); flex: none; }
+.tf-dot { width: 7px; height: 7px; border-radius: 50%; background: #f5a524; flex: none; }
+.tf-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tf-link { color: var(--fg); text-decoration: none; white-space: nowrap; border-bottom: 1px dashed var(--muted); padding-bottom: 1px; }
+.tf-link::after { content: " ↗"; color: var(--muted); }
+.tf-link:hover { border-bottom-color: var(--fg); }
 @media (max-width: 760px) {
   .term-bar { height: auto; min-height: 44px; flex-wrap: wrap; gap: 6px 18px; padding: 8px 14px; }
   .term-tabs { height: 36px; }
   .term-out { padding: 16px 14px; font-size: 12px; }
+  .term-foot { padding: 0 14px; font-size: 11px; }
+  .rt-title { margin-right: 0; }
 }
 
 /* ---- home ---- */
@@ -204,13 +218,18 @@ img, svg { max-width: 100%; }
 .steplist b { display: block; font-size: 16px; font-weight: 700; color: var(--fg); }
 .steplist .d { display: block; font-size: 14.5px; margin-top: 2px; }
 .steps-grid .term { border: 0; min-width: 0; }
-.steps-more { margin: 16px 0 0; font-size: 14px; color: var(--muted); }
-.steps-more a { text-underline-offset: 3px; text-decoration-color: var(--muted); }
-.steps-more a:hover { text-decoration-color: var(--fg); }
 .close .wrap { padding-block: 80px; }
 .close-box { border: 1px solid var(--line); padding: 40px 44px; display: grid; grid-template-columns: 1fr auto; gap: 24px 48px; align-items: center; }
 .close h2 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.022em; }
 .close p { margin: 8px 0 0; color: var(--muted); font-size: 17px; }
+/* "Have eval results?" as your own terminal: a green border (no glow), waiting at a prompt */
+.close { padding-top: 56px; }
+.close-win { border: 1px solid color-mix(in srgb, var(--green) 45%, var(--line)); border-radius: 12px; overflow: hidden; background: var(--term-bg); }
+.close-win .close-box { border: 0; padding: 36px 40px; }
+.close-win h2 { font-family: var(--mono); font-variant-ligatures: none; font-weight: 500; font-size: 26px; letter-spacing: -.01em; }
+.close-win p { font-family: var(--mono); font-variant-ligatures: none; font-size: 14px; margin-top: 10px; }
+.close-win .close-prompt { font-size: 15px; color: var(--fg); margin-top: 18px; }
+.close-prompt .t-prompt { color: var(--green); }
 @media (max-width: 1100px) {
   .hero .wrap { grid-template-columns: minmax(0, 1fr) 500px; gap: 48px; }
   .hero h1 { font-size: 52px; }
@@ -229,6 +248,8 @@ img, svg { max-width: 100%; }
   .close .wrap { padding-block: 56px; }
   .close-box { grid-template-columns: 1fr; padding: 28px 20px; }
   .close h2 { font-size: 24px; }
+  .close-win .close-box { padding: 24px 18px; }
+  .close-win h2 { font-size: 21px; }
 }
 
 /* ---- command boxes, with a copy button that says "Copied" in green ---- */
