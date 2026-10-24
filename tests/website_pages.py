@@ -148,6 +148,13 @@ def commands(path: Path) -> list[tuple[str, list[str]]]:
     """(line, argv) for every judgekeeper command in a <code> element outside output blocks."""
     found = []
     for el in parse(path).iter():
+        if el.tag == "pre" and "gm-pre" in el.classes():  # a small terminal: "$ command  # note"
+            for line in el.text().splitlines():
+                line = line.split("#")[0].rstrip()
+                argv = judgekeeper_argv(line.removeprefix("$ "))
+                if argv is not None:
+                    found.append((line, argv))
+            continue
         if el.tag != "code" or in_output(el):
             continue
         for line in command_lines(el.text()):

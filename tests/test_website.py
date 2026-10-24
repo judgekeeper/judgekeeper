@@ -95,6 +95,9 @@ def test_the_pages_show_commands():
     counts = {p.name: len(commands(p)) for p in pages()}
     assert counts["index.html"] == 0  # Home is about judgekeeper; setup lives on the Guide
     assert counts["start.html"] >= 6  # the install, then a command for each step
+    # the handy commands, typed at the Guide's small terminal window
+    handy = [argv for line, argv in commands(WEBSITE / "start.html") if line.startswith("$ ")]
+    assert handy == [["--stop"], ["--new"], ["--no-browser"], ["--help"]]
     assert counts["check.html"] == 2  # pip's judgekeeper and uvx judgekeeper, under the drop card
 
 

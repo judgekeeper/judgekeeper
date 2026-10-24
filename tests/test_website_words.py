@@ -121,7 +121,7 @@ def test_the_pages_use_the_words_the_rules_ask_for():
     words = {p.name: _visible(p) for p in pages()}
     assert "Check your LLM-as-a-judge" in words["index.html"]
     assert "Check your LLM-as-a-judge" in words["check.html"]
-    assert "kept aside" in words["start.html"]
+    assert "kept aside" in words["index.html"]  # Home's Fix step
 
 
 def test_the_word_rules_find_a_banned_word(tmp_path):

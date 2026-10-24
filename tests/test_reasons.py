@@ -704,15 +704,16 @@ def test_new_moves_the_reasons_with_the_marks(here):
 
 # 8. Words ------------------------------------------------------------------------------------
 
-def test_the_reference_and_the_guide_say_it_once():
+def test_the_reference_and_the_terminal_say_what_the_reasons_are_for():
     from pathlib import Path
 
     root = Path(__file__).resolve().parent.parent
     reference = (root / "docs" / "reference.md").read_text(encoding="utf-8")
     assert "say why" in reference.lower() and "suggestions.md" in reference
-    guide = " ".join((root / "website" / "start.html").read_text(encoding="utf-8").split())
-    assert ("On your result page, say why on the answers you and your judge disagree on; "
-            "<code>fix</code> puts your reasons next to its mistakes.") in guide
+    # the Guide keeps to the steps; the terminal says what the reasons are for
+    from judgekeeper import start_label
+
+    assert "uses your reasons" in start_label.SAY_WHY_FIX
 
 
 # Helpers --------------------------------------------------------------------------------------

@@ -543,10 +543,11 @@ def test_the_demo_card_is_a_window_called_marking_page():
 # The Guide ------------------------------------------------------------------------------------
 
 REFERENCE_MD = f"{GITHUB}/blob/main/docs/reference.md"
-GUIDE_STEPS = [("step-find", "Find your results"), ("step-mark", "Mark answers Pass or Fail"),
-               ("step-measure", "Read your result"),
+GUIDE_STEPS = [("step-find", "Find your results"),
+               ("step-mark", "Mark your answers Pass or Fail"),
+               ("step-measure", "See your result"),
                ("step-fix", "Write a better rule and test it"),
-               ("step-check", "Re-check after you change your judge")]
+               ("step-check", "Re-check after you change your LLM-as-a-judge")]
 
 
 def test_the_guide_is_the_install_the_five_steps_and_three_cards():
@@ -555,18 +556,29 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     hero = sections[0]
     assert hero.attrs["id"] == "install"  # judgekeeper prints start.html#install
     assert _flat(_all(hero, "h1")[0]) == "Start in your project."
+    assert _flat(_all(hero, "p", "gx-lede")[0]) == (
+        "You need eval results graded by an LLM-as-a-judge, from promptfoo, DeepEval, Inspect "
+        "AI, MLflow or your own file.")
+    # the install card is a window on your project folder: pip and uv, both in view
     (card,) = _all(hero, "div", "gx-install")
-    assert _flat(_all(card, "p", "gx-k")[0]) == "In your project folder, run one of these"
-    # pip and uv as equals, both in view: pip first, its two lines in one box
+    assert "gwin" in card.classes()
+    assert _flat(_all(_all(card, "div", "rt-bar")[0], "span", "rt-title")[0]) == (
+        "your project folder")
+    assert not _all(card, "p", "gx-k")
     assert [_flat(c) for c in _all(card, "code")] == ["pip install judgekeeper judgekeeper",
                                                      "uvx judgekeeper"]
-    assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == ["With pip (most Python setups)",
-                                                              "With uv"]
+    assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == ["With pip", "With uv"]
+    assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
+        "Needs Python 3.11 or newer, on macOS, Linux or Windows."]
     assert not _all(_main(GUIDE), "nav")  # no side list
-    # the cards; Your own format holds the record() line judgekeeper links to
-    cards = [(c.attrs["id"], _flat(_all(c, "h3")[0])) for c in _all(sections[2], "div", "gx-card")]
-    assert cards == [("keys", "Keys and costs"), ("own-format", "Your own format"),
-                     ("misc", "Handy commands")]
+    # three plain rows; Your own format holds the record() line judgekeeper links to
+    rows = [(r.attrs["id"], _flat(_all(r, "h3")[0])) for r in _all(sections[2], "div", "gm-row")]
+    assert rows == [("keys", "Keys and costs"), ("own-format", "Your own format"),
+                    ("misc", "Handy commands")]
+    assert not _all(sections[2], "div", "gx-card")
+    assert "grid-template-columns: 240px minmax(0, 1fr)" in _rule(".gm-row")
+    # on a phone one column, never wider than the screen
+    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gm-row", _phone())
     (record,) = _all(_by_id(GUIDE, "own-format"), "pre", "gx-code")
     assert record.text().startswith("import judgekeeper\njudgekeeper.record(input=question,")
     reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
@@ -580,18 +592,27 @@ def test_the_guide_lists_the_five_steps_with_no_tabs_or_terminal():
     for n, li in enumerate(items, 1):
         (number,) = _all(li, "span", "gl-n")
         assert _flat(number) == str(n) and number.attrs.get("aria-hidden") == "true"
-    for step in ("step-find", "step-mark", "step-measure", "step-fix"):
-        done = [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
-        assert done[0].startswith("Done when "), step
-    (fold,) = _all(_by_id(GUIDE, "step-find"), "details")
-    assert _flat(_all(fold, "summary")[0]) == "Didn't work?"
-    # how the numbers are worked out: in the full reference
-    links = [a.attrs["href"] for a in _all(_by_id(GUIDE, "step-measure"), "a")]
-    assert links == [f"{REFERENCE_MD}#how-the-numbers-are-worked-out"]
-    assert "\n## How the numbers are worked out\n" in (ROOT / "docs" / "reference.md").read_text(
-        encoding="utf-8")
-    assert "The result is Worse, No drop bigger than 20 points, or Not sure." in _flat(
-        _by_id(GUIDE, "step-check"))
+    done = {step: [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
+            for step in ("step-find", "step-mark", "step-measure")}
+    assert done == {
+        "step-find": ["Nothing found? Run your eval once, or point to the file:"],
+        "step-mark": ["When See your result appears, click it."],
+        "step-measure": ["Too early to tell? Mark more answers:"]}
+    assert not _all(_main(GUIDE), "details")  # no fold
+    assert not _all(_by_id(GUIDE, "step-measure"), "a")  # the numbers: in the reference
+    assert not _all(_by_id(GUIDE, "step-fix"), "table")  # the six results: in the reference
+    assert [_flat(p) for p in _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")] == [
+        "Testing works with promptfoo, DeepEval, Inspect AI and MLflow."]
+    assert _flat(_by_id(GUIDE, "step-check")) == (
+        "5Re-check after you change your LLM-as-a-judge Changed the model, the rule or your "
+        "eval tool? Run your eval, then: judgekeeper check It tells you if your LLM-as-a-judge "
+        "still agrees with you, on the same marks.")
+    # the two pictures sit in windows, like Home's
+    shots = [(li.attrs["id"], _flat(_all(f, "span", "rt-title")[0]))
+             for li in items for f in _all(li, "figure", "gx-shot")]
+    assert shots == [("step-mark", "marking page"), ("step-measure", "result page")]
+    assert all("gwin" in f.classes() for f in _all(steps, "figure", "gx-shot"))
+    assert "max-width: 760px" in _rule(".gx-shot.gwin")
     text = GUIDE.read_text(encoding="utf-8")
     for gone in ("<template", "steplist", "t-out", "learn.html", "data-panel", "npx"):
         assert gone not in text, gone
@@ -600,12 +621,33 @@ def test_the_guide_lists_the_five_steps_with_no_tabs_or_terminal():
     assert "width: 1px" in _rule(".gl-step:not(:last-child)::before")
 
 
+def test_the_guides_commands_look_like_terminal_lines():
+    """A green "$" before each one-line command, drawn by CSS so Copy copies the command
+    alone; the two-line pip box has none. Handy commands are a small terminal window."""
+    assert 'content: "$"' in _rule(".gx .cmd code::before")
+    assert "var(--green)" in _rule(".gx .cmd code::before")
+    assert "content: none" in _rule(".gx .cmd-2 code::before")
+    assert "background: var(--term-bg)" in _rule(".gx .cmd")
+    assert "code.textContent" in JS  # what Copy copies: never the "$"
+    (misc,) = _all(_by_id(GUIDE, "misc"), "div", "gm-cmds")
+    assert "gwin" in misc.classes()
+    assert _flat(_all(misc, "span", "rt-title")[0]) == "terminal"
+    (pre,) = _all(misc, "pre", "gm-pre")
+    lines = [" ".join(line.split()) for line in pre.text().splitlines()]
+    assert lines == ["$ judgekeeper --stop # close the marking page",
+                     "$ judgekeeper --new # start over (old marks are kept)",
+                     "$ judgekeeper --no-browser # get the link, no browser",
+                     "$ judgekeeper --help # see every option"]
+    assert {_flat(s) for s in _all(pre, "span", "t-prompt")} == {"$"}
+
+
 def test_every_command_box_has_a_copy_button_that_says_copied():
     boxes = [box for page in (GUIDE, CHECK) for box in _all(parse(page), "div", "cmd")]
     pip = "pip install judgekeeper judgekeeper"  # two lines, one box, one copy button
     assert [_flat(_all(b, "code")[0]) for b in boxes] == [
-        pip, "uvx judgekeeper", "judgekeeper", "judgekeeper fix", "judgekeeper check",
-        pip, "uvx judgekeeper"]
+        pip, "uvx judgekeeper", "judgekeeper", "judgekeeper path/to/results.json",
+        "judgekeeper mark", "judgekeeper fix", "judgekeeper check",
+        "judgekeeper --pass-if 'score>=0.5'", pip, "uvx judgekeeper"]
     for box in boxes:
         (button,) = _all(box, "button", "copy")
         assert "data-copy" in button.attrs and button.attrs["aria-label"].startswith("Copy")
@@ -619,23 +661,6 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
         ".cmd .copy.done .copied")
     assert "padding: 12px 18px" in _rule(".cmd code")
     assert "padding: 14px 20px" in _rule(".cmd-big code")
-
-
-def test_the_guide_tables():
-    def rows(section: str) -> list[list[str]]:
-        (table,) = _all(_by_id(GUIDE, section), "table")
-        return [[_flat(td) for td in _all(tr, "td")] for tr in _all(table, "tr")
-                if _all(tr, "td")]
-    # every result fix can give: its name and its words, as fix.py has them
-    said = [(fix.VERDICT_NAMES[k], fix.RESULT[k].removeprefix("Result: ")) for k in fix.RESULT]
-    assert [(name, words[0].upper() + words[1:]) for name, words in said] == [
-        tuple(row[:2]) for row in rows("step-fix")]
-    assert [row[2] for row in rows("step-fix")] == [
-        "Use the new rule.", "You can use the new rule.",
-        "Mark the few more answers it asks for, then run judgekeeper fix again.",
-        "Keep the old rule, or write a different one.", "Keep the old rule.", "Keep the old rule."]
-    assert [r[0] for r in rows("misc")] == ["judgekeeper --stop", "judgekeeper --new",
-                                            "judgekeeper --no-browser", "judgekeeper --help"]
 
 
 # Privacy ------------------------------------------------------------------------------------
@@ -854,9 +879,8 @@ def test_the_guide_shows_the_marking_and_result_pages_after_their_first_paragrap
         assert (WEBSITE / "assets" / "shots" / picture).is_file()
         assert (img.attrs["width"], img.attrs["height"]) == ("2880", "1800")
         assert len(img.attrs["alt"]) > 80 and "screenshot" not in img.attrs["alt"].lower()
-    assert "max-width: 760px" in _rule(".gx-shot")
-    shot = _rule(".gx-shot img")
-    assert "width: 100%" in shot and "border-radius: 8px" in shot and "border: 1px" in shot
+    assert "max-width: 760px" in _rule(".gx-shot.gwin")
+    assert "width: 100%" in _rule(".gx-shot.gwin img")  # the window draws the border
     # Home stays terminal: no picture there
     assert not _all(_main(HOME), "img") and not _all(_main(HOME), "figure")
 
@@ -876,15 +900,12 @@ def test_testing_a_new_rule_is_said_only_for_the_tools_fix_can_ask():
     assert "test it on marks kept aside." in _flat(_by_id(HOME, "tab-fix"))
     assert "promptfoo" not in _flat(_by_id(HOME, "tab-fix"))
     step = _flat(_by_id(GUIDE, "step-fix"))
-    assert "promptfoo, DeepEval, Inspect AI or MLflow: write your new rule" in step
-    assert ("Your own CSV or JSONL file, or judgekeeper.record(): "
-            + fix.CANT_ASK.removesuffix(".") + ", so it can't test a new rule.") in step
-    assert "Change the rule where your eval keeps it, run your eval, then judgekeeper check." \
-        in step
-    assert "its mistakes on the marks you can see" in step and "every mistake" not in step
+    assert step.endswith("Testing works with promptfoo, DeepEval, Inspect AI and MLflow.")
+    assert ("Write your new rule in .judgekeeper/fix/rule.txt and run judgekeeper fix again. "
+            "It tests the rule and tells you if it's better, worse, or can't tell yet.") in step
     own = _flat(_by_id(GUIDE, "own-format"))
-    assert "can't test a new rule: change the rule in your eval, run it, then judgekeeper " \
-           "check." in own
+    assert ("With your own file, judgekeeper can't test a new rule: change it in your eval, run "
+            "it, then judgekeeper check.") in own
     llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
     assert ("for promptfoo, DeepEval, Inspect AI and MLflow, tests a better rule on marks kept "
             "aside (for your own CSV or JSONL file or `judgekeeper.record()`, you change the rule "
