@@ -778,12 +778,11 @@
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ r: r, v: v, kind: kind });
     });
-    var pool = { answers: [], left: [], merged: 0, results: 0, repeatSizes: [], split: [], unmapped: unmapped, unread: unread };
+    var pool = { answers: [], left: [], merged: 0, repeatSizes: [], split: [], unmapped: unmapped, unread: unread };
     groups.forEach(function (seen) {
       var judged = seen.filter(function (s) { return s.kind === null; });
       if (!judged.length) { pool.left.push({ kind: seen[0].kind, r: seen[0].r }); return; }
       var passes = judged.filter(function (s) { return s.v.verdict === 'pass'; }).length;
-      pool.results += judged.length;
       if (pool.repeatSizes.indexOf(judged.length) < 0) pool.repeatSizes.push(judged.length);
       if (passes === 0 || passes === judged.length) {  // the same grade every time: one answer
         pool.merged += judged.length - 1;
@@ -1099,7 +1098,7 @@
       showName: nMetrics > 1 || r.tool === 'deepeval',
       answers: block.answers,
       pass: pool.nPass, fail: pool.nFail,
-      merged: pool.merged, results: pool.results, repeatSizes: pool.repeatSizes, split: pool.split,
+      merged: pool.merged, repeatSizes: pool.repeatSizes, split: pool.split,
       human: r.humanFor === undefined || r.humanFor === metric ? r.nHuman : 0, unmapped: pool.unmapped,
       readRows: r.readRows ? r.readRows[metric] : null,
       unread: pool.unread.slice(0, 3).map(function (v) { return oneLine(clean(v, 30)); }),
@@ -1118,19 +1117,26 @@
 
   /* ---------- what it says (front.py's Find block and free check) ---------- */
 
+  // The note under Answers when answers are in the file more than once: repeats with the same
+  // grade count once, repeats with different grades each count (front.repeats_note).
+  function repeatsNote(j) {
+    var times = j.repeatSizes.length === 1 && j.repeatSizes[0] > 1 ? j.repeatSizes[0] : null;
+    var split = j.split.reduce(function (sum, s) { return sum + s[0]; }, 0);
+    var head = '(your file has ' + (j.answers + j.merged) + ' results: ' +
+      (times ? n(j.answers - split + j.split.length, 'answer') + ', each run ' + times + ' times' : 'some answers are in it more than once');
+    if (!j.split.length) return head + ', so each counts once.)';
+    var which = j.split.length === 1 ? '1 answer got different grades, so its' : j.split.length + ' answers got different grades, so their';
+    return head + '. Repeats with the same grade count once. ' + which + ' ' + split + ' repeats each count.)';
+  }
+
   // [{k, text, tone}] lines: tone is '', 'dim', 'g' (all clear) or 'y' (a finding)
   function reportLines(result, j) {
     var L = [];
     var pad = '             ';
     L.push({ k: 'Eval tool:   ', text: result.toolName, tone: 'g' });
     L.push({ k: 'File:        ', text: result.file });
-    if (j.merged) {  // repeats of the same answer with the same grade count once (front.found_block)
-      var times = j.repeatSizes.length === 1 ? j.repeatSizes[0] : null;
-      L.push({ k: 'Answers:     ', text: n(j.answers, 'different answer') });
-      L.push({ k: pad, text: '(your file has ' + j.results + ' results: ' + (times ? 'each answer was run ' + times + ' times' : 'some answers are in it more than once') + ', so each is counted once)', tone: 'dim' });
-    } else {
-      L.push({ k: 'Answers:     ', text: n(j.answers, 'answer') });
-    }
+    L.push({ k: 'Answers:     ', text: n(j.answers, 'answer') });
+    if (j.pass + j.fail && (j.merged || j.split.length)) L.push({ k: pad, text: repeatsNote(j), tone: 'dim' });
     var model = j.models.length ? j.models.join(', ') : 'model not found in your file';
     L.push({ k: 'Judge:       ', text: (j.showName ? j.name + ', ' : '') + model });
     if (!j.rule) {
@@ -1153,12 +1159,6 @@
     L.push({ text: '' });
     if (j.pass + j.fail) L.push({ text: 'Your judge passed ' + n(j.pass, 'answer') + ' and failed ' + j.fail + '.' });
     var notes = [];
-    if (j.split && j.split.length === 1) {
-      notes.push(j.split[0][0] + ' repeats of one answer got different grades (' + j.split[0][1] + ' Pass, ' + j.split[0][2] + ' Fail); each is its own answer.');
-    } else if (j.split && j.split.length) {
-      var repeats = j.split.reduce(function (sum, s) { return sum + s[0]; }, 0);
-      notes.push(j.split.length + ' answers got different grades when graded more than once (' + repeats + ' repeats in all); each repeat is its own answer.');
-    }
     if (j.human) notes.push('Your results also hold ' + n(j.human, 'human label') + '. judgekeeper does not use them: you mark the answers yourself.');
     var total = j.pass + j.fail;
     [[j.fail, 'failed', 'passes too much'], [j.pass, 'passed', 'fails too much']].forEach(function (x) {

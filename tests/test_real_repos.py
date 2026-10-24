@@ -353,8 +353,9 @@ def test_repeats_with_different_grades_are_each_their_own_answer(here, capsys):
     code, out = run(capsys)
     assert code == 0, out
     assert "Answers:     38 answers" in out
-    assert ("3 repeats of one answer got different grades (1 Pass, 2 Fail); each is its own "
-            "answer.") in flat(out)
+    assert ("(your file has 38 results: some answers are in it more than once. Repeats with "
+            "the same grade count once. 1 answer got different grades, so its 3 repeats each "
+            "count.)") in flat(out)
     assert "tied grade" not in out and "merged" not in out
 
 
@@ -367,8 +368,9 @@ def test_repeats_with_the_same_grade_are_still_merged(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 0, out
-    assert "Answers:     36 different answers" in out
-    assert "(your file has 37 results: some answers are in it more than once, so each is counted once)" in flat(out)
+    assert "Answers:     36 answers" in out
+    assert ("(your file has 37 results: some answers are in it more than once, so each counts "
+            "once.)") in flat(out)
     assert "merged" not in out
 
 
@@ -822,11 +824,11 @@ def test_inspect_epochs_with_different_grades_are_said_and_counted(here, capsys)
     two_epoch_log(here)
     code, out = run(capsys)
     assert code == 3, out  # 20 answers: not enough for a first result
-    assert "Answers:     20 different answers" in out
-    assert ("(your file has 30 results: each answer was run 2 times, so each is counted once "
-            "unless its grades differ)") in flat(out)
-    assert ("5 answers got different grades when graded more than once (10 repeats in all); "
-            "each repeat is its own answer.") in flat(out)
+    assert "Answers:     20 answers" in out
+    assert ("(your file has 30 results: 15 answers, each run 2 times. Repeats with the same "
+            "grade count once. 5 answers got different grades, so their 10 repeats each "
+            "count.)") in flat(out)
+    assert "its own answer" not in flat(out)  # said once, under Answers
 
 
 def test_the_judge_list_counts_answers_as_the_pool_does(here, capsys):
@@ -897,8 +899,8 @@ def test_repeats_run_the_same_number_of_times_are_said_as_such(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 3, out
-    assert "Answers:     6 different answers" in out
-    assert ("(your file has 18 results: each answer was run 3 times, so each is counted once)"
+    assert "Answers:     6 answers" in out
+    assert ("(your file has 18 results: 6 answers, each run 3 times, so each counts once.)"
             in flat(out))
     assert "merged" not in out
     assert "Your judge passed 4 answers and failed 2." in out
@@ -913,9 +915,9 @@ def test_repeats_of_some_answers_only_are_said_as_such(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 3, out
-    assert "Answers:     6 different answers" in out
-    assert ("(your file has 7 results: some answers are in it more than once, so each is "
-            "counted once)") in flat(out)
+    assert "Answers:     6 answers" in out
+    assert ("(your file has 7 results: some answers are in it more than once, so each counts "
+            "once.)") in flat(out)
 
 
 def test_the_deepeval_block_puts_the_pass_mark_in_the_grade_row(here, capsys):

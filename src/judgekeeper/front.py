@@ -694,14 +694,6 @@ def _notes(found: start.Found) -> list[str]:
         out = [w for w in out if DEFAULT_GRADER_NOTE not in w]
     if not pool.answers:  # "none with a clear grade": where the grades came from is moot
         out = [w for w in out if "default grader" not in w]
-    if len(pool.split) == 1:
-        (n, n_pass, n_fail), = pool.split.values()
-        out.append(f"{n} repeats of one answer got different grades ({n_pass} Pass, {n_fail} "
-                   "Fail); each is its own answer.")
-    elif pool.split:
-        repeats = sum(n for n, _, _ in pool.split.values())
-        out.append(f"{len(pool.split)} answers got different grades when graded more than once "
-                   f"({repeats} repeats in all); each repeat is its own answer.")
     if pool.n_human:
         out.append(f"Your results also hold {_n(pool.n_human, 'human label')}. judgekeeper does "
                    "not use them: you mark the answers yourself.")
@@ -893,6 +885,23 @@ def _rule_lines(found: start.Found) -> list[str]:
             f"{INDENT}(shortened{f'; full rule in {where}' if where else ''})"]
 
 
+def repeats_note(answers: int, pool: start.Pool) -> str:
+    """The note under Answers when answers are in the file more than once: repeats with the
+    same grade count once, repeats with different grades each count (freecheck.js says the
+    same)."""
+    times = next(iter(pool.repeat_sizes)) if len(pool.repeat_sizes) == 1 else None
+    times = times if times and times > 1 else None  # merged with a newer file's: no runs
+    split = sum(n for n, _, _ in pool.split.values())
+    head = (f"{_n(answers - split + len(pool.split), 'answer')}, each run {times} times"
+            if times else "some answers are in it more than once")
+    head = f"(your file has {answers + pool.n_merged} results: {head}"
+    if not pool.split:
+        return f"{head}, so each counts once.)"
+    which = ("1 answer got different grades, so its" if len(pool.split) == 1
+             else f"{len(pool.split)} answers got different grades, so their")
+    return f"{head}. Repeats with the same grade count once. {which} {split} repeats each count.)"
+
+
 def passed_failed(n_pass: int, n_fail: int) -> str:
     return f"Your judge passed {_n(n_pass, 'answer')} and failed {n_fail}."
 
@@ -914,17 +923,10 @@ def found_block(found: start.Found, pass_if: str | None = None,
                      "failed before scoring)")
     elif not pool.answers and not pool.unread:
         lines.append(f"Answers:     {_n(answers, 'answer')}, none with a clear grade")
-    elif pool.n_merged:  # repeats of the same answer with the same grade count once
-        times = next(iter(pool.repeat_sizes)) if len(pool.repeat_sizes) == 1 else None
-        times = times if times and times > 1 else None  # merged with a newer file's: no runs
-        lines.append(f"Answers:     {_n(answers, 'different answer')}")
-        lines.append(f"{INDENT}(your file has {answers + pool.n_merged} results: "
-                     + (f"each answer was run {times} times" if times
-                        else "some answers are in it more than once")
-                     + (", so each is counted once unless its grades differ)" if pool.split
-                        else ", so each is counted once)"))
     else:
         lines.append(f"Answers:     {_n(answers, 'answer')}")
+    if pool.answers and (pool.n_merged or pool.split):
+        lines.append(INDENT + repeats_note(answers, pool))
     lines += [f"Judge:       {_judge_value(found)}", *_rule_lines(found)]
     rows = read_rows(found, pass_if, mapped)
     if rows:
