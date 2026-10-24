@@ -576,9 +576,15 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert rows == [("keys", "Keys and costs"), ("own-format", "Your own format"),
                     ("misc", "Handy commands")]
     assert not _all(sections[2], "div", "gx-card")
-    assert "grid-template-columns: 240px minmax(0, 1fr)" in _rule(".gm-row")
-    # on a phone one column, never wider than the screen
-    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gm-row", _phone())
+    # one centred column for the steps and the rows; each row's title sits above its text,
+    # lined up with the steps' text, a hairline above every row
+    for wrap in (".gx-steps .wrap", ".gx-more .wrap"):
+        assert "max-width: 960px" in _rule(wrap) and "margin-inline: auto" in _rule(wrap), wrap
+    row = _rule(".gm-row")
+    assert "grid-template-columns: minmax(0, 1fr)" in row and "margin-left: 68px" in row
+    assert "border-top: 1px solid var(--line)" in row and ".gm-row:first-child" not in CSS
+    assert "border-top: 0" in _rule(".gx-more")
+    assert "margin-left: 0" in _rule(".gm-row", _phone())
     (record,) = _all(_by_id(GUIDE, "own-format"), "pre", "gx-code")
     assert record.text().startswith("import judgekeeper\njudgekeeper.record(input=question,")
     reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
@@ -601,6 +607,14 @@ def test_the_guide_lists_the_five_steps_with_no_tabs_or_terminal():
     assert not _all(_main(GUIDE), "details")  # no fold
     assert not _all(_by_id(GUIDE, "step-measure"), "a")  # the numbers: in the reference
     assert not _all(_by_id(GUIDE, "step-fix"), "table")  # the six results: in the reference
+    # step 4 opens with when to run fix, then what it saves
+    body = _all(_by_id(GUIDE, "step-fix"), "div", "gl-body")[0]
+    opening = [(el.tag, _flat(el)) for el in body.children if isinstance(el, Element)][:4]
+    assert opening == [
+        ("h3", "Write a better rule and test it"), ("p", "LLM-as-a-judge needs work? Run:"),
+        ("div", "judgekeeper fix"),
+        ("p", ("It saves every mistake your LLM-as-a-judge made in one file. Use it to write a "
+              "better rule, or hand it to a coding agent to help you write one."))]
     assert [_flat(p) for p in _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")] == [
         "Testing works with promptfoo, DeepEval, Inspect AI and MLflow."]
     assert _flat(_by_id(GUIDE, "step-check")) == (
@@ -612,7 +626,7 @@ def test_the_guide_lists_the_five_steps_with_no_tabs_or_terminal():
              for li in items for f in _all(li, "figure", "gx-shot")]
     assert shots == [("step-mark", "marking page"), ("step-measure", "result page")]
     assert all("gwin" in f.classes() for f in _all(steps, "figure", "gx-shot"))
-    assert "max-width: 760px" in _rule(".gx-shot.gwin")
+    assert "max-width" not in _rule(".gx-shot.gwin")  # the pictures fill the column
     text = GUIDE.read_text(encoding="utf-8")
     for gone in ("<template", "steplist", "t-out", "learn.html", "data-panel", "npx"):
         assert gone not in text, gone
@@ -623,10 +637,12 @@ def test_the_guide_lists_the_five_steps_with_no_tabs_or_terminal():
 
 def test_the_guides_commands_look_like_terminal_lines():
     """A green "$" before each one-line command, drawn by CSS so Copy copies the command
-    alone; the two-line pip box has none. Handy commands are a small terminal window."""
+    alone; the two-line pip box has one for each line. Handy commands are a small terminal
+    window."""
     assert 'content: "$"' in _rule(".gx .cmd code::before")
     assert "var(--green)" in _rule(".gx .cmd code::before")
-    assert "content: none" in _rule(".gx .cmd-2 code::before")
+    pip = _rule(".gx .cmd-2 code::before")
+    assert 'content: "$\\A$"' in pip and "white-space: pre" in pip and "position: absolute" in pip
     assert "background: var(--term-bg)" in _rule(".gx .cmd")
     assert "code.textContent" in JS  # what Copy copies: never the "$"
     (misc,) = _all(_by_id(GUIDE, "misc"), "div", "gm-cmds")
@@ -879,7 +895,7 @@ def test_the_guide_shows_the_marking_and_result_pages_after_their_first_paragrap
         assert (WEBSITE / "assets" / "shots" / picture).is_file()
         assert (img.attrs["width"], img.attrs["height"]) == ("2880", "1800")
         assert len(img.attrs["alt"]) > 80 and "screenshot" not in img.attrs["alt"].lower()
-    assert "max-width: 760px" in _rule(".gx-shot.gwin")
+    assert "max-width" not in _rule(".gx-shot.gwin")  # the pictures fill the column
     assert "width: 100%" in _rule(".gx-shot.gwin img")  # the window draws the border
     # Home stays terminal: no picture there
     assert not _all(_main(HOME), "img") and not _all(_main(HOME), "figure")
