@@ -20,8 +20,8 @@
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=4">
-<script src="assets/site.js?v=4" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=5">
+<script src="assets/site.js?v=5" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -84,7 +84,7 @@ File:        results.json
 Answers:     40 answers
 Judge:       openai:gpt-4.1-mini
 Judge rule:  "The answer solves the customer's problem and is polite."
-Read from your file:
+judgekeeper has read from your file:
   question   each test's vars
   answer     each test's output
   grade      your judge's Pass or Fail
@@ -109,7 +109,7 @@ File:        results.json
 Answers:     40 answers
 Judge:       openai:gpt-4.1-mini
 Judge rule:  "The answer solves the customer's problem and is polite."
-Read from your file:
+judgekeeper has read from your file:
   question   each test's vars
   answer     each test's output
   grade      your judge's Pass or Fail
@@ -148,7 +148,10 @@ You and your judge disagreed on 16 of 30 answers.
   You passed 15 answers. Of those, your judge passed 7 and failed 8.
   You failed 15 answers. Of those, your judge passed 8 and failed 7.
 
-To say why on these, run `judgekeeper mark`.
+Tell judgekeeper why you disagree on these 16: run
+`judgekeeper mark`.
+`judgekeeper fix` uses your reasons to find where your
+LLM-as-a-judge goes wrong.
 
 How often your judge agrees with you (estimates):
   When you say Pass, it also says Pass: about 54% (between 35% and 72%)
@@ -156,21 +159,24 @@ How often your judge agrees with you (estimates):
 
 Full report: .judgekeeper/report.html (open it in your browser)
 
-The marking page is still open if you want to mark more answers.
+The marking page is still open. Mark more answers to make these
+ranges narrower, so the numbers are more certain.
 
-Next: to try a better rule, run `judgekeeper fix`.</template>
+Next: to improve your LLM-as-a-judge's rule, run
+`judgekeeper fix`.</template>
 <template data-screen="fix">$ judgekeeper fix
 judgekeeper 1.0.0b2
 
 Step 4 of 5: Fix
 
-Clues:
-  Half of its 10 mistakes are answers it passed but you failed,
-  and half are answers it failed but you passed.
+Where your LLM-as-a-judge goes wrong:
+  Your LLM-as-a-judge made 10 mistakes. In 5, it said Pass where
+  you said Fail. In the other 5, it said Fail where you said
+  Pass.
 
-The clues and all 10 mistakes are saved in
-.judgekeeper/fix/mistakes.md. You can hand this file to a coding
-agent.
+All 10 mistakes your LLM-as-a-judge made are saved in
+.judgekeeper/fix/mistakes.md. Use it to write a better rule, or
+hand it to a coding agent to help you write one.
 
 Your judge's rule is in promptfooconfig.yaml, line 14:
   "The answer solves the customer's problem and is polite."
@@ -193,9 +199,11 @@ kept aside, once with the old rule and once with the new one.
 That is 24 AI calls, paid with your own key.
 Go ahead? [y/N] y
 
-Tested on the 12 marks kept aside:
-  Old rule agreed with you on 6. New rule agreed with you on 12.
-  It fixed 6 and broke 0.
+Your LLM-as-a-judge, tested on the 12 marks kept aside:
+  Old rule: agreed with you on 6 of 12 answers.
+  New rule: agreed with you on 12 of 12 answers.
+  With the new rule, 6 answers went from wrong to right, and
+  none from right to wrong.
 
 Result: your new rule is better. A difference this large is very
 unlikely to be a coincidence.
@@ -208,32 +216,29 @@ judgekeeper 1.0.0b2
 
 Step 5 of 5: Re-check
 
-Your judge changed: model openai:gpt-4.1-mini -&gt; openai:gpt-4.1-nano.
+Your LLM-as-a-judge's model changed:
+  openai:gpt-4.1-mini -&gt; openai:gpt-4.1-nano
 
-To re-check, judgekeeper asks your new judge about your 30
-marked answers, twice each. That is 60 AI calls, paid with your
-own key. Asking twice shows how much the judge varies by itself.
+judgekeeper will have your new LLM-as-a-judge grade your 30
+marked answers, twice each: 60 AI calls, paid with your own key.
 Go ahead? [y/N] y
 
-Re-checked on all 30 of your marks:
+Result: worse. Your new LLM-as-a-judge agrees with you less.
 
-  You passed 15 answers. Your old judge agreed with you on 7,
-  your new judge on 1.
-    Worse: 6 answers went from right to wrong, and none from wrong to right.
-    That is about 40 points lower (between 19 and 61).
+Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge
+  When you said Pass    7 of 15              1 of 15              Worse
+  When you said Fail    7 of 15              7 of 15              Not sure
 
-  You failed 15 answers. Your old judge agreed with you on 7,
-  your new judge on 7.
-    Not sure: 1 went from right to wrong, and 1 from wrong to
-    right. It could be up to 20 points worse.
+On answers you pass, agreement drops by about 40 in every 100
+(somewhere between 19 and 61).
 
-Asked twice, your new judge changed its own grade on 3 of your
-30 answers. Differences that small can come from that alone.
+Your new LLM-as-a-judge gave a different grade the second time
+on 3 of the 30 answers. It doesn't always grade the same answer
+the same way, so a difference of up to 3 answers between old and
+new may not be real.
 
-These marks have helped pick 1 change.
-
-Next: go back to the old judge, or change your judge and run
-`judgekeeper check` again.</template>
+Next: go back to your old LLM-as-a-judge, or try another change
+and run `judgekeeper check` again.</template>
   </div></div>
   <p class="steps-more">The terminal shows an example project (made-up answers): <a href="examples/site-example/report.html">its report</a>.</p>
 </div></section>
