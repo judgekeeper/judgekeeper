@@ -235,7 +235,7 @@ def _walk(ic, monkeypatch, tool, project, jk=None):
     def run(name, args, ok_codes=(0,), expect=(), **kwargs):
         args = [str(a) for a in args]
         assert args[:len(check.jk)] == check.jk, args
-        ran.append((args[len(check.jk):], list(expect)))
+        ran.append((args[len(check.jk):], list(expect), tuple(ok_codes)))
         return Done()
 
     def call(base, token, path, body=None):
@@ -266,7 +266,7 @@ def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
     browser), the stand-in person's marks posted to it, `judgekeeper` with the result, then
     `judgekeeper --stop`. No page turns on automatic checks."""
     ran, posted, steps = _walk(ic, monkeypatch, "table", tmp_path)
-    fronts, after = _front(ic, [args for args, _ in ran])
+    fronts, after = _front(ic, [args for args, *_ in ran])
     assert fronts == [["--no-browser", "--port", "5"], ["--no-browser", "--port", "5"]]
     assert after[0][:1] == ["fix"]
     first = " ".join(ran[0][1])
@@ -287,7 +287,7 @@ def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tm
     page, so the first look is checked there, not in a second run."""
     (tmp_path / "judgekeeper.toml").write_text("[start]\n", encoding="utf-8")
     ran, _, steps = _walk(ic, monkeypatch, "own-format", tmp_path)
-    fronts, _ = _front(ic, [args for args, _ in ran])
+    fronts, _ = _front(ic, [args for args, *_ in ran])
     assert fronts[0] == ["--yes", "--no-browser", "--port", "5"]
     assert fronts[1:] == [["--no-browser", "--port", "5"]]
     first = " ".join(ran[0][1])
@@ -301,7 +301,7 @@ def test_the_walk_ends_with_the_re_check(ic, monkeypatch, tmp_path):
     terminal) re-tests it on the marks; no flag of the automatic checks is run, and no step
     runs `judgekeeper start`, which is gone."""
     ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path)
-    commands = [args for args, _ in ran]
+    commands = [args for args, *_ in ran]
     assert not [c for c in commands if c[:1] == ["start"]]
     end = commands.index(["--stop"])
     assert commands[end + 1:] == [["fix"], ["fix", "--yes"], ["check", "--yes"]]
@@ -313,7 +313,7 @@ def test_the_walk_ends_with_the_re_check(ic, monkeypatch, tmp_path):
 def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_path):
     jk = ["uvx", "--from", "w.whl", "judgekeeper"]
     ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path, jk=jk)
-    fronts, after = _front(ic, [args for args, _ in ran])
+    fronts, after = _front(ic, [args for args, *_ in ran])
     assert fronts[0] == ["--no-browser", "--port", "5"] and len(fronts) == 2
     assert after[0][:1] == ["fix"]
     first, result = " ".join(ran[0][1]), " ".join(ran[1][1])
@@ -324,7 +324,7 @@ def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_p
 
 def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch, tmp_path):
     ran, _, _ = _walk(ic, monkeypatch, "table", tmp_path)
-    assert not [e for _, expect in ran for e in expect if "uvx" in e]
+    assert not [e for _, expect, _ in ran for e in expect if "uvx" in e]
 
 
 
@@ -332,7 +332,7 @@ def test_the_walk_runs_fix_after_the_result(ic, monkeypatch, tmp_path):
     """`judgekeeper fix` (where the judge goes wrong), then for a judge whose rule it can swap,
     a new rule in .judgekeeper/fix/rule.txt and `judgekeeper fix --yes` (the test)."""
     ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path)
-    commands = [args for args, _ in ran]
+    commands = [args for args, *_ in ran]
     end = commands.index(["--stop"])
     assert commands[end + 1:end + 3] == [["fix"], ["fix", "--yes"]]
     assert any("Step 4 of 5: Fix" in e for e in ran[end + 1][1])
@@ -340,6 +340,30 @@ def test_the_walk_runs_fix_after_the_result(ic, monkeypatch, tmp_path):
     rule = tmp_path / ".judgekeeper" / "fix" / "rule.txt"
     assert rule.read_text(encoding="utf-8").strip() == ic.rule_for("promptfoo", ic.RULE_NEW)
     ran, _, _ = _walk(ic, monkeypatch, "table", tmp_path / "t")
-    commands = [args for args, _ in ran]
+    commands = [args for args, *_ in ran]
     end = commands.index(["--stop"])
     assert commands[end + 1] == ["fix"] and ["fix", "--yes"] not in commands
+
+
+def test_the_stand_ins_marks_make_the_result_too_early_to_tell(ic, monkeypatch, tmp_path):
+    """25 Pass and 25 Fail against the fake judge's grades disagree on 9 of 50: too early to
+    tell, exit 3, and the next step is the eval on more questions (its line may wrap)."""
+    ran, _, _ = _walk(ic, monkeypatch, "table", tmp_path)
+    _, expect, codes = ran[1]
+    assert codes == (3,)
+    assert r"Result: too early to tell\." in expect
+    out = ("Next: run your eval on more questions, then run\n`judgekeeper mark`: the new "
+           "answers join the ones you marked.")
+    assert [e for e in expect if re.search(e, out)], expect
+    assert not [e for e in expect if "good enough" in e or "needs work" in e]
+
+
+def test_fix_says_it_cant_ask_a_judge_whose_rule_it_cant_swap(ic, monkeypatch, tmp_path):
+    """For a judge judgekeeper can't ask itself (an own CSV), `fix` ends with the line the
+    code prints and exit 3; the old words "can't test a new rule" are not looked for."""
+    ran, _, _ = _walk(ic, monkeypatch, "table", tmp_path)
+    commands = [args for args, *_ in ran]
+    _, expect, codes = ran[commands.index(["fix"])]
+    assert codes == (3,)
+    assert "can't ask this judge itself" in " ".join(expect)
+    assert "can't test a new rule" not in " ".join(expect)
