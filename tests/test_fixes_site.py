@@ -279,7 +279,7 @@ UNEVEN = "(your file has 7 results: some answers are in it more than once"
 
 
 @pytest.mark.parametrize("shape, answers, note", [
-    # Sathvik's file: 6 prompts run 3 times, one of them graded 1 Pass and 2 Fail
+    # A real file: 6 prompts run 3 times, one of them graded 1 Pass and 2 Fail
     ({"flips": [(0, 1), (0, 2)]}, 8,
      f"{ALL}. {SAME} 1 answer got different grades, so its 3 repeats each count.)"),
     ({"flips": [(0, 1), (0, 2), (1, 1), (1, 2)]}, 10,
