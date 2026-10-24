@@ -22,8 +22,12 @@ For a changed setup:
    paired change (targets.paired_verdict): "Worse", "No drop bigger than 20 points" or
    "Not sure", always with the worst drop the marks could hide. The old verdicts are the
    last check's for the previous setup (`verdicts/<hash>.jsonl`), else the results the
-   marks were made on. The screen shows counts; the rates the report and history.jsonl keep
-   are re-weighted by the groups the marks were picked from, so the old one is the report's;
+   marks were made on. The screen says the result first, then one small table (per group:
+   how many marks the old and the new judge agreed with, and the group's outcome) and, for a
+   group that is worse or holds no big drop, by about how much agreement drops in every 100;
+   the counts that went from right to wrong are on the report page (last_check). The rates
+   the report and history.jsonl keep are re-weighted by the groups the marks were picked
+   from, so the old one is the report's;
 4. the lines below, a `history.jsonl` line (no answer text), the new verdicts in
    `verdicts/<hash>.jsonl` (ids and verdicts only, under a header with the setup and the
    judge's fingerprint), and judge.json moves to the new setup. Unless it is "Worse" or "Not
@@ -92,21 +96,35 @@ GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers 
 SAID = {"passed": "You passed", "failed": "You failed"}
 NEXT_NOT_SURE = "mark more answers with `{mark}`, then run `{command}` again."
 NEXT_ALL_QUESTIONS = "run your eval on all your questions, then run `{command}`."
+NO_DROP = round(targets.NO_DROP_MARGIN * 100)
 VERDICT_WORDS = {"worse": "Worse", "not_sure": "Not sure",
-                 "no_drop": f"No drop bigger than {round(targets.NO_DROP_MARGIN * 100)} points"}
+                 "no_drop": f"No drop bigger than {NO_DROP} points"}
+# The screen: the result first, then the table's outcome word per group
+RESULT = {"worse": "Result: worse. Your new LLM-as-a-judge agrees with you less.",
+          "not_sure": ("Result: not sure. These marks can't tell whether your new LLM-as-a-judge "
+                       "agrees with you less."),
+          "no_drop": (f"Result: no drop bigger than {NO_DROP} in every 100 answers for your new "
+                      "LLM-as-a-judge.")}
+TABLE_WORDS = {"worse": "Worse", "not_sure": "Not sure", "no_drop": "No big drop"}
+TABLE_HEAD = ("Agreed with you:", "Old LLM-as-a-judge", "New LLM-as-a-judge")
+COLUMNS = (24, 21, 21)  # the table's columns line up for 1- to 3-digit counts, within 80
+SIDES = (("passed", "Pass", "pass"), ("failed", "Fail", "fail"))  # group, what you said
 
 CONFIG_NEWER = ("Your judge's settings changed after your last eval run, so the grades "
                 "judgekeeper has are out of date.")
 SAME = "Same model, same rule, same eval tool."
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
-ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}, twice each. That "
-             "is {calls}, paid with your own key.{download} Asking twice shows how much the "
-             "judge varies by itself.")
+ASK_FIRST = ("judgekeeper will have your new LLM-as-a-judge grade {which}{n}, twice each: "
+             "{calls}, paid with your own key.{download}")
 DOWNLOADS = " It also downloads promptfoo {version} with npx."  # in the same question
 ASK_TIMES = 2  # a paid re-check asks each answer twice: its own wobble is seen
-WOBBLE = ("Asked twice, your new judge changed its own grade on {k} of your {n}. Differences "
-          "that small can come from that alone.")
-STEADY = "Asked twice, your new judge kept its own grade on all {n}."
+# {small}: a difference as small as the grades it changed itself ("up to 3 answers")
+WOBBLE = ("Your new LLM-as-a-judge gave a different grade the second time on {k} of the {n}. "
+          "It doesn't always grade the same answer the same way, so a difference of {small} "
+          "between old and new may not be real.")
+STEADY = "Your new LLM-as-a-judge gave the same grade the second time on all {n}."
+PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make your "
+                 "LLM-as-a-judge look better than it is.")
 GO_AHEAD = "Go ahead? [y/N] "
 CAN_WRITE = "Your judge is an agent that can change files when it runs."
 NOT_ASKED = "Your judge was not asked."
@@ -119,10 +137,10 @@ NEXT_REST = ("Next: {marks} {were} not re-checked. Run `{command}` again to ask 
              "them.")
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
-NEXT_WORSE = "go back to {back}, or change your judge and run `{command}` again."
+NEXT_WORSE = "go back to {back}, or try another change and run `{command}` again."
 # A judge whose results hold no rule (a table): it changes only where the eval keeps it
-NEXT_WORSE_TABLE = ("go back to your old judge, or change its rule; then run your eval and "
-                    "`{command}`.")
+NEXT_WORSE_TABLE = ("go back to your old LLM-as-a-judge, or change its rule; then run your eval "
+                    "and `{command}`.")
 SWITCHED = ("Your results now come from {new}, not {old}.",
             "judgekeeper can't compare judges across two eval tools.")
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
@@ -407,13 +425,17 @@ def _now(state: State) -> tuple[Now | None, str | None]:
     return Now(setup, _config_newer(found), found, found.results[0].path), None
 
 
-def _change_line(old: dict, new: dict, changed: list[str], full: bool) -> str:
+def _change_lines(old: dict, new: dict, changed: list[str], full: bool) -> list[str]:
+    """What changed, first on the screen: a model change on its own line under its heading,
+    so the two names can be read; any other change in one line."""
     if judge_setup.tool_only(old, new):
         line = f"Your eval tool changed: {judge_setup.tool_words(old, new)}."
         if full:
-            line += " Your judge's rule and model are the same."
-        return line
-    return f"Your judge changed: {', '.join(changed)}."
+            line += " Your LLM-as-a-judge's rule and model are the same."
+        return [line]
+    if len(changed) == 1 and changed[0].startswith("model "):
+        return ["Your LLM-as-a-judge's model changed:", f"  {changed[0][len('model '):]}"]
+    return [f"Your LLM-as-a-judge changed: {', '.join(changed)}."]
 
 
 def _command(state_or_path) -> str:
@@ -714,10 +736,70 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
             *(f"  {side_sentence(k, out[k], out[f'{k}_interval'])}" for k in ("tpr", "tnr"))]
 
 
-def _say_groups(said: Said, g: dict) -> None:
-    for key, _, _title in GROUPS:
-        for line in _group_lines(key, g[key]):
-            said.say(line)
+def outcome(g: dict) -> str | None:
+    """The check's one result from the groups' verdicts: worse if either group is, else not
+    sure if either is, else no drop bigger than NO_DROP; None when no group could be tested."""
+    kinds = [g[key]["verdict"] for key, _, _ in SIDES]
+    if "worse" in kinds:
+        return "worse"
+    if "not_sure" in kinds:
+        return "not_sure"
+    return "no_drop" if "no_drop" in kinds else None
+
+
+def table_lines(g: dict) -> list[str]:
+    """The small table: per group, how many of the person's marks the old and the new judge
+    agreed with, and the group's outcome word; a group with no mark re-checked says so."""
+    head, old, new = TABLE_HEAD
+    lines = [f"{head:<{COLUMNS[0]}}{old:<{COLUMNS[1]}}{new}"]
+    for key, said, _ in SIDES:
+        x = g[key]
+        lead = f"  When you said {said}"
+        if not x["n"]:
+            lines.append(f"{lead:<{COLUMNS[0]}}none could be re-checked")
+            continue
+        was, now = f"{x['old_right']} of {x['n']}", f"{x['new_right']} of {x['n']}"
+        lines.append(f"{lead:<{COLUMNS[0]}}{was:<{COLUMNS[1]}}{now:<{COLUMNS[2]}}"
+                     f"{TABLE_WORDS[x['verdict']]}")
+    return lines
+
+
+def expect_lines(g: dict) -> list[str]:
+    """What to expect, one line per group whose outcome says something: for Worse, by about
+    how much agreement drops in every 100 answers and the range; for no big drop, the most
+    it could drop. A Not sure group gets no line: its word says it."""
+    out = []
+    for key, _, said in SIDES:
+        x = g[key]
+        if not x["n"] or x["verdict"] == "not_sure":
+            continue
+        lead = f"On answers you {said},"
+        if x["verdict"] == "worse":
+            out.append(f"{lead} agreement drops by about {_points(x['change'])} in every 100 "
+                       f"(somewhere between {_points(x['high'])} and {_points(x['low'])}).")
+        elif x["low"] >= 0:
+            out.append(f"{lead} none of the range is a drop.")
+        else:
+            out.append(f"{lead} agreement drops by no more than {_points(x['low'])} in "
+                       "every 100.")
+    return out
+
+
+def _say_result(said: Said, g: dict) -> None:
+    kind = outcome(g)
+    if kind:
+        said.say(RESULT[kind])
+        said.say()
+
+
+def _say_table(said: Said, g: dict) -> None:
+    for line in table_lines(g):
+        said.say(line)
+    said.say()
+    lines = expect_lines(g)
+    for line in lines:
+        said.say(line)
+    if lines:
         said.say()
 
 
@@ -971,15 +1053,13 @@ def picks(ws: Workspace, now: bool = False) -> dict:
 
 
 def picks_lines(p: dict, every: bool = False) -> list[str]:
-    """How many changes the marks helped pick, said once; with PICKS_ASK picks, that they may
-    flatter the judge, and (unless `every` answer is marked: none is left) to mark new ones."""
-    if not p["n"]:
+    """With PICKS_ASK picks, the warning: the marks may now flatter the judge, and (unless
+    `every` answer is marked: none is left) to mark new ones. Nothing before that: how many
+    changes the marks picked is history.jsonl's to keep."""
+    if not p["n"] or not p["ask"]:
         return []
-    picked = f"These marks have helped pick {plural(p['n'], 'change')}"
-    if not p["ask"]:
-        return [picked + "."]
-    return [f"{picked}, so they may now flatter your judge."
-            + ("" if every else f" Mark {PICK_MARKS} new answers for a fair check.")]
+    return [PICKS_WARNING.format(n=plural(p["n"], "change"))
+            + ("" if every else " Mark some new answers.")]
 
 
 def _history(ws: Workspace) -> list[dict]:
@@ -1166,8 +1246,9 @@ def full(path: str, said: Said, yes: bool = False) -> int:
             said.say(NEXT_SAME.format(command=_command(state)))
         return EXIT_OK
 
-    said.say(_change_line(old, new, changed, full=True) if changed
-             else GRADES.format(k=grades))
+    for line in _change_lines(old, new, changed, full=True) if changed else [
+            GRADES.format(k=grades)]:
+        said.say(line)
     new_marks = _made_since_last_check(state, added)
     if new_marks:  # only marks really made since; the others the last check could not test
         said.say(ADDED.format(n=_n(new_marks, "mark")))
@@ -1227,18 +1308,21 @@ def full(path: str, said: Said, yes: bool = False) -> int:
     kinds = list(fresh.values()) if fresh is not None else []
     if min(kinds.count("pass"), kinds.count("fail")) >= AFTER_HEADLINE:
         g = groups(fresh, old_verdicts, tested, picked, pool)  # the headline now
+        _say_result(said, g)
         said.say(f"Re-checked on the {len(fresh)} marks you made after this change:")
         said.say()
-        _say_groups(said, g)
+        _say_table(said, g)
         said.say(f"On {on}:")
         said.say()
-        _say_groups(said, groups(state.marks, old_verdicts, tested, picked, pool))
+        _say_table(said, groups(state.marks, old_verdicts, tested, picked, pool))
         said.say(WRITTEN_FROM)
         said.say()
     else:
-        said.say(f"Re-checked on {on}:")
-        said.say()
-        _say_groups(said, g)
+        _say_result(said, g)
+        if n < total:  # on every mark goes without saying
+            said.say(f"Re-checked on {on}:")
+            said.say()
+        _say_table(said, g)
         if fresh is not None:
             said.say(WRITTEN_FROM)
             wobble = asked.wobble[0] / asked.wobble[1] if asked.wobble and asked.wobble[1] \
@@ -1252,7 +1336,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say()
     if asked.wobble and asked.wobble[1]:
         k, of = asked.wobble
-        said.say(WOBBLE.format(k=k, n=_n(of, "answer")) if k
+        small = f"up to {_n(k, 'answer')}" if k > 1 else "1 answer"
+        said.say(WOBBLE.format(k=k, n=_n(of, "answer"), small=small) if k
                  else STEADY.format(n=_n(of, "answer")))
         said.say()
     drop = targets.smallest_drop(g["passed"]["n"], g["failed"]["n"], g["passed"]["old"],
@@ -1331,7 +1416,7 @@ def worse_step(old: dict, new: dict, command: str) -> str:
                                  command=command)
     if new.get("rule_hash") is None:
         return NEXT_WORSE_TABLE.format(command=command)
-    return NEXT_WORSE.format(back="the old judge", command=command)
+    return NEXT_WORSE.format(back="your old LLM-as-a-judge", command=command)
 
 
 def last_check(ws: Workspace) -> dict | None:

@@ -677,9 +677,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         """The new rule is in the results: `check --yes` re-tests it on the marks, and the
         report holds the check."""
         self.run("3. check re-tests the new judge on the marks", [*self.jk, "check", "--yes"],
-                 expect=[r"Re-checked on (all 50 of your marks|\d+ of your 50 marks):",
-                         r"You passed \d+ answers\. Your old judge agreed with you on",
-                         r"You failed \d+ answers\. Your old judge agreed with you on"])
+                 expect=[r"Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge",
+                         r"  When you said Pass    \d+ of \d+", r"  When you said Fail    \d+ of \d+"])
         report = self.project / ".judgekeeper" / "report.html"
         try:
             html = report.read_text(encoding="utf-8")

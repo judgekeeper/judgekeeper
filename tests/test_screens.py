@@ -347,7 +347,7 @@ def test_a_switch_to_another_eval_tool_gives_no_check_verdict(here, capsys):
         "",
         "Next: run `judgekeeper` to start fresh with DeepEval.",
     ]
-    for word in ("Worse", "No drop", "Re-checked on"):
+    for word in ("Worse", "No big drop", "Agreed with you"):
         assert word not in "\n".join(lines), word
 
 

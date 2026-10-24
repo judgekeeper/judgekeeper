@@ -202,8 +202,8 @@ def test_report_after_worse_says_the_last_check_at_the_top(here, capsys, monkeyp
     for side in ("Pass", "Fail"):  # the new judge's two numbers, each with its range
         assert re.search(rf"When you say {side}, it also says {side}: about \d+% "
                          rf"\(between \d+% and \d+%\)", said), said
-    assert "Go back to the old judge" in top
-    assert html.count("Go back to the old judge") == 1
+    assert "Go back to your old LLM-as-a-judge" in top
+    assert html.count("Go back to your old LLM-as-a-judge") == 1
     assert "Answers you passed" in html or "agreed on all" in html  # the old judge stays
 
 

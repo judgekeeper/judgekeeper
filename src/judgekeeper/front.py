@@ -1514,7 +1514,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             c = counts(r)
             talk.para(start_label.SAY_WHY_RUN.format(
                 n=c["strict"] + c["easy"], command=_command_of(talk, saved, "mark")))
-            talk.para(start_label.SAY_WHY_FIX.format(fix=_command_of(talk, False, "fix")))
+            if step != "mark":  # fix is never a step while it is too early to tell
+                talk.para(start_label.SAY_WHY_FIX.format(fix=_command_of(talk, False, "fix")))
     if r["verdict_level"] in ("gate", "not_gate"):  # too early to tell: counts only
         talk.say()
         for line in estimate_lines(r):

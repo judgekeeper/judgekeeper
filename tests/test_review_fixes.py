@@ -166,8 +166,9 @@ def _n03(root) -> Workspace:
     return ws
 
 
-NOT_SURE = ("Not sure: 19 went from right to wrong, and 11 from wrong to right. It could be up "
-            "to 52 points worse.")
+NOT_SURE = ("Result: not sure. These marks can't tell whether your new LLM-as-a-judge agrees "
+            "with you less. Agreed with you: Old LLM-as-a-judge New LLM-as-a-judge When you said "
+            "Pass 19 of 30 11 of 30 Not sure When you said Fail 19 of 30 11 of 30 Not sure")
 
 
 @pytest.mark.usefixtures("no_calls")
@@ -333,9 +334,8 @@ def test_check_does_not_count_promptfoo_grader_errors_as_grades(here, capsys, mo
     assert code == 1, out
     assert GRADER_ERRORS.format(n=6) in flat
     assert "Re-checked on 44 of your 50 marks:" in flat, flat
-    assert ("You passed 22 answers. Your old judge agreed with you on 22, your new judge on "
-            "22.") in flat, flat  # the 3 errors among them are no fails
-    assert "You failed 22 answers." in flat
+    assert "When you said Pass 22 of 22 22 of 22" in flat, flat  # the 3 errors are no fails
+    assert re.search(r"When you said Fail \d+ of 22 \d+ of 22", flat), flat
 
 
 # 6. No key: which key, and where to set it ----------------------------------------------------
@@ -736,7 +736,7 @@ def test_a_pass_mark_change_made_without_fix_is_no_pick(here, capsys):
     _write(here / ".deepeval" / ".latest_run_full.json", data)
     _, out = check(capsys)
     flat = " ".join(out.split())
-    assert "Your judge changed: pass mark 0.5 -> 0.7." in flat, out
+    assert "Your LLM-as-a-judge changed: pass mark 0.5 -> 0.7." in flat, out
     assert "helped pick" not in flat
     assert "you looked at to write this rule" not in flat
 
@@ -750,7 +750,7 @@ def test_a_rule_change_made_without_fix_is_no_pick(here, capsys):
     _results(here, MARKED, rubric="Is polite, correct and short.")
     _, out = check(capsys)
     flat = " ".join(out.split())
-    assert "Your judge changed: rule changed." in flat, out
+    assert "Your LLM-as-a-judge changed: rule changed." in flat, out
     assert "helped pick" not in flat
     assert "you looked at to write this rule" not in flat
 

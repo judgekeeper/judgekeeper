@@ -579,9 +579,8 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
                               live, parts, own, hidden))
     if mistakes and not live and mark:
         tell = SAY_WHY_RUN.format(n=c["strict"] + c["easy"], command=mark)
-        uses = SAY_WHY_FIX.format(fix=fix or "judgekeeper fix")
-        out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p>'
-                   f'<p class="add-why">{_code_line(uses)}</p></div>')
+        uses = f'<p class="add-why">{_code_line(SAY_WHY_FIX.format(fix=fix))}</p>' if fix else ""
+        out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p>{uses}</div>')
     return "".join(out)
 
 
@@ -683,7 +682,8 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     live = back is not None
     if shows_disagreements(r):  # real numbers: the disagreements and the estimates
         mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out
-        parts += [_groups(c, fixing, live, mark, commands(r)["fix"]), _details(r)]
+        fix = None if next_step(r) == "mark" else commands(r)["fix"]  # never while too early
+        parts += [_groups(c, fixing, live, mark, fix), _details(r)]
     if level == "not_gate" and not worse:
         parts.append(_fix(r))
     meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'

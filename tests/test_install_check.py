@@ -307,7 +307,7 @@ def test_the_walk_ends_with_the_re_check(ic, monkeypatch, tmp_path):
     assert commands[end + 1:] == [["fix"], ["fix", "--yes"], ["check", "--yes"]]
     assert [c for c in commands if c[:1] == ["check"]] == [["check", "--yes"]]
     assert commands[-1] == ["check", "--yes"]
-    assert any("Re-checked on" in e for e in ran[-1][1])
+    assert any("Agreed with you:" in e for e in ran[-1][1])
 
 
 def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_path):
