@@ -928,7 +928,7 @@ def found_block(found: start.Found, pass_if: str | None = None,
     rows = read_rows(found, pass_if, mapped)
     if rows:
         width = max(len(k) for k, _ in rows) + 3
-        lines.append("Read from your file:")
+        lines.append("judgekeeper has read from your file:")
         lines += [f"  {k:<{width}}{v}" for k, v in rows]
     return lines
 

@@ -123,7 +123,9 @@ ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
 TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges still too wide
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
-SAY_WHY_RUN = "To say why on these, run `{command}`."  # under the disagreements
+# Under the disagreements ({n}: how many), the terminal and report.html say these two lines
+SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}: run `{command}`."
+SAY_WHY_FIX = "`{fix}` uses your reasons to find where your LLM-as-a-judge goes wrong."
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
                    "the ones you marked.")
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate

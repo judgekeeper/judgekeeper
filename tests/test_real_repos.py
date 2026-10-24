@@ -167,8 +167,9 @@ def test_the_screen_names_real_paths_never_placeholders(here, capsys):
     shutil.rmtree(here / ".judgekeeper")  # a fresh start reads the file as the toml says
     code, out = run(capsys, "--metric", "Safe wording", "--yes")
     assert "<side>" not in out and "<criterion>" not in out
-    assert ("Read from your file: question prompt answer A.output and B.output grade "
-            'A.scores."Safe wording".score: Pass at 0.5 or more model judge_model') in flat(out)
+    assert ("judgekeeper has read from your file: question prompt answer A.output and B.output "
+            'grade A.scores."Safe wording".score: Pass at 0.5 or more model judge_model'
+            ) in flat(out)
 
 
 # A keyword or regex score is not an LLM judge ----------------------------------------
@@ -878,7 +879,7 @@ def test_the_promptfoo_block_names_the_file_and_what_was_read(here, capsys):
         "Answers:     40 answers",
         "Judge:       openai:gpt-4.1-mini",
         f'Judge rule:  "{" ".join(RUBRIC.split())}"',
-        "Read from your file:",
+        "judgekeeper has read from your file:",
         "  question   each test's vars",
         "  answer     each test's output",
         "  grade      your judge's Pass or Fail",
@@ -927,7 +928,7 @@ def test_the_deepeval_block_puts_the_pass_mark_in_the_grade_row(here, capsys):
     assert "File:        .deepeval/.latest_run_full.json" in block
     assert "Answers:     36 answers" in block
     assert block[-5:] == [
-        "Read from your file:",
+        "judgekeeper has read from your file:",
         "  question   each test case's input",
         "  answer     each test case's actual_output",
         "  grade      the Correctness [GEval] score: Pass at 0.5 or more",
@@ -943,7 +944,7 @@ def test_the_inspect_block_rows(here, capsys):
     code, out = run(capsys)
     assert code == 0, out
     assert block_of(out)[-4:] == [
-        "Read from your file:",
+        "judgekeeper has read from your file:",
         "  question   each sample's input",
         "  answer     each sample's output",
         "  grade      the scorer's grade (C or I)",
@@ -959,7 +960,7 @@ def test_the_table_block_rows_name_the_columns_read(here, capsys):
     code, out = run(capsys)
     assert code == 0, out
     assert block_of(out)[-8:] == [
-        "Read from your file:",
+        "judgekeeper has read from your file:",
         "  question      the input column",
         "  answer        the output column",
         "  grade         the judge_verdict column",

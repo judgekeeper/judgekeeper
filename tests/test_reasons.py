@@ -907,13 +907,18 @@ def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages,
     assert code == 0, out
     lines = out.splitlines()
     at = next(i for i, line in enumerate(lines) if line.startswith("  You failed "))
+    n = re.search(r"disagreed on (\d+) of", out)[1]  # the disagreements counted just above
+    tell = f"Tell judgekeeper why you disagree on these {n}: run `judgekeeper mark`."
+    uses = "`judgekeeper fix` uses your reasons to find where your LLM-as-a-judge goes wrong."
     assert lines[at + 1] == ""
-    assert lines[at + 2] == "To say why on these, run `judgekeeper mark`."
-    assert out.count("To say why") == 1
+    flat = " ".join(out.split())
+    assert f"{tell} {uses}" in flat and flat.index("You failed") < flat.index(tell)
+    assert out.count("Tell judgekeeper why") == 1
     report = _report(ws)
-    assert report.count("To say why on these, run <code>judgekeeper mark</code>.") == 1
-    assert report.index("You said Fail, your judge said Pass") < report.index("To say why")
-    assert "To say why" not in _live(ws)  # the live page has the boxes
+    assert report.count(tell.replace("`judgekeeper mark`", "<code>judgekeeper mark</code>")) == 1
+    assert uses.replace("`judgekeeper fix`", "<code>judgekeeper fix</code>") in report
+    assert report.index("You said Fail, your judge said Pass") < report.index("Tell judgekeeper")
+    assert "Tell judgekeeper why" not in _live(ws)  # the live page has the boxes
 
 
 def test_measure_says_nothing_about_why_when_you_agreed_on_all(here, capsys, pages,

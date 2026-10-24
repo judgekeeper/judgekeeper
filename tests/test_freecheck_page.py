@@ -251,7 +251,7 @@ def test_the_page_block_says_what_the_terminal_says(tmp_path):
     lines = judge["lines"]
     assert lines[:3] == ["Eval tool:   your own CSV file", "File:        table.csv",
                          "Answers:     12 answers"]
-    assert "Read from your file:" in lines
+    assert "judgekeeper has read from your file:" in lines
     assert "  grade      the verdict column" in lines
     assert "Your judge passed 8 answers and failed 4." in lines
     assert not any("Read the columns" in x or "grades:" in x or "(read from" in x for x in lines)

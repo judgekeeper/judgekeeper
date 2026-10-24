@@ -553,7 +553,8 @@ def test_the_result_points_at_fix_and_leaves_the_clues_to_it(here, capsys):
     assert main([]) == 0
     out = capsys.readouterr().out
     assert "Where it goes wrong" not in out and "of its" not in out  # fix prints the clues
-    assert " ".join(out.split()).endswith("Next: to try a better rule, run `judgekeeper fix`.")
+    assert " ".join(out.split()).endswith(
+        "Next: to improve your LLM-as-a-judge's rule, run `judgekeeper fix`.")
 
 
 def test_the_result_uses_only_the_seen_marks_once_some_are_hidden(here, capsys):

@@ -1147,7 +1147,7 @@
     if (result.tool === 'deepeval') rows = [['question', "each test case's input"], ['answer', "each test case's actual_output"], ['grade', 'the ' + j.name + ' score' + mark], ['reason', "your judge's reason"]];
     if (rows.length) {
       var width = rows.reduce(function (w, r) { return Math.max(w, r[0].length); }, 0) + 3;
-      L.push({ text: 'Read from your file:' });
+      L.push({ text: 'judgekeeper has read from your file:' });
       rows.forEach(function (r) { L.push({ text: '  ' + r[0] + new Array(width - r[0].length + 1).join(' ') + r[1] }); });
     }
     L.push({ text: '' });
