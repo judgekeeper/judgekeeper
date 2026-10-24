@@ -17,7 +17,8 @@ The rules:
 - To tell whether a `.json` file is results, read at most its first HEAD_BYTES, in at most
   MAX_JSON files. A table (CSV, TSV or JSONL with input, output and verdict columns) is read
   up to its header, and only TABLE_DEPTH folders deep.
-- Results over MAX_BYTES are listed, not read.
+- Results over MAX_BYTES are listed, not read (start.py asks before reading one named on
+  the command line).
 - In a project's folder (is_project), a folder below that is a project of its own (its own
   project file or `.judgekeeper/`) is not walked: its results are its own. It is kept in
   `nested`, and nested_results names the ones that hold results.
@@ -83,6 +84,10 @@ def _clock() -> float:
     return time.monotonic()
 
 
+def megabytes(size: int) -> str:
+    return f"{size / 1_000_000:,.0f} MB"
+
+
 @dataclass
 class Result:
     """One saved results file (or an MLflow store) found in the folder."""
@@ -97,10 +102,8 @@ class Result:
     def too_big(self) -> bool:
         return self.tool != "mlflow" and self.size > MAX_BYTES
 
-    def too_big_message(self, program: str | None = None) -> str:
-        program = program or textio.program()
-        return (f"{self.rel} is {self.size / 1_000_000:,.0f} MB. Run {program} "
-                f"{self.rel} to read it anyway.")
+    def too_big_message(self, command: str) -> str:
+        return f"{self.rel} is {megabytes(self.size)}. Run {command} to read it anyway."
 
     def run_date(self) -> datetime | None:
         """The tool's own date for the results, when the file has one."""
