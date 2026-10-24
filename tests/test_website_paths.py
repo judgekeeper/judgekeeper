@@ -95,7 +95,7 @@ def test_the_guide_installs_in_the_project_with_the_python_the_package_needs():
     assert needs == ">=3.11"
     install = _flat(_by_id("start.html", "install"))
     assert ("your project folder With pip pip install judgekeeper judgekeeper With uv uvx "
-            "judgekeeper Needs Python 3.11 or newer, on macOS, Linux or Windows.") in install
+            "judgekeeper Works on macOS, Linux and Windows, with Python 3.11 or newer.") in install
     hrefs = [a.attrs.get("href") for a in _by_id("start.html", "install").iter() if a.tag == "a"]
     assert hrefs == ["https://docs.astral.sh/uv/"]  # the license is in the footer
 

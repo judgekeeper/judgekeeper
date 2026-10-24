@@ -24,8 +24,10 @@ def _sections(path) -> dict[str, str]:
 def test_the_readme_shows_pip_and_uv_as_equals_pip_first():
     sections = _sections(README)
     install = sections["Install"]
-    pip = install.index(f"\ncd your-project\npip install judgekeeper=={__version__}\njudgekeeper\n")
-    assert pip < install.index(f"\ncd your-project\nuvx judgekeeper@{__version__}\n")
+    # one command per box, so nobody pastes the two pip lines as one
+    pip = install.index(f"```\npip install judgekeeper=={__version__}\n```")
+    run = install.index("```\njudgekeeper\n```")
+    assert pip < run < install.index(f"```\nuvx judgekeeper@{__version__}\n```")
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
         assert tool in sections["The 5 steps"], tool
 

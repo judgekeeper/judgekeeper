@@ -98,6 +98,20 @@ def _phone(css: str = CSS) -> str:
     return "\n".join(inside)
 
 
+def _wide(css: str = CSS) -> str:
+    """Every rule inside the wide-screen blocks (`@media (min-width: 1100px)`)."""
+    inside, at = [], 0
+    while (at := css.find("@media (min-width: 1100px) {", at)) != -1:
+        depth, open_at = 0, css.index("{", at)
+        for i in range(open_at, len(css)):
+            depth += {"{": 1, "}": -1}.get(css[i], 0)
+            if not depth:
+                break
+        inside.append(css[open_at + 1:i])
+        at = i
+    return "\n".join(inside)
+
+
 def _rules(css: str = CSS) -> list[tuple[str, str]]:
     """(selector, declarations) for every rule, those inside @media included."""
     inner = re.sub(r"@media[^{]*\{", "", css)
@@ -555,53 +569,81 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert [s.classes() for s in sections] == [{"hero", "gx-hero"}, {"gx-steps"}, {"gx-more"}]
     hero = sections[0]
     assert hero.attrs["id"] == "install"  # judgekeeper prints start.html#install
-    assert _flat(_all(hero, "h1")[0]) == "Start in your project."
+    (h1,) = _all(hero, "h1")
+    assert _flat(h1) == "Start judgekeeper in your project."
+    assert [_flat(s) for s in _all(h1, "span", "h-brand")] == ["judgekeeper"]
+    assert "color: var(--green)" in _rule(".h-brand")
     assert _flat(_all(hero, "p", "gx-lede")[0]) == (
-        "You need eval results graded by an LLM-as-a-judge, from promptfoo, DeepEval, Inspect "
-        "AI, MLflow or your own file.")
+        "Works with promptfoo, DeepEval, Inspect AI, MLflow or your own file.")
     # the install card is a window on your project folder: pip and uv, both in view
     (card,) = _all(hero, "div", "gx-install")
     assert "gwin" in card.classes()
     assert _flat(_all(_all(card, "div", "rt-bar")[0], "span", "rt-title")[0]) == (
         "your project folder")
     assert not _all(card, "p", "gx-k")
-    assert [_flat(c) for c in _all(card, "code")] == ["pip install judgekeeper judgekeeper",
-                                                     "uvx judgekeeper"]
+    # one command per box, so nobody pastes the two pip lines as one
+    pairs = [[_flat(c) for c in _all(p, "code")] for p in _all(card, "div", "gx-pair")]
+    assert pairs == [["pip install judgekeeper", "judgekeeper"], ["uvx judgekeeper"]]
+    assert not _all(card, "div", "cmd-2") and ".cmd-2" not in CSS
     assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == ["With pip", "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
-        "Needs Python 3.11 or newer, on macOS, Linux or Windows."]
+        "Works on macOS, Linux and Windows, with Python 3.11 or newer."]
     assert not _all(_main(GUIDE), "nav")  # no side list
-    # three plain rows; Your own format holds the record() line judgekeeper links to
-    rows = [(r.attrs["id"], _flat(_all(r, "h3")[0])) for r in _all(sections[2], "div", "gm-row")]
-    assert rows == [("keys", "Keys and costs"), ("own-format", "Your own format"),
-                    ("misc", "Handy commands")]
+    # three windows, the title in each bar (the h3 stays for screen readers); Your own format
+    # holds the record() line judgekeeper links to
+    rows = _all(sections[2], "div", "gm-row")
+    assert [(r.attrs["id"], _flat(_all(r, "h3")[0])) for r in rows] == [
+        ("keys", "Keys and costs"), ("own-format", "Your own format"), ("misc", "Handy commands")]
+    for r in rows:
+        (h3,) = _all(r, "h3")
+        (bar,) = _all(r, "div", "rt-bar")
+        assert "sr" in h3.classes() and _flat(bar) == _flat(h3), r.attrs["id"]
+        assert bar.attrs.get("aria-hidden") == "true"
     assert not _all(sections[2], "div", "gx-card")
-    # one centred column for the steps and the rows; each row's title sits above its text,
-    # lined up with the steps' text, a hairline above every row
+    # one centred column for the steps and the windows below, wider on wide screens
     for wrap in (".gx-steps .wrap", ".gx-more .wrap"):
         assert "max-width: 960px" in _rule(wrap) and "margin-inline: auto" in _rule(wrap), wrap
-    row = _rule(".gm-row")
-    assert "grid-template-columns: minmax(0, 1fr)" in row and "margin-left: 68px" in row
-    assert "border-top: 1px solid var(--line)" in row and ".gm-row:first-child" not in CSS
-    assert "border-top: 0" in _rule(".gx-more")
-    assert "margin-left: 0" in _rule(".gm-row", _phone())
+        assert any(wrap in s.split(", ") and "max-width: 1120px" in d
+                   for s, d in _rules(_wide())), wrap
+    # the step windows and the windows below share one look and the column's full width
+    (window,) = [d for s, d in _rules() if s.endswith("\n.sw, .gm-row")]
+    for part in ("border: 1px solid var(--line)", "border-radius: 12px",
+                 "background: var(--term-bg)"):
+        assert part in window, part
+    assert "margin-left" not in window
+    assert "clip: rect(0 0 0 0)" in _rule(".sr")
     (record,) = _all(_by_id(GUIDE, "own-format"), "pre", "gx-code")
     assert record.text().startswith("import judgekeeper\njudgekeeper.record(input=question,")
     reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     assert record.text() in reference  # moved from the reference, not rewritten
 
 
-def test_the_guide_lists_the_five_steps_with_no_tabs_or_terminal():
+def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     (steps,) = _all(_main(GUIDE), "ol", "gl")
     items = _all(steps, "li", "gl-step")
     assert [(li.attrs["id"], _flat(_all(li, "h3")[0])) for li in items] == GUIDE_STEPS
     for n, li in enumerate(items, 1):
         (number,) = _all(li, "span", "gl-n")
         assert _flat(number) == str(n) and number.attrs.get("aria-hidden") == "true"
+        # the title sits in the window's bar; the h3 stays, hidden, for screen readers
+        (window,) = _all(li, "div", "sw")
+        (bar,) = _all(window, "div", "sw-bar")
+        (h3,) = _all(li, "h3")
+        assert _flat(bar) == _flat(h3) and "sr" in h3.classes(), li.attrs["id"]
+        assert bar.attrs.get("aria-hidden") == "true" and _all(window, "div", "sw-body")
+    assert "font-weight: 700" in _rule(".sw-t") and "var(--sans)" in _rule(".sw-t")
+    # a long title wraps on a phone, never cut: the bar grows with it
+    assert "nowrap" not in _rule(".sw-t") and "min-height: 44px" in _rule(".sw-bar")
+    # numbers in green circles joined by a line; on wide screens they hang in the margin
+    assert "var(--green)" in _rule(".gl-n") and "border-radius: 50%" in _rule(".gl-n")
+    assert "width: 1px" in _rule(".gl-step:not(:last-child)::before")
+    assert "left: -68px" in _rule(".gl-n", _wide()) and "display: block" in _rule(
+        ".gl-step", _wide())
     done = {step: [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
             for step in ("step-find", "step-mark", "step-measure")}
     assert done == {
-        "step-find": ["Nothing found? Run your eval once, or point to the file:"],
+        "step-find": [("Nothing found? Run your eval first so it saves its results, or point "
+                       "judgekeeper to your results file:")],
         "step-mark": ["When See your result appears, click it."],
         "step-measure": ["Too early to tell? Mark more answers:"]}
     assert not _all(_main(GUIDE), "details")  # no fold
@@ -617,37 +659,31 @@ def test_the_guide_lists_the_five_steps_with_no_tabs_or_terminal():
               "better rule, or hand it to a coding agent to help you write one."))]
     assert [_flat(p) for p in _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")] == [
         "Testing works with promptfoo, DeepEval, Inspect AI and MLflow."]
-    assert _flat(_by_id(GUIDE, "step-check")) == (
-        "5Re-check after you change your LLM-as-a-judge Changed the model, the rule or your "
+    assert _flat(_all(_by_id(GUIDE, "step-check"), "div", "sw-body")[0]) == (
+        "Re-check after you change your LLM-as-a-judge Changed the model, the rule or your "
         "eval tool? Run your eval, then: judgekeeper check It tells you if your LLM-as-a-judge "
         "still agrees with you, on the same marks.")
-    # the two pictures sit in windows, like Home's
-    shots = [(li.attrs["id"], _flat(_all(f, "span", "rt-title")[0]))
-             for li in items for f in _all(li, "figure", "gx-shot")]
-    assert shots == [("step-mark", "marking page"), ("step-measure", "result page")]
-    assert all("gwin" in f.classes() for f in _all(steps, "figure", "gx-shot"))
-    assert "max-width" not in _rule(".gx-shot.gwin")  # the pictures fill the column
+    # the two pictures sit in their step's window with a plain border, no second bar
+    shots = [li.attrs["id"] for li in items for f in _all(li, "figure", "gx-shot")]
+    assert shots == ["step-mark", "step-measure"]
+    assert not any(_all(f, "div", "rt-bar") for f in _all(steps, "figure", "gx-shot"))
+    assert "border: 1px solid var(--line)" in _rule(".gx-shot")
+    assert "max-width" not in _rule(".gx-shot")  # the pictures fill the window
     text = GUIDE.read_text(encoding="utf-8")
     for gone in ("<template", "steplist", "t-out", "learn.html", "data-panel", "npx"):
         assert gone not in text, gone
-    # a number in a circle, and a line down to the next one
-    assert "var(--green)" in _rule(".gl-n") and "border-radius: 50%" in _rule(".gl-n")
-    assert "width: 1px" in _rule(".gl-step:not(:last-child)::before")
 
 
 def test_the_guides_commands_look_like_terminal_lines():
     """A green "$" before each one-line command, drawn by CSS so Copy copies the command
-    alone; the two-line pip box has one for each line. Handy commands are a small terminal
-    window."""
+    alone. Handy commands are a small terminal window."""
     assert 'content: "$"' in _rule(".gx .cmd code::before")
     assert "var(--green)" in _rule(".gx .cmd code::before")
-    pip = _rule(".gx .cmd-2 code::before")
-    assert 'content: "$\\A$"' in pip and "white-space: pre" in pip and "position: absolute" in pip
     assert "background: var(--term-bg)" in _rule(".gx .cmd")
     assert "code.textContent" in JS  # what Copy copies: never the "$"
     (misc,) = _all(_by_id(GUIDE, "misc"), "div", "gm-cmds")
     assert "gwin" in misc.classes()
-    assert _flat(_all(misc, "span", "rt-title")[0]) == "terminal"
+    assert _flat(_all(misc, "div", "rt-bar")[0]) == "Handy commands"
     (pre,) = _all(misc, "pre", "gm-pre")
     lines = [" ".join(line.split()) for line in pre.text().splitlines()]
     assert lines == ["$ judgekeeper --stop # close the marking page",
@@ -659,11 +695,11 @@ def test_the_guides_commands_look_like_terminal_lines():
 
 def test_every_command_box_has_a_copy_button_that_says_copied():
     boxes = [box for page in (GUIDE, CHECK) for box in _all(parse(page), "div", "cmd")]
-    pip = "pip install judgekeeper judgekeeper"  # two lines, one box, one copy button
+    install = ["pip install judgekeeper", "judgekeeper", "uvx judgekeeper"]  # one per box
     assert [_flat(_all(b, "code")[0]) for b in boxes] == [
-        pip, "uvx judgekeeper", "judgekeeper", "judgekeeper path/to/results.json",
+        *install, "judgekeeper", "judgekeeper path/to/results.json",
         "judgekeeper mark", "judgekeeper fix", "judgekeeper check",
-        "judgekeeper --pass-if 'score>=0.5'", pip, "uvx judgekeeper"]
+        "judgekeeper --pass-if 'score>=0.5'", *install]
     for box in boxes:
         (button,) = _all(box, "button", "copy")
         assert "data-copy" in button.attrs and button.attrs["aria-label"].startswith("Copy")
@@ -676,7 +712,6 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
     assert "position" not in _rule(".cmd .copied") and "display: inline" in _rule(
         ".cmd .copy.done .copied")
     assert "padding: 12px 18px" in _rule(".cmd code")
-    assert "padding: 14px 20px" in _rule(".cmd-big code")
 
 
 # Privacy ------------------------------------------------------------------------------------
@@ -762,7 +797,7 @@ def test_the_browser_check_is_homes_hero_with_the_drop_card_and_a_terminal():
     (run,) = _all(main, "div", "ck-run")
     assert _flat(_all(run, "p")[0]) == ("To run judgekeeper in your project folder, with pip "
                                         "(most Python setups) or with uv:")
-    assert [_flat(c) for c in _all(run, "code")] == ["pip install judgekeeper judgekeeper",
+    assert [_flat(c) for c in _all(run, "code")] == ["pip install judgekeeper", "judgekeeper",
                                                     "uvx judgekeeper"]
     # the terminal: the file's name in its bar once read, Clear, the waiting screen, the result
     assert _flat(_by_id(CHECK, "ck-title")) == "your results file"
@@ -895,8 +930,8 @@ def test_the_guide_shows_the_marking_and_result_pages_after_their_first_paragrap
         assert (WEBSITE / "assets" / "shots" / picture).is_file()
         assert (img.attrs["width"], img.attrs["height"]) == ("2880", "1800")
         assert len(img.attrs["alt"]) > 80 and "screenshot" not in img.attrs["alt"].lower()
-    assert "max-width" not in _rule(".gx-shot.gwin")  # the pictures fill the column
-    assert "width: 100%" in _rule(".gx-shot.gwin img")  # the window draws the border
+    assert "max-width" not in _rule(".gx-shot")  # the pictures fill their step's window
+    assert "width: 100%" in _rule(".gx-shot img")  # the figure draws the border
     # Home stays terminal: no picture there
     assert not _all(_main(HOME), "img") and not _all(_main(HOME), "figure")
 
