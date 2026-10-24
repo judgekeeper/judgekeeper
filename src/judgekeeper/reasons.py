@@ -38,7 +38,7 @@ REASONS = {
     "worded_differently": ("It's right, just worded differently", "fail"),
     "small_slips": ("Small slips don't matter here", "fail"),
     "short_ok": ("Short, but it answers the question", "fail"),
-    "not_asked": ("The judge wanted something I didn't ask for", "fail"),
+    "not_asked": ("The LLM-as-a-judge wanted something I didn't ask for", "fail"),
     "rule_silent": ("The rule doesn't say how to judge this", None),
     "unsure": ("I'm not sure about my own mark", None),
 }
@@ -56,7 +56,7 @@ TWICE = 2  # taps that make a clue line or a suggested rule line
 KEPT_ASIDE = "this answer is kept aside to test a new rule fairly"
 QUESTION = "Why did you mark it {mark}?"
 PART_QUESTION = {"pass": "Which part of your rule does this answer break?",
-                 "fail": "Which part did your judge get wrong?"}
+                 "fail": "Which part did your LLM-as-a-judge get wrong?"}
 ADD = "Add a reason to any answer below. `fix` uses them."
 
 
@@ -268,7 +268,7 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
     if mark not in ("pass", "fail"):
         raise ValueError("mark this answer Pass or Fail first")
     if judge == mark:
-        raise ValueError("reasons are only for answers you and your judge disagree on")
+        raise ValueError("reasons are only for answers you and your LLM-as-a-judge disagree on")
     if split is None or item_id not in split.seen:
         raise ValueError("this answer is not on your result page yet: open it again")
     data = ws.data()
@@ -413,21 +413,21 @@ def clue_lines(rows: list[dict]) -> list[str]:
                    "answers.")
     if sum("wrong_fact" in (r.get("reasons") or []) for r in rows
            if r.get("judge") == "pass") >= TWICE:
-        out.append("Your judge misses wrong facts: say in the rule that one wrong fact is a "
-                   "Fail.")
+        out.append("Your LLM-as-a-judge misses wrong facts: say in the rule that one wrong fact is "
+                   "a Fail.")
     parts = Counter((n, text) for r in rows for n, text in r.get("parts") or [])
     for (n, text), k in sorted(parts.items(), key=lambda x: (-x[1], x[0][0])):
         if k >= TWICE:
-            out.append(f"Your marks say your judge misses rule part {n}, '{one_line(text)}' "
-                       f"({k}).")
+            out.append(f"Your marks say your LLM-as-a-judge misses rule part {n}, "
+                       f"'{one_line(text)}' ({k}).")
     yes, no = mentioned(rows)
     if no:
-        out.append(f"Your judge didn't mention the part you marked in {no} of {yes + no} "
+        out.append(f"Your LLM-as-a-judge didn't mention the part you marked in {no} of {yes + no} "
                    "answers: it seems to miss these problems. A clearer rule may help, or a "
                    "stronger model.")
     if yes:
-        out.append(f"In {plural(yes, 'answer')} your judge mentioned the part you marked but "
-                   f"still passed {'it' if yes == 1 else 'them'}: your rule seems to allow "
+        out.append(f"In {plural(yes, 'answer')} your LLM-as-a-judge mentioned the part you marked "
+                   f"but still passed {'it' if yes == 1 else 'them'}: your rule seems to allow "
                    "this. Say in the rule that it's a Fail.")
     unsure = sum(UNSURE in (r.get("reasons") or []) for r in rows)
     if unsure:
@@ -485,7 +485,8 @@ TEMPLATES = {
     "not_asked": "Don't fail an answer for leaving out something the question didn't ask for.",
     "rule_silent": "Your rule doesn't cover {n} answers: write how to judge them.",
 }
-PART_LINE = "Make this part of your rule more exact: '{part}'. Your judge missed it {times}."
+PART_LINE = ("Make this part of your rule more exact: '{part}'. Your LLM-as-a-judge missed it "
+             "{times}.")
 SUGGESTIONS = "suggestions.md"
 SHOWN = 300  # characters of an answer in suggestions.md
 

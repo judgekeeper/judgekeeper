@@ -1,8 +1,8 @@
 """An MLflow make_judge's rule: its instructions, which MLflow saves with each assessment.
 
-They are the judge's rule everywhere `start` uses one (the first block, Fix your judge's
+They are the LLM-as-a-judge's rule everywhere `start` uses one (the first block, Fix your LLM-as-a-judge's
 prompt, --rule-file's template-part checks, where the rule probably is) and part of the
-judge's identity, so a changed rule is a new judge for Try your new judge.
+judge's identity, so a changed rule is a new LLM-as-a-judge for Try your new LLM-as-a-judge.
 
 The store is made by the installed MLflow in another process (skipped without it), with a real
 `make_judge` whose model call is replaced: MLflow itself saves the instructions.
@@ -178,7 +178,7 @@ judge = AssessmentSource(source_type="LLM_JUDGE", source_id="openai:/gpt-4.1-min
 def sum_check(inputs, outputs):
     n = int(inputs["question"].split()[2])
     if n in failing:
-        raise RuntimeError(f"the judge gave no reply for question {n}")
+        raise RuntimeError(f"the LLM-as-a-judge gave no reply for question {n}")
     return Feedback(value="wrong" not in outputs, rationale="checked", source=judge)
 
 data = [{"inputs": {"question": f"What is {i} + {i}?"},
@@ -224,8 +224,8 @@ def failing_stores(tmp_path_factory):
 def test_failed_judge_calls_are_counted(tmp_path, failing_stores, capsys):
     shutil.copy2(failing_stores / "some.db", tmp_path / "mlflow.db")
     _, out, _ = run(capsys, tmp_path, "--no-browser")
-    assert "Your judge passed 11 answers and failed 8." in out, out
-    assert "Your judge gave a Pass or Fail on every answer" not in out
+    assert "Your LLM-as-a-judge passed 11 answers and failed 8." in out, out
+    assert "Your LLM-as-a-judge gave a Pass or Fail on every answer" not in out
     assert re.search(r"5\s+calls failed", out), out
     found = start.find_judge(tmp_path)
     errors = [r for r in found.pool.answers if r.verdict not in ("pass", "fail")]
@@ -237,7 +237,7 @@ def test_every_judge_call_failed_says_why(tmp_path, failing_stores, capsys):
     code, out, err = run(capsys, tmp_path, "--no-browser")
     said = out + err
     assert code != 0
-    assert "every call of your judge sum_check failed (24 saved as errors)" in said, said
+    assert "every call of your LLM-as-a-judge sum_check failed (24 saved as errors)" in said, said
     assert "First error" not in said and "no reply for question" not in said  # its text
-    assert "Next: fix your judge's calls (MLflow keeps each error with its trace)" in said
+    assert "Next: fix your LLM-as-a-judge's calls (MLflow keeps each error with its trace)" in said
     assert "has no judge assessments" not in said

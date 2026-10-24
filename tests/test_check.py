@@ -1,4 +1,4 @@
-"""`judgekeeper check`: when the judge's setup changed since the last check, re-test the new
+"""`judgekeeper check`: when the LLM-as-a-judge's setup changed since the last check, re-test the new
 judge on the person's marks. Free first (marked answers whose exact text is in the newest
 results), then, only after the person's yes, the person's own judge is asked about the rest;
 a one-sided paired test per group; a history line; exit 0, 1 (worse) or 3.
@@ -67,7 +67,7 @@ def _new_outputs(n=50):
 
 def _marked(root, n_pass=25, n_fail=25, agent=False, **kwargs) -> Workspace:
     """A promptfoo project as judgekeeper leaves it after marking: judge.json, start.json, and
-    a person who agrees with the judge on every answer."""
+    a person who agrees with the LLM-as-a-judge on every answer."""
     (root / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
     _results(root, split(n_pass, n_fail), agent=agent, **kwargs)
     found = start.find_judge(root)
@@ -88,9 +88,9 @@ def here(tmp_path, monkeypatch):
 
 @pytest.fixture
 def no_calls(monkeypatch):
-    """Any process judgekeeper starts to ask the judge fails the test."""
+    """Any process judgekeeper starts to ask the LLM-as-a-judge fails the test."""
     def refuse(*args, **kwargs):
-        raise AssertionError("the judge was asked")
+        raise AssertionError("the LLM-as-a-judge was asked")
 
     monkeypatch.setattr(again, "run_process", refuse)
 
@@ -161,7 +161,7 @@ def test_check_remembers_the_setup_and_reads_nothing_next_time(here, capsys, mon
     assert (here / ".judgekeeper" / check.SEEN).is_file()
     _no_reading(monkeypatch)
     code, out = run(capsys)
-    assert code == 0 and "Your judge has not changed" in out
+    assert code == 0 and "Your LLM-as-a-judge has not changed" in out
 
 
 def test_check_reads_again_when_the_results_change(here, capsys, no_calls):
@@ -216,19 +216,20 @@ def test_a_store_folder_is_seen_to_change_deep_inside(tmp_path):
 SCENE_6 = [
     "Step 5 of 5: Re-check",
     "",
-    f"Your judge changed: model {MODEL} -> {HAIKU}.",
+    f"Your LLM-as-a-judge changed: model {MODEL} ->",
+    f"{HAIKU}.",
     "Re-checked with no AI call, from your new results.",
     "",
     "Re-checked on all 50 of your marks:",
     "",
-    "  You passed 25 answers. Your old judge agreed with you on 25,",
-    "  your new judge on 25.",
+    "  You passed 25 answers. Your old LLM-as-a-judge agreed with you",
+    "  on 25, your new LLM-as-a-judge on 25.",
     "    No drop bigger than 20 points: none went from right to",
     "    wrong, none from wrong to right.",
     "    These marks can't rule out a drop of up to 10 points.",
     "",
-    "  You failed 25 answers. Your old judge agreed with you on 25,",
-    "  your new judge on 16.",
+    "  You failed 25 answers. Your old LLM-as-a-judge agreed with you",
+    "  on 25, your new LLM-as-a-judge on 16.",
     "    Worse: 9 answers went from right to wrong, and none from wrong to right.",
     "    That is about 36 points lower (between 22 and 52).",
     "",
@@ -245,7 +246,7 @@ def test_a_model_change_rechecked_free(here, capsys, no_calls):
     assert lines[start_at:start_at + len(SCENE_6)] == SCENE_6
     for gone in ("can see a drop", "No drop seen", "%"):  # counts only on this screen
         assert gone not in out, gone
-    assert _next(out) == ("Next: go back to the old judge, or change your judge and run "
+    assert _next(out) == ("Next: go back to the old LLM-as-a-judge, or change your LLM-as-a-judge and run "
                           "`judgekeeper check` again.")
     saved = judge_setup.read(ws)["setup"]
     assert saved["models"] == [MODEL]  # after "Worse" the old judge stays the reference
@@ -256,24 +257,24 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_c
     _results(here, MARKED, model=HAIKU)
     code, out = run(capsys)
     assert code == 0
-    assert ("You failed 25 answers. Your old judge agreed with you on 25, your new judge on "
+    assert ("You failed 25 answers. Your old LLM-as-a-judge agreed with you on 25, your new LLM-as-a-judge on "
             "25.") in _flat(out)
     assert ("No drop bigger than 20 points: none went from right to wrong, none from wrong to "
             "right.") in _flat(out)
     assert "turned" not in out
     assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
-                          "change your judge.")
+                          "change your LLM-as-a-judge.")
     code, out = run(capsys)
     assert code == 0
     day = datetime.now().astimezone()
-    assert f"Your judge has not changed since your last check ({day.day} " in out
+    assert f"Your LLM-as-a-judge has not changed since your last check ({day.day} " in out
 
 
 def test_the_same_judge_has_nothing_to_check(here, capsys, no_calls):
     _marked(here)
     code, out = run(capsys)
     assert code == 0
-    assert "Your judge has not changed since you marked your answers." in out
+    assert "Your LLM-as-a-judge has not changed since you marked your answers." in out
     assert _history(Workspace(here)) == []
 
 
@@ -282,7 +283,7 @@ def test_a_rule_change(here, capsys, no_calls):
     _results(here, MARKED, rubric="Is polite, correct and short.")
     code, out = run(capsys)
     assert code == 0
-    assert "Your judge changed: rule changed." in out
+    assert "Your LLM-as-a-judge changed: rule changed." in out
 
 
 def test_a_pass_mark_change(here, capsys, no_calls):
@@ -300,7 +301,7 @@ def test_a_pass_mark_change(here, capsys, no_calls):
     _write(here / ".deepeval" / ".latest_run_full.json", data)
     code, out = run(capsys)
     assert code == 0
-    assert "Your judge changed: pass mark 0.5 -> 0.7." in out
+    assert "Your LLM-as-a-judge changed: pass mark 0.5 -> 0.7." in out
 
 
 def test_a_promptfoo_version_bump_only(here, capsys, no_calls):
@@ -308,7 +309,7 @@ def test_a_promptfoo_version_bump_only(here, capsys, no_calls):
     _results(here, MARKED, version="0.125.0")
     code, out = run(capsys)
     assert code == 0
-    assert ("Your eval tool changed: promptfoo 0.124.1 -> 0.125.0. Your judge's rule and model "
+    assert ("Your eval tool changed: promptfoo 0.124.1 -> 0.125.0. Your LLM-as-a-judge's rule and model "
             "are the same.") in _flat(out)
     assert "Re-checked with no AI call, from your new results." in out
     assert "Re-checked on all 50 of your marks:" in out
@@ -328,14 +329,14 @@ def test_an_inspect_version_bump_only(here, capsys, no_calls):
     _write(here / "logs" / "a.json", log)
     code, out = run(capsys)
     assert code == 0
-    assert ("Your eval tool changed: Inspect AI 0.3.278 -> 0.3.280. Your judge's rule and "
+    assert ("Your eval tool changed: Inspect AI 0.3.278 -> 0.3.280. Your LLM-as-a-judge's rule and "
             "model are the same.") in _flat(out)
 
 
 # check: asking the judge, only after a yes -----------------------------------------------------
 
-ASK = ("To re-check, judgekeeper asks your new judge about your 50 marked answers, twice each. "
-       "That is 100 AI calls, paid with your own key. Asking twice shows how much the judge "
+ASK = ("To re-check, judgekeeper asks your new LLM-as-a-judge about your 50 marked answers, twice each. "
+       "That is 100 AI calls, paid with your own key. Asking twice shows how much the LLM-as-a-judge "
        "varies by itself.")
 
 
@@ -404,7 +405,7 @@ def test_at_a_terminal_no_is_the_default(here, capsys, judge, terminal, said):
     _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
     code, out = run(capsys)
     assert code == 3
-    assert "Your judge was not asked." in out
+    assert "Your LLM-as-a-judge was not asked." in out
     assert _history(ws) == []
     assert _evals(judge) == 0
 
@@ -425,7 +426,7 @@ def test_some_free_and_a_no_tests_the_free_ones(here, capsys, judge, terminal):
     _results(here, MARKED, model=HAIKU, outputs=outputs)
     code, out = run(capsys)
     assert code == 0
-    assert ("judgekeeper asks your new judge about the other 10 marked answers, twice each. That "
+    assert ("judgekeeper asks your new LLM-as-a-judge about the other 10 marked answers, twice each. That "
             "is 20 AI calls") in _flat(out)
     assert "Re-checked on 40 of your 50 marks:" in out
 
@@ -435,7 +436,7 @@ def test_a_close_copy_is_said(here, capsys, judge):
     _results(here, MARKED, model=HAIKU, version="0.125.0", outputs=_new_outputs())
     code, out = run(capsys, "--yes")
     assert code == 0
-    assert re.search(r"This was a close copy of your judge, not an exact one: .*0\.124\.1.*"
+    assert re.search(r"This was a close copy of your LLM-as-a-judge, not an exact one: .*0\.124\.1.*"
                      r"0\.125\.0", _flat(out))
 
 
@@ -454,7 +455,7 @@ def test_the_question_says_when_the_judge_can_change_files(here, capsys, judge):
     _results(here, MARKED, model=HAIKU, outputs=_new_outputs(), agent=True)
     code, out = run(capsys)
     assert code == 3
-    assert "Your judge is an agent that can change files when it runs." in out
+    assert "Your LLM-as-a-judge is an agent that can change files when it runs." in out
     assert _evals(judge) == 0
 
 
@@ -476,8 +477,8 @@ def test_the_next_check_compares_with_the_last_checks_verdicts(here, capsys, no_
     _results(here, LENIENT, model="anthropic:claude-sonnet-5")
     code, out = run(capsys)
     assert code == 1  # against the last check's verdicts (all agreed): 9 new mistakes
-    assert "Your old judge agreed with you on 25, your new judge on 16." in _flat(out)
-    assert f"Your judge changed: model {HAIKU} -> anthropic:claude-sonnet-5." in _flat(out)
+    assert "Your old LLM-as-a-judge agreed with you on 25, your new LLM-as-a-judge on 16." in _flat(out)
+    assert f"Your LLM-as-a-judge changed: model {HAIKU} -> anthropic:claude-sonnet-5." in _flat(out)
 
 
 # History and saved verdicts -------------------------------------------------------------------

@@ -3,7 +3,7 @@
 
 - A version change seen only in a lockfile that is newer than the results is not
   re-checked on those older results: the grades are out of date until the next eval run.
-- After "Worse", the old judge stays the reference: every check says it again until the
+- After "Worse", the old LLM-as-a-judge stays the reference: every check says it again until the
   judge goes back (or changes again), and the History gets the check once.
 - When the newest results hold none of the marked answers: a reason and a way forward.
 - A wrong PATH, or a folder under the project, says where it looked.
@@ -59,10 +59,10 @@ def test_nothing_changed_says_so_in_the_agreed_words(here, capsys, no_calls):
     assert code == 0
     assert out.splitlines()[2:] == [
         "Step 5 of 5: Re-check", "",
-        "Your judge has not changed since you marked your answers.",
+        "Your LLM-as-a-judge has not changed since you marked your answers.",
         "Same model, same rule, same eval tool.", "",
         "Next: nothing to do. Run `judgekeeper check` again after you",
-        "change your judge."]
+        "change your LLM-as-a-judge."]
 
 
 def test_settings_changed_after_the_last_eval_run(here, capsys, no_calls):
@@ -74,8 +74,8 @@ def test_settings_changed_after_the_last_eval_run(here, capsys, no_calls):
     assert code == 0
     assert out.splitlines()[2:] == [
         "Step 5 of 5: Re-check", "",
-        "Your judge's settings changed after your last eval run, so the",
-        "grades judgekeeper has are out of date.", "",
+        "Your LLM-as-a-judge's settings changed after your last eval run,",
+        "so the grades judgekeeper has are out of date.", "",
         "Next: run your eval again, then run `judgekeeper check`."]
     assert "has not changed" not in out
 
@@ -87,7 +87,7 @@ def test_after_a_check_nothing_changed_names_that_check(here, capsys, no_calls):
     assert run(capsys)[0] == 0
     code, out = run(capsys)
     assert code == 0
-    assert "Your judge has not changed since your last check (" in out
+    assert "Your LLM-as-a-judge has not changed since your last check (" in out
 
 
 # Where check looked ---------------------------------------------------------------------------
@@ -106,7 +106,7 @@ def test_a_folder_inside_the_project_finds_the_marks(here, capsys, monkeypatch, 
     monkeypatch.chdir(here / "src")
     code, out = run(capsys)
     assert code == 0, out
-    assert "Your judge has not changed since you marked your answers." in out
+    assert "Your LLM-as-a-judge has not changed since you marked your answers." in out
 
 
 def test_another_project_inside_says_where_the_marks_are(here, capsys, monkeypatch):
@@ -165,7 +165,7 @@ def test_a_lockfile_update_is_not_rechecked_on_older_results(here, capsys, no_ca
     assert code == 0
     flat = _flat(out)
     assert "Your eval tool changed: promptfoo 0.121.0 -> 0.130.0." in flat
-    assert ("Your judge's settings changed after your last eval run, so the grades "
+    assert ("Your LLM-as-a-judge's settings changed after your last eval run, so the grades "
             "judgekeeper has are out of date.") in flat
     assert _next(out) == "Next: run your eval again, then run `judgekeeper check`."
     assert "Re-checked" not in out and "No drop" not in out
@@ -202,7 +202,7 @@ def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys, no_calls):
     _results(here, MARKED)  # back to the old judge
     code, out = run(capsys)
     assert code == 0 and "has not changed" not in out
-    assert "Your judge is back to the one you marked with" in _flat(out)  # v2-bugfix-2 LE3
+    assert "Your LLM-as-a-judge is back to the one you marked with" in _flat(out)  # v2-bugfix-2 LE3
 
 
 def test_after_worse_judgekeeper_still_points_at_check(here, capsys, no_calls):
@@ -212,7 +212,7 @@ def test_after_worse_judgekeeper_still_points_at_check(here, capsys, no_calls):
     code = main([])
     out = capsys.readouterr().out
     assert code == 0
-    assert f"Your judge changed since your marks: model openai:gpt-4.1-mini -> {HAIKU}." in \
+    assert f"Your LLM-as-a-judge changed since your marks: model openai:gpt-4.1-mini -> {HAIKU}." in \
         _flat(out)
     assert "`judgekeeper check`" in _next(out)
     assert ws.report_html.is_file()
@@ -228,7 +228,7 @@ def test_no_marked_answer_in_the_new_results_says_why_and_what_to_do(here, capsy
     code, out = run(capsys, "--yes")
     assert code == 3
     flat = _flat(out)
-    assert ("Your newest results don't contain the answers you marked, so your judge can't "
+    assert ("Your newest results don't contain the answers you marked, so your LLM-as-a-judge can't "
             "grade them again.") in flat
     assert "labeled" not in flat
     assert _next(out) == ("Next: run your eval on the questions you marked, then run "

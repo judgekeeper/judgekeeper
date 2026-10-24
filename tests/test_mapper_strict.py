@@ -1,4 +1,4 @@
-"""The own-format guess never invents a judge. A part is a judge's verdict only when its name
+"""The own-format guess never invents an LLM-as-a-judge. A part is an LLM-as-a-judge's verdict only when its name
 says so (score, verdict, grade, label, ...) and its values are verdict-like for most answers:
 pass/fail, true/false, yes/no, correct/incorrect, or numbers from 0 to 1 or on a fixed scale.
 Free text, ids and a number with no such name are never verdicts. A judge's settings (its
@@ -21,7 +21,7 @@ from tests.start_projects import answer, question
 
 
 def _run_lines(judges=("answer_quality",), n=60) -> list[dict]:
-    """One run per line: run -> cases -> answer -> scores per judge, the judge's settings
+    """One run per line: run -> cases -> answer -> scores per judge, the LLM-as-a-judge's settings
     (its pass mark and its criteria's text) at the run level."""
     cases = [{"case_id": f"c{i}", "question": question(i),
               "answer": {"text": answer(i), "scores": {
@@ -83,7 +83,7 @@ def test_a_survey_csv_has_no_judge(tmp_path):
     rows = [{"No": str(i + 1), "Question": question(i), "Dr Answer": answer(i), "": ""}
             for i in range(30)]
     path = _write_csv(tmp_path / "ready_to_eval.csv", rows)
-    with pytest.raises(mapper.MapError, match="no judge verdicts were found in it"):
+    with pytest.raises(mapper.MapError, match="no LLM-as-a-judge verdicts were found in it"):
         mapper.guess(mapper.load(path))
     assert own_format.search(tmp_path) is None  # never named as judge results
 
@@ -96,7 +96,7 @@ def test_a_survey_csv_has_no_judge(tmp_path):
 ])
 def test_no_verdict_like_part_is_no_judge(extra):
     units = [{"question": question(i), "answer": answer(i), **extra} for i in range(20)]
-    with pytest.raises(mapper.MapError, match="no judge verdicts were found in it"):
+    with pytest.raises(mapper.MapError, match="no LLM-as-a-judge verdicts were found in it"):
         mapper.guess(units)
 
 
@@ -115,7 +115,7 @@ def test_verdict_like_values_are_a_judge(values, kind):
 def test_a_score_column_with_mostly_free_text_is_no_judge():
     units = [{"question": question(i), "answer": answer(i),
               "grade": "pass" if i < 3 else f"see the notes for case {i}"} for i in range(20)]
-    with pytest.raises(mapper.MapError, match="no judge verdicts"):
+    with pytest.raises(mapper.MapError, match="no LLM-as-a-judge verdicts"):
         mapper.guess(units)
 
 

@@ -1,5 +1,5 @@
 """Fixes from running judgekeeper on public projects that need a real MLflow store: a store
-whose traces point at an artifact server, code scorers only, a judge whose calls all failed,
+whose traces point at an artifact server, code scorers only, an LLM-as-a-judge whose calls all failed,
 the store's own date, and the notes the reference promises. Every store is built here by
 MLflow itself (no model call); the tests skip when mlflow is not installed.
 """
@@ -48,8 +48,8 @@ def correctness(inputs, outputs):
     return Feedback(value=ok, source=judge, rationale="checked")
 
 @scorer
-def safety(inputs, outputs):  # a judge whose every call fails: MLflow saves it as CODE
-    raise RuntimeError("the judge's provider refused the call")
+def safety(inputs, outputs):  # an LLM-as-a-judge whose every call fails: MLflow saves it as CODE
+    raise RuntimeError("the LLM-as-a-judge's provider refused the call")
 
 @scorer
 def has_answer(outputs):
@@ -80,7 +80,7 @@ mlflow.flush_trace_async_logging()
 @pytest.fixture(scope="module")
 def store(tmp_path_factory) -> Path:
     """mlflow.db with the "qa" experiment: 8 judged answers plus one judged outside evaluate,
-    a judge whose calls all failed, and a code scorer."""
+    an LLM-as-a-judge whose calls all failed, and a code scorer."""
     pytest.importorskip("mlflow")
     build = tmp_path_factory.mktemp("build")
     (build / "make.py").write_text(STORE, encoding="utf-8")
@@ -131,8 +131,8 @@ def test_a_store_with_no_assessments_is_not_offered_as_a_second_tool(here, capsy
     code, out = run(capsys)
     assert code == 0, out
     assert "--tool" not in out and "Saved results from more than one" not in out
-    assert "Eval tool:   DeepEval" in out
-    assert "mlflow.db holds no judge assessments, so it was left out." in flat(out)
+    assert "Eval tool:       DeepEval" in out
+    assert "mlflow.db holds no LLM-as-a-judge assessments, so it was left out." in flat(out)
 
 
 # Code scorers only ---------------------------------------------------------------------
@@ -160,7 +160,7 @@ def test_a_judge_whose_calls_all_failed_is_listed_and_said(here, capsys, store):
     assert "safety" in out and "correctness" in out  # both judges are listed
     code, out = run(capsys, "--metric", "safety")
     assert code == 3, out
-    assert "Your judge's calls failed on every answer, so there is nothing to mark." in flat(out)
+    assert "Your LLM-as-a-judge's calls failed on every answer, so there is nothing to mark." in flat(out)
     assert "RuntimeError" not in out and "refused the call" not in out
 
 
@@ -170,9 +170,9 @@ def test_mlflow_notes_are_printed(here, capsys, store):
     shutil.copy2(store, here / "mlflow.db")
     code, out = run(capsys, "--metric", "correctness")
     assert code == 3, out  # 9 answers: not enough for a first result
-    assert ("8 assessments from code scorers (has_answer) are rules in code, not an LLM "
-            "judge: left out.") in flat(out)
-    assert ("Some judge assessments carry no MLflow run id (logged by hand, outside an "
+    assert ("8 assessments from code scorers (has_answer) are rules in code, not an "
+            "LLM-as-a-judge: left out.") in flat(out)
+    assert ("Some LLM-as-a-judge assessments carry no MLflow run id (logged by hand, outside an "
             "evaluate run): they form one run, listed last.") in flat(out)
     assert "Runs are MLflow runs in start order" not in out
     assert "MLFLOW_ALLOW_FILE_STORE" not in out
@@ -195,7 +195,7 @@ def test_a_store_whose_spans_are_on_a_server_is_read_from_what_it_holds(here, ca
     code, out = run(capsys, "--metric", "correctness")
     assert code == 3, out
     assert "a problem it didn't expect" not in out and "--debug" not in out
-    assert "Answers:     9 answers" in out
+    assert "Answers:         9 answers" in out
 
 
 def test_a_store_whose_text_is_only_on_a_server_says_to_start_it(here, capsys, store):

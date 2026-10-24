@@ -97,7 +97,7 @@ def feedback(result):
     """(value, rationale, error) from what a judge returned."""
     if isinstance(result, list):
         if len(result) != 1:
-            return None, None, f"the judge gave {len(result)} feedbacks"
+            return None, None, f"the LLM-as-a-judge gave {len(result)} feedbacks"
         result = result[0]
     if hasattr(result, "value"):
         error = getattr(result, "error", None)

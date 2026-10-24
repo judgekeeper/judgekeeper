@@ -1,4 +1,4 @@
-"""Why the person disagrees with the judge: the reasons they tap on the live result page.
+"""Why the person disagrees with the LLM-as-a-judge: the reasons they tap on the live result page.
 
 On each disagreement the person can see (never a mark kept aside), the result page asks "Why
 did you mark it Fail?" (or Pass), with reasons to tap, buttons from the parts of their own
@@ -46,7 +46,7 @@ KEPT = "this answer is kept aside to test a new rule fairly"
 
 
 def _ready(root, rule: str = RULE):
-    """A project with a result: (workspace, seen mistakes the judge passed, seen mistakes it
+    """A project with a result: (workspace, seen mistakes the LLM-as-a-judge passed, seen mistakes it
     failed, mistakes kept aside)."""
     ws = project(root, rule=rule)
     start_label.store_result(ws, StartSession(ws))  # the first result: some marks kept aside
@@ -266,7 +266,7 @@ def test_a_mark_changed_after_seeing_the_grades_is_stamped_and_counted(here):
     assert line["mark"] == "pass" and line["after_result"] is True
     made = marks.made(marks.read(ws.marks))
     assert made["after_result"] == 1
-    said = "You changed 1 mark after seeing your judge's grades."
+    said = "You changed 1 mark after seeing your LLM-as-a-judge's grades."
     assert said in start_label.made_lines(made)
     assert _flat(_live(ws)).count(said) == 1
 
@@ -331,7 +331,7 @@ def test_rule_buttons_come_first_with_their_question(here):
     html = _live(ws)
     judge_passed, judge_failed = _box(html, passes[0]), _box(html, fails[0])
     assert "Which part of your rule does this answer break?" in judge_passed
-    assert "Which part did your judge get wrong?" in judge_failed
+    assert "Which part did your LLM-as-a-judge get wrong?" in judge_failed
     assert judge_passed.index('data-part="1"') < judge_passed.index('data-reason=')
     assert "Every claim is supported by the article" in judge_passed
 
@@ -366,7 +366,7 @@ def test_fix_counts_the_rule_parts(here, capsys):
     for i in passes[:2]:
         _say(ws, i, reasons=[], rule_parts=[1])
     _, out = run_fix(capsys)
-    assert ("Your marks say your judge misses rule part 1, 'Every claim is supported by the "
+    assert ("Your marks say your LLM-as-a-judge misses rule part 1, 'Every claim is supported by the "
             "article' (2).") in " ".join(out.split())
 
 
@@ -511,7 +511,7 @@ def test_the_live_page_asks_why_and_says_fix_uses_the_reasons(here):
         assert _e(words) in _box(html, passes[0]), words
     for words in ("It's right, just worded differently", "Small slips don't matter here",
                   "Short, but it answers the question",
-                  "The judge wanted something I didn't ask for"):
+                  "The LLM-as-a-judge wanted something I didn't ask for"):
         assert _e(words) in _box(html, fails[0]) and _e(words) not in _box(html, passes[0])
 
 
@@ -542,7 +542,7 @@ def test_fix_counts_the_reasons_and_prints_the_two_lines_at_2_or_more(here, caps
             "(2), short, but it answers the question (1).") in flat
     assert ("Your rule may be missing something: write in it how to judge these answers."
             in flat)
-    assert ("Your judge misses wrong facts: say in the rule that one wrong fact is a Fail."
+    assert ("Your LLM-as-a-judge misses wrong facts: say in the rule that one wrong fact is a Fail."
             in flat)
     assert flat.index("Your reasons:") < flat.index("of its")  # the first clue
 
@@ -602,7 +602,7 @@ def test_missed_it_when_the_judges_reason_never_mentions_the_marked_words(here, 
     for i in passes[:2]:
         _mark_words(ws, i, "refund")
     _, out = run_fix(capsys)
-    assert ("Your judge didn't mention the part you marked in 2 of 2 answers: it seems to "
+    assert ("Your LLM-as-a-judge didn't mention the part you marked in 2 of 2 answers: it seems to "
             "miss these problems. A clearer rule may help, or a stronger model.") in " ".join(
         out.split())
 
@@ -613,7 +613,7 @@ def test_allowed_it_when_the_judge_mentioned_the_marked_words_and_still_passed(h
         number = re.match(r"Answer (\d+)", fix.Marks(ws).row(i)["output"])[0]
         _mark_words(ws, i, number)
     _, out = run_fix(capsys)
-    assert ("In 2 answers your judge mentioned the part you marked but still passed them: "
+    assert ("In 2 answers your LLM-as-a-judge mentioned the part you marked but still passed them: "
             "your rule seems to allow this. Say in the rule that it's a Fail.") in " ".join(
         out.split())
 
@@ -625,7 +625,7 @@ def test_the_missed_or_allowed_lines_need_only_one_answer():
              "reason": "Looks right.", "spans": [[6, 16]]}]
     lines = " ".join(reasons.clue_lines(rows))
     assert "didn't mention the part you marked in 1 of 2 answers" in lines
-    assert ("In 1 answer your judge mentioned the part you marked but still passed it: your "
+    assert ("In 1 answer your LLM-as-a-judge mentioned the part you marked but still passed it: your "
             "rule seems to allow this.") in lines
 
 
@@ -655,7 +655,7 @@ def test_suggestions_md_has_a_line_per_reason_tapped_twice_and_lists_the_rest(he
     assert "- A short answer that answers the question is a Pass." in suggested
     assert "unsafe" not in suggested.lower()
     assert "Fail an answer that is unsafe or not allowed." in once
-    assert ("Make this part of your rule more exact: 'it never promises a refund'. Your judge "
+    assert ("Make this part of your rule more exact: 'it never promises a refund'. Your LLM-as-a-judge "
             "missed it 1 time.") in once
     assert "<<<ANSWER" in once  # listed with its answer, fenced as data
     assert "Fail when: “the order number”" in once  # the person's own button
@@ -710,7 +710,7 @@ def test_the_reference_and_the_guide_say_it_once():
     reference = (root / "docs" / "reference.md").read_text(encoding="utf-8")
     assert "say why" in reference.lower() and "suggestions.md" in reference
     guide = " ".join((root / "website" / "start.html").read_text(encoding="utf-8").split())
-    assert ("On your result page, say why on the answers you and your judge disagree on; "
+    assert ("On your result page, say why on the answers you and your LLM-as-a-judge disagree on; "
             "<code>fix</code> puts your reasons next to its mistakes.") in guide
 
 
@@ -804,7 +804,7 @@ def test_a_new_batchs_disagreements_get_boxes_the_same_way(here, served):
 
 NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
                    "answers join the ones you marked.")
-SAY_WHY = "Say why on the answers you and your judge disagree on; `fix` uses your reasons."
+SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 
 
 def _run(capsys, *argv) -> tuple[int, str]:
@@ -912,7 +912,7 @@ def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages,
     assert out.count("To say why") == 1
     report = _report(ws)
     assert report.count("To say why on these, run <code>judgekeeper mark</code>.") == 1
-    assert report.index("You said Fail, your judge said Pass") < report.index("To say why")
+    assert report.index("You said Fail, your LLM-as-a-judge said Pass") < report.index("To say why")
     assert "To say why" not in _live(ws)  # the live page has the boxes
 
 

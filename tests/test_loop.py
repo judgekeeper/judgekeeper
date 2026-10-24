@@ -25,9 +25,9 @@ OPEN = "The marking page is open in your browser."
 NEXT_OPEN = 'Next: mark until "See your result" appears, then click it.'
 NEXT_LINK = NEXT_OPEN
 NEXT_KEEP = 'Next: keep marking until "See your result" appears, then click it.'
-NEXT_RESULT = ("Next: nothing to do. When you change your judge or update your eval tool, run "
+NEXT_RESULT = ("Next: nothing to do. When you change your LLM-as-a-judge or update your eval tool, run "
                "`judgekeeper check`.")
-RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
+RAN_AGAIN = "Your eval ran again. Your LLM-as-a-judge is the same, so your marks still test it."
 ADDED = "Your newest results have 36 answers you haven't seen. They're added for marking."
 LINK = "Open this link in your browser to mark answers:"
 PRINTED_LINE = ("{n} of your marks came through a link printed in a terminal, so another "
@@ -69,7 +69,7 @@ def _check(out: str, err: str = "") -> str:
 
 
 def _click(ws, n=None, seconds=7, first=0):
-    """The person marks answers first to n on the page, as the judge did."""
+    """The person marks answers first to n on the page, as the LLM-as-a-judge did."""
     session = start_label.StartSession(ws)
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
     for item in session.items[first:n]:
@@ -77,7 +77,7 @@ def _click(ws, n=None, seconds=7, first=0):
 
 
 def _post_marks(url: str, ws, n: int, seconds=5) -> int:
-    """The person marks the first n answers through the page's link, as the judge did."""
+    """The person marks the first n answers through the page's link, as the LLM-as-a-judge did."""
     import urllib.request
 
     base, token = url.split("/?token=")
@@ -113,24 +113,26 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "",
         "Step 1 of 5: Find",
         "",
-        "Eval tool:   promptfoo",
-        "File:        results.json",
-        "Answers:     36 answers",
-        "Judge:       openai:gpt-4.1-mini",
-        'Judge rule:  "Is polite and correct. Second line of the rubric."',
+        "Eval tool:       promptfoo",
+        "File:            results.json",
+        "Answers:         36 answers",
+        "LLM-as-a-judge:  openai:gpt-4.1-mini",
+        'Rule:            "Is polite and correct. Second line of the rubric."',
         "Read from your file:",
         "  question   each test's vars",
         "  answer     each test's output",
-        "  grade      your judge's Pass or Fail",
+        "  grade      your LLM-as-a-judge's Pass or Fail",
         "",
-        "Your judge passed 20 answers and failed 16.",
-        "Checked: your judge gave every answer a clear Pass or Fail.",
+        "Your LLM-as-a-judge passed 20 answers and failed 16.",
+        "Checked: your LLM-as-a-judge gave every answer a clear Pass or",
+        "Fail.",
         "",
         "Step 2 of 5: Mark",
         "",
         "The marking page is open in your browser. It shows the answers",
         "one at a time. Mark each one Pass or Fail, the way you want your",
-        "judge to decide. Your judge's grade stays hidden.",
+        "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays",
+        "hidden.",
         "",
         'Next: mark until "See your result" appears, then click it.']
     assert len(pages[0]) == 1 and len(no_browser) == 1
@@ -211,14 +213,14 @@ def test_enough_marks_print_the_result(here, capsys, pages):
     assert lines[2:16] == [
         "Step 3 of 5: Measure", "",
         f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}",
-        "You and your judge agreed on all 36 answers.", "",
-        "  You passed 20 answers. Of those, your judge passed 20 and failed 0.",
-        "  You failed 16 answers. Of those, your judge passed 0 and failed 16.", "",
-        "How often your judge agrees with you (estimates):",
+        "You and your LLM-as-a-judge agreed on all 36 answers.", "",
+        "  You passed 20 answers. Of those, your LLM-as-a-judge passed 20 and failed 0.",
+        "  You failed 16 answers. Of those, your LLM-as-a-judge passed 0 and failed 16.", "",
+        "How often your LLM-as-a-judge agrees with you (estimates):",
         f"  When you say Pass, it also says Pass: {said('tpr')}",
         f"  When you say Fail, it also says Fail: {said('tnr')}", "",
         "Full report: .judgekeeper/report.html (open it in your browser)", ""]
-    for gone in ("Your marks:", "Kappa", "can see a drop", "Your judge vs your marks",
+    for gone in ("Your marks:", "Kappa", "can see a drop", "Your LLM-as-a-judge vs your marks",
                  "These are estimates", "could be", "Where it goes wrong"):
         assert gone not in out, gone
     assert "still open" not in out  # every answer is marked: nothing left on the page
@@ -253,8 +255,8 @@ def test_a_judge_that_fails_few_of_the_answers_you_failed_is_measured(here, caps
         session.update({"id": item["id"], "label": said, "seconds": 5})
     code, out, _ = run(capsys)
     assert code == 3  # every answer marked, too early to tell: more answers are needed
-    assert "You and your judge disagreed on 5 of 36 answers." in out
-    assert "  You failed 21 answers. Of those, your judge passed 5 and failed 16." in out
+    assert "You and your LLM-as-a-judge disagreed on 5 of 36 answers." in out
+    assert "  You failed 21 answers. Of those, your LLM-as-a-judge passed 5 and failed 16." in out
     assert "estimates" not in out  # too early to tell: the counts only
 
 
@@ -267,11 +269,11 @@ def test_a_changed_rule_carries_on_and_says_which_judge(here, capsys, pages):
     code, out, _ = run(capsys)
     assert code == 0, out
     head = marks.read(ws.marks).header
-    assert re.search(r"This result is about your judge as it was on \d{1,2} [A-Z][a-z]{2}: "
+    assert re.search(r"This result is about your LLM-as-a-judge as it was on \d{1,2} [A-Z][a-z]{2}: "
                      r"openai:gpt-4\.1-mini, rule hash [0-9a-f]{4}\.", _flat(out)), out
     assert head["judge"]["rule_hash"][7:11] in out
-    assert "\nYour judge changed since your marks: rule changed.\n" in out
-    assert _check(out) == ("Next: run `judgekeeper check` to re-check your changed judge on "
+    assert "\nYour LLM-as-a-judge changed since your marks: rule changed.\n" in out
+    assert _check(out) == ("Next: run `judgekeeper check` to re-check your changed LLM-as-a-judge on "
                            "your marks.")
 
 
@@ -383,7 +385,7 @@ def test_after_a_new_eval_run_the_result_goes_on(here, capsys, pages):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert _flat(out).count(ADDED) == 1
-    assert "How often your judge agrees with you (estimates):" in out
+    assert "How often your LLM-as-a-judge agrees with you (estimates):" in out
     assert ("This result is on 1 of 2 batches (36 answers). 36 newer answers need a few marks "
             "first.") in _flat(out)
     assert _check(out) == NEXT_RESULT

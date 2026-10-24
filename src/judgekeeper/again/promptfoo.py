@@ -71,7 +71,8 @@ CALLS = {"llm-rubric": 1, "factuality": 1, "model-graded-factuality": 1,
          "context-faithfulness": 2, "answer-relevance": 3, "search-rubric": 1}
 AT_LEAST = {"conversation-relevance"}  # one call per message window
 TRAJECTORY = "trajectory:goal-success"
-AGENT_WHY = "your judge is an agent, which may look at things that changed since your eval ran"
+AGENT_WHY = ("your LLM-as-a-judge is an agent, which may look at things that changed since your "
+             "eval ran")
 PROMPT_TYPES = {"factuality", "model-graded-factuality", "model-graded-closedqa", "g-eval",
                 "answer-relevance", "context-faithfulness", "context-recall",
                 "context-relevance"}
@@ -112,7 +113,7 @@ DROPPED_OPTIONS = ("transform", "postprocess", "prefix", "suffix", "provider", "
 SIDE_EFFECT = ("Your app or agent is not run. Nothing is written to promptfoo's database or "
                "shared.")
 EXACT_WHY = "promptfoo re-grades your saved answers with your own settings"
-NEW_WHY = "promptfoo grades your marked answers with your new judge's own settings"
+NEW_WHY = "promptfoo grades your marked answers with your new LLM-as-a-judge's own settings"
 NO_TEST = ("no test in your newest results matches it",
            "no test in your newest results matches them")
 
@@ -420,12 +421,12 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                         "promptfoo hides in the results", short="your grader holds a secret")
         agent = _agent(g)
         if agent:
-            return cant("promptfoo", judge, f"your judge is an agent that can use tools "
-                                            f"({agent})", short="your judge is an agent")
+            return cant("promptfoo", judge, "your LLM-as-a-judge is an agent that can use tools "
+                                            f"({agent})", short="your LLM-as-a-judge is an agent")
         own = _grader_code(g)
         if own:
-            return cant("promptfoo", judge, f"your judge runs your own code ({own})",
-                        short="your judge is your own code")
+            return cant("promptfoo", judge, f"your LLM-as-a-judge runs your own code ({own})",
+                        short="your LLM-as-a-judge is your own code")
     for _, _, comps, test_opts, default_test in judged:
         for c in comps:
             a = c["assertion"]
@@ -436,16 +437,17 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                               test_opts.get("rubricPrompt"),
                               _options(default_test).get("rubricPrompt")])):
                 return cant("promptfoo", judge,
-                            "your judge runs your own code (a rule that loads a file or "
+                            "your LLM-as-a-judge runs your own code (a rule that loads a file or "
                             "package, or a transform)",
-                            short="your judge is your own code")
+                            short="your LLM-as-a-judge is your own code")
     if not judged:
         return not_marked("promptfoo", judge)
     types = {judge_type(c["assertion"].get("type")) for j in judged for c in j[2]}
     if TRAJECTORY in types:
-        return cant("promptfoo", judge, "your judge reads the trace of your app or agent's run, "
-                                        "which your results don't keep",
-                    short="your judge reads a trace")
+        return cant("promptfoo", judge,
+                    "your LLM-as-a-judge reads the trace of your app or agent's run, which your "
+                    "results don't keep",
+                    short="your LLM-as-a-judge reads a trace")
 
     config = _config(root)
     grader = next(iter(graders.values()))

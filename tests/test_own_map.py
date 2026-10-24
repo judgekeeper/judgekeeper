@@ -1,6 +1,6 @@
 """`judgekeeper` on results saved in a project's own format (own_map.py).
 
-It finds a file that looks like a judge's results, shows how it reads it (paths only, never a
+It finds a file that looks like an LLM-as-a-judge's results, shows how it reads it (paths only, never a
 value), asks only what the file cannot tell, and keeps the map in judgekeeper.toml after one
 yes. Nothing is written to the project before that yes (only judgekeeper's own folder), and
 the user's code is never edited. `start` then reads judgekeeper.toml first.
@@ -78,15 +78,15 @@ def test_nested_runs_asks_four_questions_and_one_yes(tmp_path, capsys, terminal)
     assert len(asked) == 5
     assert "Is this how judgekeeper should read " in asked[0]
     assert "Count each as its own answer?" in asked[1]
-    assert "Which judge do you want to check?" in out
+    assert "Which LLM-as-a-judge do you want to check?" in out
     assert "Leave them out?" in asked[3]
     assert "judgekeeper.toml" in asked[4]
-    assert "history/evals.jsonl looks like your judge's results in a format of its own" in out
+    assert "history/evals.jsonl looks like your LLM-as-a-judge's results in a format of its own" in out
     assert "cases[].A.output" in out and 'cases[].A.scores."Safe wording".score' in out
     assert "Question " not in out and "Answer " not in out  # paths, never values
-    assert "Eval tool:   your own format" in out
-    assert "Answers:     42 answers" in out
-    assert "File:        history/evals.jsonl, 3 lines" in out
+    assert "Eval tool:       your own format" in out
+    assert "Answers:         42 answers" in out
+    assert "File:            history/evals.jsonl, 3 lines" in out
     assert "The marking page is open in your browser." in out
 
 
@@ -162,7 +162,7 @@ def test_all_judges_one_at_a_time(tmp_path, capsys, terminal):
     code, out = check(capsys, tmp_path)
     assert code == 0, out
     assert saved(tmp_path)["judge"] == "*"
-    assert "Judge:       Plain language, " in out
+    assert "LLM-as-a-judge:  Plain language, " in out
 
 
 # Questions only when needed -------------------------------------------------------------
@@ -266,7 +266,7 @@ def test_several_judges_without_a_terminal_need_metric(tmp_path, capsys):
 def test_a_judge_it_does_not_know_is_a_usage_error(tmp_path, capsys):
     nested_runs_project(tmp_path, rule_rows=0)
     code, out = check(capsys, tmp_path, "--yes", "--metric", "nope")
-    assert code == 2 and "no judge named 'nope'" in out
+    assert code == 2 and "no LLM-as-a-judge named 'nope'" in out
 
 
 def test_without_a_terminal_each_answer_question_takes_yes(tmp_path, capsys, monkeypatch):
@@ -278,7 +278,7 @@ def test_without_a_terminal_each_answer_question_takes_yes(tmp_path, capsys, mon
     assert code == 3, out
     assert ("1. Each item has 2 answers (A and B). Count each as its own answer?"
             in " ".join(out.split()))
-    assert "answers, each graded by your judge" not in out  # counted after the answer
+    assert "answers, each graded by your LLM-as-a-judge" not in out  # counted after the answer
     assert next_lines(out)[-1] == (
         "Next: run `judgekeeper` in a terminal to answer, or `judgekeeper --yes` to say yes "
         "to all.")

@@ -332,7 +332,7 @@ def _kind(setup: dict) -> str:
     if setup.get("kind") == AGENT:
         runtime = (setup.get("agent") or {}).get("runtime")
         return f"now an agent ({runtime})" if runtime else "now an agent"
-    return "now a single judge"
+    return "now a single LLM-as-a-judge"
 
 
 def _differ(old: dict, new: dict) -> set[str]:

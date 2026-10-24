@@ -8,8 +8,8 @@
   terminal, `mark`, the Measure screen and on the marking page's end card.
 - A table judge whose grades changed in the newest results is re-checked on them (no AI
   call); marks added after a check are re-checked; after a check the result and `fix`
-  describe the judge in the newest results.
-- `fix` for a judge it can't ask never asks for a rule.txt; report.html says the same.
+  describe the LLM-as-a-judge in the newest results.
+- `fix` for an LLM-as-a-judge it can't ask never asks for a rule.txt; report.html says the same.
 - Read-only `.judgekeeper/`, `--no-browser` again, two runs at once, the same next step in
   the terminal and the report, the grammar of "finds no results", exit codes, a wrong flag
   or a flag before the command, and a `--judge-model` remembered.
@@ -50,7 +50,7 @@ def here(tmp_path, monkeypatch):
 @pytest.fixture
 def no_calls(monkeypatch):
     monkeypatch.setattr("judgekeeper.again.run_process",
-                        lambda *a, **k: pytest.fail("the judge was asked"))
+                        lambda *a, **k: pytest.fail("the LLM-as-a-judge was asked"))
 
 
 def _index(value) -> int:
@@ -59,7 +59,7 @@ def _index(value) -> int:
 
 
 def _mark(ws: Workspace, person=None, only=None) -> None:
-    """The person marks the answers on the page: as the judge did, or `person[i]` for answer
+    """The person marks the answers on the page: as the LLM-as-a-judge did, or `person[i]` for answer
     i; `only`: just those answers."""
     session = StartSession(ws)
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
@@ -86,7 +86,7 @@ def test_a_results_file_given_by_path_keeps_the_marks_in_the_project(here, capsy
     assert code == 0, out + err
     assert (here / ".judgekeeper" / "start.json").is_file()
     assert not (here / "data" / "a" / "b" / "c" / "d" / ".judgekeeper").exists()
-    assert "File:        data/a/b/c/d/deep.csv" in out
+    assert "File:            data/a/b/c/d/deep.csv" in out
     _mark(Workspace(here), only=range(6))
     (here / "src").mkdir()
     for folder in (here, here / "src"):
@@ -103,7 +103,7 @@ def test_a_results_file_given_by_path_keeps_the_marks_in_the_project(here, capsy
     _mark(Workspace(here))
     code, out, _ = run(capsys, "check")
     assert code == 0, out
-    assert "Your judge has not changed since you marked your answers." in out
+    assert "Your LLM-as-a-judge has not changed since you marked your answers." in out
     assert "You have not marked enough" not in run(capsys, "fix")[1]
     assert not (here / "src" / ".judgekeeper").exists()
 
@@ -133,7 +133,7 @@ def test_stop_and_check_from_a_folder_inside_the_project(here, capsys, monkeypat
     assert "Closed the marking page." in run(capsys, "--stop")[1]
     code, out, _ = run(capsys, "check")
     assert code == 0, out
-    assert "Your judge has not changed since you marked your answers." in out
+    assert "Your LLM-as-a-judge has not changed since you marked your answers." in out
     code, out, _ = run(capsys, "fix")
     assert "You have not marked enough answers yet" not in out
 
@@ -224,12 +224,12 @@ def test_a_table_judge_whose_grades_changed_is_re_checked(here, capsys, no_calls
         flipped[i] = not flipped[i]
     table_project(here, flipped)
     out = run(capsys)[1]
-    assert "Your judge is the same" not in out
-    assert "Your judge's grades changed on 7 of your marked answers." in flat(out)
-    assert _next(out) == ("Next: run `judgekeeper check` to re-check your changed judge on "
+    assert "Your LLM-as-a-judge is the same" not in out
+    assert "Your LLM-as-a-judge's grades changed on 7 of your marked answers." in flat(out)
+    assert _next(out) == ("Next: run `judgekeeper check` to re-check your changed LLM-as-a-judge on "
                           "your marks.")
     _, out, _ = run(capsys, "check")
-    assert "Your judge's grades changed on 7 of your marked answers." in flat(out)
+    assert "Your LLM-as-a-judge's grades changed on 7 of your marked answers." in flat(out)
     assert "Re-checked on all 40 of your marks:" in out
     assert "has not changed" not in out
 
@@ -244,8 +244,8 @@ def test_a_table_judge_made_worse_stays_worse(here, capsys, no_calls):
     code, out, _ = run(capsys, "check")
     assert code == 1 and "Worse" in out
     out = run(capsys)[1]
-    assert "Your judge's grades changed on 40 of your marked answers." in flat(out)
-    assert "Your judge is the same" not in out
+    assert "Your LLM-as-a-judge's grades changed on 40 of your marked answers." in flat(out)
+    assert "Your LLM-as-a-judge is the same" not in out
 
 
 def _rule_project(root, verdicts, rule):
@@ -276,7 +276,7 @@ def test_after_a_check_the_result_and_fix_are_about_the_new_judge(here, capsys, 
     assert run(capsys)[0] == 0
     person = {i: "pass" for i in range(25, 31)}  # the old judge is too strict on 6
     _mark(Workspace(here), person)
-    assert "You and your judge disagreed on 6 of 50 answers." in flat(run(capsys)[1])
+    assert "You and your LLM-as-a-judge disagreed on 6 of 50 answers." in flat(run(capsys)[1])
     new = split(25, 25)
     new[25:31] = [True] * 6  # the new rule fixes those 6
     new[0] = False  # and breaks 1
@@ -284,9 +284,9 @@ def test_after_a_check_the_result_and_fix_are_about_the_new_judge(here, capsys, 
     code, out, _ = run(capsys, "check")
     assert code == 0, out
     code, out, _ = run(capsys)
-    assert "You and your judge disagreed on 1 of 50 answers." in flat(out)
-    assert "This result is about your judge as it was" not in out
-    assert "Your judge is the same" in out or "Your judge changed" not in out
+    assert "You and your LLM-as-a-judge disagreed on 1 of 50 answers." in flat(out)
+    assert "This result is about your LLM-as-a-judge as it was" not in out
+    assert "Your LLM-as-a-judge is the same" in out or "Your LLM-as-a-judge changed" not in out
     run(capsys, "fix")
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
     assert RULE_B in mistakes and RULE_A not in mistakes
@@ -295,7 +295,7 @@ def test_after_a_check_the_result_and_fix_are_about_the_new_judge(here, capsys, 
 
 # 6. fix for a judge it can't ask -------------------------------------------------------------
 
-CANT_ASK = "judgekeeper can't ask this judge itself."
+CANT_ASK = "judgekeeper can't ask this LLM-as-a-judge itself."
 NEXT_CANT_ASK = ("Next: change its rule where your eval keeps it, run your eval, then run "
                  "`judgekeeper check`.")
 
@@ -306,7 +306,7 @@ def _table_needs_work(root, capsys):
     assert run(capsys)[0] == 0
     _mark(Workspace(root), {i: "fail" for i in range(12)} | {i: "pass" for i in range(30, 34)})
     _, out, _ = run(capsys)
-    assert "Result: your judge needs work." in out, out
+    assert "Result: your LLM-as-a-judge needs work." in out, out
 
 
 def test_fix_for_a_table_judge_never_asks_for_a_rule(here, capsys):
@@ -326,8 +326,8 @@ def test_the_report_says_the_same_for_a_judge_it_cant_ask(here, capsys):
     report = flat((here / ".judgekeeper" / "report.html").read_text(encoding="utf-8"))
     assert "again to test it" not in report
     assert ("In your project folder, run <code>judgekeeper fix</code>. It lists the answers your "
-            "judge got wrong and saves them in .judgekeeper/fix/. judgekeeper can&#x27;t re-run "
-            "this kind of judge itself, so change its rule where your eval keeps it, run your "
+            "LLM-as-a-judge got wrong and saves them in .judgekeeper/fix/. judgekeeper can&#x27;t re-run "
+            "this kind of LLM-as-a-judge itself, so change its rule where your eval keeps it, run your "
             "eval, then run <code>judgekeeper check</code>.") in report
 
 

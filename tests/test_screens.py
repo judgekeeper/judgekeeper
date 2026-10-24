@@ -57,18 +57,20 @@ FIRST = [
     *HEAD,
     "Step 1 of 5: Find",
     "",
-    "Eval tool:   promptfoo",
-    "File:        results.json",
-    "Answers:     40 answers",
-    "Judge:       openai:gpt-4.1-mini",
-    f'Judge rule:  "{RULE}"',
+    "Eval tool:       promptfoo",
+    "File:            results.json",
+    "Answers:         40 answers",
+    "LLM-as-a-judge:  openai:gpt-4.1-mini",
+    f'Rule:            "{RULE[:53]}…"',
+    "                 (shortened; full rule in promptfooconfig.yaml)",
     "Read from your file:",
     "  question   each test's vars",
     "  answer     each test's output",
-    "  grade      your judge's Pass or Fail",
+    "  grade      your LLM-as-a-judge's Pass or Fail",
     "",
-    "Your judge passed 23 answers and failed 17.",
-    "Checked: your judge gave every answer a clear Pass or Fail.",
+    "Your LLM-as-a-judge passed 23 answers and failed 17.",
+    "Checked: your LLM-as-a-judge gave every answer a clear Pass or",
+    "Fail.",
     "",
     "Step 2 of 5: Mark",
     "",
@@ -76,7 +78,8 @@ FIRST = [
 MARK_TEXT = [
     "It shows the answers",
     "one at a time. Mark each one Pass or Fail, the way you want your",
-    "judge to decide. Your judge's grade stays hidden.",
+    "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays",
+    "hidden.",
 ]
 
 
@@ -102,8 +105,8 @@ def test_screen_1_without_a_browser_prints_the_link(here, capsys, no_browser):
     assert lines[at + 3].startswith("http://127.0.0.1:") and "?token=" in lines[at + 3]
     assert lines[at + 4:at + 7] == [
         "It shows the answers one at a time. Mark each one Pass or Fail,",
-        "the way you want your judge to decide. Your judge's grade stays",
-        "hidden."]
+        "the way you want your LLM-as-a-judge to decide. Your",
+        "LLM-as-a-judge's grade stays hidden."]
     assert lines[-1] == 'Next: mark until "See your result" appears, then click it.'
 
 
@@ -111,16 +114,16 @@ def test_screen_1_without_a_browser_prints_the_link(here, capsys, no_browser):
 def test_screen_1_a_long_rule_is_one_line_cut_short(here, capsys):
     promptfoo_project(here, split(23, 17), rubric=LONG_RULE)
     _, lines = screen(capsys)
-    at = next(i for i, line in enumerate(lines) if line.startswith("Judge rule:"))
-    assert lines[at] == 'Judge rule:  "The answer must fully solve the customer\'s problem, be po…"'
-    assert lines[at + 1] == "             (shortened; full rule in promptfooconfig.yaml)"
+    at = next(i for i, line in enumerate(lines) if line.startswith("Rule:"))
+    assert lines[at] == 'Rule:            "The answer must fully solve the customer\'s problem, b…"'
+    assert lines[at + 1] == "                 (shortened; full rule in promptfooconfig.yaml)"
 
 
 def test_screen_1_a_free_check_that_finds_a_problem(here, capsys):
     promptfoo_project(here, split(40, 0), rubric=RULE)
     _, lines = screen(capsys)
     at = next(i for i, line in enumerate(lines) if line.startswith("Checked:"))
-    assert lines[at].startswith("Checked: your judge passed every answer.")
+    assert lines[at].startswith("Checked: your LLM-as-a-judge passed every answer.")
 
 
 def test_screen_2_again_before_a_first_result(here, capsys):
@@ -256,21 +259,22 @@ def test_screen_8_help(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[:23] == [
+    assert lines[:24] == [
         "Check your LLM-as-a-judge in 5 steps.",
         "",
-        "  1. Find      judgekeeper          finds your eval results and the judge",
-        "                                    that graded them",
+        "  1. Find      judgekeeper          finds your eval results and the",
+        "                                    LLM-as-a-judge that graded them",
         "  2. Mark      in your browser      you mark answers Pass or Fail",
-        "  3. Measure   judgekeeper          shows how often your judge agrees with",
-        "                                    you, and where it goes wrong",
-        "  4. Fix       judgekeeper fix      if your judge needs work, write a better",
-        "                                    rule. promptfoo, DeepEval, Inspect AI and",
-        "                                    MLflow: tests it on marks kept aside. Your",
-        "                                    own file or record(): change the rule where",
-        "                                    your eval keeps it, then judgekeeper check",
-        "  5. Re-check  judgekeeper check    after you change your judge, see if it",
-        "                                    still agrees with you",
+        "  3. Measure   judgekeeper          shows how often your LLM-as-a-judge agrees",
+        "                                    with you, and where it goes wrong",
+        "  4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, write a",
+        "                                    better rule. promptfoo, DeepEval,",
+        "                                    Inspect AI and MLflow: tests it on marks",
+        "                                    kept aside. Your own file or record():",
+        "                                    change the rule where your eval keeps it,",
+        "                                    then judgekeeper check",
+        "  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, see",
+        "                                    if it still agrees with you",
         "",
         "judgekeeper can read results from promptfoo, DeepEval, Inspect AI,",
         "MLflow, or a CSV or JSONL file with these columns:",
@@ -281,11 +285,13 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[23:28] == [
-        "  fix     see where your judge goes wrong, then test a better rule (promptfoo,",
-        "          DeepEval, Inspect AI, MLflow) or change it in your eval (your own",
-        "          file, record())",
-        "  check   re-check your LLM-as-a-judge on your marks after a change", ""]
+    assert lines[24:29] == [
+        "  fix     see where your LLM-as-a-judge goes wrong, then test a better rule",
+        "          (promptfoo, DeepEval, Inspect AI, MLflow) or change it in your eval",
+        "          (your own file, record())",
+        "  check   re-check your LLM-as-a-judge on your marks after a change",
+        "",
+    ]
     assert "Options:" in lines
     for gone in ("--fast", "--hook", "--on", "--off", "Turn on", "coding agent"):
         assert gone not in out, gone
@@ -322,8 +328,8 @@ def test_the_result_is_step_3_and_speaks_to_the_person(here, capsys):
     assert code == 0
     assert lines[2:4] == ["Step 3 of 5: Measure", ""]
     assert "The marking page is still open if you want to mark more answers." in lines
-    assert lines[-2:] == ["Next: nothing to do. When you change your judge or update your",
-                          "eval tool, run `judgekeeper check`."]
+    assert lines[-2:] == ["Next: nothing to do. When you change your LLM-as-a-judge or",
+                          "update your eval tool, run `judgekeeper check`."]
 
 
 def test_a_switch_to_another_eval_tool_gives_no_check_verdict(here, capsys):
@@ -342,7 +348,7 @@ def test_a_switch_to_another_eval_tool_gives_no_check_verdict(here, capsys):
         "Step 5 of 5: Re-check",
         "",
         "Your results now come from DeepEval, not promptfoo.",
-        "judgekeeper can't compare judges across two eval tools.",
+        "judgekeeper can't compare LLM-as-a-judge results across two eval tools.",
         "",
         "Next: run `judgekeeper` to start fresh with DeepEval.",
     ]
@@ -365,7 +371,7 @@ def test_old_marks_from_another_tool_give_no_mixed_result(here, capsys):
     assert code == 3
     assert "Your marks are for other results" in " ".join(text.split())
     assert "Start over with these results?" in text
-    for word in ("Step 3 of 5", "your judge also passed", "Of the answers you passed"):
+    for word in ("Step 3 of 5", "your LLM-as-a-judge also passed", "Of the answers you passed"):
         assert word not in text, word
 
 
@@ -377,7 +383,7 @@ def test_wrapping_keeps_commands_whole_and_never_starts_a_line_with_next():
     assert all(len(line) <= 64 for line in lines if "`" not in line)
     assert any(line.startswith("`judgekeeper mark --tool promptfoo --metric x`")
                for line in lines)
-    fake = wrap("Your judge: " + "x " * 26 + "Next: run `other`.")
+    fake = wrap("Your LLM-as-a-judge: " + "x " * 26 + "Next: run `other`.")
     assert not [line for line in fake if line.startswith("Next:")]
     for n in range(20, 34):
         lines = wrap("a " * n + "Inspect AI, MLflow")
@@ -406,4 +412,4 @@ def test_a_table_is_named_by_its_file_kind(here, capsys, name, kind):
                 for i, v in enumerate(split(15, 15))]
         (here / name).write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     _, lines = screen(capsys)
-    assert f"Eval tool:   your own {kind} file" in lines
+    assert f"Eval tool:       your own {kind} file" in lines

@@ -85,7 +85,7 @@ def test_an_agent_grader_is_not_asked(tmp_path, grader):
     ws = _checked(tmp_path)
     _graded_by(tmp_path, grader)
     p = make_plan(ws, AgainOptions(), dry=False)
-    assert p.status == "cant" and "your judge is an agent that can use tools" in p.why
+    assert p.status == "cant" and "your LLM-as-a-judge is an agent that can use tools" in p.why
 
 
 def test_a_model_named_like_an_agent_is_still_asked(tmp_path):
@@ -114,7 +114,7 @@ def test_a_package_rule_in_rule_txt_runs_nothing(here, capsys, judge):  # noqa: 
     _, out = run_fix(capsys, "--yes")
     flat = " ".join(out.split())
     assert judge["evals"] == 0
-    assert "your judge runs your own code (a rule that loads a file or package" in flat
+    assert "your LLM-as-a-judge runs your own code (a rule that loads a file or package" in flat
     assert "AI calls" not in flat
 
 
@@ -488,7 +488,7 @@ def test_a_huge_rule_txt_is_refused(here, capsys, judge):  # noqa: F811
     (ws.dir / "fix" / "rule.txt").write_text("Be kind. " * 10_000, encoding="utf-8")
     code, out = run_fix(capsys, "--yes")
     assert code == 3 and judge["evals"] == 0
-    assert "rule.txt is over 64 KB; a judge's rule is a few sentences." in " ".join(out.split())
+    assert "rule.txt is over 64 KB; an LLM-as-a-judge's rule is a few sentences." in " ".join(out.split())
 
 
 def test_a_huge_or_linked_server_json_is_not_read(tmp_path):

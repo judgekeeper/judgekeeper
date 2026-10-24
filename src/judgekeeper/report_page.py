@@ -16,12 +16,12 @@ can see), how many more are kept aside (the hidden marks: fix.py keeps those to 
 rule fairly), More details (the estimates), and Fix it. Which of these show depends on the
 result's level (targets.level):
 
-| level                 | headline                          | shown                                |
-|-----------------------|-----------------------------------|--------------------------------------|
-| gate                  | Your judge is good enough to use. | all but Fix it                       |
-| not_gate              | Your judge needs work.            | all                                  |
-| check                 | Too early to tell.                | all but Fix it (it has real numbers) |
-| too_early, no result  | Too early to tell.                | the counts only                      |
+| level                 | headline                                   | shown                                |
+|-----------------------|--------------------------------------------|--------------------------------------|
+| gate                  | Your LLM-as-a-judge is good enough to use. | all but Fix it                       |
+| not_gate              | Your LLM-as-a-judge needs work.            | all                                  |
+| check                 | Too early to tell.                         | all but Fix it (it has real numbers) |
+| too_early, no result  | Too early to tell.                         | the counts only                      |
 """
 
 from __future__ import annotations
@@ -379,8 +379,9 @@ def disagreed(c: dict) -> str:
     (front.agreement_lines), the numbers in bold."""
     d, n = c["strict"] + c["easy"], c["passed"] + c["failed"]
     if not d:
-        return f"You and your judge agreed on all <b>{n}</b> {'answer' if n == 1 else 'answers'}."
-    return f"You and your judge disagreed on <b>{d}</b> of <b>{n}</b> answers."
+        return (f"You and your LLM-as-a-judge agreed on all <b>{n}</b> "
+                f"{'answer' if n == 1 else 'answers'}.")
+    return f"You and your LLM-as-a-judge disagreed on <b>{d}</b> of <b>{n}</b> answers."
 
 
 def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
@@ -413,8 +414,8 @@ def count_line(did: str, n: int, judge_passed: int, judge_failed: int) -> str:
     """"You passed 15 answers. Of those, your judge passed 7 and failed 8.", numbers in mono."""
     def mono(x: int) -> str:
         return f'<span class="mono">{x}</span>'
-    return (f"You {did} {mono(n)} {'answer' if n == 1 else 'answers'}. Of those, your judge "
-            f"passed {mono(judge_passed)} and failed {mono(judge_failed)}.")
+    return (f"You {did} {mono(n)} {'answer' if n == 1 else 'answers'}. Of those, your "
+            f"LLM-as-a-judge passed {mono(judge_passed)} and failed {mono(judge_failed)}.")
 
 
 def _counts(r: dict, c: dict) -> str:
@@ -431,9 +432,9 @@ def _counts(r: dict, c: dict) -> str:
     block = r.get("judge_check") or {}
     none = sum(int(block.get(k) or 0) for k in NO_DECISION)
     if none:
-        row += (f'<p class="left-out band">Your judge gave no Pass or Fail on '
-                f'{_plural(none, "answer", "answers")}. '
-                f'{"It is" if none == 1 else "They are"} left out.</p>')
+        row += ('<p class="left-out band">Your LLM-as-a-judge gave no Pass or Fail on '
+                f'{_plural(none, "answer", "answers")}. {"It is" if none == 1 else "They are"} '
+                'left out.</p>')
     from judgekeeper.start_label import second_thoughts
 
     for line in second_thoughts(r.get("made")):
@@ -521,7 +522,7 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
     rule, `hidden`), "Show all" past ROWS_SHOWN rows, the table. Each row is followed by its
     reason box on the live page (`live`), or by the person's reasons, read-only, in
     report.html."""
-    why = f"Why your judge {judge} it"
+    why = f"Why your LLM-as-a-judge {judge} it"
     parts, own = parts or [], own or []
     words = {c["id"]: c["text"] for c in own}
     count = (f"{len(rows)} shown; {hidden} more {'is' if hidden == 1 else 'are'} kept aside to "
@@ -570,8 +571,8 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     out = []
     if live and mistakes:
         out.append(f'<div class="band"><p class="add-why">{_code_line(reasons.ADD)}</p></div>')
-    for key, said, judge in (("easy", "You said Fail, your judge said Pass", "pass"),
-                             ("strict", "You said Pass, your judge said Fail", "fail")):
+    for key, said, judge in (("easy", "You said Fail, your LLM-as-a-judge said Pass", "pass"),
+                             ("strict", "You said Pass, your LLM-as-a-judge said Fail", "fail")):
         rows = [m for m in mistakes if m.get("judge") == judge]
         hidden = max(0, c[key] - len(rows))
         if rows or hidden:
@@ -606,7 +607,7 @@ def _details(r: dict) -> str:
     rows = []
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
         est, between = estimate(r.get(key), r.get(f"{key}_interval"))
-        rows.append((f"When you say {said}, your judge also says {said}", est, between))
+        rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-label="What kappa means">ⓘ</button><span class="tip" '
@@ -619,7 +620,7 @@ def _details(r: dict) -> str:
              f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
     return ('<section class="details band" aria-labelledby="details-h">'
             '<h2 id="details-h">More details</h2><table class="panel">'
-            "<caption>How often your judge agrees with you (estimates)</caption>"
+            "<caption>How often your LLM-as-a-judge agrees with you (estimates)</caption>"
             '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
             '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
             f"</tr></thead><tbody>{body}</tbody></table></section>")
@@ -635,13 +636,13 @@ def _fix(r: dict) -> str:
     rule = judge.get("rule") if judge.get("one_rule", True) else None
     saved = f"{FOLDER}/fix/"
     if can_test(judge.get("tool"), rule):  # no tool (an own file): it can't be asked either
-        then = (f"It lists the answers your judge got wrong, saves them in {saved} and tells you "
-                f"where to write a better rule. Then run <code>{fix}</code> again to test it.")
+        then = (f"It lists the answers your LLM-as-a-judge got wrong, saves them in {saved} and "
+                f"tells you where to write a better rule. Then run <code>{fix}</code> again to "
+                "test it.")
     else:
         check = NEXT_CANT_ASK.format(command=commands(r)["check"]).split("`")
-        then = (f"It lists the answers your judge got wrong and saves them in {saved}. "
-                f"{_e(CANT_RERUN)}, so {_e(check[0])}"
-                f"<code>{_e(check[1])}</code>{_e(check[2])}")
+        then = (f"It lists the answers your LLM-as-a-judge got wrong and saves them in {saved}. "
+                f"{_e(CANT_RERUN)}, so {_e(check[0])}<code>{_e(check[1])}</code>{_e(check[2])}")
     return ('<section class="fix band" aria-labelledby="fix-h"><div class="fix-in">'
             '<h2 id="fix-h">Fix it</h2>'
             f"<p>In your project folder, run <code>{fix}</code>. {then}</p>"
@@ -654,11 +655,11 @@ def _last_check(last: dict | None, worse: str) -> str:
     terminal gave, and the way back. The rest of the page stays the old judge's result."""
     if not last:
         return ""
-    judge = f"Your new judge ({_e(last['judge'])})" if last.get("judge") else "Your new judge"
+    judge = "Your new LLM-as-a-judge" + (f" ({_e(last['judge'])})" if last.get("judge") else "")
     said = "".join(f"<p>{_e(x)}</p>" for x in last.get("lines") or [])
     return (f'<section class="band last-check" aria-labelledby="last-h"><h2 id="last-h">'
             f"Last check</h2><p>{judge}: <b>Worse</b>. The result below is still your old "
-            f"judge's.</p>{said}<p>{_code_line(worse)}</p></section>")
+            f"LLM-as-a-judge's.</p>{said}<p>{_code_line(worse)}</p></section>")
 
 
 def page(r: dict, back: str | None = None, fixing: dict | None = None,

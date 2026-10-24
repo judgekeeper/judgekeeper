@@ -516,9 +516,9 @@ def guess(units: list, each: str | None = None) -> Guess:
     scores = [seg for seg in scores if seg not in rules]
     if not scores and rules:
         raise MapError(f"its score column {_as_path(rules[0])} is a rule in code (a "
-                       f"{_WORD.findall(rules[0][-1])[0].lower()} match), not an LLM judge")
+                       f"{_WORD.findall(rules[0][-1])[0].lower()} match), not an LLM-as-a-judge")
     if not scores:
-        raise MapError("no judge verdicts were found in it")
+        raise MapError("no LLM-as-a-judge verdicts were found in it")
     if sides:
         placed = []
         for seg in scores:

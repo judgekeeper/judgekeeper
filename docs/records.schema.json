@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "judgekeeper records, version 2",
-  "description": "One judged answer per JSON line: a judge's verdict (annotator_kind LLM), a person's label (HUMAN) or a code check (CODE). Field names follow OpenInference annotations. Only a verdict is needed in practice (label or score); every field is optional. Fields not listed here are allowed and kept. A record without schema_version is version 1, which has the same fields minus metadata, rule, trajectory, outcome and app_version.",
+  "description": "One judged answer per JSON line: an LLM-as-a-judge's verdict (annotator_kind LLM), a person's label (HUMAN) or a code check (CODE). Field names follow OpenInference annotations. Only a verdict is needed in practice (label or score); every field is optional. Fields not listed here are allowed and kept. A record without schema_version is version 1, which has the same fields minus metadata, rule, trajectory, outcome and app_version.",
   "type": "object",
   "properties": {
     "schema_version": {
@@ -21,11 +21,11 @@
       ]
     },
     "name": {
-      "description": "Which judge, metric or criterion. Default: judge.",
+      "description": "Which LLM-as-a-judge, metric or criterion. Default: judge.",
       "$ref": "#/$defs/text"
     },
     "annotator_kind": {
-      "description": "LLM (a judge's verdict, the default), HUMAN (a person's label) or CODE (a code check, left out). Any case; LLM_JUDGE, JUDGE, HUMAN_ANNOTATION and HEURISTIC are read as those.",
+      "description": "LLM (an LLM-as-a-judge's verdict, the default), HUMAN (a person's label) or CODE (a code check, left out). Any case; LLM_JUDGE, JUDGE, HUMAN_ANNOTATION and HEURISTIC are read as those.",
       "type": [
         "string",
         "null"
@@ -52,7 +52,7 @@
       ]
     },
     "explanation": {
-      "description": "The judge's reason.",
+      "description": "The LLM-as-a-judge's reason.",
       "$ref": "#/$defs/text"
     },
     "run": {
@@ -70,7 +70,7 @@
       "description": "The answer that was judged, as text or any JSON."
     },
     "evaluator": {
-      "description": "The judge's identity. A string must hold this object as JSON (as a CSV cell does).",
+      "description": "The LLM-as-a-judge's identity. A string must hold this object as JSON (as a CSV cell does).",
       "anyOf": [
         {
           "type": [
@@ -88,7 +88,7 @@
       "$ref": "#/$defs/text"
     },
     "metadata": {
-      "description": "Anything else: a criterion name, a run id, an A/B version. Kept and passed on; never part of the judge's identity.",
+      "description": "Anything else: a criterion name, a run id, an A/B version. Kept and passed on; never part of the LLM-as-a-judge's identity.",
       "type": [
         "object",
         "null"
@@ -132,19 +132,19 @@
       "type": "object",
       "properties": {
         "provider": {
-          "description": "Who serves the judge's model, e.g. anthropic, openai.",
+          "description": "Who serves the LLM-as-a-judge's model, e.g. anthropic, openai.",
           "$ref": "#/$defs/text"
         },
         "model": {
-          "description": "The judge's model.",
+          "description": "The LLM-as-a-judge's model.",
           "$ref": "#/$defs/text"
         },
         "prompt": {
-          "description": "The judge's prompt; judgekeeper keeps only its hash.",
+          "description": "The LLM-as-a-judge's prompt; judgekeeper keeps only its hash.",
           "$ref": "#/$defs/text"
         },
         "temperature": {
-          "description": "The judge's temperature.",
+          "description": "The LLM-as-a-judge's temperature.",
           "anyOf": [
             {
               "type": [
@@ -171,11 +171,11 @@
           "$ref": "#/$defs/text"
         },
         "endpoint": {
-          "description": "The endpoint the judge was called at; null means the provider's default.",
+          "description": "The endpoint the LLM-as-a-judge was called at; null means the provider's default.",
           "$ref": "#/$defs/text"
         },
         "rule": {
-          "description": "The judge's rule in words (GEval criteria and steps, an llm-rubric value). Hashed into the prompt hash when there is no prompt or prompt_hash.",
+          "description": "The LLM-as-a-judge's rule in words (GEval criteria and steps, an llm-rubric value). Hashed into the prompt hash when there is no prompt or prompt_hash.",
           "$ref": "#/$defs/text"
         }
       }

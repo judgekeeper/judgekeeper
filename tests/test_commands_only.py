@@ -1,5 +1,5 @@
 """1.0 is commands a person runs. judgekeeper writes only inside .judgekeeper/: a whole run
-(the first look, marking, the result, a re-check that asks the judge) on a git project leaves
+(the first look, marking, the result, a re-check that asks the LLM-as-a-judge) on a git project leaves
 every other file as it was, `.claude/`, `.cursor/`, `.git/hooks/` and `.pre-commit-config.yaml`
 included. There is no page that turns on automatic checks, and the flags that served them
 (`check --on`, `--off`, `--hook`, `--fast`, `--ci`, `--baseline`, `--port`) are a usage error
@@ -88,7 +88,7 @@ def test_a_whole_run_changes_nothing_outside_judgekeeper(here, capsys, judge):  
     before = _tree(here)
     code, out, _ = _cli(capsys, "check", "--yes")
     assert code == 1, out
-    assert "asks your new judge about" in out and "Re-checked on all 50 of your marks:" in out
+    assert "asks your new LLM-as-a-judge about" in out and "Re-checked on all 50 of your marks:" in out
     assert _tree(here) == before
     assert not (here / ".claude" / "settings.local.json").exists()
     assert not (here / ".cursor" / "hooks.json").exists()

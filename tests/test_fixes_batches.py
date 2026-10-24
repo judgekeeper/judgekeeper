@@ -1,7 +1,7 @@
 """Batches: what new answers joining as batches got wrong.
 
 - a later batch marked in two sittings gets the same share kept aside per stratum.
-- after "Worse", a waiting batch never brings back the "re-check your changed judge" loop.
+- after "Worse", a waiting batch never brings back the "re-check your changed LLM-as-a-judge" loop.
 - new answers that came with changed grades wait, and the screen says so.
 - "Your eval ran again" is said once, not on every run after a batch was added.
 - the marks of a batch that doesn't count yet are named apart from the ones that do.
@@ -35,7 +35,7 @@ def _index(value) -> int:
 
 
 def _mark(ws: Workspace, person=None, only=None) -> None:
-    """The person marks answers on the page: as the judge did, or `person[i]` for answer i;
+    """The person marks answers on the page: as the LLM-as-a-judge did, or `person[i]` for answer i;
     `only`: just those answers."""
     session = StartSession(ws)
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
@@ -97,7 +97,7 @@ def test_a_later_batch_marked_in_two_sittings_gets_the_same_share_kept_aside(her
 
 # after "Worse", a waiting batch keeps one way out ----------------------------------------
 
-NEXT_WORSE_TABLE = ("Next: go back to your old judge, or change its rule; then run your eval "
+NEXT_WORSE_TABLE = ("Next: go back to your old LLM-as-a-judge, or change its rule; then run your eval "
                     "and `judgekeeper check`.")
 
 
@@ -122,7 +122,7 @@ def test_after_worse_a_waiting_batch_does_not_bring_back_the_loop(here, capsys, 
     assert _next(out) == NEXT_WORSE_TABLE
     code, out, _ = run(capsys, "--no-browser")
     assert _next(out) == NEXT_WORSE_TABLE, out
-    assert "re-check your changed judge" not in out
+    assert "re-check your changed LLM-as-a-judge" not in out
 
 
 # new answers that came with changed grades wait ------------------------------------------
@@ -135,7 +135,7 @@ def test_new_answers_with_changed_grades_wait_and_the_screen_says_so(here, capsy
     run(capsys, "--no-browser")
     regraded = [(not v) if i % 6 == 0 else v for i, v in enumerate(split(20, 16))]
     table_project(here, regraded + split(10, 10))  # 20 new answers, and grades changed
-    line = ("20 new answers came with changed grades, so they wait until your changed judge "
+    line = ("20 new answers came with changed grades, so they wait until your changed LLM-as-a-judge "
             "is checked.")
     for argv in (("mark", "--no-browser"), ("--no-browser",)):
         _, out, _ = run(capsys, *argv)

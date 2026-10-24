@@ -1,7 +1,7 @@
-"""Results files with no LLM judge in them: checks that are rules in code (promptfoo's
+"""Results files with no LLM-as-a-judge in them: checks that are rules in code (promptfoo's
 `contains`, DeepEval's Exact Match, a run with no scorer), and promptfoo's table output, which
 keeps only each test's overall pass. A file with no judge is left out with one line; only when
-no file has a judge is it said, once. A test's overall pass is never a judge's verdict."""
+no file has an LLM-as-a-judge is it said, once. A test's overall pass is never an LLM-as-a-judge's verdict."""
 
 from __future__ import annotations
 
@@ -42,8 +42,8 @@ def test_a_promptfoo_file_with_no_judge_is_left_out(here, capsys):
     _write(here / "smoke.json", _code_only(promptfoo_data(split(5, 5),
                                                           created="2026-10-05T10:00:00.000Z")))
     code, out, err = run(capsys, "--no-browser")
-    assert "smoke.json is left out: no LLM judge in it." in _flat(out)
-    assert "Answers:     32 answers" in out
+    assert "smoke.json is left out: no LLM-as-a-judge in it." in _flat(out)
+    assert "Answers:         32 answers" in out
     assert code == 0, out + err
 
 
@@ -77,7 +77,7 @@ def test_deepeval_metrics_with_no_model_are_rules_in_code(here, capsys):
     text = _flat(out + err)
     assert ("These metrics are rules in code, not an LLM-as-a-judge. judgekeeper checks an "
             "LLM-as-a-judge.") in text
-    assert "Your judge" not in text and "Step 2 of 5" not in text
+    assert "Your LLM-as-a-judge" not in text and "Step 2 of 5" not in text
     assert code == 3
 
 
@@ -115,7 +115,7 @@ def test_promptfoos_table_output_is_named_never_read(here, capsys):
     _write(here / "table.json", TABLE)
     code, out, err = run(capsys, "--no-browser")
     text = _flat(out + err)
-    assert ("table.json is promptfoo's table output, which doesn't keep the judge's own "
+    assert ("table.json is promptfoo's table output, which doesn't keep the LLM-as-a-judge's own "
             "decisions.") in text
     assert "`promptfoo eval -o results.json`" in text
     assert "own format" not in text and "Step 2 of 5" not in text
@@ -126,7 +126,7 @@ def test_promptfoos_table_output_given_as_the_path(here, capsys):
     _write(here / "table.json", TABLE)
     assert find.classify_file(here / "table.json") is None
     code, out, err = run(capsys, "table.json", "--no-browser")
-    assert ("table.json is promptfoo's table output, which doesn't keep the judge's own "
+    assert ("table.json is promptfoo's table output, which doesn't keep the LLM-as-a-judge's own "
             "decisions.") in _flat(out + err)
     assert code == 2
 
@@ -136,5 +136,5 @@ def test_table_output_next_to_full_results_is_left_out(here, capsys):
     _write(here / "results.json", promptfoo_data(split(16, 16)))
     code, out, err = run(capsys, "--no-browser")
     assert "table.json is promptfoo's table output" in _flat(out)
-    assert "Answers:     32 answers" in out
+    assert "Answers:         32 answers" in out
     assert code == 0, out + err

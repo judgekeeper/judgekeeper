@@ -95,45 +95,45 @@ NEXT_ALL_QUESTIONS = "run your eval on all your questions, then run `{command}`.
 VERDICT_WORDS = {"worse": "Worse", "not_sure": "Not sure",
                  "no_drop": f"No drop bigger than {round(targets.NO_DROP_MARGIN * 100)} points"}
 
-CONFIG_NEWER = ("Your judge's settings changed after your last eval run, so the grades "
+CONFIG_NEWER = ("Your LLM-as-a-judge's settings changed after your last eval run, so the grades "
                 "judgekeeper has are out of date.")
 SAME = "Same model, same rule, same eval tool."
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
-ASK_FIRST = ("To re-check, judgekeeper asks your new judge about {which}{n}, twice each. That "
-             "is {calls}, paid with your own key.{download} Asking twice shows how much the "
-             "judge varies by itself.")
+ASK_FIRST = ("To re-check, judgekeeper asks your new LLM-as-a-judge about {which}{n}, twice each. "
+             "That is {calls}, paid with your own key.{download} Asking twice shows how much the "
+             "LLM-as-a-judge varies by itself.")
 DOWNLOADS = " It also downloads promptfoo {version} with npx."  # in the same question
 ASK_TIMES = 2  # a paid re-check asks each answer twice: its own wobble is seen
-WOBBLE = ("Asked twice, your new judge changed its own grade on {k} of your {n}. Differences "
-          "that small can come from that alone.")
-STEADY = "Asked twice, your new judge kept its own grade on all {n}."
+WOBBLE = ("Asked twice, your new LLM-as-a-judge changed its own grade on {k} of your {n}. "
+          "Differences that small can come from that alone.")
+STEADY = "Asked twice, your new LLM-as-a-judge kept its own grade on all {n}."
 GO_AHEAD = "Go ahead? [y/N] "
-CAN_WRITE = "Your judge is an agent that can change files when it runs."
-NOT_ASKED = "Your judge was not asked."
+CAN_WRITE = "Your LLM-as-a-judge is an agent that can change files when it runs."
+NOT_ASKED = "Your LLM-as-a-judge was not asked."
 NEXT_YES = "Next: run `{command}` in your terminal to answer, or `{command} --yes` to go ahead."
 NEXT_LATER = "Next: run `{command}` again when you are ready to re-check your LLM-as-a-judge."
 NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
                    "again; or start over on your new answers with `{new}`.")
-NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your judge."
-NEXT_REST = ("Next: {marks} {were} not re-checked. Run `{command}` again to ask your judge about "
-             "them.")
+NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
+NEXT_REST = ("Next: {marks} {were} not re-checked. Run `{command}` again to ask your "
+             "LLM-as-a-judge about them.")
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
-NEXT_WORSE = "go back to {back}, or change your judge and run `{command}` again."
+NEXT_WORSE = "go back to {back}, or change your LLM-as-a-judge and run `{command}` again."
 # A judge whose results hold no rule (a table): it changes only where the eval keeps it
-NEXT_WORSE_TABLE = ("go back to your old judge, or change its rule; then run your eval and "
-                    "`{command}`.")
+NEXT_WORSE_TABLE = ("go back to your old LLM-as-a-judge, or change its rule; then run your eval "
+                    "and `{command}`.")
 SWITCHED = ("Your results now come from {new}, not {old}.",
-            "judgekeeper can't compare judges across two eval tools.")
+            "judgekeeper can't compare LLM-as-a-judge results across two eval tools.")
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
 STEP = "Step 5 of 5: Re-check"
 NEXT_INSTALL = "Next: run `{install}` in your project, then run `{command}` again."
 NEXT_KEY = "{step}, then run `{command}` again."  # the key the judge needs is not set
-CLOSE = "This was a close copy of your judge, not an exact one: {why}."
+CLOSE = "This was a close copy of your LLM-as-a-judge, not an exact one: {why}."
 WRONG_MODEL = "judgekeeper asked the wrong model ({used}, not {new}), so this check is not saved."
-NEXT_WRONG_MODEL = ("Next: check which model your eval's config names for your judge, run your "
-                    "eval, then run `{command}` again.")
-TRACE_WHY = "your judge reads traces, which may have changed since your eval ran"
+NEXT_WRONG_MODEL = ("Next: check which model your eval's config names for your LLM-as-a-judge, run "
+                    "your eval, then run `{command}` again.")
+TRACE_WHY = "your LLM-as-a-judge reads traces, which may have changed since your eval ran"
 
 
 _n = plural  # textio.plural
@@ -223,8 +223,8 @@ def _newest(state: State):
         why = (scrub(str(e)) if str(e) and not isinstance(e, start.Stop)
                else "they need a choice first, such as which results to read: run "
                     f"`{program()}` to make it")
-        return None, (f"judgekeeper can't read your judge {data.get('metric')} in your newest "
-                      f"results: {why}")
+        return None, (f"judgekeeper can't read your LLM-as-a-judge {data.get('metric')} in your "
+                      f"newest results: {why}")
 
 
 def _configs(found) -> list[Path]:
@@ -411,9 +411,9 @@ def _change_line(old: dict, new: dict, changed: list[str], full: bool) -> str:
     if judge_setup.tool_only(old, new):
         line = f"Your eval tool changed: {judge_setup.tool_words(old, new)}."
         if full:
-            line += " Your judge's rule and model are the same."
+            line += " Your LLM-as-a-judge's rule and model are the same."
         return line
-    return f"Your judge changed: {', '.join(changed)}."
+    return f"Your LLM-as-a-judge changed: {', '.join(changed)}."
 
 
 def _command(state_or_path) -> str:
@@ -504,13 +504,13 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     plan = again.make_plan(ws, again.AgainOptions(times=ASK_TIMES), dry=True, new=view,
                            only=set(ids))
     if plan.status == again.CANT:
-        out.reasons.append(plan.plain or f"Your judge can't be asked again: {plan.why}.")
+        out.reasons.append(plan.plain or f"Your LLM-as-a-judge can't be asked again: {plan.why}.")
         out.not_marked = plan.why == again.NOT_MARKED
         out.install = plan.install
         return out
     if not plan.key_ok:  # which key, and where to set it: never its value
         out.reasons += [*plan.key_lines, NOT_ASKED]
-        out.key_step = plan.key_step or "set the key your judge needs"
+        out.key_step = plan.key_step or "set the key your LLM-as-a-judge needs"
         return out
     wrong = wrong_model(_handed(plan), found)
     if wrong:  # (a): what judgekeeper would hand the eval tool is not the new judge
@@ -532,7 +532,7 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     try:
         fresh = again.run_tool(view, plan, _Quiet())
     except AgainError as e:
-        out.reasons.append(f"Asking your judge again did not finish: {scrub(str(e))}")
+        out.reasons.append(f"Asking your LLM-as-a-judge again did not finish: {scrub(str(e))}")
         out.calls, out.unchecked = plan.calls, len(ids)
         return out
     wrong = wrong_model(fresh.models_used(), found)
@@ -754,8 +754,9 @@ def _group_lines(key: str, g: dict) -> list[str]:
     if not g["n"]:
         return [f"  {SAID[key]}:  none could be re-checked."]
     said = SAID[key].split()[1]  # "passed" or "failed"
-    return [(f"  You {said} {g['n']} {'answer' if g['n'] == 1 else 'answers'}. Your old judge "
-             f"agreed with you on {g['old_right']}, your new judge on {g['new_right']}."),
+    return [(f"  You {said} {g['n']} {'answer' if g['n'] == 1 else 'answers'}. Your old "
+             f"LLM-as-a-judge agreed with you on {g['old_right']}, your new LLM-as-a-judge on "
+             f"{g['new_right']}."),
             *(f"    {line}" for line in paired_lines(g))]
 
 
@@ -906,8 +907,8 @@ def _no_change(state: State) -> str:
     checks = _history(state.ws)
     day = _day(checks[-1].get("time")) if checks else None
     if not checks:
-        return "Your judge has not changed since you marked your answers."
-    return f"Your judge has not changed since your last check{f' ({day})' if day else ''}."
+        return "Your LLM-as-a-judge has not changed since you marked your answers."
+    return f"Your LLM-as-a-judge has not changed since your last check{f' ({day})' if day else ''}."
 
 
 # How many changes the marks have helped pick -------------------------------------------------
@@ -978,7 +979,7 @@ def picks_lines(p: dict, every: bool = False) -> list[str]:
     picked = f"These marks have helped pick {plural(p['n'], 'change')}"
     if not p["ask"]:
         return [picked + "."]
-    return [f"{picked}, so they may now flatter your judge."
+    return [f"{picked}, so they may now flatter your LLM-as-a-judge."
             + ("" if every else f" Mark {PICK_MARKS} new answers for a fair check.")]
 
 
@@ -1006,8 +1007,9 @@ def _free(found, marked: dict[str, str]) -> dict[str, str]:
             if a.id in marked and a.source in newest}
 
 
-GRADES = "Your judge's grades changed on {k} of your marked answers."
-BACK = "Your judge is back to the one you marked with ({model}). Your marks' result still holds."
+GRADES = "Your LLM-as-a-judge's grades changed on {k} of your marked answers."
+BACK = ("Your LLM-as-a-judge is back to the one you marked with ({model}). Your marks' result "
+        "still holds.")
 HOLD = "Your newest results hold {k} of your {n}."  # some marked answers, not all
 ADDED = "You added {n} since your last check."
 
@@ -1144,7 +1146,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         said.say(back)
         marks.append(state.ws.history_jsonl, scrub_value({
             "time": utc_now(), "kind": "check", "trigger": "back", "before": old, "after": new,
-            "changed": ["back to the judge the marks were made on"], "marks": len(state.marks),
+            "changed": ["back to the LLM-as-a-judge the marks were made on"],
+            "marks": len(state.marks),
             "free": 0, "asked": 0, "calls": 0, "groups": {}}))
         _report(state.ws)  # no "Worse" from the other judge on it
         said.say()
@@ -1331,7 +1334,7 @@ def worse_step(old: dict, new: dict, command: str) -> str:
                                  command=command)
     if new.get("rule_hash") is None:
         return NEXT_WORSE_TABLE.format(command=command)
-    return NEXT_WORSE.format(back="the old judge", command=command)
+    return NEXT_WORSE.format(back="the old LLM-as-a-judge", command=command)
 
 
 def last_check(ws: Workspace) -> dict | None:

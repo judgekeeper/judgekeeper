@@ -1,6 +1,6 @@
 """The mapper: a results file in a project's own format, its nested paths listed, and a guess
 at how to read it (what one answer is, the input, the output, the score or verdict, the
-reason, the judge's model). Then readers/mapped.py reads the file with the saved map.
+reason, the LLM-as-a-judge's model). Then readers/mapped.py reads the file with the saved map.
 
 Fixtures are made up (tests/start_projects.py): a history shaped like a homemade DeepEval
 setup's (runs -> cases -> A/B -> scores per criterion), the same in another layout
@@ -127,7 +127,7 @@ def test_a_file_with_no_scores_cannot_be_mapped(tmp_path):
     path = tmp_path / "answers.jsonl"
     path.write_text("".join(json.dumps({"question": f"q{i}", "answer": "a"}) + "\n"
                             for i in range(5)), encoding="utf-8")
-    with pytest.raises(mapper.MapError, match="no judge verdicts"):
+    with pytest.raises(mapper.MapError, match="no LLM-as-a-judge verdicts"):
         mapper.guess(mapper.load(path))
 
 
