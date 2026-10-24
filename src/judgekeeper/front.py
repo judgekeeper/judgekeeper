@@ -131,9 +131,10 @@ NEXT_MORE = "mark more answers, then run `{command}` to see your updated result.
 NEXT_CHECK = "run `{command}` to re-check your changed judge on your marks."
 NEXT_RESULT = ("nothing to do. When you change your judge or update your eval tool, run "
                "`{command}`.")
-NEXT_FIX = "to try a better rule, run `{command}`."
+NEXT_FIX = "to improve your LLM-as-a-judge's rule, run `{command}`."
 NEXT_CONTINUE = "run `{command}` when you want to continue."
-STILL_OPEN = "The marking page is still open if you want to mark more answers."
+STILL_OPEN = ("The marking page is still open. Mark more answers to make these ranges "
+              "narrower, so the numbers are more certain.")
 AGREES = "How often your judge agrees with you (estimates):"
 NEXT_MARK_MORE = "run `{command}` to mark more answers."
 SAY_WHY_NEXT = "The Next step below also lets you say why on these."  # its command once
@@ -693,14 +694,6 @@ def _notes(found: start.Found) -> list[str]:
         out = [w for w in out if DEFAULT_GRADER_NOTE not in w]
     if not pool.answers:  # "none with a clear grade": where the grades came from is moot
         out = [w for w in out if "default grader" not in w]
-    if len(pool.split) == 1:
-        (n, n_pass, n_fail), = pool.split.values()
-        out.append(f"{n} repeats of one answer got different grades ({n_pass} Pass, {n_fail} "
-                   "Fail); each is its own answer.")
-    elif pool.split:
-        repeats = sum(n for n, _, _ in pool.split.values())
-        out.append(f"{len(pool.split)} answers got different grades when graded more than once "
-                   f"({repeats} repeats in all); each repeat is its own answer.")
     if pool.n_human:
         out.append(f"Your results also hold {_n(pool.n_human, 'human label')}. judgekeeper does "
                    "not use them: you mark the answers yourself.")
@@ -892,6 +885,23 @@ def _rule_lines(found: start.Found) -> list[str]:
             f"{INDENT}(shortened{f'; full rule in {where}' if where else ''})"]
 
 
+def repeats_note(answers: int, pool: start.Pool) -> str:
+    """The note under Answers when answers are in the file more than once: repeats with the
+    same grade count once, repeats with different grades each count (freecheck.js says the
+    same)."""
+    times = next(iter(pool.repeat_sizes)) if len(pool.repeat_sizes) == 1 else None
+    times = times if times and times > 1 else None  # merged with a newer file's: no runs
+    split = sum(n for n, _, _ in pool.split.values())
+    head = (f"{_n(answers - split + len(pool.split), 'answer')}, each run {times} times"
+            if times else "some answers are in it more than once")
+    head = f"(your file has {answers + pool.n_merged} results: {head}"
+    if not pool.split:
+        return f"{head}, so each counts once.)"
+    which = ("1 answer got different grades, so its" if len(pool.split) == 1
+             else f"{len(pool.split)} answers got different grades, so their")
+    return f"{head}. Repeats with the same grade count once. {which} {split} repeats each count.)"
+
+
 def passed_failed(n_pass: int, n_fail: int) -> str:
     return f"Your judge passed {_n(n_pass, 'answer')} and failed {n_fail}."
 
@@ -913,22 +923,15 @@ def found_block(found: start.Found, pass_if: str | None = None,
                      "failed before scoring)")
     elif not pool.answers and not pool.unread:
         lines.append(f"Answers:     {_n(answers, 'answer')}, none with a clear grade")
-    elif pool.n_merged:  # repeats of the same answer with the same grade count once
-        times = next(iter(pool.repeat_sizes)) if len(pool.repeat_sizes) == 1 else None
-        times = times if times and times > 1 else None  # merged with a newer file's: no runs
-        lines.append(f"Answers:     {_n(answers, 'different answer')}")
-        lines.append(f"{INDENT}(your file has {answers + pool.n_merged} results: "
-                     + (f"each answer was run {times} times" if times
-                        else "some answers are in it more than once")
-                     + (", so each is counted once unless its grades differ)" if pool.split
-                        else ", so each is counted once)"))
     else:
         lines.append(f"Answers:     {_n(answers, 'answer')}")
+    if pool.answers and (pool.n_merged or pool.split):
+        lines.append(INDENT + repeats_note(answers, pool))
     lines += [f"Judge:       {_judge_value(found)}", *_rule_lines(found)]
     rows = read_rows(found, pass_if, mapped)
     if rows:
         width = max(len(k) for k, _ in rows) + 3
-        lines.append("Read from your file:")
+        lines.append("judgekeeper has read from your file:")
         lines += [f"  {k:<{width}}{v}" for k, v in rows]
     return lines
 
@@ -1505,8 +1508,16 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     why = not worse and start_label.why_count(ws, r)
     if why:  # the result page has a box on each
         talk.say()
-        talk.para(SAY_WHY_NEXT if mark_next
-                  else start_label.SAY_WHY_RUN.format(command=_command_of(talk, saved, "mark")))
+        if mark_next:
+            talk.para(SAY_WHY_NEXT)
+        else:
+            from judgekeeper.report_page import counts
+
+            c = counts(r)
+            talk.para(start_label.SAY_WHY_RUN.format(
+                n=c["strict"] + c["easy"], command=_command_of(talk, saved, "mark")))
+            if step != "mark":  # fix is never a step while it is too early to tell
+                talk.para(start_label.SAY_WHY_FIX.format(fix=_command_of(talk, False, "fix")))
     if r["verdict_level"] in ("gate", "not_gate"):  # too early to tell: counts only
         talk.say()
         for line in estimate_lines(r):
@@ -1533,7 +1544,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(then)
             return EXIT_NEEDS_YOU
     elif is_open(ws.dir):
-        talk.say(STILL_OPEN)
+        talk.para(STILL_OPEN)
     elif wait:
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")

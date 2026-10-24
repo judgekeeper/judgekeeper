@@ -167,8 +167,9 @@ def test_the_screen_names_real_paths_never_placeholders(here, capsys):
     shutil.rmtree(here / ".judgekeeper")  # a fresh start reads the file as the toml says
     code, out = run(capsys, "--metric", "Safe wording", "--yes")
     assert "<side>" not in out and "<criterion>" not in out
-    assert ("Read from your file: question prompt answer A.output and B.output grade "
-            'A.scores."Safe wording".score: Pass at 0.5 or more model judge_model') in flat(out)
+    assert ("judgekeeper has read from your file: question prompt answer A.output and B.output "
+            'grade A.scores."Safe wording".score: Pass at 0.5 or more model judge_model'
+            ) in flat(out)
 
 
 # A keyword or regex score is not an LLM judge ----------------------------------------
@@ -352,8 +353,9 @@ def test_repeats_with_different_grades_are_each_their_own_answer(here, capsys):
     code, out = run(capsys)
     assert code == 0, out
     assert "Answers:     38 answers" in out
-    assert ("3 repeats of one answer got different grades (1 Pass, 2 Fail); each is its own "
-            "answer.") in flat(out)
+    assert ("(your file has 38 results: some answers are in it more than once. Repeats with "
+            "the same grade count once. 1 answer got different grades, so its 3 repeats each "
+            "count.)") in flat(out)
     assert "tied grade" not in out and "merged" not in out
 
 
@@ -366,8 +368,9 @@ def test_repeats_with_the_same_grade_are_still_merged(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 0, out
-    assert "Answers:     36 different answers" in out
-    assert "(your file has 37 results: some answers are in it more than once, so each is counted once)" in flat(out)
+    assert "Answers:     36 answers" in out
+    assert ("(your file has 37 results: some answers are in it more than once, so each counts "
+            "once.)") in flat(out)
     assert "merged" not in out
 
 
@@ -821,11 +824,11 @@ def test_inspect_epochs_with_different_grades_are_said_and_counted(here, capsys)
     two_epoch_log(here)
     code, out = run(capsys)
     assert code == 3, out  # 20 answers: not enough for a first result
-    assert "Answers:     20 different answers" in out
-    assert ("(your file has 30 results: each answer was run 2 times, so each is counted once "
-            "unless its grades differ)") in flat(out)
-    assert ("5 answers got different grades when graded more than once (10 repeats in all); "
-            "each repeat is its own answer.") in flat(out)
+    assert "Answers:     20 answers" in out
+    assert ("(your file has 30 results: 15 answers, each run 2 times. Repeats with the same "
+            "grade count once. 5 answers got different grades, so their 10 repeats each "
+            "count.)") in flat(out)
+    assert "its own answer" not in flat(out)  # said once, under Answers
 
 
 def test_the_judge_list_counts_answers_as_the_pool_does(here, capsys):
@@ -878,7 +881,7 @@ def test_the_promptfoo_block_names_the_file_and_what_was_read(here, capsys):
         "Answers:     40 answers",
         "Judge:       openai:gpt-4.1-mini",
         f'Judge rule:  "{" ".join(RUBRIC.split())}"',
-        "Read from your file:",
+        "judgekeeper has read from your file:",
         "  question   each test's vars",
         "  answer     each test's output",
         "  grade      your judge's Pass or Fail",
@@ -896,8 +899,8 @@ def test_repeats_run_the_same_number_of_times_are_said_as_such(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 3, out
-    assert "Answers:     6 different answers" in out
-    assert ("(your file has 18 results: each answer was run 3 times, so each is counted once)"
+    assert "Answers:     6 answers" in out
+    assert ("(your file has 18 results: 6 answers, each run 3 times, so each counts once.)"
             in flat(out))
     assert "merged" not in out
     assert "Your judge passed 4 answers and failed 2." in out
@@ -912,9 +915,9 @@ def test_repeats_of_some_answers_only_are_said_as_such(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 3, out
-    assert "Answers:     6 different answers" in out
-    assert ("(your file has 7 results: some answers are in it more than once, so each is "
-            "counted once)") in flat(out)
+    assert "Answers:     6 answers" in out
+    assert ("(your file has 7 results: some answers are in it more than once, so each counts "
+            "once.)") in flat(out)
 
 
 def test_the_deepeval_block_puts_the_pass_mark_in_the_grade_row(here, capsys):
@@ -927,7 +930,7 @@ def test_the_deepeval_block_puts_the_pass_mark_in_the_grade_row(here, capsys):
     assert "File:        .deepeval/.latest_run_full.json" in block
     assert "Answers:     36 answers" in block
     assert block[-5:] == [
-        "Read from your file:",
+        "judgekeeper has read from your file:",
         "  question   each test case's input",
         "  answer     each test case's actual_output",
         "  grade      the Correctness [GEval] score: Pass at 0.5 or more",
@@ -943,7 +946,7 @@ def test_the_inspect_block_rows(here, capsys):
     code, out = run(capsys)
     assert code == 0, out
     assert block_of(out)[-4:] == [
-        "Read from your file:",
+        "judgekeeper has read from your file:",
         "  question   each sample's input",
         "  answer     each sample's output",
         "  grade      the scorer's grade (C or I)",
@@ -959,7 +962,7 @@ def test_the_table_block_rows_name_the_columns_read(here, capsys):
     code, out = run(capsys)
     assert code == 0, out
     assert block_of(out)[-8:] == [
-        "Read from your file:",
+        "judgekeeper has read from your file:",
         "  question      the input column",
         "  answer        the output column",
         "  grade         the judge_verdict column",

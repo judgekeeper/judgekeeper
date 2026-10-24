@@ -5,8 +5,9 @@ a support bot with 40 made-up answers, graded by openai:gpt-4.1-mini (23 Pass, 1
 30 made-up marks. No AI was called: the two steps that ask the judge used a stand-in for
 promptfoo.
 
-`report.html` and `result.json` are what judgekeeper wrote for it. They are made, and checked
-against the screens, by `tests/test_website_screens.py`:
+`report.html` and `result.json` are what judgekeeper wrote for it at the Measure step (step 3),
+after the 30 marks and before `judgekeeper fix`. They are made, and checked against the
+screens, by `tests/test_website_screens.py`:
 
     TZ=UTC JK_WRITE_SITE_EXAMPLE=1 pytest tests/test_website_screens.py
 

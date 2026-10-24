@@ -95,7 +95,10 @@ def test_the_pages_show_commands():
     counts = {p.name: len(commands(p)) for p in pages()}
     assert counts["index.html"] == 0  # Home is about judgekeeper; setup lives on the Guide
     assert counts["start.html"] >= 6  # the install, then a command for each step
-    assert counts["check.html"] == 1  # uvx judgekeeper, under the drop card
+    # the handy commands, typed at the Guide's small terminal window
+    handy = [argv for line, argv in commands(WEBSITE / "start.html") if line.startswith("$ ")]
+    assert handy == [["--stop"], ["--new"], ["--no-browser"], ["--help"]]
+    assert counts["check.html"] == 0  # its status bar links to the Guide's install instead
 
 
 def _options() -> set[str]:
@@ -484,7 +487,8 @@ def test_the_check_page_loads_its_script_and_has_no_inline_script():
     assert len(scripts) == 2 and re.fullmatch(r"assets/freecheck\.js\?v=\d+", scripts[1])
     assert all(not el.text().strip() for el in els if el.tag == "script")
     ids = {el.attrs.get("id") for el in els}
-    assert {"fc-drop", "fc-file", "fc-result", "ck-wait", "ck-title", "ck-clear"} <= ids  # what freecheck.js uses
+    assert {"fc-drop", "fc-file", "fc-result", "ck-wait", "ck-title", "fc-clear",
+            "fc-name"} <= ids  # what freecheck.js uses
     (file_input,) = [el for el in els if el.tag == "input"]
     assert file_input.attrs["type"] == "file"
 
@@ -520,9 +524,40 @@ def test_home_links_to_the_check_page_twice():
 def test_the_check_page_says_what_it_reads_and_that_the_file_stays():
     text = " ".join(parse(CHECK).text().split())
     for words in ("Check your LLM-as-a-judge in your browser.",
-                  "Drop your results file here, or choose one",
+                  "Drop your results file here or click to choose one",
                   "promptfoo · DeepEval · CSV · JSONL",
                   "Waiting for your results file.",
-                  "Drop it on the left. It stays on your computer.",
-                  "To run judgekeeper in your project folder: uvx judgekeeper"):
+                  "Drop it in the box, or try an example.",
+                  "your file stays on your computer"):
         assert words in text, words
+
+
+# Scroll areas: one the keyboard can't reach can't be scrolled without a mouse (Lighthouse and
+# axe: "scrollable-region-focusable"). Each class whose rule scrolls (overflow auto or scroll)
+# is checked on every page that uses it, unless the area holds a link or button of its own.
+SCROLLS = re.compile(r"(?m)^\s*\.([\w-]+)\s*\{[^}]*overflow(?:-[xy])?:\s*(?:auto|scroll)")
+FOCUSABLE = {"a", "button", "input", "select", "textarea", "summary"}
+
+
+def _scroll_areas(path: Path, css: str) -> list:
+    classes = set(SCROLLS.findall(css))
+    return [el for el in parse(path).iter() if classes & el.classes()
+            and not [d for d in el.iter() if d is not el and d.tag in FOCUSABLE]]
+
+
+def test_every_scroll_area_can_be_reached_by_keyboard():
+    site_css = "".join(p.read_text(encoding="utf-8")
+                       for p in sorted((WEBSITE / "assets").glob("*.css")))
+    reports = sorted((ROOT / "docs" / "examples").rglob("*.html"))
+    checked = 0
+    for path in [*pages(), WEBSITE / "errors" / "404.html", *reports]:
+        text = path.read_text(encoding="utf-8")
+        css = site_css if path.is_relative_to(WEBSITE) else "".join(
+            re.findall(r"<style>(.*?)</style>", text, re.DOTALL))
+        for el in _scroll_areas(path, css):
+            where = f"{path.relative_to(ROOT).as_posix()}: {el.tag}.{'.'.join(el.classes())}"
+            assert el.attrs.get("tabindex") == "0", where
+            assert el.attrs.get("role") == "region", where
+            assert el.attrs.get("aria-label", "").strip(), where
+            checked += 1
+    assert checked >= 10  # the Guide's code and tables, the terminals, the old report's tables

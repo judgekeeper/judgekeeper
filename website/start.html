@@ -20,8 +20,8 @@
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=4">
-<script src="assets/site.js?v=4" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=5">
+<script src="assets/site.js?v=5" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -33,98 +33,88 @@
 <main id="main" class="gx">
 <section class="hero gx-hero" id="install"><div class="wrap">
   <div class="hero-l">
-    <h1>Start in<br>one command.</h1>
-    <p class="gx-lede">You need eval results already graded by an LLM-as-a-judge: from promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV or JSONL file.</p>
+    <h1>Install <span class="h-brand">judgekeeper</span><br>in your project.</h1>
+    <p class="gx-lede">Works with promptfoo, DeepEval, Inspect AI, MLflow or your own file.</p>
   </div>
-  <div class="hero-r"><div class="gx-install">
-    <p class="gx-k">In your project folder, run</p>
-    <div class="cmd cmd-big"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-    <p class="gx-small">No <a href="https://docs.astral.sh/uv/">uv</a>? Run <code>pip install judgekeeper</code>, then <code>judgekeeper</code>. Needs Python 3.11 or newer, on macOS, Linux or Windows.</p>
+  <div class="hero-r"><div class="gx-install gwin">
+    <div class="rt-bar" aria-hidden="true"><span class="rt-title">your project folder</span></div>
+    <div class="gwin-body">
+      <p class="gx-way-h"><b>With pip</b></p>
+      <div class="gx-pair">
+        <div class="cmd"><code>pip install judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy the install command"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+        <div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy the run command"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+      </div>
+      <p class="gx-way-h"><b>With <a href="https://docs.astral.sh/uv/">uv</a></b></p>
+      <div class="gx-pair"><div class="cmd"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy the uv command"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div>
+      <p class="gx-small">Works on macOS, Linux and Windows, with Python 3.11 or newer.</p>
+    </div>
   </div></div>
 </div></section>
 <section class="gx-steps" id="steps"><div class="wrap">
   <h2>The 5 steps.</h2>
   <ol class="gl">
-    <li class="gl-step" id="step-find"><span class="gl-n" aria-hidden="true">1</span><div class="gl-body gx-text">
-      <h3>Find your results</h3>
-      <p>Run judgekeeper in your project. It finds your eval results and the judge that graded them. It checks, with no AI call, that your judge gave every answer a clear Pass or Fail, then opens the marking page.</p>
+    <li class="gl-step" id="step-find"><span class="gl-n" aria-hidden="true">1</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Find your eval results</span></div><div class="gl-body gx-text sw-body">
+      <h3 class="sr">Find your eval results</h3>
+      <p>Run judgekeeper in your project folder. It finds your eval results and opens the marking page.</p>
       <div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-      <p class="done"><b>Done when</b> the marking page is open in your browser.</p>
-      <details>
-        <summary>Didn't work?</summary>
-        <p>No saved results yet? Run your eval once, then <code>judgekeeper</code> again.</p>
-        <p>Nothing found? Check you are in your project folder, or point it at the file: <code class="long">judgekeeper path/to/results.json</code>.</p>
-      </details>
-    </div></li>
-    <li class="gl-step" id="step-mark"><span class="gl-n" aria-hidden="true">2</span><div class="gl-body gx-text">
-      <h3>Mark answers Pass or Fail</h3>
-      <p>Mark each answer the way you want your judge to decide. Your judge's grade stays hidden. Use the buttons or the arrow keys. Every mark is saved, so you can close the page and come back.</p>
+      <p class="done"><b>Nothing found?</b> Run your eval first so it saves its results, or point judgekeeper to your results file:</p>
+      <div class="cmd"><code>judgekeeper path/to/results.json</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+    </div></div></li>
+    <li class="gl-step" id="step-mark"><span class="gl-n" aria-hidden="true">2</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Mark your answers Pass or Fail</span></div><div class="gl-body gx-text sw-body">
+      <h3 class="sr">Mark your answers Pass or Fail</h3>
+      <p>Mark each answer Pass or Fail, the way you would grade it. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, so you can stop at any time and come back later.</p>
       <figure class="gx-shot"><img src="assets/shots/label.webp" width="2880" height="1800" loading="lazy" decoding="async" alt="The marking page: one question and its answer, with Fail and Pass buttons under them. On the left, the list of questions with the marks made so far; at the top, how many are marked."></figure>
-      <p class="done"><b>Done when</b> <b>See your result</b> appears at the top. Click it.</p>
-    </div></li>
-    <li class="gl-step" id="step-measure"><span class="gl-n" aria-hidden="true">3</span><div class="gl-body gx-text">
-      <h3>Read your result</h3>
-      <p>The result page tells you if your judge is good enough to use, needs work, or if it is too early to tell. It shows where you and your judge disagreed. It is also saved as <code>.judgekeeper/report.html</code>.</p>
+      <p class="done">When <b>See your result</b> appears, click it.</p>
+    </div></div></li>
+    <li class="gl-step" id="step-measure"><span class="gl-n" aria-hidden="true">3</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">See how often your LLM-as-a-judge agrees with you</span></div><div class="gl-body gx-text sw-body">
+      <h3 class="sr">See how often your LLM-as-a-judge agrees with you</h3>
+      <p>The result page tells you one of three things: your LLM-as-a-judge is good enough to use, it needs work, or it’s too early to tell. Below that, it lists every answer where you and your LLM-as-a-judge disagreed.</p>
       <figure class="gx-shot"><img src="assets/shots/result.webp" width="2880" height="1800" loading="lazy" decoding="async" alt="The result page: &quot;Your judge needs work. You and your judge disagreed on 13 of 40 answers.&quot; Under it, the answers where you said Fail and your judge said Pass, each with buttons to say why you marked it Fail."></figure>
-      <p class="done"><b>Done when</b> you see your result. Too early to tell? Mark more answers with <code>judgekeeper mark</code>.</p>
-      <p><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-the-numbers-are-worked-out">How the numbers are worked out</a></p>
-    </div></li>
-    <li class="gl-step" id="step-fix"><span class="gl-n" aria-hidden="true">4</span><div class="gl-body gx-text">
-      <h3>Write a better rule and test it</h3>
-      <p>Judge needs work? Run <code>judgekeeper fix</code>. It saves the clues, and its mistakes on the marks you can see, in one file you can hand to a coding agent. On your result page, say why on the answers you and your judge disagree on; <code>fix</code> puts your reasons next to its mistakes.</p>
+      <p class="done"><b>Result says it’s too early to tell?</b> Your LLM-as-a-judge needs more of your marks to be measured. Mark more answers, then look again:</p>
+      <div class="cmd"><code>judgekeeper mark</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+    </div></div></li>
+    <li class="gl-step" id="step-fix"><span class="gl-n" aria-hidden="true">4</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Write a better rule and test it</span></div><div class="gl-body gx-text sw-body">
+      <h3 class="sr">Write a better rule and test it</h3>
+      <p><b>Result says your LLM-as-a-judge needs work?</b> Run:</p>
       <div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-      <p><b>promptfoo, DeepEval, Inspect AI or MLflow:</b> write your new rule in <code>.judgekeeper/fix/rule.txt</code> and run <code>judgekeeper fix</code> again. It tests the rule on marks kept aside, and asks before it calls your judge.</p>
-      <p><b>Your own CSV or JSONL file, or <code>judgekeeper.record()</code>:</b> judgekeeper can't ask this judge itself, so it can't test a new rule. Change the rule where your eval keeps it, run your eval, then <code>judgekeeper check</code>.</p>
-      <div class="tw"><table>
-        <thead><tr><th>Result</th><th>What judgekeeper says</th><th>What to do</th></tr></thead>
-        <tbody>
-          <tr><td>Better</td><td>Your new rule is better. A difference this large is very unlikely to be a coincidence.</td><td>Use the new rule.</td></tr>
-          <tr><td>Safe to try</td><td>Safe to try. Not clearly better yet, but very unlikely to be more than 10 points worse.</td><td>You can use the new rule.</td></tr>
-          <tr><td>Can't tell yet</td><td>Can't tell yet. That leans toward better, but a split this small could easily be a coincidence.</td><td>Mark the few more answers it asks for, then run <code>judgekeeper fix</code> again.</td></tr>
-          <tr><td>Can't tell yet</td><td>Can't tell yet. The two rules look about the same here. More marks are unlikely to change that much.</td><td>Keep the old rule, or write a different one.</td></tr>
-          <tr><td>Looks worse</td><td>Can't tell yet. That leans toward worse; keep the old rule.</td><td>Keep the old rule.</td></tr>
-          <tr><td>Worse</td><td>It looks worse. Keep the old rule.</td><td>Keep the old rule.</td></tr>
-        </tbody>
-      </table></div>
-      <p class="done"><b>Done when</b> you have a result. To use the new rule, copy it into your eval config, run your eval, then <code>judgekeeper check</code>.</p>
-    </div></li>
-    <li class="gl-step" id="step-check"><span class="gl-n" aria-hidden="true">5</span><div class="gl-body gx-text">
-      <h3>Re-check after you change your judge</h3>
-      <p>Changed the model, the rule or your eval tool's version? Run your eval, then:</p>
+      <p>It saves every answer your LLM-as-a-judge got wrong in <code>.judgekeeper/fix/mistakes.md</code>. Read it to write a better rule yourself, or hand it to a coding agent to help you write one.</p>
+      <p>Write your new rule in <code>.judgekeeper/fix/rule.txt</code> and run <code>judgekeeper fix</code> again. judgekeeper tests the new rule on the marks kept aside and tells you if it’s <b>better</b>, <b>worse</b>, or if it <b>can’t tell yet</b>.</p>
+      <p class="gx-small">Testing works with promptfoo, DeepEval, Inspect AI and MLflow.</p>
+    </div></div></li>
+    <li class="gl-step" id="step-check"><span class="gl-n" aria-hidden="true">5</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Re-check after you change your LLM-as-a-judge</span></div><div class="gl-body gx-text sw-body">
+      <h3 class="sr">Re-check after you change your LLM-as-a-judge</h3>
+      <p><b>Changed your LLM-as-a-judge’s model or rule, or moved to a new eval tool?</b> Run your eval again, then:</p>
       <div class="cmd"><code>judgekeeper check</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-      <p>It tells you if your judge still agrees with you, on the same marks. It asks before any AI call. The result is Worse, No drop bigger than 20 points, or Not sure.</p>
-      <p>Moved to a different eval tool? Start fresh with <code>judgekeeper --new</code>: judgekeeper 1.0 can't compare judges across two tools.</p>
-    </div></li>
+      <p>judgekeeper compares your LLM-as-a-judge’s new grades with the marks you already made, and tells you if it still agrees with you. You don’t need to mark anything again.</p>
+    </div></div></li>
   </ol>
 </div></section>
-<section class="gx-more"><div class="wrap"><div class="gx-cards">
-  <div class="gx-card gx-text" id="keys">
-    <h3>Keys and costs</h3>
-    <p>Steps 1 to 3 make no AI calls and need no key. Testing a new rule, and some re-checks, call your judge through your own eval tool and its key. judgekeeper says how many calls first and waits for your yes. It never prints or saves a key.</p>
+<section class="gx-more"><div class="wrap">
+  <div class="gm-row" id="own-format">
+    <div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Your own file or code</span></div><h3 class="sr">Your own file or code</h3>
+    <div class="gx-text">
+      <p><b>No eval tool?</b> Save your results as a CSV or JSONL file with three columns: <code>input</code> (the question), <code>output</code> (the answer) and <code>verdict</code> (Pass or Fail from your LLM-as-a-judge). Then run:</p>
+      <div class="cmd"><code>judgekeeper results.csv</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+      <p><b>Your LLM-as-a-judge runs in your own code?</b> Add this after each grade:</p>
+      <pre class="gx-code" tabindex="0" role="region" aria-label="Code: judgekeeper.record() in your code"><code>import judgekeeper
+judgekeeper.record(input=question, output=answer, verdict=grade)</code></pre>
+      <p class="gx-small">Your LLM-as-a-judge gives a score instead of Pass or Fail? The <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-grades-are-read">full reference</a> shows how to set where Pass starts, and every other option.</p>
+    </div>
   </div>
-  <div class="gx-card gx-text" id="own-format">
-    <h3>Your own format</h3>
-    <p>No eval tool? Save one row per answer in a CSV or JSONL file with three columns: <code>input</code> (the question), <code>output</code> (the answer that was graded) and <code>verdict</code> (pass or fail; true/false, yes/no and 1/0 work too).</p>
-    <p>Judge gives a score? Say where Pass starts: <code class="long">judgekeeper --pass-if 'score&gt;=0.5'</code>.</p>
-    <p>When your judge runs in your own code and saves nothing judgekeeper reads, add one line right after it gives each grade, in your eval code:</p>
-    <pre class="gx-code"><code>import judgekeeper
-judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
-                   reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")</code></pre>
-    <p>Then run your eval once and <code>judgekeeper</code>: it finds the records. Install judgekeeper inside your project's environment (<code>pip install judgekeeper</code>) for the import.</p>
-    <p>With your own file or <code>record()</code>, <code>judgekeeper fix</code> shows the clues and mistakes but can't test a new rule: change the rule in your eval, run it, then <code>judgekeeper check</code>.</p>
+  <div class="gm-pair">
+    <div class="gm-row" id="keys">
+      <div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">API keys and costs</span></div><h3 class="sr">API keys and costs</h3>
+      <div class="gx-text"><p>Steps 1 to 3 need no API key. Steps 4 and 5 may use your own key, and ask you first. judgekeeper never saves your key.</p></div>
+    </div>
+    <div class="gm-row" id="misc">
+      <div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Handy commands</span></div><h3 class="sr">Handy commands</h3>
+<pre class="gm-pre" tabindex="0" role="region" aria-label="Handy commands"><span class="t-prompt">$</span> judgekeeper --stop         <span class="t-dim"># close the marking page</span>
+<span class="t-prompt">$</span> judgekeeper --new          <span class="t-dim"># start over (old marks are kept)</span>
+<span class="t-prompt">$</span> judgekeeper --no-browser   <span class="t-dim"># get the link, no browser</span>
+<span class="t-prompt">$</span> judgekeeper --help         <span class="t-dim"># see every option</span></pre>
+    </div>
   </div>
-  <div class="gx-card gx-text" id="misc">
-    <h3>Handy commands</h3>
-    <div class="tw"><table class="gx-cmds">
-      <tbody>
-        <tr><td><code>judgekeeper --stop</code></td><td>Close the marking page</td></tr>
-        <tr><td><code>judgekeeper --new</code></td><td>Start over (your old marks are kept)</td></tr>
-        <tr><td><code>judgekeeper --no-browser</code></td><td>Get the link instead of opening a browser</td></tr>
-        <tr><td><code>judgekeeper --help</code></td><td>See every option</td></tr>
-      </tbody>
-    </table></div>
-  </div>
-</div></div></section>
+</div></section>
 </main>
 <footer class="foot"><div class="wrap">
 <div class="brand"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></div>

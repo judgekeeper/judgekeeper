@@ -200,14 +200,14 @@ def test_three_picks_ask_for_new_marks_and_ten_new_marks_end_it(tmp_path, monkey
     p = check.picks(ws)
     assert p["n"] == 3 and p["ask"]
     assert check.picks_lines(p) == [
-        ("These marks have helped pick 3 changes, so they may now flatter your judge. Mark 10 "
-         "new answers for a fair check.")]
+        ("You've used these marks to choose 3 changes, so they may now make your "
+         "LLM-as-a-judge look better than it is. Mark some new answers.")]
     time.sleep(1.1)  # marks are stamped to the second
     for q in queue[40:50]:
         session.update({"id": q["id"], "label": q["group"], "seconds": 5})
     p = check.picks(ws)
     assert p["n"] == 3 and not p["ask"]
-    assert check.picks_lines(p) == ["These marks have helped pick 3 changes."]
+    assert check.picks_lines(p) == []  # said only with the warning
 
 
 def test_a_model_update_is_not_a_pick(tmp_path, monkeypatch):
@@ -234,8 +234,9 @@ def test_check_after_three_picks_with_every_answer_marked(here, capsys):
     _tested_by_fix(here, ws)  # a rule fix tested (a pick), and its check (another)
     code = main(["check"])
     out = _flat(capsys.readouterr().out)
-    assert "These marks have helped pick 4 changes, so they may now flatter your judge." in out
-    assert "Mark 10 new answers" not in out and "honest" not in out
+    assert ("You've used these marks to choose 4 changes, so they may now make your "
+            "LLM-as-a-judge look better than it is.") in out
+    assert "Mark some new answers" not in out and "honest" not in out
     assert out.endswith("Next: run your eval on more questions, then run `judgekeeper mark`: "
                         "the new answers join the ones you marked.")
     assert code == 0
@@ -250,7 +251,7 @@ def test_the_result_keeps_how_many_changes_the_marks_helped_pick(tmp_path, monke
     _pick(ws, "check")
     start_label.store_result(ws, session)
     saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
-    assert "These marks have helped pick 2 changes." in saved["picks"]
+    assert saved["picks"] == []  # two picks: no warning yet, so nothing is said
 
 
 def test_fix_new_counts_the_picks_again(tmp_path, monkeypatch):
@@ -343,8 +344,7 @@ def test_ten_of_each_made_after_the_change_show_their_numbers(here, capsys):
     flat = _flat(out)
     assert "On marks made after this change (" in flat
     assert "  You passed: your judge also passed about " in out
-    assert flat.index("Re-checked on all 50 of your marks:") < flat.index(
-        "On marks made after this change (")
+    assert flat.index("Agreed with you:") < flat.index("On marks made after this change (")
     assert WARN in flat
 
 
@@ -442,9 +442,8 @@ def test_no_message_while_marking_compares_a_number_with_the_bar():
 
 # Paid re-checks ask the judge twice ------------------------------------------------------------
 
-ASK_TWICE = ("To re-check, judgekeeper asks your new judge about your 50 marked answers, twice "
-             "each. That is 100 AI calls, paid with your own key. Asking twice shows how much "
-             "the judge varies by itself.")
+ASK_TWICE = ("judgekeeper will have your new LLM-as-a-judge grade your 50 marked answers, twice "
+             "each: 100 AI calls, paid with your own key.")
 
 
 @pytest.fixture
@@ -483,9 +482,10 @@ def test_asked_twice_the_wobble_is_said_and_the_first_grades_decide(here, capsys
     out = _flat(capsys.readouterr().out)
     evals = [c.argv for c in fake.calls if "eval" in c.argv]
     assert len(evals) == 1 and evals[0][evals[0].index("--repeat") + 1] == "2"
-    assert ("Asked twice, your new judge changed its own grade on 3 of your 50 answers. "
-            "Differences that small can come from that alone.") in out
-    assert "Worse: 9 answers went from right to wrong, and none from wrong to right." in out
+    assert ("Your new LLM-as-a-judge gave a different grade the second time on 3 of the 50 "
+            "answers. It doesn't always grade the same answer the same way, so a difference of "
+            "up to 3 answers between old and new may not be real.") in out
+    assert "When you said Fail 25 of 25 16 of 25 Worse" in out
 
 
 def test_a_free_recheck_asks_nothing_extra(here, capsys):
@@ -496,4 +496,4 @@ def test_a_free_recheck_asks_nothing_extra(here, capsys):
     _results(here, LENIENT, model=HAIKU)
     main(["check"])
     out = _flat(capsys.readouterr().out)
-    assert "Asked twice" not in out and "twice each" not in out
+    assert "the second time" not in out and "twice each" not in out

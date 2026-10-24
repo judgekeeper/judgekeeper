@@ -20,8 +20,8 @@
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=4">
-<script src="assets/site.js?v=4" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=5">
+<script src="assets/site.js?v=5" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -38,10 +38,11 @@
     <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-side" href="check.html">Check in your browser</a></div>
   </div>
   <div class="hero-r"><section class="jk-card" id="demo" tabindex="0" aria-label="Live demo of the marking page">
+    <div class="rt-bar jk-bar" aria-hidden="true"><span class="rt-title">marking page</span></div>
     <div class="jk-live">
       <div class="jk-row jk-row-q">
         <div><div class="jk-label">Question</div><h2 class="jk-question" id="d-q">Can I return a lamp after 60 days?</h2></div>
-        <div class="jk-state" id="d-state" aria-live="polite">Not marked yet</div>
+        <div class="jk-state" id="d-state" aria-live="polite">0 of 4 marked</div>
       </div>
       <div class="jk-row jk-row-a">
         <div class="jk-label">Answer</div>
@@ -54,17 +55,18 @@
       <div class="jk-sub"><button type="button" id="d-skip">Skip this one <span class="key">S</span></button><button type="button" id="d-undo">Undo <span class="key">Z</span></button></div>
     </div>
     <div class="jk-end" id="d-end" aria-live="polite">
-      <h2>You marked every answer.</h2>
-      <p id="d-sum"></p>
-      <a class="jk-go" href="start.html">Check your own LLM-as-a-judge</a>
-      <button type="button" class="jk-again" id="d-again">↻ Try again</button>
+      <div class="jk-row jk-end-head"><div class="jk-end-top"><div class="jk-label">Your result</div><button type="button" class="jk-again" id="d-again">↻ Try again</button></div><h2 id="d-sum"></h2></div>
+      <ul class="jk-end-list" id="d-list" aria-label="Your marks and the LLM-as-a-judge's grades"></ul>
+      <div class="jk-end-actions">
+        <a class="jk-go" href="start.html">Check your own LLM-as-a-judge</a>
+      </div>
     </div>
     <script type="application/json" id="demo-items">[["Can I return a lamp after 60 days?", "Of course! We accept returns at any time, no questions asked.", "pass"], ["Is there a student discount?", "Yes, 10% with a valid student email through our partner page.", "pass"], ["My lamp arrived broken. What now?", "Sorry about that. Reply with a photo and your order number, and we will send a free replacement.", "fail"], ["Do you ship to Canada?", "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]</script>
   </section></div>
 </div></section>
 <section class="steps" id="steps"><div class="wrap">
   <h2>What each step looks like.</h2>
-  <div class="steps-grid"><div class="steplist" role="tablist" aria-label="Steps" aria-orientation="vertical"><button type="button" role="tab" id="tab-find" data-step="find" aria-selected="true" aria-controls="term" tabindex="0"><span class="n">1</span><span class="t"><b>Find</b><span class="d">Finds your eval results and the judge that graded them.</span></span></button><button type="button" role="tab" id="tab-mark" data-step="mark" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">2</span><span class="t"><b>Mark</b><span class="d">You mark answers Pass or Fail in your browser.</span></span></button><button type="button" role="tab" id="tab-measure" data-step="measure" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">3</span><span class="t"><b>Measure</b><span class="d">Shows how often your judge agrees with you, and where it goes wrong.</span></span></button><button type="button" role="tab" id="tab-fix" data-step="fix" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">4</span><span class="t"><b>Fix</b><span class="d">If your judge needs work, write a better rule. For promptfoo, DeepEval, Inspect AI and MLflow, test it on marks kept aside.</span></span></button><button type="button" role="tab" id="tab-check" data-step="check" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">5</span><span class="t"><b>Re-check</b><span class="d">After you change your judge, see if it still agrees with you.</span></span></button></div><div class="term" id="term" role="tabpanel" aria-labelledby="tab-find">
+  <div class="steps-grid"><div class="steplist" role="tablist" aria-label="Steps" aria-orientation="vertical"><button type="button" role="tab" id="tab-find" data-step="find" aria-selected="true" aria-controls="term" tabindex="0"><span class="n">1</span><span class="t"><b>Find</b><span class="d">Find your eval results and the LLM-as-a-judge that graded them.</span></span></button><button type="button" role="tab" id="tab-mark" data-step="mark" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">2</span><span class="t"><b>Mark</b><span class="d">Mark your answers Pass or Fail in your browser.</span></span></button><button type="button" role="tab" id="tab-measure" data-step="measure" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">3</span><span class="t"><b>Measure</b><span class="d">See how often your LLM-as-a-judge agrees with you.</span></span></button><button type="button" role="tab" id="tab-fix" data-step="fix" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">4</span><span class="t"><b>Fix</b><span class="d">Write a better rule and test it on marks kept aside.</span></span></button><button type="button" role="tab" id="tab-check" data-step="check" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">5</span><span class="t"><b>Re-check</b><span class="d">Change your LLM-as-a-judge and see if it still agrees with you.</span></span></button></div><div class="term" id="term" role="tabpanel" aria-labelledby="tab-find">
     <div class="term-bar">
       <span class="term-title">example project</span>
       <div class="term-tabs" id="t-tabs" role="tablist" aria-label="Fix" hidden>
@@ -73,7 +75,7 @@
       </div>
       <button type="button" class="term-replay" id="t-replay">Replay</button>
     </div>
-    <pre class="term-out" id="t-out" aria-live="off" tabindex="0">$ judgekeeper
+    <pre class="term-out" id="t-out" aria-live="off" tabindex="0" role="region" aria-label="What judgekeeper prints">$ judgekeeper
 judgekeeper 1.0.0b2
 
 Step 1 of 5: Find
@@ -83,7 +85,7 @@ File:        results.json
 Answers:     40 answers
 Judge:       openai:gpt-4.1-mini
 Judge rule:  "The answer solves the customer's problem and is polite."
-Read from your file:
+judgekeeper has read from your file:
   question   each test's vars
   answer     each test's output
   grade      your judge's Pass or Fail
@@ -98,6 +100,7 @@ one at a time. Mark each one Pass or Fail, the way you want your
 judge to decide. Your judge's grade stays hidden.
 
 Next: mark until "See your result" appears, then click it.</pre>
+    <div class="term-foot"><span class="tf-dot" aria-hidden="true"></span><span class="tf-text">made-up answers · not a real project</span><a class="tf-link" href="examples/site-example/report.html">open its report</a></div>
 <template data-screen="find">$ judgekeeper
 judgekeeper 1.0.0b2
 
@@ -108,7 +111,7 @@ File:        results.json
 Answers:     40 answers
 Judge:       openai:gpt-4.1-mini
 Judge rule:  "The answer solves the customer's problem and is polite."
-Read from your file:
+judgekeeper has read from your file:
   question   each test's vars
   answer     each test's output
   grade      your judge's Pass or Fail
@@ -147,7 +150,10 @@ You and your judge disagreed on 16 of 30 answers.
   You passed 15 answers. Of those, your judge passed 7 and failed 8.
   You failed 15 answers. Of those, your judge passed 8 and failed 7.
 
-To say why on these, run `judgekeeper mark`.
+Tell judgekeeper why you disagree on these 16: run
+`judgekeeper mark`.
+`judgekeeper fix` uses your reasons to find where your
+LLM-as-a-judge goes wrong.
 
 How often your judge agrees with you (estimates):
   When you say Pass, it also says Pass: about 54% (between 35% and 72%)
@@ -155,21 +161,26 @@ How often your judge agrees with you (estimates):
 
 Full report: .judgekeeper/report.html (open it in your browser)
 
-The marking page is still open if you want to mark more answers.
+The marking page is still open. Mark more answers to make these
+ranges narrower, so the numbers are more certain.
 
-Next: to try a better rule, run `judgekeeper fix`.</template>
+Next: to improve your LLM-as-a-judge's rule, run
+`judgekeeper fix`.</template>
 <template data-screen="fix">$ judgekeeper fix
 judgekeeper 1.0.0b2
 
 Step 4 of 5: Fix
 
-Clues:
-  Half of its 10 mistakes are answers it passed but you failed,
-  and half are answers it failed but you passed.
+Where your LLM-as-a-judge goes wrong:
+  Your LLM-as-a-judge made 10 mistakes. In 5, it said Pass where
+  you said Fail. In the other 5, it said Fail where you said
+  Pass.
+  Where it said Pass where you said Fail, the answers are long
+  (about 11 words, against 6).
 
-The clues and all 10 mistakes are saved in
-.judgekeeper/fix/mistakes.md. You can hand this file to a coding
-agent.
+All 10 mistakes your LLM-as-a-judge made are saved in
+.judgekeeper/fix/mistakes.md. Use it to write a better rule, or
+hand it to a coding agent to help you write one.
 
 Your judge's rule is in promptfooconfig.yaml, line 14:
   "The answer solves the customer's problem and is polite."
@@ -192,9 +203,11 @@ kept aside, once with the old rule and once with the new one.
 That is 24 AI calls, paid with your own key.
 Go ahead? [y/N] y
 
-Tested on the 12 marks kept aside:
-  Old rule agreed with you on 6. New rule agreed with you on 12.
-  It fixed 6 and broke 0.
+Your LLM-as-a-judge, tested on the 12 marks kept aside:
+  Old rule: agreed with you on 6 of 12 answers.
+  New rule: agreed with you on 12 of 12 answers.
+  With the new rule, 6 answers went from wrong to right, and
+  none from right to wrong.
 
 Result: your new rule is better. A difference this large is very
 unlikely to be a coincidence.
@@ -207,40 +220,38 @@ judgekeeper 1.0.0b2
 
 Step 5 of 5: Re-check
 
-Your judge changed: model openai:gpt-4.1-mini -&gt; openai:gpt-4.1-nano.
+Your LLM-as-a-judge's model changed:
+  openai:gpt-4.1-mini -&gt; openai:gpt-4.1-nano
 
-To re-check, judgekeeper asks your new judge about your 30
-marked answers, twice each. That is 60 AI calls, paid with your
-own key. Asking twice shows how much the judge varies by itself.
+judgekeeper will have your new LLM-as-a-judge grade your 30
+marked answers, twice each: 60 AI calls, paid with your own key.
 Go ahead? [y/N] y
 
-Re-checked on all 30 of your marks:
+Result: worse. Your new LLM-as-a-judge agrees with you less.
 
-  You passed 15 answers. Your old judge agreed with you on 7,
-  your new judge on 1.
-    Worse: 6 answers went from right to wrong, and none from wrong to right.
-    That is about 40 points lower (between 19 and 61).
+Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge
+  When you said Pass    7 of 15              1 of 15              Worse
+  When you said Fail    7 of 15              7 of 15              Not sure
 
-  You failed 15 answers. Your old judge agreed with you on 7,
-  your new judge on 7.
-    Not sure: 1 went from right to wrong, and 1 from wrong to
-    right. It could be up to 20 points worse.
+On answers you pass, agreement drops by about 40 in every 100
+(somewhere between 19 and 61).
 
-Asked twice, your new judge changed its own grade on 3 of your
-30 answers. Differences that small can come from that alone.
+Your new LLM-as-a-judge gave a different grade the second time
+on 3 of the 30 answers. It doesn't always grade the same answer
+the same way, so a difference of up to 3 answers between old and
+new may not be real.
 
-These marks have helped pick 1 change.
-
-Next: go back to the old judge, or change your judge and run
-`judgekeeper check` again.</template>
+Next: go back to your old LLM-as-a-judge, or try another change
+and run `judgekeeper check` again.</template>
   </div></div>
-  <p class="steps-more">The terminal shows an example project (made-up answers): <a href="examples/site-example/report.html">its report</a>.</p>
 </div></section>
 <section class="close"><div class="wrap">
+  <div class="close-win"><div class="rt-bar" aria-hidden="true"><span class="rt-title">your project</span></div>
   <div class="close-box">
-    <div><h2>Have eval results?</h2><p>Check your LLM-as-a-judge. Your file stays on your computer.</p></div>
+    <div><h2>Have eval results?</h2><p>Check your LLM-as-a-judge. Your file stays on your computer.</p>
+    <p class="close-prompt" aria-hidden="true"><span class="t-prompt">$</span> <span class="ck-cursor">▍</span></p></div>
     <a class="b-main" href="check.html">Check in your browser</a>
-  </div>
+  </div></div>
 </div></section>
 </main>
 <footer class="foot"><div class="wrap">

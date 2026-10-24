@@ -21,9 +21,13 @@ def _sections(path) -> dict[str, str]:
 
 # README, guide, skill --------------------------------------------------------------------
 
-def test_the_readme_makes_uvx_the_main_path():
+def test_the_readme_shows_pip_and_uv_as_equals_pip_first():
     sections = _sections(README)
-    assert f"\ncd your-project\nuvx judgekeeper@{__version__}\n" in sections["Install"]
+    install = sections["Install"]
+    # one command per box, so nobody pastes the two pip lines as one
+    pip = install.index(f"```\npip install judgekeeper=={__version__}\n```")
+    run = install.index("```\njudgekeeper\n```")
+    assert pip < run < install.index(f"```\nuvx judgekeeper@{__version__}\n```")
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
         assert tool in sections["The 5 steps"], tool
 
