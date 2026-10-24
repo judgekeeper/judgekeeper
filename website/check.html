@@ -33,36 +33,47 @@
 <div class="menu-r"><a class="gh" href="https://github.com/judgekeeper/judgekeeper">GitHub</a></div>
 </div></header>
 <main id="main" class="ck">
-<section class="hero ck-hero"><div class="wrap">
-  <div class="hero-l">
+<section class="ck2"><div class="wrap">
+  <div class="ck2-l">
     <h1>Check your <span class="nb">LLM-as-a-judge</span> <span class="nb">in your browser.</span></h1>
-    <button type="button" class="fc-drop" id="fc-drop">
-      <span class="fc-main"><b>Drop your results file here</b><span class="sr">, or choose one</span></span>
-      <span class="fc-kinds">promptfoo · DeepEval · CSV · JSONL</span>
-    </button>
+    <div class="fc-zone">
+      <button type="button" class="fc-drop ck2-drop" id="fc-drop">
+        <span class="fc-empty"><svg class="ck2-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M7.5 8.5L12 4l4.5 4.5"/><path d="M4 15v4.5h16V15"/></svg><span class="fc-main"><b>Drop your results file here</b> <span class="ck2-or">or click to choose one</span></span><span class="fc-kinds">promptfoo · DeepEval · CSV · JSONL</span></span>
+        <span class="fc-loaded" hidden><svg class="fc-file-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.75h8.5L19.25 7.5v13.75H6z"/><path d="M14.25 2.75V7.75h5"/><path d="M9 12.5l2 2 4-4.5"/></svg><span class="fc-main"><b id="fc-name"></b></span><span class="fc-kinds">Drop another file to check it instead</span></span>
+      </button>
+      <button type="button" class="fc-clear" id="fc-clear" hidden><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>Clear</button>
+    </div>
     <input type="file" id="fc-file" class="sr" tabindex="-1" aria-hidden="true">
-    <div class="ck-run">
-      <p>To run judgekeeper in your project folder, with pip (most Python setups) or with uv:</p>
-      <div class="ck-ways">
-        <div class="cmd"><code>pip install judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy the install command"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-        <div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy the run command"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-        <div class="cmd"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy the uv command"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+    <div class="fc-try">
+      <p class="ex-or"><span>or try an example</span></p>
+      <div class="ex-row">
+        <button type="button" class="fc-ex ex-card" draggable="true" data-example-file="shop-answers.csv"><svg class="ex-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.75h8.5L19.25 7.5v13.75H6z"/><path d="M14.25 2.75V7.75h5"/><path d="M9 12.5h6M9 16h4"/></svg><span class="ex-t"><b>Shop answers</b><span>CSV</span></span></button>
+        <button type="button" class="fc-ex ex-card" draggable="true" data-example-file="promptfoo-results.json"><svg class="ex-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.75h8.5L19.25 7.5v13.75H6z"/><path d="M14.25 2.75V7.75h5"/><path d="M9 12.5h6M9 16h4"/></svg><span class="ex-t"><b>Repeated runs</b><span>promptfoo</span></span></button>
+        <button type="button" class="fc-ex ex-card" draggable="true" data-example-file="two-llm-as-a-judge-metrics.json"><svg class="ex-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.75h8.5L19.25 7.5v13.75H6z"/><path d="M14.25 2.75V7.75h5"/><path d="M9 12.5h6M9 16h4"/></svg><span class="ex-t"><b>Two metrics</b><span>promptfoo</span></span></button>
       </div>
     </div>
   </div>
-  <div class="hero-r">
-    <div class="term ck-term">
-      <div class="term-bar"><span class="term-title" id="ck-title">your results file</span><button type="button" class="term-replay" id="ck-clear" hidden>Clear</button></div>
-      <div class="ck-out" tabindex="0" role="region" aria-label="What the check prints">
+  <div class="term ck2-term">
+    <div class="term-bar"><span class="term-title" id="ck-title">your results file</span></div>
+    <div class="ck-out" tabindex="0" role="region" aria-label="What the check prints">
 <pre class="ck-wait" id="ck-wait"><span class="t-prompt">$ </span><span class="t-cmd">judgekeeper</span>
 <span class="t-step">Step 1 of 5: Find</span>
 
 <span class="t-dim">Waiting for your results file.</span>
-<span class="t-dim">Drop it on the left. It stays on your computer.</span>
-<span class="ck-cursor" aria-hidden="true">▋</span></pre>
-        <div class="fc-result" id="fc-result" aria-live="polite"></div>
-      </div>
+<span class="t-dim">Drop it in the box, or try an example.</span>
+<span class="ck-cursor" aria-hidden="true">▋</span>
+<span class="ck-ghost" aria-hidden="true">
+Eval tool:   ··········
+File:        ··················
+Answers:     ·······
+Judge:       ··············
+Judge rule:  ·····················
+
+Your judge passed ··· answers and failed ···.
+Checked: ··························</span></pre>
+      <div class="fc-result" id="fc-result" aria-live="polite"></div>
     </div>
+    <div class="term-foot ck2-foot"><span class="tf-dot" aria-hidden="true"></span><span class="tf-text">your file stays on your computer</span><a class="tf-link" href="start.html">next step: install judgekeeper <span aria-hidden="true">→</span></a></div>
   </div>
 </div></section>
 </main>

@@ -405,30 +405,56 @@ td:first-child { min-width: 14ch; }
   .sw-bar::before { margin-right: 36px; }
 }
 
-/* ---- the browser check: Home's hero, the drop card on the left and a terminal on the right.
-   One screen with the footer showing; long output scrolls inside the terminal. ---- */
-.hero.ck-hero { border-bottom: 0; }  /* the footer draws the one line under it */
-.ck-hero .wrap { align-items: stretch; padding-block: 48px; }
-.ck-hero .hero-l { gap: 36px; align-items: stretch; }
-.ck-hero h1 { font-size: 46px; line-height: 1.05; }
+/* ---- the browser check: the drop box and the examples on the left, a terminal on the
+   right, both the same height. Long output scrolls inside the terminal. ---- */
+.ck2 .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 28px 48px; align-items: stretch; padding-block: 56px 72px; }
+.ck2-l { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+.ck2-l h1 { margin: 0; font-size: clamp(34px, 3.6vw, 48px); font-weight: 800; line-height: 1.06; letter-spacing: -.02em; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.fc-drop { flex: 1; min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px 24px; text-align: center; border: 1px solid var(--line); border-radius: 12px; background: var(--term-bg); color: var(--fg); transition: border-color 120ms ease; }
-/* hover, a file over the page, or keyboard focus: a green border inside the card, no ring */
+/* the drop box fills the space left; a file in it shows its name, with Clear under it */
+.fc-zone { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 220px; }
+.fc-drop { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 24px; text-align: center; border: 1px dashed #3a3f47; border-radius: 12px; background: var(--term-bg); color: var(--fg); transition: border-color 120ms ease; }
+/* hover, a file over the page, or keyboard focus: a green border inside the box, no ring */
 .fc-drop:hover, .fc-drop.over, .fc-drop:focus-visible { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); outline: none; }
 .fc-drop.busy { cursor: progress; opacity: .75; }
-.fc-main { font-size: 18px; line-height: 1.4; }
+.ck2-drop.has-file { border-style: solid; border-color: var(--green); }
+.fc-empty, .fc-loaded { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.fc-empty[hidden], .fc-loaded[hidden], .fc-try[hidden], .fc-clear[hidden] { display: none; }
+.fc-loaded { transform: translateY(-22px); }  /* room for Clear under it */
+.ck2-ico { width: 30px; height: 30px; color: var(--green); margin-bottom: 4px; }
+.fc-file-ico { width: 32px; height: 32px; color: var(--green); }
+.fc-main { display: flex; flex-direction: column; gap: 4px; font-size: 18px; line-height: 1.4; }
 .fc-main b { font-weight: 800; }
+.fc-loaded .fc-main b { font-family: var(--mono); font-variant-ligatures: none; font-weight: 600; font-size: 16px; word-break: break-all; }
+.ck2-or { font-size: 14px; color: var(--muted); }
 .fc-kinds { font-family: var(--mono); font-variant-ligatures: none; font-size: 13px; color: var(--muted); }
-/* the command row, lined up with the terminal's bottom edge */
-.ck-run { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid var(--line); border-radius: 12px; padding: 14px 14px 14px 20px; background: var(--term-bg); }
-.ck-run p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--muted); }
-.ck-run .cmd { flex: none; min-width: 0; }
-.ck-ways { display: flex; flex-direction: column; gap: 8px; flex: none; min-width: 0; }
-.ck-term { border-radius: 12px; overflow: hidden; height: calc(100vh - 262px); min-height: 420px; max-height: 760px; }
-.ck-out { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px; font-family: var(--mono); font-variant-ligatures: none; font-size: 13px; line-height: 1.55; }
+.fc-clear { position: absolute; bottom: 22%; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bar); color: var(--fg); font: 500 13.5px/1 var(--sans); }
+.fc-clear svg { width: 12px; height: 12px; color: var(--muted); }
+.fc-clear:hover, .fc-clear:focus-visible { border-color: var(--red); outline: none; }
+.fc-clear:hover svg, .fc-clear:focus-visible svg { color: var(--red); }
+/* the example files: three cards under an "or try an example" line */
+.ex-or { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+.ex-or::before, .ex-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.ex-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ex-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--term-bg); text-align: left; cursor: grab; transition: border-color 140ms ease, transform 140ms ease; }
+.ex-card:active { cursor: grabbing; transform: none; }
+.ex-card:hover, .ex-card:focus-visible { border-color: var(--green); transform: translateY(-1px); outline: none; }
+.ex-ico { width: 22px; height: 22px; flex: none; color: var(--muted); transition: color 140ms ease; }
+.ex-card:hover .ex-ico, .ex-card:focus-visible .ex-ico { color: var(--green); }
+.ex-t { display: grid; gap: 2px; min-width: 0; }
+.ex-t b { font: 600 14px/1.25 var(--sans); color: var(--fg); }
+.ex-t span { font: 400 11.5px/1.2 var(--mono); font-variant-ligatures: none; color: var(--muted); }
+/* the terminal: as tall as the left side, the same before and after a file */
+.ck2-term { border-radius: 12px; overflow: hidden; min-height: 524px; }
+.ck2-term .ck-out { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+.ck-out { padding: 20px 24px; font-family: var(--mono); font-variant-ligatures: none; font-size: 13px; line-height: 1.55; }
 .ck-wait { margin: 0; font: inherit; white-space: pre-wrap; }
 .ck-cursor { animation: ck-blink 1.1s steps(1) infinite; }  /* under reduced motion it stays still */
 @keyframes ck-blink { 50% { opacity: 0; } }
+.ck-ghost { display: block; margin-top: 28px; color: #2c3138; }  /* the shape of the check, waiting */
+.ck2-foot .tf-dot { background: var(--green); }
+.ck2-foot .tf-link { color: var(--green); border-bottom-color: rgba(16, 185, 129, .4); }
+.ck2-foot .tf-link::after { content: none; }
 .fc-result { display: flex; flex-direction: column; gap: 14px; }
 .fc-result:empty { display: none; }
 .fc-result p { margin: 0; }
@@ -444,17 +470,22 @@ td:first-child { min-width: 14ch; }
 .fc-pick-list .btn { border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; font-size: 13px; color: var(--muted); max-width: 100%; overflow-wrap: anywhere; }
 .fc-pick-list .btn:hover { color: var(--fg); background: var(--hover); }
 .fc-pick-list .btn[aria-checked="true"] { color: var(--fg); border-color: var(--fg); background: var(--current); }
-@media (max-width: 860px) {
-  .ck-hero h1 { font-size: 36px; }
-  .ck-term { height: auto; min-height: 300px; max-height: none; }
+@media (max-width: 1000px) {
+  .ck2 .wrap { grid-template-columns: minmax(0, 1fr); }
+  .ck2-term { min-height: 320px; }
+  .ck2-term .ck-out { flex: none; max-height: 560px; }
 }
 @media (max-width: 760px) {
-  .fc-drop { min-height: 160px; padding: 24px 16px; }
-  .ck-run { flex-direction: column; align-items: stretch; padding: 14px; }
-  .ck-run .cmd { display: grid; }
+  .ck2 .wrap { padding-block: 36px 48px; }
+  .fc-drop { padding: 24px 16px; }
   .ck-out { padding: 16px 14px; font-size: 12px; }
   .fc-term .ln { flex-direction: column; }
   .fc-term .ln > .pad { display: none; }
+}
+@media (max-width: 520px) {
+  .ex-row { grid-template-columns: minmax(0, 1fr); }
+  .ck2-foot .tf-text { display: none; }  /* the next-step link only */
+  .ck2-foot .tf-link { margin-left: auto; }
 }
 
 /* ---- the page for a wrong address ---- */
@@ -468,4 +499,5 @@ td:first-child { min-width: 14ch; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
+  .ex-card:hover, .ex-card:focus-visible { transform: none; }
 }

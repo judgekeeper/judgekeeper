@@ -98,7 +98,7 @@ def test_the_pages_show_commands():
     # the handy commands, typed at the Guide's small terminal window
     handy = [argv for line, argv in commands(WEBSITE / "start.html") if line.startswith("$ ")]
     assert handy == [["--stop"], ["--new"], ["--no-browser"], ["--help"]]
-    assert counts["check.html"] == 2  # pip's judgekeeper and uvx judgekeeper, under the drop card
+    assert counts["check.html"] == 0  # its status bar links to the Guide's install instead
 
 
 def _options() -> set[str]:
@@ -487,7 +487,8 @@ def test_the_check_page_loads_its_script_and_has_no_inline_script():
     assert len(scripts) == 2 and re.fullmatch(r"assets/freecheck\.js\?v=\d+", scripts[1])
     assert all(not el.text().strip() for el in els if el.tag == "script")
     ids = {el.attrs.get("id") for el in els}
-    assert {"fc-drop", "fc-file", "fc-result", "ck-wait", "ck-title", "ck-clear"} <= ids  # what freecheck.js uses
+    assert {"fc-drop", "fc-file", "fc-result", "ck-wait", "ck-title", "fc-clear",
+            "fc-name"} <= ids  # what freecheck.js uses
     (file_input,) = [el for el in els if el.tag == "input"]
     assert file_input.attrs["type"] == "file"
 
@@ -523,12 +524,11 @@ def test_home_links_to_the_check_page_twice():
 def test_the_check_page_says_what_it_reads_and_that_the_file_stays():
     text = " ".join(parse(CHECK).text().split())
     for words in ("Check your LLM-as-a-judge in your browser.",
-                  "Drop your results file here, or choose one",
+                  "Drop your results file here or click to choose one",
                   "promptfoo · DeepEval · CSV · JSONL",
                   "Waiting for your results file.",
-                  "Drop it on the left. It stays on your computer.",
-                  ("To run judgekeeper in your project folder, with pip (most Python setups) "
-                   "or with uv: pip install judgekeeper judgekeeper uvx judgekeeper")):
+                  "Drop it in the box, or try an example.",
+                  "your file stays on your computer"):
         assert words in text, words
 
 

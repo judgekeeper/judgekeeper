@@ -1249,17 +1249,32 @@
     var out = document.getElementById('fc-result');
     var wait = document.getElementById('ck-wait');
     var title = document.getElementById('ck-title');
-    var clear = document.getElementById('ck-clear');
-    if (!zone || !input || !out || !wait || !title || !clear) return;
+    var clear = document.getElementById('fc-clear');
+    var empty = zone && zone.querySelector('.fc-empty');
+    var loaded = zone && zone.querySelector('.fc-loaded');
+    var name = document.getElementById('fc-name');
+    var examples = document.querySelector('.fc-try');
+    if (!zone || !input || !out || !wait || !title || !clear || !empty || !loaded || !name || !examples) return;
     var waitTitle = title.textContent;
 
     zone.addEventListener('click', function () { input.click(); });
     input.addEventListener('change', function () { if (input.files && input.files[0]) take(input.files[0], input.files.length); input.value = ''; });
-    // Clear: back to the waiting screen, ready for the next file
+    // The drop box shows the file being checked, with Clear under its name; the examples hide
+    // until Clear
+    function boxShows(fileName) {
+      var on = !!fileName;
+      empty.hidden = on;
+      loaded.hidden = !on;
+      name.textContent = on ? oneLine(clean(fileName, 80)) : '';
+      clear.hidden = !on;
+      examples.hidden = on;
+      zone.classList.toggle('has-file', on);
+    }
+    // Clear: back to the empty box, the examples and the waiting screen, ready for the next file
     clear.addEventListener('click', function () {
+      boxShows('');
       out.replaceChildren();
       wait.hidden = false;
-      clear.hidden = true;
       title.textContent = waitTitle;
       zone.focus();
     });
@@ -1271,6 +1286,8 @@
     document.addEventListener('dragleave', function (e) { if (!e.relatedTarget) zone.classList.remove('over'); });
     document.addEventListener('drop', function (e) {
       e.preventDefault(); zone.classList.remove('over');
+      var example = e.dataTransfer && e.dataTransfer.getData(EXAMPLE_TYPE);
+      if (example) return runExample(example);
       var files = e.dataTransfer && e.dataTransfer.files;
       if (files && files.length) take(files[0], files.length);
     });
@@ -1288,11 +1305,40 @@
     }
     function done() { zone.classList.remove('busy'); }
 
+    // The example files: each a script from this site that sets JK_EXAMPLES[file], added on
+    // the first click (connect-src stays 'none'), then read as a dropped file is. Click one, or
+    // drag it into the box.
+    var EXAMPLE_TYPE = 'application/x-judgekeeper-example';
+    function runExample(file) {
+      var shown = 'made-up example · ' + file;
+      function ready() {
+        done();
+        var text = (root.JK_EXAMPLES || {})[file];
+        if (!isStr(text)) return showError('The example file could not be loaded. Try again.', shown);
+        show(checkBytes(new TextEncoder().encode(text).buffer, shown), 1, shown);
+      }
+      zone.classList.add('busy');
+      if (root.JK_EXAMPLES && isStr(root.JK_EXAMPLES[file])) return ready();
+      var tag = document.createElement('script');
+      tag.src = 'assets/examples/' + file + '.js';
+      tag.onload = ready;
+      tag.onerror = ready;
+      document.head.appendChild(tag);
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('[data-example-file]'), function (card) {
+      var file = card.getAttribute('data-example-file');
+      card.addEventListener('click', function () { runExample(file); });
+      card.addEventListener('dragstart', function (e) {
+        e.dataTransfer.setData(EXAMPLE_TYPE, file);
+        e.dataTransfer.effectAllowed = 'copy';
+      });
+    });
+
     function begin(fileName) {
       out.replaceChildren();
       wait.hidden = true;
-      clear.hidden = false;
       title.textContent = oneLine(clean(fileName || 'your file', 80));
+      boxShows(fileName || 'your file');
     }
 
     function showError(message, fileName) {

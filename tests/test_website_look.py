@@ -296,7 +296,8 @@ COLOUR_ONLY = {"color", "background", "background-color", "border-color", "filte
 
 def test_the_only_motion_is_the_underline_and_the_terminal_typing():
     """Hover colours may fade; nothing else moves, slides, turns or appears by itself. The green
-    line under the five words grows, and a click on a word scrolls to the steps."""
+    line under the five words grows, a click on a word scrolls to the steps, and the browser
+    check's example cards lift 1px on hover (not under reduced motion)."""
     # one animation: the browser check's cursor blinks while it waits for a file
     assert re.findall(r"@keyframes ([\w-]+)", CSS) == ["ck-blink"]
     assert re.findall(r"animation:\s*([^;]+);", CSS.replace("animation: none !important", "")) == [
@@ -308,6 +309,9 @@ def test_the_only_motion_is_the_underline_and_the_terminal_typing():
             props = {part.split()[0] for part in value.split(",")}
             if selector.endswith(".five a::after"):  # the selector may follow a comment
                 assert value == "transform 240ms ease"
+                continue
+            if selector.endswith(".ex-card"):
+                assert value == "border-color 140ms ease, transform 140ms ease"
                 continue
             assert props <= COLOUR_ONLY, (selector, value)
     reduce = CSS[CSS.index("@media (prefers-reduced-motion: reduce)"):]
@@ -784,7 +788,7 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
     assert [_flat(_all(b, "code")[0]) for b in boxes] == [
         *install, "judgekeeper", "judgekeeper path/to/results.json",
         "judgekeeper mark", "judgekeeper fix", "judgekeeper check",
-        "judgekeeper results.csv", *install]
+        "judgekeeper results.csv"]  # the check page has none: its status bar links here
     for box in boxes:
         (button,) = _all(box, "button", "copy")
         assert "data-copy" in button.attrs and button.attrs["aria-label"].startswith("Copy")
@@ -866,49 +870,111 @@ def test_the_site_speaks_as_judgekeeper_or_i_never_we():
 
 # The browser check ---------------------------------------------------------------------------
 
-def test_the_browser_check_is_homes_hero_with_the_drop_card_and_a_terminal():
+def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     main = _main(CHECK)
     assert main.classes() == {"ck"}
-    (hero,) = _all(main, "section", "hero")
-    assert "ck-hero" in hero.classes()
-    assert _flat(_all(hero, "h1")[0]) == "Check your LLM-as-a-judge in your browser."
+    (section,) = _all(main, "section", "ck2")
+    left, term = [el for el in _all(section, "div") if el.parent.parent is section]
+    assert "ck2-l" in left.classes() and {"term", "ck2-term"} <= term.classes()
+    (h1,) = _all(left, "h1")
+    assert _flat(h1) == "Check your LLM-as-a-judge in your browser."
+    assert [_flat(s) for s in _all(h1, "span", "nb")] == ["LLM-as-a-judge", "in your browser."]
+    # the drop box: an upload icon and what to drop; after a file, the file and Clear
     drop = _by_id(CHECK, "fc-drop")
     assert drop.tag == "button" and drop.attrs.get("type") == "button"
-    assert [_flat(el) for el in drop.iter() if {"fc-main", "fc-kinds"} & el.classes()] == [
-        "Drop your results file here, or choose one", "promptfoo · DeepEval · CSV · JSONL"]
+    (empty,) = _all(drop, "span", "fc-empty")
+    (loaded,) = _all(drop, "span", "fc-loaded")
+    assert "hidden" not in empty.attrs and "hidden" in loaded.attrs
+    assert [_flat(el) for el in empty.iter() if el.tag in ("b", "span") and el.classes() & {
+        "ck2-or", "fc-kinds"} or el.tag == "b"] == [
+        "Drop your results file here", "or click to choose one",
+        "promptfoo · DeepEval · CSV · JSONL"]
+    assert _flat(_all(loaded, "span", "fc-kinds")[0]) == "Drop another file to check it instead"
+    (name,) = _all(loaded, "b")
+    assert name.attrs.get("id") == "fc-name"
+    assert [_flat(s.parent) for s in drop.iter() if s.tag == "svg"] and all(
+        s.attrs.get("aria-hidden") == "true" for s in drop.iter() if s.tag == "svg")
+    clear = _by_id(CHECK, "fc-clear")  # its own button, over the box: never inside it
+    assert clear.tag == "button" and "hidden" in clear.attrs and _flat(clear) == "Clear"
+    assert clear.parent.attrs.get("class") == drop.parent.attrs.get("class") == "fc-zone"
+    assert "fc-drop" not in [a.attrs.get("id") for a in clear.ancestors()]
+    assert not [el for el in parse(CHECK).iter() if el.attrs.get("id") == "ck-clear"]
     file_input = _by_id(CHECK, "fc-file")
     assert file_input.attrs["type"] == "file" and "sr" in file_input.classes()
-    # under the drop card, always shown: the command row
-    (run,) = _all(main, "div", "ck-run")
-    assert _flat(_all(run, "p")[0]) == ("To run judgekeeper in your project folder, with pip "
-                                        "(most Python setups) or with uv:")
-    assert [_flat(c) for c in _all(run, "code")] == ["pip install judgekeeper", "judgekeeper",
-                                                    "uvx judgekeeper"]
-    # the terminal: the file's name in its bar once read, Clear, the waiting screen, the result
+    # the examples, under a divider; no command row (the status bar links to the Guide)
+    (divider,) = _all(left, "p", "ex-or")
+    assert _flat(divider) == "or try an example"
+    assert not _all(main, "div", "ck-run") and "uvx" not in _flat(main)
+    # the terminal: the file's name in its bar once read, the waiting screen, the result
     assert _flat(_by_id(CHECK, "ck-title")) == "your results file"
-    clear = _by_id(CHECK, "ck-clear")
-    assert clear.tag == "button" and "hidden" in clear.attrs and _flat(clear) == "Clear"
-    assert " ".join(_by_id(CHECK, "ck-wait").text().split()) == (
-        "$ judgekeeper Step 1 of 5: Find Waiting for your results file. Drop it on the left. "
-        "It stays on your computer. ▋")
+    wait = _by_id(CHECK, "ck-wait")
+    (ghost,) = _all(wait, "span", "ck-ghost")
+    assert ghost.attrs.get("aria-hidden") == "true"
+    waiting = wait.text()[:wait.text().index(ghost.text())]
+    assert " ".join(waiting.split()) == (
+        "$ judgekeeper Step 1 of 5: Find Waiting for your results file. Drop it in the box, or "
+        "try an example. ▋")
     result = _by_id(CHECK, "fc-result")
     assert result.attrs.get("aria-live") == "polite" and not result.children
+    # the status bar: the file stays here, and the next step is the Guide's install
+    (foot,) = _all(term, "div", "term-foot")
+    assert _flat(_all(foot, "span", "tf-text")[0]) == "your file stays on your computer"
+    (link,) = _all(foot, "a")
+    assert link.attrs["href"] == "start.html" and "tf-link" in link.classes()
+    assert _flat(link) == "next step: install judgekeeper →"
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
     assert ('NOT_RECOGNISED = "This doesn\'t look like results judgekeeper can read in the '
             'browser. The tool also reads Inspect AI and MLflow: run uvx judgekeeper in your '
             'project.";') in script
-    assert "zone.focus()" in script  # Clear puts the focus back on the drop card
 
 
-def test_the_browser_check_fits_one_screen_with_one_line_above_the_footer():
-    assert "border-bottom: 0" in _rule(".hero.ck-hero")  # the footer draws the line
-    assert "padding-block: 48px" in _rule(".ck-hero .wrap")
-    assert "font-size: 46px" in _rule(".ck-hero h1")
-    term = _rule(".ck-term")
-    for part in ("height: calc(100vh - 262px)", "min-height: 420px", "max-height: 760px"):
-        assert part in term, part
-    assert "overflow-y: auto" in _rule(".ck-out")  # long output scrolls inside the terminal
-    # the drop card's hover, drag and focus: a green border inside it, no ring outside
+def test_the_waiting_terminal_shows_the_shape_of_the_check_in_the_codes_own_labels(tmp_path):
+    """The faint lines while waiting are the labels the check then prints, values dotted."""
+    from tests.test_freecheck_parity import NODE, browser
+
+    ghost = _all(_by_id(CHECK, "ck-wait"), "span", "ck-ghost")[0].text()
+    labels = [line.split("·")[0].rstrip() for line in ghost.strip().splitlines() if line]
+    assert labels == ["Eval tool:", "File:", "Answers:", "Judge:", "Judge rule:",
+                      "Your judge passed", "Checked:"]
+    if NODE is None:
+        pytest.skip("needs node to run the page's free check")
+    path = tmp_path / "results.csv"
+    path.write_text("input,output,verdict\nq1,a1,pass\nq2,a2,fail\n", encoding="utf-8")
+    (judge,) = browser(path)["judges"]
+    printed = "\n".join(judge["lines"])
+    for label in labels:
+        assert f"\n{label}" in "\n" + printed, label  # the check prints each, as a line's start
+
+
+def test_the_browser_check_is_two_even_columns_that_end_together():
+    wrap = _rule(".ck2 .wrap")
+    for part in ("grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr)", "gap: 28px 48px",
+                 "align-items: stretch"):
+        assert part in wrap, part
+    assert "clamp(34px, 3.6vw, 48px)" in _rule(".ck2-l h1") and "font-weight: 800" in _rule(
+        ".ck2-l h1")
+    assert "min-height: 524px" in _rule(".ck2-term")  # the same height before and after a file
+    assert "overflow-y: auto" in _rule(".ck2-term .ck-out")  # output scrolls inside
+    narrow = CSS[CSS.index("@media (max-width: 1000px) {\n  .ck2"):]
+    narrow = narrow[:narrow.index("\n}\n")]
+    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".ck2 .wrap", narrow)
+    assert "min-height: 320px" in _rule(".ck2-term", narrow)
+    # three equal file cards, one a row on narrow phones; a green lift on hover, none if the
+    # reader asks for less motion
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in _rule(".ex-row")
+    hover = _rule(".ex-card:hover, .ex-card:focus-visible")
+    assert "border-color: var(--green)" in hover and "translateY(-1px)" in hover
+    assert any(".ex-card" in s and "transform: none" in d for s, d in _rules(
+        CSS[CSS.index("@media (prefers-reduced-motion: reduce)"):]))
+    # a file in the box: a solid green border; Clear under its name, red on hover
+    assert "border-color: var(--green)" in _rule(".ck2-drop.has-file")
+    assert "var(--red)" in _rule(".fc-clear:hover, .fc-clear:focus-visible")
+    # phones: the status bar keeps only the next-step link
+    phone = CSS[CSS.index("@media (max-width: 520px) {\n  .ex-row"):]
+    phone = phone[:phone.index("\n}\n")]
+    assert "display: none" in _rule(".ck2-foot .tf-text", phone)
+    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".ex-row", phone)
+    # the drop box's hover, drag and focus: a green border inside it, no ring outside
     focus = _rule(".fc-drop:hover, .fc-drop.over, .fc-drop:focus-visible")
     assert "inset 0 0 0 1px var(--green)" in focus and "outline: none" in focus
 
@@ -920,7 +986,7 @@ def test_the_browser_check_lines_wrap_and_never_scroll_sideways():
     term = _rule(".fc-term")
     assert "white-space: pre-wrap" in term and "overflow-wrap: anywhere" in term
     assert not [s for s, d in _rules() if "fc-term" in s and "overflow-x" in d]
-    phone = CSS[CSS.index("@media (max-width: 760px) {\n  .fc-drop"):]
+    phone = CSS[CSS.index("@media (max-width: 760px) {\n  .ck2 .wrap"):]
     phone = phone[:phone.index("\n}\n")]
     assert "flex-direction: column" in _rule(".fc-term .ln", phone)
     assert "display: none" in _rule(".fc-term .ln > .pad", phone)
