@@ -1,5 +1,5 @@
 """`judgekeeper`, choosing and counting: which results to use when there are several,
-the pool of answers (repeats merged, unclear verdicts left out), the judge's name, too few
+the pool of answers (repeats merged, unclear verdicts left out), the LLM-as-a-judge's name, too few
 answers, and what happens without a terminal.
 """
 
@@ -53,7 +53,7 @@ def test_an_unknown_metric_lists_the_names(tmp_path, capsys):
     _two_metrics(tmp_path)
     code, _, err = run(capsys, tmp_path, "--metric", "speed")
     assert code == 2
-    assert "no judge named 'speed'; judges are: 'helpfulness', 'tone'" in err
+    assert "no LLM-as-a-judge named 'speed'; the names are: 'helpfulness', 'tone'" in err
 
 
 # The pool --------------------------------------------------------------------------------
@@ -140,7 +140,7 @@ def test_judge_model_is_refused_when_the_file_names_a_model(tmp_path, capsys):
     promptfoo_project(tmp_path, split(20, 12))
     code, _, err = run(capsys, tmp_path, "--judge-model", "gpt-4.1-mini")
     assert code == 2
-    assert ("results.json already names the judge's model (openai:gpt-4.1-mini): drop "
+    assert ("results.json already names the LLM-as-a-judge's model (openai:gpt-4.1-mini): drop "
             "--judge-model") in err
 
 

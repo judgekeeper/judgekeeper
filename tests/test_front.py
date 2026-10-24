@@ -1,4 +1,4 @@
-"""`judgekeeper` with no command: find the eval tool, the results, the judge and its rule, run
+"""`judgekeeper` with no command: find the eval tool, the results, the LLM-as-a-judge and its rule, run
 the free checks, write .judgekeeper/judge.json, and end with exactly one `Next:` line.
 
 A person and a coding agent both read the output, so it never holds an answer's text. At a
@@ -114,9 +114,9 @@ def test_promptfoo(here, capsys):
         "judgekeeper has read from your file:",
         "  question   each test's vars",
         "  answer     each test's output",
-        "  grade      your judge's Pass or Fail", ""]
-    assert "Your judge passed 20 answers and failed 16." in out
-    assert "Checked: your judge gave every answer a clear Pass or Fail." in out
+        "  grade      your LLM-as-a-judge's Pass or Fail", ""]
+    assert "Your LLM-as-a-judge passed 20 answers and failed 16." in out
+    assert "Checked: your LLM-as-a-judge gave every answer a clear Pass or\nFail." in out
     assert assert_one_next_at_the_end(out) == START
     assert err == ""
 
@@ -125,10 +125,10 @@ def test_deepeval(here, capsys):
     deepeval_project(here, split(18, 17))
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert "Eval tool:   DeepEval" in out
-    assert "File:        .deepeval/.latest_run_full.json" in out and "35 answers" in out
-    assert "Judge:       Correctness [GEval], gpt-4.1" in out and "Judge rule:  " in out
-    assert "Your judge passed 18 answers and failed 17." in out
+    assert "Eval tool:       DeepEval" in out
+    assert "File:            .deepeval/.latest_run_full.json" in out and "35 answers" in out
+    assert "LLM-as-a-judge:  Correctness [GEval], gpt-4.1" in out and "Rule:            " in out
+    assert "Your LLM-as-a-judge passed 18 answers and failed 17." in out
     assert assert_one_next_at_the_end(out) == START
 
 
@@ -136,9 +136,9 @@ def test_inspect(here, capsys):
     inspect_project(here, split(16, 16))
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert "Eval tool:   Inspect AI" in out and "32 answers" in out
-    assert "File:        logs/2026-10-02_support.json" in out
-    assert "Your judge passed 16 answers and failed 16." in out
+    assert "Eval tool:       Inspect AI" in out and "32 answers" in out
+    assert "File:            logs/2026-10-02_support.json" in out
+    assert "Your LLM-as-a-judge passed 16 answers and failed 16." in out
     assert assert_one_next_at_the_end(out) == START
 
 
@@ -159,9 +159,9 @@ def test_records(here, capsys):
     records_project(here, split(16, 16))
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert "Eval tool:   judgekeeper.record() in your code" in out
-    assert "Files:       .judgekeeper/records/, 1 file" in out and "32 answers" in out
-    assert "Judge:       claude-opus-5" in out and 'Judge rule:  "Be polite."' in out
+    assert "Eval tool:       judgekeeper.record() in your code" in out
+    assert "Files:           .judgekeeper/records/, 1 file" in out and "32 answers" in out
+    assert "LLM-as-a-judge:  claude-opus-5" in out and 'Rule:            "Be polite."' in out
     assert assert_one_next_at_the_end(out) == START
 
 
@@ -169,8 +169,8 @@ def test_own_format_with_yes_saves_the_map_and_reads_it(here, capsys):
     flat_jsonl(here / "evals" / "graded.jsonl")
     code, out, _ = run(capsys, "--yes")
     assert code == 0, out
-    assert "Eval tool:   your own format" in out and "36 answers" in out
-    assert "File:        evals/graded.jsonl" in out
+    assert "Eval tool:       your own format" in out and "36 answers" in out
+    assert "File:            evals/graded.jsonl" in out
     assert "  question:        question" in out  # which parts were read: paths only
     assert "Saved judgekeeper.toml" in out
     saved = tomllib.loads((here / "judgekeeper.toml").read_text(encoding="utf-8"))["start"]
@@ -190,10 +190,10 @@ def test_a_long_rule_is_one_line_cut_short(here, capsys):
     promptfoo_project(here, split(20, 16), rubric=rule)
     _, out, _ = run(capsys)
     lines = out.splitlines()
-    at = next(i for i, x in enumerate(lines) if x.startswith("Judge rule:  "))
+    at = next(i for i, x in enumerate(lines) if x.startswith("Rule:            "))
     quoted = lines[at][lines[at].index('"') + 1:lines[at].rindex('"')]
     assert len(quoted) <= front.RULE_SHOWN and quoted.endswith("…")
-    assert lines[at + 1] == "             (shortened; full rule in promptfooconfig.yaml)"
+    assert lines[at + 1] == "                 (shortened; full rule in promptfooconfig.yaml)"
 
 
 # The free checks ------------------------------------------------------------------------
@@ -202,10 +202,10 @@ def test_answers_with_no_real_verdict_are_left_out_and_listed(here, capsys):
     promptfoo_project(here, [*split(18, 16), None, None, None])
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert "Answers:     37 answers" in out
-    assert "Your judge passed 18 answers and failed 16." in out
+    assert "Answers:         37 answers" in out
+    assert "Your LLM-as-a-judge passed 18 answers and failed 16." in out
     block = flat(out[out.index("Checked:"):out.index("Next:")])
-    assert "Checked: your judge made no real decision on 3 of 37 answers" \
+    assert "Checked: your LLM-as-a-judge made no real decision on 3 of 37 answers" \
         in block
     assert "left out" in block
     assert "The list is in .judgekeeper/judge-check.csv." in block
@@ -220,8 +220,8 @@ def test_every_free_check_finding_starts_with_checked(here, capsys):
     assert code == 0, out
     findings = [p for p in flat(out).split("Checked: ")[1:]]
     assert len(findings) == 2, out
-    assert findings[0].startswith("your judge made no real decision on 3 of 37 answers")
-    assert findings[1].startswith("your judge passed 1 empty answer.")
+    assert findings[0].startswith("your LLM-as-a-judge made no real decision on 3 of 37 answers")
+    assert findings[1].startswith("your LLM-as-a-judge passed 1 empty answer.")
 
 
 def test_judge_json_has_every_field(here, capsys):
@@ -298,7 +298,7 @@ def test_empty_answers_passed_are_counted_without_their_text(here, capsys):
     promptfoo_project(here, split(18, 16), outputs=["", *[f"text{i}{TAG}" for i in range(33)]])
     code, out, _ = run(capsys)
     assert code == 0
-    assert "Checked: your judge passed 1 empty answer." in flat(out)
+    assert "Checked: your LLM-as-a-judge passed 1 empty answer." in flat(out)
     assert "SECRET-7f3a" not in out
 
 
@@ -325,11 +325,11 @@ def test_several_judges(here, capsys):
     code, out, _ = run(capsys)
     assert code == 3
     assert assert_one_next_at_the_end(out) == (
-        "Next: choose which judge to check ('helpfulness', 'safety'), then run "
+        "Next: choose which LLM-as-a-judge to check ('helpfulness', 'safety'), then run "
         "`judgekeeper --metric NAME`.")
     code, out, _ = run(capsys, "--metric", "safety")
     assert code == 0, out
-    assert "Judge:       safety, claude-opus-5" in out
+    assert "LLM-as-a-judge:  safety, claude-opus-5" in out
 
 
 def test_a_judge_name_with_spaces_is_quoted(here, capsys):
@@ -351,7 +351,7 @@ def test_scores_need_a_pass_mark(here, capsys):
     assert "`judgekeeper --pass-if \"score>=N\"`" in line
     code, out, _ = run(capsys, "--pass-if", "score>=0.5")
     assert code == 0, out
-    assert "Your judge passed 16 answers and failed 16." in out
+    assert "Your LLM-as-a-judge passed 16 answers and failed 16." in out
     assert "the verdict column: Pass at 0.5 or more" in out and "Pass mark:" not in out
 
 
@@ -394,7 +394,7 @@ def test_own_format_questions_take_their_flag(here, capsys):
     code, out, _ = run(capsys)
     assert code == 3
     line = assert_one_next_at_the_end(out)
-    assert "which judge to check" in line and "`judgekeeper --metric NAME`" in line
+    assert "which LLM-as-a-judge to check" in line and "`judgekeeper --metric NAME`" in line
     code, out, _ = run(capsys, "--metric", "Safe wording")
     assert code == 3
     assert f"`judgekeeper --metric {quote_arg('Safe wording')} --yes`" in \
@@ -459,7 +459,7 @@ def test_the_questions_are_listed_together_after_the_checks(here, capsys):
     code, out, _ = run(capsys, "--metric", "Safe wording")
     assert code == 3
     # the counts depend on the answers (A and B; rows left out): printed after them
-    assert "answers, each graded by your judge" not in out and "Checked:" not in out
+    assert "answers, each graded by your LLM-as-a-judge" not in out and "Checked:" not in out
     heading = front.QUESTIONS.format(which="these 3 questions")
     listed = flat(out[out.index(heading):])
     assert out.index("How judgekeeper reads it:") < out.index(heading)
@@ -474,7 +474,7 @@ def test_the_questions_are_listed_together_after_the_checks(here, capsys):
 
 
 @pytest.mark.parametrize("make", [
-    lambda root: nested_runs_project(root),  # which judge
+    lambda root: nested_runs_project(root),  # which LLM-as-a-judge
     lambda root: (promptfoo_project(root, split(20, 16)),  # which tool
                   records_project(root, split(16, 16))),
     lambda root: table_project(root, ["0.9"] * 16 + ["0.2"] * 16)])  # which pass mark
@@ -661,12 +661,12 @@ def test_help_lists_the_flags_and_mark(capsys):
 @pytest.mark.parametrize("flag, value, said", [
     ("--experiment", "support", "--experiment is for MLflow results, so it was ignored."),
     ("--fields", "input,actual_output",
-     "--fields is for a DeepEval judge, so it was ignored."),
+     "--fields is for a DeepEval LLM-as-a-judge, so it was ignored."),
 ])
 def test_a_flag_for_another_tool_says_it_was_ignored(here, capsys, flag, value, said):
     promptfoo_project(here, split(20, 16))
     code, out, _ = run(capsys, flag, value, "--no-browser")
     assert said in " ".join(out.split())
-    assert "Eval tool:   promptfoo" in out
+    assert "Eval tool:       promptfoo" in out
     assert flag not in assert_one_next_at_the_end(out)
     assert code == 0, out

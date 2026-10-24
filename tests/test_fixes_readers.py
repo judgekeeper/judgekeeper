@@ -1,5 +1,5 @@
-"""Provider errors read as the judge's Fail, judge columns taken without asking, a range of no
-width for a judge that gives every answer one grade, report.html after a check that ends Worse,
+"""Provider errors read as the LLM-as-a-judge's Fail, judge columns taken without asking, a range of no
+width for an LLM-as-a-judge that gives every answer one grade, report.html after a check that ends Worse,
 and the reading of damaged and far-away files. Every fixture here is made up, with the shape of
 the files that showed each problem.
 """
@@ -42,7 +42,7 @@ def write_csv(path: Path, columns: list[str], rows: list[list]) -> Path:
 # promptfoo provider errors -----------------------------------------------------------------
 
 def provider_error(row: dict) -> dict:
-    """A row as promptfoo saves it when the model under test never answered: the judge never
+    """A row as promptfoo saves it when the model under test never answered: the LLM-as-a-judge never
     ran, so there is no gradingResult."""
     message = "API call error: Request failed after 0 retries: fetch failed"
     row.update({"response": {"error": message}, "error": message, "success": False,
@@ -59,9 +59,9 @@ def test_provider_errors_are_never_the_judges_fail(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 0, out
-    assert "Your judge passed 18 answers and failed 16." in out
+    assert "Your LLM-as-a-judge passed 18 answers and failed 16." in out
     assert "failed 22" not in out
-    assert ("6 answers have no answer: the call to the model you test failed, so your judge "
+    assert ("6 answers have no answer: the call to the model you test failed, so your LLM-as-a-judge "
             "never ran. They are left out here.") in flat(out)
     assert "calls failed" not in out
 
@@ -77,9 +77,9 @@ def test_a_file_of_provider_errors_only_has_no_judge_decisions(here, capsys):
     assert "failed 2" not in out
     assert "too strict" not in out
     assert "http://127.0.0.1" not in out
-    assert ("The call to the model you test failed on every answer, so your judge never ran "
+    assert ("The call to the model you test failed on every answer, so your LLM-as-a-judge never ran "
             "and there is nothing to mark.") in flat(out)
-    assert "fix your judge" not in out
+    assert "fix your LLM-as-a-judge" not in out
     line = assert_one_next_at_the_end(out)
     assert line.startswith("Next: re-run your eval once the model you test answers, then run "
                            "`judgekeeper")
@@ -112,7 +112,7 @@ def test_a_judge_named_0_1_column_beside_a_verdict_column_asks_which(here, capsy
     assert "--metric NAME" in assert_one_next_at_the_end(out)
     code, out = run(capsys, "--metric", "llm_judge")
     assert code == 0, out
-    assert "Your judge passed 30 answers and failed 30." in flat(out)
+    assert "Your LLM-as-a-judge passed 30 answers and failed 30." in flat(out)
 
 
 # A judge that gives every answer the same grade ----------------------------------------------
@@ -226,7 +226,7 @@ def test_an_ndjson_file_is_read_as_jsonl(here, capsys):
     (here / "out.ndjson").write_text(text, encoding="utf-8")
     code, out = run(capsys)
     assert code == 0, out
-    assert "Your judge passed 20 answers and failed 10." in out
+    assert "Your LLM-as-a-judge passed 20 answers and failed 10." in out
     from judgekeeper import find
 
     assert find.classify_file(here / "out.ndjson") == "table"  # named on the command line
@@ -298,7 +298,7 @@ def test_a_table_with_no_question_says_so(here, capsys, column):
                                       encoding="utf-8")
     _, out = run(capsys)
     assert "No eval results found" not in out, out
-    assert "judge.jsonl has your judge's verdicts and the answers but no question" in flat(out)
+    assert "judge.jsonl has your LLM-as-a-judge's verdicts and the answers but no question" in flat(out)
     assert "question column" in assert_one_next_at_the_end(out)
 
 

@@ -95,8 +95,8 @@ def test_a_different_rule_while_a_test_waits_is_named_after_the_clues(fixing, ca
 
 
 def test_a_judge_fix_cant_ask_shows_its_clues_not_the_wait(fixing, capsys):
-    """The judge stopped being one fix can ask (here: its results now hold a rule per test),
-    so the waiting test can't run again: the screen of a judge fix can't ask, with the clues."""
+    """The LLM-as-a-judge stopped being one fix can ask (here: its results now hold a rule per test),
+    so the waiting test can't run again: the screen of an LLM-as-a-judge fix can't ask, with the clues."""
     from judgekeeper import fix
 
     root, holder = fixing

@@ -80,7 +80,7 @@ def test_the_free_check_says_what_it_saw_not_more(project, capsys):
     promptfoo_project(project, split(20, 16))
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
-    assert "Checked: your judge gave every answer a clear Pass or Fail." in flat(text)
+    assert "Checked: your LLM-as-a-judge gave every answer a clear Pass or Fail." in flat(text)
     assert "real decision" not in flat(text)
 
 
@@ -94,8 +94,8 @@ def test_every_judge_call_failed_needs_the_person(project, capsys):
     assert code == 3
     assert "The list is in .judgekeeper/judge-check.csv." in flat(text)
     assert flat(text).endswith(
-        "Your judge's calls failed on every answer, so there is nothing to mark. Next: fix "
-        "your judge's calls, run your eval again, then run `judgekeeper --no-browser`.")
+        "Your LLM-as-a-judge's calls failed on every answer, so there is nothing to mark. Next: fix "
+        "your LLM-as-a-judge's calls, run your eval again, then run `judgekeeper --no-browser`.")
 
 
 # Every error ends with a Next: line ---------------------------------------------------------
@@ -397,7 +397,7 @@ def test_an_inspect_nan_score_is_no_decision(project, capsys):
     _dump(path, data)
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
-    assert "Your judge passed 9 answers and failed 10." in flat(text)
+    assert "Your LLM-as-a-judge passed 9 answers and failed 10." in flat(text)
 
 
 # A table, the own format and judgekeeper.record() ------------------------------------------
@@ -665,7 +665,7 @@ def test_short_unknown_grades_are_listed_but_never_in_the_next_line(project, cap
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert code == 3
-    assert ("judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
+    assert ("judgekeeper can't tell which of your LLM-as-a-judge's decisions mean Pass and which mean "
             'Fail: "ok, sure", bad, good.') in flat(text)
     next_line = flat(text[text.index("Next:"):])
     for value in ("good", "bad", "ok, sure"):
@@ -680,7 +680,7 @@ def test_long_text_grades_are_counted_not_shown(project, capsys):
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert code == 3
-    assert ("judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
+    assert ("judgekeeper can't tell which of your LLM-as-a-judge's decisions mean Pass and which mean "
             "Fail: the verdict column holds long text in 20 rows.") in flat(text)
 
 

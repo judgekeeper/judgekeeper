@@ -105,8 +105,8 @@ def shown_folder(ws: Workspace) -> str:
 
 
 # The three headlines, the same in the terminal and on the result page (report_page.STATES)
-GOOD = "Your judge is good enough to use."
-NEEDS = "Your judge needs work."
+GOOD = "Your LLM-as-a-judge is good enough to use."
+NEEDS = "Your LLM-as-a-judge needs work."
 EARLY = "Too early to tell."
 MARK_MORE = "Mark more answers to get a result."
 VERDICTS = {  # the result line (targets.level decides)
@@ -688,8 +688,8 @@ def side_sentence(key: str, value, interval) -> str:
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."
     if targets.width_word(interval) == "exact":
-        return f"You {did}: your judge also {did} {_pct(value)} (exactly)."
-    return (f"You {did}: your judge also {did} about {_pct(value)} (between "
+        return f"You {did}: your LLM-as-a-judge also {did} {_pct(value)} (exactly)."
+    return (f"You {did}: your LLM-as-a-judge also {did} about {_pct(value)} (between "
             f"{_pct(interval[0])} and {_pct(interval[1])}).")
 
 
@@ -784,7 +784,7 @@ def second_thoughts(made: dict | None) -> list[str]:
         out.append(f"You weren't sure about {made['unsure']} of your marks.")
     if made.get("after_result"):
         out.append(f"You changed {_plural(made['after_result'], 'mark', 'marks')} after seeing "
-                   "your judge's grades.")
+                   "your LLM-as-a-judge's grades.")
     return out
 
 

@@ -147,8 +147,8 @@ OLD = [i % 30 < 19 if i < 30 else i % 30 >= 19 for i in range(60)]  # the old ju
 
 
 def _n03(root) -> Workspace:
-    """N03: the person passes 30 answers and fails 30; the old judge agreed on 19 of each. The
-    new judge (another model) flips every grade."""
+    """N03: the person passes 30 answers and fails 30; the old LLM-as-a-judge agreed on 19 of each. The
+    new LLM-as-a-judge (another model) flips every grade."""
     from judgekeeper import judge_setup, start
     from tests.test_check import _results
     from tests.test_flow_fixes import _mark
@@ -191,7 +191,7 @@ def test_a_not_sure_check_says_it_again(here, capsys):
     assert len(_history(ws)) == 1
     _results(here, OLD)  # back to the judge the marks were made on
     code, out = check(capsys)
-    assert code == 0 and "Your judge is back to the one you marked with" in _flat(out)
+    assert code == 0 and "Your LLM-as-a-judge is back to the one you marked with" in _flat(out)
 
 
 # 4. No top-up on the 3rd rule: a new set at once -------------------------------------------------
@@ -293,7 +293,7 @@ def test_answers_not_counted_in_both_runs_are_counted_once(fixing, capsys):
 
 # 21. promptfoo grader errors are not grades ----------------------------------------------------
 
-GRADER_ERRORS = "{n} answers were not counted: the judge's tool gave an error for them."
+GRADER_ERRORS = "{n} answers were not counted: the LLM-as-a-judge's tool gave an error for them."
 
 
 def test_fix_does_not_count_promptfoo_grader_errors_as_grades(fixing, capsys):
@@ -340,7 +340,7 @@ def test_check_does_not_count_promptfoo_grader_errors_as_grades(here, capsys, mo
 
 # 6. No key: which key, and where to set it ----------------------------------------------------
 
-NEEDS = "Your judge needs ANTHROPIC_API_KEY. It is not set in your shell or in .env."
+NEEDS = "Your LLM-as-a-judge needs ANTHROPIC_API_KEY. It is not set in your shell or in .env."
 
 
 def _no_keys(monkeypatch):
@@ -452,7 +452,7 @@ def test_a_left_out_log_after_marking_comes_after_step_1(here, capsys):
     _inspect_log(here, "2026-10-02_exact.json", "2026-10-02T10:00:00+00:00", judged=False)
     code, out, _ = run(capsys)
     assert code == 0, out
-    left = "logs/2026-10-02_exact.json is left out: no LLM judge in it."
+    left = "logs/2026-10-02_exact.json is left out: no LLM-as-a-judge in it."
     assert "Step 1 of 5: Find\n\n" + left + "\n\nStep 3 of 5: Measure" in out
 
 
@@ -495,9 +495,9 @@ def test_promptfoos_default_grader_is_explained_once(here, capsys):
                                        encoding="utf-8")
     _, out, _ = run(capsys, "--no-browser")
     flat = " ".join(out.split())
-    assert "Judge: promptfoo's default grader (no model written in your config)" in flat, out
+    assert "LLM-as-a-judge: promptfoo's default grader (no model written in your config)" in flat, out
     assert "model not found" not in flat and "--judge-model" not in flat
-    assert flat.count("default grader") == 1  # the Judge: line
+    assert flat.count("default grader") == 1  # the LLM-as-a-judge: line
     assert flat.count("defaultTest.options.provider") == 1
     assert "came from promptfoo's default grader" not in flat
 
@@ -569,7 +569,7 @@ def test_judge_names_in_a_list_are_quoted_alike(here, capsys):
 def test_one_answer_is_not_each(here, capsys):
     promptfoo_project(here, [True])
     _, out, _ = run(capsys, "--no-browser")
-    assert "Answers:     1 answer\n" in out and "each" not in out.split("Answers:")[1][:20], out
+    assert "Answers:         1 answer\n" in out and "each" not in out.split("Answers:")[1][:20], out
 
 
 PIN_LINE = ("judgekeeper can't see your eval tool's version. Write its version in your project's "
@@ -600,7 +600,7 @@ def test_pin_it_says_what_and_why_with_the_projects_version(here, capsys, monkey
 
 def test_one_range_form_everywhere():
     assert start_label.side_sentence("tpr", 0.61, (0.42, 0.78)) == (
-        "You passed: your judge also passed about 61% (between 42% and 78%).")
+        "You passed: your LLM-as-a-judge also passed about 61% (between 42% and 78%).")
     for name in ("README.md", "docs/reference.md", "website/index.html"):
         text = (ROOT / name).read_text(encoding="utf-8")
         assert not re.search(r"could be \d+%", text), name
@@ -700,10 +700,10 @@ def test_or_save_comes_after_its_first_choice(capsys):
 
     talk = start.Talk()
     with pytest.raises(start.Stop):
-        raise own_map.cannot(talk, "history/evals.jsonl", "no judge verdicts were found in it")
+        raise own_map.cannot(talk, "history/evals.jsonl", "no LLM-as-a-judge verdicts were found in it")
     out = " ".join(capsys.readouterr().out.split())
     first = "Turn it into a CSV, as the Next: line says."
-    assert first in out and out.index(first) < out.index("Or save your judge's decisions")
+    assert first in out and out.index(first) < out.index("Or save your LLM-as-a-judge's decisions")
 
 
 def test_fix_with_no_results_says_so_first(here, capsys):
@@ -1082,8 +1082,8 @@ def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_brow
 
 # S11. The result page says what fix does for a judge judgekeeper can't ask ------------------
 
-S11_FIX = ("In your project folder, run `judgekeeper fix`. It lists the answers your judge got "
-           "wrong and saves them in .judgekeeper/fix/. judgekeeper can't re-run this kind of judge "
+S11_FIX = ("In your project folder, run `judgekeeper fix`. It lists the answers your LLM-as-a-judge got "
+           "wrong and saves them in .judgekeeper/fix/. judgekeeper can't re-run this kind of LLM-as-a-judge "
            "itself, so change its rule where your eval keeps it, run your eval, then run "
            "`judgekeeper check`.")
 

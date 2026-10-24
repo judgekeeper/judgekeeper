@@ -42,9 +42,10 @@ MODEL_FAILED = "model_failed"  # the call to the model under test failed: no ans
 NO_DECISION = (ERROR, UNREADABLE, EMPTY_ANSWER_REFUSED, EMPTY)
 LEFT_OUT = (*NO_DECISION, NOTHING_CHECKED, NOT_SCORED, MODEL_FAILED)  # left out of the pool
 # Said the same by the tool and the website's free check (website/assets/freecheck.js)
-MODEL_FAILED_LINE = "{n} no answer: the call to the model you test failed, so your judge never ran."
-ALL_MODEL_FAILED = ("The call to the model you test failed on every answer, so your judge never "
-                    "ran and there is nothing to mark.")
+MODEL_FAILED_LINE = ("{n} no answer: the call to the model you test failed, so your LLM-as-a-judge "
+                     "never ran.")
+ALL_MODEL_FAILED = ("The call to the model you test failed on every answer, so your LLM-as-a-judge "
+                    "never ran and there is nothing to mark.")
 MODEL_FAILED_NEXT = "re-run your eval once the model you test answers, then run `{command}`."
 PASSED_EMPTY = "empty_answer_passed"  # kept in the pool: a real decision
 OPPOSITE = "reason_says_opposite"
@@ -53,8 +54,9 @@ JSON_FILE, CSV_FILE = "judge-check.json", "judge-check.csv"
 CSV_PATH = f".judgekeeper/{CSV_FILE}"  # start_label.FOLDER
 CSV_COLUMNS = ("id", "problem", "tool_counted_as", "judge_decision", "judge_reason", "input",
                "output")
-TITLE = "Did your judge actually judge?"
-EVERY_ANSWER = "Your judge gave a Pass or Fail on every answer (no errors or empty replies)."
+TITLE = "Did your LLM-as-a-judge actually judge?"
+EVERY_ANSWER = ("Your LLM-as-a-judge gave a Pass or Fail on every answer (no errors or empty "
+                "replies).")
 LIST_LINE = f"The list is in {CSV_PATH}"
 TOOLS = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools that count verdicts themselves
 
@@ -204,9 +206,9 @@ _COUNTED = {"pass": ("counted it as a pass", "counted them as passes"),
             "pass and fail": ("counted it as a pass or a fail",
                               "counted them as some passes and some fails"),
             "left out": ("left it out", "left them out")}
-_SAME = {"pass": ("Your judge passed every answer. It may not be checking anything: your marks "
-                  "will show it."),
-         "fail": ("Your judge failed every answer. It may be too strict, or not checking "
+_SAME = {"pass": ("Your LLM-as-a-judge passed every answer. It may not be checking anything: your "
+                  "marks will show it."),
+         "fail": ("Your LLM-as-a-judge failed every answer. It may be too strict, or not checking "
                   "anything: your marks will show it.")}
 
 
@@ -223,8 +225,8 @@ def lines(block: dict | None) -> list[list[str]]:
         parts = [_n(block[k], *_NO_DECISION_WORDS[k]) for k in NO_DECISION if block.get(k)]
         counted = _COUNTED.get(block.get("tool_counted_as"))
         said = f"{name} {counted[0 if one else 1]}. " if name and counted else ""
-        first = (f"Your judge made no real decision on {no_decision} of {block['answers']} "
-                 f"answers: {', '.join(parts)}.")
+        first = (f"Your LLM-as-a-judge made no real decision on {no_decision} of "
+                 f"{block['answers']} answers: {', '.join(parts)}.")
         out.append([first, f"{said}{'It is' if one else 'They are'} left out here."])
     if block.get(MODEL_FAILED):
         n = block[MODEL_FAILED]
@@ -237,16 +239,16 @@ def lines(block: dict | None) -> list[list[str]]:
     nothing = block.get(NOTHING_CHECKED, 0)
     if nothing:
         one = nothing == 1
-        line = (f"On {_n(nothing, 'answer', 'answers')} your judge found nothing to check, but "
-                f"{name or 'your eval tool'} still gave {'it' if one else 'them'} full marks, "
-                f"so {'it is' if one else 'they are'} left out.")
+        line = (f"On {_n(nothing, 'answer', 'answers')} your LLM-as-a-judge found nothing to "
+                f"check, but {name or 'your eval tool'} still gave {'it' if one else 'them'} full "
+                f"marks, so {'it is' if one else 'they are'} left out.")
         out.append([line])
     if block.get(PASSED_EMPTY):
         empty = _n(block[PASSED_EMPTY], "empty answer", "empty answers")
-        out.append([f"Your judge passed {empty}."])
+        out.append([f"Your LLM-as-a-judge passed {empty}."])
     if block.get(OPPOSITE):
-        line = (f"On {_n(block[OPPOSITE], 'answer', 'answers')}, your judge's reason says the "
-                "opposite of its decision.")
+        line = (f"On {_n(block[OPPOSITE], 'answer', 'answers')}, your LLM-as-a-judge's reason says "
+                "the opposite of its decision.")
         out.append([line])
     if block.get("same_decision") in _SAME:
         out.append([_SAME[block["same_decision"]]])
@@ -258,9 +260,9 @@ def has_rows(block: dict | None) -> bool:
     return bool(block) and any(block.get(k) for k in KINDS)
 
 
-MODEL_NOT_WRITTEN = ("Your judge's model isn't written in your config. promptfoo picks it "
-                     "from whichever API key is set, so it can change without any file "
-                     "changing. Write it in your config (`defaultTest.options.provider`).")
+MODEL_NOT_WRITTEN = ("Your LLM-as-a-judge's model isn't written in your config. promptfoo picks it "
+                     "from whichever API key is set, so it can change without any file changing. "
+                     "Write it in your config (`defaultTest.options.provider`).")
 VERSION_NOT_SEEN = ("judgekeeper can't see your eval tool's version. Write its version in your "
                     "project's requirements{example}, so `check` notices when it changes.")
 PINS = {"deepeval": "deepeval", "mlflow": "mlflow"}  # results hold no version: their packages

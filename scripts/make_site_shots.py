@@ -12,7 +12,7 @@ Then it runs `judgekeeper --wait` in that folder, the way a person does: at a te
 pseudo-terminal on macOS and Linux), on judgekeeper's own port. So the link is not one printed
 for a program, and the result page has no note about it. It marks the answers through the same
 HTTP calls the page makes (POST /label). The judge passes 10 answers the person fails and fails
-3 the person passes, so the result reads "Your judge needs work." with its disagreements.
+3 the person passes, so the result reads "Your LLM-as-a-judge needs work." with its disagreements.
 
 Headless Chrome, driven over its DevTools protocol, takes each picture at 1440 x 900, twice the pixels, as WebP:
 

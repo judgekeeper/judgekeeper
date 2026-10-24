@@ -282,11 +282,12 @@ def _credentials(kind: str | None) -> str | None:
     if kind == "google":
         found = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or (
             HOME / ".config" / "gcloud" / "application_default_credentials.json").is_file()
-        return "Google default credentials found; your judge will use them." if found else None
+        return ("Google default credentials found; your LLM-as-a-judge will use them." if found
+                else None)
     if kind == "aws":
         found = os.environ.get("AWS_PROFILE") or (HOME / ".aws" / "credentials").is_file() \
             or (HOME / ".aws" / "config").is_file()
-        return "AWS profile found; your judge will use it." if found else None
+        return "AWS profile found; your LLM-as-a-judge will use it." if found else None
     return None
 
 
@@ -323,14 +324,14 @@ def check(model: str | None, tool: str, folder: Path, provider: str | None = Non
     if settings:
         verb = "is" if len(settings) == 1 else "are"
         pronoun = "it changes" if len(settings) == 1 else "they change"
-        setting_lines = [f"{_and(settings)} {verb} set; {pronoun} your judge."]
+        setting_lines = [f"{_and(settings)} {verb} set; {pronoun} your LLM-as-a-judge."]
     if family is None:
-        unknown = (f"I can't tell which key your judge needs (its model is {model}); your tool "
-                   "looks for it itself.")
+        unknown = (f"I can't tell which key your LLM-as-a-judge needs (its model is {model}); your "
+                   "tool looks for it itself.")
         return KeyCheck(None, None, True, [unknown, *setting_lines], settings)
     p = PROVIDERS[family]
     if family == "ollama":
-        return KeyCheck(family, None, True, ["Your judge runs on Ollama; it needs no key.",
+        return KeyCheck(family, None, True, ["Your LLM-as-a-judge runs on Ollama; it needs no key.",
                                              *setting_lines], settings)
     alternatives = [(key_env,)] if key_env else list(p.keys)
     loader = TOOLS.get(tool, tool)
@@ -351,15 +352,16 @@ def check(model: str | None, tool: str, folder: Path, provider: str | None = Non
             if not loads_env:
                 how = ", ".join(set_in_shell(n) for n in alt)
                 return KeyCheck(family, name, False, [
-                    f"Your judge needs {name}. It is in {file} {here}, but {loader} does not "
-                    "load .env files"
+                    f"Your LLM-as-a-judge needs {name}. It is in {file} {here}, but {loader} does "
+                    "not load .env files"
                     + (" when judgekeeper runs it" if tool == "inspect" else "")
                     + f": set it in your shell ({how}).", *setting_lines], settings,
                     step=f"set {name} in your shell")
             where = f"in {file} {here}; {loader} loads it"
         if where:
             return KeyCheck(family, name, True, [
-                f"Your judge will use your {p.label} key ({name}, {where}).", *setting_lines],
+                f"Your LLM-as-a-judge will use your {p.label} key ({name}, {where}).",
+                *setting_lines],
                 settings)
     creds = _credentials(p.credentials)
     if creds:
@@ -367,7 +369,8 @@ def check(model: str | None, tool: str, folder: Path, provider: str | None = Non
     names = [" + ".join(alt) for alt in alternatives]
     needed = names[0] + (f" (or {' or '.join(names[1:])})" if len(names) > 1 else "")
     return KeyCheck(family, names[0], False, [
-        f"Your judge needs {needed}. It is not set in your shell or in .env.", *setting_lines],
+        f"Your LLM-as-a-judge needs {needed}. It is not set in your shell or in .env.",
+        *setting_lines],
         settings, step=f"set {names[0]} in your shell" + (" or in .env" if loads_env else ""))
 
 

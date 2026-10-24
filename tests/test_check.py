@@ -1,4 +1,4 @@
-"""`judgekeeper check`: when the judge's setup changed since the last check, re-test the new
+"""`judgekeeper check`: when the LLM-as-a-judge's setup changed since the last check, re-test the new
 judge on the person's marks. Free first (marked answers whose exact text is in the newest
 results), then, only after the person's yes, the person's own judge is asked about the rest;
 a one-sided paired test per group; a history line; exit 0, 1 (worse) or 3.
@@ -67,7 +67,7 @@ def _new_outputs(n=50):
 
 def _marked(root, n_pass=25, n_fail=25, agent=False, **kwargs) -> Workspace:
     """A promptfoo project as judgekeeper leaves it after marking: judge.json, start.json, and
-    a person who agrees with the judge on every answer."""
+    a person who agrees with the LLM-as-a-judge on every answer."""
     (root / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
     _results(root, split(n_pass, n_fail), agent=agent, **kwargs)
     found = start.find_judge(root)
@@ -88,9 +88,9 @@ def here(tmp_path, monkeypatch):
 
 @pytest.fixture
 def no_calls(monkeypatch):
-    """Any process judgekeeper starts to ask the judge fails the test."""
+    """Any process judgekeeper starts to ask the LLM-as-a-judge fails the test."""
     def refuse(*args, **kwargs):
-        raise AssertionError("the judge was asked")
+        raise AssertionError("the LLM-as-a-judge was asked")
 
     monkeypatch.setattr(again, "run_process", refuse)
 
@@ -161,7 +161,7 @@ def test_check_remembers_the_setup_and_reads_nothing_next_time(here, capsys, mon
     assert (here / ".judgekeeper" / check.SEEN).is_file()
     _no_reading(monkeypatch)
     code, out = run(capsys)
-    assert code == 0 and "Your judge has not changed" in out
+    assert code == 0 and "Your LLM-as-a-judge has not changed" in out
 
 
 def test_check_reads_again_when_the_results_change(here, capsys, no_calls):
@@ -260,18 +260,18 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_c
     assert "On answers you fail, agreement drops by no more than 10 in every 100." in out
     assert "turned" not in out
     assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
-                          "change your judge.")
+                          "change your LLM-as-a-judge.")
     code, out = run(capsys)
     assert code == 0
     day = datetime.now().astimezone()
-    assert f"Your judge has not changed since your last check ({day.day} " in out
+    assert f"Your LLM-as-a-judge has not changed since your last check ({day.day} " in out
 
 
 def test_the_same_judge_has_nothing_to_check(here, capsys, no_calls):
     _marked(here)
     code, out = run(capsys)
     assert code == 0
-    assert "Your judge has not changed since you marked your answers." in out
+    assert "Your LLM-as-a-judge has not changed since you marked your answers." in out
     assert _history(Workspace(here)) == []
 
 
@@ -401,7 +401,7 @@ def test_at_a_terminal_no_is_the_default(here, capsys, judge, terminal, said):
     _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
     code, out = run(capsys)
     assert code == 3
-    assert "Your judge was not asked." in out
+    assert "Your LLM-as-a-judge was not asked." in out
     assert _history(ws) == []
     assert _evals(judge) == 0
 
@@ -432,7 +432,7 @@ def test_a_close_copy_is_said(here, capsys, judge):
     _results(here, MARKED, model=HAIKU, version="0.125.0", outputs=_new_outputs())
     code, out = run(capsys, "--yes")
     assert code == 0
-    assert re.search(r"This was a close copy of your judge, not an exact one: .*0\.124\.1.*"
+    assert re.search(r"This was a close copy of your LLM-as-a-judge, not an exact one: .*0\.124\.1.*"
                      r"0\.125\.0", _flat(out))
 
 
@@ -451,7 +451,7 @@ def test_the_question_says_when_the_judge_can_change_files(here, capsys, judge):
     _results(here, MARKED, model=HAIKU, outputs=_new_outputs(), agent=True)
     code, out = run(capsys)
     assert code == 3
-    assert "Your judge is an agent that can change files when it runs." in out
+    assert "Your LLM-as-a-judge is an agent that can change files when it runs." in out
     assert _evals(judge) == 0
 
 

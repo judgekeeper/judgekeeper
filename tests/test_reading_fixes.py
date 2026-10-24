@@ -327,7 +327,7 @@ def test_a_rubric_per_test_is_said(here, capsys):
     _write(here / "results.json", data)
     (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
     _, out = find(capsys)
-    assert re.search(r'Judge rule: differs per test \(40 rules\)\. First: "Rubric 0"',
+    assert re.search(r'Rule: differs per test \(40 rules\)\. First: "Rubric 0"',
                      flat(out)), out
 
 
@@ -351,7 +351,7 @@ def test_inspect_code_scorers_are_not_judges(here, capsys):
     _, out = find(capsys)
     assert not re.search(r"^\s*match \(\d+ answers?\)", out, re.MULTILINE), out
     _, out = find(capsys, "--metric", "match")
-    assert not re.search(r"Judge:\s+match\b", out), out
+    assert not re.search(r"LLM-as-a-judge:\s+match\b", out), out
 
 
 def test_a_newer_eval_log_without_the_extra_is_said(here, capsys, monkeypatch):
@@ -440,7 +440,7 @@ def test_the_newest_deepeval_run_is_read_and_both_files_named(here, capsys):
            deepeval_data(split(20, 20), model="gpt-5", start=100))
     _, out = find(capsys)
     text = flat(out)
-    assert re.search(r"Judge:.*gpt-5\b", text), out
+    assert re.search(r"LLM-as-a-judge:.*gpt-5\b", text), out
     assert ".latest_run_full.json" in text and "test_run_20261001_100000.json" in text
     assert "1 Oct" in text, out
 
@@ -451,7 +451,7 @@ def test_an_empty_deepeval_run_says_it_has_no_test_cases(here, capsys):
     (here / "requirements.txt").write_text("deepeval\n", encoding="utf-8")
     _, out = find(capsys)
     assert "The run has no test cases." in flat(out), out
-    assert "add an LLM judge" not in out
+    assert "add an LLM-as-a-judge" not in out
 
 
 def test_every_judge_call_failed_is_not_each_graded(here, capsys):
@@ -463,7 +463,7 @@ def test_every_judge_call_failed_is_not_each_graded(here, capsys):
     _write(here / "results.json", data)
     (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
     _, out = find(capsys)
-    assert "each graded by your judge" not in out, out
+    assert "each graded by your LLM-as-a-judge" not in out, out
 
 
 # 35. Pin advice ---------------------------------------------------------------------------------

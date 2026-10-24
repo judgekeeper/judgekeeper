@@ -89,7 +89,7 @@ def test_the_judge_line_names_the_models_the_tool_names(tmp_path):
                 [*rows, "q 6,a 6,,old-model-made-up"])
     (judge,) = browser(path)["judges"]
     assert judge["models"] == ["gpt-4.1"]
-    assert "Judge:       gpt-4.1" in judge["lines"]
+    assert "LLM-as-a-judge:  gpt-4.1" in judge["lines"]
     assert _page(browser(path)) == tool(path)
 
 

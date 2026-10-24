@@ -50,7 +50,7 @@ def _check(out: str, err: str = "") -> str:
 
 
 def _click(ws, n=None, seconds=7):
-    """The person marks the first n answers on the page, as the judge did."""
+    """The person marks the first n answers on the page, as the LLM-as-a-judge did."""
     session = start_label.StartSession(ws)
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
     for item in session.items[:n]:
@@ -84,7 +84,8 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
         "",
         "The marking page is open in your browser. It shows the answers",
         "one at a time. Mark each one Pass or Fail, the way you want your",
-        "judge to decide. Your judge's grade stays hidden.",
+        "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays",
+        "hidden.",
         "",
         'Next: mark until "See your result" appears, then click it.']
     assert len(no_browser) == 1 and label.is_open(here / ".judgekeeper")
@@ -121,7 +122,7 @@ def test_no_clear_verdict_means_nothing_to_mark(here, capsys, pages):
     code, out, _ = run(capsys, "mark")
     assert code == 3
     assert "nothing to mark" in _flat(out)
-    assert _check(out) == ("Next: fix your judge, run your eval again, then run "
+    assert _check(out) == ("Next: fix your LLM-as-a-judge, run your eval again, then run "
                            "`judgekeeper mark`.")
     assert pages[0] == []
 

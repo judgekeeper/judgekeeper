@@ -79,16 +79,16 @@ MODEL_GRADED = frozenset({
 REFERENCE_TYPES = frozenset({"factuality", "model-graded-factuality"})
 # Judges that are not one model call: a grader with tools, a grader of the app's trace
 AGENT_GRADED = frozenset({"agent-rubric", "trajectory:goal-success"})
-DEFAULT_GRADER = ("{n} of your judge's grades came from promptfoo's default grader: no grader is "
-                  "set on those tests or in defaultTest, so promptfoo picked one, and its "
-                  "results don't say which model. Write the grader in your config "
+DEFAULT_GRADER = ("{n} of your LLM-as-a-judge's grades came from promptfoo's default grader: no "
+                  "grader is set on those tests or in defaultTest, so promptfoo picked one, and "
+                  "its results don't say which model. Write the grader in your config "
                   "(`defaultTest.options.provider`).")
-SET_GRADER = ("{n} of your judge's grades came from a grader set with promptfoo's --grader: its "
-              "results keep only the model's name.")
+SET_GRADER = ("{n} of your LLM-as-a-judge's grades came from a grader set with promptfoo's "
+              "--grader: its results keep only the model's name.")
 CACHED = ("{n} of these grades were cached by promptfoo: they may be old replies, not fresh "
           "decisions.")
-CODE_ASSERTIONS = ("Your tests also have {n} code assertions ({types}): they are not an LLM "
-                   "judge, so they are left out.")
+CODE_ASSERTIONS = ("Your tests also have {n} code assertions ({types}): they are not an "
+                   "LLM-as-a-judge, so they are left out.")
 
 
 # How promptfoo words a grader failure (graderFail callers in src/matchers/rubric.ts,
@@ -119,7 +119,7 @@ STRIPPED = ("The {what} are missing from {file}. promptfoo leaves them out when 
             "file again.")
 STRIP_SETTINGS = {"output": ("answers", "PROMPTFOO_STRIP_RESPONSE_OUTPUT"),
                   "vars": ("inputs", "PROMPTFOO_STRIP_TEST_VARS"),
-                  "grading": ("judge's decisions", "PROMPTFOO_STRIP_GRADING_RESULT")}
+                  "grading": ("LLM-as-a-judge's decisions", "PROMPTFOO_STRIP_GRADING_RESULT")}
 
 
 NO_DETAILS = ("promptfoo didn't save the grader's details; the pass/fail of each row is "
@@ -165,7 +165,7 @@ def is_stripped_warning(text: str) -> bool:
     return any(setting in text for _, setting in STRIP_SETTINGS.values())
 
 
-TWO_JUDGES = ("{where}: test {test}{config} has more than one {name!r} judge. Give each one a "
+TWO_JUDGES = ("{where}: test {test}{config} has more than one {name!r} assertion. Give each one a "
               "name with metric: in its assertion, then run your eval again (that makes model "
               "calls).")
 TWO_DEFAULT = ("{where}: defaultTest adds {a} {name} to every test{config}, and each test has "

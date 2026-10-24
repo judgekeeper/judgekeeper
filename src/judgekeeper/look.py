@@ -113,7 +113,8 @@ def meta(judge: str | None, tool: str | None) -> str:
     text); nothing when neither is known."""
     parts = []
     if judge:
-        parts.append(f'<span class="k">Judge:</span><span class="v" title="{judge}">{judge}'
+        parts.append(f'<span class="k">LLM-as-a-judge:</span><span class="v" '
+                     f'title="{judge}">{judge}'
                      "</span>")
     if tool:
         parts.append(f'<span class="k">Eval tool:</span><span class="v">{tool}</span>')

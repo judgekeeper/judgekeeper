@@ -1,5 +1,5 @@
-"""While the judge is asked, judgekeeper shows it is working: "12 of 72 asked" as answers come
-back (workers and your own command), "Still asking your judge: ... so far." when they can't be
+"""While the LLM-as-a-judge is asked, judgekeeper shows it is working: "12 of 72 asked" as answers come
+back (workers and your own command), "Still asking your LLM-as-a-judge: ... so far." when they can't be
 counted (promptfoo writes its results at the end), and once, for a model on your computer,
 that it can take minutes."""
 
@@ -45,8 +45,8 @@ def test_with_nothing_to_count_it_says_it_is_still_asking(monkeypatch):
     progress.tick()
     clock[0] = 95
     progress.tick()
-    assert talk.lines == ["  Still asking your judge: 31 s so far.",
-                          "  Still asking your judge: 1 min 35 s so far."]
+    assert talk.lines == ["  Still asking your LLM-as-a-judge: 31 s so far.",
+                          "  Still asking your LLM-as-a-judge: 1 min 35 s so far."]
 
 
 def test_run_process_looks_at_the_progress_while_it_waits(tmp_path, monkeypatch):

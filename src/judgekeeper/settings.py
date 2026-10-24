@@ -38,8 +38,8 @@ TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
 MAP_KEYS = {"each": str, "id": str, "input": str, "output": str, "sides": list, "score": str,
             "reason": str, "kind": str, "judges": list, "model_key": str, "leave_out": bool,
             "pass_mark_key": str}
-HEADER = ("# judgekeeper reads this first: where your judge's results are and how to read\n"
-          "# them, as you answered when it asked. Nothing secret.\n")
+HEADER = ("# judgekeeper reads this first: where your LLM-as-a-judge's results are and how to "
+          "read\n# them, as you answered when it asked. Nothing secret.\n")
 _TABLE = re.compile(r"^\s*\[\s*([^\[\]]+?)\s*\]\s*(#.*)?$")
 
 
@@ -61,9 +61,9 @@ class StartSettings:
     def describe(self) -> str:
         """In a few words, for people."""
         if self.source == "map":
-            judge = "" if self.judge in (None, "*") else f", the judge {self.judge}"
+            judge = "" if self.judge in (None, "*") else f", the LLM-as-a-judge {self.judge}"
             return f"{self.file}, read with the map you set up{judge}"
-        judge = "" if self.judge in (None, "*") else f", the judge {self.judge}"
+        judge = "" if self.judge in (None, "*") else f", the LLM-as-a-judge {self.judge}"
         return f"the results of {self.source}{judge}"
 
 

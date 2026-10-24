@@ -114,8 +114,8 @@ def cant(tool: str, judge: str, why: str, short: str = "") -> Plan:
 
 
 NOT_MARKED = "your newest results don't contain the answers you marked"
-NOT_MARKED_PLAIN = ("Your newest results don't contain the answers you marked, so your judge "
-                    "can't grade them again.")
+NOT_MARKED_PLAIN = ("Your newest results don't contain the answers you marked, so your "
+                    "LLM-as-a-judge can't grade them again.")
 NO_SWAP = "judgekeeper can't put a new rule into {what}, so it can't take a new rule"
 
 
@@ -170,7 +170,7 @@ class Progress:
             self.last_time = now
             minutes, seconds = divmod(int(now - self.started), 60)
             spent = f"{minutes} min {seconds} s" if minutes else f"{seconds} s"
-            self.talk.say(f"  Still asking your judge: {spent} so far.")
+            self.talk.say(f"  Still asking your LLM-as-a-judge: {spent} so far.")
 
 
 def local_model(plan) -> bool:
@@ -413,16 +413,17 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
                                           new=new is not None)
         elif data["tool"] == "mapped":
             plan = cant("mapped", data["judge"],
-                        "your judge's decisions are in your own results file, and judgekeeper "
-                        "can't run the judge that made them")
+                        "your LLM-as-a-judge's decisions are in your own results file, and "
+                        "judgekeeper can't run the LLM-as-a-judge that made them")
         elif data["tool"] == "records":
             plan = cant("records", data["judge"],
-                        "your judge's decisions were saved by judgekeeper.record() in your own "
-                        "code, and judgekeeper can't run the judge that made them")
+                        "your LLM-as-a-judge's decisions were saved by judgekeeper.record() in "
+                        "your own code, and judgekeeper can't run the LLM-as-a-judge that made "
+                        "them")
         else:
             plan = cant(data["tool"], data["judge"],
-                        "your judge's decisions are a table, and judgekeeper can't run the "
-                        "judge that made them")
+                        "your LLM-as-a-judge's decisions are a table, and judgekeeper can't run "
+                        "the LLM-as-a-judge that made them")
     except (OSError, ValueError, KeyError, RecordsError) as e:
         plan = cant(data["tool"], data["judge"],
                     f"your saved results could not be read again ({scrub(str(e))})",
