@@ -366,8 +366,8 @@ def test_fix_counts_the_rule_parts(here, capsys):
     for i in passes[:2]:
         _say(ws, i, reasons=[], rule_parts=[1])
     _, out = run_fix(capsys)
-    assert ("Your marks say your judge misses rule part 1, 'Every claim is supported by the "
-            "article' (2).") in " ".join(out.split())
+    assert ("Your marks say your LLM-as-a-judge misses rule part 1, 'Every claim is supported "
+            "by the article' (2).") in " ".join(out.split())
 
 
 def test_rule_parts_of_an_older_rule_are_not_counted(here):
@@ -538,13 +538,14 @@ def test_fix_counts_the_reasons_and_prints_the_two_lines_at_2_or_more(here, caps
     _say(ws, fails[0], reasons=["rule_silent", "short_ok"])
     _, out = run_fix(capsys)
     flat = " ".join(out.split())
-    assert ("Your reasons: it has a wrong fact (2), the rule doesn't say how to judge this "
-            "(2), short, but it answers the question (1).") in flat
-    assert ("Your rule may be missing something: write in it how to judge these answers."
-            in flat)
-    assert ("Your judge misses wrong facts: say in the rule that one wrong fact is a Fail."
-            in flat)
-    assert flat.index("Your reasons:") < flat.index("of its")  # the first clue
+    assert ("Your reasons for your LLM-as-a-judge's mistakes: it has a wrong fact (2), the "
+            "rule doesn't say how to judge this (2), short, but it answers the question (1)."
+            ) in flat
+    assert ("Your LLM-as-a-judge's rule may be missing something: write in it how to judge "
+            "these answers.") in flat
+    assert ("Your LLM-as-a-judge says Pass on answers with wrong facts: say in the rule that "
+            "one wrong fact is a Fail.") in flat
+    assert flat.index("Your reasons for") < flat.index("Your LLM-as-a-judge made")  # first
 
 
 def test_one_tap_prints_no_extra_line(here, capsys):
@@ -552,8 +553,8 @@ def test_one_tap_prints_no_extra_line(here, capsys):
     _say(ws, passes[0], reasons=["wrong_fact", "rule_silent"])
     _, out = run_fix(capsys)
     flat = " ".join(out.split())
-    assert "Your reasons: it has a wrong fact (1)" in flat
-    assert "Your rule may be missing" not in flat and "misses wrong facts" not in flat
+    assert "Your reasons for your LLM-as-a-judge's mistakes: it has a wrong fact (1)" in flat
+    assert "rule may be missing" not in flat and "wrong facts" not in flat
 
 
 def test_mistakes_md_groups_the_mistakes_by_their_most_tapped_reason(here, capsys):
@@ -602,9 +603,9 @@ def test_missed_it_when_the_judges_reason_never_mentions_the_marked_words(here, 
     for i in passes[:2]:
         _mark_words(ws, i, "refund")
     _, out = run_fix(capsys)
-    assert ("Your judge didn't mention the part you marked in 2 of 2 answers: it seems to "
-            "miss these problems. A clearer rule may help, or a stronger model.") in " ".join(
-        out.split())
+    assert ("Your LLM-as-a-judge didn't mention the part you marked in 2 of 2 answers: it "
+            "seems to miss these problems. A clearer rule may help, or a stronger model."
+            ) in " ".join(out.split())
 
 
 def test_allowed_it_when_the_judge_mentioned_the_marked_words_and_still_passed(here, capsys):
@@ -613,9 +614,9 @@ def test_allowed_it_when_the_judge_mentioned_the_marked_words_and_still_passed(h
         number = re.match(r"Answer (\d+)", fix.Marks(ws).row(i)["output"])[0]
         _mark_words(ws, i, number)
     _, out = run_fix(capsys)
-    assert ("In 2 answers your judge mentioned the part you marked but still passed them: "
-            "your rule seems to allow this. Say in the rule that it's a Fail.") in " ".join(
-        out.split())
+    assert ("In 2 answers your LLM-as-a-judge mentioned the part you marked but still said "
+            "Pass: your rule seems to allow this. Say in the rule that it's a Fail."
+            ) in " ".join(out.split())
 
 
 def test_the_missed_or_allowed_lines_need_only_one_answer():
@@ -625,8 +626,8 @@ def test_the_missed_or_allowed_lines_need_only_one_answer():
              "reason": "Looks right.", "spans": [[6, 16]]}]
     lines = " ".join(reasons.clue_lines(rows))
     assert "didn't mention the part you marked in 1 of 2 answers" in lines
-    assert ("In 1 answer your judge mentioned the part you marked but still passed it: your "
-            "rule seems to allow this.") in lines
+    assert ("In 1 answer your LLM-as-a-judge mentioned the part you marked but still said "
+            "Pass: your rule seems to allow this.") in lines
 
 
 def test_the_check_matches_numbers_and_rare_words_ignoring_case():

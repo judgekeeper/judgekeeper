@@ -445,23 +445,22 @@ def patterns(rows: list[dict], mark: float | None = None) -> list[list[str]]:
     out = []
     passes = sum(m["judge"] == "pass" for m in wrong)
     fails = n - passes
+    made = f"Your LLM-as-a-judge made {n} mistakes."
+    easy = "it said Pass where you said Fail"
+    strict = "it said Fail where you said Pass"
     if passes > fails:
-        out.append([f"{passes} of its {n} mistakes are answers it passed but you failed.",
-                    "Its rule may be too easy."])
+        out.append([f"{made} In {passes}, {easy}.", "Its rule may be too easy."])
     elif fails > passes:
-        out.append([f"{fails} of its {n} mistakes are answers it failed but you passed.",
-                    "Its rule may be too strict."])
+        out.append([f"{made} In {fails}, {strict}.", "Its rule may be too strict."])
     else:
-        out.append([(f"Half of its {n} mistakes are answers it passed but you failed, and half "
-                    "are answers it failed but you passed.")])
+        out.append([f"{made} In {passes}, {easy}. In the other {fails}, {strict}."])
     if mark is not None:
         near = sum(m.get("score") is not None and abs(m["score"] - mark) <= NEAR + 1e-9
                    for m in wrong)
         if near * 2 > n:
-            out.append([f"{near} of its {n} mistakes sit close to the pass mark.",
-                        "Moving the pass mark may fix them."])
-    for judge, final, name in (("fail", "pass", "wrong fails"), ("pass", "fail",
-                                                                 "wrong passes")):
+            out.append([(f"{near} of your LLM-as-a-judge's {n} mistakes sit close to the pass "
+                         "mark."), "Moving the pass mark may fix them."])
+    for judge, final, name in (("fail", "pass", strict), ("pass", "fail", easy)):
         side = [len(m["output"].split()) for m in wrong if m["judge"] == judge]
         agreed = [len(m["output"].split()) for m in rows
                   if m["judge"] == m["final"] == final]
@@ -469,8 +468,8 @@ def patterns(rows: list[dict], mark: float | None = None) -> list[list[str]]:
             continue
         long, usual = statistics.median(side), statistics.median(agreed)
         if usual > 0 and long >= LONG * usual:
-            out.append([(f"Its {name} are long answers (about {_about(long)} words, against "
-                        f"{_about(usual)}).")])
+            out.append([(f"Where {name}, the answers are long (about {_about(long)} words, "
+                         f"against {_about(usual)}).")])
     agreed = [m for m in rows if m["judge"] == m["final"]]
     if len(agreed) >= FEW:
         in_wrong = Counter(w for m in wrong for w in _words(m["output"]))
@@ -485,7 +484,7 @@ def patterns(rows: list[dict], mark: float | None = None) -> list[list[str]]:
                 strong.append((odds, a, word))
         strong.sort(key=lambda x: (-x[0], -x[1]))
         if strong:
-            out.append(["Words found in many of its mistakes: " + ", ".join(
+            out.append(["Words found in many of your LLM-as-a-judge's mistakes: " + ", ".join(
                 f"{word} ({a})" for _, a, word in strong[:WORDS_SHOWN]) + "."])
     return out
 
@@ -564,6 +563,7 @@ def _question(m: Marks, row: dict) -> str:
 TASK = ("Write a new rule so your judge agrees with the marks below. Keep what the current rule "
         "gets right. You can hand this whole file to a coding agent.")
 NO_PATTERN = "No pattern stands out yet."
+WHERE_WRONG = "Where your LLM-as-a-judge goes wrong:"  # the clues' heading, here and in mistakes.md
 
 
 def clue_lines(rows: list[dict], mark: float | None = None) -> list[str]:
@@ -582,7 +582,8 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -
     fenced = start_fix_rule.fenced
     clues = clue_lines(rows, mark) or [NO_PATTERN]
     parts = ["# Your judge's mistakes", "", TASK, "",
-             f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", "", "## Clues", "",
+             f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", "",
+             f"## {WHERE_WRONG.rstrip(':')}", "",
              *clues, ""]
     if rule:
         parts += ["## Your judge's rule now", "", fenced("RULE", rule, cut=False), ""]
@@ -647,9 +648,12 @@ def refresh_mistakes(ws: Workspace, always: bool = False) -> int:
 
 
 def _saved_line(ws: Workspace, n: int) -> str:
-    every = f"all {n} mistakes" if n > 1 else "the 1 mistake"
-    return (f"The clues and {every} are saved in {shown_folder(ws)}/{FOLDER}/{MISTAKES}. You "
-            "can hand this file to a coding agent.")
+    """Where the mistakes went and what the file is for; the line above already says how many
+    mistakes the LLM-as-a-judge made."""
+    made = (f"All {n} mistakes your LLM-as-a-judge made are" if n > 1
+            else "The 1 mistake your LLM-as-a-judge made is")
+    return (f"{made} saved in {shown_folder(ws)}/{FOLDER}/{MISTAKES}. Use it to write a better "
+            "rule, or hand it to a coding agent to help you write one.")
 
 
 # The pass mark (free) ----------------------------------------------------------------------
@@ -740,6 +744,16 @@ class Talk:
     def next(self, text: str) -> None:
         self.say()
         self.para(f"Next: {text}")
+
+
+def went_line(fixed: int, broke: int) -> str:
+    """What the new rule changed on the marks kept aside, in plain counts: how many answers
+    went from wrong to right, and how many from right to wrong (said even at 0: a new rule
+    can fix some answers and break others)."""
+    went = (f"{fixed} answers went" if fixed > 1 else "1 answer went" if fixed == 1
+            else "no answer went")
+    back = str(broke) if broke else "none"
+    return f"With the new rule, {went} from wrong to right, and {back} from right to wrong."
 
 
 def _rule_quote(rule: str) -> str:
@@ -912,7 +926,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split,
     mark = pm["mark"] if pm and pm.get("follows") else None
     found = [[line] for line in reasons.clue_lines(wrong)] + patterns(seen_rows, mark)
     if found:
-        talk.say("Clues:")
+        talk.say(WHERE_WRONG)
         for p in found:
             for sentence in p:
                 talk.para(sentence, indent="  ")
@@ -1116,9 +1130,9 @@ def tested_before(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str,
     folder = f"{shown_folder(ws)}/{FOLDER}"
     _say_rule(talk, ws, rule, _problems(m, split, rule))
     day = _day(test.get("time"))
-    talk.para(f"You tested this rule before{f' ({day})' if day else ''}. On the "
-              f"{test.get('n')} marks kept aside it fixed {test.get('fixed')} and broke "
-              f"{test.get('broke')}.")
+    talk.para(f"You tested this rule before{f' ({day})' if day else ''}, on the "
+              f"{test.get('n')} marks kept aside. "
+              f"{went_line(int(test.get('fixed') or 0), int(test.get('broke') or 0))}")
     talk.say()
     talk.para(RESULT.get(test.get("verdict"), ""))
     if test.get("verdict") in ("better", "safe"):
@@ -1176,10 +1190,11 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     broke = sum(old[i] == m.person[i] and new[i] != m.person[i] for i in ids)
     v = targets.fix_verdict(fixed, broke, len(ids), test=next_test(split))
     talk.say()
-    talk.say(f"Tested on the {len(ids)} marks kept aside:")
-    talk.say(f"  Old rule agreed with you on {sum(old[i] == m.person[i] for i in ids)}. New "
-             f"rule agreed with you on {sum(new[i] == m.person[i] for i in ids)}.")
-    talk.say(f"  It fixed {fixed} and broke {broke}.")
+    talk.say(f"Your LLM-as-a-judge, tested on the {len(ids)} marks kept aside:")
+    for name, grades in (("Old", old), ("New", new)):
+        agreed = sum(grades[i] == m.person[i] for i in ids)
+        talk.say(f"  {name} rule: agreed with you on {agreed} of {len(ids)} answers.")
+    talk.para(went_line(fixed, broke), indent="  ")
     for line in reasons:
         talk.para(line, indent="  ")
     talk.say()

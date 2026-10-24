@@ -245,7 +245,7 @@ def test_a_third_rule_that_leans_better_gets_a_new_set_at_once(fixing, capsys):
     new = _mark_more(ws, 10, 40)
     code, flat = _fix(capsys, "--yes")
     assert code == 0 and holder["evals"] == 8, flat
-    assert "Tested on the 10 marks kept aside:" in flat  # the promised test, on the new set
+    assert "Your LLM-as-a-judge, tested on the 10 marks kept aside:" in flat  # the promised test, on the new set
     assert sorted(_split(ws)["hidden"]) == sorted(new)
 
 
@@ -285,7 +285,7 @@ def test_answers_not_counted_in_both_runs_are_counted_once(fixing, capsys):
     _write_rule(ws, NEW_RULE)
     code, flat = _fix(capsys, "--yes")
     assert code == 0, flat
-    assert f"Tested on the {len(hidden) - k} marks kept aside:" in flat
+    assert f"Your LLM-as-a-judge, tested on the {len(hidden) - k} marks kept aside:" in flat
     assert f"{k} answers were not counted: the judge gave no clear decision." in flat
     assert flat.count("were not counted") == 1
 
@@ -308,9 +308,10 @@ def test_fix_does_not_count_promptfoo_grader_errors_as_grades(fixing, capsys):
     _write_rule(ws, NEW_RULE)
     code, flat = _fix(capsys, "--yes")
     assert code == 0, flat
-    assert f"Tested on the {len(hidden) - 6} marks kept aside:" in flat
+    assert f"Your LLM-as-a-judge, tested on the {len(hidden) - 6} marks kept aside:" in flat
     assert GRADER_ERRORS.format(n=6) in flat
-    assert "New rule agreed with you on 10." in flat and "broke 0." in flat  # errors are no fails
+    assert "New rule: agreed with you on 10 of 10 answers." in flat  # errors are no fails
+    assert "none from right to wrong." in flat
 
 
 @pytest.mark.usefixtures("no_calls")

@@ -23,6 +23,7 @@ from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer, promptfoo_data, question
 
 TAG = " SECRET-9b1d"
+WRONG = "Where your LLM-as-a-judge goes wrong:"
 RULE = "The answer solves the customer's problem and is polite."
 N = 50
 WRONG_PASSES = 10  # the judge passed them, the person failed them: they mention a refund
@@ -145,22 +146,28 @@ def test_the_first_run(here, capsys):
     seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
     passed = sum(marks.judge[i] == "pass" for i in seen)
     lines = out.splitlines()
-    assert lines[:5] == ["judgekeeper 1.0.0b2", "", "Step 4 of 5: Fix", "", "Clues:"]
-    assert lines[5] == f"  {passed} of its {len(seen)} mistakes are answers it passed but you failed."
-    assert lines[6] == "  Its rule may be too easy."
-    saved = next(n for n, line in enumerate(lines) if line.startswith("The clues and all "))
-    found = lines[5:saved - 1]
-    assert any(line.startswith("  Words found in many of its mistakes: ")
-               and re.search(r"\brefund \(\d+\)", line) for line in found), found
+    flat = " ".join(out.split())
+    assert lines[:5] == ["judgekeeper 1.0.0b2", "", "Step 4 of 5: Fix", "",
+                         "Where your LLM-as-a-judge goes wrong:"]
+    # every clue names the LLM-as-a-judge and says Pass and Fail plainly
+    assert flat.index("Where your LLM-as-a-judge goes wrong:") < flat.index(
+        f"Your LLM-as-a-judge made {len(seen)} mistakes. In {passed}, it said Pass where you "
+        "said Fail. Its rule may be too easy.")
+    saved = next(n for n, line in enumerate(lines) if line.startswith("All "))
+    found = " ".join(" ".join(lines[5:saved - 1]).split())
+    assert re.search(r"Words found in many of your LLM-as-a-judge's mistakes: [^.]*\brefund "
+                     r"\(\d+\)", found), found
     assert "Your judge's rule is in promptfooconfig.yaml, line 5:" in lines
     assert " ".join(" ".join(lines[saved:]).split()) == (
-        f"The clues and all {len(seen)} mistakes are saved in .judgekeeper/fix/mistakes.md. "
-        "You can hand this file to a coding agent. "
+        f"All {len(seen)} mistakes your LLM-as-a-judge made are saved in "
+        ".judgekeeper/fix/mistakes.md. Use it to write a better rule, or hand it to a coding "
+        "agent to help you write one. "
         f'Your judge\'s rule is in promptfooconfig.yaml, line 5: "{RULE}" '
         f"{len(split['hidden'])} more of your marks are kept aside to test your new rule "
         "fairly. Next: write your new rule in .judgekeeper/fix/rule.txt, then run "
         "`judgekeeper fix` again to test it.")
-    for gone in ("hidden", "set aside", "Each mistake, with", "Where your judge goes wrong"):
+    for gone in ("hidden", "set aside", "Each mistake, with", "Clues", "passed but you failed",
+                 "it passed", "it failed", "hand this file"):
         assert gone not in out, gone
 
 
@@ -188,12 +195,13 @@ def test_mistakes_md_is_agent_ready_a_task_line_the_clues_the_rule_then_the_mist
     lines = text.splitlines()
     assert lines[:6] == ["# Your judge's mistakes", "", fix.TASK, "",
                          f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", ""]
-    assert lines[6:8] == ["## Clues", ""]
+    assert lines[6:8] == ["## Where your LLM-as-a-judge goes wrong", ""]
     clues = lines[8:lines.index("## Your judge's rule now")]
     printed = out.splitlines()
-    said = printed[printed.index("Clues:") + 1:]
+    said = printed[printed.index("Where your LLM-as-a-judge goes wrong:") + 1:]
     said = [x.strip() for x in said[:said.index("")]]
-    assert [x for x in clues if x] == said  # the same sentences the terminal prints
+    # the same sentences the terminal prints (which wraps them)
+    assert " ".join(x for x in clues if x) == " ".join(said)
     rule_at = lines.index("## Your judge's rule now")
     assert lines[rule_at + 2] == "<<<RULE" and RULE in lines[rule_at + 3]
     warn_at = next(n for n, x in enumerate(lines) if x.startswith(start_fix_rule.DATA_WARNING))
@@ -205,7 +213,7 @@ def test_mistakes_md_is_agent_ready_a_task_line_the_clues_the_rule_then_the_mist
 def test_mistakes_md_with_no_clear_pattern_says_so():
     rows = [{"judge": "pass", "final": "fail", "input": "q", "output": "a", "reason": "r"}]
     text = fix.mistakes_md("Be kind.", rows)
-    assert "## Clues\n\nNo pattern stands out yet.\n" in text
+    assert "## Where your LLM-as-a-judge goes wrong\n\nNo pattern stands out yet.\n" in text
     assert fix.TASK in text and "<<<RULE\nBe kind.\nRULE>>>" in text
 
 
@@ -405,10 +413,13 @@ def test_with_yes_both_rules_are_asked_and_the_verdict_comes_from_the_math(here,
     assert judge["evals"] == 2  # the old and the new rule, in the same run
     n, right, fixed = _hidden_counts(ws)
     lines = out.splitlines()
-    at = lines.index(f"Tested on the {n} marks kept aside:")
-    assert lines[at + 1:at + 3] == [
-        f"  Old rule agreed with you on {right}. New rule agreed with you on {n}.",
-        f"  It fixed {fixed} and broke 0."]
+    at = lines.index(f"Your LLM-as-a-judge, tested on the {n} marks kept aside:")
+    assert lines[at + 1:at + 3] == [f"  Old rule: agreed with you on {right} of {n} answers.",
+                                    f"  New rule: agreed with you on {n} of {n} answers."]
+    went = f"{fixed} answers went" if fixed != 1 else "1 answer went"
+    assert (f"With the new rule, {went} from wrong to right, and none from right to wrong."
+            in " ".join(out.split()))
+    assert "fixed" not in out and "broke" not in out
     kind = targets.fix_verdict(fixed, 0, n).kind
     words = {"better": "Result: your new rule is better. A difference this large is very "
                        "unlikely to be a coincidence.",
@@ -507,7 +518,7 @@ def test_one_top_up_after_cant_tell_goes_to_the_hidden_marks(here, capsys, judge
     assert code == 0 and judge["evals"] == 2  # the clues, while the test waits
     flat = " ".join(out.split())
     assert flat.index(f"it couldn't tell yet. Mark {more - 3} more answers, and") < flat.index(
-        "Clues:") < flat.index(f"You have marked 3 of the {more} more answers.")
+        WRONG) < flat.index(f"You have marked 3 of the {more} more answers.")
     assert flat.endswith(f"Next: mark {more - 3} more answers with `judgekeeper mark`, then "
                          "run `judgekeeper fix` again.")
     rest = _mark_more(ws, more - 3, 40)
