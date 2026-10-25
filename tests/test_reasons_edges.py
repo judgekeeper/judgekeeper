@@ -10,7 +10,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from judgekeeper import marks, reasons, start_fix_rule, start_label, textio
+from judgekeeper import label, marks, reasons, start_fix_rule, start_label, textio
 from tests.test_fix import N, project
 from tests.test_fix import run as run_fix
 from tests.test_front import assert_one_next_at_the_end
@@ -94,6 +94,22 @@ def test_measure_with_the_page_closed_names_the_mark_command_once(here, capsys, 
         assert "You and your LLM-as-a-judge disagreed on" in out, out
         assert " ".join(out.split()).count("`judgekeeper mark`") == 1, out
         assert_one_next_at_the_end(out)
+
+
+def test_the_page_is_closed_when_stop_misses_it_once(here, monkeypatch):  # noqa: F811
+    from judgekeeper import front
+
+    missed = []
+    real = front.is_open
+
+    def slow_once(folder):
+        if not missed:
+            missed.append(folder)
+            return False  # as when the page takes longer than PROBE_TIMEOUT to answer
+        return real(folder)
+    monkeypatch.setattr(front, "is_open", slow_once)
+    ws = project(here, marked=N - 4)
+    assert missed and label.read_lock(ws.dir) is None
 
 
 # Marks posted without `seconds`: the time between them still shows a program ----------

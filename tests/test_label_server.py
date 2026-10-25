@@ -475,7 +475,7 @@ def test_one_silent_connection_does_not_stall_the_page(tmp_path, serve):
 def test_a_refused_post_is_answered_after_its_body_is_read(tmp_path, serve, query):
     """A POST refused before its body is used (no token, no Origin) still has a body as the
     page sends it read: closing a connection with unread data resets it on Windows, and the
-    answer is lost. A bigger one is not read (test_security_review)."""
+    answer is lost. A bigger one is not read (test_security_refusals)."""
     import socket
 
     client = serve(_items(tmp_path), tmp_path / "labels.csv")

@@ -1,22 +1,17 @@
-"""The judge's setup: everything about the judge that can change its verdicts, as one dict.
+"""The LLM-as-a-judge's setup: everything about it that can change its verdicts, as one dict.
 
-A judge is more than its model: the eval tool and its version (an update can change the
-grading prompt, or the default grader), the kind of judge (one call, a panel of graders and a
-vote rule, or an agent that uses tools), its models, its rule, the grading prompt, the
-temperature, the pass mark and the endpoint. All of it is read from the saved results (never
-from the eval config: there is no YAML parser here, and the results say what really ran);
-the tool's version falls back to the project's lockfile when the results don't hold it.
+That is more than its model: the eval tool and its version, the kind of judge (one call, a
+panel with a vote rule, or an agent with tools), its models, its rule, the grading prompt, the
+temperature, the pass mark and the endpoint. All of it is read from the saved results, never
+from the eval config: there is no YAML parser here, and the results say what really ran. The
+tool's version falls back to the project's lockfile when the results don't hold it.
 
-`.judgekeeper/judge.json` keeps the setup last checked:
-{"setup": {...}, "setup_hash", "first_seen", "judgekeeper_version", "metric"}. It is rewritten only
-when the setup's hash changes, so a committed judge.json changes only when the judge did.
-Before marking starts it follows the newest results; while marking (and after) it keeps the
-judge of the marks, until `judgekeeper check` has re-checked a new one. A judge.json from
-1.0.0b1 (no setup) is read from start.json's judge, and only what that knows is compared.
+`.judgekeeper/judge.json` keeps the setup last checked and is rewritten only when the setup's
+hash changes, so a committed judge.json changes only when the judge did. Before marking starts
+it follows the newest results; once marking starts it keeps the judge of the marks until
+`judgekeeper check` has re-checked a new one.
 
-`changes(old, new)` says what changed, in words: "model gpt-4o-mini -> claude-haiku-4-5",
-"promptfoo 0.124.1 -> 0.125.0", "pass mark 0.5 -> 0.7", "rule changed", "now a panel of 3
-(majority)".
+`changes(old, new)` says what changed, in words ("model gpt-4o-mini -> claude-haiku-4-5").
 """
 
 from __future__ import annotations

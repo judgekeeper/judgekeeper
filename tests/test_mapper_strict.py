@@ -1,9 +1,9 @@
-"""The own-format guess never invents an LLM-as-a-judge. A part is an LLM-as-a-judge's verdict only when its name
-says so (score, verdict, grade, label, ...) and its values are verdict-like for most answers:
-pass/fail, true/false, yes/no, correct/incorrect, or numbers from 0 to 1 or on a fixed scale.
-Free text, ids and a number with no such name are never verdicts. A judge's settings (its
-pass mark, criteria text, a run id) are never read as an answer's parts. A reading that is
-unsure (a part told by its values alone, or one answer from a file that holds a list of
+"""The own-format guess never invents an LLM-as-a-judge. A part is an LLM-as-a-judge's verdict only
+when its name says so (score, verdict, grade, label, ...) and its values are verdict-like for
+most answers: pass/fail, true/false, yes/no, correct/incorrect, or numbers from 0 to 1 or on a
+fixed scale. Free text, ids and a number with no such name are never verdicts. A judge's
+settings (its pass mark, criteria text, a run id) are never read as an answer's parts. A reading
+that is unsure (a part told by its values alone, or one answer from a file that holds a list of
 many) is never accepted by --yes: the person checks it at a terminal.
 """
 

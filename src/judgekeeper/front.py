@@ -1,59 +1,17 @@
-"""`judgekeeper` with no command does the next step. What is in the project decides it:
+"""`judgekeeper` with no command does the next step; what is in the project decides which.
+What it does in each case is the table in docs/reference.md ("judgekeeper: find, mark,
+measure"). `judgekeeper mark` (mark.py) goes through the same steps for marking more.
 
-| What is there                                | What `judgekeeper` does                    | Exit |
-|----------------------------------------------|--------------------------------------------|------|
-| something must be asked (several tools,      | the question, and a Next: line naming the  | 3    |
-| judges, a pass mark, an own format...)       | flag that answers it                       |      |
-| nothing found, or too few answers            | says so                                    | 3    |
-| found, no marking started                    | what was found, the free checks; prepares  | 0    |
-|                                              | the pool and opens the page (output A)     |      |
-| marking started, under 15 Pass + 15 Fail     | one line naming the judge and results;     | 0    |
-|                                              | opens the page again (output A)            |      |
-| every answer marked, under 15 of one kind    | says so, and to mark new results with      | 3    |
-|                                              | --new; no page                             |      |
-| at least 15 Pass + 15 Fail                   | the result (output B); says if the page    | 0    |
-|                                              | is open                                    |      |
-| marks for another judge (another metric or   | says why and asks "Start over...?" (the    | 3    |
-| tool), or labels.csv from 0.2                | question list, then --yes)                 |      |
+A new eval run does not start over: the answers being marked stay in .judgekeeper/pool.jsonl,
+and marks are tests for the LLM-as-a-judge, not for one results file. Only another
+LLM-as-a-judge or --new starts over.
 
-A new eval run does not start over: the answers being marked are in .judgekeeper/pool.jsonl,
-so marking goes on with them and a result stays valid (marks are tests for the judge, not for
-one results file); one line says the eval ran again. Only another judge or --new starts over.
-When the judge's setup (judge_setup.py) changed since the marks, that line says what changed,
-and once there are enough marks the result's Next: line is `judgekeeper check`, which re-tests
-the new judge on them. A judge whose results hold no rule (a table) changes only in its grades:
-grades that differ on marked answers (check.grades_changed) count as a change.
-The project folder is start_again._project, for every command. A results file (or MLflow
-store) given as the path is read where it is and named in start.json (`given`), so later runs
-with no path read it again.
-`judgekeeper mark` (mark.py) goes through the same table for marking more: it opens the page
-in every row but "asked", "start over" and "every answer marked", prints the count, and leaves
-the result to `judgekeeper`. --wait serves the page in this process, --stop closes it (page.py).
-
-Finding: find the eval tool, its saved results, the judge and its rule; run the free checks
-(judge_check); write .judgekeeper/judge.json (the judge's setup, judge_setup.py: before
-marking starts it follows the newest results, then it keeps the judge of the marks until
-`judgekeeper check` re-checks a new one); say what was found in plain lines, then exactly one
-line starting `Next:`.
-
-A person and a coding agent read the same output, and the agent follows the `Next:` line. So
-the output holds counts, names, file paths and the judge's rule (the person's own config, on
-one line), never an answer's or an input's text. A `Next:` line names only judgekeeper's own
-commands or the person's eval tool; never a link to download, never a command built from what
-a file says.
-
-Finding is start.find_judge, with FrontTalk in place of start.Talk. At a terminal a question
-is asked inline. Without one, a choice (which tool, judge, store, pass mark) is printed in
-plain words with a `Next:` line naming the flag that answers it, and the exit code is 3. A
-yes/no question is noted and the run goes on as if the answer is yes; at the end the noted
-questions are printed as one list, nothing is written, and the exit code is 3. `--yes` means
-yes to the questions printed in the last run, nothing else: they are the same questions,
-because that run went on as if each answer was yes. judgekeeper.toml is written only for what
-had to be asked (which tool, which judge, which MLflow store or experiment, how to read an own
-format), after a yes.
-
-No AI call and no key. Exit codes: 0 the next step is done (or `Next: nothing`), 3 the person
-is needed (the `Next:` line says what to ask or do), 2 usage error, 130 Ctrl-C.
+A person and a coding agent read the same output, and the agent follows the one `Next:` line.
+So the output holds counts, names, paths and the rule, never an answer's or an input's text,
+and `Next:` names only judgekeeper's commands or the person's eval tool. Without a terminal, a
+choice prints the flag that answers it and exits 3; a yes/no question is noted, the run goes
+on as if yes but writes nothing, and `--yes` then answers exactly those questions.
+No AI call and no key. Exit codes: 0 done, 3 the person is needed, 2 usage error, 130 Ctrl-C.
 """
 
 from __future__ import annotations

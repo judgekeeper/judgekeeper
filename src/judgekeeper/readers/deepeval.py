@@ -1,35 +1,16 @@
 """DeepEval: `.deepeval/.latest_run_full.json`, or `test_run_<timestamp>.json` in a results folder.
 
-DeepEval has no --output-file flag. It always overwrites `.deepeval/.latest_run_full.json`,
-and writes one `test_run_<YYYYMMDD_HHMMSS>.json` per run when `results_folder` (or
-`DEEPEVAL_RESULTS_FOLDER`) is set (deepeval/evaluate/local_store.py). Each file is one run.
+DeepEval overwrites `.latest_run_full.json` on every run, and writes one `test_run_*.json` per
+run when a results folder is set. Each file is one run; DeepEval stores no human verdict.
 
-Shape (deepeval/test_run/api.py and tracing/api.py, dumped with `by_alias=True`):
-`testCases[]` and `conversationalTestCases[]`, each with `name`, `input`, `actualOutput` and
-`metricsData[]`: `name`, `threshold`, `success`, `score`, `reason`, `evaluationModel`, `error`,
-`verboseLogs`. DeepEval stores no human verdict; labels come from --labels.
-
-Traps handled here:
-- `name` defaults to the positional `test_case_<order>` (deepeval/test_case/api.py), which is
-  not an id: such cases get an id derived from input and actual output, with a warning.
-- The GEval rubric is persisted only inside `verboseLogs` (deepeval/metrics/g_eval/g_eval.py):
-  steps "Criteria:", "Evaluation Steps:", "Rubric:" and "Score: <x>" joined with " \\n \\n".
-  The prompt hash covers the first three; the score differs per item and is left out.
-- A metric whose judge call failed is saved with `success: false` and `score: null`, often
-  with `error` empty too (an unreadable reply or an HTTP 400 in Faithfulness). DeepEval also
-  refuses an empty `actual_output` this way, before any call, with the error
-  "'actual_output' cannot be empty for the '<metric>' metric"
-  (deepeval/metrics/utils/test_case.py): marked "empty_answer_refused". A QAG metric whose judge returned no verdicts at
-  all scores a full 1.0 and passes (`score_qag_verdicts(...,
-  empty_score=1)` in deepeval/metrics/utils/qag.py; its verboseLogs then hold an empty
-  "Verdicts:\n[]" part, built by construct_verbose_logs in deepeval/metrics/utils/verbose.py
-  from `f"Verdicts:\n{prettify_list(self.verdicts)}"`, e.g. metrics/faithfulness). Both are
-  read as DeepEval saved them, with an in-memory mark (records.Mark) for `start`'s judge
-  check.
-- `evaluationModel` is the model's name as DeepEval's model class gives it: the provider is a
-  suffix (`claude-sonnet-4-6 (Anthropic)`, `my-deployment (Azure)`, `gemini-x (Gemini)`), and
-  a bare name is OpenAI's, since DeepEval builds an OpenAI model for any plain string. A
-  suffix judgekeeper does not know (`(Local Model)`, a custom class) leaves it unknown.
+- A default `test_case_<n>` name is not an id: such cases get one derived from input and
+  output, with a warning.
+- The GEval rubric is saved only inside `verboseLogs`; the prompt hash covers its criteria,
+  steps and rubric, not the per-answer score.
+- A failed LLM-as-a-judge call is saved as `success: false, score: null`, and a metric whose
+  LLM-as-a-judge returned no verdicts scores 1.0; both are marked for the judge check.
+- `evaluationModel` names the provider as a suffix (`(Anthropic)`, `(Azure)`); a bare name is
+  OpenAI's, and an unknown suffix leaves it unknown.
 """
 
 from __future__ import annotations

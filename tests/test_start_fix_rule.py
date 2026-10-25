@@ -132,7 +132,7 @@ N_PASS, N_FAIL, WRONG_FAILS = 20, 30, 6
 # The result page ---------------------------------------------------------------------------
 
 
-# After review: the search, one rule, markers, sizes, a failing fair test ------------------
+# The search, one rule, markers, sizes, a failing fair test --------------------------------
 
 def _write(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -278,7 +278,7 @@ def test_a_rule_that_mentions_mistakes_is_not_caught():
 # The terminal -------------------------------------------------------------------------------
 
 
-# More from the security review ----------------------------------------------------------------
+# Paths outside the project and the old rule's template parts ----------------------------------
 
 def test_a_path_outside_the_project_is_never_named(tmp_path):
     root = tmp_path / "app"

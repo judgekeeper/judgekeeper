@@ -1,24 +1,16 @@
 """.judgekeeper/marks.jsonl: the person's marks, one stamped line per click on the page.
 
-The first line is a header: the judge as it was when marking started (tool, model, rule hash,
-pass mark, fingerprint), the pool sizes (`weighted` corrects for picking half from each of the
-judge's groups) and the results files. Then one line per click:
-{"id", "mark": "pass" | "fail" | "skip" | null, "group", "at", "seconds", "sitting", "by":
-"page"}, plus "note" when the page sends one, and "link": "printed" when the page's link was
-printed where a coding agent could read it (no browser opened, no terminal), or "link":
-"browser-env" when the program named in BROWSER opened the page, and
-"after_result": true on a mark changed after the judge's grades were shown. `group` is the
-judge's verdict on the answer, `at` the server's UTC time, `seconds` what the page measured
-from showing the answer to the click (kept between 0 and MAX_SECONDS), `sitting` a random id
-per page process. null clears a mark (undo).
+The first line is a header: the LLM-as-a-judge as it was when marking started (tool, model,
+rule hash, pass mark, fingerprint), the pool sizes (`weighted` corrects for picking half from
+each of the judge's groups) and the results files. Then one line per click: {"id", "mark":
+"pass" | "fail" | "skip" | null, "group", "at", "seconds", "sitting", "by": "page"}, plus a
+few optional fields. `at` is the server's UTC time; null clears a mark (undo).
 
-A reason line (reasons.py) holds "reasons" and the rest of why the person disagrees, with the
-same mark: it changes only those, so the mark keeps its own time. A new line with the same mark
-keeps them; a new mark drops them.
-
-The last line for an answer wins. A line without its stamps (`by`, `at`, `sitting`), or one
-that can't be read, is not counted, and the result says how many. The file holds no answer or
-input text: that stays in pool.jsonl. Lines are only ever added, never through a link.
+A reason line (reasons.py) carries the same mark and changes only the reasons, so the mark
+keeps its own time. The last line for an answer wins. A line without its stamps (`by`, `at`,
+`sitting`), or one that can't be read, is not counted, and the result says how many. The file
+holds no answer or input text: that stays in pool.jsonl. Lines are only ever added, never
+through a link.
 """
 
 from __future__ import annotations

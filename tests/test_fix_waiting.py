@@ -10,8 +10,8 @@ import json
 import pytest
 
 from judgekeeper.start_label import StartSession
+from tests.test_command_output import _fix, _leans_better
 from tests.test_front import assert_one_next_at_the_end
-from tests.test_review_fixes import _fix, _leans_better
 
 WAITING = ("Your last rule test is waiting for more marks: it couldn't tell yet. Run your eval "
            "on more questions and mark the new answers, and `judgekeeper fix` tests that rule "

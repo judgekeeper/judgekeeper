@@ -70,10 +70,8 @@ def test_the_check_finds_a_bare_judge_and_leaves_the_rest():
         assert not bare(fine), fine
 
 
-@pytest.mark.parametrize("path", [ROOT / "docs" / "records.schema.json",
-                                  SRC / "schemas" / "records.schema.json"],
-                         ids=lambda p: str(p.relative_to(ROOT)))
-def test_the_schema_says_llm_as_a_judge(path):
+def test_the_schema_says_llm_as_a_judge():
+    path = SRC / "schemas" / "records.schema.json"
     said = []
 
     def walk(value):

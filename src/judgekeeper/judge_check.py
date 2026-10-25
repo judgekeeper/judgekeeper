@@ -1,29 +1,17 @@
-"""Did your judge actually judge? Checks on the judge's own decisions, before anyone labels.
+"""Did the LLM-as-a-judge actually judge? Checks on its own decisions, before anyone marks.
 
-No labels, no AI call, no key: plain Python on the pool `start` already made (start.build_pool)
-and the marks the readers set (records.Mark). Four checks:
+No labels, no AI call, no key: plain Python on the pool `start` already made and the marks the
+readers set (records.Mark). Four checks:
 
-1. No real decision: the judge's call failed ("error"), its reply could not be read
-   ("unreadable"), the tool would not judge an empty answer ("empty_answer_refused": DeepEval
-   refuses one), or there is no decision at all ("empty"); for DeepEval, a check of
-   nothing that still got full marks ("nothing_checked"); for Inspect AI, a sample whose run
-   failed before scoring ("not_scored"); for promptfoo, a row whose call to the model under
-   test failed, so the judge never ran ("model_failed"). These are left out of the pool.
-2. Passed an empty answer: the app's answer is empty after trimming spaces and the judge
-   passed it. These stay in the pool: a real, bad decision, worth a person's mark.
-3. The same decision for everything: the judge passed (or failed) every answer.
-4. The reason says the opposite: the judge's own reason states the other decision, in one of a
-   few explicit forms only (stated_decisions). Skipped for score judges with a pass mark
-   (`--pass-if`, DeepEval's thresholds, record()'s pass_mark, a mapped score), whose reasons
-   talk about a score.
+1. No real decision (an error, an unreadable reply, an empty answer refused, none at all...):
+   left out of the pool.
+2. Passed an empty answer: kept in the pool, a real, bad decision worth a person's mark.
+3. The same decision for everything.
+4. The reason says the opposite, in a few explicit forms only (stated_decisions). Skipped for
+   score judges with a pass mark, whose reasons talk about a score.
 
-Two more look at the judge's setup (judge_setup.py), not its decisions (`setup_lines`):
-promptfoo with no grader written down (promptfoo then picks one from whichever API key is
-set, and its results don't say which), and an eval tool whose version judgekeeper can't see
-(DeepEval and MLflow results don't hold it; the project's lockfile may).
-
-Every check is information: none stops `start`. The functions here are pure; start_label
-writes judge-check.json and judge-check.csv, and the terminal and the result page say `lines`.
+`setup_lines` adds two notes on the judge's setup (judge_setup.py). Every check is information:
+none stops `start`. The functions here are pure; start_label writes the files.
 """
 
 from __future__ import annotations

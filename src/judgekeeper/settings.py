@@ -1,25 +1,16 @@
-"""The `[start]` table of judgekeeper.toml: where a project's judge results are and how to
-read them, as the person answered when `judgekeeper` asked. `judgekeeper` and `judgekeeper
-start` read it first. Nothing secret.
+"""The `[start]` table of judgekeeper.toml: where a project's results are and how to read them,
+as the person answered when `judgekeeper` asked. `judgekeeper` reads it first. Nothing secret.
 
     [start]
-    source = "map"                 # or the eval tool read as it is: records, promptfoo,
-    file = "history/evals.jsonl"   # deepeval, inspect, mlflow, table (mlflow: the store)
-    judge = "Safe wording"         # the judge to check; "*": every judge, one at a time
+    source = "map"                 # or records, promptfoo, deepeval, inspect, mlflow, table
+    file = "history/evals.jsonl"
+    judge = "Safe wording"         # "*": every judge, one at a time
     pass_mark = 0.5
-    pass_op = "<"                  # only when a lower score passes (--pass-if "score<0.5")
-    model = "claude-opus-5"        # only when the results do not say which model judged
-    experiment = "qa"              # mlflow: the experiment to read
 
-    [start.map]                    # how to read the file (see mapper.py)
-    each = "cases[]"
-    ...
-
-Python reads TOML but cannot write it, so the table is written by hand: `merged` replaces
-the `[start]` and `[start.*]` tables of an existing file, or adds them at the end, and keeps
-every other line as it was, in the file's own line endings (\r\n on Windows). It checks
-the result with tomllib: when anything else would change (an unusual shape), it raises
-SettingsError instead. Tables of older versions ([gate], [migrate]) are kept as they are.
+Python reads TOML but cannot write it, so the table is written by hand: `merged` replaces the
+`[start]` and `[start.*]` tables, or adds them at the end, and keeps every other line as it
+was, in the file's own line endings. It checks the result with tomllib and raises
+SettingsError when anything else would change.
 """
 
 from __future__ import annotations

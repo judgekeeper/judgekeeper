@@ -1,22 +1,17 @@
-"""Finding the judge for `judgekeeper` and `mark`: find the judge's saved results, make the pool of answers and say what
-was found.
+"""Find the LLM-as-a-judge's saved results for `judgekeeper` and `mark`, and make the pool.
 
 No AI call and no API key: everything comes from files the user's eval tool already saved
-(see judgekeeper.find for where it looks). judgekeeper never runs the user's app, eval or
-code; when there are too few answers it prints the command that makes more, and the user
-runs it.
+(see judgekeeper.find). judgekeeper never runs the user's app, eval or code; when there are
+too few answers it prints the command that makes more, and the user runs it.
 
-The pool is every answer with a clear pass or fail from the judge. An answer is its input
-and output, plus the agent's steps when the results keep them (`derive_record_id`), so a
-repeat of the same answer counts once: the newest results file wins, and inside it the
-majority of its verdicts, a tie going to fail. An answer with no real decision from the judge
-(judge_check: an error, a reply it could not read, none at all, or a check of nothing) is
-left out and counted, and said; a verdict that cannot be mapped stops judgekeeper.
+The pool is every answer with a clear pass or fail. A repeat of the same answer (input,
+output and any agent steps) counts once: the newest results file wins, and inside it the
+majority of its verdicts, a tie going to fail. An answer with no real decision (judge_check)
+is left out, counted and said.
 
-Questions are asked only at a terminal (stdin). Without one, judgekeeper prints the question as
-the flag that answers it and exits 3 (EXIT_QUESTION: nothing went wrong); `--yes` takes the
-default answer of a yes/no question, but never picks between tools or judges. Every printed
-"run this next" command comes from `Talk.command`, so it repeats the flags the person gave.
+Questions are asked only at a terminal. Without one, judgekeeper prints the question as the
+flag that answers it and exits 3; `--yes` takes the default of a yes/no question, but never
+picks between tools or judges.
 """
 
 from __future__ import annotations

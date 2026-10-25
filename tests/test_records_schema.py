@@ -1,8 +1,8 @@
 """The records JSON Schema and judgekeeper's own checks say the same thing.
 
 judgekeeper checks records in plain Python (no jsonschema dependency); the schema
-(src/judgekeeper/schemas/records.schema.json, copied to docs/records.schema.json) is for
-everyone else. jsonschema is a test-only dependency.
+(src/judgekeeper/schemas/records.schema.json) is for everyone else. jsonschema is a test-only
+dependency.
 """
 
 import json
@@ -17,7 +17,6 @@ from tests.test_records_format import BAD, FULL
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGED = ROOT / "src" / "judgekeeper" / "schemas" / "records.schema.json"
-DOCS_COPY = ROOT / "docs" / "records.schema.json"
 EXAMPLES = sorted((ROOT / "docs" / "examples" / "records").glob("*.jsonl"))
 
 
@@ -33,8 +32,10 @@ def test_the_schema_is_draft_2020_12():
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
 
 
-def test_the_docs_copy_is_the_same_file():
-    assert DOCS_COPY.read_bytes() == PACKAGED.read_bytes()
+def test_the_reference_links_the_one_schema_file():
+    assert not (ROOT / "docs" / "records.schema.json").exists()
+    reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
+    assert "[records.schema.json](../src/judgekeeper/schemas/records.schema.json)" in reference
 
 
 def test_the_schema_ships_inside_the_package():

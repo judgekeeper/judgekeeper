@@ -1,6 +1,6 @@
-"""The LLM-as-a-judge's setup: everything about the LLM-as-a-judge that can change its verdicts (the eval tool
-and its version, the kind of judge, its models and vote, the rule, the grading prompt, the
-temperature, the pass mark, the endpoint), read from the results, saved in
+"""The LLM-as-a-judge's setup: everything about the LLM-as-a-judge that can change its verdicts
+(the eval tool and its version, the kind of judge, its models and vote, the rule, the grading
+prompt, the temperature, the pass mark, the endpoint), read from the results, saved in
 .judgekeeper/judge.json, and compared in words."""
 
 from __future__ import annotations

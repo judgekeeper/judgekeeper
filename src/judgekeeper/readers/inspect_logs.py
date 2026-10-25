@@ -1,44 +1,17 @@
 """Inspect AI: `.eval` or `.json` logs.
 
-With the optional extra (`pip install "judgekeeper[inspect]"`) any log is read with
-`inspect_ai.log.read_eval_log`. Without it `.json` logs are read directly, and so is a `.json`
-log inspect_ai refuses (a damaged one is then said the same way); a `.eval` log is a
-zip archive, so it needs the extra or `inspect log dump <file> > log.json` first. A `.eval`
-log is read as its header, then one sample at a time (`read_eval_log_samples`), keeping only
-SAMPLE_FIELDS: a log of a million samples fits in memory. An Inspect AI without that function
-reads a log whole, so a `.eval` log over WHOLE_LIMIT is not read: it says so.
+With the `inspect` extra any log is read with inspect_ai, a `.eval` log one sample at a time,
+so a log of a million samples fits in memory. Without it `.json` logs are read directly; a
+`.eval` log is a zip and needs the extra.
 
-Shape (inspect_ai log/_log.py `EvalSpec`, `EvalSample`; scorer/_metric.py `Score`): `eval`
-with `model_roles` (`{grader: {model, config}}`) and `scorers[]` (`{name, options}`);
-`samples[]` with `id`, `epoch`, `input`, `output` and `scores.<scorer>`: `value`,
-`explanation`, `metadata`, `history[]`.
-
-- Item id is `samples[].id`; run is `samples[].epoch`.
-- `samples[].messages` (the conversation, with any tool calls) is kept as the record's
-  `trajectory`, in OpenAI-style messages: role, content (text), tool_calls (id, name,
-  arguments), tool_call_id. Inspect's message ids, sources and models are left out, so the
-  same run read with or without inspect_ai gives the same steps. `start` makes an answer's id
-  from its input, output and steps (`sample_key`).
-- A score whose value is a dict (rubric and checklist graders report this way) is one judge
-  per key, named `<scorer>.<key>`, each with the scorer's prompt.
-- The prompt hash covers the scorer's `template` and `instructions` options, or Inspect's
-  default for that scorer when they are unset; never the per-sample `metadata.grading`.
-- Values `C`/`I` read as pass/fail; `P` (partial) and anything else need --label-map.
-- The scorers that check text in code (CODE_SCORERS: match, includes, exact, pattern, f1,
-  answer) are code checks, not judges: read as CODE records, so they are left out.
-- A grader whose reply held no grade: current versions save `Score.unscored(reason=
-  "grader_failed", explanation="Grade not found in model output: ...")` (a NaN value that
-  Inspect's metrics skip; scorer/_model.py, scorer/_metric.py; logs before 0.3.245 keep the
-  reason in `metadata.unscored_reason`), older ones INCORRECT with the same explanation.
-  Read as saved, with an in-memory mark (records.Mark) for `start`'s judge check.
-- A sample whose grader call failed (an HTTP 400, say) has `samples[].error` (a
-  ModelGenerateError) and no scores, while the app's answer is fine. By default no record is
-  read for it; with `with_errors` (what `start` uses) it gives one record per judge of
-  the eval (each key of a scorer whose value is a dict), with no verdict, the error as its
-  explanation and a "not_scored" mark: the run failed before scoring, no judge was called.
-- A human edit (`edit_score`, log/_score.py) appends to `history`: the first entry is the
-  original score (no provenance), later ones carry `provenance.author`. The original value is
-  the judge's verdict and the edited value is the human label.
+- Item id is `samples[].id`; run is `samples[].epoch`. The conversation is kept as the
+  record's `trajectory`, in a form that is the same with or without inspect_ai.
+- A score whose value is a dict is one LLM-as-a-judge per key, named `<scorer>.<key>`.
+- The prompt hash covers the scorer's `template` and `instructions`, or Inspect's defaults.
+- `C`/`I` read as pass/fail; anything else needs --label-map. Code scorers (CODE_SCORERS) are
+  not judges.
+- A grader reply with no grade, or a sample that errored before scoring, is marked for the
+  judge check. In a score's `history`, the first value is the judge's and an edit the human's.
 """
 
 from __future__ import annotations

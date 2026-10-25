@@ -1,4 +1,4 @@
-"""Rough edges: files that are not UTF-8, unwritable output, `--version`, Windows terminals
+"""Files that are not UTF-8, unwritable output, `--version`, Windows terminals
 and shells, and rare wordings.
 
 Windows itself is not run here. What depends on it is reached by setting `sys.platform`.
@@ -200,7 +200,7 @@ def test_file_errors_in_plain_words(monkeypatch):
         f"{denied} If the file is open in Excel or another program, close it first.")
 
 
-def test_on_windows_opening_a_folder_as_a_file_is_not_called_a_permission_problem(tmp_path,
+def test_windows_folder_as_file_is_not_a_permission_problem(tmp_path,
                                                                                  windows):
     # Windows answers "permission denied" where other systems say "is a directory".
     e = PermissionError(errno.EACCES, "Permission denied", str(tmp_path))

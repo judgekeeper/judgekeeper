@@ -28,7 +28,7 @@ def test_the_level_is_the_one_the_coverage_grid_chose():
     assert weighted.DRAWS == chosen["draws"] and weighted.SEED == chosen["seed"]
 
 
-def test_the_steadiness_and_corner_intervals_keep_z_for_two_intervals_at_97_5_percent():
+def test_steadiness_and_corner_intervals_use_z_at_97_5():
     assert weighted.Z == 2.2414
 
 
@@ -138,7 +138,7 @@ def test_the_ranges_are_the_middle_of_jeffreys_draws():
         assert r[f"{key}_interval"] == pytest.approx(_middle(values, weighted.LEVEL), abs=0.01)
 
 
-def test_the_same_labels_give_the_same_ranges_to_two_decimals_whatever_the_seed():
+def test_ranges_do_not_depend_on_the_seed():
     one = weighted.corrected(171, 41, 16, 15, 15, 5)
     assert weighted.corrected(171, 41, 16, 15, 15, 5) == one  # a fixed seed
     for seed in (1, 2, 3):

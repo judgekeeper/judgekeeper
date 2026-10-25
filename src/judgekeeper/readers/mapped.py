@@ -1,20 +1,16 @@
 """A results file in a project's own format, read with the map `judgekeeper` saved in
 judgekeeper.toml after the person's yes (see mapper.py for the paths).
 
-One judged answer per item, side and judge: a record with the item's input, the side's
-output, the judge's name, and the verdict: a score with its pass/fail from the pass mark, or
-a verdict value as written (pass/fail, true/false, or what --label-map maps). The judge's
-model comes from the map's `model_key` (a path, in the item or around it) or from the
-settings; the pass mark from `pass_mark_key` (where the file states it, so each run's own)
-or from the settings.
+One judged answer per item, side and judge: a record with the item's input, the side's output,
+the judge's name and the verdict (a score against the pass mark, or a verdict value as written).
+The model and the pass mark come from paths in the map where the file states them (so each run
+has its own), else from the settings.
 
-When the items are inside a unit (a JSONL line holding a list of cases: often one eval run),
-each unit is its own RecordList, newest (last) first, so `start` uses the newest run first, as
-it does for any other tool's files. When each line or row is itself one item (a flat file),
-the whole file is one RecordList.
+When the items sit inside units (a JSONL line holding a list of cases: often one eval run),
+each unit is its own RecordList, newest (last) first, so `start` uses the newest run first. A
+flat file, one item per line or row, is one RecordList.
 
-A map that no longer fits the file (the items, an input or an answer missing) is an error
-with one plain message: CHANGED_SHAPE.
+A map that no longer fits the file is an error with one plain message: CHANGED_SHAPE.
 """
 
 from __future__ import annotations

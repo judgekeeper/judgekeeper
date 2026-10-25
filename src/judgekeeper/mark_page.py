@@ -1,24 +1,16 @@
 """The marking page and its welcome box.
 
 One self-contained page (look.py: nothing loaded from anywhere else). It shows one answer at a
-time with the person's own marks and never anything the judge decided: no grade, no reason,
-no agreement, not even its rule. Text reaches it through textContent. The server fills in
-__DATA__ (the answers and the person's marks, start_label.StartSession.state), __TOKEN__ and
-__NONCE__.
+time with the person's own marks and never anything the LLM-as-a-judge decided: no grade, no
+reason, no agreement, not even its rule. Text reaches it through textContent. The server fills
+in __DATA__ (start_label.StartSession.state), __TOKEN__ and __NONCE__.
 
-The look: a 400px list of the answers on the left (each one line, cut with "…"), the card
-with the question, the answer and the two buttons filling the rest of the window, hairlines
-only. On a phone (760px and narrower) the card comes first, then the list, and the page
-scrolls as one; a line that a mark was not saved is always brought into view. The top bar
-shows the progress as small segments by answers looked at, the count of marks, and, once a
-result is ready, the link to it.
-
-How it keeps marks honest: Fail and Pass look the same but for their colour; after each mark
-the page ignores input for about 400 ms, and it ignores a held key and any key with
-Cmd, Ctrl or Alt, so a double click or a held key never marks an answer not yet seen. Focus
-goes to the answer, never to a button. The bar follows the answers looked at, never the Pass
-and Fail balance, and no number on the page is a target. Skipped answers come back at the
-end.
+So that each mark comes from a real look at the answer: Fail and Pass look the same but for
+their colour; after each mark the page ignores input for about 400 ms, and it ignores a held
+key and any key with Cmd, Ctrl or Alt. Focus goes to the answer, never to a button. The
+progress bar follows the answers looked at, never the Pass and Fail balance, and no number on
+the page is a target. Skipped answers come back at the end. On a phone (760px and narrower)
+the card comes first, then the list.
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
-"""Inspect AI: a project often has logs that hold no judge decisions (a run with --no-score,
-say) beside the ones that do. The newest log that holds judge decisions is used; when the
-newest has none, one line says it is left out. Only when no log has an LLM-as-a-judge is it said, once
+"""Inspect AI: a project often has logs that hold no judge decisions (a run with --no-score, say)
+beside the ones that do. The newest log that holds judge decisions is used; when the newest has
+none, one line says it is left out. Only when no log has an LLM-as-a-judge is it said, once
 (tests/test_no_judge.py has the other tools)."""
 
 from __future__ import annotations

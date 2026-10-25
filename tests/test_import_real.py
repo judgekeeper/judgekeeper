@@ -3,19 +3,12 @@
 Each folder holds the script that ran the tool, with no API call, and the small result files it
 wrote. No test here runs a tool; regenerate with the scripts (see each folder's README.md).
 
-promptfoo (promptfoo 0.123.1, `eval --repeat 3`, `exec:` answerer and llm-rubric grader):
-6 tests Q0-Q5, one prompt. Real files give every repeat its own testIdx, all promptIdx 0 with
-identical vars, so the reader must group by item id. The grader passes Q0 Q1 Q5 on every call
-and Q2 on its second call only.
-
-Inspect AI (inspect_ai 0.3.273, model_graded_qa with a mockllm grader, epochs 3): samples 1-6.
-The grader says
+promptfoo 0.123.1 (`eval --repeat 3`): Q0-Q5; every repeat has its own testIdx, so the reader
+groups by item id. The grader passes Q0 Q1 Q5 always and Q2 on its second call only.
+Inspect AI 0.3.273 (epochs 3): samples 1-6, graded
   epoch 1: 1 C, 2 C, 3 I, 4 I, 5 I, 6 C     epochs 2, 3: 1-3 C, 4-6 I
-Older Inspect AI logs (old/, inspect_ai 0.3.2 .json and 0.3.204 .eval, model_graded_qa with a
-fixed fake grader): samples 1 I, 2 C.
-
-DeepEval (deepeval 4.2.7, a non-LLM BaseMetric "Listed Passes", DEEPEVAL_RESULTS_FOLDER, three
-runs, one test_run_*.json each): cases c0-c5. The metric passes
+Older logs (old/, 0.3.2 .json and 0.3.204 .eval): samples 1 I, 2 C.
+DeepEval 4.2.7 (a non-LLM metric, three runs): cases c0-c5, passed
   run 1: c0 c1 c3      run 2: c0 c1 c2 c3      run 3: c0 c1 c2
 """
 

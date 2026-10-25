@@ -89,7 +89,7 @@ def test_the_site_names_no_installer_it_does_not_use_and_no_unsafe_flag():
             assert gone not in text, (source.name, gone)
 
 
-def test_the_guide_installs_in_the_project_with_the_python_the_package_needs():
+def test_guide_install_uses_the_needed_python():
     needs = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
         "requires-python"]
     assert needs == ">=3.11"

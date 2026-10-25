@@ -1,46 +1,17 @@
 """promptfoo: the file `promptfoo eval -o results.json` writes.
 
-Shape (promptfoo src/types/index.ts, `OutputFile`, `EvaluateSummaryV3`, `EvaluateResult`,
-`GradingResult`): `results.results[]` rows with `testIdx`, `promptIdx`, `testCase`, `vars`,
-`response.output`, `success` and `gradingResult.componentResults[]`, one per assertion, each
-with `pass`, `score`, `reason` and the `assertion` that produced it.
-
-Traps handled here:
-- A human rating in the web UI adds a component with `assertion.type == "human"` and overrides
-  the row's `success`/`pass`. The judge verdict is read from the model-graded component only.
-- `--repeat N` rows carry no repeat index (promptfoo strips `__repeatIndex` before saving) and
-  each repeat gets its own `testIdx`, with the same `promptIdx` and identical vars. Rows are
-  grouped by item id and promptIdx and numbered in order of appearance; a derived id hashes
-  vars only, so the repeats of one test share it even when their outputs differ.
-- The grader is the assertion's `provider`, then the test's or `defaultTest`'s
-  `options.provider`, then `defaultTest.provider` (the model under test, which promptfoo
-  also uses as the judge when no grader is set). With none of them, promptfoo used its
-  built-in default grader and the file does not say which model that was.
-- A grader set with `--grader` is saved as an object with no `id`, only a `modelName`: its
-  model is known, its provider is not. It is not the default grader.
-- llm-rubric saves the exact text it sent (`metadata.renderedGradingPrompt`). With the answer
-  and the test's vars put back as placeholders it is the grading template, which also changes
-  when promptfoo changes its own grading prompt; when every judged row of a metric gives the
-  same template, its hash is the prompt hash. The rule shown to the person stays the rubric.
-- `metadata.cachedResponse` marks a verdict promptfoo replayed from its cache: a warning.
-- `not-llm-rubric` (and every other `not-` form of a judge type) is saved after promptfoo
-  turned the verdict round, so it is read as it is. `agent-rubric` (a grader that uses tools)
-  and `trajectory:goal-success` (it reads the app's trace) are judges too.
-- An `assert-set` was saved with `assertion.type == "assert-set"` and its children nested.
-  promptfoo 0.124.1 saves it with no `assertion` (its marker is `metadata.assertionSet`), and
-  its children both nested and again flat right after it: each child is read once.
-- A grader that failed (its call errored, or its reply could not be read) is saved as a plain
-  fail: `graderFail(reason)` in src/matchers/shared.ts is fail(reason) plus
-  `metadata.graderError`. The record keeps it as promptfoo saved it and gets an in-memory
-  mark (records.Mark) for `start`'s judge check; older files have no flag, so the reasons
-  promptfoo writes (src/matchers/rubric.ts, llmGrading.ts) are read instead. The row's
-  `error` and `failureReason` are never used for this: `error` also holds the reason of an
-  ordinary fail, and a grader error has `failureReason` 1 (ASSERT), like any fail.
-- promptfoo's PROMPTFOO_STRIP_RESPONSE_OUTPUT, PROMPTFOO_STRIP_TEST_VARS and
-  PROMPTFOO_STRIP_GRADING_RESULT settings remove the answers, the inputs or the grading from
-  every row, in `eval -o` and `export` files alike. When most rows lack one of them, the file
-  is not an empty result: a warning (answers, inputs) or an error (grading, so no verdicts)
-  names the setting.
+Rows are `results.results[]`; each assertion's result is a `gradingResult.componentResults[]`
+entry. The traps handled here:
+- A human rating overrides the row's `success`: the verdict is read from the model-graded
+  component only.
+- `--repeat N` rows carry no repeat index, so rows are numbered in order within an item.
+- The grader is the assertion's `provider`, then the test's or `defaultTest`'s; with none,
+  promptfoo used its default grader, and the file does not say which model that was.
+- llm-rubric saves the exact prompt it sent; with the answer and vars put back as
+  placeholders, it is the grading template whose hash is the prompt hash.
+- A grader that failed is saved as a plain fail; `metadata.graderError` (or, in older files,
+  promptfoo's own reasons) marks it for the judge check. The row's `error` never does.
+- The STRIP_* settings remove answers, inputs or grading from every row: a warning names them.
 """
 
 from __future__ import annotations

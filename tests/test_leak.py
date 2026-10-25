@@ -1,10 +1,10 @@
 """No credential reaches disk, stdout or stderr, whatever the LLM-as-a-judge's results hold.
 
 Sentinel values sit in ANTHROPIC_API_KEY, OPENAI_API_KEY, the Langfuse keys and a custom
-variable whose name ends in _API_KEY. The LLM-as-a-judge's saved results echo every one of them in the
-questions, the answers, the LLM-as-a-judge's reasons and the model it names. Then `start` reads them,
-the page's marks are saved and the result is written, and every file and every line printed
-is searched.
+variable whose name ends in _API_KEY. The LLM-as-a-judge's saved results echo every one of them
+in the questions, the answers, the LLM-as-a-judge's reasons and the model it names. Then `start`
+reads them, the page's marks are saved and the result is written, and every file and every line
+printed is searched.
 """
 
 import json

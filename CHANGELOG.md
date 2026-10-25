@@ -8,7 +8,7 @@ your own terminal.
 
 - `judgekeeper check`: when your judge's model, rule, pass mark or eval tool changes, it
   re-tests the new judge on your marks and says whether it got worse on the answers you passed
-  or failed. Grades your newest results already hold are used first, for free. When it needs
+  or failed. Grades your newest results already hold are used first, with no AI call. When it needs
   AI calls, it says how many and asks first (without a terminal, `--yes` says yes).
 - Every screen says which of the 5 steps it is, and its `Next:` line says what you do next.
 - The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files.

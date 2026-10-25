@@ -3,8 +3,9 @@
 The code in this repository is under the MIT license (see LICENSE). You can use it,
 change it, share it and sell it, as that license says.
 
-The MIT license covers the code. It does not let you use the name "judgekeeper" or the
-shield logo as the name or logo of your own product.
+The name "judgekeeper" and the shield logo belong to Sathvik Thota, the copyright holder
+named in LICENSE. The MIT license covers the code. It does not let you use the name or the
+logo as the name or logo of your own product.
 
 You are welcome to:
 - say that your project uses, works with or is based on judgekeeper;
@@ -20,6 +21,6 @@ If you fork the project, give your version its own name and logo.
 ## Other names
 
 judgekeeper can read results from tools made by others, and checks an LLM-as-a-judge that uses
-models made by others, such as promptfoo, DeepEval, Inspect AI, MLflow, Langfuse, Claude and
-OpenAI models. These names belong to their owners and are used only to say what judgekeeper can
+models made by others, such as promptfoo, DeepEval, Inspect AI, MLflow, Claude and OpenAI
+models. These names belong to their owners and are used only to say what judgekeeper can
 read results from. judgekeeper is not affiliated with, sponsored by or endorsed by any of them.

@@ -1,8 +1,9 @@
 """An MLflow make_judge's rule: its instructions, which MLflow saves with each assessment.
 
-They are the LLM-as-a-judge's rule everywhere `start` uses one (the first block, Fix your LLM-as-a-judge's
-prompt, --rule-file's template-part checks, where the rule probably is) and part of the
-judge's identity, so a changed rule is a new LLM-as-a-judge for Try your new LLM-as-a-judge.
+They are the LLM-as-a-judge's rule everywhere `start` uses one (the first block, Fix your
+LLM-as-a-judge's prompt, --rule-file's template-part checks, where the rule probably is) and
+part of the judge's identity, so a changed rule is a new LLM-as-a-judge for Try your new
+LLM-as-a-judge.
 
 The store is made by the installed MLflow in another process (skipped without it), with a real
 `make_judge` whose model call is replaced: MLflow itself saves the instructions.

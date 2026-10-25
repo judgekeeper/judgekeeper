@@ -1,28 +1,16 @@
-"""Asking your judge again: the plan, made before any call.
+"""Asking the user's LLM-as-a-judge again: the plan, made before any call.
 
-judgekeeper can ask the user's own judge, through the user's own eval tool, about the answers
-the person labeled: the judge's tool grades the saved answers again; the user's app is never
-run. Before anything is spent, `make_plan` says what would run:
+The judge's own eval tool grades again the saved answers the person labeled; the user's eval code
+is never run. Before anything is spent, `make_plan` says what would run: whether it is exactly
+the judge, a close copy (naming what could not be confirmed) or can't be asked again (and
+why); which key the tool will read (`keys`, names only); how many calls and a cost range at
+dated prices (`prices`); and what the run touches.
 
-- the judge, and honestly whether this is exactly your judge, a close copy (naming what could
-  not be confirmed), or a judge that can't be asked again (and why);
-- which key the judge's tool will read (`keys`, names only) and the settings that change it;
-- how many judge calls (labeled answers × times × calls per answer for that judge type) and
-  a cost range at dated prices (`prices`);
-- what the run touches.
-
-One planner per tool, each `plan(ws, answers, opts, talk, dry) -> Plan`: `promptfoo`,
-`deepeval`, `inspect` and `mlflow`. With `dry`, the plan
-also checks the judge where it would run: the installed promptfoo's version, or for the
-Python tools a small worker script (`workers/`) run with the user's own Python, which builds
-the judge and checks it with no API call. judgekeeper never imports DeepEval, Inspect AI or
-MLflow itself for this. A plan made without `dry` runs nothing.
-
-Every process goes through `run_process`, which tests replace. After the plan, `judgekeeper
-check` and `fix` ask before anything is spent. Then each tool's `run` asks for real
-(`promptfoo.run`, and for the Python tools `deepeval.run`, `inspect.run` and `mlflow.run`, which
-run their worker in "run" mode through `worker_run`), and `fresh.write_files` saves the run
-files.
+One planner per tool (`promptfoo`, `deepeval`, `inspect`, `mlflow`), each with `plan` and
+`run`. With `dry`, the plan also checks the judge where it would run, with no API call: the
+installed promptfoo's version, or a small worker script (`workers/`) in the user's own Python.
+judgekeeper never imports DeepEval, Inspect AI or MLflow itself. Every process goes through
+`run_process`, which tests replace. `judgekeeper check` and `fix` ask before anything is spent.
 """
 
 from __future__ import annotations
@@ -398,6 +386,7 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
     from dataclasses import replace
 
     from judgekeeper.again import deepeval, inspect, mlflow, promptfoo
+    from judgekeeper.again.fresh import AgainError
     from judgekeeper.records import RecordsError
 
     opts = opts or AgainOptions()
@@ -424,7 +413,7 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
             plan = cant(data["tool"], data["judge"],
                         "your LLM-as-a-judge's decisions are a table, and judgekeeper can't run "
                         "the LLM-as-a-judge that made them")
-    except (OSError, ValueError, KeyError, RecordsError) as e:
+    except (OSError, ValueError, KeyError, RecordsError, AgainError) as e:
         plan = cant(data["tool"], data["judge"],
                     f"your saved results could not be read again ({scrub(str(e))})",
                     short="your saved results could not be read again")

@@ -175,7 +175,7 @@ def test_text_contrast():
         assert _contrast("#FFFFFF", colours[fill]) >= 4.5, fill
 
 
-def test_focus_rings_are_inset_in_the_text_colour_and_nothing_is_focused_on_load():
+def test_focus_rings_and_no_focus_on_load():
     for name, page in _new().items():
         style = page.split("<style>")[1].split("</style>")[0]
         assert re.findall(r"outline-offset: ([^;]+);", style) == ["-2px"], name
@@ -261,7 +261,7 @@ def test_the_marking_page_words():
             "padding: 0 24px 6px; }") in mark_page.STYLE
 
 
-def test_the_marking_page_layout_is_a_list_column_and_a_card_that_fills_the_window():
+def test_marking_page_layout():
     style = mark_page.STYLE
     assert ".wrap { flex: 1; display: grid; grid-template-columns: 400px 1fr;" in style
     assert "height: calc(100vh - 72px);" in style  # no page scroll on a laptop
@@ -362,7 +362,7 @@ def test_the_end_card_is_one_centred_card_in_the_answers_place():
     assert "You marked every answer." in page and "skipped answer" in page
 
 
-def test_the_marking_page_has_one_h1_a_progressbar_and_hidden_words_for_each_row():
+def test_marking_page_heading_progressbar_and_row_words():
     page = _marking()
     assert page.count("<h1") == 1 and '<h1 class="question" id="q-text">' in page
     assert "<h2" not in page.split('id="end"')[0].split("</header>")[1]  # no list heading
@@ -501,7 +501,7 @@ def test_one_answer_is_said_in_the_singular():
         '<span class="mono">1</span> and failed <span class="mono">0</span>.')
 
 
-def test_answers_with_no_pass_or_fail_from_the_judge_are_said_under_the_counts():
+def test_ungraded_answers_are_said_under_the_counts():
     check = {"answers": 57, "error": 2, "unreadable": 1, "nothing_checked": 4,
              "tool": "promptfoo", "tool_counted_as": "fail"}
     html = start_label.result_html(_result(*CHECK, judge_check=check))

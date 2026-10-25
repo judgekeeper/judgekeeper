@@ -114,7 +114,7 @@ def test_no_model_anywhere_is_no_model(tmp_path):
     assert {r.evaluator.get("model") for r in recs} == {None}
 
 
-def test_scorer_without_options_hashes_the_default_template_not_the_grading_prompt(tmp_path):
+def test_scorer_without_options_hashes_the_default_template(tmp_path):
     data = json.loads(LOG.read_text(encoding="utf-8"))
     data["eval"]["scorers"] = [s for s in data["eval"]["scorers"]
                                if s["name"] != "model_graded_qa"]

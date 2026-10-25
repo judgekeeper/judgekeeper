@@ -1,18 +1,13 @@
 """One project folder for every command, and no dead ends in the flow across runs.
 
 - A results file given by path keeps `.judgekeeper/` in the project the command runs from;
-  `judgekeeper`, `mark`, `--stop`, `check` and `fix` find the same marks and page from the
-  project and from a folder inside it. A folder that holds two projects says which one it
-  read and names the other.
-- Every answer marked with too few of one kind: said plainly, the same words in the
-  terminal, `mark`, the Measure screen and on the marking page's end card.
+  every command finds the same marks and page from the project and from a folder inside it.
+- Every answer marked with too few of one kind is said plainly, in the same words everywhere.
 - A table judge whose grades changed in the newest results is re-checked on them (no AI
-  call); marks added after a check are re-checked; after a check the result and `fix`
-  describe the LLM-as-a-judge in the newest results.
-- `fix` for an LLM-as-a-judge it can't ask never asks for a rule.txt; report.html says the same.
-- Read-only `.judgekeeper/`, `--no-browser` again, two runs at once, the same next step in
-  the terminal and the report, the grammar of "finds no results", exit codes, a wrong flag
-  or a flag before the command, and a `--judge-model` remembered.
+  call), and after a check the result and `fix` describe the newest LLM-as-a-judge.
+- `fix` for an LLM-as-a-judge it can't ask never asks for a rule.txt.
+- Edge cases: read-only `.judgekeeper/`, two runs at once, exit codes, wrong flags and a
+  `--judge-model` remembered.
 No test calls an AI API.
 """
 
@@ -75,7 +70,7 @@ def _next(out: str) -> str:
     return next_lines(out)[-1]
 
 
-# 1. One project folder ----------------------------------------------------------------------
+# One project folder -------------------------------------------------------------------------
 
 def test_a_results_file_given_by_path_keeps_the_marks_in_the_project(here, capsys,
                                                                       monkeypatch):
@@ -150,7 +145,7 @@ def test_a_folder_with_two_projects_says_which_it_read(here, capsys):
             "check them, run `judgekeeper a`.") in flat(out)
 
 
-# 2. Every answer marked, too few of one kind ------------------------------------------------
+# Every answer marked, too few of one kind ---------------------------------------------------
 
 def test_every_answer_marked_with_too_few_fails_says_so(here, capsys, pages):
     promptfoo_project(here, split(28, 12))
@@ -212,7 +207,7 @@ def test_measure_with_every_answer_marked_does_not_offer_the_page(here, capsys):
     assert code == 3
 
 
-# 3 to 5. Re-checks -------------------------------------------------------------------------
+# Re-checks ---------------------------------------------------------------------------------
 
 def test_a_table_judge_whose_grades_changed_is_re_checked(here, capsys, no_calls):
     verdicts = split(20, 20)
@@ -293,7 +288,7 @@ def test_after_a_check_the_result_and_fix_are_about_the_new_judge(here, capsys, 
     assert mistakes.count("## [M") == 1
 
 
-# 6. fix for a judge it can't ask -------------------------------------------------------------
+# fix for a judge it can't ask ----------------------------------------------------------------
 
 CANT_ASK = "judgekeeper can't ask this LLM-as-a-judge itself."
 NEXT_CANT_ASK = ("Next: change its rule where your eval keeps it, run your eval, then run "
@@ -331,7 +326,7 @@ def test_the_report_says_the_same_for_a_judge_it_cant_ask(here, capsys):
             "eval, then run <code>judgekeeper check</code>.") in report
 
 
-# 7 to 9. The folder and the page -------------------------------------------------------------
+# The folder and the page ---------------------------------------------------------------------
 
 def test_a_read_only_folder_never_says_to_remove_it():
     assert "remove" not in textio.WORKSPACE_DENIED_NEXT
@@ -362,7 +357,7 @@ def test_a_second_run_waits_for_the_first_to_open_the_page(here, capsys):
     assert LINK in out and "in use" not in out
 
 
-# 10. The same next step in the terminal and the report ----------------------------------------
+# The same next step in the terminal and the report --------------------------------------------
 
 def test_too_early_with_mistakes_says_mark_more_as_the_report_does(here, capsys):
     promptfoo_project(here, split(25, 25))
@@ -377,7 +372,7 @@ def test_too_early_with_mistakes_says_mark_more_as_the_report_does(here, capsys)
     assert "judgekeeper fix" not in report
 
 
-# 11 and 12. Words and exit codes ---------------------------------------------------------------
+# Words and exit codes --------------------------------------------------------------------------
 
 def test_check_with_its_table_gone_says_so_in_a_sentence(here, capsys):
     table_project(here, split(20, 20))
@@ -404,7 +399,7 @@ def test_no_results_exits_3_as_the_reference_says(here, capsys):
     assert "no eval results found" in rows["3"]
 
 
-# 13. A wrong flag, or a flag before the command --------------------------------------------------
+# A wrong flag, or a flag before the command ------------------------------------------------------
 
 @pytest.mark.parametrize("command", ["mark", "fix", "check"])
 def test_a_wrong_flag_prints_the_commands_own_usage(here, capsys, command):
@@ -425,7 +420,7 @@ def test_a_flag_before_the_command_works(here, capsys, pages):
     assert LINK in out
 
 
-# 14. --judge-model remembered ----------------------------------------------------------------------
+# --judge-model remembered --------------------------------------------------------------------------
 
 def test_a_judge_model_given_once_is_remembered(here, capsys):
     table_project(here, split(20, 16))

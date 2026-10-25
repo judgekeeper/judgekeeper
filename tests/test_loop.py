@@ -290,7 +290,7 @@ def test_the_result_keeps_the_command_for_its_next_steps(here, capsys, pages):
 
 # The exit test: one prompt to a result ----------------------------------------------------
 
-def test_from_a_promptfoo_project_the_person_runs_judgekeeper_once_then_clicks(here, capsys,
+def test_promptfoo_project_one_run_then_clicks(here, capsys,
                                                                               pages):
     """The person runs `judgekeeper` and does what the Next: line says: mark until "See your
     result" appears, then click it. One command and one click from the first run to the

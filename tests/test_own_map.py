@@ -1,8 +1,8 @@
 """`judgekeeper` on results saved in a project's own format (own_map.py).
 
-It finds a file that looks like an LLM-as-a-judge's results, shows how it reads it (paths only, never a
-value), asks only what the file cannot tell, and keeps the map in judgekeeper.toml after one
-yes. Nothing is written to the project before that yes (only judgekeeper's own folder), and
+It finds a file that looks like an LLM-as-a-judge's results, shows how it reads it (paths only,
+never a value), asks only what the file cannot tell, and keeps the map in judgekeeper.toml after
+one yes. Nothing is written to the project before that yes (only judgekeeper's own folder), and
 the user's code is never edited. `start` then reads judgekeeper.toml first.
 """
 
@@ -167,7 +167,7 @@ def test_all_judges_one_at_a_time(tmp_path, capsys, terminal):
 
 # Questions only when needed -------------------------------------------------------------
 
-def test_a_flat_file_with_one_judge_asks_only_whether_it_is_right_and_the_yes(
+def test_a_flat_file_with_one_judge_asks_one_question(
         tmp_path, capsys, terminal):
     answers, asked = terminal
     flat_jsonl(tmp_path / "evals" / "graded.jsonl")

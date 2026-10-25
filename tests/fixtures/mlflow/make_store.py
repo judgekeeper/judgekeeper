@@ -2,24 +2,12 @@
 
     python tests/fixtures/mlflow/make_store.py /tmp/mlflow-fixture
 
-writes `mlflow.db` (SQLite tracking store) and `artifacts/` there and prints the tracking URI.
-tests/test_import_mlflow.py calls `build()` once per test session (about ten seconds).
-
-What MLflow is asked to do, through its public API only:
-- Experiment "qa-judge". `app(qid, question)` is a plain traced Python function; it tags its
-  trace with `row_id`.
-- Three `mlflow.genai.evaluate` runs over the same 8 rows (Q0-Q7) with `predict_fn=app`, so
-  every run logs 8 new traces with new trace ids.
-- Scorers are local Python functions (no model call):
-  `correctness` returns `Feedback(value=<bool>, source=LLM_JUDGE "fake:/judge-model-1")`;
-  `concise` returns "yes"/"no" from the same source with the scorer name and version metadata
-  keys, and a `Feedback(error=...)` for Q7 in run 1;
-  `has_answer` returns a bare bool, which MLflow records as a CODE assessment.
-- Humans label `correctness` on run 1's traces with `mlflow.log_feedback` (source HUMAN), except
-  Q4, where `mlflow.override_feedback` overrides the judge's assessment.
-
-Before the human labels, it waits until every trace has its row_id tag (wait_for_row_ids):
-MLflow saves tags in the background, and right after a flush some may not be there yet.
+Through MLflow's public API only: experiment "qa-judge", three `mlflow.genai.evaluate` runs
+over the same 8 rows (Q0-Q7), each logging new traces tagged with `row_id`. Scorers are local
+functions: `correctness` (a bool, LLM_JUDGE source), `concise` ("yes"/"no", with a
+`Feedback(error=...)` for Q7 in run 1) and `has_answer` (a bare bool: a CODE assessment).
+Humans label `correctness` on run 1 (Q4 by `mlflow.override_feedback`), once every row_id tag
+is saved (wait_for_row_ids): MLflow saves tags in the background.
 
 `build(root, note=...)` appends `note` to every judge rationale (tests/test_leak.py puts keys
 there). Human labels: Q0-Q3 pass, Q4-Q7 fail. `correctness` passes:

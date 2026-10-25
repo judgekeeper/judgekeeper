@@ -1,15 +1,12 @@
 """Stub DeepEval, Inspect AI and MLflow packages for the workers judgekeeper runs in the user's
-Python. No real tool is needed: the stubs are written into a temporary folder that is put on
-the worker's PYTHONPATH. They record what the worker built and called (in the file named by
-STUB_LOG), fail loudly on anything judgekeeper must never call (`deepeval.evaluate`,
-`mlflow.genai.evaluate`), and answer judge calls from a plan (the JSON file named by
-STUB_PLAN):
+Python, written into a temporary folder put on the worker's PYTHONPATH. They record what the
+worker built and called (in the file named by STUB_LOG), fail loudly on anything judgekeeper
+must never call (`deepeval.evaluate`, `mlflow.genai.evaluate`), and answer judge calls from a
+plan (the JSON file named by STUB_PLAN). An answer's key is its input (DeepEval, Inspect AI) or
+its trace id (MLflow). The plan's keys:
 
-- "verdicts": {key: True or False}, the verdict each answer gets (default True); the key is
-  the answer's input (DeepEval, Inspect AI) or its trace id (MLflow);
-- "flips": [[key, time]], the times an answer gets the opposite verdict;
-- "errors": [[key, time]], the times the judge call raises;
-- "values": {key: value}, a raw value given instead of a verdict;
+- "verdicts": {key: bool} (default True); "flips": [[key, time]], the opposite verdict;
+- "errors": [[key, time]], the judge call raises; "values": {key: value}, a raw value instead;
 - "prompt_changed": [key], Inspect answers whose grading prompt comes back different;
 - "extra": text put into every reason (a planted secret);
 - "error_text": text put into an Inspect judge call's error, after the grading prompt.

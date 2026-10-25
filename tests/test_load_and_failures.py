@@ -1,4 +1,4 @@
-"""What the stress test found: the marking page works the result out once per change, not per
+"""Heavy use and failed calls: the marking page works the result out once per change, not per
 request; big Inspect logs are read sample by sample; one failed judge call costs only its own
 answer and its text is never shown; `check` says what it could not re-check; a body far too
 large gets its 413. Small made-up projects: each test asserts on how the work is done."""
@@ -44,7 +44,7 @@ def _counting(monkeypatch, module, name):
     return calls
 
 
-# 1. The marking page --------------------------------------------------------------------------
+# The marking page -----------------------------------------------------------------------------
 
 def test_the_ranges_are_drawn_once_per_change_not_per_request(tmp_path, monkeypatch):
     ws, session = _page(tmp_path, n=60)
@@ -129,7 +129,7 @@ def test_the_result_page_reads_each_pool_file_once(tmp_path, monkeypatch):
     assert runs == []  # the judge's grades are parsed again only when the file changes
 
 
-# 2. Inspect logs, sample by sample ------------------------------------------------------------
+# Inspect logs, sample by sample ---------------------------------------------------------------
 
 def _fake_inspect(monkeypatch, data, stream=True):
     """inspect_ai.log with read_eval_log (and, with `stream`, read_eval_log_samples) over the
@@ -259,7 +259,7 @@ def test_a_real_eval_log_reads_the_same_as_its_json(tmp_path):
     assert seen(read_inspect(path)) == seen(read_inspect(as_json))
 
 
-# 3 and 4. One failed judge call, and its text ------------------------------------------------
+# One failed judge call, and its text ---------------------------------------------------------
 
 CANARY = "CANARY-prompt-text-7f3a"
 
@@ -383,7 +383,7 @@ def test_the_worker_keeps_the_scorers_name_for_real_inspect(tmp_path):
     assert failed == {(str(i), 1): "RuntimeError" for i in (1, 3, 5)}
 
 
-# 5. check, after some marks were not re-checked ------------------------------------------------
+# check, after some marks were not re-checked ---------------------------------------------------
 
 def test_check_says_how_many_marks_were_not_re_checked(tmp_path, capsys, monkeypatch):
     from tests.test_again_run import FakePromptfoo
@@ -408,7 +408,7 @@ def test_check_says_how_many_marks_were_not_re_checked(tmp_path, capsys, monkeyp
     assert "check` again to ask your LLM-as-a-judge about them." in flat
 
 
-# 6. fix, for model_graded_qa with Inspect's default instructions ------------------------------
+# fix, for model_graded_qa with Inspect's default instructions ---------------------------------
 
 def test_fix_says_why_it_cant_test_inspects_default_instructions(tmp_path, capsys, monkeypatch):
     from judgekeeper.cli import main
@@ -436,7 +436,7 @@ def test_fix_says_why_it_cant_test_inspects_default_instructions(tmp_path, capsy
             "model_graded_qa(...) and run your eval again.") in out, out
 
 
-# 8. A body far over the limit ----------------------------------------------------------------
+# A body far over the limit -------------------------------------------------------------------
 
 def test_a_body_far_over_the_limit_gets_its_413_before_it_is_read(tmp_path, monkeypatch):
     """Over MAX_DRAIN, the page answers 413 at once and closes: the client reads the answer,

@@ -1,19 +1,12 @@
 """The look every page shares, and the parts of each page the design pins.
 
-- The frame: every page carries the head lines, the menu and the footer that
-  scripts/site_frame.py writes. The menu is Home, the Guide, the logo and GitHub; the footer is
-  the logo, Full reference (docs/reference.md on GitHub), Privacy, Trademarks, Security and the
-  copyright.
+- The frame: the head lines, the menu and the footer that scripts/site_frame.py writes.
 - Dark only: the product's dark colours, no switch, no light rules, nothing kept in the browser.
 - Fonts from the site only: Manrope and JetBrains Mono with their licences; no ligatures in
   monospace, so "->" shows as typed.
-- Motion: only the green line under the five words, the terminal typing, the scroll to the
-  steps and the browser check's waiting cursor, and none of them under reduced motion.
+- Motion: only the few moving parts the design names, and none of them under reduced motion.
 - Phone: tables and code scroll inside their box; the browser check's lines wrap.
-- Home: the hero, the demo card that works like the marking page, the steps with their
-  terminal, the closing box. The Guide: Home's hero with the install, the 5 steps as a list, three
-  cards. The browser check: Home's hero with the drop card and a terminal. Privacy: its side
-  list.
+- Each page's own parts: Home, the Guide, the browser check and Privacy.
 
 The tests run no JavaScript: the pages were checked in Chrome at 1440 and 390 wide.
 """
@@ -938,7 +931,7 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
             'project.";') in script
 
 
-def test_the_waiting_terminal_shows_the_shape_of_the_check_in_the_codes_own_labels(tmp_path):
+def test_waiting_terminal_uses_the_codes_labels(tmp_path):
     """The faint lines while waiting are the labels the check then prints, values dotted."""
     from tests.test_freecheck_parity import NODE, browser
 
@@ -1081,7 +1074,7 @@ def test_a_line_quoted_from_judgekeeper_is_what_it_prints():
 
 # The pictures and what fix can test --------------------------------------------------------
 
-def test_the_guide_shows_the_marking_and_result_pages_after_their_first_paragraph():
+def test_guide_page_pictures_after_first_paragraph():
     for step, picture in (("step-mark", "label.webp"), ("step-measure", "result.webp")):
         body = _all(_by_id(GUIDE, step), "div", "gl-body")[0]
         tags = [el.tag for el in body.children if not isinstance(el, str)]

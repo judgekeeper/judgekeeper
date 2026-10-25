@@ -1,7 +1,7 @@
-"""Provider errors read as the LLM-as-a-judge's Fail, judge columns taken without asking, a range of no
-width for an LLM-as-a-judge that gives every answer one grade, report.html after a check that ends Worse,
-and the reading of damaged and far-away files. Every fixture here is made up, with the shape of
-the files that showed each problem.
+"""Provider errors read as the LLM-as-a-judge's Fail, judge columns taken without asking, a range
+of no width for an LLM-as-a-judge that gives every answer one grade, report.html after a check
+that ends Worse, and the reading of damaged and far-away files. Every fixture here is made up,
+with the shape of the files that showed each problem.
 """
 
 from __future__ import annotations

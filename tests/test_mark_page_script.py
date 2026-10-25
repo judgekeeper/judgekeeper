@@ -212,7 +212,7 @@ def test_skip_and_undo_by_key_and_skipped_answers_come_back_at_the_end():
     assert got["again"] == "Question 0?"
 
 
-def test_the_end_card_takes_focus_not_its_button_and_enter_opens_the_skipped():
+def test_end_card_focus_and_enter():
     got = _run("""
       key("s"); await settle(); later(500);
       key("ArrowRight"); await settle(); later(500);
@@ -234,7 +234,7 @@ def test_with_every_answer_marked_the_end_card_says_so_and_the_result_opens():
                    "note": False, "again": True, "href": "/result?token=t0k"}
 
 
-def test_with_every_answer_marked_and_no_result_the_end_card_says_what_comes_next():
+def test_end_card_with_no_result_says_what_comes_next():
     """The server says every answer is marked and a kind is still short (status.done): the end
     card says it in the terminal's words, and no result opens."""
     lines = ["You've marked every answer: 3 Pass, 0 Fail. A result needs at least 15 of each.",

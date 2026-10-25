@@ -1,23 +1,13 @@
 """The user's files and shell, in plain words. Standard library only.
 
-Four things every command shares:
-
-- reading a text file the user supplied. A spreadsheet saved by Excel's default "CSV" option
-  is cp1252 or UTF-16, not UTF-8; `read_utf8` turns that into one line that says how to save
-  it, raised as the caller's own usage error. JSONL is split into lines by `jsonl_lines`;
-  `read_json` says JSON nested too deep to read in one plain line too.
-- writing a file judgekeeper owns: `write_replacing` writes a new file and renames it over the
-  old one, so a link there is replaced, never written through; `link_in` finds a link in a
-  folder before anything is written. What it makes in .judgekeeper/ is its owner's only: files
-  0600 (`write_replacing`, `open_private`), folders 0700 (`make_private`).
-- saying a file-system error (no permission, a file where a folder should be) as one line
-  that names the path and what to do: `describe_os_error`.
-- printing a command the user can paste: `program` says how judgekeeper was started
-  (`uvx judgekeeper@<version>` or `judgekeeper`), `quote_arg` and `open_command` write it for the
-  shell in use. On Windows that is cmd.exe or PowerShell: double quotes, backslashes in paths, `start` instead of `open`.
-
-`tick()` is the mark in front of a line that says something was found or is ready, and
-`plural` says a count as people say it ("1 answer", "2 answers").
+- Reading a file the user supplied: a "CSV" saved by Excel's default option is cp1252 or
+  UTF-16, not UTF-8; `read_utf8` turns that into one line that says how to save it.
+- Writing a file judgekeeper owns: `write_replacing` writes a new file and renames it over the
+  old one, so a link there is replaced, never written through. What it makes in .judgekeeper/
+  is its owner's only: files 0600, folders 0700.
+- Saying a file-system error as one line that names the path and what to do.
+- Printing a command the user can paste (`program`, `quote_arg`, `open_command`), written for
+  the shell in use: on Windows, cmd.exe or PowerShell.
 """
 
 from __future__ import annotations

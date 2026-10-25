@@ -1,26 +1,17 @@
 """Command-line entry point.
 
-`judgekeeper` with no command (front.py) does the next step: finds the judge, checks it for
-free, opens the page to mark answers on, and prints the result once there are enough marks; it
-ends with one `Next:` line. `judgekeeper mark` (mark.py) opens the page to mark more.
-`judgekeeper check` (check.py) re-tests a changed judge on the marks (exit 1: the new judge
-got worse); it asks before any call to the judge.
-`judgekeeper fix` (fix.py) shows where the judge goes wrong and tests a new rule on marks it
-keeps hidden; it asks before any call to the judge.
-Exit codes: 0 success, 2 usage error, 3 the person is needed (the Next: line says what to do),
-130 Ctrl-C.
+`judgekeeper` with no command (front.py) does the next step: finds the LLM-as-a-judge, checks
+it with no AI call, opens the marking page, and prints the result once there are enough marks.
+`mark` (mark.py) opens the page to mark more; `check` (check.py) re-tests a changed judge on
+the marks (exit 1: it got worse); `fix` (fix.py) tests a new rule on marks it keeps hidden.
+`check` and `fix` ask before any call to the LLM-as-a-judge. Exit codes: 0 success, 2 usage
+error, 3 the person is needed, 130 Ctrl-C.
 
-Every error ends with one `Next:` line, printed here. Everything printed as an error goes
-through redact.scrub. A failure with no better message never prints its own text (it can hold
-an answer's text): one line says judgekeeper hit a problem it didn't expect and where to report
-it, exit 2; --debug adds where it went wrong (`_frames`: each frame's file, line and function,
-and the error's type, never its text), also scrubbed. A path that cannot be written or read
-(no permission, a file where a folder should be) is a usage error: one line that names the
-path and what to do.
-
-Removed commands (`REMOVED`: the 0.1 CI gate, `setup`, now part of `judgekeeper`, and `start`,
-now `judgekeeper`, `mark`, `fix` and `check`) print one line that says so and exit 2. They are
-not in the help. `check` is a command again, with a new meaning.
+Every error is scrubbed (redact.scrub) and ends with one `Next:` line, printed here. A failure
+with no better message never prints its own text, which can hold an answer's text: one line
+says where to report it, and --debug adds each frame's file, line and function, never the
+error's text. Removed commands (`REMOVED`) print one line that says so and exit 2; they are
+not in the help.
 """
 
 from __future__ import annotations

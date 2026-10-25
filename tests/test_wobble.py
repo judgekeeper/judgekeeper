@@ -3,8 +3,9 @@
 A judge asked twice about the same answer does not always give the same grade. The share of
 answers whose two grades differ (its wobble) is measured when a paid re-check asks twice. Each
 re-asked grade can then have turned round by itself, so "every answer agreed" is no longer
-exact: the range for the new LLM-as-a-judge's numbers is widened for it, most where a group of the marks
-holds few answers. A judge that gave the same grade both times keeps its ranges as they were.
+exact: the range for the new LLM-as-a-judge's numbers is widened for it, most where a group of
+the marks holds few answers. A judge that gave the same grade both times keeps its ranges as
+they were.
 """
 
 from __future__ import annotations
@@ -51,7 +52,7 @@ def _coverage(pi, n, flip, runs, use_wobble, systematic=0.0, seed=11):
     return {k: v / runs for k, v in hits.items()}
 
 
-def test_a_judge_that_passes_most_answers_and_wobbles_was_covered_too_rarely():
+def test_wobbly_judge_passing_most_answers_was_covered_too_rarely():
     """The case the coverage grid found: ranges that treat every agreeing answer as exact."""
     assert _coverage(0.9, 15, 0.05, 300, use_wobble=False)["tpr"] < 0.8
 

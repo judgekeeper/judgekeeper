@@ -1,52 +1,16 @@
 """MLflow: assessments on traces in an MLflow tracking store, read with MLflow's own client.
 
-Needs the optional extra (`pip install "judgekeeper[mlflow]"`). The tracking URI is
-`tracking_uri` when given, otherwise whatever MLflow resolves (`MLFLOW_TRACKING_URI`, then its
-default), so a local `mlruns` folder, a SQL store, a tracking server and Databricks
-(`DATABRICKS_HOST`, `DATABRICKS_TOKEN`) all work, with MLflow handling the credentials.
+Needs the `mlflow` extra. The tracking URI is `tracking_uri`, else what MLflow resolves, so a
+local folder, a SQL store, a server and Databricks all work, with MLflow handling credentials.
 
-Shape (mlflow 3.16: entities/assessment.py, assessment_source.py, tracing/constant.py), from
-`Assessment.to_dictionary()`: `assessment_id`, `assessment_name`, `trace_id`,
-`source: {source_type, source_id}`, `feedback: {value, error: {error_code, error_message}}`
-or `expectation`, `rationale`, `metadata`, `overrides`, `valid`.
-
-- Traces come from `MlflowClient.search_traces`, the paged call behind `mlflow.search_traces`,
-  one page of 100 at a time, scoped with `locations` where it takes that parameter (MLflow
-  3.16 deprecates `experiment_ids`) and `experiment_ids` otherwise.
-- `source_type` LLM_JUDGE is the judge, HUMAN the human, CODE ignored, except a judge call
-  that failed: `mlflow.genai.evaluate` saves it as a CODE assessment named after the scorer,
-  with error code SCORER_ERROR. Where that name is also an LLM judge's, it is that judge's
-  failed call (its error text kept, so the judge check counts "calls failed"); when every
-  call of a judge failed, that is the error, with MLflow's first error text. Only feedback counts;
-  expectations (ground truth) are not verdicts. A judge assessment with `feedback.error` has
-  no verdict; its error text is the explanation, and an in-memory mark (records.Mark) tells
-  `start`'s judge check the judge's call failed.
-- `mlflow.override_feedback` marks the judge's assessment `valid: false` and logs the human's
-  with `overrides` = its id: the overridden value is still the judge's verdict. A human
-  assessment that is itself overridden (`valid: false`) is dropped.
-- Each judge assessment's run is its `mlflow.assessment.sourceRunId` metadata (set by
-  `mlflow.genai.evaluate`, also when it scores existing traces), else the trace's
-  `mlflow.sourceRun`. Runs are ordered by start time.
-- Trace ids change on every evaluation run, so the item id is derived from the trace's request
-  input (`table.derive_id`), unless `id_from` names a trace tag or request input key.
-- An assessment can be on the whole trace or on one span inside it (`span_id`, kept in the
-  record's `metadata`). Only trace-level assessments are verdicts on the answer, so span-level
-  ones are left out, with a note, unless `metric` names a judge that is only on spans; a
-  judge on both never mixes them. An assessment on the root span is trace-level:
-  `mlflow.genai.evaluate` logs every assessment there.
-- A folder store keeps each trace's files at the full path saved when it was made; once the
-  store is copied or cloned to another computer, MLflow cannot find them and drops the trace.
-  Here they are read from the store's own folder (`_traces`); traces whose files are in
-  neither place are left out and counted (TracesMissing when that is all of them).
-- MLflow's own log lines (its hint for coding agents, a warning per trace) are kept out of
-  judgekeeper's output while it reads (`quiet`).
-- Fingerprint: model from `source.source_id` (`openai:/gpt-4.1-mini` gives provider
-  `openai`); `mlflow.assessment.scorerName`/`scorerVersion` metadata as the rubric version.
-  A `make_judge` (MLflow 3.14 and later) saves its instructions in the assessment's metadata
-  (`guideline`, or `instructions`): they are the judge's rule (`evaluator.rule`), so they are
-  hashed into the prompt hash and a changed rule is a new judge (judge_instructions). Other
-  judges' prompts are not saved with the assessment, and scorer tracing is off by default,
-  so there is usually no trace of the judge's own call either: prompt unknown.
+- `source_type` LLM_JUDGE is the LLM-as-a-judge and HUMAN the person; only feedback counts. A
+  CODE assessment with SCORER_ERROR under an LLM-as-a-judge's name is that judge's failed call.
+- An overridden judge assessment (`valid: false`) is still the judge's verdict.
+- Trace ids change on every run, so the item id comes from the trace's request input.
+- Only trace-level assessments are verdicts (the root span counts as the trace).
+- A copied folder store keeps its traces' old paths; they are read from the store's own folder.
+- A `make_judge`'s instructions in the metadata are its rule, hashed into the fingerprint.
+  Other judges' prompts are not saved, and scorer tracing is off by default: prompt unknown.
 """
 
 from __future__ import annotations

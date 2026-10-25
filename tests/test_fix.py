@@ -1,23 +1,24 @@
 """`judgekeeper fix`: where the LLM-as-a-judge goes wrong, and a fair test of a new rule.
 
-First run (Screen 5a): some of the marks are set aside and hidden (about 30% of each group:
-the LLM-as-a-judge's passes and fails, where the person agrees and where not; at least 5 marked Pass
+First run (Screen 5a): some of the marks are set aside and hidden (about 30% of each group: the
+LLM-as-a-judge's passes and fails, where the person agrees and where not; at least 5 marked Pass
 and 5 marked Fail); the patterns in the LLM-as-a-judge's mistakes on the other marks;
-.judgekeeper/fix/mistakes.md with each of those mistakes and the LLM-as-a-judge's own reason; where the
-judge's rule is written; Next: write the new rule in .judgekeeper/fix/rule.txt.
-Nothing about a hidden mark (its id or its text) is printed or written outside split.json.
-No test calls an API.
+.judgekeeper/fix/mistakes.md with each of those mistakes and the LLM-as-a-judge's own reason;
+where the judge's rule is written; Next: write the new rule in .judgekeeper/fix/rule.txt.
+Nothing about a hidden mark (its id or its text) is printed or written outside split.json. No
+test calls an API.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import time
 from pathlib import Path
 
 import pytest
 
-from judgekeeper import fix, start_fix_rule
+from judgekeeper import fix, label, start_fix_rule
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer, promptfoo_data, question
@@ -70,13 +71,23 @@ def project(root, rule: str = RULE, n: int = N, marked: int | None = None) -> Wo
     data["metadata"]["promptfooVersion"] = "0.124.1"
     (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
     assert main(["--no-browser"]) == 0
-    main(["--stop"])
     ws = Workspace(root)
+    closed(ws)
     session = StartSession(ws)
     for item in session.items[:marked]:
         label = "pass" if _person(question(_index(ws, item["id"])), half) else "fail"
         session.update({"id": item["id"], "label": label, "seconds": 5})
     return ws
+
+
+def closed(ws: Workspace, timeout: float = 30) -> None:
+    """Close the page `judgekeeper` opened for `ws`, and wait until its lock is gone: `--stop`
+    alone can miss a page that is slow to answer and leave it running for the next step."""
+    deadline = time.monotonic() + timeout
+    while label.read_lock(ws.dir) is not None:
+        assert time.monotonic() < deadline, "the marking page did not close"
+        main(["--stop"])
+        time.sleep(0.05)
 
 
 def _index(ws, item_id: str) -> int:
@@ -188,7 +199,7 @@ def test_mistakes_md_holds_the_visible_mistakes_with_the_judges_reason(here, cap
         assert rows[i]["output"] not in text
 
 
-def test_mistakes_md_is_agent_ready_a_task_line_the_clues_the_rule_then_the_mistakes(here, capsys):
+def test_mistakes_md_layout(here, capsys):
     ws = project(here)
     _, out = run(capsys)
     text = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")

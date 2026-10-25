@@ -133,7 +133,7 @@ def _files_section() -> str:
     return _sections()["The .judgekeeper/ folder"]
 
 
-def test_the_files_table_names_every_file_and_keeps_answer_text_out_of_the_history():
+def test_files_table_and_history():
     section = _files_section()
     for name in FILES:
         assert f"`{name}`" in section, name

@@ -1,30 +1,17 @@
-"""`judgekeeper.record()`: save one judge verdict, one line, where the user's own judge runs.
+"""`judgekeeper.record()`: save one verdict of the user's LLM-as-a-judge as one JSON line.
 
     import judgekeeper
     judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
                        reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")
 
-Each call writes one record (records format version 2, annotator_kind LLM; see records.py)
-as a JSON line to `.judgekeeper/records/<name>-<date>-<process id>.jsonl` under the project
-root: the nearest folder upward from the current one with judgekeeper.toml, pyproject.toml,
-setup.py, .git or requirements*.txt, never the home folder; else the current folder. One file
-per process and judge name (the coverage.py approach: appending to one shared file is not
-safe across processes on Windows or network drives), worked out from the process id on each
-call, so a forked child gets its own file. A lock per file keeps threads' lines whole; each
-line is written in one go and the file closed, so it is on disk at once. Nothing is written
-through a link (.judgekeeper, its records folder or the file being one).
-
-A score or pass mark may be any real number: an int or float, a numpy number, a Decimal, or
-text that reads as one ("0.8"); a numpy True or False is a bool. `metadata` may be any mapping.
+Each call writes one record (see records.py) to the project root's `.judgekeeper/records/`,
+in one file per process and judge name (`<name>-<date>-<process id>.jsonl`), as coverage.py
+does: appending to one shared file is not safe across processes on Windows or network drives.
 
 It never breaks the user's program: any error inside is caught and it returns nothing. The
-first verdict it can't save is said at once on the `judgekeeper` logger; later ones are
-counted, and the count is said when the program ends, so no loss is silent. `JUDGEKEEPER_RECORD=0` (or
-false, off, no) turns it off, for production. Standard library only, and nothing else of
-judgekeeper is imported, so `import judgekeeper` stays light.
-
-docs/reference.md holds the same line as a snippet for people who do not want the import
-(Python) or use another language (TypeScript).
+first verdict it can't save is logged at once; later ones are counted and said when the
+program ends, so no loss is silent. `JUDGEKEEPER_RECORD=0` turns it off. Standard library
+only, and nothing else of judgekeeper is imported, so `import judgekeeper` stays light.
 """
 
 from __future__ import annotations

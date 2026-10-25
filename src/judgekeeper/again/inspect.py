@@ -1,29 +1,17 @@
-"""The plan for asking an Inspect AI judge again.
+"""The plan for asking an Inspect AI LLM-as-a-judge again.
 
 A worker (`workers/inspect_worker.py`) rebuilds the recorded `model_graded_qa` or
-`model_graded_fact` scorer from `eval.scorers[].options` and the grader from
-`eval.model_roles`, and re-scores a copy of the log in the user's own Python, with the
-grader's cache off; the original log is never opened for writing.
+`model_graded_fact` scorer and its grader, and re-scores a copy of the log in the user's own
+Python with every model's cache off; the original log is never opened for writing. When a
+grader is set, the model under test is replaced by `mockllm/model`, so it can't be called;
+with no grader set, the judge is the model under test.
 
-- Exactly your judge when the scorer is Inspect's own and the installed Inspect version is
-  the one that made the log. With another version it is a close copy until the run's grading
-  prompts match the saved ones (`metadata.grading`).
-- No grader set: the judge is the model under test, called as a judge (the plan says so).
-- Can't: a custom scorer (Inspect would import the user's task file), a template given as a
-  file path that is not here, `include_history` given as a function, and rule scorers
-  (`match`, `includes`, ...), which are not judges: asking again gives the same verdicts.
-
-Inspect's Python API loads no `.env`, so the worker calls Inspect's own loader (the function
-the `inspect` command uses: the nearest `.env` from the project folder upward) when the user's
-Inspect has it; without it the key must be in the shell, and the plan says how to set it.
-
-In run mode (`run`, after the yes) the worker reads the log (never writing it), keeps only the
-labeled samples, and calls `score_async(..., action="append", copy=True)` once per time
-asked, with every model role rebuilt with its cache off. When a grader is set, the model
-under test is replaced by Inspect's `mockllm/model`, so it can't be called. An answer whose
-new grading prompt differs from the saved one (`metadata.grading`) is not counted; when every
-counted answer's prompt matched, a close copy made by another Inspect version is exactly the
-judge.
+It is exactly your judge when the installed Inspect is the version that made the log. With
+another version it is a close copy until every counted answer's new grading prompt matches
+the saved one (`metadata.grading`); an answer whose prompt differs is not counted. A custom
+scorer can't be asked again (Inspect would import the user's task file), and rule scorers
+(`match`, `includes`) are not judges. Inspect's Python API loads no `.env`, so the worker
+calls Inspect's own loader when the user's Inspect has it.
 """
 
 from __future__ import annotations
@@ -246,7 +234,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 job={"log": str(root / data["results_files"][0]), "scorer": metric,
                      "new": new, "rule": opts.rule,
                      "rule_field": data.get("rule_field") or "instructions"},
-                side_effects=[(f"Your app or agent is not run. Inspect re-scores a copy of your "
+                side_effects=[(f"Your eval's code is not run. Inspect re-scores a copy of your "
                                f"log in {again.your_python(python)}; your log is never changed.")])
 
 

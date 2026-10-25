@@ -2,21 +2,16 @@
 served by a process of its own (background.py) or, with --wait, by the command itself.
 
 The page's link holds its token. The command makes the token, hands it to the page's process
-on its stdin (`main`), and opens the link in the person's browser itself (`show`): the output
-says the page is open, with no link. Only when no browser opens (or with --no-browser, on a
-remote machine) is the link printed. Without a terminal (another program reads the output)
-every mark made on that page is stamped "link": "printed", so the result can count them. At a
-terminal (the person's own) a printed link is not stamped. When BROWSER is set, the program
-it names opens the page, not the person's usual browser: every mark is stamped "link":
-"browser-env" (stamped before the page is opened).
+on its stdin (`main`) and opens the link in the browser itself (`show`), so the output prints
+no link unless no browser opens (or with --no-browser). Marks made through a link printed for
+another program are stamped "link": "printed", and with BROWSER set "link": "browser-env".
+A link printed at the person's own terminal is not stamped.
 
-The page keeps its token in server.json (owner-only, removed when it stops), so a second
-run prints the same link and the open tab keeps working: when the page open for this project
-shows the same thing (`page_key`), it is kept as it is, on its own port (two runs at once
-print the same link, whatever port each asked for); else it is closed (with the stop secret)
-and started again with the same token, on the same port when it is free. The marks are on disk: nothing is lost. One run at a time opens a project's page:
-while one does, .judgekeeper/opening is there, and a second run says so and waits for it
-(`_opening`), then finds the page the first one opened.
+The token is kept in server.json (owner-only, removed when the page stops), so a second run
+prints the same link and the open tab keeps working: a page already showing the same thing
+(`page_key`) is kept on its own port; else it is stopped and started again with the same token.
+While one run opens a project's page, .judgekeeper/opening is there and a second run waits for
+it (`_opening`).
 """
 
 from __future__ import annotations

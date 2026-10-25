@@ -87,7 +87,7 @@ def _write(path: Path, data) -> Path:
     return path
 
 
-# 15. A multi-line answer with commas --------------------------------------------------------
+# A multi-line answer with commas ------------------------------------------------------------
 
 def test_multi_line_answers_with_commas_are_not_a_broken_quote(here, capsys):
     rows = [(f"Question {i}?", (f"Step one, check the input\nStep two, then, compare\n"
@@ -99,7 +99,7 @@ def test_multi_line_answers_with_commas_are_not_a_broken_quote(here, capsys):
     assert code == 0 and answers(out) == 40 and LINK in out, out
 
 
-# 16. A blank or NaN score -------------------------------------------------------------------
+# A blank or NaN score -----------------------------------------------------------------------
 
 @pytest.mark.parametrize("blank", ["", "NaN"])
 def test_a_blank_score_is_no_decision_and_the_pass_mark_is_used(here, capsys, blank):
@@ -114,7 +114,7 @@ def test_a_blank_score_is_no_decision_and_the_pass_mark_is_used(here, capsys, bl
     assert "no real decision on 1 of 40" in flat(out)
 
 
-# 17. A verdict and a score column with --pass-if ---------------------------------------------
+# A verdict and a score column with --pass-if -------------------------------------------------
 
 def test_pass_if_reads_the_score_column_and_says_so(here, capsys):
     rows = [(q, a, "pass" if i < 30 else "fail", s) for i, (q, a, s) in enumerate(scored(40, 5))]
@@ -126,7 +126,7 @@ def test_pass_if_reads_the_score_column_and_says_so(here, capsys):
                            sum(float(x[3]) < 0.7 for x in rows)), out
 
 
-# 18. N/A and error as grades ------------------------------------------------------------------
+# N/A and error as grades ----------------------------------------------------------------------
 
 def test_na_and_error_grades_are_no_decision(here, capsys):
     rows = [list(x) for x in graded(40, 4)]
@@ -157,7 +157,7 @@ def test_the_label_map_advice_names_error(here, capsys):
     assert "=error" in next_lines(out)[-1], out
 
 
-# 19. A European Excel CSV ------------------------------------------------------------------------
+# A European Excel CSV ----------------------------------------------------------------------------
 
 def test_a_decimal_comma_in_a_semicolon_file_is_a_number(here, capsys):
     rnd = random.Random(7)
@@ -170,7 +170,7 @@ def test_a_decimal_comma_in_a_semicolon_file_is_a_number(here, capsys):
     assert grades(out) == (sum(v >= 50 for v in values), sum(v < 50 for v in values)), out
 
 
-# 20. Two results files in one folder --------------------------------------------------------
+# Two results files in one folder ------------------------------------------------------------
 
 def test_another_results_file_is_named_with_its_command(here, capsys):
     write_csv(here / "judge_b.csv", ["input", "output", "verdict"], graded(40, 2))
@@ -193,7 +193,7 @@ def test_at_most_three_other_files_are_named(here, capsys):
     assert len(named) == 3, out
 
 
-# 21. "Passes too much" ----------------------------------------------------------------------
+# "Passes too much" --------------------------------------------------------------------------
 
 def test_too_much_is_said_only_under_a_fifth(here, capsys):
     rows = [(f"Q{i}?", f"A{i}", "pass" if i < 16 else "fail") for i in range(30)]
@@ -204,7 +204,7 @@ def test_too_much_is_said_only_under_a_fifth(here, capsys):
     assert "passes too much" in flat(find(capsys, "b")[1])
 
 
-# 22. One pass mark on screen ------------------------------------------------------------------
+# One pass mark on screen ----------------------------------------------------------------------
 
 @pytest.mark.parametrize("values, rule, shown", [
     (None, "score>=0.7", "0.7"), ([1, 2, 3, 4, 5] * 8, "score>=4", "4")])
@@ -217,7 +217,7 @@ def test_the_box_shows_the_pass_mark_used(here, capsys, values, rule, shown):
     assert box is None or shown in box[1], out
 
 
-# 23. Every --pass-if operator -----------------------------------------------------------------
+# Every --pass-if operator ---------------------------------------------------------------------
 
 @pytest.mark.parametrize("op, mark, passes", [
     (">", 4, lambda v: v > 4), (">=", 4, lambda v: v >= 4), ("<", 3, lambda v: v < 3),
@@ -232,7 +232,7 @@ def test_every_pass_if_operator_reads_an_own_format_file(here, capsys, op, mark,
     assert grades(out) == (sum(map(passes, values)), sum(not passes(v) for v in values)), out
 
 
-# 24. A null score and the Checked line ------------------------------------------------------------
+# A null score and the Checked line ----------------------------------------------------------------
 
 def test_a_null_score_is_counted_on_the_checked_line(here, capsys):
     with (here / "results.jsonl").open("w", encoding="utf-8") as f:
@@ -243,7 +243,7 @@ def test_a_null_score_is_counted_on_the_checked_line(here, capsys):
     assert "every answer a clear Pass or Fail" not in out, out
 
 
-# 25. A title row, an .xlsx, empty rows -----------------------------------------------------------
+# A title row, an .xlsx, empty rows ---------------------------------------------------------------
 
 def _titled(path: Path) -> None:
     with path.open("w", newline="", encoding="utf-8") as f:
@@ -279,7 +279,7 @@ def test_rows_where_every_cell_is_empty_are_skipped(here, capsys):
     assert answers(out) == 40 and "empty decision" not in out, out
 
 
-# 26. Files the search skipped --------------------------------------------------------------
+# Files the search skipped ------------------------------------------------------------------
 
 def test_a_utf16_file_is_named_as_left_out(here, capsys):
     with (here / "results.tsv").open("w", encoding="utf-16", newline="") as f:
@@ -302,13 +302,13 @@ def test_a_cr_only_file_is_read_in_the_search(here, capsys):
     assert code == 0 and answers(out) == 40 and LINK in out, out
 
 
-# 27. The reference ---------------------------------------------------------------------------
+# The reference -------------------------------------------------------------------------------
 
 def test_the_reference_does_not_promise_the_first_rows():
     assert "first 3 rows" not in (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
 
 
-# 28 and 32. promptfoo: the default grader, a rubric per test, factuality ---------------------
+# promptfoo: the default grader, a rubric per test, factuality --------------------------------
 
 def test_answers_graded_by_promptfoos_default_grader_are_said(here, capsys):
     data = promptfoo_data(split(20, 20))
@@ -429,7 +429,7 @@ def test_samples_that_failed_before_scoring(here, capsys):
     assert answers(first) is None and answers(out) == 18, (first, out)
 
 
-# 31 and 34. DeepEval ---------------------------------------------------------------------------
+# DeepEval --------------------------------------------------------------------------------------
 
 def test_the_newest_deepeval_run_is_read_and_both_files_named(here, capsys):
     old = _write(here / "deepeval-results" / "test_run_20261001_100000.json",
@@ -466,7 +466,7 @@ def test_every_judge_call_failed_is_not_each_graded(here, capsys):
     assert "each graded by your LLM-as-a-judge" not in out, out
 
 
-# 35. Pin advice ---------------------------------------------------------------------------------
+# Pin advice -------------------------------------------------------------------------------------
 
 def test_the_projects_own_pin_is_used(here, capsys):
     _write(here / ".deepeval" / ".latest_run_full.json", deepeval_data(split(20, 20)))
@@ -491,7 +491,7 @@ def test_without_a_pin_the_installed_version_is_named(monkeypatch):
          "requirements (e.g. `deepeval==9.9.9`), so `check` notices when it changes.")]
 
 
-# 44. The file's own ids ------------------------------------------------------------------------
+# The file's own ids ----------------------------------------------------------------------------
 
 def _own_rows(n: int) -> list[dict]:
     return [{"id": f"q{i}", "input": f"Question {i}?", "output": f"Answer {i}.",

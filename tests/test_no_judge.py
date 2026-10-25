@@ -1,7 +1,8 @@
 """Results files with no LLM-as-a-judge in them: checks that are rules in code (promptfoo's
 `contains`, DeepEval's Exact Match, a run with no scorer), and promptfoo's table output, which
 keeps only each test's overall pass. A file with no judge is left out with one line; only when
-no file has an LLM-as-a-judge is it said, once. A test's overall pass is never an LLM-as-a-judge's verdict."""
+no file has an LLM-as-a-judge is it said, once. A test's overall pass is never an
+LLM-as-a-judge's verdict."""
 
 from __future__ import annotations
 

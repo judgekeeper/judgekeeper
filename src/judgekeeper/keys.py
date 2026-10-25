@@ -1,29 +1,15 @@
-"""Which key a judge will use, and whether it is set: names only, never a value.
+"""Which key an LLM-as-a-judge will use, and whether it is set: names only, never a value.
 
-Before judgekeeper asks a user's judge again, it says which key the judge's tool will read and
-where that key is: "Your judge will use your OpenAI key (OPENAI_API_KEY, set in your shell)."
-The judge's tool reads the key itself; judgekeeper never needs, holds, prints, stores, logs or
-passes on a key value.
+Before judgekeeper asks a user's LLM-as-a-judge again, it says which key the judge's tool will
+read and where that key is: "Your LLM-as-a-judge will use your OpenAI key (OPENAI_API_KEY, set
+in your shell)." The tool reads the key itself; judgekeeper never needs, holds, prints,
+stores, logs or passes on a key value.
 
-- The provider comes from the judge's model, in each tool's spelling (`provider_of`), never
-  from which keys happen to exist. The one exception is promptfoo's default grader, which
-  promptfoo picks from the key names present, in its own order (`promptfoo_default`).
-- In the shell: `bool(os.environ.get(NAME))`, used only as true or false.
-- In files, names only (`names_in`): `.env` in the folder the tool runs in (DeepEval also reads
-  `.env.<APP_ENV>` and `.env.local`), and promptfoo's config `env:` block (a line scan). Each
-  line is cut at the first `=` (or `:` in the config) and the rest is dropped at once. No
-  dotenv library: it would parse the values.
-- Who loads what: promptfoo and DeepEval load `.env` themselves, and the shell wins over the
-  file (promptfoo's config `env:` block wins over both). Inspect AI's Python API loads no
-  `.env`, so judgekeeper's worker calls Inspect's own loader (the one the `inspect` command
-  uses: the nearest `.env` from the project folder upward) when the user's Inspect has it;
-  the plan says which (`loads_env`). MLflow's Python API loads no `.env`: its key must be in
-  the shell. Either way the message says how to set it there.
-- Settings that change a judge without changing a file (`OPENAI_TEMPERATURE`, `*_MAX_TOKENS`,
-  `*_TOP_P`, `AWS_BEDROCK_*`, `*_BASE_URL`) are named when set.
-- Credential files (Google default credentials, an AWS profile) are checked for existence only.
-- Every key name found set in the shell is registered with `redact`, so its value is scrubbed
-  from anything a tool prints.
+The provider comes from the judge's model, never from which keys happen to exist (promptfoo's
+default grader is the one exception: promptfoo picks it from the key names present). In `.env`
+files and promptfoo's `env:` block each line is cut at the first `=` (or `:`) and the rest is
+dropped at once; no dotenv library, since it would parse the values. Every key name found set
+in the shell is registered with `redact`, so its value is scrubbed from what a tool prints.
 """
 
 from __future__ import annotations

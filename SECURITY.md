@@ -10,9 +10,9 @@ back within a week.
 
 - judgekeeper needs no API key: your own eval tool reads its keys. Any key it can see in an
   environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, any name ending in `_API_KEY`,
-  the Langfuse and MLflow credentials) is never written to a file, and any page or error text
-  is scrubbed for it before it is written (values of 8 characters or more; a shorter value is
-  not hidden), also when a hidden character splits it.
+  the MLflow credentials) is never written to a file, and any page or error text is scrubbed
+  for it before it is written (values of 8 characters or more; a shorter value is not hidden),
+  also when a hidden character splits it.
 - `judgekeeper` and `judgekeeper mark` open the marking page and the result from a local
   web server on 127.0.0.1 with a random token in the URL. It does not listen on the network.
   While the page is open, the token is also kept in `.judgekeeper/server.json`, so a second

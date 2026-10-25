@@ -1,4 +1,4 @@
-"""Fixes from the security reviews of 1.0.
+"""What the commands say around the marking page and the result, and how they stop.
 
 - A page opened by the program named in BROWSER stamps its marks, and the result says so
   once; the docs never say the marks are the person's.
@@ -34,7 +34,7 @@ def here(tmp_path, monkeypatch):
     return tmp_path
 
 
-# 1. A page opened by the program named in BROWSER --------------------------------------------
+# A page opened by the program named in BROWSER -----------------------------------------------
 
 BROWSER_LINE = ("{n} of your marks came through a page opened by the program named in BROWSER, "
                 "so a program could have made them. If you marked them yourself, nothing to do.")
@@ -106,7 +106,7 @@ def test_a_kept_page_is_stamped_too(here, capsys, no_browser, monkeypatch):
     assert marks.made(marks.read(ws.marks))["browser_env"] >= 2
 
 
-# 2. --debug prints where it went wrong, never the error's text -------------------------------
+# --debug prints where it went wrong, never the error's text ----------------------------------
 
 CANARY = "ZQOUT23 In Pebblequest"
 REPORT = "report it at github.com/judgekeeper/judgekeeper/issues with the lines above."
@@ -141,7 +141,7 @@ def test_debug_prints_where_never_the_answer(here, capsys, monkeypatch):
     assert err.splitlines()[-1] == f"Next: {REPORT}"
 
 
-# 3. A "Not sure" stays open, as a "Worse" does ------------------------------------------------
+# A "Not sure" stays open, as a "Worse" does ---------------------------------------------------
 
 OLD = [i % 30 < 19 if i < 30 else i % 30 >= 19 for i in range(60)]  # the old judge's Pass
 
@@ -151,7 +151,7 @@ def _n03(root) -> Workspace:
     new LLM-as-a-judge (another model) flips every grade."""
     from judgekeeper import judge_setup, start
     from tests.test_check import _results
-    from tests.test_flow_fixes import _mark
+    from tests.test_project_folder import _mark
 
     old = OLD
     person = [i < 30 for i in range(60)]
@@ -176,7 +176,7 @@ def test_a_not_sure_check_says_it_again(here, capsys):
     from judgekeeper import judge_setup
     from tests.test_check import _flat, _history, _next, _results
     from tests.test_check import run as check
-    from tests.test_flow_fixes import NEXT_ALL_MARKED
+    from tests.test_project_folder import NEXT_ALL_MARKED
 
     ws = _n03(here)
     before = judge_setup.read(ws)["setup_hash"]
@@ -194,7 +194,7 @@ def test_a_not_sure_check_says_it_again(here, capsys):
     assert code == 0 and "Your LLM-as-a-judge is back to the one you marked with" in _flat(out)
 
 
-# 4. No top-up on the 3rd rule: a new set at once -------------------------------------------------
+# No top-up on the 3rd rule: a new set at once ----------------------------------------------------
 
 @pytest.fixture
 def fixing(tmp_path, monkeypatch):
@@ -270,7 +270,7 @@ def test_a_new_rule_while_a_top_up_waits_is_named(fixing, capsys):
     assert f"Your new rule is waiting: first mark {more} more answers" in flat
 
 
-# 5. Answers the judge errors on in both runs are counted once --------------------------------
+# Answers the judge errors on in both runs are counted once -----------------------------------
 
 def test_answers_not_counted_in_both_runs_are_counted_once(fixing, capsys):
     from tests.test_again_run import FakePromptfoo
@@ -291,7 +291,7 @@ def test_answers_not_counted_in_both_runs_are_counted_once(fixing, capsys):
     assert flat.count("were not counted") == 1
 
 
-# 21. promptfoo grader errors are not grades ----------------------------------------------------
+# promptfoo grader errors are not grades --------------------------------------------------------
 
 GRADER_ERRORS = "{n} answers were not counted: the LLM-as-a-judge's tool gave an error for them."
 
@@ -338,7 +338,7 @@ def test_check_does_not_count_promptfoo_grader_errors_as_grades(here, capsys, mo
     assert re.search(r"When you said Fail \d+ of 22 \d+ of 22", flat), flat
 
 
-# 6. No key: which key, and where to set it ----------------------------------------------------
+# No key: which key, and where to set it -------------------------------------------------------
 
 NEEDS = "Your LLM-as-a-judge needs ANTHROPIC_API_KEY. It is not set in your shell or in .env."
 
@@ -370,7 +370,7 @@ def test_fix_names_the_key_a_claude_geval_needs(tmp_path, stubs, monkeypatch, ca
 def test_check_names_the_key_its_new_judge_needs(here, capsys, monkeypatch):
     from tests.test_check import _marked
     from tests.test_check import run as check
-    from tests.test_flow_and_numbers import _new_judge_on_a_few, grader
+    from tests.test_flow_across_runs import _new_judge_on_a_few, grader
 
     grader.__wrapped__(monkeypatch, here)
     monkeypatch.delenv("ANTHROPIC_API_KEY")
@@ -384,7 +384,7 @@ def test_check_names_the_key_its_new_judge_needs(here, capsys, monkeypatch):
                          "`judgekeeper check` again.")
 
 
-# 7. Inspect logs in more than one folder: which -------------------------------------------------
+# Inspect logs in more than one folder: which ----------------------------------------------------
 
 def test_inspect_logs_in_two_folders_are_asked_about(here, capsys):
     import os
@@ -432,7 +432,7 @@ def test_at_a_terminal_the_logs_folder_is_asked_and_kept(here, capsys, monkeypat
     assert "evals/quiz/logs/2026-10-01_quiz.json" in started and "chat" not in started
 
 
-# 8. "Left out" lines come after Step 1, with a blank line before the found block ---------------
+# "Left out" lines come after Step 1, with a blank line before the found block ------------------
 
 def _inspect_log(root, name, created, judged=True, n=(18, 18)):
     from tests.test_inspect_newest_judge import _log
@@ -485,7 +485,7 @@ def test_a_file_left_out_is_followed_by_a_blank_line(here, capsys):
     assert _before(out, "Step 1 of 5: Find", "left out") and _before(out, "left out", "Eval tool")
 
 
-# 9. Said once: promptfoo's default grader, and the MLflow command --------------------------------
+# Said once: promptfoo's default grader, and the MLflow command -----------------------------------
 
 def test_promptfoos_default_grader_is_explained_once(here, capsys):
     from tests.start_projects import promptfoo_data
@@ -502,7 +502,7 @@ def test_promptfoos_default_grader_is_explained_once(here, capsys):
     assert "came from promptfoo's default grader" not in flat
 
 
-# 10. The llm-rubric line names the config file; defaultTest's rubric is said -------------------
+# The llm-rubric line names the config file; defaultTest's rubric is said -----------------------
 
 def _two_rubrics(default: bool = False) -> dict:
     from tests.test_promptfoo_two_rubrics import _two_rubrics as two
@@ -546,7 +546,7 @@ def test_a_rubric_in_default_test_is_said(here, capsys):
     assert "test 1 in" not in flat
 
 
-# 11. Small words ----------------------------------------------------------------------------------
+# Small words --------------------------------------------------------------------------------------
 
 def test_judge_names_in_a_list_are_quoted_alike(here, capsys):
     import copy
@@ -640,7 +640,7 @@ def test_no_placeholder_in_angle_brackets_in_backticks():
         assert not [m for m in found if "<the" in m or "<your" in m], (path.name, found)
 
 
-# 11. More small words --------------------------------------------------------------------------
+# More small words ------------------------------------------------------------------------------
 
 @pytest.mark.usefixtures("no_calls")
 def test_a_damaged_results_file_in_check_ends_with_one_stop(here, capsys):
@@ -768,7 +768,7 @@ def test_a_browser_that_hangs_still_gets_the_link_printed(here, capsys, monkeypa
     assert OPEN not in out
 
 
-# 12. A port held by judgekeeper's page for another folder ------------------------------------
+# A port held by judgekeeper's page for another folder ----------------------------------------
 
 def test_a_port_held_by_another_projects_page_names_it(tmp_path, monkeypatch, capsys, pages):
     from judgekeeper import label
@@ -802,7 +802,7 @@ def test_without_the_token_only_the_folder_name_is_told(here, capsys):
     assert status == 403 and b"Question" not in body
 
 
-# 13. Every answer marked and the result opened: the page stays until it is idle ----------------
+# Every answer marked and the result opened: the page stays until it is idle --------------------
 
 def test_the_page_stays_open_after_the_result_with_every_answer_marked(here, capsys,
                                                                        no_browser):
@@ -830,7 +830,7 @@ def test_the_page_stays_open_after_the_result_with_every_answer_marked(here, cap
     assert "No marking page is open." in out
 
 
-# 14. A rule that copies answer text is never printed ------------------------------------------
+# A rule that copies answer text is never printed ----------------------------------------------
 
 def test_a_rule_copied_from_answers_is_not_printed(fixing, capsys):
     from judgekeeper import fix
@@ -849,7 +849,7 @@ def test_a_rule_copied_from_answers_is_not_printed(fixing, capsys):
     assert copied[:20] not in flat
 
 
-# 15. Ctrl-C from the first line --------------------------------------------------------------
+# Ctrl-C from the first line ------------------------------------------------------------------
 
 def test_ctrl_c_while_the_commands_load_says_stopped(monkeypatch, capsys):
     import builtins
@@ -894,7 +894,7 @@ def test_the_command_starts_from_the_light_entry():
     assert "\nfrom judgekeeper.cli import" not in text  # loaded inside main, under its try
 
 
-# 16. Damage named ------------------------------------------------------------------------------
+# Damage named ----------------------------------------------------------------------------------
 
 def _promptfoo_shaped(root, change) -> None:
     from tests.start_projects import promptfoo_data
@@ -961,7 +961,7 @@ def test_a_one_line_file_too_big_to_look_into_is_named(here, capsys):
     assert "too big to look into" in flat
 
 
-# 17. An old pre-commit hook line --------------------------------------------------------------
+# An old pre-commit hook line ------------------------------------------------------------------
 
 OLD_HOOK = ("Your git pre-commit hook still runs `judgekeeper check --fast`, which was removed. "
             "Delete that line from .git/hooks/pre-commit.")
@@ -988,7 +988,7 @@ def test_a_hook_without_the_old_line_says_nothing(here, capsys):
     assert "pre-commit" not in out
 
 
-# 18. A port judgekeeper picked and lost before the page bound it ------------------------------
+# A port judgekeeper picked and lost before the page bound it ----------------------------------
 
 def test_a_picked_port_lost_to_another_run_gets_the_next_free_one(here, capsys, monkeypatch,
                                                                    pages):
@@ -1023,7 +1023,7 @@ def test_a_port_the_person_named_is_not_changed(here, capsys, pages):
     assert code == 3 and len(pages[0]) == 1
 
 
-# 19. The Python uvx runs judgekeeper with is never named by its cache path --------------------
+# The Python uvx runs judgekeeper with is never named by its cache path ------------------------
 
 def test_uvx_python_is_named_in_words(tmp_path, monkeypatch):
     import sys
@@ -1064,7 +1064,7 @@ def test_a_big_one_line_file_named_otherwise_is_named_by_its_keys(here, capsys):
     assert "cases.json" in out and "too big to look into" in " ".join(out.split())
 
 
-# 22. A damaged file after marking is said under Step 1, like every other line ------------------
+# A damaged file after marking is said under Step 1, like every other line ----------------------
 
 def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_browser):
     from tests.start_projects import deepeval_data, deepeval_project
@@ -1080,7 +1080,7 @@ def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_brow
         assert ".latest_run_full.json is damaged: its only row has a damaged field." in err
         assert out.splitlines()[2:4] == ["Step 1 of 5: Find", ""], out
 
-# S11. The result page says what fix does for a judge judgekeeper can't ask ------------------
+# The result page says what fix does for a judge judgekeeper can't ask -----------------------
 
 S11_FIX = ("In your project folder, run `judgekeeper fix`. It lists the answers your LLM-as-a-judge got "
            "wrong and saves them in .judgekeeper/fix/. judgekeeper can't re-run this kind of LLM-as-a-judge "
