@@ -330,6 +330,7 @@ def _steady(name: str, text: str) -> str:
     return re.sub(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", "…", text)
 
 
+@pytest.mark.version_number  # result.json holds the version
 def test_the_site_example_report_is_this_run(tmp_path, monkeypatch, capsys):
     root = tmp_path / "example-project"
     root.mkdir()
