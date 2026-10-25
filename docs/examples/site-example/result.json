@@ -57,11 +57,11 @@
     "tnr": 0.35422556554749646
   },
   "verdict_level": "not_gate",
-  "verdict": "Your judge needs work.",
+  "verdict": "Your LLM-as-a-judge needs work.",
   "skipped": 0,
   "disagreements": 16,
   "left": 10,
-  "made_at": "2026-10-24T18:01:26Z",
+  "made_at": "2026-10-25T00:07:14Z",
   "numbers_version": 2,
   "judgekeeper_version": "1.0.0b2",
   "fingerprint": {
@@ -71,7 +71,7 @@
     "prompt_hash": "375fe5de8e06fe4e3bc138cd08e438d49083693e4ae3a78420dcaaae87d02a67",
     "rubric_version": null,
     "temperature": 0.0,
-    "created_at": "2026-10-24T18:01:26Z",
+    "created_at": "2026-10-25T00:07:13Z",
     "endpoint": "unknown"
   },
   "judge": {
@@ -117,5 +117,5 @@
   "smallest_drop": 35,
   "picks": [],
   "command": "judgekeeper",
-  "marks_sha256": "519a523dd25cd8046948526700a976be865f815a5b0bd66a72b230f983603952"
+  "marks_sha256": "052fe74de5d7cd366cf676b518349a04fea8d09133571121552df1d8f379fef0"
 }

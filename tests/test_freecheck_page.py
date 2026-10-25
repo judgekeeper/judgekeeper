@@ -75,7 +75,7 @@ def test_a_grade_written_1_0_is_never_a_pass(tmp_path):
     (judge,) = browser(path)["judges"]
     assert (judge["pass"], judge["fail"], judge["unmapped"]) == (0, 0, 6)
     assert '("0.0", "1.0")' in " ".join(judge["lines"])
-    assert ("No answer has a clear Pass or Fail from your judge, so there is nothing to mark."
+    assert ("No answer has a clear Pass or Fail from your LLM-as-a-judge, so there is nothing to mark."
             in judge["lines"])
 
 
@@ -85,7 +85,7 @@ NOT_CHECKED = {
     "not-results.json": ("This doesn't look like results judgekeeper can read in the browser. "
                          "The tool also reads Inspect AI and MLflow: run uvx judgekeeper in "
                          "your project."),
-    "table-output.json": ("This is promptfoo's table output, which doesn't keep the judge's "
+    "table-output.json": ("This is promptfoo's table output, which doesn't keep the LLM-as-a-judge's "
                           "own decisions. Save the full results with promptfoo eval -o "
                           "results.json."),
     "rules-in-code.json": ("rules-in-code.json holds no decisions from an LLM-as-a-judge. "
@@ -171,13 +171,13 @@ def test_the_report_names_the_file_tool_judge_and_grades():
     result = browser(FREECHECK / "table.csv")
     (judge,) = result["judges"]
     assert judge["lines"][:4] == [
-        "Eval tool:   your own CSV file",
-        "File:        table.csv",
-        "Answers:     12 answers",
-        "Judge:       claude-haiku-4-5"]
-    assert "Your judge passed 8 answers and failed 4." in judge["lines"]
-    assert ("Checked: on 1 answer, your judge's reason says the opposite of its "
-            "decision.") in judge["lines"]
+        "Eval tool:       your own CSV file",
+        "File:            table.csv",
+        "Answers:         12 answers",
+        "LLM-as-a-judge:  claude-haiku-4-5"]
+    assert "Your LLM-as-a-judge passed 8 answers and failed 4." in judge["lines"]
+    assert ("Checked: on 1 answer, your LLM-as-a-judge's reason says the opposite of "
+            "its decision.") in judge["lines"]
 
 
 def _first(judge: dict) -> list[str]:
@@ -193,14 +193,14 @@ def test_the_page_shows_the_first_answer_in_the_file():
     """After the check, the page shows the first answer it read: the question and the answer
     cut to 140 characters, and the judge's grade."""
     lines = _first({"first": {"input": "Q" * 200, "output": "An  answer.\n", "verdict": "pass"}})
-    assert lines == ["", "First answer in your file:", "  Question:  " + "Q" * 139 + "…",
-                     "  Answer:    An answer.", "  Judge:     Pass"]
+    assert lines == ["", "First answer in your file:", "  Question:        " + "Q" * 139 + "…",
+                     "  Answer:          An answer.", "  LLM-as-a-judge:  Pass"]
     # promptfoo's vars: the question's var, else the longest text in them
     vars_ = {"context": "a much longer text than the question", "query": "Where is it?"}
     assert _first({"first": {"input": vars_, "output": None, "verdict": "fail"}})[2:] == [
-        "  Question:  Where is it?", "  Answer:    (none)", "  Judge:     Fail"]
+        "  Question:        Where is it?", "  Answer:          (none)", "  LLM-as-a-judge:  Fail"]
     assert _first({"first": {"input": {"a": "short", "b": "the longest one"}, "output": "x",
-                             "verdict": "pass"}})[2] == "  Question:  the longest one"
+                             "verdict": "pass"}})[2] == "  Question:        the longest one"
     assert _first({"first": None}) == []
     (judge,) = browser(FREECHECK / "table.csv")["judges"]
     assert judge["first"]["verdict"] in ("pass", "fail") and judge["first"]["input"]
@@ -219,8 +219,8 @@ def test_the_check_words_are_the_tools():
 
 def test_the_next_and_privacy_lines_are_the_pages_own():
     code = SCRIPT.read_text(encoding="utf-8")
-    assert ("var NEXT = 'to see how often your judge agrees with you, run judgekeeper in your "
-            "project folder and mark some answers.';") in code
+    assert ("var NEXT = 'to see how often your LLM-as-a-judge agrees with you, run judgekeeper in "
+            "your project folder and mark some answers.';") in code
     assert ("var NEXT_AFTER_ERROR = 'pick another file, or run uvx judgekeeper in your project: "
             "it finds your results by itself.';") in code
     assert ("Your file never leaves this page: it is read on your computer. Once the page has "
@@ -249,9 +249,9 @@ def test_the_page_block_says_what_the_terminal_says(tmp_path):
     path.write_text("\n".join(",".join(r) for r in rows) + "\n", encoding="utf-8")
     (judge,) = browser(path)["judges"]
     lines = judge["lines"]
-    assert lines[:3] == ["Eval tool:   your own CSV file", "File:        table.csv",
-                         "Answers:     12 answers"]
+    assert lines[:3] == ["Eval tool:       your own CSV file", "File:            table.csv",
+                         "Answers:         12 answers"]
     assert "judgekeeper has read from your file:" in lines
     assert "  grade      the verdict column" in lines
-    assert "Your judge passed 8 answers and failed 4." in lines
+    assert "Your LLM-as-a-judge passed 8 answers and failed 4." in lines
     assert not any("Read the columns" in x or "grades:" in x or "(read from" in x for x in lines)

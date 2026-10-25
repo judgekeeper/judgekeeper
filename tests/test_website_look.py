@@ -944,8 +944,8 @@ def test_the_waiting_terminal_shows_the_shape_of_the_check_in_the_codes_own_labe
 
     ghost = _all(_by_id(CHECK, "ck-wait"), "span", "ck-ghost")[0].text()
     labels = [line.split("·")[0].rstrip() for line in ghost.strip().splitlines() if line]
-    assert labels == ["Eval tool:", "File:", "Answers:", "Judge:", "Judge rule:",
-                      "Your judge passed", "Checked:"]
+    assert labels == ["Eval tool:", "File:", "Answers:", "LLM-as-a-judge:", "Rule:",
+                      "Your LLM-as-a-judge passed", "Checked:"]
     if NODE is None:
         pytest.skip("needs node to run the page's free check")
     path = tmp_path / "results.csv"
