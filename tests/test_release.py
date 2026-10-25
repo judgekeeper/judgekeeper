@@ -19,8 +19,8 @@ yaml = pytest.importorskip("yaml")
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
-VERSION = "1.0.0b2"
-BETA = "Development Status :: 4 - Beta"
+VERSION = "1.0.0"
+STABLE = "Development Status :: 5 - Production/Stable"
 EXAMPLE = ROOT / "docs" / "examples" / "jailbreakbench"
 # The old LLMBar run, kept only as a source of the real-data check
 LLMBAR = ROOT / "docs" / "examples" / "real-data-check" / "sources" / "llmbar-haiku.json"
@@ -49,7 +49,7 @@ def test_versions_agree():
 
     main = _toml(ROOT / "pyproject.toml")["project"]
     assert main["version"] == __version__ == VERSION
-    assert BETA in main["classifiers"]
+    assert STABLE in main["classifiers"]
     for minor in ("3.11", "3.12", "3.13", "3.14"):
         assert f"Programming Language :: Python :: {minor}" in main["classifiers"]
 
@@ -379,15 +379,17 @@ def test_the_build_stops_on_an_example_page_with_a_script_and_no_policy(tmp_path
 # The README and the changelog (the README's own contract is in test_docs.py)
 
 def test_changelog_entry_says_1_0_is_commands_you_run():
+    """The 1.0.0 entry (1.0.0b2 was never published and is folded into it): the 5 steps, the
+    4 commands, the questions before AI calls and what is gone since 0.1.3."""
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entry = text[text.index(f"## {VERSION}"):text.index("## 1.0.0b1")]
     assert len(entry.strip().splitlines()) < 20
+    assert "## 1.0.0b2" not in text
     flat = " ".join(entry.split())
-    removed = ("Removed: automatic checks, the GitHub Action and the agent skill. 1.0 is "
-               "commands you run yourself; agent support may come back later.")
-    for needed in (f"`uvx judgekeeper@{VERSION}`", f"`pip install judgekeeper=={VERSION}`",
-                   "`judgekeeper check`", "asks first",
-                   "Find. Mark. Measure. Fix. Re-check.", removed):
+    for needed in ("`uvx judgekeeper`", "`pip install judgekeeper`", "`judgekeeper mark`",
+                   "`judgekeeper fix`", "`judgekeeper check`", "ask first",
+                   "your eval tool's version", "Find. Mark. Measure. Fix. Re-check.",
+                   "Removed since 0.1.3:", "the GitHub Action and the agent skill"):
         assert needed in flat, needed
     for gone in ("--off", "Only your click", "action.yml", "mode: fast", "hook"):
         assert gone not in flat, gone
@@ -430,41 +432,38 @@ def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
         assert needed in readme, needed
 
 
-def test_every_install_command_names_the_version_in_pyproject():
-    """uv and pip skip betas unless the version is named: the changelog's newest entry names
-    the exact version in pyproject.toml, so the next beta can't forget it. The README names
-    none: it is for 1.0.0, which they install."""
-    version = _toml(ROOT / "pyproject.toml")["project"]["version"]
+def test_no_install_command_names_a_version():
+    """1.0.0 is what uv and pip install by default: the changelog's newest entry and the
+    README name no version."""
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     newest = changelog[:changelog.index("## ", changelog.index("## ") + 3)]
-    uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", newest)
-    pip = re.findall(r"pip install judgekeeper(==[\w.]+)?", newest)
-    assert uvx and set(uvx) == {f"@{version}"}, uvx
-    assert set(pip) <= {f"=={version}"}, pip
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert set(re.findall(r"uvx judgekeeper(@[\w.]+)?", readme)) == {""}
-    assert set(re.findall(r"pip install judgekeeper(==[\w.]+)?", readme)) == {""}
+    for text in (newest, readme):
+        uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", text)
+        assert uvx and set(uvx) == {""}, uvx
+        assert set(re.findall(r"pip install judgekeeper(==[\w.]+)?", text)) == {""}
 
 
-def test_readme_has_no_link_to_the_website_while_it_is_offline():
-    """PyPI shows the README; the website stays offline until it is rewritten."""
+def test_readme_links_the_website_and_its_guide():
+    """PyPI shows the README: it links the website and the Guide."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "judgekeeper.com" not in readme
+    assert "(https://www.judgekeeper.com)" in readme
+    assert "(https://www.judgekeeper.com/start.html)" in readme
 
 
 def test_docs_do_not_point_at_the_unused_pages_address():
     assert "judgekeeper.github.io" not in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
-def test_package_metadata_links_the_repo_while_the_website_is_offline():
+def test_package_metadata_links_the_website_and_the_repo():
     """PyPI shows these links. The reference on GitHub is the documentation."""
     urls = _toml(ROOT / "pyproject.toml")["project"]["urls"]
-    assert urls["Homepage"] == "https://github.com/judgekeeper/judgekeeper"
+    assert urls["Homepage"] == "https://www.judgekeeper.com"
+    assert urls["Guide"] == "https://www.judgekeeper.com/start.html"
     assert urls["Source"] == "https://github.com/judgekeeper/judgekeeper"
     assert urls["Documentation"] == (
         "https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md")
     assert urls["Issues"] == "https://github.com/judgekeeper/judgekeeper/issues"
-    assert not [u for u in urls.values() if "judgekeeper.com" in u]
 
 
 def test_contributing_says_issues_not_pull_requests_and_how_to_report_privately():
