@@ -323,7 +323,7 @@ judgekeeper's own format for LLM-as-a-judge results: one judged answer per line 
 | `outcome` | for agents: an automatic check of the result, `{passed, score, source, detail}`, e.g. `{"passed": true, "source": "unit tests"}` |
 | `app_version` | the version of the app or agent that gave the answer |
 
-Fields judgekeeper does not know are kept, at the top level and inside `evaluator`; a file of a newer version is read as far as this version understands it, with one warning. A line over 1 MB is kept, with a warning. The rules are published as a JSON Schema (draft 2020-12): [records.schema.json](records.schema.json), also inside the package as `judgekeeper/schemas/records.schema.json`. Example files: [minimal.jsonl](examples/records/minimal.jsonl) (four fields per line), [full.jsonl](examples/records/full.jsonl) (every field) and [with-human-labels.jsonl](examples/records/with-human-labels.jsonl).
+Fields judgekeeper does not know are kept, at the top level and inside `evaluator`; a file of a newer version is read as far as this version understands it, with one warning. A line over 1 MB is kept, with a warning. The rules are published as a JSON Schema (draft 2020-12): [records.schema.json](../src/judgekeeper/schemas/records.schema.json), inside the package as `judgekeeper/schemas/records.schema.json`. Example files: [minimal.jsonl](examples/records/minimal.jsonl) (four fields per line), [full.jsonl](examples/records/full.jsonl) (every field) and [with-human-labels.jsonl](examples/records/with-human-labels.jsonl).
 
 ## record(): save your own LLM-as-a-judge's verdicts with one line
 
