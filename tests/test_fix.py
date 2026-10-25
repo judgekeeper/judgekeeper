@@ -13,11 +13,12 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from pathlib import Path
 
 import pytest
 
-from judgekeeper import fix, start_fix_rule
+from judgekeeper import fix, label, start_fix_rule
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer, promptfoo_data, question
@@ -70,13 +71,23 @@ def project(root, rule: str = RULE, n: int = N, marked: int | None = None) -> Wo
     data["metadata"]["promptfooVersion"] = "0.124.1"
     (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
     assert main(["--no-browser"]) == 0
-    main(["--stop"])
     ws = Workspace(root)
+    closed(ws)
     session = StartSession(ws)
     for item in session.items[:marked]:
         label = "pass" if _person(question(_index(ws, item["id"])), half) else "fail"
         session.update({"id": item["id"], "label": label, "seconds": 5})
     return ws
+
+
+def closed(ws: Workspace, timeout: float = 30) -> None:
+    """Close the page `judgekeeper` opened for `ws`, and wait until its lock is gone: `--stop`
+    alone can miss a page that is slow to answer and leave it running for the next step."""
+    deadline = time.monotonic() + timeout
+    while label.read_lock(ws.dir) is not None:
+        assert time.monotonic() < deadline, "the marking page did not close"
+        main(["--stop"])
+        time.sleep(0.05)
 
 
 def _index(ws, item_id: str) -> int:
