@@ -126,8 +126,10 @@ def marked(text: str, spans) -> list[str]:
 
 def cleaned(text: str) -> str:
     """A file's whole text (mistakes.md, suggestions.md): one kind of line break and no
-    hidden character (ESC, BEL, bidirectional controls, invisible marks)."""
-    return visible(text.replace("\r\n", "\n").replace("\r", "\n"))
+    hidden character (ESC, BEL, bidirectional controls, invisible marks), and no Unicode line
+    or paragraph separator (each a space)."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return visible(text.replace(" ", " ").replace(" ", " "))
 
 
 def merged(spans, length: int) -> list[tuple[int, int]]:

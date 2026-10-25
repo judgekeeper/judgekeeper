@@ -116,6 +116,23 @@ def test_a_var_that_loads_a_file_is_not_asked(tmp_path, value):
     assert p.status == "cant" and "a var that loads a file or script" in p.why
 
 
+def _var_is(value):
+    def maker(root, *args, **kwargs):
+        promptfoo_project(root, *args, **kwargs)
+        _edit(root, _rows(lambda row: row["vars"].update(question=value)))
+    return maker
+
+
+@pytest.mark.parametrize("value", ["file://data.json", "file://ctx/d.yaml", "file://d.yml",
+                                   "file://notes.txt", "FILE://table.CSV", ["a", "file://d.json"],
+                                   "file://x.js", "file://../out.json", "exec:data.json"])
+def test_a_var_that_loads_any_file_is_not_asked(tmp_path, value):
+    """promptfoo fills in a data file's text as a template too: no file var is asked."""
+    ws = _checked(tmp_path, maker=_var_is(value))
+    p = make_plan(ws, AgainOptions(), dry=False)
+    assert p.status == "cant" and "a var that loads a file or script" in p.why
+
+
 def test_results_nested_too_deep_give_one_plain_line(tmp_path):
     ws = _checked(tmp_path)
 
@@ -347,14 +364,46 @@ def test_only_a_request_with_the_token_keeps_the_page_open(page_server):
 
 HIDDEN = ["\U000e0000", "\U000e004e", "\U000e007f", "\u2060", "\u2062", "\u2064", "\u061c",
           "\u180e", "\u00ad", "\u3164"]
+# Format characters and default-ignorable ones the list above missed: a variation selector, the
+# combining grapheme joiner, Hangul fillers, a supplementary variation selector, a reserved one
+MORE_HIDDEN = ["\ufe0f", "\u034f", "\u115f", "\u1160", "\uffa0", "\U000e0100", "\u2065",
+               "\u17b4", "\U0001d173", "\u0600", "\ufff9", "\U000e0fff"]
 
 
-@pytest.mark.parametrize("c", HIDDEN)
+@pytest.mark.parametrize("c", HIDDEN + MORE_HIDDEN)
 def test_invisible_marks_are_removed_everywhere(c):
     text = f"openai:{c}gpt{c}"
     assert redact.printable(text) == "openai:gpt"
     assert redact.one_line(text) == "openai:gpt"
     assert redact.visible(text) == "openai:gpt"
+
+
+def test_every_format_and_ignorable_character_is_removed():
+    import unicodedata
+
+    for n in range(0x110000):
+        c = chr(n)
+        if unicodedata.category(c) == "Cf" and c not in "\u200c\u200d":
+            assert redact.visible(f"a{c}b") == "ab", hex(n)
+        if unicodedata.category(c) == "Cf":
+            assert redact.printable(f"a{c}b") == "ab", hex(n)
+
+
+@pytest.mark.parametrize("c", MORE_HIDDEN)
+def test_a_rule_line_and_mistakes_md_drop_the_other_invisible_marks(c):
+    from judgekeeper.links import said
+
+    assert said(f'Rule:  "Pass{c} only{c} kind answers"') == 'Rule:  "Pass only kind answers"'
+    rows = [_row(i, input=f"q{c}?", output=f"An{c} answer.", reason=f"fine{c}", why=f"no{c}")
+            for i in range(2)]
+    md = fix.mistakes_md(f"Be{c} kind.", rows)
+    assert c not in md
+
+
+def test_mistakes_md_keeps_no_unicode_line_separators():
+    rows = [_row(i, output="An\u2028answer\u2029.", reason="fine\u2028Next: x") for i in range(2)]
+    md = fix.mistakes_md("Be\u2028kind.", rows)
+    assert "\u2028" not in md and "\u2029" not in md
 
 
 # A secret split by a hidden character ---------------------------------------------------------
@@ -371,6 +420,13 @@ def test_a_split_secret_is_scrubbed(monkeypatch, c):
         assert KEY not in shown and KEY not in redact.visible(shown)
 
 
+@pytest.mark.parametrize("c", ["\u200b", "\u200d", *MORE_HIDDEN])
+def test_a_secret_split_by_any_invisible_mark_is_redacted(monkeypatch, c):
+    monkeypatch.setenv("OPENAI_API_KEY", KEY)
+    shown = redact.scrub(f"c {KEY[:14]}{c}{KEY[14:]} d")
+    assert redact.REDACTED in shown and KEY[14:] not in shown
+
+
 def test_text_without_a_secret_keeps_its_hidden_characters():
     assert redact.scrub("a\u200bb \u202ec") == "a\u200bb \u202ec"
 
@@ -380,6 +436,31 @@ def test_a_split_secret_in_a_note_is_not_on_the_result_pages(here, monkeypatch):
     ws, passes, _, _ = _ready(here)
     _say(ws, passes[0], reasons=["left_out"], note=f"c {KEY[:14]}\u200b{KEY[14:]}")
     assert KEY not in _live(ws) and KEY not in _report(ws)
+
+
+# A file named by an eval log, as a link ----------------------------------------------------------
+
+@pytest.mark.parametrize("task_file", ["../../outside.py", "/etc/hosts", "a/../../x.py"])
+def test_an_inspect_task_file_outside_the_project_is_not_a_link(tmp_path, monkeypatch,
+                                                                 task_file):
+    from types import SimpleNamespace
+
+    from judgekeeper import front, links, start_fix_rule
+
+    monkeypatch.setattr(links, "_links_show", lambda stream: True)
+    home = start_fix_rule.rule_home(tmp_path, "inspect", {"task_file": task_file})
+    assert "\x1b" not in home and task_file in home
+    found = SimpleNamespace(tool="inspect", root=tmp_path, task_file=task_file, reference=False,
+                            rule="Be kind. " * 40, one_rule=True)
+    assert "\x1b" not in "".join(front._rule_lines(found))
+
+
+def test_an_inspect_task_file_inside_the_project_is_a_link(tmp_path, monkeypatch):
+    from judgekeeper import links, start_fix_rule
+
+    monkeypatch.setattr(links, "_links_show", lambda stream: True)
+    home = start_fix_rule.rule_home(tmp_path, "inspect", {"task_file": "tasks/support.py"})
+    assert "\x1b]8;;" in home and "tasks/support.py" in home
 
 
 # A bad reasons.json ----------------------------------------------------------------------------
