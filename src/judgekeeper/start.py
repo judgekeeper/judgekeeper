@@ -29,6 +29,7 @@ from pathlib import Path
 
 from judgekeeper import find, judge_check, mapper, settings, targets, textio
 from judgekeeper.fingerprint import JudgeFingerprint
+from judgekeeper.links import said
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map
 from judgekeeper.readers import read_deepeval, read_inspect, read_mlflow, read_promptfoo
@@ -54,7 +55,7 @@ from judgekeeper.records import (
     load_json,
     read_records,
 )
-from judgekeeper.redact import one_line, scrub
+from judgekeeper.redact import one_line
 from judgekeeper.table import (
     KNOWN_COLUMNS,
     _blank,
@@ -193,7 +194,7 @@ class Talk:
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):
             return
-        print(one_line(scrub(text)))
+        print(said(text))
         sys.stdout.flush()  # piped or in the background, lines must not wait in a buffer
         self._blank = not text
 

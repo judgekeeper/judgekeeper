@@ -556,10 +556,13 @@ def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
     import re
     import textwrap
 
+    from judgekeeper.links import stand_ins
+
+    text, links_back = stand_ins(text)
     keep = re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
     for part in keep:
         text = text.replace(part, part.replace(" ", "\0"))
     text = text[:1] + re.sub(r"\s+(?=Next:)", "\0", text[1:])
     lines = textwrap.wrap(text, width, initial_indent=indent, subsequent_indent=indent,
                           break_long_words=False, break_on_hyphens=False) or [indent.rstrip()]
-    return [line.replace("\0", " ") for line in lines]
+    return [links_back(line.replace("\0", " ")) for line in lines]
