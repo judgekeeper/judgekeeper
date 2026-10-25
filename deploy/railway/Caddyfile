@@ -39,6 +39,14 @@
 	# example page that has a script but not that meta policy.
 	@examples path /examples/*
 	header @examples >Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+	# The code and data files under /examples/ show as text in the browser, not as a download.
+	# Only files that are there: a wrong address still gets the 404 page as HTML.
+	@text {
+		path /examples/*
+		path_regexp \.(py|ts|jsonl|yaml)$
+		file
+	}
+	header @text Content-Type "text/plain; charset=utf-8"
 	# Old addresses go to the page that has their content now.
 	redir /setup /start#keys 301
 	redir /setup.html /start#keys 301
