@@ -488,7 +488,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 calls_note="at least" if at_least else "", tokens=tokens, left_out=left,
                 settings=check.settings, key_ok=check.ok, key_step=check.step, tool_version=version,
                 runner=[python], payload=payload,
-                side_effects=[(f"Your app or agent is not run. DeepEval measures your metric "
+                side_effects=[(f"Your eval's code is not run. DeepEval measures your metric "
                                f"directly in {again.your_python(python)}; never deepeval.evaluate(), so "
                                "nothing is written to .deepeval/ or sent to Confident AI.")])
 

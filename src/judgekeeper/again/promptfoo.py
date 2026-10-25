@@ -110,7 +110,7 @@ RUN_ENV = {"PROMPTFOO_CACHE_ENABLED": "false", "PROMPTFOO_DISABLE_TELEMETRY": "1
 FLAGS = ("--no-cache", "--no-write", "--no-share", "--no-table", "--no-progress-bar")
 # Test options that change the saved answer or prompt, which already hold their effect.
 DROPPED_OPTIONS = ("transform", "postprocess", "prefix", "suffix", "provider", "storeOutputAs")
-SIDE_EFFECT = ("Your app or agent is not run. Nothing is written to promptfoo's database or "
+SIDE_EFFECT = ("Your eval's code is not run. Nothing is written to promptfoo's database or "
                "shared.")
 EXACT_WHY = "promptfoo re-grades your saved answers with your own settings"
 NEW_WHY = "promptfoo grades your marked answers with your new LLM-as-a-judge's own settings"

@@ -246,7 +246,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 job={"log": str(root / data["results_files"][0]), "scorer": metric,
                      "new": new, "rule": opts.rule,
                      "rule_field": data.get("rule_field") or "instructions"},
-                side_effects=[(f"Your app or agent is not run. Inspect re-scores a copy of your "
+                side_effects=[(f"Your eval's code is not run. Inspect re-scores a copy of your "
                                f"log in {again.your_python(python)}; your log is never changed.")])
 
 
