@@ -532,6 +532,18 @@ def test_security_policy_and_dependabot_exist():
     import yaml
     config = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8"))
     assert {u["package-ecosystem"] for u in config["updates"]} >= {"github-actions", "pip"}
+    (docker,) = [u for u in config["updates"] if u["package-ecosystem"] == "docker"]
+    assert docker["directory"] == "/deploy/railway"
+    assert docker["schedule"]["interval"] == "weekly"
+
+
+def test_the_website_image_is_built_from_images_pinned_by_digest():
+    """A moving tag could change the website's build without a PR: dependabot moves the pins."""
+    dockerfile = (ROOT / "deploy" / "railway" / "Dockerfile").read_text(encoding="utf-8")
+    images = re.findall(r"^FROM (\S+)", dockerfile, flags=re.MULTILINE)
+    assert len(images) == 2
+    for image in images:
+        assert re.fullmatch(r"[\w.-]+:[\w.-]+@sha256:[0-9a-f]{64}", image), image
 
 
 BUILD_TOOLS = {"ruff", "build", "hatchling"}  # in [dev] to build and lint, not for the tests
