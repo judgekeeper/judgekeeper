@@ -435,6 +435,7 @@ class Asked:
     wrong_model: tuple[str, str] | None = None  # (a model a call used, the new judge's)
     key_step: str | None = None  # the key the judge needs is not set: where to set it
     unchecked: int = 0  # marked answers asked about that did not come back counted
+    failed: bool = False  # it was asked and graded no answer
 
 
 def _can_write(setup: dict) -> bool:
@@ -533,7 +534,7 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     nothing = no_answer(fresh)
     if nothing:  # nothing to compare: no grades are kept
         out.reasons.append(nothing)
-        out.calls, out.unchecked = plan.calls, len(ids)
+        out.calls, out.unchecked, out.failed = plan.calls, len(ids), True
         if AUTH_ERROR in nothing:
             out.key_step = "check the key your LLM-as-a-judge uses"
         return out
@@ -1372,6 +1373,8 @@ def full(path: str, said: Said, yes: bool = False) -> int:
         _refresh_mistakes(state.ws)
     _report(state.ws, adopted=not held,
             worse=worse_step(old, new, _command(state)) if worse else None)
+    if asked.failed:  # the free part was re-checked, the asked part failed completely
+        return EXIT_NEEDS_YOU
     return EXIT_WORSE if exit_worse else EXIT_OK
 
 

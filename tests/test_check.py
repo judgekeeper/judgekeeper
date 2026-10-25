@@ -420,6 +420,27 @@ def test_when_every_call_fails_check_says_no_answer_was_graded(here, capsys, jud
     assert _history(ws) == []
 
 
+def test_when_every_new_call_fails_check_exits_3_after_the_free_ones(here, capsys, judge):
+    from tests.test_fix import AUTH_ERROR
+
+    _marked(here)
+    outputs = [answer(i, TAG) if i % 2 else f"{answer(i, TAG)} (v2)" for i in range(50)]
+    _results(here, MARKED, model=HAIKU, outputs=outputs)
+
+    class Every:  # each answer asked, whatever its new id
+        def __contains__(self, item):
+            return True
+
+    fake = judge["fake"] = FakePromptfoo(Workspace(here), version="0.124.1")
+    fake.grader_errors, fake.error_text = Every(), AUTH_ERROR
+    code, out = run(capsys, "--yes")
+    flat = _flat(out)
+    assert "Re-checked with no AI call, from your new results." in flat
+    assert "No answer was graded: every call failed (authentication error)." in flat
+    assert "Next: check the key your LLM-as-a-judge uses" in flat
+    assert code == 3
+
+
 def test_a_free_recheck_asks_nothing(here, capsys, no_calls, terminal):
     _marked(here)
     _results(here, LENIENT, model=HAIKU)
