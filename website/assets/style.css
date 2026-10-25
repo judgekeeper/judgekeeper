@@ -284,6 +284,12 @@ img, svg { max-width: 100%; }
   .close-win .close-box { padding: 24px 18px; }
   .close-win h2 { font-size: 21px; }
 }
+/* small phones: the five words stay on one line and "LLM-as-a-judge" fits, down to 320px wide
+   (64px is the two side paddings of .wrap) */
+@media (max-width: 480px) {
+  .hero h1 { font-size: min(40px, calc((100vw - 64px) / 7.6)); }
+  .five { font-size: min(17px, calc((100vw - 64px) / 19)); column-gap: .6em; }
+}
 
 /* ---- command boxes, with a copy button that says "Copied" in green ---- */
 .cmd { display: inline-grid; grid-template-columns: minmax(0, 1fr) auto; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; max-width: 100%; min-width: min(380px, 100%); }

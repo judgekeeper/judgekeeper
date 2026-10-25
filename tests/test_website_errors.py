@@ -110,6 +110,25 @@ def test_only_example_reports_run_inline_scripts():
     assert sorted(report.split("; ")) == sorted(site.split("; ") + extra.rstrip("; ").split("; "))
 
 
+TEXT = ("py", "ts", "jsonl", "yaml")  # files under docs/examples a browser would download
+
+
+def test_caddy_sends_code_and_data_examples_as_plain_text():
+    site = CADDYFILE[CADDYFILE.index(":{$PORT:8080} {"):]
+    matcher = re.search(r"^\t@text \{\n(.*?)^\t\}", site, flags=re.DOTALL | re.MULTILINE)
+    assert matcher
+    lines = matcher.group(1).split()
+    assert lines[:2] == ["path", "/examples/*"]
+    assert lines[2:] == ["path_regexp", r"\.(" + "|".join(TEXT) + ")$", "file"]
+    assert '\theader @text Content-Type "text/plain; charset=utf-8"\n' in site
+    assert site.index("@text {") < site.index("file_server")
+
+
+def test_caddy_closes_connections_slow_to_send_their_headers():
+    options = CADDYFILE[:CADDYFILE.index("(security) {")]
+    assert re.search(r"servers \{\s*timeouts \{\s*read_header 10s\s*\}\s*\}", options)
+
+
 SECURITY = ("Content-Security-Policy", "Strict-Transport-Security", "X-Content-Type-Options",
             "X-Frame-Options", "Referrer-Policy")
 
@@ -147,6 +166,28 @@ def test_the_image_loosens_the_policy_only_for_the_example_reports(path, loose):
         policy = error.headers["Content-Security-Policy"]
     assert ("script-src 'self' 'unsafe-inline'" in policy) is loose, path
     assert ("font-src 'self' data:" in policy) is loose, path
+
+
+@pytest.mark.skipif(not os.environ.get("JK_SITE_URL"), reason="needs the site's image running")
+@pytest.mark.parametrize(("path", "kind"), [
+    ("/examples/records/jk_record.py", "text/plain; charset=utf-8"),
+    ("/examples/records/jk_record.ts", "text/plain; charset=utf-8"),
+    ("/examples/records/minimal.jsonl", "text/plain; charset=utf-8"),
+    ("/examples/ragtruth/promptfooconfig.yaml", "text/plain; charset=utf-8"),
+    ("/examples/site-example/report.html", "text/html; charset=utf-8"),
+    ("/examples/site-example/result.json", "application/json"),
+    ("/examples/records/nope.py", "text/html; charset=utf-8")])
+def test_the_image_sends_code_and_data_examples_as_text(path, kind):
+    try:
+        with urllib.request.urlopen(os.environ["JK_SITE_URL"].rstrip("/") + path,
+                                    timeout=10) as reply:
+            headers = reply.headers
+    except urllib.error.HTTPError as error:
+        assert error.code == 404 and path.endswith("nope.py")
+        headers = error.headers
+    assert headers["Content-Type"] == kind, path
+    for name in SECURITY:
+        assert headers.get(name), (path, name)
 
 
 def test_its_frame_is_the_sites_frame_with_links_from_the_root():

@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.website_pages import parse
+
 yaml = pytest.importorskip("yaml")
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -343,6 +345,40 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     assert not (tmp_path / "CNAME").exists()  # the build sets no custom domain
 
 
+def test_the_browser_checks_example_files_reach_the_site(tmp_path):
+    """Only the top-level examples link is left out: assets/examples/ is the check's own."""
+    _build_pages(tmp_path)
+    shipped = sorted(p.name for p in (ROOT / "website" / "assets" / "examples").iterdir())
+    assert len(shipped) == 3
+    for name in shipped:
+        built = tmp_path / "assets" / "examples" / name
+        assert built.read_bytes() == (ROOT / "website" / "assets" / "examples" / name).read_bytes()
+    # freecheck.js loads 'assets/examples/' + file + '.js' for each card's data-example-file
+    script = (tmp_path / "assets" / "freecheck.js").read_text(encoding="utf-8")
+    assert "'assets/examples/' + file + '.js'" in script
+    cards = [el.attrs["data-example-file"] for el in parse(tmp_path / "check.html").iter()
+             if "data-example-file" in el.attrs]
+    assert sorted(f"{file}.js" for file in cards) == shipped
+
+
+def test_every_local_link_in_the_built_pages_finds_its_file(tmp_path):
+    _build_pages(tmp_path)
+    missing = []
+    for page in sorted(tmp_path.rglob("*.html")):
+        for el in parse(page).iter():
+            for attr in ("src", "href"):
+                link = el.attrs.get(attr)
+                if not link or re.match(r"[a-z]+:|#", link):
+                    continue
+                path = link.split("#")[0].split("?")[0]
+                target = tmp_path / path.lstrip("/") if path.startswith("/") else page.parent / path
+                if target.is_dir():
+                    target = target / "index.html"
+                if not target.is_file():
+                    missing.append(f"{page.relative_to(tmp_path)}: {link}")
+    assert missing == []
+
+
 def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tmp_path):
     _build_pages(tmp_path)
     index = (tmp_path / "examples" / "index.html").read_text(encoding="utf-8")
@@ -532,6 +568,18 @@ def test_security_policy_and_dependabot_exist():
     import yaml
     config = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8"))
     assert {u["package-ecosystem"] for u in config["updates"]} >= {"github-actions", "pip"}
+    (docker,) = [u for u in config["updates"] if u["package-ecosystem"] == "docker"]
+    assert docker["directory"] == "/deploy/railway"
+    assert docker["schedule"]["interval"] == "weekly"
+
+
+def test_the_website_image_is_built_from_images_pinned_by_digest():
+    """A moving tag could change the website's build without a PR: dependabot moves the pins."""
+    dockerfile = (ROOT / "deploy" / "railway" / "Dockerfile").read_text(encoding="utf-8")
+    images = re.findall(r"^FROM (\S+)", dockerfile, flags=re.MULTILINE)
+    assert len(images) == 2
+    for image in images:
+        assert re.fullmatch(r"[\w.-]+:[\w.-]+@sha256:[0-9a-f]{64}", image), image
 
 
 BUILD_TOOLS = {"ruff", "build", "hatchling"}  # in [dev] to build and lint, not for the tests

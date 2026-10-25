@@ -2,6 +2,12 @@
 {
 	admin off
 	auto_https off
+	# A connection that has not sent its request headers within 10 seconds is closed.
+	servers {
+		timeouts {
+			read_header 10s
+		}
+	}
 }
 
 # The security headers, for every response: the pages and the page for a wrong address.
@@ -33,6 +39,14 @@
 	# example page that has a script but not that meta policy.
 	@examples path /examples/*
 	header @examples >Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+	# The code and data files under /examples/ show as text in the browser, not as a download.
+	# Only files that are there: a wrong address still gets the 404 page as HTML.
+	@text {
+		path /examples/*
+		path_regexp \.(py|ts|jsonl|yaml)$
+		file
+	}
+	header @text Content-Type "text/plain; charset=utf-8"
 	# Old addresses go to the page that has their content now.
 	redir /setup /start#keys 301
 	redir /setup.html /start#keys 301
