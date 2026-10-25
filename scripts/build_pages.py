@@ -100,7 +100,11 @@ def build(website: Path, examples: Path, out: Path) -> list[str]:
                          f"tag: {', '.join(unsafe)}")
     if out.exists():
         shutil.rmtree(out)
-    skip = shutil.ignore_patterns("README.md", "examples", "__pycache__")
+    def skip(folder: str, names: list[str]) -> set[str]:
+        # README.md and the examples link only at the top: assets/examples/ is the check's own
+        top = {"README.md", "examples"} if Path(folder) == website else set()
+        return {n for n in names if n in top or n == "__pycache__"}
+
     shutil.copytree(website, out, ignore=skip)
     shutil.copytree(examples, out / "examples")
     names = []
