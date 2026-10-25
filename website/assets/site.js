@@ -1,9 +1,10 @@
-/* judgekeeper.com: the copy buttons; on the home page the demo marking card and the terminal
-   for each step.
+/* judgekeeper.com: the copy buttons; on the home page the demo marking card, the terminal
+   for each step and the public-dataset numbers.
 
-   The only motion: the green underline passes once over the five words, and each terminal
-   screen is typed the first time it shows (Replay types it again). Under reduced motion both
-   are instant. Nothing is stored and nothing is sent. */
+   The only motion: the green underline passes once over the five words, each terminal
+   screen is typed the first time it shows (Replay types it again), and the public-dataset
+   numbers count up once. Under reduced motion all are instant. Nothing is stored and nothing
+   is sent. */
 (function () {
   "use strict";
 
@@ -378,7 +379,31 @@
     if (!reduce && words.length && !location.hash) sweep();
   }
 
+  /* The two public-dataset numbers count up once when they come into view (not under reduced
+     motion). The page's own text already holds the final numbers. */
+  function setUpCounts() {
+    var nums = $all(".rt-n");
+    if (!nums.length || reduce || !("IntersectionObserver" in window)) return;
+    var seen = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        seen.unobserve(e.target);
+        var el = e.target, to = +el.getAttribute("data-to"), t0 = null;
+        function step(t) {
+          if (t0 === null) t0 = t;
+          var k = Math.min(1, (t - t0) / 900), ease = 1 - Math.pow(1 - k, 3);
+          el.textContent = String(Math.round(to * ease));
+          if (k < 1) requestAnimationFrame(step);
+        }
+        el.textContent = "0";
+        requestAnimationFrame(step);
+      });
+    }, { threshold: 0.6 });
+    nums.forEach(function (n) { seen.observe(n); });
+  }
+
   setUpCopy();
   setUpDemo();
   setUpTour();
+  setUpCounts();
 })();

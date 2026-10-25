@@ -18,7 +18,7 @@ LEGAL = [(f"{GITHUB}/blob/main/docs/reference.md", "Full reference"), ("privacy.
          (f"{GITHUB}/blob/main/TRADEMARKS.md", "Trademarks"),
          (f"{GITHUB}/blob/main/SECURITY.md", "Security")]
 FONTS = ("manrope-latin-wght-normal.woff2",)  # the text font, so the first screen never jumps
-ASSETS = 5  # ?v= on style.css and site.js: add one when either changes, so visitors load them again
+ASSETS = 6  # ?v= on style.css and site.js: add one when either changes, so visitors load them again
 LOGO = ('<svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
         '<path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>'
         '<path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>'

@@ -227,6 +227,29 @@ img, svg { max-width: 100%; }
 .steplist b { display: block; font-size: 16px; font-weight: 700; color: var(--fg); }
 .steplist .d { display: block; font-size: 14.5px; margin-top: 2px; }
 .steps-grid .term { border: 0; min-width: 0; }
+/* "On public datasets.": two numbers in a window like the steps box, each a link to its report */
+.real { padding: 24px 0 8px; }
+.real h2 { margin: 0 0 28px; font-size: 32px; font-weight: 800; letter-spacing: -.022em; }
+.rt-win { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--term-bg); }
+.rt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rt { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 32px 36px 28px; border-left: 1px solid var(--line); color: var(--fg); text-decoration: none; font-family: var(--mono); font-variant-ligatures: none; transition: background 120ms ease; }
+.rt:first-child { border-left: 0; }
+/* on hover, a green line grows across the top of the tile */
+.rt::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--green); transform: scaleX(0); transition: transform 300ms ease; }
+.rt:hover { background: var(--hover); }
+.rt:hover::before { transform: scaleX(1); }
+.rt-big { color: var(--green); font-size: 30px; font-weight: 500; letter-spacing: -.01em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.rt-line { flex: 1; color: var(--muted); font-size: 14px; line-height: 1.5; text-wrap: pretty; }
+.rt-src { margin-top: 8px; font-size: 13px; font-weight: 500; }
+.rt-src::after { content: " →"; color: var(--muted); }
+.rt:hover .rt-src::after { color: var(--fg); }
+@media (max-width: 560px) {
+  .real h2 { font-size: 26px; }
+  .rt-grid { grid-template-columns: 1fr; }
+  .rt { border-left: 0; padding: 24px 18px; }
+  .rt + .rt { border-top: 1px solid var(--line); }
+  .rt-big { font-size: 24px; }
+}
 .close .wrap { padding-block: 80px; }
 .close-box { border: 1px solid var(--line); padding: 40px 44px; display: grid; grid-template-columns: 1fr auto; gap: 24px 48px; align-items: center; }
 .close h2 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.022em; }

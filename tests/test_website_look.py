@@ -287,10 +287,11 @@ COLOUR_ONLY = {"color", "background", "background-color", "border-color", "filte
                "text-decoration-color"}
 
 
-def test_the_only_motion_is_the_underline_and_the_terminal_typing():
+def test_the_only_motion_is_the_underline_the_typing_and_the_count_up():
     """Hover colours may fade; nothing else moves, slides, turns or appears by itself. The green
-    line under the five words grows, a click on a word scrolls to the steps, and the browser
-    check's example cards lift 1px on hover (not under reduced motion)."""
+    line under the five words grows, a click on a word scrolls to the steps, the public-dataset
+    tiles grow a green line on hover and their numbers count up once, and the browser check's
+    example cards lift 1px on hover (not under reduced motion)."""
     # one animation: the browser check's cursor blinks while it waits for a file
     assert re.findall(r"@keyframes ([\w-]+)", CSS) == ["ck-blink"]
     assert re.findall(r"animation:\s*([^;]+);", CSS.replace("animation: none !important", "")) == [
@@ -303,6 +304,9 @@ def test_the_only_motion_is_the_underline_and_the_terminal_typing():
             if selector.endswith(".five a::after"):  # the selector may follow a comment
                 assert value == "transform 240ms ease"
                 continue
+            if selector.endswith(".rt::before"):
+                assert value == "transform 300ms ease"
+                continue
             if selector.endswith(".ex-card"):
                 assert value == "border-color 140ms ease, transform 140ms ease"
                 continue
@@ -312,6 +316,7 @@ def test_the_only_motion_is_the_underline_and_the_terminal_typing():
     # the two moving parts, and both stop under reduced motion
     assert JS.count("prefers-reduced-motion: reduce") == 1
     assert "function type(" in JS and "function sweep(" in JS
+    assert 'if (!nums.length || reduce || !("IntersectionObserver" in window)) return;' in JS
     assert JS.count("smooth") == 1 and 'behavior: reduce ? "auto" : "smooth"' in JS
     for gone in ("IntersectionObserver(function (e) { reveal", "animate(", "count-up",
                  "parallax", "pointermove"):
@@ -363,9 +368,9 @@ def _main(page: Path) -> Element:
     return next(el for el in _els(page) if el.tag == "main")
 
 
-def test_home_is_the_hero_the_steps_and_the_closing_box():
+def test_home_is_the_hero_the_steps_the_public_datasets_and_the_closing_box():
     sections = [el for el in _main(HOME).children if isinstance(el, Element)]
-    assert [s.classes() for s in sections] == [{"hero"}, {"steps"}, {"close"}]
+    assert [s.classes() for s in sections] == [{"hero"}, {"steps"}, {"real"}, {"close"}]
 
 
 def test_the_demo_card_keeps_one_height():
@@ -516,7 +521,7 @@ def test_the_closing_box_points_to_the_browser_check():
 
 def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
     """A window like the others, titled "your project", with a green border and no glow; a
-    "$" and a blinking cursor wait under the line, 56px below the steps."""
+    "$" and a blinking cursor wait under the line, 56px below the public datasets."""
     close = _all(_main(HOME), "section", "close")[0]
     (win,) = _all(close, "div", "close-win")
     (bar,) = _all(win, "div", "rt-bar")
@@ -532,6 +537,32 @@ def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
     assert "font-size: 26px" in _rule(".close-win h2")
     assert "padding-top: 56px" in _rule(".close")
     assert "> " not in _flat(win)
+
+
+def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
+    """"On public datasets.": a window titled "public datasets", two columns (one on a
+    phone), mono text, a green number that counts up once (not under reduced motion), and a
+    green line across the top on hover."""
+    (real,) = _all(_main(HOME), "section", "real")
+    assert _flat(_all(real, "h2")[0]) == "On public datasets."
+    (win,) = _all(real, "div", "rt-win")
+    (bar,) = _all(win, "div", "rt-bar")
+    assert _flat(_all(bar, "span", "rt-title")[0]) == "public datasets"
+    tiles = _all(win, "a", "rt")
+    assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
+                                                                    "Real-data check"]
+    for tile in tiles:
+        assert _flat(_all(tile, "span", "rt-line")[0]) == (
+            "times the true number was in judgekeeper's range")
+        assert not _flat(tile).startswith(">")
+    assert "border-radius: 12px" in _rule(".rt-win")
+    assert "repeat(2, minmax(0, 1fr))" in _rule(".rt-grid")
+    narrow = CSS[CSS.index("@media (max-width: 560px) {\n  .real h2"):]
+    assert _rule(".rt-grid", narrow).strip() == "grid-template-columns: 1fr;"
+    assert "font-family: var(--mono)" in _rule(".rt")
+    assert "color: var(--green)" in _rule(".rt-big")
+    assert "scaleX(1)" in _rule(".rt:hover::before")
+    assert "function setUpCounts()" in JS and "setUpCounts();" in JS
 
 
 def test_every_window_has_the_three_dots_and_a_centred_title():
