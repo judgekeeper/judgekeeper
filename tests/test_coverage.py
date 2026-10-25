@@ -17,6 +17,18 @@ SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "coverage_check.py
 CELLS = [(0.9, 0.95, 0.6, 10), (0.5, 0.6, 0.6, 10), (0.7, 0.95, 0.95, 10)]
 
 
+def lowest_tpr_tnr_coverage(grid: dict) -> float:
+    """The lowest TPR or TNR coverage anywhere in the committed grid: the main grid, after
+    asking again, the stopping rule, an LLM-as-a-judge that changes its mind, batches and
+    one grade."""
+    level = grid["corrected"]["levels"][str(grid["corrected"]["chosen_level"])]
+    summaries = [level, grid["general"]["now"], grid["batches"]["start"],
+                 grid["batches"]["general"], grid["one_grade"]["start"]]
+    rows = grid["accuracy"]["stopping"] + grid["accuracy"]["changes_mind"]
+    return min([s["per_metric"][k] for s in summaries for k in ("tpr", "tnr")]
+               + [r["coverage"][k] for r in rows for k in ("tpr", "tnr")])
+
+
 def _module():
     spec = importlib.util.spec_from_file_location("coverage_check", SCRIPT)
     module = importlib.util.module_from_spec(spec)
@@ -90,9 +102,11 @@ def test_the_numbers_on_screen_are_in_the_committed_grid():
     assert 2 * max(row["exit_1"] for row in acc["false_worse"]) <= 0.11
     md = (folder / "coverage.md").read_text(encoding="utf-8")
     readme = (root / "README.md").read_text(encoding="utf-8")
-    for figure in ("93.6", "96.2"):
-        assert figure in md, figure
-    assert "93.6" in readme  # the README's coverage figure
+    level = grid["corrected"]["levels"][str(grid["corrected"]["chosen_level"])]
+    # the README's coverage figures: the lowest anywhere, and the main grid's average
+    for figure in (lowest_tpr_tnr_coverage(grid), level["mean"]):
+        assert f"{figure * 100:.1f}" in md, figure
+        assert f"{figure * 100:.1f}" in readme, figure
     for page in (readme, (root / "docs" / "reference.md").read_text(encoding="utf-8")):
         assert "examples/coverage" in page
 

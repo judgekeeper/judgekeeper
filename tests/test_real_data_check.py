@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.test_coverage import lowest_tpr_tnr_coverage
+
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "real_data_check.py"
 OUT = ROOT / "docs" / "examples" / "real-data-check"
@@ -283,8 +285,9 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
     grid = json.loads((ROOT / "docs/examples/coverage/coverage.json").read_text(
         encoding="utf-8"))
     level = grid["corrected"]["levels"][str(grid["corrected"]["chosen_level"])]
-    simulated = (f"In every tested case, the TPR and TNR ranges held the true value at least "
-                 f"{pct(level['min_cell'])} times in 100.")
+    simulated = (f"In simulated checks, the TPR and TNR ranges held the true value at least "
+                 f"{pct(lowest_tpr_tnr_coverage(grid))} times in 100 in every setting tested, "
+                 f"and {pct(level['mean'])} times on average in the main test grid.")
     assert simulated in _flat(ROOT / "README.md")
     reference = _flat(ROOT / "docs" / "reference.md")
     for figure in result:

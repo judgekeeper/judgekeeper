@@ -8,8 +8,8 @@ No AI calls were made. The GPT-4 grades come from the paper's own run.
 
 ## The result
 
-- **In 20 of 20 draws, judgekeeper's ranges held the real value for GPT-4 against experts:** TPR, TNR and kappa, all three in the same draw. Each draw marked the answers in two batches, on judgekeeper 1.0.0b2, commit `6437d85` (the code that ships as 1.0). See "Two batches, 20 draws" below.
-- **One more single draw on the same code missed the real TNR.** Its TNR range was 92% to 100%; the real TNR is 90.9%. The 50 answers GPT-4 passed that this draw happened to show held none of the 10 the experts failed (about 3 to 4 draws in 100 go like this). TPR and kappa held. See "One round on the final code" below.
+- **In 20 of 20 draws, judgekeeper's ranges held the real value for GPT-4 against experts:** TPR, TNR and kappa, all three in the same draw. Each draw marked the answers in two batches, on judgekeeper 1.0.0, commit `bc0d099`, on 2026-10-25. See "Two batches, 20 draws" below.
+- **One more single draw, on judgekeeper 1.0.0b2 (commit `6437d85`), missed the real TNR.** Its TNR range was 92% to 100%; the real TNR is 90.9%. The 50 answers GPT-4 passed that this draw happened to show held none of the 10 the experts failed (about 3 to 4 draws in 100 go like this). TPR and kappa held. See "One round on commit `6437d85`" below.
 - **An earlier run of 20 single draws** (commit `e3052c7`) held all three real values in 20 of 20.
 
 ## What was checked
@@ -61,7 +61,7 @@ These match the paper's Table 1 for GPT-4. The paper counts "jailbroken" as posi
 
 The paper gives no ranges and no kappa. Kappa 0.795 is computed from the dataset.
 
-## Two batches, 20 draws (commit `6437d85`)
+## Two batches, 20 draws (commit `bc0d099`)
 
 New answers can join the marking as a second batch. This repeat checks that the ranges still hold when they do. Each draw used a fresh project folder, so judgekeeper picked a new random seed and showed different answers.
 
@@ -78,22 +78,22 @@ The bar was 19 of 20 draws with all three real values inside in the same draw. R
 Draw 1's Measure after both batches (`two-batches/measure-batches-1-2.txt`, copied exactly):
 
 ```
-Result: your judge is good enough to use.
-You and your judge disagreed on 24 of 250 answers.
+Result: your LLM-as-a-judge is good enough to use.
+You and your LLM-as-a-judge disagreed on 24 of 250 answers.
 
-  You passed 168 answers. Of those, your judge passed 151 and failed 17.
-  You failed 82 answers. Of those, your judge passed 7 and failed 75.
+  You passed 166 answers. Of those, your LLM-as-a-judge passed 150 and failed 16.
+  You failed 84 answers. Of those, your LLM-as-a-judge passed 8 and failed 76.
 
-How often your judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 89% (between 84% and 93%)
-  When you say Fail, it also says Fail: about 91% (between 83% and 95%)
+How often your LLM-as-a-judge agrees with you (estimates):
+  When you say Pass, it also says Pass: about 90% (between 84% and 93%)
+  When you say Fail, it also says Fail: about 89% (between 82% and 94%)
 ```
 
 Every draw's estimates and ranges are in `two-batches/draws.csv`.
 
-## One round on the final code (commit `6437d85`)
+## One round on commit `6437d85`
 
-The first round of the check (100 marks, one batch) was run once more on `6437d85`. Measure printed (`measure-round-1.txt`, the result lines copied exactly):
+The first round of the check (100 marks, one batch) was run once more on judgekeeper 1.0.0b2, commit `6437d85`. It was not run again on `bc0d099`. Measure printed (`measure-round-1.txt`, the result lines copied exactly):
 
 ```
 Result: your judge is good enough to use.

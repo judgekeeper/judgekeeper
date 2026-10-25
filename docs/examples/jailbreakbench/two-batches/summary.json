@@ -6,7 +6,7 @@
     "grades": "judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)",
     "text": "ids, grades and counts only; no prompt or response"
   },
-  "judgekeeper_version": "1.0.0b2",
+  "judgekeeper_version": "1.0.0",
   "judge_model": "openai:gpt-4-0613",
   "rows": 300,
   "split": [

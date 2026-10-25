@@ -10,29 +10,28 @@ judgekeeper's result, in all 6 runs: **needs work**. Both LLM-as-a-judge setups 
 - **The LLM-as-a-judge setups:** Claude Haiku 5.5 and Claude Sonnet 5.5 (aliases `claude-haiku-5-5`, `claude-sonnet-5-5`), through promptfoo 0.124.0 `llm-rubric`, at the models' default temperature 1 (`promptfooconfig.yaml`).
 - **The rule:** frozen before any result (`rule.txt`): "Every claim in the summary is supported by the article. Pass if every claim is supported by the article. Fail if any claim is not supported by the article or contradicts it."
 - **The marks:** RAGTruth's own response-level labels (Fail when the annotators marked at least one hallucinated part), entered through the marking page's calls.
-- **Runs:** 3 per LLM-as-a-judge, on 2026-10-17, with judgekeeper 1.0.0b2 (commit `7c77fd5`).
-- **Re-measured on the final code:** all six runs were measured again from the saved grades on commit `6437d85` (the code that ships as 1.0), with no new LLM-as-a-judge call. Every result line is the same (`measure/`).
+- **Runs:** 3 per LLM-as-a-judge, on 2026-10-25, with judgekeeper 1.0.0 (commit `bc0d099`).
 
 ## How often each LLM-as-a-judge agrees with people
 
 | LLM-as-a-judge, run | When people said Pass, the LLM-as-a-judge also said Pass | When people said Fail, the LLM-as-a-judge also said Fail | Disagreed | judgekeeper's result |
 |---|---|---|---|---|
-| Haiku 5.5, run 1 | about 62% (55% to 69%) | about 91% (85% to 95%) | 47 of 200 | needs work |
+| Haiku 5.5, run 1 | about 66% (59% to 73%) | about 89% (83% to 94%) | 45 of 200 | needs work |
 | Haiku 5.5, run 2 | about 66% (59% to 73%) | about 89% (83% to 94%) | 45 of 200 | needs work |
-| Haiku 5.5, run 3 | about 67% (60% to 74%) | about 92% (86% to 96%) | 41 of 200 | needs work |
-| Sonnet 5.5, run 1 | about 69% (62% to 76%) | about 91% (85% to 95%) | 40 of 200 | needs work |
-| Sonnet 5.5, run 2 | about 68% (61% to 75%) | about 91% (85% to 95%) | 41 of 200 | needs work |
-| Sonnet 5.5, run 3 | about 68% (61% to 75%) | about 90% (84% to 95%) | 42 of 200 | needs work |
+| Haiku 5.5, run 3 | about 67% (60% to 74%) | about 87% (80% to 92%) | 46 of 200 | needs work |
+| Sonnet 5.5, run 1 | about 68% (61% to 75%) | about 90% (84% to 95%) | 42 of 200 | needs work |
+| Sonnet 5.5, run 2 | about 70% (63% to 77%) | about 91% (85% to 95%) | 39 of 200 | needs work |
+| Sonnet 5.5, run 3 | about 71% (64% to 78%) | about 91% (85% to 95%) | 38 of 200 | needs work |
 
 The first two columns are TPR and TNR, copied from judgekeeper's Measure screens (`measure/`).
 
-**Asked again:** Haiku changed its grade on 18 of the 200 answers in at least one of its 3 runs. Sonnet changed it on 8.
+**Asked again:** Haiku changed its grade on 19 of the 200 answers in at least one of its 3 runs. Sonnet changed it on 13.
 
 ## What it shows, in plain words
 
 - **Both LLM-as-a-judge setups catch made-up claims well.** When people said a summary had something unsupported, both also failed it about 9 times in 10.
 - **Both fail about one in three good summaries.** When people said a summary was fully supported, both still failed about a third of them. With this rule, they are too strict. A single "accuracy" number would hide this, because the two directions are far apart.
-- **Sonnet agrees with people about as often as Haiku here,** with its ranges overlapping Haiku's, but steadier when asked again: 8 changed answers against 18.
+- **Sonnet agrees with people about as often as Haiku here,** with its ranges overlapping Haiku's, but steadier when asked again: 13 changed answers against 19.
 - **What a user would do next:** judgekeeper says "needs work" and points to `fix`. Most mistakes are good summaries failed, so the clue would be that the rule may be too strict.
 
 ## Limits
@@ -50,7 +49,7 @@ The first two columns are TPR and TNR, copied from judgekeeper's Measure screens
 - **`load.py`:** downloads RAGTruth from the authors' GitHub repository at a pinned commit, checks the files' SHA-256, and keeps the test split's news summaries (`python3 -I load.py`). Its `cache/` folder holds the articles and summaries and is never committed.
 - **`sample-ids.json`:** the 200 sampled ids, the seed and the counts. No text.
 - **`rule.txt`, `promptfooconfig.yaml`:** the rule and the LLM-as-a-judge's promptfoo setup, as frozen before the run.
-- **`measure/`:** the Measure screen of each of the 6 runs, re-measured on `6437d85`.
+- **`measure/`:** the Measure screen of each of the 6 runs, on `bc0d099`.
 
 Each Measure screen in `measure/` starts with a header: the dataset, its commit, the subset and split, and where the grades come from. `sample-ids.json` holds the same in its own fields, unchanged, because the probes record its hash.
 
