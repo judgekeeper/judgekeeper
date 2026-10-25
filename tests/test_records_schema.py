@@ -1,7 +1,8 @@
 """The records JSON Schema and judgekeeper's own checks say the same thing.
 
 judgekeeper checks records in plain Python (no jsonschema dependency); the schema
-(src/judgekeeper/schemas/records.schema.json) is for everyone else. jsonschema is a test-only dependency.
+(src/judgekeeper/schemas/records.schema.json) is for everyone else. jsonschema is a test-only
+dependency.
 """
 
 import json

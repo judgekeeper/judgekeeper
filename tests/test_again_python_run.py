@@ -1,6 +1,6 @@
-"""Asking a DeepEval, Inspect AI or MLflow LLM-as-a-judge again, for real: the worker runs in the user's
-Python in "run" mode and the LLM-as-a-judge grades the labeled answers; then the same numbers and files
-as for promptfoo.
+"""Asking a DeepEval, Inspect AI or MLflow LLM-as-a-judge again, for real: the worker runs in the
+user's Python in "run" mode and the LLM-as-a-judge grades the labeled answers; then the same
+numbers and files as for promptfoo.
 
 No test calls a paid API and none needs DeepEval, Inspect AI or MLflow: the workers run against
 the stub packages in tests/again_stubs.py, which answer each judge call from a plan the test

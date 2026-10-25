@@ -1,74 +1,15 @@
 """TPR, TNR and kappa corrected for how judgekeeper picks answers. Plain Python.
 
-judgekeeper shows the person half answers the judge passed and half it failed, far more fails
-than the pool usually holds, so plain rates over the labeled answers would be wrong. The
-rates are worked out per group and weighted by group size (the Begg-Greenes correction).
+judgekeeper shows the person half answers the LLM-as-a-judge passed and half it failed, far
+more fails than the pool usually holds, so plain rates over the marks would be wrong. The rates
+are worked out per group and weighted by group size (the Begg-Greenes correction); kappa is
+Cohen's kappa on that weighted table. With batches the groups are strata, (batch, grade); after
+asking again they stay the saved grades, since that is how the answers were picked.
 
-Words: the pool holds N_pass answers the judge passed and N_fail it failed, and
-pi = N_pass / (N_pass + N_fail). In the pass group n_p answers are labeled (skips not
-counted), c_p of them Correct: a = c_p / n_p. In the fail group n_f, c_f Correct:
-b = c_f / n_f. Then:
-
-    TPR = pi a / (pi a + (1 - pi) b)                       of the answers that should pass,
-                                                           the share the judge passed
-    TNR = (1 - pi)(1 - b) / ((1 - pi)(1 - b) + pi (1 - a)) of the answers that should fail,
-                                                           the share the judge failed
-    real pass rate = pi a + (1 - pi) b                     the judge's own is pi
-
-Kappa is Cohen's kappa on the weighted table: each labeled answer in the pass group counts
-N_pass / n_p, in the fail group N_fail / n_f. So it is the kappa of the real mix of answers,
-not of the marks (which hold far more of the judge's fails). It moves with how many answers
-pass, so it is shown with its range, in the details, and never decides the verdict.
-
-Ranges (Jeffreys draws): each group's share of Correct answers is given the Jeffreys
-distribution Beta(c + 0.5, n - c + 0.5). DRAWS pairs (a, b) are drawn with a fixed SEED, TPR,
-TNR and the real pass rate are worked out from each pair with the formulas above, and the
-range is the middle LEVEL of those values. LEVEL is the first of 95%, 96% and 97% at which
-scripts/coverage_check.py finds the ranges hold the true value at least 93 times in 100 in
-every cell of its grid and 95 in 100 on average (docs/examples/coverage/coverage.md). A range
-is widened, if needed, to hold the number itself (k of k Correct gives a share of 1, which no
-draw reaches). When the judge gave every answer of the pool one grade, TPR and TNR are one
-point in every draw (a judge that passes all has TPR 1 and TNR 0), which a few marks can't
-show: their draws are then the plain Jeffreys draws of the marks the judge got right. A group with no labels has an unknown rate (None), and so does every number
-that needs it; an undefined division is unknown too, never an error. Kappa's range comes from
-the same draws through the kappa formula.
-
-Batches (batches.py): when new answers join as batches, the groups become strata, (batch, the
-judge's grade), each with its pool size N_s and n_s labeled (`stratified`). a and b are then
-each stratum's share Correct weighed by its pool, so each labeled answer weighs N_s / n_s, and
-the formulas above are the same. The Jeffreys draws are per stratum, Beta(c + 0.5, n - c + 0.5),
-in order with the one seeded generator. With one batch this is the form above to the last
-digit: `corrected` is `stratified` with one batch.
-
-After asking the judge again (`general`, `steadiness`), the fresh verdicts may differ from the
-saved ones, but the groups stay the saved verdicts: that is how the answers were picked (with
-batches, the strata: `general_strata`). So each labeled answer weighs N_group / n_group, TPR is the weighted share of the answers that
-should pass that the judge passed, TNR likewise, and kappa is Cohen's kappa on the weighted
-table. When the fresh verdicts equal the saved groups this is the form above. Its ranges are
-Jeffreys draws too, per saved group: the share marked Correct (p) is Beta(k + 0.5, n - k + 0.5)
-as in `corrected`; of those, the share the judge passed again (q), and of those marked Wrong the
-share it failed again (r), are Beta(k, m - k): exactly 0 or 1 when none or every one agrees,
-and the saved verdict when there is none to tell. So a steady judge (the same verdicts again)
-gets `corrected`'s ranges. Each group weighs its pool, TPR and TNR come from each draw of
-the weighted table, and the range is the middle LEVEL, widened to hold the number itself.
-Kappa's range comes from the same draws. A range never collapses to one point: when one would (the
-judge got every one right again, or none), that range draws q and r from
-Beta(k + 0.5, m - k + 0.5) too ("jeffreys, verdicts too" in `interval_methods`). A group of
-the pool with no labels leaves the ranges unknown.
-
-A judge asked twice may give an answer two grades (its wobble: `wobble`, the share of answers
-whose two grades differ). Then each fresh grade may have turned round by itself about
-e = (1 - sqrt(1 - 2 wobble)) / 2 of the time, and "every answer agreed" is no longer exact. So
-in each saved group, of the marked Correct answers and of the marked Wrong ones, the share whose
-fresh grade turned from the saved one is drawn from
-Beta(turned + 0.5 + s e, same + 0.5 + s (1 - e)), s = max(0, WOBBLE_MARKS - m), m the answers
-counted: a few marks lean on the wobble, many on themselves ("jeffreys, with the judge's
-wobble" in `interval_methods`). q and r follow from it. The numbers stay the same. No wobble
-(None or 0) keeps the ranges above.
-
-Steadiness, the share of answers whose fresh verdicts are not all the same, is weighted like
-the real pass rate, pi f_p + (1 - pi) f_f, with Wilson intervals at 97.5% for each group
-joined at the corners.
+Ranges are Jeffreys draws per group (DRAWS, a fixed SEED), cut at the middle LEVEL. LEVEL was
+picked by scripts/coverage_check.py, not assumed. A range is widened to hold the number itself,
+and an unknown rate is None, never an error. The formulas, in plain words, are in
+docs/reference.md under "How the numbers are worked out".
 """
 
 from __future__ import annotations

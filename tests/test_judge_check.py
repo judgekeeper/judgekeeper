@@ -1,6 +1,6 @@
-"""Did your LLM-as-a-judge actually judge? `start` checks the LLM-as-a-judge's own decisions before anyone
-labels: no real decision (the call failed, the reply could not be read, nothing at all), a
-check of nothing that the tool still gave full marks, an empty answer passed, the same
+"""Did your LLM-as-a-judge actually judge? `start` checks the LLM-as-a-judge's own decisions before
+anyone labels: no real decision (the call failed, the reply could not be read, nothing at all),
+a check of nothing that the tool still gave full marks, an empty answer passed, the same
 decision for every answer, and a reason that says the opposite of the decision.
 
 The fixtures are shaped like each tool's real output (the source files are named next to each

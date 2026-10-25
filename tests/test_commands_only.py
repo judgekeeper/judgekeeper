@@ -1,10 +1,10 @@
-"""1.0 is commands a person runs. judgekeeper writes only inside .judgekeeper/: a whole run
-(the first look, marking, the result, a re-check that asks the LLM-as-a-judge) on a git project leaves
-every other file as it was, `.claude/`, `.cursor/`, `.git/hooks/` and `.pre-commit-config.yaml`
-included. There is no page that turns on automatic checks, and the flags that served them
-(`check --on`, `--off`, `--hook`, `--fast`, `--ci`, `--baseline`, `--port`) are a usage error
-with one `Next:` line.
-No test calls an API: the re-check asks the fake promptfoo of test_again_run.
+"""1.0 is commands a person runs. judgekeeper writes only inside .judgekeeper/: a whole run (the
+first look, marking, the result, a re-check that asks the LLM-as-a-judge) on a git project
+leaves every other file as it was, `.claude/`, `.cursor/`, `.git/hooks/` and
+`.pre-commit-config.yaml` included. There is no page that turns on automatic checks, and the
+flags that served them (`check --on`, `--off`, `--hook`, `--fast`, `--ci`, `--baseline`,
+`--port`) are a usage error with one `Next:` line. No test calls an API: the re-check asks the
+fake promptfoo of test_again_run.
 """
 
 from __future__ import annotations

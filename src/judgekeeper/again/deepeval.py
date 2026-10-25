@@ -1,38 +1,16 @@
-"""The plan for asking a DeepEval judge again.
+"""The plan for asking a DeepEval LLM-as-a-judge again.
 
 A worker (`workers/deepeval_worker.py`) builds the user's metric in the user's own Python and
-calls `metric.measure()` directly, never `deepeval.evaluate()` (which overwrites
-`.deepeval/.latest_run_full.json` and may upload to Confident AI). The worker runs with
-DeepEval's telemetry off and without CONFIDENT_API_KEY or DEEPEVAL_RESULTS_FOLDER.
+calls `metric.measure()` directly, never `deepeval.evaluate()`, which overwrites the saved run
+and may upload it. Telemetry is off and CONFIDENT_API_KEY is not passed on.
 
-- GEval: each answer's own saved steps, criteria and rubric come back from its `verboseLogs`,
-  so no steps call is made and the scoring prompt is the one the original run used. Which
-  fields the judge reads is not saved: `--fields`, or a question at a terminal that lists
-  every field the saved answers have, with input and actual_output pre-selected. Exactly your
-  judge when the fields and the DeepEval version are confirmed and the model DeepEval builds
-  is the saved `evaluationModel`; otherwise a close copy, naming what was not confirmed.
-- The model: the results do not say how the user's code chose it, so the worker first lets
-  DeepEval's own settings pick it. When that gives another model, the judge is built again
-  from the saved name (`by_name`): a bare name (OpenAI) as `model="<name>"`, a name with a
-  provider DeepEval writes after it ("claude-x (Anthropic)", "(Gemini)", "(Deepseek)",
-  "(Grok)", "(KIMI)") with that provider's model class. It is used only when DeepEval then
-  reports exactly the saved name. A judge that needs more than a name (Azure, a local or
-  Ollama server, a gateway, an AWS Bedrock id) stops the plan, as does a name DeepEval builds
-  as another model. A judge on Ollama ("llama3.2:3b (Ollama)") works only when DeepEval's own
-  settings pick it; otherwise the plan says so plainly (OLLAMA), never the error DeepEval
-  gives for the model its settings pick instead.
-- Built-in metrics: always a close copy (options the file does not save; prompts that change
-  between DeepEval versions).
-- Can't: DAG metrics, custom metric classes, conversational metrics, no `evaluationModel`;
-  and Hallucination, Bias or Toxicity scores saved by a DeepEval on the other side of 4.2.0
-  from the user's (DeepEval turned these scores round in 4.2.0, so a pass means another
-  thing on each side).
-
-In dry mode the worker builds the metric and reports DeepEval's version and the model it
-would use, with no judge call. In run mode (`run`, after the yes) it measures each answer
-`times` times; a verdict is DeepEval's own `success`, which applies the threshold the way the
-user's DeepEval version does. DeepEval's own `evaluation_cost`, when it reports one, is summed
-and shown as the real cost.
+- GEval: each answer's saved steps and rubric come back from its `verboseLogs`, so the scoring
+  prompt is the original's. Which fields it reads is not saved: `--fields`, or a question.
+- The model: DeepEval's own settings pick it first; when that gives another model, it is
+  built again from the saved name, and used only if DeepEval then reports exactly that name.
+- Built-in metrics are always a close copy. DAG, custom and conversational metrics can't be
+  asked, nor scores DeepEval turned round in 4.2.0 when the versions are on either side.
+A verdict is DeepEval's own `success`, so the threshold applies as the user's version does.
 """
 
 from __future__ import annotations

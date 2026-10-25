@@ -1,45 +1,17 @@
-"""Labeling with `judgekeeper`: the queue, the `.judgekeeper/` folder, the session the
-labeling page writes to, and the result.
+"""Marking with `judgekeeper`: the queue, the `.judgekeeper/` folder, the session the marking
+page writes to, and the result.
 
-The queue: a seeded shuffle of each group (the judge's passes and its fails), then blocks of
-10, 5 from each group, shuffled inside the block. When one group runs out the rest comes
-from the other. The whole pool is queued. The seed is saved, so the queue can be rebuilt.
+The queue: a seeded shuffle of the LLM-as-a-judge's passes and fails, in blocks of 10 with 5
+from each, so both kinds are seen early; the seed is saved, so it can be rebuilt.
+`.judgekeeper/` holds start.json, pool.jsonl and pool-judge.jsonl (written when marking
+starts or a batch joins), marks.jsonl (written by the page), the anchors, judge-check files,
+result.json, report.html and history.jsonl, and fix/. Its .gitignore keeps the answers off Git.
 
-`.judgekeeper/` in the project holds:
-- start.json: the tool, the results files used, the judge and its fingerprint, its pass mark
-  (for a judge that gives a score), the pool counts, what was left out, the seed and the
-  queue (ids and groups). Written when labeling starts.
-- pool.jsonl (id, input, output, in queue order; plus trajectory, outcome and app_version
-  when the results have them, never shown on a page) and pool-judge.jsonl (the judge's
-  verdict on every pool answer, in the run-file format, each line with the full fingerprint).
-  Written when labeling starts, and when new answers join as a batch (batches.py: a line and
-  a queue entry of a later batch has its `batch`; start.json's `batches` says when each
-  joined).
-- marks.jsonl: the person's marks (marks.py), a header written when labeling starts, then
-  one stamped line per click, written by the page. No answer text. File names and keys use
-  "label", "pass" and "fail". A labels.csv (judgekeeper 0.2, no stamps) is never read.
-- anchors.jsonl and its manifest: the labeled answers as a frozen anchor set (with the
-  pool's trajectory, outcome and app_version, frozen too). Written with each result.
-- judge-check.json and judge-check.csv: did the judge actually judge? (judge_check.py): the
-  counts and each answer found, written when labeling starts (and when judgekeeper names the
-  CSV). A re-check copies the old ones to history/ with the other files it started from.
-- result.json and report.html (the result page), with the earlier result copied to history/;
-  and one line in history.jsonl for each result made from marks that changed: the judge, the
-  counts and the numbers, no answer text and no ids. report.html is written first, then the
-  history line, then result.json, each renamed into place; a run stopped half way is repaired
-  by the next one (repair). A result whose numbers were worked out another way (its
-  numbers_version) is made again from the marks before it is shown (recompute_old).
-- fix/: fixing the judge with `judgekeeper fix` (fix.py).
-- .gitignore: written when a first check starts in the folder, if there is none, so the
-  answers stay off Git (all but judge.json and history.jsonl). Never overwritten, except the
-  exact text judgekeeper 0.2 wrote, which is replaced.
-Every string from a results file is scrubbed of credentials before it is written. Nothing is
-written anywhere else, and the user's own .gitignore is never touched.
-
-A cloned project controls `.judgekeeper/`. Before anything is written there, a link in it
-(or the folder itself being one) stops judgekeeper (`refuse_links`): writing through it would
-change a file outside the project. Every file is written as a new file renamed over the old
-one (`write_replacing`), which replaces a link instead of following it.
+report.html is written first, then the history line, then result.json, each renamed into
+place, so a run stopped half way is repaired by the next. A cloned project controls
+`.judgekeeper/`: a link in it stops judgekeeper (`refuse_links`), and every file is written as
+a new file renamed over the old one, which replaces a link instead of following it. Every
+string from a results file is scrubbed of credentials before it is written.
 """
 
 from __future__ import annotations

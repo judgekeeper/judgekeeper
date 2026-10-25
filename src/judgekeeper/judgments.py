@@ -1,19 +1,15 @@
 """Judgments files: one JSONL file per run.
 
-Line 1 is a header: {"type": "header", "run", "anchors_sha256", "fingerprint", "source"} and,
-for imported or custom judges, "normaliser" (the --pass-if rule and label map used).
-`source` says where the verdicts came from: {"kind": "judgekeeper" | "table" | "callable" |
-"exec" | "promptfoo" | "deepeval" | "inspect" | "records", "file", "metric"}; imports add
-"version" (the tool's own format version), "notes" and "warnings". A file with no `source`
-reads as judgekeeper.
+Line 1 is a header: {"type": "header", "run", "anchors_sha256", "fingerprint", "source"}, plus
+"normaliser" (the --pass-if rule and label map) for imported or custom judges. `source` says
+where the verdicts came from (its "kind": judgekeeper, table, an eval tool, ...); a file with
+no `source` reads as judgekeeper.
 Every following line is {"type": "judgment", "id", "verdict", "raw_score", "rationale",
-"fingerprint", and for pairwise items "verdict_ba", "raw_score_ba", "rationale_ba"}. A verdict
-of "error" means the judge raised, returned nothing or returned something unparseable; the
-line then has an "error" field.
-Every judgment line carries the full fingerprint, with `snapshot` as served for that call
-and `created_at` as the time of that judgment. Free text (rationales, error text) and every
-string in a fingerprint (the served model id comes from the provider) are scrubbed of
-credentials on the way to disk.
+"fingerprint"}, plus the "_ba" fields for pairwise items. A verdict of "error" means the judge
+raised or returned nothing usable; the line then has an "error" field.
+Every judgment line carries the full fingerprint, with `snapshot` as served for that call and
+`created_at` as the time of that judgment. Free text and every string in a fingerprint are
+scrubbed of credentials on the way to disk.
 """
 
 from __future__ import annotations

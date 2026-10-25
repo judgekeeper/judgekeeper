@@ -1,18 +1,14 @@
 """Turn whatever a judge returned into a verdict. One function for every import path.
 
-Accepted shapes: a bool; a string looked up case-insensitively in a label map (the defaults
-below, plus a leading PASS/FAIL token, plus anything from --label-map); a number, which needs a
---pass-if rule such as `score>=0.5`; a `(verdict, reason)` tuple; a dict with the verdict under
-`verdict`/`pass`/`passed`/`label`/`score` and the reason under
-`reason`/`rationale`/`explanation`/`comment`.
+It takes a bool, a string looked up in a label map (case-insensitive, plus --label-map), a
+number with a --pass-if rule such as `score>=0.5`, a `(verdict, reason)` tuple, or a dict
+holding the verdict and the reason under one of a few known keys.
 
 Two failure modes, kept apart on purpose:
 
-- nothing usable (None, an empty string, NaN, a dict with no verdict, a wrong type, or one
-  of the words NO_DECISION: error, N/A, null, none, nan) is a judge error: verdict "error",
-  excluded from agreement metrics and counted in the report. It is never turned into a fail.
-  --label-map can map a value to "error" too (`maybe=error`), and can give one of those
-  words a label of its own.
+- nothing usable (None, an empty string, NaN, or a NO_DECISION word such as N/A) is a judge
+  error: verdict "error", left out of the agreement metrics and counted in the report. It is
+  never turned into a fail.
 - a value that looks like a verdict but is not in the map (e.g. "good"), or a number with no
   --pass-if rule, is UnmappedValue: the caller collects them and stops with a usage error that
   lists them. judgekeeper never guesses what "good" means.

@@ -1,52 +1,16 @@
-"""The local labeling page that judgekeeper serves: a session of items and labels, and
-the server for it.
+"""The local marking page's server: a session of items and marks, served on 127.0.0.1.
 
-Standard library only. The server binds 127.0.0.1, serves one self-contained page (inline CSS
-and JS, no external assets) and writes every change to the labels CSV at once (id, input,
-output, human_label, notes).
+Standard library only. One self-contained page (no external assets); every change is saved at
+once. Every request needs the random token from the URL and the bound Host (no DNS
+rebinding); every POST also needs the page's own Origin, so only the page's script marks.
+Shown text goes through textContent, and the data is embedded as JSON with <, > and & escaped.
 
-Security: the page and every request need a random token from the URL; a request whose Host
-header is not the bound address is refused (DNS rebinding); every displayed string goes
-through textContent, and the data is embedded as JSON with <, > and & escaped. Each
-connection is read in a thread of its own, so a slow or silent one never holds up the rest;
-it is dropped after CONNECTION_TIMEOUT seconds, and when its request line and headers
-take more than HEADER_DEADLINE seconds. At most MAX_CONNECTIONS are open at once: one more
-drops the one that has waited longest for its headers (or, when none waits, the new one).
-Requests are then handled one at a time (LabelServer.busy). The Host header and the token
-are checked before a POST's body is read; a refused request is answered with `Connection:
-close` after at most REFUSED_READ bytes of its body are read and dropped (a connection
-closed with unread data is reset on Windows, and the answer is lost). An allowed POST's body
-is read before any answer; one over MAX_BODY is read and dropped, then answered 413,
-and one over MAX_DRAIN is answered 413 before it is read, and closed. Any
-other method (OPTIONS, HEAD...) gets the same Host and token checks, then 405; no answer
-names the Python version. The server stops on Ctrl-C, on a POST to /stop (it works the same
-on every system), and after IDLE_TIMEOUT seconds without a request that has the token or
-the stop secret. The project's lock (server.json) holds a separate stop secret: with it a request can
-only ask whether the page is open (GET /alive) or close it (POST /stop). It also holds the
-page's token, so a second run prints the same link and the open tab keeps working: the lock
-is owner-only (0600) in the owner-only, git-ignored .judgekeeper/, and removed when the page
-stops; a program that can read it could write marks.jsonl as well. A copy of the lock
-(page.json) lets --stop find the page when server.json is gone.
-GET /favicon.ico needs no token and gets 204 No Content: the page has no icon, and a 403
-there would be two errors in the browser's console on every load. GET /project needs no token
-either: it answers with the name of the project folder the page is for (its last part only),
-so a run for another project can say which page holds the port it asked for. POST /printed (with the
-token) says the link was printed where a coding agent could read it, or (with {"link":
-"browser-env"}) that the program named in BROWSER opened the page: every later mark is
-stamped so. Every POST also needs the page's own Origin
-(http://127.0.0.1:<port>, or localhost) and, when the browser sends it, `Sec-Fetch-Site:
-same-origin`: only the page's own script marks, never another site or a program that has the
-link (judgekeeper's own requests, `ask`, send the Origin).
-
-The caller passes the page (mark_page.py) and a `result` function: GET /result answers with
-the result page, a static HTML page that runs no script. Once every item is labeled, none
-deferred (finished), the server stops right after serving that page, or RESULT_WAIT seconds
-after the last item if nobody fetches it. While an item is deferred, the page
-offers to look at it again, so the server keeps serving (until Ctrl-C or IDLE_TIMEOUT), also
-after the result page; the page asking again (GET /, /state) or a label taken back (undo)
-stops the RESULT_WAIT count. A server that `stays` (the page `judgekeeper mark` serves) never
-stops by itself after the result, also once every item is labeled (the result page may still
-ask it): the person may mark more, and IDLE_TIMEOUT closes it.
+Each connection is read in its own thread with a deadline, at most MAX_CONNECTIONS at once,
+and requests are handled one at a time (LabelServer.busy). Host and token are checked before a
+body is read; a body over MAX_BODY gets 413. The lock (server.json, owner-only) holds the
+token, so a second run prints the same link, and a separate stop secret that can only ask
+GET /alive or POST /stop. The server stops on Ctrl-C, /stop, IDLE_TIMEOUT without a request,
+or soon after the result page once every item is marked (unless it `stays`, as for `mark`).
 """
 
 from __future__ import annotations

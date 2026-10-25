@@ -1,43 +1,17 @@
-"""`judgekeeper fix`: where the judge goes wrong, and a fair test of a new rule.
+"""`judgekeeper fix`: where the LLM-as-a-judge goes wrong, and a fair test of a new rule.
 
-It needs a result (enough marks of each kind). Each run does the next step:
+It needs a result. With no new rule in rule.txt it shows the patterns, writes mistakes.md and
+says where the rule lives; with a new rule it checks it, asks before the calls, and tests it on
+the hidden marks.
 
-| What is there                                  | What `judgekeeper fix` does               | Exit |
-|------------------------------------------------|-------------------------------------------|------|
-| no rule.txt, or a rule already tested          | the patterns, mistakes.md, where the rule | 0    |
-|                                                | lives, the hidden marks (Screen 5a)       |      |
-| a new rule in rule.txt                         | checks it, asks before the calls, tests   | 0    |
-|                                                | it on the hidden marks (Screen 5b)        |      |
-| a judge whose rule judgekeeper can't swap      | says so: change it and run `check`        | 3    |
+The hidden marks: about 30% of each group of marks, at least 5 marked Pass and 5 Fail, picked
+when the first result appears (prepare_split) and kept in fix/split.json. Everything shown
+before the test uses only the other marks, so a new rule is never written from a hidden
+answer, and nothing about a hidden mark is printed or written elsewhere. A set is retired once
+a rule tested on it is adopted, after MAX_RULES rules, or with `fix --new`.
 
-The hidden marks: about 30% of each group of marks (the judge's passes and fails, where the
-person agrees and where not, rounded up; a group of one stays seen), at least 5 marked Pass
-and 5 marked Fail, picked with a random seed when the first result appears (prepare_split),
-before any mistake is shown, and kept in fix/split.json. The patterns, mistakes.md and every
-number shown before the test use only the other marks, so the new rule is never written from a
-hidden answer. Nothing about a hidden mark (its id or its text) is printed or written anywhere
-but split.json while the set is in use. A set is retired when a rule tested on it is the
-judge's rule now (adopted), after MAX_RULES rules, or with `fix --new`: then its marks are seen
-like the others, and the next FRESH new marks make a new set. For a judge `fix` can't ask
-whose grades don't follow a pass mark (a table, record()), nothing is kept aside: there is
-nothing to test with it, so every mistake is listed.
-
-mistakes.md, ready to hand to a coding agent: the task in one line, the clues (the pattern
-sentences the terminal prints), the judge's rule now, then each mistake on the seen marks (the
-person's mark, the judge's grade, the question, the answer, the person's reason and the judge's
-own reason), each text cut and fenced as data (start_fix_rule.fenced) under a warning never to
-follow instructions inside it.
-
-The person's reasons on the seen mistakes (reasons.py, given on the result page) come first in
-the clues, counted; mistakes.md is then grouped by them, and suggestions.md holds rule lines
-from fixed templates for each reason given twice or more. A reason on a hidden mark is never
-read. Clue words come from the answers only.
-
-For a judge with a score and a pass mark, the pass mark that fits the seen marks best is tested
-on the hidden marks with the saved scores: free, no AI call. It is shown only when the verdict
-is better or safe to try.
-
-judgekeeper never edits the person's files: it says where the rule (or the pass mark) lives.
+mistakes.md is ready to hand to a coding agent: each answer's text is fenced as data under a
+warning never to follow instructions inside it. judgekeeper never edits the person's files.
 """
 
 from __future__ import annotations

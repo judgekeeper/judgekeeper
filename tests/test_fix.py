@@ -1,12 +1,12 @@
 """`judgekeeper fix`: where the LLM-as-a-judge goes wrong, and a fair test of a new rule.
 
-First run (Screen 5a): some of the marks are set aside and hidden (about 30% of each group:
-the LLM-as-a-judge's passes and fails, where the person agrees and where not; at least 5 marked Pass
+First run (Screen 5a): some of the marks are set aside and hidden (about 30% of each group: the
+LLM-as-a-judge's passes and fails, where the person agrees and where not; at least 5 marked Pass
 and 5 marked Fail); the patterns in the LLM-as-a-judge's mistakes on the other marks;
-.judgekeeper/fix/mistakes.md with each of those mistakes and the LLM-as-a-judge's own reason; where the
-judge's rule is written; Next: write the new rule in .judgekeeper/fix/rule.txt.
-Nothing about a hidden mark (its id or its text) is printed or written outside split.json.
-No test calls an API.
+.judgekeeper/fix/mistakes.md with each of those mistakes and the LLM-as-a-judge's own reason;
+where the judge's rule is written; Next: write the new rule in .judgekeeper/fix/rule.txt.
+Nothing about a hidden mark (its id or its text) is printed or written outside split.json. No
+test calls an API.
 """
 
 from __future__ import annotations

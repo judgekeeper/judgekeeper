@@ -1,30 +1,15 @@
 """Find the eval tool a project uses and the results it saved. Standard library only.
 
 `search(root)` looks in one folder and nowhere else: never the home folder, never a tool's
-own database. It reads only the environment variables that say where a tool saves results
-(DEEPEVAL_RESULTS_FOLDER, INSPECT_LOG_DIR, MLFLOW_TRACKING_URI), and only when they point
-inside the folder. It never opens a `.env` file.
+own database, never a `.env` file. It reads only the environment variables that say where a
+tool saves results (DEEPEVAL_RESULTS_FOLDER, INSPECT_LOG_DIR, MLFLOW_TRACKING_URI), and only
+when they point inside the folder.
 
-The rules:
-- Skip `.git`, `node_modules`, virtual environments, package folders, `__pycache__`,
-  `.judgekeeper` and every other hidden folder except `.deepeval`. Never follow a symbolic
-  link, to a file or a folder. The one place read inside `.judgekeeper` is `records/`, where
-  `judgekeeper.record()` writes the judge's verdicts (`*.jsonl`); a records file elsewhere is
-  found like a table.
-- Look in the known places first (the folder itself, `.deepeval/`, `logs/`, the folders the
-  variables name), then walk to a depth of four folders. Stop after MAX_FILES files or
-  MAX_SECONDS seconds and say so.
-- To tell whether a `.json` file is results, read at most its first HEAD_BYTES, in at most
-  MAX_JSON files. A table (CSV, TSV or JSONL with input, output and verdict columns) is read
-  up to its header, and only TABLE_DEPTH folders deep.
-- Results over MAX_BYTES are listed, not read (start.py asks before reading one named on
-  the command line).
-- In a project's folder (is_project), a folder below that is a project of its own (its own
-  project file or `.judgekeeper/`) is not walked: its results are its own. It is kept in
-  `nested`, and nested_results names the ones that hold results.
-- DeepEval's hidden copies of its newest run count once; when a results folder holds its
-  `test_run_*.json` files, those are read instead (_prefer_saved_runs).
-- Nothing is written, and SQLite stores are opened read-only (by the reader, later).
+It skips hidden folders except `.deepeval` and `.judgekeeper/records/` (where `record()`
+writes), never follows a link, looks in the known places first and then walks four folders
+deep, and stops after MAX_FILES files or MAX_SECONDS seconds and says so. A file is read only
+far enough to tell whether it holds results. A folder below that is a project of its own is
+not walked: its results are its own (`nested`). Nothing is written.
 """
 
 from __future__ import annotations

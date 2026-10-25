@@ -1,16 +1,14 @@
 """Why the person disagrees with the judge: the reasons they give on the live result page.
 
 On each disagreement the person can see (never a mark kept aside for `fix`'s fair test), the
-result page asks why they marked it so, with reasons to tap (REASONS, by the judge's grade),
-buttons from the parts of their own rule (split_rule), their own reasons as buttons (typed once
-in "Other…", kept in .judgekeeper/reasons.json, at most MAX_OWN), and "Mark this part" for words
-in the answer. Each change is one stamped line in marks.jsonl with the same mark (marks.py):
-"reasons" (ids from REASONS, or "own-N"), "note" (the "Other…" box), "rule_parts" with the
-rule's hash, and "spans" ([start, end] in the answer's text, never the text). The marking page
-never asks: it shows no grade, and the person doesn't know yet where they disagree.
+result page offers reasons to tap (REASONS), buttons from the parts of their own rule, their
+own reasons (kept in .judgekeeper/reasons.json) and "Mark this part" for words in the answer.
+Each change is one stamped line in marks.jsonl with the same mark (marks.py); spans are
+[start, end] in the answer's text, never the text. The marking page never asks: it shows no
+grade, and the person doesn't know yet where they disagree.
 
-"I'm not sure about my own mark" never changes the mark: it is only counted. A mark changed on
-the marking page after the judge's grades were shown is stamped "after_result" (saw_grades).
+"I'm not sure about my own mark" never changes the mark: it is only counted. A mark changed
+on the marking page after the grades were shown is stamped "after_result" (saw_grades).
 
 All the rest is plain counting and fixed templates, no AI: `fix`'s first clue, the "missed it
 or allowed it" check (mentioned) and suggestions.md. judgekeeper never writes rule.txt.

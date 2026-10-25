@@ -1,49 +1,17 @@
-"""`judgekeeper check`: when the judge changed, re-test it on the person's marks.
+"""`judgekeeper check`: when the LLM-as-a-judge changed, re-test it on the person's marks.
 
-Marks are tests for the judge. The judge is its whole setup (judge_setup.py), read from the
+Marks are tests for the LLM-as-a-judge. It is its whole setup (judge_setup.py), read from the
 newest results, never from the eval config; `.judgekeeper/judge.json` keeps the setup last
-checked. The person runs it by hand, after they change their judge or update their eval tool.
+checked, and `results-seen.json` lets a check with nothing new read nothing again.
 
-`results-seen.json` (local, never committed) remembers the setup of the newest results by what
-the files it came from hold (the results, the lockfiles, judgekeeper.toml), so a check with
-nothing new reads nothing again.
+Marked answers whose exact text is in the newest results already have the new grade (no AI
+call). The rest are asked only after a yes, once each, through `again/`; nothing is saved when
+the tool says another model answered. Per group (answers the person passed, and failed), the
+paired change gives "Worse", "No drop bigger than 20 points" or "Not sure", always with the
+worst drop the marks could hide (targets.paired_verdict). Unless the check ends worse, the
+marks then test the new LLM-as-a-judge (_adopt); a worse check stays open until it changes.
 
-For a changed setup:
-1. free first: marked answers whose exact text is in the newest results already have the new
-   judge's verdict;
-2. the rest only after the person's yes: `check` says how many answers and calls it would
-   ask about and asks `Go ahead? [y/N]` at a terminal (Enter is no); without a terminal only
-   `--yes` says yes, else it stops (exit 3) before anything is asked or saved. The person's
-   own judge is then asked once about each, through `again/` (no menu). When the model
-   judgekeeper would hand the eval tool is not the new judge's, nothing is asked; when the
-   tool says a call was answered by another model (wrong_model), nothing is saved (exit 2);
-3. per group (the answers the person passed, and failed), every mark with an old and a new
-   verdict: how many went from right to wrong and from wrong to right, and a range on the
-   paired change (targets.paired_verdict): "Worse", "No drop bigger than 20 points" or
-   "Not sure", always with the worst drop the marks could hide. The old verdicts are the
-   last check's for the previous setup (`verdicts/<hash>.jsonl`), else the results the
-   marks were made on. The screen says the result first, then one small table (per group:
-   how many marks the old and the new judge agreed with, and the group's outcome) and, for a
-   group that is worse or holds no big drop, by about how much agreement drops in every 100;
-   the counts that went from right to wrong are on the report page (last_check). The rates
-   the report and history.jsonl keep are re-weighted by the groups the marks were picked
-   from, so the old one is the report's;
-4. the lines below, a `history.jsonl` line (no answer text), the new verdicts in
-   `verdicts/<hash>.jsonl` (ids and verdicts only, under a header with the setup and the
-   judge's fingerprint), and judge.json moves to the new setup. Unless it is "Worse" or "Not
-   sure" with a drop bigger than 20 points (exit 1), the marks then test the new judge:
-   start.json and pool-judge.jsonl take its grades (_adopt), so the result and `fix` are about
-   it. Such a check stays open: the next check of the same judge says it again, until the
-   judge changes or more marks are re-checked. When no answer could be tested, nothing is saved: the check stays pending.
-
-A setup counts as changed too when its judge's results hold no rule (a table) and its grades
-on marked answers differ in the newest results (grades_changed), and the last check's change
-is checked again when marks were made after it (_added_since_check).
-
-Exit 0 (no drop bigger than 20 points, not sure with a smaller drop, or nothing changed), 1
-(worse, or not sure with a drop bigger than 20 points, in either group), 2 (a call asked
-another model than the new judge), 3 (the person is needed: not enough marks, nothing could be
-tested, or the question needs an answer).
+Exit 0 no big drop, 1 worse (or not sure, over 20 points), 2 another model, 3 needs the person.
 """
 
 from __future__ import annotations

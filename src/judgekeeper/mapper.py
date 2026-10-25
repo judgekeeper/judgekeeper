@@ -1,25 +1,17 @@
-"""Read a results file saved in a project's own format: list its nested paths and guess how to
-read it. `judgekeeper` (own_map.py) shows the guess, asks only what it cannot tell, and saves
-the map in judgekeeper.toml; readers/mapped.py then reads the file with it. Standard library only.
+"""Read a results file saved in a project's own format: list its nested paths and guess how
+to read it (own_map.py asks only what it cannot tell; readers/mapped.py reads with the map).
 
-A file is a list of units: the lines of a JSONL file, the rows of a CSV, or the one document
-of a JSON file. In a unit, `each` is the path to the items (one item holds one judged
-answer, or one per side), and the other paths are relative to an item:
+A file is a list of units (JSONL lines, CSV rows, or one JSON document). `each` is the path to
+the items in a unit (an item holds one judged answer, or one per side); the other paths are
+relative to an item. `[]` means every element of a list; a key that is not plain letters,
+digits, `_` or `-` is written as a JSON string (`"User Question"`).
 
     each   = "cases[]"                        the items: every element of the list `cases`
-    input  = "prompt"
     output = "{side}.output"                  sides ["A", "B"]: one answer per side
     score  = "{side}.scores.{judge}.score"    judges ["Safe wording", "Plain language"]
-    reason = "{side}.scores.{judge}.reason"
 
-Paths are keys joined by dots; `[]` after a key means every element of that list; a key that
-is not plain letters, digits, `_` or `-` is written as a JSON string (`"User Question"`).
-
-The guess goes by key names first (input, prompt, question; output, answer, response;
-score, verdict, label, grade; reason, explanation) and by value types after that. A guess by
-type alone is "unsure": `setup` asks one confirm line. What one item is, and which judge to
-check when an item holds several, are told by the file's shape (the list that holds the
-answers; the keys that differ between two answers or two scores).
+The guess goes by key names first and by value types after; a guess by type alone is
+"unsure", and one confirm line asks. Standard library only.
 """
 
 from __future__ import annotations

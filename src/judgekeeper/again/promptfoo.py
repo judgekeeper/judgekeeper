@@ -1,43 +1,16 @@
-"""The plan for asking a promptfoo judge again.
+"""The plan for asking a promptfoo LLM-as-a-judge again, and the run.
 
-promptfoo itself grades again (see `run` below). The plan reads the saved results files
-again to rebuild the judge, and says:
+The plan rebuilds the LLM-as-a-judge from the saved results. Exactly your LLM-as-a-judge when
+the grader is named and the same promptfoo version runs (installed, or fetched with npx after
+a yes); a close copy otherwise. It can't when the grader was set with `--grader`, holds a
+hidden secret, or runs the user's own code: anything but a model provider promptfoo calls over
+HTTP, an agent with tools, a rule, var or transform that loads a file or package. A version
+goes into `npx promptfoo@<version>` only when it reads as one.
 
-- exactly your judge: the grader is named in the file and the same promptfoo version will run
-  (the installed one when its version matches the file's `metadata.promptfooVersion`, else
-  `npx promptfoo@<that version>`, which downloads it: the download is in the same yes/no
-  question as the calls; with neither, the plan names `npm install promptfoo@<that version>`);
-- a close copy: the file records no promptfoo version, or the grader is promptfoo's default,
-  which the file never records (named "probably", from the key names present);
-- can't: the grader was set with `--grader` (saved without its name), its settings hold a
-  secret promptfoo hid (`[REDACTED]`), or the judge runs the user's own code: a grader that
-  is not a model provider promptfoo calls over HTTP (MODEL_PROVIDERS, in any case: so never
-  `package:`, `exec:`, `python:`, `file://`, or a URL or `webhook:`, which gets the answers),
-  a grader that runs an agent with tools (AGENT_TYPES: `anthropic:claude-agent-sdk`,
-  `openai:codex-sdk`, `openai:agents:...`),
-  a rubric or rule that starts with `package:`, `file://` or another code prefix, a
-  `transform` or `contextTransform` on the assertion, or a `transform...` option on the test
-  or in the grader's settings (JavaScript promptfoo runs).
-
-A version from the results file is used only when it reads as one (`1.2.3`, `1.2.3-beta.1`):
-it goes into `npx promptfoo@<version>`, so anything else (an npm alias, a git URL, shell
-characters) is said to be unreadable and never downloaded.
-
-Answers are left out, and listed, when they are empty (promptfoo would call the provider
-instead), or when a prompt-using judge type (factuality, closedqa, g-eval, answer-relevance,
-context-*) would see template text (`{{`, `{%`, `{#`) that promptfoo fills in again.
-
-`run` writes two temporary files next to the user's promptfoo config (so relative `file://` and
-`exec:` paths work as in the original run): a config whose prompt is each answer's saved prompt
-and whose provider is promptfoo's echo, and a tests file (kept separate, so promptfoo does not
-fill `{{ env.X }}` into saved answers) with each labeled answer as a fixed answer
-(`providerOutput`), its saved vars and only its model-graded assertions and grader, copied
-unchanged. promptfoo then runs with `--no-cache --no-write --no-share` and its telemetry,
-update check, sharing and logs off; `--grader` is never passed. The `env:` block of the user's
-config (where a key may be set) goes into promptfoo's environment, never into a file. Both files are removed
-afterwards, also after an error or Ctrl-C. Exit codes 0 and 100 (some test failed) both mean
-finished. An llm-rubric answer whose new grading prompt is not byte for byte the saved one is
-not counted.
+`run` writes a temporary config and tests file next to the user's config, each answer as a
+fixed `providerOutput` with its saved vars and only its model-graded assertions. promptfoo runs
+with no cache, no writes, no sharing and telemetry off; the config's `env:` block goes into
+promptfoo's environment, never into a file. Both files are removed afterwards, also on Ctrl-C.
 """
 
 from __future__ import annotations

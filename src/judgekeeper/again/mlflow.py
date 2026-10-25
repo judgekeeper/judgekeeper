@@ -1,29 +1,15 @@
-"""The plan for asking an MLflow judge again.
+"""The plan for asking an MLflow LLM-as-a-judge again.
 
 A worker (`workers/mlflow_worker.py`) gets the user's judge back in the user's own Python and
-calls it directly, `judge(inputs=..., outputs=..., expectations=...)`, never
-`mlflow.genai.evaluate()`, which would add a run and assessments to the user's store. The
-worker runs with MLflow's telemetry off.
+calls it directly, never `mlflow.genai.evaluate()`, which would add a run and assessments to
+the user's store. The worker runs with MLflow's telemetry off and opens the store read-only.
 
-- Exactly your judge: a registered judge with its version saved in the assessment; a built-in
-  judge (its model is in the assessment's `source_id`); `Guidelines` with one guideline. Each
-  only with the MLflow version the user ran with, which the store does not record, so it is
-  asked at a terminal; otherwise a close copy.
-- Close copy: a registered judge with no version saved (the latest version is used); an
-  unregistered `make_judge` (MLflow 3.14 or later), whose output type and temperature are not
-  saved.
-- Can't: a custom `@scorer`, `make_judge` before 3.14, `Guidelines` with several guidelines,
-  and Databricks judges ("Run judgekeeper inside your Databricks workspace").
-
-A judge that reads the whole trace (`{{ trace }}`) makes up to 30 calls per answer. MLflow's
-Python API loads no `.env`: the key must be in the shell.
-
-In run mode (`run`, after the yes) the worker gets the judge back (`get_scorer` for a
-registered judge, the built-in class, `Guidelines`, or `make_judge` with the saved
-instructions) and, once per time asked, calls it on each labeled answer's saved inputs and
-outputs, with the expectations saved on its trace (read-only); a judge that reads the whole
-trace is given the trace. Each answer's trace comes from the store the check was made from,
-opened read-only; an answer whose trace is no longer there is left out.
+It is exactly your judge only with the MLflow version the user ran with, which the store does
+not record, so it is asked at a terminal; otherwise a close copy. A registered judge with no
+version saved, or an unregistered `make_judge`, is a close copy too. A custom `@scorer` and
+Databricks judges can't be asked again. A judge that reads the whole trace (`{{ trace }}`)
+makes up to 30 calls per answer, and an answer whose trace is no longer in the store is left
+out. MLflow's Python API loads no `.env`: the key must be in the shell.
 """
 
 from __future__ import annotations

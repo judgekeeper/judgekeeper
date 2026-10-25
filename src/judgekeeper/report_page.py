@@ -1,27 +1,16 @@
 """The result page: what the marking page shows at /result, and `.judgekeeper/report.html`.
 
 One self-contained page (look.py: nothing loaded from anywhere else); every string in it is
-escaped. Its one script ("Show all" and Copy) is fixed text: the page's
-Content-Security-Policy lets exactly that run (by its hash) and nothing else, both when it is
-served and in the saved copy, which opens with no server.
+escaped. Its one script ("Show all" and Copy) is fixed text: the page's Content-Security-Policy
+lets exactly that run (by its hash) and nothing else, both when served and in the saved copy.
 
-Served by the marking page (`back` given), each disagreement also asks why the person marked
-it so (reasons.py): buttons to tap, the parts of their rule, their own buttons, an "Other…"
-box and "Mark this part" for words in the answer. A second fixed script (REASONS_SCRIPT) saves
-each change with POST /label, and only that page may connect back (LIVE_CSP). It has no button
-to change a mark. report.html shows the reasons read-only: it has no box, since it can't save.
+Served by the marking page (`back` given), each disagreement also asks why the person marked it
+so (reasons.py), and a second fixed script (REASONS_SCRIPT) saves each change with POST /label;
+only that page may connect back (LIVE_CSP). report.html shows the reasons read-only.
 
-One column, top to bottom: the verdict, the counts, the disagreements (the marks the person
-can see), how many more are kept aside (the hidden marks: fix.py keeps those to test a new
-rule fairly), More details (the estimates), and Fix it. Which of these show depends on the
-result's level (targets.level):
-
-| level                 | headline                                   | shown                                |
-|-----------------------|--------------------------------------------|--------------------------------------|
-| gate                  | Your LLM-as-a-judge is good enough to use. | all but Fix it                       |
-| not_gate              | Your LLM-as-a-judge needs work.            | all                                  |
-| check                 | Too early to tell.                         | all but Fix it (it has real numbers) |
-| too_early, no result  | Too early to tell.                         | the counts only                      |
+The marks kept aside are counted, never shown: fix.py keeps them to test a new rule fairly.
+Which parts show depends on the result's level (targets.level): Fix it only when the
+LLM-as-a-judge needs work, and only the counts before there is a result (too_early).
 """
 
 from __future__ import annotations

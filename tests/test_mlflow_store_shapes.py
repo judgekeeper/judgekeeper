@@ -1,6 +1,7 @@
 """Real MLflow stores shaped like those of public projects: a store whose traces point at an
-artifact server, code scorers only, an LLM-as-a-judge whose calls all failed, the store's own date, and the notes the reference promises. Every store is built here by
-MLflow itself (no model call); the tests skip when mlflow is not installed.
+artifact server, code scorers only, an LLM-as-a-judge whose calls all failed, the store's own
+date, and the notes the reference promises. Every store is built here by MLflow itself (no model
+call); the tests skip when mlflow is not installed.
 """
 
 from __future__ import annotations

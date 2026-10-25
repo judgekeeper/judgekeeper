@@ -3,25 +3,14 @@
     python scripts/make_site_shots.py                      # writes website/assets/shots/
     python scripts/make_site_shots.py --chrome PATH        # a Chrome or Chromium to use
 
-It makes a sample project in a temporary folder: a made-up support bot ("support-bot") whose
-judge, "Is polite and correct." with the model name openai:gpt-4.1-mini, decided on 40
-answers. The judge's verdicts are saved with judgekeeper.record(), so the pages know the
-judge's rule. No judge is called, no API key is read, and nothing costs money.
+It makes a sample project in a temporary folder whose LLM-as-a-judge decided on 40 answers,
+saved with judgekeeper.record(): no judge is called and no API key is read. Then it runs
+`judgekeeper --wait` there at a pseudo-terminal, as a person does, so the link is not one
+printed for a program and the result page has no note about it. It marks the answers through
+the page's own HTTP calls (POST /label) and takes label.webp, result.webp and
+docs/assets/readme-label.png with headless Chrome over its DevTools protocol.
 
-Then it runs `judgekeeper --wait` in that folder, the way a person does: at a terminal (a
-pseudo-terminal on macOS and Linux), on judgekeeper's own port. So the link is not one printed
-for a program, and the result page has no note about it. It marks the answers through the same
-HTTP calls the page makes (POST /label). The judge passes 10 answers the person fails and fails
-3 the person passes, so the result reads "Your LLM-as-a-judge needs work." with its disagreements.
-
-Headless Chrome, driven over its DevTools protocol, takes each picture at 1440 x 900, twice the pixels, as WebP:
-
-- label.webp: the labeling page part of the way through, the dots at the top showing the marks;
-- result.webp: the result page once every answer is marked;
-- docs/assets/readme-label.png: the labeling page again, 1600 x 1000 PNG, for the README.
-
-Each picture must be under 250 KB; the WebP quality goes down until it is. Chrome uses port
-8803, and the script stops judgekeeper and Chrome and deletes the folder when it is done.
+Each picture must be under 250 KB; the WebP quality goes down until it is.
 Standard library only, plus judgekeeper itself.
 """
 

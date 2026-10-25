@@ -1,21 +1,16 @@
 """Batches: new eval answers join the marking.
 
 The first pool is batch 1. When `judgekeeper` or `judgekeeper mark` finds newest results of the
-same judge that hold graded answers not in the pool (by their exact question and answer text),
-those answers become the next batch (`add`): pool.jsonl, start.json's queue and
-pool-judge.jsonl get them, each pool line and queue entry with its `batch` (a line with none is
-batch 1), and the marking page offers them first, half the judge passed and half it failed,
-then any older batch's unmarked answers. A batch never removes or replaces an answer: one whose
-text changed is a new answer. When the judge changed, that is `judgekeeper check`'s, and no
+same judge holding graded answers not in the pool (by exact question and answer text), those
+answers become the next batch (`add`). A batch never removes or replaces an answer: one whose
+text changed is a new answer. When the judge changed, that is for `judgekeeper check`, and no
 batch is added.
 
-The numbers are stratified by batch (`strata`): each answer's stratum is (its batch, the group
-it was picked from: the judge's grade then), and each marked answer weighs N_stratum /
-n_stratum (weighted.stratified, weighted.general_strata). The first batch always counts; a
-later one counts toward the result only when each of its non-empty strata has MIN_MARKS marks
-or every answer in it marked (`counting`). A batch that doesn't count yet is left out, and the
-result says so in one line (`line`); report.html and history.jsonl keep which batches counted
-(`about`). With one batch, every number is the one judgekeeper gave before batches.
+The numbers are stratified by batch (`strata`): a stratum is (batch, the judge's grade it was
+picked from), and each marked answer weighs N_stratum / n_stratum. The first batch always
+counts; a later one counts only once each of its non-empty strata has MIN_MARKS marks or is
+fully marked (`counting`). Until then it is left out, and the result says so in one line
+(`line`). With one batch, every number is the same as with no batches.
 """
 
 from __future__ import annotations

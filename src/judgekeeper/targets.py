@@ -1,49 +1,17 @@
-"""How many labels a check needs: one set of targets for every command.
+"""How many marks a check needs, and the verdicts on the numbers: one set for every command.
 
-`start` uses these: its result and the line under the labeling page's meters. The two kinds
-of label are the answers marked Pass and Fail.
+A first result needs ROUGH marks of each kind; a result is ready when the TPR and TNR ranges
+are each no wider than MAX_WIDTH. The words for a number follow its range's width
+(width_word), and the verdict follows the ranges, never a number alone (level).
 
-- A first result: at least ROUGH of each kind (a count rule).
-- A result that is ready: both the TPR range and the TNR range no wider than MAX_WIDTH (from
-  the low end to the high end), whatever the counts. The TPR range is about the answers marked
-  Pass, the TNR range about those marked Fail.
+`paired_verdict` compares the old and new LLM-as-a-judge on the same marks with Tango's score
+range for a paired difference (90%), which works with zero cells too; the worst drop the marks
+could hide is always said. `smallest_drop` is worked out exactly, with no random numbers.
+`fix_verdict` tests a new rule on the hidden marks: the exact sign test, then Tango's test for
+"safe to try"; each extra rule on the same marks divides the levels, so trying rule after
+rule does not turn a coincidence into "better".
 
-The words for a number follow the width of its range (width_word): wider than TOO_WIDE, too
-early to give a number; down to ROUGH_WIDTH, rough; SHARP_WIDTH or less, sharp. The verdict
-follows the ranges, never a number alone (level): each side is "yes" when the low end of its
-range reaches RATE_GATE, "no" when the high end stays below it, else "can't tell".
-
-A re-check (`paired_verdict`) compares the old and the new judge on the same marks, one group
-at a time (the answers the person passed, and failed): of n marks, now_wrong turned wrong (the
-old judge was right, the new one is not) and now_right turned right. The change is
-(now_right - now_wrong) / n, and its range is Tango's score range for a paired difference
-(Tango 1998), 90% (5% each side), which works with zero cells too. "Worse" when the whole
-range is below 0; "no drop bigger than NO_DROP_MARGIN" when its low end is above minus that
-margin; else "not sure", which counts as worse (exit 1) only when the drop seen is bigger than
-the margin. The low end is always said: the worst drop the marks could hide.
-
-The smallest drop a set of marks can see (`smallest_drop`): the smallest fall in how often the
-judge is right, in steps of 5 points, that a re-check of these marks calls "Worse" at least 80
-times in 100. Worked out exactly, with no random numbers, for each kind of mark with how often
-this judge is right on it (TPR on the answers marked Pass, TNR on those marked Fail): with the
-changed judge a right answer turns wrong with the chance that makes the net fall that size,
-and a wrong one turns right 3% of the time. The larger of the two is said: a drop both kinds of
-mark can see.
-
-`fix_verdict` is the verdict on a new rule tested on the hidden marks (`judgekeeper fix`):
-fixed (the old rule was wrong, the new one right) against broke (the other way round), out of
-n hidden marks. Better or worse: the exact two-sided sign test at 5%. Else safe to try: Tango's
-score test for paired proportions, one-sided 2.5%, rules out the new rule being more than 10
-points worse. Else can't tell yet, leaning better, the same or leaning worse. Each extra test
-on the same hidden marks (`test` k) uses the levels divided by k, so trying rule after rule
-does not turn a coincidence into "better". `top_up` is how many more marks most often settle a
-"can't tell yet" (7 with about 10 hidden, 9 with about 15).
-
-Why 0.30: about what 25 + 25 gives when the judge agrees with the person about 85% of the
-time and passes half the answers; when the judge passes most answers, its TNR range stays wide
-for longer, and the result is not called ready until it is really that narrow
-(docs/examples/coverage/coverage.md). The width cut-offs are a judgement, kept as names so they
-can change after real use.
+The width cut-offs are a judgement, kept as names so they can change after real use.
 """
 
 from __future__ import annotations

@@ -1,27 +1,16 @@
-"""`judgekeeper mark`: for marking more. It goes through `judgekeeper`'s state table
-(front.py) and opens the page in every row but two:
+"""`judgekeeper mark`: open the marking page to mark more.
 
-| What is there                                  | What mark does                           | Exit |
-|------------------------------------------------|------------------------------------------|------|
-| something must be asked (several tools,        | the same finding as `judgekeeper`        | 3    |
-| judges, a pass mark, an own format...)         | (front.py): a question and its Next:     |      |
-| marks for another judge (another metric or     | says so and asks "Start over with these  | 3    |
-| tool), or labels.csv from 0.2                  | results?" (the question list, then       |      |
-|                                                | --yes); yes moves the old marks to       |      |
-|                                                | previous-<date>/ and goes on             |      |
-| anything else                                  | prepares the pool if it is not there,    | 0    |
-|                                                | opens a new page (page.py) and prints    |      |
-|                                                | the count so far                         |      |
-| the page could not start in the background     | says so in one line                      | 3    |
-| every answer marked, under 15 of one kind      | says so as `judgekeeper` does; no page   | 3    |
+It goes through `judgekeeper`'s state table (front.py). When something must be asked (several
+tools or judges, a pass mark, an own format), it asks the same question, exit 3. When the
+marks are for another LLM-as-a-judge, it asks "Start over with these results?"; a yes moves
+the old marks to previous-<date>/ and goes on. Otherwise it prepares the pool if needed, opens
+the page and prints the count so far (exit 0), unless every answer is marked with under 15 of
+one kind (exit 3, no page).
 
-The result is `judgekeeper`'s: its Next: line says to run `judgekeeper` when the person is
-done. `--wait` serves the page in this terminal instead, `--stop` closes it, `--new` starts
-over (asked first). Marks made by judgekeeper 0.2 (labels.csv) are never used: they have no
-stamps.
-
-Like `judgekeeper`, the output holds counts, names and paths, never an answer's or an input's
-text, and ends with exactly one `Next:` line.
+`--wait` serves the page in this terminal, `--stop` closes it, `--new` starts over (asked
+first). Marks from judgekeeper 0.2 (labels.csv) are never used: they have no stamps. The
+output holds counts, names and paths, never an answer's or an input's text, and ends with
+exactly one `Next:` line.
 """
 
 from __future__ import annotations

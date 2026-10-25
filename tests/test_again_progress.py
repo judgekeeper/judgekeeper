@@ -1,7 +1,7 @@
-"""While the LLM-as-a-judge is asked, judgekeeper shows it is working: "12 of 72 asked" as answers come
-back (workers and your own command), "Still asking your LLM-as-a-judge: ... so far." when they can't be
-counted (promptfoo writes its results at the end), and once, for a model on your computer,
-that it can take minutes."""
+"""While the LLM-as-a-judge is asked, judgekeeper shows it is working: "12 of 72 asked" as answers
+come back (workers and your own command), "Still asking your LLM-as-a-judge: ... so far." when
+they can't be counted (promptfoo writes its results at the end), and once, for a model on your
+computer, that it can take minutes."""
 
 from __future__ import annotations
 

@@ -2,8 +2,8 @@
 
 - With one batch, every number is the one judgekeeper gave before batches, to the last digit
   (fixtures/batches/one-batch.json, saved from judgekeeper before batches).
-- A second batch is added when the newest results hold new graded answers and the LLM-as-a-judge is the
-  same; never when the LLM-as-a-judge changed.
+- A second batch is added when the newest results hold new graded answers and the LLM-as-a-judge
+  is the same; never when the LLM-as-a-judge changed.
 - The marking page offers the newest batch first, half passed and half failed.
 - The numbers are stratified by (batch, the LLM-as-a-judge's grade): a hand-worked example.
 - A batch with too few marks is left out of the result and named, in the terminal, on

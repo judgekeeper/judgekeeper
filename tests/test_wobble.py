@@ -3,8 +3,9 @@
 A judge asked twice about the same answer does not always give the same grade. The share of
 answers whose two grades differ (its wobble) is measured when a paid re-check asks twice. Each
 re-asked grade can then have turned round by itself, so "every answer agreed" is no longer
-exact: the range for the new LLM-as-a-judge's numbers is widened for it, most where a group of the marks
-holds few answers. A judge that gave the same grade both times keeps its ranges as they were.
+exact: the range for the new LLM-as-a-judge's numbers is widened for it, most where a group of
+the marks holds few answers. A judge that gave the same grade both times keeps its ranges as
+they were.
 """
 
 from __future__ import annotations

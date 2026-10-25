@@ -1,8 +1,8 @@
 """`judgekeeper` on results saved in a project's own format (own_map.py).
 
-It finds a file that looks like an LLM-as-a-judge's results, shows how it reads it (paths only, never a
-value), asks only what the file cannot tell, and keeps the map in judgekeeper.toml after one
-yes. Nothing is written to the project before that yes (only judgekeeper's own folder), and
+It finds a file that looks like an LLM-as-a-judge's results, shows how it reads it (paths only,
+never a value), asks only what the file cannot tell, and keeps the map in judgekeeper.toml after
+one yes. Nothing is written to the project before that yes (only judgekeeper's own folder), and
 the user's code is never edited. `start` then reads judgekeeper.toml first.
 """
 

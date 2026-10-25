@@ -2,20 +2,14 @@
 
 DeepEval, Inspect AI and MLflow each have a worker script (`workers/`) that judgekeeper runs
 with the user's own Python, in the project folder, after the person said yes. In "run" mode the
-worker grades every asked answer `times` times and writes one line per answer per time:
-
-    {"id": ..., "time": 0, "ok": true, ...what the judge said...}
-    {"id": ..., "time": 0, "ok": false, "error": "RateLimitError: ...", "call_failed": true}
-
-and a last line `{"ok": true, "done": true, "version": ...}` when it got to the end. Its output
-file is kept in `.judgekeeper/again/<stamp>/<tool>.jsonl`, scrubbed of any key that leaked into
-a reason, each answer's error cut to its type (`error_kind`: its text can quote the grading
-prompt). The run has no time limit; Ctrl-C stops it.
+worker grades every asked answer `times` times, writes one line per answer per time and a last
+line `{"ok": true, "done": true, ...}` when it got to the end. The output is kept in
+`.judgekeeper/again/<stamp>/<tool>.jsonl`, scrubbed of any key that leaked into a reason, each
+error cut to its type (`error_kind`): its text can quote the grading prompt.
 
 `count` then keeps an answer only when every time asked came back clean with a clear verdict;
-the others are listed with the reason (`fresh.NOT_COUNTED`), and the errors by type and count
-("RuntimeError on 13 answers"), never their text. When nothing at all could be counted, the
-tool failed: `AgainError`.
+the others are listed with the reason (`fresh.NOT_COUNTED`), and the errors by type and count,
+never their text. When nothing could be counted, the tool failed: `AgainError`.
 """
 
 from __future__ import annotations

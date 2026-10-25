@@ -3,24 +3,14 @@
 Field names follow OpenInference annotations, so other tools' exports map onto it by renaming:
 `target_id, name, annotator_kind ("LLM" | "HUMAN" | "CODE"), label, score, explanation, run,
 input, output, evaluator {provider, model, prompt, temperature, version, rule}, created_at`.
-`evaluator` also accepts `prompt_hash`, `snapshot` and `endpoint`.
+Version 2 (`schema_version`; none means 1) adds `metadata`, `rule` and three fields for agents
+(`trajectory`, `outcome`, `app_version`), kept and passed on but not shown on any page yet.
 
-Version 2 of the format (`schema_version`; a record without one is version 1) adds:
-- `metadata`, an open object for anything else (a criterion name, a run id, an A/B version);
-- `rule` inside `evaluator`: the judge's rule text, hashed into the prompt hash when the
-  record gives neither a prompt nor a hash;
-- three fields ready for agents, stored and passed through to the anchor set but not shown on
-  any page yet: `trajectory` (the agent's steps as OpenAI-style messages: role, content,
-  tool_calls [id, name, arguments], tool_call_id), `outcome` (an automatic check of the
-  result: passed, score, source, detail) and `app_version` (the app or agent that answered).
-Fields judgekeeper does not know are kept, at the top level and inside `evaluator`
-(`ScoreRecord.to_dict` gives them back). A file of a newer version is read as far as this
-version understands it, with one warning. `problems` holds the rules;
-schemas/records.schema.json says the same for other tools, and a test keeps the two in step.
-A record's id, when it has to be derived, covers its trajectory too, so two agent runs that
-end in the same answer stay two answers.
-
-Nothing here knows about any framework; see judgekeeper.readers.
+Fields judgekeeper does not know are kept (`ScoreRecord.to_dict` gives them back), and a file
+of a newer version is read as far as this version understands it, with one warning. `problems`
+holds the rules; schemas/records.schema.json says the same, and a test keeps the two in step.
+A derived record id covers the trajectory too, so two agent runs that end in the same answer
+stay two answers. Nothing here knows about any framework; see judgekeeper.readers.
 """
 
 from __future__ import annotations

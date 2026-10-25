@@ -1,18 +1,13 @@
 """One project folder for every command, and no dead ends in the flow across runs.
 
 - A results file given by path keeps `.judgekeeper/` in the project the command runs from;
-  `judgekeeper`, `mark`, `--stop`, `check` and `fix` find the same marks and page from the
-  project and from a folder inside it. A folder that holds two projects says which one it
-  read and names the other.
-- Every answer marked with too few of one kind: said plainly, the same words in the
-  terminal, `mark`, the Measure screen and on the marking page's end card.
+  every command finds the same marks and page from the project and from a folder inside it.
+- Every answer marked with too few of one kind is said plainly, in the same words everywhere.
 - A table judge whose grades changed in the newest results is re-checked on them (no AI
-  call); marks added after a check are re-checked; after a check the result and `fix`
-  describe the LLM-as-a-judge in the newest results.
-- `fix` for an LLM-as-a-judge it can't ask never asks for a rule.txt; report.html says the same.
-- Read-only `.judgekeeper/`, `--no-browser` again, two runs at once, the same next step in
-  the terminal and the report, the grammar of "finds no results", exit codes, a wrong flag
-  or a flag before the command, and a `--judge-model` remembered.
+  call), and after a check the result and `fix` describe the newest LLM-as-a-judge.
+- `fix` for an LLM-as-a-judge it can't ask never asks for a rule.txt.
+- Edge cases: read-only `.judgekeeper/`, two runs at once, exit codes, wrong flags and a
+  `--judge-model` remembered.
 No test calls an AI API.
 """
 

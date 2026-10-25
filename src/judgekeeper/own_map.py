@@ -1,18 +1,12 @@
-"""Reading judge results saved in a project's own format: the guess, the few questions the file
-cannot answer, and the [start] table judgekeeper.toml keeps once the person says yes.
+"""Reading LLM-as-a-judge results saved in a project's own format: the guess, the few questions
+the file cannot answer, and the [start] table judgekeeper.toml keeps once the person says yes.
 `judgekeeper` (front.py) runs it when it finds no eval tool's results but a file that looks
 like a judge's (own_format.search), or when it is pointed at such a file.
 
-1. List the file's nested paths (paths only: a value may be an answer's text) and show the
-   guess (mapper.py): which part is the input, the answer, the score, and where the pass mark
-   and the judge's model come from.
-2. Ask whether it is right: at a terminal always, without one only when a part was guessed
-   from value types only. After No, at a terminal, the person says which part is wrong and
-   chooses it from the file's paths (or types the pass mark).
-3. Then only what the file cannot tell: whether each of several answers per item (A and B)
-   is its own answer, which judge to check when there are several, the pass mark when the
-   scores are not between 0 and 1 and the file does not state one, and whether to leave out
-   answers with an error or a score made by a rule.
+It lists the file's nested paths (paths only: a value may be an answer's text), shows the guess
+(mapper.py) and asks whether it is right: at a terminal always, without one only when a part
+was guessed from value types alone. Then it asks only what the file cannot tell, such as the
+pass mark when the scores are not between 0 and 1 and the file states none.
 
 Nothing is written here. When the file cannot be mapped, the Next: line asks the coding
 agent to write a small converter to judgekeeper's table instead.
