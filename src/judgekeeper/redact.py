@@ -61,11 +61,11 @@ _LINE = re.compile(r"[^\n]+")
 # characters (category Cf: zero-width ones, the marks, overrides and isolates of
 # bidirectional text, the byte order mark, the tag characters an AI model reads as plain
 # text) and the Default_Ignorable_Code_Point set (variation selectors, the combining grapheme
-# joiner, the Hangul fillers, and the code points kept for more of them). A name holding them
-# could pass for another name. Unicode 16; test_security_refusals checks it against Python's
-# own list.
+# joiner, the Hangul fillers, and the code points kept for more of them), and the braille
+# blank, a symbol that shows as nothing. A name holding them could pass for another name.
+# Unicode 16; test_security_refusals checks it against Python's own list.
 _HIDDEN = ("\u00ad\u034f\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u115f\u1160"
-           "\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164"
+           "\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u2800\u3164"
            "\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufffb\U000110bd\U000110cd\U00013430-\U0001343f"
            "\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0000-\U000e0fff")
 _CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
