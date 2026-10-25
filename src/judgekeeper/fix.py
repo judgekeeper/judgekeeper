@@ -1010,7 +1010,7 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
     the person's yes: ({id: old grade}, {id: new grade}, reasons not counted), or an exit
     code when nothing was asked."""
     from judgekeeper import again
-    from judgekeeper.again.fresh import NOT_COUNTED, AgainError
+    from judgekeeper.again.fresh import AUTH_ERROR, NOT_COUNTED, AgainError, no_answer
     from judgekeeper.check import CAN_WRITE, NOT_ASKED, _can_write, _go_ahead, _Quiet, downloads
 
     ids = set(split.hidden)
@@ -1061,6 +1061,14 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
             talk.say()
             talk.para(f"Asking your LLM-as-a-judge did not finish: {scrub(str(e))}")
             talk.next(f"run `{talk.command()}` again to test your rule.")
+            return EXIT_NEEDS_YOU
+        nothing = no_answer(fresh)
+        if nothing:  # no result to give: the other rule is not asked
+            talk.say()
+            talk.para(nothing)
+            step = ("check the key your LLM-as-a-judge uses, then run" if AUTH_ERROR in nothing
+                    else "run")
+            talk.next(f"{step} `{talk.command()}` again to test your rule.")
             return EXIT_NEEDS_YOU
         write_files(ws, plan, fresh, prefix="fix")  # its grades, each with the fingerprint
         grades.append({i: v[0] for i, v in fresh.verdicts.items()})

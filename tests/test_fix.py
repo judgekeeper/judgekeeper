@@ -517,6 +517,27 @@ def test_a_rule_that_cant_be_tested_is_refused(here, capsys, judge):
         "Next: change the rule in .judgekeeper/fix/rule.txt, then run `judgekeeper fix` again.")
 
 
+AUTH_ERROR = ('API error: 401 Unauthorized {"error":{"message":"Incorrect API key provided",'
+              '"type":"invalid_request_error","code":"invalid_api_key"}}')
+
+
+def test_when_every_call_fails_fix_says_no_answer_was_graded(here, capsys, judge):
+    from tests.test_again_run import FakePromptfoo
+
+    ws = project(here)
+    run(capsys)
+    _write_rule(ws)
+    fake = judge["fake"] = FakePromptfoo(Workspace(here), version="0.124.1")
+    fake.grader_errors, fake.error_text = set(_split(ws)["hidden"]), AUTH_ERROR
+    code, out = run(capsys, "--yes")
+    flat = " ".join(out.split())
+    assert code == 3
+    assert "No answer was graded: every call failed (authentication error)." in flat
+    assert "Result:" not in out and "More marks" not in out and "agreed with you" not in out
+    assert judge["evals"] == 1  # the new rule is not asked once the old one got no answer
+    assert not (ws.dir / "rules").exists()
+
+
 # One top-up after "can't tell yet", and at most 3 rules on one set of hidden marks ----------
 
 def _mark_more(ws, k: int, half: int) -> list[str]:

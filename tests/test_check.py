@@ -406,6 +406,20 @@ def test_at_a_terminal_no_is_the_default(here, capsys, judge, terminal, said):
     assert _evals(judge) == 0
 
 
+def test_when_every_call_fails_check_says_no_answer_was_graded(here, capsys, judge):
+    from tests.test_fix import AUTH_ERROR
+
+    ws = _marked(here)
+    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
+    fake = judge["fake"] = FakePromptfoo(Workspace(here), version="0.124.1")
+    fake.grader_errors, fake.error_text = {q["id"] for q in ws.data()["queue"]}, AUTH_ERROR
+    code, out = run(capsys, "--yes")
+    assert code == 3
+    assert "No answer was graded: every call failed (authentication error)." in _flat(out)
+    assert "not counted" not in out and TABLE_HEAD not in out
+    assert _history(ws) == []
+
+
 def test_a_free_recheck_asks_nothing(here, capsys, no_calls, terminal):
     _marked(here)
     _results(here, LENIENT, model=HAIKU)
