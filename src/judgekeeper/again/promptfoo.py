@@ -4,8 +4,10 @@ The plan rebuilds the LLM-as-a-judge from the saved results. Exactly your LLM-as
 the grader is named and the same promptfoo version runs (installed, or fetched with npx after
 a yes); a close copy otherwise. It can't when the grader was set with `--grader`, holds a
 hidden secret, or runs the user's own code: anything but a model provider promptfoo calls over
-HTTP, an agent with tools, a rule, var or transform that loads a file or package. A version
-goes into `npx promptfoo@<version>` only when it reads as one.
+HTTP, an agent with tools, a rule, var, saved prompt or transform that loads a file or package,
+template code in the rule, rubric prompt or grader, or a grader setting outside a list known to
+be safe. An answer whose saved prompt or vars hold template code is left out. A version goes
+into `npx promptfoo@<version>` only when it reads as one.
 
 `run` writes a temporary config and tests file next to the user's config, each answer as a
 fixed `providerOutput` with its saved vars and only its model-graded assertions. promptfoo runs
@@ -52,6 +54,13 @@ PROMPT_TYPES = {"factuality", "model-graded-factuality", "model-graded-closedqa"
 TEMPLATE_MARKS = ("{{", "{%", "{#")
 # A rule or rubric that starts with one of these is code or a file promptfoo loads
 CODE_PREFIXES = ("exec:", "python:", "file://", "golang:", "ruby:", "javascript:", "package:")
+PROMPT_VAR = "judgekeeper_prompt"  # the var each test's saved prompt goes in
+# promptfoo fills templates in (nunjucks, which can call anything) in the saved prompt, the
+# vars, a file a var loads, the rule, the rubric prompt and the grader's settings. Template
+# code is a tag ({% %}), a comment ({# #}) or a {{ }} holding more than a plain or dotted
+# name: {{ output }} and {{ vars.topic }} only fill in a value. {{ env.NAME }} counts as code:
+# it reads promptfoo's environment, where the keys are.
+_FILL = re.compile(r"\{\{-?\s*(?!env\b)[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\s*-?\}\}")
 # The providers in promptfoo's list (0.120 to 0.124) that call a model over HTTP: the only
 # graders asked again. Any other (package:, exec:, a file, a URL, echo, an unknown name) is
 # the person's own code, or sends the answers elsewhere.
@@ -74,6 +83,25 @@ ADDRESS_KEY = re.compile(r"url|host|base|endpoint|proxy", re.IGNORECASE)
 ADDRESS_VALUES = ("http://", "https://", "ws://", "wss://", "file://")
 # Grader settings that run the user's code or read another server's reply
 CODE_KEYS = ("functionToolCallbacks", "responseParser")
+# The only settings a grader may have: promptfoo 0.124's model providers read each of them as
+# a model setting that never loads a file, starts a program or names another server. A
+# number, or a word of the shape its key takes (a region goes into the server's address, so
+# it is only letters, digits and dashes). Any other setting (mcp, tools, headers, a new one)
+# is not asked: the person can ask for one to be added.
+GRADER_KEYS = ("id", "label", "config")
+GRADER_TYPES = ("text", "embedding", "classification", "moderation")  # a grader per kind
+NUMBER_SETTINGS = frozenset({
+    "temperature", "max_tokens", "maxTokens", "max_completion_tokens", "top_p", "topP",
+    "top_k", "topK", "seed", "presence_penalty", "frequency_penalty"})
+WORD_SETTINGS = {
+    "reasoning_effort": re.compile(r"minimal|low|medium|high"),
+    "region": re.compile(r"[a-z]{2,}(-[a-z0-9]+)+"),
+    "location": re.compile(r"[a-z]{2,}(-[a-z0-9]+)+"),
+    "projectId": re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]"),
+    "apiVersion": re.compile(r"\d{4}-\d{2}-\d{2}(-preview)?|v\d+(alpha|beta)?\d*"),
+    "organization": re.compile(r"org-[A-Za-z0-9]{1,64}"),
+    "apiKeyEnvar": re.compile(r"[A-Za-z_][A-Za-z0-9_]*"),  # which one: _other_key
+}
 VERSION = re.compile(r"\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?")
 CONFIG = ".judgekeeper-regrade.promptfoo.json"
 TESTS = ".judgekeeper-regrade.tests.json"
@@ -89,6 +117,10 @@ EXACT_WHY = "promptfoo re-grades your saved answers with your own settings"
 NEW_WHY = "promptfoo grades your marked answers with your new LLM-as-a-judge's own settings"
 NO_TEST = ("no test in your newest results matches it",
            "no test in your newest results matches them")
+TEMPLATED = (("its saved prompt or input holds template text ({{ ... }}) that promptfoo would "
+              "fill in again"),
+             ("their saved prompts or inputs hold template text ({{ ... }}) that promptfoo "
+              "would fill in again"))
 
 
 def calls_for(assertion: dict) -> int:
@@ -116,6 +148,43 @@ def _code(values) -> bool:
                                      or v.strip().lower().startswith(CODE_PREFIXES)):
             return True
     return False
+
+
+def template_code(text) -> bool:
+    """Whether `text` holds template code promptfoo would run (_FILL)."""
+    return isinstance(text, str) and (
+        "{%" in text or "{#" in text or "{{" in _FILL.sub("", text))
+
+
+def _strings(value):
+    """Every string in `value`, inside lists and objects too."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for v in value.values():
+            yield from _strings(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _strings(v)
+
+
+def loads_code(test: dict) -> str | None:
+    """What in a test judgekeeper hands to promptfoo would make promptfoo run code, or None:
+    a value that loads a file or a package, or template code. Every string in it is looked
+    at: the saved prompt, the answer, the vars, the assertions and the grader. promptfoo never
+    fills in the answer, so only it may hold template code."""
+    for name, value in (test.get("vars") or {}).items():
+        if _code(_strings(value)):
+            return ("a saved prompt that loads a file or script" if name == PROMPT_VAR
+                    else "a var that loads a file or script")
+    if _code(_strings(test.get("providerOutput"))):
+        return "a saved answer that loads a file or script"
+    if _code(_strings({k: v for k, v in test.items() if k not in ("vars", "providerOutput")})):
+        return "a rule or grader setting that loads a file or script"
+    if any(template_code(v) for v in _strings({k: v for k, v in test.items()
+                                                if k != "providerOutput"})):
+        return "template code, which promptfoo would run"
+    return None
 
 
 def _model(provider_id: str) -> bool:
@@ -239,6 +308,42 @@ def _grader_code(grader) -> str | None:
         found = _elsewhere({k: v for k, v in g.items() if k != "id"}) or _other_key(g)
         if found:
             return f"{found} in your grader's settings"
+    return None
+
+
+def _unknown_setting(grader) -> str | None:
+    """Why a grader holds a setting judgekeeper does not know is safe (GRADER_KEYS,
+    NUMBER_SETTINGS, WORD_SETTINGS), or None."""
+    if grader is None:
+        return None
+    if isinstance(grader, str):
+        return ("its setting `id` holds template code, which promptfoo would run"
+                if template_code(grader) else None)
+    if not isinstance(grader, dict):
+        return "its grader is not a setting judgekeeper knows is safe"
+    if "id" not in grader:
+        for k, v in grader.items():
+            found = (_unknown_setting(v) if k in GRADER_TYPES
+                     else f"its setting `{k}` is not one judgekeeper knows is safe")
+            if found:
+                return found
+        return None
+    for k, v in grader.items():
+        if k not in GRADER_KEYS or (k == "config" and v is not None and not isinstance(v, dict)):
+            return f"its setting `{k}` is not one judgekeeper knows is safe"
+        if k != "config" and not isinstance(v, str):
+            return f"its setting `{k}` has a value judgekeeper doesn't know is safe"
+        if template_code(v):
+            return f"its setting `{k}` holds template code, which promptfoo would run"
+    for k, v in (grader.get("config") or {}).items():
+        if k in NUMBER_SETTINGS:
+            known = isinstance(v, int | float) and not isinstance(v, bool)
+        elif k in WORD_SETTINGS:
+            known = isinstance(v, str) and bool(WORD_SETTINGS[k].fullmatch(v))
+        else:
+            return f"its setting `{k}` is not one judgekeeper knows is safe"
+        if not known:
+            return f"its setting `{k}` has a value judgekeeper doesn't know is safe"
     return None
 
 
@@ -370,7 +475,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         texts = [(row.get("prompt") or {}).get("raw") or ""]
         texts += [v for v in (row.get("vars") or {}).values() if isinstance(v, str)]
         if any(judge_type(c["assertion"].get("type")) in PROMPT_TYPES for c in comps) and any(
-                m in t for t in texts for m in TEMPLATE_MARKS):
+                m in t for t in texts for m in TEMPLATE_MARKS) or any(
+                template_code(t) for t in _strings([texts[0], row.get("vars")])):
             templated += 1
             continue
         for c in comps:
@@ -402,6 +508,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         if own:
             return cant("promptfoo", judge, f"your LLM-as-a-judge runs your own code ({own})",
                         short="your LLM-as-a-judge is your own code")
+        unknown = _unknown_setting(g)
+        if unknown:
+            return cant("promptfoo", judge, unknown,
+                        short="your grader has a setting judgekeeper doesn't know is safe")
     for _, _, comps, test_opts, default_test in judged:
         for c in comps:
             a = c["assertion"]
@@ -415,11 +525,31 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                             "your LLM-as-a-judge runs your own code (a rule that loads a file or "
                             "package, or a transform)",
                             short="your LLM-as-a-judge is your own code")
+            for where, value in (("rule", a.get("value")),
+                                 ("rubricPrompt", [a.get("rubricPrompt"),
+                                                   test_opts.get("rubricPrompt"),
+                                                   _options(default_test).get("rubricPrompt")])):
+                if any(template_code(v) for v in _strings(value)):
+                    return cant("promptfoo", judge,
+                                f"its {where} holds template code, which promptfoo would run",
+                                short="your LLM-as-a-judge holds template code")
     for _, row, _, _, _ in judged:
-        if _code((row.get("vars") or {}).values()):
+        if _code(_strings(row.get("vars"))):
             return cant("promptfoo", judge,
                         "your LLM-as-a-judge runs your own code (a var that loads a file or "
                         "script)", short="your LLM-as-a-judge is your own code")
+        if _code([(row.get("prompt") or {}).get("raw")]):
+            return cant("promptfoo", judge,
+                        "your LLM-as-a-judge runs your own code (a saved prompt that loads a "
+                        "file or script)", short="your LLM-as-a-judge is your own code")
+    for p in judged:
+        found = loads_code(test_entry(*p))
+        if found:
+            return cant("promptfoo", judge, f"your LLM-as-a-judge runs your own code ({found})",
+                        short="your LLM-as-a-judge is your own code")
+    if not judged and templated:
+        return cant("promptfoo", judge, f"your marked answers: {TEMPLATED[1]}",
+                    short="your saved prompts hold template text")
     if not judged:
         return not_marked("promptfoo", judge)
     types = {judge_type(c["assertion"].get("type")) for j in judged for c in j[2]}
@@ -521,10 +651,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     if empty:
         left.append(left_out_line(empty, "it is empty", "they are empty"))
     if templated:
-        left.append(left_out_line(
-            templated, "its saved prompt or input holds template text ({{ ... }}) that "
-            "promptfoo would fill in again", "their saved prompts or inputs hold template text "
-            "({{ ... }}) that promptfoo would fill in again"))
+        left.append(left_out_line(templated, *TEMPLATED))
     where = config.name if config else "your results file"
     return Plan(tool="promptfoo", judge=judge, status=status, why=why, model=model,
                 provider=provider, key_lines=check.lines, notes=notes,
@@ -569,7 +696,7 @@ def test_entry(answer: dict, row: dict, comps: list, test_opts: dict, default_te
     if rubric and "rubricPrompt" not in options:
         options["rubricPrompt"] = rubric
     variables = dict(row.get("vars") or {})
-    variables["judgekeeper_prompt"] = (row.get("prompt") or {}).get("raw") or ""
+    variables[PROMPT_VAR] = (row.get("prompt") or {}).get("raw") or ""
     return {"description": answer["id"], "vars": variables,
             "providerOutput": (row.get("response") or {}).get("output"), "options": options,
             "assert": [dict(c["assertion"]) for c in comps]}
@@ -596,7 +723,7 @@ def _before(version: str, than: tuple[int, ...]) -> bool:
 
 def regrade_config() -> dict:
     return {"description": "judgekeeper re-check (temporary file)",
-            "prompts": ["{{judgekeeper_prompt}}"], "providers": ["echo"],
+            "prompts": [f"{{{{{PROMPT_VAR}}}}}"], "providers": ["echo"],
             "evaluateOptions": {"cache": False}, "tests": f"file://{TESTS}"}
 
 
@@ -618,6 +745,10 @@ def _rendered(comps) -> list:
 def run(ws, plan: Plan, talk) -> Fresh:
     """Have promptfoo grade the labeled answers again, `plan.times` times each."""
     root, metric = ws.root, plan.job.get("metric") or ws.data()["metric"]
+    tests = [test_entry(*p) for p in plan.payload]
+    found = next((f for f in map(loads_code, tests) if f), None)
+    if found:  # the plan refuses these; this is the last look before promptfoo reads them
+        raise AgainError(f"your LLM-as-a-judge runs your own code ({found})")
     config = _config(root)
     folder = plan.folder or new_folder(ws)
     make_private(folder)
@@ -625,7 +756,6 @@ def run(ws, plan: Plan, talk) -> Fresh:
     rel_out = out.relative_to(root).as_posix()
     argv = [*plan.runner, "eval", "-c", CONFIG, "--repeat", str(plan.times), *FLAGS,
             "-o", rel_out]
-    tests = [test_entry(*p) for p in plan.payload]
     talk.say(f"Writing {CONFIG} and {TESTS} next to "
              f"{config.name if config else 'your results'}; they are removed when promptfoo is "
              "done.")
@@ -685,6 +815,7 @@ def run(ws, plan: Plan, talk) -> Fresh:
         problems = [r.mark.problem for r in records]  # a grader error promptfoo saved as a fail
         if "error" in problems:
             fresh.not_counted[item_id] = "error"
+            fresh.errors += [r.explanation or "" for r in records if r.mark.problem == "error"]
             continue
         if any(problems) or any(r.label not in ("pass", "fail") for r in records):
             fresh.not_counted[item_id] = "no clear verdict"
