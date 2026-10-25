@@ -486,7 +486,7 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     """Ask the judge in the newest results about the marked answers `ids` (`rest`: the ones
     not found free), once the person said yes to the calls it makes. None without a terminal
     and without --yes: the question is said, nothing is asked."""
-    from judgekeeper.again.fresh import NOT_COUNTED, AgainError, write_files
+    from judgekeeper.again.fresh import AUTH_ERROR, NOT_COUNTED, AgainError, no_answer, write_files
 
     out = Asked()
     ws = state.ws
@@ -529,6 +529,13 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     if wrong:  # (b): the calls say another model answered: nothing is kept
         shutil.rmtree(plan.folder, ignore_errors=True)
         out.wrong_model, out.calls = wrong, plan.calls
+        return out
+    nothing = no_answer(fresh)
+    if nothing:  # nothing to compare: no grades are kept
+        out.reasons.append(nothing)
+        out.calls, out.unchecked = plan.calls, len(ids)
+        if AUTH_ERROR in nothing:
+            out.key_step = "check the key your LLM-as-a-judge uses"
         return out
     write_files(ws, plan, fresh, prefix="check", metric=found.metric)
     out.verdicts = {i: v[0] for i, v in fresh.verdicts.items()}  # the first, like one run

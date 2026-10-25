@@ -16,6 +16,7 @@ answers not counted and why, and the fingerprint of the fresh judgments. `finish
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -41,6 +42,11 @@ NOT_COUNTED = {  # key: (one answer, several answers)
     "missing": ("it is missing from the tool's output",
                 "they are missing from the tool's output"),
 }
+FAILED = ("error", "judge call failed")  # the NOT_COUNTED keys of a call that failed
+AUTH_ERROR = "authentication error"
+# A provider's words for a key it refused
+_AUTH = re.compile(r"\b401\b|unauthori[sz]ed|authenticat|invalid[ _-]?api[ _-]?key|"
+                   r"incorrect api key", re.IGNORECASE)
 
 
 @dataclass
@@ -54,11 +60,23 @@ class Fresh:
     source: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
     models: list = field(default_factory=list)  # the model of each call, where the tool says
+    errors: list[str] = field(default_factory=list)  # the error of each call that failed
 
     def models_used(self) -> set[str]:
         """The models the counted calls used: each call's, else the fingerprint's."""
         used = self.models or [self.fingerprint.get("model")]
         return {m for m in used if isinstance(m, str) and m}
+
+
+def no_answer(fresh: Fresh) -> str | None:
+    """What is said when the tool graded no answer, with the kind of error when it is known;
+    None when it graded one."""
+    if fresh.verdicts or not fresh.not_counted:
+        return None
+    if not all(why in FAILED for why in fresh.not_counted.values()):
+        return "No answer was graded."
+    kind = f" ({AUTH_ERROR})" if any(_AUTH.search(e) for e in fresh.errors) else ""
+    return f"No answer was graded: every call failed{kind}."
 
 
 class AgainError(Exception):

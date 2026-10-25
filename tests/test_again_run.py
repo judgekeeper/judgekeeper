@@ -68,14 +68,14 @@ class FakePromptfoo:
     of the saved verdict; `prompt_changed` holds ids whose grading prompt comes back
     different; `errors` ids whose first grade is empty (pass null); `grader_errors` ids whose
     grader call failed, saved as promptfoo saves it (pass false, score 0, the provider's error
-    as the reason, `metadata.graderError`); `extra` is put into every reason (a planted
-    secret)."""
+    as the reason, `metadata.graderError`; `error_text` is that error); `extra` is put into
+    every reason (a planted secret)."""
 
     def __init__(self, ws, version="0.123.1"):
         self.ws, self.version = ws, version
         self.calls, self.files_seen = [], {}
         self.flips, self.prompt_changed, self.errors = set(), set(), set()
-        self.grader_errors = set()
+        self.grader_errors, self.error_text = set(), "API error: 400 Bad Request"
         self.code, self.stderr, self.extra, self.interrupt = None, "", "", False
         saved = json.loads((ws.root / "results.json").read_text(encoding="utf-8"))
         self.saved = {}
@@ -112,7 +112,7 @@ class FakePromptfoo:
                 metadata = {"renderedGradingPrompt": prompt} if prompt else {}
                 comps = [{"assertion": a, "pass": None if error else verdict,
                           "score": None if error else int(verdict),
-                          "reason": ("API error: 400 Bad Request" if failed
+                          "reason": (self.error_text if failed
                                      else f"again {r}{self.extra}"),
                           "metadata": {**metadata, "graderError": True} if failed else metadata}
                          for a in t["assert"]]

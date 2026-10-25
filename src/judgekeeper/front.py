@@ -34,6 +34,7 @@ from judgekeeper import (
     settings,
     start,
     start_again,
+    start_fix_rule,
     start_label,
     targets,
 )
@@ -843,7 +844,7 @@ def _rule_lines(found: start.Found) -> list[str]:
     if len(text) <= RULE_SHOWN:
         return [f'Rule:            "{text}"']
     where = _rule_file(found)
-    where = where and link(Path(found.root) / where, where)
+    where = where and start_fix_rule.file_link(Path(found.root), where)
     return [f'Rule:            "{text[:RULE_SHOWN - 1].rstrip()}…"',
             f"{INDENT}(shortened{f'; full rule in {where}' if where else ''})"]
 

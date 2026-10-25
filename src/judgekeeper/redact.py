@@ -57,20 +57,23 @@ _LINE = re.compile(r"[^\n]+")
 
 
 # C0 controls other than tab and newline, DEL, and the C1 range: what a terminal acts on.
-# And characters that change how text reads without being seen (_HIDDEN): zero-width ones,
-# the marks, overrides and isolates of bidirectional text, and the byte order mark. A name
-# holding them could pass for another name. Also the marks no screen shows (soft hyphen,
-# U+061C, U+180E, U+2060 to U+2064, the Hangul filler) and the tag characters U+E0000 to
-# U+E007F, which an AI model reads as plain text ("ASCII smuggling").
-_INVISIBLE = "\u00ad\u061c\u180e\u2060-\u2064\u3164\U000e0000-\U000e007f"
-_HIDDEN = "\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff" + _INVISIBLE
+# And characters that change how text reads without being seen (_HIDDEN): the Unicode format
+# characters (category Cf: zero-width ones, the marks, overrides and isolates of
+# bidirectional text, the byte order mark, the tag characters an AI model reads as plain
+# text) and the Default_Ignorable_Code_Point set (variation selectors, the combining grapheme
+# joiner, the Hangul fillers, and the code points kept for more of them). A name holding them
+# could pass for another name. Unicode 16; test_security_refusals checks it against Python's
+# own list.
+_HIDDEN = ("\u00ad\u034f\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u115f\u1160"
+           "\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164"
+           "\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufffb\U000110bd\U000110cd\U00013430-\U0001343f"
+           "\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0000-\U000e0fff")
 _CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
 # What can hide inside a credential: _CONTROL but tab and the line breaks
 _SPLITTERS = re.compile(f"[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f{_HIDDEN}]")
 # A page keeps the two joiners (U+200C, U+200D): joined emoji and scripts such as Persian
-# and Hindi need them to read right.
-_UNSEEN = re.compile("[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f\\u200b\\u200e\\u200f"
-                     f"\\u202a-\\u202e\\u2066-\\u2069\\ufeff{_INVISIBLE}]")
+# and Hindi need them to read right. A credential split by one is still found (_SPLITTERS).
+_UNSEEN = re.compile(f"(?![\\u200c\\u200d])[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f{_HIDDEN}]")
 
 
 def printable(text) -> str:

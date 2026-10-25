@@ -241,7 +241,14 @@ def rule_home(root: Path, tool: str, data: dict) -> str:
     where = field(tool, data.get("rule_field"))
     config = (next((n for n in PROMPTFOO_CONFIGS if (Path(root) / n).is_file()), None)
               if tool == "promptfoo" else data.get("task_file") if tool == "inspect" else None)
-    return f"{where} in {link(Path(root) / config, config)}" if config else where
+    return f"{where} in {file_link(root, config)}" if config else where
+
+
+def file_link(root: Path, name: str) -> str:
+    """`name`, a file a project file named, as a link when it is inside the project
+    (safe_path); else the plain name."""
+    inside = safe_path(root, name)
+    return link(Path(root) / inside, name) if inside else name
 
 
 def _needles(rule: str, tool: str) -> list[str]:
@@ -327,4 +334,5 @@ def found_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None:
 
 
 __all__ = ["added_template", "agent_checks", "checks", "echoes_prompt", "fenced", "field",
-           "found_rule", "locate_rule", "placeholders", "rule_home", "rule_text", "safe_path"]
+           "file_link", "found_rule", "locate_rule", "placeholders", "rule_home", "rule_text",
+           "safe_path"]
