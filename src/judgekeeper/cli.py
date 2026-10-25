@@ -1,7 +1,7 @@
 """Command-line entry point.
 
 `judgekeeper` with no command (front.py) does the next step: finds the LLM-as-a-judge, checks
-it for free, opens the marking page, and prints the result once there are enough marks.
+it with no AI call, opens the marking page, and prints the result once there are enough marks.
 `mark` (mark.py) opens the page to mark more; `check` (check.py) re-tests a changed judge on
 the marks (exit 1: it got worse); `fix` (fix.py) tests a new rule on marks it keeps hidden.
 `check` and `fix` ask before any call to the LLM-as-a-judge. Exit codes: 0 success, 2 usage

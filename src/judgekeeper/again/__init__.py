@@ -1,7 +1,7 @@
 """Asking the user's LLM-as-a-judge again: the plan, made before any call.
 
-The judge's own eval tool grades again the saved answers the person labeled; the user's app is
-never run. Before anything is spent, `make_plan` says what would run: whether it is exactly
+The judge's own eval tool grades again the saved answers the person labeled; the user's eval code
+is never run. Before anything is spent, `make_plan` says what would run: whether it is exactly
 the judge, a close copy (naming what could not be confirmed) or can't be asked again (and
 why); which key the tool will read (`keys`, names only); how many calls and a cost range at
 dated prices (`prices`); and what the run touches.
