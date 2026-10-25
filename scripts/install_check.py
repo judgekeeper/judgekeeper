@@ -1,7 +1,7 @@
 """Install judgekeeper fresh into a new project and walk the whole path a person takes.
 
     python scripts/install_check.py --tool promptfoo --source build --work /tmp/jk-check
-    python scripts/install_check.py --tool table --source pypi:0.2.0 --work /tmp/jk-check
+    python scripts/install_check.py --tool table --source pypi:1.0.0 --work /tmp/jk-check
     python scripts/install_check.py --tool promptfoo --via uvx --work /tmp/jk-check
 
 What a stranger does, with nobody at the keyboard and no API key:
@@ -575,7 +575,7 @@ if __name__ == "__main__":
 
     def write_own_judge(self, rule: str):
         """The judge in your own code: `quiz_judge.py` asks the fake judge with the rule.
-        Your app and your judge command both import it, as they would in a real project."""
+        Your project and your judge command both import it, as they would in a real project."""
         self.write("quiz_judge.py", f'''import json
 import urllib.request
 

@@ -87,10 +87,33 @@ def test_the_datasets_licenses_and_citations_are_in_the_notices():
                    "https://github.com/JailbreakBench/jailbreakbench",
                    "https://github.com/ParticleMedia/RAGTruth", *DATASETS.values()):
         assert needed in text, needed
-    assert text.count("Permission is hereby granted, free of charge") == 2
+    assert text.count("Permission is hereby granted, free of charge") == 4
     for folder in ("jailbreakbench", "ragtruth"):
         loader = (ROOT / "docs" / "examples" / folder / "load.py").read_text(encoding="utf-8")
         assert DATASETS[folder] in loader and "print(NOTICE)" in loader, folder
+
+
+def test_the_notices_name_every_dataset_the_examples_use():
+    """Each folder whose loader downloads a dataset, and each dataset the real-data check
+    cites, has its section; the fonts are named too."""
+    import json
+
+    text =(ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    headings = re.findall(r"^## (.+)$", text, flags=re.MULTILINE)
+    examples = ROOT / "docs" / "examples"
+    for loader in sorted(examples.glob("*/load.py")):
+        assert f"`docs/examples/{loader.parent.name}/`" in text, loader.parent.name
+    check = json.loads((examples / "real-data-check" / "report.json").read_text(encoding="utf-8"))
+    for data in check["data"].values():
+        assert data["name"] in headings, data["name"]
+        assert data["source"] in text and data["revision"] in text, data["name"]
+        assert data["licence"] in text, data["name"]
+    datasets = [h for h in headings if h != "Fonts"]
+    words = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+    assert f"use {words[len(datasets)]} public datasets" in text
+    assert "Creative Commons Attribution 4.0" in text  # MT-Bench: attribution required
+    assert "Fonts" in headings and "Manrope" in text and "JetBrains Mono" in text
+    assert "SIL Open Font License 1.1" in text
 
 
 def test_example_reports_in_the_1_0_look_use_its_colours():
@@ -108,3 +131,23 @@ def test_example_reports_in_the_1_0_look_use_its_colours():
         assert ".meta .k { font-size: 12px; font-weight: 600; letter-spacing: .04em; " \
                "text-transform: uppercase; color: var(--muted); }" in text, name
         assert green in text, name
+
+
+def test_the_examples_readme_has_one_line_per_folder():
+    """docs/examples/README.md: one line per folder, and the made-up one says so."""
+    examples = ROOT / "docs" / "examples"
+    text = (examples / "README.md").read_text(encoding="utf-8")
+    folders = sorted(p.name for p in examples.iterdir() if p.is_dir())
+    lines = [line for line in text.splitlines() if line.startswith("- ")]
+    assert [re.match(r"- \*\*`([\w-]+)/`\*\*", line)[1] for line in lines] == folders
+    for line in lines:
+        made_up = "`site-example/`" in line
+        assert ("made-up" in line) is made_up, line
+    assert "llmbar-haiku" not in folders
+
+
+def test_the_check_reports_name_no_removed_command():
+    """`judgekeeper start` is gone; the reports say what judgekeeper does."""
+    for name in ("real-data-check/report.md", "coverage/coverage.md"):
+        text = (ROOT / "docs" / "examples" / name).read_text(encoding="utf-8")
+        assert "start's" not in text and "`start`" not in text, name

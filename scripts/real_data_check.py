@@ -13,7 +13,7 @@ The pools (every item has a saved judge verdict and a human label; nothing is dr
 of what the judge said):
 
 1. LLMBar judged by Claude Haiku 4.5: the items in the committed
-   docs/examples/llmbar-haiku/report.json. "Is output A the better one?" Judge pass: run 1
+   docs/examples/real-data-check/sources/llmbar-haiku.json. "Is output A the better one?" Judge pass: run 1
    says A. Human pass: LLMBar's gold label is A.
 2. MT-Bench human judgments, GPT-4 as the judge. "Is model_b's answer better than model_a's?",
    model_a and model_b as GPT-4 saw them; people's votes in the other order are flipped.
@@ -24,7 +24,7 @@ of what the judge said):
 
 One check: shuffle each group of the pool (the judge's passes, its fails), label n from each,
 count how many the person marked Pass, and call weighted.corrected. Three designs, CHECKS
-checks each with a fixed seed: 25 + 25, 30 + 30, and start's stopping rule (BLOCK from each
+checks each with a fixed seed: 25 + 25, 30 + 30, and judgekeeper's stopping rule (BLOCK from each
 group at a time until TARGET Pass and TARGET Fail). For each, how often the TPR, TNR and
 real pass rate ranges held the value from all labels, their average width, the median error,
 and the plain rates over the same labels without the correction, for contrast.
@@ -53,12 +53,12 @@ sys.path.insert(0, str(ROOT / "src"))
 from judgekeeper import weighted
 
 OUT = ROOT / "docs" / "examples" / "real-data-check"
-LLMBAR = ROOT / "docs" / "examples" / "llmbar-haiku" / "report.json"
+LLMBAR = ROOT / "docs" / "examples" / "real-data-check" / "sources" / "llmbar-haiku.json"
 SEED = 20261009
 CHECKS = 1000
 SIZES = (25, 30)
-BLOCK = 5  # from each group: start's blocks of 10, half from each
-TARGET = 25  # answers marked Pass, and Fail, before start calls a check reliable
+BLOCK = 5  # from each group: judgekeeper's blocks of 10, half from each
+TARGET = 25  # answers marked Pass, and Fail, before judgekeeper calls a check reliable
 METRICS = ("tpr", "tnr", "real_pass_rate")
 DESIGNS = ("25+25", "30+30", "start_rule")
 DIGITS = 6  # the report's floats, so the same run gives the same file on every machine
@@ -76,7 +76,7 @@ DATASETS = {
         "attribution": ("Zeng et al. (2024), Evaluating Large Language Models at Evaluating "
                         "Instruction Following, ICLR 2024. The judge verdicts are judgekeeper's "
                         "own run of claude-haiku-4-5-20251001, kept in "
-                        "docs/examples/llmbar-haiku/report.json."),
+                        "docs/examples/real-data-check/sources/llmbar-haiku.json."),
         "files": [],
     },
     "mtbench": {
@@ -397,7 +397,7 @@ def _two(x) -> str:
 def _design_name(design: str, result: dict) -> str:
     if design == "start_rule":
         rule = result["settings"]["start_rule"]
-        return f"start's rule ({rule['target']} Pass + {rule['target']} Fail)"
+        return f"judgekeeper's rule ({rule['target']} Pass + {rule['target']} Fail)"
     return f"{design} labels"
 
 
@@ -516,7 +516,7 @@ def markdown(result: dict) -> str:
         for f in d["files"]:
             lines.append(f"  - `{f['file']}`: sha256 `{f['sha256']}`")
     lines += ["", "## Settings", "",
-              (f"Seed {s['seed']}; {s['checks']:,} checks per judge and design; start's rule "
+              (f"Seed {s['seed']}; {s['checks']:,} checks per judge and design; judgekeeper's rule "
                f"labels {s['start_rule']['block']} from each group at a time. Ranges: "
                f"`weighted.corrected` at level {w['level']}, {w['draws']:,} draws, seed "
                f"{w['seed']}. To run it again: `pip install pyarrow`, then "

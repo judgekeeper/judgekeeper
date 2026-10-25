@@ -138,7 +138,7 @@ A steady judge: asked again, it gives the same verdicts. TPR and TNR.
 
 Before (stratified bootstrap): lowest cell 53.8, average 94.7. Now (jeffreys): lowest cell 93.6, average 96.2.
 
-Lowest cell per number, before → now: TPR 91.7 → 93.6; TNR 53.8 → 94.1. Kappa is given without a range, as in `start`'s result.
+Lowest cell per number, before → now: TPR 91.7 → 93.6; TNR 53.8 → 94.1. Kappa is given without a range, as in judgekeeper's result.
 
 | pi | a | w | n | TPR | TNR |
 |---|---|---|---|---|---|
@@ -257,7 +257,7 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 
 ## When is a check reliable?
 
-1,000 simulated labelings per case, 5 from each group per block as `start` picks, until 25 Correct and 25 Wrong. The share whose TPR and TNR ranges are both no wider than each width, and the average widths. The width judgekeeper uses: 0.30.
+1,000 simulated labelings per case, 5 from each group per block as `judgekeeper` picks, until 25 Correct and 25 Wrong. The share whose TPR and TNR ranges are both no wider than each width, and the average widths. The width judgekeeper uses: 0.30.
 
 | pi | a | w | ≤ 0.25 | ≤ 0.30 | ≤ 0.35 | ≤ 0.40 | TPR width | TNR width |
 |---|---|---|---|---|---|---|---|---|

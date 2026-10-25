@@ -1,6 +1,7 @@
 // The browser check's page code (website/assets/freecheck.js, setup) in node, on a small stand-in
 // for check.html: node tests/freecheck_page.mjs STEP... prints, as JSON, what the page shows
 // after each step. A step is "click:<example>", "drag:<example>" (dropped on the page),
+// "name:<text>" (a drag that carries any text as an example name, from no card),
 // "file:<path>" (a file of your own dropped on the page) or "clear".
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -102,6 +103,7 @@ function shown() {
     output: one("#fc-result").textContent,
     has_file: one("#fc-drop").classList.contains("has-file"),
     focus: document.activeElement ? document.activeElement.id : null,
+    scripts: head.children.map((tag) => tag.attrs.src || tag.src),
   };
 }
 
@@ -115,6 +117,9 @@ for (const step of process.argv.slice(2)) {
     const dataTransfer = { setData: (t, v) => { data[t] = v; }, getData: (t) => data[t] || "", files: [] };
     card.dispatch("dragstart", { dataTransfer });
     document.dispatch("drop", { dataTransfer });
+  }
+  if (kind === "name") {
+    document.dispatch("drop", { dataTransfer: { getData: (t) => (t === EXAMPLE_TYPE ? arg : ""), files: [] } });
   }
   if (kind === "file") {
     const bytes = readFileSync(arg);
