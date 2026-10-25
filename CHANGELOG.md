@@ -2,18 +2,16 @@
 
 ## 1.0.0 (YYYY-MM-DD)
 
-Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. In your project folder, run `pip install judgekeeper` and then `judgekeeper`, or `uvx judgekeeper`.
+The 5 steps: Find. Mark. Measure. Fix. Re-check. In your project folder, run `pip install judgekeeper`, then `judgekeeper`, or `uvx judgekeeper`.
 
-- `judgekeeper` finds your eval results and the LLM-as-a-judge that graded them, with no AI call. It reads promptfoo, DeepEval, Inspect AI, MLflow, a CSV or JSONL file, or `judgekeeper.record()`.
-- It opens a page in your browser where you mark answers Pass or Fail. Your LLM-as-a-judge's grade stays hidden.
-- The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files.
-- Run it again to see how often your LLM-as-a-judge agrees with you: TPR and TNR with ranges, and kappa in the report.
-- `judgekeeper mark` opens the page again to mark more.
-- `judgekeeper fix` shows where your LLM-as-a-judge goes wrong, and tests a new rule on marks kept aside (promptfoo, DeepEval, Inspect AI and MLflow).
-- `judgekeeper check` re-checks your LLM-as-a-judge on your marks when its model, rule or pass mark, or your eval tool's version, changes.
-- `fix` and `check` say how many AI calls they need and ask first. The calls go through your own eval tool, with your own key.
-- Removed since 0.1.3: every 0.1 command (`init`, `freeze`, `judge`, `validate`, `baseline`, `gate`, `migrate`, `template`, `import-labels`, `label`, `import`, `export`, `attribute`, `demo` and the old `check`), the built-in Anthropic and OpenAI runners, the pytest plugin, the GitHub Action and the agent skill.
-- The 0.1 entries below are about the old judgekeeper. None of their commands exist in 1.0.
+- `judgekeeper` finds your eval results and their LLM-as-a-judge: promptfoo, DeepEval, Inspect AI, MLflow, a CSV or JSONL file, or `judgekeeper.record()`.
+- You mark answers Pass or Fail in your browser, with the grade hidden. The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files.
+- Then see how often your LLM-as-a-judge agrees with you: TPR and TNR with ranges, and kappa.
+- `judgekeeper mark` marks more answers.
+- `judgekeeper fix` shows where your LLM-as-a-judge goes wrong and tests a new rule.
+- `judgekeeper check` re-checks it when its model, rule, pass mark or your eval tool's version changes.
+- `fix` and `check` count their AI calls and ask first. Calls use your own eval tool and key.
+- Removed since 0.1.3: every 0.1 command, the built-in runners, the pytest plugin, the GitHub Action and the agent skill.
 
 ## 1.0.0b1 (2026-10-12)
 
