@@ -55,6 +55,7 @@ from pathlib import Path
 from judgekeeper import __version__, batches, marks, reasons, start_fix_rule, targets
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
+from judgekeeper.links import link, said
 from judgekeeper.redact import one_line, scrub
 from judgekeeper.start_label import Workspace, every_marked, next_marks, shown_folder
 from judgekeeper.textio import (
@@ -319,6 +320,22 @@ class Split:
 
 def _folder(ws: Workspace) -> Path:
     return ws.dir / FOLDER
+
+
+def _file(ws: Workspace, name: str) -> str:
+    """fix/<name> as the person finds it, a link they can click in a terminal."""
+    return link(_folder(ws) / name, f"{shown_folder(ws)}/{FOLDER}/{name}")
+
+
+def _rule_file(ws: Workspace) -> str:
+    """_file(RULE), made empty first when there is none (never over one): the person is told
+    to write in it. An empty rule.txt is no rule."""
+    try:
+        with (_folder(ws) / RULE).open("x", encoding="utf-8"):
+            pass
+    except OSError:  # there already (or can't be made: the line still names it)
+        pass
+    return _file(ws, RULE)
 
 
 def read_split(ws: Workspace) -> Split | None:
@@ -653,7 +670,7 @@ def _saved_line(ws: Workspace, n: int) -> str:
     mistakes the LLM-as-a-judge made."""
     made = (f"All {n} mistakes your LLM-as-a-judge made are" if n > 1
             else "The 1 mistake your LLM-as-a-judge made is")
-    return (f"{made} saved in {shown_folder(ws)}/{FOLDER}/{MISTAKES}. Use it to write a better "
+    return (f"{made} saved in {_file(ws, MISTAKES)}. Use it to write a better "
             "rule, or hand it to a coding agent to help you write one.")
 
 
@@ -732,7 +749,7 @@ class Talk:
         self.path = path
 
     def say(self, text: str = "") -> None:
-        print(one_line(scrub(text)))
+        print(said(text))
 
     def para(self, text: str, indent: str = "") -> None:
         for line in wrap(text, indent=indent):
@@ -799,7 +816,7 @@ def _new_rule(ws: Workspace, split: Split) -> str | None:
     except OSError:
         return None
     tested = {t.get("rule_hash") for t in split.tests if t.get("kind") == "rule"}
-    return None if text and rule_hash(text) in tested else text
+    return None if not text or rule_hash(text) in tested else text
 
 
 def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
@@ -934,7 +951,6 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split,
                 talk.para(sentence, indent="  ")
         talk.say()
     rule = data.get("rule") if data.get("one_rule", True) else None
-    folder = f"{shown_folder(ws)}/{FOLDER}"
     tested = test_pass_mark(m, split)
     save_split(ws, split)
     path = _folder(ws) / MISTAKES
@@ -944,10 +960,10 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split,
     talk.say()
     tool = data.get("tool")
     if write_suggestions(ws, seen_rows, talk.command(), can_test(tool, rule)):
-        where = (f"{folder}/{RULE}, then run `{talk.command()}` to test the new rule on your "
+        where = (f"{_rule_file(ws)}, then run `{talk.command()}` to test the new rule on your "
                  "marks kept aside" if can_test(tool, rule)
                  else "your rule where your eval keeps it")
-        talk.para(f"Suggestions from your reasons are in {folder}/{SUGGESTIONS}. Copy the ones "
+        talk.para(f"Suggestions from your reasons are in {_file(ws, SUGGESTIONS)}. Copy the ones "
                   f"you agree with into {where}.")
         talk.say()
     line = tested and pass_mark_line(ws, pm, tested)
@@ -957,7 +973,8 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split,
     if can_test(tool, rule):
         where = start_fix_rule.found_rule(ws.root, rule, tool)
         if where:
-            talk.say(f"Your LLM-as-a-judge's rule is in {where[0]}, line {where[1]}:")
+            talk.say(f"Your LLM-as-a-judge's rule is in {link(ws.root / where[0], where[0])}, "
+                     f"line {where[1]}:")
         else:
             talk.para("judgekeeper can't tell which file holds your LLM-as-a-judge's rule. Your "
                       f"eval keeps it in {start_fix_rule.rule_home(ws.root, tool, data)}:")
@@ -974,7 +991,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split,
         return EXIT_NEEDS_YOU
     if then is not None:
         return _then(talk, then)
-    talk.next(f"write your new rule in {folder}/{RULE}, then run `{talk.command()}` again to "
+    talk.next(f"write your new rule in {_rule_file(ws)}, then run `{talk.command()}` again to "
               "test it.")
     return EXIT_OK
 
@@ -1105,7 +1122,7 @@ def _copy_step(ws: Workspace, m: Marks, talk: Talk) -> str:
     """The next step after "better" or "safe to try": copy the new rule where the old one is."""
     old_rule = m.data.get("rule") or ""
     where = start_fix_rule.found_rule(ws.root, old_rule, m.data.get("tool") or "")
-    place = (f"into {where[0]}, line {where[1]}" if where else
+    place = (f"into {link(ws.root / where[0], where[0])}, line {where[1]}" if where else
              f"to where your eval keeps it ({start_fix_rule.field(m.data.get('tool') or '')})")
     return (f"if you like it, copy the new rule {place}. Then run your eval and "
             f"`{talk.command('check')}`.")
@@ -1114,12 +1131,11 @@ def _copy_step(ws: Workspace, m: Marks, talk: Talk) -> str:
 def _say_rule(talk: Talk, ws: Workspace, rule: str, problems: list[dict]) -> None:
     """The new rule's first words and where it is; only where it is when it copies text from
     the answers (it would print them)."""
-    folder = f"{shown_folder(ws)}/{FOLDER}"
     if any(c["text"] == start_fix_rule.COPIES for c in problems):
-        talk.say(f"New rule:  from {folder}/{RULE}")
+        talk.say(f"New rule:  from {_file(ws, RULE)}")
     else:
         talk.say(f"New rule:  {_rule_quote(rule)}")
-        talk.say(f"           (from {folder}/{RULE})")
+        talk.say(f"           (from {_file(ws, RULE)})")
     talk.say()
 
 
@@ -1129,7 +1145,6 @@ def tested_before(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str,
     new test, and the next step that result gave."""
     from judgekeeper.check import _day
 
-    folder = f"{shown_folder(ws)}/{FOLDER}"
     _say_rule(talk, ws, rule, _problems(m, split, rule))
     day = _day(test.get("time"))
     talk.para(f"You tested this rule before{f' ({day})' if day else ''}, on the "
@@ -1140,7 +1155,7 @@ def tested_before(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str,
     if test.get("verdict") in ("better", "safe"):
         talk.next(_copy_step(ws, m, talk))
     else:
-        talk.next(f"keep the old rule, or write another rule in {folder}/{RULE} and run "
+        talk.next(f"keep the old rule, or write another rule in {_file(ws, RULE)} and run "
                   f"`{talk.command()}` again.")
     return EXIT_OK
 
@@ -1169,13 +1184,12 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
     the old rule asked the same way, in the same run; the verdict from the math."""
     from judgekeeper.fingerprint import rule_hash
 
-    folder = f"{shown_folder(ws)}/{FOLDER}"
     problems = _problems(m, split, rule)
     _say_rule(talk, ws, rule, problems)
     for c in problems:
         talk.para(c["text"])
     if any(c["blocking"] for c in problems):
-        talk.next(f"change the rule in {folder}/{RULE}, then run `{talk.command()}` again.")
+        talk.next(f"change the rule in {_file(ws, RULE)}, then run `{talk.command()}` again.")
         return EXIT_NEEDS_YOU
     if problems:
         talk.say()
@@ -1229,7 +1243,7 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
                               "aside.")
         talk.next(f"keep the old rule for now, or {more}")
         return EXIT_OK
-    talk.next(f"keep the old rule, or write another rule in {folder}/{RULE} and run "
+    talk.next(f"keep the old rule, or write another rule in {_file(ws, RULE)} and run "
               f"`{talk.command()}` again.")
     return EXIT_OK
 

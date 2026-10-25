@@ -664,7 +664,7 @@ def test_suggestions_md_has_a_line_per_reason_tapped_twice_and_lists_the_rest(he
     assert ("Suggestions from your reasons are in .judgekeeper/fix/suggestions.md. Copy the "
             "ones you agree with into .judgekeeper/fix/rule.txt, then run `judgekeeper fix` to "
             "test the new rule on your marks kept aside.") in flat
-    assert not (ws.dir / "fix" / "rule.txt").exists()  # never written by judgekeeper
+    assert (ws.dir / "fix" / "rule.txt").read_bytes() == b""  # made to write in, left empty
 
 
 @pytest.mark.parametrize("reason, line", [

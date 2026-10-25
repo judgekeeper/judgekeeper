@@ -5,11 +5,17 @@ from __future__ import annotations
 
 import io
 import os
+import re
+from pathlib import Path
 
 import pytest
 
 from judgekeeper import links
-from judgekeeper.links import file_url, link
+from judgekeeper.cli import main
+from judgekeeper.links import file_url, keep, link
+from judgekeeper.redact import printable
+from judgekeeper.textio import wrap
+from tests.start_projects import promptfoo_project, split
 
 OPT_OUTS = ("NO_COLOR", "JUDGEKEEPER_NO_LINKS")
 
@@ -133,3 +139,132 @@ def test_windows_network_share():
 def test_the_url_never_holds_a_control_character():
     url = file_url("/tmp/a\x1b]8;;b\x07.txt", windows=False)
     assert all(" " < ch < "\x7f" for ch in url)
+
+
+# Said on a screen ----------------------------------------------------------------------------
+
+LINK = re.compile(r"\x1b\]8;;([^\x1b]*)\x1b\\(.*?)\x1b\]8;;\x1b\\")
+
+
+def plain(out: str) -> str:
+    """`out` with each link back to the text it shows."""
+    return LINK.sub(r"\2", out)
+
+
+def linked(out: str) -> dict[str, str]:
+    """{the text shown: its URL} for each link in `out`."""
+    return {text: url for url, text in LINK.findall(out)}
+
+
+def test_a_link_made_here_passes_the_terminal_clean_up(tmp_path):
+    made = link(tmp_path / "report.html", ".judgekeeper/report.html", stream=Terminal())
+    text = f"Full report: {made} (open it\x07 in your browser)"
+    assert keep(text, printable) == f"Full report: {made} (open it in your browser)"
+
+
+def test_an_escape_code_from_anywhere_else_is_dropped(tmp_path):
+    forged = "\x1b]8;;file:///etc/passwd\x1b\\results.json\x1b]8;;\x1b\\"
+    assert keep(f"File: {forged}", printable) == (
+        "File: ]8;;file:///etc/passwd\\results.json]8;;\\")
+
+
+def test_the_text_a_link_shows_is_cleaned_too(tmp_path):
+    made = link(tmp_path / "a.txt", "a\x07.txt", stream=Terminal())
+    assert keep(made, printable) == _osc8(file_url(tmp_path / "a.txt"), "a.txt")
+
+
+@pytest.mark.parametrize("width", [20, 30, 40, 64])
+def test_a_link_wraps_where_its_text_would(tmp_path, width):
+    text = ("All 10 mistakes your LLM-as-a-judge made are saved in {}. Use it to write a "
+            "better rule.")
+    shown = ".judgekeeper/fix/mistakes.md"
+    made = link(tmp_path / "mistakes.md", shown, stream=Terminal())
+    lines = wrap(text.format(made), width=width)
+    assert [plain(line) for line in lines] == wrap(text.format(shown), width=width)
+    assert sum(made in line for line in lines) == 1
+
+
+@pytest.fixture
+def links_on(monkeypatch):
+    """A terminal that draws links, for what is printed to stdout only."""
+    monkeypatch.setattr(links, "_links_show", lambda stream: True)
+
+
+@pytest.fixture
+def here(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def _front(capsys, *argv) -> str:
+    main([*argv, "--no-browser"])
+    main(["--stop"])
+    return capsys.readouterr().out
+
+
+def _url_of(path) -> str:
+    return file_url(Path(path).resolve())
+
+
+def _first_screen(folder: Path, monkeypatch, capsys) -> str:
+    """The first screen, its marking page's address (a new port and token each time) left out."""
+    folder.mkdir(parents=True)
+    monkeypatch.chdir(folder)
+    promptfoo_project(folder, [*split(18, 16), None, None, None])
+    return re.sub(r"http://127\.0\.0\.1:\S+", "PAGE", _front(capsys))
+
+
+def test_the_find_screen_links_the_results_file_and_the_list(tmp_path, capsys, monkeypatch):
+    out = _first_screen(tmp_path / "a" / "bot", monkeypatch, capsys)
+    monkeypatch.setattr(links, "_links_show", lambda stream: True)
+    here = tmp_path / "b" / "bot"
+    again = _first_screen(here, monkeypatch, capsys)
+    assert plain(again) == out
+    shown = linked(again)
+    assert shown["results.json"] == _url_of(here / "results.json")
+    assert shown[".judgekeeper/judge-check.csv"] == _url_of(here / ".judgekeeper" /
+                                                            "judge-check.csv")
+
+
+def test_the_shortened_rule_links_its_config(here, capsys, links_on):
+    promptfoo_project(here, split(20, 16), rubric="Grade it well. " * 20)
+    out = _front(capsys)
+    assert "(shortened; full rule in promptfooconfig.yaml)" in plain(out)
+    assert linked(out)["promptfooconfig.yaml"] == _url_of(here / "promptfooconfig.yaml")
+
+
+def test_the_result_links_the_full_report(here, capsys, links_on):
+    from tests.test_fix import project
+
+    project(here)
+    out = _front(capsys)
+    assert "Full report: .judgekeeper/report.html (open it in your browser)" in plain(out)
+    assert linked(out)[".judgekeeper/report.html"] == _url_of(here / ".judgekeeper" /
+                                                              "report.html")
+
+
+def test_fix_links_every_file_it_asks_you_to_open(here, capsys, monkeypatch):
+    from tests.test_fix import project
+
+    project(here)
+    capsys.readouterr()
+    main(["fix"])
+    out = capsys.readouterr().out
+    monkeypatch.setattr(links, "_links_show", lambda stream: True)
+    main(["fix"])
+    again = capsys.readouterr().out
+    assert plain(again) == out
+    shown = linked(again)
+    fix_folder = here / ".judgekeeper" / "fix"
+    assert shown[".judgekeeper/fix/mistakes.md"] == _url_of(fix_folder / "mistakes.md")
+    assert shown[".judgekeeper/fix/rule.txt"] == _url_of(fix_folder / "rule.txt")
+    assert shown["promptfooconfig.yaml"] == _url_of(here / "promptfooconfig.yaml")
+    assert "\x1b" not in LINK.sub("", again)
+
+
+def test_a_piped_screen_has_no_escape_codes(here, capsys):
+    from tests.test_fix import project
+
+    project(here)
+    main(["fix"])
+    assert "\x1b" not in capsys.readouterr().out

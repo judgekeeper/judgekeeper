@@ -171,6 +171,35 @@ def test_the_first_run(here, capsys):
         assert gone not in out, gone
 
 
+def test_fix_makes_an_empty_rule_txt_to_write_in(here, capsys):
+    ws = project(here)
+    rule = ws.dir / "fix" / "rule.txt"
+    assert not rule.exists()
+    capsys.readouterr()
+    first = run(capsys)
+    assert first[0] == 0 and rule.read_bytes() == b""
+    assert run(capsys) == first  # an empty rule.txt is no rule: the same first run
+
+
+@pytest.mark.parametrize("text", ["", "  \n\n "])
+def test_an_empty_rule_txt_is_not_tested(here, capsys, judge, text):
+    ws = project(here)
+    capsys.readouterr()
+    first = run(capsys)
+    _write_rule(ws, text)
+    assert run(capsys, "--yes") == first
+    assert judge["evals"] == 0
+
+
+def test_fix_never_overwrites_a_rule_txt(here, capsys):
+    ws = project(here)
+    run(capsys)
+    _write_rule(ws, NEW_RULE)
+    code, out = run(capsys, "--new")  # a first run again, with the rule kept
+    assert code == 0 and "Next: write your new rule in" in " ".join(out.split())
+    assert (ws.dir / "fix" / "rule.txt").read_text(encoding="utf-8") == NEW_RULE
+
+
 def test_mistakes_md_holds_the_visible_mistakes_with_the_judges_reason(here, capsys):
     ws = project(here)
     run(capsys)
@@ -464,15 +493,11 @@ def test_a_tested_rule_is_not_tested_again(here, capsys, judge):
     assert "You tested this rule before" in out
 
 
-@pytest.mark.parametrize("text, said", [
-    ("", "The new rule is empty."),
-    ("Grade {{ output }} kindly.",
-     "The new rule adds a template part ({{ ... }}) the old rule did not have."),
-])
-def test_a_rule_that_cant_be_tested_is_refused(here, capsys, judge, text, said):
+def test_a_rule_that_cant_be_tested_is_refused(here, capsys, judge):
     ws = project(here)
     run(capsys)
-    _write_rule(ws, text)
+    _write_rule(ws, "Grade {{ output }} kindly.")
+    said = "The new rule adds a template part ({{ ... }}) the old rule did not have."
     code, out = run(capsys, "--yes")
     assert code == 3
     assert said in " ".join(out.split())

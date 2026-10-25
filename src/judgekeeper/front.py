@@ -81,6 +81,7 @@ from judgekeeper import (
 )
 from judgekeeper.fingerprint import rule_hash
 from judgekeeper.label import DEFAULT_PORT, is_open, page_folder
+from judgekeeper.links import link
 from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
@@ -797,7 +798,8 @@ def _listed(found: start.Found) -> str:
     from judgekeeper import start_label
 
     ws = start_label.Workspace(found.root)
-    return f"{start_label.shown_folder(ws)}/{judge_check.CSV_FILE}"
+    return link(ws.dir / judge_check.CSV_FILE,
+                f"{start_label.shown_folder(ws)}/{judge_check.CSV_FILE}")
 
 
 def _write(found: start.Found) -> None:
@@ -837,11 +839,12 @@ def _read_from(found: start.Found) -> str:
         return f"{found.store}, experiment {quote_arg(found.experiment or '')}"
     if found.tool == "records":
         return f"{start._folder_of(newest)}, {_n(len(found.used), 'file')}"
+    shown = link(newest.path, newest.rel)
     if found.tool == "mapped":
-        return newest.rel + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
+        return shown + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
     if len(found.used) > 1:
-        return f"{newest.rel} and {_n(len(found.used) - 1, 'older file')}"
-    return newest.rel
+        return f"{shown} and {_n(len(found.used) - 1, 'older file')}"
+    return shown
 
 
 def _judge_value(found: start.Found) -> str:
@@ -882,6 +885,7 @@ def _rule_lines(found: start.Found) -> list[str]:
     if len(text) <= RULE_SHOWN:
         return [f'Rule:            "{text}"']
     where = _rule_file(found)
+    where = where and link(Path(found.root) / where, where)
     return [f'Rule:            "{text[:RULE_SHOWN - 1].rstrip()}…"',
             f"{INDENT}(shortened{f'; full rule in {where}' if where else ''})"]
 
@@ -1325,7 +1329,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
             talk.say(PORT_TAKEN.format(port=tried))
             raise talk.stop(EXIT_QUESTION, NEXT_ANY_PORT.format(command=command))
         talk.say(f"The marking page could not start in the background (what went wrong is in "
-                 f"{shown_folder(ws)}/{background.LOG}).")
+                 f"{link(ws.dir / background.LOG, f'{shown_folder(ws)}/{background.LOG}')}).")
         raise talk.stop(EXIT_QUESTION, COULD_NOT.format(command=talk.command("--wait")))
     return opened, shown
 
@@ -1534,7 +1538,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say()
         talk.para(left)
     talk.say()
-    talk.say(f"Full report: {shown_folder(ws)}/{ws.report_html.name} (open it in your browser)")
+    report = link(ws.report_html, f"{shown_folder(ws)}/{ws.report_html.name}")
+    talk.say(f"Full report: {report} (open it in your browser)")
     talk.say()
     opened = None
     if start_label.all_labeled(r):  # nothing left to mark: no page

@@ -17,6 +17,8 @@ import re
 import unicodedata
 from pathlib import Path
 
+from judgekeeper.links import link
+
 CUT = 1500  # characters of each text in the prompt
 BIG = 1.5  # times the old rule, plus BIG_EXTRA characters, is a big change
 BIG_EXTRA = 400
@@ -239,7 +241,7 @@ def rule_home(root: Path, tool: str, data: dict) -> str:
     where = field(tool, data.get("rule_field"))
     config = (next((n for n in PROMPTFOO_CONFIGS if (Path(root) / n).is_file()), None)
               if tool == "promptfoo" else data.get("task_file") if tool == "inspect" else None)
-    return f"{where} in {config}" if config else where
+    return f"{where} in {link(Path(root) / config, config)}" if config else where
 
 
 def _needles(rule: str, tool: str) -> list[str]:
