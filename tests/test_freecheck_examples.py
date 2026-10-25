@@ -104,7 +104,7 @@ def test_an_example_clicked_or_dragged_in_is_checked_and_clear_brings_the_page_b
     before, loaded, cleared = _page_state("clear", f"{how}:promptfoo-results.json", "clear")
     shown = MADE_UP + "promptfoo-results.json"
     assert loaded["title"] == loaded["name"] == shown
-    assert f"File:        {shown}" in loaded["output"]
+    assert f"File:            {shown}" in loaded["output"]
     assert "6 answers, each run 3 times" in loaded["output"]
     assert loaded["box"] == "file" and loaded["has_file"] and loaded["clear"]
     assert not loaded["examples"] and not loaded["waiting"]
@@ -121,5 +121,5 @@ def test_a_file_of_your_own_dropped_after_an_example_takes_its_place(files, tmp_
     example, mine = _page_state("click:shop-answers.csv", f"file:{own}")
     assert example["name"] == MADE_UP + "shop-answers.csv"
     assert mine["title"] == mine["name"] == "results.csv"
-    assert "File:        results.csv" in mine["output"] and "shop" not in mine["output"]
+    assert "File:            results.csv" in mine["output"] and "shop" not in mine["output"]
     assert not mine["examples"] and mine["clear"]

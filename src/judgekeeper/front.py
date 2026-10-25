@@ -90,7 +90,7 @@ from judgekeeper.textio import old_hook, plural, program, quote_arg, wrap
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_NEEDS_YOU = 3
-FIRST_SHOWN = 30  # characters of the first rule shown when they differ per test
+FIRST_SHOWN = 26  # characters of the first rule shown when they differ per test
 RULE_SHOWN = 58  # characters of the judge's rule shown, "…" included, on one line
 VALUE_WIDTH = 40  # characters of a judge's decision value shown
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
@@ -110,36 +110,36 @@ START_OVER = f"Start over with these results? Your old marks move to {FOLDER}/pr
 OLD_MARKS = (f"{FOLDER}/labels.csv holds marks from an older judgekeeper. They have no time "
              "stamps, so this version does not use them.")
 SCORE_READ = "Read the score column with your pass mark; the verdict column is not used."
-RAN_AGAIN = "Your eval ran again. Your judge is the same, so your marks still test it."
-RAN_AGAIN_CHECKED = ("Your eval ran again. Your judge is the one your last check re-tested, so "
-                     "your marks still test it.")
-JUDGE_CHANGED = "Your judge changed since your marks: {what}."
+RAN_AGAIN = "Your eval ran again. Your LLM-as-a-judge is the same, so your marks still test it."
+RAN_AGAIN_CHECKED = ("Your eval ran again. Your LLM-as-a-judge is the one your last check "
+                     "re-tested, so your marks still test it.")
+JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
 DEFAULT_GRADER_NOTE = "came from promptfoo's default grader"  # readers.promptfoo's warning
 STEP = "Step {n} of 5: {name}"
-INDENT = " " * 13  # under the value of "Eval tool:   "
-EVERY_ANSWER = "your judge gave every answer a clear Pass or Fail."
+INDENT = " " * 17  # under the value of "LLM-as-a-judge:  "
+EVERY_ANSWER = "your LLM-as-a-judge gave every answer a clear Pass or Fail."
 FREE_CHECK = "Checked: "  # every free-check line starts with it
-SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the way you want "
-         "your judge to decide. Your judge's grade stays hidden.")
+SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the way you want your "
+         "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays hidden.")
 BAR = "The bar at the top fills as you mark."
 PRECISE = "Each new mark makes your numbers more precise."
 NOT_ENOUGH = "That's not enough for a result yet."
 NEXT_MARK = 'mark until "See your result" appears, then click it.'
 NEXT_KEEP_MARKING = 'keep marking until "See your result" appears, then click it.'
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
-NEXT_CHECK = "run `{command}` to re-check your changed judge on your marks."
-NEXT_RESULT = ("nothing to do. When you change your judge or update your eval tool, run "
+NEXT_CHECK = "run `{command}` to re-check your changed LLM-as-a-judge on your marks."
+NEXT_RESULT = ("nothing to do. When you change your LLM-as-a-judge or update your eval tool, run "
                "`{command}`.")
 NEXT_FIX = "to improve your LLM-as-a-judge's rule, run `{command}`."
 NEXT_CONTINUE = "run `{command}` when you want to continue."
 STILL_OPEN = ("The marking page is still open. Mark more answers to make these ranges "
               "narrower, so the numbers are more certain.")
-AGREES = "How often your judge agrees with you (estimates):"
+AGREES = "How often your LLM-as-a-judge agrees with you (estimates):"
 NEXT_MARK_MORE = "run `{command}` to mark more answers."
 SAY_WHY_NEXT = "The Next step below also lets you say why on these."  # its command once
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
-SAY_WHY = "Say why on the answers you and your judge disagree on; `fix` uses your reasons."
+SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
@@ -149,7 +149,8 @@ NEXT_ANY_PORT = "run `{command}` (it opens the page on any free port)."
 # A tool found here with no saved results: what saves them
 SAVES = {"deepeval": "DeepEval saves results only when you run deepeval test run or evaluate().",
          "inspect": "Inspect AI saves its logs in logs/ when you run inspect eval.",
-         "mlflow": "MLflow keeps the judge's assessments once mlflow.genai.evaluate() runs."}
+         "mlflow": "MLflow keeps the LLM-as-a-judge's assessments once mlflow.genai.evaluate() "
+                   "runs."}
 OTHERS = 3  # other projects named when run from a folder that holds several
 FEW_SHARE = 0.2  # a side under this share of the answers: the judge may pass (fail) too much
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -443,14 +444,14 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         talk.para(f"{rel} {find.TABLE_OUTPUT}, so it was left out.")
     if own is None and search.judge_only:
         rel = search.judge_only[0]
-        talk.para(f"{rel} has your judge's verdicts but no answer text, so there's nothing to "
-                  "show you for marking.")
+        talk.para(f"{rel} has your LLM-as-a-judge's verdicts but no answer text, so there's "
+                  "nothing to show you for marking.")
         raise talk.stop(EXIT_QUESTION, "add the answer column (the text that was judged) to "
                                        f"{rel}, then run `{talk.command()}`.")
     if own is None and search.no_question:
         rel = search.no_question[0]
-        talk.para(f"{rel} has your judge's verdicts and the answers but no question, so the "
-                  "answers can't be shown with what they answer.")
+        talk.para(f"{rel} has your LLM-as-a-judge's verdicts and the answers but no question, so "
+                  "the answers can't be shown with what they answer.")
         raise talk.stop(EXIT_QUESTION, "add the question column (what each answer answers) to "
                                        f"{rel}, then run `{talk.command()}`.")
     if own is None:
@@ -502,7 +503,7 @@ def _given_model(path: Path) -> str | None:
 
 
 IGNORED = {"experiment": ("mlflow", "--experiment is for MLflow results, so it was ignored."),
-           "fields": ("deepeval", "--fields is for a DeepEval judge, so it was ignored.")}
+           "fields": ("deepeval", "--fields is for a DeepEval LLM-as-a-judge, so it was ignored.")}
 
 
 def _ignored(talk: FrontTalk, found: start.Found) -> None:
@@ -547,8 +548,8 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
         _add_label_map(talk, f"P={('pass', 'fail')[i]}")
         return
     if all(_numeric(v) for v in values):
-        talk.say(f"Your judge's decisions are scores ({_shown(values)}), and the results do "
-                 "not say which score passes.")
+        talk.say(f"Your LLM-as-a-judge's decisions are scores ({_shown(values)}), and the results "
+                 "do not say which score passes.")
         if not terminal:
             raise talk.stop(EXIT_QUESTION, "decide which score counts as a pass, then run "
                                            f"`{talk.command('--pass-if', PASS_IF)}`.")
@@ -561,8 +562,8 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     long = [v for v in values if not _numeric(v) and not start.verdict_like(v)]
     if long:  # never shown: it may be the judge's reason or an answer's text
         raise _long_text(talk, found, long)
-    talk.para(f"judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
-              f"Fail: {_shown(words)}.")
+    talk.para("judgekeeper can't tell which of your LLM-as-a-judge's decisions mean Pass and which "
+              f"mean Fail: {_shown(words)}.")
     if not terminal:
         raise talk.stop(EXIT_QUESTION, (
             "decide which of the values above mean Pass, which mean Fail and which mean no "
@@ -591,9 +592,9 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
         fix = f"make each grade in the {column} column of {newest.name} one word, like pass"
     else:
         where = f"they hold long text in {_n(n, 'answer')}"
-        fix = "check where your judge's decisions are saved"
-    talk.para("judgekeeper can't tell which of your judge's decisions mean Pass and which mean "
-              f"Fail: {where}.")
+        fix = "check where your LLM-as-a-judge's decisions are saved"
+    talk.para("judgekeeper can't tell which of your LLM-as-a-judge's decisions mean Pass and which "
+              f"mean Fail: {where}.")
     return talk.stop(EXIT_QUESTION, f"{fix}, then run `{talk.command()}`.")
 
 
@@ -645,7 +646,7 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         shown = (f"{size / 1_000_000:,.0f} MB" if size >= 1_000_000
                  else f"{size / 1000:,.0f} KB")
         talk.para(f"It left out {own.rel} ({shown}): too big to look into. If it holds your "
-                  f"judge's results, run `{talk.command_at(own.rel)}`.")
+                  f"LLM-as-a-judge's results, run `{talk.command_at(own.rel)}`.")
     again = f"`{talk.command()}`"
     other = "" if signs else (f" If your results are somewhere else, run "
                               f"`{talk.command_at('PATH')}` with their file or folder.")
@@ -702,8 +703,8 @@ def _notes(found: start.Found) -> list[str]:
                             (pool.n_pass, "passed", "fails too much")):
         # under a fifth of the answers; a small pool is said below
         if 0 < count < FEW_SHARE * n and n >= start.MIN_POOL:
-            out.append(f"Your judge {did} only {count} of {n} answers. That may mean it {too}: "
-                       "your marks will show it.")
+            out.append(f"Your LLM-as-a-judge {did} only {count} of {n} answers. That may mean it "
+                       f"{too}: your marks will show it.")
     return out
 
 
@@ -869,19 +870,19 @@ def _rule_file(found: start.Found) -> str | None:
 
 def _rule_lines(found: start.Found) -> list[str]:
     if found.reference:
-        return ["Judge rule:  compared with each test's reference answer"]
+        return ["Rule:            compared with each test's reference answer"]
     if not found.rule:
-        return ["Judge rule:  not in your results"]
+        return ["Rule:            not in your results"]
     if not found.one_rule:
         first = " ".join(found.rule.split())
         if len(first) > FIRST_SHOWN:
             first = first[:FIRST_SHOWN - 1].rstrip() + "…"
-        return [f'Judge rule:  differs per test ({found.n_rules} rules). First: "{first}"']
+        return [f'Rule:            differs per test ({found.n_rules} rules). First: "{first}"']
     text = " ".join(found.rule.split())
     if len(text) <= RULE_SHOWN:
-        return [f'Judge rule:  "{text}"']
+        return [f'Rule:            "{text}"']
     where = _rule_file(found)
-    return [f'Judge rule:  "{text[:RULE_SHOWN - 1].rstrip()}…"',
+    return [f'Rule:            "{text[:RULE_SHOWN - 1].rstrip()}…"',
             f"{INDENT}(shortened{f'; full rule in {where}' if where else ''})"]
 
 
@@ -903,7 +904,7 @@ def repeats_note(answers: int, pool: start.Pool) -> str:
 
 
 def passed_failed(n_pass: int, n_fail: int) -> str:
-    return f"Your judge passed {_n(n_pass, 'answer')} and failed {n_fail}."
+    return f"Your LLM-as-a-judge passed {_n(n_pass, 'answer')} and failed {n_fail}."
 
 
 def found_block(found: start.Found, pass_if: str | None = None,
@@ -917,17 +918,17 @@ def found_block(found: start.Found, pass_if: str | None = None,
     where = _read_from(found)
     label = ("Store:" if found.tool == "mlflow" else "Files:"
              if found.tool == "records" or "older file" in where else "File:")
-    lines = [f"Eval tool:   {tool}", f"{label:<13}{where}"]
+    lines = [f"Eval tool:       {tool}", f"{label:<17}{where}"]
     if unscored and pool.answers:  # only answers with a grade are said to have one
-        lines.append(f"Answers:     {_n(answers - unscored, 'answer')} with a grade ({unscored} "
-                     "failed before scoring)")
+        lines.append(f"Answers:         {_n(answers - unscored, 'answer')} with a grade "
+                     f"({unscored} failed before scoring)")
     elif not pool.answers and not pool.unread:
-        lines.append(f"Answers:     {_n(answers, 'answer')}, none with a clear grade")
+        lines.append(f"Answers:         {_n(answers, 'answer')}, none with a clear grade")
     else:
-        lines.append(f"Answers:     {_n(answers, 'answer')}")
+        lines.append(f"Answers:         {_n(answers, 'answer')}")
     if pool.answers and (pool.n_merged or pool.split):
         lines.append(INDENT + repeats_note(answers, pool))
-    lines += [f"Judge:       {_judge_value(found)}", *_rule_lines(found)]
+    lines += [f"LLM-as-a-judge:  {_judge_value(found)}", *_rule_lines(found)]
     rows = read_rows(found, pass_if, mapped)
     if rows:
         width = max(len(k) for k, _ in rows) + 3
@@ -945,18 +946,19 @@ def read_rows(found: start.Found, pass_if: str | None = None,
     mark = f": {start.pass_at(pm)}" if pm else ""
     if found.tool == "promptfoo":
         return [("question", "each test's vars"), ("answer", "each test's output"),
-                ("grade", "your judge's Pass or Fail" + mark)]
+                ("grade", "your LLM-as-a-judge's Pass or Fail" + mark)]
     if found.tool == "deepeval":
         return [("question", "each test case's input"),
                 ("answer", "each test case's actual_output"),
-                ("grade", f"the {found.metric} score{mark}"), ("reason", "your judge's reason")]
+                ("grade", f"the {found.metric} score{mark}"),
+                ("reason", "your LLM-as-a-judge's reason")]
     if found.tool == "inspect":
         grade = f"the scorer's score{mark}" if pm else "the scorer's grade (C or I)"
         return [("question", "each sample's input"), ("answer", "each sample's output"),
                 ("grade", grade)]
     if found.tool == "mlflow":
         return [("question", "each trace's request"), ("answer", "its response"),
-                ("grade", "your judge's assessment" + mark)]
+                ("grade", "your LLM-as-a-judge's assessment" + mark)]
     if found.tool == "records":
         return [("question", "each line's input"), ("answer", "each line's output"),
                 ("grade", "each line's label" + mark)]
@@ -1069,12 +1071,12 @@ def _nothing_to_mark(talk: FrontTalk, found: start.Found, listed: str | None) ->
         return talk.stop(EXIT_QUESTION, judge_check.MODEL_FAILED_NEXT.format(
             command=talk.command()))
     failed = kinds == {judge_check.ERROR}
-    talk.para("Your judge's calls failed on every answer, so there is nothing to mark."
-              if failed else "No answer has a clear Pass or Fail from your judge, so there is "
-                             "nothing to mark.")
+    talk.para("Your LLM-as-a-judge's calls failed on every answer, so there is nothing to mark."
+              if failed else "No answer has a clear Pass or Fail from your LLM-as-a-judge, so "
+                             "there is nothing to mark.")
     if listed:
         talk.para(f"The list is in {listed}.")
-    fix = "fix your judge's calls" if failed else "fix your judge"
+    fix = "fix your LLM-as-a-judge's calls" if failed else "fix your LLM-as-a-judge"
     return talk.stop(EXIT_QUESTION, f"{fix}, run your eval again, then run "
                                     f"`{talk.command()}`.")
 
@@ -1144,7 +1146,8 @@ def _save(talk: FrontTalk, found: start.Found, new: settings.StartSettings,
             talk.say(f"  {line}")
         raise talk.stop(EXIT_QUESTION, f"add the lines above to {settings.FILE}, then run "
                                        f"`{program()}` again.") from None
-    talk.say(f"Saved {settings.FILE} (where your judge's results are and how to read them).")
+    talk.say(f"Saved {settings.FILE} (where your LLM-as-a-judge's results are and how to read "
+             "them).")
     if made:  # judgekeeper.toml keeps the judge, its model and pass mark now
         for name in ("metric", "pass_if", "judge_model"):
             talk.set(name, None)
@@ -1196,8 +1199,8 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
     except (OSError, ValueError, KeyError, TypeError):
         return [f"judgekeeper can't read {FOLDER}/start.json, so the marks there can't be used."]
     if (found.tool, found.metric) != (tool, metric):
-        return [(f"Your marks are for other results: they are of the judge {judge} ({tool}), "
-                 f"and these results are of {found.judge}.")]
+        return [(f"Your marks are for other results: they are of the LLM-as-a-judge {judge} "
+                 f"({tool}), and these results are of {found.judge}.")]
     return [] if talk.new else None
 
 
@@ -1411,12 +1414,12 @@ def agreement_lines(r: dict) -> list[str]:
 
     c = counts(r)
     n, d = c["passed"] + c["failed"], c["strict"] + c["easy"]
-    first = (f"You and your judge disagreed on {d} of {_n(n, 'answer')}." if d else
-             f"You and your judge agreed on all {_n(n, 'answer')}.")
+    first = (f"You and your LLM-as-a-judge disagreed on {d} of {_n(n, 'answer')}." if d else
+             f"You and your LLM-as-a-judge agreed on all {_n(n, 'answer')}.")
     return [first, "",
-            (f"  You passed {_n(c['passed'], 'answer')}. Of those, your judge passed "
+            (f"  You passed {_n(c['passed'], 'answer')}. Of those, your LLM-as-a-judge passed "
              f"{c['passed'] - c['strict']} and failed {c['strict']}."),
-            (f"  You failed {_n(c['failed'], 'answer')}. Of those, your judge passed "
+            (f"  You failed {_n(c['failed'], 'answer')}. Of those, your LLM-as-a-judge passed "
              f"{c['easy']} and failed {c['failed'] - c['easy']}.")]
 
 
@@ -1464,7 +1467,7 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
     model = judge.get("model") or "model not named"
     rule = judge.get("rule_hash")
     rule = f"rule hash {rule.removeprefix('sha256:')[:4]}" if rule else "rule not known"
-    return f"This result is about your judge as it was{day}: {model}, {rule}."
+    return f"This result is about your LLM-as-a-judge as it was{day}: {model}, {rule}."
 
 
 def _check_command(talk: FrontTalk) -> str:

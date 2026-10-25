@@ -38,7 +38,7 @@ REASONS = {
     "worded_differently": ("It's right, just worded differently", "fail"),
     "small_slips": ("Small slips don't matter here", "fail"),
     "short_ok": ("Short, but it answers the question", "fail"),
-    "not_asked": ("The judge wanted something I didn't ask for", "fail"),
+    "not_asked": ("The LLM-as-a-judge wanted something I didn't ask for", "fail"),
     "rule_silent": ("The rule doesn't say how to judge this", None),
     "unsure": ("I'm not sure about my own mark", None),
 }
@@ -56,7 +56,7 @@ TWICE = 2  # taps that make a clue line or a suggested rule line
 KEPT_ASIDE = "this answer is kept aside to test a new rule fairly"
 QUESTION = "Why did you mark it {mark}?"
 PART_QUESTION = {"pass": "Which part of your rule does this answer break?",
-                 "fail": "Which part did your judge get wrong?"}
+                 "fail": "Which part did your LLM-as-a-judge get wrong?"}
 ADD = "Add a reason to any answer below. `fix` uses them."
 
 
@@ -268,7 +268,7 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
     if mark not in ("pass", "fail"):
         raise ValueError("mark this answer Pass or Fail first")
     if judge == mark:
-        raise ValueError("reasons are only for answers you and your judge disagree on")
+        raise ValueError("reasons are only for answers you and your LLM-as-a-judge disagree on")
     if split is None or item_id not in split.seen:
         raise ValueError("this answer is not on your result page yet: open it again")
     data = ws.data()
@@ -485,7 +485,8 @@ TEMPLATES = {
     "not_asked": "Don't fail an answer for leaving out something the question didn't ask for.",
     "rule_silent": "Your rule doesn't cover {n} answers: write how to judge them.",
 }
-PART_LINE = "Make this part of your rule more exact: '{part}'. Your judge missed it {times}."
+PART_LINE = ("Make this part of your rule more exact: '{part}'. Your LLM-as-a-judge missed it "
+             "{times}.")
 SUGGESTIONS = "suggestions.md"
 SHOWN = 300  # characters of an answer in suggestions.md
 

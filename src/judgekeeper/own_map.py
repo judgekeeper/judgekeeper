@@ -30,8 +30,8 @@ from judgekeeper.start import EXIT_QUESTION, EXIT_USAGE, StartError, Talk
 from judgekeeper.textio import plural, quote_arg
 
 MAX_PATHS = 24
-RECORD_DOOR = ("Or save your judge's decisions from now on with one judgekeeper.record() line "
-               f"where it runs: {own_format.RECORD_URL} shows the line.")
+RECORD_DOOR = ("Or save your LLM-as-a-judge's decisions from now on with one judgekeeper.record() "
+               f"line where it runs: {own_format.RECORD_URL} shows the line.")
 NOT_UTF8 = "is not saved as UTF-8 text"  # textio.not_utf8_message
 QUOTE = re.compile(r"line (\d+) of .+ has a quote that never closes")
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
@@ -56,8 +56,8 @@ def cannot(talk: Talk, rel: str, why: str):
     _para(talk, f"judgekeeper cannot read {rel} by itself: {why}.")
     _para(talk, f"Turn it into a CSV, as the Next: line says. {RECORD_DOOR}")
     return talk.stop(EXIT_USAGE, (
-        f"turn {rel} into a CSV with the columns id, input, output, verdict (pass or fail) "
-        "and reason, one CSV per judge, leaving out errors and scores made by a rule. Then "
+        f"turn {rel} into a CSV with the columns id, input, output, verdict (pass or fail) and "
+        "reason, one CSV per LLM-as-a-judge, leaving out errors and scores made by a rule. Then "
         f"run `{csv_command(talk)}`, with PATH the path of your CSV."))
 
 
@@ -91,7 +91,7 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
               else mapper.filled(g.output))
     score = mapper.filled(g.score, side, judge)
     if g.judges:
-        score += f" (judges: {', '.join(g.judges)})"
+        score += f" (LLM-as-a-judge names: {', '.join(g.judges)})"
     if len(g.sides) > 1 and mapper.SIDE in g.score:
         score += f" and the same under {' and '.join(g.sides[1:])}"
     label = "grade:"
@@ -126,7 +126,8 @@ PARTS = (("each", "what one answer is", "Which list holds the answers, one item 
          ("score", "the score", "Which path holds the score?"),
          ("reason", "the reason", "Which path holds the reason?"),
          ("id", "the id", "Which path holds the id?"),
-         ("model_key", "the judge's model", "Which path holds the judge's model?"),
+         ("model_key", "the LLM-as-a-judge's model",
+          "Which path holds the LLM-as-a-judge's model?"),
          ("pass_mark", "the pass mark", None))
 OPTIONAL = ("reason", "id", "model_key")  # a file may have none
 SHOWN_EXAMPLES = ("each", "model_key")  # a count of items, a model's name: never answer text
@@ -189,14 +190,15 @@ def _choose_judge(talk: Talk, units, g: mapper.Guess, metric: str | None) -> str
         if metric.lower() in ("*", "all"):
             return "*"
         if metric not in g.judges:
-            raise StartError(f"no judge named {metric!r}; judges are: "
+            raise StartError(f"no LLM-as-a-judge named {metric!r}; the names are: "
                              f"{', '.join(repr(j) for j in g.judges)}")
         return metric
     if len(g.judges) == 1:
         return g.judges[0]
     options = [f"{j} ({plural(_count(units, g, j), 'answer')})" for j in g.judges]
-    i = talk.choose("Which judge do you want to check?", [*options, "All, one at a time"], "",
-                    flag="--metric", values=[*g.judges, "all"], what="which judge to check")
+    i = talk.choose("Which LLM-as-a-judge do you want to check?",
+                    [*options, "All, one at a time"], "", flag="--metric",
+                    values=[*g.judges, "all"], what="which LLM-as-a-judge to check")
     return "*" if i == len(g.judges) else g.judges[i]
 
 
@@ -228,8 +230,8 @@ def _pass_mark(talk: Talk, g: mapper.Guess, pass_if: str | None):
             talk.say(f"  {answer!r} is not a number: the pass mark stays {g.pass_mark}.")
             return g.pass_mark
         return value
-    talk.say("Your judge's scores are not between 0 and 1, and the file does not say which "
-             "score passes.")
+    talk.say("Your LLM-as-a-judge's scores are not between 0 and 1, and the file does not say "
+             "which score passes.")
     raise talk.stop(EXIT_QUESTION, f"decide which score counts as a pass, then run "
                                    f"`{talk.command('--pass-if', PASS_IF)}`.")
 
@@ -248,7 +250,7 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     except mapper.MapError as e:
         raise cannot(talk, rel, str(e)) from None
     lines = f"{len(units)} {'line' if len(units) == 1 else 'lines'}"
-    talk.say(f"{rel} looks like your judge's results in a format of its own ({lines})."
+    talk.say(f"{rel} looks like your LLM-as-a-judge's results in a format of its own ({lines})."
              if found else f"{rel} ({lines}):")
     listed = [p for p, _ in mapper.listing(units[0], g.judges)]
     talk.say("What one line holds:" if len(units) > 1 else "What it holds:")
@@ -293,7 +295,7 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     if left and talk.confirm(
             f"{plural(left, 'answer has', 'answers have')} an error or a score made by a rule "
             "(a reason starting "
-            '"Rule"), not by your judge. Leave them out?', default=True, with_yes=True,
+            '"Rule"), not by your LLM-as-a-judge. Leave them out?', default=True, with_yes=True,
             hint=""):
         m["leave_out"] = True
     op = g.pass_op if mark is not None and g.pass_op != ">=" else None

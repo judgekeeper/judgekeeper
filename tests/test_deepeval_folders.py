@@ -1,5 +1,5 @@
 """DeepEval results in more than one folder (two apps, each with its own `.deepeval/`) are
-separate evals: never merged into one pool. judgekeeper asks which, as it asks which judge;
+separate evals: never merged into one pool. judgekeeper asks which, as it asks which LLM-as-a-judge;
 the answer is the folder's path, and judgekeeper.toml keeps it after a yes. Its project is
 the folder `.deepeval/` is in."""
 
@@ -44,8 +44,8 @@ def test_two_deepeval_folders_are_asked_about_not_merged(two_apps, capsys):
 
 def test_the_folder_named_is_read_alone_in_its_own_project(two_apps, capsys):
     code, out, _ = run(capsys, "app1/.deepeval")
-    assert "Eval tool:   DeepEval" in out and "Answers:     20 answers" in out
-    assert "File:        .deepeval/.latest_run_full.json" in out
+    assert "Eval tool:       DeepEval" in out and "Answers:         20 answers" in out
+    assert "File:            .deepeval/.latest_run_full.json" in out
     assert (two_apps / "app1" / ".judgekeeper" / "judge.json").is_file()
     assert not (two_apps / "app1" / ".deepeval" / ".judgekeeper").exists()
     assert code == 3  # 20 answers: fewer than a first result needs
@@ -59,8 +59,8 @@ def test_at_a_terminal_the_folder_is_asked_and_kept(two_apps, capsys, terminal):
     assert saved["source"] == "deepeval" and saved["file"] == "app1/.deepeval"
     _, out, _ = run(capsys)  # asked once
     assert "more than one folder" not in out
-    assert "File:        app1/.deepeval/.latest_run_full.json" in out
-    assert "Answers:     20 answers" in out
+    assert "File:            app1/.deepeval/.latest_run_full.json" in out
+    assert "Answers:         20 answers" in out
 
 
 def test_a_file_with_several_metrics_asks_which(here, capsys):
@@ -73,7 +73,7 @@ def test_a_file_with_several_metrics_asks_which(here, capsys):
     (here / ".deepeval" / ".latest_run_full.json").write_text(json.dumps(data),
                                                               encoding="utf-8")
     code, out, _ = run(capsys)
-    assert "These results hold more than one judge:" in out
+    assert "These results hold more than one LLM-as-a-judge:" in out
     assert "--metric NAME" in assert_one_next_at_the_end(out)
     assert code == 3
 

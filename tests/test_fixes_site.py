@@ -89,7 +89,7 @@ def test_the_judge_line_names_the_models_the_tool_names(tmp_path):
                 [*rows, "q 6,a 6,,old-model-made-up"])
     (judge,) = browser(path)["judges"]
     assert judge["models"] == ["gpt-4.1"]
-    assert "Judge:       gpt-4.1" in judge["lines"]
+    assert "LLM-as-a-judge:  gpt-4.1" in judge["lines"]
     assert _page(browser(path)) == tool(path)
 
 
@@ -111,9 +111,9 @@ def test_an_ods_file_is_named_as_a_spreadsheet(tmp_path):
 def test_one_answer_run_three_times_is_one_answer(tmp_path):
     path = _csv(tmp_path / "judged.csv", "input,output,verdict", ["q,a,pass"] * 3)
     (judge,) = browser(path)["judges"]
-    assert "Answers:     1 answer" in judge["lines"]
+    assert "Answers:         1 answer" in judge["lines"]
     lines = front.found_block(start.find_judge(path))
-    assert "Answers:     1 answer" in lines
+    assert "Answers:         1 answer" in lines
 
 
 # fields of the wrong type: the same "damaged" call as the tool -------------------------
@@ -294,7 +294,7 @@ def test_the_page_and_the_tool_say_repeated_answers_in_the_same_lines(tmp_path, 
     path = _repeats(tmp_path / "results.json", **shape)
     (judge,) = browser(path)["judges"]
     found = start.find_judge(path)
-    expected = [f"Answers:     {answers} answers", f"{front.INDENT}{note}"]
+    expected = [f"Answers:         {answers} answers", f"{front.INDENT}{note}"]
     for lines in (judge["lines"], front.found_block(found)):
         at = lines.index(expected[0])
         assert lines[at:at + 2] == expected, lines

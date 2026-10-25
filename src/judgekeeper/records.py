@@ -736,6 +736,6 @@ def _consensus(fps: list) -> tuple[dict, list[str]]:
             known[f] = ENDPOINT_UNKNOWN
     if not differ:
         return known, []
-    note = (f"Judgments disagree on the judge's {', '.join(differ)}: the run header records "
-            "these as unknown and each judgment keeps its own.")
+    note = (f"Judgments disagree on the LLM-as-a-judge's {', '.join(differ)}: the run header "
+            "records these as unknown and each judgment keeps its own.")
     return known, [note]

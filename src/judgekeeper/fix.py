@@ -81,8 +81,8 @@ SWAPPABLE = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools whose rule f
 RULE_SHOWN = 58  # characters of the rule shown, "…" included
 STEP = "Step 4 of 5: Fix"
 STEP_TEST = "Step 4 of 5: Fix (testing your new rule)"
-ASK = ("To test it, judgekeeper asks your judge about the {n} answers kept aside, once with "
-       "the old rule and once with the new one. That is {calls}, paid with your own key.")
+ASK = ("To test it, judgekeeper asks your LLM-as-a-judge about the {n} answers kept aside, once "
+       "with the old rule and once with the new one. That is {calls}, paid with your own key.")
 RESULT = {
     "better": ("Result: your new rule is better. A difference this large is very unlikely to "
                "be a coincidence."),
@@ -96,15 +96,16 @@ RESULT = {
     "worse": "Result: it looks worse. Keep the old rule.",  # only past the sign test
 }
 # A judge judgekeeper can't ask (can_test): the same words on every run and in report.html
-CANT_ASK = "judgekeeper can't ask this judge itself."
-CANT_RERUN = "judgekeeper can't re-run this kind of judge itself"  # the result page's words
+CANT_ASK = "judgekeeper can't ask this LLM-as-a-judge itself."
+# the result page's words
+CANT_RERUN = "judgekeeper can't re-run this kind of LLM-as-a-judge itself"
 NEXT_CANT_ASK = ("change its rule where your eval keeps it, run your eval, then run "
                  "`{command}`.")
 # Inspect's model_graded_qa / _fact with no instructions= (rule None): Inspect's own text, which
 # no public Inspect AI function gives, so it is not in the person's code to swap
-INSPECT_DEFAULT = ("judgekeeper can't ask this judge itself: Inspect's default {scorer} "
-                   "instructions aren't written in your code. To test a rule, set instructions= "
-                   "in {scorer}(...) and run your eval again.")
+INSPECT_DEFAULT = ("judgekeeper can't ask this LLM-as-a-judge itself: Inspect's default {scorer} "
+                   "instructions aren't written in your code. To test a rule, set instructions= in "
+                   "{scorer}(...) and run your eval again.")
 
 
 def cant_ask_line(data: dict) -> str:
@@ -560,8 +561,8 @@ def _question(m: Marks, row: dict) -> str:
 
 # mistakes.md --------------------------------------------------------------------------------
 
-TASK = ("Write a new rule so your judge agrees with the marks below. Keep what the current rule "
-        "gets right. You can hand this whole file to a coding agent.")
+TASK = ("Write a new rule so your LLM-as-a-judge agrees with the marks below. Keep what the "
+        "current rule gets right. You can hand this whole file to a coding agent.")
 NO_PATTERN = "No pattern stands out yet."
 WHERE_WRONG = "Where your LLM-as-a-judge goes wrong:"  # the clues' heading, here and in mistakes.md
 
@@ -581,12 +582,12 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -
     one line."""
     fenced = start_fix_rule.fenced
     clues = clue_lines(rows, mark) or [NO_PATTERN]
-    parts = ["# Your judge's mistakes", "", TASK, "",
+    parts = ["# Your LLM-as-a-judge's mistakes", "", TASK, "",
              f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", "",
              f"## {WHERE_WRONG.rstrip(':')}", "",
              *clues, ""]
     if rule:
-        parts += ["## Your judge's rule now", "", fenced("RULE", rule, cut=False), ""]
+        parts += ["## Your LLM-as-a-judge's rule now", "", fenced("RULE", rule, cut=False), ""]
     parts += ["## Mistakes", ""]
     wrong = mistakes(rows)
     grouped = reasons.groups(wrong) if reasons.has_any(wrong) else [(None, wrong)]
@@ -596,7 +597,7 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -
             parts += [f"## {title}", ""]
         for r in group:
             n += 1
-            parts.append(f"## [M{n}] Your judge said {r['judge'].upper()}. You said "
+            parts.append(f"## [M{n}] Your LLM-as-a-judge said {r['judge'].upper()}. You said "
                          f"{r['final'].upper()}.")
             answer = reasons.canonical(r["output"])
             parts += [fenced("QUESTION", r["input"]),
@@ -607,7 +608,7 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -
             if r.get("why"):
                 parts.append(fenced("YOUR REASON", one_line(r["why"])))
             if r.get("reason"):
-                parts.append(fenced("JUDGE'S REASON", r["reason"]))
+                parts.append(fenced("LLM-AS-A-JUDGE'S REASON", r["reason"]))
             parts.append("")
     return reasons.cleaned(scrub("\n".join(parts).rstrip("\n") + "\n"))
 
@@ -831,7 +832,7 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
         talk.next(f"run your eval once from this folder, then run `{program()}`.")
         return EXIT_NEEDS_YOU
     if split is None:
-        talk.para("You have not marked enough answers yet to fix your judge.")
+        talk.para("You have not marked enough answers yet to fix your LLM-as-a-judge.")
         step = f"run `{program('mark')}` to mark more answers."
         talk.next(next_marks(ws, step) if ws is not None else step)
         return EXIT_NEEDS_YOU
@@ -916,11 +917,12 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split,
     seen_rows = [m.row(i) for i in split.seen]
     wrong = mistakes(seen_rows)
     if not wrong:
-        talk.para("Your judge agrees with every mark you can see, so there is nothing to fix.")
+        talk.para("Your LLM-as-a-judge agrees with every mark you can see, so there is nothing to "
+                  "fix.")
         if then is not None:
             return _then(talk, then)
-        talk.next(f"nothing to do. When you change your judge or update your eval tool, run "
-                  f"`{talk.command('check')}`.")
+        talk.next("nothing to do. When you change your LLM-as-a-judge or update your eval tool, "
+                  f"run `{talk.command('check')}`.")
         return EXIT_OK
     pm = data.get("pass_mark")
     mark = pm["mark"] if pm and pm.get("follows") else None
@@ -955,10 +957,10 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split,
     if can_test(tool, rule):
         where = start_fix_rule.found_rule(ws.root, rule, tool)
         if where:
-            talk.say(f"Your judge's rule is in {where[0]}, line {where[1]}:")
+            talk.say(f"Your LLM-as-a-judge's rule is in {where[0]}, line {where[1]}:")
         else:
-            talk.para("judgekeeper can't tell which file holds your judge's rule. Your eval "
-                      f"keeps it in {start_fix_rule.rule_home(ws.root, tool, data)}:")
+            talk.para("judgekeeper can't tell which file holds your LLM-as-a-judge's rule. Your "
+                      f"eval keeps it in {start_fix_rule.rule_home(ws.root, tool, data)}:")
         talk.say(f"  {_rule_quote(rule)}")
         talk.say()
     if split.hidden:
@@ -1029,16 +1031,16 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
         for line in no_key.key_lines:
             talk.para(line)
         talk.para(NOT_ASKED)
-        step = no_key.key_step or "set the key your judge needs"
+        step = no_key.key_step or "set the key your LLM-as-a-judge needs"
         talk.next(f"{step}, then run `{talk.command()}` again.")
         return EXIT_NEEDS_YOU
-    why = cant and (cant.plain or f"Your judge can't be asked again: {cant.why}.")
+    why = cant and (cant.plain or f"Your LLM-as-a-judge can't be asked again: {cant.why}.")
     if why:
         talk.para(why)
         if cant is not None and cant.install:
             talk.next(f"run `{cant.install}` in your project, then run `{talk.command()}` again.")
         else:
-            talk.next(f"run `{talk.command()}` again once your judge can be asked here.")
+            talk.next(f"run `{talk.command()}` again once your LLM-as-a-judge can be asked here.")
         return EXIT_NEEDS_YOU
     calls = sum(p.calls for p in plans)
     talk.para(ASK.format(n=len(split.hidden), calls=plural(calls, "AI call"))
@@ -1053,7 +1055,7 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
                   f"`{talk.command()} --yes` to go ahead.")
         return EXIT_NEEDS_YOU
     if not answer:
-        talk.para("Your judge was not asked.")
+        talk.para("Your LLM-as-a-judge was not asked.")
         talk.next(f"run `{talk.command()}` again when you are ready to test your rule.")
         return EXIT_NEEDS_YOU
     from judgekeeper.again.fresh import write_files
@@ -1066,7 +1068,7 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
             fresh = again.run_tool(ws, plan, _Quiet())
         except AgainError as e:
             talk.say()
-            talk.para(f"Asking your judge did not finish: {scrub(str(e))}")
+            talk.para(f"Asking your LLM-as-a-judge did not finish: {scrub(str(e))}")
             talk.next(f"run `{talk.command()}` again to test your rule.")
             return EXIT_NEEDS_YOU
         write_files(ws, plan, fresh, prefix="fix")  # its grades, each with the fingerprint
@@ -1156,10 +1158,10 @@ def few_mistakes(m: Marks, split: Split) -> str | None:
         return next((f for f in range(n + 1)
                      if targets.fix_verdict(f, 0, n, test=k).kind in kinds), n)
 
-    return (f"The marks kept aside hold only {plural(wrong, 'answer')} your judge got wrong. A new "
-            f"rule needs at least {fewest(('safe', 'better'))} of those fixed to be called safe "
-            f"to try, and about {fewest(('better',))} to be called better, so this test can "
-            "only catch a worse rule.")
+    return (f"The marks kept aside hold only {plural(wrong, 'answer')} your LLM-as-a-judge got "
+            f"wrong. A new rule needs at least {fewest(('safe', 'better'))} of those fixed to be "
+            f"called safe to try, and about {fewest(('better',))} to be called better, so this "
+            "test can only catch a worse rule.")
 
 
 def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes: bool) -> int:

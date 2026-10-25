@@ -23,7 +23,7 @@ def here(tmp_path, monkeypatch):
 
 
 def _read(out: str) -> bool:
-    return "Answers:     40 answers" in out
+    return "Answers:         40 answers" in out
 
 
 def test_a_found_file_over_the_cap_is_listed_with_the_command_that_reads_it(here, capsys):

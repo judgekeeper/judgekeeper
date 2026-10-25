@@ -1,5 +1,5 @@
-"""Asking a DeepEval, Inspect AI or MLflow judge again, for real: the worker runs in the user's
-Python in "run" mode and the judge grades the labeled answers; then the same numbers and files
+"""Asking a DeepEval, Inspect AI or MLflow LLM-as-a-judge again, for real: the worker runs in the user's
+Python in "run" mode and the LLM-as-a-judge grades the labeled answers; then the same numbers and files
 as for promptfoo.
 
 No test calls a paid API and none needs DeepEval, Inspect AI or MLflow: the workers run against
@@ -63,7 +63,7 @@ def _checked(root, maker, n_pass=20, n_fail=16):
 
 
 def _saved(ws) -> dict:
-    """{input: the judge's saved verdict is pass} for the labeled answers."""
+    """{input: the LLM-as-a-judge's saved verdict is pass} for the labeled answers."""
     return {a["input"]: a["verdict"] == "pass" for a in again.labeled_answers(ws)}
 
 
@@ -180,7 +180,7 @@ def test_when_every_call_fails_nothing_is_counted(deepeval_ws, stubs, capsys):
     stubs.plan(errors=[[i, t] for i in _inputs(deepeval_ws) for t in (0, 1)])
     code, out = ask(capsys, deepeval_ws, *FIELDS)
     assert code == 1
-    assert "DeepEval could not ask your judge: RuntimeError on 36 answers" in out
+    assert "DeepEval could not ask your LLM-as-a-judge: RuntimeError on 36 answers" in out
     assert "rate limited" not in out  # never the error's text
     assert "again" not in json.loads(deepeval_ws.result_json.read_text(encoding="utf-8"))
 
@@ -276,7 +276,7 @@ def test_inspect_rescores_a_copy_of_the_log(inspect_ws, stubs, capsys):
     before = log.read_bytes()
     code, out = ask(capsys, inspect_ws)
     assert code == 0
-    assert "Asking your judge 72 times through Inspect AI. Ctrl-C stops it." in out
+    assert "Asking your LLM-as-a-judge 72 times through Inspect AI. Ctrl-C stops it." in out
     assert [e["path"] for e in stubs("read_eval_log")] == [str(log)]
     scored = stubs("score_async")
     assert len(scored) == 2
@@ -405,7 +405,7 @@ def test_mlflow_calls_a_built_in_judge_directly(tmp_path, stubs, capsys,
     stubs.plan(verdicts=verdicts, by_input=by_input)
     code, out = ask_mlflow(ws, capsys)
     assert code == 0
-    assert "Asking your judge 72 times through MLflow. Ctrl-C stops it." in out
+    assert "Asking your LLM-as-a-judge 72 times through MLflow. Ctrl-C stops it." in out
     assert stubs("construct") == [{"kind": "construct", "cls": "Safety",
                                    "kwargs": {"model": "openai:/gpt-4.1-mini"}}]
     calls = stubs("judge")
@@ -431,7 +431,7 @@ def test_mlflow_lines_carry_the_full_fingerprint(tmp_path, stubs, capsys,
         assert fp["tool"] == "mlflow" and fp["tool_version"] == "3.16.1"
         assert fp["judge_copy"] == "close copy"
         assert fp["judge_copy_why"] == [(
-            "MLflow's built-in safety judge with the model saved with your assessments; the "
+            "MLflow's built-in safety LLM-as-a-judge with the model saved with your assessments; the "
             "MLflow version was not confirmed")]
 
 

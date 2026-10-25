@@ -71,25 +71,26 @@ NEXT_STOPPED = "run `{command}` to carry on."
 
 MESSAGE = "Check your LLM-as-a-judge in 5 steps."
 STEPS = """\
-  1. Find      judgekeeper          finds your eval results and the judge
-                                    that graded them
+  1. Find      judgekeeper          finds your eval results and the
+                                    LLM-as-a-judge that graded them
   2. Mark      in your browser      you mark answers Pass or Fail
-  3. Measure   judgekeeper          shows how often your judge agrees with
-                                    you, and where it goes wrong
-  4. Fix       judgekeeper fix      if your judge needs work, write a better
-                                    rule. promptfoo, DeepEval, Inspect AI and
-                                    MLflow: tests it on marks kept aside. Your
-                                    own file or record(): change the rule where
-                                    your eval keeps it, then judgekeeper check
-  5. Re-check  judgekeeper check    after you change your judge, see if it
-                                    still agrees with you"""
+  3. Measure   judgekeeper          shows how often your LLM-as-a-judge agrees
+                                    with you, and where it goes wrong
+  4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, write a
+                                    better rule. promptfoo, DeepEval,
+                                    Inspect AI and MLflow: tests it on marks
+                                    kept aside. Your own file or record():
+                                    change the rule where your eval keeps it,
+                                    then judgekeeper check
+  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, see
+                                    if it still agrees with you"""
 READS = """\
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
 MLflow, or a CSV or JSONL file with these columns:
   input, output, verdict"""
 # fix: a new rule is tested only where judgekeeper can ask the judge (fix.can_test)
-FIX_HELP = ("see where your judge goes wrong, then test a better rule (promptfoo, DeepEval, "
-            "Inspect AI, MLflow) or change it in your eval (your own file, record())")
+FIX_HELP = ("see where your LLM-as-a-judge goes wrong, then test a better rule (promptfoo, "
+            "DeepEval, Inspect AI, MLflow) or change it in your eval (your own file, record())")
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
     ("fix", FIX_HELP),
@@ -211,17 +212,18 @@ def _front_parser() -> argparse.ArgumentParser:
     p.add_argument("--tool", choices=TOOLS,
                    help="which eval tool's results to read when several are found")
     p.add_argument("--metric", metavar="NAME",
-                   help="the judge to look at when the results hold several")
+                   help="the LLM-as-a-judge to look at when the results hold several")
     p.add_argument("--experiment", metavar="NAME_OR_ID",
-                   help="MLflow: the experiment to read, when several have judge results")
+                   help="MLflow: the experiment to read, when several have LLM-as-a-judge results")
     p.add_argument("--tracking-uri", metavar="URI",
                    help="MLflow: the local store to read (mlflow.db, sqlite:///..., an mlruns/ "
                         "folder or file:...)")
     _normaliser_args(p)
     p.add_argument("--judge-model", metavar="NAME",
-                   help="the judge's model, when the results do not record it")
+                   help="the LLM-as-a-judge's model, when the results do not record it")
     p.add_argument("--fields", metavar="LIST",
-                   help="a DeepEval GEval judge: the parts it reads, e.g. input,actual_output")
+                   help="a DeepEval GEval LLM-as-a-judge: the parts it reads, e.g. "
+                        "input,actual_output")
     p.add_argument("--yes", action="store_true",
                    help="without a terminal: yes to the questions judgekeeper printed")
     _page_args(p)
@@ -250,29 +252,30 @@ def _parser() -> argparse.ArgumentParser:
     mk.add_argument("--tool", choices=TOOLS,
                     help="which eval tool's results to read when several are found")
     mk.add_argument("--metric", metavar="NAME",
-                    help="the judge to look at when the results hold several")
+                    help="the LLM-as-a-judge to look at when the results hold several")
     mk.add_argument("--experiment", metavar="NAME_OR_ID",
-                    help="MLflow: the experiment to read, when several have judge results")
+                    help="MLflow: the experiment to read, when several have LLM-as-a-judge results")
     mk.add_argument("--tracking-uri", metavar="URI",
                     help="MLflow: the local store to read (mlflow.db, sqlite:///..., an "
                          "mlruns/ folder or file:...)")
     _normaliser_args(mk)
     mk.add_argument("--judge-model", metavar="NAME",
-                    help="the judge's model, when the results do not record it")
+                    help="the LLM-as-a-judge's model, when the results do not record it")
     mk.add_argument("--fields", metavar="LIST",
-                    help="a DeepEval GEval judge: the parts it reads, e.g. input,actual_output")
+                    help="a DeepEval GEval LLM-as-a-judge: the parts it reads, e.g. "
+                         "input,actual_output")
     mk.add_argument("--yes", action="store_true",
                     help="without a terminal: yes to the questions judgekeeper printed")
     _page_args(mk)
 
     p.commands = {"mark": mk}  # each command's parser: an unknown flag shows its own usage
     ck = sub.add_parser("check", parents=[common],
-                        help="when your judge changed, re-check it on your marks")
+                        help="when your LLM-as-a-judge changed, re-check it on your marks")
     ck.add_argument("path", nargs="?", default=".", metavar="PATH",
                     help="your project folder (default: this folder)")
     ck.add_argument("--yes", action="store_true",
-                    help="without a terminal: go ahead and ask your judge (it makes AI calls, "
-                         "paid with your own key)")
+                    help="without a terminal: go ahead and ask your LLM-as-a-judge (it makes AI "
+                         "calls, paid with your own key)")
     p.commands["check"] = ck
 
     fx = sub.add_parser("fix", parents=[common],
@@ -306,11 +309,12 @@ def _page_args(p: argparse.ArgumentParser) -> None:
 
 def _normaliser_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--pass-if", metavar="RULE",
-                   help="when your judge's grades are scores: which pass, e.g. 'score>=0.5'")
+                   help="when your LLM-as-a-judge's grades are scores: which pass, e.g. "
+                        "'score>=0.5'")
     p.add_argument("--label-map", metavar="MAP",
-                   help="more spellings of your judge's grades, e.g. 'good=pass,bad=fail' "
-                        "(added to pass/fail, true/false, yes/no, correct/incorrect, "
-                        "right/wrong, 1/0); =error for a value that is no decision")
+                   help="more spellings of your LLM-as-a-judge's grades, e.g. 'good=pass,bad=fail' "
+                        "(added to pass/fail, true/false, yes/no, correct/incorrect, right/wrong, "
+                        "1/0); =error for a value that is no decision")
 
 
 def cmd_mark(args) -> int:

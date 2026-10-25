@@ -51,11 +51,10 @@ back within a week.
 
 judgekeeper writes only inside `.judgekeeper/` in your project, plus `judgekeeper.toml` (where
 your results are and how to read them) only after you say yes, and two temporary files next to
-your promptfoo config while it asks your judge again (removed when promptfoo is done). It
-never edits other
-tools' settings: no editor or agent hooks, no git hooks, no `.pre-commit-config.yaml`, no
-requirements files. It never runs your judge by itself: `judgekeeper check` says how many AI
-calls a re-check needs and asks before it makes them.
+your promptfoo config while it asks your LLM-as-a-judge again (removed when promptfoo is done).
+It never edits other tools' settings: no editor or agent hooks, no git hooks, no
+`.pre-commit-config.yaml`, no requirements files. It never runs your LLM-as-a-judge by itself:
+`judgekeeper check` says how many AI calls a re-check needs and asks before it makes them.
 
 ## Running judgekeeper through a coding agent
 
@@ -72,21 +71,20 @@ browser. Running it through a coding agent isn't supported in 1.0.
 
 ## Things that run your own code, by design
 
-Asking your judge again runs your project's own Python and eval tool, from the project
+Asking your LLM-as-a-judge again runs your project's own Python and eval tool, from the project
 folder. Run it only in projects you trust, as you would run their tests. It happens when
-`judgekeeper check` re-checks a changed judge or `judgekeeper fix` tests a new rule, already
-while the plan is made, before the "Go ahead?" question: judgekeeper runs the project's
+`judgekeeper check` re-checks a changed LLM-as-a-judge or `judgekeeper fix` tests a new rule,
+already while the plan is made, before the "Go ahead?" question: judgekeeper runs the project's
 `node_modules/.bin/promptfoo` (or promptfoo on your PATH) to read its version, and for
 DeepEval, Inspect AI and MLflow a small script with your Python (the active virtual
-environment, else the project's `.venv` or `venv`). Those tools load the project's `.env`
-and config as they do when you run your evals. judgekeeper asks a promptfoo judge again only
-when its grader is a model provider that promptfoo calls over HTTP, from a fixed list
-(`openai:`, `anthropic:`, `azure:`, `bedrock:`, `vertex:`, `google:`, `mistral:`, `ollama:`
-and others like them, in any case) that sends a prompt to a model and reads text back. A
-grader that runs an agent with tools (`anthropic:claude-agent-sdk`, `anthropic:claude-code`,
-`openai:codex-sdk`, `openai:agents:...`, an assistant), any other grader (`package:`,
-`exec:`, `python:`, `file://`, a URL, `webhook:`, a name it doesn't know), a rule or rubric
-that loads code
-(`package:`, `file://`, `exec:`), or a `transform`, makes it a judge judgekeeper cannot ask
-again. It uses a promptfoo version from a results file only when it reads as a plain version
-number.
+environment, else the project's `.venv` or `venv`). Those tools load the project's `.env` and
+config as they do when you run your evals. judgekeeper asks a promptfoo LLM-as-a-judge again
+only when its grader is a model provider that promptfoo calls over HTTP, from a fixed list
+(`openai:`, `anthropic:`, `azure:`, `bedrock:`, `vertex:`, `google:`, `mistral:`, `ollama:` and
+others like them, in any case) that sends a prompt to a model and reads text back. A grader
+that runs an agent with tools (`anthropic:claude-agent-sdk`, `anthropic:claude-code`,
+`openai:codex-sdk`, `openai:agents:...`, an assistant), any other grader (`package:`, `exec:`,
+`python:`, `file://`, a URL, `webhook:`, a name it doesn't know), a rule or rubric that loads
+code (`package:`, `file://`, `exec:`), or a `transform`, makes it an LLM-as-a-judge judgekeeper
+cannot ask again. It uses a promptfoo version from a results file only when it reads as a plain
+version number.

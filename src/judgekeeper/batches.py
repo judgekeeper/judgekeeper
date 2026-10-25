@@ -42,10 +42,10 @@ def waiting_line(n: int, changed: bool = False, worse: bool = False) -> str:
     came with changed grades (or a changed judge, `changed`): they join once `judgekeeper
     check` took the change (the Next: line names it); after a "Worse" (`worse`), once the
     judge is the marks' again or a changed one is checked."""
-    what = "your changed judge" if changed else "changed grades"
+    what = "your changed LLM-as-a-judge" if changed else "changed grades"
     they = "it waits" if n == 1 else "they wait"
-    then = ("you go back to your old judge or check a changed one" if worse
-            else "your changed judge is checked")
+    then = ("you go back to your old LLM-as-a-judge or check a changed one" if worse
+            else "your changed LLM-as-a-judge is checked")
     return f"{plural(n, 'new answer', 'new answers')} came with {what}, so {they} until {then}."
 
 

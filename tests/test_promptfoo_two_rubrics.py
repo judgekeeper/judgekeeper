@@ -15,7 +15,7 @@ import pytest
 from tests.start_projects import promptfoo_data, split
 from tests.test_front import run
 
-SAYS = ("has more than one 'llm-rubric' judge. Give each one a name with metric: in its "
+SAYS = ("has more than one 'llm-rubric' assertion. Give each one a name with metric: in its "
         "assertion, then run your eval again (that makes model calls).")
 SENTINEL = "SENTINEL-4c1e"
 CONFIG = ("description: support bot\nprompts:\n  - 'Answer: {{question}}'\n"

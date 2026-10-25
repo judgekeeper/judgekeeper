@@ -1,4 +1,4 @@
-"""Why the person disagrees with the judge: the reasons they tap on the live result page.
+"""Why the person disagrees with the LLM-as-a-judge: the reasons they tap on the live result page.
 
 On each disagreement the person can see (never a mark kept aside), the result page asks "Why
 did you mark it Fail?" (or Pass), with reasons to tap, buttons from the parts of their own
@@ -46,7 +46,7 @@ KEPT = "this answer is kept aside to test a new rule fairly"
 
 
 def _ready(root, rule: str = RULE):
-    """A project with a result: (workspace, seen mistakes the judge passed, seen mistakes it
+    """A project with a result: (workspace, seen mistakes the LLM-as-a-judge passed, seen mistakes it
     failed, mistakes kept aside)."""
     ws = project(root, rule=rule)
     start_label.store_result(ws, StartSession(ws))  # the first result: some marks kept aside
@@ -266,7 +266,7 @@ def test_a_mark_changed_after_seeing_the_grades_is_stamped_and_counted(here):
     assert line["mark"] == "pass" and line["after_result"] is True
     made = marks.made(marks.read(ws.marks))
     assert made["after_result"] == 1
-    said = "You changed 1 mark after seeing your judge's grades."
+    said = "You changed 1 mark after seeing your LLM-as-a-judge's grades."
     assert said in start_label.made_lines(made)
     assert _flat(_live(ws)).count(said) == 1
 
@@ -331,7 +331,7 @@ def test_rule_buttons_come_first_with_their_question(here):
     html = _live(ws)
     judge_passed, judge_failed = _box(html, passes[0]), _box(html, fails[0])
     assert "Which part of your rule does this answer break?" in judge_passed
-    assert "Which part did your judge get wrong?" in judge_failed
+    assert "Which part did your LLM-as-a-judge get wrong?" in judge_failed
     assert judge_passed.index('data-part="1"') < judge_passed.index('data-reason=')
     assert "Every claim is supported by the article" in judge_passed
 
@@ -511,7 +511,7 @@ def test_the_live_page_asks_why_and_says_fix_uses_the_reasons(here):
         assert _e(words) in _box(html, passes[0]), words
     for words in ("It's right, just worded differently", "Small slips don't matter here",
                   "Short, but it answers the question",
-                  "The judge wanted something I didn't ask for"):
+                  "The LLM-as-a-judge wanted something I didn't ask for"):
         assert _e(words) in _box(html, fails[0]) and _e(words) not in _box(html, passes[0])
 
 
@@ -656,7 +656,7 @@ def test_suggestions_md_has_a_line_per_reason_tapped_twice_and_lists_the_rest(he
     assert "- A short answer that answers the question is a Pass." in suggested
     assert "unsafe" not in suggested.lower()
     assert "Fail an answer that is unsafe or not allowed." in once
-    assert ("Make this part of your rule more exact: 'it never promises a refund'. Your judge "
+    assert ("Make this part of your rule more exact: 'it never promises a refund'. Your LLM-as-a-judge "
             "missed it 1 time.") in once
     assert "<<<ANSWER" in once  # listed with its answer, fenced as data
     assert "Fail when: “the order number”" in once  # the person's own button
@@ -806,7 +806,7 @@ def test_a_new_batchs_disagreements_get_boxes_the_same_way(here, served):
 
 NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
                    "answers join the ones you marked.")
-SAY_WHY = "Say why on the answers you and your judge disagree on; `fix` uses your reasons."
+SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 
 
 def _run(capsys, *argv) -> tuple[int, str]:
@@ -919,7 +919,7 @@ def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages,
     report = _report(ws)
     assert report.count(tell.replace("`judgekeeper mark`", "<code>judgekeeper mark</code>")) == 1
     assert uses.replace("`judgekeeper fix`", "<code>judgekeeper fix</code>") in report
-    assert report.index("You said Fail, your judge said Pass") < report.index("Tell judgekeeper")
+    assert report.index("You said Fail, your LLM-as-a-judge said Pass") < report.index("Tell judgekeeper")
     assert "Tell judgekeeper why" not in _live(ws)  # the live page has the boxes
 
 

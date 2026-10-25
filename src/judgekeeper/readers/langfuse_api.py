@@ -53,8 +53,8 @@ MAX_RETRIES = 5
 TIMEOUT = 60.0
 EXPECTED_SOURCE = {LLM: {"EVAL", "API"}, HUMAN: {"ANNOTATION", "API"}}
 VERDICT_TYPES = ("BOOLEAN", "NUMERIC", "CATEGORICAL")
-ONE_RUN_NOTE = ("Langfuse keeps one judge score per subject and name: this import is one run, "
-                "so the noise floor is unknown.")
+ONE_RUN_NOTE = ("Langfuse keeps one LLM-as-a-judge score per subject and name: this import is one "
+                "run, so the noise floor is unknown.")
 
 # Swapped out by the tests, so rate limiting and back-off never sleep for real.
 _clock = time.monotonic
@@ -206,10 +206,10 @@ def _evaluator(client: LangfuseClient, name: str) -> tuple[dict, list[str]]:
     found = [e for e in page.get("data") or [] if isinstance(e, dict) and e.get("name") == name]
     more = " among the first 100 evaluators" if (page.get("meta") or {}).get("cursor") else ""
     if not found:
-        return {}, [(f"Langfuse has no evaluator named {name!r}{more} (scores pushed from an "
-                     "SDK have none): the judge's model, prompt and version are unknown.")]
+        return {}, [(f"Langfuse has no evaluator named {name!r}{more} (scores pushed from an SDK "
+                     "have none): the LLM-as-a-judge's model, prompt and version are unknown.")]
     if len(found) > 1:
-        return {}, [(f"{len(found)} Langfuse evaluators are named {name!r}: the judge's "
+        return {}, [(f"{len(found)} Langfuse evaluators are named {name!r}: the LLM-as-a-judge's "
                      "model, prompt and version are unknown.")]
     e = found[0]
     ev: dict = {}
@@ -318,9 +318,9 @@ def read_langfuse(judge_score: str, human_score: str, from_: str | None = None,
         records.notes.append(f"{n} {name!r} {scores_have} source {source}, but you named "
                              f"{name!r} as the {side} score.")
     if same_name:
-        records.notes.append(f"--judge-score and --human-score are both {judge_score!r}: "
-                             "scores with source ANNOTATION are read as human, the rest as "
-                             "judge.")
+        records.notes.append(f"--judge-score and --human-score are both {judge_score!r}: scores "
+                             "with source ANNOTATION are read as human, the rest as "
+                             "LLM-as-a-judge.")
     for (name, data_type), n in sorted(skipped.items(), key=str):
         records.notes.append(f"{n} {name!r} score(s) of dataType {data_type} skipped: no "
                              f"verdict (verdict types are {', '.join(VERDICT_TYPES)}).")

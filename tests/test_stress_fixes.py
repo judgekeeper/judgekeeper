@@ -304,8 +304,8 @@ def test_a_failed_judge_call_costs_only_its_own_answer(tmp_path, stubs, monkeypa
     assert len(fresh.verdicts) == len(inputs) - len(failing)
     assert set(fresh.not_counted.values()) == {"judge call failed"}
     assert len(fresh.not_counted) == len(failing)
-    assert NOT_COUNTED["judge call failed"][1] == "the judge's calls for them failed"
-    assert fresh.notes == [f"The judge's calls failed: RuntimeError on {len(failing)} answers."]
+    assert NOT_COUNTED["judge call failed"][1] == "the LLM-as-a-judge's calls for them failed"
+    assert fresh.notes == [f"The LLM-as-a-judge's calls failed: RuntimeError on {len(failing)} answers."]
     assert CANARY not in said and "[Task]" not in said
 
 
@@ -334,7 +334,7 @@ def test_when_every_call_fails_it_says_the_type_and_count_only(tmp_path, stubs, 
     stubs.plan(errors=[[i, t] for i in inputs for t in (0, 1)], error_text=CANARY)
     with pytest.raises(AgainError) as e:
         _ask(ws)
-    assert str(e.value) == (f"Inspect AI could not ask your judge: RuntimeError on "
+    assert str(e.value) == (f"Inspect AI could not ask your LLM-as-a-judge: RuntimeError on "
                             f"{len(inputs)} answers")
 
 
@@ -405,7 +405,7 @@ def test_check_says_how_many_marks_were_not_re_checked(tmp_path, capsys, monkeyp
     assert code == 0 and "Re-checked on 44 of your 50 marks:" in flat, flat
     assert "Next: nothing to do" not in flat
     assert "Next: 6 marks were not re-checked. Run `" in flat
-    assert "check` again to ask your judge about them." in flat
+    assert "check` again to ask your LLM-as-a-judge about them." in flat
 
 
 # 6. fix, for model_graded_qa with Inspect's default instructions ------------------------------
@@ -431,7 +431,7 @@ def test_fix_says_why_it_cant_test_inspects_default_instructions(tmp_path, capsy
     capsys.readouterr()
     main(["fix"])
     out = " ".join(capsys.readouterr().out.split())
-    assert ("judgekeeper can't ask this judge itself: Inspect's default model_graded_qa "
+    assert ("judgekeeper can't ask this LLM-as-a-judge itself: Inspect's default model_graded_qa "
             "instructions aren't written in your code. To test a rule, set instructions= in "
             "model_graded_qa(...) and run your eval again.") in out, out
 

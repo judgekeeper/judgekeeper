@@ -70,7 +70,7 @@ def test_a_waiting_rule_test_shows_why_and_the_clues(fixing, capsys, clear):
     assert code == 0, out
     assert flat.index(WAITING) < flat.index("Your reasons for your LLM-as-a-judge's mistakes: it has a wrong fact (1)")
     assert "Where your LLM-as-a-judge goes wrong:" in out and ".judgekeeper/fix/mistakes.md" in flat
-    assert "Your judge's rule is in promptfooconfig.yaml" in flat
+    assert "Your LLM-as-a-judge's rule is in promptfooconfig.yaml" in flat
     assert "kept aside to test your new rule fairly" in flat
     assert "Your new rule is waiting" not in flat  # no new rule in rule.txt
     assert assert_one_next_at_the_end(out) == NEXT_ALL_MARKED
@@ -95,8 +95,8 @@ def test_a_different_rule_while_a_test_waits_is_named_after_the_clues(fixing, ca
 
 
 def test_a_judge_fix_cant_ask_shows_its_clues_not_the_wait(fixing, capsys):
-    """The judge stopped being one fix can ask (here: its results now hold a rule per test),
-    so the waiting test can't run again: the screen of a judge fix can't ask, with the clues."""
+    """The LLM-as-a-judge stopped being one fix can ask (here: its results now hold a rule per test),
+    so the waiting test can't run again: the screen of an LLM-as-a-judge fix can't ask, with the clues."""
     from judgekeeper import fix
 
     root, holder = fixing

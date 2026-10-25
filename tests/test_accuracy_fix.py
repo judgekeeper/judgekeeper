@@ -3,7 +3,7 @@ result and kept out of sight while in use, every fix test counted, few mistakes 
 how many changes the marks have helped pick, the person's own slips, a range that stays honest
 while the person is still marking, and paid re-checks that ask twice.
 
-No test calls an API: the judge is the faked promptfoo of tests/test_fix.py.
+No test calls an API: the LLM-as-a-judge is the faked promptfoo of tests/test_fix.py.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ def test_few_mistakes_hidden_are_said_before_the_question(here, capsys, judge, m
                                                                                   "better"))
     better = next(f for f in range(n + 1) if targets.fix_verdict(f, 0, n).kind == "better")
     said = (f"The marks kept aside hold only {wrong} {'answer' if wrong == 1 else 'answers'} "
-            f"your judge got wrong. A new rule needs at least {safe} of those fixed to be "
+            f"your LLM-as-a-judge got wrong. A new rule needs at least {safe} of those fixed to be "
             f"called safe to try, and about {better} to be called better, so this test can "
             "only catch a worse rule.")
     assert said in _flat(out)
@@ -122,7 +122,7 @@ def test_hidden_marks_never_show_while_the_set_is_in_use(here, capsys):
 
 
 def test_a_retired_set_may_show_its_answers(here, capsys, judge):
-    """A rule tested on the set is now the judge's rule: the hidden marks are seen again, and
+    """A rule tested on the set is now the LLM-as-a-judge's rule: the hidden marks are seen again, and
     the next marks make a new set."""
     from judgekeeper import judge_setup
     from judgekeeper.fingerprint import rule_hash
@@ -158,7 +158,7 @@ def test_three_rules_retire_the_set(here, capsys, judge):
 # How many changes the marks have helped pick ---------------------------------------------------
 
 def _marked_some(root, first: int):
-    """A promptfoo project marked as the judge graded, the first `first` answers only."""
+    """A promptfoo project marked as the LLM-as-a-judge graded, the first `first` answers only."""
     from judgekeeper import judge_setup, start, start_label
     from judgekeeper.start_label import StartSession
     from tests.start_projects import split as both
@@ -343,7 +343,7 @@ def test_ten_of_each_made_after_the_change_show_their_numbers(here, capsys):
     out = capsys.readouterr().out
     flat = _flat(out)
     assert "On marks made after this change (" in flat
-    assert "  You passed: your judge also passed about " in out
+    assert "  You passed: your LLM-as-a-judge also passed about " in out
     assert flat.index("Agreed with you:") < flat.index("On marks made after this change (")
     assert WARN in flat
 

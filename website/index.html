@@ -80,24 +80,26 @@ judgekeeper 1.0.0b2
 
 Step 1 of 5: Find
 
-Eval tool:   promptfoo
-File:        results.json
-Answers:     40 answers
-Judge:       openai:gpt-4.1-mini
-Judge rule:  "The answer solves the customer's problem and is polite."
+Eval tool:       promptfoo
+File:            results.json
+Answers:         40 answers
+LLM-as-a-judge:  openai:gpt-4.1-mini
+Rule:            "The answer solves the customer's problem and is polite."
 judgekeeper has read from your file:
   question   each test's vars
   answer     each test's output
-  grade      your judge's Pass or Fail
+  grade      your LLM-as-a-judge's Pass or Fail
 
-Your judge passed 23 answers and failed 17.
-Checked: your judge gave every answer a clear Pass or Fail.
+Your LLM-as-a-judge passed 23 answers and failed 17.
+Checked: your LLM-as-a-judge gave every answer a clear Pass or
+Fail.
 
 Step 2 of 5: Mark
 
 The marking page is open in your browser. It shows the answers
 one at a time. Mark each one Pass or Fail, the way you want your
-judge to decide. Your judge's grade stays hidden.
+LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays
+hidden.
 
 Next: mark until "See your result" appears, then click it.</pre>
     <div class="term-foot"><span class="tf-dot" aria-hidden="true"></span><span class="tf-text">made-up answers · not a real project</span><a class="tf-link" href="examples/site-example/report.html">open its report</a></div>
@@ -106,24 +108,26 @@ judgekeeper 1.0.0b2
 
 Step 1 of 5: Find
 
-Eval tool:   promptfoo
-File:        results.json
-Answers:     40 answers
-Judge:       openai:gpt-4.1-mini
-Judge rule:  "The answer solves the customer's problem and is polite."
+Eval tool:       promptfoo
+File:            results.json
+Answers:         40 answers
+LLM-as-a-judge:  openai:gpt-4.1-mini
+Rule:            "The answer solves the customer's problem and is polite."
 judgekeeper has read from your file:
   question   each test's vars
   answer     each test's output
-  grade      your judge's Pass or Fail
+  grade      your LLM-as-a-judge's Pass or Fail
 
-Your judge passed 23 answers and failed 17.
-Checked: your judge gave every answer a clear Pass or Fail.
+Your LLM-as-a-judge passed 23 answers and failed 17.
+Checked: your LLM-as-a-judge gave every answer a clear Pass or
+Fail.
 
 Step 2 of 5: Mark
 
 The marking page is open in your browser. It shows the answers
 one at a time. Mark each one Pass or Fail, the way you want your
-judge to decide. Your judge's grade stays hidden.
+LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays
+hidden.
 
 Next: mark until "See your result" appears, then click it.</template>
 <template data-screen="mark">$ judgekeeper
@@ -144,18 +148,18 @@ judgekeeper 1.0.0b2
 
 Step 3 of 5: Measure
 
-Result: your judge needs work.
-You and your judge disagreed on 16 of 30 answers.
+Result: your LLM-as-a-judge needs work.
+You and your LLM-as-a-judge disagreed on 16 of 30 answers.
 
-  You passed 15 answers. Of those, your judge passed 7 and failed 8.
-  You failed 15 answers. Of those, your judge passed 8 and failed 7.
+  You passed 15 answers. Of those, your LLM-as-a-judge passed 7 and failed 8.
+  You failed 15 answers. Of those, your LLM-as-a-judge passed 8 and failed 7.
 
 Tell judgekeeper why you disagree on these 16: run
 `judgekeeper mark`.
 `judgekeeper fix` uses your reasons to find where your
 LLM-as-a-judge goes wrong.
 
-How often your judge agrees with you (estimates):
+How often your LLM-as-a-judge agrees with you (estimates):
   When you say Pass, it also says Pass: about 54% (between 35% and 72%)
   When you say Fail, it also says Fail: about 39% (between 23% and 58%)
 
@@ -182,7 +186,7 @@ All 10 mistakes your LLM-as-a-judge made are saved in
 .judgekeeper/fix/mistakes.md. Use it to write a better rule, or
 hand it to a coding agent to help you write one.
 
-Your judge's rule is in promptfooconfig.yaml, line 14:
+Your LLM-as-a-judge's rule is in promptfooconfig.yaml, line 14:
   "The answer solves the customer's problem and is polite."
 
 12 more of your marks are kept aside to test your new rule
@@ -198,9 +202,9 @@ Step 4 of 5: Fix (testing your new rule)
 New rule:  "The answer fully solves the customer's problem, gives a c…"
            (from .judgekeeper/fix/rule.txt)
 
-To test it, judgekeeper asks your judge about the 12 answers
-kept aside, once with the old rule and once with the new one.
-That is 24 AI calls, paid with your own key.
+To test it, judgekeeper asks your LLM-as-a-judge about the 12
+answers kept aside, once with the old rule and once with the new
+one. That is 24 AI calls, paid with your own key.
 Go ahead? [y/N] y
 
 Your LLM-as-a-judge, tested on the 12 marks kept aside:

@@ -1,4 +1,4 @@
-"""Did your judge actually judge? `start` checks the judge's own decisions before anyone
+"""Did your LLM-as-a-judge actually judge? `start` checks the LLM-as-a-judge's own decisions before anyone
 labels: no real decision (the call failed, the reply could not be read, nothing at all), a
 check of nothing that the tool still gave full marks, an empty answer passed, the same
 decision for every answer, and a reason that says the opposite of the decision.
@@ -425,7 +425,7 @@ def test_the_result_carries_the_counts_and_the_page_says_how_many_are_left_out(t
     r = save_result(ws, session, say=lambda line: None)
     assert r["judge_check"]["error"] == 1
     html = ws.report_html.read_text(encoding="utf-8")
-    assert ('<p class="left-out band">Your judge gave no Pass or Fail on 1 answer. It is left '
+    assert ('<p class="left-out band">Your LLM-as-a-judge gave no Pass or Fail on 1 answer. It is left '
             "out.</p>") in html
     assert judge_check.TITLE not in html  # the full findings: the terminal and the CSV file
 

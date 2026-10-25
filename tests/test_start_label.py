@@ -242,7 +242,7 @@ def test_after_the_last_answer_the_result_is_served_and_the_server_stops(tmp_pat
         assert client.label(id=item_id, label=group)[0] == 200
     resp, payload = client.request("GET", "/result")
     assert resp.status == 200
-    assert "Your judge is good enough to use." in payload.decode()
+    assert "Your LLM-as-a-judge is good enough to use." in payload.decode()
     thread.join(timeout=5)
     assert not thread.is_alive()
 
@@ -259,9 +259,9 @@ def test_the_verdict_levels_follow_the_ranges():
     red = _result(500, 500, 40, 38, 40, 24)        # many answers it failed should pass
     early = _result(900, 100, 15, 15, 15, 0)       # the Fail side's range is too wide
     too_few = _result(100, 100, 10, 9, 10, 1)      # 10 Pass, 10 Fail
-    assert green["verdict"] == "Your judge is good enough to use."
+    assert green["verdict"] == "Your LLM-as-a-judge is good enough to use."
     assert amber["verdict"] == "Too early to tell. Mark more answers to get a result."
-    assert red["verdict"] == "Your judge needs work."
+    assert red["verdict"] == "Your LLM-as-a-judge needs work."
     assert early["verdict_level"] == "too_early"
     assert early["verdict"] == "Too early to tell. Mark more answers to get a result."
     assert too_few["verdict"] == "Mark a few more answers to see your result."
@@ -289,7 +289,7 @@ def test_the_word_trust_is_nowhere():
 
 def test_the_result_page_stands_alone():
     html = start_label.result_html(_result(900, 100, 25, 20, 25, 10))
-    for needed in ("Your judge needs work.", "You passed", "Kappa", "More details", "Fix it",
+    for needed in ("Your LLM-as-a-judge needs work.", "You passed", "Kappa", "More details", "Fix it",
                    "judgekeeper fix", '"Manrope"'):
         assert needed in html, needed
     assert "<a " not in html.split("<body>")[1]  # no link back: commands only
@@ -351,7 +351,7 @@ def test_a_result_writes_anchors_and_the_result_files(workspace):
     assert result["tpr"] == 1 and result["tnr"] == 1
     html = ws.report_html.read_text(encoding="utf-8")
     assert html.startswith("<!doctype html>")
-    assert 'Judge:</span><span class="v" title="openai:gpt-4.1-mini">openai:gpt-4.1-mini' in html
+    assert 'LLM-as-a-judge:</span><span class="v" title="openai:gpt-4.1-mini">openai:gpt-4.1-mini' in html
     assert "results.json" not in html.split("<body>")[1]  # no file names or dates on the page
 
 

@@ -1,4 +1,4 @@
-"""The judge's setup: everything about the judge that can change its verdicts (the eval tool
+"""The LLM-as-a-judge's setup: everything about the LLM-as-a-judge that can change its verdicts (the eval tool
 and its version, the kind of judge, its models and vote, the rule, the grading prompt, the
 temperature, the pass mark, the endpoint), read from the results, saved in
 .judgekeeper/judge.json, and compared in words."""
@@ -266,7 +266,7 @@ def test_while_marking_judge_json_keeps_the_judge_of_the_marks(tmp_path, monkeyp
 
 
 def test_an_older_judge_json_is_read_from_the_marks(tmp_path):
-    """judge.json from 1.0.0b1 has no setup: the judge of the marks stands in (what start.json
+    """judge.json from 1.0.0b1 has no setup: the LLM-as-a-judge of the marks stands in (what start.json
     keeps), and only what it knows is compared."""
     _promptfoo(tmp_path)
     found = start.find_judge(tmp_path)
@@ -340,7 +340,7 @@ def test_promptfoo_with_no_grader_written_down_is_said(tmp_path, monkeypatch, ca
     front.run()
     out = capsys.readouterr().out
     block = " ".join(out[out.index("Checked:"):].split())
-    assert ("Your judge's model isn't written in your config. promptfoo picks it from whichever "
+    assert ("Your LLM-as-a-judge's model isn't written in your config. promptfoo picks it from whichever "
             "API key is set, so it can change without any file changing. Write it in your "
             "config (`defaultTest.options.provider`).") in block
 

@@ -22,7 +22,7 @@ from judgekeeper.records import problems, read_records
 from judgekeeper.textio import jsonl_lines
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-RECORD_SECTION = "## record(): save your own judge's verdicts with one line\n"
+RECORD_SECTION = "## record(): save your own LLM-as-a-judge's verdicts with one line\n"
 
 
 def _section(path: Path, heading: str) -> str:

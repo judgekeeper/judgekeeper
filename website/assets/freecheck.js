@@ -34,14 +34,14 @@
   var STRIP = {
     output: ['answers', 'PROMPTFOO_STRIP_RESPONSE_OUTPUT'],
     vars: ['inputs', 'PROMPTFOO_STRIP_TEST_VARS'],
-    grading: ["judge's decisions", 'PROMPTFOO_STRIP_GRADING_RESULT']
+    grading: ["LLM-as-a-judge's decisions", 'PROMPTFOO_STRIP_GRADING_RESULT']
   };
 
   var NOT_RECOGNISED = "This doesn't look like results judgekeeper can read in the browser. The tool also reads Inspect AI and MLflow: run uvx judgekeeper in your project.";
   var IN_PROJECT = ' This page does not read it: run uvx judgekeeper in your project for this file.';
   var RECORDS = 'This is a judgekeeper.record() file.' + IN_PROJECT;
   var SETTINGS = "This is judgekeeper's settings file (judgekeeper.toml)." + IN_PROJECT;
-  var TABLE_OUTPUT = "This is promptfoo's table output, which doesn't keep the judge's own decisions. Save the full results with promptfoo eval -o results.json.";
+  var TABLE_OUTPUT = "This is promptfoo's table output, which doesn't keep the LLM-as-a-judge's own decisions. Save the full results with promptfoo eval -o results.json.";
   // start._no_judge: a file with no LLM judge's decisions
   var NO_JUDGE = ' holds no decisions from an LLM-as-a-judge.';
   var RULES = { promptfoo: 'checks', deepeval: 'metrics' };
@@ -59,15 +59,15 @@
   var EXCEL_ENTRIES = ['[Content_Types].xml', 'xl/', '_rels/', 'docProps/'];
   var OPENDOCUMENT = 'application/vnd.oasis.opendocument.';  // the text of an OpenDocument's first entry, mimetype
   var NOT_JSON = "This file isn't valid JSON that judgekeeper can read.";
-  var EVERY_ANSWER = 'your judge gave every answer a clear Pass or Fail.';
+  var EVERY_ANSWER = 'your LLM-as-a-judge gave every answer a clear Pass or Fail.';
   var FREE_CHECK = 'Checked: ';
-  var MODEL_NOT_WRITTEN = "Your judge's model isn't written in your config. promptfoo picks it from whichever API key is set, so it can change without any file changing. Write it in your config (defaultTest.options.provider).";
-  var NO_CLEAR = 'No answer has a clear Pass or Fail from your judge, so there is nothing to mark.';
+  var MODEL_NOT_WRITTEN = "Your LLM-as-a-judge's model isn't written in your config. promptfoo picks it from whichever API key is set, so it can change without any file changing. Write it in your config (defaultTest.options.provider).";
+  var NO_CLEAR = 'No answer has a clear Pass or Fail from your LLM-as-a-judge, so there is nothing to mark.';
   // judge_check.MODEL_FAILED_LINE, ALL_MODEL_FAILED and MODEL_FAILED_NEXT: the same words
-  var MODEL_FAILED_LINE = ' no answer: the call to the model you test failed, so your judge never ran.';
-  var ALL_MODEL_FAILED = 'The call to the model you test failed on every answer, so your judge never ran and there is nothing to mark.';
+  var MODEL_FAILED_LINE = ' no answer: the call to the model you test failed, so your LLM-as-a-judge never ran.';
+  var ALL_MODEL_FAILED = 'The call to the model you test failed on every answer, so your LLM-as-a-judge never ran and there is nothing to mark.';
   var MODEL_FAILED_NEXT = 're-run your eval once the model you test answers, then run judgekeeper in your project folder.';
-  var ALL_FAILED = "Your judge's calls failed on every answer, so there is nothing to mark.";
+  var ALL_FAILED = "Your LLM-as-a-judge's calls failed on every answer, so there is nothing to mark.";
   var PRIVACY = 'Your file never leaves this page: it is read on your computer. Once the page has loaded, it works with Wi-Fi turned off.';
 
   /* ---------- small helpers, each the Python behaviour it stands for ---------- */
@@ -318,7 +318,7 @@
           var idx = r.testIdx;
           var test = typeof idx === 'number' && Math.floor(idx) === idx ? idx + 1 : idx;
           return { error: 'two-judges', message: 'Test ' + clean(test, 20) + ' has more than one ' + JSON.stringify(clean(name, 80)) +
-            ' judge. Give each one a name with metric: in its assertion, then run your eval again (that makes model calls).' };
+            ' assertion. Give each one a name with metric: in its assertion, then run your eval again (that makes model calls).' };
         }
         var grader = or(a.provider, testOpts.provider, options(defaultTest).provider, defaultTest.provider, null);
         if (!truthy(grader)) grader = null;
@@ -875,8 +875,8 @@
     'left out': ['left it out', 'left them out']
   };
   var SAME = {
-    pass: 'Your judge passed every answer. It may not be checking anything: your marks will show it.',
-    fail: 'Your judge failed every answer. It may be too strict, or not checking anything: your marks will show it.'
+    pass: 'Your LLM-as-a-judge passed every answer. It may not be checking anything: your marks will show it.',
+    fail: 'Your LLM-as-a-judge failed every answer. It may be too strict, or not checking anything: your marks will show it.'
   };
 
   function judgeCheck(pool, tool, scoreJudge) {
@@ -907,7 +907,7 @@
       var parts = NO_DECISION.filter(function (k) { return b[k]; }).map(function (k) { return n(b[k], NO_DECISION_WORDS[k][0], NO_DECISION_WORDS[k][1]); });
       var counted = COUNTED[b.tool_counted_as];
       var said = name && counted ? name + ' ' + counted[one ? 0 : 1] + '. ' : '';
-      out.push('Your judge made no real decision on ' + noDecision + ' of ' + b.answers + ' answers: ' + parts.join(', ') + '. ' +
+      out.push('Your LLM-as-a-judge made no real decision on ' + noDecision + ' of ' + b.answers + ' answers: ' + parts.join(', ') + '. ' +
         said + (one ? 'It is' : 'They are') + ' left out here.');
     }
     if (b.model_failed) {
@@ -916,11 +916,11 @@
     }
     if (b.nothing_checked) {
       var one2 = b.nothing_checked === 1;
-      out.push('On ' + n(b.nothing_checked, 'answer', 'answers') + ' your judge found nothing to check, but ' + (name || 'your eval tool') +
+      out.push('On ' + n(b.nothing_checked, 'answer', 'answers') + ' your LLM-as-a-judge found nothing to check, but ' + (name || 'your eval tool') +
         ' still gave ' + (one2 ? 'it' : 'them') + ' full marks, so ' + (one2 ? 'it is' : 'they are') + ' left out.');
     }
-    if (b.empty_answer_passed) out.push('Your judge passed ' + n(b.empty_answer_passed, 'empty answer', 'empty answers') + '.');
-    if (b.reason_says_opposite) out.push('On ' + n(b.reason_says_opposite, 'answer', 'answers') + ", your judge's reason says the opposite of its decision.");
+    if (b.empty_answer_passed) out.push('Your LLM-as-a-judge passed ' + n(b.empty_answer_passed, 'empty answer', 'empty answers') + '.');
+    if (b.reason_says_opposite) out.push('On ' + n(b.reason_says_opposite, 'answer', 'answers') + ", your LLM-as-a-judge's reason says the opposite of its decision.");
     if (SAME[b.same_decision]) out.push(SAME[b.same_decision]);
     return out;
   }
@@ -1094,7 +1094,7 @@
     var rule = ruleText(promptRec ? promptRec.prompt : null);
     return {
       key: metric,  // as the file has it; never shown
-      name: oneLine(clean(metric, 80)) || 'unnamed judge',
+      name: oneLine(clean(metric, 80)) || 'unnamed',
       showName: nMetrics > 1 || r.tool === 'deepeval',
       answers: block.answers,
       pass: pool.nPass, fail: pool.nFail,
@@ -1132,37 +1132,37 @@
   // [{k, text, tone}] lines: tone is '', 'dim', 'g' (all clear) or 'y' (a finding)
   function reportLines(result, j) {
     var L = [];
-    var pad = '             ';
-    L.push({ k: 'Eval tool:   ', text: result.toolName, tone: 'g' });
-    L.push({ k: 'File:        ', text: result.file });
-    L.push({ k: 'Answers:     ', text: n(j.answers, 'answer') });
+    var pad = '                 ';
+    L.push({ k: 'Eval tool:       ', text: result.toolName, tone: 'g' });
+    L.push({ k: 'File:            ', text: result.file });
+    L.push({ k: 'Answers:         ', text: n(j.answers, 'answer') });
     if (j.pass + j.fail && (j.merged || j.split.length)) L.push({ k: pad, text: repeatsNote(j), tone: 'dim' });
     var model = j.models.length ? j.models.join(', ') : 'model not found in your file';
-    L.push({ k: 'Judge:       ', text: (j.showName ? j.name + ', ' : '') + model });
+    L.push({ k: 'LLM-as-a-judge:  ', text: (j.showName ? j.name + ', ' : '') + model });
     if (!j.rule) {
-      L.push({ k: 'Judge rule:  ', text: 'not in your results' });
+      L.push({ k: 'Rule:            ', text: 'not in your results' });
     } else if (j.rule.length <= RULE_SHOWN) {
-      L.push({ k: 'Judge rule:  ', text: '"' + j.rule + '"' });
+      L.push({ k: 'Rule:            ', text: '"' + j.rule + '"' });
     } else {
-      L.push({ k: 'Judge rule:  ', text: '"' + j.rule.slice(0, RULE_SHOWN - 1).replace(/\s+$/, '') + '…"' });
+      L.push({ k: 'Rule:            ', text: '"' + j.rule.slice(0, RULE_SHOWN - 1).replace(/\s+$/, '') + '…"' });
       L.push({ k: pad, text: '(shortened)', tone: 'dim' });
     }
     var mark = j.passMark ? ': Pass at ' + passMarkWords(j.passMark).replace(/^score /, '') : '';
     var rows = j.readRows ? j.readRows.slice() : [];
-    if (result.tool === 'promptfoo') rows = [['question', "each test's vars"], ['answer', "each test's output"], ['grade', "your judge's Pass or Fail" + mark]];
-    if (result.tool === 'deepeval') rows = [['question', "each test case's input"], ['answer', "each test case's actual_output"], ['grade', 'the ' + j.name + ' score' + mark], ['reason', "your judge's reason"]];
+    if (result.tool === 'promptfoo') rows = [['question', "each test's vars"], ['answer', "each test's output"], ['grade', "your LLM-as-a-judge's Pass or Fail" + mark]];
+    if (result.tool === 'deepeval') rows = [['question', "each test case's input"], ['answer', "each test case's actual_output"], ['grade', 'the ' + j.name + ' score' + mark], ['reason', "your LLM-as-a-judge's reason"]];
     if (rows.length) {
       var width = rows.reduce(function (w, r) { return Math.max(w, r[0].length); }, 0) + 3;
       L.push({ text: 'judgekeeper has read from your file:' });
       rows.forEach(function (r) { L.push({ text: '  ' + r[0] + new Array(width - r[0].length + 1).join(' ') + r[1] }); });
     }
     L.push({ text: '' });
-    if (j.pass + j.fail) L.push({ text: 'Your judge passed ' + n(j.pass, 'answer') + ' and failed ' + j.fail + '.' });
+    if (j.pass + j.fail) L.push({ text: 'Your LLM-as-a-judge passed ' + n(j.pass, 'answer') + ' and failed ' + j.fail + '.' });
     var notes = [];
     if (j.human) notes.push('Your results also hold ' + n(j.human, 'human label') + '. judgekeeper does not use them: you mark the answers yourself.');
     var total = j.pass + j.fail;
     [[j.fail, 'failed', 'passes too much'], [j.pass, 'passed', 'fails too much']].forEach(function (x) {
-      if (x[0] > 0 && x[0] < ROUGH && total >= MIN_POOL) notes.push('Your judge ' + x[1] + ' only ' + x[0] + ' of ' + total + ' answers. That may mean it ' + x[2] + ': your marks will show it.');
+      if (x[0] > 0 && x[0] < ROUGH && total >= MIN_POOL) notes.push('Your LLM-as-a-judge ' + x[1] + ' only ' + x[0] + ' of ' + total + ' answers. That may mean it ' + x[2] + ': your marks will show it.');
     });
     if (j.unmapped) {
       notes.push(n(j.unmapped, 'grade') + ' could not be read as Pass or Fail (' + j.unread.map(function (v) { return '"' + v + '"'; }).join(', ') +
@@ -1201,9 +1201,9 @@
   function firstAnswerLines(j) {
     if (!j.first) return [];
     return [{ text: '' }, { text: 'First answer in your file:' },
-      { k: '  Question:  ', text: shortText(j.first.input) || '(none)' },
-      { k: '  Answer:    ', text: shortText(j.first.output) || '(none)' },
-      { k: '  Judge:     ', text: j.first.verdict === 'pass' ? 'Pass' : 'Fail' }];
+      { k: '  Question:        ', text: shortText(j.first.input) || '(none)' },
+      { k: '  Answer:          ', text: shortText(j.first.output) || '(none)' },
+      { k: '  LLM-as-a-judge:  ', text: j.first.verdict === 'pass' ? 'Pass' : 'Fail' }];
   }
 
   var api = { check: check, checkBytes: checkBytes, reportLines: reportLines, firstAnswerLines: firstAnswerLines, MAX_BYTES: MAX_BYTES, PRIVACY: PRIVACY,
@@ -1222,7 +1222,7 @@
     return e;
   }
 
-  var NEXT = 'to see how often your judge agrees with you, run judgekeeper in your project folder and mark some answers.';
+  var NEXT = 'to see how often your LLM-as-a-judge agrees with you, run judgekeeper in your project folder and mark some answers.';
   var NEXT_AFTER_ERROR = 'pick another file, or run uvx judgekeeper in your project: it finds your results by itself.';
 
   // A line of the terminal: [class, text] parts; the class is one of Home's terminal colours
@@ -1360,7 +1360,7 @@
       if (result.judges.length > 1) {
         var pick = el('div', 'fc-pick');
         var id = 'fc-pick-label';
-        pick.appendChild(el('p', 'fc-pick-h', 'Your file has ' + result.judges.length + ' judges. Pick one to check:')).id = id;
+        pick.appendChild(el('p', 'fc-pick-h', 'Your file has ' + result.judges.length + ' LLM-as-a-judge metrics. Pick one to check:')).id = id;
         var group = el('div', 'fc-pick-list');
         group.setAttribute('role', 'radiogroup');
         group.setAttribute('aria-labelledby', id);

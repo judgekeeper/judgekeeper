@@ -190,7 +190,7 @@ class Normaliser:
 
     def _value(self, x) -> Normalised:
         if x is None:
-            return _error("judge returned nothing")
+            return _error("LLM-as-a-judge returned nothing")
         if isinstance(x, bool):
             if self.kind == PAIRWISE:
                 raise UnmappedValue(x, "pairwise verdicts are A or B")
@@ -201,7 +201,7 @@ class Normaliser:
             return _error(f"cannot read a verdict from a {type(x).__name__}")
         text = x.strip()
         if not text:
-            return _error("judge returned an empty string")
+            return _error("LLM-as-a-judge returned an empty string")
         if self.pass_if is not None:
             try:
                 return self._number(float(text), text)
@@ -209,7 +209,7 @@ class Normaliser:
                 pass
         label = self.label_map.get(text.lower())
         if label == ERROR:
-            return _error(f"judge returned {text!r}, no decision")
+            return _error(f"LLM-as-a-judge returned {text!r}, no decision")
         if label is not None:
             return Normalised(label)
         if self.kind == SINGLE:
@@ -220,7 +220,7 @@ class Normaliser:
 
     def _number(self, f: float, original) -> Normalised:
         if math.isnan(f):
-            return _error("judge returned NaN")
+            return _error("LLM-as-a-judge returned NaN")
         if self.pass_if is None:
             label = self.label_map.get(str(original).strip().lower())
             if label is not None:

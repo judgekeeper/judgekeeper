@@ -54,7 +54,7 @@ def ask(ws, plan, talk, name: str, env: dict | None = None,
     out = folder / f"{plan.tool}.jsonl"
     job = {**plan.job, "mode": "run", "times": plan.times,
            "answers": [entry[1] for entry in plan.payload]}
-    talk.say(f"Asking your judge {plan.calls:,} times through {name}. Ctrl-C stops it.")
+    talk.say(f"Asking your LLM-as-a-judge {plan.calls:,} times through {name}. Ctrl-C stops it.")
     if again.local_model(plan):
         talk.say(again.LOCAL_MODEL)
     progress = again.Progress(talk, len(plan.payload) * plan.times)
@@ -120,8 +120,8 @@ def count(fresh: Fresh, plan, got: dict, name: str, verdict_of, differs=None) ->
             fresh.reasons[answer["id"]] = [str(x.get("reason") or "") for x in lines]
             firsts.append(lines[0])
     if not fresh.verdicts:
-        raise AgainError(f"{name} could not ask your judge: " + (
+        raise AgainError(f"{name} could not ask your LLM-as-a-judge: " + (
             errors_said(errors) if errors else "no answer came back with a clear verdict"))
     if errors:
-        fresh.notes.append(f"The judge's calls failed: {errors_said(errors)}.")
+        fresh.notes.append(f"The LLM-as-a-judge's calls failed: {errors_said(errors)}.")
     return firsts

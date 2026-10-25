@@ -1,6 +1,6 @@
 """Asking a Python tool's judge again: the plan for DeepEval, Inspect AI and MLflow.
 
-The plan runs a small worker script in the user's Python in "dry" mode: it builds the judge
+The plan runs a small worker script in the user's Python in "dry" mode: it builds the LLM-as-a-judge
 and checks it, with no API call. Here the workers run against stub packages written into a
 temporary folder (no DeepEval, Inspect or MLflow needed); the stubs record what was built
 and fail loudly if anything would call a model or write results.
@@ -187,7 +187,7 @@ def test_the_field_question_and_version_question(tmp_path, stubs, terminal, caps
     out = capsys.readouterr().out
     # the saved cases have an expected output too: every field they have is listed
     assert "Your saved answers have: input, actual_output, expected_output." in out
-    assert "Which fields does your judge read? [input, actual_output]" in out
+    assert "Which fields does your LLM-as-a-judge read? [input, actual_output]" in out
     assert "Is DeepEval 4.2.8 the version you ran your eval with? [Y/n]" in out
 
 
@@ -195,7 +195,7 @@ def test_without_a_terminal_deepeval_is_a_close_copy(tmp_path, stubs):
     ws = _checked(tmp_path, deepeval_project)
     p = make_plan(ws, PY)
     assert p.status == "close"
-    assert "which fields your judge reads was not confirmed" in p.why
+    assert "which fields your LLM-as-a-judge reads was not confirmed" in p.why
     assert "the DeepEval version was not confirmed" in p.why
     p = make_plan(ws, AgainOptions(python=sys.executable, fields="input,actual_output"))
     assert "--fields" not in p.why
@@ -245,8 +245,8 @@ def test_a_provider_suffix_is_built_with_that_providers_class(tmp_path, stubs, m
 
 
 @pytest.mark.parametrize("saved, words", [
-    ("my-model (Local Model)", "a Local Model judge needs more than its name"),
-    ("anthropic.claude-3-5-sonnet-20240620-v1:0", "this judge needs more than its name"),
+    ("my-model (Local Model)", "a Local Model LLM-as-a-judge needs more than its name"),
+    ("anthropic.claude-3-5-sonnet-20240620-v1:0", "this LLM-as-a-judge needs more than its name"),
 ])
 def test_a_judge_that_needs_more_than_a_name_stops(tmp_path, stubs, monkeypatch, saved,
                                                    words):
@@ -269,7 +269,7 @@ def test_a_deepeval_judge_on_ollama_its_settings_pick_is_asked(tmp_path, stubs, 
     ws = _deepeval_model(tmp_path, "llama3.2:3b (Ollama)", monkeypatch,
                          picks="llama3.2:3b (Ollama)")
     p = make_plan(ws, PY)
-    assert p.status == "close" and p.key_lines == ["Your judge runs on Ollama; it needs no key."]
+    assert p.status == "close" and p.key_lines == ["Your LLM-as-a-judge runs on Ollama; it needs no key."]
 
 
 @pytest.mark.parametrize("saved, spec", [
@@ -372,7 +372,7 @@ def test_inspect_before_0_3_242_says_which_version_is_needed(tmp_path, stubs, mo
     monkeypatch.setenv("STUB_VERSION", version)
     p = make_plan(ws, PY)
     assert p.status == "cant"
-    assert p.why.startswith(f"asking your judge again needs Inspect AI 0.3.242 or newer, and "
+    assert p.why.startswith(f"asking your LLM-as-a-judge again needs Inspect AI 0.3.242 or newer, and "
                             f"your Python has {version}")
     monkeypatch.setenv("STUB_VERSION", "0.3.242")
     assert make_plan(ws, PY).status != "cant"
@@ -387,7 +387,7 @@ def test_another_inspect_version_is_a_close_copy_until_the_prompts_match(tmp_pat
     p = make_plan(ws, PY)
     assert p.status == "close"
     assert ("your Python has Inspect 0.3.300 and your log was made with 0.3.273; if the "
-            "grading prompts match after the run, it is exactly your judge") == p.why
+            "grading prompts match after the run, it is exactly your LLM-as-a-judge") == p.why
 
 
 def test_a_custom_scorer_is_refused(tmp_path, stubs):
@@ -407,7 +407,7 @@ def test_inspect_classification():
     from judgekeeper.again import inspect as ins
 
     assert ins.cant_reason("match", {}, builtin=True) == (
-        "your judge is a rule (match), not a model, so asking again gives the same decisions")
+        "your LLM-as-a-judge is a rule (match), not a model, so asking again gives the same decisions")
     assert "custom scorer" in ins.cant_reason("my_scorer", {}, builtin=False)
     assert "template file" in ins.cant_reason("model_graded_qa",
                                               {"template": "prompts/grade.txt"}, builtin=True)
@@ -446,7 +446,7 @@ def _traces(ws) -> dict:
     (_info(source_id="endpoints:/my-judge"), {}, "cant",
      "Run judgekeeper inside your Databricks workspace"),
     (_info(scorer_name="tone", scorer_version="2"), {"registered": True}, "exact",
-     "registered judge tone, version 2"),
+     "registered LLM-as-a-judge tone, version 2"),
     (_info(scorer_name="tone"), {"registered": True}, "close",
      "the latest registered version is used"),
     (_info(name="correctness"), {"builtin": True}, "exact", "MLflow's built-in"),

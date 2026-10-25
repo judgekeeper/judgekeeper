@@ -1,7 +1,7 @@
 """The flow and the numbers, across runs, from the second bug hunt.
 
-- promptfoo `check` grades with the new judge's grader, also on answers missing from the
-  newest results; a re-ask that used another model than the new judge saves nothing.
+- promptfoo `check` grades with the new LLM-as-a-judge's grader, also on answers missing from the
+  newest results; a re-ask that used another model than the new LLM-as-a-judge saves nothing.
 - No Next: line sends the person to mark when every answer is marked.
 - promptfoo through npx: the download goes in the same yes/no question as the calls.
 - After a check, report.html describes the re-checked judge; after "Worse" for a table judge,
@@ -9,7 +9,7 @@
 - Measure writes report.html, then the history line, then result.json; a run after one that
   stopped half way repairs them.
 - Counts and words that agree with each other; `fix` reads the rule only from a real config
-  and keeps nothing aside for a judge it can't ask; nested projects; marks kept while the
+  and keeps nothing aside for an LLM-as-a-judge it can't ask; nested projects; marks kept while the
   results file is gone.
 No test calls an AI API.
 """
@@ -56,7 +56,7 @@ def _check(capsys, *argv):
 # 1. promptfoo check grades with the new judge ------------------------------------------------
 
 class GraderFake(FakePromptfoo):
-    """The fake promptfoo, grading as the grader each test names: the new judge (NEW) passes
+    """The fake promptfoo, grading as the grader each test names: the new LLM-as-a-judge (NEW) passes
     every answer. `answers_as`: every row says it was graded by that grader instead."""
 
     answers_as: str | None = None
@@ -104,7 +104,7 @@ def grader(monkeypatch, here):
 
 def _new_judge_on_a_few(root) -> None:
     """The grader changed to NEW, and the eval ran again on 5 of the 50 questions only, into a
-    new results file: results.json (the old judge's) stays."""
+    new results file: results.json (the old LLM-as-a-judge's) stays."""
     data = promptfoo_data(split(25, 25), model=NEW, tag=TAG)
     data["metadata"]["promptfooVersion"] = "0.124.1"
     data["metadata"]["evaluationCreatedAt"] = "2026-10-13T09:00:00Z"
@@ -184,7 +184,7 @@ def says_mark(line: str) -> bool:
 
 
 def _mark(ws: Workspace, person=None) -> None:
-    """The person marks every answer: as the judge did, or `person[i]` for answer i."""
+    """The person marks every answer: as the LLM-as-a-judge did, or `person[i]` for answer i."""
     session = StartSession(ws)
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
     for item in session.items:
@@ -377,8 +377,8 @@ def _report(root) -> str:
 def _said_in_report(report: str) -> list[str]:
     """The headline, the two counts and the kept-aside line, as report.html says them."""
     text = re.sub(r"<[^>]+>", "", report)
-    return re.findall(r"Your judge [^.]*\.|Too early to tell\.|You (?:passed|failed) \d+ "
-                      r"answers\. Of those, your judge passed \d+ and failed \d+\.|"
+    return re.findall(r"Your LLM-as-a-judge [^.]*\.|Too early to tell\.|You (?:passed|failed) \d+ "
+                      r"answers\. Of those, your LLM-as-a-judge passed \d+ and failed \d+\.|"
                       r"\* \d+ more (?:is|are) kept aside", text)
 
 
@@ -396,7 +396,7 @@ def test_report_after_a_check_is_the_new_judges(here, capsys):
     code, out = _check(capsys)
     assert code == 0, out
     after_check = _report(here)
-    assert ("You failed 38 answers. Of those, your judge passed 2 and failed 36."
+    assert ("You failed 38 answers. Of those, your LLM-as-a-judge passed 2 and failed 36."
             in _said_in_report(after_check)), _said_in_report(after_check)
     _jk(capsys)
     assert _said_in_report(_report(here)) == _said_in_report(after_check)
@@ -404,7 +404,7 @@ def test_report_after_a_check_is_the_new_judges(here, capsys):
 
 
 def _own_jsonl(path, rule: str) -> None:
-    """60 answers graded by a JSONL judge: answer k is right when k % 3 != 0; the judge is
+    """60 answers graded by a JSONL judge: answer k is right when k % 3 != 0; the LLM-as-a-judge is
     wrong on (k * 7) % 10 < 3 (rule v1) or on (k * 7) % 10 == 0 (v2)."""
     rows = []
     for k in range(60):
@@ -425,9 +425,9 @@ def test_report_after_a_too_early_check_says_how_many_you_disagreed_on(here, cap
     assert code == 0 and "grades changed on 12" in flat(out), out
     report = re.sub(r"<[^>]+>", "", _report(here))
     assert "Too early to tell." in report
-    assert "You and your judge disagreed on 6 of 60 answers." in report
+    assert "You and your LLM-as-a-judge disagreed on 6 of 60 answers." in report
     terminal = flat(_jk(capsys)[1])
-    assert "You and your judge disagreed on 6 of 60 answers." in terminal
+    assert "You and your LLM-as-a-judge disagreed on 6 of 60 answers." in terminal
 
 # 5. After "Worse" for a table judge, no loop ---------------------------------------------------
 
@@ -454,7 +454,7 @@ def test_after_worse_a_table_judge_gets_one_way_out(here, capsys):
     assert _next(out) == NEXT_WORSE_TABLE
     code, out = _jk(capsys)
     assert _next(out) == NEXT_WORSE_TABLE, out
-    assert "re-check your changed judge" not in out
+    assert "re-check your changed LLM-as-a-judge" not in out
     assert _next(_check(capsys)[1]) == NEXT_WORSE_TABLE
     report = _report(here)
     assert ("Go back to your old LLM-as-a-judge, or change its rule; then run your eval and "
@@ -625,7 +625,7 @@ def test_marks_really_added_since_a_check_are_counted(here, capsys, no_calls):
 
 @pytest.fixture
 def no_calls(monkeypatch):
-    monkeypatch.setattr(again, "run_process", lambda *a, **k: pytest.fail("the judge was asked"))
+    monkeypatch.setattr(again, "run_process", lambda *a, **k: pytest.fail("the LLM-as-a-judge was asked"))
 
 
 def test_after_an_adopted_rule_the_judge_is_not_called_the_same(here, capsys, no_calls):
@@ -637,8 +637,8 @@ def test_after_an_adopted_rule_the_judge_is_not_called_the_same(here, capsys, no
     assert RULE_B in mistakes and RULE_A not in mistakes
     _rubric(here, split(20, 20), RULE_B, name="results-2.json")  # the eval ran again
     out = _jk(capsys)[1]
-    assert "Your judge is the same" not in out, out
-    assert ("Your eval ran again. Your judge is the one your last check re-tested, so your marks "
+    assert "Your LLM-as-a-judge is the same" not in out, out
+    assert ("Your eval ran again. Your LLM-as-a-judge is the one your last check re-tested, so your marks "
             "still test it.") in flat(out)
 
 
@@ -704,8 +704,8 @@ def test_the_answers_line_counts_only_answers_with_a_grade(here, capsys):
 
     _inspect_log(here, "2026-10-17_qa.json", _errored_inspect(split(10, 10)))
     _, out = _jk(capsys, "--metric", "model_graded_qa")
-    assert "Answers:     18 answers with a grade (2 failed before scoring)" in out, out
-    assert "each graded by your judge" not in out
+    assert "Answers:         18 answers with a grade (2 failed before scoring)" in out, out
+    assert "each graded by your LLM-as-a-judge" not in out
 
 
 # 8. fix reads the rule only from a real config ---------------------------------------------
@@ -715,12 +715,12 @@ def test_fix_never_says_the_rule_is_in_a_saved_screen(tmp_path, capsys, monkeypa
 
     monkeypatch.chdir(tmp_path)
     project(tmp_path)
-    screen = f'Eval tool:   promptfoo\nJudge rule:  "{RULE}"\n'
+    screen = f'Eval tool:       promptfoo\nRule:            "{RULE}"\n'
     (tmp_path / "find.txt").write_text(screen, encoding="utf-8")
     (tmp_path / "run.log").write_text(f"{RULE}\n", encoding="utf-8")
     (tmp_path / "copy.md").write_text(f"Step 1 of 5: Find\n\n{screen}", encoding="utf-8")
     _, out = _jk(capsys, "fix")
-    assert "Your judge's rule is in promptfooconfig.yaml, line" in out, out
+    assert "Your LLM-as-a-judge's rule is in promptfooconfig.yaml, line" in out, out
     assert "find.txt" not in out and "run.log" not in out and "copy.md" not in out
 
 
@@ -733,7 +733,7 @@ def test_fix_says_when_it_cant_tell_where_the_rule_is(tmp_path, capsys, monkeypa
                                                    encoding="utf-8")
     (tmp_path / "notes.txt").write_text(f"{RULE}\n", encoding="utf-8")
     _, out = _jk(capsys, "fix")
-    assert ("judgekeeper can't tell which file holds your judge's rule. Your eval keeps it in "
+    assert ("judgekeeper can't tell which file holds your LLM-as-a-judge's rule. Your eval keeps it in "
             "the `value:` of the llm-rubric assert in promptfooconfig.yaml:") in flat(out), out
     assert "notes.txt" not in out
 
@@ -755,7 +755,7 @@ def test_an_outer_project_never_reads_a_nested_projects_results(tmp_path, capsys
     assert ("These results belong to the project in inner/. To check them, run `judgekeeper` "
             "in inner/.") in flat(out)
     assert _next(out) == "Next: run `judgekeeper` in inner/."
-    assert "File:        inner/" not in out
+    assert "File:            inner/" not in out
     assert not (outer / ".judgekeeper" / "start.json").exists()
 
 
@@ -773,7 +773,7 @@ def test_outer_results_are_read_and_the_nested_ones_named(tmp_path, capsys, monk
     monkeypatch.chdir(outer)
     code, out = _jk(capsys, "--no-browser", "--port", "0")
     assert code == 0, out
-    assert "File:        outer_results.csv" in out
+    assert "File:            outer_results.csv" in out
     assert "These results belong to the project in inner/." in flat(out)
     _jk(capsys, "--stop")
 
@@ -906,7 +906,7 @@ def test_deepevals_own_setup_command_is_the_next_step(tmp_path, stubs, monkeypat
 
 
 def test_back_to_the_marked_judge_after_a_worse_check(here, capsys, no_calls):
-    """LE3: a check on another model said "Worse"; the eval runs with the old judge again."""
+    """LE3: a check on another model said "Worse"; the eval runs with the old LLM-as-a-judge again."""
     from tests.test_check import LENIENT, MARKED, _results
 
     ws = _marked(here)
@@ -914,18 +914,18 @@ def test_back_to_the_marked_judge_after_a_worse_check(here, capsys, no_calls):
     assert _check(capsys)[0] == 1  # Worse
     _results(here, MARKED)  # back to the judge the marks were made on
     out = _jk(capsys)[1]
-    assert "Your judge is back to the one you marked with (gpt-4.1-mini)." in flat(out), out
+    assert "Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini)." in flat(out), out
     assert "go back to" not in out and "go back to" not in _report(here).lower()
     code, out = _check(capsys)
     assert code == 0, out
-    assert ("Your judge is back to the one you marked with (gpt-4.1-mini). Your marks' result "
+    assert ("Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini). Your marks' result "
             "still holds.") in flat(out)
     assert "has not changed since your last check" not in out
     assert judge_models(ws) == [MODEL]
 
 
 def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys, no_calls):
-    """LE3: a check moved the marks to another model; the eval runs with the old judge again:
+    """LE3: a check moved the marks to another model; the eval runs with the old LLM-as-a-judge again:
     no AI call, and the result is the marks' own again."""
     from tests.test_check import MARKED, _results
 
@@ -938,11 +938,11 @@ def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys, no_calls)
     assert judge_models(ws) == [NEW]
     _results(here, MARKED)
     out = _jk(capsys)[1]
-    assert ("Your judge is back to the one you marked with (gpt-4.1-mini). Your marks' result "
+    assert ("Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini). Your marks' result "
             "still holds.") in flat(out), out
     assert judge_models(ws) == [MODEL]
     assert "picked" not in ws.data()
-    agreed = [line for line in before.splitlines() if "You and your judge" in line]
+    agreed = [line for line in before.splitlines() if "You and your LLM-as-a-judge" in line]
     assert agreed and agreed[0] in out
     code, out = _check(capsys)  # the check that sees it says it too, and keeps it in history
     assert code == 0 and "back to the one you marked with" in flat(out), out
