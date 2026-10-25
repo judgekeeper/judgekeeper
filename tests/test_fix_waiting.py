@@ -70,7 +70,7 @@ def test_a_waiting_rule_test_shows_why_and_the_clues(fixing, capsys, clear):
     assert code == 0, out
     assert flat.index(WAITING) < flat.index("Your reasons for your LLM-as-a-judge's mistakes: it has a wrong fact (1)")
     assert "Where your LLM-as-a-judge goes wrong:" in out and ".judgekeeper/fix/mistakes.md" in flat
-    assert "Your judge's rule is in promptfooconfig.yaml" in flat
+    assert "Your LLM-as-a-judge's rule is in promptfooconfig.yaml" in flat
     assert "kept aside to test your new rule fairly" in flat
     assert "Your new rule is waiting" not in flat  # no new rule in rule.txt
     assert assert_one_next_at_the_end(out) == NEXT_ALL_MARKED

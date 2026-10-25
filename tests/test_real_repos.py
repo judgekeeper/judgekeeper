@@ -352,7 +352,7 @@ def test_repeats_with_different_grades_are_each_their_own_answer(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 0, out
-    assert "Answers:     38 answers" in out
+    assert "Answers:         38 answers" in out
     assert ("(your file has 38 results: some answers are in it more than once. Repeats with "
             "the same grade count once. 1 answer got different grades, so its 3 repeats each "
             "count.)") in flat(out)
@@ -368,7 +368,7 @@ def test_repeats_with_the_same_grade_are_still_merged(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 0, out
-    assert "Answers:     36 answers" in out
+    assert "Answers:         36 answers" in out
     assert ("(your file has 37 results: some answers are in it more than once, so each counts "
             "once.)") in flat(out)
     assert "merged" not in out
@@ -824,7 +824,7 @@ def test_inspect_epochs_with_different_grades_are_said_and_counted(here, capsys)
     two_epoch_log(here)
     code, out = run(capsys)
     assert code == 3, out  # 20 answers: not enough for a first result
-    assert "Answers:     20 answers" in out
+    assert "Answers:         20 answers" in out
     assert ("(your file has 30 results: 15 answers, each run 2 times. Repeats with the same "
             "grade count once. 5 answers got different grades, so their 10 repeats each "
             "count.)") in flat(out)
@@ -876,11 +876,11 @@ def test_the_promptfoo_block_names_the_file_and_what_was_read(here, capsys):
     code, out = run(capsys)
     assert code == 0, out
     assert block_of(out) == [
-        "Eval tool:   promptfoo",
-        "File:        results.json",
-        "Answers:     40 answers",
-        "Judge:       openai:gpt-4.1-mini",
-        f'Judge rule:  "{" ".join(RUBRIC.split())}"',
+        "Eval tool:       promptfoo",
+        "File:            results.json",
+        "Answers:         40 answers",
+        "LLM-as-a-judge:  openai:gpt-4.1-mini",
+        f'Rule:            "{" ".join(RUBRIC.split())}"',
         "judgekeeper has read from your file:",
         "  question   each test's vars",
         "  answer     each test's output",
@@ -899,7 +899,7 @@ def test_repeats_run_the_same_number_of_times_are_said_as_such(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 3, out
-    assert "Answers:     6 answers" in out
+    assert "Answers:         6 answers" in out
     assert ("(your file has 18 results: 6 answers, each run 3 times, so each counts once.)"
             in flat(out))
     assert "merged" not in out
@@ -915,7 +915,7 @@ def test_repeats_of_some_answers_only_are_said_as_such(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 3, out
-    assert "Answers:     6 answers" in out
+    assert "Answers:         6 answers" in out
     assert ("(your file has 7 results: some answers are in it more than once, so each counts "
             "once.)") in flat(out)
 

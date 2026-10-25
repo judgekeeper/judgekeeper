@@ -919,7 +919,7 @@ def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages,
     report = _report(ws)
     assert report.count(tell.replace("`judgekeeper mark`", "<code>judgekeeper mark</code>")) == 1
     assert uses.replace("`judgekeeper fix`", "<code>judgekeeper fix</code>") in report
-    assert report.index("You said Fail, your judge said Pass") < report.index("Tell judgekeeper")
+    assert report.index("You said Fail, your LLM-as-a-judge said Pass") < report.index("Tell judgekeeper")
     assert "Tell judgekeeper why" not in _live(ws)  # the live page has the boxes
 
 

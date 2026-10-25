@@ -286,7 +286,7 @@ def test_answers_in_an_older_file_too_are_never_run_1_times(here, capsys):
     os.utime(old, (new.stat().st_mtime - 60,) * 2)
     _, out = run(capsys)
     assert "1 times" not in out
-    assert "Answers:     25 answers" in out
+    assert "Answers:         25 answers" in out
     assert "has 40 results" in flat(out)
 
 

@@ -343,7 +343,7 @@ def test_ten_of_each_made_after_the_change_show_their_numbers(here, capsys):
     out = capsys.readouterr().out
     flat = _flat(out)
     assert "On marks made after this change (" in flat
-    assert "  You passed: your judge also passed about " in out
+    assert "  You passed: your LLM-as-a-judge also passed about " in out
     assert flat.index("Agreed with you:") < flat.index("On marks made after this change (")
     assert WARN in flat
 

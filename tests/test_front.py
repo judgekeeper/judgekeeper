@@ -106,11 +106,11 @@ def test_promptfoo(here, capsys):
     assert out.splitlines()[:2] == [f"judgekeeper {__version__}", ""]
     assert out.splitlines()[2:14] == [
         "Step 1 of 5: Find", "",
-        "Eval tool:   promptfoo",
-        "File:        results.json",
-        "Answers:     36 answers",
-        "Judge:       openai:gpt-4.1-mini",
-        'Judge rule:  "Is polite and correct. Second line of the rubric."',
+        "Eval tool:       promptfoo",
+        "File:            results.json",
+        "Answers:         36 answers",
+        "LLM-as-a-judge:  openai:gpt-4.1-mini",
+        'Rule:            "Is polite and correct. Second line of the rubric."',
         "judgekeeper has read from your file:",
         "  question   each test's vars",
         "  answer     each test's output",
@@ -146,11 +146,11 @@ def test_a_table_says_which_columns_were_read(here, capsys):
     table_project(here, split(15, 15), model="claude-haiku-4-5")
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert "Eval tool:   your own CSV file" in out and "File:        results.csv" in out
+    assert "Eval tool:       your own CSV file" in out and "File:            results.csv" in out
     assert ("judgekeeper has read from your file: question the input column answer the output "
             "column grade the verdict column model the model column") in flat(out)
-    assert "Judge:       claude-haiku-4-5" in out
-    assert "Judge rule:  not in your results" in out
+    assert "LLM-as-a-judge:  claude-haiku-4-5" in out
+    assert "Rule:            not in your results" in out
     assert "The first 3 rows" not in out
     assert assert_one_next_at_the_end(out) == START
 

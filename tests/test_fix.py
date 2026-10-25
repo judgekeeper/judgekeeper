@@ -157,12 +157,12 @@ def test_the_first_run(here, capsys):
     found = " ".join(" ".join(lines[5:saved - 1]).split())
     assert re.search(r"Words found in many of your LLM-as-a-judge's mistakes: [^.]*\brefund "
                      r"\(\d+\)", found), found
-    assert "Your judge's rule is in promptfooconfig.yaml, line 5:" in lines
+    assert "Your LLM-as-a-judge's rule is in promptfooconfig.yaml, line 5:" in lines
     assert " ".join(" ".join(lines[saved:]).split()) == (
         f"All {len(seen)} mistakes your LLM-as-a-judge made are saved in "
         ".judgekeeper/fix/mistakes.md. Use it to write a better rule, or hand it to a coding "
         "agent to help you write one. "
-        f'Your judge\'s rule is in promptfooconfig.yaml, line 5: "{RULE}" '
+        f'Your LLM-as-a-judge\'s rule is in promptfooconfig.yaml, line 5: "{RULE}" '
         f"{len(split['hidden'])} more of your marks are kept aside to test your new rule "
         "fairly. Next: write your new rule in .judgekeeper/fix/rule.txt, then run "
         "`judgekeeper fix` again to test it.")
@@ -196,13 +196,13 @@ def test_mistakes_md_is_agent_ready_a_task_line_the_clues_the_rule_then_the_mist
     assert lines[:6] == ["# Your LLM-as-a-judge's mistakes", "", fix.TASK, "",
                          f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", ""]
     assert lines[6:8] == ["## Where your LLM-as-a-judge goes wrong", ""]
-    clues = lines[8:lines.index("## Your judge's rule now")]
+    clues = lines[8:lines.index("## Your LLM-as-a-judge's rule now")]
     printed = out.splitlines()
     said = printed[printed.index("Where your LLM-as-a-judge goes wrong:") + 1:]
     said = [x.strip() for x in said[:said.index("")]]
     # the same sentences the terminal prints (which wraps them)
     assert " ".join(x for x in clues if x) == " ".join(said)
-    rule_at = lines.index("## Your judge's rule now")
+    rule_at = lines.index("## Your LLM-as-a-judge's rule now")
     assert lines[rule_at + 2] == "<<<RULE" and RULE in lines[rule_at + 3]
     warn_at = next(n for n, x in enumerate(lines) if x.startswith(start_fix_rule.DATA_WARNING))
     first = next(n for n, x in enumerate(lines) if x.startswith("## [M1] Your LLM-as-a-judge said "))

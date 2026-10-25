@@ -287,7 +287,7 @@ def test_answers_not_counted_in_both_runs_are_counted_once(fixing, capsys):
     code, flat = _fix(capsys, "--yes")
     assert code == 0, flat
     assert f"Your LLM-as-a-judge, tested on the {len(hidden) - k} marks kept aside:" in flat
-    assert f"{k} answers were not counted: the judge gave no clear decision." in flat
+    assert f"{k} answers were not counted: the LLM-as-a-judge gave no clear decision." in flat
     assert flat.count("were not counted") == 1
 
 

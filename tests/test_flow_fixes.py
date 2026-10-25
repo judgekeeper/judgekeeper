@@ -229,7 +229,7 @@ def test_a_table_judge_whose_grades_changed_is_re_checked(here, capsys, no_calls
     assert _next(out) == ("Next: run `judgekeeper check` to re-check your changed LLM-as-a-judge on "
                           "your marks.")
     _, out, _ = run(capsys, "check")
-    assert "Your judge's grades changed on 7 of your marked answers." in flat(out)
+    assert "Your LLM-as-a-judge's grades changed on 7 of your marked answers." in flat(out)
     assert "Agreed with you:" in out
     assert "has not changed" not in out
 
