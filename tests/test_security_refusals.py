@@ -365,9 +365,10 @@ def test_only_a_request_with_the_token_keeps_the_page_open(page_server):
 HIDDEN = ["\U000e0000", "\U000e004e", "\U000e007f", "\u2060", "\u2062", "\u2064", "\u061c",
           "\u180e", "\u00ad", "\u3164"]
 # Format characters and default-ignorable ones the list above missed: a variation selector, the
-# combining grapheme joiner, Hangul fillers, a supplementary variation selector, a reserved one
+# combining grapheme joiner, Hangul fillers, a supplementary variation selector, a reserved one,
+# and the braille blank (a symbol, not a format character, that shows as nothing)
 MORE_HIDDEN = ["\ufe0f", "\u034f", "\u115f", "\u1160", "\uffa0", "\U000e0100", "\u2065",
-               "\u17b4", "\U0001d173", "\u0600", "\ufff9", "\U000e0fff"]
+               "\u17b4", "\U0001d173", "\u0600", "\ufff9", "\U000e0fff", "\u2800"]
 
 
 @pytest.mark.parametrize("c", HIDDEN + MORE_HIDDEN)

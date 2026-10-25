@@ -61,6 +61,8 @@ PROMPT_VAR = "judgekeeper_prompt"  # the var each test's saved prompt goes in
 # name: {{ output }} and {{ vars.topic }} only fill in a value. {{ env.NAME }} counts as code:
 # it reads promptfoo's environment, where the keys are.
 _FILL = re.compile(r"\{\{-?\s*(?!env\b)[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\s*-?\}\}")
+# A plain {{ name }} or {{ vars.name }}: where a var's value goes
+_PLAIN = re.compile(r"\{\{-?\s*(?:vars\.)?([A-Za-z_]\w*)\s*-?\}\}")
 # The providers in promptfoo's list (0.120 to 0.124) that call a model over HTTP: the only
 # graders asked again. Any other (package:, exec:, a file, a URL, echo, an unknown name) is
 # the person's own code, or sends the answers elsewhere.
@@ -156,6 +158,20 @@ def template_code(text) -> bool:
         "{%" in text or "{#" in text or "{{" in _FILL.sub("", text))
 
 
+def split_code(test: dict) -> bool:
+    """Whether the saved prompt, the rule or the rubric of a test holds template code only once
+    its own vars are filled in, once: {{a}}{{b}} with a = "{" and b = "{ env.X }}". Each part
+    alone is clean; a promptfoo that fills templates in twice would run the whole."""
+    variables = test.get("vars") or {}
+
+    def filled(text: str) -> str:
+        return _PLAIN.sub(lambda m: v if isinstance(v := variables.get(m[1]), str) else m[0],
+                          text)
+    texts = [variables.get(PROMPT_VAR), (test.get("options") or {}).get("rubricPrompt"),
+             [[a.get("value"), a.get("rubricPrompt")] for a in test.get("assert") or []]]
+    return any(template_code(filled(t)) and not template_code(t) for t in _strings(texts))
+
+
 def _strings(value):
     """Every string in `value`, inside lists and objects too."""
     if isinstance(value, str):
@@ -182,7 +198,7 @@ def loads_code(test: dict) -> str | None:
     if _code(_strings({k: v for k, v in test.items() if k not in ("vars", "providerOutput")})):
         return "a rule or grader setting that loads a file or script"
     if any(template_code(v) for v in _strings({k: v for k, v in test.items()
-                                                if k != "providerOutput"})):
+                                                if k != "providerOutput"})) or split_code(test):
         return "template code, which promptfoo would run"
     return None
 
@@ -476,7 +492,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         texts += [v for v in (row.get("vars") or {}).values() if isinstance(v, str)]
         if any(judge_type(c["assertion"].get("type")) in PROMPT_TYPES for c in comps) and any(
                 m in t for t in texts for m in TEMPLATE_MARKS) or any(
-                template_code(t) for t in _strings([texts[0], row.get("vars")])):
+                template_code(t) for t in _strings([texts[0], row.get("vars")])) or split_code(
+                test_entry(a, row, comps, test_opts, default_test)):
             templated += 1
             continue
         for c in comps:
