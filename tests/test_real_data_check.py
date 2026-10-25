@@ -278,7 +278,7 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
 
     s = report["summary"]["25+25"]
     c = s["tpr_tnr"]
-    result = (f"{s['judges']} real LLM-as-a-judge setups from {s['datasets']} public datasets",
+    result = (f"{s['judges']} LLM-as-a-judge setups from {s['datasets']} public datasets",
               (f"in {pct(c['mean'])} checks in 100 on average (lowest {pct(c['lowest'])}, "
                f"highest {pct(c['highest'])}), over {report['settings']['checks']:,} checks "
                "per LLM-as-a-judge"))
@@ -289,8 +289,13 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
                  f"{pct(lowest_tpr_tnr_coverage(grid))} times in 100 in every setting tested, "
                  f"and {pct(level['mean'])} times on average in the main test grid.")
     assert simulated in _flat(ROOT / "README.md")
+    # the figures are said once, in the report the reference links
+    report_md = _flat(OUT / "report.md")
     reference = _flat(ROOT / "docs" / "reference.md")
+    assert "(examples/real-data-check/report.md)" in reference
     for figure in result:
-        assert figure in reference, figure
+        assert figure in report_md, figure
+    for figure in (pct(c["mean"]), pct(c["lowest"]), pct(c["highest"])):
+        assert figure not in reference, figure
     assert ("The tests run on Linux with Python 3.11 to 3.14, and on Windows and macOS."
             in _flat(ROOT / "README.md"))

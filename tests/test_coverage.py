@@ -75,12 +75,13 @@ def test_the_coverage_figures_in_the_docs_come_from_the_committed_grid():
         return f"{x * 100:.1f}"
 
     now = grid["corrected"]["levels"][str(level)]
-    figures = [f"middle {level:.0%}", f"at least {pct(now['min_cell'])} times in 100",
-               f"{pct(now['mean'])} on average",
-               f"95% fell to {pct(grid['corrected']['levels']['0.95']['min_cell'])}"]
     reference = " ".join((root / "docs" / "reference.md").read_text(encoding="utf-8").split())
-    for figure in figures:
-        assert figure in reference, figure
+    assert f"middle {level:.0%}" in reference
+    # the figures are said once, in the coverage report the reference links
+    md = (root / "docs" / "examples" / "coverage" / "coverage.md").read_text(encoding="utf-8")
+    for figure in (now["min_cell"], now["mean"], grid["corrected"]["levels"]["0.95"]["min_cell"]):
+        assert pct(figure) in md, figure
+        assert pct(figure) not in reference, figure
 
 
 def test_the_numbers_on_screen_are_in_the_committed_grid():
@@ -113,8 +114,8 @@ def test_the_numbers_on_screen_are_in_the_committed_grid():
 
 def test_the_batch_grid_is_committed_and_holds_the_bar():
     """New answers join as batches: the ranges on 2 and 3 batches, run at today's level and
-    committed, hold the true value as often as the level asks; the reference's figures come
-    from there."""
+    committed, hold the true value as often as the level asks; the coverage report says the
+    figures, the reference does not repeat them."""
     import json
 
     from judgekeeper import weighted
@@ -128,8 +129,9 @@ def test_the_batch_grid_is_committed_and_holds_the_bar():
     assert {len(row["shape"]) for row in grid["rows"]} == {2, 3}
     start = grid["start"]
     assert start["min_cell"] >= module.FLOOR_CELL and start["mean"] >= module.FLOOR_MEAN
-    assert "## Batches" in (folder / "coverage.md").read_text(encoding="utf-8")
+    md = (folder / "coverage.md").read_text(encoding="utf-8")
+    batches = md[md.index("## Batches"):]
     reference = " ".join((root / "docs" / "reference.md").read_text(encoding="utf-8").split())
-    for figure in (f"at least {start['min_cell'] * 100:.1f} times in 100",
-                   f"{start['mean'] * 100:.1f} on average"):
-        assert figure in reference, figure
+    for figure in (f"{start['min_cell'] * 100:.1f}", f"{start['mean'] * 100:.1f}"):
+        assert figure in batches, figure
+        assert figure not in reference, figure
