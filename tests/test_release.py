@@ -606,3 +606,12 @@ def test_ci_runs_the_typescript_snippet_with_node_22():
     (test,) = [s for s in steps if s.get("name") == "Test"]
     assert test["env"]["JUDGEKEEPER_NEEDS_NODE"] == "1"
     assert test["run"].startswith("pytest")
+
+
+@pytest.mark.parametrize("name", ["ci.yml", "windows.yml", "release.yml"])
+def test_every_checkout_leaves_no_token_behind(name):
+    steps = [step for job in _workflow(name)["jobs"].values() for step in job.get("steps", [])
+             if str(step.get("uses", "")).startswith("actions/checkout@")]
+    assert steps
+    for step in steps:
+        assert (step.get("with") or {}).get("persist-credentials") is False, step
