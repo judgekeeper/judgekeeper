@@ -64,7 +64,7 @@ from judgekeeper.readers.promptfoo import (
 from judgekeeper.records import LLM, derive_record_id
 from judgekeeper.redact import register_secret, scrub
 from judgekeeper.table import make_fingerprint
-from judgekeeper.textio import make_private, write_replacing
+from judgekeeper.textio import make_private, read_json, write_replacing
 
 CALLS = {"llm-rubric": 1, "factuality": 1, "model-graded-factuality": 1,
          "model-graded-closedqa": 1, "context-recall": 1, "context-relevance": 1,
@@ -293,7 +293,7 @@ def _rows(root: Path, files: list[str]) -> dict[str, tuple[dict, dict]]:
         path = root / rel
         if not path.is_file():
             continue
-        d = json.loads(path.read_text(encoding="utf-8"))
+        d = read_json(path, AgainError)
         default_test = (d.get("config") or {}).get("defaultTest") or {}
         for row in (d.get("results") or {}).get("results") or []:
             key = derive_record_id(row.get("vars"), _text((row.get("response") or {})
@@ -365,7 +365,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     data = ws.data()
     root = ws.root
     metric = data["metric"]
-    newest = json.loads((root / data["results_files"][0]).read_text(encoding="utf-8"))
+    newest = read_json(root / data["results_files"][0], AgainError)
     version = (newest.get("metadata") or {}).get("promptfooVersion")
     unreadable = bool(version) and not (isinstance(version, str) and VERSION.fullmatch(version))
     if unreadable:
@@ -440,6 +440,11 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                             "your LLM-as-a-judge runs your own code (a rule that loads a file or "
                             "package, or a transform)",
                             short="your LLM-as-a-judge is your own code")
+    for _, row, _, _, _ in judged:
+        if _code((row.get("vars") or {}).values()):
+            return cant("promptfoo", judge,
+                        "your LLM-as-a-judge runs your own code (a var that loads a file or "
+                        "script)", short="your LLM-as-a-judge is your own code")
     if not judged:
         return not_marked("promptfoo", judge)
     types = {judge_type(c["assertion"].get("type")) for j in judged for c in j[2]}

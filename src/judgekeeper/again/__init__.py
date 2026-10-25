@@ -398,6 +398,7 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
     from dataclasses import replace
 
     from judgekeeper.again import deepeval, inspect, mlflow, promptfoo
+    from judgekeeper.again.fresh import AgainError
     from judgekeeper.records import RecordsError
 
     opts = opts or AgainOptions()
@@ -424,7 +425,7 @@ def make_plan(ws, opts: AgainOptions | None = None, talk=None, dry: bool = True,
             plan = cant(data["tool"], data["judge"],
                         "your LLM-as-a-judge's decisions are a table, and judgekeeper can't run "
                         "the LLM-as-a-judge that made them")
-    except (OSError, ValueError, KeyError, RecordsError) as e:
+    except (OSError, ValueError, KeyError, RecordsError, AgainError) as e:
         plan = cant(data["tool"], data["judge"],
                     f"your saved results could not be read again ({scrub(str(e))})",
                     short="your saved results could not be read again")

@@ -19,6 +19,7 @@ import pytest
 
 from judgekeeper import fix, label, marks, reasons, redact, start
 from judgekeeper.again import AgainOptions, make_plan
+from tests.start_projects import promptfoo_project
 from tests.test_again_plan import _checked, _edit, _rows, no_processes  # noqa: F401
 from tests.test_fix import judge, project  # noqa: F401
 from tests.test_fix import run as run_fix
@@ -100,6 +101,28 @@ def test_a_rule_that_loads_code_is_not_asked(tmp_path, rule):
     ws = _checked(tmp_path)
     p = make_plan(ws, AgainOptions(rule=rule), dry=False)
     assert p.status == "cant" and "your own code" in p.why
+
+
+@pytest.mark.parametrize("value", ["file://grader.py", "FILE://vars/q.js", ["a", "file://x.ts"]])
+def test_a_var_that_loads_a_file_is_not_asked(tmp_path, value):
+    def maker(root, *args, **kwargs):
+        promptfoo_project(root, *args, **kwargs)
+
+        def change(row):
+            row["vars"]["question"] = value
+        _edit(root, _rows(change))
+    ws = _checked(tmp_path, maker=maker)
+    p = make_plan(ws, AgainOptions(), dry=False)
+    assert p.status == "cant" and "a var that loads a file or script" in p.why
+
+
+def test_results_nested_too_deep_give_one_plain_line(tmp_path):
+    ws = _checked(tmp_path)
+
+    _edit(tmp_path, lambda data: data.update(deep=json.loads("[" * 600 + "]" * 600)))
+    p = make_plan(ws, AgainOptions(), dry=False)
+    assert p.status == "cant"
+    assert "isn't valid JSON that judgekeeper can read" in p.why
 
 
 def test_a_package_rule_in_rule_txt_runs_nothing(here, capsys, judge):  # noqa: F811
