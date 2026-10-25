@@ -433,6 +433,66 @@ def test_a_plain_name_in_a_rule_rubric_or_prompt_is_still_asked(tmp_path, text):
     assert not p.left_out
 
 
+# Template code split across two vars: each part alone is clean, the filled-in text is not.
+# A promptfoo that fills templates in twice would run it.
+SPLIT = {"a": "{", "b": "{" + " env.HOME " + CLOSE}
+SPLIT_TEXT = f"{OPEN}a{CLOSE}{OPEN} vars.b {CLOSE}"
+
+
+def _split(row, where):
+    if where == "prompt":
+        row["prompt"]["raw"] = SPLIT_TEXT
+    elif where == "rule":
+        for c in row["gradingResult"]["componentResults"]:
+            c["assertion"]["value"] = f"Be kind. {SPLIT_TEXT}"
+    else:
+        row["testCase"]["options"]["rubricPrompt"] = f"Grade: {SPLIT_TEXT}"
+
+
+@pytest.mark.parametrize("where", ["prompt", "rule", "rubric"])
+def test_template_code_split_across_two_vars_leaves_the_answer_out(tmp_path, where):
+    def change(data):
+        first, second = data["results"]["results"][:2]
+        first["vars"].update(SPLIT)
+        first["testCase"]["vars"].update(SPLIT)
+        _split(first, where)
+        second["prompt"]["raw"] = f"{OPEN} question {CLOSE}"  # a plain name: still asked
+
+    def maker(root, *args, **kwargs):
+        promptfoo_project(root, *args, **kwargs)
+        _edit(root, change)
+    ws = _checked(tmp_path, maker=maker)
+    rows = json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))["results"]
+    first, second = rows["results"][:2]
+    p = make_plan(ws, AgainOptions(), dry=False)
+    assert p.status != "cant", p.why
+    asked = [row for _, row, _, _, _ in p.payload]
+    assert first not in asked and second in asked
+    assert len(p.payload) == len(ws.data()["queue"]) - 1
+    assert any("1 " in line and "template text" in line for line in p.left_out), p.left_out
+
+
+def test_fix_never_hands_on_template_code_split_across_two_vars(here, capsys, judge,  # noqa: F811
+                                                                 runs, monkeypatch):
+    made = test_fix.promptfoo_data
+
+    def data(*args, **kwargs):
+        d = made(*args, **kwargs)
+        for row in d["results"]["results"]:
+            row["vars"].update(SPLIT)
+            row["testCase"]["vars"].update(SPLIT)
+            _split(row, "prompt")
+        return d
+    monkeypatch.setattr(test_fix, "promptfoo_data", data)
+    ws = test_fix.project(here)
+    test_fix.run(capsys)
+    (ws.dir / "fix" / "rule.txt").write_text(test_fix.NEW_RULE, encoding="utf-8")
+    code, out = test_fix.run(capsys, "--yes")
+    assert code == 3, out
+    assert judge["evals"] == 0 and runs["graded"] == 0
+    assert "template text" in _flat(out)
+
+
 # The last check, just before the tests file is written ------------------------------------------
 
 def _leaves(value, path=()):
@@ -486,4 +546,29 @@ def test_the_last_check_writes_nothing_and_runs_nothing(tmp_path, monkeypatch):
     with pytest.raises(AgainError) as e:
         pf.run(ws, p, SimpleNamespace(say=lambda *a, **k: None))
     assert OWN_CODE in str(e.value)
+    assert not (tmp_path / pf.CONFIG).exists() and not (tmp_path / pf.TESTS).exists()
+
+
+@pytest.mark.parametrize("where", ["prompt", "rule", "rubric"])
+def test_the_last_check_finds_template_code_split_across_two_vars(tmp_path, monkeypatch,
+                                                                    where):
+    def refuse(*args, **kwargs):
+        raise AssertionError("promptfoo was started")
+
+    ws = _checked(tmp_path)
+    monkeypatch.setattr(again, "run_process", refuse)
+    p = make_plan(ws, AgainOptions(), dry=False)
+    p.runner = ["promptfoo"]
+    answer, row, comps, opts, default = copy.deepcopy(p.payload[0])
+    row["vars"].update(SPLIT)
+    if where == "prompt":
+        row["prompt"]["raw"] = SPLIT_TEXT
+    elif where == "rule":
+        comps = [{**c, "assertion": {**c["assertion"], "value": SPLIT_TEXT}} for c in comps]
+    else:
+        opts = {**opts, "rubricPrompt": SPLIT_TEXT}
+    p.payload[0] = (answer, row, comps, opts, default)
+    with pytest.raises(AgainError) as e:
+        pf.run(ws, p, SimpleNamespace(say=lambda *a, **k: None))
+    assert "template code" in str(e.value)
     assert not (tmp_path / pf.CONFIG).exists() and not (tmp_path / pf.TESTS).exists()
