@@ -100,3 +100,9 @@ def test_checking_names_the_llm_as_a_judge_in_full():
         text = _flat(path.read_text(encoding="utf-8")).lower()
         for words in ("check your judge", "checks your judge", "check a judge"):
             assert words not in text, (path.relative_to(ROOT).as_posix(), words)
+
+
+def test_the_readme_has_three_badges_version_tests_and_licence():
+    badges = re.findall(r'<img src="([^"]+)" alt="([^"]+)"', README.read_text(encoding="utf-8"))
+    assert [alt for src, alt in badges if "shields.io" in src or "badge.svg" in src] == [
+        "PyPI version", "Tests on main", "MIT license"]
