@@ -2,8 +2,8 @@
 
 Conventions the pages follow, so these tests can check every figure:
 
-- `data-report="headline.kappa_mean"` with `data-format`: a number from
-  docs/examples/llmbar-haiku/report.json. `slices[Natural].kappa_mean` picks a list entry.
+- `data-report="true_all_rows.kappa"` with `data-format`: a number from
+  docs/examples/jailbreakbench/true-figures.json. `rounds[2].tpr` picks a list entry.
 - `data-const="judgekeeper.targets:RELIABLE"`: a constant from the code.
 - `data-realcheck="summary.25+25.tpr_tnr.mean"` with `data-format`: a number from
   docs/examples/real-data-check/report.json.
@@ -36,7 +36,8 @@ from tests.website_pages import (
     parse,
 )
 
-REPORT = json.loads((ROOT / "docs/examples/llmbar-haiku/report.json").read_text(encoding="utf-8"))
+REPORT = json.loads((ROOT / "docs/examples/jailbreakbench/true-figures.json").read_text(
+    encoding="utf-8"))
 REALCHECK = json.loads((ROOT / "docs/examples/real-data-check/report.json").read_text(
     encoding="utf-8"))
 COVERAGE = json.loads((ROOT / "docs/examples/coverage/coverage.json").read_text(encoding="utf-8"))
@@ -50,7 +51,7 @@ def test_site_has_its_pages():
                  "assets/social-preview.png"):
         assert (WEBSITE / name).is_file(), name
     for gone in ("docs.html", "setup.html", "learn.html", "reference.html", "assets/theme.js",
-                 "assets/metrics.js", "assets/freecheck.css"):
+                 "assets/metrics.js", "assets/freecheck.css", "assets/shots/fix.webp"):
         assert not (WEBSITE / gone).exists(), gone
 
 
@@ -331,7 +332,7 @@ def test_internal_links_resolve():
 
 def test_the_report_link_works_in_the_local_preview():
     # website/examples is a link to docs/examples, so http.server --directory website serves it.
-    assert (WEBSITE / "examples/llmbar-haiku/report.html").is_file()
+    assert (WEBSITE / "examples/jailbreakbench/report.html").is_file()
     assert (WEBSITE / "examples").is_symlink()
 
 
@@ -345,7 +346,8 @@ SITE = "https://www.judgekeeper.com/"
 SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url", "og:image",
               "og:image:width", "og:image:height", "og:image:alt", "twitter:card",
               "twitter:title", "twitter:description", "twitter:image"]
-SHARE_ALT = "Check your LLM-as-a-judge in 5 steps."
+SHARE_ALT = ("The judgekeeper logo and the words: Check your LLM-as-a-judge in 5 steps. "
+             "Find. Mark. Measure. Fix. Re-check. uvx judgekeeper")
 SITE_PAGES = {"index.html", "start.html", "check.html", "privacy.html"}
 
 
@@ -394,7 +396,7 @@ def test_every_page_has_the_share_preview_tags():
 
 def test_the_share_preview_picture_is_a_small_wide_png():
     image = WEBSITE / "assets/social-preview.png"
-    assert _png_size(image) == (1280, 640)
+    assert _png_size(image) == (1200, 630)
     assert image.stat().st_size < 300_000  # some apps show no picture when it is heavier
 
 
@@ -560,4 +562,4 @@ def test_every_scroll_area_can_be_reached_by_keyboard():
             assert el.attrs.get("role") == "region", where
             assert el.attrs.get("aria-label", "").strip(), where
             checked += 1
-    assert checked >= 10  # the Guide's code and tables, the terminals, the old report's tables
+    assert checked >= 3  # the scroll areas on the pages and in the example reports

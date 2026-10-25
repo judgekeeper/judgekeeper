@@ -1,7 +1,7 @@
 [project]
 name = "judgekeeper"
 version = "1.0.0b2"
-description = "Check your LLM-as-a-judge: see how often it agrees with human labels."
+description = "Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -9,12 +9,15 @@ authors = [{ name = "Sathvik Thota" }]
 keywords = ["llm", "evaluation", "evals", "llm-evaluation", "llm-as-a-judge", "llm-as-judge", "llm-judge", "human-labels", "custom-metric", "rubric", "calibration", "drift"]
 classifiers = [
   "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "License :: OSI Approved :: MIT License",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Software Development :: Testing",
 ]
 dependencies = []
@@ -32,6 +35,7 @@ judgekeeper = "judgekeeper.__main__:main"
 [project.urls]
 Homepage = "https://github.com/judgekeeper/judgekeeper"
 Source = "https://github.com/judgekeeper/judgekeeper"
+Documentation = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md"
 Issues = "https://github.com/judgekeeper/judgekeeper/issues"
 Changelog = "https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md"
 

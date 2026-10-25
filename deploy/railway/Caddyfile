@@ -27,7 +27,10 @@
 	@check path /check /check.html
 	header @check >Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 	# The example reports are judgekeeper's own report.html: one inline script (Show all, Copy)
-	# and fonts inside the file. Only under /examples/ may a page run them.
+	# and fonts inside the file. Only under /examples/ may a page run them. 'unsafe-inline' stays:
+	# a browser applies this policy and the page's own together, and each report's meta policy
+	# names its script by hash, so only that script runs. scripts/build_pages.py stops on an
+	# example page that has a script but not that meta policy.
 	@examples path /examples/*
 	header @examples >Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 	# Old addresses go to the page that has their content now.

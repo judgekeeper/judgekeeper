@@ -12,7 +12,7 @@ With 50 labels per check (25 from each group), on 5 judges from 3 public dataset
 |---|---|---|---|---|
 | 25+25 labels | 50 | 96.0 | 94.6 (LLMBar × Claude Haiku 4.5, TNR) | 98.4 (LLMBar × Claude Haiku 4.5, TPR) |
 | 30+30 labels | 60 | 96.6 | 95.0 (LLMJudge × RMITIR-GPT4o, TPR) | 99.0 (LLMBar × Claude Haiku 4.5, TPR) |
-| start's rule (25 Pass + 25 Fail) | 59 to 79 on average | 96.5 | 95.0 (MT-Bench × GPT-4, TNR) | 99.0 (LLMBar × Claude Haiku 4.5, TPR) |
+| judgekeeper's rule (25 Pass + 25 Fail) | 59 to 79 on average | 96.5 | 95.0 (MT-Bench × GPT-4, TNR) | 99.0 (LLMBar × Claude Haiku 4.5, TPR) |
 
 A 96% range is expected to miss about 4 times in 100. With 1,000 checks, chance alone moves the share it holds by up to about 1.2 either way (95 times in 100).
 
@@ -32,7 +32,7 @@ The values from all of each dataset's human labels.
 
 Held in 100 checks, TPR / TNR / real pass rate, 1,000 checks each.
 
-| Judge | 25+25 labels | 30+30 labels | start's rule (25 Pass + 25 Fail) |
+| Judge | 25+25 labels | 30+30 labels | judgekeeper's rule (25 Pass + 25 Fail) |
 |---|---|---|---|
 | LLMBar × Claude Haiku 4.5 | 98.4 / 94.6 / 96.4 | 99.0 / 97.4 / 96.8 | 99.0 / 97.5 / 97.3 |
 | MT-Bench × GPT-4 | 96.0 / 95.7 / 96.5 | 95.9 / 97.0 / 97.4 | 95.7 / 95.0 / 95.5 |
@@ -46,7 +46,7 @@ Checks where a number could not be worked out: 0.
 
 Average width of the range (high end minus low end) and the median distance from the number to the value from all labels, TPR / TNR.
 
-| Judge | 25+25 labels | 30+30 labels | start's rule (25 Pass + 25 Fail) |
+| Judge | 25+25 labels | 30+30 labels | judgekeeper's rule (25 Pass + 25 Fail) |
 |---|---|---|---|
 | LLMBar × Claude Haiku 4.5 | width 0.15 / 0.22, error 0.02 / 0.04 | width 0.14 / 0.21, error 0.02 / 0.03 | width 0.14 / 0.21, error 0.02 / 0.04 |
 | MT-Bench × GPT-4 | width 0.18 / 0.33, error 0.03 / 0.05 | width 0.17 / 0.30, error 0.03 / 0.05 | width 0.17 / 0.30, error 0.03 / 0.05 |
@@ -94,7 +94,7 @@ The human labels are what each dataset has: LLMBar's gold labels written by its 
 
 ## Data and licences
 
-- **LLMBar** (MIT): <https://github.com/princeton-nlp/LLMBar>, revision `900616bff90b6c6c8e1681f7d079250637c55992`. Zeng et al. (2024), Evaluating Large Language Models at Evaluating Instruction Following, ICLR 2024. The judge verdicts are judgekeeper's own run of claude-haiku-4-5-20251001, kept in docs/examples/llmbar-haiku/report.json.
+- **LLMBar** (MIT): <https://github.com/princeton-nlp/LLMBar>, revision `900616bff90b6c6c8e1681f7d079250637c55992`. Zeng et al. (2024), Evaluating Large Language Models at Evaluating Instruction Following, ICLR 2024. The judge verdicts are judgekeeper's own run of claude-haiku-4-5-20251001, kept in docs/examples/real-data-check/sources/llmbar-haiku.json.
 - **MT-Bench human judgments** (CC-BY-4.0): <https://huggingface.co/datasets/lmsys/mt_bench_human_judgments>, revision `f7d2896d2cc5d80f8b55c2bbc722613555233c25`. Zheng et al. (2023), Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena, NeurIPS 2023 Datasets and Benchmarks. Licensed CC-BY-4.0. Changed here: each item turned into one yes/no question as described in this report; no data is copied into this repository.
   - `mtbench/gpt4_pair.parquet`: sha256 `57068327ffb5f8fddb15fedbbfe40b26fe862da2326331e5cf64a42320a00e71`
   - `mtbench/human.parquet`: sha256 `4877bc46a40929f4082c3c79593700fb897b1d6c7f4c473032694a01322f5769`
@@ -106,4 +106,4 @@ The human labels are what each dataset has: LLMBar's gold labels written by its 
 
 ## Settings
 
-Seed 20261009; 1,000 checks per judge and design; start's rule labels 5 from each group at a time. Ranges: `weighted.corrected` at level 0.96, 20,000 draws, seed 20261008. To run it again: `pip install pyarrow`, then `python scripts/real_data_check.py`. It downloads the files above into a cache folder outside the repository, checks each sha256, and writes this report and `report.json`.
+Seed 20261009; 1,000 checks per judge and design; judgekeeper's rule labels 5 from each group at a time. Ranges: `weighted.corrected` at level 0.96, 20,000 draws, seed 20261008. To run it again: `pip install pyarrow`, then `python scripts/real_data_check.py`. It downloads the files above into a cache folder outside the repository, checks each sha256, and writes this report and `report.json`.

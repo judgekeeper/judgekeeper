@@ -31,8 +31,8 @@ and real pass rate at least FLOOR_CELL of the time in every cell and FLOOR_MEAN 
 
 Two more checks: how far another seed moves a range (STABILITY), and how often a check that
 reached RELIABLE Correct and Wrong labels has both ranges no wider than each candidate width
-(RELIABLE_RUNS simulated labelings per case, picking 5 from each group per block as `start`
-does).
+(RELIABLE_RUNS simulated labelings per case, picking 5 from each group per block as
+`judgekeeper` does).
 
 The numbers on screen (`accuracy`): kappa's range; the ranges at the real stopping rule
 (marking 5 + 5 per block until 15 Pass and 15 Fail, and until 25 + 25); how often each width
@@ -892,7 +892,7 @@ def markdown(result: dict) -> str:
               ("Lowest cell per number, before → now: " + "; ".join(
                   f"{k.upper()} {_pct(g['before']['per_metric'][k])}"
                   f" → {_pct(g['now']['per_metric'][k])}" for k in GENERAL_METRICS)
-               + ". Kappa is given without a range, as in `start`'s result."), "",
+               + ". Kappa is given without a range, as in judgekeeper's result."), "",
               "| pi | a | w | n | TPR | TNR |", "|---|---|---|---|---|---|"]
     for row in result["rows"]:
         cells_ = []
@@ -908,7 +908,7 @@ def markdown(result: dict) -> str:
               f"most {s['largest_change']:.4f} on the counts tried."), "",
               "## When is a check reliable?", "",
               (f"{RELIABLE_RUNS:,} simulated labelings per case, 5 from each group per block as "
-              f"`start` picks, until {RELIABLE} Correct and {RELIABLE} Wrong. "
+              f"`judgekeeper` picks, until {RELIABLE} Correct and {RELIABLE} Wrong. "
               "The share whose TPR and TNR ranges are both no wider than each width, and the "
               f"average widths. The width judgekeeper uses: {targets.MAX_WIDTH:.2f}."), "",
               "| pi | a | w | " + " | ".join(f"≤ {m:.2f}" for m in WIDTHS)

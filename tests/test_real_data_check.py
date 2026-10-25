@@ -232,7 +232,8 @@ def test_the_settings_are_the_fixed_ones(rdc):
 # The committed report
 
 def test_the_report_folder_holds_only_the_report(report):
-    assert sorted(p.name for p in OUT.iterdir()) == ["report.json", "report.md"]
+    assert sorted(p.name for p in OUT.iterdir()) == ["report.json", "report.md", "sources"]
+    assert [p.name for p in (OUT / "sources").iterdir()] == ["llmbar-haiku.json"]
 
 
 def test_the_committed_report_md_is_what_the_script_writes_from_report_json(rdc, report):
@@ -249,8 +250,7 @@ def test_the_report_carries_the_settings_the_data_and_the_licences(rdc, report):
                              "seed": weighted.SEED}
     assert report["data"] == rdc.DATASETS
     assert list(report["pools"]) == list(rdc.POOLS)
-    llmbar = json.loads((ROOT / "docs/examples/llmbar-haiku/report.json").read_text(
-        encoding="utf-8"))
+    llmbar = json.loads((OUT / "sources" / "llmbar-haiku.json").read_text(encoding="utf-8"))
     assert report["pools"]["llmbar-haiku"]["truth"] == rdc.rounded(rdc.truth(rdc.llmbar_pool(llmbar)))
 
 

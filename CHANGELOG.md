@@ -134,4 +134,4 @@ The first release: alpha, so commands, flags and `report.json` keys may still ch
   `python3 -m http.server --directory website`.
 
 Measured so far: one live run, LLMBar judged by `claude-haiku-4-5-20251001`
-(`docs/examples/llmbar-haiku/`). The live judge-migration demo has not been run yet.
+(`docs/examples/llmbar-haiku/`).

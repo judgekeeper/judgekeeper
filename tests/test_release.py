@@ -21,7 +21,9 @@ ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
 VERSION = "1.0.0b2"
 BETA = "Development Status :: 4 - Beta"
-EXAMPLE = ROOT / "docs" / "examples" / "llmbar-haiku"
+EXAMPLE = ROOT / "docs" / "examples" / "jailbreakbench"
+# The old LLMBar run, kept only as a source of the real-data check
+LLMBAR = ROOT / "docs" / "examples" / "real-data-check" / "sources" / "llmbar-haiku.json"
 
 
 def _toml(path):
@@ -49,6 +51,16 @@ def test_versions_agree():
     assert BETA in main["classifiers"]
     for minor in ("3.11", "3.12", "3.13", "3.14"):
         assert f"Programming Language :: Python :: {minor}" in main["classifiers"]
+
+
+def test_package_description_and_classifiers():
+    main = _toml(ROOT / "pyproject.toml")["project"]
+    assert main["description"] == ("Check your LLM-as-a-judge in 5 steps: "
+                                   "Find. Mark. Measure. Fix. Re-check.")
+    for classifier in ("Operating System :: OS Independent",
+                       "Intended Audience :: Developers",
+                       "Topic :: Scientific/Engineering :: Artificial Intelligence"):
+        assert classifier in main["classifiers"], classifier
 
 
 def test_no_pytest_plugin_and_no_api_extras():
@@ -115,7 +127,9 @@ def test_release_workflow_builds_checks_and_tests_the_wheel():
 
 def test_ci_builds_and_runs_the_installed_wheel_on_every_push():
     wf = _workflow("ci.yml")
-    assert "push" in wf["on"]
+    # every pull request, and every push to main: a pull request's push runs it once
+    assert wf["on"]["push"] == {"branches": ["main"]}
+    assert "pull_request" in wf["on"]
     text = "\n".join(_steps_text(j) for j in wf["jobs"].values())
     for needed in ("python -m build", "venv", "judgekeeper --version", "judgekeeper --help",
                    "judgekeeper mark --help", "judgekeeper fix --help",
@@ -257,18 +271,52 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     banner = "assets/social-preview.png"  # the picture in link previews; og:image points at it
     assert (tmp_path / banner).read_bytes() == (ROOT / "website" / banner).read_bytes()
     for name in ("index.html", "report.html"):
-        report = tmp_path / "examples" / "llmbar-haiku" / name
+        report = tmp_path / "examples" / "jailbreakbench" / name
         assert report.read_bytes() == (EXAMPLE / "report.html").read_bytes()
     index = (tmp_path / "examples" / "index.html").read_text(encoding="utf-8")
     assert index.startswith("<!doctype html>")
-    assert 'href="llmbar-haiku/"' in index
+    assert 'href="jailbreakbench/"' in index
     # Home's terminal figures: their report, said to be made-up
     assert (tmp_path / "examples" / "site-example" / "index.html").is_file()
     assert re.search(r'href="site-example/".*Example project \(made-up answers\), '
                      r"openai:gpt-4\.1-mini", index)
-    assert "http" not in index.replace("http-equiv", "")  # no external assets
+    assert "unedited" not in index and "real runs" in index and "made-up" in index
+    assert not re.search(r'(?:src|<link[^>]*href)="http', index)  # no external assets
     assert (tmp_path / ".nojekyll").is_file()
     assert not (tmp_path / "CNAME").exists()  # the build sets no custom domain
+
+
+def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tmp_path):
+    _build_pages(tmp_path)
+    index = (tmp_path / "examples" / "index.html").read_text(encoding="utf-8")
+    listed = re.findall(r'<li><a href="[^"]*">([\w-]+)</a>', index)
+    assert listed == ["jailbreakbench", "probes", "ragtruth", "real-data-check", "site-example"]
+    # a folder with no report.html links to its report.md on GitHub
+    assert ('href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/'
+            'probes/report.md"') in index
+    assert "llmbar-haiku" not in index
+    # dark only, like the site
+    assert "prefers-color-scheme" not in index and "#fff;" not in index
+    assert "color-scheme: dark" in index
+
+
+def test_the_build_stops_on_an_example_page_with_a_script_and_no_policy(tmp_path):
+    spec = importlib.util.spec_from_file_location("build_pages",
+                                                  ROOT / "scripts" / "build_pages.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.unsafe_pages(ROOT / "docs" / "examples") == []
+    examples = tmp_path / "examples"
+    (examples / "a" / "deep").mkdir(parents=True)
+    (examples / "a" / "report.html").write_text("<p>No script.</p>", encoding="utf-8")
+    (examples / "a" / "deep" / "x.html").write_text("<script>run()</script>", encoding="utf-8")
+    (examples / "b").mkdir()
+    (examples / "b" / "report.html").write_text(
+        '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
+        'script-src \'sha256-abc=\'"><script>run()</script>', encoding="utf-8")
+    assert module.unsafe_pages(examples) == ["a/deep/x.html"]
+    with pytest.raises(SystemExit, match="a/deep/x.html"):
+        module.build(ROOT / "website", examples, tmp_path / "out")
 
 
 # The README and the changelog (the README's own contract is in test_docs.py)
@@ -353,11 +401,12 @@ def test_docs_do_not_point_at_the_unused_pages_address():
 
 
 def test_package_metadata_links_the_repo_while_the_website_is_offline():
-    """PyPI shows these links. The README is the documentation until the website is back."""
+    """PyPI shows these links. The reference on GitHub is the documentation."""
     urls = _toml(ROOT / "pyproject.toml")["project"]["urls"]
     assert urls["Homepage"] == "https://github.com/judgekeeper/judgekeeper"
     assert urls["Source"] == "https://github.com/judgekeeper/judgekeeper"
-    assert "Documentation" not in urls
+    assert urls["Documentation"] == (
+        "https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md")
     assert urls["Issues"] == "https://github.com/judgekeeper/judgekeeper/issues"
     assert not [u for u in urls.values() if "judgekeeper.com" in u]
 
@@ -374,11 +423,11 @@ LEVEL_WORDS = {"usable": "usable as a gate", "usable_with_care": "usable with ca
 
 
 def _llmbar_report() -> dict:
-    return json.loads((EXAMPLE / "report.json").read_text(encoding="utf-8"))
+    return json.loads(LLMBAR.read_text(encoding="utf-8"))
 
 
 def test_llmbar_report_verdict_follows_the_current_thresholds():
-    """The committed LLMBar report's verdict matches the current thresholds."""
+    """The kept LLMBar report's verdict matches the current thresholds."""
     from judgekeeper import targets
 
     report = _llmbar_report()
@@ -392,10 +441,6 @@ def test_llmbar_report_verdict_follows_the_current_thresholds():
         level = "usable"
     assert report["verdict"]["level"] == level
     assert report["verdict"]["summary"].lower().startswith(LEVEL_WORDS[level])
-    page = (EXAMPLE / "report.html").read_text(encoding="utf-8")
-    assert report["verdict"]["summary"].split(":")[0] in page
-    for other in set(LEVEL_WORDS.values()) - {LEVEL_WORDS[level]}:
-        assert f"{other}:" not in page.lower(), other
 
 
 # Pins

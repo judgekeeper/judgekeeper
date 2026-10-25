@@ -23,7 +23,7 @@
    "licence": "MIT",
    "source": "https://github.com/princeton-nlp/LLMBar",
    "revision": "900616bff90b6c6c8e1681f7d079250637c55992",
-   "attribution": "Zeng et al. (2024), Evaluating Large Language Models at Evaluating Instruction Following, ICLR 2024. The judge verdicts are judgekeeper's own run of claude-haiku-4-5-20251001, kept in docs/examples/llmbar-haiku/report.json.",
+   "attribution": "Zeng et al. (2024), Evaluating Large Language Models at Evaluating Instruction Following, ICLR 2024. The judge verdicts are judgekeeper's own run of claude-haiku-4-5-20251001, kept in docs/examples/real-data-check/sources/llmbar-haiku.json.",
    "files": []
   },
   "mtbench": {

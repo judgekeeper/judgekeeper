@@ -270,9 +270,9 @@ def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
     assert fronts == [["--no-browser", "--port", "5"], ["--no-browser", "--port", "5"]]
     assert after[0][:1] == ["fix"]
     first = " ".join(ran[0][1])
-    assert "Open this link" in first and "Your judge passed 28 answers and failed 22" in first
+    assert "Open this link" in first and "Your LLM-as-a-judge passed 28 answers and failed 22" in first
     result = " ".join(ran[1][1])
-    assert "You passed \\d+ answers\\. Of those, your judge passed" in result
+    assert "You passed \\d+ answers\\. Of those, your LLM-as-a-judge passed" in result
     assert "Result: " in result
     assert "automatic" not in result.lower()
     assert not [path for _, _, path, _ in posted if path in ("/turn-on", "/no-thanks")]
@@ -292,7 +292,7 @@ def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tm
     assert fronts[1:] == [["--no-browser", "--port", "5"]]
     first = " ".join(ran[0][1])
     assert "Saved judgekeeper" in first and re.escape("my-judge-1") in first
-    assert "Your judge passed 28 answers and failed 22" in first and "Open this link" in first
+    assert "Your LLM-as-a-judge passed 28 answers and failed 22" in first and "Open this link" in first
     assert ("judgekeeper.toml saved", True) in [(name, ok) for name, ok, *_ in steps]
 
 
@@ -365,5 +365,5 @@ def test_fix_says_it_cant_ask_a_judge_whose_rule_it_cant_swap(ic, monkeypatch, t
     commands = [args for args, *_ in ran]
     _, expect, codes = ran[commands.index(["fix"])]
     assert codes == (3,)
-    assert "can't ask this judge itself" in " ".join(expect)
+    assert "can't ask this LLM-as-a-judge itself" in " ".join(expect)
     assert "can't test a new rule" not in " ".join(expect)

@@ -1,7 +1,7 @@
 """Install judgekeeper fresh into a new project and walk the whole path a person takes.
 
     python scripts/install_check.py --tool promptfoo --source build --work /tmp/jk-check
-    python scripts/install_check.py --tool table --source pypi:0.2.0 --work /tmp/jk-check
+    python scripts/install_check.py --tool table --source pypi:1.0.0 --work /tmp/jk-check
     python scripts/install_check.py --tool promptfoo --via uvx --work /tmp/jk-check
 
 What a stranger does, with nobody at the keyboard and no API key:
@@ -575,7 +575,7 @@ if __name__ == "__main__":
 
     def write_own_judge(self, rule: str):
         """The judge in your own code: `quiz_judge.py` asks the fake judge with the rule.
-        Your app and your judge command both import it, as they would in a real project."""
+        Your project and your judge command both import it, as they would in a real project."""
         self.write("quiz_judge.py", f'''import json
 import urllib.request
 
@@ -643,12 +643,12 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         then prints the result (too early to tell: exit 3); `--stop` closes the page. For a
         file in your own format the first run maps it (answers given by --yes) and goes on: it
         is the first look."""
-        decisions = (rf"Your judge passed {len(JUDGE_PASSES)} answers and failed "
+        decisions = (rf"Your LLM-as-a-judge passed {len(JUDGE_PASSES)} answers and failed "
                      rf"{N - len(JUDGE_PASSES)}\.")
         # Started by uvx, a Next: line that names a command names `uvx judgekeeper@<version>`
         # (it may wrap). The first look's names none: mark, then click "See your result".
         uvx = [r"Next: [^`]*`uvx judgekeeper@"] if self.via == "uvx" else []
-        expect = [r"Step 1 of 5: Find", rf"Judge: .*{re.escape(JUDGE_NAME[self.tool])}",
+        expect = [r"Step 1 of 5: Find", rf"LLM-as-a-judge: .*{re.escape(JUDGE_NAME[self.tool])}",
                   decisions, r"Step 2 of 5: Mark",
                   r"Open this link in your browser to mark answers:\s+http://127\.0\.0\.1:"]
         if self.tool == "own-format":
@@ -674,8 +674,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
                 r"ones\s+you\s+marked\.")
         self.mark_step("2. judgekeeper prints the result: too early to tell", self.front(),
                        [r"Result: too early to tell\.",
-                        r"You passed \d+ answers\. Of those, your judge passed",
-                        r"You failed \d+ answers\. Of those, your judge passed",
+                        r"You passed \d+ answers\. Of those, your LLM-as-a-judge passed",
+                        r"You failed \d+ answers\. Of those, your LLM-as-a-judge passed",
                         r"Step 3 of 5: Measure", more, *uvx], ok_codes=(3,))
         self.mark_step("2. judgekeeper --stop closes the page", [*self.jk, "--stop"],
                        [r"Closed the marking page"])
@@ -724,7 +724,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         self.run("2. judgekeeper fix: where your judge goes wrong", [*self.jk, "fix"],
                  ok_codes=(0,) if swap else (3,),
                  expect=[r"Step 4 of 5: Fix", r"mistakes\.md",
-                         *([] if swap else [r"can't ask this judge itself"])])
+                         *([] if swap else [r"can't ask this LLM-as-a-judge itself"])])
         if not swap:
             return
         rule = self.project / ".judgekeeper" / "fix" / "rule.txt"

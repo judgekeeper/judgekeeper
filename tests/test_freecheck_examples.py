@@ -11,6 +11,7 @@ Needs node; skipped with the reason when it is missing.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -113,6 +114,25 @@ def test_an_example_clicked_or_dragged_in_is_checked_and_clear_brings_the_page_b
         assert state["examples"] and state["waiting"] and not state["clear"]
         assert not state["output"] and not state["has_file"]
     assert cleared["focus"] == "fc-drop"  # Clear puts the focus back on the drop box
+
+
+def test_each_example_script_only_sets_its_file():
+    """One assignment of a JSON string to window.JK_EXAMPLES[<its name>], and nothing else."""
+    pattern = re.compile(r'\(window\.JK_EXAMPLES = window\.JK_EXAMPLES \|\| \{\}\)'
+                         r'\["([\w.-]+)"\] = ("(?:[^"\\\n]|\\.)*");\n?')
+    assert sorted(p.name for p in EXAMPLES.glob("*.js")) == sorted(f"{n}.js" for n in NAMES)
+    for name in NAMES:
+        script = (EXAMPLES / f"{name}.js").read_text(encoding="utf-8")
+        found = pattern.fullmatch(script)
+        assert found and found[1] == name, name
+        assert isinstance(json.loads(found[2]), str), name
+
+
+@pytest.mark.parametrize("dropped", ["../../assets/freecheck", "nope.csv", "shop-answers.csv.js"])
+def test_a_dropped_name_that_is_no_example_loads_nothing(dropped):
+    before, after = _page_state("clear", f"name:{dropped}")
+    assert after == {**before, "step": after["step"]}
+    assert after["scripts"] == [] and not after["output"]
 
 
 def test_a_file_of_your_own_dropped_after_an_example_takes_its_place(files, tmp_path):

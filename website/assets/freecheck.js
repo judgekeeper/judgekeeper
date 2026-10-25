@@ -1287,7 +1287,7 @@
     document.addEventListener('drop', function (e) {
       e.preventDefault(); zone.classList.remove('over');
       var example = e.dataTransfer && e.dataTransfer.getData(EXAMPLE_TYPE);
-      if (example) return runExample(example);
+      if (example) return knownExamples.indexOf(example) >= 0 && runExample(example);
       var files = e.dataTransfer && e.dataTransfer.files;
       if (files && files.length) take(files[0], files.length);
     });
@@ -1307,9 +1307,12 @@
 
     // The example files: each a script from this site that sets JK_EXAMPLES[file], added on
     // the first click (connect-src stays 'none'), then read as a dropped file is. Click one, or
-    // drag it into the box.
+    // drag it into the box. Only the cards' names load: a drag can carry any text.
     var EXAMPLE_TYPE = 'application/x-judgekeeper-example';
+    var knownExamples = Array.prototype.map.call(document.querySelectorAll('[data-example-file]'),
+      function (card) { return card.getAttribute('data-example-file'); });
     function runExample(file) {
+      if (knownExamples.indexOf(file) < 0) return;
       var shown = 'made-up example · ' + file;
       function ready() {
         done();
