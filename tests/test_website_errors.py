@@ -110,6 +110,11 @@ def test_only_example_reports_run_inline_scripts():
     assert sorted(report.split("; ")) == sorted(site.split("; ") + extra.rstrip("; ").split("; "))
 
 
+def test_caddy_closes_connections_slow_to_send_their_headers():
+    options = CADDYFILE[:CADDYFILE.index("(security) {")]
+    assert re.search(r"servers \{\s*timeouts \{\s*read_header 10s\s*\}\s*\}", options)
+
+
 SECURITY = ("Content-Security-Policy", "Strict-Transport-Security", "X-Content-Type-Options",
             "X-Frame-Options", "Referrer-Policy")
 
