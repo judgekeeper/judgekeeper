@@ -1,4 +1,4 @@
-"""The `judgekeeper.record()` snippets in docs/reference.md.
+"""The `judgekeeper.record()` snippets in docs/examples/records/, linked from docs/reference.md.
 
 The snippets write the same JSON line as `judgekeeper.record()`, for people who do not want
 the import or use another language; judgekeeper reads the records they write, with no
@@ -37,13 +37,13 @@ def _blocks(text: str, language: str = "") -> list[str]:
 
 
 def _snippets() -> dict[str, str]:
+    """The two copies in docs/examples/records/, which the reference's record() section links."""
     section = _section(DOCS / "reference.md", RECORD_SECTION)
-    found = {}
-    for language in ("python", "typescript"):
-        found[language] = [b for b in _blocks(section, language) if "jk_record" in b
-                           or "jkRecord" in b]
-    assert [len(v) for v in found.values()] == [1, 1], found
-    return {k: v[0] for k, v in found.items()}
+    files = {"python": "jk_record.py", "typescript": "jk_record.ts"}
+    for name in files.values():
+        assert f"(examples/records/{name})" in section, name
+    return {k: (DOCS / "examples" / "records" / v).read_text(encoding="utf-8").rstrip("\n")
+            for k, v in files.items()}
 
 
 SNIPPETS = _snippets()

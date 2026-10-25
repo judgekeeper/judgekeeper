@@ -94,7 +94,7 @@ def prose(path: Path) -> str:
     return re.sub(r"`[^`\n]*`|\]\([^)]*\)", "", text)
 
 
-@pytest.mark.parametrize("name", ["README.md", "docs/reference.md", "SECURITY.md",
+@pytest.mark.parametrize("name", ["README.md", "docs/reference.md", "docs/eval-tools.md", "SECURITY.md",
                                   "TRADEMARKS.md", ".github/CONTRIBUTING.md",
                                   ".github/PULL_REQUEST_TEMPLATE.md"])
 def test_the_docs_say_llm_as_a_judge(name):

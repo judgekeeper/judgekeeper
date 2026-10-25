@@ -365,9 +365,8 @@ def test_older_changelog_entries_stay_as_they_were_written():
 
 def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert f"\nuvx judgekeeper@{VERSION}\n" in readme
-    assert f"\npip install judgekeeper=={VERSION}\n" in readme
-    assert "beta" in readme
+    assert "\nuvx judgekeeper\n" in readme
+    assert "\npip install judgekeeper\n" in readme
     for gone in ("judgekeeper start", "judgekeeper demo", "before the first PyPI release"):
         assert gone not in readme, gone
     for needed in ("TPR", "TNR", "kappa"):
@@ -375,19 +374,19 @@ def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
 
 
 def test_every_install_command_names_the_version_in_pyproject():
-    """uv and pip skip betas unless the version is named: `uvx judgekeeper` and `pip install
-    judgekeeper` would get 0.1.3. README and the changelog's newest entry name the
-    exact version in pyproject.toml, so the next beta can't forget it."""
+    """uv and pip skip betas unless the version is named: the changelog's newest entry names
+    the exact version in pyproject.toml, so the next beta can't forget it. The README names
+    none: it is for 1.0.0, which they install."""
     version = _toml(ROOT / "pyproject.toml")["project"]["version"]
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    texts = {"README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
-             "CHANGELOG.md": changelog[:changelog.index("## ", changelog.index("## ") + 3)]}
-    for name, text in texts.items():
-        uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", text)
-        pip = re.findall(r"pip install judgekeeper(==[\w.]+)?", text)
-        assert uvx and set(uvx) == {f"@{version}"}, (name, uvx)
-        assert set(pip) <= {f"=={version}"}, (name, pip)
-    assert re.findall(r"pip install judgekeeper(==[\w.]+)?", texts["README.md"])
+    newest = changelog[:changelog.index("## ", changelog.index("## ") + 3)]
+    uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", newest)
+    pip = re.findall(r"pip install judgekeeper(==[\w.]+)?", newest)
+    assert uvx and set(uvx) == {f"@{version}"}, uvx
+    assert set(pip) <= {f"=={version}"}, pip
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert set(re.findall(r"uvx judgekeeper(@[\w.]+)?", readme)) == {""}
+    assert set(re.findall(r"pip install judgekeeper(==[\w.]+)?", readme)) == {""}
 
 
 def test_readme_has_no_link_to_the_website_while_it_is_offline():
@@ -460,7 +459,7 @@ def test_actions_are_pinned_to_commit_hashes():
 def test_security_policy_says_what_judgekeeper_writes_and_that_agents_are_not_supported():
     flat = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
     for needed in ("writes only inside `.judgekeeper/`", "never edits other tools' settings",
-                   "isn't supported in 1.0", "its own origin"):
+                   "isn't supported in 1.0", "must also come from the page itself"):
         assert needed in flat, needed
     for gone in ("Turn on", "checks.json", "--off", "page.log", "settings.local.json"):
         assert gone not in flat, gone

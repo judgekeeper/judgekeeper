@@ -461,10 +461,10 @@ def test_with_yes_both_rules_are_asked_and_the_verdict_comes_from_the_math(here,
             in " ".join(out.split()))
     assert "fixed" not in out and "broke" not in out
     kind = targets.fix_verdict(fixed, 0, n).kind
-    words = {"better": "Result: your new rule is better. A difference this large is very "
+    words = {"better": "Result: your new rule is better. A difference this large is "
                        "unlikely to be a coincidence.",
-             "safe": "Result: safe to try. Not clearly better yet, but very unlikely to be "
-                     "more than 10 points worse."}
+             "safe": "Result: safe to try. Not clearly better yet, but unlikely to be more "
+                     "than 10 points worse."}
     assert words[kind] in " ".join(out.split())
     assert " ".join(out.split()).endswith(
         "Next: if you like it, copy the new rule into promptfooconfig.yaml, line 5. Then "

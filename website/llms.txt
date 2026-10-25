@@ -1,10 +1,15 @@
 # judgekeeper
 
-> Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. An LLM-as-a-judge is an AI model that grades the answers of another AI model, Pass or Fail, with a rule you wrote. judgekeeper shows how often it agrees with you. It is an open-source command-line tool that runs on your own computer.
+> Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. An LLM-as-a-judge is an AI model that grades the answers of another AI model, Pass or Fail, with a rule. judgekeeper shows how often it agrees with you. It is an open-source command-line tool that runs on your own computer.
 
 ## Pages
 
-- [Home](https://www.judgekeeper.com/): what judgekeeper is, a demo of the marking page, and what each of the 5 steps prints in the terminal
-- [Guide](https://www.judgekeeper.com/start.html): install with `pip install judgekeeper` and run `judgekeeper` in your project (or `uvx judgekeeper` with uv), then the 5 steps: `judgekeeper` finds your eval results and opens the marking page, you mark answers Pass or Fail, `judgekeeper` shows your result, `judgekeeper fix` shows where your LLM-as-a-judge goes wrong and, for promptfoo, DeepEval, Inspect AI and MLflow, tests a better rule on marks kept aside (for your own CSV or JSONL file or `judgekeeper.record()`, you change the rule in your eval, run it, then `judgekeeper check`), and `judgekeeper check` re-checks your LLM-as-a-judge after a change; then keys and costs, your own CSV or JSONL format or one `judgekeeper.record()` line in your eval code, and how to start over or stop
-- [Check in your browser](https://www.judgekeeper.com/check.html): drop a results file from promptfoo or DeepEval, or your own CSV, TSV or JSONL file, and see judgekeeper's first check on it; the file is read in the page and never sent anywhere
-- [Privacy](https://www.judgekeeper.com/privacy.html): what this website and judgekeeper do with your data
+- [Home](https://www.judgekeeper.com/): what judgekeeper is, a demo of the marking page, and what each of the 5 steps prints in the terminal.
+- [Guide](https://www.judgekeeper.com/start.html): install (`pip install judgekeeper`, or `uvx judgekeeper` with uv), the 5 steps, API keys and costs, your own CSV or JSONL file or `judgekeeper.record()`, and handy commands.
+- [Check in your browser](https://www.judgekeeper.com/check.html): drop a results file from promptfoo or DeepEval, or your own CSV, TSV or JSONL file, and see judgekeeper's first step on it. The file is read in the page and never sent anywhere.
+- [Privacy](https://www.judgekeeper.com/privacy.html): what this website and judgekeeper do with your data.
+
+## More
+
+- [Reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md): every command, flag, file and exit code.
+- [Source code](https://github.com/judgekeeper/judgekeeper): the code, the changelog and the reports of every run on public data.

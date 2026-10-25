@@ -598,12 +598,12 @@ def accuracy_markdown(acc: dict) -> list[str]:
         lines.append(f"| {row['pi']:.0%} | {row['a']} | {row['w']} | {row['n']} | "
                      f"{row['true']:.2f} | {_pct(row['coverage'])} | {_w(row['width'])} |")
     lines += ["", "### The real stopping rule", "",
-              (f"{ACCURACY_RUNS:,} simulated markings per case: 5 from each of the judge's "
-               f"groups per block, until {FIRST} Pass and {FIRST} Fail (the first result), and "
-               f"until {RELIABLE} of each. How often the TPR and TNR ranges hold the true value "
-               "at the stop, and at the first result how often each width word is said "
-               "(Not enough marks yet: over 40 points; Rough: over 30; plain: over 20; Sharp: "
-               "20 or less)."), "",
+              (f"{ACCURACY_RUNS:,} simulated markings per case: 5 from each of the "
+               f"LLM-as-a-judge's groups per block, until {FIRST} Pass and {FIRST} Fail (the "
+               f"first result), and until {RELIABLE} of each. How often the TPR and TNR ranges "
+               "hold the true value at the stop, and at the first result how often each width "
+               "word is said (Not enough marks yet: over 40 points; Rough: over 30; plain: over "
+               "20; Sharp: 20 or less)."), "",
               "| pi | a | w | stop | TPR | TNR | TPR words | TNR words |",
               "|---|---|---|---|---|---|---|---|"]
     names = {"too_wide": "not enough", "rough": "rough", "plain": "plain", "sharp": "sharp",
@@ -617,23 +617,24 @@ def accuracy_markdown(acc: dict) -> list[str]:
     lines += ["", "### How often the verdict is green", "",
               (f"{ACCURACY_RUNS:,} simulated markings per case, stopped at {FIRST} + {FIRST} and "
                f"at {RELIABLE} + {RELIABLE}. Green needs the low end of both ranges at 80% or "
-               "more, so a judge whose weaker side is 80% or less should rarely be green. In "
-               "percent."), "",
-              "| judge passes | TPR | TNR | stop | green |", "|---|---|---|---|---|"]
+               "more, so an LLM-as-a-judge whose weaker side is 80% or less should rarely be "
+               "green. In percent."), "",
+              "| LLM-as-a-judge passes | TPR | TNR | stop | green |",
+              "|---|---|---|---|---|"]
     for row in acc["green"]:
         lines.append(f"| {row['judge_passes']:.0%} | {row['tpr']:.0%} | {row['tnr']:.0%} | "
                      f"{row['each']} + {row['each']} | {_pct(row['green'])} |")
     mind = acc["changes_mind"]
     low = min(row["coverage"][k] for row in mind for k in ("tpr", "tnr")
               if row["coverage"][k] is not None)
-    lines += ["", "### After asking again, a judge that changes its mind", "",
-              (f"{ACCURACY_RUNS:,} simulated re-checks per row. weighted.general when the judge, "
-               "asked again twice as a paid re-check does, turns round a share of its grades at "
-               "random each time (a = 0.9, w = 0.85); in the lower half it also changed, and "
-               "now passes 30% of the answers it failed that should fail. The first grade "
-               "counts. How often the ranges hold the asked judge's true TPR and TNR, with the "
-               "wobble the two asks showed (the share of answers whose two grades differ, "
-               "averaged) and, before, without it. In percent; lowest with the wobble: "
+    lines += ["", "### After asking again, an LLM-as-a-judge that changes its mind", "",
+              (f"{ACCURACY_RUNS:,} simulated re-checks per row. weighted.general when the "
+               "LLM-as-a-judge, asked again twice as a paid re-check does, turns round a share of "
+               "its grades at random each time (a = 0.9, w = 0.85); in the lower half it also "
+               "changed, and now passes 30% of the answers it failed that should fail. The first "
+               "grade counts. How often the ranges hold the asked LLM-as-a-judge's true TPR and "
+               "TNR, with the wobble the two asks showed (the share of answers whose two grades "
+               "differ, averaged) and, before, without it. In percent; lowest with the wobble: "
                f"{_pct(low)}."), "",
               ("| pi | n | turned | also changed | wobble seen | TPR | TNR | TPR before | "
                "TNR before |"), "|---|---|---|---|---|---|---|---|---|"]
@@ -643,10 +644,10 @@ def accuracy_markdown(acc: dict) -> list[str]:
                      f"{_pct(row['coverage']['tpr'])} | {_pct(row['coverage']['tnr'])} | "
                      f"{_pct(row['without']['tpr'])} | {_pct(row['without']['tnr'])} |")
     lines += ["", "### `check` when nothing changed", "",
-              ("Worked out exactly for one group of marks: the same judge asked again, a share "
-               "of the answers getting another grade (the wobble), half turning wrong and half "
-               "turning right. How often `check` says Worse, and how often it exits 1 (Worse, "
-               "or Not sure with a drop of more than 20 points), in percent."),
+              ("Worked out exactly for one group of marks: the same LLM-as-a-judge asked again, "
+               "a share of the answers getting another grade (the wobble), half turning wrong and "
+               "half turning right. How often `check` says Worse, and how often it exits 1 "
+               "(Worse, or Not sure with a drop of more than 20 points), in percent."),
               "", "| marks | wobble | Worse | exit 1 |", "|---|---|---|---|"]
     for row in acc["false_worse"]:
         lines.append(f"| {row['n']} | {row['wobble']:.0%} | {100 * row['worse']:.1f} | "
@@ -735,12 +736,12 @@ def batches_markdown(g: dict) -> list[str]:
 
     lines = ["", "## Batches", "",
              ("New answers join as batches, and the numbers are stratified by (batch, the "
-              "judge's grade). Two and three batches of different sizes (answers per batch), "
-              "judges whose accuracy differs between batches (per batch: pi, a, w), and marks "
-              "per stratum (in the first batch, then in each later one; never more than the "
-              f"stratum holds). {g['checks_per_cell']:,} simulated checks per cell, fixed seed "
-              f"{g['grid_seed']}. The ranges `judgekeeper` shows: level {g['level']:.0%}, "
-              f"{g['draws']:,} draws. After asking a steady judge again: "
+              "LLM-as-a-judge's grade). Two and three batches of different sizes (answers per "
+              "batch), LLM-as-a-judge setups whose accuracy differs between batches (per batch: "
+              "pi, a, w), and marks per stratum (in the first batch, then in each later one; "
+              f"never more than the stratum holds). {g['checks_per_cell']:,} simulated checks "
+              f"per cell, fixed seed {g['grid_seed']}. The ranges `judgekeeper` shows: level {g['level']:.0%}, "
+              f"{g['draws']:,} draws. After asking a steady LLM-as-a-judge again: "
               f"{g['general_draws']:,} draws. The bar: at least {FLOOR_CELL:.0%} in every "
               f"cell and {FLOOR_MEAN:.0%} on average."), "",
              "| Ranges | Lowest cell | Average | Passes |", "|---|---|---|---|",
@@ -749,8 +750,8 @@ def batches_markdown(g: dict) -> list[str]:
              (f"| After asking again (TPR, TNR) | {_pct(again['min_cell'])} | "
               f"{_pct(again['mean'])} | {'yes' if again['passes'] else 'no'} |"), "",
              "Coverage % / average width.", "",
-             ("| Answers | Judge per batch (pi, a, w) | Marks | TPR | TNR | Real pass rate | "
-              "TPR again | TNR again |"), "|---|---|---|---|---|---|---|---|"]
+             ("| Answers | LLM-as-a-judge per batch (pi, a, w) | Marks | TPR | TNR | Real pass "
+              "rate | TPR again | TNR again |"), "|---|---|---|---|---|---|---|---|"]
     for row in g["rows"]:
         r = row["ranges"]
         cells_ = [f"{_pct(r[key]['coverage'])} / {_w(r[key]['width'])}"
@@ -809,10 +810,10 @@ def one_grade_grid(workers: int | None = None) -> dict:
 
 def one_grade_markdown(g: dict) -> list[str]:
     s = g["start"]
-    lines = ["", "## A judge that gives every answer one grade", "",
-             ("The judge passed (or failed) every answer of a pool of "
-              f"{POOL:,}; that many marks, each one the same way as the judge with the chance "
-              "given (agree). Its TPR and TNR are then 100% and 0% (or 0% and 100%), and "
+    lines = ["", "## An LLM-as-a-judge that gives every answer one grade", "",
+             ("The LLM-as-a-judge passed (or failed) every answer of a pool of "
+              f"{POOL:,}; that many marks, each one the same way as the LLM-as-a-judge with the "
+              "chance given (agree). Its TPR and TNR are then 100% and 0% (or 0% and 100%), and "
               "their ranges are the plain Jeffreys ranges of the marks. "
               f"{g['checks_per_cell']:,} simulated checks per cell, fixed seed "
               f"{g['grid_seed']}, level {g['level']:.0%}, {g['draws']:,} draws. Checks where "
@@ -822,7 +823,8 @@ def one_grade_markdown(g: dict) -> list[str]:
               f"{'passes' if s['passes'] else 'does not pass'} the bar "
               f"({FLOOR_CELL:.0%} in every cell, {FLOOR_MEAN:.0%} on average)."), "",
              "Coverage % / average width.", "",
-             "| Judge | Agree | Marks | TPR | TNR | Real pass rate |", "|---|---|---|---|---|---|"]
+             "| LLM-as-a-judge | Agree | Marks | TPR | TNR | Real pass rate |",
+             "|---|---|---|---|---|---|"]
     for row in g["rows"]:
         r = row["ranges"]
         cells_ = [f"{_pct(r[f'start/{k}']['coverage'])} / {_w(r[f'start/{k}']['width'])}"
@@ -849,8 +851,9 @@ def markdown(result: dict) -> str:
              ("Written by `scripts/coverage_check.py`; do not edit by hand. How often a range "
              "holds the true value, in percent, and its average width (high end minus low end). "
              "A 95% range should hold it about 95 times in 100."), "",
-             (f"Grid: the judge's pass share (pi) {', '.join(f'{x:.0%}' for x in SHARES)}; the "
-             f"chance an answer the judge passed is Correct (a) {', '.join(map(str, CORRECT_IF_PASS))}; "
+             (f"Grid: the LLM-as-a-judge's pass share (pi) "
+             f"{', '.join(f'{x:.0%}' for x in SHARES)}; the chance an answer the LLM-as-a-judge "
+             f"passed is Correct (a) {', '.join(map(str, CORRECT_IF_PASS))}; "
              f"the chance an answer it failed is Wrong (w) {', '.join(map(str, WRONG_IF_FAIL))}; "
              f"{', '.join(map(str, LABELS))} answers labeled in each group. {CHECKS:,} simulated "
              f"checks per cell, fixed seed {SEED}. Jeffreys ranges: {result['draws']:,} draws, "
@@ -884,8 +887,8 @@ def markdown(result: dict) -> str:
         lines.append(f"| {row['pi']:.0%} | {row['a']} | {row['w']} | {row['n']} | "
                      + " | ".join(cells_) + " |")
     g = result["general"]
-    lines += ["", "## After asking the judge again (`weighted.general`)", "",
-              "A steady judge: asked again, it gives the same verdicts. TPR and TNR.", "",
+    lines += ["", "## After asking the LLM-as-a-judge again (`weighted.general`)", "",
+              "A steady LLM-as-a-judge: asked again, it gives the same verdicts. TPR and TNR.", "",
               (f"Before (stratified bootstrap): lowest cell {_pct(g['before']['min_cell'])}, "
               f"average {_pct(g['before']['mean'])}. Now ({g['now_method']}): lowest cell "
               f"{_pct(g['now']['min_cell'])}, average {_pct(g['now']['mean'])}."), "",

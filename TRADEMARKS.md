@@ -1,26 +1,20 @@
 # The judgekeeper name and logo
 
-The code in this repository is under the MIT license (see LICENSE). You can use it,
-change it, share it and sell it, as that license says.
+The code is under the MIT license (see LICENSE). That license covers the code only. The name "judgekeeper" and the shield logo are trademarks of Sathvik Thota, and the MIT license does not cover them.
 
-The name "judgekeeper" and the shield logo belong to Sathvik Thota, the copyright holder
-named in LICENSE. The MIT license covers the code. It does not let you use the name or the
-logo as the name or logo of your own product.
-
-You are welcome to:
+You can, without asking:
 - say that your project uses, works with or is based on judgekeeper;
+- share unchanged copies of judgekeeper under its name;
 - show the logo when you write or talk about judgekeeper itself.
 
-Please don't:
-- call a fork or a changed copy "judgekeeper", or give it the shield logo;
-- use the name or logo in a way that suggests this project made, checked or approves
-  your product.
+Please ask first before you:
+- use "judgekeeper", a name close to it, or the logo for your own product, service, fork or changed copy;
+- use the name or logo in a way that suggests this project made or approves your work.
 
-If you fork the project, give your version its own name and logo.
+Forks are welcome. Give yours its own name and logo, and say it is based on judgekeeper.
+
+Questions or requests: judgekeeper.project@outlook.com.
 
 ## Other names
 
-judgekeeper can read results from tools made by others, and checks an LLM-as-a-judge that uses
-models made by others, such as promptfoo, DeepEval, Inspect AI, MLflow, Claude and OpenAI
-models. These names belong to their owners and are used only to say what judgekeeper can
-read results from. judgekeeper is not affiliated with, sponsored by or endorsed by any of them.
+promptfoo, DeepEval, Inspect AI, MLflow, Claude and OpenAI belong to their owners. judgekeeper names them only to say what it can read results from, or which model an LLM-as-a-judge used. judgekeeper is not affiliated with, sponsored by or endorsed by any of them.

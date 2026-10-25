@@ -1,8 +1,8 @@
 """docs/reference.md documents the 1.0 commands only: `judgekeeper`, `mark`, `fix` and
 `check`. Each command's flags come from its own --help (one source: the table says what the
-help says), then the exit codes, the files in .judgekeeper/, what is read from each eval tool
-with its traps, the table format, record() and the keys. The site links the code prints point
-at ids the pages have.
+help says), then the exit codes, the files in .judgekeeper/, the table format, record() and the
+keys. What is read from each eval tool, with its traps, is in docs/eval-tools.md. The site links
+the code prints point at ids the pages have.
 """
 
 from __future__ import annotations
@@ -17,11 +17,10 @@ from tests.test_front import run
 from tests.website_pages import ROOT, WEBSITE, parse
 
 REFERENCE = ROOT / "docs" / "reference.md"
+EVAL_TOOLS = ROOT / "docs" / "eval-tools.md"
 COMMANDS = {None: "judgekeeper: find, mark, measure",
             "mark": "mark: mark more answers",
-            "fix": ("fix: see where your LLM-as-a-judge goes wrong, then test a better rule (promptfoo, "
-                    "DeepEval, Inspect AI, MLflow) or change it in your eval (your own file, "
-                    "record())"),
+            "fix": "fix: see where your LLM-as-a-judge goes wrong, then test a better rule",
             "check": "check: re-check your LLM-as-a-judge after a change"}
 GONE_FLAGS = ("--review", "--fix", "--ask-again", "--try-new-judge", "--label-more",
               "--test-pass-mark", "--rule-file", "--times", "--allow-calls", "--python",
@@ -176,8 +175,8 @@ TESTED = {"promptfoo": "Tested with promptfoo 0.123 and 0.124, the versions in t
 
 
 def _tools() -> dict[str, str]:
-    reads = _sections()["What it reads"]
-    parts = re.split(r"^### ", reads, flags=re.MULTILINE)
+    """docs/eval-tools.md, one section per eval tool."""
+    parts = re.split(r"^## ", EVAL_TOOLS.read_text(encoding="utf-8"), flags=re.MULTILINE)
     return {part.splitlines()[0].strip(): part for part in parts[1:]}
 
 

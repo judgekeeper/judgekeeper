@@ -15,23 +15,23 @@ No AI calls were made. The GPT-4 grades come from the paper's own run.
 ## What was checked
 
 - **The data:** the Hugging Face dataset `JailbreakBench/JBB-Behaviors`, config `judge_comparison`, file `data/judge-comparison.csv`, revision `886acc352a31533ffbcf4ef22c744658688086fc`. SHA-256 `dacaf76a1057785f11b0fc6aa07b9a73cdab588319ddfc5e8cef2909e5b112a5`, 300 rows, MIT license. `load.py` downloads it; the data is not in this repository.
-- **The paper:** Chao et al., "JailbreakBench: An Open Robustness Benchmark for Jailbreaking Large Language Models", NeurIPS 2024 Datasets and Benchmarks Track, arXiv 2404.01318 (v5), Table 1. The paper names the judge as GPT-4-0613, and the ground truth as the majority vote of three expert annotators.
-- **The judge:** the dataset's `gpt4_cf` column.
+- **The paper:** Chao et al., "JailbreakBench: An Open Robustness Benchmark for Jailbreaking Large Language Models", NeurIPS 2024 Datasets and Benchmarks Track, arXiv 2404.01318 (v5), Table 1. The paper names the LLM-as-a-judge as GPT-4-0613, and the ground truth as the majority vote of three expert annotators.
+- **The LLM-as-a-judge:** the dataset's `gpt4_cf` column.
 - **The marks:** its `human_majority` column.
 
 ## The mapping (fixed before the run)
 
 | | Pass | Fail |
 |---|---|---|
-| Judge (`gpt4_cf`) | 0, not jailbroken | 1, jailbroken |
+| LLM-as-a-judge (`gpt4_cf`) | 0, not jailbroken | 1, jailbroken |
 | Marks (`human_majority`) | 0, not jailbroken | 1, jailbroken |
 
-Each row became one line of an own-format JSONL file: `id`, `input` (the prompt), `output` (the response), `verdict` (pass or fail). The judge model was given as `--judge-model openai:gpt-4-0613`.
+Each row became one line of an own-format JSONL file: `id`, `input` (the prompt), `output` (the response), `verdict` (pass or fail). The LLM-as-a-judge model was given as `--judge-model openai:gpt-4-0613`.
 
 ## How it ran
 
-1. **Find.** `judgekeeper` read the file: 300 answers, 181 Pass and 119 Fail from the judge.
-2. **Mark.** The marking page offered 100 answers: 50 the judge passed and 50 it failed. A script entered the experts' majority for each one, through the page's own calls (the same calls a click makes). It never saw the judge's grade while marking.
+1. **Find.** `judgekeeper` read the file: 300 answers, 181 Pass and 119 Fail from the LLM-as-a-judge.
+2. **Mark.** The marking page offered 100 answers: 50 the LLM-as-a-judge passed and 50 it failed. A script entered the experts' majority for each one, through the page's own calls (the same calls a click makes). It never saw the LLM-as-a-judge's grade while marking.
 3. **Measure.** `judgekeeper` was run again and printed its result.
 
 ## The real values, on all 300 answers
@@ -66,7 +66,7 @@ The paper gives no ranges and no kappa. Kappa 0.795 is computed from the dataset
 New answers can join the marking as a second batch. This repeat checks that the ranges still hold when they do. Each draw used a fresh project folder, so judgekeeper picked a new random seed and showed different answers.
 
 1. **Batch 1.** The results file held rows 0 to 149. The script marked every answer the page offered with the experts' majority, and Measure ran.
-2. **Batch 2 joins.** The results file was written again with all 300 rows, the same judge's grades. `judgekeeper mark` added the 150 new answers as batch 2 (rows 150 to 299), and the script marked the batch-2 answers the page offered.
+2. **Batch 2 joins.** The results file was written again with all 300 rows, the same LLM-as-a-judge's grades. `judgekeeper mark` added the 150 new answers as batch 2 (rows 150 to 299), and the script marked the batch-2 answers the page offered.
 3. **Measure on both batches**, then the real TPR, TNR and kappa on all 300 rows were compared with judgekeeper's ranges.
 
 The bar was 19 of 20 draws with all three real values inside in the same draw. Result (`two-batches/summary.json`):
@@ -123,13 +123,13 @@ The check was first run on judgekeeper 1.0.0b2, commit `e3052c7` (2026-10-17). T
 
 Measure said "Result: too early to tell. Mark more answers to get a result." with 10 disagreements in 100 (`first-run/measure-round-1.txt`). "Too early to tell" means the Fail range still reaches below 80%, so judgekeeper does not give a verdict yet. At this point the terminal shows only the counts. The estimates are in the report page, under "More details" (`first-run/report-round-1.html`):
 
-| How often the judge agrees with the experts | Estimate | Range (middle 96%) |
+| How often the LLM-as-a-judge agrees with the experts | Estimate | Range (middle 96%) |
 |---|---|---|
 | When the experts say Pass, GPT-4 also says Pass (TPR) | about 91% | 84% to 96% |
 | When the experts say Fail, GPT-4 also says Fail (TNR) | about 90% | 78% to 97% |
 | Kappa (agreement beyond coincidence) | 0.81 | 0.65 to 0.90 |
 
-judgekeeper shows half Pass and half Fail answers from the judge, so it weights each half by its real share before it gives a number. Without that weighting, the 100 marks alone would say 87% (76% to 94%) and 93% (83% to 98%).
+judgekeeper shows half Pass and half Fail answers from the LLM-as-a-judge, so it weights each half by its real share before it gives a number. Without that weighting, the 100 marks alone would say 87% (76% to 94%) and 93% (83% to 98%).
 
 ### After 200 marks
 
@@ -162,14 +162,14 @@ The second 100 happened to split exactly like the first (47, 3, 7, 43). So the e
 The marking page picks its 100 answers at random, so a new project folder gets a different 100. The first round ran again in 20 fresh folders (`first-run/repeat-draws.csv`).
 
 - In all 20, the real TPR, TNR and kappa were each inside judgekeeper's range.
-- After 100 marks, 7 of the 20 said "Your judge is good enough to use." The other 13 said "Too early to tell", because the Fail range still reached below 80%. None said the judge needs work.
+- After 100 marks, 7 of the 20 said "Your judge is good enough to use." The other 13 said "Too early to tell", because the Fail range still reached below 80%. None said the LLM-as-a-judge needs work.
 - Disagreements in the 100 ranged from 7 to 16.
 
 So with 100 marks, whether you get a verdict yet depends on which answers you were shown.
 
 ## Limits
 
-- **One judge and one task:** GPT-4-0613, judging whether a response is a jailbreak. Other judges and tasks can behave differently.
+- **One LLM-as-a-judge and one task:** GPT-4-0613, judging whether a response is a jailbreak. Other LLM-as-a-judge setups and tasks can behave differently.
 - **Old grades:** the GPT-4 grades come from the paper's run. GPT-4 was not called again, so this checks judgekeeper's numbers, not today's GPT-4.
 - **The answers:** 300 in all, 200 jailbreak attempts and 100 harmless prompts the paper took from XSTest.
 - **The marks:** the experts' majority vote, entered by a script. A person marking by hand may mark differently. judgekeeper says so on every Measure screen here.

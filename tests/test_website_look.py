@@ -591,7 +591,7 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert not _all(card, "div", "cmd-2") and ".cmd-2" not in CSS
     assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == ["With pip", "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
-        "Works on macOS, Linux and Windows, with Python 3.11 or newer."]
+        "Works on macOS, Linux and Windows, with Python 3.11 to 3.14."]
     assert not _all(_main(GUIDE), "nav")  # no side list
     # three windows, the title in each bar (the h3 stays for screen readers): your own file
     # or code across the column, then the keys and the handy commands side by side
@@ -723,13 +723,14 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
                        "so you can stop at any time and come back later.")],
         "step-measure": [("The result page tells you one of three things: your LLM-as-a-judge "
                           "is good enough to use, it needs work, or it’s too early to tell. "
-                          "Below that, it lists every answer where you and your LLM-as-a-judge "
+                          "Below that, it lists the answers where you and your LLM-as-a-judge "
                           "disagreed.")],
         "step-fix": [
             "Result says your LLM-as-a-judge needs work? Run:",
-            ("It saves every answer your LLM-as-a-judge got wrong in "
-             ".judgekeeper/fix/mistakes.md. Read it to write a better rule yourself, or hand "
-             "it to a coding agent to help you write one."),
+            ("It saves the answers your LLM-as-a-judge got wrong in "
+             ".judgekeeper/fix/mistakes.md, apart from the marks kept aside to test your rule. "
+             "Read it to write a better rule yourself, or hand it to a coding agent to help you "
+             "write one."),
             ("Write your new rule in .judgekeeper/fix/rule.txt and run judgekeeper fix again. "
              "judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
              "better, worse, or if it can’t tell yet.")],
@@ -840,13 +841,13 @@ def test_privacy_is_the_notice_the_law_asks_for():
                   ("judgekeeper.com without www, GoDaddy, the domain registrar, forwards you "
                    "to www.judgekeeper.com and sees that one request: your IP address and the "
                    "page you asked for."),
-                  "once the page has loaded, it works with Wi-Fi turned off",
+                  "once the page has loaded, checking your own file works with Wi-Fi turned off",
                   "Contact: judgekeeper.project@outlook.com.",
                   "by writing to judgekeeper.project@outlook.com.",
                   "Data Privacy Framework and Standard Contractual Clauses",
                   "my legitimate interest", "not sold, shared or combined",
                   "Do Not Track", "erased or restricted, or object to its use",
-                  "Information Commissioner's Office", "Last updated: 21 October 2026"):
+                  "Information Commissioner's Office", "Last updated: 24 October 2026"):
         assert words in text, words
     page = PRIVACY.read_text(encoding="utf-8")
     assert "90 days" not in page  # Railway gives no period in its policy or its DPA
@@ -1109,14 +1110,14 @@ def test_testing_a_new_rule_is_said_only_for_the_tools_fix_can_ask():
     assert step.endswith("Testing works with promptfoo, DeepEval, Inspect AI and MLflow.")
     assert "judgekeeper tests the new rule on the marks kept aside" in step
     llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
-    assert ("for promptfoo, DeepEval, Inspect AI and MLflow, tests a better rule on marks kept "
-            "aside (for your own CSV or JSONL file or `judgekeeper.record()`, you change the rule "
-            "in your eval, run it, then `judgekeeper check`)") in llms
-    assert "re-checks your LLM-as-a-judge" in llms and "re-checks your judge" not in llms
+    assert "tests a better rule" not in llms  # the Guide line links the steps instead
+    assert "re-checks your judge" not in llms
     for page in pages():
         assert "own terminal" not in _flat(_main(page)), page.name
 
 
 def test_privacy_says_re_runs_use_temporary_copies():
     local = _flat(_by_id(PRIVACY, "local"))
-    assert "runs your eval on temporary copies and deletes them after" in local
+    assert ("asks your eval tool to grade your saved answers again, using temporary copies of "
+            "its files, and deletes them after") in local
+    assert "runs your eval" not in local

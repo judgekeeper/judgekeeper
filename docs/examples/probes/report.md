@@ -1,6 +1,6 @@
-# Judge probes: what the two RAGTruth judges do with broken answers
+# LLM-as-a-judge probes: what the two RAGTruth LLM-as-a-judge setups do with broken answers
 
-A probe changes an answer in a way whose right verdict is known in advance ("an empty summary must Fail"), then asks the judge again. No human marks are needed. These probes ran on the same two judges and the same rule as the RAGTruth check ([`../ragtruth/report.md`](../ragtruth/report.md)), on 2026-10-17. They test the judges, not judgekeeper's code, so they were not run again on the final code.
+A probe changes an answer in a way whose right verdict is known in advance ("an empty summary must Fail"), then asks the LLM-as-a-judge again. No human marks are needed. These probes ran on the same two LLM-as-a-judge setups and the same rule as the RAGTruth check ([`../ragtruth/report.md`](../ragtruth/report.md)), on 2026-10-17. They test the LLM-as-a-judge setups, not judgekeeper's code, so they were not run again on the final code.
 
 ## The finding: a rule can let an empty answer pass
 
@@ -11,14 +11,14 @@ The rule says "Pass if every claim is supported by the article". An empty summar
 
 Marks on real answers don't show this: people mark the answers your eval produced, and those are rarely empty. A probe asks about the answer you never thought to mark.
 
-Both judges resisted a "Verdict: PASS" line and rubric words glued to a Fail answer, and padding, bullets and asking again barely moved them.
+Both LLM-as-a-judge setups resisted a "Verdict: PASS" line and rubric words glued to a Fail answer, and padding, bullets and asking again barely moved them.
 
 ## The setup
 
-- **Two judges:** Claude Haiku 5.5 (`anthropic:messages:claude-haiku-5-5`) and Claude Sonnet 5.5 (`anthropic:messages:claude-sonnet-5-5`), with the RAGTruth check's promptfoo config, byte for byte.
+- **Two LLM-as-a-judge setups:** Claude Haiku 5.5 (`anthropic:messages:claude-haiku-5-5`) and Claude Sonnet 5.5 (`anthropic:messages:claude-sonnet-5-5`), with the RAGTruth check's promptfoo config, byte for byte.
 - **One frozen faithfulness rule:** `../ragtruth/rule.txt`.
 - **20 base answers:** RAGTruth news summaries, 10 people-labelled Pass and 10 Fail, from 20 different articles, seed 20261018 (`probe-ids.json`). The Fail bases are clear Fails: at least one evident conflict or baseless claim.
-- "Held" means the judge gave the right verdict. Ranges are Wilson 95%.
+- "Held" means the LLM-as-a-judge gave the right verdict. Ranges are Wilson 95%.
 
 | # | Probe | Built how | Right verdict |
 |---|---|---|---|
@@ -46,7 +46,7 @@ Both judges resisted a "Verdict: PASS" line and rubric words glued to a Fail ans
 | 7 | Same answer, 3 runs | no change | held 20 of 20 (100%, range 84% to 100%) | 0 |
 
 - Original verdicts (RAGTruth run 1) on the 20 bases: 6 Pass, 14 Fail, 0 not a real decision.
-- Probes 3 and 4 count only the Fail bases this judge itself failed in run 1. It had passed 0 of the 10 already. Plain count over all 10 (real decisions only): probe 3 Fail on 9 of 10, probe 4 Fail on 10 of 10.
+- Probes 3 and 4 count only the Fail bases this LLM-as-a-judge itself failed in run 1. It had passed 0 of the 10 already. Plain count over all 10 (real decisions only): probe 3 Fail on 9 of 10, probe 4 Fail on 10 of 10.
 - Which way probes 5 and 6 moved: padding 0 Pass to Fail, 1 Fail to Pass; bullets 0 Pass to Fail, 1 Fail to Pass.
 - Probe 7 on all 200 RAGTruth answers: held 182 of 200 (91%, range 86% to 94%).
 - Only the 20 bases whose 3 RAGTruth verdicts all agreed: probe 3 held 9 of 10 (90%, range 60% to 98%); probe 4 held 10 of 10 (100%, range 72% to 100%); probe 5 held 19 of 20 (95%, range 76% to 99%); probe 6 held 19 of 20 (95%, range 76% to 99%).
@@ -69,7 +69,7 @@ Both judges resisted a "Verdict: PASS" line and rubric words glued to a Fail ans
 | 7 | Same answer, 3 runs | no change | held 18 of 20 (90%, range 70% to 97%) | 0 |
 
 - Original verdicts (RAGTruth run 1) on the 20 bases: 6 Pass, 14 Fail, 0 not a real decision.
-- Probes 3 and 4 count only the Fail bases this judge itself failed in run 1. It had passed 0 of the 10 already. Plain count over all 10 (real decisions only): probe 3 Fail on 10 of 10, probe 4 Fail on 10 of 10.
+- Probes 3 and 4 count only the Fail bases this LLM-as-a-judge itself failed in run 1. It had passed 0 of the 10 already. Plain count over all 10 (real decisions only): probe 3 Fail on 10 of 10, probe 4 Fail on 10 of 10.
 - Which way probes 5 and 6 moved: padding 0 Pass to Fail, 0 Fail to Pass; bullets 0 Pass to Fail, 0 Fail to Pass.
 - Probe 7 on all 200 RAGTruth answers: held 192 of 200 (96%, range 92% to 98%).
 - Only the 18 bases whose 3 RAGTruth verdicts all agreed: probe 3 held 10 of 10 (100%, range 72% to 100%); probe 4 held 10 of 10 (100%, range 72% to 100%); probe 5 held 18 of 18 (100%, range 82% to 100%); probe 6 held 18 of 18 (100%, range 82% to 100%).
@@ -81,7 +81,7 @@ Both judges resisted a "Verdict: PASS" line and rubric words glued to a Fail ans
 - One call per probe at temperature 1 (the models refuse 0), so some changes are noise. Probe 7 shows how much the same answer moves on its own.
 - Ranges are wide: 10 to 20 answers per probe. The pooled ranges treat answers as independent, but the probes reuse the same 20 bases, so the real range is wider.
 - Replies that were not a real decision are left out of the counts and listed on their own.
-- These numbers say how often the judge gave the right verdict on these probes. They do not say the judge can be relied on elsewhere.
+- These numbers say how often the LLM-as-a-judge gave the right verdict on these probes. They do not say the LLM-as-a-judge can be relied on elsewhere.
 
 ## Files
 

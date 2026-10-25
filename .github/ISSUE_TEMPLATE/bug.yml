@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for telling us. Please never paste API keys, and never paste answers or data you are not allowed to share. Replace them with made-up text.
+        Never paste API keys, or answers and data you are not allowed to share. Use made-up text instead.
   - type: textarea
     id: ran
     attributes:
@@ -19,7 +19,7 @@ body:
     id: saw
     attributes:
       label: What it printed
-      description: The output, as text, not a picture of it, if you can.
+      description: Paste it as text, not a picture, if you can.
       render: text
     validations:
       required: true
@@ -46,16 +46,17 @@ body:
         - DeepEval
         - Inspect AI
         - MLflow
-        - A table (CSV or JSONL)
+        - A CSV or JSONL file
         - judgekeeper.record() in my own code
-        - Results in a format of their own
-        - Other or none
+        - Another results file
+        - None of these
     validations:
       required: true
   - type: input
     id: tool-version
     attributes:
       label: Your eval tool's version
+      description: Write "none" if you have no eval tool.
       placeholder: promptfoo 0.124.0
     validations:
       required: true
@@ -70,7 +71,7 @@ body:
     attributes:
       label: Before you send it
       options:
-        - label: I removed any answer text I can't share
+        - label: I removed any answer text I can't share.
           required: true
         - label: Any code, design or text I share here may be used in judgekeeper under the MIT license.
           required: true

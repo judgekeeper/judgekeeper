@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from judgekeeper import again, keys, start, start_label
-from judgekeeper.again import AgainOptions, make_plan
+from judgekeeper.again import AgainOptions, make_plan, promptfoo
 from judgekeeper.start_label import StartSession
 from tests.start_projects import (
     project_promptfoo,
@@ -62,10 +62,12 @@ def no_processes(monkeypatch):
     """Only `--version` is answered; promptfoo and npx are not installed unless a test says
     so. Key variables are cleared."""
     calls = []
+    envs = []
     versions = {}
 
     def run_process(argv, cwd, env=None, timeout=None):
         calls.append(list(argv))
+        envs.append(env)
         if argv[-1] == "--version" and argv[0] in versions:
             return SimpleNamespace(returncode=0, stdout=versions[argv[0]] + "\n", stderr="")
         raise AssertionError(f"no process may run here: {argv}")
@@ -75,7 +77,7 @@ def no_processes(monkeypatch):
     monkeypatch.setattr(again, "which", lambda name: installed.get(name))
     for name in keys.all_names():
         monkeypatch.delenv(name, raising=False)
-    return SimpleNamespace(calls=calls, versions=versions, installed=installed)
+    return SimpleNamespace(calls=calls, envs=envs, versions=versions, installed=installed)
 
 
 def _local_promptfoo(root, procs, version="0.123.1"):
@@ -148,6 +150,19 @@ def test_promptfoo_on_the_path_is_used_when_its_version_matches(tmp_path, no_pro
     no_processes.installed["promptfoo"] = "/usr/local/bin/promptfoo"
     no_processes.versions["/usr/local/bin/promptfoo"] = "0.123.1"
     assert make_plan(ws, AgainOptions()).status == "exact"
+
+
+def test_reading_the_version_runs_promptfoo_with_its_telemetry_off(tmp_path, no_processes):
+    """`promptfoo --version` runs before "Go ahead?", so it gets the real run's settings."""
+    ws = _checked(tmp_path)
+    _edit(tmp_path, _version())
+    no_processes.installed["promptfoo"] = "/usr/local/bin/promptfoo"
+    no_processes.versions["/usr/local/bin/promptfoo"] = "0.123.1"
+    make_plan(ws, AgainOptions())
+    assert no_processes.calls == [["/usr/local/bin/promptfoo", "--version"]]
+    env = no_processes.envs[0]
+    assert env is not None and env["PROMPTFOO_DISABLE_TELEMETRY"] == "1"
+    assert {k: env[k] for k in promptfoo.RUN_ENV} == promptfoo.RUN_ENV
 
 
 def test_no_promptfoo_and_no_npx_cant(tmp_path):

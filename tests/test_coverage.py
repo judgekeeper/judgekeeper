@@ -62,12 +62,10 @@ def test_the_coverage_figures_in_the_docs_come_from_the_committed_grid():
     def pct(x):
         return f"{x * 100:.1f}"
 
-    now, before = grid["corrected"]["levels"][str(level)], grid["corrected"]["before"]
+    now = grid["corrected"]["levels"][str(level)]
     figures = [f"middle {level:.0%}", f"at least {pct(now['min_cell'])} times in 100",
                f"{pct(now['mean'])} on average",
-               f"95% fell to {pct(grid['corrected']['levels']['0.95']['min_cell'])}",
-               f"{pct(before['mean'])} times in 100 on average",
-               f"{pct(grid['corrected']['narrower']['mean'])}% narrower on average"]
+               f"95% fell to {pct(grid['corrected']['levels']['0.95']['min_cell'])}"]
     reference = " ".join((root / "docs" / "reference.md").read_text(encoding="utf-8").split())
     for figure in figures:
         assert figure in reference, figure
@@ -92,8 +90,9 @@ def test_the_numbers_on_screen_are_in_the_committed_grid():
     assert 2 * max(row["exit_1"] for row in acc["false_worse"]) <= 0.11
     md = (folder / "coverage.md").read_text(encoding="utf-8")
     readme = (root / "README.md").read_text(encoding="utf-8")
-    for figure in ("93.6", "96.2"):  # the README's coverage figures
-        assert figure in readme and figure in md, figure
+    for figure in ("93.6", "96.2"):
+        assert figure in md, figure
+    assert "93.6" in readme  # the README's coverage figure
     for page in (readme, (root / "docs" / "reference.md").read_text(encoding="utf-8")):
         assert "examples/coverage" in page
 

@@ -247,11 +247,13 @@ def _config(root: Path) -> Path | None:
 
 
 def _installed(root: Path) -> tuple[str, str] | None:
-    """(command, version) of the project's promptfoo, else promptfoo on the PATH."""
+    """(command, version) of the project's promptfoo, else promptfoo on the PATH. It runs
+    before "Go ahead?", so with the real run's settings: telemetry and update check off."""
     for command in (again.node_bin(root, "promptfoo"), again.which("promptfoo")):
         if not command:
             continue
-        proc = again.run_process([command, "--version"], cwd=root, timeout=60)
+        proc = again.run_process([command, "--version"], cwd=root,
+                                 env={**os.environ, **RUN_ENV}, timeout=60)
         out = (proc.stdout or "").strip().splitlines()
         if proc.returncode == 0 and out:
             return command, out[-1].strip()

@@ -1,12 +1,13 @@
 # Contributing
 
-Thank you for wanting to help. judgekeeper is maintained by one person and accepts issues, not pull requests.
+judgekeeper is made by one person and accepts issues, not pull requests. [Open an issue](https://github.com/judgekeeper/judgekeeper/issues/new/choose) and pick a form:
 
-- **Something went wrong?** Open an issue with the "Something went wrong" form: what you ran, what it printed, what you expected, and the output of `judgekeeper --version`.
-- **judgekeeper did not find your results?** Open an issue with the "Results not found" form: which eval tool or file format, and how the results are saved.
-- **An idea, or a design?** Open an issue with the "Idea or design" form. If you are a designer, add a screenshot or a Figma link. If you are a developer, link your fork or branch, or paste the code change into the form.
-- **A security problem?** Please report it privately: [Report a vulnerability](https://github.com/judgekeeper/judgekeeper/security/advisories/new). Do not open a public issue.
+- **Something went wrong:** what you ran, what it printed, what you expected, and what `judgekeeper --version` prints.
+- **Results not found:** your eval tool or file format, and how its results are saved.
+- **Idea or design:** what you would change and why. A picture, a Figma link or your own changed version is welcome.
 
-Every form asks you to agree that any code, design or text you share may be used in judgekeeper under the MIT license, so a good idea can go straight in.
+A security problem? Please [report it privately](https://github.com/judgekeeper/judgekeeper/security/advisories/new), not in a public issue.
 
-Never paste API keys, and never paste answers or data you are not allowed to share. Replace them with made-up text.
+Each form asks you to agree that anything you share may be used in judgekeeper under the MIT license. Then a good idea can go straight in.
+
+Never paste API keys, or answers and data you are not allowed to share. Use made-up text instead.

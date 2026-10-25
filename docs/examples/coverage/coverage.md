@@ -2,7 +2,7 @@
 
 Written by `scripts/coverage_check.py`; do not edit by hand. How often a range holds the true value, in percent, and its average width (high end minus low end). A 95% range should hold it about 95 times in 100.
 
-Grid: the judge's pass share (pi) 50%, 70%, 90%; the chance an answer the judge passed is Correct (a) 0.6, 0.8, 0.95; the chance an answer it failed is Wrong (w) 0.6, 0.8, 0.95; 10, 15, 25, 40 answers labeled in each group. 4,000 simulated checks per cell, fixed seed 20261008. Jeffreys ranges: 20,000 draws, seed 20261008. Checks where a number is unknown (TNR when every labeled answer is Correct, say) are left out of that number's coverage and counted.
+Grid: the LLM-as-a-judge's pass share (pi) 50%, 70%, 90%; the chance an answer the LLM-as-a-judge passed is Correct (a) 0.6, 0.8, 0.95; the chance an answer it failed is Wrong (w) 0.6, 0.8, 0.95; 10, 15, 25, 40 answers labeled in each group. 4,000 simulated checks per cell, fixed seed 20261008. Jeffreys ranges: 20,000 draws, seed 20261008. Checks where a number is unknown (TNR when every labeled answer is Correct, say) are left out of that number's coverage and counted.
 
 ## `judgekeeper`: the level
 
@@ -132,9 +132,9 @@ Coverage % / average width, before → now.
 | 90% | 0.95 | 0.95 | 25 | 96.9 / 0.03 → 96.9 / 0.02 | 96.7 / 0.64 → 96.7 / 0.55 | 99.4 / 0.23 → 97.9 / 0.16 |
 | 90% | 0.95 | 0.95 | 40 | 98.4 / 0.02 → 98.3 / 0.02 | 98.6 / 0.56 → 98.5 / 0.48 | 99.4 / 0.17 → 98.1 / 0.13 |
 
-## After asking the judge again (`weighted.general`)
+## After asking the LLM-as-a-judge again (`weighted.general`)
 
-A steady judge: asked again, it gives the same verdicts. TPR and TNR.
+A steady LLM-as-a-judge: asked again, it gives the same verdicts. TPR and TNR.
 
 Before (stratified bootstrap): lowest cell 53.8, average 94.7. Now (jeffreys): lowest cell 93.6, average 96.2.
 
@@ -306,7 +306,7 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 
 ### The real stopping rule
 
-1,000 simulated markings per case: 5 from each of the judge's groups per block, until 15 Pass and 15 Fail (the first result), and until 25 of each. How often the TPR and TNR ranges hold the true value at the stop, and at the first result how often each width word is said (Not enough marks yet: over 40 points; Rough: over 30; plain: over 20; Sharp: 20 or less).
+1,000 simulated markings per case: 5 from each of the LLM-as-a-judge's groups per block, until 15 Pass and 15 Fail (the first result), and until 25 of each. How often the TPR and TNR ranges hold the true value at the stop, and at the first result how often each width word is said (Not enough marks yet: over 40 points; Rough: over 30; plain: over 20; Sharp: 20 or less).
 
 | pi | a | w | stop | TPR | TNR | TPR words | TNR words |
 |---|---|---|---|---|---|---|---|
@@ -325,9 +325,9 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 
 ### How often the verdict is green
 
-1,000 simulated markings per case, stopped at 15 + 15 and at 25 + 25. Green needs the low end of both ranges at 80% or more, so a judge whose weaker side is 80% or less should rarely be green. In percent.
+1,000 simulated markings per case, stopped at 15 + 15 and at 25 + 25. Green needs the low end of both ranges at 80% or more, so an LLM-as-a-judge whose weaker side is 80% or less should rarely be green. In percent.
 
-| judge passes | TPR | TNR | stop | green |
+| LLM-as-a-judge passes | TPR | TNR | stop | green |
 |---|---|---|---|---|
 | 90% | 98% | 75% | 15 + 15 | 0.0 |
 | 90% | 98% | 75% | 25 + 25 | 0.0 |
@@ -338,9 +338,9 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 | 50% | 80% | 95% | 15 + 15 | 2.8 |
 | 50% | 80% | 95% | 25 + 25 | 1.0 |
 
-### After asking again, a judge that changes its mind
+### After asking again, an LLM-as-a-judge that changes its mind
 
-1,000 simulated re-checks per row. weighted.general when the judge, asked again twice as a paid re-check does, turns round a share of its grades at random each time (a = 0.9, w = 0.85); in the lower half it also changed, and now passes 30% of the answers it failed that should fail. The first grade counts. How often the ranges hold the asked judge's true TPR and TNR, with the wobble the two asks showed (the share of answers whose two grades differ, averaged) and, before, without it. In percent; lowest with the wobble: 93.2.
+1,000 simulated re-checks per row. weighted.general when the LLM-as-a-judge, asked again twice as a paid re-check does, turns round a share of its grades at random each time (a = 0.9, w = 0.85); in the lower half it also changed, and now passes 30% of the answers it failed that should fail. The first grade counts. How often the ranges hold the asked LLM-as-a-judge's true TPR and TNR, with the wobble the two asks showed (the share of answers whose two grades differ, averaged) and, before, without it. In percent; lowest with the wobble: 93.2.
 
 | pi | n | turned | also changed | wobble seen | TPR | TNR | TPR before | TNR before |
 |---|---|---|---|---|---|---|---|---|
@@ -371,7 +371,7 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 
 ### `check` when nothing changed
 
-Worked out exactly for one group of marks: the same judge asked again, a share of the answers getting another grade (the wobble), half turning wrong and half turning right. How often `check` says Worse, and how often it exits 1 (Worse, or Not sure with a drop of more than 20 points), in percent.
+Worked out exactly for one group of marks: the same LLM-as-a-judge asked again, a share of the answers getting another grade (the wobble), half turning wrong and half turning right. How often `check` says Worse, and how often it exits 1 (Worse, or Not sure with a drop of more than 20 points), in percent.
 
 | marks | wobble | Worse | exit 1 |
 |---|---|---|---|
@@ -387,7 +387,7 @@ Worked out exactly for one group of marks: the same judge asked again, a share o
 
 ## Batches
 
-New answers join as batches, and the numbers are stratified by (batch, the judge's grade). Two and three batches of different sizes (answers per batch), judges whose accuracy differs between batches (per batch: pi, a, w), and marks per stratum (in the first batch, then in each later one; never more than the stratum holds). 1,500 simulated checks per cell, fixed seed 20261008. The ranges `judgekeeper` shows: level 96%, 20,000 draws. After asking a steady judge again: 4,000 draws. The bar: at least 93% in every cell and 95% on average.
+New answers join as batches, and the numbers are stratified by (batch, the LLM-as-a-judge's grade). Two and three batches of different sizes (answers per batch), LLM-as-a-judge setups whose accuracy differs between batches (per batch: pi, a, w), and marks per stratum (in the first batch, then in each later one; never more than the stratum holds). 1,500 simulated checks per cell, fixed seed 20261008. The ranges `judgekeeper` shows: level 96%, 20,000 draws. After asking a steady LLM-as-a-judge again: 4,000 draws. The bar: at least 93% in every cell and 95% on average.
 
 | Ranges | Lowest cell | Average | Passes |
 |---|---|---|---|
@@ -396,7 +396,7 @@ New answers join as batches, and the numbers are stratified by (batch, the judge
 
 Coverage % / average width.
 
-| Answers | Judge per batch (pi, a, w) | Marks | TPR | TNR | Real pass rate | TPR again | TNR again |
+| Answers | LLM-as-a-judge per batch (pi, a, w) | Marks | TPR | TNR | Real pass rate | TPR again | TNR again |
 |---|---|---|---|---|---|---|---|
 | 400 + 200 | 70%, 0.9, 0.8; 50%, 0.7, 0.6 | 10 | 95.1 / 0.18 | 96.3 / 0.36 | 96.1 / 0.24 | 94.7 / 0.19 | 96.3 / 0.36 |
 | 400 + 200 | 70%, 0.9, 0.8; 50%, 0.7, 0.6 | 15 | 95.9 / 0.15 | 95.7 / 0.31 | 96.2 / 0.20 | 96.1 / 0.15 | 95.6 / 0.31 |
@@ -459,15 +459,15 @@ Coverage % / average width.
 | 60 + 15 | 70%, 0.8, 0.8; 70%, 0.6, 0.95 | 40 | 96.5 / 0.14 | 95.6 / 0.25 | 96.2 / 0.19 | 96.5 / 0.14 | 95.6 / 0.25 |
 | 60 + 15 | 70%, 0.8, 0.8; 70%, 0.6, 0.95 | 40, then 10 | 95.6 / 0.14 | 96.2 / 0.25 | 96.3 / 0.19 | 95.5 / 0.14 | 96.3 / 0.25 |
 
-## A judge that gives every answer one grade
+## An LLM-as-a-judge that gives every answer one grade
 
-The judge passed (or failed) every answer of a pool of 1,000; that many marks, each one the same way as the judge with the chance given (agree). Its TPR and TNR are then 100% and 0% (or 0% and 100%), and their ranges are the plain Jeffreys ranges of the marks. 2,000 simulated checks per cell, fixed seed 20261008, level 96%, 20,000 draws. Checks where a number is unknown (TNR when every mark agrees, say) are left out and counted.
+The LLM-as-a-judge passed (or failed) every answer of a pool of 1,000; that many marks, each one the same way as the LLM-as-a-judge with the chance given (agree). Its TPR and TNR are then 100% and 0% (or 0% and 100%), and their ranges are the plain Jeffreys ranges of the marks. 2,000 simulated checks per cell, fixed seed 20261008, level 96%, 20,000 draws. Checks where a number is unknown (TNR when every mark agrees, say) are left out and counted.
 
 Lowest cell 94.7, average 98.9: passes the bar (93% in every cell, 95% on average).
 
 Coverage % / average width.
 
-| Judge | Agree | Marks | TPR | TNR | Real pass rate |
+| LLM-as-a-judge | Agree | Marks | TPR | TNR | Real pass rate |
 |---|---|---|---|---|---|
 | passes every answer | 0.6 | 20 | 100.0 / 0.20 | 100.0 / 0.30 | 96.5 / 0.41 |
 | passes every answer | 0.6 | 25 | 100.0 / 0.17 | 100.0 / 0.24 | 95.6 / 0.37 |
