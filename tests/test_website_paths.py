@@ -95,7 +95,7 @@ def test_guide_install_uses_the_needed_python():
     assert needs == ">=3.11"
     install = _flat(_by_id("start.html", "install"))
     assert ("your project folder With pip pip install judgekeeper judgekeeper With uv uvx "
-            "judgekeeper Works on macOS, Linux and Windows, with Python 3.11 or newer.") in install
+            "judgekeeper Works on macOS, Linux and Windows, with Python 3.11 to 3.14.") in install
     hrefs = [a.attrs.get("href") for a in _by_id("start.html", "install").iter() if a.tag == "a"]
     assert hrefs == ["https://docs.astral.sh/uv/"]  # the license is in the footer
 
@@ -144,11 +144,16 @@ def _llms_links() -> list[tuple[str, str, str]]:
 def test_llms_txt_lists_the_pages_and_every_link_resolves():
     site = "https://www.judgekeeper.com/"
     raw = "https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/"
+    repo = "https://github.com/judgekeeper/judgekeeper"
     targets = []
     for _, url, line in _llms_links():
         assert ": " in line.split(")", 1)[1], f"a link and what it is: {line}"
         if url.startswith(site):
             target = WEBSITE / (url[len(site):] or "index.html")
+        elif url == repo:
+            target = ROOT / "README.md"  # what GitHub shows there
+        elif url.startswith(f"{repo}/blob/main/"):
+            target = ROOT / url[len(f"{repo}/blob/main/"):]
         else:
             assert url.startswith(raw), url
             target = ROOT / url[len(raw):]

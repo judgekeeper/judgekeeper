@@ -74,8 +74,8 @@ DATASETS = {
         "source": "https://github.com/princeton-nlp/LLMBar",
         "revision": "900616bff90b6c6c8e1681f7d079250637c55992",
         "attribution": ("Zeng et al. (2024), Evaluating Large Language Models at Evaluating "
-                        "Instruction Following, ICLR 2024. The judge verdicts are judgekeeper's "
-                        "own run of claude-haiku-4-5-20251001, kept in "
+                        "Instruction Following, ICLR 2024. The LLM-as-a-judge verdicts are "
+                        "judgekeeper's own run of claude-haiku-4-5-20251001, kept in "
                         "docs/examples/real-data-check/sources/llmbar-haiku.json."),
         "files": [],
     },
@@ -408,21 +408,23 @@ def markdown(result: dict) -> str:
     lines = [
         "# Real-data check of judgekeeper's ranges", "",
         "Made by `scripts/real_data_check.py`; do not edit by hand.", "",
-        ("Each judge below decided on every answer in a public dataset, and people labeled the "
-         "same answers. So how often the judge agrees with the people is known: it is worked "
-         "out from all of the dataset's human labels. Each check pretends a person labeled "
-         "only a few answers, picked as `judgekeeper` picks them (as many from the "
-         "judge's passes as from its fails), and works out TPR (how often the judge passed "
-         "answers people passed), TNR (how often it failed answers people failed) and the real "
-         "pass rate with judgekeeper's own maths, each with a range. A range should hold the "
-         f"value from all labels about {w['level']:.0%} of the time. No judge was called."), "",
+        ("Each LLM-as-a-judge below decided on every answer in a public dataset, and people "
+         "labeled the same answers. So how often the LLM-as-a-judge agrees with the people is "
+         "known: it is worked out from all of the dataset's human labels. Each check pretends a "
+         "person labeled only a few answers, picked as `judgekeeper` picks them (as many from "
+         "the LLM-as-a-judge's passes as from its fails), and works out TPR (how often the "
+         "LLM-as-a-judge passed answers people passed), TNR (how often it failed answers people "
+         "failed) and the real pass rate with judgekeeper's own maths, each with a range. A "
+         f"range should hold the value from all labels about {w['level']:.0%} of the time. No "
+         "LLM-as-a-judge was called."), "",
         "## The result", "",
         (f"With {first['labels_mean']['lowest']:.0f} labels per check ("
-         f"{s['sizes'][0]} from each group), on {first['judges']} judges from "
+         f"{s['sizes'][0]} from each group), on {first['judges']} LLM-as-a-judge setups from "
          f"{first['datasets']} public datasets, the TPR and TNR ranges held the value from all "
          f"of the dataset's human labels in {_pct(first['tpr_tnr']['mean'])} checks in 100 on "
          f"average (lowest {_pct(first['tpr_tnr']['lowest'])}, highest "
-         f"{_pct(first['tpr_tnr']['highest'])}), over {s['checks']:,} checks per judge."), "",
+         f"{_pct(first['tpr_tnr']['highest'])}), over {s['checks']:,} checks per "
+         "LLM-as-a-judge."), "",
         "| Design | Labels per check | TPR and TNR: held in 100 (average) | Lowest | Highest |",
         "|---|---|---|---|---|"]
     for design in DESIGNS:
@@ -440,18 +442,19 @@ def markdown(result: dict) -> str:
                    f"{100 - round(w['level'] * 100)} times in 100. With {s['checks']:,} checks, "
                    f"chance alone moves the share it holds by up to about {noise:.1f} either way "
                    "(95 times in 100)."), "",
-              "## The judges", "",
+              "## The LLM-as-a-judge setups", "",
               "The values from all of each dataset's human labels.", "",
-              "| Judge | Answers | Judge passed | TPR | TNR | Real pass rate | Kappa |",
+              ("| LLM-as-a-judge | Answers | LLM-as-a-judge passed | TPR | TNR | Real pass rate "
+               "| Kappa |"),
               "|---|---|---|---|---|---|---|"]
     for p in pools.values():
         t = p["truth"]
         lines.append(f"| {p['title']} | {t['n']:,} | {_pct(t['judge_pass_rate'])}% | "
                      f"{_two(t['tpr'])} | {_two(t['tnr'])} | {_two(t['real_pass_rate'])} | "
                      f"{_two(t['kappa'])} |")
-    lines += ["", "## How often each range held, per judge", "",
+    lines += ["", "## How often each range held, per LLM-as-a-judge", "",
               f"Held in 100 checks, TPR / TNR / real pass rate, {s['checks']:,} checks each.", "",
-              "| Judge | " + " | ".join(_design_name(d, result) for d in DESIGNS) + " |",
+              "| LLM-as-a-judge | " + " | ".join(_design_name(d, result) for d in DESIGNS) + " |",
               "|---|" + "---|" * len(DESIGNS)]
     for p in pools.values():
         lines.append(f"| {p['title']} | " + " | ".join(
@@ -463,7 +466,7 @@ def markdown(result: dict) -> str:
               "## Range width and error", "",
               ("Average width of the range (high end minus low end) and the median distance "
                "from the number to the value from all labels, TPR / TNR."), "",
-              "| Judge | " + " | ".join(_design_name(d, result) for d in DESIGNS) + " |",
+              "| LLM-as-a-judge | " + " | ".join(_design_name(d, result) for d in DESIGNS) + " |",
               "|---|" + "---|" * len(DESIGNS)]
     for p in pools.values():
         lines.append(f"| {p['title']} | " + " | ".join(
@@ -473,10 +476,11 @@ def markdown(result: dict) -> str:
             f"{_two(p['designs'][d]['tnr']['abs_error_median'])}" for d in DESIGNS) + " |")
     lines += ["", "## Without the correction", "",
               ("judgekeeper weighs each group by its size in the pool, because a check labels as "
-               "many of the judge's passes as of its fails. Without that, the same labels give "
-               f"these rates (average over the {s['checks']:,} checks with "
+               "many of the LLM-as-a-judge's passes as of its fails. Without that, the same labels "
+               f"give these rates (average over the {s['checks']:,} checks with "
                f"{s['sizes'][0]} + {s['sizes'][0]} labels):"), "",
-              "| Judge | TPR without / value from all labels | TNR without / value from all labels |",
+              ("| LLM-as-a-judge | TPR without / value from all labels | TNR without / value from "
+               "all labels |"),
               "|---|---|---|"]
     for p in pools.values():
         plain, t = p["designs"]["25+25"]["plain"], p["truth"]
@@ -484,10 +488,10 @@ def markdown(result: dict) -> str:
                      f"{_two(plain['tnr'])} / {_two(t['tnr'])} |")
     lines += ["", "## One check in full", "",
               (f"The first of the {s['checks']:,} checks with {s['sizes'][0]} + "
-               f"{s['sizes'][0]} labels for each judge, not picked by hand. Kappa has no "
-               "range."), "",
-              ("| Judge | Marked Pass (of judge passes / fails) | TPR | TNR | Real pass rate "
-               "| Kappa |"), "|---|---|---|---|---|---|"]
+               f"{s['sizes'][0]} labels for each LLM-as-a-judge, not picked by hand. Kappa has "
+               "no range."), "",
+              ("| LLM-as-a-judge | Marked Pass (of LLM-as-a-judge passes / fails) | TPR | TNR "
+               "| Real pass rate | Kappa |"), "|---|---|---|---|---|---|"]
     for p in pools.values():
         f, t = p["designs"]["25+25"]["first_check"], p["truth"]
         lab = f["labeled"]
@@ -499,8 +503,9 @@ def markdown(result: dict) -> str:
             + f" | {_two(f['kappa'])}, all labels {_two(t['kappa'])} |")
     lines += ["", "## The questions", "",
               ("Each item became one yes/no question, fixed before looking at the results. "
-               "Nothing was dropped because of what the judge said."), "",
-              "| Judge | Question | Judge pass | Human pass |", "|---|---|---|---|"]
+               "Nothing was dropped because of what the LLM-as-a-judge said."), "",
+              "| LLM-as-a-judge | Question | LLM-as-a-judge pass | Human pass |",
+              "|---|---|---|---|"]
     for p in pools.values():
         lines.append(f"| {p['title']} | {p['question']} | {p['judge_pass']} | "
                      f"{p['human_pass']} |")
@@ -516,9 +521,9 @@ def markdown(result: dict) -> str:
         for f in d["files"]:
             lines.append(f"  - `{f['file']}`: sha256 `{f['sha256']}`")
     lines += ["", "## Settings", "",
-              (f"Seed {s['seed']}; {s['checks']:,} checks per judge and design; judgekeeper's rule "
-               f"labels {s['start_rule']['block']} from each group at a time. Ranges: "
-               f"`weighted.corrected` at level {w['level']}, {w['draws']:,} draws, seed "
+              (f"Seed {s['seed']}; {s['checks']:,} checks per LLM-as-a-judge and design; "
+               f"judgekeeper's rule labels {s['start_rule']['block']} from each group at a time. "
+               f"Ranges: `weighted.corrected` at level {w['level']}, {w['draws']:,} draws, seed "
                f"{w['seed']}. To run it again: `pip install pyarrow`, then "
                "`python scripts/real_data_check.py`. It downloads the files above into a cache "
                "folder outside the repository, checks each sha256, and writes this report and "

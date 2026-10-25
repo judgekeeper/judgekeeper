@@ -283,11 +283,11 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
     grid = json.loads((ROOT / "docs/examples/coverage/coverage.json").read_text(
         encoding="utf-8"))
     level = grid["corrected"]["levels"][str(grid["corrected"]["chosen_level"])]
-    simulated = (f"at least {pct(level['min_cell'])} times in 100 in every tested case, and "
-                 f"{pct(level['mean'])} on average")
+    simulated = (f"In every tested case, the TPR and TNR ranges held the true value at least "
+                 f"{pct(level['min_cell'])} times in 100.")
     assert simulated in _flat(ROOT / "README.md")
     reference = _flat(ROOT / "docs" / "reference.md")
     for figure in result:
         assert figure in reference, figure
-    assert "Tested on Python 3.11 to 3.14 on Linux, macOS and Windows." in _flat(
-        ROOT / "README.md")
+    assert ("The tests run on Linux with Python 3.11 to 3.14, and on Windows and macOS."
+            in _flat(ROOT / "README.md"))

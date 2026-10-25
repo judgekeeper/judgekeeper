@@ -4,12 +4,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        Tell us where your LLM-as-a-judge's results are and how they are saved. Describe the file's shape (its keys or columns) with made-up values: never paste real answers, data you are not allowed to share, or API keys.
+        Say where your LLM-as-a-judge's results are and how they are saved. Show the file's keys or columns with made-up values. Never paste real answers, data you are not allowed to share, or API keys.
   - type: input
     id: tool
     attributes:
       label: Your eval tool or file format
-      description: The tool and its version, or the kind of file (for example a JSON file your own script writes).
+      description: The tool and its version, or the kind of file.
       placeholder: DeepEval 4.2.8, or a JSONL file from my own script
     validations:
       required: true
@@ -17,7 +17,7 @@ body:
     id: shape
     attributes:
       label: How the results are saved
-      description: Where the file is in your project, and one made-up item showing its keys or columns.
+      description: Where the file is in your project, and one made-up item with its keys or columns.
       render: text
     validations:
       required: true

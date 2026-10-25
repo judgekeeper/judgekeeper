@@ -59,10 +59,10 @@ STEP_TEST = "Step 4 of 5: Fix (testing your new rule)"
 ASK = ("To test it, judgekeeper asks your LLM-as-a-judge about the {n} answers kept aside, once "
        "with the old rule and once with the new one. That is {calls}, paid with your own key.")
 RESULT = {
-    "better": ("Result: your new rule is better. A difference this large is very unlikely to "
-               "be a coincidence."),
-    "safe": ("Result: safe to try. Not clearly better yet, but very unlikely to be more than "
-             "10 points worse."),
+    "better": ("Result: your new rule is better. A difference this large is unlikely to be a "
+               "coincidence."),
+    "safe": ("Result: safe to try. Not clearly better yet, but unlikely to be more than 10 "
+             "points worse."),
     "leans better": ("Result: can't tell yet. That leans toward better, but a split this small "
                      "could easily be a coincidence."),
     "same": ("Result: can't tell yet. The two rules look about the same here. More marks are "

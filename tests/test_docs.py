@@ -9,7 +9,7 @@ import re
 from tests.website_pages import ROOT
 
 README = ROOT / "README.md"
-STEPS = (("Find", "`judgekeeper`"), ("Mark", "`judgekeeper mark`"),
+STEPS = (("Find", "`judgekeeper`"), ("Mark", "the page opens by itself"),
          ("Measure", "`judgekeeper`"), ("Fix", "`judgekeeper fix`"),
          ("Re-check", "`judgekeeper check`"))
 
@@ -35,17 +35,19 @@ def test_the_readme_is_short_and_in_order():
     assert text.startswith('<p align="center"><img ')
     top = text[:text.index("\n## ")]
     for needed in ("**Check your LLM-as-a-judge in 5 steps.**",
-                   "Find. Mark. Measure. Fix. Re-check.", "readme-label.png"):
+                   "Find. Mark. Measure. Fix. Re-check.", "docs/assets/demo.webp"):
         assert needed in top, needed
+    assert (ROOT / "docs" / "assets" / "demo.webp").stat().st_size < 1_000_000
     heads = list(_sections(text))
-    wanted = ["Install", "The 5 steps", "Numbers", "Status", "Issues", "License"]
+    wanted = ["Install", "The 5 steps", "What the numbers mean", "Checked on public data",
+              "More", "License"]
     assert [h for h in heads if h in wanted] == wanted
 
 
 def test_the_readme_has_each_step_with_its_command():
     steps = _sections(_readme())["The 5 steps"]
     for n, (step, command) in enumerate(STEPS, 1):
-        line = next(x for x in steps.splitlines() if x.startswith(f"{n}. **{step}.**"))
+        line = next(x for x in steps.splitlines() if x.startswith(f"{n}. **{step}** ("))
         assert command in line, step
 
 
@@ -53,8 +55,9 @@ EXAMPLES = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/"
 
 
 def test_the_readme_numbers_are_in_the_reports_they_link():
-    """Each Numbers line links its report, and every % and decimal on the line is in it."""
-    lines = [x for x in _sections(_readme())["Numbers"].splitlines() if x.startswith("- ")]
+    """Each public-data line links its report, and every % and decimal on the line is in it."""
+    lines = [x for x in _sections(_readme())["Checked on public data"].splitlines()
+             if x.startswith("- ")]
     linked = {}
     for line in lines:
         found = re.findall(rf"\]\({re.escape(EXAMPLES)}([\w./-]+)\)", line)
@@ -66,7 +69,14 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
         linked[found[0]] = line
     assert sorted(linked) == ["coverage/coverage.md", "jailbreakbench/report.md",
                               "probes/report.md", "ragtruth/report.md"]
-    assert "in 20 of 20 draws" in linked["jailbreakbench/report.md"]
+    assert "In 20 of 20 draws" in linked["jailbreakbench/report.md"]
+    assert "Each draw marks 250 of the same 300 answers" in linked["jailbreakbench/report.md"]
+    draws = (ROOT / "docs" / "examples" / "jailbreakbench" / "two-batches" / "draws.csv")
+    rows = [x.split(",") for x in draws.read_text(encoding="utf-8").splitlines()
+            if re.match(r"d\d", x)]
+    assert len(rows) == 20 and {r[8] for r in rows} == {"250"}  # marks_counted
+    summary = draws.with_name("summary.json").read_text(encoding="utf-8")
+    assert '"rows": 300' in summary
     assert "needs work" in linked["ragtruth/report.md"]
     for gone in ("LLMBar", "MT-Bench", "real-data-check"):
         assert gone not in _readme(), gone
@@ -74,9 +84,8 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
 
 def test_the_readme_keeps_to_the_agreed_words():
     text = _readme()
-    assert "can read results from" in text
     assert "judgekeeper.com" not in text
-    for word in (r"luck(y)?", r"chance", r"works with", r"integrates? with", r"rough(ly)?",
+    for word in (r"luck(y)?", r"chance", r"integrates? with", r"rough(ly)?",
                  r"AI judges?", r"trusted", r"proven", r"judgekeeper start"):
         assert not re.search(rf"\b{word}\b", text, re.IGNORECASE), word
 
@@ -103,6 +112,6 @@ def test_checking_names_the_llm_as_a_judge_in_full():
 
 
 def test_the_readme_has_three_badges_version_tests_and_licence():
-    badges = re.findall(r'<img src="([^"]+)" alt="([^"]+)"', README.read_text(encoding="utf-8"))
-    assert [alt for src, alt in badges if "shields.io" in src or "badge.svg" in src] == [
-        "PyPI version", "Tests on main", "MIT license"]
+    badges = re.findall(r"!\[([^\]]+)\]\(([^)]+)\)", README.read_text(encoding="utf-8"))
+    assert [alt for alt, src in badges if "shields.io" in src or "badge.svg" in src] == [
+        "PyPI version", "Tests", "MIT license"]

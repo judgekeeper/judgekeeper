@@ -1,1 +1,1 @@
-Thank you for your interest. This project does not accept pull requests; please open an [issue](https://github.com/judgekeeper/judgekeeper/issues) with your bug report or idea instead.
+This project does not accept pull requests. Please [open an issue](https://github.com/judgekeeper/judgekeeper/issues/new/choose) instead. To show a code change, use the "Idea or design" form: link your branch or paste the change there.

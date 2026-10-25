@@ -6,7 +6,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [{ name = "Sathvik Thota" }]
-keywords = ["llm", "evaluation", "evals", "llm-evaluation", "llm-as-a-judge", "llm-as-judge", "llm-judge", "human-labels", "custom-metric", "rubric", "calibration", "drift"]
+keywords = ["llm", "llm-as-a-judge", "llm-as-judge", "llm-judge", "evaluation", "evals", "llm-evaluation", "human-labels", "rubric", "cohens-kappa", "promptfoo", "deepeval", "inspect-ai", "mlflow"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",

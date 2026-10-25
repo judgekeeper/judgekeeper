@@ -26,7 +26,14 @@ def _unranged(text: str) -> list[str]:
 
 
 def test_every_percent_in_the_readme_comes_with_its_range():
-    assert not _unranged(README.read_text(encoding="utf-8"))
+    """The one bare percentage is the bar for "good enough to use", from the code."""
+    from judgekeeper import targets
+
+    gate = (f"the low end of both the TPR and TNR range is at least "
+            f"{targets.RATE_GATE:.0%}.")
+    text = README.read_text(encoding="utf-8")
+    assert gate in text
+    assert not _unranged(text.replace(gate, ""))
 
 
 def test_the_range_check_catches_a_bare_percent():

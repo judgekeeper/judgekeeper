@@ -2,62 +2,60 @@
 
 # judgekeeper
 
-<p><a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/v/judgekeeper" alt="PyPI version"></a> <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests on main"></a> <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/judgekeeper/judgekeeper" alt="MIT license"></a></p>
+[![PyPI version](https://img.shields.io/pypi/v/judgekeeper)](https://pypi.org/project/judgekeeper/) [![Tests](https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml) [![MIT license](https://img.shields.io/github/license/judgekeeper/judgekeeper)](https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE)
 
-**Check your LLM-as-a-judge in 5 steps.**
-
+**Check your LLM-as-a-judge in 5 steps.**\
 Find. Mark. Measure. Fix. Re-check.
 
-An LLM-as-a-judge is an AI model that grades the answers of another AI model. judgekeeper shows how often your LLM-as-a-judge agrees with you, where it goes wrong, and whether a new rule does better, in your own terminal.
+An LLM-as-a-judge is an AI model that grades the answers of another AI model. judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong.
 
-<p align="center"><img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/readme-label.png" width="720" alt="The marking page: a question, the answer, and equal Fail and Pass buttons. What your LLM-as-a-judge decided is kept aside."></p>
+![judgekeeper finds the results, opens the marking page, and shows how often the LLM-as-a-judge agrees with you.](https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/demo.webp)
 
 ## Install
-In your project folder, run one of these. With pip (most Python setups), install, then run:
+
+In your project folder, with pip:
 ```
-pip install judgekeeper==1.0.0b2
+pip install judgekeeper
 ```
 ```
 judgekeeper
 ```
-With [uv](https://docs.astral.sh/uv/):
+Or with [uv](https://docs.astral.sh/uv/):
 ```
-uvx judgekeeper@1.0.0b2
+uvx judgekeeper
 ```
-
-Works on macOS, Linux and Windows, with Python 3.11 or newer. The version is in the command because uv and pip skip betas unless you name one.
+Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow or your own file. With uv, type `uvx judgekeeper` wherever this page says `judgekeeper`.
 
 ## The 5 steps
 
-Run it in your own terminal. Each run does the next step and ends with one `Next:` line. (With uv, type `uvx judgekeeper@1.0.0b2` where it says `judgekeeper`; judgekeeper prints its commands that way too.)
+1. **Find** (`judgekeeper`). Find your eval results and the LLM-as-a-judge that graded them.
+2. **Mark** (the page opens by itself). Mark your answers Pass or Fail in your browser.
+3. **Measure** (`judgekeeper` again). See how often your LLM-as-a-judge agrees with you.
+4. **Fix** (`judgekeeper fix`). Write a better rule and test it on marks kept aside.
+5. **Re-check** (`judgekeeper check`). Change your LLM-as-a-judge and see if it still agrees with you.
 
-1. **Find.** `judgekeeper` reads the results your eval tool already saved, names your LLM-as-a-judge and checks its grades with no AI call. It can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, TSV or JSONL file (Inspect's `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"`).
-2. **Mark.** It opens a page in your browser. You mark answers Pass or Fail without seeing what your LLM-as-a-judge said; `judgekeeper mark` opens it again to mark more.
-3. **Measure.** Run `judgekeeper` again: it shows how often your LLM-as-a-judge agrees with you.
-4. **Fix.** `judgekeeper fix` shows where your LLM-as-a-judge goes wrong. You write a new rule; it tests it on marks kept aside, asking your own LLM-as-a-judge, and says whether it is better. It asks before any AI call.
-5. **Re-check.** After you change your LLM-as-a-judge or update your eval tool, run `judgekeeper check`. It re-tests your LLM-as-a-judge on your marks. When that needs AI calls, it says how many and asks first.
+Marks kept aside are marks that `fix` doesn't show you, so a new rule is tested on answers it wasn't written from. Testing a rule works with promptfoo, DeepEval, Inspect AI and MLflow.
 
-Finding, marking and the result make no AI call and need no API key. judgekeeper never runs your eval's code, and it writes only inside `.judgekeeper/` in your project, plus `judgekeeper.toml` when you say yes. Every command, flag and file is in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md).
+Finding, marking and the result need no API key and make no AI call. Fix and Re-check run your eval tool to grade answers again, and ask before any AI call. Details are in [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
-## What you get
+## What the numbers mean
 
-TPR: of the answers you passed, how many your LLM-as-a-judge passed. TNR: of the answers you failed, how many it failed. Kappa: how much you agree beyond coincidence, on your real mix of answers (it moves with how many answers pass, so it is in the report's details and never decides the result). Each comes with a range: "about 95% (between 92% and 98%)". The numbers are estimates from the answers you marked, not a promise about the next ones.
+- **TPR:** of the answers you passed, how many your LLM-as-a-judge passed too.
+- **TNR:** of the answers you failed, how many it failed too.
+- **Kappa:** how much you agree beyond coincidence. It is in the report's details and never decides the result.
 
-## Numbers
+Each number comes with a range, for example "about 89% (between 84% and 93%)". The result says "good enough to use" only when the low end of both the TPR and TNR range is at least 80%. The numbers come from the answers you marked. They are not a promise about the next ones.
 
-- **JailbreakBench, against experts.** On 300 answers that GPT-4-0613 graded and three experts marked, judgekeeper's ranges held the real value for GPT-4 against experts in 20 of 20 draws (TPR, TNR and kappa, with 250 marks in two batches). The first draw: TPR about 89% (between 84% and 93%), TNR about 91% (between 83% and 95%). One more single draw missed the real TNR; the report says why. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md)
-- **RAGTruth, two Claude models as LLM-as-a-judge.** Claude Haiku 5.5 and Claude Sonnet 5.5 graded 200 news summaries with one rule, against people's labels. Both failed most summaries people failed, TNR about 91% (between 85% and 95%) in run 1, but also about one in three good ones: TPR about 62% (between 55% and 69%) for Haiku and about 69% (between 62% and 76%) for Sonnet. judgekeeper's result: needs work. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md)
-- **Probes: a rule can let an empty answer pass.** With the same rule, Claude Sonnet 5.5 failed 0 of 20 empty summaries (0%, range 0% to 16%), and Claude Haiku 5.5 failed 15 of 20 (75%, range 53% to 89%). Marks on real answers don't show this. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md)
-- **In simulation:** the ranges held the true value at least 93.6 times in 100 in every tested case, and 96.2 on average; with new answers in two or three batches, at least 93.2 and 95.8 on average. [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
-- Tested on Python 3.11 to 3.14 on Linux, macOS and Windows. [Test runs](https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml)
+## Checked on public data
 
-## Status
+- **JailbreakBench.** GPT-4 graded 300 answers, and three experts marked them. In 20 of 20 draws, judgekeeper's ranges held the real TPR, TNR and kappa. Each draw marks 250 of the same 300 answers, so the draws overlap a lot. One separate draw missed the real TNR; the report says why. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md)
+- **RAGTruth.** Two models graded 200 news summaries with one rule. Both failed about one in three of the summaries people passed, and judgekeeper said "needs work" in all 6 runs. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md)
+- **Empty answers.** An empty summary should fail. With one rule, one model failed 0 of 20 empty summaries and another failed 15 of 20. Marks on real answers don't show this. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md)
+- **Simulation.** In every tested case, the TPR and TNR ranges held the true value at least 93.6 times in 100. [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
 
-Beta (1.0.0b2): commands and report fields may still change. `judgekeeper --help` lists every flag, the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) explains each one, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed.
+## More
 
-## Issues
-
-This project is maintained by one person and accepts issues, not pull requests. Bug reports, results it could not find, ideas and designs are welcome as [issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose).
+`judgekeeper --help` lists every command. The [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) explains each one, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed. The tests run on Linux with Python 3.11 to 3.14, and on Windows and macOS. judgekeeper is made by one person and takes [issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose), not pull requests.
 
 ## License
 

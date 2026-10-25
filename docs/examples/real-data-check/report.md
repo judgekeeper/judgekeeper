@@ -2,11 +2,11 @@
 
 Made by `scripts/real_data_check.py`; do not edit by hand.
 
-Each judge below decided on every answer in a public dataset, and people labeled the same answers. So how often the judge agrees with the people is known: it is worked out from all of the dataset's human labels. Each check pretends a person labeled only a few answers, picked as `judgekeeper` picks them (as many from the judge's passes as from its fails), and works out TPR (how often the judge passed answers people passed), TNR (how often it failed answers people failed) and the real pass rate with judgekeeper's own maths, each with a range. A range should hold the value from all labels about 96% of the time. No judge was called.
+Each LLM-as-a-judge below decided on every answer in a public dataset, and people labeled the same answers. So how often the LLM-as-a-judge agrees with the people is known: it is worked out from all of the dataset's human labels. Each check pretends a person labeled only a few answers, picked as `judgekeeper` picks them (as many from the LLM-as-a-judge's passes as from its fails), and works out TPR (how often the LLM-as-a-judge passed answers people passed), TNR (how often it failed answers people failed) and the real pass rate with judgekeeper's own maths, each with a range. A range should hold the value from all labels about 96% of the time. No LLM-as-a-judge was called.
 
 ## The result
 
-With 50 labels per check (25 from each group), on 5 judges from 3 public datasets, the TPR and TNR ranges held the value from all of the dataset's human labels in 96.0 checks in 100 on average (lowest 94.6, highest 98.4), over 1,000 checks per judge.
+With 50 labels per check (25 from each group), on 5 LLM-as-a-judge setups from 3 public datasets, the TPR and TNR ranges held the value from all of the dataset's human labels in 96.0 checks in 100 on average (lowest 94.6, highest 98.4), over 1,000 checks per LLM-as-a-judge.
 
 | Design | Labels per check | TPR and TNR: held in 100 (average) | Lowest | Highest |
 |---|---|---|---|---|
@@ -16,11 +16,11 @@ With 50 labels per check (25 from each group), on 5 judges from 3 public dataset
 
 A 96% range is expected to miss about 4 times in 100. With 1,000 checks, chance alone moves the share it holds by up to about 1.2 either way (95 times in 100).
 
-## The judges
+## The LLM-as-a-judge setups
 
 The values from all of each dataset's human labels.
 
-| Judge | Answers | Judge passed | TPR | TNR | Real pass rate | Kappa |
+| LLM-as-a-judge | Answers | LLM-as-a-judge passed | TPR | TNR | Real pass rate | Kappa |
 |---|---|---|---|---|---|---|
 | LLMBar × Claude Haiku 4.5 | 419 | 53.5% | 0.95 | 0.87 | 0.49 | 0.82 |
 | MT-Bench × GPT-4 | 1,814 | 67.3% | 0.85 | 0.56 | 0.57 | 0.42 |
@@ -28,11 +28,11 @@ The values from all of each dataset's human labels.
 | LLMJudge × willia-umbrela1 | 4,423 | 19.4% | 0.46 | 0.90 | 0.27 | 0.40 |
 | LLMJudge × NISTRetrieval-instruct0 | 4,423 | 27.5% | 0.50 | 0.81 | 0.27 | 0.30 |
 
-## How often each range held, per judge
+## How often each range held, per LLM-as-a-judge
 
 Held in 100 checks, TPR / TNR / real pass rate, 1,000 checks each.
 
-| Judge | 25+25 labels | 30+30 labels | judgekeeper's rule (25 Pass + 25 Fail) |
+| LLM-as-a-judge | 25+25 labels | 30+30 labels | judgekeeper's rule (25 Pass + 25 Fail) |
 |---|---|---|---|
 | LLMBar × Claude Haiku 4.5 | 98.4 / 94.6 / 96.4 | 99.0 / 97.4 / 96.8 | 99.0 / 97.5 / 97.3 |
 | MT-Bench × GPT-4 | 96.0 / 95.7 / 96.5 | 95.9 / 97.0 / 97.4 | 95.7 / 95.0 / 95.5 |
@@ -46,7 +46,7 @@ Checks where a number could not be worked out: 0.
 
 Average width of the range (high end minus low end) and the median distance from the number to the value from all labels, TPR / TNR.
 
-| Judge | 25+25 labels | 30+30 labels | judgekeeper's rule (25 Pass + 25 Fail) |
+| LLM-as-a-judge | 25+25 labels | 30+30 labels | judgekeeper's rule (25 Pass + 25 Fail) |
 |---|---|---|---|
 | LLMBar × Claude Haiku 4.5 | width 0.15 / 0.22, error 0.02 / 0.04 | width 0.14 / 0.21, error 0.02 / 0.03 | width 0.14 / 0.21, error 0.02 / 0.04 |
 | MT-Bench × GPT-4 | width 0.18 / 0.33, error 0.03 / 0.05 | width 0.17 / 0.30, error 0.03 / 0.05 | width 0.17 / 0.30, error 0.03 / 0.05 |
@@ -56,9 +56,9 @@ Average width of the range (high end minus low end) and the median distance from
 
 ## Without the correction
 
-judgekeeper weighs each group by its size in the pool, because a check labels as many of the judge's passes as of its fails. Without that, the same labels give these rates (average over the 1,000 checks with 25 + 25 labels):
+judgekeeper weighs each group by its size in the pool, because a check labels as many of the LLM-as-a-judge's passes as of its fails. Without that, the same labels give these rates (average over the 1,000 checks with 25 + 25 labels):
 
-| Judge | TPR without / value from all labels | TNR without / value from all labels |
+| LLM-as-a-judge | TPR without / value from all labels | TNR without / value from all labels |
 |---|---|---|
 | LLMBar × Claude Haiku 4.5 | 0.95 / 0.95 | 0.89 / 0.87 |
 | MT-Bench × GPT-4 | 0.73 / 0.85 | 0.73 / 0.56 |
@@ -68,9 +68,9 @@ judgekeeper weighs each group by its size in the pool, because a check labels as
 
 ## One check in full
 
-The first of the 1,000 checks with 25 + 25 labels for each judge, not picked by hand. Kappa has no range.
+The first of the 1,000 checks with 25 + 25 labels for each LLM-as-a-judge, not picked by hand. Kappa has no range.
 
-| Judge | Marked Pass (of judge passes / fails) | TPR | TNR | Real pass rate | Kappa |
+| LLM-as-a-judge | Marked Pass (of LLM-as-a-judge passes / fails) | TPR | TNR | Real pass rate | Kappa |
 |---|---|---|---|---|---|
 | LLMBar × Claude Haiku 4.5 | 21 of 25 / 0 of 25 | 1.00 (0.90 to 1.00), all labels 0.95 | 0.84 (0.71 to 0.94), all labels 0.87 | 0.45 (0.36 to 0.52), all labels 0.49 | 0.83, all labels 0.82 |
 | MT-Bench × GPT-4 | 16 of 25 / 7 of 25 | 0.82 (0.71 to 0.91), all labels 0.85 | 0.49 (0.36 to 0.65), all labels 0.56 | 0.52 (0.38 to 0.66), all labels 0.57 | 0.32, all labels 0.42 |
@@ -80,9 +80,9 @@ The first of the 1,000 checks with 25 + 25 labels for each judge, not picked by 
 
 ## The questions
 
-Each item became one yes/no question, fixed before looking at the results. Nothing was dropped because of what the judge said.
+Each item became one yes/no question, fixed before looking at the results. Nothing was dropped because of what the LLM-as-a-judge said.
 
-| Judge | Question | Judge pass | Human pass |
+| LLM-as-a-judge | Question | LLM-as-a-judge pass | Human pass |
 |---|---|---|---|
 | LLMBar × Claude Haiku 4.5 | Is output A the better of the two? | run 1 of the saved runs says A | LLMBar's gold label is A |
 | MT-Bench × GPT-4 | Is model_b's answer better than model_a's? | GPT-4 says model_b; its ties are not a pass | more than half of the expert votes say model_b; ties and split votes are not a pass |
@@ -94,7 +94,7 @@ The human labels are what each dataset has: LLMBar's gold labels written by its 
 
 ## Data and licences
 
-- **LLMBar** (MIT): <https://github.com/princeton-nlp/LLMBar>, revision `900616bff90b6c6c8e1681f7d079250637c55992`. Zeng et al. (2024), Evaluating Large Language Models at Evaluating Instruction Following, ICLR 2024. The judge verdicts are judgekeeper's own run of claude-haiku-4-5-20251001, kept in docs/examples/real-data-check/sources/llmbar-haiku.json.
+- **LLMBar** (MIT): <https://github.com/princeton-nlp/LLMBar>, revision `900616bff90b6c6c8e1681f7d079250637c55992`. Zeng et al. (2024), Evaluating Large Language Models at Evaluating Instruction Following, ICLR 2024. The LLM-as-a-judge verdicts are judgekeeper's own run of claude-haiku-4-5-20251001, kept in docs/examples/real-data-check/sources/llmbar-haiku.json.
 - **MT-Bench human judgments** (CC-BY-4.0): <https://huggingface.co/datasets/lmsys/mt_bench_human_judgments>, revision `f7d2896d2cc5d80f8b55c2bbc722613555233c25`. Zheng et al. (2023), Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena, NeurIPS 2023 Datasets and Benchmarks. Licensed CC-BY-4.0. Changed here: each item turned into one yes/no question as described in this report; no data is copied into this repository.
   - `mtbench/gpt4_pair.parquet`: sha256 `57068327ffb5f8fddb15fedbbfe40b26fe862da2326331e5cf64a42320a00e71`
   - `mtbench/human.parquet`: sha256 `4877bc46a40929f4082c3c79593700fb897b1d6c7f4c473032694a01322f5769`
@@ -106,4 +106,4 @@ The human labels are what each dataset has: LLMBar's gold labels written by its 
 
 ## Settings
 
-Seed 20261009; 1,000 checks per judge and design; judgekeeper's rule labels 5 from each group at a time. Ranges: `weighted.corrected` at level 0.96, 20,000 draws, seed 20261008. To run it again: `pip install pyarrow`, then `python scripts/real_data_check.py`. It downloads the files above into a cache folder outside the repository, checks each sha256, and writes this report and `report.json`.
+Seed 20261009; 1,000 checks per LLM-as-a-judge and design; judgekeeper's rule labels 5 from each group at a time. Ranges: `weighted.corrected` at level 0.96, 20,000 draws, seed 20261008. To run it again: `pip install pyarrow`, then `python scripts/real_data_check.py`. It downloads the files above into a cache folder outside the repository, checks each sha256, and writes this report and `report.json`.

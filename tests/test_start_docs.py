@@ -25,9 +25,9 @@ def test_the_readme_shows_pip_and_uv_as_equals_pip_first():
     sections = _sections(README)
     install = sections["Install"]
     # one command per box, so nobody pastes the two pip lines as one
-    pip = install.index(f"```\npip install judgekeeper=={__version__}\n```")
+    pip = install.index("```\npip install judgekeeper\n```")
     run = install.index("```\njudgekeeper\n```")
-    assert pip < run < install.index(f"```\nuvx judgekeeper@{__version__}\n```")
+    assert pip < run < install.index("```\nuvx judgekeeper\n```")
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
         assert tool in sections["The 5 steps"], tool
 
@@ -42,7 +42,8 @@ def test_the_version_is_1_0_0b1_everywhere():
 # Results in your own format, and after the first result ----------------------------------
 
 def test_the_reference_explains_the_own_format():
-    reference = " ".join(REFERENCE.read_text(encoding="utf-8").split())
+    reference = " ".join((REFERENCE.read_text(encoding="utf-8") + (
+        ROOT / "docs" / "eval-tools.md").read_text(encoding="utf-8")).split())
     for needed in ("judge_model", "the columns it read", "judgekeeper.toml"):
         assert needed in reference, needed
     assert "calling a metric's `measure()` directly saves nothing" in reference

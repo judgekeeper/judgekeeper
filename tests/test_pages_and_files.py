@@ -80,9 +80,10 @@ def test_the_new_words():
     assert start_label.GITIGNORE.startswith("# judgekeeper's files hold your answers. ")
     assert Path(start.__file__).read_text(encoding="utf-8").count("(it runs no test)") >= 2
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "checks its grades with no AI call" in readme
-    assert "judgekeeper never runs your eval's code" in readme
-    assert 'alt="The marking page: a question, the answer' in readme
+    assert "Finding, marking and the result need no API key and make no AI call." in readme
+    assert "Fix and Re-check run your eval tool" in readme
+    assert "never runs your eval's code" not in readme  # Fix and Re-check do run it
+    assert "![judgekeeper finds the results, opens the marking page" in readme
     ref = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     assert "What the first check found" in ref
     assert "with the saved scores, with no AI call" in ref

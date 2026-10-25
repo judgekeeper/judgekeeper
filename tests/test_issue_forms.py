@@ -10,7 +10,7 @@ from tests.website_pages import ROOT
 
 FORMS = ROOT / ".github" / "ISSUE_TEMPLATE"
 MIT = "Any code, design or text I share here may be used in judgekeeper under the MIT license."
-REMOVED_ANSWERS = "I removed any answer text I can't share"
+REMOVED_ANSWERS = "I removed any answer text I can't share."
 
 
 def _flat(text: str) -> str:
@@ -75,6 +75,6 @@ def test_contributing_sends_designers_and_developers_to_the_forms():
     flat = _flat((ROOT / ".github" / "CONTRIBUTING.md").read_text(encoding="utf-8"))
     assert "accepts issues, not pull requests" in flat
     for name in ("bug.yml", "results-not-found.yml", "idea.yml"):
-        assert f'"{_form(name)["name"]}"' in flat, name
-    for needed in ("designer", "developer", "MIT license"):
+        assert f'**{_form(name)["name"]}:**' in flat, name
+    for needed in ("Figma", "your own changed version", "MIT license"):
         assert needed in flat, needed
