@@ -71,7 +71,7 @@ def test_every_marked_line_names_the_runs_command():
 READ = ("given", "label_map", "metric", "pool", "pool_sha256", "left_out")
 
 
-def test_every_marked_line_is_the_same_everywhere_and_reads_the_file_the_same_way(
+def test_marked_line_is_the_same_everywhere(
         tmp_path, monkeypatch, capsys):
     """Every answer marked, Fail still short: the terminal, the marking page's end card, the
     result page and report.html name the same `mark` command, and that command, run as

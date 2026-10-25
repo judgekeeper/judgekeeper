@@ -98,7 +98,7 @@ def _policies() -> dict[str, str]:
     return out
 
 
-def test_only_the_example_reports_may_run_inline_scripts_and_fonts_in_the_file():
+def test_only_example_reports_run_inline_scripts():
     policies = _policies()
     assert set(policies) == {"", "check", "examples"}
     assert re.search(r"^\t@examples path /examples/\*$", CADDYFILE, flags=re.MULTILINE)

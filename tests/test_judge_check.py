@@ -146,7 +146,7 @@ def test_near_misses_state_no_decision(reason):
     assert judge_check.stated_decisions(reason) == []
 
 
-def test_the_reason_says_the_opposite_only_when_it_states_the_other_decision():
+def test_reason_says_the_opposite_only_when_explicit():
     assert judge_check.says_opposite("FAIL: rude", "pass")
     assert judge_check.says_opposite("Looks right.\nGRADE: C", "fail")
     assert judge_check.says_opposite("FAIL: the sum is wrong.\nGRADE: C", "pass")  # Inspect
@@ -415,7 +415,7 @@ def test_nothing_is_written_outside_the_judgekeeper_folder(tmp_path, capsys):
     assert after == before
 
 
-def test_the_result_carries_the_counts_and_the_page_says_how_many_are_left_out(tmp_path,
+def test_result_counts_and_left_out_line(tmp_path,
                                                                               capsys):
     data = promptfoo_with_problems(split(20, 13), errors=[32])
     _write_json(tmp_path / "results.json", data)

@@ -51,7 +51,7 @@ def _coverage(pi, n, flip, runs, use_wobble, systematic=0.0, seed=11):
     return {k: v / runs for k, v in hits.items()}
 
 
-def test_a_judge_that_passes_most_answers_and_wobbles_was_covered_too_rarely():
+def test_wobbly_judge_passing_most_answers_was_covered_too_rarely():
     """The case the coverage grid found: ranges that treat every agreeing answer as exact."""
     assert _coverage(0.9, 15, 0.05, 300, use_wobble=False)["tpr"] < 0.8
 

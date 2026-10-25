@@ -27,7 +27,7 @@ def run(capsys, *argv):
     return code, out, err
 
 
-# 1. A judge that fails few answers -------------------------------------------------------
+# A judge that fails few answers ----------------------------------------------------------
 
 
 def test_with_enough_of_both_nothing_is_said_about_the_picking(tmp_path, capsys):
@@ -64,13 +64,13 @@ def test_an_eval_log_is_read_with_inspect_for_its_task_file(tmp_path, monkeypatc
     assert seen == [True]
 
 
-# 2. Hints repeat the flags you gave ------------------------------------------------------
+# Hints repeat the flags you gave ---------------------------------------------------------
 
 
-# 3. --no-browser and saying No -----------------------------------------------------------
+# --no-browser and saying No --------------------------------------------------------------
 
 
-# 4. The exit code for "stopped at a question" --------------------------------------------
+# The exit code for "stopped at a question" -----------------------------------------------
 
 
 def test_the_reference_lists_the_question_code():
@@ -81,7 +81,7 @@ def test_the_reference_lists_the_question_code():
     assert "stopped at a question it cannot ask (no terminal)" in text
 
 
-# 5. Resume and small wording -------------------------------------------------------------
+# Resume and small wording ----------------------------------------------------------------
 
 
 def test_the_rule_is_cut_at_a_word():

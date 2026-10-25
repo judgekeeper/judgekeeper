@@ -100,7 +100,7 @@ def served():
         thread.join(timeout=5)
 
 
-# 4. Saving -----------------------------------------------------------------------------------
+# Saving --------------------------------------------------------------------------------------
 
 def test_a_post_with_only_reasons_keeps_the_mark_and_adds_a_stamped_line(here, served):
     ws, passes, _, _ = _ready(here)
@@ -222,7 +222,7 @@ def test_an_empty_box_clears_the_note(here):
     assert 'value=""' in _box(_live(ws), passes[0])
 
 
-def test_a_new_mark_on_the_marking_page_keeps_the_reasons_only_when_it_is_the_same(here):
+def test_a_new_mark_keeps_reasons_only_when_the_same(here):
     ws, passes, _, _ = _ready(here)
     _say(ws, passes[0], reasons=["wrong_fact"])
     _say(ws, passes[0], label="fail", seconds=3)
@@ -484,7 +484,7 @@ def test_reasons_on_a_kept_aside_mark_are_never_used(here, capsys):
         assert "HIDDEN-WORDS" not in (ws.dir / "fix" / name).read_text(encoding="utf-8")
 
 
-# 5. Where reasons show up ---------------------------------------------------------------------
+# Where reasons show up ------------------------------------------------------------------------
 
 def test_report_html_shows_reasons_read_only_with_no_input(here):
     ws, passes, _, _ = _ready(here)
@@ -590,7 +590,7 @@ def test_without_reasons_mistakes_md_is_as_before(here, capsys):
     assert not (ws.dir / "fix" / "suggestions.md").exists()
 
 
-# 5a. Using both explanations --------------------------------------------------------------------
+# Using both explanations ------------------------------------------------------------------------
 
 def _mark_words(ws, item_id: str, words: str):
     text = reasons.canonical(fix.Marks(ws).row(item_id)["output"])
@@ -608,7 +608,7 @@ def test_missed_it_when_the_judges_reason_never_mentions_the_marked_words(here, 
             ) in " ".join(out.split())
 
 
-def test_allowed_it_when_the_judge_mentioned_the_marked_words_and_still_passed(here, capsys):
+def test_allowed_it_when_the_judge_named_marked_words(here, capsys):
     ws, passes, _, _ = _ready(here)
     for i in passes[:2]:  # the judge's reason is "reason N", the answer "Answer N. ..."
         number = re.match(r"Answer (\d+)", fix.Marks(ws).row(i)["output"])[0]
@@ -640,7 +640,7 @@ def test_the_check_matches_numbers_and_rare_words_ignoring_case():
     assert reasons.mentioned(rows) == (2, 1)  # (mentioned, not mentioned)
 
 
-def test_suggestions_md_has_a_line_per_reason_tapped_twice_and_lists_the_rest(here, capsys):
+def test_suggestions_md_reason_lines(here, capsys):
     ws, passes, fails, _ = _ready(here)
     _say(ws, passes[0], reasons=["wrong_fact", "left_out"], note="the order number")
     _say(ws, passes[1], reasons=["wrong_fact", "left_out"])
@@ -692,7 +692,7 @@ def test_your_own_button_tapped_on_passes_is_pass_even_when(here):
     assert "- Pass even when: “No greeting”" in reasons.suggestions_md(rows, "x")
 
 
-# 6, 7. Batches, check and --new -----------------------------------------------------------------
+# Batches, check and --new -----------------------------------------------------------------------
 
 def test_new_moves_the_reasons_with_the_marks(here):
     ws, passes, _, _ = _ready(here)
@@ -702,7 +702,7 @@ def test_new_moves_the_reasons_with_the_marks(here):
     assert not (ws.dir / "reasons.json").exists()
 
 
-# 8. Words ------------------------------------------------------------------------------------
+# Words ---------------------------------------------------------------------------------------
 
 def test_the_reference_and_the_terminal_say_what_the_reasons_are_for():
     from pathlib import Path
@@ -769,7 +769,7 @@ def test_every_reason_chip_is_a_button_with_aria_pressed_and_its_id(here):
                 assert found[1] in reasons.REASONS or found[1].startswith(reasons.OWN)
 
 
-# 6. Batches ----------------------------------------------------------------------------------
+# Batches -------------------------------------------------------------------------------------
 
 def _grow(root, n: int) -> list[str]:
     """The eval ran on `n` questions (more than before, the old ones kept): the new answers
@@ -802,7 +802,7 @@ def test_a_new_batchs_disagreements_get_boxes_the_same_way(here, served):
     assert "wrong_fact" in _lines(ws)[-1]["reasons"] or "short_ok" in _lines(ws)[-1]["reasons"]
 
 
-# 5b. Getting back to the boxes later ----------------------------------------------------------
+# Getting back to the boxes later --------------------------------------------------------------
 
 NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
                    "answers join the ones you marked.")
@@ -859,7 +859,7 @@ def test_mark_with_every_answer_marked_opens_the_result_page_with_the_boxes(
     assert added[0]["mark"] == "fail"  # the mark as it was
 
 
-def test_mark_with_every_answer_marked_prints_the_result_link_with_no_browser(
+def test_mark_all_marked_prints_the_result_link_without_browser(
         here, capsys, pages, no_browser):
     _, passes, _, _ = _ready(here)
     code, out = _run(capsys, "mark", "--no-browser")
@@ -1003,7 +1003,7 @@ f.addEventListener("load", function () {
 def test_the_reason_box_in_a_browser(here, tmp_path, width):
     import subprocess
 
-    from tests.test_page_fixes import _chrome
+    from tests.test_pages_and_files import _chrome
 
     chrome = _chrome()
     if chrome is None:

@@ -938,7 +938,7 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
             'project.";') in script
 
 
-def test_the_waiting_terminal_shows_the_shape_of_the_check_in_the_codes_own_labels(tmp_path):
+def test_waiting_terminal_uses_the_codes_labels(tmp_path):
     """The faint lines while waiting are the labels the check then prints, values dotted."""
     from tests.test_freecheck_parity import NODE, browser
 
@@ -1081,7 +1081,7 @@ def test_a_line_quoted_from_judgekeeper_is_what_it_prints():
 
 # The pictures and what fix can test --------------------------------------------------------
 
-def test_the_guide_shows_the_marking_and_result_pages_after_their_first_paragraph():
+def test_guide_page_pictures_after_first_paragraph():
     for step, picture in (("step-mark", "label.webp"), ("step-measure", "result.webp")):
         body = _all(_by_id(GUIDE, step), "div", "gl-body")[0]
         tags = [el.tag for el in body.children if not isinstance(el, str)]

@@ -1,6 +1,6 @@
-"""Fixes from running judgekeeper on public projects: tables whose other columns were counted
-as answers, the wrong column taken as the LLM-as-a-judge, error text quoted from logs, and the small
-things around them. Every fixture here is made up, with the shape (column names, values) of
+"""Results shaped like those of public projects: tables whose other columns were counted as
+answers, the wrong column taken as the LLM-as-a-judge, error text quoted from logs, and the
+small things around them. Every fixture here is made up, with the shape (column names, values) of
 the real ones.
 """
 
@@ -732,7 +732,7 @@ def test_marks_made_on_eval_logs_this_install_cannot_read_are_said(here, capsys,
     assert "judgekeeper[inspect]" in assert_one_next_at_the_end(out)
 
 
-# Kit follow-ups --------------------------------------------------------------------------------
+# Pandas lists, verdict columns, read-only folders and Inspect epochs ---------------------------
 
 def test_a_keyword_list_written_by_pandas_is_never_an_answer(here, capsys):
     columns = ["question", "answer_keywords", "response_text", "judge_verdict"]

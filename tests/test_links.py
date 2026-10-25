@@ -45,7 +45,7 @@ def _run(capsys, *argv):
 
 
 @pytest.mark.parametrize("name", ["pool.jsonl", "result.html", "start.json"])
-def test_a_link_in_judgekeeper_stops_it_and_the_file_it_points_to_is_unchanged(
+def test_a_link_in_the_folder_stops_it_and_changes_nothing(
         tmp_path, capsys, pages, name):
     project = tmp_path / "project"
     promptfoo_project(project, split(20, 16))

@@ -167,7 +167,7 @@ def test_all_judges_one_at_a_time(tmp_path, capsys, terminal):
 
 # Questions only when needed -------------------------------------------------------------
 
-def test_a_flat_file_with_one_judge_asks_only_whether_it_is_right_and_the_yes(
+def test_a_flat_file_with_one_judge_asks_one_question(
         tmp_path, capsys, terminal):
     answers, asked = terminal
     flat_jsonl(tmp_path / "evals" / "graded.jsonl")

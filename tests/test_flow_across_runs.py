@@ -1,4 +1,4 @@
-"""The flow and the numbers, across runs, from the second bug hunt.
+"""The flow and the numbers, across runs.
 
 - promptfoo `check` grades with the new LLM-as-a-judge's grader, also on answers missing from the
   newest results; a re-ask that used another model than the new LLM-as-a-judge saves nothing.
@@ -53,7 +53,7 @@ def _check(capsys, *argv):
     return code, out + err
 
 
-# 1. promptfoo check grades with the new judge ------------------------------------------------
+# promptfoo check grades with the new judge ---------------------------------------------------
 
 class GraderFake(FakePromptfoo):
     """The fake promptfoo, grading as the grader each test names: the new LLM-as-a-judge (NEW) passes
@@ -149,7 +149,7 @@ def test_a_reask_that_used_another_model_saves_nothing(here, capsys, grader):
 
 
 
-# 1a. A key set in the eval tool's own config counts ----------------------------------------
+# A key set in the eval tool's own config counts --------------------------------------------
 
 @pytest.mark.parametrize("config", [
     "description: support bot\nenv: {OPENAI_API_KEY: sk-config-ZQKEY-0123456789abcdef}\n",
@@ -173,7 +173,7 @@ def test_a_key_in_the_configs_env_block_counts(here, capsys, grader, monkeypatch
     assert "ZQKEY" not in out
 
 
-# 2. No Next line points to marking when nothing is left to mark ------------------------------
+# No Next line points to marking when nothing is left to mark ---------------------------------
 
 def says_mark(line: str) -> bool:
     """A Next line that sends the person to mark more answers now (not after running the eval
@@ -280,7 +280,7 @@ def test_the_picks_line_says_it_once_and_never_asks_with_nothing_left():
     assert check.picks_lines({"n": 3, "new_marks": 0, "ask": False}) == []
 
 
-# 3. promptfoo through npx -------------------------------------------------------------------
+# promptfoo through npx ----------------------------------------------------------------------
 
 NPX = "/opt/node/bin/npx"
 
@@ -368,7 +368,7 @@ def test_fix_without_npx_names_the_install_command(tmp_path, capsys, npx):
                           "`judgekeeper fix` again.")
 
 
-# 4. report.html after check describes one judge ----------------------------------------------
+# report.html after check describes one judge -------------------------------------------------
 
 def _report(root) -> str:
     return flat((root / ".judgekeeper" / "report.html").read_text(encoding="utf-8"))
@@ -429,7 +429,7 @@ def test_report_after_a_too_early_check_says_how_many_you_disagreed_on(here, cap
     terminal = flat(_jk(capsys)[1])
     assert "You and your LLM-as-a-judge disagreed on 6 of 60 answers." in terminal
 
-# 5. After "Worse" for a table judge, no loop ---------------------------------------------------
+# After "Worse" for a table judge, no loop ------------------------------------------------------
 
 NEXT_WORSE_TABLE = ("Next: go back to your old LLM-as-a-judge, or change its rule; then run "
                     "your eval and `judgekeeper check`.")
@@ -468,7 +468,7 @@ def test_after_worse_a_table_judge_gets_one_way_out(here, capsys):
     assert "Question 2?" in mistakes  # and a new one
 
 
-# 9. A judge fix can't ask: nothing kept aside ------------------------------------------------
+# A judge fix can't ask: nothing kept aside ---------------------------------------------------
 
 def test_fix_for_a_table_judge_keeps_nothing_aside(here, capsys):
     from tests.start_projects import table_project
@@ -486,7 +486,7 @@ def test_fix_for_a_table_judge_keeps_nothing_aside(here, capsys):
     assert "kept aside" not in _report(here)
 
 
-# 6. Ctrl-C during Measure ------------------------------------------------------------------------
+# Ctrl-C during Measure ---------------------------------------------------------------------------
 
 def _measured(root, capsys, only=None):
     """A table project with a result made from the first marks (`only`: those answers)."""
@@ -578,7 +578,7 @@ def test_a_result_saved_before_its_report_and_history_is_repaired(here, capsys):
     assert _counts_in_report(here) == (30, 30)
 
 
-# 7. Counts and words that agree --------------------------------------------------------------
+# Counts and words that agree -----------------------------------------------------------------
 
 def _all_marked_promptfoo(root, capsys, rule=RULE_A, n=40):
     (root / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
@@ -700,7 +700,7 @@ def test_new_without_a_result_moves_the_marks_not_a_check(here, capsys):
 
 
 def test_the_answers_line_counts_only_answers_with_a_grade(here, capsys):
-    from tests.test_reading_fixes import _errored_inspect, _inspect_log
+    from tests.test_reading_results import _errored_inspect, _inspect_log
 
     _inspect_log(here, "2026-10-17_qa.json", _errored_inspect(split(10, 10)))
     _, out = _jk(capsys, "--metric", "model_graded_qa")
@@ -708,7 +708,7 @@ def test_the_answers_line_counts_only_answers_with_a_grade(here, capsys):
     assert "each graded by your LLM-as-a-judge" not in out
 
 
-# 8. fix reads the rule only from a real config ---------------------------------------------
+# fix reads the rule only from a real config ------------------------------------------------
 
 def test_fix_never_says_the_rule_is_in_a_saved_screen(tmp_path, capsys, monkeypatch):
     from tests.test_fix import RULE, project
@@ -738,7 +738,7 @@ def test_fix_says_when_it_cant_tell_where_the_rule_is(tmp_path, capsys, monkeypa
     assert "notes.txt" not in out
 
 
-# 10. Nested projects -------------------------------------------------------------------------
+# Nested projects -----------------------------------------------------------------------------
 
 def test_an_outer_project_never_reads_a_nested_projects_results(tmp_path, capsys, monkeypatch):
     from tests.start_projects import table_project
@@ -804,7 +804,7 @@ def test_the_inner_project_says_once_that_the_outer_one_holds_its_marks(tmp_path
     _jk(capsys, "--stop")
 
 
-# 11. Saved marks while the results file is missing ----------------------------------------------
+# Saved marks while the results file is missing --------------------------------------------------
 
 def test_marks_saved_while_the_results_file_is_gone_are_said(here, capsys):
     from tests.start_projects import table_project
@@ -822,7 +822,7 @@ def test_marks_saved_while_the_results_file_is_gone_are_said(here, capsys):
             "they come back when your results file is back.") in flat(out)
 
 
-def test_the_guard_stops_before_any_call_when_the_old_grader_would_be_handed(here, capsys,
+def test_guard_stops_before_handing_the_old_grader(here, capsys,
                                                                            grader,
                                                                            monkeypatch):
     """(a): the config judgekeeper hands to promptfoo holds the old grader (made by hand)."""
@@ -839,7 +839,7 @@ def test_the_guard_stops_before_any_call_when_the_old_grader_would_be_handed(her
     assert _history(ws) == [] and not (ws.dir / "verdicts").exists()
 
 
-# 11a. Found by the live check's rehearsal ---------------------------------------------------
+# Found by the live check's rehearsal --------------------------------------------------------
 
 def test_fix_runs_in_the_same_second_keep_their_own_folders(tmp_path, capsys, monkeypatch):
     """LE1: the old and the new rule's runs each get a folder, with fingerprinted grades."""

@@ -350,7 +350,7 @@ def _report_text(page: str) -> str:
     return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", page)).split())
 
 
-def test_the_site_example_report_is_the_measure_step_with_real_looking_answers():
+def test_site_example_report_is_the_measure_step():
     """Home links this report from its Measure screen: it is the report of that step (no
     re-check above it), its answers read like a support bot's, and its numbers are the
     screens' numbers."""

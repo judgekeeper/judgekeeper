@@ -26,9 +26,9 @@ import pytest
 from judgekeeper import fix, label, look, mark_page, redact, report_page, start_label
 from judgekeeper.start_label import Workspace
 from tests.start_projects import split, table_project
-from tests.test_flow_fixes import _mark
 from tests.test_front import run
 from tests.test_product_pages import CHECK, NOT_GATE_TNR, TOO_FEW, _result, _text
+from tests.test_project_folder import _mark
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = ROOT / "src" / "judgekeeper"
@@ -40,7 +40,7 @@ def here(tmp_path, monkeypatch):
     return tmp_path
 
 
-# 36. The wording sweep ----------------------------------------------------------------------
+# The wording sweep --------------------------------------------------------------------------
 
 OLD_WORDS = [  # (where, the old text)
     ("src", r"Re-checked for free"),
@@ -72,8 +72,9 @@ def test_the_new_words():
     assert "Re-checked with no AI call, from your new results." in Path(check.__file__).read_text(
         encoding="utf-8")
     for module in (deepeval, inspect, mlflow, promptfoo):
-        assert "Your app or agent is not run." in Path(module.__file__).read_text(
-            encoding="utf-8"), module.__name__
+        text = Path(module.__file__).read_text(encoding="utf-8")
+        assert "Your eval's code is not run." in text, module.__name__
+        assert "Your app" not in text, module.__name__
     assert "the trace of your app or agent's run" in Path(promptfoo.__file__).read_text(
         encoding="utf-8")
     assert start_label.GITIGNORE.startswith("# judgekeeper's files hold your answers. ")
@@ -90,7 +91,7 @@ def test_the_new_words():
         ROOT / "SECURITY.md").read_text(encoding="utf-8")
 
 
-# 37. The marking page at phone width --------------------------------------------------------
+# The marking page at phone width ------------------------------------------------------------
 
 def _phone_rules() -> str:
     return mark_page.STYLE[mark_page.STYLE.index("@media (max-width: 760px)"):]
@@ -190,7 +191,7 @@ def test_at_390px_the_pass_button_and_the_status_line_can_be_reached(tmp_path):
     assert got == {"width": 390, "boxes": [], "pass": True, "status": "Not saved", "seen": True}
 
 
-# 38. More key shapes hidden -----------------------------------------------------------------
+# More key shapes hidden ---------------------------------------------------------------------
 
 # Not real keys: each is in two parts, so no secret scanner takes it for one
 KEYS = {
@@ -260,7 +261,7 @@ def test_the_reference_lists_the_key_shapes():
         assert shape in line, shape
 
 
-# 39. Joined emoji and scripts ---------------------------------------------------------------
+# Joined emoji and scripts -------------------------------------------------------------------
 
 def test_a_page_keeps_the_zero_width_joiners():
     family = "\U0001F468\u200d\U0001F469\u200d\U0001F467"
@@ -277,7 +278,7 @@ def test_the_terminal_still_drops_every_zero_width_character():
     assert redact.printable("a\u200db\u200cc") == "abc"
 
 
-# 40. The answer list ------------------------------------------------------------------------
+# The answer list ----------------------------------------------------------------------------
 
 def test_each_answer_in_the_list_is_one_line_cut_with_an_ellipsis():
     style = mark_page.STYLE
@@ -287,7 +288,7 @@ def test_each_answer_in_the_list_is_one_line_cut_with_an_ellipsis():
     assert "overflow-wrap: anywhere" not in style.split(".item .q")[1].split("}")[0]
 
 
-# 41. The report's cut -----------------------------------------------------------------------
+# The report's cut ---------------------------------------------------------------------------
 
 LOREM = ("lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor "
          "incididunt ut labore et dolore magna aliqua ")
@@ -319,7 +320,7 @@ def test_the_report_cuts_a_long_answer_with_an_ellipsis(here, capsys):
     assert long[len(answer) - 1] == " "
 
 
-# 42. File permissions -----------------------------------------------------------------------
+# File permissions ---------------------------------------------------------------------------
 
 private = pytest.mark.skipif(os.name == "nt", reason="Windows has no 0600")
 
@@ -378,7 +379,7 @@ def test_every_file_and_folder_judgekeeper_writes_is_private(here, capsys, monke
     assert os.stat(here / "results.csv").st_mode & 0o077  # the project's own files: as they were
 
 
-# 45. Dark only ------------------------------------------------------------------------------
+# Dark only ----------------------------------------------------------------------------------
 
 def _pages() -> dict[str, str]:
     return {"marking": mark_page.label_page("support bot", "judgekeeper mark",
@@ -417,7 +418,7 @@ def test_the_old_link_page_runs_no_script():
 
 
 
-# 46. The Next step on the page, every answer marked -----------------------------------------
+# The Next step on the page, every answer marked ---------------------------------------------
 
 READING = ("judgekeeper --tool mlflow --experiment 7 --tracking-uri sqlite:///m.db --metric tone "
            "--fields question,answer --judge-model gpt-4.1")  # every flag that reads results

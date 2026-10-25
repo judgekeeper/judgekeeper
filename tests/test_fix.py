@@ -199,7 +199,7 @@ def test_mistakes_md_holds_the_visible_mistakes_with_the_judges_reason(here, cap
         assert rows[i]["output"] not in text
 
 
-def test_mistakes_md_is_agent_ready_a_task_line_the_clues_the_rule_then_the_mistakes(here, capsys):
+def test_mistakes_md_layout(here, capsys):
     ws = project(here)
     _, out = run(capsys)
     text = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
