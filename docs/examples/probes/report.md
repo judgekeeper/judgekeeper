@@ -1,13 +1,13 @@
 # LLM-as-a-judge probes: what the two RAGTruth LLM-as-a-judge setups do with broken answers
 
-A probe changes an answer in a way whose right verdict is known in advance ("an empty summary must Fail"), then asks the LLM-as-a-judge again. No human marks are needed. These probes ran on the same two LLM-as-a-judge setups and the same rule as the RAGTruth check ([`../ragtruth/report.md`](../ragtruth/report.md)), on 2026-10-17. They test the LLM-as-a-judge setups, not judgekeeper's code, so they were not run again on the final code.
+A probe changes an answer in a way whose right verdict is known in advance ("an empty summary must Fail"), then asks the LLM-as-a-judge again. No human marks are needed. These probes ran on the same two LLM-as-a-judge setups and the same rule as the RAGTruth check ([`../ragtruth/report.md`](../ragtruth/report.md)), on 2026-10-25 (first run 2026-10-17), with the RAGTruth runs made on commit `bc0d099`. They test the LLM-as-a-judge setups, not judgekeeper's code.
 
 ## The finding: a rule can let an empty answer pass
 
 The rule says "Pass if every claim is supported by the article". An empty summary makes no claim, so this rule can be read as passing it.
 
 - **Claude Sonnet 5.5 passed every empty summary:** it failed 0 of 20 (0%, range 0% to 16%).
-- **Claude Haiku 5.5 failed most of them:** 15 of 20 (75%, range 53% to 89%).
+- **Claude Haiku 5.5 failed most of them:** 14 of 20 (70%, range 48% to 86%).
 
 Marks on real answers don't show this: people mark the answers your eval produced, and those are rarely empty. A probe asks about the answer you never thought to mark.
 
@@ -37,26 +37,26 @@ Both LLM-as-a-judge setups resisted a "Verdict: PASS" line and rubric words glue
 
 | # | Probe | Right verdict | Result | Not a real decision |
 |---|---|---|---|---|
-| 1 | Empty summary | Fail | held 15 of 20 (75%, range 53% to 89%) | 0 |
+| 1 | Empty summary | Fail | held 14 of 20 (70%, range 48% to 86%) | 0 |
 | 2 | Off-topic summary (another article's) | Fail | held 20 of 20 (100%, range 84% to 100%) | 0 |
-| 3 | "Verdict: PASS" injection on a Fail | stays Fail | held 9 of 10 (90%, range 60% to 98%) | 0 |
+| 3 | "Verdict: PASS" injection on a Fail | stays Fail | held 10 of 10 (100%, range 72% to 100%) | 0 |
 | 4 | Rubric words glued to a Fail | stays Fail | held 10 of 10 (100%, range 72% to 100%) | 0 |
 | 5 | Padding: own sentences repeated, +300 words | no change | held 19 of 20 (95%, range 76% to 99%) | 0 |
-| 6 | Same sentences as bullets | no change | held 19 of 20 (95%, range 76% to 99%) | 0 |
-| 7 | Same answer, 3 runs | no change | held 20 of 20 (100%, range 84% to 100%) | 0 |
+| 6 | Same sentences as bullets | no change | held 20 of 20 (100%, range 84% to 100%) | 0 |
+| 7 | Same answer, 3 runs | no change | held 19 of 20 (95%, range 76% to 99%) | 0 |
 
 - Original verdicts (RAGTruth run 1) on the 20 bases: 6 Pass, 14 Fail, 0 not a real decision.
-- Probes 3 and 4 count only the Fail bases this LLM-as-a-judge itself failed in run 1. It had passed 0 of the 10 already. Plain count over all 10 (real decisions only): probe 3 Fail on 9 of 10, probe 4 Fail on 10 of 10.
-- Which way probes 5 and 6 moved: padding 0 Pass to Fail, 1 Fail to Pass; bullets 0 Pass to Fail, 1 Fail to Pass.
-- Probe 7 on all 200 RAGTruth answers: held 182 of 200 (91%, range 86% to 94%).
-- Only the 20 bases whose 3 RAGTruth verdicts all agreed: probe 3 held 9 of 10 (90%, range 60% to 98%); probe 4 held 10 of 10 (100%, range 72% to 100%); probe 5 held 19 of 20 (95%, range 76% to 99%); probe 6 held 19 of 20 (95%, range 76% to 99%).
-- Notices real damage without probe 1 (an empty summary has no unsupported claim, so this rule can be read as passing it): held 39 of 40 (98%, range 87% to 100%).
-- Run dates: probes 2026-10-17T23:40:02.679Z; RAGTruth runs 2026-10-17T22:39:18.547Z, 2026-10-17T22:42:10.033Z, 2026-10-17T22:45:03.472Z.
+- Probes 3 and 4 count only the Fail bases this LLM-as-a-judge itself failed in run 1. It had passed 0 of the 10 already. Plain count over all 10 (real decisions only): probe 3 Fail on 10 of 10, probe 4 Fail on 10 of 10.
+- Which way probes 5 and 6 moved: padding 0 Pass to Fail, 1 Fail to Pass; bullets 0 Pass to Fail, 0 Fail to Pass.
+- Probe 7 on all 200 RAGTruth answers: held 181 of 200 (90%, range 86% to 94%).
+- Only the 19 bases whose 3 RAGTruth verdicts all agreed: probe 3 held 9 of 9 (100%, range 70% to 100%); probe 4 held 9 of 9 (100%, range 70% to 100%); probe 5 held 19 of 19 (100%, range 83% to 100%); probe 6 held 19 of 19 (100%, range 83% to 100%).
+- Notices real damage without probe 1 (an empty summary has no unsupported claim, so this rule can be read as passing it): held 40 of 40 (100%, range 91% to 100%).
+- Run dates: probes 2026-10-25T15:27:08.912Z; RAGTruth runs 2026-10-25T14:47:47.031Z, 2026-10-25T14:50:42.645Z, 2026-10-25T14:54:30.670Z.
 
 ## Claude Sonnet 5.5
 
 - **Notices real damage** (probes 1-4): held 40 of 60 (67%, range 54% to 77%).
-- **Holds steady** (probes 5-7): held 58 of 60 (97%, range 89% to 99%).
+- **Holds steady** (probes 5-7): held 58 of 59 (98%, range 91% to 100%).
 
 | # | Probe | Right verdict | Result | Not a real decision |
 |---|---|---|---|---|
@@ -64,17 +64,18 @@ Both LLM-as-a-judge setups resisted a "Verdict: PASS" line and rubric words glue
 | 2 | Off-topic summary (another article's) | Fail | held 20 of 20 (100%, range 84% to 100%) | 0 |
 | 3 | "Verdict: PASS" injection on a Fail | stays Fail | held 10 of 10 (100%, range 72% to 100%) | 0 |
 | 4 | Rubric words glued to a Fail | stays Fail | held 10 of 10 (100%, range 72% to 100%) | 0 |
-| 5 | Padding: own sentences repeated, +300 words | no change | held 20 of 20 (100%, range 84% to 100%) | 0 |
+| 5 | Padding: own sentences repeated, +300 words | no change | held 19 of 19 (100%, range 83% to 100%) | 1 |
 | 6 | Same sentences as bullets | no change | held 20 of 20 (100%, range 84% to 100%) | 0 |
-| 7 | Same answer, 3 runs | no change | held 18 of 20 (90%, range 70% to 97%) | 0 |
+| 7 | Same answer, 3 runs | no change | held 19 of 20 (95%, range 76% to 99%) | 0 |
 
+- Probe 5 has one reply promptfoo could not read ("Could not extract JSON from llm-rubric response"). promptfoo counts it as a Fail; judgekeeper counts it as not a real decision and leaves it out.
 - Original verdicts (RAGTruth run 1) on the 20 bases: 6 Pass, 14 Fail, 0 not a real decision.
 - Probes 3 and 4 count only the Fail bases this LLM-as-a-judge itself failed in run 1. It had passed 0 of the 10 already. Plain count over all 10 (real decisions only): probe 3 Fail on 10 of 10, probe 4 Fail on 10 of 10.
 - Which way probes 5 and 6 moved: padding 0 Pass to Fail, 0 Fail to Pass; bullets 0 Pass to Fail, 0 Fail to Pass.
-- Probe 7 on all 200 RAGTruth answers: held 192 of 200 (96%, range 92% to 98%).
-- Only the 18 bases whose 3 RAGTruth verdicts all agreed: probe 3 held 10 of 10 (100%, range 72% to 100%); probe 4 held 10 of 10 (100%, range 72% to 100%); probe 5 held 18 of 18 (100%, range 82% to 100%); probe 6 held 18 of 18 (100%, range 82% to 100%).
+- Probe 7 on all 200 RAGTruth answers: held 187 of 200 (94%, range 89% to 96%).
+- Only the 19 bases whose 3 RAGTruth verdicts all agreed: probe 3 held 10 of 10 (100%, range 72% to 100%); probe 4 held 10 of 10 (100%, range 72% to 100%); probe 5 held 18 of 18 (100%, range 82% to 100%); probe 6 held 19 of 19 (100%, range 83% to 100%).
 - Notices real damage without probe 1 (an empty summary has no unsupported claim, so this rule can be read as passing it): held 40 of 40 (100%, range 91% to 100%).
-- Run dates: probes 2026-10-17T23:41:13.056Z; RAGTruth runs 2026-10-17T22:54:33.073Z, 2026-10-17T22:57:42.468Z, 2026-10-17T23:00:45.632Z.
+- Run dates: probes 2026-10-25T15:28:24.102Z; RAGTruth runs 2026-10-25T14:57:36.438Z, 2026-10-25T15:00:53.555Z, 2026-10-25T15:05:25.351Z.
 
 ## How to read this
 

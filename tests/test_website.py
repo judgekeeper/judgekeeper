@@ -212,6 +212,35 @@ def test_coverage_numbers_match_the_committed_grid():
         assert el.text().strip() == render(value, fmt), (page.name, el.attrs)
 
 
+def test_the_public_dataset_tiles_match_the_reports_they_link_to():
+    """Home's "On public datasets.": each number, and the number it counts up to, comes from
+    the committed report its tile links to."""
+    batches = json.loads((ROOT / "docs/examples/jailbreakbench/two-batches/summary.json")
+                         .read_text(encoding="utf-8"))
+    held = batches["all_three_inside"]
+    assert batches["result"] == "PASS"
+    mean = REALCHECK["summary"]["25+25"]["tpr_tnr"]["mean"]
+    in_100 = round(mean * 100)
+    expected = {
+        "docs/examples/jailbreakbench/report.md": (held, f"{held} of {batches['draws']}"),
+        "docs/examples/real-data-check/report.md": (in_100, f"{in_100} in 100"),
+    }
+    tiles = [el for el in parse(WEBSITE / "index.html").iter() if "rt" in el.classes()]
+    found = {}
+    for tile in tiles:
+        report = tile.attrs["href"].split("/blob/main/", 1)[1]
+        (n,) = [el for el in tile.iter() if "rt-n" in el.classes()]
+        (big,) = [el for el in tile.iter() if "rt-big" in el.classes()]
+        assert int(n.attrs["data-to"]) == int(n.text()), report
+        found[report] = (int(n.attrs["data-to"]), big.text().strip())
+    assert found == expected
+    # and the reports say the same in words
+    jbb = (ROOT / "docs/examples/jailbreakbench/report.md").read_text(encoding="utf-8")
+    assert f"**{held} of {batches['draws']} draws**" in jbb
+    real = (ROOT / "docs/examples/real-data-check/report.md").read_text(encoding="utf-8")
+    assert f"in {mean * 100:.1f} checks in 100 on average" in real
+
+
 def test_constants_match_the_code():
     for page, el in _sourced("data-const"):
         module, name = el.attrs["data-const"].split(":")

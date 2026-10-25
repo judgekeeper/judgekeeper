@@ -1,30 +1,37 @@
 # Source: RAGTruth (github.com/ParticleMedia/RAGTruth), MIT license, Copyright (c) 2023 Particle Media
 # Revision: c103204b9ce28d6bbad859304bf30de72b8ed8fe
 # Subset: dataset/response.jsonl and source_info.jsonl, split test, task_type Summary
-# Grades: marks: the dataset's human labels (Fail when the annotators marked at least one hallucination span, else Pass); judge: Claude Haiku 5.5 or Claude Sonnet 5.5 through promptfoo llm-rubric with rule.txt, 2026-10-17
+# Grades: marks: the dataset's human labels (Fail when the annotators marked at least one hallucination span, else Pass); judge: Claude Haiku 5.5 or Claude Sonnet 5.5 through promptfoo llm-rubric with rule.txt, 2026-10-25
 # Holds: ids, grades and counts only; no article or summary
 # The screen below is judgekeeper's Measure output, copied exactly.
 
-judgekeeper 1.0.0b2
+judgekeeper 1.0.0
 
 Step 3 of 5: Measure
+
+180 of your marks took under a second each. A result is only as
+good as the marks. This looks like a program, not a person.
 
 200 of your marks came through a link printed in a terminal, so
 another program on this computer could have made them. If you
 marked them yourself, nothing to do.
 
-Result: your judge needs work.
-You and your judge disagreed on 40 of 200 answers.
+Result: your LLM-as-a-judge needs work.
+You and your LLM-as-a-judge disagreed on 42 of 200 answers.
 
-  You passed 100 answers. Of those, your judge passed 69 and failed 31.
-  You failed 100 answers. Of those, your judge passed 9 and failed 91.
+  You passed 100 answers. Of those, your LLM-as-a-judge passed 68 and failed 32.
+  You failed 100 answers. Of those, your LLM-as-a-judge passed 10 and failed 90.
 
-To say why on these, run `judgekeeper mark --no-browser`.
+Tell judgekeeper why you disagree on these 42: run
+`judgekeeper mark --no-browser`.
+`judgekeeper fix --no-browser` uses your reasons to find where
+your LLM-as-a-judge goes wrong.
 
-How often your judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 69% (between 62% and 76%)
-  When you say Fail, it also says Fail: about 91% (between 85% and 95%)
+How often your LLM-as-a-judge agrees with you (estimates):
+  When you say Pass, it also says Pass: about 68% (between 61% and 75%)
+  When you say Fail, it also says Fail: about 90% (between 84% and 95%)
 
 Full report: .judgekeeper/report.html (open it in your browser)
 
-Next: to try a better rule, run `judgekeeper fix`.
+Next: to improve your LLM-as-a-judge's rule, run
+`judgekeeper fix`.

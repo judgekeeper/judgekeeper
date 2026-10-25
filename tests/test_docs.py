@@ -84,7 +84,7 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
 
 def test_the_readme_keeps_to_the_agreed_words():
     text = _readme()
-    assert "judgekeeper.com" not in text
+    assert "(https://www.judgekeeper.com)" in text
     for word in (r"luck(y)?", r"chance", r"integrates? with", r"rough(ly)?",
                  r"AI judges?", r"trusted", r"proven", r"judgekeeper start"):
         assert not re.search(rf"\b{word}\b", text, re.IGNORECASE), word

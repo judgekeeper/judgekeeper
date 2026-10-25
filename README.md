@@ -50,12 +50,12 @@ Each number comes with a range, for example "about 89% (between 84% and 93%)". T
 
 - **JailbreakBench.** GPT-4 graded 300 answers, and three experts marked them. In 20 of 20 draws, judgekeeper's ranges held the real TPR, TNR and kappa. Each draw marks 250 of the same 300 answers, so the draws overlap a lot. One separate draw missed the real TNR; the report says why. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md)
 - **RAGTruth.** Two models graded 200 news summaries with one rule. Both failed about one in three of the summaries people passed, and judgekeeper said "needs work" in all 6 runs. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md)
-- **Empty answers.** An empty summary should fail. With one rule, one model failed 0 of 20 empty summaries and another failed 15 of 20. Marks on real answers don't show this. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md)
-- **Simulation.** In every tested case, the TPR and TNR ranges held the true value at least 93.6 times in 100. [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
+- **Empty answers.** An empty summary should fail. With one rule, one model failed 0 of 20 empty summaries and another failed 14 of 20. Marks on real answers don't show this. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md)
+- **Simulation.** In simulated checks, the TPR and TNR ranges held the true value at least 92.6 times in 100 in every setting tested, and 96.2 times on average in the main test grid. [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
 
 ## More
 
-`judgekeeper --help` lists every command. The [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) explains each one, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed. The tests run on Linux with Python 3.11 to 3.14, and on Windows and macOS. judgekeeper is made by one person and takes [issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose), not pull requests.
+The website, [www.judgekeeper.com](https://www.judgekeeper.com), has a [guide](https://www.judgekeeper.com/start.html) that walks through the 5 steps. `judgekeeper --help` lists every command. The [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) explains each one, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed. The tests run on Linux with Python 3.11 to 3.14, and on Windows and macOS. judgekeeper is made by one person and takes [issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose), not pull requests.
 
 ## License
 

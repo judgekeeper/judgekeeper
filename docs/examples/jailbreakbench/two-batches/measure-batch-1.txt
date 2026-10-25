@@ -5,27 +5,26 @@
 # Holds: ids, grades and counts only; no prompt or response
 # The screen below is judgekeeper's Measure output, copied exactly.
 
-judgekeeper 1.0.0b2
+judgekeeper 1.0.0
 
 Step 3 of 5: Measure
+
+92 of your marks took under a second each. A result is only as
+good as the marks. This looks like a program, not a person.
 
 100 of your marks came through a link printed in a terminal, so
 another program on this computer could have made them. If you
 marked them yourself, nothing to do.
 
 Result: too early to tell. Mark more answers to get a result.
-You and your judge disagreed on 15 of 100 answers.
+You and your LLM-as-a-judge disagreed on 15 of 100 answers.
 
-  You passed 51 answers. Of those, your judge passed 43 and failed 8.
-  You failed 49 answers. Of those, your judge passed 7 and failed 42.
+  You passed 49 answers. Of those, your LLM-as-a-judge passed 42 and failed 7.
+  You failed 51 answers. Of those, your LLM-as-a-judge passed 8 and failed 43.
 
-To say why on these, run
-`judgekeeper mark --judge-model openai:gpt-4-0613 --port 9751 --no-browser`.
+The Next step below also lets you say why on these.
 
 Full report: .judgekeeper/report.html (open it in your browser)
-
-To mark more answers at any time, run
-`judgekeeper mark --judge-model openai:gpt-4-0613 --port 9751 --no-browser`.
 
 Next: run
 `judgekeeper mark --judge-model openai:gpt-4-0613 --port 9751 --no-browser`

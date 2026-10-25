@@ -1,23 +1,19 @@
 # Changelog
 
-## 1.0.0b2 (2026-10-13)
+## 1.0.0 (YYYY-MM-DD)
 
-Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. Run
-`uvx judgekeeper@1.0.0b2`, or `pip install judgekeeper==1.0.0b2` and then `judgekeeper`, in
-your own terminal.
+Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. In your project folder, run `pip install judgekeeper` and then `judgekeeper`, or `uvx judgekeeper`.
 
-- `judgekeeper check`: when your judge's model, rule, pass mark or eval tool changes, it
-  re-tests the new judge on your marks and says whether it got worse on the answers you passed
-  or failed. Grades your newest results already hold are used first, with no AI call. When it needs
-  AI calls, it says how many and asks first (without a terminal, `--yes` says yes).
-- Every screen says which of the 5 steps it is, and its `Next:` line says what you do next.
+- `judgekeeper` finds your eval results and the LLM-as-a-judge that graded them, with no AI call. It reads promptfoo, DeepEval, Inspect AI, MLflow, a CSV or JSONL file, or `judgekeeper.record()`.
+- It opens a page in your browser where you mark answers Pass or Fail. Your LLM-as-a-judge's grade stays hidden.
 - The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files.
-- Broken results files give a clear message instead of a Python error.
-- Every number comes with its range, and the result calls a judge good only when the ranges do.
-- A new look for the marking page and the report, dark like the website; the report's next
-  step follows from your result, and its counts of the judge's mistakes add up.
-- Removed: automatic checks, the GitHub Action and the agent skill. 1.0 is commands you run
-  yourself; agent support may come back later.
+- Run it again to see how often your LLM-as-a-judge agrees with you: TPR and TNR with ranges, and kappa in the report.
+- `judgekeeper mark` opens the page again to mark more.
+- `judgekeeper fix` shows where your LLM-as-a-judge goes wrong, and tests a new rule on marks kept aside (promptfoo, DeepEval, Inspect AI and MLflow).
+- `judgekeeper check` re-checks your LLM-as-a-judge on your marks when its model, rule or pass mark, or your eval tool's version, changes.
+- `fix` and `check` say how many AI calls they need and ask first. The calls go through your own eval tool, with your own key.
+- Removed since 0.1.3: every 0.1 command (`init`, `freeze`, `judge`, `validate`, `baseline`, `gate`, `migrate`, `template`, `import-labels`, `label`, `import`, `export`, `attribute`, `demo` and the old `check`), the built-in Anthropic and OpenAI runners, the pytest plugin, the GitHub Action and the agent skill.
+- The 0.1 entries below are about the old judgekeeper. None of their commands exist in 1.0.
 
 ## 1.0.0b1 (2026-10-12)
 

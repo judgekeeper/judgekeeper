@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import fix, label, start_fix_rule
+from judgekeeper import __version__, fix, label, start_fix_rule
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer, promptfoo_data, question
@@ -158,7 +158,7 @@ def test_the_first_run(here, capsys):
     passed = sum(marks.judge[i] == "pass" for i in seen)
     lines = out.splitlines()
     flat = " ".join(out.split())
-    assert lines[:5] == ["judgekeeper 1.0.0b2", "", "Step 4 of 5: Fix", "",
+    assert lines[:5] == [f"judgekeeper {__version__}", "", "Step 4 of 5: Fix", "",
                          "Where your LLM-as-a-judge goes wrong:"]
     # every clue names the LLM-as-a-judge and says Pass and Fail plainly
     assert flat.index("Where your LLM-as-a-judge goes wrong:") < flat.index(

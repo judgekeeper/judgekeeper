@@ -1,6 +1,6 @@
 [project]
 name = "judgekeeper"
-version = "1.0.0b2"
+version = "1.0.0"
 description = "Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check."
 readme = "README.md"
 license = "MIT"
@@ -8,7 +8,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Sathvik Thota" }]
 keywords = ["llm", "llm-as-a-judge", "llm-as-judge", "llm-judge", "evaluation", "evals", "llm-evaluation", "human-labels", "rubric", "cohens-kappa", "promptfoo", "deepeval", "inspect-ai", "mlflow"]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
@@ -33,7 +33,8 @@ mlflow = ["mlflow>=3.1"]
 judgekeeper = "judgekeeper.__main__:main"
 
 [project.urls]
-Homepage = "https://github.com/judgekeeper/judgekeeper"
+Homepage = "https://www.judgekeeper.com"
+Guide = "https://www.judgekeeper.com/start.html"
 Source = "https://github.com/judgekeeper/judgekeeper"
 Documentation = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md"
 Issues = "https://github.com/judgekeeper/judgekeeper/issues"
@@ -53,6 +54,8 @@ include = ["/src/judgekeeper", "/README.md", "/LICENSE", "/TRADEMARKS.md", "/CHA
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The practice release (testpypi.yml) builds 1.0.0rcN and runs every other test.
+markers = ["version_number: checks the version number itself, as main has it"]
 
 [tool.ruff]
 line-length = 100

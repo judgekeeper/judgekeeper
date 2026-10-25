@@ -3,7 +3,7 @@
   "dataset": "RAGTruth (github.com/ParticleMedia/RAGTruth), MIT license, Copyright (c) 2023 Particle Media",
   "revision": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
   "subset": "dataset/response.jsonl and source_info.jsonl, split test, task_type Summary",
-  "grades": "base answers: 10 the dataset's human labels call Pass and 10 Fail; probe verdicts: Claude Haiku 5.5 or Claude Sonnet 5.5 on answers changed by make_probes.py, each with a right verdict fixed in advance, 2026-10-17",
+  "grades": "base answers: 10 the dataset's human labels call Pass and 10 Fail; probe verdicts: Claude Haiku 5.5 or Claude Sonnet 5.5 on answers changed by make_probes.py, each with a right verdict fixed in advance, 2026-10-25",
   "text": "ids, counts and hashes only; no article or summary"
  },
  "dry_run": false,
@@ -38,38 +38,39 @@
   {
    "judge": "haiku",
    "provider": "anthropic:messages:claude-haiku-5-5",
-   "probe_run_created": "2026-10-17T23:40:02.679Z",
+   "probe_run_created": "2026-10-25T15:27:08.912Z",
    "ragtruth_runs_created": [
-    "2026-10-17T22:39:18.547Z",
-    "2026-10-17T22:42:10.033Z",
-    "2026-10-17T22:45:03.472Z"
+    "2026-10-25T14:47:47.031Z",
+    "2026-10-25T14:50:42.645Z",
+    "2026-10-25T14:54:30.670Z"
    ],
    "original_verdicts_run1": {
     "pass": 6,
     "fail": 14,
     "not_a_real_decision": 0
    },
-   "steady_bases": 20,
+   "steady_bases": 19,
    "probes": {
     "p1": {
-     "held": 15,
+     "held": 14,
      "of": 20,
-     "pct": 75.0,
-     "low": 53.1,
-     "high": 88.8,
+     "pct": 70.0,
+     "low": 48.1,
+     "high": 85.5,
      "not_a_real_decision": [],
      "no_original_verdict": [],
      "judge_passed_original": [],
      "not_held": [
+      "856",
       "622",
       "4117",
+      "2445",
       "2668",
-      "4748",
       "962"
      ],
      "pass_to_fail": 0,
      "fail_to_pass": 0,
-     "plain_fail": 15
+     "plain_fail": 14
     },
     "p2": {
      "held": 20,
@@ -86,20 +87,18 @@
      "plain_fail": 20
     },
     "p3": {
-     "held": 9,
+     "held": 10,
      "of": 10,
-     "pct": 90.0,
-     "low": 59.6,
-     "high": 98.2,
+     "pct": 100.0,
+     "low": 72.2,
+     "high": 100.0,
      "not_a_real_decision": [],
      "no_original_verdict": [],
      "judge_passed_original": [],
-     "not_held": [
-      "68"
-     ],
+     "not_held": [],
      "pass_to_fail": 0,
-     "fail_to_pass": 1,
-     "plain_fail": 9
+     "fail_to_pass": 0,
+     "plain_fail": 10
     },
     "p4": {
      "held": 10,
@@ -132,67 +131,67 @@
      "plain_fail": 13
     },
     "p6": {
-     "held": 19,
-     "of": 20,
-     "pct": 95.0,
-     "low": 76.4,
-     "high": 99.1,
-     "not_a_real_decision": [],
-     "no_original_verdict": [],
-     "judge_passed_original": [],
-     "not_held": [
-      "68"
-     ],
-     "pass_to_fail": 0,
-     "fail_to_pass": 1,
-     "plain_fail": 13
-    },
-    "p7": {
      "held": 20,
      "of": 20,
      "pct": 100.0,
      "low": 83.9,
      "high": 100.0,
      "not_a_real_decision": [],
-     "not_held": []
+     "no_original_verdict": [],
+     "judge_passed_original": [],
+     "not_held": [],
+     "pass_to_fail": 0,
+     "fail_to_pass": 0,
+     "plain_fail": 14
+    },
+    "p7": {
+     "held": 19,
+     "of": 20,
+     "pct": 95.0,
+     "low": 76.4,
+     "high": 99.1,
+     "not_a_real_decision": [],
+     "not_held": [
+      "68"
+     ]
     }
    },
    "p7_all_ragtruth_answers": {
-    "held": 182,
+    "held": 181,
     "of": 200,
-    "pct": 91.0,
-    "low": 86.2,
-    "high": 94.2,
+    "pct": 90.5,
+    "low": 85.6,
+    "high": 93.8,
     "not_a_real_decision": []
    },
    "steady_bases_only": {
     "p3": {
      "held": 9,
-     "of": 10,
-     "pct": 90.0,
-     "low": 59.6,
-     "high": 98.2
+     "of": 9,
+     "pct": 100.0,
+     "low": 70.1,
+     "high": 100.0
     },
     "p4": {
-     "held": 10,
-     "of": 10,
+     "held": 9,
+     "of": 9,
      "pct": 100.0,
-     "low": 72.2,
+     "low": 70.1,
      "high": 100.0
     },
     "p5": {
      "held": 19,
-     "of": 20,
-     "pct": 95.0,
-     "low": 76.4,
-     "high": 99.1
+     "of": 19,
+     "pct": 100.0,
+     "low": 83.2,
+     "high": 100.0
     },
     "p6": {
      "held": 19,
-     "of": 20,
-     "pct": 95.0,
-     "low": 76.4,
-     "high": 99.1
+     "of": 19,
+     "pct": 100.0,
+     "low": 83.2,
+     "high": 100.0
     }
    },
    "notices_real_damage": {
@@ -203,11 +202,11 @@
     "high": 95.3
    },
    "notices_real_damage_without_p1": {
-    "held": 39,
+    "held": 40,
     "of": 40,
-    "pct": 97.5,
-    "low": 87.1,
-    "high": 99.6
+    "pct": 100.0,
+    "low": 91.2,
+    "high": 100.0
    },
    "holds_steady": {
     "held": 58,
@@ -220,18 +219,18 @@
   {
    "judge": "sonnet",
    "provider": "anthropic:messages:claude-sonnet-5-5",
-   "probe_run_created": "2026-10-17T23:41:13.056Z",
+   "probe_run_created": "2026-10-25T15:28:24.102Z",
    "ragtruth_runs_created": [
-    "2026-10-17T22:54:33.073Z",
-    "2026-10-17T22:57:42.468Z",
-    "2026-10-17T23:00:45.632Z"
+    "2026-10-25T14:57:36.438Z",
+    "2026-10-25T15:00:53.555Z",
+    "2026-10-25T15:05:25.351Z"
    ],
    "original_verdicts_run1": {
     "pass": 6,
     "fail": 14,
     "not_a_real_decision": 0
    },
-   "steady_bases": 18,
+   "steady_bases": 19,
    "probes": {
     "p1": {
      "held": 0,
@@ -311,18 +310,20 @@
      "plain_fail": 10
     },
     "p5": {
-     "held": 20,
-     "of": 20,
+     "held": 19,
+     "of": 19,
      "pct": 100.0,
-     "low": 83.9,
+     "low": 83.2,
      "high": 100.0,
-     "not_a_real_decision": [],
+     "not_a_real_decision": [
+      "68"
+     ],
      "no_original_verdict": [],
      "judge_passed_original": [],
      "not_held": [],
      "pass_to_fail": 0,
      "fail_to_pass": 0,
-     "plain_fail": 14
+     "plain_fail": 13
     },
     "p6": {
      "held": 20,
@@ -339,24 +340,23 @@
      "plain_fail": 14
     },
     "p7": {
-     "held": 18,
+     "held": 19,
      "of": 20,
-     "pct": 90.0,
-     "low": 69.9,
-     "high": 97.2,
+     "pct": 95.0,
+     "low": 76.4,
+     "high": 99.1,
      "not_a_real_decision": [],
      "not_held": [
-      "838",
       "4117"
      ]
     }
    },
    "p7_all_ragtruth_answers": {
-    "held": 192,
+    "held": 187,
     "of": 200,
-    "pct": 96.0,
-    "low": 92.3,
-    "high": 98.0,
+    "pct": 93.5,
+    "low": 89.2,
+    "high": 96.2,
     "not_a_real_decision": []
    },
    "steady_bases_only": {
@@ -382,10 +382,10 @@
      "high": 100.0
     },
     "p6": {
-     "held": 18,
-     "of": 18,
+     "held": 19,
+     "of": 19,
      "pct": 100.0,
-     "low": 82.4,
+     "low": 83.2,
      "high": 100.0
     }
    },
@@ -405,10 +405,10 @@
    },
    "holds_steady": {
     "held": 58,
-    "of": 60,
-    "pct": 96.7,
-    "low": 88.6,
-    "high": 99.1
+    "of": 59,
+    "pct": 98.3,
+    "low": 91.0,
+    "high": 99.7
    }
   }
  ]
