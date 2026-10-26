@@ -730,7 +730,7 @@ def _handler(server: LabelServer):
             if url.path == "/printed" and hasattr(server.session, "link"):
                 try:
                     how = (json.loads(raw) if raw else {}).get("link", PRINTED)
-                except (ValueError, AttributeError):
+                except (ValueError, AttributeError, RecursionError):
                     how = None
                 if how not in LINKS:
                     self._json(400, {"error": "unknown link"})
@@ -762,6 +762,9 @@ def _handler(server: LabelServer):
                     raise TypeError("expected a JSON object with an id")
             except (ValueError, TypeError, UnicodeDecodeError) as e:
                 self._json(400, {"error": str(e)})
+                return
+            except RecursionError:  # nested deeper than Python's JSON reader goes
+                self._json(400, {"error": "expected a JSON object"})
                 return
             if body["id"] not in server.session.by_id:
                 self._json(404, {"error": "no item with that id"})

@@ -507,6 +507,7 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     if wrong:  # (a): what judgekeeper would hand the eval tool is not the new judge
         out.wrong_model = wrong
         return out
+    marks.refuse_links_in(ws.dir)  # the run folder goes in checks/: never through a link
     said.say()
     _wrap(said, ASK_FIRST.format(which="the other " if rest else "your ",
                                  n=_n(len(ids), "marked answer"), calls=_n(plan.calls, "AI call"),

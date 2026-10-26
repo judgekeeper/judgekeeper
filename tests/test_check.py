@@ -10,7 +10,9 @@ test_again_run.
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -404,6 +406,26 @@ def test_at_a_terminal_no_is_the_default(here, capsys, judge, terminal, said):
     assert "Your LLM-as-a-judge was not asked." in out
     assert _history(ws) == []
     assert _evals(judge) == 0
+
+
+def test_a_checks_folder_that_is_a_link_stops_check_before_any_call(here, capsys, judge,
+                                                                    tmp_path_factory):
+    ws = _marked(here)
+    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
+    outside = tmp_path_factory.mktemp("outside")
+    shutil.rmtree(ws.dir / "checks", ignore_errors=True)
+    try:
+        os.symlink(outside, ws.dir / "checks", target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("this system cannot make links")
+    code = main(["check", "--yes"])
+    out, err = capsys.readouterr()
+    assert code == 3
+    assert list(outside.iterdir()) == []
+    assert _evals(judge) == 0
+    assert f"error: {os.path.join('.judgekeeper', 'checks')} is a link." in err
+    assert "didn't expect" not in out + err
+    assert _history(ws) == []
 
 
 def test_when_every_call_fails_check_says_no_answer_was_graded(here, capsys, judge):

@@ -534,14 +534,35 @@ def unwritable_file(path: str | Path) -> str | None:
 
 # Commands for the shell in use ---------------------------------------------------------------
 
+# On Windows an argument goes in a command only when it holds letters, digits, spaces and
+# these: cmd.exe and PowerShell each act on other characters, even inside double quotes.
+_WINDOWS_PLAIN = re.compile(r"[^\W_]|[ _.\-:/\\]")
+PLACEHOLDER = "NAME"
+
+
+def _plain_on_windows(arg: str) -> bool:
+    return all(_WINDOWS_PLAIN.fullmatch(c) for c in arg)
+
+
 def quote_arg(arg: str | Path) -> str:
-    """`arg` as one argument of a command the user pastes; quoted only when it needs it."""
+    """`arg` as one argument of a command the user pastes; quoted only when it needs it. On
+    Windows an argument with any other character stays out of the command: PLACEHOLDER
+    stands in its place, and `held_back` says it as data."""
     if is_windows():
+        if not _plain_on_windows(str(arg)):
+            return PLACEHOLDER
         return subprocess.list2cmdline([str(arg)])  # double quotes: cmd.exe and PowerShell
     if "`" in str(arg):  # $'...' with \x60: no backtick, so it survives inside `...`
         escaped = str(arg).replace("\\", "\\\\").replace("'", "\\'").replace("`", "\\x60")
         return f"$'{escaped}'"
     return shlex.quote(str(arg))
+
+
+def held_back(values) -> list[str]:
+    """A line for each of `values` that `quote_arg` leaves out of a command (on Windows),
+    giving it as data under the command."""
+    return [f"  {PLACEHOLDER}: {v}" for v in values
+            if quote_arg(v) == PLACEHOLDER and str(v) != PLACEHOLDER]
 
 
 WIDTH = 64  # what judgekeeper says wraps here; a command in backticks is never split

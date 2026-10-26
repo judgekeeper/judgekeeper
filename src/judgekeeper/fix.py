@@ -1033,6 +1033,7 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
         else:
             talk.next(f"run `{talk.command()}` again once your LLM-as-a-judge can be asked here.")
         return EXIT_NEEDS_YOU
+    marks.refuse_links_in(ws.dir)  # the run folders go in fix/runs/: never through a link
     calls = sum(p.calls for p in plans)
     talk.para(ASK.format(n=len(split.hidden), calls=plural(calls, "AI call"))
               + downloads(plans[0]))

@@ -1,8 +1,8 @@
 """What judgekeeper refuses or hides to stay safe: a grader, rule or var that runs code through
 promptfoo, free text in suggestions.md and mistakes.md, a results file outside the project, the
 page's connections, its idle timer and its refusals, hidden characters and split secrets, a bad
-reasons.json, a forged server.json, hard links, and the size of the files judgekeeper reads
-back. Made-up data only; no test calls an AI API.
+reasons.json, a forged server.json, hard links, links in .judgekeeper/ and judgekeeper.toml, the size of
+the files judgekeeper reads back, and commands printed for Windows. Made-up data only; no test calls an AI API.
 """
 
 from __future__ import annotations
@@ -11,19 +11,33 @@ import http.client
 import json
 import os
 import socket
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from judgekeeper import fix, label, marks, reasons, redact, start
+from judgekeeper import (
+    fix,
+    label,
+    marks,
+    page,
+    reasons,
+    redact,
+    settings,
+    start,
+    start_label,
+    table,
+    textio,
+)
 from judgekeeper.again import AgainOptions, make_plan
+from judgekeeper.cli import main
 from tests.start_projects import promptfoo_project
 from tests.test_again_plan import _checked, _edit, _rows, no_processes  # noqa: F401
-from tests.test_fix import judge, project  # noqa: F401
+from tests.test_fix import _write_rule, judge, project  # noqa: F401
 from tests.test_fix import run as run_fix
-from tests.test_label_server import PAGE, Session, _items
+from tests.test_label_server import PAGE, Client, Session, _items
 from tests.test_reasons import _live, _ready, _report, _say
 
 ESC_BEL_BIDI = ("\x1b", "\x07", "\u202e")
@@ -612,3 +626,129 @@ def test_a_huge_or_linked_server_json_is_not_read(tmp_path):
         pytest.skip("no symlinks here")
     assert label.read_lock(folder) is None
 
+
+
+# Links where judgekeeper writes ---------------------------------------------------------------
+
+def test_a_runs_folder_that_is_a_link_stops_fix_before_any_call(here, capsys, judge,  # noqa: F811
+                                                                tmp_path_factory):
+    ws = project(here)
+    run_fix(capsys)
+    _write_rule(ws)
+    outside = tmp_path_factory.mktemp("outside")
+    try:
+        os.symlink(outside, ws.dir / "fix" / "runs", target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("this system cannot make links")
+    code = main(["fix", "--yes"])
+    out, err = capsys.readouterr()
+    assert code == 3 and judge["evals"] == 0
+    assert list(outside.iterdir()) == []
+    assert f"error: {os.path.join('.judgekeeper', 'fix', 'runs')} is a link." in err
+    assert "didn't expect" not in out + err
+
+
+def test_a_linked_judgekeeper_toml_is_not_written_through(tmp_path):
+    root = tmp_path / "proj"
+    root.mkdir()
+    outside = tmp_path / "outside.toml"
+    outside.write_text("# not judgekeeper's\n", encoding="utf-8")
+    try:
+        os.symlink(outside, root / settings.FILE)
+    except (OSError, NotImplementedError):
+        pytest.skip("this system cannot make links")
+    with pytest.raises(marks.MarksError, match="is a link"):
+        settings.save(root, settings.StartSettings(source="promptfoo", file="results.json"))
+    assert outside.read_text(encoding="utf-8") == "# not judgekeeper's\n"
+
+
+def test_a_made_at_with_a_path_in_it_stays_in_history(here):
+    ws, _, _, _ = _ready(here)
+    result = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    result["made_at"] = "a/../../x"
+    ws.result_json.write_text(json.dumps(result), encoding="utf-8")
+    (ws.history / "result-a").mkdir(parents=True)  # so the path resolves where it leads
+    session = start_label.StartSession(ws)
+    item = session.items[0]
+    session.update({"id": item["id"], "label": "fail" if item["label"] == "pass" else "pass",
+                    "seconds": 1})
+    start_label.store_result(ws, session)
+    assert not (ws.dir / "x.json").exists()
+    copies = [p for p in ws.history.iterdir() if p.is_file()]
+    assert len(copies) == 1 and copies[0].name.startswith("result-")
+
+
+# The judge's grade stays hidden until the result ---------------------------------------------
+
+def test_a_note_before_the_result_says_the_same_whatever_the_judge_said(here):
+    ws = project(here)  # marked, no result yet
+    fix.prepare_split(ws)
+    split, m = fix.read_split(ws), fix.Marks(ws)
+    agreed = next(i for i in split.seen if m.judge[i] == "pass" and m.person[i] == "pass")
+    disagreed = next(i for i in split.seen if m.judge[i] == "fail" and m.person[i] == "pass")
+    server = page.page_server(ws, 0, "judgekeeper mark")
+    thread = threading.Thread(target=server.serve, daemon=True)
+    thread.start()
+    try:
+        client = Client(server)
+        answers = [client.label(id=i, note="x") for i in (agreed, disagreed, split.hidden[0])]
+    finally:
+        server.stop()
+        thread.join(timeout=10)
+    assert answers[0][0] == 400
+    assert answers[0] == answers[1] == answers[2]
+
+
+# A JSON body nested too deep ------------------------------------------------------------------
+
+def test_a_deeply_nested_post_gets_400_and_the_page_goes_on(page_server):
+    body = b"[" * 100_000
+    conn = http.client.HTTPConnection("127.0.0.1", page_server.port, timeout=5)
+    try:
+        conn.request("POST", f"/label?token={page_server.token}", body=body, headers={
+            "Host": f"127.0.0.1:{page_server.port}",
+            "Origin": f"http://127.0.0.1:{page_server.port}",
+            "Content-Type": "application/json"})
+        assert conn.getresponse().status == 400
+    finally:
+        conn.close()
+    assert _get_state(page_server) == 200
+
+
+# Commands printed for Windows -----------------------------------------------------------------
+
+@pytest.mark.parametrize("name", ["x&calc", "a|calc", "%USERPROFILE%", "a^b",
+                                  "$(Start-Process calc)", "a`b", 'say "hi"'])
+def test_no_command_printed_for_windows_holds_a_shell_character(monkeypatch, name):
+    monkeypatch.setattr(sys, "platform", "win32")
+    quoted = textio.quote_arg(name)
+    assert not set(quoted) & set("&|%^$()`\"")
+    assert textio.held_back([name]) == [f"  NAME: {name}"]
+
+
+def test_a_plain_name_stays_in_the_command_for_windows(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert textio.quote_arg(r"C:\my data\results-2.json") == r'"C:\my data\results-2.json"'
+    assert textio.held_back([r"C:\my data\results-2.json"]) == []
+
+
+# A key split by any character the terminal drops ----------------------------------------------
+
+def test_a_key_split_by_any_dropped_character_stays_hidden(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", KEY)
+    dropped = [chr(c) for c in range(0x110000) if redact._CONTROL.match(chr(c))]
+    shown = []
+    for c in dropped:
+        split = f"c {KEY[:14]}{c}{KEY[14:]} d"
+        if any(KEY in f(redact.scrub(split)) for f in (redact.printable, redact.one_line)):
+            shown.append(hex(ord(c)))
+    assert shown == []
+
+
+# Cells a spreadsheet could run ----------------------------------------------------------------
+
+@pytest.mark.parametrize("cell", ["\uff1d1+1", "\uff0b1", "\uff0d1", "\uff20SUM(A1)", "  =1+1",
+                                  " +1", "  \uff1d1"])
+def test_a_cell_that_could_run_as_a_formula_is_guarded(cell):
+    assert table.guard_cell(cell) == "'" + cell
+    assert table.unguard_cell(table.guard_cell(cell)) == cell

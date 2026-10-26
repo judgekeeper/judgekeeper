@@ -1049,12 +1049,15 @@ def store_result(ws: Workspace, session: StartSession,
             made = json.loads(text).get("made_at")
         except ValueError:
             made = None
-        stamp = (made or utc_now()).replace(":", "-")
+        stamp = re.sub(r"[^0-9A-Za-z-]", "", str(made or "").replace(":", "-")) \
+            or utc_now().replace(":", "-")  # from the file: never a path
         target = ws.history / f"result-{stamp}.json"
         n = 2
         while target.exists():
             target = ws.history / f"result-{stamp}-{n}.json"
             n += 1
+        if os.path.dirname(os.path.abspath(target)) != os.path.abspath(ws.history):
+            raise ValueError(f"{target.name} is not a file name in history/")
         write_replacing(target, text)  # a copy: result.json is replaced below in one rename
     _write_json(ws.result_json, r)
     _same_time(ws.report_html, ws.result_json)

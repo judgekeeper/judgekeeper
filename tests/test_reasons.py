@@ -42,7 +42,8 @@ RULE = ("Every claim is supported by the article. The answer is polite; it never
         "refund.")
 PARTS = ["Every claim is supported by the article", "The answer is polite",
          "it never promises a refund"]
-KEPT = "this answer is kept aside to test a new rule fairly"
+KEPT = ("this answer is not on your result page yet: reasons are only for the disagreements "
+        "it lists")
 
 
 def _ready(root, rule: str = RULE):
@@ -131,20 +132,16 @@ def test_a_post_with_only_a_note_keeps_the_taps_and_the_other_way_round(here):
     assert last["reasons"] == ["wrong_fact"] and last["note"] == "The price has no currency"
 
 
-def test_a_reason_before_the_result_page_first_sets_the_marks_aside(here):
+def test_a_reason_before_the_result_page_is_refused_and_sets_nothing_aside(here):
     ws = project(here)  # marked, no result page opened yet: nothing kept aside so far
-    assert fix.read_split(ws) is None
     m = fix.Marks(ws)
     wrong = [i for i in m.person if m.person[i] != m.judge[i]]
     for i in wrong:
-        try:
+        with pytest.raises(ValueError) as e:
             _say(ws, i, reasons=["rule_silent"])
-        except ValueError as e:
-            assert str(e) == KEPT
-    split = fix.read_split(ws)
-    assert split is not None and split.hidden
-    saved = {i for i in wrong if "reasons" in marks.read(ws.marks).last[i]}
-    assert saved and not saved & set(split.hidden)
+        assert str(e.value) == KEPT
+    assert fix.read_split(ws) is None
+    assert all("reasons" not in marks.read(ws.marks).last[i] for i in wrong)
 
 
 def test_a_reason_line_keeps_the_time_of_the_mark(here):

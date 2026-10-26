@@ -64,7 +64,7 @@ from judgekeeper.table import (
     read_table,
     sheet_id,
 )
-from judgekeeper.textio import plural, quote_arg, read_utf8, tick
+from judgekeeper.textio import held_back, plural, quote_arg, read_utf8, tick
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -763,7 +763,8 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
             found = [found[talk.choose(
                 "Several MLflow experiments have LLM-as-a-judge results:", names,
                 "Several MLflow experiments have LLM-as-a-judge results; choose one with "
-                f"{_or([f'--experiment {quote_arg(n)}' for n in names])}",
+                f"{_or([f'--experiment {quote_arg(n)}' for n in names])}"
+                + "".join(f"\n{line}" for line in held_back(names)),
                 flag="--experiment", values=names, what="which MLflow experiment to read")]]
             _next_time(talk, "--experiment", found[0][0])
     name, runs = found[0]
@@ -1479,7 +1480,8 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
     name = names[talk.choose(
         "These results hold more than one LLM-as-a-judge:", options,
         "Several LLM-as-a-judge metrics found; choose one with "
-        f"{_or([f'--metric {quote_arg(n)}' for n in names])}",
+        f"{_or([f'--metric {quote_arg(n)}' for n in names])}"
+        + "".join(f"\n{line}" for line in held_back(names)),
         flag="--metric", values=names, what="which LLM-as-a-judge to check")]
     _next_time(talk, "--metric", name)
     return name
