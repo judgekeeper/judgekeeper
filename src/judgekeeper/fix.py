@@ -54,6 +54,8 @@ SUGGESTIONS = reasons.SUGGESTIONS
 HIDDEN_TENTHS = 3  # of each group of marks hidden, rounded up
 MIN_EACH = 5  # hidden marks marked Pass, and Fail, at least
 MAX_RULES = 3  # rules tested on one set of hidden marks
+KEY_HIDDEN = ("This rule held text shaped like a key, which judgekeeper keeps hidden, so it "
+              "can't test it again.")
 FRESH = 10  # new marks that make a new set of hidden marks
 SWAPPABLE = ("promptfoo", "deepeval", "inspect", "mlflow")  # tools whose rule fix can swap
 RULE_SHOWN = 58  # characters of the rule shown, "…" included
@@ -791,6 +793,23 @@ def _tested_rule(ws: Workspace, split: Split) -> tuple[str, dict] | None:
     return (text, tests[-1]) if tests else None
 
 
+def _retest_rule(ws: Workspace, split: Split) -> str | None:
+    """The rule a marked top-up tests again: its copy in rules/<hash>.txt, or, when that copy
+    was scrubbed (it is not the rule as written), fix/rule.txt when that is the rule. None
+    when neither is."""
+    from judgekeeper.fingerprint import rule_hash
+
+    h = split.topup["rule_hash"]
+    for path in (ws.dir / "rules" / f"{h.removeprefix('sha256:')}.txt", _folder(ws) / RULE):
+        try:
+            text = read_rule(path)
+        except (OSError, UnicodeDecodeError):
+            continue
+        if rule_hash(text) == h:
+            return text
+    return None
+
+
 def _new_rule(ws: Workspace, split: Split) -> str | None:
     """The rule in fix/rule.txt when it was not tested on this set of hidden marks yet."""
     from judgekeeper.fingerprint import rule_hash
@@ -822,9 +841,17 @@ def run(path: str = ".", yes: bool = False, new: bool = False) -> int:
         _after_worse(state, m)
     split = current_split(ws, m, new=new) if m is not None and m.enough() else None
     rule = _new_rule(ws, split) if split is not None and not new and testable else None
-    if split is not None and split.retest:  # a top-up was just marked: the same rule again
-        rule = (ws.dir / "rules" / f"{split.topup['rule_hash'].removeprefix('sha256:')}.txt"
-                ).read_text(encoding="utf-8")
+    if split is not None and (split.retest or split.topup and split.topup.get("retest")):
+        rule = _retest_rule(ws, split)  # a top-up was marked: the same rule again
+        if rule is None:
+            split.topup["retest"] = True  # tested once the rule is in rule.txt again
+            save_split(ws, split)
+            talk.say(STEP)
+            talk.say()
+            talk.para(KEY_HIDDEN)
+            talk.next(f"write the rule in {_rule_file(ws)} again, then run `{talk.command()}` "
+                      "to test it.")
+            return EXIT_NEEDS_YOU
     waiting = split is not None and (split.fresh or (split.topup and not split.topup.get("done")))
     talk.say(STEP if rule is None or waiting else STEP_TEST)
     talk.say()
@@ -1253,6 +1280,8 @@ def _keep(ws: Workspace, split: Split, rule: str, h: str, v) -> None:
     write_replacing(path, scrub(rule))
     test = {"kind": "rule", "time": utc_now(), "rule_hash": h, "n": v.n, "fixed": v.fixed,
             "broke": v.broke, "verdict": v.kind, "test": len(split.tests) + 1}
+    if split.topup:
+        split.topup.pop("retest", None)  # tested again
     split.tests.append(test)
     save_split(ws, split)
     marks.append(ws.history_jsonl, {"time": test["time"], "kind": "fix", "rule_hash": h,

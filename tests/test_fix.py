@@ -615,6 +615,59 @@ def test_one_top_up_after_cant_tell_goes_to_the_hidden_marks(here, capsys, judge
         or "Result: safe to try" in out
 
 
+KEY_RULE = "Fix just one. Bearer FAKERULEffffffff1fffff"
+KEY_HIDDEN = ("This rule held text shaped like a key, which judgekeeper keeps hidden, so it "
+              "can't test it again.")
+
+
+def _top_up_of_a_key_rule(ws, capsys, judge) -> str:
+    """A rule holding a key's shape leans toward better; its top-up is then marked. Its hash."""
+    from judgekeeper import targets
+    from judgekeeper.fingerprint import rule_hash
+
+    run(capsys)
+    split, marks = _split(ws), fix.Marks(ws)
+    one = next(i for i in split["hidden"] if marks.person[i] != marks.judge[i])
+    judge["fixes"] = {KEY_RULE: {_question(ws, one)}}
+    _write_rule(ws, KEY_RULE)
+    code, out = run(capsys, "--yes")
+    assert code == 0 and "That leans toward better" in " ".join(out.split()), out
+    _mark_more(ws, targets.top_up(len(split["hidden"])), 40)
+    return rule_hash(KEY_RULE)
+
+
+def _rule_tests(ws) -> list[str]:
+    return [t["rule_hash"] for t in _split(ws)["tests"] if t["kind"] == "rule"]
+
+
+def test_a_scrubbed_rule_is_tested_again_from_rule_txt(here, capsys, judge):
+    judge["half"] = 40
+    ws = project(here, n=80, marked=60)
+    h = _top_up_of_a_key_rule(ws, capsys, judge)
+    code, out = run(capsys, "--yes")
+    assert code == 0 and judge["evals"] == 4, out  # the rule as written, tested again
+    assert _rule_tests(ws) == [h, h]
+    assert "FAKERULE" not in out
+
+
+def test_a_scrubbed_rule_not_in_rule_txt_is_not_tested_until_written_again(here, capsys, judge):
+    judge["half"] = 40
+    ws = project(here, n=80, marked=60)
+    h = _top_up_of_a_key_rule(ws, capsys, judge)
+    _write_rule(ws, "")
+    code, out = run(capsys, "--yes")
+    flat = " ".join(out.split())
+    assert code == 3 and judge["evals"] == 2, out  # nothing asked
+    assert KEY_HIDDEN in flat and _rule_tests(ws) == [h]
+    assert flat.endswith("Next: write the rule in .judgekeeper/fix/rule.txt again, then run "
+                         "`judgekeeper fix` to test it.")
+    assert run(capsys, "--yes")[0] == 3 and judge["evals"] == 2  # still waits for it
+    _write_rule(ws, KEY_RULE)
+    code, out = run(capsys, "--yes")
+    assert code == 0 and judge["evals"] == 4, out
+    assert _rule_tests(ws) == [h, h]
+
+
 def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys, judge):
     judge["half"] = 40
     ws = project(here, n=80, marked=60)
