@@ -196,6 +196,7 @@ def test_python_p_m_is_kept_in_the_next_line(tmp_path):
 
 
 def test_program_names_python_p_m_only_when_started_so(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr("shutil.which", lambda name: None)
     monkeypatch.delenv("UV", raising=False)
     monkeypatch.setitem(sys.modules, "__main__",
