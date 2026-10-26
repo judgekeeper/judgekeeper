@@ -504,6 +504,55 @@ def test_a_template_file_outside_the_project_is_not_asked(tmp_path, stubs, where
     assert p.status == "cant" and "outside your project" in p.why
 
 
+@pytest.mark.parametrize("template", ["https://example.invalid/{x}", "s3://b/{k}"])
+def test_a_template_at_an_address_is_not_asked(tmp_path, stubs, template):
+    ws = _checked(tmp_path, inspect_project)
+    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
+        template=template))
+    p = make_plan(ws, PY)
+    assert p.status == "cant" and "address" in p.why
+    assert stubs("get_model") == [] and stubs("score_async") == []
+
+
+def _outside_file(tmp_path, how):
+    """A project whose scorer's template names a file outside it, by `how`."""
+    root = tmp_path / "project"
+    root.mkdir()
+    ws = _checked(root, inspect_project)
+    (tmp_path / "outside").write_text("Grade {answer}", encoding="utf-8")
+    template = "..\\outside"
+    if how == "link":
+        template = "grade"
+        try:
+            (root / template).symlink_to(tmp_path / "outside")
+        except OSError:
+            pytest.skip("no symbolic links here")
+    _inspect_log(root, lambda d: d["eval"]["scorers"][0]["options"].update(template=template))
+    return ws
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="a Windows path: Windows only")
+def test_a_windows_template_path_outside_the_project_is_not_asked(tmp_path, stubs):
+    p = make_plan(_outside_file(tmp_path, "windows"), PY)
+    assert p.status == "cant" and "outside your project" in p.why
+
+
+def test_a_template_name_that_leads_outside_the_project_is_not_asked(tmp_path, stubs):
+    p = make_plan(_outside_file(tmp_path, "link"), PY)
+    assert p.status == "cant" and "outside your project" in p.why
+
+
+@pytest.mark.parametrize("template", ["prompts/grade.txt", "grade"])
+def test_a_template_file_in_the_project_is_still_asked(tmp_path, stubs, template):
+    ws = _checked(tmp_path, inspect_project)
+    (tmp_path / template).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / template).write_text("Grade {answer}", encoding="utf-8")
+    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
+        template=template))
+    p = make_plan(ws, PY)
+    assert p.status != "cant", p.why
+
+
 def test_the_inspect_worker_reports_its_env_loader(tmp_path, stubs, monkeypatch):
     out = again.run_worker("inspect", sys.executable, {"mode": "dry",
                                                        "scorer": "model_graded_qa"}, tmp_path)

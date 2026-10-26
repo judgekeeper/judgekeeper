@@ -11,8 +11,8 @@ another version it is a close copy until every counted answer's new grading prom
 the saved one (`metadata.grading`); an answer whose prompt differs is not counted. A custom
 scorer can't be asked again (Inspect would import the user's task file), and rule scorers
 (`match`, `includes`) are not judges. A log that names a server (`base_url`) or settings
-(`args`, `model_args`) for a model, or a template file outside the project, can't be asked
-either: the log is a file that may come from someone else, and the worker never passes them
+(`args`, `model_args`) for a model that grades, or a template that is an online address or a
+file outside the project, can't be asked either: the log is a file that may come from someone else, and the worker never passes them
 on. Inspect's Python API loads no `.env`, so the worker calls Inspect's own loader when the
 user's Inspect has it.
 """
@@ -42,6 +42,20 @@ RULES = {"match", "includes", "exact", "pattern", "answer", "choice", "f1", "mat
 TEMPLATE_FILE = (".txt", ".md", ".jinja", ".j2", ".tmpl")
 
 
+def _exists(path: Path) -> bool:
+    try:
+        return path.exists()
+    except (OSError, ValueError):  # a long or odd template text is not a file name
+        return False
+
+
+def _outside(path: Path, root: Path) -> bool:
+    try:
+        return not path.resolve().is_relative_to(root.resolve())
+    except (OSError, ValueError, RuntimeError):
+        return True
+
+
 def cant_reason(name: str, options: dict, builtin: bool, root: Path = Path()) -> str | None:
     base = name.split("/")[-1]
     if base in RULES:
@@ -51,13 +65,16 @@ def cant_reason(name: str, options: dict, builtin: bool, root: Path = Path()) ->
         return (f"your LLM-as-a-judge is a custom scorer ({name}): asking again would import your "
                 "task file, which runs your code")
     template = options.get("template")
-    if isinstance(template, str) and "{" not in template and (
-            template.endswith(TEMPLATE_FILE) or "/" in template or Path(template).is_absolute()):
+    if isinstance(template, str) and "://" in template:  # Inspect reads it as an address
+        return f"your scorer's template is an online address ({template}), which Inspect would fetch"
+    if isinstance(template, str):  # Inspect reads a name that is a file as that file
         path = Path(root, template)
-        if Path(template).is_absolute() or not path.resolve().is_relative_to(root.resolve()):
-            return f"your scorer's template is a file outside your project ({template})"
-        if not path.exists():
-            return f"your scorer's template is a template file ({template}) that is not here"
+        named = template.endswith(TEMPLATE_FILE) or "/" in template or "\\" in template
+        if named or Path(template).is_absolute() or _exists(path):
+            if Path(template).is_absolute() or _outside(path, root):
+                return f"your scorer's template is a file outside your project ({template})"
+            if "{" not in template and not _exists(path):
+                return f"your scorer's template is a template file ({template}) that is not here"
     history = options.get("include_history")
     if isinstance(history, str):
         return (f"your scorer's include_history was a function ({history}), which the log "
