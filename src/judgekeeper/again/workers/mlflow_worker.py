@@ -18,11 +18,13 @@ import inspect
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 
 os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
 os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
+TRACE_ID = re.compile(r"tr-[0-9a-f]+|[0-9a-f]{32}")  # MLflow 3's trace ids, MLflow 2's
 
 
 def emit(path, record):
@@ -127,7 +129,11 @@ def get_trace(client, uri, trace_id, infos):
             raise
     from mlflow.entities import Trace, TraceData
 
+    if not isinstance(trace_id, str) or not TRACE_ID.fullmatch(trace_id):
+        raise LookupError("a trace id that is not MLflow's")  # never a path or a pattern
     for path in Path(uri).glob(f"*/traces/{trace_id}/artifacts/traces.json"):
+        if not path.resolve().is_relative_to(path.parents[3].resolve()):
+            continue  # a trace folder that leads outside its experiment
         experiment = path.parts[-5]
         if experiment not in infos:
             infos[experiment] = {}

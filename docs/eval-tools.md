@@ -96,7 +96,7 @@ Tested with MLflow 3.16, the version in tests/fixtures. The extra allows MLflow 
 - **The rule.** Only `make_judge` (MLflow 3.14+) saves its instructions; for other scorers the prompt hash and temperature are unknown.
 - **Errors** are no decision; the reason is the error's code, never its message.
 - **Code scorers** (a bare bool or number) and assessments on spans are left out, unless `--metric` names a span-only one.
-- **A copied `mlruns/` folder.** Its traces point at full paths, so judgekeeper reads them from the store's own folder.
+- **A copied `mlruns/` folder.** Its traces point at full paths, so judgekeeper reads them from the store's own folder, never from where they point. A trace whose files are not there is left out, and said.
 - **MLflow's own problems, not judgekeeper's.** `mlflow.genai.evaluate` on `mlflow.db` can drop traces and still say it completed; `MLFLOW_GENAI_EVAL_MAX_WORKERS=4` avoids it.
 
 ## A CSV or JSONL file

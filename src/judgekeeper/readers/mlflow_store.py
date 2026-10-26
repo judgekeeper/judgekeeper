@@ -8,7 +8,8 @@ local folder, a SQL store, a server and Databricks all work, with MLflow handlin
 - An overridden judge assessment (`valid: false`) is still the judge's verdict.
 - Trace ids change on every run, so the item id comes from the trace's request input.
 - Only trace-level assessments are verdicts (the root span counts as the trace).
-- A copied folder store keeps its traces' old paths; they are read from the store's own folder.
+- A copied folder store keeps its traces' old paths; they are read from the store's own folder,
+  never from where the store points.
 - A `make_judge`'s instructions in the metadata are its rule, hashed into the fingerprint.
   Other judges' prompts are not saved, and scorer tracing is off by default: prompt unknown.
 """
@@ -21,6 +22,7 @@ import inspect
 import json
 import logging
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -283,10 +285,10 @@ def _trace_scope(search_traces, experiment_id: str) -> dict:
 def _traces(client, experiment_id: str, folder: Path | None = None,
             missing: list | None = None):
     """Every trace of an experiment, with its spans. In a folder store (`folder`), each
-    trace's files are read from the store's own folder: MLflow looks for them at the full
-    path saved when the trace was made, which points at another computer's folders once the
-    store is copied or cloned, and then drops the trace. A trace whose files are in neither
-    place is left out, its id added to `missing`."""
+    trace's files are read from the store's own folder only (_with_spans): MLflow looks for
+    them at the full path saved when the trace was made, which points at another computer's
+    folders once the store is copied or cloned, or at a server. A trace whose files are not
+    there is left out, its id added to `missing`."""
     scope = _trace_scope(client.search_traces, experiment_id)
     can_skip = "include_spans" in inspect.signature(client.search_traces).parameters
     local = folder is not None and can_skip
@@ -305,7 +307,7 @@ def _traces(client, experiment_id: str, folder: Path | None = None,
         for trace in page:
             if local:
                 page_trace_id = trace.info.trace_id
-                trace = _with_spans(client, trace, folder / str(experiment_id))
+                trace = _with_spans(trace, folder / str(experiment_id))
                 if trace is None:
                     if missing is not None:
                         missing.append(page_trace_id)
@@ -317,21 +319,27 @@ def _traces(client, experiment_id: str, folder: Path | None = None,
 
 
 TRACE_FILE = ("traces", "artifacts", "traces.json")  # inside an experiment's folder
+TRACE_ID = re.compile(r"tr-[0-9a-f]+|[0-9a-f]{32}")  # MLflow 3's trace ids, MLflow 2's
 
 
-def _with_spans(client, trace, experiment_folder: Path):
-    """`trace` (found without its spans) with its spans: from the experiment's own folder,
-    else where MLflow saved it; None when neither has them."""
+def _with_spans(trace, experiment_folder: Path):
+    """`trace` (found without its spans) with its spans from the experiment's own folder;
+    None when they are not there. Never from where MLflow saved them: a store can name any
+    server there (the trace's mlflow.artifactLocation tag), and MLflow sends it the MLflow
+    login. The trace id is joined into the path only in MLflow's shape, and the file is read
+    only inside the experiment's folder."""
     from mlflow.entities import Trace, TraceData
 
     trace_id = trace.info.trace_id
+    if not isinstance(trace_id, str) or not TRACE_ID.fullmatch(trace_id):
+        return None
     path = experiment_folder.joinpath(TRACE_FILE[0], trace_id, *TRACE_FILE[1:])
     try:
-        if path.is_file():
-            return Trace(trace.info, TraceData.from_dict(json.loads(
-                path.read_text(encoding="utf-8"))))
-        return client.get_trace(trace_id)
-    except Exception:  # noqa: BLE001 - files missing or unreadable: left out, and said
+        if not path.resolve().is_relative_to(experiment_folder.resolve()) or not path.is_file():
+            return None
+        return Trace(trace.info, TraceData.from_dict(json.loads(
+            path.read_text(encoding="utf-8"))))
+    except Exception:  # noqa: BLE001 - files unreadable: left out, and said
         return None
 
 
@@ -447,7 +455,8 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
 
 def _unreadable() -> tuple[type[BaseException], ...]:
     """What reading a damaged store raises: a byte that isn't text, a database that isn't
-    one; and SQLAlchemy's own errors, which wrap them."""
+    one; SQLAlchemy's own errors, which wrap them; and a folder store's YAML file that isn't
+    YAML MLflow reads (a meta.yaml with a tag yaml.safe_load refuses)."""
     import sqlite3
 
     found: list[type[BaseException]] = [UnicodeDecodeError, sqlite3.DatabaseError,
@@ -458,6 +467,12 @@ def _unreadable() -> tuple[type[BaseException], ...]:
         pass
     else:
         found.append(DatabaseError)
+    try:
+        from yaml import YAMLError
+    except ImportError:
+        pass
+    else:
+        found.append(YAMLError)
     return tuple(found)
 
 
