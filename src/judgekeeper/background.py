@@ -1,11 +1,14 @@
 """The marking page as a process of its own, so `judgekeeper` can open it and return: a coding
 agent's shell would wait forever on a command that serves a page.
 
-`start` runs `python -m judgekeeper.page` detached from the caller (a new session on POSIX, a
-detached process group with no window on Windows). The page's token and settings go to it as
-one JSON line on its stdin, a pipe closed right after: never in its arguments or environment.
-Errors go to .judgekeeper/page.log (never answer text or the token). It returns the page's link
-once the page answers to that token, within WAIT seconds; else None, and the process is ended.
+`start` runs `python -E -P -m judgekeeper.page` from the temp folder, detached from the caller
+(a new session on POSIX, a detached process group with no window on Windows). Without the
+current folder on its path (-P) or the PYTHON* variables (-E), and away from the project, so no
+`json.py` or other file in the project can run in it; the user site stays, for a user install of
+judgekeeper. The page's token and settings go to it as one JSON line on its stdin, a pipe closed
+right after: never in its arguments or environment. Errors go to .judgekeeper/page.log (never
+answer text or the token). It returns the page's link once the page answers to that token,
+within WAIT seconds; else None, and the process is ended.
 
 `stop` closes the open page with a POST to /stop with the lock's stop secret, which works the
 same on every system, and waits until it is gone.
@@ -17,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -41,8 +45,8 @@ def start(folder: Path, settings: dict, token: str, timeout: float = WAIT) -> st
         flags["start_new_session"] = True
     try:
         with open_private(folder / LOG, "ab") as log:
-            proc = subprocess.Popen([sys.executable, "-m", "judgekeeper.page"], stderr=log,
-                                    **flags)
+            proc = subprocess.Popen([sys.executable, "-E", "-P", "-m", "judgekeeper.page"],
+                                    cwd=tempfile.gettempdir(), stderr=log, **flags)
     except OSError:
         return None
     _started.append(proc)

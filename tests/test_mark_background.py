@@ -139,6 +139,54 @@ def test_mark_runs_the_page_in_the_background(project):
     assert not (folder / label.LOCK).exists()
 
 
+# A project module named like one the page imports: it leaves a file named after itself, then
+# puts the real module in its place, so the page keeps working and only the file tells.
+SHADOW = """import importlib, os, sys
+here = os.path.dirname(os.path.abspath(__file__))
+open(os.path.join(here, "ran-" + __name__), "w").close()
+kept = sys.path[:]
+sys.path[:] = [p for p in sys.path if os.path.abspath(p or ".") != here]
+del sys.modules[__name__]
+sys.modules[__name__] = importlib.import_module(__name__)
+sys.path[:] = kept
+"""
+
+
+def test_the_page_never_imports_the_projects_modules(project):
+    for name in ("json", "secrets"):
+        (project / f"{name}.py").write_text(SHADOW, encoding="utf-8")
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    # -I: judgekeeper itself as its console script starts it, without the project on its path
+    run = subprocess.run([sys.executable, "-I", "-m", "judgekeeper", "--no-browser"],
+                         cwd=project, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                         encoding="utf-8", timeout=60, env=env, check=False)
+    assert run.returncode == 0, run.stdout + run.stderr + page_log(project)
+    m = LINK.search(run.stdout)
+    assert m, run.stdout
+    assert call(f"http://127.0.0.1:{m[2]}", m[3], "/state")[0] == 200
+    assert sorted(p.name for p in project.glob("ran-*")) == []
+
+
+@pytest.mark.real_page
+def test_the_page_keeps_the_user_site(tmp_path, monkeypatch):
+    """A user install (pip's "Defaulting to user installation") puts judgekeeper in the user
+    site: the page's Python keeps it, and still leaves out the current folder and PYTHON*."""
+    started = []
+
+    def popen(argv, **kwargs):
+        started.append(argv)
+        raise OSError
+
+    with monkeypatch.context() as m:
+        m.setattr(background.subprocess, "Popen", popen)
+        assert background.start(tmp_path, {}, "t" * 43) is None
+    flags = [a for a in started[0][1:] if a.startswith("-") and a != "-m"]
+    code = "import sys; f = sys.flags; print(f.no_user_site, f.ignore_environment, f.safe_path)"
+    seen = subprocess.run([sys.executable, *flags, "-c", code], capture_output=True, text=True,
+                          check=True).stdout.split()
+    assert seen == ["0", "1", "True"], started[0]
+
+
 def test_mark_stop_closes_a_page_whose_server_json_is_gone(project):
     first = jk(project, "mark", "--port", "0", "--no-browser")
     assert first.returncode == 0, first.stdout + first.stderr + page_log(project)

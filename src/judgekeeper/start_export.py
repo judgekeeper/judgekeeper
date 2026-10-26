@@ -1,6 +1,7 @@
 """When promptfoo keeps its results only in its own database, judgekeeper offers to run promptfoo's
-`export` command for the user, at a terminal only. Without a terminal, or on No, it prints the
-commands.
+`export` command for the user, at a terminal only, and Enter is No. The question names the
+promptfoo it runs: the project's own (node_modules/.bin, code from the folder) or the one on the
+PATH. Without a terminal, or on No, it prints the commands.
 
 The export reads promptfoo's database in the home folder and writes one file; it runs no
 tests and calls no model. It runs with promptfoo's telemetry, update check and logs off:
@@ -27,14 +28,24 @@ LATEST = ".judgekeeper/promptfoo-latest.json"
 TARGET = "promptfoo-results.json"
 ENV = {"PROMPTFOO_DISABLE_TELEMETRY": "1", "PROMPTFOO_DISABLE_UPDATE": "1",
        "PROMPTFOO_DISABLE_DEBUG_LOG": "1", "PROMPTFOO_DISABLE_ERROR_LOG": "1"}
-QUESTION = ("Run promptfoo export for you? It reads promptfoo's database in your home folder "
-            "and writes one file here. No AI call.")
+QUESTION = ("Run this project's promptfoo ({program}) to export your latest results? It runs "
+            "code from this folder, like running its tests. No AI call.")
+PATH_QUESTION = ("Run promptfoo ({program}) to export your latest results? It reads promptfoo's "
+                 "database in your home folder and writes one file here. No AI call.")
 ANOTHER = ("That was your last promptfoo run, from another project. Find yours with promptfoo "
            "list evals -n 10, then run promptfoo export eval <id> -o promptfoo-results.json.")
 
 
 def _promptfoo(root: Path) -> str | None:
     return again.node_bin(root, "promptfoo") or again.which("promptfoo")
+
+
+def _question(root: Path, command: str) -> str:
+    """The export question, naming `command`: the project's own promptfoo, or one on the PATH."""
+    local = again.node_bin(root, "promptfoo")
+    if command == local:
+        return QUESTION.format(program=Path(local).relative_to(root).as_posix())
+    return PATH_QUESTION.format(program=command)
 
 
 def _prompts(config: dict) -> list[str]:
@@ -72,12 +83,14 @@ def offer(talk, root: Path) -> str:
     from judgekeeper.start import _interactive
     from judgekeeper.start_label import Workspace, make_folder
 
-    if not _interactive() or not talk.confirm(QUESTION, default=True, with_yes=False,
-                                              hint=QUESTION):
+    if not _interactive():
         return "commands"
     command = _promptfoo(root)
     if command is None:
         talk.say("promptfoo was not found here, so judgekeeper can't run the export for you.")
+        return "commands"
+    question = _question(root, command)
+    if not talk.confirm(question, default=False, with_yes=False, hint=question):
         return "commands"
     make_folder(Workspace(root))
     out = root / LATEST
