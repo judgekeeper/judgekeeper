@@ -41,8 +41,7 @@ def test_a_deep_jsonl_file_next_to_a_project_is_skipped(here, capsys):
     promptfoo_project(here, split(20, 16))
     deep = here / "data" / "notes.jsonl"
     deep.parent.mkdir()
-    deep.write_text('{"input": "q", "output": "a", "verdict": ' + "[" * 60_000 + "]" * 60_000
-                    + "}\n", encoding="utf-8")
+    deep.write_text('{"notes": ' + "[" * 60_000 + "]" * 60_000 + "}\n", encoding="utf-8")
     code, out, err = run(capsys)
     assert code == 0, out + err
     assert "File:            results.json" in out

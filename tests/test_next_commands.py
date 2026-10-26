@@ -43,22 +43,28 @@ def _mark_all(ws: Workspace) -> None:
         session.update({"id": q["id"], "label": q["group"], "seconds": 7})
 
 
-@pytest.mark.parametrize("flip", [0, 3], ids=["agrees", "needs-work"])
-def test_every_command_the_measure_step_prints_parses(project, capsys, flip):
+@pytest.mark.parametrize("flips", [{}, {"pass": 15, "fail": 5}], ids=["agrees", "needs-work"])
+def test_every_command_the_measure_step_prints_parses(tmp_path, monkeypatch, capsys, flips):
     """Each command the result names, copied as printed, is one its command takes: `fix` and
-    `check` never get the page's flags. `flip`: every flip-th mark says the other way."""
+    `check` never get the page's flags. `flips`: how many of the answers the judge passed, or
+    failed, are marked the other way."""
+    table_project(tmp_path, ["good"] * 30 + ["bad"] * 30, name="evals/results.csv")
+    monkeypatch.chdir(tmp_path)
     assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
-    ws = Workspace(project)
-    session = StartSession(ws)
-    for i, q in enumerate(ws.data()["queue"]):
-        label = q["group"] if not flip or i % flip else {"pass": "fail", "fail": "pass"}[
-            q["group"]]
+    ws = Workspace(tmp_path)
+    session, needs_work = StartSession(ws), bool(flips)
+    for q in ws.data()["queue"]:
+        label = q["group"]
+        if flips.get(label):
+            flips[label] -= 1
+            label = {"pass": "fail", "fail": "pass"}[label]
         session.update({"id": q["id"], "label": label, "seconds": 7})
     capsys.readouterr()
     assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
     out = " ".join(capsys.readouterr().out.split())
     commands = re.findall(r"`(judgekeeper [^`]*)`", out)
-    assert any(c.startswith("judgekeeper fix") for c in commands) == bool(flip), out
+    assert ("needs work" in out) == needs_work, out
+    assert any(c.startswith("judgekeeper fix") for c in commands) == needs_work, out
     for command in commands:
         try:
             parse_args(shlex.split(command)[1:])
