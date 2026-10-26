@@ -429,6 +429,7 @@ def _quiet_stdout() -> None:
 
 
 def _main(argv: list[str] | None) -> int:
+    textio._held.clear()  # a value an earlier command in this process held back is not said
     args_list = command_first(sys.argv[1:] if argv is None else argv)
     lenient_streams()  # a terminal that cannot show a character prints "?", never a crash
     try:

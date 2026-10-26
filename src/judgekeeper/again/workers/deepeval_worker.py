@@ -9,7 +9,9 @@ its own metric (a GEval answer keeps its own saved steps) and writes one line pe
 time, then a "done" line. `metric.measure()` is called directly, never `deepeval.evaluate()`
 (which would overwrite the user's .deepeval/ files and may upload).
 DeepEval's telemetry is off, and CONFIDENT_API_KEY and DEEPEVAL_RESULTS_FOLDER are removed
-before DeepEval is imported, so nothing is uploaded or written to a results folder.
+before DeepEval is imported, so nothing is uploaded or written to a results folder. DeepEval
+loads no `.env` (DEEPEVAL_DISABLE_DOTENV): judgekeeper passes on the API keys from it; any other
+name there could send the calls elsewhere.
 """
 
 import json
@@ -17,6 +19,7 @@ import os
 import sys
 
 os.environ["DEEPEVAL_TELEMETRY_OPT_OUT"] = "1"
+os.environ["DEEPEVAL_DISABLE_DOTENV"] = "1"
 for _name in ("CONFIDENT_API_KEY", "DEEPEVAL_RESULTS_FOLDER"):
     os.environ.pop(_name, None)
 

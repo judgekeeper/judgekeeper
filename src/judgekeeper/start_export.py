@@ -41,11 +41,13 @@ def _promptfoo(root: Path) -> str | None:
 
 
 def _question(root: Path, command: str) -> str:
-    """The export question, naming `command`: the project's own promptfoo, or one on the PATH."""
-    local = again.node_bin(root, "promptfoo")
-    if command == local:
-        return QUESTION.format(program=Path(local).relative_to(root).as_posix())
-    return PATH_QUESTION.format(program=command)
+    """The export question, naming `command`: the project's own promptfoo (any inside the
+    project, also one the PATH leads to), or one on the PATH."""
+    try:
+        inside = Path(command).resolve().relative_to(Path(root).resolve())
+    except ValueError:
+        return PATH_QUESTION.format(program=command)
+    return QUESTION.format(program=inside.as_posix())
 
 
 def _prompts(config: dict) -> list[str]:

@@ -69,6 +69,7 @@ class Plan:
     side_effects: list[str] = field(default_factory=list)
     labeled: int = 0  # every labeled answer, asked or left out
     settings: list[str] = field(default_factory=list)  # setting variable names that are set
+    not_passed: list[str] = field(default_factory=list)  # set only in a .env: keys.check
     tool_version: str | None = None
     key_ok: bool = True  # the key the judge needs was found (by name)
     key_step: str | None = None  # when not: where to set it (keys.KeyCheck.step)
@@ -265,7 +266,34 @@ def run_process(argv: list[str], cwd: Path, env: dict | None = None,
 
 
 def which(name: str) -> str | None:
-    return shutil.which(name)
+    """The program `name` on the PATH, as a full path, never one in the current folder: on
+    Windows Python looks there first unless NoDefaultCurrentDirectoryInExePath is set (and
+    Python 3.11 looks there even then), so it is set for the lookup and such a result is
+    dropped."""
+    before = os.environ.get("NoDefaultCurrentDirectoryInExePath")
+    os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"
+    try:
+        found = shutil.which(name)
+    finally:
+        if before is None:
+            del os.environ["NoDefaultCurrentDirectoryInExePath"]
+        else:
+            os.environ["NoDefaultCurrentDirectoryInExePath"] = before
+    if not found:
+        return None
+    found = os.path.abspath(found)
+    return None if os.path.dirname(found) == os.path.abspath(os.curdir) else found
+
+
+@contextmanager
+def outside():
+    """A new empty folder outside the project, removed afterwards: where promptfoo and npx run,
+    so they read no .env or .npmrc of the project (npm looks for one up from where it runs)."""
+    folder = tempfile.mkdtemp(prefix="judgekeeper-")
+    try:
+        yield Path(folder)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 def node_bin(root: Path, name: str) -> str | None:

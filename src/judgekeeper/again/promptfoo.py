@@ -8,14 +8,15 @@ HTTP, an agent with tools, a rule, var, saved prompt or transform that loads a f
 template code in the rule, rubric prompt or grader, or a grader setting outside a list known to
 be safe. Each provider promptfoo would load from a grader is checked, also in a map by output
 type ({"text": ...}). It can't either when the config's `env:` block sets a name other than a
-key, or a `.env` sets one that starts a program or points the calls elsewhere. An answer whose
-saved prompt or vars hold template code is left out. A version goes into
+key. An answer whose saved prompt or vars hold template code is left out. A version goes into
 `npx promptfoo@<version>` only when it reads as one.
 
 `run` writes a temporary config and tests file next to the user's config, each answer as a
 fixed `providerOutput` with its saved vars and only its model-graded assertions. promptfoo runs
-with no cache, no writes, no sharing and telemetry off; the keys in the config's `env:` block
-go into promptfoo's environment, never into a file. Both files are removed afterwards, also on
+with no cache, no writes, no sharing and telemetry off, from a new folder outside the project
+(again.outside), so neither promptfoo nor npx reads the project's `.env` or `.npmrc`. The keys
+in the config's `env:` block and the key names in `.env` go into promptfoo's environment, never
+into a file; no other name from the project does. Both files are removed afterwards, also on
 Ctrl-C.
 """
 
@@ -389,18 +390,12 @@ def grader_refusal(grader) -> tuple[str, str] | None:
     return None
 
 
-# A name in the project's .env (which promptfoo reads itself) that starts a program or points
-# the calls at another server. NO_PROXY can only skip a proxy, so it is allowed.
-STARTS = ("NODE_", "LD_", "DYLD_", "NPM_CONFIG_", "PYTHON")
-PROGRAMS = {"PATH", "COMSPEC", "SHELL", "BASH_ENV", "ENV"}
-REDIRECTS = ("BASE_URL", "API_BASE", "HOST", "ENDPOINT", "PROXY")
-
-
 def _passed_on(graders) -> set[str]:
-    """The names of the config's `env:` block passed on to promptfoo: the key names of the
-    providers judgekeeper knows and each grader's apiKeyEnvar (checked by _other_key). Any
-    other can start a program (NODE_OPTIONS, PATH) or send the calls elsewhere."""
-    names = {n for provider in keys.PROVIDERS.values() for alt in provider.keys for n in alt}
+    """The names of the config's `env:` block and the project's .env passed on to promptfoo:
+    the key names of the providers judgekeeper knows and each grader's apiKeyEnvar (checked by
+    _other_key). Any other can start a program (NODE_OPTIONS, PATH) or send the calls
+    elsewhere."""
+    names = keys.key_names()
     for g in graders:
         for s in loaded(g)[1]:
             config = s.get("config")
@@ -409,21 +404,13 @@ def _passed_on(graders) -> set[str]:
     return names
 
 
-def env_refusal(root: Path, config: Path | None, graders) -> str | None:
-    """Why promptfoo is not run with this project's environment, or None: the config's `env:`
-    block sets a name judgekeeper does not pass on, or a .env promptfoo reads sets a name that
-    starts a program or redirects the calls. Names only; no value is read from a .env."""
+def env_refusal(config: Path | None, graders) -> str | None:
+    """Why promptfoo is not run with this project's config, or None: its `env:` block sets a
+    name judgekeeper does not pass on. (promptfoo reads no .env of the project: run.)"""
     allowed = _passed_on(graders)
     for name in keys.config_env(config):
         if name not in allowed:
             return f"its config sets `{name}`, which judgekeeper does not pass on"
-    for name, path in sorted(keys.Sources.read("promptfoo", root, config).in_files.items()):
-        upper = name.upper()
-        if upper == "NO_PROXY":
-            continue
-        if upper in PROGRAMS or upper.startswith(STARTS) or any(w in upper for w in REDIRECTS):
-            return (f"your {path.name} sets `{name}`, which can start a program or send the "
-                    "calls to another server")
     return None
 
 
@@ -437,8 +424,9 @@ def _installed(root: Path) -> tuple[str, str] | None:
     for command in (again.node_bin(root, "promptfoo"), again.which("promptfoo")):
         if not command:
             continue
-        proc = again.run_process([command, "--version"], cwd=root,
-                                 env={**os.environ, **RUN_ENV}, timeout=60)
+        with again.outside() as folder:
+            proc = again.run_process([command, "--version"], cwd=folder,
+                                     env={**os.environ, **RUN_ENV}, timeout=60)
         out = (proc.stdout or "").strip().splitlines()
         if proc.returncode == 0 and out:
             return command, out[-1].strip()
@@ -585,7 +573,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         if refused:
             return cant("promptfoo", judge, refused[0], short=refused[1])
     config = _config(root)
-    refused = env_refusal(root, config, graders.values())
+    refused = env_refusal(config, graders.values())
     if refused:
         return cant("promptfoo", judge, refused,
                     short="your project sets a name judgekeeper does not pass on")
@@ -685,6 +673,10 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                         short="promptfoo is not installed")
     if types & AGENT_GRADED:
         reasons.append(AGENT_WHY)
+    check = keys.check(model, "promptfoo", root, provider=provider, config=config,
+                       key_env=key_env)
+    if check.not_passed:
+        reasons.append(keys.not_passed_why(check.not_passed))
     if reasons:
         status, why = CLOSE, "; ".join(reasons)
 
@@ -692,8 +684,6 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     if cached or (newest.get("runtimeOptions") or {}).get("cache") is True:
         notes.append("Your saved decisions may be old replies from promptfoo's cache. "
                      "judgekeeper turns the cache off when it asks again.")
-    check = keys.check(model, "promptfoo", root, provider=provider, config=config,
-                       key_env=key_env)
 
     calls_each, tokens, at_least, embeddings = [], [], False, False
     for _, row, comps, _, _ in judged:
@@ -734,7 +724,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 provider=provider, key_lines=check.lines, notes=notes,
                 calls_each=calls_each, calls_note="at least" if at_least else "",
                 extra_calls="plus 4 embedding calls per answer" if embeddings else "",
-                tokens=tokens, left_out=left, settings=check.settings, key_ok=check.ok,
+                tokens=tokens, left_out=left, settings=check.settings,
+                not_passed=check.not_passed, key_ok=check.ok,
                 key_step=check.step, tool_version=version, runner=runner, download=download, payload=judged,
                 job={"metric": metric},
                 side_effects=[SIDE_EFFECT, (f"Two temporary files are written next to {where} "
@@ -806,8 +797,8 @@ def regrade_config() -> dict:
 
 def _config_env(config: Path | None, graders) -> dict[str, str]:
     """The keys in the person's config's `env:` block (the values it can read; _passed_on),
-    which promptfoo uses over the shell in their own runs: a key set there is the one their
-    judge uses. Passed in promptfoo's environment, never written; each is scrubbed from
+    which promptfoo uses over the shell and .env in their own runs: a key set there is the one
+    their judge uses. Passed in promptfoo's environment, never written; each is scrubbed from
     everything judgekeeper writes or prints."""
     allowed = _passed_on(graders)
     env = {k: v for k, v in keys.config_env(config).items()
@@ -829,17 +820,17 @@ def run(ws, plan: Plan, talk) -> Fresh:
     if found:  # the plan refuses these; this is the last look before promptfoo reads them
         raise AgainError(f"your LLM-as-a-judge runs your own code ({found})")
     graders = [t["options"].get("provider") for t in tests]
+    graders += [a.get("provider") for t in tests for a in t["assert"] if a.get("provider")]
     refused = next((r[0] for r in map(grader_refusal, graders) if r), None)
     config = _config(root)
-    refused = refused or env_refusal(root, config, graders)
+    refused = refused or env_refusal(config, graders)
     if refused:
         raise AgainError(refused)
     folder = plan.folder or new_folder(ws)
     make_private(folder)
     out = folder / "promptfoo.json"
-    rel_out = out.relative_to(root).as_posix()
-    argv = [*plan.runner, "eval", "-c", CONFIG, "--repeat", str(plan.times), *FLAGS,
-            "-o", rel_out]
+    argv = [*plan.runner, "eval", "-c", str(root.resolve() / CONFIG), "--repeat",
+            str(plan.times), *FLAGS, "-o", str(out.resolve())]
     talk.say(f"Writing {CONFIG} and {TESTS} next to "
              f"{config.name if config else 'your results'}; they are removed when promptfoo is "
              "done.")
@@ -850,9 +841,12 @@ def run(ws, plan: Plan, talk) -> Fresh:
         if again.local_model(plan):
             talk.say(again.LOCAL_MODEL)
         progress = again.Progress(talk, None)  # promptfoo writes its results at the end
-        with again.watching(progress.tick):
-            proc = again.run_process(argv, cwd=root,
-                                     env={**os.environ, **_config_env(config, graders), **RUN_ENV})
+        numbers = {n for f in {plan.provider, *map(keys.provider_of, map(_grader_id, graders))}
+                   for n in keys.number_settings(f)}
+        env = {**keys.passed_on("promptfoo", root, _passed_on(graders), numbers), **os.environ,
+               **_config_env(config, graders), **RUN_ENV}  # as promptfoo: .env, shell, config
+        with again.watching(progress.tick), again.outside() as away:
+            proc = again.run_process(argv, cwd=away, env=env)
     finally:
         for path in files:
             path.unlink(missing_ok=True)

@@ -1056,11 +1056,11 @@ def answered(talk: FrontTalk, saved: bool) -> tuple[str, dict]:
     return path, options
 
 
-def _command_of(talk: FrontTalk, saved: bool, subcommand: str = "") -> str:
+def _command_of(talk: FrontTalk, saved: bool, subcommand: str = "", kept: bool = False) -> str:
     """judgekeeper's `subcommand` with the flags given, and the answers given at a terminal
-    unless judgekeeper.toml keeps them now."""
+    unless judgekeeper.toml keeps them now. `kept`: for the page or result.json (quote_arg)."""
     path, options = answered(talk, saved)
-    return " ".join((program(subcommand), *start.repeated_flags(path, **options)))
+    return " ".join((program(subcommand), *start.repeated_flags(path, kept=kept, **options)))
 
 
 def _to_save(talk: FrontTalk, found: start.Found,
@@ -1265,8 +1265,8 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
     start_label.check_writable(ws)  # said here, never as "the page could not start"
     opened = None
     try:
-        opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved, "mark"),
-                               _command_of(talk, saved), here=wait, say=talk.say)
+        opened = page.open_new(ws, talk.options["port"], _command_of(talk, saved, "mark", True),
+                               _command_of(talk, saved, kept=True), here=wait, say=talk.say)
         shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait,
                                      result)
     except KeyboardInterrupt:  # before its link was printed: no page is left running
@@ -1456,8 +1456,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     session = StartSession(ws)
     was = checking.open_worse(ws, found) if check else None  # checking again says the same
     worse = was and checking.worse_step(was["before"], was["after"], _check_command(talk))
-    r = start_label.store_result(ws, session, _command_of(talk, saved), worse=worse or None,
-                                 redraw=True)
+    r = start_label.store_result(ws, session, _command_of(talk, saved, kept=True),
+                                 worse=worse or None, redraw=True)
     made = marks.made(marks.read(ws.marks), ids=set(session.by_id))  # reasons added since
     for line in made_lines(made)[1:]:  # the notes on how they were made; the count is below
         talk.para(line)

@@ -41,6 +41,23 @@ COMMON = """
         _COUNTS[key] = n + 1
         return n
 
+    def _load_env():
+        # A tool's own .env loader, as dotenv reads a line: `NAME=value` or `NAME: value`;
+        # a name already set is kept
+        import re
+        if not os.path.isfile(".env"):
+            return
+        with open(".env") as f:
+            for line in f:
+                m = re.match(r"\\s*(?:export\\s+)?([\\w.-]+)(?:\\s*=\\s*|:\\s+)(.*)", line)
+                if m and m[1] not in os.environ:
+                    os.environ[m[1]] = m[2].strip().strip("'\\"")
+
+    def _call_env():
+        # Where a judge call goes and with which key, as an OpenAI client reads them
+        _log("call_env", base_url=os.environ.get("OPENAI_BASE_URL"),
+             key=os.environ.get("OPENAI_API_KEY"))
+
     def _answer(key, time):
         plan = _plan()
         if [key, time] in plan.get("errors", []):
@@ -54,6 +71,8 @@ COMMON = """
 STUB_DEEPEVAL = {
     "deepeval/__init__.py": COMMON + """
     __version__ = os.environ.get("STUB_VERSION", "4.2.8")
+    if not os.environ.get("DEEPEVAL_DISABLE_DOTENV"):
+        _load_env()
     _log("import", telemetry=os.environ.get("DEEPEVAL_TELEMETRY_OPT_OUT"),
          confident="CONFIDENT_API_KEY" in os.environ,
          results_folder="DEEPEVAL_RESULTS_FOLDER" in os.environ)
@@ -64,7 +83,7 @@ STUB_DEEPEVAL = {
     """,
     "deepeval/metrics/__init__.py": """
     import os
-    from deepeval import _answer, _log, _next, _plan
+    from deepeval import _answer, _call_env, _log, _next, _plan
 
     class _Metric:
         def __init__(self, **kwargs):
@@ -88,6 +107,7 @@ STUB_DEEPEVAL = {
             _log("measure", cls=type(self).__name__, input=key, time=time,
                  show_indicator=_show_indicator, case=case.kwargs,
                  steps=self.kwargs.get("evaluation_steps"))
+            _call_env()
             value = _answer(key, time)
             if isinstance(value, bool):
                 self.success, self.score = value, 0.9 if value else 0.1
@@ -228,6 +248,7 @@ STUB_INSPECT = {
         if [s.input, time] in plan.get("errors", []):
             raise RuntimeError(f"Error code: 400 - [Task]: {prompt} "
                                f"{plan.get('error_text', '')}")
+        _call_env()
         value = _answer(s.input, time)
         if isinstance(value, bool):
             value = "C" if value else "I"
@@ -243,12 +264,11 @@ STUB_INSPECT = {
     """,
     "inspect_ai/_util/__init__.py": "",
     "inspect_ai/_util/dotenv.py": """
-    import os
     from inspect_ai import _log
-    if os.environ.get("STUB_NO_DOTENV"):
-        raise ImportError("init_dotenv was renamed")
     def init_dotenv():
+        from inspect_ai import _load_env
         _log("dotenv")
+        _load_env()
     """,
     "inspect_ai/_util/registry.py": """
     BUILTIN = {"model_graded_qa", "model_graded_fact", "match", "includes"}

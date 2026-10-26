@@ -90,8 +90,9 @@ class FakePromptfoo:
             return SimpleNamespace(returncode=0, stdout=self.version + "\n", stderr="")
         assert "eval" in argv, argv
         cwd = Path(cwd)
-        config = json.loads((cwd / argv[argv.index("-c") + 1]).read_text(encoding="utf-8"))
-        tests = json.loads((cwd / config["tests"].removeprefix("file://")).read_text(
+        path = cwd / argv[argv.index("-c") + 1]
+        config = json.loads(path.read_text(encoding="utf-8"))
+        tests = json.loads((path.parent / config["tests"].removeprefix("file://")).read_text(
             encoding="utf-8"))
         self.files_seen = {"config": config, "tests": tests}
         if self.interrupt:
@@ -246,14 +247,15 @@ def test_the_command_has_every_flag_and_setting_and_never_grader(fake, capsys):
     run(capsys, ws.root, "--ask-again")
     (call,) = [c for c in fake.calls if "eval" in c.argv]
     argv = call.argv
-    assert argv[:4] == [again.node_bin(ws.root, "promptfoo"), "eval", "-c", CONFIG]
+    assert argv[:4] == [again.node_bin(ws.root, "promptfoo"), "eval", "-c",
+                        str(ws.root.resolve() / CONFIG)]
     for flag in ("--no-cache", "--no-write", "--no-share", "--no-table", "--no-progress-bar"):
         assert flag in argv, flag
     assert argv[argv.index("--repeat") + 1] == "2"
     assert "--grader" not in argv
-    out = argv[argv.index("-o") + 1]
-    assert out.startswith(".judgekeeper/again/") and out.endswith("/promptfoo.json")
-    assert call.cwd == ws.root
+    out = Path(argv[argv.index("-o") + 1])
+    assert out.parent.parent == (ws.dir / "again").resolve() and out.name == "promptfoo.json"
+    assert not call.cwd.resolve().is_relative_to(ws.root.resolve())  # again.outside
     for name, value in (("PROMPTFOO_CACHE_ENABLED", "false"),
                         ("PROMPTFOO_DISABLE_TELEMETRY", "1"), ("PROMPTFOO_DISABLE_UPDATE", "1"),
                         ("PROMPTFOO_DISABLE_SHARING", "1"), ("PROMPTFOO_DISABLE_DEBUG_LOG", "1"),

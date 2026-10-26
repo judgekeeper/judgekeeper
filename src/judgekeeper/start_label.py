@@ -1047,10 +1047,10 @@ def store_result(ws: Workspace, session: StartSession,
         try:
             text = ws.result_json.read_text(encoding="utf-8")
             made = json.loads(text).get("made_at")
-        except ValueError:
+        except (ValueError, AttributeError, RecursionError):
             made = None
-        stamp = re.sub(r"[^0-9A-Za-z-]", "", str(made or "").replace(":", "-")) \
-            or utc_now().replace(":", "-")  # from the file: never a path
+        stamp = re.sub(r"[^0-9A-Za-z-]", "", str(made or "").replace(":", "-"))[:32] \
+            or utc_now().replace(":", "-")  # from the file: never a path, never too long
         target = ws.history / f"result-{stamp}.json"
         n = 2
         while target.exists():

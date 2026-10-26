@@ -11,10 +11,11 @@ another version it is a close copy until every counted answer's new grading prom
 the saved one (`metadata.grading`); an answer whose prompt differs is not counted. A custom
 scorer can't be asked again (Inspect would import the user's task file), and rule scorers
 (`match`, `includes`) are not judges. A log that names a server (`base_url`) or settings
-(`args`, `model_args`) for a model that grades, or a template that is an online address or a
-file outside the project, can't be asked either: the log is a file that may come from someone else, and the worker never passes them
-on. Inspect's Python API loads no `.env`, so the worker calls Inspect's own loader when the
-user's Inspect has it.
+(`args`, `model_args`) for a model that grades, or a template Inspect could read from outside
+the project, can't be asked either: the log is a file that may come from someone else, and the
+worker never passes them on. A template file must be a plain name inside the project
+(TEMPLATE_NAME). The worker loads no `.env`: judgekeeper passes on from the nearest one only
+the API key names (keys.passed_on).
 """
 
 from __future__ import annotations
@@ -40,6 +41,13 @@ from judgekeeper.table import make_fingerprint
 MODEL_GRADED = {"model_graded_qa", "model_graded_fact"}
 RULES = {"match", "includes", "exact", "pattern", "answer", "choice", "f1", "math"}
 TEMPLATE_FILE = (".txt", ".md", ".jinja", ".j2", ".tmpl")
+# The only template file names accepted: letters, digits and _ . / \ -, no `..` part, and
+# inside the project (_outside)
+TEMPLATE_NAME = re.compile(r"[A-Za-z0-9_./\\-]+")
+# What makes Inspect (fsspec) read a template from elsewhere even when it reads as text: the
+# home folder (~), the root, a drive (C:x, not "Q: {question}"), or a file:, local: or data:
+# protocol. An address (://) or a chain (::) is refused before.
+_ELSEWHERE = re.compile(r"\s*(~|/|\\|[A-Za-z]:(?!\s)|(file|local|data):)")
 
 
 def _exists(path: Path) -> bool:
@@ -65,16 +73,20 @@ def cant_reason(name: str, options: dict, builtin: bool, root: Path = Path()) ->
         return (f"your LLM-as-a-judge is a custom scorer ({name}): asking again would import your "
                 "task file, which runs your code")
     template = options.get("template")
-    if isinstance(template, str) and "://" in template:  # Inspect reads it as an address
+    if isinstance(template, str) and ("://" in template or "::" in template):
         return f"your scorer's template is an online address ({template}), which Inspect would fetch"
     if isinstance(template, str):  # Inspect reads a name that is a file as that file
         path = Path(root, template)
+        text = any(c in template for c in "{ \n\r\t")
+        if _ELSEWHERE.match(template) or (not text and ".." in re.split(r"[/\\]", template)) \
+                or ((not text or _exists(path)) and _outside(path, root)):
+            return f"your scorer's template is a file outside your project ({template})"
+        if not text and not TEMPLATE_NAME.fullmatch(template):
+            return (f"your scorer's template is a file name judgekeeper doesn't accept "
+                    f"({template})")
         named = template.endswith(TEMPLATE_FILE) or "/" in template or "\\" in template
-        if named or Path(template).is_absolute() or _exists(path):
-            if Path(template).is_absolute() or _outside(path, root):
-                return f"your scorer's template is a file outside your project ({template})"
-            if "{" not in template and not _exists(path):
-                return f"your scorer's template is a template file ({template}) that is not here"
+        if named and not text and not _exists(path):
+            return f"your scorer's template is a template file ({template}) that is not here"
     history = options.get("include_history")
     if isinstance(history, str):
         return (f"your scorer's include_history was a function ({history}), which the log "
@@ -195,7 +207,6 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     options = scorer.get("options") or {}
     python = again.user_python(root, opts.python)
     installed, builtin = None, metric.split("/")[-1] in MODEL_GRADED | RULES
-    loads_env = True  # without a dry run: as Inspect's own loader would
     if dry:
         out = again.run_worker("inspect", python, {"mode": "dry", "scorer": metric}, root)
         if not out.get("ok"):
@@ -205,7 +216,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                             short="Inspect AI is not installed here")
             return cant("inspect", judge, f"Inspect AI could not load your scorer in {again.python_name(python)}: "
                         f"{out.get('error')}", short="Inspect AI could not load your scorer")
-        installed, builtin, loads_env = out["version"], out["builtin"], out.get("dotenv", False)
+        installed, builtin = out["version"], out["builtin"]
         if installed and _version(installed) < MIN_VERSION:  # score_async has no model_roles
             return cant("inspect", judge, (
                 "asking your LLM-as-a-judge again needs Inspect AI "
@@ -264,12 +275,16 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
         i, o = prices.tokens_from_text(text)
         tokens.append((i * calls, o * calls))
     model = graders[0] if graders else None
-    check = keys.check(model, "inspect", root, loads_env=loads_env)
+    check = keys.check(model, "inspect", root, loads_env=True)  # its keys: run
     for other in list(dict.fromkeys(graders))[1:]:  # a panel: every grader's key
-        more = keys.check(other, "inspect", root, loads_env=loads_env)
+        more = keys.check(other, "inspect", root, loads_env=True)
         check.ok = check.ok and more.ok
         check.lines += [x for x in more.lines if x not in check.lines]
         check.settings += [x for x in more.settings if x not in check.settings]
+        check.not_passed += [x for x in more.not_passed if x not in check.not_passed]
+    if check.not_passed:
+        why = keys.not_passed_why(check.not_passed) + ("; " + why if status == CLOSE else "")
+        status = CLOSE
     left = []
     if len(found) < len(answers):
         n = len(answers) - len(found)
@@ -285,8 +300,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     return Plan(tool="inspect", judge=judge, status=status, why=why, model=model,
                 provider=check.provider, key_lines=check.lines, notes=notes,
                 calls_each=[calls] * len(found), tokens=tokens, left_out=left,
-                settings=check.settings, key_ok=check.ok, key_step=check.step,
-                tool_version=installed or made_with, runner=[python], payload=payload,
+                settings=check.settings, not_passed=check.not_passed, key_ok=check.ok,
+                key_step=check.step, tool_version=installed or made_with, runner=[python], payload=payload,
                 job={"log": str(root / data["results_files"][0]), "scorer": metric,
                      "new": new, "rule": opts.rule,
                      "rule_field": data.get("rule_field") or "instructions"},
@@ -325,13 +340,15 @@ def run(ws, plan: Plan, talk) -> Fresh:
     def differs(entry, lines):
         return entry[2] is not None and any(x.get("prompt") != entry[2] for x in lines)
 
-    fresh, got, done = worker_run.ask(ws, plan, talk, "Inspect AI")
+    fresh, got, done = worker_run.ask(ws, plan, talk, "Inspect AI", env=keys.passed_on(
+        "inspect", ws.root, keys.key_names()))
     worker_run.count(fresh, plan, got, "Inspect AI", verdict, differs)
     log = {"eval": eval_header(plan.job["log"])}  # the header only: never every sample again
     made_with = ((log.get("eval") or {}).get("packages") or {}).get("inspect_ai")
     version = done.get("version") or plan.tool_version
     counted = [e for e in plan.payload if e[0]["id"] in fresh.verdicts]
-    if plan.status == CLOSE and counted and all(e[2] is not None for e in counted):
+    if plan.status == CLOSE and not plan.not_passed and counted and all(
+            e[2] is not None for e in counted):
         plan.status = EXACT
         plan.why = (f"the grading prompts matched your saved ones on every answer (Inspect "
                     f"{version} here; your log was made with {made_with})")

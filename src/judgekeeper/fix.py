@@ -26,7 +26,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper import __version__, batches, marks, reasons, start_fix_rule, targets
+from judgekeeper import __version__, batches, keys, marks, reasons, start_fix_rule, targets
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.links import link, said
@@ -1040,6 +1040,8 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
     calls = sum(p.calls for p in plans)
     talk.para(ASK.format(n=len(split.hidden), calls=plural(calls, "AI call"))
               + downloads(plans[0]))
+    if plans[0].not_passed:
+        talk.para(keys.not_passed_line(plans[0].not_passed))
     from judgekeeper import judge_setup
 
     if _can_write((judge_setup.read(ws) or {}).get("setup") or {}):

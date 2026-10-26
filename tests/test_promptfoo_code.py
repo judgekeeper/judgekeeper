@@ -24,6 +24,7 @@ from judgekeeper.again.fresh import AgainError
 from tests import test_check, test_fix
 from tests.start_projects import promptfoo_project
 from tests.test_again_plan import _checked, _edit, _rows
+from tests.test_again_run import fake  # noqa: F401
 from tests.test_fix import here, judge  # noqa: F401
 
 CODE_VALUES = ["file://evil.js", "FILE://evil.js", "package:x", "exec:x", "python:x.py"]
@@ -84,12 +85,12 @@ def _wrap(monkeypatch) -> dict:
 
     def runner(argv, cwd, env=None, timeout=None):
         if "eval" in argv:
-            config = json.loads((Path(cwd) / argv[argv.index("-c") + 1]).read_text(
-                encoding="utf-8"))
-            tests = json.loads((Path(cwd) / config["tests"].removeprefix("file://"))
+            path = Path(cwd) / argv[argv.index("-c") + 1]
+            config = json.loads(path.read_text(encoding="utf-8"))
+            tests = json.loads((path.parent / config["tests"].removeprefix("file://"))
                                .read_text(encoding="utf-8"))
-            if any(_runs_code(t) for t in tests):
-                (Path(cwd) / MARKER).write_text("ran", encoding="utf-8")
+            if any(_runs_code(t) for t in tests):  # in the project, beside the config
+                (path.parent / MARKER).write_text("ran", encoding="utf-8")
             repeat = int(argv[argv.index("--repeat") + 1])
             holder["graded"] += repeat * sum(len(t["assert"]) for t in tests)
         return inner(argv, cwd, env, timeout)
@@ -232,7 +233,8 @@ def _node(monkeypatch) -> None:
 
     def runner(argv, cwd, env=None, timeout=None):
         if "--require" in (env or {}).get("NODE_OPTIONS", ""):
-            (Path(cwd) / MARKER).write_text("ran", encoding="utf-8")
+            where = Path(cwd) / argv[argv.index("-c") + 1] if "-c" in argv else Path(cwd) / "x"
+            (where.parent / MARKER).write_text("ran", encoding="utf-8")
         return inner(argv, cwd, env, timeout)
 
     monkeypatch.setattr(again, "run_process", runner)
@@ -262,12 +264,23 @@ def test_fix_refuses_a_config_env_it_does_not_pass_on(here, capsys, judge,  # no
                                   "PATH", "DYLD_INSERT_LIBRARIES", "npm_config_registry",
                                   "HTTPS_PROXY", "AZURE_OPENAI_API_HOST", "MY_ENDPOINT",
                                   "COMSPEC", "SHELL", "BASH_ENV", "ENV", "PYTHONPATH",
-                                  "PYTHONSTARTUP"])
-def test_fix_refuses_a_dotenv_that_redirects_promptfoo(here, capsys, judge,  # noqa: F811
-                                                         fixing, name):
-    (here / ".env").write_text(f"OPENAI_API_KEY=x\nexport {name}=x\n", encoding="utf-8")
+                                  "PYTHONSTARTUP", "AWS_CONFIG_FILE"])
+def test_fix_hands_promptfoo_no_dotenv_name_but_a_key(here, capsys, judge,  # noqa: F811
+                                                      fixing, monkeypatch, name):
+    seen, inner = [], again.run_process
+
+    def runner(argv, cwd, env=None, timeout=None):
+        seen.append((Path(cwd), dict(env or {})))
+        return inner(argv, cwd, env, timeout)
+
+    monkeypatch.setattr(again, "run_process", runner)
+    (here / ".env").write_text(f"OPENAI_API_KEY=x\nexport {name}=zq-from-dotenv\n",
+                               encoding="utf-8")
     code, out = test_fix.run(capsys, "--yes")
-    _refused(code, out, judge, here, f"your .env sets `{name}`")
+    assert code == 0, out
+    assert judge["evals"] == 2
+    for cwd, env in seen:  # promptfoo reads no .env where it runs, and gets no such name
+        assert not (cwd / ".env").exists() and env.get(name) != "zq-from-dotenv"
 
 
 @pytest.mark.parametrize("name", ["NO_PROXY", "no_proxy"])
@@ -673,3 +686,44 @@ def test_the_last_check_finds_a_config_env_set_after_the_plan(tmp_path, monkeypa
 def test_a_version_with_other_digits_does_not_read_as_one():
     assert pf.VERSION.fullmatch("0.124.1")
     assert not pf.VERSION.fullmatch("٠.١٢٣.٠")
+
+
+# The last look before promptfoo reads the tests -----------------------------------------------
+
+def test_a_later_assertions_grader_is_checked_at_the_last_look(fake):  # noqa: F811
+    from tests.test_again_run import _Said
+
+    plan = make_plan(fake.ws, AgainOptions(), dry=True)
+    assert plan.status != again.CANT, plan.why
+    hooked = {"type": "llm-rubric", "value": "Is polite.",
+              "provider": "webhook:http://127.0.0.1:9/grade"}
+    plan.payload = [(a, row, [*comps, {**comps[0], "assertion": hooked}], opts, default)
+                    for a, row, comps, opts, default in plan.payload]
+    with pytest.raises(AgainError, match="webhook:http://127.0.0.1:9/grade"):
+        again.run_tool(fake.ws, plan, _Said())
+    assert not [c for c in fake.calls if "eval" in c.argv]
+
+
+# A .env setting judgekeeper does not pass on is named before the yes ------------------------
+
+NOT_PASSED = ("{name} is set in .env, which judgekeeper does not pass on: your LLM-as-a-judge "
+              "is asked without it. To use it, set it in your shell.")
+
+
+def test_fix_names_a_dotenv_setting_it_does_not_pass_on(here, capsys, judge,  # noqa: F811
+                                                        fixing):
+    (here / ".env").write_text("OPENAI_API_KEY=x\nOPENAI_BASE_URL: http://127.0.0.1:9/v1\n",
+                               encoding="utf-8")
+    code, out = test_fix.run(capsys)
+    assert code == 3, out
+    assert NOT_PASSED.format(name="OPENAI_BASE_URL") in _flat(out)
+    assert judge["evals"] == 0
+
+
+def test_check_names_a_dotenv_setting_it_does_not_pass_on(checking, capsys, asked):
+    _changed_judge(checking)
+    (checking / ".env").write_text("ANTHROPIC_BASE_URL: http://127.0.0.1:9\n", encoding="utf-8")
+    code, out = test_check.run(capsys)
+    assert code == 3, out
+    assert NOT_PASSED.format(name="ANTHROPIC_BASE_URL") in _flat(out)
+    assert test_check._evals(asked) == 0

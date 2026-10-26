@@ -144,13 +144,14 @@ DEFAULT_PORT = 8765
 
 
 def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser: bool = False,
-                   **values) -> tuple[str, ...]:
+                   kept: bool = False, **values) -> tuple[str, ...]:
     """The words a printed command repeats: the path (unless this folder), each REPEATED flag
-    that was given, then --port (unless the default) and --no-browser."""
-    words = [] if str(path) == "." else [quote_arg(path)]
+    that was given, then --port (unless the default) and --no-browser. `kept`: for a command
+    kept in a file or on the page (quote_arg)."""
+    words = [] if str(path) == "." else [quote_arg(path, kept)]
     for name, flag in REPEATED:
         if values.get(name) is not None:
-            words += [flag, quote_arg(str(values[name]))]
+            words += [flag, quote_arg(str(values[name]), kept)]
     if port != DEFAULT_PORT:
         words += ["--port", str(port)]
     if no_browser:

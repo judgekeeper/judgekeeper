@@ -290,7 +290,7 @@ def test_inspect_rescores_a_copy_of_the_log(inspect_ws, stubs, capsys):
     assert created[0]["options"] == {"instructions": "Grade the answer as C (correct) or I "
                                                      "(incorrect).", "partial_credit": True,
                                      "model_role": "grader"}
-    assert stubs("dotenv"), "Inspect's own .env loader is used"
+    assert stubs("dotenv") == [], "Inspect's own .env loader is never called"
     assert stubs("log-written") == [] and log.read_bytes() == before
     assert (_folder(inspect_ws) / "inspect.jsonl").is_file()
 
@@ -355,13 +355,6 @@ def test_a_grader_given_as_a_scorer_option(tmp_path, stubs, capsys):
     assert code == 0
     assert stubs("registry_create")[0]["options"]["model"] == ["openai/gpt-4.1-mini", False]
     assert all(e["model"] == "mockllm/model" for e in stubs("score_async"))
-
-
-def test_without_inspects_loader_nothing_is_loaded(inspect_ws, stubs, capsys,
-                                                   monkeypatch):
-    monkeypatch.setenv("STUB_NO_DOTENV", "1")
-    code, _ = ask(capsys, inspect_ws)
-    assert code == 0 and stubs("dotenv") == []
 
 
 def test_the_inspect_job(inspect_ws, capsys, monkeypatch):
