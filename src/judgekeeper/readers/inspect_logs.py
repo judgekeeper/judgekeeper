@@ -95,11 +95,116 @@ TOO_BIG = ("{path} is {size}. This Inspect AI version reads a log whole, so judg
            "a time), or run your eval on fewer samples.")
 
 
+# bytes: one sample of a .eval log unpacked, its events included. Far above real samples, so
+# only a damaged or crafted log reaches it (inspect_ai unpacks a sample whole).
+SAMPLE_LIMIT = 200 * 2**20
+UNPACKS_TOO_BIG = ("{path} would unpack to more than {limit} for {part}, the most judgekeeper "
+                   "reads for {part} of an Inspect AI log, so it did not read it. The log may be "
+                   "damaged, or not an Inspect AI log.")
+STEP = 2**20  # bytes unpacked at a time while a part of a .eval log is counted
+ZSTD = 93  # zstd's number as a zip compression method: inspect_ai's own
+
+
 def _size(n: int) -> str:
     for unit, step in (("GB", 2**30), ("MB", 2**20), ("KB", 2**10)):
         if n >= step:
             return f"{n / step:.1f}".removesuffix(".0") + f" {unit}"
     return f"{n} bytes"
+
+
+class _Packed:
+    """The packed bytes of one zip part, read a step at a time."""
+
+    def __init__(self, f, left: int):
+        self.f, self.left = f, left
+
+    def read(self, n: int = -1) -> bytes:
+        data = self.f.read(self.left if n is None or n < 0 else min(n, self.left))
+        self.left -= len(data)
+        return data
+
+
+def _unpacks_to(f, part, most: int) -> int:
+    """How many bytes the zip `part` unpacks to, counted by unpacking it STEP bytes at a time
+    and keeping none; the count stops once past `most`. Never through zipfile.open(): for zstd
+    it unpacks a whole chunk at once, and it trusts the size the zip declares. ValueError for a
+    part inspect_ai never writes: another compression, or encrypted."""
+    import struct
+    import zipfile
+    import zlib
+
+    f.seek(part.header_offset)
+    head = f.read(30)
+    if len(head) < 30 or head[:4] != b"PK\x03\x04" or part.flag_bits & 1:
+        raise ValueError("not a part of an Inspect AI log")
+    name, extra = struct.unpack_from("<HH", head, 26)
+    f.seek(part.header_offset + 30 + name + extra)
+    packed, n = _Packed(f, part.compress_size), 0
+    if part.compress_type == zipfile.ZIP_STORED:  # kept as it is: its size is what it holds
+        return part.compress_size
+    if part.compress_type == zipfile.ZIP_DEFLATED:
+        unpack = zlib.decompressobj(-15)
+        while n <= most and not unpack.eof:
+            data = unpack.unconsumed_tail or packed.read(STEP)
+            out = unpack.decompress(data, STEP)
+            if not data and not out:
+                break
+            n += len(out)
+        return n
+    if part.compress_type == ZSTD:
+        import zstandard
+
+        reader = zstandard.ZstdDecompressor().stream_reader(
+            packed, read_size=STEP, read_across_frames=True, closefd=False)
+        while n <= most and (out := reader.read(STEP)):
+            n += len(out)
+        return n
+    raise ValueError("not a compression inspect_ai writes")
+
+
+def _too_big(path: Path, sizes, whole: bool) -> None:
+    """RecordsError at the first of `sizes` (is it a sample, its bytes unpacked; per part)
+    that passes a limit: the header parts together WHOLE_LIMIT, one sample SAMPLE_LIMIT, and
+    with `whole` (a log read whole) all of it WHOLE_LIMIT."""
+    header = total = 0
+    for is_sample, n in sizes:
+        total += n
+        header += 0 if is_sample else n
+        if whole and total > WHOLE_LIMIT:
+            raise RecordsError(TOO_BIG.format(path=path, size=f"more than {_size(WHOLE_LIMIT)} "
+                                              "unpacked", limit=_size(WHOLE_LIMIT)))
+        for part, size, limit in (("the header", header, WHOLE_LIMIT),
+                                  ("one sample", n if is_sample else 0, SAMPLE_LIMIT)):
+            if size > limit:
+                raise RecordsError(UNPACKS_TOO_BIG.format(path=path, part=part,
+                                                          limit=_size(limit)))
+
+
+def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> None:
+    """Refuse a .eval log (a zip) whose parts unpack too big (_too_big), before inspect_ai
+    reads it: first by the sizes the zip declares, then by what each part really unpacks to
+    (_unpacks_to), as a zip can declare any size. Nothing unpacked is kept, so memory stays
+    low. `samples=False`: the header parts only. A file that isn't a zip is left to
+    inspect_ai, which says so."""
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(path) as z:
+            parts = z.infolist()
+    except (OSError, ValueError, zipfile.BadZipFile):
+        return
+    parts = [p for p in parts if samples or not p.filename.startswith("samples/")]
+    _too_big(path, ((p.filename.startswith("samples/"), p.file_size) for p in parts), whole)
+    try:
+        with path.open("rb") as f:
+            _too_big(path, ((p.filename.startswith("samples/"), _unpacks_to(
+                f, p, SAMPLE_LIMIT if p.filename.startswith("samples/") else WHOLE_LIMIT))
+                for p in parts), whole)
+    except RecordsError:
+        raise
+    except Exception:  # noqa: BLE001 - a part that can't be unpacked: never read
+        raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not an "
+                                          "Inspect AI log") from None
 
 
 def _by_sample(path: Path, read_eval_log, read_samples) -> dict:
@@ -136,6 +241,8 @@ def _load(path: Path) -> dict:
             if size > WHOLE_LIMIT:
                 raise RecordsError(TOO_BIG.format(path=path, size=_size(size),
                                                   limit=_size(WHOLE_LIMIT)))
+        if is_eval:
+            _check_unpacked(path, whole=read_eval_log_samples is None)
         try:
             with quiet():
                 if is_eval and read_eval_log_samples is not None:
@@ -166,6 +273,8 @@ def eval_header(path: str | Path) -> dict:
     spec = None
     if read_eval_log is not None:
         try:
+            if path.suffix.lower() == ".eval":
+                _check_unpacked(path, samples=False)
             with quiet():
                 spec = read_eval_log(str(path), header_only=True).eval.model_dump(mode="json")
         except Exception:  # noqa: BLE001 - Inspect's own errors: the header only shapes advice
